@@ -100,7 +100,7 @@ const Sync = (() => {
   const fromB64 = (s, type) => { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type }); };
 
   // ---------- synchronisation ----------
-  async function run({ quiet = false } = {}) {
+  async function run({ quiet = false, force = false } = {}) {
     if (!enabled()) return;
     if (running) { again = true; return; }
     if (navigator.onLine === false) { setStatus('error', 'Hors connexion'); return; }
@@ -150,6 +150,8 @@ const Sync = (() => {
         try { const d = await call('download', { id: f.driveId }); f.blob = fromB64(d.b64, f.mime || d.mime); await DB.putRaw('files', f); pulledCount++; }
         catch (e) { console.warn('download', f.id, e); }
       }
+      // 5) documents lisibles dans Drive (PDF des tableaux, réserves, rapports)
+      if (force || Date.now() - LS.get('docsAt', 0) > 90000) { await syncDocs(); LS.set('docsAt', Date.now()); }
       st.last = Date.now(); LS.set('last', st.last);
       setStatus('ok');
       if (pulledCount) {
@@ -164,6 +166,51 @@ const Sync = (() => {
       if (again) schedule(1500);
     }
   }
+  // ---------- PDF automatiques rangés par date ----------
+  const hash = (o) => { const s = JSON.stringify(o, (k, v) => (k === 'updatedAt' || k === 'lastOpened' || k === 'driveDocs' || k === 'syncedAt' || k === 'blob') ? undefined : v); let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return String(h); };
+  async function capturePdf(fn) {
+    const cap = [], L = window.loading, A = window.alertBox;
+    window.PdfCapture = cap; window.loading = () => ({ set() {}, close() {} }); window.alertBox = async (m) => console.warn('pdf', m);
+    try { await fn(); } catch (e) { console.warn('pdf', e); } finally { window.PdfCapture = null; window.loading = L; window.alertBox = A; }
+    return cap[0];
+  }
+  async function syncDocs() {
+    if (!window.jspdf) return;
+    const projects = await DB.all('projects');
+    for (const p of projects) {
+      const docs = p.driveDocs || {}; let dirty = false;
+      const pn = clean(p.name, 'Projet');
+      const jobs = [];
+      for (const d of await DB.byProject('receptions', p.id)) {
+        if (!(d.rows || []).some(r => r.element)) continue;
+        const bet = d.type === 'Bétonnage', title = bet ? 'Programme de bétonnage' : 'Réception ferraillage';
+        const files = []; for (const r of d.rows) files.push(...(r.photoIds || []), ...(r.retourIds || [])); files.push(...(d.pvIds || []));
+        jobs.push({ key: 'rec:' + d.id, sig: hash([d, p.pdfTitle, files.length]), segs: [pn, title, (d.date || '').slice(0, 7), d.date], name: `${title} ${d.date}.pdf`, make: () => receptionPdf(p, d) });
+      }
+      const tasks = await DB.byProject('tasks', p.id);
+      if (tasks.length) jobs.push({ key: 'res', sig: hash(tasks), segs: [pn, 'Réserves'], name: 'Liste des réserves (à jour).pdf', make: () => buildReservesPdf(p, { company: 'all', status: 'all', period: 'all', photos: 'yes' }, () => {}) });
+      for (const r of await DB.byProject('reports', p.id)) jobs.push({ key: 'rep:' + r.id, sig: hash(r), segs: [pn, 'Rapports journaliers', (r.date || '').slice(0, 7)], name: `Rapport journalier ${r.date}.pdf`, make: () => dailyPdf(r) });
+      for (const f of await DB.byProject('forms', p.id)) jobs.push({ key: 'form:' + f.id, sig: hash(f), segs: [pn, 'Formulaires'], name: `PV ${(f.date || '').slice(0, 10)} ${clean(f.title)}.pdf`, make: () => formPdf(f) });
+      jobs.forEach(j => { j.sig += '|' + pn; });
+      const todo = jobs.filter(j => !docs[j.key] || docs[j.key].sig !== j.sig);
+      let n = 0;
+      for (const j of todo) {
+        n++; setStatus('sync', `PDF dans Drive ${n}/${todo.length}`);
+        const out = await capturePdf(j.make); if (!out) continue;
+        const res = await call('upload', { path: j.segs, name: j.name, mime: 'application/pdf', b64: await b64(out.blob) });
+        const old = docs[j.key] && docs[j.key].id;
+        if (old && old !== res.id) await call('push', { records: [{ _store: 'gen', id: j.key + ':' + Date.now(), driveId: old, _deleted: true, updatedAt: Date.now() }] });
+        docs[j.key] = { id: res.id, sig: j.sig }; dirty = true;
+      }
+      // documents dont la source a été supprimée
+      for (const k of Object.keys(docs)) if (!jobs.some(j => j.key === k)) {
+        await call('push', { records: [{ _store: 'gen', id: k + ':' + Date.now(), driveId: docs[k].id, _deleted: true, updatedAt: Date.now() }] });
+        delete docs[k]; dirty = true;
+      }
+      if (dirty) { const cur = await DB.get('projects', p.id); if (cur) { cur.driveDocs = docs; await DB.put('projects', cur); } }
+    }
+  }
+
   function schedule(ms = 4000) { if (!enabled()) return; clearTimeout(timer); timer = setTimeout(() => run(), ms); }
 
   function start() {
@@ -286,7 +333,7 @@ function doPost(e) {
         <button class="btn ghost" data-a="script">${icon('file')} Copier le code du script</button>
         <button class="btn danger" data-a="off">Déconnecter cet appareil</button>
       </div>`, { title: 'Synchronisation Google Drive' });
-      $('[data-a=now]', s.el).onclick = () => run();
+      $('[data-a=now]', s.el).onclick = () => run({ force: true });
       const o = $('[data-a=open]', s.el); if (o) o.onclick = () => openUrl(c.folder);
       $('[data-a=code]', s.el).onclick = () => copy(codeOf(c));
       $('[data-a=script]', s.el).onclick = () => copy(script(c.key));

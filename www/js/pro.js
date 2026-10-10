@@ -195,6 +195,7 @@ function newDoc(title, project, opts = {}) {
 }
 
 async function sharePdf(doc, fname) {
+  if (window.PdfCapture) { window.PdfCapture.push({ blob: doc.output('blob'), fname }); return; }   // génération pour Drive
   const fs = window.Capacitor?.Plugins?.Filesystem, share = window.Capacitor?.Plugins?.Share;
   if (fs && share) {
     const b64 = doc.output('datauristring').split(',')[1];
