@@ -19,6 +19,7 @@ const FORM_TEMPLATES = [
 ];
 const WEATHER = ['Ensoleillé', 'Nuageux', 'Pluie', 'Vent fort', 'Chaleur', 'Froid'];
 
+const APP_VERSION = '__APP_VERSION__';
 const App = { project: null, section: 'plans', taskFilter: 'all', search: '' };
 
 // ---------- Helpers données ----------
@@ -66,6 +67,7 @@ async function renderHome() {
   $('#app').innerHTML = `
     <div class="topbar">
       <div class="brand"><span class="logo">${icon('hard')}</span>CHANTIER</div>
+      <button class="iconbtn" data-a="homemore">${icon('more')}</button>
     </div>
     <div class="content">
       <div class="section-label">Projets sur l'appareil</div>
@@ -73,10 +75,18 @@ async function renderHome() {
         <div class="row" data-id="${p.id}"><span class="icon-muted">${icon('hard')}</span>
           <div class="grow"><div class="title">${esc(p.name)}</div>${p.address ? `<div class="sub">${esc(p.address)}</div>` : ''}</div>
           <span class="icon-muted">${icon('chevright')}</span></div>`).join('')}</div>`
-      : `<div class="empty">Aucun projet pour le moment.<br>Appuyez sur <b>+</b> pour créer votre premier chantier.</div>`}
+      : `<div class="empty">Aucun projet pour le moment.<br>Appuyez sur <b>+</b> pour créer votre premier chantier.<br><br><button class="btn ghost" data-a="restore2" style="flex:none">${icon('undo')} Restaurer une sauvegarde</button></div>`}
     </div>
     <button class="fab" data-a="new">${icon('plus')}</button>`;
   $$('.row[data-id]').forEach(r => r.onclick = async () => openProject(await DB.get('projects', r.dataset.id)));
+  $('[data-a=homemore]').onclick = async () => {
+    const v = await menu('Chantier', [
+      { label: 'Restaurer une sauvegarde', icon: 'undo', value: 'restore' },
+      { label: `Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}`, icon: 'settings', value: null },
+    ]);
+    if (v === 'restore') restoreBackup();
+  };
+  const r2 = $('[data-a=restore2]'); if (r2) r2.onclick = restoreBackup;
   $('[data-a=new]').onclick = async () => {
     const r = await formSheet('Nouveau projet', [
       { name: 'name', label: 'Nom du projet', placeholder: 'Ex : Grand stade Hassan II Benslimane' },
@@ -767,14 +777,42 @@ async function renderSettings(root) {
       <label>Nom du projet<input name="name" value="${esc(p.name)}"></label>
       <label>Adresse / ville<input name="address" value="${esc(p.address)}"></label>
       <button class="btn" data-a="save">Enregistrer</button>
+      <div style="height:12px"></div>
+      <div class="card" style="margin:0;padding:16px">
+        <div style="font-weight:600;margin-bottom:6px">Sauvegarde</div>
+        <div style="color:var(--muted);font-size:14px;line-height:1.5;margin-bottom:12px">Crée un fichier <b>.chantier</b> avec tout le projet (plans, pins, tâches, photos, formulaires, rapports). Enregistrez-le dans Google Drive ou envoyez-le sur WhatsApp. Pour le récupérer : accueil → ⋮ → Restaurer une sauvegarde.</div>
+        <button class="btn" data-a="backup" style="width:100%">${icon('share')} Sauvegarder ce projet</button>
+      </div>
       <div style="height:20px"></div>
       <button class="btn danger" data-a="del">${icon('trash')} Supprimer le projet</button>
-      <p style="color:var(--muted);font-size:13px;line-height:1.5">Les données sont enregistrées sur ce téléphone uniquement (fonctionne sans internet). Si vous désinstallez l'application, les données seront perdues.</p>
+      <p style="color:var(--muted);font-size:13px;line-height:1.5">Les données sont enregistrées sur ce téléphone uniquement (fonctionne sans internet). Si vous désinstallez l'application, les données seront perdues : faites une sauvegarde régulièrement.<br>Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}</p>
     </div>`;
   $('[data-a=save]', root).onclick = async () => { p.name = $('[name=name]', root).value.trim() || p.name; p.address = $('[name=address]', root).value.trim(); await DB.put('projects', p); toast('Enregistré ✓'); renderSection(); };
+  $('[data-a=backup]', root).onclick = async () => {
+    const ld = loading('Préparation de la sauvegarde…');
+    try {
+      await Backup.exportProject(p.id, (i, n) => ld.set(`Sauvegarde… ${i}/${n}`));
+      p.lastBackup = Date.now(); await DB.put('projects', p);
+    } catch (e) { console.error(e); alertBox('Erreur de sauvegarde : ' + (e.message || e)); }
+    finally { ld.close(); }
+  };
   $('[data-a=del]', root).onclick = async () => {
     if (await confirmBox(`Supprimer « ${p.name} » et toutes ses données ?`)) { await DB.deleteProject(p.id); renderHome(); }
   };
+}
+
+// ---------- Restauration ----------
+async function restoreBackup() {
+  const files = await pickFiles({ accept: '*/*', multiple: false });
+  if (!files.length) return;
+  const ld = loading('Restauration…');
+  try {
+    const p = await Backup.importFile(files[0], (n) => ld.set(`Restauration… ${n} éléments`));
+    ld.close();
+    if (p) { toast('Projet restauré ✓'); openProject(await DB.get('projects', p.id)); }
+  } catch (e) {
+    ld.close(); console.error(e); alertBox('Restauration impossible : ' + (e.message || e));
+  }
 }
 
 // ---------- Démarrage ----------

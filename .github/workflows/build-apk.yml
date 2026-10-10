@@ -29,6 +29,9 @@ jobs:
       - name: Copy PDF reader (pdf.js)
         run: npm run copy-libs
 
+      - name: Set app version
+        run: sed -i "s/__APP_VERSION__/1.0.${{ github.run_number }}/" www/js/app.js
+
       - name: Create Android project
         run: npx cap add android
 
