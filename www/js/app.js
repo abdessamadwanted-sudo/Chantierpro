@@ -194,6 +194,12 @@ async function renderPlans(root) {
     if (more) more.onclick = () => folderMenu(f, root);
     if (open) {
       const grid = $('.plan-grid', card);
+      // tuile « + » pour ajouter un plan directement dans ce dossier
+      const add = document.createElement('div');
+      add.className = 'plan-thumb add-tile';
+      add.innerHTML = `${icon('plus')}<span>Ajouter un plan</span>`;
+      add.onclick = () => addPlanTo(f.id === '_none' ? null : f.id, folders, root);
+      grid.appendChild(add);
       for (const p of ps) {
         const t = document.createElement('div');
         t.className = 'plan-thumb';
@@ -221,8 +227,17 @@ async function renderPlans(root) {
   });
 }
 
+async function addPlanTo(folderId, folders, root) {
+  const v = await menu('Ajouter un plan', [
+    { label: 'Depuis le téléphone (PDF / image)', icon: 'plans', value: 'phone' },
+    { label: 'Depuis Google Drive (lien)', icon: 'drive', value: 'drive' },
+  ]);
+  if (v) importPlans(folders, root, v === 'drive', folderId);
+}
+
 async function folderMenu(f, root) {
-  const v = await menu(f.name, [{ label: 'Renommer', icon: 'edit', value: 'rename' }, { label: 'Supprimer le dossier', icon: 'trash', danger: true, value: 'del' }]);
+  const v = await menu(f.name, [{ label: 'Ajouter un plan ici', icon: 'plus', value: 'add' }, { label: 'Renommer', icon: 'edit', value: 'rename' }, { label: 'Supprimer le dossier', icon: 'trash', danger: true, value: 'del' }]);
+  if (v === 'add') { App.openFolders[f.id] = true; return addPlanTo(f.id, await DB.byProject('folders', App.project.id), root); }
   if (v === 'rename') {
     const r = await formSheet('Renommer', [{ name: 'name', label: 'Nom du dossier', value: f.name }]);
     if (r && r.name) { f.name = r.name; await DB.put('folders', f); renderPlans(root); }
@@ -234,10 +249,10 @@ async function folderMenu(f, root) {
   }
 }
 
-async function importPlans(folders, root, fromDrive = false) {
+async function importPlans(folders, root, fromDrive = false, presetFolder) {
   const pid = App.project.id;
-  let folderId = null;
-  if (folders.length) {
+  let folderId = presetFolder === undefined ? null : presetFolder;
+  if (presetFolder === undefined && folders.length) {
     folderId = await menu('Dans quel dossier ?', [...folders.map(f => ({ label: f.name, icon: 'folder', value: f.id })), { label: 'Sans dossier', icon: 'plans', value: '_none' }]);
     if (!folderId) return;
     if (folderId === '_none') folderId = null;
