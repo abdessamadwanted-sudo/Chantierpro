@@ -128,8 +128,8 @@ async function renderReceptions(root, kind = 'Ferraillage') {
     const hits = [];
     for (const d of all) d.rows.forEach(r => { if (pvMissing(r) && (!nivF || (r.niv || '').trim() === nivF) && (!q || `${r.element} ${r.zone} ${r.niv} ${r.avec}`.toLowerCase().includes(q))) hits.push({ d, r }); });
     body.innerHTML = hits.length ? `<div class="section-label">${hits.length} PV pas encore reçu(s)</div><div class="list">${hits.map(({ d, r }, i) => `
-      <div class="row" data-h="${i}"><div class="grow"><div class="title">${r.zone ? 'Zone ' + esc(r.zone) + ' · ' : ''}${r.niv ? esc(r.niv) + ' — ' : ''}${esc(r.element)}</div>
-        <div class="sub">📅 Réceptionné le ${fmtDate(d.date)}${r.avec ? ' · avec ' + esc(r.avec) : ''} · <span style="color:${daysSince(d.date) >= 3 ? '#ef4444' : '#f59e0b'}">attente ${daysSince(d.date)} j</span></div></div>
+      <div class="row pvrow" data-h="${i}"><div class="grow"><div class="title wrap">${r.zone ? 'Zone ' + esc(r.zone) + ' · ' : ''}${r.niv ? esc(r.niv) + ' — ' : ''}${esc(r.element)}</div>
+        <div class="sub">📅 Réceptionné le ${fmtDate(d.date)}${r.avec ? ' · avec ' + esc(r.avec) : ''} · <span style="white-space:nowrap;color:${daysSince(d.date) >= 3 ? '#ef4444' : '#f59e0b'}">${daysSince(d.date) ? 'attente ' + daysSince(d.date) + ' j' : 'aujourd\'hui'}</span></div></div>
         <button class="btn small" data-ok="${i}" style="flex:none">${icon('check')} Reçu</button></div>`).join('')}</div>`
       : `<div class="empty">Tous les PV ont été reçus 👍</div>`;
     $$('[data-h]', body).forEach(el => el.onclick = async (e) => {
@@ -143,7 +143,7 @@ async function renderReceptions(root, kind = 'Ferraillage') {
     for (const d of all) d.rows.forEach(r => { if (r.element && (!nivF || (r.niv || '').trim() === nivF) && (!q || `${r.element} ${r.zone} ${r.niv} ${r.obs}`.toLowerCase().includes(q))) hits.push({ d, r }); });
     body.innerHTML = hits.length ? `<div class="section-label">${hits.length} résultat(s)</div><div class="list">${hits.map(({ d, r }, i) => `
       <div class="row" data-h="${i}"><span class="rs" style="background:${REC_STATUS[r.status].color};min-width:74px;text-align:center">${stLabel(kind, r.status)}</span>
-        <div class="grow"><div class="title">${esc(r.element)}</div>
+        <div class="grow"><div class="title wrap">${esc(r.element)}</div>
         <div class="sub">📅 ${fmtDate(d.date)}${r.zone ? ' · Zone ' + esc(r.zone) : ''}${r.niv ? ' · ' + esc(r.niv) : ''}${r.classe ? ' · ' + esc(r.classe) : ''}${r.avec ? ' · avec ' + esc(r.avec) : ''}${!isBeton(kind) && r.status !== 'pending' ? (r.pvRecu ? ' · <span style="color:#22c55e">PV reçu</span>' : ' · <span style="color:#ef4444">PV manquant</span>') : ''}${r.obs ? `<br><span style="color:${r.status === 'reserve' ? '#f59e0b' : 'var(--muted)'}">${esc(r.obs)}</span>` : ''}</div></div>
         <button class="iconbtn" data-sh="${i}">${icon('share')}</button></div>`).join('')}</div>`
       : `<div class="empty">Aucun ouvrage trouvé${q ? ` pour « ${esc(q)} »` : ''}${nivF ? ` au niveau ${esc(nivF)}` : ''}.</div>`;

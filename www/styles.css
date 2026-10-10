@@ -399,3 +399,5 @@ table.rec tbody tr { -webkit-user-select:none; user-select:none; -webkit-touch-c
 .sheet .seg:has([data-tab]) { display: flex; gap: 8px; } .sheet .seg [data-tab] { flex: 1; }
 .sheet .seg [data-tab].on { background: #1e66d0; color: #fff; border-color: #1e66d0; }
 .sync-diag { font-size: 13.5px; line-height: 1.7; background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; word-break: break-word; }
+.row .title.wrap { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; line-height: 1.35; word-break: break-word; }
+.row.pvrow { align-items: center; } .row.pvrow .btn.small { padding: 10px 14px; }
