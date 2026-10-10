@@ -330,3 +330,14 @@ table.rec tbody tr[data-i]:active td { background: #e8f0fe; }
 .rs { display: inline-block; color: #fff; font-size: 11px; font-weight: 700; padding: 3px 7px; border-radius: 9px; }
 tr.addrow td { border: 0 !important; padding: 12px 8px !important; background: #f6f8fb; }
 tr.addrow button { display: inline-flex; align-items: center; gap: 8px; color: #1e66d0; font-weight: 700; font-size: 15px; padding: 8px 10px; }
+
+.tb-title { flex: 1; min-width: 0; padding-left: 10px; display: flex; flex-direction: column; }
+.tb-title b { font-size: 20px; font-weight: 500; }
+.tb-title span { font-size: 13px; color: var(--text); opacity: .9; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tb-actions { display: flex; }
+.prow { padding: 16px 18px; gap: 16px; }
+.prow .pic { color: var(--muted); display: grid; place-items: center; }
+.prow .pic svg.i { width: 26px; height: 26px; }
+.plan-rows .prow { margin-left: 0; }
+.plan-rows .prow + .prow { border-top: 1px solid var(--line); }
+.prow { border-bottom: 0 !important; }

@@ -49,6 +49,7 @@ const ICONS = {
   ruler: '<path d="M21.3 8.7L8.7 21.3a1 1 0 0 1-1.4 0l-4.6-4.6a1 1 0 0 1 0-1.4L15.3 2.7a1 1 0 0 1 1.4 0l4.6 4.6a1 1 0 0 1 0 1.4z"/><path d="M7.5 10.5l2 2M10.5 7.5l2 2M13.5 4.5l2 2M4.5 13.5l2 2"/>',
   disc: '<circle cx="12" cy="12" r="8" fill="currentColor" fill-opacity=".85"/>',
   box: '<rect x="4" y="5" width="16" height="14" rx="1" fill="currentColor" fill-opacity=".85"/>',
+  sheet: '<rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M7 16V9h5v7M12 12h4v4M17 4v5"/>',
   section: '<path d="M4 4v16M20 4v16"/><path d="M4 12h16"/><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/>',
   grid: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
   rows: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M3 14h18M8 4v16"/>',

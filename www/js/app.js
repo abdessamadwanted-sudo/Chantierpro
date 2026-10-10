@@ -107,7 +107,7 @@ async function openProject(p) {
 // ---------- Structure d'un projet ----------
 const SECTIONS = {
   dashboard: { label: 'Tableau de bord', icon: 'layers', render: (r) => renderDashboard(r) },
-  plans: { label: 'Plans', icon: 'plans', render: renderPlans },
+  plans: { label: 'Plans', icon: 'plans', render: renderPlans, title: 'Plans', subtitle: 'Toutes les tâches sur les plans' },
   tasks: { label: 'Réserves / Tâches', icon: 'tasks', render: renderTasks },
   reception: { label: 'Tableau de réception', icon: 'grid', render: (r) => renderReceptions(r) },
   photos: { label: 'Photos', icon: 'camera', render: renderPhotos },
@@ -124,12 +124,12 @@ async function renderSection() {
   $('#app').innerHTML = `
     <div class="topbar dark">
       <button class="iconbtn" data-a="drawer">${icon('menu')}</button>
-      <h1>${esc(App.project.name)}</h1>
-      <button class="iconbtn" data-a="home">${icon('home')}</button>
+      ${s.title ? `<div class="tb-title"><b>${esc(s.title)}</b><span>${esc(s.subtitle || '')}</span></div><div class="tb-actions" id="tbActions"></div>`
+        : `<h1>${esc(App.project.name)}</h1><button class="iconbtn" data-a="home">${icon('home')}</button>`}
     </div>
     <div class="content" id="content"></div>`;
   $('[data-a=drawer]').onclick = openDrawer;
-  $('[data-a=home]').onclick = renderHome;
+  const hb = $('[data-a=home]'); if (hb) hb.onclick = renderHome;
   await s.render($('#content'));
 }
 
@@ -180,11 +180,13 @@ async function renderPlans(root) {
 
   App.planView = App.planView || (() => { try { return localStorage.getItem('planView') || 'grid'; } catch (e) { return 'grid'; } })();
   const anyOpen = groups.some(g => App.openFolders[g.f.id]);
-  root.innerHTML = `
-    <div class="plans-head"><div class="ttl"><h2>Plans</h2><p>Toutes les tâches sur les plans</p></div>
+  const tba = $('#tbActions');
+  if (tba) tba.innerHTML = `
       <button class="iconbtn" data-a="fold" title="Tout ouvrir / fermer">${icon('collapse')}</button>
       <button class="iconbtn" data-a="view" title="Vue">${icon(App.planView === 'grid' ? 'rows' : 'grid')}</button>
-      <button class="iconbtn" data-a="recent" title="Récents">${icon('history')}</button></div>
+      <button class="iconbtn" data-a="recent" title="Récents">${icon('history')}</button>`;
+  root.innerHTML = `
+    <div style="height:8px"></div>
     <div class="search">${icon('search')}<input placeholder="Rechercher des plans" value="${esc(App.search)}"></div>
     ${groups.length ? '' : `<div class="empty">Aucun plan.<br>Appuyez sur <b>+</b> pour importer un plan (PDF ou image).</div>`}
     <div id="folders"></div>`;
@@ -211,20 +213,20 @@ async function renderPlans(root) {
         const t = document.createElement('div');
         const n = openCount(p.id), src = await fileURL(p.fileId);
         if (App.planView === 'grid') { t.className = 'ptile'; t.innerHTML = `<div class="im"><img src="${src}" loading="lazy"></div><div class="nm">${esc(p.name)}</div>${n ? `<span class="badge">${n}</span>` : ''}`; }
-        else { t.className = 'prow'; t.innerHTML = `<div class="im"><img src="${src}" loading="lazy"></div><div class="nm">${esc(p.name)}</div>${n ? `<span class="badge">${n}</span>` : ''}${icon('chevright')}`; }
+        else { t.className = 'prow'; t.innerHTML = `<span class="pic">${icon('sheet')}</span><div class="nm">${esc(p.name)}</div>${n ? `<span class="badge">${n}</span>` : ''}`; }
         t.onclick = () => openPlanViewer(p, planCtx(() => renderPlans(root)));
         grid.appendChild(t);
       }
       const add = document.createElement('div');
       add.className = App.planView === 'grid' ? 'ptile add' : 'prow';
-      add.innerHTML = App.planView === 'grid' ? `${icon('plus')}<span>Ajouter un plan</span>` : `<div class="im" style="display:grid;place-items:center;background:transparent;border:1.5px dashed var(--line);color:var(--accent)">${icon('plus')}</div><div class="nm" style="color:var(--accent)">Ajouter un plan</div>`;
+      add.innerHTML = App.planView === 'grid' ? `${icon('plus')}<span>Ajouter un plan</span>` : `<span class="pic" style="color:var(--accent)">${icon('plus')}</span><div class="nm" style="color:var(--accent)">Ajouter un plan</div>`;
       add.onclick = () => addPlanTo(f.id === '_none' ? null : f.id, folders, root);
       grid.appendChild(add);
     }
   }
-  $('[data-a=fold]', root).onclick = () => { groups.forEach(g => App.openFolders[g.f.id] = !anyOpen); renderPlans(root); };
-  $('[data-a=view]', root).onclick = () => { App.planView = App.planView === 'grid' ? 'list' : 'grid'; try { localStorage.setItem('planView', App.planView); } catch (e) {} renderPlans(root); };
-  $('[data-a=recent]', root).onclick = async () => {
+  $('[data-a=fold]').onclick = () => { groups.forEach(g => App.openFolders[g.f.id] = !anyOpen); renderPlans(root); };
+  $('[data-a=view]').onclick = () => { App.planView = App.planView === 'grid' ? 'list' : 'grid'; try { localStorage.setItem('planView', App.planView); } catch (e) {} renderPlans(root); };
+  $('[data-a=recent]').onclick = async () => {
     const rec = plans.filter(p => p.lastOpened).sort((a, b) => b.lastOpened - a.lastOpened).slice(0, 8);
     if (!rec.length) return toast('Aucun plan ouvert récemment');
     const id = await menu('Plans récents', rec.map(p => ({ label: `${p.name} · ${fmtDateTime(p.lastOpened)}`, icon: 'plans', value: p.id })));
