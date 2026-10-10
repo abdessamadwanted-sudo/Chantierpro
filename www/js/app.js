@@ -140,6 +140,9 @@ async function openDrawer() {
   d.innerHTML = `
     <div class="drawer-head"><h3>${esc(App.project.name)}</h3><button class="iconbtn" data-home>${icon('home')}</button></div>
     ${Object.entries(SECTIONS).map(([k, s]) => `<button class="item ${App.section === k ? 'active' : ''}" data-s="${k}">${icon(s.icon)}<span>${s.label}</span></button>`).join('')}
+    <div class="group">Liens rapides (Drive)</div>
+    ${(App.project.quickLinks || [{ id: 'reception', name: 'Tableau de réception', url: '' }]).map(q => `<button class="item" data-q="${q.id}">${icon('grid')}<span>${esc(q.name)}</span>${q.url ? `<span class="count qe" data-qe="${q.id}">${icon('edit', 'style="width:18px;height:18px;opacity:.55"')}</span>` : '<span class="count" style="font-size:12px;opacity:.6">à lier</span>'}</button>`).join('')}
+    <button class="item" data-q="__add" style="color:var(--muted)">${icon('plus')}<span>Ajouter un lien</span></button>
     <div class="group">Réserves</div>
     ${[['all', 'Toutes'], ['late', 'En retard'], ['open', 'Ouvertes'], ['progress', 'En cours'], ['done', 'Levées (terminées)'], ['verified', 'Vérifiées']].map(([k, l]) =>
       `<button class="item" data-f="${k}">${k === 'all' ? icon('tasks') : k === 'late' ? icon('calendar') : `<span class="dot" style="background:${STATUS[k].color};margin:0 5px"></span>`}<span>${l}</span><span class="count">${k === 'late' ? tasks.filter(isLate).length : cnt(k)}</span></button>`).join('')}`;
@@ -149,6 +152,7 @@ async function openDrawer() {
   bg.onclick = close;
   $('[data-home]', d).onclick = () => { close(); renderHome(); };
   $$('[data-s]', d).forEach(b => b.onclick = () => { close(); App.section = b.dataset.s; App.search = ''; renderSection(); });
+  $$('[data-q]', d).forEach(b => b.onclick = (e) => { close(); quickLink(b.dataset.q, !!e.target.closest('[data-qe]')); });
   $$('[data-f]', d).forEach(b => b.onclick = () => { close(); App.section = 'tasks'; App.taskFilter = b.dataset.f; App.companyFilter = 'all'; renderSection(); });
 }
 
@@ -173,8 +177,13 @@ async function renderPlans(root) {
   const loose = shown.filter(p => !p.folderId || !folders.find(f => f.id === p.folderId));
   if (loose.length) groups.push({ f: { id: '_none', name: 'Sans dossier' }, plans: loose });
 
+  App.planView = App.planView || (() => { try { return localStorage.getItem('planView') || 'grid'; } catch (e) { return 'grid'; } })();
+  const anyOpen = groups.some(g => App.openFolders[g.f.id]);
   root.innerHTML = `
-    <div class="pagehead"><h2>Plans</h2><p>Toutes les tâches sur les plans</p></div>
+    <div class="plans-head"><div class="ttl"><h2>Plans</h2><p>Toutes les tâches sur les plans</p></div>
+      <button class="iconbtn" data-a="fold" title="Tout ouvrir / fermer">${icon('collapse')}</button>
+      <button class="iconbtn" data-a="view" title="Vue">${icon(App.planView === 'grid' ? 'rows' : 'grid')}</button>
+      <button class="iconbtn" data-a="recent" title="Récents">${icon('history')}</button></div>
     <div class="search">${icon('search')}<input placeholder="Rechercher des plans" value="${esc(App.search)}"></div>
     ${groups.length ? '' : `<div class="empty">Aucun plan.<br>Appuyez sur <b>+</b> pour importer un plan (PDF ou image).</div>`}
     <div id="folders"></div>`;
@@ -187,7 +196,7 @@ async function renderPlans(root) {
       <div class="grow"><div class="title" style="font-size:18px">${esc(f.name)}</div><div class="sub" style="color:var(--muted);margin-top:3px">${ps.length} plan${ps.length > 1 ? 's' : ''}</div></div>
       ${f.id !== '_none' ? `<button class="iconbtn" data-more>${icon('more')}</button>` : ''}
       <span class="icon-muted" style="transform:rotate(${open ? 180 : 0}deg)">${icon('chevdown')}</span></div>
-      ${open ? `<div class="plan-grid"></div>` : ''}`;
+      ${open ? (App.planView === 'grid' ? `<div class="plan-grid fw"></div>` : `<div class="plan-rows"></div>`) : ''}`;
     box.appendChild(card);
     $('.folder-head', card).onclick = (e) => {
       if (e.target.closest('[data-more]')) return;
@@ -196,23 +205,30 @@ async function renderPlans(root) {
     const more = $('[data-more]', card);
     if (more) more.onclick = () => folderMenu(f, root);
     if (open) {
-      const grid = $('.plan-grid', card);
-      // tuile « + » pour ajouter un plan directement dans ce dossier
-      const add = document.createElement('div');
-      add.className = 'plan-thumb add-tile';
-      add.innerHTML = `${icon('plus')}<span>Ajouter un plan</span>`;
-      add.onclick = () => addPlanTo(f.id === '_none' ? null : f.id, folders, root);
-      grid.appendChild(add);
+      const grid = $('.plan-grid, .plan-rows', card);
       for (const p of ps) {
         const t = document.createElement('div');
-        t.className = 'plan-thumb';
-        const n = openCount(p.id);
-        t.innerHTML = `<img src="${await fileURL(p.fileId)}" loading="lazy"><div class="name">${esc(p.name)}</div>${n ? `<span class="badge">${n}</span>` : ''}`;
+        const n = openCount(p.id), src = await fileURL(p.fileId);
+        if (App.planView === 'grid') { t.className = 'ptile'; t.innerHTML = `<div class="im"><img src="${src}" loading="lazy"></div><div class="nm">${esc(p.name)}</div>${n ? `<span class="badge">${n}</span>` : ''}`; }
+        else { t.className = 'prow'; t.innerHTML = `<div class="im"><img src="${src}" loading="lazy"></div><div class="nm">${esc(p.name)}</div>${n ? `<span class="badge">${n}</span>` : ''}${icon('chevright')}`; }
         t.onclick = () => openPlanViewer(p, planCtx(() => renderPlans(root)));
         grid.appendChild(t);
       }
+      const add = document.createElement('div');
+      add.className = App.planView === 'grid' ? 'ptile add' : 'prow';
+      add.innerHTML = App.planView === 'grid' ? `${icon('plus')}<span>Ajouter un plan</span>` : `<div class="im" style="display:grid;place-items:center;background:transparent;border:1.5px dashed var(--line);color:var(--accent)">${icon('plus')}</div><div class="nm" style="color:var(--accent)">Ajouter un plan</div>`;
+      add.onclick = () => addPlanTo(f.id === '_none' ? null : f.id, folders, root);
+      grid.appendChild(add);
     }
   }
+  $('[data-a=fold]', root).onclick = () => { groups.forEach(g => App.openFolders[g.f.id] = !anyOpen); renderPlans(root); };
+  $('[data-a=view]', root).onclick = () => { App.planView = App.planView === 'grid' ? 'list' : 'grid'; try { localStorage.setItem('planView', App.planView); } catch (e) {} renderPlans(root); };
+  $('[data-a=recent]', root).onclick = async () => {
+    const rec = plans.filter(p => p.lastOpened).sort((a, b) => b.lastOpened - a.lastOpened).slice(0, 8);
+    if (!rec.length) return toast('Aucun plan ouvert récemment');
+    const id = await menu('Plans récents', rec.map(p => ({ label: `${p.name} · ${fmtDateTime(p.lastOpened)}`, icon: 'plans', value: p.id })));
+    if (id) openPlanViewer(rec.find(p => p.id === id), planCtx(() => renderPlans(root)));
+  };
   const inp = $('.search input', root);
   inp.oninput = () => { App.search = inp.value; clearTimeout(inp._t); inp._t = setTimeout(() => { renderPlans(root).then(() => { const i = $('.search input', root); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }); }, 300); };
 
@@ -952,6 +968,30 @@ async function renderSettings(root) {
   $('[data-a=del]', root).onclick = async () => {
     if (await confirmBox(`Supprimer « ${p.name} » et toutes ses données ?`)) { await DB.deleteProject(p.id); renderHome(); }
   };
+}
+
+// ---------- Liens rapides (ex : tableau de réception Excel dans Drive) ----------
+async function quickLink(id, editOnly = false) {
+  const p = App.project;
+  p.quickLinks = p.quickLinks || [{ id: 'reception', name: 'Tableau de réception', url: '' }];
+  const edit = async (q) => {
+    const r = await formSheet(q ? `Lien : ${q.name}` : 'Nouveau lien rapide', [
+      { name: 'name', label: 'Nom dans le menu', value: q?.name || '', placeholder: 'Ex : Tableau de réception, Planning…' },
+      { name: 'url', label: 'Lien Google Drive / Sheets du fichier Excel', type: 'url', value: q?.url || '', placeholder: 'https://docs.google.com/spreadsheets/…' },
+    ], { okLabel: 'Enregistrer', danger: q ? 'Supprimer ce lien' : null });
+    if (!r) return null;
+    if (r.__danger) { p.quickLinks = p.quickLinks.filter(x => x !== q); await DB.put('projects', p); return null; }
+    if (!r.url) { toast('Collez le lien du fichier'); return null; }
+    if (q) Object.assign(q, { name: r.name || q.name, url: r.url });
+    else { q = { id: DB.uid(), name: r.name || 'Lien', url: r.url }; p.quickLinks.push(q); }
+    await DB.put('projects', p);
+    return q;
+  };
+  if (id === '__add') { const q = await edit(null); if (q) toast('Lien ajouté au menu ✓'); return; }
+  const q = p.quickLinks.find(x => x.id === id);
+  if (!q) return;
+  if (!q.url || editOnly) { const r = await edit(q); if (r && !editOnly) openUrl(r.url); return; }
+  openUrl(q.url); // ouverture directe (Google Sheets / Drive)
 }
 
 // ---------- Restauration ----------
