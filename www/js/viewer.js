@@ -163,12 +163,17 @@ async function openPlanViewer(plan, ctx) {
           <g transform="translate(${l.x + l.w / 2},${l.y + l.h / 2}) scale(${s})">${linkBadge(l.color, n)}</g>
           <text x="${l.x + 4 * s}" y="${l.y - 6 * s}" font-size="${12 * s}" fill="${l.color}" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="${3 * s}">${esc(l.name)}</text></g>`;
       }
-      return `<g transform="translate(${l.x},${l.y}) scale(${s})">${linkBadge(l.color, n)}
-        <text x="0" y="30" text-anchor="middle" font-size="12" fill="${l.color}" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text></g>`;
+      return `<g transform="translate(${l.x},${l.y}) scale(${s})">${linkPin(l.color, n)}
+        <text x="0" y="16" text-anchor="middle" font-size="12" fill="${l.color}" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text></g>`;
     }).join('');
     const info = $('.vb-info', el);
     const nt = st.tasks.filter(t => t.planId === plan.id).length, nl = st.links.filter(l => l.planId === plan.id).length;
     info.textContent = `${nt} tâche(s) · ${nl} lien(s) · ${plan.annotations.length} annotation(s)`;
+  }
+  function linkPin(color, n) {
+    return `<path d="M0,0 C-5,-12 -17,-17 -17,-31 A17,17 0 1 1 17,-31 C17,-17 5,-12 0,0Z" fill="${color}" stroke="#fff" stroke-width="2"/>
+      <g transform="translate(-8,-39) scale(.67)" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round">${ICONS.link}</g>
+      ${n ? `<circle cx="15" cy="-44" r="9" fill="#111" stroke="#fff" stroke-width="1.5"/><text x="15" y="-40" text-anchor="middle" font-size="11" font-weight="700" fill="#fff" font-family="Arial">${n}</text>` : ''}`;
   }
   function linkBadge(color, n) {
     return `<rect x="-15" y="-15" width="30" height="30" rx="8" fill="${color}" stroke="#fff" stroke-width="2"/>
@@ -195,7 +200,7 @@ async function openPlanViewer(plan, ctx) {
   // ---------- Toolbar ----------
   const TOOLS_HINT = {
     pan: '', pin: 'Touchez le plan pour placer une tâche',
-    link: 'Toucher = point · Glisser = zone',
+    link: 'Toucher = pin · Glisser = zone',
     pen: 'Dessinez avec le doigt', shape: 'Glissez pour dessiner la forme',
     text: 'Touchez pour ajouter du texte', erase: 'Touchez une annotation pour l\'effacer',
   };
@@ -363,7 +368,7 @@ async function openPlanViewer(plan, ctx) {
       for (let i = ls.length - 1; i >= 0; i--) {
         const l = ls[i];
         if (l.shape === 'zone') { if (x >= l.x && x <= l.x + l.w && y >= l.y && y <= l.y + l.h) return { kind: 'link', obj: l }; }
-        else if (Math.hypot(x - l.x, y - l.y) < tol) return { kind: 'link', obj: l };
+        else if (Math.hypot(x - l.x, y - (l.y - 30 / st.scale)) < tol * 1.2 || Math.hypot(x - l.x, y - (l.y - 8 / st.scale)) < tol * 0.7) return { kind: 'link', obj: l };
       }
     }
     return null;

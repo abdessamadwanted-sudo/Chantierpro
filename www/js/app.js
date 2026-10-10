@@ -1,10 +1,12 @@
 // Application principale : écrans et navigation
 const CATEGORIES = ['Gros œuvre', 'Coffrage', 'Ferraillage', 'Béton', 'Maçonnerie', 'Étanchéité', 'Électricité', 'Plomberie', 'Menuiserie', 'Finitions', 'Sécurité', 'Qualité'];
 const LINK_CATS = [
-  { key: 'photo', label: 'Photos', icon: 'camera' },
   { key: 'coffrage', label: 'Plan coffrage', icon: 'plans' },
   { key: 'ferraillage', label: 'Plan ferraillage', icon: 'layers' },
+  { key: 'coupe', label: 'Coupe', icon: 'ruler' },
   { key: 'pv', label: 'PV', icon: 'report' },
+  { key: 'photo', label: 'Photos', icon: 'camera' },
+  { key: 'note', label: 'Notes', icon: 'edit' },
   { key: 'autre', label: 'Autre', icon: 'file' },
 ];
 const FORM_TEMPLATES = [
@@ -275,7 +277,14 @@ function openLinkDetail(link) {
     async function render() {
       const box = $('#lk', s.el);
       const files = {};
-      for (const it of link.items) if (it.fileId) files[it.fileId] = await DB.get('files', it.fileId);
+      const plansById = {};
+      for (const it of link.items) {
+        if (it.fileId) files[it.fileId] = await DB.get('files', it.fileId);
+        if (it.planId) {
+          const pl = await DB.get('plans', it.planId);
+          if (pl) { plansById[pl.id] = pl; files[pl.fileId] = await DB.get('files', pl.fileId); }
+        }
+      }
       box.innerHTML = `
         <div style="display:flex;align-items:center;gap:10px;padding:4px 8px 10px 16px">
           <span class="dot" style="background:${link.color};width:18px;height:18px;border-radius:5px"></span>
@@ -288,18 +297,23 @@ function openLinkDetail(link) {
             <button class="acc-head">${icon(c.icon)}<span>${c.label}</span><span class="n">${items.length || ''}</span><span class="chev">${icon('chevdown')}</span></button>
             <div class="acc-body">
               ${items.map(it => {
-                const f = files[it.fileId];
+                const pl = it.kind === 'plan' ? plansById[it.planId] : null;
+                const f = pl ? files[pl.fileId] : files[it.fileId];
                 const isImg = f && f.mime && f.mime.startsWith('image/');
-                const th = it.kind === 'url' ? icon('drive') : isImg ? `<img src="${BlobURL.get(f.id, f.blob)}">` : icon('pdf');
+                const th = it.kind === 'note' ? icon('edit') : it.kind === 'url' ? icon('drive') : isImg ? `<img src="${BlobURL.get(f.id, f.blob)}">` : icon(it.kind === 'plan' ? 'plans' : 'pdf');
+                const nm = it.kind === 'note' ? it.text : it.kind === 'plan' ? (pl ? pl.name : 'Plan supprimé') : (it.name || (it.kind === 'url' ? it.url : 'Fichier'));
+                const kindLbl = { url: 'Lien Drive · ', plan: 'Plan du projet · ', note: 'Note · ' }[it.kind] || '';
                 return `<div class="att" data-it="${it.id}"><div class="thumb">${th}</div>
-                  <div class="grow"><div class="nm">${esc(it.name || (it.kind === 'url' ? it.url : 'Fichier'))}</div>
-                  <div class="meta">${it.kind === 'url' ? 'Lien · ' : ''}${fmtDate(it.date)}</div></div>
+                  <div class="grow"><div class="nm">${esc(nm)}</div>
+                  <div class="meta">${kindLbl}${fmtDate(it.date)}</div></div>
                   <button class="iconbtn" data-del="${it.id}">${icon('trash')}</button></div>`;
               }).join('') || `<div class="meta" style="color:var(--muted);padding:4px 0 10px">Rien pour le moment</div>`}
               <div class="acc-actions">
                 ${c.key === 'photo' ? `<button class="btn small" data-add="cam">${icon('camera')} Photo</button>` : ''}
-                <button class="btn small ghost" data-add="file">${icon('file')} ${c.key === 'photo' ? 'Galerie' : 'Fichier'}</button>
-                <button class="btn small ghost" data-add="url">${icon('drive')} Lien Drive</button>
+                ${c.key === 'note' ? `<button class="btn small" data-add="note">${icon('edit')} Écrire une note</button>` : ''}
+                ${c.key !== 'photo' && c.key !== 'note' ? `<button class="btn small" data-add="plan">${icon('plans')} Plan du projet</button>` : ''}
+                ${c.key !== 'note' ? `<button class="btn small ghost" data-add="file">${icon('image')} ${c.key === 'photo' ? 'Galerie' : 'Image / PDF'}</button>
+                <button class="btn small ghost" data-add="url">${icon('drive')} Lien Drive</button>` : ''}
               </div>
             </div></div>`;
         }).join('')}`;
@@ -320,6 +334,17 @@ function openLinkDetail(link) {
           return;
         }
         if (it.kind === 'url') return openUrl(it.url);
+        if (it.kind === 'note') {
+          const r = await formSheet('Note', [{ name: 'text', label: 'Note', type: 'textarea', value: it.text }]);
+          if (r && r.text) { it.text = r.text; it.date = Date.now(); await save(); render(); }
+          return;
+        }
+        if (it.kind === 'plan') {
+          const pl = plansById[it.planId];
+          if (!pl) return toast('Ce plan a été supprimé');
+          s.close();
+          return openPlanViewer(pl, planCtx(() => {}));
+        }
         const f = files[it.fileId];
         if (!f) return;
         if (f.mime.startsWith('image/')) showImage(BlobURL.get(f.id, f.blob), it.name);
@@ -349,6 +374,21 @@ function openLinkDetail(link) {
 
     async function addItem(cat, how) {
       openCats.add(cat);
+      if (how === 'note') {
+        const r = await formSheet('Nouvelle note', [{ name: 'text', label: 'Note', type: 'textarea', placeholder: 'Ex : Enrobage insuffisant côté axe C, à reprendre avant coulage' }], { okLabel: 'Ajouter' });
+        if (r && r.text) { link.items.push({ id: DB.uid(), cat, kind: 'note', text: r.text, date: Date.now() }); await save(); }
+        return render();
+      }
+      if (how === 'plan') {
+        const [plans, folders] = await Promise.all([DB.byProject('plans', pid), DB.byProject('folders', pid)]);
+        const others = plans.filter(p => p.id !== link.planId);
+        if (!others.length) { toast('Importez d\'abord ce plan dans « Plans »'); return; }
+        const fname = (id) => (folders.find(f => f.id === id) || {}).name;
+        others.sort((a, b) => `${fname(a.folderId) || ''} ${a.name}`.localeCompare(`${fname(b.folderId) || ''} ${b.name}`, 'fr', { numeric: true }));
+        const planId = await menu('Choisir le plan', others.map(p => ({ label: (fname(p.folderId) ? fname(p.folderId) + ' / ' : '') + p.name, icon: 'plans', value: p.id })));
+        if (planId) { link.items.push({ id: DB.uid(), cat, kind: 'plan', planId, date: Date.now() }); await save(); }
+        return render();
+      }
       if (how === 'url') {
         const r = await formSheet('Lien Google Drive', [
           { name: 'url', label: 'Coller le lien (Drive, Dropbox, …)', type: 'url', placeholder: 'https://drive.google.com/…' },

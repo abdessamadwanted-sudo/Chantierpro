@@ -7,8 +7,8 @@ Application Android pour le suivi de chantier, qui fonctionne **sans internet** 
 - **Plans** : import PDF / image, classés par dossiers (ex : 1-Poteaux+voiles, 2-Plancher)
 - **Visionneuse de plan** : zoom, déplacement, et outils :
   - 📍 Pin de **tâche** (numérotée, couleur selon le statut)
-  - 🔗 **Élément d'ouvrage** (point ou zone) : en touchant l'élément, une liste s'ouvre avec
-    **Photos · Plan coffrage · Plan ferraillage · PV · Autre** — fichiers (photo/PDF) ou **lien Google Drive**
+  - 🔗 **Pin élément** (pin ou zone) posé sur la vue en plan : en le touchant, une liste s'ouvre avec
+    **Plan coffrage · Plan ferraillage · Coupe · PV · Photos · Notes · Autre** — chaque rubrique se lie à un **plan du projet**, une image/PDF ou un **lien Google Drive**
   - ✏️ Crayon, formes (nuage, rectangle, cercle, flèche, ligne), texte, couleurs, gomme, annuler
   - 👁 Filtres (tâches / éléments / annotations)
 - **Tâches** : statut (Ouvert, En cours, Terminé, Vérifié), priorité, responsable, échéance, photos, commentaires
