@@ -31,7 +31,7 @@ function annotSVG(a) {
   const common = `stroke="${a.color}" stroke-width="${sw}" fill="none" stroke-linecap="round" stroke-linejoin="round"`;
   const [p, q] = a.pts;
   switch (a.type) {
-    case 'pen': return `<polyline points="${a.pts.map(pt => pt.join(',')).join(' ')}" ${common}/>`;
+    case 'pen': case 'poly': return `<polyline points="${a.pts.map(pt => pt.join(',')).join(' ')}" ${common}/>`;
     case 'rect': return `<rect x="${Math.min(p[0], q[0])}" y="${Math.min(p[1], q[1])}" width="${Math.abs(q[0] - p[0])}" height="${Math.abs(q[1] - p[1])}" ${common}/>`;
     case 'ellipse': return `<ellipse cx="${(p[0] + q[0]) / 2}" cy="${(p[1] + q[1]) / 2}" rx="${Math.abs(q[0] - p[0]) / 2}" ry="${Math.abs(q[1] - p[1]) / 2}" ${common}/>`;
     case 'cloud': return `<path d="${cloudPath(p[0], p[1], q[0], q[1], sw * 6)}" ${common}/>`;
@@ -65,7 +65,7 @@ function distToSeg(px, py, ax, ay, bx, by) {
 function hitAnnot(a, x, y, tol) {
   const [x1, y1, x2, y2] = annotBBox(a);
   if (x < x1 - tol || x > x2 + tol || y < y1 - tol || y > y2 + tol) return false;
-  if (a.type === 'pen') {
+  if (a.type === 'pen' || a.type === 'poly') {
     for (let i = 1; i < a.pts.length; i++) if (distToSeg(x, y, ...a.pts[i - 1], ...a.pts[i]) < tol) return true;
     return a.pts.length === 1;
   }
@@ -85,10 +85,10 @@ async function openPlanViewer(plan, ctx) {
 
   const st = {
     scale: 1, tx: 0, ty: 0,
-    tool: 'pan', shape: 'cloud', color: '#ff0000', textSize: 16,
+    tool: 'pan', color: '#ff0000', textSize: 16,
     filters: { tasks: true, links: true, annots: true },
     tasks: [], links: [], undo: [], flyout: null, fitScale: 1,
-    toolsOpen: false, penMode: 'free', width: 2,
+    toolsOpen: false, width: 2, shape: 'free', pend: null, sel: -1,
     pinSize: (() => { try { return +localStorage.getItem('pinSize') || 1; } catch (e) { return 1; } })(),
   };
   // Taille des pins : proportionnelle au zoom (petits quand on dézoome, limités quand on zoome)
@@ -235,6 +235,8 @@ async function openPlanViewer(plan, ctx) {
       return `<g transform="translate(${px},${py}) scale(${s})">${linkPin(l.color, n)}
         ${showLabel ? `<text x="0" y="16" text-anchor="middle" font-size="12" fill="${l.color}" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`;
     }).join('');
+    if (typeof drawPending === 'function' && st.pend) drawPending();
+    if (typeof renderSel === 'function' && st.sel >= 0) renderSel();
     const info = $('.vb-info', el);
     const nt = st.tasks.filter(t => t.planId === plan.id).length, nl = st.links.filter(l => l.planId === plan.id).length;
     info.textContent = `${nt} tâche(s) · ${nl} lien(s) · ${plan.annotations.length} annotation(s)`;
@@ -267,117 +269,176 @@ async function openPlanViewer(plan, ctx) {
     if (st.undo.length > 50) st.undo.shift();
   }
 
-  // ---------- Toolbar ----------
-  const TOOLS_HINT = {
-    pan: '', pin: 'Touchez (ou glissez pour viser) pour placer une tâche',
-    link: 'Touchez pour placer un pin (glissez pour viser)',
-    pen: 'Dessinez · 2 doigts pour bouger', shape: 'Glissez pour dessiner la forme',
-    text: 'Touchez pour ajouter du texte', erase: 'Touchez une annotation pour l\'effacer',
-  };
-  const TOOL_ICON = () => ({
-    pan: icon('move'), pin: icon('pin'), link: icon('link'), erase: icon('eraser'),
-    pen: icon(st.penMode === 'straight' ? 'line' : 'pen'),
-    shape: icon({ cloud: 'cloud', rect: 'rect', ellipse: 'circle', arrow: 'arrow', line: 'line' }[st.shape]),
-    text: '<span style="font-size:26px;font-family:Georgia,serif">a</span>',
-  }[st.tool]);
+  // ---------- Outils ----------
+  const SHAPES = [
+    ['free', 'pen', 'Main levée'], ['line', 'line', 'Ligne'], ['poly', 'poly', 'Polyligne'], ['rect', 'rect', 'Rectangle'],
+    ['ellipse', 'circle', 'Cercle'], ['cloud', 'cloud', 'Nuage'], ['arrow', 'arrow', 'Flèche'], ['text', 'text', 'Texte'],
+  ];
+  const TOOLS = [
+    ['pan', 'hand', 'Déplacer'], ['pin', 'pin', 'Tâche'], ['link', 'link', 'Élément'],
+    ['draw', 'pen', 'Dessiner'], ['select', 'cursor', 'Modifier'], ['erase', 'eraser', 'Gomme'],
+  ];
+  const shapeInfo = () => SHAPES.find(x => x[0] === st.shape) || SHAPES[0];
+  const TWO_PT = ['line', 'rect', 'ellipse', 'cloud', 'arrow'];
+  function hintText() {
+    if (st.tool === 'pin') return 'Touchez pour placer une tâche (glissez pour viser)';
+    if (st.tool === 'link') return 'Touchez pour placer un élément';
+    if (st.tool === 'erase') return 'Touchez un dessin pour l\'effacer';
+    if (st.tool === 'select') return st.sel >= 0 ? 'Glissez les points ronds · glissez le dessin pour le déplacer' : 'Touchez un dessin pour le modifier';
+    if (st.tool === 'draw') {
+      if (st.shape === 'free') return 'Dessinez avec le doigt · 2 doigts = zoom';
+      if (st.shape === 'text') return 'Touchez pour placer le texte';
+      if (st.shape === 'poly') return st.pend ? `${st.pend.pts.length} point(s) · touchez le suivant · ✓ pour terminer` : 'Touchez les points un par un (zoom possible entre deux)';
+      return st.pend ? 'Point de départ posé · zoomez/déplacez puis touchez le point d\'arrivée' : 'Glissez pour dessiner · ou touchez le départ puis l\'arrivée';
+    }
+    return '';
+  }
   function renderTools() {
     const t = $('.tools', el);
-    const ic = TOOL_ICON();
-    const drawing = ['pen', 'shape', 'text', 'erase'].includes(st.tool);
+    const cur = TOOLS.find(x => x[0] === st.tool) || TOOLS[0];
+    const curIcon = st.tool === 'draw' ? shapeInfo()[1] : cur[1];
     if (!st.toolsOpen) {
-      t.innerHTML = `
-        <div class="grp"><button class="tool ${st.tool !== 'pan' ? 'on' : ''}" data-t="toggle">${ic}</button></div>
-        ${drawing ? `<div class="grp"><button class="tool" data-t="color"><span class="swatch" style="background:${st.color}"></span></button><button class="tool" data-t="undo">${icon('undo')}</button></div>` : ''}`;
+      t.className = 'tools';
+      t.innerHTML = `<div class="grp"><button class="tool ${st.tool !== 'pan' ? 'on' : ''}" data-t="toggle">${icon(curIcon)}</button></div>
+        ${['draw', 'select', 'erase'].includes(st.tool) ? `<div class="grp"><button class="tool" data-t="undo">${icon('undo')}</button></div>` : ''}`;
     } else {
-      t.innerHTML = `
-        <div class="grp"><button class="tool" data-t="toggle">${icon('chevright')}</button></div>
-        <div class="grp">
-          <button class="tool ${st.tool === 'pan' ? 'on' : ''}" data-t="pan">${icon('move')}</button>
-          <button class="tool ${st.tool === 'pin' ? 'on' : ''}" data-t="pin">${icon('pin')}</button>
-          <button class="tool ${st.tool === 'link' ? 'on' : ''}" data-t="link">${icon('link')}</button>
-          <button class="tool ${st.tool === 'pen' ? 'on' : ''}" data-t="pen">${icon(st.penMode === 'straight' ? 'line' : 'pen')}</button>
-          <button class="tool ${st.tool === 'shape' ? 'on' : ''}" data-t="shape">${icon({ cloud: 'cloud', rect: 'rect', ellipse: 'circle', arrow: 'arrow', line: 'line' }[st.shape])}</button>
-          <button class="tool ${st.tool === 'text' ? 'on' : ''}" data-t="text"><span style="font-size:26px;font-family:Georgia,serif">a</span></button>
-          <button class="tool ${st.tool === 'erase' ? 'on' : ''}" data-t="erase">${icon('eraser')}</button>
+      t.className = 'tools open';
+      t.innerHTML = `<div class="grp">
+          ${TOOLS.map(([k, ic, l]) => `<button class="tool wide ${st.tool === k ? 'on' : ''}" data-t="${k}">${icon(k === 'draw' && st.tool === 'draw' ? shapeInfo()[1] : ic)}<span>${l}</span></button>`).join('')}
         </div>
         <div class="grp">
-          <button class="tool" data-t="color"><span class="swatch" style="background:${st.color}"></span></button>
-          <button class="tool" data-t="undo">${icon('undo')}</button>
-          <button class="tool del" data-t="clear">${icon('trash')}</button>
+          <button class="tool wide" data-t="undo">${icon('undo')}<span>Annuler</span></button>
+          <button class="tool wide del" data-t="clear">${icon('trash')}<span>Tout effacer</span></button>
         </div>`;
     }
-    $$('.tool', t).forEach(b => b.onclick = (e) => { e.stopPropagation(); onTool(b.dataset.t, b); });
+    $$('.tool', t).forEach(b => b.onclick = (e) => { e.stopPropagation(); onTool(b.dataset.t); });
     let hint = $('.hint', viewer);
-    const msg = TOOLS_HINT[st.tool];
+    const msg = hintText();
     if (msg) { if (!hint) { hint = document.createElement('div'); hint.className = 'hint'; viewer.appendChild(hint); } hint.textContent = msg; }
     else if (hint) hint.remove();
+    renderPBar();
   }
-  function closeFly() { if (st.flyout) { st.flyout.remove(); st.flyout = null; } }
-  function flyout(btn, html, onPick, rebuild) {
+  // Barre de propriétés (couleur, épaisseur…) qui descend quand on dessine / modifie
+  function renderPBar() {
+    let bar = $('.pbar', el);
+    const selA = st.tool === 'select' && st.sel >= 0 ? plan.annotations[st.sel] : null;
+    const show = st.tool === 'draw' || selA;
+    if (!show) { if (bar) bar.remove(); return; }
+    if (!bar) { bar = document.createElement('div'); bar.className = 'pbar'; viewer.appendChild(bar); }
+    const color = selA ? selA.color : st.color;
+    const isText = selA ? selA.type === 'text' : st.shape === 'text';
+    const curW = selA ? (selA.type === 'text' ? null : Math.round(base / selA.sw)) : null;
+    const widthOn = (w) => selA ? Math.abs(base / ({ 1: 800, 2: 400, 3: 200 }[w]) - selA.sw) < 1e-6 : st.width === w;
+    bar.innerHTML = `
+      <div class="pb-row">
+        ${st.tool === 'draw' ? `<button class="pb shape" data-p="shape">${icon(shapeInfo()[1])}<span>${shapeInfo()[2]}</span>${icon('chevdown')}</button>` : `<span class="pb-t">${icon('cursor')} Modifier</span>`}
+        ${isText ? `<div class="pb-w">${TEXT_SIZES.map(z => `<button class="pbw ${(!selA && st.textSize === z) ? 'on' : ''}" data-ts="${z}">${z}</button>`).join('')}</div>`
+          : `<div class="pb-w">${[1, 2, 3].map(w => `<button class="pbw ${widthOn(w) ? 'on' : ''}" data-w="${w}"><span style="width:${w * 5 + 2}px;height:${w * 5 + 2}px"></span></button>`).join('')}</div>`}
+        <span style="flex:1"></span>
+        ${st.pend ? `<button class="pb" data-p="cancel">${icon('close')}</button><button class="pb ok" data-p="finish">${icon('check')}</button>` : ''}
+        ${selA ? `<button class="pb danger" data-p="delsel">${icon('trash')}</button><button class="pb ok" data-p="unsel">${icon('check')}</button>` : ''}
+      </div>
+      <div class="pb-colors">${PALETTE.map(c => `<button class="sw2 ${c === color ? 'on' : ''}" data-c="${c}" style="background:${c}"></button>`).join('')}</div>`;
+    $$('[data-c]', bar).forEach(b => b.onclick = () => {
+      if (selA) { pushUndo(); selA.color = b.dataset.c; renderAnnots(); saveAnnots(); } else st.color = b.dataset.c;
+      renderPBar(); drawPending();
+    });
+    $$('[data-w]', bar).forEach(b => b.onclick = () => {
+      const w = +b.dataset.w;
+      if (selA) { pushUndo(); selA.sw = base / ({ 1: 800, 2: 400, 3: 200 }[w]); renderAnnots(); saveAnnots(); } else st.width = w;
+      renderPBar(); drawPending();
+    });
+    $$('[data-ts]', bar).forEach(b => b.onclick = () => {
+      const z = +b.dataset.ts;
+      if (selA) { pushUndo(); selA.fs = z * base / 500; renderAnnots(); saveAnnots(); renderSel(); } else st.textSize = z;
+      renderPBar();
+    });
+    const pb = (k) => $(`[data-p=${k}]`, bar);
+    if (pb('shape')) pb('shape').onclick = openShapePicker;
+    if (pb('finish')) pb('finish').onclick = finishPending;
+    if (pb('cancel')) pb('cancel').onclick = () => { st.pend = null; drawPending(); renderTools(); };
+    if (pb('delsel')) pb('delsel').onclick = () => { pushUndo(); plan.annotations.splice(st.sel, 1); st.sel = -1; renderAnnots(); saveAnnots(); renderSel(); renderTools(); };
+    if (pb('unsel')) pb('unsel').onclick = () => { st.sel = -1; renderSel(); renderTools(); };
+  }
+  function openShapePicker() {
     closeFly();
     const f = document.createElement('div');
-    f.className = 'flyout';
-    f.innerHTML = html;
-    const tb = btn.getBoundingClientRect(), vr = viewer.getBoundingClientRect();
-    f.style.top = (tb.top - vr.top) + 'px';
+    f.className = 'dpanel';
+    f.innerHTML = `<div class="dp-h">Choisir le dessin</div><div class="dp-grid">${SHAPES.map(([k, ic, l]) =>
+      `<button class="${st.tool === 'draw' && st.shape === k ? 'on' : ''}" data-s="${k}">${icon(ic)}<span>${l}</span></button>`).join('')}</div>`;
     viewer.appendChild(f);
-    // garde la flyout dans l'écran
-    const fr = f.getBoundingClientRect();
-    if (fr.bottom > vr.bottom - 4) f.style.top = Math.max(4, (tb.bottom - vr.top) - fr.height) + 'px';
-    $$('button', f).forEach(b => b.onclick = (e) => {
-      e.stopPropagation(); onPick(b.dataset.v);
-      if (b.dataset.keep && rebuild) { rebuild(); return; }
-      closeFly(); st.toolsOpen = false; renderTools();
+    $$('[data-s]', f).forEach(b => b.onclick = (e) => {
+      e.stopPropagation();
+      st.tool = 'draw'; st.shape = b.dataset.s; st.pend = null; st.sel = -1; st.toolsOpen = false;
+      closeFly(); drawPending(); renderSel(); renderTools();
     });
     st.flyout = f;
   }
-  function onTool(t, btn) {
+  function closeFly() { if (st.flyout) { st.flyout.remove(); st.flyout = null; } }
+  function onTool(t) {
     if (t === 'toggle') { closeFly(); st.toolsOpen = !st.toolsOpen; return renderTools(); }
-    if (t === 'pen') {
-      st.tool = 'pen';
-      const wbtn = (w) => `<button data-v="w${w}" data-keep="1" class="${st.width === w ? 'on' : ''}"><span style="width:${w * 6}px;height:${w * 6}px;border-radius:50%;background:#fff;display:block"></span></button>`;
-      return flyout(btn, `<button data-v="free" class="${st.penMode === 'free' ? 'on' : ''}">${icon('pen')}</button>
-        <button data-v="straight" class="${st.penMode === 'straight' ? 'on' : ''}">${icon('line')}</button>${wbtn(1)}${wbtn(2)}${wbtn(3)}`,
-        v => { if (v[0] === 'w') st.width = +v.slice(1); else st.penMode = v; }, () => onTool('pen', btn));
-    }
-    if (t === 'color') {
-      return flyout(btn, PALETTE.map(c => `<button data-v="${c}" class="${c === st.color ? 'on' : ''}"><span class="sw" style="background:${c}"></span></button>`).join(''), v => st.color = v);
-    }
-    if (t === 'shape' && (st.tool === 'shape' || st.flyout == null)) {
-      const opts = [['cloud', 'cloud'], ['rect', 'rect'], ['ellipse', 'circle'], ['arrow', 'arrow'], ['line', 'line']];
-      st.tool = 'shape';
-      return flyout(btn, opts.map(([v, i]) => `<button data-v="${v}" class="${v === st.shape ? 'on' : ''}">${icon(i)}</button>`).join(''), v => st.shape = v);
-    }
-    if (t === 'text') {
-      st.tool = 'text';
-      return flyout(btn, TEXT_SIZES.map(s => `<button data-v="${s}" class="${s === st.textSize ? 'on' : ''}">${s}</button>`).join(''), v => st.textSize = +v);
-    }
+    if (t === 'draw') { st.toolsOpen = false; renderTools(); return openShapePicker(); }
     closeFly();
     if (t === 'undo') {
       if (!st.undo.length) return toast('Rien à annuler');
-      plan.annotations = JSON.parse(st.undo.pop()); renderAnnots(); saveAnnots(); renderMarkers(); return;
+      plan.annotations = JSON.parse(st.undo.pop()); st.sel = -1; renderAnnots(); saveAnnots(); renderSel(); renderMarkers(); return renderTools();
     }
     if (t === 'clear') {
-      if (!plan.annotations.length) return toast('Aucune annotation');
-      confirmBox('Effacer toutes les annotations de ce plan ?', 'Tout effacer').then(ok => {
-        if (!ok) return; pushUndo(); plan.annotations = []; renderAnnots(); saveAnnots(); renderMarkers();
+      if (!plan.annotations.length) return toast('Aucun dessin');
+      confirmBox('Effacer tous les dessins de ce plan ?', 'Tout effacer').then(ok => {
+        if (!ok) return; pushUndo(); plan.annotations = []; st.sel = -1; renderAnnots(); saveAnnots(); renderSel(); renderMarkers();
       });
       return;
     }
-    st.tool = (st.tool === t && t !== 'pan') ? 'pan' : t;
-    st.toolsOpen = false;
-    renderTools();
+    st.tool = t; st.pend = null; st.sel = -1; st.toolsOpen = false;
+    drawPending(); renderSel(); renderTools();
+  }
+
+  // ---------- Dessin en plusieurs touchers (ligne / polyligne) ----------
+  const gPend = (() => { const g2 = document.createElementNS('http://www.w3.org/2000/svg', 'g'); $('svg.ov', el).insertBefore(g2, gLinks); return g2; })();
+  const gSel = (() => { const g2 = document.createElementNS('http://www.w3.org/2000/svg', 'g'); $('svg.ov', el).appendChild(g2); return g2; })();
+  function drawPending() {
+    if (!st.pend) { gPend.innerHTML = ''; return; }
+    const pts = st.pend.pts, r = 5 / st.scale;
+    const type = st.shape === 'poly' ? 'poly' : 'line';
+    gPend.innerHTML = (pts.length > 1 ? annotSVG({ type, pts, color: st.color, sw: strokeW() }) : '') +
+      pts.map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="${r}" fill="#fff" stroke="${st.color}" stroke-width="${2 / st.scale}"/>`).join('');
+  }
+  function addAnnot(a) { pushUndo(); plan.annotations.push({ id: DB.uid(), color: st.color, sw: strokeW(), ...a }); renderAnnots(); saveAnnots(); renderMarkers(); }
+  function finishPending() {
+    const pd = st.pend; st.pend = null;
+    if (pd && pd.pts.length >= 2) addAnnot({ type: st.shape === 'poly' ? 'poly' : st.shape, pts: pd.pts.map(p => [...p]) });
+    drawPending(); renderTools();
+  }
+
+  // ---------- Sélection / modification ----------
+  function handlesOf(a) {
+    if (a.type === 'pen' || a.type === 'text') return [];
+    return a.pts;
+  }
+  function renderSel() {
+    const a = st.tool === 'select' && st.sel >= 0 ? plan.annotations[st.sel] : null;
+    if (!a) { gSel.innerHTML = ''; return; }
+    const [x1, y1, x2, y2] = annotBBox(a), pad = 6 / st.scale;
+    gSel.innerHTML = `<rect x="${x1 - pad}" y="${y1 - pad}" width="${x2 - x1 + 2 * pad}" height="${y2 - y1 + 2 * pad}" fill="rgba(91,141,239,.08)" stroke="#5b8def" stroke-width="${1.5 / st.scale}" stroke-dasharray="${5 / st.scale} ${4 / st.scale}"/>` +
+      handlesOf(a).map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="${9 / st.scale}" fill="#fff" stroke="#5b8def" stroke-width="${3 / st.scale}"/>`).join('');
+  }
+  function annotAt(x, y) {
+    const tol = 16 / st.scale;
+    for (let i = plan.annotations.length - 1; i >= 0; i--) if (hitAnnot(plan.annotations[i], x, y, tol)) return i;
+    return -1;
   }
 
   // ---------- Gestes ----------
   const ptrs = new Map();
   let g = null; // geste en cours
   viewer.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('.tools') || e.target.closest('.flyout')) return;
+    if (e.target.closest('.tools') || e.target.closest('.dpanel') || e.target.closest('.pbar')) return;
     closeFly();
     viewer.setPointerCapture(e.pointerId);
     ptrs.set(e.pointerId, [e.clientX, e.clientY]);
     if (ptrs.size === 2) {
+      if (g && g.edit && g.moved) { /* on garde la modification déjà faite */ }
       const [a, b] = [...ptrs.values()];
       g = { type: 'pinch', d: Math.hypot(a[0] - b[0], a[1] - b[1]), cx: (a[0] + b[0]) / 2, cy: (a[1] + b[1]) / 2 };
       gPrev.innerHTML = ''; hideLoupe();
@@ -386,6 +447,15 @@ async function openPlanViewer(plan, ctx) {
     if (ptrs.size > 2) return;
     const p = toImg(e.clientX, e.clientY);
     g = { type: 'one', sx: e.clientX, sy: e.clientY, lx: e.clientX, ly: e.clientY, t0: Date.now(), moved: false, start: p, pts: [p] };
+    // mode du geste
+    if (st.tool === 'select' && st.sel >= 0) {
+      const a = plan.annotations[st.sel];
+      const hi = handlesOf(a).findIndex(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < 22 / st.scale);
+      if (hi >= 0) g.edit = { kind: 'handle', i: hi };
+      else if (hitAnnot(a, p[0], p[1], 18 / st.scale)) g.edit = { kind: 'move' };
+    }
+    const dragDraw = st.tool === 'draw' && !st.pend && (st.shape === 'free' || TWO_PT.includes(st.shape));
+    g.mode = g.edit ? 'edit' : (dragDraw || st.tool === 'pin' || st.tool === 'link') ? 'draw' : 'pan';
   });
   viewer.addEventListener('pointermove', (e) => {
     if (!ptrs.has(e.pointerId)) return;
@@ -401,22 +471,26 @@ async function openPlanViewer(plan, ctx) {
       return;
     }
     if (g.type !== 'one') return;
-    const drawTool = ['pen', 'shape', 'link', 'pin'].includes(st.tool);
-    const slop = ['pen', 'shape'].includes(st.tool) ? 6 : 14;
+    const slop = g.mode === 'draw' && st.tool === 'draw' ? 6 : (g.mode === 'edit' ? 4 : 14);
     if (Math.hypot(e.clientX - g.sx, e.clientY - g.sy) > slop) g.moved = true;
     if (!g.moved) { g.lx = e.clientX; g.ly = e.clientY; return; }
-    if (!drawTool) {
+    const p = toImg(e.clientX, e.clientY);
+    if (g.mode === 'pan') {
       st.tx += e.clientX - g.lx; st.ty += e.clientY - g.ly; applyT();
-    } else if (g.moved) {
-      const p = toImg(e.clientX, e.clientY);
+    } else if (g.mode === 'edit') {
+      const a = plan.annotations[st.sel];
+      if (!g.undone) { pushUndo(); g.undone = true; }
+      if (g.edit.kind === 'handle') a.pts[g.edit.i] = [p[0], p[1]];
+      else { const lp = toImg(g.lx, g.ly), dx = p[0] - lp[0], dy = p[1] - lp[1]; a.pts = a.pts.map(q => [q[0] + dx, q[1] + dy]); }
+      renderAnnots(); renderSel();
+      if (g.edit.kind === 'handle') showLoupe(e.clientX, e.clientY);
+    } else {
       g.end = p;
-      if (st.tool === 'pen' && st.penMode === 'straight') gPrev.innerHTML = annotSVG({ type: 'line', pts: [g.start, p], color: st.color, sw: strokeW() });
-      else if (st.tool === 'pen') { g.pts.push(p); gPrev.innerHTML = annotSVG({ type: 'pen', pts: g.pts, color: st.color, sw: strokeW() }); }
-      else if (st.tool === 'shape') { gPrev.innerHTML = annotSVG({ type: st.shape, pts: [g.start, p], color: st.color, sw: strokeW() }); }
-      else if (st.tool === 'pin') { gPrev.innerHTML = `<circle cx="${p[0]}" cy="${p[1]}" r="${4 / st.scale}" fill="${STATUS.open.color}" stroke="#fff" stroke-width="${1.5 / st.scale}"/>`; }
-      else if (st.tool === 'link') { gPrev.innerHTML = `<circle cx="${p[0]}" cy="${p[1]}" r="${4 / st.scale}" fill="${st.color}" stroke="#fff" stroke-width="${1.5 / st.scale}"/>`; }
+      if (st.tool === 'draw' && st.shape === 'free') { g.pts.push(p); gPrev.innerHTML = annotSVG({ type: 'pen', pts: g.pts, color: st.color, sw: strokeW() }); }
+      else if (st.tool === 'draw') gPrev.innerHTML = annotSVG({ type: st.shape, pts: [g.start, p], color: st.color, sw: strokeW() });
+      else gPrev.innerHTML = `<circle cx="${p[0]}" cy="${p[1]}" r="${4 / st.scale}" fill="${st.tool === 'pin' ? STATUS.open.color : st.color}" stroke="#fff" stroke-width="${1.5 / st.scale}"/>`;
+      showLoupe(e.clientX, e.clientY);
     }
-    if (drawTool && g.moved) showLoupe(e.clientX, e.clientY);
     g.lx = e.clientX; g.ly = e.clientY;
   });
   const endPtr = (e) => {
@@ -424,26 +498,16 @@ async function openPlanViewer(plan, ctx) {
     ptrs.delete(e.pointerId);
     if (!g) return;
     hideLoupe();
-    if (g.type === 'pinch') { if (ptrs.size === 0) { g = null; scheduleHD(); } else g = { type: 'idle' }; return; }
+    if (g.type === 'pinch') { if (ptrs.size === 0) { g = null; scheduleHD(); drawPending(); renderSel(); } else g = { type: 'idle' }; return; }
     if (g.type !== 'one') { if (ptrs.size === 0) g = null; return; }
     const cur = g; g = null; gPrev.innerHTML = '';
     scheduleHD();
+    if (cur.mode === 'edit' && cur.moved) { saveAnnots(); renderSel(); return; }
     if (!cur.moved) return onTap(cur.start);
-    const sw = strokeW();
-    if (st.tool === 'pin' && cur.end) return onTap(cur.end, true);
-    if (st.tool === 'link' && cur.end) return onTap(cur.end, true);
-    if (st.tool === 'pen' && st.penMode === 'straight' && cur.end) {
-      pushUndo(); plan.annotations.push({ id: DB.uid(), type: 'line', pts: [cur.start, cur.end], color: st.color, sw });
-      renderAnnots(); saveAnnots(); renderMarkers();
-    } else if (st.tool === 'pen' && cur.pts.length > 1) {
-      pushUndo(); plan.annotations.push({ id: DB.uid(), type: 'pen', pts: simplify(cur.pts, 1 / st.scale), color: st.color, sw });
-      renderAnnots(); saveAnnots(); renderMarkers();
-    } else if (st.tool === 'shape' && cur.end) {
-      pushUndo(); plan.annotations.push({ id: DB.uid(), type: st.shape, pts: [cur.start, cur.end], color: st.color, sw });
-      renderAnnots(); saveAnnots(); renderMarkers();
-    } else if (st.tool === 'link' && cur.end) {
-      return onTap(cur.end, true);
-    }
+    if (cur.mode !== 'draw' || !cur.end) return;
+    if (st.tool === 'pin' || st.tool === 'link') return onTap(cur.end, true);
+    if (st.shape === 'free' && cur.pts.length > 1) addAnnot({ type: 'pen', pts: simplify(cur.pts, 1 / st.scale) });
+    else if (TWO_PT.includes(st.shape)) addAnnot({ type: st.shape, pts: [cur.start, cur.end] });
   };
   viewer.addEventListener('pointerup', endPtr);
   viewer.addEventListener('pointercancel', endPtr);
@@ -487,6 +551,20 @@ async function openPlanViewer(plan, ctx) {
       zoomAt(r.left + x * st.scale + st.tx, r.top + y * st.scale + st.ty, 2); lastTap = 0; return;
     }
     lastTap = now;
+    if (st.tool === 'select') {
+      st.sel = annotAt(x, y); renderSel(); renderTools();
+      if (st.sel < 0) toast('Aucun dessin ici');
+      return;
+    }
+    if (st.tool === 'draw' && st.shape !== 'text') {
+      if (st.shape === 'free') return;
+      if (!st.pend) st.pend = { pts: [[x, y]] };
+      else {
+        st.pend.pts.push([x, y]);
+        if (st.shape !== 'poly') return finishPending();
+      }
+      drawPending(); renderTools(); return;
+    }
     if (st.tool === 'erase') {
       const tol = 14 / st.scale;
       for (let i = plan.annotations.length - 1; i >= 0; i--) {
@@ -509,7 +587,7 @@ async function openPlanViewer(plan, ctx) {
       await reloadData();
     } else if (st.tool === 'link') {
       createLink({ shape: 'point', x, y });
-    } else if (st.tool === 'text') {
+    } else if (st.tool === 'draw' && st.shape === 'text') {
       const r = await formSheet('Texte', [{ name: 'text', label: 'Texte à afficher sur le plan' }], { okLabel: 'Ajouter' });
       if (r && r.text) {
         pushUndo();

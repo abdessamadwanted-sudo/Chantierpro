@@ -1,14 +1,14 @@
 // Application principale : écrans et navigation
 const CATEGORIES = ['Gros œuvre', 'Coffrage', 'Ferraillage', 'Béton', 'Maçonnerie', 'Étanchéité', 'Électricité', 'Plomberie', 'Menuiserie', 'Finitions', 'Sécurité', 'Qualité'];
 const LINK_CATS = [
-  { key: 'coffrage', label: 'Plan coffrage', icon: 'plans' },
-  { key: 'ferraillage', label: 'Plan ferraillage', icon: 'layers' },
-  { key: 'coupe', label: 'Coupe', icon: 'ruler' },
-  { key: 'pv', label: 'PV', icon: 'report' },
-  { key: 'photo', label: 'Photos', icon: 'camera' },
-  { key: 'note', label: 'Notes', icon: 'edit' },
-  { key: 'autre', label: 'Autre', icon: 'file' },
+  { key: 'coffrage', label: 'Plan coffrage', icon: 'plans', type: 'doc' },
+  { key: 'ferraillage', label: 'Plan ferraillage', icon: 'layers', type: 'doc' },
+  { key: 'coupe', label: 'Coupe', icon: 'ruler', type: 'doc' },
+  { key: 'pv', label: 'PV', icon: 'report', type: 'pv' },
+  { key: 'photo', label: 'Photos', icon: 'camera', type: 'photo' },
+  { key: 'note', label: 'Notes', icon: 'edit', type: 'note' },
 ];
+const EXTRA_CAT_SUGGEST = ['Maçonnerie', 'Plâtrerie', 'Charpente', 'Façade', 'Étanchéité', 'Électricité', 'Plomberie', 'Menuiserie', 'Carrelage', 'Peinture', 'Escalier', 'Fondations'];
 const FORM_TEMPLATES = [
   { id: 'ferraillage', title: 'Réception ferraillage', items: ['Diamètres conformes au plan', 'Espacement des armatures', 'Nombre de barres', 'Longueurs de recouvrement', 'Enrobage (cales en place)', 'Ligatures / stabilité de la cage', 'Propreté des armatures', 'Attentes en place', 'Cadres et épingles'] },
   { id: 'coffrage', title: 'Réception coffrage', items: ['Implantation / axes', 'Dimensions conformes', 'Aplomb / verticalité', 'Niveau / altimétrie', 'Étanchéité des joints', 'Huile de décoffrage', 'Étaiement et stabilité', 'Réservations en place', 'Propreté du fond'] },
@@ -220,11 +220,14 @@ async function renderPlans(root) {
     const v = await menu('Ajouter', [
       { label: 'Importer un plan (PDF / image)', icon: 'plans', value: 'plan' },
       { label: 'Importer depuis Google Drive (lien)', icon: 'drive', value: 'drive' },
-      { label: 'Nouveau dossier', icon: 'folder', value: 'folder' },
+      { label: 'Nouveau dossier (niveau)', icon: 'folder', value: 'folder' },
     ]);
     if (v === 'folder') {
-      const r = await formSheet('Nouveau dossier', [{ name: 'name', label: 'Nom du dossier', placeholder: 'Ex : 1-Poteaux + voiles' }], { okLabel: 'Créer' });
-      if (r && r.name) { const f = await DB.put('folders', { projectId: pid, name: r.name }); App.openFolders[f.id] = true; renderPlans(root); }
+      const r = await formSheet('Nouveau dossier', [{ name: 'name', label: 'Nom du dossier / niveau', placeholder: 'Ex : Plancher R+2, Sous-sol, Fondations…' }], { okLabel: 'Créer' });
+      if (r && r.name) {
+        const f = await DB.put('folders', { projectId: pid, name: r.name }); App.openFolders[f.id] = true; await renderPlans(root);
+        addPlanTo(f.id, [...folders, f], root);
+      }
     }
     if (v === 'plan' || v === 'drive') importPlans(folders, root, v === 'drive');
   });
@@ -278,6 +281,8 @@ async function importPlans(folders, root, fromDrive = false, presetFolder) {
   try {
     for (const file of files) {
       const base = file.name.replace(/\.[^.]+$/, '');
+      if (/\.(dwg|dxf)$/i.test(file.name)) { await alertBox('Les fichiers AutoCAD (DWG/DXF) ne s\'affichent pas comme plan. Exportez le plan en PDF, ou ajoutez le DWG dans un pin (Plan coffrage / ferraillage / coupe).'); continue; }
+      if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf' && !isRasterImage(file)) { await alertBox(`Format non pris en charge : ${file.name}`); continue; }
       if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
         const pages = await pdfToImages(file, 5000, (p, n) => ld.set(`Conversion PDF… page ${p}/${n}`));
         // on garde le PDF original pour un affichage net quand on zoome
@@ -308,92 +313,136 @@ function planCtx(onClose) {
 }
 
 // ---------- Lien / élément d'ouvrage ----------
+function fileKind(f) {
+  const n = (f && (f.name || '')).toLowerCase(), m = (f && f.mime) || '';
+  if (n.endsWith('.dwg') || n.endsWith('.dxf') || /dwg|dxf|acad/.test(m)) return 'cad';
+  if (m.startsWith('image/')) return 'image';
+  if (m === 'application/pdf' || n.endsWith('.pdf')) return 'pdf';
+  if (n.endsWith('.dwg') || n.endsWith('.dxf')) return 'cad';
+  return 'other';
+}
+async function openFileRecord(f, title) {
+  const k = fileKind(f);
+  if (k === 'image') return showImage(BlobURL.get(f.id, f.blob), title);
+  if (k === 'pdf') return showPdf(f.blob, title);
+  return openExternal(f);
+}
+// Ouvre un fichier (DWG/DXF…) avec une autre application du téléphone (AutoCAD, DWG FastView…)
+async function openExternal(f) {
+  const P = window.Capacitor?.Plugins || {};
+  if (!P.Filesystem) { toast('Disponible dans l\'application Android'); return; }
+  const name = (f.name || 'fichier').replace(/[^\w.\- ]+/g, '_');
+  const ext = name.split('.').pop().toLowerCase();
+  const mime = { dwg: 'application/acad', dxf: 'application/dxf', pdf: 'application/pdf' }[ext] || f.mime || 'application/octet-stream';
+  const ld = loading('Ouverture…');
+  try {
+    const b64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(f.blob); });
+    await P.Filesystem.writeFile({ path: name, data: b64, directory: 'CACHE' });
+    const { uri } = await P.Filesystem.getUri({ path: name, directory: 'CACHE' });
+    ld.close();
+    if (P.FileOpener) {
+      try { await P.FileOpener.open({ filePath: uri, contentType: mime, openWithDefault: false }); return; } catch (e) { console.warn(e); }
+    }
+    if (P.Share) { await P.Share.share({ title: name, files: [uri], dialogTitle: 'Ouvrir avec…' }); return; }
+    toast('Aucune application pour ouvrir ce fichier');
+  } catch (e) {
+    ld.close();
+    if (!/cancel/i.test(String(e?.message))) alertBox(ext === 'dwg' || ext === 'dxf'
+      ? 'Installez une application AutoCAD (ex : AutoCAD, DWG FastView) pour ouvrir ce fichier.' : 'Impossible d\'ouvrir : ' + (e.message || e));
+  }
+}
+
 function openLinkDetail(link) {
   return new Promise(async (resolve) => {
     const pid = link.projectId;
     if (!link.items) link.items = [];
+    let project = await DB.get('projects', pid);
     const openCats = new Set();
     const s = sheet('<div id="lk"></div>', {});
     s.onClose = () => resolve();
     const save = () => DB.put('links', link);
+    const cats = () => {
+      const list = [...LINK_CATS, ...(project.extraCats || []).map(c => ({ ...c, icon: 'hard', type: 'doc', custom: true }))];
+      if (link.items.some(i => i.cat === 'autre')) list.push({ key: 'autre', label: 'Autre', icon: 'file', type: 'doc' });
+      return list;
+    };
 
     async function render() {
       const box = $('#lk', s.el);
-      const files = {};
-      const plansById = {};
+      const files = {}, plansById = {};
       for (const it of link.items) {
-        if (it.fileId) files[it.fileId] = await DB.get('files', it.fileId);
-        if (it.planId) {
+        if (it.fileId && !files[it.fileId]) files[it.fileId] = await DB.get('files', it.fileId);
+        if (it.planId && !plansById[it.planId]) {
           const pl = await DB.get('plans', it.planId);
           if (pl) { plansById[pl.id] = pl; files[pl.fileId] = await DB.get('files', pl.fileId); }
         }
       }
+      const itemHTML = (it) => {
+        const pl = it.kind === 'plan' ? plansById[it.planId] : null;
+        const f = pl ? files[pl.fileId] : files[it.fileId];
+        const fk = it.kind === 'file' ? fileKind(f) : null;
+        const th = it.kind === 'note' ? icon('edit') : it.kind === 'url' ? icon('drive')
+          : (fk === 'image' || (it.kind === 'plan' && f)) ? `<img src="${BlobURL.get(f.id, f.blob)}">` : icon(fk === 'cad' ? 'cad' : it.kind === 'plan' ? 'plans' : 'pdf');
+        const nm = it.kind === 'note' ? it.text : it.kind === 'plan' ? (it.name || (pl ? pl.name : 'Plan supprimé')) : (it.name || 'Fichier');
+        const tag = { url: 'Lien Drive', plan: 'Plan du projet', note: 'Note' }[it.kind] || { pdf: 'PDF', image: 'Image', cad: 'AutoCAD', other: 'Fichier' }[fk];
+        return `<div class="lk-item" data-it="${it.id}"><div class="th">${th}</div>
+          <div class="grow"><div class="nm">${esc(nm)}</div><div class="meta">${tag} · ${fmtDate(it.date)}</div></div>
+          <button class="iconbtn sm" data-m="${it.id}">${icon('more')}</button></div>`;
+      };
       box.innerHTML = `
-        <div style="display:flex;align-items:center;gap:10px;padding:4px 8px 10px 16px">
-          <span class="dot" style="background:${link.color};width:18px;height:18px;border-radius:5px"></span>
-          <h3 style="margin:0;flex:1;color:var(--text)">${esc(link.name)}</h3>
+        <div class="lk-top">
+          <span class="lk-dot" style="background:${link.color}">${icon('link')}</span>
+          <div class="grow"><div class="lk-name">${esc(link.name)}</div><div class="meta">${link.items.length} document(s)</div></div>
           <button class="iconbtn" data-a="more">${icon('more')}</button>
         </div>
-        ${LINK_CATS.map(c => {
+        <div class="lk-cats">
+        ${cats().map(c => {
           const items = link.items.filter(i => i.cat === c.key);
-          return `<div class="acc ${openCats.has(c.key) ? 'open' : ''}" data-c="${c.key}">
-            <button class="acc-head">${icon(c.icon)}<span>${c.label}</span><span class="n">${items.length || ''}</span><span class="chev">${icon('chevdown')}</span></button>
-            <div class="acc-body">
-              ${items.map(it => {
-                const pl = it.kind === 'plan' ? plansById[it.planId] : null;
-                const f = pl ? files[pl.fileId] : files[it.fileId];
-                const isImg = f && f.mime && f.mime.startsWith('image/');
-                const th = it.kind === 'note' ? icon('edit') : it.kind === 'url' ? icon('drive') : isImg ? `<img src="${BlobURL.get(f.id, f.blob)}">` : icon(it.kind === 'plan' ? 'plans' : 'pdf');
-                const nm = it.kind === 'note' ? it.text : it.kind === 'plan' ? (pl ? pl.name : 'Plan supprimé') : (it.name || (it.kind === 'url' ? it.url : 'Fichier'));
-                const kindLbl = { url: 'Lien Drive · ', plan: 'Plan du projet · ', note: 'Note · ' }[it.kind] || '';
-                return `<div class="att" data-it="${it.id}"><div class="thumb">${th}</div>
-                  <div class="grow"><div class="nm">${esc(nm)}</div>
-                  <div class="meta">${kindLbl}${fmtDate(it.date)}</div></div>
-                  <button class="iconbtn" data-del="${it.id}">${icon('trash')}</button></div>`;
-              }).join('') || `<div class="meta" style="color:var(--muted);padding:4px 0 10px">Rien pour le moment</div>`}
-              <div class="acc-actions">
-                ${c.key === 'photo' || c.key === 'pv' ? `<button class="btn small" data-add="cam">${icon('camera')} Photo</button>` : ''}
-                ${c.key === 'note' ? `<button class="btn small" data-add="note">${icon('edit')} Écrire une note</button>` : ''}
-                ${!['photo', 'note', 'pv'].includes(c.key) ? `<button class="btn small" data-add="plan">${icon('plans')} Plan du projet</button>` : ''}
-                ${c.key !== 'note' ? `<button class="btn small ghost" data-add="file">${icon('image')} ${c.key === 'photo' || c.key === 'pv' ? 'Galerie' : 'Image / PDF'}</button>
-                <button class="btn small ghost" data-add="url">${icon('drive')} Lien Drive</button>` : ''}
-              </div>
-            </div></div>`;
-        }).join('')}`;
+          const open = openCats.has(c.key);
+          return `<div class="lk-cat ${open ? 'open' : ''}" data-c="${c.key}">
+            <button class="lk-ch"><span class="lk-ic">${icon(c.icon)}</span><span class="lk-l">${esc(c.label)}</span>
+              ${items.length ? `<span class="lk-n">${items.length}</span>` : ''}<span class="chev">${icon('chevdown')}</span></button>
+            ${open ? `<div class="lk-body">
+              ${items.map(itemHTML).join('')}
+              <button class="lk-add" data-add="${c.key}">${icon('plus')} ${c.type === 'note' ? 'Écrire une note' : items.length ? 'Ajouter un autre' : 'Ajouter'}</button>
+              ${c.custom && !items.length ? `<button class="lk-rm" data-rmcat="${c.key}">Retirer cette rubrique</button>` : ''}
+            </div>` : ''}
+          </div>`;
+        }).join('')}
+          <button class="lk-newcat" data-a="newcat">${icon('plus')} Ajouter une rubrique (lot)</button>
+        </div>`;
 
-      $$('.acc', box).forEach(acc => {
-        const cat = acc.dataset.c;
-        $('.acc-head', acc).onclick = () => { openCats.has(cat) ? openCats.delete(cat) : openCats.add(cat); render(); };
-        $$('[data-add]', acc).forEach(b => b.onclick = () => addItem(cat, b.dataset.add));
+      $$('.lk-cat', box).forEach(cEl => {
+        const key = cEl.dataset.c;
+        $('.lk-ch', cEl).onclick = () => { openCats.has(key) ? openCats.delete(key) : openCats.add(key); render(); };
+        const add = $('[data-add]', cEl); if (add) add.onclick = () => addItem(cats().find(c => c.key === key));
+        const rm = $('[data-rmcat]', cEl); if (rm) rm.onclick = async () => {
+          project.extraCats = (project.extraCats || []).filter(c => c.key !== key); await DB.put('projects', project); render();
+        };
       });
-      $$('.att', box).forEach(a => a.onclick = async (e) => {
+      $$('.lk-item', box).forEach(a => a.onclick = async (e) => {
         const it = link.items.find(i => i.id === a.dataset.it);
-        if (e.target.closest('[data-del]')) {
-          if (await confirmBox('Supprimer cet élément ?')) {
-            link.items = link.items.filter(i => i !== it);
-            if (it.fileId) await DB.del('files', it.fileId);
-            await save(); render();
-          }
-          return;
-        }
+        if (e.target.closest('[data-m]')) return itemMenu(it);
         if (it.kind === 'url') return openUrl(it.url);
-        if (it.kind === 'note') {
-          const r = await formSheet('Note', [{ name: 'text', label: 'Note', type: 'textarea', value: it.text }]);
-          if (r && r.text) { it.text = r.text; it.date = Date.now(); await save(); render(); }
-          return;
-        }
+        if (it.kind === 'note') return itemMenu(it);
         if (it.kind === 'plan') {
           const pl = plansById[it.planId];
           if (!pl) return toast('Ce plan a été supprimé');
           s.close();
           return openPlanViewer(pl, planCtx(() => {}));
         }
-        const f = files[it.fileId];
-        if (!f) return;
-        if (f.mime.startsWith('image/')) showImage(BlobURL.get(f.id, f.blob), it.name);
-        else if (f.mime === 'application/pdf') showPdf(f.blob, it.name);
-        else toast('Type de fichier non affichable');
+        const f = files[it.fileId]; if (f) openFileRecord(f, it.name);
       });
+      $('[data-a=newcat]', box).onclick = async () => {
+        const existing = new Set(cats().map(c => c.label));
+        const v = await menu('Nouvelle rubrique', [...EXTRA_CAT_SUGGEST.filter(x => !existing.has(x)).map(x => ({ label: x, icon: 'hard', value: x })), { label: 'Autre nom…', icon: 'edit', value: '__other' }]);
+        let label = v;
+        if (v === '__other') { const r = await formSheet('Nouvelle rubrique', [{ name: 'label', label: 'Nom (ex : Plâtrerie, Charpente…)' }], { okLabel: 'Ajouter' }); label = r && r.label; }
+        if (!label) return;
+        const key = 'x_' + DB.uid();
+        project.extraCats = [...(project.extraCats || []), { key, label }];
+        await DB.put('projects', project); openCats.add(key); render();
+      };
       $('[data-a=more]', box).onclick = async () => {
         const v = await menu(link.name, [
           { label: 'Renommer', icon: 'edit', value: 'rename' },
@@ -408,66 +457,99 @@ function openLinkDetail(link) {
           const c = await menu('Couleur', PALETTE.filter(c => c !== '#ffffff').map(c => ({ label: c, value: c, checked: c === link.color })));
           if (c) { link.color = c; await save(); render(); }
         }
-        if (v === 'del' && await confirmBox('Supprimer cet élément et tous ses fichiers ?')) {
+        if (v === 'del' && await confirmBox('Supprimer cet élément et tous ses documents ?')) {
           for (const it of link.items) if (it.fileId) await DB.del('files', it.fileId);
           await DB.del('links', link.id); s.close();
         }
       };
     }
 
-    async function addItem(cat, how) {
-      openCats.add(cat);
-      if (how === 'note') {
+    async function itemMenu(it) {
+      const f = it.fileId ? await DB.get('files', it.fileId) : null;
+      const v = await menu(it.kind === 'note' ? 'Note' : (it.name || 'Document'), [
+        ...(it.kind === 'note' ? [{ label: 'Modifier la note', icon: 'edit', value: 'editnote' }] : [{ label: 'Renommer', icon: 'edit', value: 'rename' }]),
+        ...(f ? [{ label: 'Ouvrir avec une autre application', icon: 'external', value: 'ext' }] : []),
+        ...(it.url ? [{ label: 'Ouvrir le lien Drive', icon: 'drive', value: 'url' }] : []),
+        { label: 'Supprimer', icon: 'trash', danger: true, value: 'del' },
+      ]);
+      if (v === 'rename') { const r = await formSheet('Renommer', [{ name: 'name', label: 'Nom du document', value: it.name || '' }]); if (r && r.name) { it.name = r.name; await save(); } }
+      if (v === 'editnote') { const r = await formSheet('Note', [{ name: 'text', label: 'Note', type: 'textarea', value: it.text }]); if (r && r.text) { it.text = r.text; await save(); } }
+      if (v === 'ext') openExternal(f);
+      if (v === 'url') openUrl(it.url);
+      if (v === 'del' && await confirmBox('Supprimer ce document ?')) {
+        link.items = link.items.filter(i => i !== it);
+        if (it.fileId) await DB.del('files', it.fileId);
+        await save();
+      }
+      render();
+    }
+
+    async function askName(def) {
+      const r = await formSheet('Nom du document', [{ name: 'name', label: 'Nom (ex : Coffrage poteaux R+2 indice B)', value: def }], { okLabel: 'Enregistrer' });
+      return r ? (r.name || def) : null;
+    }
+    async function storeFile(cat, file, name) {
+      let rec;
+      if (isRasterImage(file)) rec = await saveImageFile(pid, file, cat.type === 'photo' ? 'photo' : 'doc', { source: link.name, name: file.name });
+      else rec = await DB.put('files', { projectId: pid, blob: file, mime: mimeFromName(file.name, file.type), name: file.name, role: 'doc' });
+      link.items.push({ id: DB.uid(), cat: cat.key, kind: 'file', fileId: rec.id, name, date: Date.now() });
+    }
+
+    async function addItem(cat) {
+      openCats.add(cat.key);
+      if (cat.type === 'note') {
         const r = await formSheet('Nouvelle note', [{ name: 'text', label: 'Note', type: 'textarea', placeholder: 'Ex : Enrobage insuffisant côté axe C, à reprendre avant coulage' }], { okLabel: 'Ajouter' });
-        if (r && r.text) { link.items.push({ id: DB.uid(), cat, kind: 'note', text: r.text, date: Date.now() }); await save(); }
+        if (r && r.text) { link.items.push({ id: DB.uid(), cat: cat.key, kind: 'note', text: r.text, date: Date.now() }); await save(); }
         return render();
       }
+      const opts = cat.type === 'photo' ? [['cam', 'camera', 'Prendre une photo'], ['gal', 'image', 'Galerie']]
+        : cat.type === 'pv' ? [['cam', 'camera', 'Prendre une photo'], ['gal', 'image', 'Galerie'], ['phone', 'phone', 'Fichier du téléphone (PDF…)'], ['drive', 'drive', 'Google Drive (lien)']]
+        : [['phone', 'phone', 'Depuis le téléphone (PDF, image, AutoCAD DWG/DXF)'], ['drive', 'drive', 'Depuis Google Drive (lien)'], ['plan', 'plans', 'Lier un plan du projet']];
+      const how = await menu(`Ajouter · ${cat.label}`, opts.map(([v, i, l]) => ({ value: v, icon: i, label: l })));
+      if (!how) return render();
+
       if (how === 'plan') {
         const [plans, folders] = await Promise.all([DB.byProject('plans', pid), DB.byProject('folders', pid)]);
         const others = plans.filter(p => p.id !== link.planId);
-        if (!others.length) { toast('Importez d\'abord ce plan dans « Plans »'); return; }
+        if (!others.length) { toast('Importez d\'abord ce plan dans « Plans »'); return render(); }
         const fname = (id) => (folders.find(f => f.id === id) || {}).name;
         others.sort((a, b) => `${fname(a.folderId) || ''} ${a.name}`.localeCompare(`${fname(b.folderId) || ''} ${b.name}`, 'fr', { numeric: true }));
         const planId = await menu('Choisir le plan', others.map(p => ({ label: (fname(p.folderId) ? fname(p.folderId) + ' / ' : '') + p.name, icon: 'plans', value: p.id })));
-        if (planId) { link.items.push({ id: DB.uid(), cat, kind: 'plan', planId, date: Date.now() }); await save(); }
+        if (!planId) return render();
+        const name = await askName(others.find(p => p.id === planId).name);
+        if (name === null) return render();
+        link.items.push({ id: DB.uid(), cat: cat.key, kind: 'plan', planId, name, date: Date.now() }); await save();
         return render();
       }
-      if (how === 'url') {
-        const r = await formSheet('Lien Google Drive', [
-          { name: 'url', label: 'Coller le lien (Drive, Dropbox, …)', type: 'url', placeholder: 'https://drive.google.com/…' },
-          { name: 'name', label: 'Nom (optionnel)', placeholder: LINK_CATS.find(c => c.key === cat).label },
+      if (how === 'drive') {
+        const r = await formSheet('Google Drive', [
+          { name: 'url', label: 'Coller le lien du fichier', type: 'url', placeholder: 'https://drive.google.com/file/d/…' },
+          { name: 'name', label: 'Nom du document', placeholder: cat.label },
         ], { okLabel: 'Ajouter' });
         if (!r || !r.url) return render();
-        const label = r.name || LINK_CATS.find(c => c.key === cat).label;
-        if (/drive\.google\.com|docs\.google\.com/.test(r.url) && driveFileId(r.url) && isNative()) {
+        if (driveFileId(r.url) && isNative()) {
           const ld = loading('Téléchargement depuis Drive…');
           try {
             const file = await downloadFromDrive(r.url);
-            let rec;
-            if (file.type.startsWith('image/')) rec = await saveImageFile(pid, file, cat === 'photo' ? 'photo' : 'doc', { source: link.name });
-            else rec = await DB.put('files', { projectId: pid, blob: file, mime: file.type, name: file.name, role: 'doc' });
-            link.items.push({ id: DB.uid(), cat, kind: 'file', fileId: rec.id, url: r.url, name: r.name || file.name.replace(/\.[^.]+$/, ''), date: Date.now() });
-            await save(); toast('Fichier Drive enregistré ✓');
-            return render();
-          } catch (e) {
-            toast(e.message);
-          } finally { ld.close(); }
+            await storeFile(cat, file, r.name || file.name.replace(/\.[^.]+$/, ''));
+            link.items[link.items.length - 1].url = r.url;
+            await save(); toast('Fichier Drive enregistré ✓'); ld.close(); return render();
+          } catch (e) { ld.close(); toast(e.message); }
         }
-        link.items.push({ id: DB.uid(), cat, kind: 'url', url: r.url, name: label, date: Date.now() }); await save();
+        link.items.push({ id: DB.uid(), cat: cat.key, kind: 'url', url: r.url, name: r.name || cat.label, date: Date.now() }); await save();
         return render();
       }
-      const files = await pickFiles({ accept: cat === 'photo' ? 'image/*' : 'image/*,application/pdf', multiple: how !== 'cam', capture: how === 'cam' });
-      if (!files.length) return;
-      const ld = loading('Enregistrement…');
-      try {
-        for (const file of files) {
-          let rec;
-          if (file.type.startsWith('image/')) rec = await saveImageFile(pid, file, cat === 'photo' ? 'photo' : 'doc', { source: link.name });
-          else rec = await DB.put('files', { projectId: pid, blob: file, mime: file.type || 'application/pdf', name: file.name, role: 'doc' });
-          link.items.push({ id: DB.uid(), cat, kind: 'file', fileId: rec.id, name: file.name.replace(/\.[^.]+$/, ''), date: Date.now() });
-        }
-        await save();
-      } finally { ld.close(); render(); }
+      const accept = how === 'phone' ? '*/*' : 'image/*';
+      const files = await pickFiles({ accept, multiple: how !== 'cam', capture: how === 'cam' });
+      if (!files.length) return render();
+      for (const file of files) {
+        const def = file.name.replace(/\.[^.]+$/, '');
+        const name = cat.type === 'photo' || how === 'cam' ? def : await askName(def);
+        if (name === null) continue;
+        const ld = loading('Enregistrement…');
+        try { await storeFile(cat, file, name); } finally { ld.close(); }
+      }
+      await save(); render();
     }
     render();
   });

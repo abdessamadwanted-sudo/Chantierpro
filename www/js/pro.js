@@ -1,7 +1,7 @@
 // Fonctions « pro » (concept Bulldozair / Mezzoteam) :
 // entreprises (lots), réserves en retard, tableau de bord, rapports PDF, signatures.
 const COMPANY_COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#a855f7', '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#64748b'];
-const LOTS = ['Gros œuvre', 'Terrassement', 'Charpente métallique', 'Étanchéité', 'Électricité', 'Plomberie', 'CVC', 'Menuiserie', 'Revêtements', 'Peinture', 'VRD', 'Bureau de contrôle', 'Autre'];
+const LOTS = ['Gros œuvre', 'Terrassement', 'Maçonnerie', 'Plâtrerie', 'Charpente', 'Charpente métallique', 'Façade', 'Étanchéité', 'Électricité', 'Plomberie', 'CVC', 'Menuiserie', 'Carrelage', 'Revêtements', 'Peinture', 'VRD', 'Bureau de contrôle'];
 const KINDS = { reserve: 'Réserve', observation: 'Observation', tache: 'Tâche' };
 
 const isLate = (t) => t.due && (t.status === 'open' || t.status === 'progress') && t.due < todayISO();
@@ -12,7 +12,7 @@ const companyOf = (project, id) => (project.companies || []).find(c => c.id === 
 async function editCompany(project, company) {
   const r = await formSheet(company ? 'Modifier l\'entreprise' : 'Nouvelle entreprise', [
     { name: 'name', label: 'Nom de l\'entreprise', value: company?.name, placeholder: 'Ex : SGTM, TGCC, Sous-traitant ferraillage…' },
-    { name: 'lot', label: 'Lot', type: 'select', value: company?.lot || 'Gros œuvre', options: LOTS },
+    { name: 'lot', label: 'Lot (choisir ou écrire un autre)', value: company?.lot || '', placeholder: 'Ex : Maçonnerie, Plâtrerie, Charpente…', list: LOTS },
     { name: 'contact', label: 'Contact (nom / téléphone)', value: company?.contact },
   ], { danger: company ? 'Supprimer l\'entreprise' : null });
   if (!r) return null;
@@ -47,28 +47,17 @@ async function renderDashboard(root) {
     ${late.length ? `<div class="alert" data-a="late">${icon('calendar')}<div><b>${late.length} réserve(s) en retard</b><br><span>Échéance dépassée — touchez pour voir</span></div></div>` : ''}
     <div class="kpis">
       <div class="kpi" data-f="toLift"><div class="v" style="color:var(--red)">${toLift}</div><div class="l">À lever</div></div>
-      <div class="kpi" data-f="lifted"><div class="v" style="color:var(--green)">${lifted}</div><div class="l">Levées</div></div>
       <div class="kpi" data-f="late"><div class="v" style="color:var(--orange)">${late.length}</div><div class="l">En retard</div></div>
-      <div class="kpi"><div class="v">${rate}%</div><div class="l">Taux de levée</div></div>
     </div>
     <div class="card dash">
       <div class="dash-h">Avancement par entreprise</div>
       ${comps.length ? comps.map(x => `
         <div class="crow" data-c="${x.c.id}">
           <div class="ctop"><span class="dot" style="background:${x.c.color}"></span><span class="cn">${esc(x.c.name)}</span>
-            <span class="cs">${x.lifted}/${x.n}${x.late ? ` · <b style="color:var(--orange)">${x.late} en retard</b>` : ''}</span></div>
+            <span class="cs">${x.n - x.lifted} à lever${x.late ? ` · <b style="color:var(--orange)">${x.late} en retard</b>` : ''}</span></div>
           <div class="progress"><div style="width:${x.n ? x.lifted / x.n * 100 : 0}%;background:${x.c.color}"></div></div>
         </div>`).join('') : `<div class="muted">Ajoutez des entreprises dans « Équipe » puis affectez-leur des réserves.</div>`}
       <button class="btn ghost small" data-a="addco" style="margin-top:10px">${icon('plus')} Entreprise</button>
-    </div>
-    <div class="card dash">
-      <div class="dash-h">Contrôles qualité</div>
-      <div class="kpis in">
-        <div class="kpi"><div class="v" style="color:var(--green)">${conf}</div><div class="l">Conformes</div></div>
-        <div class="kpi"><div class="v" style="color:var(--red)">${nconf}</div><div class="l">Non conformes</div></div>
-        <div class="kpi"><div class="v">${fs.length - conf - nconf}</div><div class="l">En cours</div></div>
-      </div>
-      <div class="muted" style="margin-top:8px">${plans.length} plan(s) · ${reports.length} rapport(s) journalier(s)</div>
     </div>
     <div class="card dash">
       <div class="dash-h">Rapports PDF</div>

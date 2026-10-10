@@ -23,6 +23,9 @@ const ICONS = {
   pen: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
   shapes: '<rect x="3" y="9" width="12" height="12" rx="1"/><circle cx="15" cy="9" r="6"/>',
   text: '<path d="M4 7V4h16v3M9 20h6M12 4v16"/>',
+  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>',
+  phone: '<rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/>',
+  cad: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 17V7h4a3 3 0 0 1 0 6H7M14 17l3-10 3 10"/>',
   move: '<path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>',
   undo: '<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/>',
   trash: '<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6"/>',
@@ -44,6 +47,9 @@ const ICONS = {
   edit: '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/>',
   external: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/>',
   ruler: '<path d="M21.3 8.7L8.7 21.3a1 1 0 0 1-1.4 0l-4.6-4.6a1 1 0 0 1 0-1.4L15.3 2.7a1 1 0 0 1 1.4 0l4.6 4.6a1 1 0 0 1 0 1.4z"/><path d="M7.5 10.5l2 2M10.5 7.5l2 2M13.5 4.5l2 2M4.5 13.5l2 2"/>',
+  hand: '<path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.9-6-2.4l-3.6-3.6a2 2 0 0 1 2.8-2.8L7 15"/>',
+  cursor: '<path d="M4 4l7 17 2.5-7.5L21 11z"/><path d="M13.5 13.5L20 20"/>',
+  poly: '<path d="M3 17l5-9 6 6 7-10"/><circle cx="3" cy="17" r="1.6"/><circle cx="8" cy="8" r="1.6"/><circle cx="14" cy="14" r="1.6"/><circle cx="21" cy="4" r="1.6"/>',
   layers: '<path d="M12 2l10 5-10 5L2 7z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/>',
 };
 const icon = (n, extra = '') => `<svg class="i" viewBox="0 0 24 24" ${extra}>${ICONS[n] || ''}</svg>`;
@@ -114,7 +120,8 @@ function formSheet(title, fields, { okLabel = 'Enregistrer', danger } = {}) {
       let input;
       if (f.type === 'textarea') input = `<textarea name="${f.name}" placeholder="${esc(f.placeholder || '')}">${v}</textarea>`;
       else if (f.type === 'select') input = `<select name="${f.name}">${f.options.map(o => `<option value="${esc(o.value ?? o)}" ${(o.value ?? o) == f.value ? 'selected' : ''}>${esc(o.label ?? o)}</option>`).join('')}</select>`;
-      else input = `<input name="${f.name}" type="${f.type || 'text'}" value="${v}" placeholder="${esc(f.placeholder || '')}" ${f.type === 'url' ? 'inputmode="url"' : ''}>`;
+      else input = `<input name="${f.name}" type="${f.type || 'text'}" value="${v}" placeholder="${esc(f.placeholder || '')}" ${f.type === 'url' ? 'inputmode="url"' : ''} ${f.list ? `list="dl-${f.name}"` : ''}>` +
+        (f.list ? `<datalist id="dl-${f.name}">${f.list.map(o => `<option value="${esc(o)}">`).join('')}</datalist>` : '');
       return `<label>${esc(f.label)}${input}</label>`;
     }).join('')}</div>
     <div class="btnrow"><button class="btn ghost" data-a="cancel">Annuler</button><button class="btn" data-a="ok">${esc(okLabel)}</button></div>
@@ -260,6 +267,8 @@ function mimeFromName(name, fallback) {
   if (/\.(jpe?g)$/i.test(name)) return 'image/jpeg';
   if (/\.png$/i.test(name)) return 'image/png';
   if (/\.webp$/i.test(name)) return 'image/webp';
+  if (/\.dwg$/i.test(name)) return 'application/acad';
+  if (/\.dxf$/i.test(name)) return 'application/dxf';
   return fallback || 'application/octet-stream';
 }
 async function downloadFromDrive(url) {
@@ -283,3 +292,6 @@ async function downloadFromDrive(url) {
   if (!data) throw new Error('Téléchargement vide');
   return new File([base64ToBlob(data, type)], name, { type });
 }
+
+// Vraie image affichable (et pas un DWG déclaré « image/vnd.dwg »)
+const isRasterImage = (file) => /^image\/(jpeg|jpg|png|webp|gif|bmp|heic|heif)$/i.test(file.type || '') || (!file.type && /\.(jpe?g|png|webp|gif|bmp)$/i.test(file.name || ''));
