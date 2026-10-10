@@ -12,7 +12,11 @@ const isBeton = (kind) => kind === 'Bétonnage';
 const kindOf = (d) => d.type === 'Bétonnage' ? 'Bétonnage' : 'Ferraillage';
 const recTitle = (kind) => isBeton(kind) ? 'Programme de bétonnage' : 'Réception ferraillage';
 const recColHead = (kind) => isBeton(kind) ? 'Élément bétonné' : 'Ferraillage réceptionné';
-const stLabel = (kind, st) => isBeton(kind) ? ({ ok: 'Bétonné', reserve: 'Avec réserve', pending: 'Non bétonné' }[st]) : REC_STATUS[st].label;
+const stLabel = (kind, st) => isBeton(kind) ? ({ ok: 'Bétonné', reserve: 'Avec défaut', pending: 'Non bétonné' }[st]) : REC_STATUS[st].label;
+const resLabel = (kind) => isBeton(kind) ? 'Défaut' : 'Réserve';                       // ségrégation, nid de cailloux…
+const photoLabels = (kind) => isBeton(kind) ? ['Photo défaut', 'Photo réparation'] : ['Photo réserve', 'Photo retour'];
+const liftLabel = (kind) => isBeton(kind) ? 'Réparé' : 'Levée';
+const CLASSES = ['B20', 'B25', 'B30', 'B35', 'B40', 'C25/30', 'C30/37', 'C35/45', 'C40/50'];
 const MONTHS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 const monthLabel = (ym) => { const [y, m] = ym.split('-'); return `${MONTHS[+m - 1]} ${y}`; };
 
@@ -23,9 +27,17 @@ const cmpZone = (a, b) => { const x = zoneKey(a), y = zoneKey(b); for (let i = 0
 function recMessage(p, day, rows) {
   const K = kindOf(day);
   rows = rows.filter(r => r.element).slice().sort(cmpZone);
-  const line = (r) => `${REC_STATUS[r.status].mark} ${[r.zone && 'Zone ' + r.zone, r.niv].filter(Boolean).join(' · ')}${r.zone || r.niv ? ' — ' : ''}${r.element}${r.obs ? `\n     ↳ ${r.status === 'reserve' ? 'Réserve : ' : ''}${r.obs}` : ''}${r.status === 'reserve' && r.liftedAt ? `\n     ✔️ Réserve levée le ${fmtDate(r.liftedAt)}` : ''}`;
-  const sec = (st, title) => { const l = rows.filter(r => r.status === st); return l.length ? `\n*${title} (${l.length}) :*\n${l.map(line).join('\n')}\n` : ''; };
-  return `*${p.name}*\n*${recTitle(K)} du ${fmtDate(day.date)}*\n` + sec('ok', stLabel(K, 'ok')) + sec('reserve', 'Avec réserve') + sec('pending', stLabel(K, 'pending'));
+  const item = (r) => `${REC_STATUS[r.status].mark} ${r.niv ? r.niv + ' — ' : ''}${r.element}${isBeton(K) && r.classe ? ` (${r.classe})` : ''}` +
+    (r.obs ? `\n     ↳ ${r.status === 'reserve' ? resLabel(K) + ' : ' : ''}${r.obs}` : '') +
+    (r.status === 'reserve' && r.liftedAt ? `\n     ✔️ ${isBeton(K) ? 'Réparé' : 'Réserve levée'} le ${fmtDate(r.liftedAt)}` : '');
+  const sec = (st, title) => {
+    const l = rows.filter(r => r.status === st);
+    if (!l.length) return '';
+    const zones = [];
+    for (const r of l) { const z = String(r.zone || '').trim(); let g = zones.find(x => x.z === z); if (!g) zones.push(g = { z, rows: [] }); g.rows.push(r); }
+    return `\n*${title} (${l.length}) :*\n` + zones.map(g => `*${g.z ? 'Zone ' + g.z : 'Sans zone'}*\n${g.rows.map(item).join('\n')}`).join('\n\n') + '\n';
+  };
+  return `*${recTitle(K)} du ${fmtDate(day.date)}*\n` + sec('ok', stLabel(K, 'ok')) + sec('reserve', stLabel(K, 'reserve')) + sec('pending', stLabel(K, 'pending'));
 }
 const rowText = (p, day, r) => recMessage(p, day, [r]);
 async function shareRow(p, day, r) {
@@ -47,6 +59,22 @@ async function shareRow(p, day, r) {
     } catch (e) { if (/cancel/i.test(String(e?.message))) return; }
   }
   shareWhatsApp(text);
+}
+
+async function sharePhotos(ids, text) {
+  const P = window.Capacitor?.Plugins || {};
+  if (!(P.Share && P.Filesystem)) { toast('Disponible dans l\'application Android'); return; }
+  try {
+    const files = [];
+    for (const id of ids) {
+      const f = await DB.get('files', id); if (!f) continue;
+      const b64 = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = rej; fr.readAsDataURL(f.blob); });
+      const name = `pv_${id}.jpg`;
+      await P.Filesystem.writeFile({ path: name, data: b64, directory: 'CACHE' });
+      files.push((await P.Filesystem.getUri({ path: name, directory: 'CACHE' })).uri);
+    }
+    await P.Share.share({ text, files, dialogTitle: 'Envoyer les PV' });
+  } catch (e) { if (!/cancel/i.test(String(e?.message))) alertBox('Envoi impossible : ' + (e.message || e)); }
 }
 
 async function renderReceptions(root, kind = 'Ferraillage') {
@@ -73,7 +101,7 @@ async function renderReceptions(root, kind = 'Ferraillage') {
     body.innerHTML = hits.length ? `<div class="section-label">${hits.length} résultat(s)</div><div class="list">${hits.map(({ d, r }, i) => `
       <div class="row" data-h="${i}"><span class="rs" style="background:${REC_STATUS[r.status].color};min-width:74px;text-align:center">${stLabel(kind, r.status)}</span>
         <div class="grow"><div class="title">${esc(r.element)}</div>
-        <div class="sub">📅 ${fmtDate(d.date)}${r.zone ? ' · Zone ' + esc(r.zone) : ''}${r.niv ? ' · ' + esc(r.niv) : ''}${r.obs ? `<br><span style="color:${r.status === 'reserve' ? '#f59e0b' : 'var(--muted)'}">${esc(r.obs)}</span>` : ''}</div></div>
+        <div class="sub">📅 ${fmtDate(d.date)}${r.zone ? ' · Zone ' + esc(r.zone) : ''}${r.niv ? ' · ' + esc(r.niv) : ''}${r.classe ? ' · ' + esc(r.classe) : ''}${r.obs ? `<br><span style="color:${r.status === 'reserve' ? '#f59e0b' : 'var(--muted)'}">${esc(r.obs)}</span>` : ''}</div></div>
         <button class="iconbtn" data-sh="${i}">${icon('share')}</button></div>`).join('')}</div>`
       : `<div class="empty">Aucun ouvrage trouvé${q ? ` pour « ${esc(q)} »` : ''}${nivF ? ` au niveau ${esc(nivF)}` : ''}.</div>`;
     $$('[data-h]', body).forEach(el => el.onclick = async (e) => {
@@ -119,7 +147,7 @@ async function renderReceptions(root, kind = 'Ferraillage') {
     if (last && last.rows.some(r => r.status !== 'ok' && r.element)) {
       const v = await menu(`Reprendre les éléments non terminés / avec réserve du ${fmtDate(last.date)} ?`, [
         { label: 'Oui, les reprendre', icon: 'check', value: 'yes' }, { label: 'Non, tableau vide', icon: 'close', value: 'no' }]);
-      if (v === 'yes') rows = last.rows.filter(r => r.status !== 'ok' && r.element).map(r => ({ ...r, id: DB.uid(), status: 'pending', photoIds: [], obs: r.status === 'reserve' ? `Réserve du ${recDateLabel(last.date).slice(0, 5)} : ${r.obs || ''}` : r.obs }));
+      if (v === 'yes') rows = last.rows.filter(r => r.status !== 'ok' && r.element).map(r => ({ ...r, id: DB.uid(), status: 'pending', photoIds: [], retourIds: [], liftedAt: null, obs: r.status === 'reserve' ? `Réserve du ${recDateLabel(last.date).slice(0, 5)} : ${r.obs || ''}` : r.obs }));
     }
     const d = await DB.put('receptions', { projectId: p.id, date: today, type: kind, rows });
     App.openMonths[kind + today.slice(0, 7)] = true;
@@ -137,40 +165,80 @@ function openReceptionDay(day) {
     const unBack = pushBack(finish);
 
     const K = kindOf(day);
+    const NC = isBeton(K) ? 8 : 7;
+    const [PH1, PH2] = photoLabels(K);
+    let moveSel = -1;             // ligne sélectionnée pour la déplacer (appui long)
     function render() {
       const n = day.rows.filter(r => r.element).length, ok = day.rows.filter(r => r.status === 'ok').length, rs = day.rows.filter(r => r.status === 'reserve').length;
       el.innerHTML = `
         <div class="topbar"><button class="iconbtn" data-a="back">${icon('back')}</button>
           <h1>${fmtDate(day.date)}</h1>
           <button class="iconbtn" data-a="share">${icon('share')}</button><button class="iconbtn" data-a="more">${icon('more')}</button></div>
-        <div class="rec-sum"><span><b>${n}</b> éléments</span><span style="color:#22c55e"><b>${ok}</b> ${isBeton(K) ? 'bétonnés' : 'réceptionnés'}</span><span style="color:#f59e0b"><b>${rs}</b> réserves</span><span style="color:var(--muted)"><b>${n - ok - rs}</b> en attente</span></div>
+        <div class="rec-sum"><span><b>${n}</b> éléments</span><span style="color:#22c55e"><b>${ok}</b> ${isBeton(K) ? 'bétonnés' : 'réceptionnés'}</span><span style="color:#f59e0b"><b>${rs}</b> ${isBeton(K) ? "défauts" : "réserves"}</span><span style="color:var(--muted)"><b>${n - ok - rs}</b> en attente</span></div>
         <div class="rec-wrap">
           <table class="rec">
             <thead>
-              <tr><th colspan="7" class="rt1">${esc(p.pdfTitle || p.name)}</th></tr>
-              <tr><th colspan="5" class="rt2">${recTitle(K)} (post jour)</th><th colspan="2" class="rt2 date">Date ${recDateLabel(day.date).slice(0, 5)}</th></tr>
-              <tr><th>Zone</th><th>NIV</th><th class="el">${recColHead(K)}</th><th>Statut</th><th class="ob">Observation</th><th>Photo réserve</th><th>Photo retour</th></tr>
+              <tr><th colspan="${NC}" class="rt1">${esc(p.pdfTitle || p.name)}</th></tr>
+              <tr><th colspan="${NC - 2}" class="rt2">${recTitle(K)} (post jour)</th><th colspan="2" class="rt2 date">Date ${recDateLabel(day.date).slice(0, 5)}</th></tr>
+              <tr><th>Zone</th><th>NIV</th><th class="el">${recColHead(K)}</th>${isBeton(K) ? '<th>Classe béton</th>' : ''}<th>Statut</th><th class="ob">Observation</th><th>${PH1}</th><th>${PH2}</th></tr>
             </thead>
             <tbody>
-              ${day.rows.map((r, i) => `<tr data-i="${i}" class="st-${r.status}">
-                <td class="c">${esc(r.zone)}</td><td class="c">${esc(r.niv)}</td><td class="el">${esc(r.element)}</td>
-                <td class="c"><span class="rs" style="background:${REC_STATUS[r.status].color}">${r.status === 'ok' ? 'OK' : r.status === 'reserve' ? 'Réserve' : 'Attente'}</span>${r.status === 'reserve' && r.liftedAt ? `<br><span class="rs" style="background:#16a34a;margin-top:4px">Levée ${recDateLabel(r.liftedAt).slice(0, 5)}</span>` : ''}</td>
+              ${day.rows.map((r, i) => `<tr data-i="${i}" class="st-${r.status} ${moveSel === i ? 'moving' : ''}">
+                <td class="c">${esc(r.zone)}</td><td class="c">${esc(r.niv)}</td><td class="el">${esc(r.element)}</td>${isBeton(K) ? `<td class="c">${esc(r.classe || '')}</td>` : ''}
+                <td class="c"><span class="rs" style="background:${REC_STATUS[r.status].color}">${r.status === 'ok' ? 'OK' : r.status === 'reserve' ? resLabel(K) : 'Attente'}</span>${r.status === 'reserve' && r.liftedAt ? `<br><span class="rs" style="background:#16a34a;margin-top:4px">${liftLabel(K)} ${recDateLabel(r.liftedAt).slice(0, 5)}</span>` : ''}</td>
                 <td class="ob">${esc(r.obs)}</td>
                 <td class="c ph">${(r.photoIds || []).length ? `📷 ${r.photoIds.length}` : ''}</td>
                 <td class="c ph">${(r.retourIds || []).length ? `📷 ${r.retourIds.length}` : ''}</td></tr>`).join('')}
-              <tr class="addrow"><td colspan="7"><button data-a="add">${icon('plus')} Ajouter une ligne</button></td></tr>
+              <tr class="addrow"><td colspan="${NC}"><button data-a="add">${icon('plus')} Ajouter une ligne</button><span class="hint-lp">Appui long sur une ligne pour la déplacer</span></td></tr>
             </tbody>
           </table>
-        </div>`;
+          <div class="pv-day">
+            <div class="pv-h">${icon('report')} PV du jour <span>${(day.pvIds || []).length || ''}</span></div>
+            <div class="thumbs" id="pvThumbs"></div>
+          </div>
+        </div>
+        ${moveSel >= 0 ? `<div class="movebar"><span>Déplacer la ligne ${moveSel + 1}</span>
+          <button data-mv="top" title="Tout en haut">⤒</button><button data-mv="up">▲</button><button data-mv="down">▼</button><button data-mv="bottom" title="Tout en bas">⤓</button>
+          <button data-mv="done" class="ok">${icon('check')}</button></div>` : ''}`;
+      // PV du jour
+      (async () => {
+        const pvs = await loadFiles(day.pvIds || []);
+        const box = $('#pvThumbs', el); if (!box) return;
+        box.innerHTML = pvs.map(f => `<div class="t" data-pv="${f.id}"><img src="${BlobURL.get(f.id, f.blob)}"><button class="x" data-pvdel="${f.id}">×</button></div>`).join('') + `<button class="t add" data-a="addpv">${icon('camera')}</button>`;
+        $('[data-a=addpv]', box).onclick = async () => {
+          const recs = await addPhotos(day.projectId, { source: `PV ${recTitle(K)} ${recDateLabel(day.date)}` });
+          if (recs.length) { day.pvIds = [...(day.pvIds || []), ...recs.map(x => x.id)]; await save(); render(); }
+        };
+        $$('[data-pv]', box).forEach(t => t.onclick = async (e) => {
+          const id = t.dataset.pv;
+          if (e.target.closest('[data-pvdel]')) { if (await confirmBox('Retirer ce PV ?')) { day.pvIds = day.pvIds.filter(x => x !== id); await DB.del('files', id); await save(); render(); } return; }
+          const f = pvs.find(x => x.id === id); showImage(BlobURL.get(f.id, f.blob), `PV du ${fmtDate(day.date)}`);
+        });
+      })();
       $('[data-a=back]', el).onclick = () => { unBack(); finish(); };
       $('[data-a=add]', el).onclick = () => editRow(null);
-      $$('tbody tr[data-i]', el).forEach(tr => tr.onclick = () => editRow(+tr.dataset.i));
+      $$('tbody tr[data-i]', el).forEach(tr => {
+        let t = null, lp = false;
+        tr.addEventListener('pointerdown', () => { lp = false; clearTimeout(t); t = setTimeout(() => { lp = true; moveSel = +tr.dataset.i; try { navigator.vibrate && navigator.vibrate(25); } catch (e) {} render(); }, 500); });
+        ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => tr.addEventListener(ev, () => clearTimeout(t)));
+        tr.addEventListener('pointermove', (e) => { if (Math.abs(e.movementY) + Math.abs(e.movementX) > 3) clearTimeout(t); });
+        tr.onclick = () => { if (lp) return; if (moveSel >= 0) { moveSel = +tr.dataset.i; return render(); } editRow(+tr.dataset.i); };
+      });
+      $$('[data-mv]', el).forEach(b => b.onclick = async () => {
+        const v = b.dataset.mv, i = moveSel, R = day.rows;
+        if (v === 'done') { moveSel = -1; await save(); return render(); }
+        const j = v === 'up' ? i - 1 : v === 'down' ? i + 1 : v === 'top' ? 0 : R.length - 1;
+        if (j < 0 || j >= R.length || j === i) return;
+        const [row] = R.splice(i, 1); R.splice(j, 0, row); moveSel = j; await save(); render();
+        const tr = $(`tbody tr[data-i="${j}"]`, el); tr && tr.scrollIntoView({ block: 'nearest' });
+      });
       $('[data-a=share]', el).onclick = async () => {
         const v = await menu('Partager', [
           { label: 'Texte WhatsApp (tout le tableau)', icon: 'share', value: 'txt' },
           { label: 'Une zone…', icon: 'share', value: 'zone' },
           { label: 'Choisir des ouvrages…', icon: 'check', value: 'pick' },
           { label: 'PDF du tableau', icon: 'report', value: 'pdf' },
+          ...((day.pvIds || []).length ? [{ label: `Envoyer les PV du jour (${day.pvIds.length})`, icon: 'camera', value: 'pv' }] : []),
           { label: 'Fichier Excel (CSV)', icon: 'grid', value: 'csv' },
           { label: 'Envoyer vers Google Sheets (Drive)', icon: 'drive', value: 'sheets' },
         ]);
@@ -190,6 +258,7 @@ function openReceptionDay(day) {
           $('[data-a=s]', sh.el).onclick = () => { if (!sel.size) return toast('Cochez au moins un ouvrage'); sh.close(); shareWhatsApp(recMessage(p, day, [...sel].map(j => rows[j]))); };
         }
         if (v === 'pdf') receptionPdf(p, day);
+        if (v === 'pv') sharePhotos(day.pvIds, `PV — ${recTitle(K)} du ${fmtDate(day.date)}`);
         if (v === 'csv') receptionCsv(p, day);
         if (v === 'sheets') { await save(); await sendToSheets(p, day); render(); }
       };
@@ -201,6 +270,7 @@ function openReceptionDay(day) {
         if (v === 'date') { const r = await formSheet('Date', [{ name: 'date', label: 'Date', type: 'date', value: day.date }]); if (r && r.date) { day.date = r.date; await save(); render(); } }
         if (v === 'del' && await confirmBox('Supprimer ce tableau ?')) {
           for (const r of day.rows) for (const id of [...(r.photoIds || []), ...(r.retourIds || [])]) await DB.del('files', id);
+          for (const id of day.pvIds || []) await DB.del('files', id);
           await DB.del('receptions', day.id); unBack(); el.remove(); resolve();
         }
       };
@@ -210,7 +280,7 @@ function openReceptionDay(day) {
     function editRow(i) {
       const isNew = i === null;
       const last = day.rows[day.rows.length - 1] || {};
-      const r = isNew ? { id: DB.uid(), zone: last.zone || '', niv: last.niv || '', element: '', status: 'ok', obs: '', photoIds: [], retourIds: [] } : { ...day.rows[i], photoIds: [...(day.rows[i].photoIds || [])], retourIds: [...(day.rows[i].retourIds || [])] };
+      const r = isNew ? { id: DB.uid(), zone: last.zone || '', niv: last.niv || '', element: '', classe: last.classe || '', status: 'ok', obs: '', photoIds: [], retourIds: [] } : { ...day.rows[i], photoIds: [...(day.rows[i].photoIds || [])], retourIds: [...(day.rows[i].retourIds || [])] };
       const s = sheet(`<div class="form" id="rowf"></div>`, { title: isNew ? 'Nouvelle ligne' : 'Modifier la ligne' });
       const f = $('#rowf', s.el);
       async function draw() {
@@ -221,12 +291,13 @@ function openReceptionDay(day) {
             <label>Niveau<input name="niv" list="dl-niv" value="${esc(r.niv)}" placeholder="R+5"></label></div>
           <datalist id="dl-niv">${NIVEAUX.map(n => `<option value="${n}">`).join('')}</datalist>
           <label>Élément<input name="element" value="${esc(r.element)}" placeholder="Ex : Voile CR 77 Axe D2"></label>
+          ${isBeton(K) ? `<label>Classe béton<input name="classe" list="dl-classe" value="${esc(r.classe || '')}" placeholder="Ex : B30"></label><datalist id="dl-classe">${CLASSES.map(c => `<option value="${c}">`).join('')}</datalist>` : ''}
           <div class="fld">Statut<div class="seg seg3">${Object.entries(REC_STATUS).map(([k, v]) => `<button type="button" data-st="${k}" class="${r.status === k ? 'on' : ''}" style="${r.status === k ? `background:${v.color}` : ''}">${stLabel(K, k)}</button>`).join('')}</div></div>
-          <label>Observation ${r.status === 'reserve' ? '/ réserve' : ''}<textarea name="obs" style="min-height:64px" placeholder="${r.status === 'reserve' ? 'Ex : cales manquantes côté axe D2' : 'Optionnel'}">${esc(r.obs)}</textarea></label>
-          <div class="fld">${r.status === 'reserve' ? 'Photos de la réserve' : 'Photos'}</div>${thumbs(photos, 'photoIds')}
+          <label>Observation ${r.status === 'reserve' ? '/ ' + resLabel(K).toLowerCase() : ''}<textarea name="obs" style="min-height:64px" placeholder="${r.status === 'reserve' ? (isBeton(K) ? 'Ex : ségrégation en pied de voile, nid de cailloux…' : 'Ex : cales manquantes côté axe D2') : 'Optionnel'}">${esc(r.obs)}</textarea></label>
+          <div class="fld">${r.status === 'reserve' ? (isBeton(K) ? 'Photos du défaut (ségrégation…)' : 'Photos de la réserve') : 'Photos'}</div>${thumbs(photos, 'photoIds')}
           ${r.status === 'reserve' || r.retourIds.length ? `<div class="retour-box">
-            <div class="fld">Photos du retour (levée de réserve)</div>${thumbs(retours, 'retourIds')}
-            ${r.status === 'reserve' ? `<button type="button" class="btn ${r.liftedAt ? 'ghost' : ''} small" data-a="lift" style="align-self:flex-start;margin-top:8px">${icon('check')} ${r.liftedAt ? `Réserve levée le ${recDateLabel(r.liftedAt)} (annuler)` : 'Marquer la réserve levée'}</button>` : ''}
+            <div class="fld">${isBeton(K) ? 'Photos de la réparation' : 'Photos du retour (levée de réserve)'}</div>${thumbs(retours, 'retourIds')}
+            ${r.status === 'reserve' ? `<button type="button" class="btn ${r.liftedAt ? 'ghost' : ''} small" data-a="lift" style="align-self:flex-start;margin-top:8px">${icon('check')} ${r.liftedAt ? `${isBeton(K) ? 'Réparé' : 'Réserve levée'} le ${recDateLabel(r.liftedAt)} (annuler)` : (isBeton(K) ? 'Marquer comme réparé' : 'Marquer la réserve levée')}</button>` : ''}
           </div>` : ''}
           <div class="btnrow" style="padding:0">${!isNew ? `<button class="btn danger" data-a="del" style="flex:none;padding:14px 16px">${icon('trash')}</button>` : ''}
             <button class="btn ghost" data-a="cancel">Annuler</button><button class="btn" data-a="ok">${isNew ? 'Ajouter' : 'Enregistrer'}</button></div>
@@ -238,7 +309,7 @@ function openReceptionDay(day) {
           const recs = await addPhotos(day.projectId, { source: `${sec === 'retourIds' ? 'Retour' : 'Réception'} ${recDateLabel(day.date)} · ${r.element || ''}` });
           if (recs.length) {
             r[sec].push(...recs.map(x => x.id));
-            if (sec === 'retourIds' && r.status === 'reserve' && !r.liftedAt && await confirmBox('Marquer la réserve comme levée aujourd\'hui ?', 'Oui, réserve levée')) r.liftedAt = todayISO();
+            if (sec === 'retourIds' && r.status === 'reserve' && !r.liftedAt && await confirmBox(isBeton(K) ? 'Marquer comme réparé aujourd\'hui ?' : 'Marquer la réserve comme levée aujourd\'hui ?', isBeton(K) ? 'Oui, réparé' : 'Oui, réserve levée')) r.liftedAt = todayISO();
             draw();
           }
         });
@@ -285,7 +356,11 @@ async function receptionPdf(p, day) {
     doc.setFontSize(10); doc.text(pt(`${recTitle(K)} (post jour)`), M + 3, R.y + 5.5);
     doc.setTextColor(220, 30, 30); doc.setFontSize(12); doc.text(`Date ${recDateLabel(day.date)}`, W - M - 3, R.y + 5.8, { align: 'right' }); R.y += 8;
     // en-têtes
-    const cols = [{ t: 'Zone', w: 13 }, { t: 'NIV', w: 15 }, { t: recColHead(K), w: 80 }, { t: 'Statut', w: 26 }, { t: 'Observation', w: W - 2 * M - 134 }];
+    const cols = isBeton(K)
+      ? [{ t: 'Zone', w: 13 }, { t: 'NIV', w: 15 }, { t: recColHead(K), w: 64 }, { t: 'Classe', w: 16 }, { t: 'Statut', w: 26 }, { t: 'Observation', w: W - 2 * M - 134 }]
+      : [{ t: 'Zone', w: 13 }, { t: 'NIV', w: 15 }, { t: recColHead(K), w: 80 }, { t: 'Statut', w: 26 }, { t: 'Observation', w: W - 2 * M - 134 }];
+    const cx = []; { let x = M; cols.forEach(c => { cx.push(x); x += c.w; }); }
+    const iSt = cols.findIndex(c => c.t === 'Statut'), iOb = cols.length - 1;
     const head = () => {
       doc.setFillColor(201, 218, 248); doc.rect(M, R.y, W - 2 * M, 8, 'FD');
       doc.setTextColor(20, 20, 20); doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5);
@@ -296,7 +371,7 @@ async function receptionPdf(p, day) {
     const rows = day.rows.filter(r => r.element);
     for (const r of rows) {
       doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-      const el = doc.splitTextToSize(pt(r.element), cols[2].w - 3), ob = doc.splitTextToSize(pt(r.obs || ''), cols[4].w - 3);
+      const el = doc.splitTextToSize(pt(r.element), cols[2].w - 3), ob = doc.splitTextToSize(pt(r.obs || ''), cols[iOb].w - 3);
       const h = Math.max(8, Math.max(el.length, ob.length) * 4.4 + 3.5);
       if (R.y + h > 297 - 18) { doc.addPage(); R.header(); head(); }
       if (r.status === 'reserve') { doc.setFillColor(255, 243, 224); doc.rect(M, R.y, W - 2 * M, h, 'F'); }
@@ -307,26 +382,27 @@ async function receptionPdf(p, day) {
       doc.text(pt(r.niv || ''), M + cols[0].w + cols[1].w / 2, R.y + 5.5, { align: 'center' });
       doc.setFont('helvetica', 'normal');
       el.forEach((l, j) => doc.text(l, M + cols[0].w + cols[1].w + 1.5, R.y + 5.5 + j * 4.4));
+      if (isBeton(K)) { doc.setFont('helvetica', 'bold'); doc.text(pt(r.classe || ''), cx[3] + cols[3].w / 2, R.y + 5.5, { align: 'center' }); }
       const st = REC_STATUS[r.status], c = hexRGB(st.color);
       doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...c);
-      doc.text(pt(stLabel(K, r.status)), M + 108 + cols[3].w / 2, R.y + 5.5, { align: 'center' });
-      if (r.status === 'reserve' && r.liftedAt) { doc.setTextColor(22, 163, 74); doc.text(pt(`Levée le ${recDateLabel(r.liftedAt).slice(0, 5)}`), M + 108 + cols[3].w / 2, R.y + 9.6, { align: 'center' }); }
+      doc.text(pt(stLabel(K, r.status)), cx[iSt] + cols[iSt].w / 2, R.y + 5.5, { align: 'center' });
+      if (r.status === 'reserve' && r.liftedAt) { doc.setTextColor(22, 163, 74); doc.text(pt(`${liftLabel(K)} le ${recDateLabel(r.liftedAt).slice(0, 5)}`), cx[iSt] + cols[iSt].w / 2, R.y + 9.6, { align: 'center' }); }
       doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(r.status === 'reserve' ? 190 : 60, r.status === 'reserve' ? 90 : 60, r.status === 'reserve' ? 0 : 60);
-      ob.forEach((l, j) => doc.text(l, M + 134 + 1.5, R.y + 5.5 + j * 4.4));
+      ob.forEach((l, j) => doc.text(l, cx[iOb] + 1.5, R.y + 5.5 + j * 4.4));
       R.y += h;
     }
     R.y += 5;
     const ok = rows.filter(r => r.status === 'ok').length, rs = rows.filter(r => r.status === 'reserve').length;
-    R.text(`Total : ${rows.length} élément(s) · ${ok} ${stLabel(K, 'ok').toLowerCase()}(s) · ${rs} avec réserve · ${rows.length - ok - rs} ${stLabel(K, 'pending').toLowerCase()}(s)`, { size: 10, bold: true, gap: 4 });
+    R.text(`Total : ${rows.length} élément(s) · ${ok} ${stLabel(K, 'ok').toLowerCase()}(s) · ${rs} ${stLabel(K, 'reserve').toLowerCase()} · ${rows.length - ok - rs} ${stLabel(K, 'pending').toLowerCase()}(s)`, { size: 10, bold: true, gap: 4 });
     // photos
     const withPh = rows.filter(r => (r.photoIds || []).length || (r.retourIds || []).length);
     if (withPh.length) {
       R.text('Photos', { size: 12, bold: true, gap: 2 });
       for (const r of withPh) {
         R.text(`${r.zone ? 'Zone ' + r.zone + ' · ' : ''}${r.niv ? r.niv + ' · ' : ''}${r.element}`, { size: 9.5, bold: true, gap: 1 });
-        for (const [lab, ids] of [[r.status === 'reserve' ? 'Photos réserve' : 'Photos', r.photoIds || []], ['Photos retour (levée)', r.retourIds || []]]) {
+        for (const [lab, ids, good] of [[r.status === 'reserve' ? photoLabels(K)[0] : 'Photos', r.photoIds || [], false], [photoLabels(K)[1], r.retourIds || [], true]]) {
         if (!ids.length) continue;
-        R.text(lab, { size: 8.5, color: lab.startsWith('Photos retour') ? [22, 163, 74] : [200, 90, 0], gap: 0.5 });
+        R.text(lab, { size: 8.5, color: good ? [22, 163, 74] : [200, 90, 0], gap: 0.5 });
         let x = M; const bh = 50; R.need(bh + 3);
         for (const id of ids.slice(0, 4)) {
           const f = await DB.get('files', id); if (!f) continue;
@@ -339,6 +415,17 @@ async function receptionPdf(p, day) {
         }
       }
     }
+    // PV du jour
+    if ((day.pvIds || []).length) {
+      doc.addPage(); R.header();
+      R.text(`PV du jour — ${fmtDate(day.date)}`, { size: 13, bold: true, gap: 3 });
+      for (const id of day.pvIds) {
+        const f = await DB.get('files', id); if (!f) continue;
+        const im = await blobToJpegURL(f.blob, 1400);
+        const maxW = W - 2 * M, maxH = 250; const k = Math.min(maxW / im.w, maxH / im.h);
+        R.need(im.h * k + 4); doc.addImage(im.url, 'JPEG', M + (maxW - im.w * k) / 2, R.y, im.w * k, im.h * k); R.y += im.h * k + 6;
+      }
+    }
     R.finish();
     await sharePdf(doc, `${safeName(recTitle(K))}_${day.date}.pdf`);
   } catch (e) { console.error(e); alertBox('Erreur PDF : ' + (e.message || e)); }
@@ -348,8 +435,9 @@ async function receptionPdf(p, day) {
 async function receptionCsv(p, day) {
   const q = (s) => `"${String(s ?? '').replace(/"/g, '""')}"`;
   const K = kindOf(day);
-  const lines = [[p.name], [recTitle(K), '', '', '', `Date ${recDateLabel(day.date)}`], ['Zone', 'NIV', recColHead(K), 'Statut', 'Observation'],
-    ...day.rows.filter(r => r.element).map(r => [r.zone, r.niv, r.element, stLabel(K, r.status) + (r.status === 'reserve' && r.liftedAt ? ` (levée ${recDateLabel(r.liftedAt)})` : ''), r.obs])];
+  const B = isBeton(K);
+  const lines = [[p.pdfTitle || p.name], [recTitle(K), '', '', '', `Date ${recDateLabel(day.date)}`], ['Zone', 'NIV', recColHead(K), ...(B ? ['Classe béton'] : []), 'Statut', 'Observation'],
+    ...day.rows.filter(r => r.element).map(r => [r.zone, r.niv, r.element, ...(B ? [r.classe || ''] : []), stLabel(K, r.status) + (r.status === 'reserve' && r.liftedAt ? ` (${liftLabel(K).toLowerCase()} ${recDateLabel(r.liftedAt)})` : ''), r.obs])];
   const csv = '﻿' + lines.map(l => l.map(q).join(';')).join('\r\n');
   const fname = `${safeName(recTitle(K))}_${day.date}.csv`;
   const P = window.Capacitor?.Plugins || {};
@@ -425,7 +513,7 @@ async function sendToSheets(p0, day) {
     sheet: `${recDateLabel(day.date).slice(0, 5).replace('/', '-')} ${isBeton(kindOf(day)) ? 'Bétonnage' : 'Ferraillage'}`,
     title: recTitle(kindOf(day)) + ' (post jour)',
     head: ['Zone', 'NIV', recColHead(kindOf(day)), 'Statut', 'Observation'],
-    rows: day.rows.filter(r => r.element).map(r => [r.zone || '', r.niv || '', r.element, stLabel(kindOf(day), r.status), r.obs || '']),
+    rows: day.rows.filter(r => r.element).map(r => [r.zone || '', r.niv || '', r.element + (isBeton(kindOf(day)) && r.classe ? ` (${r.classe})` : ''), stLabel(kindOf(day), r.status), r.obs || '']),
   };
   const ld = loading('Envoi vers Google Sheets…');
   try {
