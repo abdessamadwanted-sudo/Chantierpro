@@ -366,3 +366,16 @@ table.rec tr.moving td { background: #dbeafe !important; outline: 2px solid #3b8
 .pv-h svg.i { color: #1e66d0; } .pv-h span { background: #1e66d0; color: #fff; border-radius: 10px; font-size: 12px; padding: 0 7px; }
 .pv-day .thumbs .t { background: #e5e9f0; } .pv-day .thumbs .add { border-color: #b8c1cf; color: #5b6578; }
 table.rec tbody tr { -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+
+.chip.pvchip { border-color: #ef4444; color: #fca5a5; } .chip.pvchip.on { background: #dc2626; color: #fff; border-color: #dc2626; }
+.chip.pvchip b { margin-left: 4px; }
+.count.pvbadge { background: #dc2626; color: #fff; border-radius: 10px; padding: 1px 8px; font-size: 12px; opacity: 1; }
+.alert.pv { border-color: rgba(239,68,68,.5); background: rgba(239,68,68,.12); }
+.pvrem { max-height: 55vh; overflow: auto; }
+.pvrem .pz { font-weight: 800; margin: 12px 0 4px; font-size: 15px; }
+.pvrem .pr { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.pvrem .pr b { display: block; font-size: 15px; font-weight: 600; } .pvrem .pr small { color: var(--muted); font-size: 12.5px; }
+.pvrem .age { background: #f59e0b; color: #111; border-radius: 10px; font-size: 12px; font-weight: 700; padding: 2px 8px; flex: none; }
+.pvrem .age.late { background: #dc2626; color: #fff; }
+.pvrem { padding: 0 16px; } .pvrem + .btnrow { padding: 0 16px 16px !important; }
+.count.pvbadge { white-space: nowrap; }

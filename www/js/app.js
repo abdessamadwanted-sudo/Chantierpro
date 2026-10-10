@@ -102,6 +102,7 @@ async function openProject(p) {
   renderSection();
   const late = (await DB.byProject('tasks', p.id)).filter(isLate).length;
   if (late) setTimeout(() => toast(`⚠ ${late} réserve(s) en retard`), 400);
+  setTimeout(() => pvReminder(p), 700);
 }
 
 // ---------- Structure d'un projet ----------
@@ -136,12 +137,13 @@ async function renderSection() {
 
 async function openDrawer() {
   const tasks = await DB.byProject('tasks', App.project.id);
+  const nPv = (await missingPvs(App.project.id)).length;
   const cnt = (st) => tasks.filter(t => st === 'all' || t.status === st).length;
   const bg = document.createElement('div'); bg.className = 'drawer-bg';
   const d = document.createElement('div'); d.className = 'drawer';
   d.innerHTML = `
     <div class="drawer-head"><h3>${esc(App.project.name)}</h3><button class="iconbtn" data-home>${icon('home')}</button></div>
-    ${Object.entries(SECTIONS).map(([k, s]) => `<button class="item ${App.section === k ? 'active' : ''}" data-s="${k}">${icon(s.icon)}<span>${s.label}</span></button>`).join('')}
+    ${Object.entries(SECTIONS).map(([k, s]) => `<button class="item ${App.section === k ? 'active' : ''}" data-s="${k}">${icon(s.icon)}<span>${s.label}</span>${k === 'reception' && nPv ? `<span class="count pvbadge">${nPv} PV</span>` : ''}</button>`).join('')}
     <div class="group">Liens rapides (Drive)</div>
     ${(App.project.quickLinks || [{ id: 'reception', name: 'Tableau de réception (Drive)', url: '' }]).map(q => `<button class="item" data-q="${q.id}">${icon('grid')}<span>${esc(q.name)}</span>${q.url ? `<span class="count qe" data-qe="${q.id}">${icon('edit', 'style="width:18px;height:18px;opacity:.55"')}</span>` : '<span class="count" style="font-size:12px;opacity:.6">à lier</span>'}</button>`).join('')}
     <button class="item" data-q="__add" style="color:var(--muted)">${icon('plus')}<span>Ajouter un lien</span></button>

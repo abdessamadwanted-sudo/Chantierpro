@@ -33,6 +33,7 @@ async function editCompany(project, company) {
 async function renderDashboard(root) {
   const p = App.project; const pid = p.id;
   const [tasks, forms, reports, plans] = await Promise.all([DB.byProject('tasks', pid), DB.byProject('forms', pid), DB.byProject('reports', pid), DB.byProject('plans', pid)]);
+  const nPv = (await missingPvs(pid)).length;
   const total = tasks.length, lifted = tasks.filter(isLifted).length, late = tasks.filter(isLate), toLift = total - lifted;
   const rate = total ? Math.round(lifted / total * 100) : 0;
   const comps = [...(p.companies || []), { id: '', name: 'Sans entreprise', color: '#64748b' }]
@@ -45,6 +46,7 @@ async function renderDashboard(root) {
   root.innerHTML = `
     <div class="pagehead"><h2>Tableau de bord</h2><p>${esc(p.name)}${p.address ? ' · ' + esc(p.address) : ''}</p></div>
     ${late.length ? `<div class="alert" data-a="late">${icon('calendar')}<div><b>${late.length} réserve(s) en retard</b><br><span>Échéance dépassée — touchez pour voir</span></div></div>` : ''}
+    ${nPv ? `<div class="alert pv" data-a="pvmiss">${icon('report')}<div><b>🔔 ${nPv} PV de réception pas encore reçu(s)</b><br><span>Touchez pour voir la liste et cocher les PV reçus</span></div></div>` : ''}
     <div class="kpis">
       <div class="kpi" data-f="toLift"><div class="v" style="color:var(--red)">${toLift}</div><div class="l">À lever</div></div>
       <div class="kpi" data-f="late"><div class="v" style="color:var(--orange)">${late.length}</div><div class="l">En retard</div></div>
@@ -71,6 +73,7 @@ async function renderDashboard(root) {
   $$('.kpi[data-f]', root).forEach(k => k.onclick = () => goTasks(k.dataset.f));
   const al = $('[data-a=late]', root); if (al) al.onclick = () => goTasks('late');
   $$('.crow', root).forEach(r => r.onclick = () => goTasks('all', r.dataset.c));
+  const pvm = $('[data-a=pvmiss]', root); if (pvm) pvm.onclick = () => goMissingPv();
   $('[data-a=addco]', root).onclick = async () => { if (await editCompany(App.project)) renderDashboard(root); };
   $('[data-a=pdf]', root).onclick = () => reservesReportDialog();
   $$('.log [data-t]', root).forEach(d => d.onclick = async () => { await openTaskDetail(tasks.find(t => t.id === d.dataset.t)); renderDashboard(root); });
