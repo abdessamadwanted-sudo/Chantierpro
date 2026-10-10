@@ -9,6 +9,7 @@ const Sync = (() => {
     del(k) { try { localStorage.removeItem('sync.' + k); } catch (e) {} },
   };
   const st = { state: 'off', msg: '', last: LS.get('last', 0) };
+  let fails0 = [];
   let running = false, again = false, timer = null, autoT = null;
 
   const cfg = () => LS.get('cfg');
@@ -105,7 +106,7 @@ const Sync = (() => {
     if (running) { again = true; return; }
     if (navigator.onLine === false) { setStatus('error', 'Hors connexion'); return; }
     running = true; again = false;
-    let pulledCount = 0;
+    let pulledCount = 0; const fails = []; fails0 = fails;
     try {
       setStatus('sync', 'Synchronisation…');
       // 1) envoyer les fichiers (photos, plans, PDF…) dans des dossiers rangés
@@ -117,10 +118,12 @@ const Sync = (() => {
         i++; setStatus('sync', `Envoi vers Drive ${i}/${todo.length}`);
         const pth = pathFor(f, paths), key = JSON.stringify(pth);
         let res = null;
-        if (f.driveId) { try { res = await call('upload', { driveId: f.driveId, path: pth.segs, name: pth.name }); } catch (e) { res = null; } }
-        if (!res) res = await call('upload', { path: pth.segs, name: pth.name, mime: f.mime || f.blob.type, b64: await b64(f.blob) });
-        f.driveId = res.id; f.drivePath = key;
-        await DB.put('files', f);
+        try {
+          if (f.driveId) { try { res = await call('upload', { driveId: f.driveId, path: pth.segs, name: pth.name }); } catch (e) { res = null; } }
+          if (!res) res = await call('upload', { path: pth.segs, name: pth.name, mime: f.mime || f.blob.type, b64: await b64(f.blob) });
+          f.driveId = res.id; f.drivePath = key;
+          await DB.put('files', f);
+        } catch (e) { fails.push(`${pth.name} : ${e.message || e}`); }
       }
       // 2) envoyer les données modifiées (tableaux, pins, tâches…)
       const since = LS.get('pushAt', 0), start = Date.now();
@@ -153,14 +156,15 @@ const Sync = (() => {
       // 5) documents lisibles dans Drive (PDF des tableaux, réserves, rapports)
       if (force || Date.now() - LS.get('docsAt', 0) > 90000) { await syncDocs(); LS.set('docsAt', Date.now()); }
       st.last = Date.now(); LS.set('last', st.last);
-      setStatus('ok');
+      LS.set('fails', fails.slice(0, 20));
+      if (fails.length) setStatus('error', `${fails.length} fichier(s) non envoyé(s) — touchez pour voir`); else setStatus('ok');
       if (pulledCount) {
         if (!quiet) toast(`☁ ${pulledCount} mise(s) à jour reçue(s)`);
         // rafraîchir l'écran si aucune fenêtre n'est ouverte
         if (!document.querySelector('.sheet-bg, .fullpage, .viewer')) { try { App.project ? (App.project = await DB.get('projects', App.project.id) || App.project, renderSection()) : renderHome(); } catch (e) {} }
       }
     } catch (e) {
-      console.error('sync', e); setStatus('error', String(e.message || e).slice(0, 80));
+      console.error('sync', e); LS.set('fails', [String(e.message || e)]); setStatus('error', String(e.message || e).slice(0, 80));
     } finally {
       running = false;
       if (again) schedule(1500);
@@ -196,8 +200,8 @@ const Sync = (() => {
       let n = 0;
       for (const j of todo) {
         n++; setStatus('sync', `PDF dans Drive ${n}/${todo.length}`);
-        const out = await capturePdf(j.make); if (!out) continue;
-        const res = await call('upload', { path: j.segs, name: j.name, mime: 'application/pdf', b64: await b64(out.blob) });
+        const out = await capturePdf(j.make); if (!out) { fails0.push(`${j.name} : PDF non créé`); continue; }
+        let res; try { res = await call('upload', { path: j.segs, name: j.name, mime: 'application/pdf', b64: await b64(out.blob) }); } catch (e) { fails0.push(`${j.name} : ${e.message || e}`); continue; }
         const old = docs[j.key] && docs[j.key].id;
         if (old && old !== res.id) await call('push', { records: [{ _store: 'gen', id: j.key + ':' + Date.now(), driveId: old, _deleted: true, updatedAt: Date.now() }] });
         docs[j.key] = { id: res.id, sig: j.sig }; dirty = true;
@@ -327,13 +331,26 @@ function doPost(e) {
       const s = sheet(`<div class="form">
         <div class="sync-card"><div class="cl">☁</div><div class="grow"><b>Google Drive connecté</b><div data-syncstate>${statusLine()}</div></div></div>
         <div class="muted" style="font-size:13.5px;line-height:1.55">Tout est rangé dans <b>Mon Drive › Chantier Pro › (projet)</b> : Plans par niveau, Réception ferraillage et Programme de bétonnage par mois et par jour (Réserves, Retours, PV du jour), Réserves, Photos…<br>La synchro se fait toute seule (après chaque modification, à l'ouverture et toutes les 2 minutes).</div>
+        <div class="sync-diag" data-syncdiag>…</div>
         <button class="btn" data-a="now">${icon('undo')} Synchroniser maintenant</button>
         ${c.folder ? `<button class="btn ghost" data-a="open">${icon('drive')} Ouvrir le dossier dans Drive</button>` : ''}
         <button class="btn ghost" data-a="code">${icon('phone')} Copier le code de connexion (PC / autre téléphone)</button>
         <button class="btn ghost" data-a="script">${icon('file')} Copier le code du script</button>
         <button class="btn danger" data-a="off">Déconnecter cet appareil</button>
       </div>`, { title: 'Synchronisation Google Drive' });
-      $('[data-a=now]', s.el).onclick = () => run({ force: true });
+      $('[data-a=now]', s.el).onclick = async () => { await run({ force: true }); diag(); };
+      async function diag() {
+        const files = await DB.all('files'), projects = await DB.all('projects'), recs = await DB.all('receptions');
+        const withBlob = files.filter(f => f.blob), sent = withBlob.filter(f => f.driveId).length;
+        const nDocs = projects.reduce((a, p) => a + Object.keys(p.driveDocs || {}).length, 0);
+        const fl = LS.get('fails', []);
+        const el = $('[data-syncdiag]', s.el); if (!el) return;
+        el.innerHTML = `<div>📁 Compte Google : celui qui a autorisé le script</div>
+          <div>📷 Fichiers envoyés : <b>${sent} / ${withBlob.length}</b></div>
+          <div>📄 PDF créés dans Drive : <b>${nDocs}</b> · Tableaux réception/bétonnage : <b>${recs.length}</b></div>
+          ${fl.length ? `<div style="color:#ef4444;margin-top:6px"><b>Erreurs :</b><br>${fl.map(esc).join('<br>')}</div>` : '<div style="color:#22c55e">Aucune erreur</div>'}`;
+      }
+      diag();
       const o = $('[data-a=open]', s.el); if (o) o.onclick = () => openUrl(c.folder);
       $('[data-a=code]', s.el).onclick = () => copy(codeOf(c));
       $('[data-a=script]', s.el).onclick = () => copy(script(c.key));
