@@ -4,41 +4,118 @@ const REC_STATUS = {
   reserve: { label: 'Avec réserve', short: 'Réserve', color: '#f59e0b', mark: '⚠️' },
   pending: { label: 'Non réceptionné', short: 'En attente', color: '#9aa3b2', mark: '⏳' },
 };
-const REC_TYPES = ['Ferraillage', 'Coffrage', 'Bétonnage'];
 const NIVEAUX = ['Fondations', 'SSL', 'Mezz', 'RDC', 'R+1', 'R+2', 'R+3', 'R+4', 'R+5', 'R+6', 'R+7', 'R+8', 'Terrasse'];
 const recDateLabel = (d) => d ? d.split('-').reverse().join('/') : '';
 
-// ---------- Liste des jours ----------
-async function renderReceptions(root) {
+// ---------- Réception ferraillage / Programme de bétonnage ----------
+const isBeton = (kind) => kind === 'Bétonnage';
+const kindOf = (d) => d.type === 'Bétonnage' ? 'Bétonnage' : 'Ferraillage';
+const recTitle = (kind) => isBeton(kind) ? 'Programme de bétonnage' : 'Réception ferraillage';
+const recColHead = (kind) => isBeton(kind) ? 'Élément bétonné' : 'Ferraillage réceptionné';
+const stLabel = (kind, st) => isBeton(kind) ? ({ ok: 'Bétonné', reserve: 'Avec réserve', pending: 'Non bétonné' }[st]) : REC_STATUS[st].label;
+const MONTHS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+const monthLabel = (ym) => { const [y, m] = ym.split('-'); return `${MONTHS[+m - 1]} ${y}`; };
+
+// Message WhatsApp d'un seul ouvrage
+function rowText(p, day, r) {
+  const kind = kindOf(day);
+  const st = r.status === 'ok' ? `✅ ${stLabel(kind, 'ok')} sans réserve` : r.status === 'reserve' ? `⚠️ ${isBeton(kind) ? 'Bétonné' : 'Réceptionné'} avec réserve` : `⏳ ${stLabel(kind, 'pending')}`;
+  return `*${p.name}*\n${recTitle(kind)} — ${fmtDate(day.date)}\n\n` +
+    `*${r.element}*\n${[r.zone && 'Zone ' + r.zone, r.niv && 'Niveau ' + r.niv].filter(Boolean).join(' · ')}\n${st}` +
+    (r.obs ? `\n${r.status === 'reserve' ? 'Réserve' : 'Observation'} : ${r.obs}` : '');
+}
+async function shareRow(p, day, r) {
+  const text = rowText(p, day, r);
+  const P = window.Capacitor?.Plugins || {};
+  const ids = (r.photoIds || []).slice(0, 5);
+  if (ids.length && P.Share && P.Filesystem) {
+    try {
+      const files = [];
+      for (const id of ids) {
+        const f = await DB.get('files', id); if (!f) continue;
+        const b64 = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = rej; fr.readAsDataURL(f.blob); });
+        const name = `photo_${id}.jpg`;
+        await P.Filesystem.writeFile({ path: name, data: b64, directory: 'CACHE' });
+        files.push((await P.Filesystem.getUri({ path: name, directory: 'CACHE' })).uri);
+      }
+      await P.Share.share({ text, files, dialogTitle: 'Envoyer (WhatsApp…)' });
+      return;
+    } catch (e) { if (/cancel/i.test(String(e?.message))) return; }
+  }
+  shareWhatsApp(text);
+}
+
+async function renderReceptions(root, kind = 'Ferraillage') {
   const p = App.project;
-  const days = (await DB.byProject('receptions', p.id)).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  root.innerHTML = `
-    <div class="plans-head"><div class="ttl"><h2>Tableau de réception</h2><p>Programme de bétonnage et réception (par jour)</p></div>
-      <button class="iconbtn" data-a="sync" title="Google Sheets">${icon('grid')}</button></div>
-    ${days.length ? `<div class="list">${days.map(d => {
-      const n = d.rows.filter(r => r.element).length, ok = d.rows.filter(r => r.status === 'ok').length, rs = d.rows.filter(r => r.status === 'reserve').length;
-      return `<div class="row" data-id="${d.id}"><span class="tasknum" style="background:var(--accent);font-size:12px">${recDateLabel(d.date).slice(0, 5)}</span>
-        <div class="grow"><div class="title">${esc(d.type || 'Ferraillage')} · ${fmtDate(d.date)}</div>
-        <div class="sub">${n} élément(s) · <span style="color:#22c55e">${ok} réceptionné(s)</span>${rs ? ` · <span style="color:#f59e0b">${rs} réserve(s)</span>` : ''}${d.syncedAt ? ' · ☁ envoyé' : ''}</div></div>
-        <span class="icon-muted">${icon('chevright')}</span></div>`;
-    }).join('')}</div>`
-    : `<div class="empty">Aucun tableau pour le moment.<br>Appuyez sur <b>+</b> pour créer le tableau du jour.</div>`}`;
-  $$('.row[data-id]', root).forEach(r => r.onclick = async () => { await openReceptionDay(days.find(d => d.id === r.dataset.id)); renderReceptions(root); });
-  $('[data-a=sync]', root).onclick = () => sheetsSetup();
+  const all = (await DB.byProject('receptions', p.id)).filter(d => kindOf(d) === kind).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  App.recSearch = App.recSearch || {}; App.openMonths = App.openMonths || {};
+  const q = (App.recSearch[kind] || '').trim().toLowerCase();
+  const tba = $('#tbActions');
+  if (tba) tba.innerHTML = `<button class="iconbtn" data-a="sync" title="Google Sheets">${icon('grid')}</button>`;
+
+  root.innerHTML = `<div style="height:8px"></div>
+    <div class="search">${icon('search')}<input placeholder="Rechercher un ouvrage (ex : CR 77, voile, R+5…)" value="${esc(App.recSearch[kind] || '')}"></div>
+    <div id="recBody"></div>`;
+  const body = $('#recBody', root);
+
+  if (q) {
+    // Résultats de recherche : où et quand l'ouvrage a été réceptionné
+    const hits = [];
+    for (const d of all) d.rows.forEach(r => { if (r.element && `${r.element} ${r.zone} ${r.niv} ${r.obs}`.toLowerCase().includes(q)) hits.push({ d, r }); });
+    body.innerHTML = hits.length ? `<div class="section-label">${hits.length} résultat(s)</div><div class="list">${hits.map(({ d, r }, i) => `
+      <div class="row" data-h="${i}"><span class="rs" style="background:${REC_STATUS[r.status].color};min-width:74px;text-align:center">${stLabel(kind, r.status)}</span>
+        <div class="grow"><div class="title">${esc(r.element)}</div>
+        <div class="sub">📅 ${fmtDate(d.date)}${r.zone ? ' · Zone ' + esc(r.zone) : ''}${r.niv ? ' · ' + esc(r.niv) : ''}${r.obs ? `<br><span style="color:${r.status === 'reserve' ? '#f59e0b' : 'var(--muted)'}">${esc(r.obs)}</span>` : ''}</div></div>
+        <button class="iconbtn" data-sh="${i}">${icon('share')}</button></div>`).join('')}</div>`
+      : `<div class="empty">Aucun ouvrage trouvé pour « ${esc(q)} ».</div>`;
+    $$('[data-h]', body).forEach(el => el.onclick = async (e) => {
+      const { d, r } = hits[+el.dataset.h];
+      if (e.target.closest('[data-sh]')) return shareRow(p, d, r);
+      await openReceptionDay(d); renderReceptions(root, kind);
+    });
+  } else if (!all.length) {
+    body.innerHTML = `<div class="empty">Aucun tableau pour le moment.<br>Appuyez sur <b>+</b> pour créer le tableau du jour.</div>`;
+  } else {
+    // Mois repliables → jours
+    const months = [...new Set(all.map(d => (d.date || '').slice(0, 7)))];
+    const curM = todayISO().slice(0, 7);
+    for (const m of months) {
+      const key = kind + m;
+      if (App.openMonths[key] === undefined) App.openMonths[key] = m === months[0] || m === curM;
+      const ds = all.filter(d => (d.date || '').slice(0, 7) === m);
+      const nEl = ds.reduce((a, d) => a + d.rows.filter(r => r.element).length, 0), nRs = ds.reduce((a, d) => a + d.rows.filter(r => r.status === 'reserve').length, 0);
+      const card = document.createElement('div'); card.className = 'card';
+      const open = App.openMonths[key];
+      card.innerHTML = `<div class="folder-head"><span class="icon-muted">${icon('calendar')}</span>
+        <div class="grow"><div class="title" style="font-size:18px">${monthLabel(m)}</div><div class="sub" style="color:var(--muted);margin-top:3px">${ds.length} jour(s) · ${nEl} élément(s)${nRs ? ` · <span style="color:#f59e0b">${nRs} réserve(s)</span>` : ''}</div></div>
+        <span class="icon-muted" style="transform:rotate(${open ? 180 : 0}deg)">${icon('chevdown')}</span></div>
+        ${open ? `<div class="plan-rows">${ds.map(d => {
+          const n = d.rows.filter(r => r.element).length, ok = d.rows.filter(r => r.status === 'ok').length, rs = d.rows.filter(r => r.status === 'reserve').length;
+          return `<div class="prow" data-id="${d.id}"><span class="daybox"><b>${(d.date || '').slice(8, 10)}</b><small>${MONTHS[+(d.date || '0-01').slice(5, 7) - 1].slice(0, 3)}</small></span>
+            <div class="nm"><div style="font-size:16px">${fmtDate(d.date)}</div><div style="font-size:13px;color:var(--muted);margin-top:2px">${n} élément(s) · <span style="color:#22c55e">${ok} OK</span>${rs ? ` · <span style="color:#f59e0b">${rs} réserve(s)</span>` : ''}${d.syncedAt ? ' · ☁' : ''}</div></div>${icon('chevright')}</div>`;
+        }).join('')}</div>` : ''}`;
+      body.appendChild(card);
+      $('.folder-head', card).onclick = () => { App.openMonths[key] = !open; renderReceptions(root, kind); };
+      $$('.prow[data-id]', card).forEach(r => r.onclick = async () => { await openReceptionDay(ds.find(d => d.id === r.dataset.id)); renderReceptions(root, kind); });
+    }
+  }
+  const inp = $('.search input', root);
+  inp.oninput = () => { App.recSearch[kind] = inp.value; clearTimeout(inp._t); inp._t = setTimeout(() => renderReceptions(root, kind).then(() => { const i = $('.search input', root); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }), 250); };
+  $('[data-a=sync]').onclick = () => sheetsSetup();
   fab(root, async () => {
     const today = todayISO();
-    const prev = days[0];
-    const type = await menu('Nouveau tableau du jour', REC_TYPES.map(t => ({ label: `Réception ${t.toLowerCase()}`, icon: 'grid', value: t })));
-    if (!type) return;
+    const existing = all.find(d => d.date === today);
+    if (existing) { await openReceptionDay(existing); return renderReceptions(root, kind); }
     let rows = [];
-    const lastSame = days.find(d => (d.type || 'Ferraillage') === type);
-    if (lastSame && lastSame.rows.some(r => r.status !== 'ok' && r.element)) {
-      const v = await menu('Reprendre les éléments non réceptionnés / avec réserve du ' + fmtDate(lastSame.date) + ' ?', [
+    const last = all[0];
+    if (last && last.rows.some(r => r.status !== 'ok' && r.element)) {
+      const v = await menu(`Reprendre les éléments non terminés / avec réserve du ${fmtDate(last.date)} ?`, [
         { label: 'Oui, les reprendre', icon: 'check', value: 'yes' }, { label: 'Non, tableau vide', icon: 'close', value: 'no' }]);
-      if (v === 'yes') rows = lastSame.rows.filter(r => r.status !== 'ok' && r.element).map(r => ({ ...r, id: DB.uid(), status: 'pending', photoIds: [], obs: r.status === 'reserve' ? `Réserve du ${recDateLabel(lastSame.date).slice(0, 5)} : ${r.obs || ''}` : r.obs }));
+      if (v === 'yes') rows = last.rows.filter(r => r.status !== 'ok' && r.element).map(r => ({ ...r, id: DB.uid(), status: 'pending', photoIds: [], obs: r.status === 'reserve' ? `Réserve du ${recDateLabel(last.date).slice(0, 5)} : ${r.obs || ''}` : r.obs }));
     }
-    const d = await DB.put('receptions', { projectId: p.id, date: today, type, rows });
-    await openReceptionDay(d); renderReceptions(root);
+    const d = await DB.put('receptions', { projectId: p.id, date: today, type: kind, rows });
+    App.openMonths[kind + today.slice(0, 7)] = true;
+    await openReceptionDay(d); renderReceptions(root, kind);
   });
 }
 
@@ -51,24 +128,25 @@ function openReceptionDay(day) {
     const finish = async () => { await save(); el.remove(); resolve(); };
     const unBack = pushBack(finish);
 
+    const K = kindOf(day);
     function render() {
       const n = day.rows.filter(r => r.element).length, ok = day.rows.filter(r => r.status === 'ok').length, rs = day.rows.filter(r => r.status === 'reserve').length;
       el.innerHTML = `
         <div class="topbar"><button class="iconbtn" data-a="back">${icon('back')}</button>
-          <h1>${esc(day.type || 'Ferraillage')} · ${fmtDate(day.date)}</h1>
+          <h1>${fmtDate(day.date)}</h1>
           <button class="iconbtn" data-a="share">${icon('share')}</button><button class="iconbtn" data-a="more">${icon('more')}</button></div>
-        <div class="rec-sum"><span><b>${n}</b> éléments</span><span style="color:#22c55e"><b>${ok}</b> réceptionnés</span><span style="color:#f59e0b"><b>${rs}</b> réserves</span><span style="color:var(--muted)"><b>${n - ok - rs}</b> en attente</span></div>
+        <div class="rec-sum"><span><b>${n}</b> éléments</span><span style="color:#22c55e"><b>${ok}</b> ${isBeton(K) ? 'bétonnés' : 'réceptionnés'}</span><span style="color:#f59e0b"><b>${rs}</b> réserves</span><span style="color:var(--muted)"><b>${n - ok - rs}</b> en attente</span></div>
         <div class="rec-wrap">
           <table class="rec">
             <thead>
-              <tr><th colspan="6" class="rt1">${esc(p.name)}</th></tr>
-              <tr><th colspan="5" class="rt2">Programme de bétonnage et réception de ${esc((day.type || 'Ferraillage').toLowerCase())}</th><th class="rt2 date">Date ${recDateLabel(day.date).slice(0, 5)}</th></tr>
-              <tr><th>Zone</th><th>NIV</th><th class="el">${esc(day.type || 'Ferraillage')} réceptionné</th><th>Statut</th><th class="ob">Observation</th><th>Photo</th></tr>
+              <tr><th colspan="6" class="rt1">${esc(p.pdfTitle || p.name)}</th></tr>
+              <tr><th colspan="5" class="rt2">${recTitle(K)} (post jour)</th><th class="rt2 date">Date ${recDateLabel(day.date).slice(0, 5)}</th></tr>
+              <tr><th>Zone</th><th>NIV</th><th class="el">${recColHead(K)}</th><th>Statut</th><th class="ob">Observation</th><th>Photo</th></tr>
             </thead>
             <tbody>
               ${day.rows.map((r, i) => `<tr data-i="${i}" class="st-${r.status}">
                 <td class="c">${esc(r.zone)}</td><td class="c">${esc(r.niv)}</td><td class="el">${esc(r.element)}</td>
-                <td class="c"><span class="rs" style="background:${REC_STATUS[r.status].color}">${REC_STATUS[r.status].short}</span></td>
+                <td class="c"><span class="rs" style="background:${REC_STATUS[r.status].color}">${r.status === 'ok' ? 'OK' : r.status === 'reserve' ? 'Réserve' : 'Attente'}</span></td>
                 <td class="ob">${esc(r.obs)}</td><td class="c">${(r.photoIds || []).length ? `📷 ${r.photoIds.length}` : ''}</td></tr>`).join('')}
               <tr class="addrow"><td colspan="6"><button data-a="add">${icon('plus')} Ajouter une ligne</button></td></tr>
             </tbody>
@@ -79,12 +157,18 @@ function openReceptionDay(day) {
       $$('tbody tr[data-i]', el).forEach(tr => tr.onclick = () => editRow(+tr.dataset.i));
       $('[data-a=share]', el).onclick = async () => {
         const v = await menu('Partager', [
-          { label: 'Texte WhatsApp (réceptionnés + réserves)', icon: 'share', value: 'txt' },
+          { label: 'Texte WhatsApp (tout le tableau)', icon: 'share', value: 'txt' },
+          { label: 'Un seul ouvrage…', icon: 'share', value: 'one' },
           { label: 'PDF du tableau', icon: 'report', value: 'pdf' },
           { label: 'Fichier Excel (CSV)', icon: 'grid', value: 'csv' },
           { label: 'Envoyer vers Google Sheets (Drive)', icon: 'drive', value: 'sheets' },
         ]);
         if (v === 'txt') shareWhatsApp(receptionText(p, day));
+        if (v === 'one') {
+          const rows = day.rows.filter(r => r.element);
+          const i = await menu('Quel ouvrage ?', rows.map((r, j) => ({ label: `${REC_STATUS[r.status].mark} ${r.element}`, value: String(j) })));
+          if (i !== null && i !== undefined) shareRow(p, day, rows[+i]);
+        }
         if (v === 'pdf') receptionPdf(p, day);
         if (v === 'csv') receptionCsv(p, day);
         if (v === 'sheets') { await save(); await sendToSheets(p, day); render(); }
@@ -116,12 +200,12 @@ function openReceptionDay(day) {
             <label>Niveau<input name="niv" list="dl-niv" value="${esc(r.niv)}" placeholder="R+5"></label></div>
           <datalist id="dl-niv">${NIVEAUX.map(n => `<option value="${n}">`).join('')}</datalist>
           <label>Élément<input name="element" value="${esc(r.element)}" placeholder="Ex : Voile CR 77 Axe D2"></label>
-          <div class="fld">Statut<div class="seg seg3">${Object.entries(REC_STATUS).map(([k, v]) => `<button type="button" data-st="${k}" class="${r.status === k ? 'on' : ''}" style="${r.status === k ? `background:${v.color}` : ''}">${v.label}</button>`).join('')}</div></div>
+          <div class="fld">Statut<div class="seg seg3">${Object.entries(REC_STATUS).map(([k, v]) => `<button type="button" data-st="${k}" class="${r.status === k ? 'on' : ''}" style="${r.status === k ? `background:${v.color}` : ''}">${stLabel(K, k)}</button>`).join('')}</div></div>
           <label>Observation ${r.status === 'reserve' ? '/ réserve' : ''}<textarea name="obs" style="min-height:64px" placeholder="${r.status === 'reserve' ? 'Ex : cales manquantes côté axe D2' : 'Optionnel'}">${esc(r.obs)}</textarea></label>
           <label>Photos</label>${thumbsHTML(photos)}
           <div class="btnrow" style="padding:0">${!isNew ? `<button class="btn danger" data-a="del" style="flex:none;padding:14px 16px">${icon('trash')}</button>` : ''}
             <button class="btn ghost" data-a="cancel">Annuler</button><button class="btn" data-a="ok">${isNew ? 'Ajouter' : 'Enregistrer'}</button></div>
-          ${isNew ? `<button class="btn ghost" data-a="okmore" style="margin-top:-4px">Ajouter et ligne suivante</button>` : ''}`;
+          ${isNew ? `<button class="btn ghost" data-a="okmore" style="margin-top:-4px">Ajouter et ligne suivante</button>` : `<button class="btn ghost" data-a="wa" style="margin-top:-4px">${icon('share')} Envoyer cet ouvrage (WhatsApp)</button>`}`;
         $$('[name]', f).forEach(inp => inp.oninput = () => { r[inp.name] = inp.value; });
         $$('[data-st]', f).forEach(b => b.onclick = () => { r.status = b.dataset.st; draw(); });
         $('[data-a=addphoto]', f).onclick = async (e) => { e.preventDefault(); const recs = await addPhotos(day.projectId, { source: `Réception ${recDateLabel(day.date)} · ${r.element || ''}` }); if (recs.length) { r.photoIds.push(...recs.map(x => x.id)); draw(); } };
@@ -138,6 +222,7 @@ function openReceptionDay(day) {
         $('[data-a=cancel]', f).onclick = () => s.close();
         $('[data-a=ok]', f).onclick = async () => { if (await commit()) { s.close(); render(); } };
         const om = $('[data-a=okmore]', f); if (om) om.onclick = async () => { if (await commit()) { s.close(); render(); editRow(null); } };
+        const wa = $('[data-a=wa]', f); if (wa) wa.onclick = async () => { if (await commit()) shareRow(p, day, r); };
         const del = $('[data-a=del]', f); if (del) del.onclick = async () => { if (await confirmBox('Supprimer cette ligne ?')) { day.rows.splice(i, 1); await save(); s.close(); render(); } };
         if (isNew && !r.element) setTimeout(() => $('[name=element]', f)?.focus(), 250);
       }
@@ -152,25 +237,30 @@ function receptionText(p, day) {
   const rows = day.rows.filter(r => r.element);
   const line = (r) => `${REC_STATUS[r.status].mark} ${[r.zone && 'Zone ' + r.zone, r.niv].filter(Boolean).join(' · ')}${r.zone || r.niv ? ' — ' : ''}${r.element}${r.obs ? `\n     ↳ ${r.status === 'reserve' ? 'Réserve : ' : ''}${r.obs}` : ''}`;
   const ok = rows.filter(r => r.status === 'ok'), rs = rows.filter(r => r.status === 'reserve'), pd = rows.filter(r => r.status === 'pending');
-  return `*${p.name}*\n*Réception ${(day.type || 'ferraillage').toLowerCase()} du ${fmtDate(day.date)}*\n` +
-    (ok.length ? `\n*Réceptionné (${ok.length}) :*\n${ok.map(line).join('\n')}\n` : '') +
+  const K = kindOf(day);
+  return `*${p.name}*\n*${recTitle(K)} du ${fmtDate(day.date)}*\n` +
+    (ok.length ? `\n*${stLabel(K, 'ok')} (${ok.length}) :*\n${ok.map(line).join('\n')}\n` : '') +
     (rs.length ? `\n*Avec réserve (${rs.length}) :*\n${rs.map(line).join('\n')}\n` : '') +
-    (pd.length ? `\n*Non réceptionné (${pd.length}) :*\n${pd.map(line).join('\n')}\n` : '');
+    (pd.length ? `\n*${stLabel(K, 'pending')} (${pd.length}) :*\n${pd.map(line).join('\n')}\n` : '');
 }
 
 async function receptionPdf(p, day) {
   const ld = loading('Création du PDF…');
   try {
-    const R = newDoc(`Réception ${recDateLabel(day.date)}`, p); const { doc, M, W } = R;
+    const K = kindOf(day);
+    const R = newDoc(recTitle(K), p, { plain: true }); const { doc, M, W } = R;
     // bandeau titre façon tableau
     doc.setDrawColor(60, 60, 60); doc.setLineWidth(0.3);
-    doc.rect(M, R.y, W - 2 * M, 10); doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(20, 20, 20);
-    doc.text(pt(p.name), W / 2, R.y + 6.8, { align: 'center' }); R.y += 10;
+    if (p.pdfTitle) {
+      doc.rect(M, R.y, W - 2 * M, 10); doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(20, 20, 20);
+      doc.text(pt(p.pdfTitle), W / 2, R.y + 6.8, { align: 'center' }); R.y += 10;
+    }
+    doc.setFont('helvetica', 'bold'); doc.setTextColor(20, 20, 20);
     doc.setFillColor(201, 218, 248); doc.rect(M, R.y, W - 2 * M, 8, 'FD');
-    doc.setFontSize(10); doc.text(pt(`Programme de bétonnage et réception de ${(day.type || 'ferraillage').toLowerCase()}`), M + 3, R.y + 5.5);
+    doc.setFontSize(10); doc.text(pt(`${recTitle(K)} (post jour)`), M + 3, R.y + 5.5);
     doc.setTextColor(220, 30, 30); doc.setFontSize(12); doc.text(`Date ${recDateLabel(day.date)}`, W - M - 3, R.y + 5.8, { align: 'right' }); R.y += 8;
     // en-têtes
-    const cols = [{ t: 'Zone', w: 13 }, { t: 'NIV', w: 15 }, { t: `${day.type || 'Ferraillage'} réceptionné`, w: 80 }, { t: 'Statut', w: 26 }, { t: 'Observation', w: W - 2 * M - 134 }];
+    const cols = [{ t: 'Zone', w: 13 }, { t: 'NIV', w: 15 }, { t: recColHead(K), w: 80 }, { t: 'Statut', w: 26 }, { t: 'Observation', w: W - 2 * M - 134 }];
     const head = () => {
       doc.setFillColor(201, 218, 248); doc.rect(M, R.y, W - 2 * M, 8, 'FD');
       doc.setTextColor(20, 20, 20); doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5);
@@ -194,14 +284,14 @@ async function receptionPdf(p, day) {
       el.forEach((l, j) => doc.text(l, M + cols[0].w + cols[1].w + 1.5, R.y + 5.5 + j * 4.4));
       const st = REC_STATUS[r.status], c = hexRGB(st.color);
       doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...c);
-      doc.text(pt(st.label), M + 108 + cols[3].w / 2, R.y + 5.5, { align: 'center' });
+      doc.text(pt(stLabel(K, r.status)), M + 108 + cols[3].w / 2, R.y + 5.5, { align: 'center' });
       doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(r.status === 'reserve' ? 190 : 60, r.status === 'reserve' ? 90 : 60, r.status === 'reserve' ? 0 : 60);
       ob.forEach((l, j) => doc.text(l, M + 134 + 1.5, R.y + 5.5 + j * 4.4));
       R.y += h;
     }
     R.y += 5;
     const ok = rows.filter(r => r.status === 'ok').length, rs = rows.filter(r => r.status === 'reserve').length;
-    R.text(`Total : ${rows.length} élément(s) · ${ok} réceptionné(s) · ${rs} avec réserve · ${rows.length - ok - rs} non réceptionné(s)`, { size: 10, bold: true, gap: 4 });
+    R.text(`Total : ${rows.length} élément(s) · ${ok} ${stLabel(K, 'ok').toLowerCase()}(s) · ${rs} avec réserve · ${rows.length - ok - rs} ${stLabel(K, 'pending').toLowerCase()}(s)`, { size: 10, bold: true, gap: 4 });
     // photos
     const withPh = rows.filter(r => (r.photoIds || []).length);
     if (withPh.length) {
@@ -220,17 +310,18 @@ async function receptionPdf(p, day) {
       }
     }
     R.finish();
-    await sharePdf(doc, `Reception_${safeName(day.type || 'ferraillage')}_${day.date}.pdf`);
+    await sharePdf(doc, `${safeName(recTitle(K))}_${day.date}.pdf`);
   } catch (e) { console.error(e); alertBox('Erreur PDF : ' + (e.message || e)); }
   finally { ld.close(); }
 }
 
 async function receptionCsv(p, day) {
   const q = (s) => `"${String(s ?? '').replace(/"/g, '""')}"`;
-  const lines = [[p.name], [`Programme de bétonnage et réception de ${(day.type || 'ferraillage').toLowerCase()}`, '', '', '', `Date ${recDateLabel(day.date)}`], ['Zone', 'NIV', `${day.type || 'Ferraillage'} réceptionné`, 'Statut', 'Observation'],
-    ...day.rows.filter(r => r.element).map(r => [r.zone, r.niv, r.element, REC_STATUS[r.status].label, r.obs])];
+  const K = kindOf(day);
+  const lines = [[p.name], [recTitle(K), '', '', '', `Date ${recDateLabel(day.date)}`], ['Zone', 'NIV', recColHead(K), 'Statut', 'Observation'],
+    ...day.rows.filter(r => r.element).map(r => [r.zone, r.niv, r.element, stLabel(K, r.status), r.obs])];
   const csv = '﻿' + lines.map(l => l.map(q).join(';')).join('\r\n');
-  const fname = `Reception_${day.date}.csv`;
+  const fname = `${safeName(recTitle(K))}_${day.date}.csv`;
   const P = window.Capacitor?.Plugins || {};
   if (P.Filesystem && P.Share) {
     await P.Filesystem.writeFile({ path: fname, data: csv, directory: 'CACHE', encoding: 'utf8' });
@@ -300,11 +391,11 @@ async function sendToSheets(p0, day) {
   const p = await DB.get('projects', p0.id);
   if (!p.sheetsUrl) { toast('Configurez d\'abord la liaison Google Sheets'); return sheetsSetup(); }
   const payload = {
-    project: p.name, type: day.type || 'Ferraillage', dateLabel: recDateLabel(day.date),
-    sheet: `${recDateLabel(day.date).slice(0, 5).replace('/', '-')} ${day.type || 'Ferraillage'}`,
-    title: `Programme de bétonnage et réception de ${(day.type || 'ferraillage').toLowerCase()}`,
-    head: ['Zone', 'NIV', `${day.type || 'Ferraillage'} réceptionné`, 'Statut', 'Observation'],
-    rows: day.rows.filter(r => r.element).map(r => [r.zone || '', r.niv || '', r.element, REC_STATUS[r.status].label, r.obs || '']),
+    project: p.name, type: kindOf(day), dateLabel: recDateLabel(day.date),
+    sheet: `${recDateLabel(day.date).slice(0, 5).replace('/', '-')} ${isBeton(kindOf(day)) ? 'Bétonnage' : 'Ferraillage'}`,
+    title: recTitle(kindOf(day)) + ' (post jour)',
+    head: ['Zone', 'NIV', recColHead(kindOf(day)), 'Statut', 'Observation'],
+    rows: day.rows.filter(r => r.element).map(r => [r.zone || '', r.niv || '', r.element, stLabel(kindOf(day), r.status), r.obs || '']),
   };
   const ld = loading('Envoi vers Google Sheets…');
   try {

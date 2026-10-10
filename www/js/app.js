@@ -109,7 +109,8 @@ const SECTIONS = {
   dashboard: { label: 'Tableau de bord', icon: 'layers', render: (r) => renderDashboard(r) },
   plans: { label: 'Plans', icon: 'plans', render: renderPlans, title: 'Plans', subtitle: 'Toutes les tâches sur les plans' },
   tasks: { label: 'Réserves / Tâches', icon: 'tasks', render: renderTasks },
-  reception: { label: 'Tableau de réception', icon: 'grid', render: (r) => renderReceptions(r) },
+  reception: { label: 'Réception ferraillage', icon: 'layers', render: (r) => renderReceptions(r, 'Ferraillage'), title: 'Réception ferraillage', subtitle: 'Tableau de réception par jour' },
+  beton: { label: 'Programme de bétonnage', icon: 'calendar', render: (r) => renderReceptions(r, 'Bétonnage'), title: 'Programme de bétonnage', subtitle: 'Programme et suivi par jour' },
   photos: { label: 'Photos', icon: 'camera', render: renderPhotos },
   forms: { label: 'Formulaires', icon: 'form', render: renderForms },
   reports: { label: 'Rapports journaliers', icon: 'report', render: renderReports },
@@ -948,6 +949,7 @@ async function renderSettings(root) {
     <div class="form" style="padding-top:12px">
       <label>Nom du projet<input name="name" value="${esc(p.name)}"></label>
       <label>Adresse / ville<input name="address" value="${esc(p.address)}"></label>
+      <label>Titre complet sur les tableaux / PDF (optionnel)<input name="pdfTitle" value="${esc(p.pdfTitle || '')}" placeholder="Ex : Projet de construction du Grand stade Benslimane"></label>
       <button class="btn" data-a="save">Enregistrer</button>
       <div style="height:12px"></div>
       <div class="card" style="margin:0;padding:16px">
@@ -959,7 +961,7 @@ async function renderSettings(root) {
       <button class="btn danger" data-a="del">${icon('trash')} Supprimer le projet</button>
       <p style="color:var(--muted);font-size:13px;line-height:1.5">Les données sont enregistrées sur ce téléphone uniquement (fonctionne sans internet). Si vous désinstallez l'application, les données seront perdues : faites une sauvegarde régulièrement.<br>Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}</p>
     </div>`;
-  $('[data-a=save]', root).onclick = async () => { p.name = $('[name=name]', root).value.trim() || p.name; p.address = $('[name=address]', root).value.trim(); await DB.put('projects', p); toast('Enregistré ✓'); renderSection(); };
+  $('[data-a=save]', root).onclick = async () => { p.name = $('[name=name]', root).value.trim() || p.name; p.address = $('[name=address]', root).value.trim(); p.pdfTitle = $('[name=pdfTitle]', root).value.trim(); await DB.put('projects', p); toast('Enregistré ✓'); renderSection(); };
   $('[data-a=backup]', root).onclick = async () => {
     const ld = loading('Préparation de la sauvegarde…');
     try {

@@ -159,11 +159,12 @@ async function planOverview(plan, tasks) {
 }
 
 // Document A4 avec en-tête / pied de page
-function newDoc(title, project) {
+function newDoc(title, project, opts = {}) {
   const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
   const W = 210, H = 297, M = 14;
   const ctx = { doc, W, H, M, y: 0, title, project };
   ctx.header = () => {
+    if (opts.plain) { ctx.y = 14; doc.setTextColor(20, 20, 20); return; }
     doc.setFillColor(27, 30, 36); doc.rect(0, 0, W, 18, 'F');
     doc.setTextColor(245, 184, 46); doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.text('CHANTIER', M, 11.5);
     doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'normal'); doc.setFontSize(9);

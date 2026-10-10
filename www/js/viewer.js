@@ -253,7 +253,7 @@ async function openPlanViewer(plan, ctx) {
         ${showLabel ? `<text x="0" y="16" text-anchor="middle" font-size="12" fill="${l.color}" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`;
     }).join('');
     if (typeof drawPending === 'function' && st.pend) drawPending();
-    if (typeof renderSel === 'function' && st.sel >= 0) renderSel();
+    if (typeof renderSel === 'function' && (st.sel >= 0 || st.selPin)) renderSel();
     const info = $('.vb-info', el);
     const nt = st.tasks.filter(t => t.planId === plan.id).length, nl = st.links.filter(l => l.planId === plan.id).length;
     info.textContent = `${nt} tâche(s) · ${nl} lien(s) · ${plan.annotations.length} annotation(s)`;
@@ -302,9 +302,9 @@ async function openPlanViewer(plan, ctx) {
   function hintText() {
     if (st.tool === 'pin') return 'Touchez pour placer une tâche';
     if (st.tool === 'link') return 'Touchez pour placer un élément';
-    if (st.tool === 'planlink') return 'Touchez pour placer un lien vers un plan / une coupe';
+    if (st.tool === 'planlink') return 'Touchez pour placer un lien (PDF de coupe, plan…)';
     if (st.tool === 'erase') return 'Touchez un dessin pour l\'effacer';
-    if (st.tool === 'select') return st.sel >= 0 ? 'Glissez les points · glissez le dessin pour le déplacer' : 'Touchez un dessin (ou un lien de plan) pour le modifier';
+    if (st.tool === 'select') return st.selPin ? '' : st.sel >= 0 ? 'Glissez les points · glissez le dessin pour le déplacer' : 'Touchez un pin ou un dessin pour le modifier / déplacer / supprimer';
     if (st.tool === 'draw') {
       if (st.shape === 'free') return 'Dessinez · 2 doigts pour zoomer / bouger';
       if (st.shape === 'text') return 'Touchez pour placer le texte';
@@ -320,9 +320,10 @@ async function openPlanViewer(plan, ctx) {
     const cur = TOOLS.find(x => x[0] === st.tool) || TOOLS[0];
     t.className = 'tools fw';
     t.innerHTML = st.toolsOpen ? `
-      <div class="grp">${TOOLS.map(([k, i, l]) => `<button class="tool ${st.tool === k ? 'on' : ''}" data-t="${k}" title="${l}">${ic(k, i)}${k === 'draw' ? '<i class="tri"></i>' : ''}</button>`).join('')}</div>
-      <div class="grp"><button class="tool" data-t="undo" title="Annuler">${icon('undo')}</button><button class="tool" data-t="toggle" title="Réduire">${icon('chevright')}</button></div>`
-      : `<div class="grp"><button class="tool on" data-t="toggle">${ic(cur[0], cur[1])}</button></div>
+      <div class="grp">${TOOLS.map(([k, i, l]) => `<button class="tool ${st.tool === k ? 'on' : ''}" data-t="${k === 'pan' ? 'hand' : k}" title="${l}">${ic(k, i)}${k === 'draw' ? '<i class="tri"></i>' : ''}</button>`).join('')}</div>
+      <div class="grp"><button class="tool" data-t="undo" title="Annuler">${icon('undo')}</button></div>`
+      : `<div class="grp"><button class="tool ${st.tool === 'pan' ? 'on' : ''}" data-t="hand">${icon('hand')}</button>
+           ${st.tool !== 'pan' ? `<button class="tool on" data-t="${st.tool === 'draw' ? 'draw' : st.tool}">${ic(cur[0], cur[1])}</button>` : ''}</div>
          ${['draw', 'select', 'erase'].includes(st.tool) ? `<div class="grp"><button class="tool" data-t="undo">${icon('undo')}</button></div>` : ''}`;
     $$('.tool', t).forEach(b => b.onclick = (e) => { e.stopPropagation(); onTool(b.dataset.t, b); });
     let hint = $('.hint', viewer);
@@ -334,6 +335,26 @@ async function openPlanViewer(plan, ctx) {
   // Barre de propriétés : couleur, intensité (foncé ↔ clair), épaisseur
   function renderPBar() {
     let bar = $('.pbar', el);
+    if (st.tool === 'select' && st.selPin) {
+      if (!bar) { bar = document.createElement('div'); bar.className = 'pbar'; viewer.appendChild(bar); }
+      const { kind, obj } = st.selPin;
+      const label = kind === 'task' ? `Tâche #${obj.num} ${obj.title || ''}` : kind === 'planlink' ? `Lien : ${obj.name}` : `Élément : ${obj.name}`;
+      bar.innerHTML = `<div class="pb-row"><span class="pb-t" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${icon(kind === 'task' ? 'pin' : kind === 'planlink' ? 'section' : 'link')} ${esc(label)}</span>
+        <button class="pb" data-p="open">${icon('edit')}<span>Modifier</span></button><button class="pb danger" data-p="delpin">${icon('trash')}</button><button class="pb ok" data-p="unsel">${icon('check')}</button></div>
+        <div class="muted" style="font-size:12px">Glissez le pin pour le déplacer</div>`;
+      $('[data-p=unsel]', bar).onclick = () => { st.selPin = null; renderSel(); renderTools(); };
+      $('[data-p=open]', bar).onclick = async () => {
+        if (kind === 'task') await ctx.openTask(obj); else if (kind === 'planlink') await editPlanLink(obj); else await ctx.openLink(obj);
+        st.selPin = null; await reloadData(); renderSel(); renderTools();
+      };
+      $('[data-p=delpin]', bar).onclick = async () => {
+        if (!await confirmBox(kind === 'task' ? 'Retirer cette tâche du plan ? (la tâche reste dans la liste)' : 'Supprimer ce pin et ses documents ?')) return;
+        if (kind === 'task') { obj.planId = null; obj.x = obj.y = null; await DB.put('tasks', obj); }
+        else { for (const it of obj.items || []) if (it.fileId) await DB.del('files', it.fileId); if (obj.fileId) await DB.del('files', obj.fileId); await DB.del('links', obj.id); }
+        st.selPin = null; await reloadData(); renderSel(); renderTools(); toast('Supprimé ✓');
+      };
+      return;
+    }
     const selA = st.tool === 'select' && st.sel >= 0 ? plan.annotations[st.sel] : null;
     if (!(st.tool === 'draw' || selA)) { if (bar) bar.remove(); return; }
     if (!bar) { bar = document.createElement('div'); bar.className = 'pbar'; viewer.appendChild(bar); }
@@ -391,7 +412,7 @@ async function openPlanViewer(plan, ctx) {
     f.style.top = Math.max(6, Math.min(vr.height - f.offsetHeight - 6, tb.top - vr.top)) + 'px';
     $$('[data-s]', f).forEach(b => b.onclick = (e) => {
       e.stopPropagation();
-      st.tool = 'draw'; st.shape = b.dataset.s; st.pend = null; st.sel = -1;
+      st.tool = 'draw'; st.shape = b.dataset.s; st.pend = null; st.sel = -1; st.selPin = null; st.toolsOpen = false;
       closeFly(); drawPending(); renderSel(); renderTools();
     });
     st.flyout = f;
@@ -399,13 +420,16 @@ async function openPlanViewer(plan, ctx) {
   function closeFly() { if (st.flyout) { st.flyout.remove(); st.flyout = null; } }
   function onTool(t, btn) {
     if (t === 'toggle') { closeFly(); st.toolsOpen = !st.toolsOpen; return renderTools(); }
+    // la main : ouvre / referme la barre (et revient en mode déplacement)
+    if (t === 'hand') { closeFly(); st.toolsOpen = !st.toolsOpen; st.tool = 'pan'; st.pend = null; st.sel = -1; st.selPin = null; drawPending(); renderSel(); return renderTools(); }
     if (t === 'draw') { if (st.flyout) return closeFly(); return openShapePicker(btn); }
     closeFly();
     if (t === 'undo') {
       if (!st.undo.length) return toast('Rien à annuler');
       plan.annotations = JSON.parse(st.undo.pop()); st.sel = -1; renderAnnots(); saveAnnots(); renderSel(); renderMarkers(); return renderTools();
     }
-    st.tool = st.tool === t && t !== 'pan' ? 'pan' : t; st.pend = null; st.sel = -1;
+    st.tool = st.tool === t && t !== 'pan' ? 'pan' : t; st.pend = null; st.sel = -1; st.selPin = null;
+    if (st.tool !== 'pan') st.toolsOpen = false;
     drawPending(); renderSel(); renderTools();
   }
 
@@ -419,28 +443,71 @@ async function openPlanViewer(plan, ctx) {
     const id = await menu(title, others.map(p => ({ label: (fname(p.folderId) ? fname(p.folderId) + ' / ' : '') + p.name, icon: 'plans', value: p.id })));
     return id ? others.find(p => p.id === id) : null;
   }
-  async function createPlanLink(x, y) {
-    const target = await pickPlan('Lier à quel plan / coupe ?');
-    if (!target) return;
-    const r = await formSheet('Nom du lien', [{ name: 'name', label: 'Nom affiché sur le plan (ex : Coupe A-A)', value: target.name }], { okLabel: 'Créer' });
-    if (!r) return;
-    await DB.put('links', { projectId: plan.projectId, planId: plan.id, kind: 'planlink', shape: 'point', x, y, targetPlanId: target.id, name: r.name || target.name, color: '#1e88e5', items: [] });
-    await reloadData();
+  // Choisit la cible du lien : plan du projet, PDF/image du téléphone, ou lien Drive
+  async function pickLinkTarget() {
+    const how = await menu('Lien vers quoi ?', [
+      { label: 'PDF / image du téléphone (coupe…)', icon: 'phone', value: 'file' },
+      { label: 'Plan / coupe déjà dans le projet', icon: 'plans', value: 'plan' },
+      { label: 'Lien Google Drive', icon: 'drive', value: 'url' },
+    ]);
+    if (how === 'plan') { const t = await pickPlan('Choisir le plan / la coupe'); return t ? { targetPlanId: t.id, fileId: null, url: null, defName: t.name } : null; }
+    if (how === 'file') {
+      const [file] = await pickFiles({ accept: '*/*', multiple: false });
+      if (!file) return null;
+      const ld = loading('Enregistrement…');
+      try {
+        const rec = isRasterImage(file) ? await saveImageFile(plan.projectId, file, 'doc', { name: file.name })
+          : await DB.put('files', { projectId: plan.projectId, blob: file, mime: mimeFromName(file.name, file.type), name: file.name, role: 'doc' });
+        return { fileId: rec.id, targetPlanId: null, url: null, defName: file.name.replace(/\.[^.]+$/, '') };
+      } finally { ld.close(); }
+    }
+    if (how === 'url') {
+      const r = await formSheet('Lien Google Drive', [{ name: 'url', label: 'Coller le lien du fichier', type: 'url', placeholder: 'https://drive.google.com/…' }], { okLabel: 'OK' });
+      if (!r || !r.url) return null;
+      if (driveFileId(r.url) && isNative()) {
+        const ld = loading('Téléchargement depuis Drive…');
+        try {
+          const file = await downloadFromDrive(r.url);
+          const rec = await DB.put('files', { projectId: plan.projectId, blob: file, mime: file.type, name: file.name, role: 'doc' });
+          return { fileId: rec.id, url: r.url, targetPlanId: null, defName: file.name.replace(/\.[^.]+$/, '') };
+        } catch (e) { toast(e.message); } finally { ld.close(); }
+      }
+      return { url: r.url, fileId: null, targetPlanId: null, defName: 'Coupe' };
+    }
+    return null;
   }
+  async function createPlanLink(x, y) {
+    const t = await pickLinkTarget();
+    if (!t) return;
+    const r = await formSheet('Nom du lien', [{ name: 'name', label: 'Nom affiché sur le plan (ex : Coupe A-A)', value: t.defName }], { okLabel: 'Créer' });
+    if (!r) return;
+    const { defName, ...target } = t;
+    await DB.put('links', { projectId: plan.projectId, planId: plan.id, kind: 'planlink', shape: 'point', x, y, ...target, name: r.name || defName, color: '#1e88e5', items: [] });
+    await reloadData();
+    toast('Lien créé ✓ — touchez-le pour l\'ouvrir');
+  }
+  // Ouverture directe (pas de menu)
   async function openPlanLink(l) {
-    const target = await DB.get('plans', l.targetPlanId);
-    if (!target) { if (await confirmBox('Le plan lié a été supprimé. Supprimer ce lien ?')) await DB.del('links', l.id); return; }
-    openPlanViewer(target, { ...ctx, onClose: () => {} });
+    if (l.fileId) {
+      const f = await DB.get('files', l.fileId);
+      if (f) return openFileRecord(f, l.name);
+    }
+    if (l.targetPlanId) {
+      const target = await DB.get('plans', l.targetPlanId);
+      if (target) return openPlanViewer(target, { ...ctx, onClose: () => {} });
+    }
+    if (l.url) return openUrl(l.url);
+    toast('Fichier introuvable — modifiez le lien (outil Modifier)');
   }
   async function editPlanLink(l) {
     const v = await menu(l.name, [
-      { label: 'Ouvrir le plan lié', icon: 'section', value: 'open' }, { label: 'Changer le plan lié', icon: 'plans', value: 'change' },
+      { label: 'Ouvrir', icon: 'section', value: 'open' }, { label: 'Changer le fichier / plan lié', icon: 'plans', value: 'change' },
       { label: 'Renommer', icon: 'edit', value: 'rename' }, { label: 'Supprimer le lien', icon: 'trash', danger: true, value: 'del' },
     ]);
     if (v === 'open') return openPlanLink(l);
-    if (v === 'change') { const t = await pickPlan('Nouveau plan lié'); if (t) { l.targetPlanId = t.id; await DB.put('links', l); } }
+    if (v === 'change') { const t = await pickLinkTarget(); if (t) { const { defName, ...tg } = t; if (l.fileId && l.fileId !== tg.fileId) await DB.del('files', l.fileId); Object.assign(l, tg); await DB.put('links', l); toast('Lien modifié ✓'); } }
     if (v === 'rename') { const r = await formSheet('Renommer', [{ name: 'name', label: 'Nom', value: l.name }]); if (r && r.name) { l.name = r.name; await DB.put('links', l); } }
-    if (v === 'del' && await confirmBox('Supprimer ce lien ?')) await DB.del('links', l.id);
+    if (v === 'del' && await confirmBox('Supprimer ce lien ?')) { if (l.fileId) await DB.del('files', l.fileId); await DB.del('links', l.id); }
   }
 
   // ---------- Dessin en plusieurs touchers (ligne / polyligne) ----------
@@ -466,6 +533,13 @@ async function openPlanViewer(plan, ctx) {
     return a.pts;
   }
   function renderSel() {
+    if (st.tool === 'select' && st.selPin) {
+      const o = st.selPin.obj, [ox, oy] = st.selPin.kind === 'task' ? [o.x, o.y] : linkXY(o);
+      const r = 26 / st.scale;
+      gSel.innerHTML = `<circle cx="${ox}" cy="${oy}" r="${r}" fill="rgba(91,141,239,.18)" stroke="#5b8def" stroke-width="${2.5 / st.scale}" stroke-dasharray="${5 / st.scale} ${4 / st.scale}"/>
+        <path d="M${ox - r * 1.5},${oy}h${r * 0.6}M${ox + r * 0.9},${oy}h${r * 0.6}M${ox},${oy - r * 1.5}v${r * 0.6}M${ox},${oy + r * 0.9}v${r * 0.6}" stroke="#5b8def" stroke-width="${2.5 / st.scale}" stroke-linecap="round"/>`;
+      return;
+    }
     const a = st.tool === 'select' && st.sel >= 0 ? plan.annotations[st.sel] : null;
     if (!a) { gSel.innerHTML = ''; return; }
     const [x1, y1, x2, y2] = annotBBox(a), pad = 6 / st.scale;
@@ -497,6 +571,10 @@ async function openPlanViewer(plan, ctx) {
     const p = toImg(e.clientX, e.clientY);
     g = { type: 'one', sx: e.clientX, sy: e.clientY, lx: e.clientX, ly: e.clientY, t0: Date.now(), moved: false, start: p, pts: [p] };
     // mode du geste
+    if (st.tool === 'select' && st.selPin) {
+      const o = st.selPin.obj, [ox, oy] = st.selPin.kind === 'task' ? [o.x, o.y] : linkXY(o);
+      if (Math.hypot(p[0] - ox, p[1] - oy) < 40 / st.scale || hitMarker(p[0], p[1])?.obj === o) g.edit = { kind: 'pin' };
+    }
     if (st.tool === 'select' && st.sel >= 0) {
       const a = plan.annotations[st.sel];
       const hi = handlesOf(a).findIndex(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < 22 / st.scale);
@@ -526,6 +604,10 @@ async function openPlanViewer(plan, ctx) {
     const p = toImg(e.clientX, e.clientY);
     if (g.mode === 'pan') {
       st.tx += e.clientX - g.lx; st.ty += e.clientY - g.ly; applyT();
+    } else if (g.mode === 'edit' && g.edit.kind === 'pin') {
+      const o = st.selPin.obj;
+      if (o.shape === 'zone') { o.x = p[0] - o.w / 2; o.y = p[1] - o.h / 2; } else { o.x = p[0]; o.y = p[1]; }
+      renderMarkers(); renderSel(); showLoupe(e.clientX, e.clientY);
     } else if (g.mode === 'edit') {
       const a = plan.annotations[st.sel];
       if (!g.undone) { pushUndo(); g.undone = true; }
@@ -543,7 +625,7 @@ async function openPlanViewer(plan, ctx) {
     }
     g.lx = e.clientX; g.ly = e.clientY;
   });
-  const endPtr = (e) => {
+  const endPtr = async (e) => {
     if (!ptrs.has(e.pointerId)) return;
     ptrs.delete(e.pointerId);
     if (!g) return;
@@ -552,6 +634,11 @@ async function openPlanViewer(plan, ctx) {
     if (g.type !== 'one') { if (ptrs.size === 0) g = null; return; }
     const cur = g; g = null; gPrev.innerHTML = '';
     scheduleHD();
+    if (cur.mode === 'edit' && cur.edit.kind === 'pin') {
+      if (cur.moved) { const o = st.selPin.obj; await DB.put(st.selPin.kind === 'task' ? 'tasks' : 'links', o); toast('Pin déplacé ✓'); }
+      else onTap(cur.start);
+      return;
+    }
     if (cur.mode === 'edit' && cur.moved) { saveAnnots(); renderSel(); return; }
     if (!cur.moved) return onTap(cur.start);
     if (cur.mode !== 'draw' || !cur.end) return;
@@ -607,8 +694,11 @@ async function openPlanViewer(plan, ctx) {
     }
     lastTap = now;
     if (st.tool === 'select') {
+      const hp = hitMarker(x, y);
+      if (hp) { st.selPin = hp; st.sel = -1; renderSel(); renderTools(); return; }
+      st.selPin = null;
       st.sel = annotAt(x, y); renderSel(); renderTools();
-      if (st.sel < 0) toast('Aucun dessin ici');
+      if (st.sel < 0) toast('Rien à modifier ici');
       return;
     }
     if (st.tool === 'draw' && st.shape !== 'text') {
@@ -630,8 +720,8 @@ async function openPlanViewer(plan, ctx) {
       return toast('Aucune annotation ici');
     }
     const hit = aimed ? null : hitMarker(x, y);
-    if (hit && hit.kind === 'planlink' && ['pan', 'pin', 'link', 'planlink', 'select'].includes(st.tool)) {
-      if (st.tool === 'select') await editPlanLink(hit.obj); else await openPlanLink(hit.obj);
+    if (hit && hit.kind === 'planlink' && ['pan', 'pin', 'link', 'planlink'].includes(st.tool)) {
+      await openPlanLink(hit.obj);
       await reloadData(); return;
     }
     if (hit && ['pan', 'pin', 'link'].includes(st.tool)) {
