@@ -893,4 +893,12 @@ async function restoreBackup() {
   if (capApp) capApp.addListener('backButton', () => { if (!goBack()) capApp.exitApp(); });
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   renderHome();
+  // message après une mise à jour
+  try {
+    const prev = localStorage.getItem('appVersion');
+    if (!APP_VERSION.startsWith('__') && prev !== APP_VERSION) {
+      localStorage.setItem('appVersion', APP_VERSION);
+      if (prev) setTimeout(() => toast(`✓ Mise à jour ${APP_VERSION} installée`), 600);
+    }
+  } catch (e) {}
 })();
