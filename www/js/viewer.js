@@ -88,9 +88,11 @@ async function openPlanViewer(plan, ctx) {
     tool: 'pan', shape: 'cloud', color: '#ff0000', textSize: 16,
     filters: { tasks: true, links: true, annots: true },
     tasks: [], links: [], undo: [], flyout: null, fitScale: 1,
+    toolsOpen: false, penMode: 'free', width: 2,
     pinSize: (() => { try { return +localStorage.getItem('pinSize') || 1; } catch (e) { return 1; } })(),
   };
   // Taille des pins : proportionnelle au zoom (petits quand on dézoome, limités quand on zoome)
+  const strokeW = () => base / ({ 1: 800, 2: 400, 3: 200 }[st.width] || 400);
   const pinM = () => Math.max(0.12, Math.min(0.8, (st.scale / st.fitScale) * 0.26 * st.pinSize));
 
   const el = document.createElement('div');
@@ -103,9 +105,10 @@ async function openPlanViewer(plan, ctx) {
       <button class="iconbtn" data-a="more">${icon('more')}</button>
     </div>
     <div class="viewer">
-      <div class="stage"><img src="${src}" width="${W}" height="${H}"><svg class="ov" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+      <div class="stage"><img src="${src}" width="${W}" height="${H}"><canvas class="hd"></canvas><svg class="ov" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
         <g class="g-annots"></g><g class="g-preview"></g><g class="g-links"></g><g class="g-tasks"></g></svg></div>
       <div class="tools"></div>
+      <div class="loupe"><div class="lst"><img src="${src}" width="${W}" height="${H}"><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><g class="l-ann"></g><g class="l-prev"></g></svg></div><div class="cross"></div></div>
     </div>
     <div class="viewer-bottom"><span class="vb-info"></span></div>`;
   document.body.appendChild(el);
@@ -120,14 +123,23 @@ async function openPlanViewer(plan, ctx) {
 
   // ---------- Transform ----------
   function fit() {
-    const vw = viewer.clientWidth - 64, vh = viewer.clientHeight; // laisse la place à la barre d'outils
-    st.scale = Math.min(vw / W, vh / H) * 0.96;
+    const vw = viewer.clientWidth, vh = viewer.clientHeight;
+    st.scale = Math.min(vw / W, vh / H) * 0.98;
     st.fitScale = st.scale;
     st.tx = (vw - W * st.scale) / 2; st.ty = (vh - H * st.scale) / 2;
     applyT();
   }
+  // Empêche le plan de "partir" : centré quand il est plus petit que l'écran, bords tenus sinon
+  function clampT() {
+    const vw = viewer.clientWidth, vh = viewer.clientHeight, M = 40;
+    const pw = W * st.scale, ph = H * st.scale;
+    st.tx = pw <= vw ? (vw - pw) / 2 : Math.min(M, Math.max(vw - pw - M, st.tx));
+    st.ty = ph <= vh ? (vh - ph) / 2 : Math.min(M, Math.max(vh - ph - M, st.ty));
+  }
   let rafPending = false;
   function applyT() {
+    clampT();
+    scheduleHD();
     stage.style.transform = `translate(${st.tx}px,${st.ty}px) scale(${st.scale})`;
     if (!rafPending) { rafPending = true; requestAnimationFrame(() => { rafPending = false; renderMarkers(); }); }
   }
@@ -137,13 +149,67 @@ async function openPlanViewer(plan, ctx) {
   }
   function zoomAt(cx, cy, factor) {
     const r = viewer.getBoundingClientRect();
-    const minS = Math.min(viewer.clientWidth / W, viewer.clientHeight / H) * 0.5;
-    const ns = Math.max(minS, Math.min(8, st.scale * factor));
+    const ns = Math.max(st.fitScale, Math.min(st.fitScale * 40, st.scale * factor));
     const k = ns / st.scale;
     st.tx = (cx - r.left) - k * ((cx - r.left) - st.tx);
     st.ty = (cy - r.top) - k * ((cy - r.top) - st.ty);
     st.scale = ns; applyT();
   }
+
+  // ---------- Rendu HD (plans PDF : redessin net de la zone visible) ----------
+  const hd = $('.hd', el);
+  let pdfPage = null, hdTimer = null, hdTask = null;
+  async function loadPdfPage() {
+    if (!plan.pdfFileId || !pdfReady()) return null;
+    if (pdfPage) return pdfPage;
+    try {
+      const f = await DB.get('files', plan.pdfFileId);
+      if (!f) return null;
+      const doc = await pdfjsLib.getDocument({ data: new Uint8Array(await f.blob.arrayBuffer()) }).promise;
+      pdfPage = await doc.getPage(plan.pdfPage || 1);
+    } catch (e) { console.error(e); }
+    return pdfPage;
+  }
+  function scheduleHD() {
+    if (!plan.pdfFileId) return;
+    clearTimeout(hdTimer);
+    hdTimer = setTimeout(renderHD, 220);
+  }
+  async function renderHD() {
+    if (g || !el.isConnected) return scheduleHD();
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    if (st.scale * dpr <= 1.05) { hd.style.display = 'none'; return; } // l'image de base suffit
+    const page = await loadPdfPage();
+    if (!page) return;
+    const vw = viewer.clientWidth, vh = viewer.clientHeight;
+    const r0 = W / page.getViewport({ scale: 1 }).width;
+    const sc = st.scale, tx = st.tx, ty = st.ty;
+    const vp = page.getViewport({ scale: r0 * sc * dpr, offsetX: tx * dpr, offsetY: ty * dpr });
+    const c = document.createElement('canvas');
+    c.width = Math.round(vw * dpr); c.height = Math.round(vh * dpr);
+    if (hdTask) { try { hdTask.cancel(); } catch (e) {} }
+    hdTask = page.render({ canvasContext: c.getContext('2d'), viewport: vp, background: 'white' });
+    try { await hdTask.promise; } catch (e) { return; }
+    hdTask = null;
+    const ctx2 = hd.getContext('2d');
+    hd.width = c.width; hd.height = c.height; ctx2.drawImage(c, 0, 0);
+    Object.assign(hd.style, { display: 'block', left: (-tx / sc) + 'px', top: (-ty / sc) + 'px', width: (vw / sc) + 'px', height: (vh / sc) + 'px' });
+  }
+
+  // ---------- Loupe (voir sous le doigt pendant le dessin) ----------
+  const loupe = $('.loupe', el), lst = $('.lst', el), lAnn = $('.l-ann', el), lPrev = $('.l-prev', el);
+  function showLoupe(cx, cy) {
+    const r = viewer.getBoundingClientRect();
+    const [x, y] = toImg(cx, cy);
+    const Z = st.scale * 2.5, R = 65;
+    lst.style.transform = `translate(${R - x * Z}px,${R - y * Z}px) scale(${Z})`;
+    lPrev.innerHTML = gPrev.innerHTML;
+    if (loupe.style.display !== 'block') { lAnn.innerHTML = gAnn.innerHTML; loupe.style.display = 'block'; }
+    const nearTopLeft = (cx - r.left) < 170 && (cy - r.top) < 190;
+    loupe.style.left = nearTopLeft ? 'auto' : '10px';
+    loupe.style.right = nearTopLeft ? '74px' : 'auto';
+  }
+  function hideLoupe() { loupe.style.display = 'none'; }
 
   // ---------- Rendering ----------
   function renderAnnots() {
@@ -206,29 +272,43 @@ async function openPlanViewer(plan, ctx) {
 
   // ---------- Toolbar ----------
   const TOOLS_HINT = {
-    pan: '', pin: 'Touchez le plan pour placer une tâche',
+    pan: '', pin: 'Touchez (ou glissez pour viser) pour placer une tâche',
     link: 'Toucher = pin · Glisser = zone',
-    pen: 'Dessinez avec le doigt', shape: 'Glissez pour dessiner la forme',
+    pen: 'Dessinez · 2 doigts pour bouger', shape: 'Glissez pour dessiner la forme',
     text: 'Touchez pour ajouter du texte', erase: 'Touchez une annotation pour l\'effacer',
   };
+  const TOOL_ICON = () => ({
+    pan: icon('move'), pin: icon('pin'), link: icon('link'), erase: icon('eraser'),
+    pen: icon(st.penMode === 'straight' ? 'line' : 'pen'),
+    shape: icon({ cloud: 'cloud', rect: 'rect', ellipse: 'circle', arrow: 'arrow', line: 'line' }[st.shape]),
+    text: '<span style="font-size:26px;font-family:Georgia,serif">a</span>',
+  }[st.tool]);
   function renderTools() {
     const t = $('.tools', el);
-    const shapeIcon = { cloud: 'cloud', rect: 'rect', ellipse: 'circle', arrow: 'arrow', line: 'line' }[st.shape];
-    t.innerHTML = `
-      <div class="grp">
-        <button class="tool ${st.tool === 'pin' ? 'on' : ''}" data-t="pin">${icon('pin')}</button>
-        <button class="tool ${st.tool === 'link' ? 'on' : ''}" data-t="link">${icon('link')}</button>
-        <button class="tool ${st.tool === 'pen' ? 'on' : ''}" data-t="pen">${icon('pen')}</button>
-        <button class="tool ${st.tool === 'shape' ? 'on' : ''}" data-t="shape">${icon(shapeIcon)}</button>
-        <button class="tool ${st.tool === 'text' ? 'on' : ''}" data-t="text"><span style="font-size:26px;font-family:Georgia,serif">a</span></button>
-        <button class="tool ${st.tool === 'erase' ? 'on' : ''}" data-t="erase">${icon('eraser')}</button>
-      </div>
-      <div class="grp"><button class="tool" data-t="color"><span class="swatch" style="background:${st.color}"></span></button></div>
-      <div class="grp">
-        <button class="tool ${st.tool === 'pan' ? 'on' : ''}" data-t="pan">${icon('move')}</button>
-        <button class="tool" data-t="undo">${icon('undo')}</button>
-        <button class="tool del" data-t="clear">${icon('trash')}</button>
-      </div>`;
+    const ic = TOOL_ICON();
+    const drawing = ['pen', 'shape', 'text', 'erase'].includes(st.tool);
+    if (!st.toolsOpen) {
+      t.innerHTML = `
+        <div class="grp"><button class="tool ${st.tool !== 'pan' ? 'on' : ''}" data-t="toggle">${ic}</button></div>
+        ${drawing ? `<div class="grp"><button class="tool" data-t="color"><span class="swatch" style="background:${st.color}"></span></button><button class="tool" data-t="undo">${icon('undo')}</button></div>` : ''}`;
+    } else {
+      t.innerHTML = `
+        <div class="grp"><button class="tool" data-t="toggle">${icon('chevright')}</button></div>
+        <div class="grp">
+          <button class="tool ${st.tool === 'pan' ? 'on' : ''}" data-t="pan">${icon('move')}</button>
+          <button class="tool ${st.tool === 'pin' ? 'on' : ''}" data-t="pin">${icon('pin')}</button>
+          <button class="tool ${st.tool === 'link' ? 'on' : ''}" data-t="link">${icon('link')}</button>
+          <button class="tool ${st.tool === 'pen' ? 'on' : ''}" data-t="pen">${icon(st.penMode === 'straight' ? 'line' : 'pen')}</button>
+          <button class="tool ${st.tool === 'shape' ? 'on' : ''}" data-t="shape">${icon({ cloud: 'cloud', rect: 'rect', ellipse: 'circle', arrow: 'arrow', line: 'line' }[st.shape])}</button>
+          <button class="tool ${st.tool === 'text' ? 'on' : ''}" data-t="text"><span style="font-size:26px;font-family:Georgia,serif">a</span></button>
+          <button class="tool ${st.tool === 'erase' ? 'on' : ''}" data-t="erase">${icon('eraser')}</button>
+        </div>
+        <div class="grp">
+          <button class="tool" data-t="color"><span class="swatch" style="background:${st.color}"></span></button>
+          <button class="tool" data-t="undo">${icon('undo')}</button>
+          <button class="tool del" data-t="clear">${icon('trash')}</button>
+        </div>`;
+    }
     $$('.tool', t).forEach(b => b.onclick = (e) => { e.stopPropagation(); onTool(b.dataset.t, b); });
     let hint = $('.hint', viewer);
     const msg = TOOLS_HINT[st.tool];
@@ -236,7 +316,7 @@ async function openPlanViewer(plan, ctx) {
     else if (hint) hint.remove();
   }
   function closeFly() { if (st.flyout) { st.flyout.remove(); st.flyout = null; } }
-  function flyout(btn, html, onPick) {
+  function flyout(btn, html, onPick, rebuild) {
     closeFly();
     const f = document.createElement('div');
     f.className = 'flyout';
@@ -247,10 +327,22 @@ async function openPlanViewer(plan, ctx) {
     // garde la flyout dans l'écran
     const fr = f.getBoundingClientRect();
     if (fr.bottom > vr.bottom - 4) f.style.top = Math.max(4, (tb.bottom - vr.top) - fr.height) + 'px';
-    $$('button', f).forEach(b => b.onclick = (e) => { e.stopPropagation(); onPick(b.dataset.v); closeFly(); renderTools(); });
+    $$('button', f).forEach(b => b.onclick = (e) => {
+      e.stopPropagation(); onPick(b.dataset.v);
+      if (b.dataset.keep && rebuild) { rebuild(); return; }
+      closeFly(); st.toolsOpen = false; renderTools();
+    });
     st.flyout = f;
   }
   function onTool(t, btn) {
+    if (t === 'toggle') { closeFly(); st.toolsOpen = !st.toolsOpen; return renderTools(); }
+    if (t === 'pen') {
+      st.tool = 'pen';
+      const wbtn = (w) => `<button data-v="w${w}" data-keep="1" class="${st.width === w ? 'on' : ''}"><span style="width:${w * 6}px;height:${w * 6}px;border-radius:50%;background:#fff;display:block"></span></button>`;
+      return flyout(btn, `<button data-v="free" class="${st.penMode === 'free' ? 'on' : ''}">${icon('pen')}</button>
+        <button data-v="straight" class="${st.penMode === 'straight' ? 'on' : ''}">${icon('line')}</button>${wbtn(1)}${wbtn(2)}${wbtn(3)}`,
+        v => { if (v[0] === 'w') st.width = +v.slice(1); else st.penMode = v; }, () => onTool('pen', btn));
+    }
     if (t === 'color') {
       return flyout(btn, PALETTE.map(c => `<button data-v="${c}" class="${c === st.color ? 'on' : ''}"><span class="sw" style="background:${c}"></span></button>`).join(''), v => st.color = v);
     }
@@ -276,6 +368,7 @@ async function openPlanViewer(plan, ctx) {
       return;
     }
     st.tool = (st.tool === t && t !== 'pan') ? 'pan' : t;
+    st.toolsOpen = false;
     renderTools();
   }
 
@@ -290,7 +383,7 @@ async function openPlanViewer(plan, ctx) {
     if (ptrs.size === 2) {
       const [a, b] = [...ptrs.values()];
       g = { type: 'pinch', d: Math.hypot(a[0] - b[0], a[1] - b[1]), cx: (a[0] + b[0]) / 2, cy: (a[1] + b[1]) / 2 };
-      gPrev.innerHTML = '';
+      gPrev.innerHTML = ''; hideLoupe();
       return;
     }
     if (ptrs.size > 2) return;
@@ -312,31 +405,41 @@ async function openPlanViewer(plan, ctx) {
     }
     if (g.type !== 'one') return;
     if (Math.hypot(e.clientX - g.sx, e.clientY - g.sy) > 8) g.moved = true;
-    const drawTool = ['pen', 'shape', 'link'].includes(st.tool);
+    const drawTool = ['pen', 'shape', 'link', 'pin'].includes(st.tool);
     if (!drawTool) {
       st.tx += e.clientX - g.lx; st.ty += e.clientY - g.ly; applyT();
     } else if (g.moved) {
       const p = toImg(e.clientX, e.clientY);
-      if (st.tool === 'pen') { g.pts.push(p); gPrev.innerHTML = annotSVG({ type: 'pen', pts: g.pts, color: st.color, sw: base / 350 }); }
-      else if (st.tool === 'shape') { g.end = p; gPrev.innerHTML = annotSVG({ type: st.shape, pts: [g.start, p], color: st.color, sw: base / 350 }); }
+      g.end = p;
+      if (st.tool === 'pen' && st.penMode === 'straight') gPrev.innerHTML = annotSVG({ type: 'line', pts: [g.start, p], color: st.color, sw: strokeW() });
+      else if (st.tool === 'pen') { g.pts.push(p); gPrev.innerHTML = annotSVG({ type: 'pen', pts: g.pts, color: st.color, sw: strokeW() }); }
+      else if (st.tool === 'shape') { gPrev.innerHTML = annotSVG({ type: st.shape, pts: [g.start, p], color: st.color, sw: strokeW() }); }
+      else if (st.tool === 'pin') { gPrev.innerHTML = `<circle cx="${p[0]}" cy="${p[1]}" r="${4 / st.scale}" fill="${STATUS.open.color}" stroke="#fff" stroke-width="${1.5 / st.scale}"/>`; }
       else if (st.tool === 'link') {
         g.end = p;
         const x = Math.min(g.start[0], p[0]), y = Math.min(g.start[1], p[1]);
         gPrev.innerHTML = `<rect x="${x}" y="${y}" width="${Math.abs(p[0] - g.start[0])}" height="${Math.abs(p[1] - g.start[1])}" fill="${st.color}" fill-opacity=".15" stroke="${st.color}" stroke-width="${2 / st.scale}" stroke-dasharray="${8 / st.scale} ${5 / st.scale}"/>`;
       }
     }
+    if (drawTool && g.moved) showLoupe(e.clientX, e.clientY);
     g.lx = e.clientX; g.ly = e.clientY;
   });
   const endPtr = (e) => {
     if (!ptrs.has(e.pointerId)) return;
     ptrs.delete(e.pointerId);
     if (!g) return;
-    if (g.type === 'pinch') { if (ptrs.size === 0) g = null; else g = { type: 'idle' }; return; }
+    hideLoupe();
+    if (g.type === 'pinch') { if (ptrs.size === 0) { g = null; scheduleHD(); } else g = { type: 'idle' }; return; }
     if (g.type !== 'one') { if (ptrs.size === 0) g = null; return; }
     const cur = g; g = null; gPrev.innerHTML = '';
+    scheduleHD();
     if (!cur.moved) return onTap(cur.start);
-    const sw = base / 350;
-    if (st.tool === 'pen' && cur.pts.length > 1) {
+    const sw = strokeW();
+    if (st.tool === 'pin' && cur.end) return onTap(cur.end, true);
+    if (st.tool === 'pen' && st.penMode === 'straight' && cur.end) {
+      pushUndo(); plan.annotations.push({ id: DB.uid(), type: 'line', pts: [cur.start, cur.end], color: st.color, sw });
+      renderAnnots(); saveAnnots(); renderMarkers();
+    } else if (st.tool === 'pen' && cur.pts.length > 1) {
       pushUndo(); plan.annotations.push({ id: DB.uid(), type: 'pen', pts: simplify(cur.pts, 1 / st.scale), color: st.color, sw });
       renderAnnots(); saveAnnots(); renderMarkers();
     } else if (st.tool === 'shape' && cur.end) {
@@ -383,10 +486,10 @@ async function openPlanViewer(plan, ctx) {
     return best;
   }
 
-  async function onTap([x, y]) {
+  async function onTap([x, y], aimed = false) {
     // double-tap = zoom
     const now = Date.now();
-    if (st.tool === 'pan' && now - lastTap < 300) {
+    if (!aimed && st.tool === 'pan' && now - lastTap < 300) {
       const r = viewer.getBoundingClientRect();
       zoomAt(r.left + x * st.scale + st.tx, r.top + y * st.scale + st.ty, 2); lastTap = 0; return;
     }
@@ -400,7 +503,7 @@ async function openPlanViewer(plan, ctx) {
       }
       return toast('Aucune annotation ici');
     }
-    const hit = hitMarker(x, y);
+    const hit = aimed ? null : hitMarker(x, y);
     if (hit && ['pan', 'pin', 'link'].includes(st.tool)) {
       if (hit.kind === 'task') await ctx.openTask(hit.obj);
       else await ctx.openLink(hit.obj);
@@ -464,6 +567,7 @@ async function openPlanViewer(plan, ctx) {
     }
     if (v === 'del' && await confirmBox('Supprimer ce plan et ses annotations ?')) {
       await DB.del('plans', plan.id); await DB.del('files', plan.fileId);
+      if (plan.pdfFileId && !(await DB.byProject('plans', plan.projectId)).some(p => p.pdfFileId === plan.pdfFileId)) await DB.del('files', plan.pdfFileId);
       for (const l of st.links.filter(l => l.planId === plan.id)) await DB.del('links', l.id);
       for (const t of st.tasks.filter(t => t.planId === plan.id)) { t.planId = null; t.x = t.y = null; await DB.put('tasks', t); }
       close();

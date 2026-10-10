@@ -190,13 +190,15 @@ async function pdfToImages(file, maxSide = 3000, onPage) {
     if (onPage) onPage(p, pdf.numPages);
     const page = await pdf.getPage(p);
     const vp1 = page.getViewport({ scale: 1 });
-    const scale = Math.min(4, maxSide / Math.max(vp1.width, vp1.height));
+    // haute résolution, limitée à ~16 Mpx (limite des canvas sur Android)
+    const scale = Math.min(8, maxSide / Math.max(vp1.width, vp1.height), Math.sqrt(16e6 / (vp1.width * vp1.height)));
     const vp = page.getViewport({ scale });
     const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
     const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
     await page.render({ canvasContext: ctx, viewport: vp }).promise;
-    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.85));
-    out.push({ blob, w: c.width, h: c.height, page: p });
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
+    c.width = c.height = 0; // libère la mémoire
+    out.push({ blob, w: Math.round(vp.width), h: Math.round(vp.height), page: p });
   }
   return out;
 }

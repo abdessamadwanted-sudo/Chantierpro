@@ -27,7 +27,7 @@ async function fileURL(fileId) {
   return f ? BlobURL.get(f.id, f.blob) : '';
 }
 async function saveImageFile(projectId, file, role = 'photo', extra = {}) {
-  const { blob, w, h } = await compressImage(file, role === 'plan' ? 4000 : 1600, role === 'plan' ? 0.9 : 0.82);
+  const { blob, w, h } = await compressImage(file, role === 'plan' ? 5000 : 1600, role === 'plan' ? 0.93 : 0.82);
   return DB.put('files', { projectId, blob, mime: 'image/jpeg', name: file.name, role, w, h, ...extra });
 }
 async function addPhotos(projectId, extra = {}) {
@@ -251,10 +251,12 @@ async function importPlans(folders, root, fromDrive = false) {
     for (const file of files) {
       const base = file.name.replace(/\.[^.]+$/, '');
       if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
-        const pages = await pdfToImages(file, 3000, (p, n) => ld.set(`Conversion PDF… page ${p}/${n}`));
+        const pages = await pdfToImages(file, 5000, (p, n) => ld.set(`Conversion PDF… page ${p}/${n}`));
+        // on garde le PDF original pour un affichage net quand on zoome
+        const src = await DB.put('files', { projectId: pid, blob: file, mime: 'application/pdf', role: 'plansrc', name: file.name });
         for (const pg of pages) {
           const f = await DB.put('files', { projectId: pid, blob: pg.blob, mime: 'image/jpeg', role: 'plan', w: pg.w, h: pg.h, name: file.name });
-          await DB.put('plans', { projectId: pid, folderId, fileId: f.id, w: pg.w, h: pg.h, name: pages.length > 1 ? `${base} - p${pg.page}` : base, annotations: [] });
+          await DB.put('plans', { projectId: pid, folderId, fileId: f.id, pdfFileId: src.id, pdfPage: pg.page, w: pg.w, h: pg.h, name: pages.length > 1 ? `${base} - p${pg.page}` : base, annotations: [] });
         }
       } else {
         const f = await saveImageFile(pid, file, 'plan');
