@@ -200,13 +200,14 @@ async function renderPlans(root) {
   fab(root, async () => {
     const v = await menu('Ajouter', [
       { label: 'Importer un plan (PDF / image)', icon: 'plans', value: 'plan' },
+      { label: 'Importer depuis Google Drive (lien)', icon: 'drive', value: 'drive' },
       { label: 'Nouveau dossier', icon: 'folder', value: 'folder' },
     ]);
     if (v === 'folder') {
       const r = await formSheet('Nouveau dossier', [{ name: 'name', label: 'Nom du dossier', placeholder: 'Ex : 1-Poteaux + voiles' }], { okLabel: 'Créer' });
       if (r && r.name) { const f = await DB.put('folders', { projectId: pid, name: r.name }); App.openFolders[f.id] = true; renderPlans(root); }
     }
-    if (v === 'plan') importPlans(folders, root);
+    if (v === 'plan' || v === 'drive') importPlans(folders, root, v === 'drive');
   });
 }
 
@@ -223,7 +224,7 @@ async function folderMenu(f, root) {
   }
 }
 
-async function importPlans(folders, root) {
+async function importPlans(folders, root, fromDrive = false) {
   const pid = App.project.id;
   let folderId = null;
   if (folders.length) {
@@ -231,7 +232,19 @@ async function importPlans(folders, root) {
     if (!folderId) return;
     if (folderId === '_none') folderId = null;
   }
-  const files = await pickFiles({ accept: 'image/*,application/pdf', multiple: true });
+  let files = [];
+  if (fromDrive) {
+    const r = await formSheet('Plan depuis Google Drive', [
+      { name: 'url', label: 'Coller le lien du fichier (PDF ou image)', type: 'url', placeholder: 'https://drive.google.com/file/d/…' },
+    ], { okLabel: 'Importer' });
+    if (!r || !r.url) return;
+    const ld0 = loading('Téléchargement depuis Drive…');
+    try { files = [await downloadFromDrive(r.url)]; }
+    catch (e) { ld0.close(); return alertBox(e.message); }
+    ld0.close();
+  } else {
+    files = await pickFiles({ accept: 'image/*,application/pdf', multiple: true });
+  }
   if (!files.length) return;
   const ld = loading('Import du plan…');
   try {
@@ -394,7 +407,23 @@ function openLinkDetail(link) {
           { name: 'url', label: 'Coller le lien (Drive, Dropbox, …)', type: 'url', placeholder: 'https://drive.google.com/…' },
           { name: 'name', label: 'Nom (optionnel)', placeholder: LINK_CATS.find(c => c.key === cat).label },
         ], { okLabel: 'Ajouter' });
-        if (r && r.url) { link.items.push({ id: DB.uid(), cat, kind: 'url', url: r.url, name: r.name || LINK_CATS.find(c => c.key === cat).label, date: Date.now() }); await save(); }
+        if (!r || !r.url) return render();
+        const label = r.name || LINK_CATS.find(c => c.key === cat).label;
+        if (/drive\.google\.com|docs\.google\.com/.test(r.url) && driveFileId(r.url) && isNative()) {
+          const ld = loading('Téléchargement depuis Drive…');
+          try {
+            const file = await downloadFromDrive(r.url);
+            let rec;
+            if (file.type.startsWith('image/')) rec = await saveImageFile(pid, file, cat === 'photo' ? 'photo' : 'doc', { source: link.name });
+            else rec = await DB.put('files', { projectId: pid, blob: file, mime: file.type, name: file.name, role: 'doc' });
+            link.items.push({ id: DB.uid(), cat, kind: 'file', fileId: rec.id, url: r.url, name: r.name || file.name.replace(/\.[^.]+$/, ''), date: Date.now() });
+            await save(); toast('Fichier Drive enregistré ✓');
+            return render();
+          } catch (e) {
+            toast(e.message);
+          } finally { ld.close(); }
+        }
+        link.items.push({ id: DB.uid(), cat, kind: 'url', url: r.url, name: label, date: Date.now() }); await save();
         return render();
       }
       const files = await pickFiles({ accept: cat === 'photo' ? 'image/*' : 'image/*,application/pdf', multiple: how !== 'cam', capture: how === 'cam' });

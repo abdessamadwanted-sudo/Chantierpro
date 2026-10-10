@@ -87,8 +87,11 @@ async function openPlanViewer(plan, ctx) {
     scale: 1, tx: 0, ty: 0,
     tool: 'pan', shape: 'cloud', color: '#ff0000', textSize: 16,
     filters: { tasks: true, links: true, annots: true },
-    tasks: [], links: [], undo: [], flyout: null,
+    tasks: [], links: [], undo: [], flyout: null, fitScale: 1,
+    pinSize: (() => { try { return +localStorage.getItem('pinSize') || 1; } catch (e) { return 1; } })(),
   };
+  // Taille des pins : proportionnelle au zoom (petits quand on dézoome, limités quand on zoome)
+  const pinM = () => Math.max(0.12, Math.min(0.8, (st.scale / st.fitScale) * 0.26 * st.pinSize));
 
   const el = document.createElement('div');
   el.className = 'fullpage';
@@ -119,6 +122,7 @@ async function openPlanViewer(plan, ctx) {
   function fit() {
     const vw = viewer.clientWidth - 64, vh = viewer.clientHeight; // laisse la place à la barre d'outils
     st.scale = Math.min(vw / W, vh / H) * 0.96;
+    st.fitScale = st.scale;
     st.tx = (vw - W * st.scale) / 2; st.ty = (vh - H * st.scale) / 2;
     applyT();
   }
@@ -147,24 +151,27 @@ async function openPlanViewer(plan, ctx) {
     gAnn.innerHTML = plan.annotations.map(annotSVG).join('');
   }
   function renderMarkers() {
-    const s = 1 / st.scale;
+    const m = pinM();
+    const s = m / st.scale;
+    const showLabel = m >= 0.45, showCount = m >= 0.3;
     gTasks.style.display = st.filters.tasks ? '' : 'none';
     gLinks.style.display = st.filters.links ? '' : 'none';
     gTasks.innerHTML = st.tasks.filter(t => t.planId === plan.id && t.x != null).map(t => {
       const c = (STATUS[t.status] || STATUS.open).color;
       return `<g transform="translate(${t.x},${t.y}) scale(${s})">
         <path d="M0,0 C-4,-10 -14,-14 -14,-26 A14,14 0 1 1 14,-26 C14,-14 4,-10 0,0Z" fill="${c}" stroke="#fff" stroke-width="2"/>
-        <text x="0" y="-21" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" font-family="Arial">${t.num}</text></g>`;
+        ${m >= 0.25 ? `<text x="0" y="-21" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" font-family="Arial">${t.num}</text>` : ''}</g>`;
     }).join('');
     gLinks.innerHTML = st.links.filter(l => l.planId === plan.id).map(l => {
-      const n = (l.items || []).length;
+      const n = showCount ? (l.items || []).length : 0;
+      const ls = 1 / st.scale;
       if (l.shape === 'zone') {
-        return `<g><rect x="${l.x}" y="${l.y}" width="${l.w}" height="${l.h}" fill="${l.color}" fill-opacity=".18" stroke="${l.color}" stroke-width="${2.5 * s}" stroke-dasharray="${8 * s} ${5 * s}"/>
+        return `<g><rect x="${l.x}" y="${l.y}" width="${l.w}" height="${l.h}" fill="${l.color}" fill-opacity=".18" stroke="${l.color}" stroke-width="${1.5 * ls}" stroke-dasharray="${6 * ls} ${4 * ls}"/>
           <g transform="translate(${l.x + l.w / 2},${l.y + l.h / 2}) scale(${s})">${linkBadge(l.color, n)}</g>
-          <text x="${l.x + 4 * s}" y="${l.y - 6 * s}" font-size="${12 * s}" fill="${l.color}" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="${3 * s}">${esc(l.name)}</text></g>`;
+          ${showLabel ? `<text x="${l.x + 3 * ls}" y="${l.y - 4 * ls}" font-size="${11 * ls}" fill="${l.color}" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="${3 * ls}">${esc(l.name)}</text>` : ''}</g>`;
       }
       return `<g transform="translate(${l.x},${l.y}) scale(${s})">${linkPin(l.color, n)}
-        <text x="0" y="16" text-anchor="middle" font-size="12" fill="${l.color}" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text></g>`;
+        ${showLabel ? `<text x="0" y="16" text-anchor="middle" font-size="12" fill="${l.color}" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`;
     }).join('');
     const info = $('.vb-info', el);
     const nt = st.tasks.filter(t => t.planId === plan.id).length, nl = st.links.filter(l => l.planId === plan.id).length;
@@ -355,23 +362,25 @@ async function openPlanViewer(plan, ctx) {
   }
 
   function hitMarker(x, y) {
-    const tol = 22 / st.scale;
+    const m = pinM();
+    const tol = Math.max(16, 26 * m) / st.scale;      // zone de toucher (px écran → plan)
+    const head = (h) => h * m / st.scale;              // décalage de la tête du pin
+    let best = null, bestD = Infinity;
+    const consider = (d, hit) => { if (d < tol && d < bestD) { bestD = d; best = hit; } };
     if (st.filters.tasks) {
-      const ts = st.tasks.filter(t => t.planId === plan.id && t.x != null);
-      for (let i = ts.length - 1; i >= 0; i--) {
-        const t = ts[i];
-        if (Math.hypot(x - t.x, y - (t.y - 26 / st.scale)) < tol) return { kind: 'task', obj: t };
+      for (const t of st.tasks) {
+        if (t.planId !== plan.id || t.x == null) continue;
+        consider(Math.min(Math.hypot(x - t.x, y - (t.y - head(26))), Math.hypot(x - t.x, y - t.y)), { kind: 'task', obj: t });
       }
     }
     if (st.filters.links) {
-      const ls = st.links.filter(l => l.planId === plan.id);
-      for (let i = ls.length - 1; i >= 0; i--) {
-        const l = ls[i];
-        if (l.shape === 'zone') { if (x >= l.x && x <= l.x + l.w && y >= l.y && y <= l.y + l.h) return { kind: 'link', obj: l }; }
-        else if (Math.hypot(x - l.x, y - (l.y - 30 / st.scale)) < tol * 1.2 || Math.hypot(x - l.x, y - (l.y - 8 / st.scale)) < tol * 0.7) return { kind: 'link', obj: l };
+      for (const l of st.links) {
+        if (l.planId !== plan.id) continue;
+        if (l.shape === 'zone') { if (x >= l.x && x <= l.x + l.w && y >= l.y && y <= l.y + l.h) consider(tol * 0.99, { kind: 'link', obj: l }); }
+        else consider(Math.min(Math.hypot(x - l.x, y - (l.y - head(31))), Math.hypot(x - l.x, y - l.y)), { kind: 'link', obj: l });
       }
     }
-    return null;
+    return best;
   }
 
   async function onTap([x, y]) {
@@ -431,8 +440,16 @@ async function openPlanViewer(plan, ctx) {
       { label: 'Tâches', icon: 'pin', checked: st.filters.tasks, value: 'tasks' },
       { label: 'Liens / éléments', icon: 'link', checked: st.filters.links, value: 'links' },
       { label: 'Annotations', icon: 'pen', checked: st.filters.annots, value: 'annots' },
+      { label: `Taille des pins : ${{ 0.6: 'Petit', 1: 'Normal', 1.6: 'Grand' }[st.pinSize] || 'Normal'}`, icon: 'pin', value: 'size' },
     ]);
-    if (v) { st.filters[v] = !st.filters[v]; renderAnnots(); renderMarkers(); }
+    if (v === 'size') {
+      const sz = await menu('Taille des pins', [
+        { label: 'Petit', value: 0.6, checked: st.pinSize === 0.6 },
+        { label: 'Normal', value: 1, checked: st.pinSize === 1 },
+        { label: 'Grand', value: 1.6, checked: st.pinSize === 1.6 },
+      ]);
+      if (sz) { st.pinSize = sz; try { localStorage.setItem('pinSize', sz); } catch (e) {} renderMarkers(); }
+    } else if (v) { st.filters[v] = !st.filters[v]; renderAnnots(); renderMarkers(); }
   };
   $('[data-a=more]', el).onclick = async () => {
     const v = await menu(plan.name, [

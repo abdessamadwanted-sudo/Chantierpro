@@ -134,6 +134,10 @@ function formSheet(title, fields, { okLabel = 'Enregistrer', danger } = {}) {
   });
 }
 
+async function alertBox(msg) {
+  await menu(msg, [{ label: 'OK', icon: 'check', value: 'ok' }]);
+}
+
 async function confirmBox(msg, okLabel = 'Supprimer') {
   const r = await menu(msg, [{ label: okLabel, icon: 'trash', danger: true, value: 'ok' }, { label: 'Annuler', icon: 'close', value: 'no' }]);
   return r === 'ok';
@@ -236,4 +240,44 @@ function openUrl(url) {
   if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
   if (isNative()) window.location.href = url; // Capacitor l'ouvre dans le navigateur externe
   else window.open(url, '_blank');
+}
+
+// ---------- Google Drive : télécharger un fichier partagé par lien ----------
+function driveFileId(url) {
+  const m = String(url).match(/\/file\/d\/([\w-]{10,})/) || String(url).match(/[?&]id=([\w-]{10,})/) || String(url).match(/\/d\/([\w-]{10,})/);
+  return m ? m[1] : null;
+}
+function base64ToBlob(b64, type) {
+  const bin = atob(b64.replace(/^data:[^,]*,/, ''));
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type });
+}
+function mimeFromName(name, fallback) {
+  if (/\.pdf$/i.test(name)) return 'application/pdf';
+  if (/\.(jpe?g)$/i.test(name)) return 'image/jpeg';
+  if (/\.png$/i.test(name)) return 'image/png';
+  if (/\.webp$/i.test(name)) return 'image/webp';
+  return fallback || 'application/octet-stream';
+}
+async function downloadFromDrive(url) {
+  if (/\/folders\//.test(url)) throw new Error('C\'est un lien de dossier. Ouvrez le fichier dans Drive et copiez le lien du fichier.');
+  const id = driveFileId(url);
+  if (!id) throw new Error('Lien Drive non reconnu');
+  const http = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp;
+  if (!http) throw new Error('Téléchargement disponible uniquement dans l\'application Android');
+  const r = await http.get({ url: `https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t`, responseType: 'blob' });
+  const headers = {};
+  for (const k in (r.headers || {})) headers[k.toLowerCase()] = r.headers[k];
+  let type = String(headers['content-type'] || '').split(';')[0].trim();
+  if (r.status >= 400 || type === 'text/html') {
+    throw new Error('Fichier non accessible. Dans Drive : Partager → « Tous les utilisateurs disposant du lien ».');
+  }
+  const cd = headers['content-disposition'] || '';
+  let name = (cd.match(/filename\*=UTF-8''([^;]+)/i) || [])[1];
+  name = name ? decodeURIComponent(name) : ((cd.match(/filename="?([^";]+)"?/i) || [])[1] || `drive-${id}`);
+  type = mimeFromName(name, type);
+  const data = typeof r.data === 'string' ? r.data : '';
+  if (!data) throw new Error('Téléchargement vide');
+  return new File([base64ToBlob(data, type)], name, { type });
 }
