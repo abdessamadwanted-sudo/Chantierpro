@@ -379,3 +379,9 @@ table.rec tbody tr { -webkit-user-select:none; user-select:none; -webkit-touch-c
 .pvrem .age.late { background: #dc2626; color: #fff; }
 .pvrem { padding: 0 16px; } .pvrem + .btnrow { padding: 0 16px 16px !important; }
 .count.pvbadge { white-space: nowrap; }
+/* PC / grand écran */
+@media (min-width: 900px) {
+  .plan-grid.fw { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important; }
+  .sheet { max-width: 640px; margin-left: auto; margin-right: auto; }
+  .drawer { max-width: 340px; }
+}
