@@ -1,0 +1,35 @@
+name: Site web (PC)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npm run copy-libs
+      - name: Version + cache-busting
+        run: |
+          V=web-${{ github.run_number }}
+          sed -i "s/__APP_VERSION__/$V/" www/js/app.js
+          sed -i -E "s#(src|href)=\"(js|lib|vendor)/([^\"?]+)\"#\1=\"\2/\3?v=$V\"#g; s#href=\"styles.css\"#href=\"styles.css?v=$V\"#" www/index.html
+      - name: Publier sur la branche gh-pages
+        run: |
+          cd www && touch .nojekyll
+          git init -q -b gh-pages && git add -A
+          git -c user.name=github-actions -c user.email=actions@github.com commit -qm "site ${{ github.run_number }}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" gh-pages

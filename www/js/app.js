@@ -352,7 +352,7 @@ async function openFileRecord(f, title) {
 // Ouvre un fichier (DWG/DXF…) avec une autre application du téléphone (AutoCAD, DWG FastView…)
 async function openExternal(f) {
   const P = window.Capacitor?.Plugins || {};
-  if (!P.Filesystem) { toast('Disponible dans l\'application Android'); return; }
+  if (!P.Filesystem) { const u = URL.createObjectURL(f.blob); const a = document.createElement('a'); a.href = u; a.download = f.name || 'fichier'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 5000); toast('Fichier téléchargé — ouvrez-le avec AutoCAD'); return; }
   const name = (f.name || 'fichier').replace(/[^\w.\- ]+/g, '_');
   const ext = name.split('.').pop().toLowerCase();
   const mime = { dwg: 'application/acad', dxf: 'application/dxf', pdf: 'application/pdf' }[ext] || f.mime || 'application/octet-stream';

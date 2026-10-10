@@ -88,7 +88,7 @@ async function pvReminder(p, force) {
 
 async function sharePhotos(ids, text) {
   const P = window.Capacitor?.Plugins || {};
-  if (!(P.Share && P.Filesystem)) { toast('Disponible dans l\'application Android'); return; }
+  if (!(P.Share && P.Filesystem)) { for (const id of ids) { const f = await DB.get('files', id); if (!f) continue; const u = URL.createObjectURL(f.blob); const a = document.createElement('a'); a.href = u; a.download = (f.name || `pv_${id}.jpg`); document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 5000); } toast('Photos téléchargées'); return; }
   try {
     const files = [];
     for (const id of ids) {
