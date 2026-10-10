@@ -93,7 +93,7 @@ async function openPlanViewer(plan, ctx) {
   };
   // Taille des pins : proportionnelle au zoom (petits quand on dézoome, limités quand on zoome)
   const strokeW = () => base / ({ 1: 800, 2: 400, 3: 200 }[st.width] || 400);
-  const pinM = () => Math.max(0.12, Math.min(0.8, (st.scale / st.fitScale) * 0.26 * st.pinSize));
+  const pinM = () => Math.max(0.1, Math.min(0.8, Math.pow(st.scale / st.fitScale, 1.15) * 0.18 * st.pinSize));
 
   const el = document.createElement('div');
   el.className = 'fullpage';
