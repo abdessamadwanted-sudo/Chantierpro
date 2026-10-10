@@ -109,6 +109,7 @@ const SECTIONS = {
   dashboard: { label: 'Tableau de bord', icon: 'layers', render: (r) => renderDashboard(r) },
   plans: { label: 'Plans', icon: 'plans', render: renderPlans },
   tasks: { label: 'Réserves / Tâches', icon: 'tasks', render: renderTasks },
+  reception: { label: 'Tableau de réception', icon: 'grid', render: (r) => renderReceptions(r) },
   photos: { label: 'Photos', icon: 'camera', render: renderPhotos },
   forms: { label: 'Formulaires', icon: 'form', render: renderForms },
   reports: { label: 'Rapports journaliers', icon: 'report', render: renderReports },
@@ -141,7 +142,7 @@ async function openDrawer() {
     <div class="drawer-head"><h3>${esc(App.project.name)}</h3><button class="iconbtn" data-home>${icon('home')}</button></div>
     ${Object.entries(SECTIONS).map(([k, s]) => `<button class="item ${App.section === k ? 'active' : ''}" data-s="${k}">${icon(s.icon)}<span>${s.label}</span></button>`).join('')}
     <div class="group">Liens rapides (Drive)</div>
-    ${(App.project.quickLinks || [{ id: 'reception', name: 'Tableau de réception', url: '' }]).map(q => `<button class="item" data-q="${q.id}">${icon('grid')}<span>${esc(q.name)}</span>${q.url ? `<span class="count qe" data-qe="${q.id}">${icon('edit', 'style="width:18px;height:18px;opacity:.55"')}</span>` : '<span class="count" style="font-size:12px;opacity:.6">à lier</span>'}</button>`).join('')}
+    ${(App.project.quickLinks || [{ id: 'reception', name: 'Tableau de réception (Drive)', url: '' }]).map(q => `<button class="item" data-q="${q.id}">${icon('grid')}<span>${esc(q.name)}</span>${q.url ? `<span class="count qe" data-qe="${q.id}">${icon('edit', 'style="width:18px;height:18px;opacity:.55"')}</span>` : '<span class="count" style="font-size:12px;opacity:.6">à lier</span>'}</button>`).join('')}
     <button class="item" data-q="__add" style="color:var(--muted)">${icon('plus')}<span>Ajouter un lien</span></button>
     <div class="group">Réserves</div>
     ${[['all', 'Toutes'], ['late', 'En retard'], ['open', 'Ouvertes'], ['progress', 'En cours'], ['done', 'Levées (terminées)'], ['verified', 'Vérifiées']].map(([k, l]) =>
@@ -973,7 +974,7 @@ async function renderSettings(root) {
 // ---------- Liens rapides (ex : tableau de réception Excel dans Drive) ----------
 async function quickLink(id, editOnly = false) {
   const p = App.project;
-  p.quickLinks = p.quickLinks || [{ id: 'reception', name: 'Tableau de réception', url: '' }];
+  p.quickLinks = p.quickLinks || [{ id: 'reception', name: 'Tableau de réception (Drive)', url: '' }];
   const edit = async (q) => {
     const r = await formSheet(q ? `Lien : ${q.name}` : 'Nouveau lien rapide', [
       { name: 'name', label: 'Nom dans le menu', value: q?.name || '', placeholder: 'Ex : Tableau de réception, Planning…' },

@@ -1,8 +1,8 @@
 // Stockage local (IndexedDB) — tout reste sur le téléphone, fonctionne sans internet.
 const DB = (() => {
   const NAME = 'chantier';
-  const VERSION = 1;
-  const STORES = ['projects', 'folders', 'plans', 'tasks', 'links', 'files', 'forms', 'reports'];
+  const VERSION = 2;
+  const STORES = ['projects', 'folders', 'plans', 'tasks', 'links', 'files', 'forms', 'reports', 'receptions'];
   let dbp = null;
 
   function open() {

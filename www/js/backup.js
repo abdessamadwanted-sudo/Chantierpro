@@ -1,7 +1,7 @@
 // Sauvegarde / restauration d'un projet dans un seul fichier (.chantier)
 // Format : une ligne JSON par enregistrement (les fichiers sont encodés en base64).
 const Backup = (() => {
-  const STORES = ['folders', 'plans', 'tasks', 'links', 'files', 'forms', 'reports'];
+  const STORES = ['folders', 'plans', 'tasks', 'links', 'files', 'forms', 'reports', 'receptions'];
   const FS = () => window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem;
   const SHARE = () => window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Share;
 
