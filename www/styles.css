@@ -385,3 +385,16 @@ table.rec tbody tr { -webkit-user-select:none; user-select:none; -webkit-touch-c
   .sheet { max-width: 640px; margin-left: auto; margin-right: auto; }
   .drawer { max-width: 340px; }
 }
+
+.sync-card { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 12px; background: var(--card, #262a33); border: 1px solid var(--line); cursor: pointer; }
+.sync-card.home { margin: 12px 16px 4px; }
+.sync-card .cl { width: 40px; height: 40px; border-radius: 10px; background: #1e66d0; color: #fff; display: grid; place-items: center; font-size: 20px; flex: none; }
+.sync-card b { display: block; font-size: 15.5px; margin-bottom: 2px; } .sync-card [data-syncstate] { font-size: 13px; }
+.sync-pill { position: fixed; left: 50%; transform: translateX(-50%); top: calc(8px + var(--safe-top, 0px)); z-index: 90; display: none; align-items: center; gap: 8px;
+  background: #1f2937; color: #e5e7eb; border: 1px solid #374151; padding: 6px 12px; border-radius: 16px; font-size: 12.5px; box-shadow: 0 4px 14px rgba(0,0,0,.35); max-width: 90vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sync-pill.error { background: #7f1d1d; border-color: #b91c1c; color: #fff; }
+.sync-pill .spin { width: 12px; height: 12px; border: 2px solid #60a5fa; border-top-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.steps { font-size: 14px; line-height: 1.65; margin-bottom: 8px; }
+.sheet .seg:has([data-tab]) { display: flex; gap: 8px; } .sheet .seg [data-tab] { flex: 1; }
+.sheet .seg [data-tab].on { background: #1e66d0; color: #fff; border-color: #1e66d0; }

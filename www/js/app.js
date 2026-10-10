@@ -70,7 +70,8 @@ async function renderHome() {
       <button class="iconbtn" data-a="homemore">${icon('more')}</button>
     </div>
     <div class="content">
-      <div class="section-label">Projets sur l'appareil</div>
+      <div class="sync-card home" data-a="sync"><div class="cl">☁</div><div class="grow"><b>${Sync.enabled() ? 'Google Drive' : 'Connecter Google Drive'}</b><div data-syncstate>${Sync.enabled() ? Sync.statusLine() : '<span style="color:var(--muted)">Sauvegarde automatique + synchro téléphone / PC</span>'}</div></div>${icon('chevright')}</div>
+      <div class="section-label">Projets</div>
       ${projects.length ? `<div class="list">${projects.map(p => `
         <div class="row" data-id="${p.id}"><span class="icon-muted">${icon('hard')}</span>
           <div class="grow"><div class="title">${esc(p.name)}</div>${p.address ? `<div class="sub">${esc(p.address)}</div>` : ''}</div>
@@ -79,6 +80,7 @@ async function renderHome() {
     </div>
     <button class="fab" data-a="new">${icon('plus')}</button>`;
   $$('.row[data-id]').forEach(r => r.onclick = async () => openProject(await DB.get('projects', r.dataset.id)));
+  $('[data-a=sync]').onclick = () => Sync.openSyncSettings();
   $('[data-a=homemore]').onclick = async () => {
     const v = await menu('Chantier', [
       { label: 'Restaurer une sauvegarde', icon: 'undo', value: 'restore' },
@@ -954,15 +956,17 @@ async function renderSettings(root) {
       <label>Titre complet sur les tableaux / PDF (optionnel)<input name="pdfTitle" value="${esc(p.pdfTitle || '')}" placeholder="Ex : Projet de construction du Grand stade Benslimane"></label>
       <button class="btn" data-a="save">Enregistrer</button>
       <div style="height:12px"></div>
+      <div class="sync-card" data-a="sync" style="margin:0 0 12px"><div class="cl">☁</div><div class="grow"><b>Synchronisation Google Drive</b><div data-syncstate>${Sync.statusLine()}</div></div>${icon('chevright')}</div>
       <div class="card" style="margin:0;padding:16px">
-        <div style="font-weight:600;margin-bottom:6px">Sauvegarde</div>
+        <div style="font-weight:600;margin-bottom:6px">Sauvegarde manuelle (fichier)</div>
         <div style="color:var(--muted);font-size:14px;line-height:1.5;margin-bottom:12px">Crée un fichier <b>.chantier</b> avec tout le projet (plans, pins, tâches, photos, formulaires, rapports). Enregistrez-le dans Google Drive ou envoyez-le sur WhatsApp. Pour le récupérer : accueil → ⋮ → Restaurer une sauvegarde.</div>
         <button class="btn" data-a="backup" style="width:100%">${icon('share')} Sauvegarder ce projet</button>
       </div>
       <div style="height:20px"></div>
       <button class="btn danger" data-a="del">${icon('trash')} Supprimer le projet</button>
-      <p style="color:var(--muted);font-size:13px;line-height:1.5">Les données sont enregistrées sur ce téléphone uniquement (fonctionne sans internet). Si vous désinstallez l'application, les données seront perdues : faites une sauvegarde régulièrement.<br>Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}</p>
+      <p style="color:var(--muted);font-size:13px;line-height:1.5">Les données sont enregistrées sur l'appareil (fonctionne sans internet). Avec Google Drive connecté, tout est aussi copié dans votre Drive et partagé entre téléphone et PC : après une réinstallation, reconnectez Drive avec votre code de connexion pour tout récupérer.<br>Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}</p>
     </div>`;
+  $('[data-a=sync]', root).onclick = () => Sync.openSyncSettings();
   $('[data-a=save]', root).onclick = async () => { p.name = $('[name=name]', root).value.trim() || p.name; p.address = $('[name=address]', root).value.trim(); p.pdfTitle = $('[name=pdfTitle]', root).value.trim(); await DB.put('projects', p); toast('Enregistré ✓'); renderSection(); };
   $('[data-a=backup]', root).onclick = async () => {
     const ld = loading('Préparation de la sauvegarde…');
@@ -1022,6 +1026,7 @@ async function restoreBackup() {
   if (capApp) capApp.addListener('backButton', () => { if (!goBack()) capApp.exitApp(); });
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   renderHome();
+  Sync.start();
   // message après une mise à jour
   try {
     const prev = localStorage.getItem('appVersion');

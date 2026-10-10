@@ -1,8 +1,8 @@
 // Stockage local (IndexedDB) — tout reste sur le téléphone, fonctionne sans internet.
 const DB = (() => {
   const NAME = 'chantier';
-  const VERSION = 2;
-  const STORES = ['projects', 'folders', 'plans', 'tasks', 'links', 'files', 'forms', 'reports', 'receptions'];
+  const VERSION = 3;
+  const STORES = ['projects', 'folders', 'plans', 'tasks', 'links', 'files', 'forms', 'reports', 'receptions', 'tomb'];  // tomb = suppressions à synchroniser
   let dbp = null;
 
   function open() {
@@ -33,6 +33,9 @@ const DB = (() => {
     return db.transaction(store, mode).objectStore(store);
   }
 
+  let chT = null;
+  function changed(store) { if (store === 'tomb') return; clearTimeout(chT); chT = setTimeout(() => { try { DB.onChange && DB.onChange(store); } catch (e) {} }, 50); }
+
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
   return {
@@ -45,12 +48,24 @@ const DB = (() => {
       if (!obj.createdAt) obj.createdAt = Date.now();
       obj.updatedAt = Date.now();
       await wrap((await tx(store, 'readwrite')).put(obj));
+      changed(store);
       return obj;
     },
-    async del(store, id) { return wrap((await tx(store, 'readwrite')).delete(id)); },
+    async del(store, id) {
+      const old = await this.get(store, id);
+      await wrap((await tx(store, 'readwrite')).delete(id));
+      if (old && store !== 'tomb') {
+        await wrap((await tx('tomb', 'readwrite')).put({ id: store + ':' + id, store, rid: id, projectId: old.projectId || (store === 'projects' ? id : null), driveId: old.driveId || null, at: Date.now() }));
+        changed(store);
+      }
+    },
+    // utilisés par la synchronisation (ne déclenchent pas de nouvel envoi)
+    async putRaw(store, obj) { await wrap((await tx(store, 'readwrite')).put(obj)); return obj; },
+    async delRaw(store, id) { return wrap((await tx(store, 'readwrite')).delete(id)); },
+    onChange: null,
     async deleteProject(projectId) {
       for (const s of STORES) {
-        if (s === 'projects') continue;
+        if (s === 'projects' || s === 'tomb') continue;
         const items = await this.byProject(s, projectId);
         for (const it of items) await this.del(s, it.id);
       }
