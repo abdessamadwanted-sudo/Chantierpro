@@ -182,11 +182,21 @@ async function renderReceptions(root, kind = 'Ferraillage') {
   inp.oninput = () => { App.recSearch[kind] = inp.value; clearTimeout(inp._t); inp._t = setTimeout(() => renderReceptions(root, kind).then(() => { const i = $('.search input', root); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }), 250); };
   $('[data-a=sync]').onclick = () => sheetsSetup();
   fab(root, async () => {
-    const today = todayISO();
+    const t0 = todayISO();
+    const pick = await menu(isBeton(kind) ? 'Nouveau programme de bétonnage' : 'Nouveau tableau de réception', [
+      { label: `Aujourd'hui (${fmtDate(t0)})`, icon: 'calendar', value: 'today' },
+      { label: 'Une date passée…', icon: 'history', value: 'past' },
+    ]);
+    if (!pick) return;
+    let today = t0;
+    if (pick === 'past') {
+      const r = await formSheet('Choisir la date', [{ name: 'date', label: 'Date du tableau', type: 'date', value: t0 }], { okLabel: 'Créer' });
+      if (!r || !r.date) return; today = r.date;
+    }
     const existing = all.find(d => d.date === today);
-    if (existing) { await openReceptionDay(existing); return renderReceptions(root, kind); }
+    if (existing) { toast(`Le tableau du ${fmtDate(today)} existe déjà`); await openReceptionDay(existing); return renderReceptions(root, kind); }
     let rows = [];
-    const last = all[0];
+    const last = all.find(d => (d.date || '') < today);
     if (last && last.rows.some(r => r.status !== 'ok' && r.element)) {
       const v = await menu(`Reprendre les éléments non terminés / avec réserve du ${fmtDate(last.date)} ?`, [
         { label: 'Oui, les reprendre', icon: 'check', value: 'yes' }, { label: 'Non, tableau vide', icon: 'close', value: 'no' }]);
