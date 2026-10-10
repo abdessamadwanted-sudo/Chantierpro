@@ -41,6 +41,8 @@ function annotSVG(a) {
   switch (a.type) {
     case 'pen': case 'poly': return `<polyline points="${a.pts.map(pt => pt.join(',')).join(' ')}" ${common}/>`;
     case 'rect': return `<rect x="${Math.min(p[0], q[0])}" y="${Math.min(p[1], q[1])}" width="${Math.abs(q[0] - p[0])}" height="${Math.abs(q[1] - p[1])}" ${common}/>`;
+    case 'disc': { const r = Math.hypot(q[0] - p[0], q[1] - p[1]); return `<circle cx="${p[0]}" cy="${p[1]}" r="${r}" fill="${a.color}" fill-opacity=".8" stroke="${a.color}" stroke-width="${sw / 2}"/>`; }
+    case 'box': return `<rect x="${Math.min(p[0], q[0])}" y="${Math.min(p[1], q[1])}" width="${Math.abs(q[0] - p[0])}" height="${Math.abs(q[1] - p[1])}" fill="${a.color}" fill-opacity=".8" stroke="${a.color}" stroke-width="${sw / 2}"/>`;
     case 'ellipse': return `<ellipse cx="${(p[0] + q[0]) / 2}" cy="${(p[1] + q[1]) / 2}" rx="${Math.abs(q[0] - p[0]) / 2}" ry="${Math.abs(q[1] - p[1]) / 2}" ${common}/>`;
     case 'cloud': return `<path d="${cloudPath(p[0], p[1], q[0], q[1], sw * 6)}" ${common}/>`;
     case 'line': return `<line x1="${p[0]}" y1="${p[1]}" x2="${q[0]}" y2="${q[1]}" ${common}/>`;
@@ -56,6 +58,7 @@ function annotSVG(a) {
 }
 
 function annotBBox(a) {
+  if (a.type === 'disc') { const [c, e] = a.pts, r = Math.hypot(e[0] - c[0], e[1] - c[1]); return [c[0] - r, c[1] - r, c[0] + r, c[1] + r]; }
   if (a.type === 'text') {
     const w = a.text.length * a.fs * 0.6;
     return [a.pts[0][0], a.pts[0][1] - a.fs, a.pts[0][0] + w, a.pts[0][1] + a.fs * 0.2];
@@ -78,7 +81,8 @@ function hitAnnot(a, x, y, tol) {
     return a.pts.length === 1;
   }
   if (a.type === 'line' || a.type === 'arrow') return distToSeg(x, y, ...a.pts[0], ...a.pts[1]) < tol;
-  if (a.type === 'text') return true;
+  if (a.type === 'text' || a.type === 'box') return true;
+  if (a.type === 'disc') { const [c, e] = a.pts; return Math.hypot(x - c[0], y - c[1]) <= Math.hypot(e[0] - c[0], e[1] - c[1]) + tol; }
   // formes : proche du contour
   const nearEdge = Math.min(Math.abs(x - x1), Math.abs(x - x2), Math.abs(y - y1), Math.abs(y - y2)) < tol * 1.5;
   return nearEdge || (x2 - x1 < tol * 4) || (y2 - y1 < tol * 4);
@@ -285,14 +289,15 @@ async function openPlanViewer(plan, ctx) {
   // ---------- Outils (barre compacte façon Fieldwire) ----------
   const SHAPES = [
     ['free', 'pen', 'Main levée'], ['line', 'line', 'Ligne'], ['poly', 'poly', 'Polyligne'], ['rect', 'rect', 'Rectangle'],
-    ['ellipse', 'circle', 'Cercle'], ['cloud', 'cloud', 'Nuage'], ['arrow', 'arrow', 'Flèche'], ['text', 'text', 'Texte'],
+    ['ellipse', 'circle', 'Cercle'], ['disc', 'disc', 'Cercle plein'], ['box', 'box', 'Rect. plein'], ['cloud', 'cloud', 'Nuage'],
+    ['arrow', 'arrow', 'Flèche'], ['text', 'text', 'Texte'],
   ];
   const TOOLS = [
     ['pan', 'hand', 'Déplacer'], ['pin', 'pin', 'Tâche'], ['link', 'link', 'Élément'], ['planlink', 'section', 'Lien plan / coupe'],
     ['draw', 'pen', 'Dessin'], ['select', 'cursor', 'Modifier'], ['erase', 'eraser', 'Gomme'],
   ];
   const shapeInfo = () => SHAPES.find(x => x[0] === st.shape) || SHAPES[0];
-  const TWO_PT = ['line', 'rect', 'ellipse', 'cloud', 'arrow'];
+  const TWO_PT = ['line', 'rect', 'ellipse', 'cloud', 'arrow', 'disc', 'box'];
   Object.defineProperty(st, 'color', { get: () => shadeHex(st.hue, st.shade), set: (v) => { st.hue = v; st.shade = 0; }, configurable: true });
   function hintText() {
     if (st.tool === 'pin') return 'Touchez pour placer une tâche';
@@ -303,6 +308,7 @@ async function openPlanViewer(plan, ctx) {
     if (st.tool === 'draw') {
       if (st.shape === 'free') return 'Dessinez · 2 doigts pour zoomer / bouger';
       if (st.shape === 'text') return 'Touchez pour placer le texte';
+      if (st.shape === 'disc') return st.pend ? 'Centre posé · zoomez puis touchez le bord (diamètre)' : 'Posez le doigt au centre et glissez jusqu\'au bord · ou touchez centre puis bord';
       if (st.shape === 'poly') return st.pend ? 'Glissez (ou touchez) pour continuer depuis le dernier point · 2 doigts = zoom' : 'Glissez du 1er au 2e point · levez le doigt, zoomez, puis continuez';
       return st.pend ? 'Touchez le point d\'arrivée' : 'Glissez pour dessiner · ou touchez départ puis arrivée';
     }
