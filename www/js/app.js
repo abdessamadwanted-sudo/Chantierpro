@@ -20,7 +20,7 @@ const FORM_TEMPLATES = [
 const WEATHER = ['Ensoleillé', 'Nuageux', 'Pluie', 'Vent fort', 'Chaleur', 'Froid'];
 
 const APP_VERSION = '__APP_VERSION__';
-const App = { project: null, section: 'plans', taskFilter: 'all', search: '' };
+const App = { project: null, section: 'dashboard', taskFilter: 'all', companyFilter: 'all', search: '' };
 
 // ---------- Helpers données ----------
 async function fileURL(fileId) {
@@ -97,15 +97,18 @@ async function renderHome() {
 }
 
 async function openProject(p) {
-  App.project = p; App.section = 'plans'; App.search = '';
+  App.project = p; App.section = 'dashboard'; App.search = ''; App.companyFilter = 'all'; App.taskFilter = 'all';
   p.updatedAt = Date.now(); await DB.put('projects', p);
   renderSection();
+  const late = (await DB.byProject('tasks', p.id)).filter(isLate).length;
+  if (late) setTimeout(() => toast(`⚠ ${late} réserve(s) en retard`), 400);
 }
 
 // ---------- Structure d'un projet ----------
 const SECTIONS = {
+  dashboard: { label: 'Tableau de bord', icon: 'layers', render: (r) => renderDashboard(r) },
   plans: { label: 'Plans', icon: 'plans', render: renderPlans },
-  tasks: { label: 'Tâches', icon: 'tasks', render: renderTasks },
+  tasks: { label: 'Réserves / Tâches', icon: 'tasks', render: renderTasks },
   photos: { label: 'Photos', icon: 'camera', render: renderPhotos },
   forms: { label: 'Formulaires', icon: 'form', render: renderForms },
   reports: { label: 'Rapports journaliers', icon: 'report', render: renderReports },
@@ -137,16 +140,16 @@ async function openDrawer() {
   d.innerHTML = `
     <div class="drawer-head"><h3>${esc(App.project.name)}</h3><button class="iconbtn" data-home>${icon('home')}</button></div>
     ${Object.entries(SECTIONS).map(([k, s]) => `<button class="item ${App.section === k ? 'active' : ''}" data-s="${k}">${icon(s.icon)}<span>${s.label}</span></button>`).join('')}
-    <div class="group">Tâches</div>
-    ${[['all', 'Toutes les tâches'], ['open', 'Ouvertes'], ['progress', 'En cours'], ['done', 'Terminées'], ['verified', 'Vérifiées']].map(([k, l]) =>
-      `<button class="item" data-f="${k}">${k === 'all' ? icon('tasks') : `<span class="dot" style="background:${STATUS[k].color};margin:0 5px"></span>`}<span>${l}</span><span class="count">${cnt(k)}</span></button>`).join('')}`;
+    <div class="group">Réserves</div>
+    ${[['all', 'Toutes'], ['late', 'En retard'], ['open', 'Ouvertes'], ['progress', 'En cours'], ['done', 'Levées (terminées)'], ['verified', 'Vérifiées']].map(([k, l]) =>
+      `<button class="item" data-f="${k}">${k === 'all' ? icon('tasks') : k === 'late' ? icon('calendar') : `<span class="dot" style="background:${STATUS[k].color};margin:0 5px"></span>`}<span>${l}</span><span class="count">${k === 'late' ? tasks.filter(isLate).length : cnt(k)}</span></button>`).join('')}`;
   document.body.append(bg, d);
   const close = () => { unBack(); bg.remove(); d.remove(); };
   const unBack = pushBack(() => { bg.remove(); d.remove(); });
   bg.onclick = close;
   $('[data-home]', d).onclick = () => { close(); renderHome(); };
   $$('[data-s]', d).forEach(b => b.onclick = () => { close(); App.section = b.dataset.s; App.search = ''; renderSection(); });
-  $$('[data-f]', d).forEach(b => b.onclick = () => { close(); App.section = 'tasks'; App.taskFilter = b.dataset.f; renderSection(); });
+  $$('[data-f]', d).forEach(b => b.onclick = () => { close(); App.section = 'tasks'; App.taskFilter = b.dataset.f; App.companyFilter = 'all'; renderSection(); });
 }
 
 function fab(root, onClick) {
@@ -474,29 +477,40 @@ function openLinkDetail(link) {
 async function newTask(extra = {}) {
   const tasks = await DB.byProject('tasks', App.project.id);
   const num = tasks.reduce((m, t) => Math.max(m, t.num || 0), 0) + 1;
-  return DB.put('tasks', { projectId: App.project.id, num, title: '', status: 'open', priority: 2, assignee: '', category: '', due: '', description: '', photoIds: [], log: [{ t: Date.now(), msg: 'Tâche créée' }], ...extra });
+  return DB.put('tasks', { projectId: App.project.id, num, kind: 'reserve', companyId: App.companyFilter && !['all', 'none'].includes(App.companyFilter) ? App.companyFilter : '', title: '', status: 'open', priority: 2, assignee: '', category: '', due: '', description: '', photoIds: [], log: [{ t: Date.now(), msg: 'Créée' }], ...extra });
 }
 
 async function renderTasks(root) {
-  const pid = App.project.id;
+  const pid = App.project.id; const p = App.project;
   const [tasks, plans] = await Promise.all([DB.byProject('tasks', pid), DB.byProject('plans', pid)]);
-  const planName = (id) => (plans.find(p => p.id === id) || {}).name || '';
+  const planName = (id) => (plans.find(x => x.id === id) || {}).name || '';
   const q = App.search.toLowerCase();
-  const list = tasks.filter(t => (App.taskFilter === 'all' || t.status === App.taskFilter) &&
-    (!q || `${t.num} ${t.title} ${t.assignee} ${t.category}`.toLowerCase().includes(q)))
-    .sort((a, b) => b.num - a.num);
+  const comps = p.companies || [];
+  const byCo = (t) => App.companyFilter === 'all' || (App.companyFilter === 'none' ? !t.companyId : t.companyId === App.companyFilter);
+  const bySt = (t, k) => k === 'all' || (k === 'late' ? isLate(t) : k === 'toLift' ? !isLifted(t) : k === 'lifted' ? isLifted(t) : t.status === k);
+  const base = tasks.filter(byCo);
+  const list = base.filter(t => bySt(t, App.taskFilter) &&
+    (!q || `${t.num} ${t.title} ${t.assignee} ${t.category} ${(companyOf(p, t.companyId) || {}).name || ''}`.toLowerCase().includes(q)))
+    .sort((a, b) => (isLate(b) - isLate(a)) || b.num - a.num);
+  const stChips = [['all', 'Toutes'], ['late', 'En retard'], ...Object.entries(STATUS).map(([k, v]) => [k, v.label])];
+  if (!stChips.find(c => c[0] === App.taskFilter)) stChips.splice(1, 0, [App.taskFilter, { toLift: 'À lever', lifted: 'Levées' }[App.taskFilter] || App.taskFilter]);
   root.innerHTML = `
-    <div class="pagehead"><h2>Tâches</h2><p>${tasks.length} tâche(s) au total</p></div>
-    <div class="search">${icon('search')}<input placeholder="Rechercher une tâche" value="${esc(App.search)}"></div>
-    <div class="chips">${[['all', 'Toutes'], ...Object.entries(STATUS).map(([k, v]) => [k, v.label])].map(([k, l]) =>
-      `<button class="chip ${App.taskFilter === k ? 'on' : ''}" data-f="${k}">${l} (${tasks.filter(t => k === 'all' || t.status === k).length})</button>`).join('')}</div>
-    ${list.length ? `<div class="list">${list.map(t => `
+    <div class="pagehead"><h2>Réserves / Tâches</h2><p>${base.length} élément(s)${App.companyFilter !== 'all' ? ' · ' + esc(App.companyFilter === 'none' ? 'Sans entreprise' : (companyOf(p, App.companyFilter) || {}).name || '') : ''}</p></div>
+    <div class="search">${icon('search')}<input placeholder="Rechercher" value="${esc(App.search)}"></div>
+    ${comps.length ? `<div class="chips">${[['all', 'Toutes entreprises', '#5b8def'], ...comps.map(c => [c.id, c.name, c.color]), ['none', 'Sans entreprise', '#64748b']].map(([k, l, col]) =>
+      `<button class="chip ${App.companyFilter === k ? 'on' : ''}" data-co="${k}" ${App.companyFilter === k ? `style="background:${col};border-color:${col}"` : ''}>${k !== 'all' ? `<span class="dot" style="background:${col};width:9px;height:9px;margin-right:5px"></span>` : ''}${esc(l)}</button>`).join('')}</div>` : ''}
+    <div class="chips" style="padding-top:0">${stChips.map(([k, l]) =>
+      `<button class="chip ${App.taskFilter === k ? 'on' : ''}" data-f="${k}">${l} (${base.filter(t => bySt(t, k)).length})</button>`).join('')}</div>
+    <div style="padding:0 16px 10px"><button class="btn ghost small" data-a="pdf">${icon('report')} Rapport PDF</button></div>
+    ${list.length ? `<div class="list">${list.map(t => { const c = companyOf(p, t.companyId); const late = isLate(t); return `
       <div class="row" data-id="${t.id}"><span class="tasknum" style="background:${STATUS[t.status].color}">${t.num}</span>
         <div class="grow"><div class="title">${esc(t.title || 'Sans titre')}</div>
-        <div class="sub">${[t.category, t.assignee, planName(t.planId) && '📍 ' + planName(t.planId), t.due && '⏰ ' + fmtDate(t.due)].filter(Boolean).map(esc).join(' · ') || STATUS[t.status].label}</div></div>
-        <span style="color:${['', '#ef4444', '#f59e0b', '#9aa3b2'][t.priority]};font-weight:700;font-size:13px">P${t.priority}</span></div>`).join('')}</div>`
-    : `<div class="empty">Aucune tâche ici.<br>Créez une tâche avec <b>+</b> ou placez un pin sur un plan.</div>`}`;
+        <div class="sub">${c ? `<span class="dot" style="background:${c.color};width:8px;height:8px"></span> ${esc(c.name)} · ` : ''}${[KINDS[t.kind || 'reserve'], planName(t.planId) && '📍 ' + planName(t.planId), t.due && '⏰ ' + fmtDate(t.due)].filter(Boolean).map(esc).join(' · ')}</div></div>
+        ${late ? `<span class="late-badge">Retard</span>` : `<span style="color:${['', '#ef4444', '#f59e0b', '#9aa3b2'][t.priority]};font-weight:700;font-size:13px">P${t.priority}</span>`}</div>`; }).join('')}</div>`
+    : `<div class="empty">Rien ici.<br>Créez une réserve avec <b>+</b> ou placez un pin sur un plan.</div>`}`;
   $$('[data-f]', root).forEach(b => b.onclick = () => { App.taskFilter = b.dataset.f; renderTasks(root); });
+  $$('[data-co]', root).forEach(b => b.onclick = () => { App.companyFilter = b.dataset.co; renderTasks(root); });
+  $('[data-a=pdf]', root).onclick = () => reservesReportDialog({ company: App.companyFilter });
   $$('.row[data-id]', root).forEach(r => r.onclick = async () => { await openTaskDetail(tasks.find(t => t.id === r.dataset.id)); renderTasks(root); });
   const inp = $('.search input', root);
   inp.oninput = () => { App.search = inp.value; clearTimeout(inp._t); inp._t = setTimeout(() => renderTasks(root).then(() => { const i = $('.search input', root); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }), 300); };
@@ -506,9 +520,10 @@ async function renderTasks(root) {
 function openTaskDetail(task) {
   return new Promise(async (resolve) => {
     const pid = task.projectId;
-    const project = await DB.get('projects', pid);
+    let project = await DB.get('projects', pid);
     const team = (project.team || []).map(m => m.name);
     const plan = task.planId ? await DB.get('plans', task.planId) : null;
+    if (!task.kind) task.kind = 'reserve';
     const el = document.createElement('div');
     el.className = 'fullpage';
     document.body.appendChild(el);
@@ -526,17 +541,19 @@ function openTaskDetail(task) {
         <div class="topbar">
           <button class="iconbtn" data-a="back">${icon('back')}</button>
           <span class="tasknum" style="background:${STATUS[task.status].color};margin-left:6px">${task.num}</span>
-          <h1>Tâche #${task.num}</h1>
+          <h1>${KINDS[task.kind]} #${task.num}</h1>
           <button class="iconbtn" data-a="share">${icon('share')}</button>
           <button class="iconbtn" data-a="more">${icon('more')}</button>
         </div>
         <div class="content"><div class="form" style="padding-top:16px">
+          <div class="fld">Type<div class="seg seg3">${Object.entries(KINDS).map(([k, l]) => `<button data-kind="${k}" class="${task.kind === k ? 'on' : ''}" style="${task.kind === k ? 'background:var(--accent)' : ''}">${l}</button>`).join('')}</div></div>
           <label>Titre<input name="title" value="${esc(task.title)}" placeholder="Ex : Reprise enrobage poteau P12"></label>
+          <label>Entreprise (lot)<select name="_company"><option value="">— Aucune —</option>${(project.companies || []).map(c => `<option value="${c.id}" ${task.companyId === c.id ? 'selected' : ''}>${esc(c.name)} · ${esc(c.lot)}</option>`).join('')}<option value="__new">+ Nouvelle entreprise…</option></select></label>
           <div class="fld">Statut<div class="seg">${Object.entries(STATUS).map(([k, v]) => `<button data-st="${k}" class="${task.status === k ? 'on' : ''}" style="${task.status === k ? `background:${v.color}` : ''}">${v.label}</button>`).join('')}</div></div>
           <div class="fld">Priorité<div class="seg seg3">${[1, 2, 3].map(p => `<button data-pr="${p}" class="${task.priority === p ? 'on' : ''}" style="${task.priority === p ? `background:${['', '#ef4444', '#f59e0b', '#6b7280'][p]}` : ''}">Priorité ${p}</button>`).join('')}</div></div>
           <div class="kv">
             <label>Responsable<input name="assignee" list="dl-team" value="${esc(task.assignee)}" placeholder="Nom"></label>
-            <label>Échéance<input name="due" type="date" value="${esc(task.due)}"></label>
+            <label>Échéance${isLate(task) ? ' <b style="color:var(--orange)">· en retard</b>' : ''}<input name="due" type="date" value="${esc(task.due)}"></label>
           </div>
           <label>Catégorie<input name="category" list="dl-cat" value="${esc(task.category)}" placeholder="Gros œuvre, Ferraillage…"></label>
           <label>Description<textarea name="description" placeholder="Détails, localisation, axe…">${esc(task.description)}</textarea></label>
@@ -550,6 +567,17 @@ function openTaskDetail(task) {
 
       $('[data-a=back]', el).onclick = async () => { unBack(); await flush(); done(); };
       $$('input[name]:not([name=_comment]), textarea[name]', el).forEach(i => i.oninput = () => { task[i.name] = i.value; save(); });
+      $$('[data-kind]', el).forEach(b => b.onclick = (e) => { e.preventDefault(); task.kind = b.dataset.kind; save(); render(); });
+      $('[name=_company]', el).onchange = async (e) => {
+        if (e.target.value === '__new') {
+          const c = await editCompany(project);
+          project = await DB.get('projects', pid);
+          if (c) { task.companyId = c.id; log(`Entreprise : ${c.name}`); }
+          save(); return render();
+        }
+        const c = companyOf(project, e.target.value);
+        task.companyId = e.target.value; log(`Entreprise : ${c ? c.name : 'aucune'}`); save();
+      };
       $$('[data-st]', el).forEach(b => b.onclick = (e) => {
         e.preventDefault(); if (task.status === b.dataset.st) return;
         log(`Statut : ${STATUS[task.status].label} → ${STATUS[b.dataset.st].label}`); task.status = b.dataset.st; save(); render();
@@ -576,7 +604,7 @@ function openTaskDetail(task) {
       const pb = $('[data-a=plan]', el);
       if (pb) pb.onclick = async (e) => { e.preventDefault(); await flush(); openPlanViewer(await DB.get('plans', plan.id), planCtx(() => {})); };
       $('[data-a=share]', el).onclick = () => shareWhatsApp(
-        `*${project.name}*\nTâche #${task.num} : ${task.title}\nStatut : ${STATUS[task.status].label} · Priorité ${task.priority}\n` +
+        `*${project.name}*\n${KINDS[task.kind]} #${task.num} : ${task.title}\n` + (companyOf(project, task.companyId) ? `Entreprise : ${companyOf(project, task.companyId).name}\n` : '') + `Statut : ${STATUS[task.status].label} · Priorité ${task.priority}\n` +
         (task.assignee ? `Responsable : ${task.assignee}\n` : '') + (task.due ? `Échéance : ${fmtDate(task.due)}\n` : '') +
         (plan ? `Plan : ${plan.name}\n` : '') + (task.description ? `\n${task.description}` : ''));
       $('[data-a=more]', el).onclick = async () => {
@@ -651,15 +679,21 @@ function openFormDetail(form) {
           <label>Localisation (ouvrage / axe / niveau)<input name="location" value="${esc(form.location)}" placeholder="Ex : Poteaux SSL axes C10–C15"></label>
           <div class="kv"><label>Date<input name="date" type="date" value="${esc(form.date)}"></label>
           <label>Contrôlé par<input name="inspector" value="${esc(form.inspector)}"></label></div>
+          <label>Entreprise contrôlée<select name="companyId"><option value="">— Aucune —</option>${(project.companies || []).map(c => `<option value="${c.id}" ${form.companyId === c.id ? 'selected' : ''}>${esc(c.name)} · ${esc(c.lot)}</option>`).join('')}</select></label>
           <div>${form.items.map((it, i) => `<div class="check-item" data-i="${i}"><div class="lbl">${i + 1}. ${esc(it.label)}</div>
             <div class="seg seg3">${[['ok', 'Conforme'], ['nok', 'Non conf.'], ['na', 'N/A']].map(([k, l]) => `<button data-r="${k}" class="${it.res === k ? 'on ' + k : ''}">${l}</button>`).join('')}</div>
             ${it.res === 'nok' || it.comment ? `<input data-c value="${esc(it.comment)}" placeholder="Commentaire / réserve">` : ''}</div>`).join('')}</div>
           <button class="btn ghost" data-a="additem">${icon('plus')} Ajouter un point de contrôle</button>
           <label>Observations<textarea name="notes">${esc(form.notes)}</textarea></label>
           <label>Photos</label>${thumbsHTML(photos)}
+          <div class="fld">Signature du contrôleur<div class="sigbox" data-sig="sigCtrl"></div></div>
+          <div class="fld">Signature de l'entreprise<div class="sigbox" data-sig="sigEnt"></div></div>
+          <button class="btn" data-a="pdf">${icon('report')} Générer le PV (PDF)</button>
         </div></div>`;
       $('[data-a=back]', el).onclick = () => { unBack(); finish(); };
-      $$('input[name], textarea[name]', el).forEach(i => i.oninput = () => { form[i.name] = i.value; save(); });
+      $$('input[name], textarea[name], select[name]', el).forEach(i => i.oninput = i.onchange = () => { form[i.name] = i.value; save(); });
+      $$('.sigbox', el).forEach(b => signaturePad(b, form[b.dataset.sig], (v) => { form[b.dataset.sig] = v; save(); }));
+      $('[data-a=pdf]', el).onclick = async () => { clearTimeout(saveT); await DB.put('forms', form); formPdf(form); };
       $$('.check-item', el).forEach(ci => {
         const it = form.items[+ci.dataset.i];
         $$('[data-r]', ci).forEach(b => b.onclick = () => { it.res = it.res === b.dataset.r ? null : b.dataset.r; save(); render(); });
@@ -685,7 +719,8 @@ function openFormDetail(form) {
           (form.notes ? `\n\nObservations : ${form.notes}` : ''));
       };
       $('[data-a=more]', el).onclick = async () => {
-        const v = await menu(form.title, [{ label: 'Supprimer le formulaire', icon: 'trash', danger: true, value: 'del' }]);
+        const v = await menu(form.title, [{ label: 'Générer le PV (PDF)', icon: 'report', value: 'pdf' }, { label: 'Supprimer le formulaire', icon: 'trash', danger: true, value: 'del' }]);
+        if (v === 'pdf') { clearTimeout(saveT); await DB.put('forms', form); return formPdf(form); }
         if (v === 'del' && await confirmBox('Supprimer ce formulaire ?')) {
           clearTimeout(saveT); for (const id of form.photoIds) await DB.del('files', id);
           await DB.del('forms', form.id); unBack(); el.remove(); resolve();
@@ -752,7 +787,8 @@ function openReportDetail(rep) {
         (rep.works ? `\n*Travaux réalisés :*\n${rep.works}\n` : '') + (rep.deliveries ? `\n*Livraisons :*\n${rep.deliveries}\n` : '') +
         (rep.issues ? `\n*Problèmes :*\n${rep.issues}` : ''));
       $('[data-a=more]', el).onclick = async () => {
-        const v = await menu('Rapport', [{ label: 'Supprimer le rapport', icon: 'trash', danger: true, value: 'del' }]);
+        const v = await menu('Rapport', [{ label: 'Rapport PDF', icon: 'report', value: 'pdf' }, { label: 'Supprimer le rapport', icon: 'trash', danger: true, value: 'del' }]);
+        if (v === 'pdf') { clearTimeout(saveT); await DB.put('reports', rep); return dailyPdf(rep); }
         if (v === 'del' && await confirmBox('Supprimer ce rapport ?')) {
           clearTimeout(saveT); for (const id of rep.photoIds) await DB.del('files', id);
           await DB.del('reports', rep.id); unBack(); el.remove(); resolve();
@@ -765,14 +801,22 @@ function openReportDetail(rep) {
 
 // ---------- Équipe ----------
 async function renderTeam(root) {
-  const p = App.project; p.team = p.team || [];
-  root.innerHTML = `<div class="pagehead"><h2>Équipe</h2><p>Intervenants du chantier</p></div>
+  const p = App.project; p.team = p.team || []; p.companies = p.companies || [];
+  const tasks = await DB.byProject('tasks', p.id);
+  root.innerHTML = `<div class="pagehead"><h2>Équipe</h2><p>Entreprises (lots) et intervenants</p></div>
+    <div class="section-label" style="display:flex;align-items:center">Entreprises / lots<button class="btn small ghost" data-a="addco" style="margin-left:auto">${icon('plus')} Ajouter</button></div>
+    ${p.companies.length ? `<div class="list">${p.companies.map(c => { const ts = tasks.filter(t => t.companyId === c.id); return `
+      <div class="row" data-co="${c.id}"><span class="tasknum" style="background:${c.color}">${esc((c.name || '?')[0].toUpperCase())}</span>
+        <div class="grow"><div class="title">${esc(c.name)}</div><div class="sub">${[c.lot, c.contact].filter(Boolean).map(esc).join(' · ')}</div></div>
+        <span class="sub" style="color:var(--muted)">${ts.filter(t => !isLifted(t)).length} à lever</span></div>`; }).join('')}</div>`
+    : `<div class="empty" style="padding:20px 24px">Ajoutez les entreprises du chantier (gros œuvre, électricité, plomberie…) pour leur affecter des réserves.</div>`}
+    <div class="section-label" style="display:flex;align-items:center">Intervenants<button class="btn small ghost" data-a="addm" style="margin-left:auto">${icon('plus')} Ajouter</button></div>
     ${p.team.length ? `<div class="list">${p.team.map((m, i) => `
       <div class="row" data-i="${i}"><span class="tasknum" style="background:var(--accent)">${esc((m.name || '?')[0].toUpperCase())}</span>
         <div class="grow"><div class="title">${esc(m.name)}</div><div class="sub">${[m.role, m.phone].filter(Boolean).map(esc).join(' · ')}</div></div></div>`).join('')}</div>`
-    : `<div class="empty">Ajoutez les intervenants (chef de chantier, ferrailleur, sous-traitants…) pour les assigner aux tâches.</div>`}`;
+    : `<div class="empty" style="padding:20px 24px">Ajoutez les personnes (chef de chantier, contrôleur…) pour les nommer responsables.</div>`}`;
   const edit = async (m, i) => {
-    const r = await formSheet(m ? 'Modifier' : 'Nouveau membre', [
+    const r = await formSheet(m ? 'Modifier' : 'Nouvel intervenant', [
       { name: 'name', label: 'Nom', value: m?.name }, { name: 'role', label: 'Fonction / entreprise', value: m?.role }, { name: 'phone', label: 'Téléphone', type: 'tel', value: m?.phone },
     ], { danger: m ? 'Retirer de l\'équipe' : null });
     if (!r) return;
@@ -781,7 +825,19 @@ async function renderTeam(root) {
     await DB.put('projects', p); renderTeam(root);
   };
   $$('.row[data-i]', root).forEach(r => r.onclick = () => edit(p.team[+r.dataset.i], +r.dataset.i));
-  fab(root, () => edit(null));
+  $$('.row[data-co]', root).forEach(r => r.onclick = async () => {
+    const c = p.companies.find(x => x.id === r.dataset.co);
+    const v = await menu(c.name, [{ label: 'Voir ses réserves', icon: 'tasks', value: 'list' }, { label: 'Rapport PDF de l\'entreprise', icon: 'report', value: 'pdf' }, { label: 'Modifier', icon: 'edit', value: 'edit' }]);
+    if (v === 'list') { App.section = 'tasks'; App.taskFilter = 'all'; App.companyFilter = c.id; renderSection(); }
+    if (v === 'pdf') reservesReportDialog({ company: c.id });
+    if (v === 'edit') { await editCompany(p, c); renderTeam(root); }
+  });
+  $('[data-a=addco]', root).onclick = async () => { await editCompany(p); renderTeam(root); };
+  $('[data-a=addm]', root).onclick = () => edit(null);
+  fab(root, async () => {
+    const v = await menu('Ajouter', [{ label: 'Entreprise / lot', icon: 'hard', value: 'co' }, { label: 'Intervenant', icon: 'team', value: 'm' }]);
+    if (v === 'co') { await editCompany(p); renderTeam(root); } if (v === 'm') edit(null);
+  });
 }
 
 // ---------- Paramètres ----------

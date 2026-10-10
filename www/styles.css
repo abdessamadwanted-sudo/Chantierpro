@@ -190,3 +190,26 @@ svg.i { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-widt
 .log div { padding: 6px 0; border-bottom: 1px solid var(--line); }
 .log b { color: var(--text); font-weight: 500; }
 .loading { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 95; display: grid; place-items: center; color: #fff; font-size: 16px; }
+
+/* Tableau de bord */
+.kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 8px 16px; }
+.kpis.in { grid-template-columns: repeat(3, 1fr); padding: 0; }
+.kpi { background: var(--card); border-radius: 10px; padding: 14px; }
+.kpis.in .kpi { background: var(--bg2); padding: 10px; }
+.kpi .v { font-size: 28px; font-weight: 700; }
+.kpi .l { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.card.dash { padding: 14px 16px; }
+.dash-h { font-weight: 600; margin-bottom: 10px; }
+.crow { padding: 8px 0; }
+.ctop { display: flex; align-items: center; gap: 8px; font-size: 15px; }
+.ctop .cn { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ctop .cs { color: var(--muted); font-size: 13px; }
+.muted { color: var(--muted); font-size: 13px; line-height: 1.5; }
+.alert { display: flex; gap: 12px; align-items: center; margin: 8px 16px; padding: 12px 14px; border-radius: 10px;
+  background: rgba(245,158,11,.14); border: 1px solid rgba(245,158,11,.5); color: var(--text); }
+.alert svg.i { color: var(--orange); }
+.alert span { color: var(--muted); font-size: 13px; }
+.late-badge { background: rgba(245,158,11,.18); color: var(--orange); font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 10px; }
+.sigbox { background: #fff; border-radius: 8px; overflow: hidden; }
+.sigbox canvas.sig { display: block; width: 100%; touch-action: none; }
+.sig-bar { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: var(--bg2); color: var(--muted); font-size: 12px; }
