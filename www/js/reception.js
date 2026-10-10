@@ -26,7 +26,7 @@ const monthLabel = (ym) => { const [y, m] = ym.split('-'); return `${MONTHS[+m -
 const zoneKey = (r) => [isNaN(+r.zone) ? 9999 : +r.zone, String(r.zone || ''), String(r.niv || ''), String(r.element || '')];
 const cmpZone = (a, b) => { const x = zoneKey(a), y = zoneKey(b); for (let i = 0; i < x.length; i++) { if (x[i] < y[i]) return -1; if (x[i] > y[i]) return 1; } return 0; };
 // Message WhatsApp (même présentation pour 1 ouvrage, une sélection, une zone ou tout le tableau)
-function recMessage(p, day, rows) {
+function recMessage(p, day, rows, single = false) {
   const K = kindOf(day);
   rows = rows.filter(r => r.element).slice().sort(cmpZone);
   const item = (r) => `${REC_STATUS[r.status].mark} ${r.niv ? r.niv + ' — ' : ''}${r.element}${isBeton(K) && r.classe ? ` (${r.classe})` : ''}` +
@@ -37,11 +37,12 @@ function recMessage(p, day, rows) {
     if (!l.length) return '';
     const zones = [];
     for (const r of l) { const z = String(r.zone || '').trim(); let g = zones.find(x => x.z === z); if (!g) zones.push(g = { z, rows: [] }); g.rows.push(r); }
-    return `\n*${title} (${l.length}) :*\n` + zones.map(g => `*${g.z ? 'Zone ' + g.z : 'Sans zone'}*\n${g.rows.map(item).join('\n')}`).join('\n\n') + '\n';
+    return (single ? `\n*${title}*\n` : `\n*${title} (${l.length}) :*\n`) + zones.map(g => `*${g.z ? 'Zone ' + g.z : 'Sans zone'}*\n${g.rows.map(item).join('\n')}`).join('\n\n') + '\n';
   };
+  if (single) return `*${recTitle(K)} du ${fmtDate(day.date)}*\n` + sec('ok', isBeton(K) ? 'Bétonnage validé ✅' : 'Réception validée ✅') + sec('reserve', isBeton(K) ? 'Bétonné avec défaut ⚠️' : 'Réception avec réserve ⚠️') + sec('pending', isBeton(K) ? 'Non bétonné ⏳' : 'Non réceptionné ⏳');
   return `*${recTitle(K)} du ${fmtDate(day.date)}*\n` + sec('ok', stLabel(K, 'ok')) + sec('reserve', stLabel(K, 'reserve')) + sec('pending', stLabel(K, 'pending'));
 }
-const rowText = (p, day, r) => recMessage(p, day, [r]);
+const rowText = (p, day, r) => recMessage(p, day, [r], true);
 async function shareRow(p, day, r) {
   const text = rowText(p, day, r);
   const P = window.Capacitor?.Plugins || {};
