@@ -349,10 +349,10 @@ function openLinkDetail(link) {
                   <button class="iconbtn" data-del="${it.id}">${icon('trash')}</button></div>`;
               }).join('') || `<div class="meta" style="color:var(--muted);padding:4px 0 10px">Rien pour le moment</div>`}
               <div class="acc-actions">
-                ${c.key === 'photo' ? `<button class="btn small" data-add="cam">${icon('camera')} Photo</button>` : ''}
+                ${c.key === 'photo' || c.key === 'pv' ? `<button class="btn small" data-add="cam">${icon('camera')} Photo</button>` : ''}
                 ${c.key === 'note' ? `<button class="btn small" data-add="note">${icon('edit')} Écrire une note</button>` : ''}
-                ${c.key !== 'photo' && c.key !== 'note' ? `<button class="btn small" data-add="plan">${icon('plans')} Plan du projet</button>` : ''}
-                ${c.key !== 'note' ? `<button class="btn small ghost" data-add="file">${icon('image')} ${c.key === 'photo' ? 'Galerie' : 'Image / PDF'}</button>
+                ${!['photo', 'note', 'pv'].includes(c.key) ? `<button class="btn small" data-add="plan">${icon('plans')} Plan du projet</button>` : ''}
+                ${c.key !== 'note' ? `<button class="btn small ghost" data-add="file">${icon('image')} ${c.key === 'photo' || c.key === 'pv' ? 'Galerie' : 'Image / PDF'}</button>
                 <button class="btn small ghost" data-add="url">${icon('drive')} Lien Drive</button>` : ''}
               </div>
             </div></div>`;

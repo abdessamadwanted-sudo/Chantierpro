@@ -231,18 +231,15 @@ async function openPlanViewer(plan, ctx) {
     gLinks.innerHTML = st.links.filter(l => l.planId === plan.id).map(l => {
       const n = showCount ? (l.items || []).length : 0;
       const ls = 1 / st.scale;
-      if (l.shape === 'zone') {
-        return `<g><rect x="${l.x}" y="${l.y}" width="${l.w}" height="${l.h}" fill="${l.color}" fill-opacity=".18" stroke="${l.color}" stroke-width="${1.5 * ls}" stroke-dasharray="${6 * ls} ${4 * ls}"/>
-          <g transform="translate(${l.x + l.w / 2},${l.y + l.h / 2}) scale(${s})">${linkBadge(l.color, n)}</g>
-          ${showLabel ? `<text x="${l.x + 3 * ls}" y="${l.y - 4 * ls}" font-size="${11 * ls}" fill="${l.color}" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="${3 * ls}">${esc(l.name)}</text>` : ''}</g>`;
-      }
-      return `<g transform="translate(${l.x},${l.y}) scale(${s})">${linkPin(l.color, n)}
+      const [px, py] = linkXY(l);
+      return `<g transform="translate(${px},${py}) scale(${s})">${linkPin(l.color, n)}
         ${showLabel ? `<text x="0" y="16" text-anchor="middle" font-size="12" fill="${l.color}" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`;
     }).join('');
     const info = $('.vb-info', el);
     const nt = st.tasks.filter(t => t.planId === plan.id).length, nl = st.links.filter(l => l.planId === plan.id).length;
     info.textContent = `${nt} tâche(s) · ${nl} lien(s) · ${plan.annotations.length} annotation(s)`;
   }
+  const linkXY = (l) => l.shape === 'zone' ? [l.x + l.w / 2, l.y + l.h / 2] : [l.x, l.y];
   function linkPin(color, n) {
     return `<path d="M0,0 C-5,-12 -17,-17 -17,-31 A17,17 0 1 1 17,-31 C17,-17 5,-12 0,0Z" fill="${color}" stroke="#fff" stroke-width="2"/>
       <g transform="translate(-8,-39) scale(.67)" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round">${ICONS.link}</g>
@@ -273,7 +270,7 @@ async function openPlanViewer(plan, ctx) {
   // ---------- Toolbar ----------
   const TOOLS_HINT = {
     pan: '', pin: 'Touchez (ou glissez pour viser) pour placer une tâche',
-    link: 'Toucher = pin · Glisser = zone',
+    link: 'Touchez pour placer un pin (glissez pour viser)',
     pen: 'Dessinez · 2 doigts pour bouger', shape: 'Glissez pour dessiner la forme',
     text: 'Touchez pour ajouter du texte', erase: 'Touchez une annotation pour l\'effacer',
   };
@@ -404,8 +401,10 @@ async function openPlanViewer(plan, ctx) {
       return;
     }
     if (g.type !== 'one') return;
-    if (Math.hypot(e.clientX - g.sx, e.clientY - g.sy) > 8) g.moved = true;
     const drawTool = ['pen', 'shape', 'link', 'pin'].includes(st.tool);
+    const slop = ['pen', 'shape'].includes(st.tool) ? 6 : 14;
+    if (Math.hypot(e.clientX - g.sx, e.clientY - g.sy) > slop) g.moved = true;
+    if (!g.moved) { g.lx = e.clientX; g.ly = e.clientY; return; }
     if (!drawTool) {
       st.tx += e.clientX - g.lx; st.ty += e.clientY - g.ly; applyT();
     } else if (g.moved) {
@@ -415,11 +414,7 @@ async function openPlanViewer(plan, ctx) {
       else if (st.tool === 'pen') { g.pts.push(p); gPrev.innerHTML = annotSVG({ type: 'pen', pts: g.pts, color: st.color, sw: strokeW() }); }
       else if (st.tool === 'shape') { gPrev.innerHTML = annotSVG({ type: st.shape, pts: [g.start, p], color: st.color, sw: strokeW() }); }
       else if (st.tool === 'pin') { gPrev.innerHTML = `<circle cx="${p[0]}" cy="${p[1]}" r="${4 / st.scale}" fill="${STATUS.open.color}" stroke="#fff" stroke-width="${1.5 / st.scale}"/>`; }
-      else if (st.tool === 'link') {
-        g.end = p;
-        const x = Math.min(g.start[0], p[0]), y = Math.min(g.start[1], p[1]);
-        gPrev.innerHTML = `<rect x="${x}" y="${y}" width="${Math.abs(p[0] - g.start[0])}" height="${Math.abs(p[1] - g.start[1])}" fill="${st.color}" fill-opacity=".15" stroke="${st.color}" stroke-width="${2 / st.scale}" stroke-dasharray="${8 / st.scale} ${5 / st.scale}"/>`;
-      }
+      else if (st.tool === 'link') { gPrev.innerHTML = `<circle cx="${p[0]}" cy="${p[1]}" r="${4 / st.scale}" fill="${st.color}" stroke="#fff" stroke-width="${1.5 / st.scale}"/>`; }
     }
     if (drawTool && g.moved) showLoupe(e.clientX, e.clientY);
     g.lx = e.clientX; g.ly = e.clientY;
@@ -436,6 +431,7 @@ async function openPlanViewer(plan, ctx) {
     if (!cur.moved) return onTap(cur.start);
     const sw = strokeW();
     if (st.tool === 'pin' && cur.end) return onTap(cur.end, true);
+    if (st.tool === 'link' && cur.end) return onTap(cur.end, true);
     if (st.tool === 'pen' && st.penMode === 'straight' && cur.end) {
       pushUndo(); plan.annotations.push({ id: DB.uid(), type: 'line', pts: [cur.start, cur.end], color: st.color, sw });
       renderAnnots(); saveAnnots(); renderMarkers();
@@ -446,10 +442,7 @@ async function openPlanViewer(plan, ctx) {
       pushUndo(); plan.annotations.push({ id: DB.uid(), type: st.shape, pts: [cur.start, cur.end], color: st.color, sw });
       renderAnnots(); saveAnnots(); renderMarkers();
     } else if (st.tool === 'link' && cur.end) {
-      const x = Math.min(cur.start[0], cur.end[0]), y = Math.min(cur.start[1], cur.end[1]);
-      const w = Math.abs(cur.end[0] - cur.start[0]), h = Math.abs(cur.end[1] - cur.start[1]);
-      if (w * st.scale < 20 || h * st.scale < 20) return onTap(cur.start);
-      createLink({ shape: 'zone', x, y, w, h });
+      return onTap(cur.end, true);
     }
   };
   viewer.addEventListener('pointerup', endPtr);
@@ -466,7 +459,7 @@ async function openPlanViewer(plan, ctx) {
 
   function hitMarker(x, y) {
     const m = pinM();
-    const tol = Math.max(16, 26 * m) / st.scale;      // zone de toucher (px écran → plan)
+    const tol = Math.max(24, 28 * m) / st.scale;      // zone de toucher (px écran → plan)
     const head = (h) => h * m / st.scale;              // décalage de la tête du pin
     let best = null, bestD = Infinity;
     const consider = (d, hit) => { if (d < tol && d < bestD) { bestD = d; best = hit; } };
@@ -479,8 +472,8 @@ async function openPlanViewer(plan, ctx) {
     if (st.filters.links) {
       for (const l of st.links) {
         if (l.planId !== plan.id) continue;
-        if (l.shape === 'zone') { if (x >= l.x && x <= l.x + l.w && y >= l.y && y <= l.y + l.h) consider(tol * 0.99, { kind: 'link', obj: l }); }
-        else consider(Math.min(Math.hypot(x - l.x, y - (l.y - head(31))), Math.hypot(x - l.x, y - l.y)), { kind: 'link', obj: l });
+        const [lx, ly] = linkXY(l);
+        consider(Math.min(Math.hypot(x - lx, y - (ly - head(31))), Math.hypot(x - lx, y - ly)), { kind: 'link', obj: l });
       }
     }
     return best;
