@@ -227,7 +227,7 @@ async function renderReceptions(root, kind = 'Ferraillage') {
 
 // ---------- Tableau d'un jour ----------
 function openReceptionDay(day, opts = {}) {
-  let focusId = opts.focus || null;
+  let focusId = opts.focus || null; const hlId = opts.focus || null;   // surlignage gardé jusqu'à la fermeture
   return new Promise(async (resolve) => {
     const p = await DB.get('projects', day.projectId);
     const el = document.createElement('div'); el.className = 'fullpage'; document.body.appendChild(el);
@@ -291,10 +291,11 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
       })();
       $('[data-a=back]', el).onclick = () => { unBack(); finish(); };
       $('[data-a=add]', el).onclick = () => editRow(null);
-      if (focusId) {
-        const fi = day.rows.findIndex(x => x.id === focusId); focusId = null;
+      if (hlId) {
+        const fi = day.rows.findIndex(x => x.id === hlId);
         const ftr = fi >= 0 && $(`tbody tr[data-i="${fi}"]`, el);
-        if (ftr) { ftr.classList.add('flash'); setTimeout(() => ftr.scrollIntoView({ block: 'center', inline: 'nearest' }), 60); setTimeout(() => ftr.classList.remove('flash'), 4000); }
+        if (ftr) { ftr.classList.add('hl'); if (focusId) { ftr.classList.add('flash'); setTimeout(() => ftr.scrollIntoView({ block: 'center', inline: 'nearest' }), 60); } }
+        focusId = null;
       }
       $$('tbody tr[data-i]', el).forEach(tr => {
         let t = null, lp = false;

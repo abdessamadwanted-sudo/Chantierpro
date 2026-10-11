@@ -416,3 +416,5 @@ table.rec tr.flash td { animation: recflash 1.2s ease-in-out 3; background: #fde
 @keyframes recflash { 0%, 100% { background: #fde68a; } 50% { background: #fbbf24; } }
 .swipe-back.right { left: auto; right: 0; }
 .fbar + .chips.niv { margin-top: 6px; }
+table.rec tr.hl td { background: #fde68a !important; }
+table.rec tr.hl td:first-child { box-shadow: inset 5px 0 0 #f59e0b; }
