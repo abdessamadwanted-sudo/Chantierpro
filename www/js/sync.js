@@ -82,6 +82,7 @@ const Sync = (() => {
         const nm = clean(`${r.zone ? 'Z' + r.zone + ' ' : ''}${r.niv || ''} ${r.element || ''}`);
         (r.photoIds || []).forEach((id, i) => put(id, [...base, r.status === 'reserve' ? (bet ? 'Défauts' : 'Réserves') : 'Photos'], `${nm} - ${i + 1}`));
         (r.retourIds || []).forEach((id, i) => put(id, [...base, bet ? 'Réparations' : 'Retours (levée)'], `${nm} - ${i + 1}`));
+        if (r.croquisId) put(r.croquisId, [...base, 'Croquis'], `Croquis ${nm}`);
       }
     }
     for (const t of tasks) (t.photoIds || []).forEach((id, i) => put(id, [P[t.projectId] || 'Projet', 'Réserves', `#${t.num || ''} ${t.title || ''}`], `#${t.num || ''} - ${i + 1}`));
@@ -188,7 +189,7 @@ const Sync = (() => {
       for (const d of await DB.byProject('receptions', p.id)) {
         if (!(d.rows || []).some(r => r.element)) continue;
         const bet = d.type === 'Bétonnage', title = bet ? 'Programme de bétonnage' : 'Réception ferraillage';
-        const files = []; for (const r of d.rows) files.push(...(r.photoIds || []), ...(r.retourIds || [])); files.push(...(d.pvIds || []));
+        const files = []; for (const r of d.rows) files.push(...(r.photoIds || []), ...(r.retourIds || []), r.croquisId || ''); files.push(...(d.pvIds || []));
         jobs.push({ key: 'rec:' + d.id, sig: hash([d, p.pdfTitle, files.length]), segs: [pn, title, (d.date || '').slice(0, 7), d.date], name: `${title} ${d.date}.pdf`, make: () => receptionPdf(p, d) });
       }
       const tasks = await DB.byProject('tasks', p.id);

@@ -1028,35 +1028,34 @@ function navBack() {
   return false;
 }
 function initSwipeBack() {
-  // glisser léger depuis le bord DROIT vers la gauche = retour
-  const EDGE = 36, TRIGGER = 45;
-  let sx = 0, sy = 0, t0 = 0, on = false, ind = null;
-  const W = () => window.innerWidth;
+  // Bande invisible le long du bord DROIT : glisser légèrement vers la gauche = retour.
+  // touch-action:none → le navigateur ne « vole » pas le geste (sinon il annule le glissement).
+  const TRIGGER = 32;
+  const strip = document.createElement('div'); strip.id = 'swipeEdge'; document.body.appendChild(strip);
+  let sx = 0, sy = 0, t0 = 0, on = false, fired = false, ind = null;
+  const allowed = () => !document.querySelector('.viewer, .sketch') && (App.project || BackStack.length);
   const show = (d) => {
     if (!ind) { ind = document.createElement('div'); ind.className = 'swipe-back right'; ind.innerHTML = icon('chevright'); document.body.appendChild(ind); }
-    ind.style.transform = `translate(${44 - Math.min(d, TRIGGER + 10)}px, -50%) rotate(180deg)`; ind.style.opacity = String(0.35 + Math.min(1, d / TRIGGER) * 0.65);
+    ind.style.top = sy + 'px';
+    ind.style.transform = `translate(${44 - Math.min(d * 1.4, 60)}px, -50%) rotate(180deg)`; ind.style.opacity = String(0.4 + Math.min(1, d / TRIGGER) * 0.6);
     ind.classList.toggle('ready', d >= TRIGGER);
   };
   const hide = () => { if (ind) { ind.remove(); ind = null; } };
-  document.addEventListener('touchstart', (e) => {
-    on = false; const t = e.touches[0];
-    if (e.touches.length !== 1 || t.clientX < W() - EDGE) return;
-    if (document.querySelector('.viewer')) return;            // pas sur le plan (dessin, déplacement)
-    if (!App.project && !BackStack.length) return;           // accueil = dernière page
-    sx = t.clientX; sy = t.clientY; t0 = Date.now(); on = true;
-  }, { passive: true });
-  document.addEventListener('touchmove', (e) => {
-    if (!on) return;
-    const t = e.touches[0], d = sx - t.clientX, dy = Math.abs(t.clientY - sy);
-    if (dy > 50 && dy > d) { on = false; hide(); return; }
-    if (d > 6) show(d);
-  }, { passive: true });
-  document.addEventListener('touchend', (e) => {
+  const passTap = (x, y) => { strip.style.pointerEvents = 'none'; const t = document.elementFromPoint(x, y); strip.style.pointerEvents = ''; if (t) { t.click(); if (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) t.focus(); } };
+  strip.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; t0 = Date.now(); on = true; fired = false; try { strip.setPointerCapture(e.pointerId); } catch (er) {} });
+  strip.addEventListener('pointermove', (e) => {
+    if (!on || fired) return;
+    const d = sx - e.clientX;
+    if (!allowed()) return;
+    if (d > 4) show(d);
+    if (d >= TRIGGER && Math.abs(e.clientY - sy) < 80) { fired = true; hide(); try { navigator.vibrate && navigator.vibrate(12); } catch (er) {} navBack(); }
+  });
+  const end = (e) => {
     if (!on) return; on = false; hide();
-    const t = e.changedTouches[0], d = sx - t.clientX, dy = Math.abs(t.clientY - sy), dt = Date.now() - t0;
-    if ((d >= TRIGGER || (d >= 22 && dt < 250)) && dy < 60) navBack();
-  }, { passive: true });
-  document.addEventListener('touchcancel', () => { on = false; hide(); }, { passive: true });
+    const d = sx - e.clientX, moved = Math.abs(d) + Math.abs(e.clientY - sy);
+    if (!fired && moved < 8 && Date.now() - t0 < 500) passTap(e.clientX, e.clientY);   // simple appui → transmis à l'élément dessous
+  };
+  strip.addEventListener('pointerup', end); strip.addEventListener('pointercancel', (e) => { on = false; hide(); });
 }
 
 // ---------- Démarrage ----------

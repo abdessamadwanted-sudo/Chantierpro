@@ -236,7 +236,7 @@ function openReceptionDay(day, opts = {}) {
     const unBack = pushBack(finish);
 
     const K = kindOf(day);
-    const NC = isBeton(K) ? 8 : 9;
+    const NC = isBeton(K) ? 9 : 10;
     let NAMES = [];
     DB.byProject('receptions', day.projectId).then(l => { NAMES = [...new Set(l.flatMap(d => d.rows.map(r => (r.avec || '').trim()).filter(Boolean)))]; });
     const [PH1, PH2] = photoLabels(K);
@@ -253,7 +253,7 @@ function openReceptionDay(day, opts = {}) {
             <thead>
               <tr><th colspan="${NC}" class="rt1">${esc(p.pdfTitle || p.name)}</th></tr>
               <tr><th colspan="${NC - 2}" class="rt2">${recTitle(K)} (post jour)</th><th colspan="2" class="rt2 date">Date ${recDateLabel(day.date).slice(0, 5)}</th></tr>
-              <tr><th>Zone</th><th>NIV</th><th class="el">${recColHead(K)}</th>${isBeton(K) ? '<th>Classe béton</th>' : ''}<th>Statut</th>${isBeton(K) ? '' : '<th>PV</th><th>Réceptionné avec</th>'}<th class="ob">Observation</th><th>${PH1}</th><th>${PH2}</th></tr>
+              <tr><th>Zone</th><th>NIV</th><th class="el">${recColHead(K)}</th>${isBeton(K) ? '<th>Classe béton</th>' : ''}<th>Statut</th>${isBeton(K) ? '' : '<th>PV</th><th>Réceptionné avec</th>'}<th class="ob">Observation</th><th>${PH1}</th><th>${PH2}</th><th>Croquis</th></tr>
             </thead>
             <tbody>
               ${day.rows.map((r, i) => `<tr data-i="${i}" class="st-${r.status} ${moveSel === i ? 'moving' : ''}">
@@ -262,7 +262,8 @@ function openReceptionDay(day, opts = {}) {
 ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec || '')}</td>`}
                 <td class="ob">${esc(r.obs)}</td>
                 <td class="c ph">${(r.photoIds || []).length ? `📷 ${r.photoIds.length}` : ''}</td>
-                <td class="c ph">${(r.retourIds || []).length ? `📷 ${r.retourIds.length}` : ''}</td></tr>`).join('')}
+                <td class="c ph">${(r.retourIds || []).length ? `📷 ${r.retourIds.length}` : ''}</td>
+                <td class="c ph sk">${r.croquisId ? `<img data-sk="${r.croquisId}" alt="✏️">` : ''}</td></tr>`).join('')}
               <tr class="addrow"><td colspan="${NC}"><button data-a="add">${icon('plus')} Ajouter une ligne</button><span class="hint-lp">Appui long sur une ligne pour la déplacer</span></td></tr>
             </tbody>
           </table>
@@ -291,6 +292,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
       })();
       $('[data-a=back]', el).onclick = () => { unBack(); finish(); };
       $('[data-a=add]', el).onclick = () => editRow(null);
+      $$('img[data-sk]', el).forEach(async im => { const f = await DB.get('files', im.dataset.sk); if (f && f.blob) im.src = BlobURL.get(f.id, f.blob); });
       if (hlId) {
         const fi = day.rows.findIndex(x => x.id === hlId);
         const ftr = fi >= 0 && $(`tbody tr[data-i="${fi}"]`, el);
@@ -381,6 +383,8 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
             <div class="fld">${isBeton(K) ? 'Photos de la réparation' : 'Photos du retour (levée de réserve)'}</div>${thumbs(retours, 'retourIds')}
             ${r.status === 'reserve' ? `<button type="button" class="btn ${r.liftedAt ? 'ghost' : ''} small" data-a="lift" style="align-self:flex-start;margin-top:8px">${icon('check')} ${r.liftedAt ? `${isBeton(K) ? 'Réparé' : 'Réserve levée'} le ${recDateLabel(r.liftedAt)} (annuler)` : (isBeton(K) ? 'Marquer comme réparé' : 'Marquer la réserve levée')}</button>` : ''}
           </div>` : ''}
+          <div class="fld">Croquis ${isBeton(K) ? '(partie bétonnée en couleur)' : '(partie réceptionnée en couleur)'}</div>
+          <div class="sk-row">${r.croquisId ? `<img class="sk-thumb" data-a="skview">` : ''}<button type="button" class="btn ghost small" data-a="sketch">${icon('pen')} ${r.croquisId ? 'Modifier le croquis' : 'Dessiner un croquis'}</button>${r.croquisId ? `<button type="button" class="btn ghost small" data-a="skdel" style="flex:none">${icon('trash')}</button>` : ''}</div>
           <div class="btnrow" style="padding:0">${!isNew ? `<button class="btn danger" data-a="del" style="flex:none;padding:14px 16px">${icon('trash')}</button>` : ''}
             <button class="btn ghost" data-a="cancel">Annuler</button><button class="btn" data-a="ok">${isNew ? 'Ajouter' : 'Enregistrer'}</button></div>
           ${isNew ? `<button class="btn ghost" data-a="okmore" style="margin-top:-4px">Ajouter et ligne suivante</button>` : `<button class="btn ghost" data-a="wa" style="margin-top:-4px">${icon('share')} Envoyer cet ouvrage (WhatsApp)</button>`}`;
@@ -396,6 +400,15 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
             draw();
           }
         });
+        if (r.croquisId) { const cf = await DB.get('files', r.croquisId); const ti = $('.sk-thumb', f); if (cf && ti) { ti.src = BlobURL.get(cf.id, cf.blob); ti.onclick = () => showImage(ti.src, `Croquis · ${r.element}`); } }
+        $('[data-a=sketch]', f).onclick = async () => {
+          const res = await openSketch({ title: `Croquis · ${r.element || 'ouvrage'}`, data: r.croquis || null, projectId: day.projectId });
+          if (!res) return;
+          if (r.croquisId) { await DB.del('files', r.croquisId); BlobURL.drop(r.croquisId); }
+          const rec = await DB.put('files', { projectId: day.projectId, blob: res.blob, mime: 'image/jpeg', role: 'croquis', name: `croquis ${r.element || ''}.jpg`, w: SKW, h: SKH });
+          r.croquisId = rec.id; r.croquis = res.data; draw();
+        };
+        const skd = $('[data-a=skdel]', f); if (skd) skd.onclick = async () => { if (await confirmBox('Supprimer le croquis ?')) { await DB.del('files', r.croquisId); r.croquisId = null; r.croquis = null; draw(); } };
         const lift = $('[data-a=lift]', f); if (lift) lift.onclick = () => { r.liftedAt = r.liftedAt ? null : todayISO(); draw(); };
         $$('.thumbs .t[data-id]', f).forEach(t => t.onclick = async (e) => {
           const id = t.dataset.id, sec = t.dataset.sec;
@@ -484,12 +497,12 @@ async function receptionPdf(p, day) {
     const ok = rows.filter(r => r.status === 'ok').length, rs = rows.filter(r => r.status === 'reserve').length;
     R.text(`Total : ${rows.length} élément(s) · ${ok} ${stLabel(K, 'ok').toLowerCase()}(s) · ${rs} ${stLabel(K, 'reserve').toLowerCase()} · ${rows.length - ok - rs} ${stLabel(K, 'pending').toLowerCase()}(s)`, { size: 10, bold: true, gap: 4 });
     // photos
-    const withPh = rows.filter(r => (r.photoIds || []).length || (r.retourIds || []).length);
+    const withPh = rows.filter(r => (r.photoIds || []).length || (r.retourIds || []).length || r.croquisId);
     if (withPh.length) {
       R.text('Photos', { size: 12, bold: true, gap: 2 });
       for (const r of withPh) {
         R.text(`${r.zone ? 'Zone ' + r.zone + ' · ' : ''}${r.niv ? r.niv + ' · ' : ''}${r.element}`, { size: 9.5, bold: true, gap: 1 });
-        for (const [lab, ids, good] of [[r.status === 'reserve' ? photoLabels(K)[0] : 'Photos', r.photoIds || [], false], [photoLabels(K)[1], r.retourIds || [], true]]) {
+        for (const [lab, ids, good] of [[r.status === 'reserve' ? photoLabels(K)[0] : 'Photos', r.photoIds || [], false], [photoLabels(K)[1], r.retourIds || [], true], ['Croquis', r.croquisId ? [r.croquisId] : [], true]]) {
         if (!ids.length) continue;
         R.text(lab, { size: 8.5, color: good ? [22, 163, 74] : [200, 90, 0], gap: 0.5 });
         let x = M; const bh = 50; R.need(bh + 3);
