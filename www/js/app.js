@@ -123,7 +123,7 @@ const SECTIONS = {
 
 async function renderSection() {
   BackStack.length = 0;
-  pushBack(() => renderHome());
+  pushBack(() => { if (App.section !== 'dashboard') { App.section = 'dashboard'; App.search = ''; renderSection(); } else renderHome(); });
   const s = SECTIONS[App.section];
   $('#app').innerHTML = `
     <div class="topbar dark">
@@ -1019,11 +1019,52 @@ async function restoreBackup() {
   }
 }
 
+// ---------- Retour : bouton Android + glisser du bord gauche vers la droite ----------
+// Ordre : fermer la fenêtre ouverte → revenir au tableau de bord du projet → revenir à l'accueil (dernière page)
+function navBack() {
+  if (goBack()) return true;
+  if (App.project && App.section !== 'dashboard') { App.section = 'dashboard'; App.search = ''; renderSection(); return true; }
+  if (App.project) { renderHome(); return true; }
+  return false;
+}
+function initSwipeBack() {
+  const EDGE = 28, TRIGGER = 80;
+  let sx = 0, sy = 0, on = false, done = false, ind = null;
+  const show = (dx) => {
+    if (!ind) { ind = document.createElement('div'); ind.className = 'swipe-back'; ind.innerHTML = icon('chevright'); document.body.appendChild(ind); }
+    const k = Math.min(1, dx / TRIGGER);
+    ind.style.transform = `translate(${Math.min(dx, TRIGGER) - 44}px, -50%) rotate(180deg)`; ind.style.opacity = String(0.3 + k * 0.7);
+    ind.classList.toggle('ready', dx >= TRIGGER);
+  };
+  const hide = () => { if (ind) { ind.remove(); ind = null; } };
+  document.addEventListener('touchstart', (e) => {
+    const t = e.touches[0]; on = false; done = false;
+    if (e.touches.length !== 1 || t.clientX > EDGE) return;
+    if (document.querySelector('.viewer')) return;            // pas sur le plan (dessin, déplacement)
+    if (!App.project && !BackStack.length) return;           // accueil = dernière page
+    sx = t.clientX; sy = t.clientY; on = true;
+  }, { passive: true });
+  document.addEventListener('touchmove', (e) => {
+    if (!on) return;
+    const t = e.touches[0], dx = t.clientX - sx, dy = Math.abs(t.clientY - sy);
+    if (dy > 60 && dy > dx) { on = false; hide(); return; }
+    if (dx > 10) show(dx);
+  }, { passive: true });
+  document.addEventListener('touchend', (e) => {
+    if (!on) return; on = false;
+    const t = e.changedTouches[0], dx = t.clientX - sx;
+    hide();
+    if (dx >= TRIGGER && !done) { done = true; navBack(); }
+  }, { passive: true });
+  document.addEventListener('touchcancel', () => { on = false; hide(); }, { passive: true });
+}
+
 // ---------- Démarrage ----------
 (function init() {
   // Bouton retour Android
   const capApp = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
-  if (capApp) capApp.addListener('backButton', () => { if (!goBack()) capApp.exitApp(); });
+  if (capApp) capApp.addListener('backButton', () => { if (!navBack()) capApp.exitApp(); });
+  initSwipeBack();
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   renderHome();
   Sync.start();

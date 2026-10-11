@@ -401,3 +401,7 @@ table.rec tbody tr { -webkit-user-select:none; user-select:none; -webkit-touch-c
 .sync-diag { font-size: 13.5px; line-height: 1.7; background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; word-break: break-word; }
 .row .title.wrap { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; line-height: 1.35; word-break: break-word; }
 .row.pvrow { align-items: center; } .row.pvrow .btn.small { padding: 10px 14px; }
+
+.swipe-back { position: fixed; left: 0; top: 50%; width: 44px; height: 44px; border-radius: 50%; background: #2b3240; color: #fff; display: grid; place-items: center;
+  z-index: 200; box-shadow: 0 4px 14px rgba(0,0,0,.4); pointer-events: none; transition: background .15s; }
+.swipe-back.ready { background: var(--accent, #4f8ef7); }
