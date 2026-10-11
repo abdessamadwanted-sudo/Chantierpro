@@ -4,9 +4,10 @@ const LINK_CATS = [
   { key: 'coffrage', label: 'Plan coffrage', icon: 'plans', type: 'doc' },
   { key: 'ferraillage', label: 'Plan ferraillage', icon: 'layers', type: 'doc' },
   { key: 'coupe', label: 'Coupe', icon: 'ruler', type: 'doc' },
-  { key: 'pv', label: 'PV', icon: 'report', type: 'pv' },
-  { key: 'photo', label: 'Photos', icon: 'camera', type: 'photo' },
-  { key: 'note', label: 'Notes', icon: 'edit', type: 'note' },
+  // PV / photos / notes : maintenant dans les tableaux de réception et de bétonnage (affichés seulement s'il en reste d'anciens)
+  { key: 'pv', label: 'PV', icon: 'report', type: 'pv', legacy: true },
+  { key: 'photo', label: 'Photos', icon: 'camera', type: 'photo', legacy: true },
+  { key: 'note', label: 'Notes', icon: 'edit', type: 'note', legacy: true },
 ];
 const EXTRA_CAT_SUGGEST = ['Maçonnerie', 'Plâtrerie', 'Charpente', 'Façade', 'Étanchéité', 'Électricité', 'Plomberie', 'Menuiserie', 'Carrelage', 'Peinture', 'Escalier', 'Fondations'];
 const FORM_TEMPLATES = [
@@ -386,7 +387,7 @@ function openLinkDetail(link) {
     s.onClose = () => resolve();
     const save = () => DB.put('links', link);
     const cats = () => {
-      const list = [...LINK_CATS, ...(project.extraCats || []).map(c => ({ ...c, icon: 'hard', type: 'doc', custom: true }))];
+      const list = [...LINK_CATS.filter(c => !c.legacy || link.items.some(i => i.cat === c.key)), ...(project.extraCats || []).map(c => ({ ...c, icon: 'hard', type: 'doc', custom: true }))];
       if (link.items.some(i => i.cat === 'autre')) list.push({ key: 'autre', label: 'Autre', icon: 'file', type: 'doc' });
       return list;
     };
@@ -436,12 +437,12 @@ function openLinkDetail(link) {
               ${one ? `<button class="iconbtn sm" data-m="${items[0].id}">${icon('more')}</button>` : `<span class="lk2-n">${items.length}</span><span class="chev">${icon('chevdown')}</span>`}
             </div>
             ${open && !one ? `<div class="lk2-items">${items.map(it => `<div class="lk2-it" data-it="${it.id}"><span class="dot"></span><div class="grow"><div class="nm">${esc((it.kind === 'note' ? it.text : it.name) || 'Document')}</div><div class="mt">${subOf(it)} · ${fmtDate(it.date)}</div></div><button class="iconbtn sm" data-m="${it.id}">${icon('more')}</button></div>`).join('')}
-              <button class="lk2-more" data-add="${c.key}">${icon('plus')} Ajouter dans ${esc(c.label)}</button></div>` : ''}
+              ${c.legacy ? '' : `<button class="lk2-more" data-add="${c.key}">${icon('plus')} Ajouter dans ${esc(c.label)}</button>`}</div>` : ''}
           </div>`;
-        }).join('')}</div>` : `<div class="lk2-empty">Ajoutez le plan de coffrage, de ferraillage, une coupe, un PV… pour les ouvrir d'un seul appui.</div>`}
+        }).join('')}</div>` : `<div class="lk2-empty">Ajoutez le plan de coffrage, de ferraillage ou une coupe pour les ouvrir d'un seul appui.</div>`}
         <div class="lk2-addh">Ajouter</div>
         <div class="lk2-chips">
-          ${all.map(c => `<button class="lk2-chip" data-add="${c.key}">${icon(c.icon)}<span>${esc(c.label)}</span></button>`).join('')}
+          ${all.filter(c => !c.legacy).map(c => `<button class="lk2-chip" data-add="${c.key}">${icon(c.icon)}<span>${esc(c.label)}</span></button>`).join('')}
           <button class="lk2-chip ghost" data-a="newcat">${icon('plus')}<span>Rubrique</span></button>
         </div>
         ${empty.some(c => c.custom) ? `<div class="lk2-rmrow">${empty.filter(c => c.custom).map(c => `<button data-rmcat="${c.key}">Retirer « ${esc(c.label)} »</button>`).join('')}</div>` : ''}`;
