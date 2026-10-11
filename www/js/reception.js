@@ -311,7 +311,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         $$('[data-pv]', box).forEach(t => t.onclick = async (e) => {
           const id = t.dataset.pv;
           if (e.target.closest('[data-pvdel]')) { if (await confirmBox('Retirer ce PV ?')) { day.pvIds = day.pvIds.filter(x => x !== id); await DB.del('files', id); await save(); render(); } return; }
-          const f = pvs.find(x => x.id === id); showImage(BlobURL.get(f.id, f.blob), `PV du ${fmtDate(day.date)}`);
+          showGallery(pvs.map((f, k) => ({ src: BlobURL.get(f.id, f.blob), caption: `PV du ${fmtDate(day.date)} (${k + 1})` })), pvs.findIndex(x => x.id === id));
         });
       })();
       $('[data-a=back]', el).onclick = () => { unBack(); finish(); };
@@ -437,7 +437,8 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         $$('.thumbs .t[data-id]', f).forEach(t => t.onclick = async (e) => {
           const id = t.dataset.id, sec = t.dataset.sec;
           if (e.target.closest('[data-del]')) { e.preventDefault(); r[sec] = r[sec].filter(x => x !== id); draw(); return; }
-          const ph = [...photos, ...retours].find(x => x.id === id); showImage(BlobURL.get(ph.id, ph.blob), `${sec === 'retourIds' ? 'Retour' : 'Réserve'} · ${r.element}`);
+          const all = [...photos.map(x => [x, r.status === 'reserve' ? photoLabels(K)[0] : 'Photo']), ...retours.map(x => [x, photoLabels(K)[1]])];
+          showGallery(all.map(([x, lb]) => ({ src: BlobURL.get(x.id, x.blob), caption: `${lb} · ${r.element}` })), all.findIndex(([x]) => x.id === id));
         });
         const commit = async () => {
           if (!r.element.trim()) { toast('Écrivez l\'élément'); return false; }

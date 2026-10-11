@@ -79,10 +79,12 @@ const Sync = (() => {
       const base = [P[d.projectId] || 'Projet', bet ? 'Programme de bétonnage' : 'Réception ferraillage', (d.date || '').slice(0, 7), d.date || 'date'];
       (d.pvIds || []).forEach((id, i) => put(id, [...base, 'PV du jour'], `PV ${d.date} - ${i + 1}`));
       for (const r of d.rows || []) {
-        const nm = clean(`${r.zone ? 'Z' + r.zone + ' ' : ''}${r.niv || ''} ${r.element || ''}`);
-        (r.photoIds || []).forEach((id, i) => put(id, [...base, r.status === 'reserve' ? (bet ? 'Défauts' : 'Réserves') : 'Photos'], `${nm} - ${i + 1}`));
-        (r.retourIds || []).forEach((id, i) => put(id, [...base, bet ? 'Réparations' : 'Retours (levée)'], `${nm} - ${i + 1}`));
-        if (r.croquisId) put(r.croquisId, [...base, 'Croquis'], `Croquis ${nm}`);
+        // Photos / <ouvrage> / Réserve 1.jpg, Retour 1.jpg, Croquis.jpg
+        const nm = clean(`${r.zone ? 'Zone ' + r.zone + ' · ' : ''}${r.niv ? r.niv + ' · ' : ''}${r.element || 'Ouvrage'}`);
+        const dir = [...base, 'Photos', nm];
+        (r.photoIds || []).forEach((id, i) => put(id, dir, `${r.status === 'reserve' ? (bet ? 'Défaut' : 'Réserve') : (bet ? 'Défaut' : 'Photo')} ${i + 1}`));
+        (r.retourIds || []).forEach((id, i) => put(id, dir, `${bet ? 'Réparation' : 'Retour'} ${i + 1}`));
+        if (r.croquisId) put(r.croquisId, dir, 'Croquis');
       }
     }
     for (const t of tasks) (t.photoIds || []).forEach((id, i) => put(id, [P[t.projectId] || 'Projet', 'Réserves', `#${t.num || ''} ${t.title || ''}`], `#${t.num || ''} - ${i + 1}`));

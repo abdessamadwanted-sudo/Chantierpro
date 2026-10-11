@@ -177,14 +177,41 @@ function loadImage(src) {
 }
 
 // Réduit la taille d'une photo (garde le stockage léger)
+// Orientation EXIF d'une photo JPEG (1 = normale, 6 = tournée à 90°, 3 = 180°, 8 = 270°)
+async function exifOrientation(file) {
+  try {
+    const v = new DataView(await file.slice(0, 131072).arrayBuffer());
+    if (v.getUint16(0) !== 0xFFD8) return 1;
+    let o = 2;
+    while (o < v.byteLength - 4) {
+      const m = v.getUint16(o), len = v.getUint16(o + 2);
+      if (m === 0xFFE1 && v.getUint32(o + 4) === 0x45786966) {
+        const t = o + 10, le = v.getUint16(t) === 0x4949, ifd = t + v.getUint32(t + 4, le), n = v.getUint16(ifd, le);
+        for (let i = 0; i < n; i++) { const e = ifd + 2 + i * 12; if (v.getUint16(e, le) === 0x0112) return v.getUint16(e + 8, le); }
+        return 1;
+      }
+      if ((m & 0xFF00) !== 0xFF00) break;
+      o += 2 + len;
+    }
+  } catch (e) {}
+  return 1;
+}
 async function compressImage(file, max = 1600, quality = 0.82) {
   const url = URL.createObjectURL(file);
   try {
     const im = await loadImage(url);
-    const r = Math.min(1, max / Math.max(im.naturalWidth, im.naturalHeight));
-    const w = Math.round(im.naturalWidth * r), h = Math.round(im.naturalHeight * r);
+    const ori = /jpe?g/i.test(file.type || file.name || '') ? await exifOrientation(file) : 1;
+    // Le navigateur applique-t-il déjà l'orientation ? (photo « debout » enregistrée couchée par le capteur)
+    let nw = im.naturalWidth, nh = im.naturalHeight, rot = 0;
+    if (ori >= 5 && ori <= 8 && nw > nh) rot = ori === 6 || ori === 5 ? 90 : 270;   // pas encore tournée → on la tourne
+    if ((ori === 3 || ori === 4) && !CSS.supports('image-orientation', 'from-image')) rot = 180;
+    const r = Math.min(1, max / Math.max(nw, nh));
+    const w0 = Math.round(nw * r), h0 = Math.round(nh * r);
+    const swap = rot === 90 || rot === 270, w = swap ? h0 : w0, h = swap ? w0 : h0;
     const c = document.createElement('canvas'); c.width = w; c.height = h;
-    c.getContext('2d').drawImage(im, 0, 0, w, h);
+    const g = c.getContext('2d');
+    if (rot) { g.translate(w / 2, h / 2); g.rotate(rot * Math.PI / 180); g.drawImage(im, -w0 / 2, -h0 / 2, w0, h0); }
+    else g.drawImage(im, 0, 0, w, h);
     const blob = await new Promise(r2 => c.toBlob(r2, 'image/jpeg', quality));
     return { blob, w, h };
   } finally { URL.revokeObjectURL(url); }
@@ -220,13 +247,29 @@ async function pdfToImages(file, maxSide = 3000, onPage) {
 }
 
 // Visionneuse photo plein écran
-function showImage(src, caption = '') {
+function showImage(src, caption = '') { return showGallery([{ src, caption }], 0); }
+// Galerie plein écran : glisser à gauche / à droite pour passer d'une photo à l'autre
+function showGallery(items, start = 0) {
+  items = items.filter(x => x && x.src);
+  if (!items.length) return;
   const el = document.createElement('div');
-  el.className = 'lightbox';
-  el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1>${esc(caption)}</h1></div><div class="lb-body"><img src="${src}"></div>`;
+  el.className = 'lightbox gallery';
+  el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1 class="gl-cap"></h1><span class="gl-n"></span></div>
+    <div class="gl-track">${items.map(it => `<div class="gl-slide"><img src="${it.src}" draggable="false"></div>`).join('')}</div>
+    ${items.length > 1 ? `<div class="gl-dots">${items.map((_, i) => `<i data-i="${i}"></i>`).join('')}</div>` : ''}`;
   document.body.appendChild(el);
   const unBack = pushBack(() => el.remove());
   $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
+  const tr = $('.gl-track', el);
+  const upd = () => {
+    const i = Math.round(tr.scrollLeft / tr.clientWidth);
+    $('.gl-cap', el).textContent = items[i]?.caption || '';
+    $('.gl-n', el).textContent = items.length > 1 ? `${i + 1} / ${items.length}` : '';
+    $$('.gl-dots i', el).forEach((d, j) => d.classList.toggle('on', j === i));
+  };
+  tr.addEventListener('scroll', () => requestAnimationFrame(upd), { passive: true });
+  $$('.gl-dots i', el).forEach(d => d.onclick = () => tr.scrollTo({ left: +d.dataset.i * tr.clientWidth, behavior: 'smooth' }));
+  requestAnimationFrame(() => { tr.scrollLeft = start * tr.clientWidth; upd(); });
 }
 
 // Visionneuse PDF (pages rendues avec pdf.js)

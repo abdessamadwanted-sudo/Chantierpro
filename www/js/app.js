@@ -65,22 +65,46 @@ async function renderHome() {
   App.project = null;
   BackStack.length = 0;
   const projects = (await DB.all('projects')).sort((a, b) => b.updatedAt - a.updatedAt);
+  const [allTasks, allRecs] = await Promise.all([DB.all('tasks'), DB.all('receptions')]);
+  const today = todayISO();
+  const stats = (p) => {
+    const t = allTasks.filter(x => x.projectId === p.id), r = allRecs.filter(x => x.projectId === p.id);
+    const rows = r.flatMap(d => d.rows || []);
+    return { open: t.filter(x => !isLifted(x)).length, pv: rows.filter(x => x.element && x.status !== 'pending' && !x.pvRecu && !(x.status === 'progress')).length,
+      today: r.filter(d => d.date === today).reduce((a, d) => a + (d.rows || []).filter(x => x.element).length, 0), plans: 0 };
+  };
+  const HUES = [['#2563eb', '#1e3a8a'], ['#0d9488', '#134e4a'], ['#7c3aed', '#4c1d95'], ['#ea580c', '#7c2d12'], ['#db2777', '#831843'], ['#0891b2', '#164e63']];
+  const hue = (s) => HUES[[...String(s)].reduce((a, c) => a + c.charCodeAt(0), 0) % HUES.length];
+  const initials = (n) => String(n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+  const h = new Date().getHours(), hello = h < 12 ? 'Bonjour' : h < 18 ? 'Bon après-midi' : 'Bonsoir';
+  const dateL = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
   $('#app').innerHTML = `
-    <div class="topbar">
-      <div class="brand"><span class="logo">${icon('hard')}</span>CHANTIER</div>
-      <button class="iconbtn" data-a="homemore">${icon('more')}</button>
-    </div>
-    <div class="content">
-      <div class="sync-card home" data-a="sync"><div class="cl">☁</div><div class="grow"><b>${Sync.enabled() ? 'Google Drive' : 'Connecter Google Drive'}</b><div data-syncstate>${Sync.enabled() ? Sync.statusLine() : '<span style="color:var(--muted)">Sauvegarde automatique + synchro téléphone / PC</span>'}</div></div>${icon('chevright')}</div>
-      <div class="section-label">Projets</div>
-      ${projects.length ? `<div class="list">${projects.map(p => `
-        <div class="row" data-id="${p.id}"><span class="icon-muted">${icon('hard')}</span>
-          <div class="grow"><div class="title">${esc(p.name)}</div>${p.address ? `<div class="sub">${esc(p.address)}</div>` : ''}</div>
-          <span class="icon-muted">${icon('chevright')}</span></div>`).join('')}</div>`
-      : `<div class="empty">Aucun projet pour le moment.<br>Appuyez sur <b>+</b> pour créer votre premier chantier.<br><br><button class="btn ghost" data-a="restore2" style="flex:none">${icon('undo')} Restaurer une sauvegarde</button></div>`}
+    <div class="home2">
+      <div class="h2-hero">
+        <div class="h2-top"><div class="brand"><span class="logo">${icon('hard')}</span>CHANTIER</div><button class="iconbtn" data-a="homemore">${icon('more')}</button></div>
+        <div class="h2-hello">${hello} 👷</div>
+        <div class="h2-date">${dateL.charAt(0).toUpperCase() + dateL.slice(1)}</div>
+        <button class="h2-sync" data-a="sync"><span class="cl">${icon('drive')}</span><span class="grow"><b>${Sync.enabled() ? 'Google Drive' : 'Connecter Google Drive'}</b><span data-syncstate>${Sync.enabled() ? Sync.statusLine() : '<span style="opacity:.8">Sauvegarde + synchro téléphone / PC</span>'}</span></span>${icon('chevright')}</button>
+      </div>
+      <div class="h2-body">
+        <div class="h2-sec"><span>Mes chantiers</span><small>${projects.length}</small></div>
+        ${projects.length ? projects.map(p => { const st = stats(p), [c1, c2] = hue(p.name);
+          return `<button class="h2-card" data-id="${p.id}">
+            <span class="h2-av" style="background:linear-gradient(135deg,${c1},${c2})">${esc(initials(p.name))}</span>
+            <span class="grow"><b>${esc(p.name)}</b>${p.address ? `<small>${icon('pin')} ${esc(p.address)}</small>` : ''}
+              <span class="h2-chips">
+                ${st.today ? `<i class="c-b">${st.today} réception(s) aujourd'hui</i>` : ''}
+                ${st.pv ? `<i class="c-r">${st.pv} PV à récupérer</i>` : ''}
+                ${st.open ? `<i class="c-o">${st.open} réserve(s)</i>` : ''}
+                ${!st.today && !st.pv && !st.open ? '<i class="c-g">À jour ✓</i>' : ''}
+              </span></span>
+            ${icon('chevright')}</button>`; }).join('')
+        : `<div class="h2-empty"><div class="ic">${icon('hard')}</div><b>Aucun chantier pour le moment</b><span>Créez votre premier projet avec le bouton <b>+</b>, ou récupérez vos données avec Google Drive.</span>
+            <button class="btn ghost" data-a="restore2" style="flex:none">${icon('undo')} Restaurer une sauvegarde</button></div>`}
+      </div>
     </div>
     <button class="fab" data-a="new">${icon('plus')}</button>`;
-  $$('.row[data-id]').forEach(r => r.onclick = async () => openProject(await DB.get('projects', r.dataset.id)));
+  $$('.h2-card[data-id]').forEach(r => r.onclick = async () => openProject(await DB.get('projects', r.dataset.id)));
   $('[data-a=sync]').onclick = () => Sync.openSyncSettings();
   $('[data-a=homemore]').onclick = async () => {
     const v = await menu('Chantier', [
@@ -100,7 +124,7 @@ async function renderHome() {
 }
 
 async function openProject(p) {
-  App.project = p; App.section = 'dashboard'; App.search = ''; App.companyFilter = 'all'; App.taskFilter = 'all';
+  App.project = p; App.section = 'plans';   // on arrive directement sur les plans (dossiers) App.search = ''; App.companyFilter = 'all'; App.taskFilter = 'all';
   p.updatedAt = Date.now(); await DB.put('projects', p);
   renderSection();
   const late = (await DB.byProject('tasks', p.id)).filter(isLate).length;
@@ -125,7 +149,7 @@ const SECTIONS = {
 
 async function renderSection() {
   BackStack.length = 0;
-  pushBack(() => { if (App.section !== 'dashboard') { App.section = 'dashboard'; App.search = ''; renderSection(); } else renderHome(); });
+  pushBack(() => { if (App.section !== 'plans') { App.section = 'plans'; App.search = ''; renderSection(); } else renderHome(); });
   const s = SECTIONS[App.section];
   $('#app').innerHTML = `
     <div class="topbar dark">
@@ -711,7 +735,7 @@ function openTaskDetail(task) {
           if (await confirmBox('Supprimer cette photo ?')) { task.photoIds = task.photoIds.filter(x => x !== id); await DB.del('files', id); await DB.put('tasks', task); render(); }
           return;
         }
-        const f = photos.find(p => p.id === id); showImage(BlobURL.get(f.id, f.blob), `Tâche #${task.num}`);
+        showGallery(photos.map(f => ({ src: BlobURL.get(f.id, f.blob), caption: `Tâche #${task.num}` })), photos.findIndex(p => p.id === id));
       });
       $('[data-a=comment]', el).onclick = (e) => {
         e.preventDefault(); const i = $('[name=_comment]', el);
@@ -744,7 +768,7 @@ async function renderPhotos(root) {
   root.innerHTML = `<div class="pagehead"><h2>Photos</h2><p>${files.length} photo(s)</p></div>
     ${files.length ? `<div class="photo-grid">${files.map(f => `<div class="ph" data-id="${f.id}"><img src="${BlobURL.get(f.id, f.blob)}" loading="lazy">${f.source ? `<span class="tag">${esc(f.source)}</span>` : ''}</div>`).join('')}</div>`
     : `<div class="empty">Aucune photo.<br>Prenez des photos du chantier avec <b>+</b>.</div>`}`;
-  $$('.ph', root).forEach(p => p.onclick = () => { const f = files.find(x => x.id === p.dataset.id); showImage(BlobURL.get(f.id, f.blob), `${f.source || 'Photo'} · ${fmtDateTime(f.createdAt)}`); });
+  $$('.ph', root).forEach(p => p.onclick = () => showGallery(files.map(f => ({ src: BlobURL.get(f.id, f.blob), caption: `${f.source || 'Photo'} · ${fmtDateTime(f.createdAt)}` })), files.findIndex(x => x.id === p.dataset.id)));
   fab(root, async () => { const r = await addPhotos(pid); if (r.length) { toast(`${r.length} photo(s) ajoutée(s)`); renderPhotos(root); } });
 }
 
@@ -826,7 +850,7 @@ function openFormDetail(form) {
       $$('.thumbs .t[data-id]', el).forEach(t => t.onclick = async (e) => {
         const id = t.dataset.id;
         if (e.target.closest('[data-del]')) { if (await confirmBox('Supprimer cette photo ?')) { form.photoIds = form.photoIds.filter(x => x !== id); await DB.del('files', id); save(); render(); } return; }
-        const f = photos.find(p => p.id === id); showImage(BlobURL.get(f.id, f.blob), form.title);
+        showGallery(photos.map(f => ({ src: BlobURL.get(f.id, f.blob), caption: form.title })), photos.findIndex(p => p.id === id));
       });
       $('[data-a=share]', el).onclick = () => {
         const mark = { ok: '✅', nok: '❌', na: '➖' };
@@ -895,7 +919,7 @@ function openReportDetail(rep) {
       $$('.thumbs .t[data-id]', el).forEach(t => t.onclick = async (e) => {
         const id = t.dataset.id;
         if (e.target.closest('[data-del]')) { if (await confirmBox('Supprimer cette photo ?')) { rep.photoIds = rep.photoIds.filter(x => x !== id); await DB.del('files', id); save(); render(); } return; }
-        const f = photos.find(p => p.id === id); showImage(BlobURL.get(f.id, f.blob), 'Rapport');
+        showGallery(photos.map(f => ({ src: BlobURL.get(f.id, f.blob), caption: 'Rapport' })), photos.findIndex(p => p.id === id));
       });
       $('[data-a=share]', el).onclick = () => shareWhatsApp(
         `*${project.name}*\n*Rapport journalier du ${fmtDate(rep.date)}*\nMétéo : ${rep.weather}${rep.temp ? ` (${rep.temp}°C)` : ''}\n` +
@@ -1033,7 +1057,7 @@ async function restoreBackup() {
 // Ordre : fermer la fenêtre ouverte → revenir au tableau de bord du projet → revenir à l'accueil (dernière page)
 function navBack() {
   if (goBack()) return true;
-  if (App.project && App.section !== 'dashboard') { App.section = 'dashboard'; App.search = ''; renderSection(); return true; }
+  if (App.project && App.section !== 'plans') { App.section = 'plans'; App.search = ''; renderSection(); return true; }
   if (App.project) { renderHome(); return true; }
   return false;
 }
