@@ -118,6 +118,7 @@ const SECTIONS = {
   photos: { label: 'Photos', icon: 'camera', render: renderPhotos },
   forms: { label: 'Formulaires', icon: 'form', render: renderForms },
   reports: { label: 'Rapports journaliers', icon: 'report', render: renderReports },
+  calc: { label: 'Calculs & Topo', icon: 'ruler', render: (r) => renderCalcs(r) },
   team: { label: 'Équipe', icon: 'team', render: renderTeam },
   settings: { label: 'Paramètres', icon: 'settings', render: renderSettings },
 };
