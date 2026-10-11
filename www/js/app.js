@@ -413,50 +413,58 @@ function openLinkDetail(link) {
           <div class="grow"><div class="nm">${esc(nm)}</div><div class="meta">${tag} · ${fmtDate(it.date)}</div></div>
           <button class="iconbtn sm" data-m="${it.id}">${icon('more')}</button></div>`;
       };
+      const all = cats();
+      const filled = all.filter(c => link.items.some(i => i.cat === c.key));
+      const empty = all.filter(c => !link.items.some(i => i.cat === c.key));
+      const subOf = (it) => {
+        const pl = it.kind === 'plan' ? plansById[it.planId] : null, f = pl ? files[pl.fileId] : files[it.fileId];
+        const fk = it.kind === 'file' ? fileKind(f) : null;
+        return { url: 'Lien Drive', plan: 'Plan du projet', note: 'Note' }[it.kind] || { pdf: 'PDF', image: 'Image', cad: 'AutoCAD', other: 'Fichier' }[fk] || '';
+      };
       box.innerHTML = `
-        <div class="lk-top">
-          <span class="lk-dot" style="background:${link.color}">${icon('link')}</span>
-          <div class="grow"><div class="lk-name">${esc(link.name)}</div><div class="meta">${link.items.length} document(s)</div></div>
+        <div class="lk2-band" style="--c:${link.color}">
+          <span class="lk2-ic">${icon('link')}</span>
+          <div class="grow"><div class="lk2-name">${esc(link.name)}</div><div class="lk2-sub">${link.items.length ? link.items.length + ' document(s)' : 'Aucun document'}</div></div>
           <button class="iconbtn" data-a="more">${icon('more')}</button>
         </div>
-        <div class="lk-cats">
-        ${cats().map(c => {
-          const items = link.items.filter(i => i.cat === c.key);
-          const open = openCats.has(c.key);
-          return `<div class="lk-cat ${open ? 'open' : ''}" data-c="${c.key}">
-            <button class="lk-ch"><span class="lk-ic">${icon(c.icon)}</span><span class="lk-l">${esc(c.label)}</span>
-              ${items.length ? `<span class="lk-n">${items.length}</span>` : ''}<span class="chev">${icon('chevdown')}</span></button>
-            ${open ? `<div class="lk-body">
-              ${items.map(itemHTML).join('')}
-              <button class="lk-add" data-add="${c.key}">${icon('plus')} ${c.type === 'note' ? 'Écrire une note' : items.length ? 'Ajouter un autre' : 'Ajouter'}</button>
-              ${c.custom && !items.length ? `<button class="lk-rm" data-rmcat="${c.key}">Retirer cette rubrique</button>` : ''}
-            </div>` : ''}
+        ${filled.length ? `<div class="lk2-list">${filled.map(c => {
+          const items = link.items.filter(i => i.cat === c.key), one = items.length === 1, open = openCats.has(c.key);
+          return `<div class="lk2-cat ${open ? 'open' : ''}" data-c="${c.key}">
+            <div class="lk2-row" data-row="${c.key}">
+              <span class="lk2-ci">${icon(c.icon)}</span>
+              <div class="grow"><div class="lk2-l">${esc(c.label)}</div><div class="lk2-s">${one ? esc((items[0].kind === 'note' ? items[0].text : items[0].name) || '') + ' · ' + subOf(items[0]) : items.length + ' documents'}</div></div>
+              ${one ? `<button class="iconbtn sm" data-m="${items[0].id}">${icon('more')}</button>` : `<span class="lk2-n">${items.length}</span><span class="chev">${icon('chevdown')}</span>`}
+            </div>
+            ${open && !one ? `<div class="lk2-items">${items.map(it => `<div class="lk2-it" data-it="${it.id}"><span class="dot"></span><div class="grow"><div class="nm">${esc((it.kind === 'note' ? it.text : it.name) || 'Document')}</div><div class="mt">${subOf(it)} · ${fmtDate(it.date)}</div></div><button class="iconbtn sm" data-m="${it.id}">${icon('more')}</button></div>`).join('')}
+              <button class="lk2-more" data-add="${c.key}">${icon('plus')} Ajouter dans ${esc(c.label)}</button></div>` : ''}
           </div>`;
-        }).join('')}
-          <button class="lk-newcat" data-a="newcat">${icon('plus')} Ajouter une rubrique (lot)</button>
-        </div>`;
+        }).join('')}</div>` : `<div class="lk2-empty">Ajoutez le plan de coffrage, de ferraillage, une coupe, un PV… pour les ouvrir d'un seul appui.</div>`}
+        <div class="lk2-addh">Ajouter</div>
+        <div class="lk2-chips">
+          ${all.map(c => `<button class="lk2-chip" data-add="${c.key}">${icon(c.icon)}<span>${esc(c.label)}</span></button>`).join('')}
+          <button class="lk2-chip ghost" data-a="newcat">${icon('plus')}<span>Rubrique</span></button>
+        </div>
+        ${empty.some(c => c.custom) ? `<div class="lk2-rmrow">${empty.filter(c => c.custom).map(c => `<button data-rmcat="${c.key}">Retirer « ${esc(c.label)} »</button>`).join('')}</div>` : ''}`;
 
-      $$('.lk-cat', box).forEach(cEl => {
-        const key = cEl.dataset.c;
-        $('.lk-ch', cEl).onclick = () => { openCats.has(key) ? openCats.delete(key) : openCats.add(key); render(); };
-        const add = $('[data-add]', cEl); if (add) add.onclick = () => addItem(cats().find(c => c.key === key));
-        const rm = $('[data-rmcat]', cEl); if (rm) rm.onclick = async () => {
-          project.extraCats = (project.extraCats || []).filter(c => c.key !== key); await DB.put('projects', project); render();
-        };
-      });
-      $$('.lk-item', box).forEach(a => a.onclick = async (e) => {
-        const it = link.items.find(i => i.id === a.dataset.it);
-        if (e.target.closest('[data-m]')) return itemMenu(it);
+      const openItem = async (it) => {
         if (it.kind === 'url') return openUrl(it.url);
         if (it.kind === 'note') return itemMenu(it);
-        if (it.kind === 'plan') {
-          const pl = plansById[it.planId];
-          if (!pl) return toast('Ce plan a été supprimé');
-          s.close();
-          return openPlanViewer(pl, planCtx(() => {}));
-        }
-        const f = files[it.fileId]; if (f) openFileRecord(f, it.name);
+        if (it.kind === 'plan') { const pl = plansById[it.planId]; if (!pl) return toast('Ce plan a été supprimé'); s.close(); return openPlanViewer(pl, planCtx(() => {})); }
+        const f = files[it.fileId]; if (f) openFileRecord(f, it.name); else toast('Fichier en cours de téléchargement…');
+      };
+      $$('[data-row]', box).forEach(r => r.onclick = (e) => {
+        const key = r.dataset.row, items = link.items.filter(i => i.cat === key);
+        if (e.target.closest('[data-m]')) return itemMenu(link.items.find(i => i.id === e.target.closest('[data-m]').dataset.m));
+        if (items.length === 1) return openItem(items[0]);
+        openCats.has(key) ? openCats.delete(key) : openCats.add(key); render();
       });
+      $$('.lk2-it', box).forEach(a => a.onclick = (e) => {
+        const it = link.items.find(i => i.id === a.dataset.it);
+        if (e.target.closest('[data-m]')) return itemMenu(it);
+        openItem(it);
+      });
+      $$('[data-add]', box).forEach(b => b.onclick = () => addItem(cats().find(c => c.key === b.dataset.add)));
+      $$('[data-rmcat]', box).forEach(b => b.onclick = async () => { project.extraCats = (project.extraCats || []).filter(c => c.key !== b.dataset.rmcat); await DB.put('projects', project); render(); });
       $('[data-a=newcat]', box).onclick = async () => {
         const existing = new Set(cats().map(c => c.label));
         const v = await menu('Nouvelle rubrique', [...EXTRA_CAT_SUGGEST.filter(x => !existing.has(x)).map(x => ({ label: x, icon: 'hard', value: x })), { label: 'Autre nom…', icon: 'edit', value: '__other' }]);
@@ -1058,12 +1066,50 @@ function initSwipeBack() {
   strip.addEventListener('pointerup', end); strip.addEventListener('pointercancel', (e) => { on = false; hide(); });
 }
 
+// ---------- Bouton « Plans » accessible partout ----------
+function initPlansButton() {
+  const b = document.createElement('button'); b.id = 'plansFab'; b.title = 'Plans'; b.innerHTML = icon('plans');
+  document.body.appendChild(b);
+  b.onclick = () => openPlansQuick();
+  const upd = () => { b.style.display = App.project ? '' : 'none'; };
+  setInterval(upd, 600); upd();
+}
+async function openPlansQuick() {
+  if (!App.project || document.querySelector('.plansq')) return;
+  const pid = App.project.id;
+  const [plans, folders] = await Promise.all([DB.byProject('plans', pid), DB.byProject('folders', pid)]);
+  const el = document.createElement('div'); el.className = 'fullpage plansq'; document.body.appendChild(el);
+  const close = () => { unBack(); el.remove(); };
+  const unBack = pushBack(() => el.remove());
+  let q = '';
+  const groups = [...folders.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'fr', { numeric: true })).map(f => ({ id: f.id, name: f.name })), { id: null, name: 'Sans dossier' }];
+  async function render() {
+    const match = (p) => !q || (p.name || '').toLowerCase().includes(q);
+    const html = [];
+    for (const g of groups) {
+      const ps = plans.filter(p => (p.folderId || null) === g.id && match(p)).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'fr', { numeric: true }));
+      if (!ps.length) continue;
+      html.push(`<div class="pq-h">${icon('folder')} ${esc(g.name)} <span>${ps.length}</span></div><div class="pq-grid">${ps.map(p => `<button class="pq-t" data-p="${p.id}"><span class="pq-img"><img data-f="${p.fileId}"></span><span class="pq-n">${esc(p.name)}</span></button>`).join('')}</div>`);
+    }
+    $('.pq-body', el).innerHTML = html.join('') || `<div class="empty">${plans.length ? 'Aucun plan trouvé' : 'Aucun plan dans ce projet.<br>Ajoutez-les dans « Plans ».'}</div>`;
+    $$('img[data-f]', el).forEach(async im => { const f = await DB.get('files', im.dataset.f); if (f && f.blob) im.src = BlobURL.get(f.id, f.blob); });
+    $$('[data-p]', el).forEach(t => t.onclick = () => { const pl = plans.find(p => p.id === t.dataset.p); openPlanViewer(pl, planCtx(() => {})); });
+  }
+  el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1 style="flex:1">Plans</h1></div>
+    <div class="search" style="margin:10px 16px 4px">${icon('search')}<input placeholder="Rechercher un plan…"></div>
+    <div class="pq-body"></div>`;
+  $('[data-a=x]', el).onclick = close;
+  $('.search input', el).oninput = (e) => { q = e.target.value.trim().toLowerCase(); render(); };
+  render();
+}
+
 // ---------- Démarrage ----------
 (function init() {
   // Bouton retour Android
   const capApp = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
   if (capApp) capApp.addListener('backButton', () => { if (!navBack()) capApp.exitApp(); });
   initSwipeBack();
+  initPlansButton();
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   renderHome();
   Sync.start();
