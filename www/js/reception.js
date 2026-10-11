@@ -3,6 +3,7 @@ const REC_STATUS = {
   ok: { label: 'Réceptionné', short: 'OK', color: '#22c55e', mark: '✅' },
   reserve: { label: 'Avec réserve', short: 'Réserve', color: '#f59e0b', mark: '⚠️' },
   pending: { label: 'Non réceptionné', short: 'En attente', color: '#9aa3b2', mark: '⏳' },
+  progress: { label: 'En cours', short: 'En cours', color: '#3b82f6', mark: '🔄' },       // bétonnage en cours
 };
 const NIVEAUX = ['Fondations', 'SSL', 'Mezz', 'RDC', 'R+1', 'R+2', 'R+3', 'R+4', 'R+5', 'R+6', 'R+7', 'R+8', 'Terrasse'];
 const recDateLabel = (d) => d ? d.split('-').reverse().join('/') : '';
@@ -12,7 +13,10 @@ const isBeton = (kind) => kind === 'Bétonnage';
 const kindOf = (d) => d.type === 'Bétonnage' ? 'Bétonnage' : 'Ferraillage';
 const recTitle = (kind) => isBeton(kind) ? 'Programme de bétonnage' : 'Réception ferraillage';
 const recColHead = (kind) => isBeton(kind) ? 'Élément bétonné' : 'Ferraillage réceptionné';
-const stLabel = (kind, st) => isBeton(kind) ? ({ ok: 'Bétonné', reserve: 'Avec défaut', pending: 'Non bétonné' }[st]) : REC_STATUS[st].label;
+const stLabel = (kind, st) => isBeton(kind) ? ({ ok: 'Bétonné', progress: 'En cours', reserve: 'Avec défaut', pending: 'Non bétonné' }[st]) : (REC_STATUS[st] || REC_STATUS.pending).label;
+const statusesFor = (kind) => isBeton(kind) ? ['ok', 'progress', 'pending'] : ['ok', 'reserve', 'pending'];
+// lignes à mettre dans les rapports : en bétonnage, uniquement bétonné + en cours (le « non bétonné » n'apparaît pas)
+const reportRows = (kind, rows) => rows.filter(r => r.element && (!isBeton(kind) || r.status !== 'pending'));
 const resLabel = (kind) => isBeton(kind) ? 'Défaut' : 'Réserve';                       // ségrégation, nid de cailloux…
 const photoLabels = (kind) => isBeton(kind) ? ['Photo défaut', 'Photo réparation'] : ['Photo réserve', 'Photo retour'];
 const liftLabel = (kind) => isBeton(kind) ? 'Réparé' : 'Levée';
@@ -28,8 +32,8 @@ const cmpZone = (a, b) => { const x = zoneKey(a), y = zoneKey(b); for (let i = 0
 // Message WhatsApp (même présentation pour 1 ouvrage, une sélection, une zone ou tout le tableau)
 function recMessage(p, day, rows, single = false) {
   const K = kindOf(day);
-  rows = rows.filter(r => r.element).slice().sort(cmpZone);
-  const item = (r) => `${REC_STATUS[r.status].mark} ${r.niv ? r.niv + ' — ' : ''}${r.element}${isBeton(K) && r.classe ? ` (${r.classe})` : ''}` +
+  rows = reportRows(K, rows).slice().sort(cmpZone);
+  const item = (r) => `${(REC_STATUS[r.status] || REC_STATUS.pending).mark} ${r.niv ? r.niv + ' — ' : ''}${r.element}${isBeton(K) && r.classe ? ` (${r.classe})` : ''}` +
     (r.obs ? `\n     ↳ ${r.status === 'reserve' ? resLabel(K) + ' : ' : ''}${r.obs}` : '') +
     (r.status === 'reserve' && r.liftedAt ? `\n     ✔️ ${isBeton(K) ? 'Réparé' : 'Réserve levée'} le ${fmtDate(r.liftedAt)}` : '');
   const sec = (st, title) => {
@@ -39,6 +43,8 @@ function recMessage(p, day, rows, single = false) {
     for (const r of l) { const z = String(r.zone || '').trim(); let g = zones.find(x => x.z === z); if (!g) zones.push(g = { z, rows: [] }); g.rows.push(r); }
     return (single ? `\n*${title}*\n` : `\n*${title} (${l.length}) :*\n`) + zones.map(g => `*${g.z ? 'Zone ' + g.z : 'Sans zone'}*\n${g.rows.map(item).join('\n')}`).join('\n\n') + '\n';
   };
+  if (single && isBeton(K)) return `*${recTitle(K)} du ${fmtDate(day.date)}*\n` + sec('ok', 'Bétonnage validé ✅') + sec('progress', 'Bétonnage en cours 🔄') + sec('reserve', 'Bétonné avec défaut ⚠️');
+  if (isBeton(K)) return `*${recTitle(K)} du ${fmtDate(day.date)}*\n` + sec('ok', 'Bétonné') + sec('progress', 'En cours de bétonnage') + sec('reserve', 'Avec défaut');
   if (single) return `*${recTitle(K)} du ${fmtDate(day.date)}*\n` + sec('ok', isBeton(K) ? 'Bétonnage validé ✅' : 'Réception validée ✅') + sec('reserve', isBeton(K) ? 'Bétonné avec défaut ⚠️' : 'Réception avec réserve ⚠️') + sec('pending', isBeton(K) ? 'Non bétonné ⏳' : 'Non réceptionné ⏳');
   return `*${recTitle(K)} du ${fmtDate(day.date)}*\n` + sec('ok', stLabel(K, 'ok')) + sec('reserve', stLabel(K, 'reserve')) + sec('pending', stLabel(K, 'pending'));
 }
@@ -159,7 +165,7 @@ async function renderReceptions(root, kind = 'Ferraillage') {
     const hits = [];
     for (const d of all) d.rows.forEach(r => { if (r.element && match(r) && (!q || `${r.element} ${r.zone} ${r.niv} ${r.obs}`.toLowerCase().includes(q))) hits.push({ d, r }); });
     body.innerHTML = hits.length ? `<div class="section-label">${hits.length} résultat(s)</div><div class="list">${hits.map(({ d, r }, i) => `
-      <div class="row" data-h="${i}"><span class="rs" style="background:${REC_STATUS[r.status].color};min-width:74px;text-align:center">${stLabel(kind, r.status)}</span>
+      <div class="row" data-h="${i}"><span class="rs" style="background:${(REC_STATUS[r.status] || REC_STATUS.pending).color};min-width:74px;text-align:center">${stLabel(kind, r.status)}</span>
         <div class="grow"><div class="title wrap">${esc(r.element)}</div>
         <div class="sub">📅 ${fmtDate(d.date)}${r.zone ? ' · Zone ' + esc(r.zone) : ''}${r.niv ? ' · ' + esc(r.niv) : ''}${r.classe ? ' · ' + esc(r.classe) : ''}${r.avec ? ' · avec ' + esc(r.avec) : ''}${!isBeton(kind) && r.status !== 'pending' ? (r.pvRecu ? ' · <span style="color:#22c55e">PV reçu</span>' : ' · <span style="color:#ef4444">PV manquant</span>') : ''}${r.obs ? `<br><span style="color:${r.status === 'reserve' ? '#f59e0b' : 'var(--muted)'}">${esc(r.obs)}</span>` : ''}</div></div>
         <button class="iconbtn" data-sh="${i}">${icon('share')}</button></div>`).join('')}</div>`
@@ -179,16 +185,16 @@ async function renderReceptions(root, kind = 'Ferraillage') {
       const key = kind + m;
       if (App.openMonths[key] === undefined) App.openMonths[key] = m === months[0] || m === curM;
       const ds = all.filter(d => (d.date || '').slice(0, 7) === m);
-      const nEl = ds.reduce((a, d) => a + d.rows.filter(r => r.element).length, 0), nRs = ds.reduce((a, d) => a + d.rows.filter(r => r.status === 'reserve').length, 0);
+      const nEl = ds.reduce((a, d) => a + d.rows.filter(r => r.element).length, 0), nRs = ds.reduce((a, d) => a + d.rows.filter(r => r.status === (isBeton(kind) ? 'progress' : 'reserve')).length, 0);
       const card = document.createElement('div'); card.className = 'card';
       const open = App.openMonths[key];
       card.innerHTML = `<div class="folder-head"><span class="icon-muted">${icon('calendar')}</span>
-        <div class="grow"><div class="title" style="font-size:18px">${monthLabel(m)}</div><div class="sub" style="color:var(--muted);margin-top:3px">${ds.length} jour(s) · ${nEl} élément(s)${nRs ? ` · <span style="color:#f59e0b">${nRs} réserve(s)</span>` : ''}</div></div>
+        <div class="grow"><div class="title" style="font-size:18px">${monthLabel(m)}</div><div class="sub" style="color:var(--muted);margin-top:3px">${ds.length} jour(s) · ${nEl} élément(s)${nRs ? ` · <span style="color:${isBeton(kind) ? '#3b82f6' : '#f59e0b'}">${nRs} ${isBeton(kind) ? 'en cours' : 'réserve(s)'}</span>` : ''}</div></div>
         <span class="icon-muted" style="transform:rotate(${open ? 180 : 0}deg)">${icon('chevdown')}</span></div>
         ${open ? `<div class="plan-rows">${ds.map(d => {
-          const n = d.rows.filter(r => r.element).length, ok = d.rows.filter(r => r.status === 'ok').length, rs = d.rows.filter(r => r.status === 'reserve').length;
+          const n = d.rows.filter(r => r.element).length, ok = d.rows.filter(r => r.status === 'ok').length, rs = d.rows.filter(r => r.status === (isBeton(kind) ? 'progress' : 'reserve')).length;
           return `<div class="prow" data-id="${d.id}"><span class="daybox"><b>${(d.date || '').slice(8, 10)}</b><small>${MONTHS[+(d.date || '0-01').slice(5, 7) - 1].slice(0, 3)}</small></span>
-            <div class="nm"><div style="font-size:16px">${fmtDate(d.date)}</div><div style="font-size:13px;color:var(--muted);margin-top:2px">${n} élément(s) · <span style="color:#22c55e">${ok} OK</span>${rs ? ` · <span style="color:#f59e0b">${rs} réserve(s)</span>` : ''}${d.syncedAt ? ' · ☁' : ''}</div></div>${icon('chevright')}</div>`;
+            <div class="nm"><div style="font-size:16px">${fmtDate(d.date)}</div><div style="font-size:13px;color:var(--muted);margin-top:2px">${n} élément(s) · <span style="color:#22c55e">${ok} OK</span>${rs ? ` · <span style="color:${isBeton(kind) ? '#3b82f6' : '#f59e0b'}">${rs} ${isBeton(kind) ? 'en cours' : 'réserve(s)'}</span>` : ''}${d.syncedAt ? ' · ☁' : ''}</div></div>${icon('chevright')}</div>`;
         }).join('')}</div>` : ''}`;
       body.appendChild(card);
       $('.folder-head', card).onclick = () => { App.openMonths[key] = !open; renderReceptions(root, kind); };
@@ -242,12 +248,12 @@ function openReceptionDay(day, opts = {}) {
     const [PH1, PH2] = photoLabels(K);
     let moveSel = -1;             // ligne sélectionnée pour la déplacer (appui long)
     function render() {
-      const n = day.rows.filter(r => r.element).length, ok = day.rows.filter(r => r.status === 'ok').length, rs = day.rows.filter(r => r.status === 'reserve').length;
+      const n = day.rows.filter(r => r.element).length, ok = day.rows.filter(r => r.status === 'ok').length, rs = day.rows.filter(r => r.status === (isBeton(K) ? 'progress' : 'reserve')).length;
       el.innerHTML = `
         <div class="topbar"><button class="iconbtn" data-a="back">${icon('back')}</button>
           <h1>${fmtDate(day.date)}</h1>
           <button class="iconbtn" data-a="share">${icon('share')}</button><button class="iconbtn" data-a="more">${icon('more')}</button></div>
-        <div class="rec-sum"><span><b>${n}</b> éléments</span><span style="color:#22c55e"><b>${ok}</b> ${isBeton(K) ? 'bétonnés' : 'réceptionnés'}</span><span style="color:#f59e0b"><b>${rs}</b> ${isBeton(K) ? "défauts" : "réserves"}</span><span style="color:var(--muted)"><b>${n - ok - rs}</b> en attente</span>${!isBeton(K) && day.rows.some(pvMissing) ? `<span style="color:#ef4444"><b>${day.rows.filter(pvMissing).length}</b> PV manquant(s)</span>` : ''}</div>
+        <div class="rec-sum"><span><b>${n}</b> éléments</span><span style="color:#22c55e"><b>${ok}</b> ${isBeton(K) ? 'bétonnés' : 'réceptionnés'}</span><span style="color:${isBeton(K) ? '#60a5fa' : '#f59e0b'}"><b>${rs}</b> ${isBeton(K) ? 'en cours' : 'réserves'}</span><span style="color:var(--muted)"><b>${n - ok - rs}</b> ${isBeton(K) ? 'non bétonnés' : 'en attente'}</span>${!isBeton(K) && day.rows.some(pvMissing) ? `<span style="color:#ef4444"><b>${day.rows.filter(pvMissing).length}</b> PV manquant(s)</span>` : ''}</div>
         <div class="rec-wrap">
           <table class="rec">
             <thead>
@@ -258,7 +264,7 @@ function openReceptionDay(day, opts = {}) {
             <tbody>
               ${day.rows.map((r, i) => `<tr data-i="${i}" class="st-${r.status} ${moveSel === i ? 'moving' : ''}">
                 <td class="c">${esc(r.zone)}</td><td class="c">${esc(r.niv)}</td><td class="el">${esc(r.element)}</td>${isBeton(K) ? `<td class="c">${esc(r.classe || '')}</td>` : ''}
-                <td class="c"><span class="rs" style="background:${REC_STATUS[r.status].color}">${r.status === 'ok' ? 'OK' : r.status === 'reserve' ? resLabel(K) : 'Attente'}</span>${r.status === 'reserve' && r.liftedAt ? `<br><span class="rs" style="background:#16a34a;margin-top:4px">${liftLabel(K)} ${recDateLabel(r.liftedAt).slice(0, 5)}</span>` : ''}</td>
+                <td class="c"><span class="rs" style="background:${(REC_STATUS[r.status] || REC_STATUS.pending).color}">${r.status === 'ok' ? 'OK' : r.status === 'reserve' ? resLabel(K) : r.status === 'progress' ? 'En cours' : 'Attente'}</span>${r.status === 'reserve' && r.liftedAt ? `<br><span class="rs" style="background:#16a34a;margin-top:4px">${liftLabel(K)} ${recDateLabel(r.liftedAt).slice(0, 5)}</span>` : ''}</td>
 ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec || '')}</td>`}
                 <td class="ob">${esc(r.obs)}</td>
                 <td class="c ph">${(r.photoIds || []).length ? `📷 ${r.photoIds.length}` : ''}</td>
@@ -333,7 +339,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         if (v === 'pick') {
           const rows = day.rows.filter(r => r.element).slice().sort(cmpZone);
           const sel = new Set();
-          const sh = sheet(`<div>${rows.map((r, j) => `<label class="selrow"><input type="checkbox" data-j="${j}"><span>${REC_STATUS[r.status].mark} ${esc([r.zone && 'Zone ' + r.zone, r.niv].filter(Boolean).join(' · '))} — ${esc(r.element)}</span></label>`).join('')}</div>
+          const sh = sheet(`<div>${rows.map((r, j) => `<label class="selrow"><input type="checkbox" data-j="${j}"><span>${(REC_STATUS[r.status] || REC_STATUS.pending).mark} ${esc([r.zone && 'Zone ' + r.zone, r.niv].filter(Boolean).join(' · '))} — ${esc(r.element)}</span></label>`).join('')}</div>
             <div class="btnrow"><button class="btn ghost" data-a="c">Annuler</button><button class="btn" data-a="s">${icon('share')} Envoyer</button></div>`, { title: 'Choisir les ouvrages' });
           $$('[data-j]', sh.el).forEach(cb => cb.onchange = () => cb.checked ? sel.add(+cb.dataset.j) : sel.delete(+cb.dataset.j));
           $('[data-a=c]', sh.el).onclick = () => sh.close();
@@ -374,14 +380,14 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
           <datalist id="dl-niv">${NIVEAUX.map(n => `<option value="${n}">`).join('')}</datalist>
           <label>Élément<input name="element" value="${esc(r.element)}" placeholder="Ex : Voile CR 77 Axe D2"></label>
           ${isBeton(K) ? `<label>Classe béton<input name="classe" list="dl-classe" value="${esc(r.classe || '')}" placeholder="Ex : B30"></label><datalist id="dl-classe">${CLASSES.map(c => `<option value="${c}">`).join('')}</datalist>` : ''}
-          <div class="fld">Statut<div class="seg seg3">${Object.entries(REC_STATUS).map(([k, v]) => `<button type="button" data-st="${k}" class="${r.status === k ? 'on' : ''}" style="${r.status === k ? `background:${v.color}` : ''}">${stLabel(K, k)}</button>`).join('')}</div></div>
+          <div class="fld">Statut<div class="seg seg3">${statusesFor(K).map(k => [k, REC_STATUS[k]]).map(([k, v]) => `<button type="button" data-st="${k}" class="${r.status === k ? 'on' : ''}" style="${r.status === k ? `background:${v.color}` : ''}">${stLabel(K, k)}</button>`).join('')}</div></div>
           ${isBeton(K) ? '' : `<div class="fld">PV<div class="seg"><button type="button" data-pvr="1" class="${r.pvRecu ? 'on' : ''}" style="${r.pvRecu ? 'background:#16a34a' : ''}">PV reçu</button><button type="button" data-pvr="0" class="${!r.pvRecu ? 'on' : ''}" style="${!r.pvRecu ? 'background:#dc2626' : ''}">Pas encore</button></div></div>
           <label>Réceptionné avec<input name="avec" list="dl-avec" value="${esc(r.avec || '')}" placeholder="Nom (ex : M. Alaoui — BET)"></label><datalist id="dl-avec">${NAMES.map(n => `<option value="${esc(n)}">`).join('')}</datalist>`}
           <label>Observation ${r.status === 'reserve' ? '/ ' + resLabel(K).toLowerCase() : ''}<textarea name="obs" style="min-height:64px" placeholder="${r.status === 'reserve' ? (isBeton(K) ? 'Ex : ségrégation en pied de voile, nid de cailloux…' : 'Ex : cales manquantes côté axe D2') : 'Optionnel'}">${esc(r.obs)}</textarea></label>
-          <div class="fld">${r.status === 'reserve' ? (isBeton(K) ? 'Photos du défaut (ségrégation…)' : 'Photos de la réserve') : 'Photos'}</div>${thumbs(photos, 'photoIds')}
-          ${r.status === 'reserve' || r.retourIds.length ? `<div class="retour-box">
+          <div class="fld">${isBeton(K) ? 'Photos du défaut (ségrégation…) — si besoin' : r.status === 'reserve' ? 'Photos de la réserve' : 'Photos'}</div>${thumbs(photos, 'photoIds')}
+          ${r.status === 'reserve' || r.retourIds.length || (isBeton(K) && photos.length) ? `<div class="retour-box">
             <div class="fld">${isBeton(K) ? 'Photos de la réparation' : 'Photos du retour (levée de réserve)'}</div>${thumbs(retours, 'retourIds')}
-            ${r.status === 'reserve' ? `<button type="button" class="btn ${r.liftedAt ? 'ghost' : ''} small" data-a="lift" style="align-self:flex-start;margin-top:8px">${icon('check')} ${r.liftedAt ? `${isBeton(K) ? 'Réparé' : 'Réserve levée'} le ${recDateLabel(r.liftedAt)} (annuler)` : (isBeton(K) ? 'Marquer comme réparé' : 'Marquer la réserve levée')}</button>` : ''}
+            ${r.status === 'reserve' || (isBeton(K) && photos.length) ? `<button type="button" class="btn ${r.liftedAt ? 'ghost' : ''} small" data-a="lift" style="align-self:flex-start;margin-top:8px">${icon('check')} ${r.liftedAt ? `${isBeton(K) ? 'Réparé' : 'Réserve levée'} le ${recDateLabel(r.liftedAt)} (annuler)` : (isBeton(K) ? 'Marquer comme réparé' : 'Marquer la réserve levée')}</button>` : ''}
           </div>` : ''}
           <div class="fld">Croquis ${isBeton(K) ? '(partie bétonnée en couleur)' : '(partie réceptionnée en couleur)'}</div>
           <div class="sk-row">${r.croquisId ? `<img class="sk-thumb" data-a="skview">` : ''}<button type="button" class="btn ghost small" data-a="sketch">${icon('pen')} ${r.croquisId ? 'Modifier le croquis' : 'Dessiner un croquis'}</button>${r.croquisId ? `<button type="button" class="btn ghost small" data-a="skdel" style="flex:none">${icon('trash')}</button>` : ''}</div>
@@ -464,13 +470,14 @@ async function receptionPdf(p, day) {
       R.y += 8;
     };
     head();
-    const rows = day.rows.filter(r => r.element);
+    const rows = reportRows(K, day.rows);
     for (const r of rows) {
       doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
       const el = doc.splitTextToSize(pt(r.element), cols[2].w - 3), ob = doc.splitTextToSize(pt(r.obs || ''), cols[iOb].w - 3);
       const h = Math.max(8, Math.max(el.length, ob.length, isBeton(K) ? 1 : doc.splitTextToSize(pt(r.avec || ""), 23).length) * 4.4 + 3.5);
       if (R.y + h > 297 - 18) { doc.addPage(); R.header(); head(); }
       if (r.status === 'reserve') { doc.setFillColor(255, 243, 224); doc.rect(M, R.y, W - 2 * M, h, 'F'); }
+      if (r.status === 'progress') { doc.setFillColor(226, 236, 255); doc.rect(M, R.y, W - 2 * M, h, 'F'); }
       doc.rect(M, R.y, W - 2 * M, h);
       let x = M; cols.forEach(c => { x += c.w; doc.line(x, R.y, x, R.y + h); });
       doc.setTextColor(20, 20, 20); doc.setFont('helvetica', 'bold');
@@ -485,7 +492,7 @@ async function receptionPdf(p, day) {
         doc.splitTextToSize(pt(r.avec || ''), cols[iAv].w - 3).forEach((l, j) => doc.text(l, cx[iAv] + 1.5, R.y + 5.5 + j * 4.4));
       }
       if (isBeton(K)) { doc.setFont('helvetica', 'bold'); doc.text(pt(r.classe || ''), cx[3] + cols[3].w / 2, R.y + 5.5, { align: 'center' }); }
-      const st = REC_STATUS[r.status], c = hexRGB(st.color);
+      const st = REC_STATUS[r.status] || REC_STATUS.pending, c = hexRGB(st.color);
       doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...c);
       doc.text(pt(stLabel(K, r.status)), cx[iSt] + cols[iSt].w / 2, R.y + 5.5, { align: 'center' });
       if (r.status === 'reserve' && r.liftedAt) { doc.setTextColor(22, 163, 74); doc.text(pt(`${liftLabel(K)} le ${recDateLabel(r.liftedAt).slice(0, 5)}`), cx[iSt] + cols[iSt].w / 2, R.y + 9.6, { align: 'center' }); }
@@ -495,7 +502,8 @@ async function receptionPdf(p, day) {
     }
     R.y += 5;
     const ok = rows.filter(r => r.status === 'ok').length, rs = rows.filter(r => r.status === 'reserve').length;
-    R.text(`Total : ${rows.length} élément(s) · ${ok} ${stLabel(K, 'ok').toLowerCase()}(s) · ${rs} ${stLabel(K, 'reserve').toLowerCase()} · ${rows.length - ok - rs} ${stLabel(K, 'pending').toLowerCase()}(s)`, { size: 10, bold: true, gap: 4 });
+    if (isBeton(K)) R.text(`Total : ${rows.length} élément(s) · ${ok} bétonné(s) · ${rows.filter(r => r.status === 'progress').length} en cours`, { size: 10, bold: true, gap: 4 });
+    else R.text(`Total : ${rows.length} élément(s) · ${ok} ${stLabel(K, 'ok').toLowerCase()}(s) · ${rs} ${stLabel(K, 'reserve').toLowerCase()} · ${rows.length - ok - rs} ${stLabel(K, 'pending').toLowerCase()}(s)`, { size: 10, bold: true, gap: 4 });
     // photos
     const withPh = rows.filter(r => (r.photoIds || []).length || (r.retourIds || []).length || r.croquisId);
     if (withPh.length) {
@@ -539,7 +547,7 @@ async function receptionCsv(p, day) {
   const K = kindOf(day);
   const B = isBeton(K);
   const lines = [[p.pdfTitle || p.name], [recTitle(K), '', '', '', `Date ${recDateLabel(day.date)}`], ['Zone', 'NIV', recColHead(K), ...(B ? ['Classe béton'] : []), 'Statut', ...(B ? [] : ['PV', 'Réceptionné avec']), 'Observation'],
-    ...day.rows.filter(r => r.element).map(r => [r.zone, r.niv, r.element, ...(B ? [r.classe || ''] : []), stLabel(K, r.status) + (r.status === 'reserve' && r.liftedAt ? ` (${liftLabel(K).toLowerCase()} ${recDateLabel(r.liftedAt)})` : ''), ...(B ? [] : [r.pvRecu ? 'Reçu' : r.status !== 'pending' ? 'Manquant' : '', r.avec || '']), r.obs])];
+    ...reportRows(K, day.rows).map(r => [r.zone, r.niv, r.element, ...(B ? [r.classe || ''] : []), stLabel(K, r.status) + (r.status === 'reserve' && r.liftedAt ? ` (${liftLabel(K).toLowerCase()} ${recDateLabel(r.liftedAt)})` : ''), ...(B ? [] : [r.pvRecu ? 'Reçu' : r.status !== 'pending' ? 'Manquant' : '', r.avec || '']), r.obs])];
   const csv = '﻿' + lines.map(l => l.map(q).join(';')).join('\r\n');
   const fname = `${safeName(recTitle(K))}_${day.date}.csv`;
   const P = window.Capacitor?.Plugins || {};
@@ -615,7 +623,7 @@ async function sendToSheets(p0, day) {
     sheet: `${recDateLabel(day.date).slice(0, 5).replace('/', '-')} ${isBeton(kindOf(day)) ? 'Bétonnage' : 'Ferraillage'}`,
     title: recTitle(kindOf(day)) + ' (post jour)',
     head: ['Zone', 'NIV', recColHead(kindOf(day)), 'Statut', 'Observation'],
-    rows: day.rows.filter(r => r.element).map(r => [r.zone || '', r.niv || '', r.element + (isBeton(kindOf(day)) && r.classe ? ` (${r.classe})` : ''), stLabel(kindOf(day), r.status), r.obs || '']),
+    rows: reportRows(kindOf(day), day.rows).map(r => [r.zone || '', r.niv || '', r.element + (isBeton(kindOf(day)) && r.classe ? ` (${r.classe})` : ''), stLabel(kindOf(day), r.status), r.obs || '']),
   };
   const ld = loading('Envoi vers Google Sheets…');
   try {
