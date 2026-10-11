@@ -1028,33 +1028,33 @@ function navBack() {
   return false;
 }
 function initSwipeBack() {
-  const EDGE = 28, TRIGGER = 80;
-  let sx = 0, sy = 0, on = false, done = false, ind = null;
-  const show = (dx) => {
-    if (!ind) { ind = document.createElement('div'); ind.className = 'swipe-back'; ind.innerHTML = icon('chevright'); document.body.appendChild(ind); }
-    const k = Math.min(1, dx / TRIGGER);
-    ind.style.transform = `translate(${Math.min(dx, TRIGGER) - 44}px, -50%) rotate(180deg)`; ind.style.opacity = String(0.3 + k * 0.7);
-    ind.classList.toggle('ready', dx >= TRIGGER);
+  // glisser léger depuis le bord DROIT vers la gauche = retour
+  const EDGE = 36, TRIGGER = 45;
+  let sx = 0, sy = 0, t0 = 0, on = false, ind = null;
+  const W = () => window.innerWidth;
+  const show = (d) => {
+    if (!ind) { ind = document.createElement('div'); ind.className = 'swipe-back right'; ind.innerHTML = icon('chevright'); document.body.appendChild(ind); }
+    ind.style.transform = `translate(${44 - Math.min(d, TRIGGER + 10)}px, -50%) rotate(180deg)`; ind.style.opacity = String(0.35 + Math.min(1, d / TRIGGER) * 0.65);
+    ind.classList.toggle('ready', d >= TRIGGER);
   };
   const hide = () => { if (ind) { ind.remove(); ind = null; } };
   document.addEventListener('touchstart', (e) => {
-    const t = e.touches[0]; on = false; done = false;
-    if (e.touches.length !== 1 || t.clientX > EDGE) return;
+    on = false; const t = e.touches[0];
+    if (e.touches.length !== 1 || t.clientX < W() - EDGE) return;
     if (document.querySelector('.viewer')) return;            // pas sur le plan (dessin, déplacement)
     if (!App.project && !BackStack.length) return;           // accueil = dernière page
-    sx = t.clientX; sy = t.clientY; on = true;
+    sx = t.clientX; sy = t.clientY; t0 = Date.now(); on = true;
   }, { passive: true });
   document.addEventListener('touchmove', (e) => {
     if (!on) return;
-    const t = e.touches[0], dx = t.clientX - sx, dy = Math.abs(t.clientY - sy);
-    if (dy > 60 && dy > dx) { on = false; hide(); return; }
-    if (dx > 10) show(dx);
+    const t = e.touches[0], d = sx - t.clientX, dy = Math.abs(t.clientY - sy);
+    if (dy > 50 && dy > d) { on = false; hide(); return; }
+    if (d > 6) show(d);
   }, { passive: true });
   document.addEventListener('touchend', (e) => {
-    if (!on) return; on = false;
-    const t = e.changedTouches[0], dx = t.clientX - sx;
-    hide();
-    if (dx >= TRIGGER && !done) { done = true; navBack(); }
+    if (!on) return; on = false; hide();
+    const t = e.changedTouches[0], d = sx - t.clientX, dy = Math.abs(t.clientY - sy), dt = Date.now() - t0;
+    if ((d >= TRIGGER || (d >= 22 && dt < 250)) && dy < 60) navBack();
   }, { passive: true });
   document.addEventListener('touchcancel', () => { on = false; hide(); }, { passive: true });
 }

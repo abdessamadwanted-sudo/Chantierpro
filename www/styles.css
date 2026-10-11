@@ -405,3 +405,14 @@ table.rec tbody tr { -webkit-user-select:none; user-select:none; -webkit-touch-c
 .swipe-back { position: fixed; left: 0; top: 50%; width: 44px; height: 44px; border-radius: 50%; background: #2b3240; color: #fff; display: grid; place-items: center;
   z-index: 200; box-shadow: 0 4px 14px rgba(0,0,0,.4); pointer-events: none; transition: background .15s; }
 .swipe-back.ready { background: var(--accent, #4f8ef7); }
+.fbar { display: flex; gap: 10px; padding: 10px 16px 2px; align-items: stretch; }
+.fsel { flex: 1; display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; text-align: left; background: var(--card, #262a33); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; color: var(--text, #e5e7eb); min-width: 0; }
+.fsel small { grid-column: 1; font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.fsel b { grid-column: 1; font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fsel svg.i { grid-column: 2; grid-row: 1 / 3; align-self: center; width: 20px; height: 20px; color: var(--muted); }
+.fsel.on { border-color: #4f8ef7; background: rgba(79,142,247,.14); } .fsel.on b { color: #8fb6ff; }
+.fclear { flex: none; width: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--card, #262a33); color: var(--muted); display: grid; place-items: center; }
+table.rec tr.flash td { animation: recflash 1.2s ease-in-out 3; background: #fde68a !important; }
+@keyframes recflash { 0%, 100% { background: #fde68a; } 50% { background: #fbbf24; } }
+.swipe-back.right { left: auto; right: 0; }
+.fbar + .chips.niv { margin-top: 6px; }

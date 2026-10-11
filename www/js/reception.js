@@ -110,6 +110,9 @@ async function renderReceptions(root, kind = 'Ferraillage') {
   const q = (App.recSearch[kind] || '').trim().toLowerCase();
   App.recNiv = App.recNiv || {}; const nivF = App.recNiv[kind] || '';
   const nivs = [...new Set(all.flatMap(d => d.rows.map(r => (r.niv || '').trim()).filter(Boolean)))].sort((a, b) => { const ia = NIVEAUX.findIndex(n => n.toLowerCase() === a.toLowerCase()), ib = NIVEAUX.findIndex(n => n.toLowerCase() === b.toLowerCase()); return ((ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib)) || a.localeCompare(b); });
+  App.recZone = App.recZone || {}; const zoneF = App.recZone[kind] || '';
+  const zonesL = [...new Set(all.flatMap(d => d.rows.map(r => String(r.zone || '').trim()).filter(Boolean)))].sort((a, b) => (parseFloat(a) - parseFloat(b)) || a.localeCompare(b));
+  const match = (r) => (!nivF || (r.niv || '').trim() === nivF) && (!zoneF || String(r.zone || '').trim() === zoneF);
   App.recPv = App.recPv || {}; const pvF = !isBeton(kind) && App.recPv[kind];
   const nMiss = isBeton(kind) ? 0 : all.reduce((a, d) => a + d.rows.filter(pvMissing).length, 0);
   const tba = $('#tbActions');
@@ -117,16 +120,30 @@ async function renderReceptions(root, kind = 'Ferraillage') {
 
   root.innerHTML = `<div style="height:8px"></div>
     <div class="search">${icon('search')}<input placeholder="Rechercher un ouvrage (ex : CR 77, voile…)" value="${esc(App.recSearch[kind] || '')}"></div>
-    ${nivs.length ? `<div class="chips niv"><button class="chip ${!nivF ? 'on' : ''}" data-niv="">Tous niveaux</button>${nivs.map(n => `<button class="chip ${nivF === n ? 'on' : ''}" data-niv="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : ''}
+    <div class="fbar">
+      <button class="fsel ${nivF ? 'on' : ''}" data-f="niv"><small>Niveau</small><b>${esc(nivF || 'Tous')}</b>${icon('chevdown')}</button>
+      <button class="fsel ${zoneF ? 'on' : ''}" data-f="zone"><small>Zone</small><b>${esc(zoneF ? 'Zone ' + zoneF : 'Toutes')}</b>${icon('chevdown')}</button>
+      ${nivF || zoneF ? `<button class="fclear" data-f="clear" title="Effacer">${icon('close')}</button>` : ''}
+    </div>
     ${!isBeton(kind) && (nMiss || pvF) ? `<div class="chips niv"><button class="chip pvchip ${pvF ? 'on' : ''}" data-a="pvf">🔔 PV non reçus <b>${nMiss}</b></button></div>` : ''}
     <div id="recBody"></div>`;
   const pvb = $('[data-a=pvf]', root); if (pvb) pvb.onclick = () => { App.recPv[kind] = !pvF; renderReceptions(root, kind); };
-  $$('[data-niv]', root).forEach(b => b.onclick = () => { App.recNiv[kind] = b.dataset.niv; renderReceptions(root, kind); });
+  $$('[data-f]', root).forEach(b => b.onclick = async () => {
+    const f = b.dataset.f;
+    if (f === 'clear') { App.recNiv[kind] = ''; App.recZone[kind] = ''; return renderReceptions(root, kind); }
+    const list = f === 'niv' ? nivs : zonesL, cur = f === 'niv' ? nivF : zoneF;
+    const v = await menu(f === 'niv' ? 'Filtrer par niveau' : 'Filtrer par zone', [
+      { label: f === 'niv' ? 'Tous les niveaux' : 'Toutes les zones', icon: cur ? 'layers' : 'check', value: '__all' },
+      ...list.map(x => ({ label: f === 'niv' ? x : 'Zone ' + x, icon: cur === x ? 'check' : (f === 'niv' ? 'layers' : 'pin'), value: x }))]);
+    if (v == null) return;
+    (f === 'niv' ? App.recNiv : App.recZone)[kind] = v === '__all' ? '' : v;
+    renderReceptions(root, kind);
+  });
   const body = $('#recBody', root);
 
   if (pvF) {
     const hits = [];
-    for (const d of all) d.rows.forEach(r => { if (pvMissing(r) && (!nivF || (r.niv || '').trim() === nivF) && (!q || `${r.element} ${r.zone} ${r.niv} ${r.avec}`.toLowerCase().includes(q))) hits.push({ d, r }); });
+    for (const d of all) d.rows.forEach(r => { if (pvMissing(r) && match(r) && (!q || `${r.element} ${r.zone} ${r.niv} ${r.avec}`.toLowerCase().includes(q))) hits.push({ d, r }); });
     body.innerHTML = hits.length ? `<div class="section-label">${hits.length} PV pas encore reçu(s)</div><div class="list">${hits.map(({ d, r }, i) => `
       <div class="row pvrow" data-h="${i}"><div class="grow"><div class="title wrap">${r.zone ? 'Zone ' + esc(r.zone) + ' · ' : ''}${r.niv ? esc(r.niv) + ' — ' : ''}${esc(r.element)}</div>
         <div class="sub">📅 Réceptionné le ${fmtDate(d.date)}${r.avec ? ' · avec ' + esc(r.avec) : ''} · <span style="white-space:nowrap;color:${daysSince(d.date) >= 3 ? '#ef4444' : '#f59e0b'}">${daysSince(d.date) ? 'attente ' + daysSince(d.date) + ' j' : 'aujourd\'hui'}</span></div></div>
@@ -135,22 +152,22 @@ async function renderReceptions(root, kind = 'Ferraillage') {
     $$('[data-h]', body).forEach(el => el.onclick = async (e) => {
       const { d, r } = hits[+el.dataset.h];
       if (e.target.closest('[data-ok]')) { r.pvRecu = true; await DB.put('receptions', d); toast('PV marqué reçu'); return renderReceptions(root, kind); }
-      await openReceptionDay(d); renderReceptions(root, kind);
+      await openReceptionDay(d, { focus: r.id }); renderReceptions(root, kind);
     });
-  } else if (q || nivF) {
+  } else if (q || nivF || zoneF) {
     // Résultats de recherche : où et quand l'ouvrage a été réceptionné
     const hits = [];
-    for (const d of all) d.rows.forEach(r => { if (r.element && (!nivF || (r.niv || '').trim() === nivF) && (!q || `${r.element} ${r.zone} ${r.niv} ${r.obs}`.toLowerCase().includes(q))) hits.push({ d, r }); });
+    for (const d of all) d.rows.forEach(r => { if (r.element && match(r) && (!q || `${r.element} ${r.zone} ${r.niv} ${r.obs}`.toLowerCase().includes(q))) hits.push({ d, r }); });
     body.innerHTML = hits.length ? `<div class="section-label">${hits.length} résultat(s)</div><div class="list">${hits.map(({ d, r }, i) => `
       <div class="row" data-h="${i}"><span class="rs" style="background:${REC_STATUS[r.status].color};min-width:74px;text-align:center">${stLabel(kind, r.status)}</span>
         <div class="grow"><div class="title wrap">${esc(r.element)}</div>
         <div class="sub">📅 ${fmtDate(d.date)}${r.zone ? ' · Zone ' + esc(r.zone) : ''}${r.niv ? ' · ' + esc(r.niv) : ''}${r.classe ? ' · ' + esc(r.classe) : ''}${r.avec ? ' · avec ' + esc(r.avec) : ''}${!isBeton(kind) && r.status !== 'pending' ? (r.pvRecu ? ' · <span style="color:#22c55e">PV reçu</span>' : ' · <span style="color:#ef4444">PV manquant</span>') : ''}${r.obs ? `<br><span style="color:${r.status === 'reserve' ? '#f59e0b' : 'var(--muted)'}">${esc(r.obs)}</span>` : ''}</div></div>
         <button class="iconbtn" data-sh="${i}">${icon('share')}</button></div>`).join('')}</div>`
-      : `<div class="empty">Aucun ouvrage trouvé${q ? ` pour « ${esc(q)} »` : ''}${nivF ? ` au niveau ${esc(nivF)}` : ''}.</div>`;
+      : `<div class="empty">Aucun ouvrage trouvé${q ? ` pour « ${esc(q)} »` : ''}${nivF ? ` au niveau ${esc(nivF)}` : ''}${zoneF ? ` en zone ${esc(zoneF)}` : ''}.</div>`;
     $$('[data-h]', body).forEach(el => el.onclick = async (e) => {
       const { d, r } = hits[+el.dataset.h];
       if (e.target.closest('[data-sh]')) return shareRow(p, d, r);
-      await openReceptionDay(d); renderReceptions(root, kind);
+      await openReceptionDay(d, { focus: r.id }); renderReceptions(root, kind);
     });
   } else if (!all.length) {
     body.innerHTML = `<div class="empty">Aucun tableau pour le moment.<br>Appuyez sur <b>+</b> pour créer le tableau du jour.</div>`;
@@ -209,7 +226,8 @@ async function renderReceptions(root, kind = 'Ferraillage') {
 }
 
 // ---------- Tableau d'un jour ----------
-function openReceptionDay(day) {
+function openReceptionDay(day, opts = {}) {
+  let focusId = opts.focus || null;
   return new Promise(async (resolve) => {
     const p = await DB.get('projects', day.projectId);
     const el = document.createElement('div'); el.className = 'fullpage'; document.body.appendChild(el);
@@ -273,6 +291,11 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
       })();
       $('[data-a=back]', el).onclick = () => { unBack(); finish(); };
       $('[data-a=add]', el).onclick = () => editRow(null);
+      if (focusId) {
+        const fi = day.rows.findIndex(x => x.id === focusId); focusId = null;
+        const ftr = fi >= 0 && $(`tbody tr[data-i="${fi}"]`, el);
+        if (ftr) { ftr.classList.add('flash'); setTimeout(() => ftr.scrollIntoView({ block: 'center', inline: 'nearest' }), 60); setTimeout(() => ftr.classList.remove('flash'), 4000); }
+      }
       $$('tbody tr[data-i]', el).forEach(tr => {
         let t = null, lp = false;
         tr.addEventListener('pointerdown', () => { lp = false; clearTimeout(t); t = setTimeout(() => { lp = true; moveSel = +tr.dataset.i; try { navigator.vibrate && navigator.vibrate(25); } catch (e) {} render(); }, 500); });
