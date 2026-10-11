@@ -150,11 +150,29 @@ async function renderReceptions(root, kind = 'Ferraillage') {
   if (pvF) {
     const hits = [];
     for (const d of all) d.rows.forEach(r => { if (pvMissing(r) && match(r) && (!q || `${r.element} ${r.zone} ${r.niv} ${r.avec}`.toLowerCase().includes(q))) hits.push({ d, r }); });
-    body.innerHTML = hits.length ? `<div class="section-label">${hits.length} PV pas encore reçu(s)</div><div class="list">${hits.map(({ d, r }, i) => `
-      <div class="row pvrow" data-h="${i}"><div class="grow"><div class="title wrap">${r.zone ? 'Zone ' + esc(r.zone) + ' · ' : ''}${r.niv ? esc(r.niv) + ' — ' : ''}${esc(r.element)}</div>
-        <div class="sub">📅 Réceptionné le ${fmtDate(d.date)}${r.avec ? ' · avec ' + esc(r.avec) : ''} · <span style="white-space:nowrap;color:${daysSince(d.date) >= 3 ? '#ef4444' : '#f59e0b'}">${daysSince(d.date) ? 'attente ' + daysSince(d.date) + ' j' : 'aujourd\'hui'}</span></div></div>
-        <button class="btn small" data-ok="${i}" style="flex:none">${icon('check')} Reçu</button></div>`).join('')}</div>`
+    // regroupés par jour de réception, repliables
+    const days = []; for (const h of hits) { let g = days.find(x => x.d.id === h.d.id); if (!g) days.push(g = { d: h.d, l: [] }); g.l.push(h); }
+    App.pvOpen = App.pvOpen || {};
+    if (days.length && !Object.keys(App.pvOpen).length) App.pvOpen[days[0].d.id] = true;
+    body.innerHTML = hits.length ? `<div class="section-label">${hits.length} PV pas encore reçu(s) · ${days.length} jour(s)</div>
+      ${days.map(g => { const open = !!App.pvOpen[g.d.id], n = daysSince(g.d.date);
+        return `<div class="pvday ${open ? 'open' : ''}">
+          <button class="pvday-h" data-day="${g.d.id}"><span class="daybox"><b>${(g.d.date || '').slice(8, 10)}</b><small>${MONTHS[+(g.d.date || '0-01').slice(5, 7) - 1].slice(0, 3)}</small></span>
+            <div class="grow"><div class="t">${fmtDate(g.d.date)}</div><div class="s">${g.l.length} PV à récupérer · <span style="color:${n >= 3 ? '#ef4444' : '#f59e0b'}">${n ? 'attente ' + n + ' j' : 'aujourd\'hui'}</span></div></div>
+            <span class="pvday-n">${g.l.length}</span><span class="chev">${icon('chevdown')}</span></button>
+          ${open ? `<div class="pvday-b">${g.l.map(({ r }) => { const i = hits.findIndex(h => h.r === r);
+            return `<div class="row pvrow" data-h="${i}"><div class="grow"><div class="title wrap">${r.zone ? 'Zone ' + esc(r.zone) + ' · ' : ''}${r.niv ? esc(r.niv) + ' — ' : ''}${esc(r.element)}</div>
+              ${r.avec ? `<div class="sub">avec ${esc(r.avec)}</div>` : ''}</div>
+              <button class="btn small" data-ok="${i}" style="flex:none">${icon('check')} Reçu</button></div>`; }).join('')}
+            ${g.l.length > 1 ? `<button class="pvday-all" data-allday="${g.d.id}">${icon('check')} Tous les PV du ${fmtDate(g.d.date)} reçus</button>` : ''}</div>` : ''}
+        </div>`; }).join('')}`
       : `<div class="empty">Tous les PV ont été reçus 👍</div>`;
+    $$('[data-day]', body).forEach(h => h.onclick = () => { const id = h.dataset.day; App.pvOpen[id] = !App.pvOpen[id]; renderReceptions(root, kind); });
+    $$('[data-allday]', body).forEach(btn => btn.onclick = async () => {
+      const g = days.find(x => x.d.id === btn.dataset.allday);
+      if (!await confirmBox(`Marquer les ${g.l.length} PV du ${fmtDate(g.d.date)} comme reçus ?`, 'Oui, reçus')) return;
+      g.l.forEach(({ r }) => { r.pvRecu = true; }); await DB.put('receptions', g.d); toast('PV marqués reçus'); renderReceptions(root, kind);
+    });
     $$('[data-h]', body).forEach(el => el.onclick = async (e) => {
       const { d, r } = hits[+el.dataset.h];
       if (e.target.closest('[data-ok]')) { r.pvRecu = true; await DB.put('receptions', d); toast('PV marqué reçu'); return renderReceptions(root, kind); }
