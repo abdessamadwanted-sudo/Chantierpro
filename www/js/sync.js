@@ -101,6 +101,43 @@ const Sync = (() => {
   const b64 = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
   const fromB64 = (s, type) => { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type }); };
 
+  // ---------- espace sur le téléphone ----------
+  // keep : 'all' = tout garder · 'plans' = plans + photos des 7 derniers jours · 'min' = seulement les plans · 'cloud' = rien (tout dans Drive)
+  const keepMode = () => LS.get('keep', 'plans');
+  const isPlan = (f) => f.role === 'plan' || f.role === 'plansrc';
+  function wantLocal(f, mode = keepMode()) {
+    if (mode === 'all') return true;
+    if (f.role === 'croquis') return true;                                   // petits
+    if (f.lastUsed && Date.now() - f.lastUsed < 2 * 864e5) return true;      // ouvert récemment
+    if (isPlan(f)) return mode !== 'cloud';
+    if (mode === 'plans') return Date.now() - (f.createdAt || 0) < 7 * 864e5;
+    return false;
+  }
+  async function freeSpace() {
+    if (!enabled()) return 0;
+    let freed = 0;
+    for (const f of await DB.all('files')) {
+      if (f.blob && f.driveId && f.drivePath && !wantLocal(f)) { freed += f.blob.size || 0; f.blob = null; BlobURL.drop(f.id); await DB.putRaw('files', f); }
+    }
+    return freed;
+  }
+  const pending = new Map();
+  async function fetchBlob(f) {                                               // téléchargement à la demande depuis Drive
+    if (!f || f.blob || !f.driveId || !enabled()) return f;
+    if (!pending.has(f.id)) pending.set(f.id, (async () => {
+      try { const d = await call('download', { id: f.driveId }); f.blob = fromB64(d.b64, f.mime || d.mime); f.lastUsed = Date.now(); await DB.putRaw('files', f); }
+      catch (e) { console.warn('fetch', e); }
+      finally { pending.delete(f.id); }
+      return f;
+    })());
+    return pending.get(f.id);
+  }
+  // DB.get / DB.byProject sur « files » : si le fichier n'est plus sur le téléphone, on le reprend dans Drive
+  const _get = DB.get.bind(DB), _byP = DB.byProject.bind(DB);
+  DB.get = async (store, id) => { const r = await _get(store, id); if (store === 'files' && r && !r.blob && r.driveId) { await fetchBlob(r); } return r; };
+  DB.byProject = async (store, pid) => { const l = await _byP(store, pid); if (store === 'files') await Promise.all(l.filter(f => !f.blob && f.driveId).slice(0, 40).map(fetchBlob)); return l; };
+  async function usage() { let local = 0, n = 0, cloud = 0; for (const f of await DB.all('files')) { if (f.blob) { local += f.blob.size || 0; n++; } else if (f.driveId) cloud++; } return { local, n, cloud }; }
+
   // ---------- synchronisation ----------
   async function run({ quiet = false, force = false } = {}) {
     if (!enabled()) return;
@@ -113,7 +150,7 @@ const Sync = (() => {
       // 1) envoyer les fichiers (photos, plans, PDF…) dans des dossiers rangés
       const paths = await buildPaths();
       const files = await DB.all('files');
-      const todo = files.filter(f => f.blob && (!f.driveId || f.drivePath !== JSON.stringify(pathFor(f, paths))));
+      const todo = files.filter(f => (f.blob && (!f.driveId || f.drivePath !== JSON.stringify(pathFor(f, paths)))) || (!f.blob && f.driveId && f.drivePath && f.drivePath !== JSON.stringify(pathFor(f, paths))));
       let i = 0;
       for (const f of todo) {
         i++; setStatus('sync', `Envoi vers Drive ${i}/${todo.length}`);
@@ -121,6 +158,7 @@ const Sync = (() => {
         let res = null;
         try {
           if (f.driveId) { try { res = await call('upload', { driveId: f.driveId, path: pth.segs, name: pth.name }); } catch (e) { res = null; } }
+          if (!res && !f.blob) continue;
           if (!res) res = await call('upload', { path: pth.segs, name: pth.name, mime: f.mime || f.blob.type, b64: await b64(f.blob) });
           f.driveId = res.id; f.drivePath = key;
           await DB.put('files', f);
@@ -147,13 +185,15 @@ const Sync = (() => {
       }
       LS.set('pullAt', pull.now);
       // 4) télécharger les fichiers manquants (plans d'abord)
-      const missing = (await DB.all('files')).filter(f => f.driveId && !f.blob).sort((a, b) => (b.role === 'plan') - (a.role === 'plan'));
+      const missing = (await DB.all('files')).filter(f => f.driveId && !f.blob && wantLocal(f)).sort((a, b) => (b.role === 'plan') - (a.role === 'plan'));
       let j = 0;
       for (const f of missing) {
         j++; setStatus('sync', `Téléchargement ${j}/${missing.length}`);
         try { const d = await call('download', { id: f.driveId }); f.blob = fromB64(d.b64, f.mime || d.mime); await DB.putRaw('files', f); pulledCount++; }
         catch (e) { console.warn('download', f.id, e); }
       }
+      // 4b) libérer l'espace du téléphone (fichiers déjà dans Drive)
+      await freeSpace();
       // 5) documents lisibles dans Drive (PDF des tableaux, réserves, rapports)
       if (force || Date.now() - LS.get('docsAt', 0) > 90000) { await syncDocs(); LS.set('docsAt', Date.now()); }
       st.last = Date.now(); LS.set('last', st.last);
@@ -333,6 +373,16 @@ function doPost(e) {
         <div class="sync-card"><div class="cl">☁</div><div class="grow"><b>Google Drive connecté</b><div data-syncstate>${statusLine()}</div></div></div>
         <div class="muted" style="font-size:13.5px;line-height:1.55">Tout est rangé dans <b>Mon Drive › Chantier Pro › (projet)</b> : Plans par niveau, Réception ferraillage et Programme de bétonnage par mois et par jour (Réserves, Retours, PV du jour), Réserves, Photos…<br>La synchro se fait toute seule (après chaque modification, à l'ouverture et toutes les 2 minutes).</div>
         <div class="sync-diag" data-syncdiag>…</div>
+        <div class="keep-box"><div class="fld">Garder sur le téléphone</div>
+          <select data-keep>
+            <option value="all">Tout (plus d'espace utilisé)</option>
+            <option value="plans">Plans + photos des 7 derniers jours (conseillé)</option>
+            <option value="min">Seulement les plans</option>
+            <option value="cloud">Rien — tout reste dans Drive (internet nécessaire)</option>
+          </select>
+          <div class="keep-use" data-use>…</div>
+          <button class="btn ghost small" data-a="free">${icon('trash')} Libérer de l'espace maintenant</button>
+          <div class="muted" style="font-size:12.5px;line-height:1.5">Les fichiers libérés restent dans Drive et se téléchargent tout seuls quand vous les ouvrez.</div></div>
         <button class="btn" data-a="now">${icon('undo')} Synchroniser maintenant</button>
         ${c.folder ? `<button class="btn ghost" data-a="open">${icon('drive')} Ouvrir le dossier dans Drive</button>` : ''}
         <button class="btn ghost" data-a="code">${icon('phone')} Copier le code de connexion (PC / autre téléphone)</button>
@@ -352,6 +402,12 @@ function doPost(e) {
           ${fl.length ? `<div style="color:#ef4444;margin-top:6px"><b>Erreurs :</b><br>${fl.map(esc).join('<br>')}</div>` : '<div style="color:#22c55e">Aucune erreur</div>'}`;
       }
       diag();
+      const mb = (b) => (b / 1048576).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' Mo';
+      const showUse = async () => { const u = await usage(); const e = $('[data-use]', s.el); if (e) e.innerHTML = `📱 Sur le téléphone : <b>${mb(u.local)}</b> (${u.n} fichiers) · ☁ seulement dans Drive : <b>${u.cloud}</b>`; };
+      const ks = $('[data-keep]', s.el); ks.value = keepMode();
+      ks.onchange = async () => { LS.set('keep', ks.value); const fr = await freeSpace(); showUse(); toast(fr ? `${mb(fr)} libérés ✓` : 'Enregistré ✓'); };
+      $('[data-a=free]', s.el).onclick = async () => { const ld = loading('Libération…'); const fr = await freeSpace(); ld.close(); showUse(); toast(fr ? `${mb(fr)} libérés ✓` : 'Rien à libérer (fichiers pas encore envoyés ?)'); };
+      showUse();
       const o = $('[data-a=open]', s.el); if (o) o.onclick = () => openUrl(c.folder);
       $('[data-a=code]', s.el).onclick = () => copy(codeOf(c));
       $('[data-a=script]', s.el).onclick = () => copy(script(c.key));
