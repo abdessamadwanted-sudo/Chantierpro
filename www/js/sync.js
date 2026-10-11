@@ -103,6 +103,9 @@ const Sync = (() => {
   const b64 = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
   const fromB64 = (s, type) => { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type }); };
 
+  // exécute fn sur la liste avec N envois en parallèle (plus rapide qu'un par un)
+  async function pool(list, n, fn) { let i = 0; await Promise.all(Array.from({ length: Math.min(n, list.length) }, async () => { while (i < list.length) { const k = i++; await fn(list[k], k); } })); }
+
   // ---------- espace sur le téléphone ----------
   // keep : 'all' = tout garder · 'plans' = plans + photos des 7 derniers jours · 'min' = seulement les plans · 'cloud' = rien (tout dans Drive)
   const keepMode = () => LS.get('keep', 'plans');
@@ -137,7 +140,7 @@ const Sync = (() => {
   // DB.get / DB.byProject sur « files » : si le fichier n'est plus sur le téléphone, on le reprend dans Drive
   const _get = DB.get.bind(DB), _byP = DB.byProject.bind(DB);
   DB.get = async (store, id) => { const r = await _get(store, id); if (store === 'files' && r && !r.blob && r.driveId) { await fetchBlob(r); } return r; };
-  DB.byProject = async (store, pid) => { const l = await _byP(store, pid); if (store === 'files') await Promise.all(l.filter(f => !f.blob && f.driveId).slice(0, 40).map(fetchBlob)); return l; };
+  DB.byProject = async (store, pid) => { const l = await _byP(store, pid); if (store === 'files') await pool(l.filter(f => !f.blob && f.driveId).slice(0, 40), 4, fetchBlob); return l; };
   async function usage() { let local = 0, n = 0, cloud = 0; for (const f of await DB.all('files')) { if (f.blob) { local += f.blob.size || 0; n++; } else if (f.driveId) cloud++; } return { local, n, cloud }; }
 
   // ---------- synchronisation ----------
@@ -154,18 +157,18 @@ const Sync = (() => {
       const files = await DB.all('files');
       const todo = files.filter(f => (f.blob && (!f.driveId || f.drivePath !== JSON.stringify(pathFor(f, paths)))) || (!f.blob && f.driveId && f.drivePath && f.drivePath !== JSON.stringify(pathFor(f, paths))));
       let i = 0;
-      for (const f of todo) {
-        i++; setStatus('sync', `Envoi vers Drive ${i}/${todo.length}`);
+      await pool(todo, 3, async (f) => {
         const pth = pathFor(f, paths), key = JSON.stringify(pth);
         let res = null;
         try {
           if (f.driveId) { try { res = await call('upload', { driveId: f.driveId, path: pth.segs, name: pth.name }); } catch (e) { res = null; } }
-          if (!res && !f.blob) continue;
+          if (!res && !f.blob) return;
           if (!res) res = await call('upload', { path: pth.segs, name: pth.name, mime: f.mime || f.blob.type, b64: await b64(f.blob) });
           f.driveId = res.id; f.drivePath = key;
           await DB.put('files', f);
         } catch (e) { fails.push(`${pth.name} : ${e.message || e}`); }
-      }
+        finally { i++; setStatus('sync', `Envoi vers Drive ${i}/${todo.length}`); }
+      });
       // 2) envoyer les données modifiées (tableaux, pins, tâches…)
       const since = LS.get('pushAt', 0), start = Date.now();
       const out = [];
@@ -179,7 +182,7 @@ const Sync = (() => {
       for (const r of pull.records || []) {
         const store = r._store; if (!DATA.includes(store)) continue;
         const { _store, _srv, _deleted, ...rec } = r;
-        const local = await DB.get(store, rec.id);
+        const local = await _get(store, rec.id);   // sans téléchargement automatique
         if (_deleted) { if (local && (local.updatedAt || 0) <= (r.updatedAt || 0)) { await DB.delRaw(store, rec.id); BlobURL.drop(rec.id); pulledCount++; } continue; }
         if (local && (local.updatedAt || 0) >= (rec.updatedAt || 0)) continue;
         if (store === 'files' && local && local.blob && local.driveId === rec.driveId) rec.blob = local.blob;
@@ -189,15 +192,15 @@ const Sync = (() => {
       // 4) télécharger les fichiers manquants (plans d'abord)
       const missing = (await DB.all('files')).filter(f => f.driveId && !f.blob && wantLocal(f)).sort((a, b) => (b.role === 'plan') - (a.role === 'plan'));
       let j = 0;
-      for (const f of missing) {
-        j++; setStatus('sync', `Téléchargement ${j}/${missing.length}`);
+      await pool(missing, 4, async (f) => {
         try { const d = await call('download', { id: f.driveId }); f.blob = fromB64(d.b64, f.mime || d.mime); await DB.putRaw('files', f); pulledCount++; }
         catch (e) { console.warn('download', f.id, e); }
-      }
+        finally { j++; setStatus('sync', `Téléchargement ${j}/${missing.length}`); }
+      });
       // 4b) libérer l'espace du téléphone (fichiers déjà dans Drive)
       await freeSpace();
       // 5) documents lisibles dans Drive (PDF des tableaux, réserves, rapports)
-      if (force || Date.now() - LS.get('docsAt', 0) > 90000) { await syncDocs(); LS.set('docsAt', Date.now()); }
+      if (force || Date.now() - LS.get('docsAt', 0) > 600000) { await syncDocs(); LS.set('docsAt', Date.now()); }
       st.last = Date.now(); LS.set('last', st.last);
       LS.set('fails', fails.slice(0, 20));
       if (fails.length) setStatus('error', `${fails.length} fichier(s) non envoyé(s) — touchez pour voir`); else setStatus('ok');
@@ -254,7 +257,7 @@ const Sync = (() => {
         await call('push', { records: [{ _store: 'gen', id: k + ':' + Date.now(), driveId: docs[k].id, _deleted: true, updatedAt: Date.now() }] });
         delete docs[k]; dirty = true;
       }
-      if (dirty) { const cur = await DB.get('projects', p.id); if (cur) { cur.driveDocs = docs; await DB.put('projects', cur); } }
+      if (dirty) { const cur = await _get('projects', p.id); if (cur) { cur.driveDocs = docs; await DB.put('projects', cur); } }
     }
   }
 
@@ -264,7 +267,7 @@ const Sync = (() => {
     DB.onChange = () => schedule();
     if (!enabled()) return;
     setStatus('ok');
-    setTimeout(() => run({ quiet: true }), 1200);
+    setTimeout(() => (window.requestIdleCallback || setTimeout)(() => run({ quiet: true }), { timeout: 3000 }), 2500);
     clearInterval(autoT); autoT = setInterval(() => { if (document.visibilityState === 'visible') run({ quiet: false }); }, 120000);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') schedule(800); });
     window.addEventListener('online', () => schedule(800));

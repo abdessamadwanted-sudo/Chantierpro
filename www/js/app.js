@@ -242,12 +242,13 @@ async function renderPlans(root) {
       const grid = $('.plan-grid, .plan-rows', card);
       for (const p of ps) {
         const t = document.createElement('div');
-        const n = openCount(p.id), src = await fileURL(p.fileId);
-        if (App.planView === 'grid') { t.className = 'ptile'; t.innerHTML = `<div class="im"><img src="${src}" loading="lazy"></div><div class="nm">${esc(p.name)}</div>${n ? `<span class="badge">${n}</span>` : ''}`; }
+        const n = openCount(p.id);
+        if (App.planView === 'grid') { t.className = 'ptile'; t.innerHTML = `<div class="im"><img data-thumb="${p.fileId}" alt=""></div><div class="nm">${esc(p.name)}</div>${n ? `<span class="badge">${n}</span>` : ''}`; }
         else { t.className = 'prow'; t.innerHTML = `<span class="pic">${icon('sheet')}</span><div class="nm">${esc(p.name)}</div>${n ? `<span class="badge">${n}</span>` : ''}`; }
         t.onclick = () => openPlanViewer(p, planCtx(() => renderPlans(root)));
         grid.appendChild(t);
       }
+      Thumbs.fill(grid);
       const add = document.createElement('div');
       add.className = App.planView === 'grid' ? 'ptile add' : 'prow';
       add.innerHTML = App.planView === 'grid' ? `${icon('plus')}<span>Ajouter un plan</span>` : `<span class="pic" style="color:var(--accent)">${icon('plus')}</span><div class="nm" style="color:var(--accent)">Ajouter un plan</div>`;
@@ -1115,10 +1116,10 @@ async function openPlansQuick() {
     for (const g of groups) {
       const ps = plans.filter(p => (p.folderId || null) === g.id && match(p)).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'fr', { numeric: true }));
       if (!ps.length) continue;
-      html.push(`<div class="pq-h">${icon('folder')} ${esc(g.name)} <span>${ps.length}</span></div><div class="pq-grid">${ps.map(p => `<button class="pq-t" data-p="${p.id}"><span class="pq-img"><img data-f="${p.fileId}"></span><span class="pq-n">${esc(p.name)}</span></button>`).join('')}</div>`);
+      html.push(`<div class="pq-h">${icon('folder')} ${esc(g.name)} <span>${ps.length}</span></div><div class="pq-grid">${ps.map(p => `<button class="pq-t" data-p="${p.id}"><span class="pq-img"><img data-thumb="${p.fileId}" alt=""></span><span class="pq-n">${esc(p.name)}</span></button>`).join('')}</div>`);
     }
     $('.pq-body', el).innerHTML = html.join('') || `<div class="empty">${plans.length ? 'Aucun plan trouvé' : 'Aucun plan dans ce projet.<br>Ajoutez-les dans « Plans ».'}</div>`;
-    $$('img[data-f]', el).forEach(async im => { const f = await DB.get('files', im.dataset.f); if (f && f.blob) im.src = BlobURL.get(f.id, f.blob); });
+    Thumbs.fill(el);
     $$('[data-p]', el).forEach(t => t.onclick = () => { const pl = plans.find(p => p.id === t.dataset.p); openPlanViewer(pl, planCtx(() => {})); });
   }
   el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1 style="flex:1">Plans</h1></div>

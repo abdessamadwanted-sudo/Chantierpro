@@ -347,3 +347,33 @@ async function downloadFromDrive(url) {
 
 // Vraie image affichable (et pas un DWG déclaré « image/vnd.dwg »)
 const isRasterImage = (file) => /^image\/(jpeg|jpg|png|webp|gif|bmp|heic|heif)$/i.test(file.type || '') || (!file.type && /\.(jpe?g|png|webp|gif|bmp)$/i.test(file.name || ''));
+
+// ---------- Miniatures (rapides) : 480 px, gardées en cache sur le téléphone ----------
+const Thumbs = (() => {
+  const mem = new Map(), inflight = new Map();
+  const cacheP = (window.caches ? caches.open('thumbs-v1').catch(() => null) : Promise.resolve(null));
+  let q = [], active = 0;
+  const run = () => { while (active < 4 && q.length) { const job = q.shift(); active++; job().finally(() => { active--; run(); }); } };
+  async function make(id) {
+    const c = await cacheP, key = '/thumb/' + id;
+    if (c) { const r = await c.match(key).catch(() => null); if (r) return URL.createObjectURL(await r.blob()); }
+    const f = await DB.get('files', id); if (!f || !f.blob) return '';
+    if (!/^image\//.test(f.mime || f.blob.type || '')) return '';
+    const bmp = await createImageBitmap(f.blob);
+    const k = Math.min(1, 480 / Math.max(bmp.width, bmp.height));
+    const cv = document.createElement('canvas'); cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
+    const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(bmp, 0, 0, cv.width, cv.height); bmp.close && bmp.close();
+    const tb = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.72));
+    if (c && tb) c.put(key, new Response(tb, { headers: { 'Content-Type': 'image/jpeg' } })).catch(() => {});
+    return tb ? URL.createObjectURL(tb) : '';
+  }
+  function get(id) {
+    if (mem.has(id)) return Promise.resolve(mem.get(id));
+    if (!inflight.has(id)) inflight.set(id, new Promise(res => { q.push(() => make(id).catch(() => '').then(u => { if (u) mem.set(id, u); inflight.delete(id); res(u); })); run(); }));
+    return inflight.get(id);
+  }
+  // remplit toutes les <img data-thumb="fileId"> d'un conteneur
+  function fill(root) { $$('img[data-thumb]', root).forEach(im => { const id = im.dataset.thumb; im.removeAttribute('data-thumb'); get(id).then(u => { if (u) im.src = u; }); }); }
+  async function drop(id) { mem.delete(id); const c = await cacheP; if (c) c.delete('/thumb/' + id).catch(() => {}); }
+  return { get, fill, drop };
+})();
