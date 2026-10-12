@@ -254,7 +254,7 @@ function showGallery(items, start = 0) {
   if (!items.length) return;
   const el = document.createElement('div');
   el.className = 'lightbox gallery';
-  el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1 class="gl-cap"></h1><span class="gl-n"></span></div>
+  el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1 class="gl-cap"></h1><span class="gl-n"></span>${items.some(x => x.fileId) ? `<button class="iconbtn" data-a="rot" title="Tourner">↻</button>` : ''}</div>
     <div class="gl-track">${items.map(it => `<div class="gl-slide"><img src="${it.src}" draggable="false"></div>`).join('')}</div>
     ${items.length > 1 ? `<div class="gl-dots">${items.map((_, i) => `<i data-i="${i}"></i>`).join('')}</div>` : ''}`;
   document.body.appendChild(el);
@@ -268,6 +268,10 @@ function showGallery(items, start = 0) {
     $$('.gl-dots i', el).forEach((d, j) => d.classList.toggle('on', j === i));
   };
   tr.addEventListener('scroll', () => requestAnimationFrame(upd), { passive: true });
+  const rb = $('[data-a=rot]', el); if (rb) rb.onclick = async () => {
+    const i = Math.round(tr.scrollLeft / tr.clientWidth), it = items[i]; if (!it || !it.fileId) return;
+    const url = await rotateFile(it.fileId); if (url) { it.src = url; $$('.gl-slide img', el)[i].src = url; }
+  };
   $$('.gl-dots i', el).forEach(d => d.onclick = () => tr.scrollTo({ left: +d.dataset.i * tr.clientWidth, behavior: 'smooth' }));
   requestAnimationFrame(() => { tr.scrollLeft = start * tr.clientWidth; upd(); });
 }
@@ -377,3 +381,20 @@ const Thumbs = (() => {
   async function drop(id) { mem.delete(id); const c = await cacheP; if (c) c.delete('/thumb/' + id).catch(() => {}); }
   return { get, fill, drop };
 })();
+
+// Recherche tolérante : ignore espaces, tirets, points, accents et majuscules (« CR22 » = « Cr 22 » = « cr-22 »)
+const normQ = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9+]/g, '');
+const fuzzyHas = (text, q) => { const n = normQ(q); return !n || normQ(text).includes(n); };
+
+// Tourne une photo de 90° (sens horaire) et l'enregistre (renvoyée vers Drive à la prochaine synchro)
+async function rotateFile(id) {
+  const f = await DB.get('files', id); if (!f || !f.blob) return '';
+  const bmp = await createImageBitmap(f.blob);
+  const c = document.createElement('canvas'); c.width = bmp.height; c.height = bmp.width;
+  const g = c.getContext('2d'); g.translate(c.width / 2, c.height / 2); g.rotate(Math.PI / 2); g.drawImage(bmp, -bmp.width / 2, -bmp.height / 2);
+  f.blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.88)); f.mime = 'image/jpeg'; f.w = c.width; f.h = c.height;
+  f.driveId = null; f.drivePath = null;
+  BlobURL.drop(id); if (window.Thumbs) Thumbs.drop(id);
+  await DB.put('files', f);
+  return BlobURL.get(f.id, f.blob);
+}

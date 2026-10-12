@@ -78,6 +78,7 @@ const Sync = (() => {
       const bet = d.type === 'Bétonnage';
       const base = [P[d.projectId] || 'Projet', bet ? 'Programme de bétonnage' : 'Réception ferraillage', (d.date || '').slice(0, 7), d.date || 'date'];
       (d.pvIds || []).forEach((id, i) => put(id, [...base, 'PV du jour'], `PV ${d.date} - ${i + 1}`));
+      if (d.pvPdfId) put(d.pvPdfId, [...base, 'PV du jour'], `PV du ${d.date} (fusionné)`);
       for (const r of d.rows || []) {
         // Photos / <ouvrage> / Réserve 1.jpg, Retour 1.jpg, Croquis.jpg
         const nm = clean(`${r.zone ? 'Zone ' + r.zone + ' · ' : ''}${r.niv ? r.niv + ' · ' : ''}${r.element || 'Ouvrage'}`);
@@ -87,6 +88,7 @@ const Sync = (() => {
         if (r.croquisId) put(r.croquisId, dir, 'Croquis');
       }
     }
+    for (const pr of projects) for (const c of pr.constats || []) (c.items || []).forEach((it, k) => (it.photoIds || []).forEach((id, i) => put(id, [P[pr.id] || 'Projet', 'Constats', `${c.date || ''} ${c.title || 'Constat'}`], `${k + 1}-${i + 1} ${it.probleme || 'photo'}`.slice(0, 80))));
     for (const t of tasks) (t.photoIds || []).forEach((id, i) => put(id, [P[t.projectId] || 'Projet', 'Réserves', `#${t.num || ''} ${t.title || ''}`], `#${t.num || ''} - ${i + 1}`));
     for (const f of forms) (f.photoIds || []).forEach((id, i) => put(id, [P[f.projectId] || 'Projet', 'Formulaires', `${(f.date || '').slice(0, 10)} ${f.title || ''}`], `photo ${i + 1}`));
     for (const r of reports) (r.photoIds || []).forEach((id, i) => put(id, [P[r.projectId] || 'Projet', 'Rapports journaliers', r.date || ''], `photo ${i + 1}`));

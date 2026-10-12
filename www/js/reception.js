@@ -33,7 +33,7 @@ const cmpZone = (a, b) => { const x = zoneKey(a), y = zoneKey(b); for (let i = 0
 function recMessage(p, day, rows, single = false) {
   const K = kindOf(day);
   rows = reportRows(K, rows).slice().sort(cmpZone);
-  const item = (r) => `${(REC_STATUS[r.status] || REC_STATUS.pending).mark} ${r.niv ? r.niv + ' — ' : ''}${r.element}${isBeton(K) && r.classe ? ` (${r.classe})` : ''}` +
+  const item = (r) => `${isBeton(K) && !single ? '' : (REC_STATUS[r.status] || REC_STATUS.pending).mark + ' '}${r.niv ? r.niv + ' — ' : ''}${r.element}${isBeton(K) && r.classe ? ` (${r.classe})` : ''}` +
     (r.obs ? `\n     ↳ ${r.status === 'reserve' ? resLabel(K) + ' : ' : ''}${r.obs}` : '') +
     (r.status === 'reserve' && r.liftedAt ? `\n     ✔️ ${isBeton(K) ? 'Réparé' : 'Réserve levée'} le ${fmtDate(r.liftedAt)}` : '');
   const sec = (st, title) => {
@@ -44,7 +44,11 @@ function recMessage(p, day, rows, single = false) {
     return (single ? `\n*${title}*\n` : `\n*${title} (${l.length}) :*\n`) + zones.map(g => `*${g.z ? 'Zone ' + g.z : 'Sans zone'}*\n${g.rows.map(item).join('\n')}`).join('\n\n') + '\n';
   };
   if (single && isBeton(K)) return `*${recTitle(K)} du ${fmtDate(day.date)}*\n` + sec('ok', 'Bétonnage validé ✅') + sec('progress', 'Bétonnage en cours 🔄') + sec('reserve', 'Bétonné avec défaut ⚠️');
-  if (isBeton(K)) return `*${recTitle(K)} du ${fmtDate(day.date)}*\n` + sec('ok', 'Bétonné') + sec('progress', 'En cours de bétonnage') + sec('reserve', 'Avec défaut');
+  if (isBeton(K)) {
+    const byZone = (l) => { const zs = []; for (const r of l) { const z = String(r.zone || '').trim(); let g = zs.find(x => x.z === z); if (!g) zs.push(g = { z, rows: [] }); g.rows.push(r); } return zs.map(g => `*${g.z ? 'Zone ' + g.z : 'Sans zone'}*\n${g.rows.map(item).join('\n')}`).join('\n\n'); };
+    const done = rows.filter(r => r.status !== 'progress'), cur = rows.filter(r => r.status === 'progress');
+    return `*${recTitle(K)} du ${fmtDate(day.date)}*\n` + (done.length ? '\n' + byZone(done) + '\n' : '') + (cur.length ? `\n*En cours de bétonnage :*\n${byZone(cur)}\n` : '');
+  }
   if (single) return `*${recTitle(K)} du ${fmtDate(day.date)}*\n` + sec('ok', isBeton(K) ? 'Bétonnage validé ✅' : 'Réception validée ✅') + sec('reserve', isBeton(K) ? 'Bétonné avec défaut ⚠️' : 'Réception avec réserve ⚠️') + sec('pending', isBeton(K) ? 'Non bétonné ⏳' : 'Non réceptionné ⏳');
   return `*${recTitle(K)} du ${fmtDate(day.date)}*\n` + sec('ok', stLabel(K, 'ok')) + sec('reserve', stLabel(K, 'reserve')) + sec('pending', stLabel(K, 'pending'));
 }
@@ -149,7 +153,7 @@ async function renderReceptions(root, kind = 'Ferraillage') {
 
   if (pvF) {
     const hits = [];
-    for (const d of all) d.rows.forEach(r => { if (pvMissing(r) && match(r) && (!q || `${r.element} ${r.zone} ${r.niv} ${r.avec}`.toLowerCase().includes(q))) hits.push({ d, r }); });
+    for (const d of all) d.rows.forEach(r => { if (pvMissing(r) && match(r) && (!q || fuzzyHas(`${r.element} ${r.zone} ${r.niv} ${r.avec}`, q))) hits.push({ d, r }); });
     // regroupés par jour de réception, repliables
     const days = []; for (const h of hits) { let g = days.find(x => x.d.id === h.d.id); if (!g) days.push(g = { d: h.d, l: [] }); g.l.push(h); }
     App.pvOpen = App.pvOpen || {};
@@ -181,7 +185,7 @@ async function renderReceptions(root, kind = 'Ferraillage') {
   } else if (q || nivF || zoneF) {
     // Résultats de recherche : où et quand l'ouvrage a été réceptionné
     const hits = [];
-    for (const d of all) d.rows.forEach(r => { if (r.element && match(r) && (!q || `${r.element} ${r.zone} ${r.niv} ${r.obs}`.toLowerCase().includes(q))) hits.push({ d, r }); });
+    for (const d of all) d.rows.forEach(r => { if (r.element && match(r) && (!q || fuzzyHas(`${r.element} ${r.zone} ${r.niv} ${r.obs}`, q))) hits.push({ d, r }); });
     body.innerHTML = hits.length ? `<div class="section-label">${hits.length} résultat(s)</div><div class="list">${hits.map(({ d, r }, i) => `
       <div class="row" data-h="${i}"><span class="rs" style="background:${(REC_STATUS[r.status] || REC_STATUS.pending).color};min-width:74px;text-align:center">${stLabel(kind, r.status)}</span>
         <div class="grow"><div class="title wrap">${esc(r.element)}</div>
@@ -264,6 +268,22 @@ function openReceptionDay(day, opts = {}) {
     let NAMES = [];
     DB.byProject('receptions', day.projectId).then(l => { NAMES = [...new Set(l.flatMap(d => d.rows.map(r => (r.avec || '').trim()).filter(Boolean)))]; });
     const [PH1, PH2] = photoLabels(K);
+    // Fusionne les photos des PV du jour en un seul PDF (une page A4 par photo)
+    async function mergePv() {
+      const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: 'mm', format: 'a4' }); let first = true;
+      for (const id of day.pvIds || []) {
+        const f = await DB.get('files', id); if (!f || !f.blob) continue;
+        const im = await blobToJpegURL(f.blob, 2000);
+        const land = im.w > im.h; if (!first) doc.addPage('a4', land ? 'l' : 'p'); else if (land) { doc.deletePage(1); doc.addPage('a4', 'l'); }
+        first = false;
+        const W = land ? 297 : 210, H = land ? 210 : 297, m = 6, k = Math.min((W - 2 * m) / im.w, (H - 2 * m) / im.h);
+        doc.addImage(im.url, 'JPEG', (W - im.w * k) / 2, (H - im.h * k) / 2, im.w * k, im.h * k);
+      }
+      if (first) return;
+      if (day.pvPdfId) await DB.del('files', day.pvPdfId);
+      const rec = await DB.put('files', { projectId: day.projectId, blob: doc.output('blob'), mime: 'application/pdf', role: 'pvpdf', name: `PV du ${day.date}.pdf` });
+      day.pvPdfId = rec.id;
+    }
     let moveSel = -1;             // ligne sélectionnée pour la déplacer (appui long)
     function render() {
       const n = day.rows.filter(r => r.element).length, ok = day.rows.filter(r => r.status === 'ok').length, rs = day.rows.filter(r => r.status === (isBeton(K) ? 'progress' : 'reserve')).length;
@@ -288,7 +308,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
                 <td class="c ph">${(r.photoIds || []).length ? `📷 ${r.photoIds.length}` : ''}</td>
                 <td class="c ph">${(r.retourIds || []).length ? `📷 ${r.retourIds.length}` : ''}</td>
                 <td class="c ph sk">${r.croquisId ? `<img data-sk="${r.croquisId}" alt="✏️">` : ''}</td></tr>`).join('')}
-              <tr class="addrow"><td colspan="${NC}"><button data-a="add">${icon('plus')} Ajouter une ligne</button><span class="hint-lp">Appui long sur une ligne pour la déplacer</span></td></tr>
+              <tr class="addrow"><td colspan="${NC}"><button data-a="add">${icon('plus')} Ajouter une ligne</button><button data-a="paste">${icon('edit')} Coller un texte</button><span class="hint-lp">Appui long sur une ligne pour la déplacer</span></td></tr>
             </tbody>
           </table>
           <div class="pv-day">
@@ -303,19 +323,44 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
       (async () => {
         const pvs = await loadFiles(day.pvIds || []);
         const box = $('#pvThumbs', el); if (!box) return;
-        box.innerHTML = pvs.map(f => `<div class="t" data-pv="${f.id}"><img src="${BlobURL.get(f.id, f.blob)}"><button class="x" data-pvdel="${f.id}">×</button></div>`).join('') + `<button class="t add" data-a="addpv">${icon('camera')}</button>`;
+        const merged = !!day.pvPdfId && pvs.length;
+        box.innerHTML = merged
+          ? `<button class="pv-pdf" data-a="openpvpdf"><span class="pp-ic">${icon('pdf')}</span><span class="grow"><b>PV du ${fmtDate(day.date)}.pdf</b><small>${pvs.length} page(s) · un seul fichier</small></span></button>
+             <button class="t add" data-a="addpv">${icon('camera')}</button>
+             <div class="pv-acts"><button data-a="sharepvpdf">${icon('share')} Envoyer le PDF</button><button data-a="splitpv">${icon('layers')} Séparer</button></div>`
+          : pvs.map(f => `<div class="t" data-pv="${f.id}"><img src="${BlobURL.get(f.id, f.blob)}"><button class="x" data-pvdel="${f.id}">×</button></div>`).join('') + `<button class="t add" data-a="addpv">${icon('camera')}</button>`
+            + (pvs.length > 1 ? `<div class="pv-acts"><button data-a="mergepv">${icon('pdf')} Fusionner en un seul PDF</button></div>` : '');
         $('[data-a=addpv]', box).onclick = async () => {
           const recs = await addPhotos(day.projectId, { source: `PV ${recTitle(K)} ${recDateLabel(day.date)}` });
-          if (recs.length) { day.pvIds = [...(day.pvIds || []), ...recs.map(x => x.id)]; await save(); render(); }
+          if (recs.length) { day.pvIds = [...(day.pvIds || []), ...recs.map(x => x.id)]; if (day.pvPdfId) await mergePv(); await save(); render(); }
         };
+        const mb = $('[data-a=mergepv]', box); if (mb) mb.onclick = async () => { const ld = loading('Création du PDF…'); try { await mergePv(); await save(); toast('PV fusionnés en un PDF ✓'); } finally { ld.close(); } render(); };
+        const sp = $('[data-a=splitpv]', box); if (sp) sp.onclick = async () => { if (!await confirmBox('Séparer le PDF ? Les photos des PV redeviennent séparées.', 'Séparer')) return; await DB.del('files', day.pvPdfId); day.pvPdfId = null; await save(); render(); };
+        const op = $('[data-a=openpvpdf]', box); if (op) op.onclick = async () => { const f = await DB.get('files', day.pvPdfId); if (f) showPdf(f.blob, `PV du ${fmtDate(day.date)}`); };
+        const sh = $('[data-a=sharepvpdf]', box); if (sh) sh.onclick = async () => { const f = await DB.get('files', day.pvPdfId); if (f) shareBlob(f.blob, `PV_${safeName(recTitle(K))}_${day.date}.pdf`); };
         $$('[data-pv]', box).forEach(t => t.onclick = async (e) => {
           const id = t.dataset.pv;
           if (e.target.closest('[data-pvdel]')) { if (await confirmBox('Retirer ce PV ?')) { day.pvIds = day.pvIds.filter(x => x !== id); await DB.del('files', id); await save(); render(); } return; }
-          showGallery(pvs.map((f, k) => ({ src: BlobURL.get(f.id, f.blob), caption: `PV du ${fmtDate(day.date)} (${k + 1})` })), pvs.findIndex(x => x.id === id));
+          showGallery(pvs.map((f, k) => ({ src: BlobURL.get(f.id, f.blob), caption: `PV du ${fmtDate(day.date)} (${k + 1})`, fileId: f.id })), pvs.findIndex(x => x.id === id));
+          const gl = document.querySelector('.gallery [data-a=x]'); if (gl) { const o = gl.onclick; gl.onclick = () => { o(); render(); }; }
         });
       })();
       $('[data-a=back]', el).onclick = () => { unBack(); finish(); };
       $('[data-a=add]', el).onclick = () => editRow(null);
+      $('[data-a=paste]', el).onclick = async () => {
+        const r = await formSheet('Coller un texte', [{ name: 'txt', label: 'Collez le message (WhatsApp, notes…) — une ligne par ouvrage', type: 'textarea', placeholder: 'Zone 11\nR+5 Voile CR 75\nR+5 Poutre C21 B30\nZone 12 R+2 Poteau CR 26' }], { okLabel: 'Analyser' });
+        if (!r || !r.txt) return;
+        const rows = parseRecText(r.txt, K);
+        if (!rows.length) return toast('Aucun ouvrage reconnu');
+        const sh = sheet(`<div class="ps-list">${rows.map(x => `<div class="ps-row"><span>${esc(x.zone || '—')}</span><span>${esc(x.niv || '—')}</span><b>${esc(x.element)}</b>${isBeton(K) ? `<span>${esc(x.classe || '')}</span>` : ''}</div>`).join('')}</div>
+          <div class="muted" style="font-size:12.5px;margin:8px 0">Vérifiez : vous pourrez corriger chaque ligne ensuite.</div>
+          <div class="btnrow" style="padding:0"><button class="btn ghost" data-a="c">Annuler</button><button class="btn" data-a="ok">${icon('check')} Ajouter ${rows.length} ligne(s)</button></div>`, { title: `${rows.length} ouvrage(s) reconnu(s)` });
+        $('[data-a=c]', sh.el).onclick = () => sh.close();
+        $('[data-a=ok]', sh.el).onclick = async () => {
+          for (const x of rows) day.rows.push({ id: DB.uid(), zone: x.zone, niv: x.niv, element: x.element, classe: x.classe || '', avec: '', pvRecu: false, status: x.status || (isBeton(K) ? 'ok' : 'ok'), obs: '', photoIds: [], retourIds: [] });
+          await save(); sh.close(); render(); toast(`${rows.length} ligne(s) ajoutée(s) ✓`);
+        };
+      };
       $$('img[data-sk]', el).forEach(async im => { const f = await DB.get('files', im.dataset.sk); if (f && f.blob) im.src = BlobURL.get(f.id, f.blob); });
       if (hlId) {
         const fi = day.rows.findIndex(x => x.id === hlId);
@@ -364,7 +409,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
           $('[data-a=s]', sh.el).onclick = () => { if (!sel.size) return toast('Cochez au moins un ouvrage'); sh.close(); shareWhatsApp(recMessage(p, day, [...sel].map(j => rows[j]))); };
         }
         if (v === 'pdf') receptionPdf(p, day);
-        if (v === 'pv') sharePhotos(day.pvIds, `PV — ${recTitle(K)} du ${fmtDate(day.date)}`);
+        if (v === 'pv') { const f = day.pvPdfId && await DB.get('files', day.pvPdfId); if (f) shareBlob(f.blob, `PV_${safeName(recTitle(K))}_${day.date}.pdf`); else sharePhotos(day.pvIds, `PV — ${recTitle(K)} du ${fmtDate(day.date)}`); }
         if (v === 'csv') receptionCsv(p, day);
         if (v === 'sheets') { await save(); await sendToSheets(p, day); render(); }
       };
@@ -438,7 +483,8 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
           const id = t.dataset.id, sec = t.dataset.sec;
           if (e.target.closest('[data-del]')) { e.preventDefault(); r[sec] = r[sec].filter(x => x !== id); draw(); return; }
           const all = [...photos.map(x => [x, r.status === 'reserve' ? photoLabels(K)[0] : 'Photo']), ...retours.map(x => [x, photoLabels(K)[1]])];
-          showGallery(all.map(([x, lb]) => ({ src: BlobURL.get(x.id, x.blob), caption: `${lb} · ${r.element}` })), all.findIndex(([x]) => x.id === id));
+          showGallery(all.map(([x, lb]) => ({ src: BlobURL.get(x.id, x.blob), caption: `${lb} · ${r.element}`, fileId: x.id })), all.findIndex(([x]) => x.id === id));
+          const gl = document.querySelector('.gallery [data-a=x]'); if (gl) { const o = gl.onclick; gl.onclick = () => { o(); draw(); }; }
         });
         const commit = async () => {
           if (!r.element.trim()) { toast('Écrivez l\'élément'); return false; }
@@ -657,4 +703,43 @@ async function sendToSheets(p0, day) {
     toast('Envoyé vers Google Sheets ✓');
   } catch (e) { console.error(e); alertBox('Envoi impossible : ' + (e.message || e) + '\nVérifiez internet et l\'URL du script.'); }
   finally { ld.close(); }
+}
+
+async function shareBlob(blob, fname) {
+  const P = window.Capacitor?.Plugins || {};
+  if (P.Filesystem && P.Share) {
+    const b64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(blob); });
+    await P.Filesystem.writeFile({ path: fname, data: b64, directory: 'CACHE' });
+    const { uri } = await P.Filesystem.getUri({ path: fname, directory: 'CACHE' });
+    try { await P.Share.share({ title: fname, files: [uri], dialogTitle: 'Envoyer' }); } catch (e) {}
+    return;
+  }
+  const u = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = u; a.download = fname; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 5000);
+}
+
+// Analyse un texte libre → lignes { zone, niv, element, classe, status }
+function parseRecText(txt, K) {
+  const NIV = /\b(R\s*\+\s*\d+|RDC|R\.?D\.?C|Mezz(?:anine)?|SS\s*\d*|SSL|Sous[- ]sol\s*\d*|Fondations?|Terrasse|Toiture)\b/i;
+  const out = []; let zone = '', niv = '', status = '';
+  for (let raw of String(txt).split(/\r?\n/)) {
+    let l = raw.trim().replace(/^[*_~]+|[*_~]+$/g, '').replace(/(^|\s)[*_~]+(?=\S)|(?<=\S)[*_~]+(?=\s|$)/g, '$1').replace(/[✅❌⏳⚠️\u{1F504}✔☑\u{1F7E2}\u{1F534}]/gu, '').replace(/^[\s\-•·▪►>]+/, '').trim();
+    if (!l) continue;
+    if (/\bdu\s+\d{1,2}[\/.-]\d{1,2}/i.test(l) && /(réception|reception|programme|bétonnage|betonnage)/i.test(l)) continue;   // titre
+    if (/:\s*$/.test(l) || /^\(?\d+\)?\s*:?$/.test(l)) {                                                                     // titre de section
+      if (/en cours/i.test(l)) status = 'progress'; else if (/non\s+(b[ée]tonn|r[ée]ception)|attente/i.test(l)) status = 'pending'; else if (/r[ée]serve|d[ée]faut/i.test(l)) status = 'reserve'; else if (/b[ée]tonn|r[ée]ceptionn|valid/i.test(l)) status = 'ok';
+      continue;
+    }
+    const zm = l.match(/^zone\s*([\w+.-]+)\s*[:·\-—,]?\s*/i);
+    if (zm) { zone = zm[1]; l = l.slice(zm[0].length).trim(); if (!l) { niv = ''; continue; } }
+    const nm = l.match(NIV);
+    let n = niv;
+    if (nm) { n = nm[1].replace(/\s+/g, '').replace(/^r\.?d\.?c$/i, 'RDC').replace(/^r\+/i, 'R+').replace(/^mezz\w*$/i, 'Mezz').replace(/^(ssl|fondations?|terrasse|toiture)$/i, m => m.charAt(0).toUpperCase() + m.slice(1).toLowerCase()); l = (l.slice(0, nm.index) + ' ' + l.slice(nm.index + nm[0].length)).trim(); }
+    if (!l) { niv = n; continue; }
+    let classe = '';
+    if (isBeton(K)) { const cm = l.match(/\(?\b(B\s?\d{2}(?:\s*\/\s*G\s?\d)?|C\s?\d{2}\/\d{2})\b\)?/i); if (cm) { classe = cm[1].replace(/\s+/g, '').toUpperCase(); l = (l.slice(0, cm.index) + l.slice(cm.index + cm[0].length)).trim(); } }
+    l = l.replace(/^[\s—–\-:·,]+|[\s—–\-:·,]+$/g, '').replace(/\s{2,}/g, ' ');
+    if (!l || l.length < 2) continue;
+    out.push({ zone, niv: n, element: l.charAt(0).toUpperCase() + l.slice(1), classe, status });
+  }
+  return out;
 }

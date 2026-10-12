@@ -87,6 +87,7 @@ async function renderHome() {
         <button class="h2-sync" data-a="sync"><span class="cl">${icon('drive')}</span><span class="grow"><b>${Sync.enabled() ? 'Google Drive' : 'Connecter Google Drive'}</b><span data-syncstate>${Sync.enabled() ? Sync.statusLine() : '<span style="opacity:.8">Sauvegarde + synchro téléphone / PC</span>'}</span></span>${icon('chevright')}</button>
       </div>
       <div class="h2-body">
+        <div class="h2-tools"><button data-a="pdfmerge"><span class="ti" style="background:linear-gradient(135deg,#dc2626,#991b1b)">${icon('pdf')}</span><span><b>Fusionner des PDF</b><small>Plusieurs PDF / photos → un seul fichier</small></span>${icon('chevright')}</button></div>
         <div class="h2-sec"><span>Mes chantiers</span><small>${projects.length}</small></div>
         ${projects.length ? projects.map(p => { const st = stats(p), [c1, c2] = hue(p.name);
           return `<button class="h2-card" data-id="${p.id}">
@@ -106,6 +107,7 @@ async function renderHome() {
     <button class="fab" data-a="new">${icon('plus')}</button>`;
   $$('.h2-card[data-id]').forEach(r => r.onclick = async () => openProject(await DB.get('projects', r.dataset.id)));
   $('[data-a=sync]').onclick = () => Sync.openSyncSettings();
+  $('[data-a=pdfmerge]').onclick = () => openPdfMerger();
   $('[data-a=homemore]').onclick = async () => {
     const v = await menu('Chantier', [
       { label: 'Restaurer une sauvegarde', icon: 'undo', value: 'restore' },
@@ -142,6 +144,7 @@ const SECTIONS = {
   photos: { label: 'Photos', icon: 'camera', render: renderPhotos },
   forms: { label: 'Formulaires', icon: 'form', render: renderForms },
   reports: { label: 'Rapports journaliers', icon: 'report', render: renderReports },
+  constat: { label: 'Constats / NC', icon: 'report', render: (r) => renderConstats(r) },
   calc: { label: 'Calculs & Topo', icon: 'ruler', render: (r) => renderCalcs(r) },
   team: { label: 'Équipe', icon: 'team', render: renderTeam },
   settings: { label: 'Paramètres', icon: 'settings', render: renderSettings },
@@ -201,7 +204,7 @@ async function renderPlans(root) {
   folders.sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true }));
   plans.sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true }));
   const q = App.search.toLowerCase();
-  const shown = plans.filter(p => !q || p.name.toLowerCase().includes(q));
+  const shown = plans.filter(p => !q || fuzzyHas(p.name, q));
   const openCount = (planId) => tasks.filter(t => t.planId === planId && t.status !== 'verified').length;
   App.openFolders = App.openFolders || {};
 
@@ -633,7 +636,7 @@ async function renderTasks(root) {
   const bySt = (t, k) => k === 'all' || (k === 'late' ? isLate(t) : k === 'toLift' ? !isLifted(t) : k === 'lifted' ? isLifted(t) : t.status === k);
   const base = tasks.filter(byCo);
   const list = base.filter(t => bySt(t, App.taskFilter) &&
-    (!q || `${t.num} ${t.title} ${t.assignee} ${t.category} ${(companyOf(p, t.companyId) || {}).name || ''}`.toLowerCase().includes(q)))
+    (!q || fuzzyHas(`${t.num} ${t.title} ${t.assignee} ${t.category} ${(companyOf(p, t.companyId) || {}).name || ''}`, q)))
     .sort((a, b) => (isLate(b) - isLate(a)) || b.num - a.num);
   const stChips = [['all', 'Toutes'], ['late', 'En retard'], ...Object.entries(STATUS).map(([k, v]) => [k, v.label])];
   if (!stChips.find(c => c[0] === App.taskFilter)) stChips.splice(1, 0, [App.taskFilter, { toLift: 'À lever', lifted: 'Levées' }[App.taskFilter] || App.taskFilter]);
@@ -1113,7 +1116,7 @@ async function openPlansQuick() {
   let q = '';
   const groups = [...folders.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'fr', { numeric: true })).map(f => ({ id: f.id, name: f.name })), { id: null, name: 'Sans dossier' }];
   async function render() {
-    const match = (p) => !q || (p.name || '').toLowerCase().includes(q);
+    const match = (p) => !q || fuzzyHas(p.name, q);
     const html = [];
     for (const g of groups) {
       const ps = plans.filter(p => (p.folderId || null) === g.id && match(p)).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'fr', { numeric: true }));
