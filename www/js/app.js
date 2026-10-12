@@ -225,11 +225,13 @@ async function renderPlans(root) {
   for (const { f, plans: ps } of groups) {
     const open = q ? true : App.openFolders[f.id];
     const card = document.createElement('div');
-    card.className = 'card';
-    card.innerHTML = `<div class="folder-head"><span class="icon-muted">${icon('folder')}</span>
-      <div class="grow"><div class="title" style="font-size:18px">${esc(f.name)}</div><div class="sub" style="color:var(--muted);margin-top:3px">${ps.length} plan${ps.length > 1 ? 's' : ''}</div></div>
+    const FC = [['#1e3a8a', '#2563eb'], ['#134e4a', '#0f766e'], ['#3730a3', '#6366f1'], ['#7c2d12', '#c2410c'], ['#4c1d95', '#7c3aed'], ['#164e63', '#0891b2'], ['#14532d', '#15803d'], ['#831843', '#be185d']];
+    const [c1, c2] = FC[[...String(f.name)].reduce((a, c) => a + c.charCodeAt(0), 0) % FC.length];
+    card.className = 'card fcard' + (open ? ' open' : '');
+    card.innerHTML = `<div class="folder-head" style="background:linear-gradient(120deg,${c1},${c2})"><span class="fh-ic">${icon('folder')}</span>
+      <div class="grow"><div class="title">${esc(f.name)}</div><div class="sub">${ps.length} plan${ps.length > 1 ? 's' : ''}</div></div>
       ${f.id !== '_none' ? `<button class="iconbtn" data-more>${icon('more')}</button>` : ''}
-      <span class="icon-muted" style="transform:rotate(${open ? 180 : 0}deg)">${icon('chevdown')}</span></div>
+      <span class="fh-chev" style="transform:rotate(${open ? 180 : 0}deg)">${icon('chevdown')}</span></div>
       ${open ? (App.planView === 'grid' ? `<div class="plan-grid fw"></div>` : `<div class="plan-rows"></div>`) : ''}`;
     box.appendChild(card);
     $('.folder-head', card).onclick = (e) => {
@@ -244,7 +246,7 @@ async function renderPlans(root) {
         const t = document.createElement('div');
         const n = openCount(p.id);
         if (App.planView === 'grid') { t.className = 'ptile'; t.innerHTML = `<div class="im"><img data-thumb="${p.fileId}" alt=""></div><div class="nm">${esc(p.name)}</div>${n ? `<span class="badge">${n}</span>` : ''}`; }
-        else { t.className = 'prow'; t.innerHTML = `<span class="pic">${icon('sheet')}</span><div class="nm">${esc(p.name)}</div>${n ? `<span class="badge">${n}</span>` : ''}`; }
+        else { t.className = 'prow'; t.innerHTML = `<span class="im"><img data-thumb="${p.fileId}" alt=""></span><div class="nm">${esc(p.name)}</div>${n ? `<span class="badge">${n}</span>` : ''}${icon('chevright')}`; }
         t.onclick = () => openPlanViewer(p, planCtx(() => renderPlans(root)));
         grid.appendChild(t);
       }

@@ -568,3 +568,26 @@ body:has(.calcpage) #plansFab { display: none !important; }
 .c-b { background: rgba(59,130,246,.16); color: #93c5fd; } .c-r { background: rgba(239,68,68,.16); color: #fca5a5; } .c-o { background: rgba(245,158,11,.16); color: #fcd34d; } .c-g { background: rgba(34,197,94,.14); color: #86efac; }
 .h2-empty { text-align: center; padding: 30px 18px; border: 1px dashed #2a3142; border-radius: 18px; display: grid; gap: 10px; justify-items: center; color: #8b97ad; }
 .h2-empty .ic { width: 64px; height: 64px; border-radius: 20px; background: #1e2330; display: grid; place-items: center; color: #f5b942; } .h2-empty b { color: #e5e7eb; font-size: 17px; }
+
+/* ---- Dossiers de plans : bandeau coloré + contenu sur fond blanc ---- */
+.fcard { padding: 0 !important; overflow: hidden; border-radius: 16px !important; border: 0 !important; background: #fff !important; box-shadow: 0 6px 18px rgba(0,0,0,.28); margin: 0 14px 14px !important; }
+.fcard .folder-head { color: #fff; padding: 14px 10px 14px 14px; gap: 12px; }
+.fcard .fh-ic { width: 42px; height: 42px; border-radius: 12px; background: rgba(255,255,255,.18); display: grid; place-items: center; flex: none; }
+.fcard .fh-ic svg.i { width: 22px; height: 22px; color: #fff; }
+.fcard .folder-head .title { font-size: 17.5px; font-weight: 700; letter-spacing: .01em; color: #fff; }
+.fcard .folder-head .sub { font-size: 13px; color: rgba(255,255,255,.8); margin-top: 2px; }
+.fcard .folder-head .iconbtn, .fcard .fh-chev { color: #fff; }
+.fcard .fh-chev { display: grid; transition: transform .15s; padding: 0 6px; }
+.fcard:not(.open) { background: transparent !important; }
+.fcard .plan-rows, .fcard .plan-grid.fw { background: #fff; border-top: 0; }
+.fcard .prow { color: #0f172a; padding: 10px 14px; gap: 12px; }
+.fcard .plan-rows .prow + .prow { border-top: 1px solid #e5e7eb; }
+.fcard .prow .im { width: 58px; height: 42px; border: 1px solid #e2e8f0; border-radius: 6px; background: #f8fafc; }
+.fcard .prow .nm { font-size: 15.5px; font-weight: 500; }
+.fcard .prow > svg.i:last-child { color: #94a3b8; }
+.fcard .prow:active { background: #f1f5f9; }
+.fcard .prow .pic { color: #2563eb; }
+.fcard .plan-rows .prow:last-child .nm { color: #2563eb; }
+.fcard .ptile { border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; color: #0f172a; }
+.fcard .ptile .im { border-radius: 6px; background: #f8fafc; }
+.fcard .ptile.add { border-color: #93c5fd; color: #2563eb; }
