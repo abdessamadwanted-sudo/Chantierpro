@@ -2,15 +2,15 @@ name: Fetch libs
 on:
   push:
     branches: [libs-fetch]
+permissions:
+  contents: write
 jobs:
   fetch:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - run: |
-          mkdir out && cd out
+          if [ -f pdf-lib.min.js ]; then exit 0; fi
           npm pack pdf-lib@1.17.1 && tar xzf pdf-lib-1.17.1.tgz && cp package/dist/pdf-lib.min.js .
-          ls -la
-      - uses: actions/upload-artifact@v4
-        with:
-          name: libs
-          path: out/pdf-lib.min.js
+          git config user.name bot && git config user.email bot@example.com
+          git add pdf-lib.min.js && git commit -m "add lib" && git push
