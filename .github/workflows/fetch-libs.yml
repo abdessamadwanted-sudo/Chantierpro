@@ -1,0 +1,16 @@
+name: Fetch libs
+on:
+  push:
+    branches: [libs-fetch]
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          mkdir out && cd out
+          npm pack pdf-lib@1.17.1 && tar xzf pdf-lib-1.17.1.tgz && cp package/dist/pdf-lib.min.js .
+          ls -la
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libs
+          path: out/pdf-lib.min.js
