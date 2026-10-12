@@ -67,12 +67,16 @@ async function renderHome() {
   const projects = (await DB.all('projects')).sort((a, b) => b.updatedAt - a.updatedAt);
   const [allTasks, allRecs] = await Promise.all([DB.all('tasks'), DB.all('receptions')]);
   const today = todayISO();
+  const wk = new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10);
   const stats = (p) => {
     const t = allTasks.filter(x => x.projectId === p.id), r = allRecs.filter(x => x.projectId === p.id);
-    const rows = r.flatMap(d => d.rows || []);
-    return { open: t.filter(x => !isLifted(x)).length, pv: rows.filter(x => x.element && x.status !== 'pending' && !x.pvRecu && !(x.status === 'progress')).length,
-      today: r.filter(d => d.date === today).reduce((a, d) => a + (d.rows || []).filter(x => x.element).length, 0), plans: 0 };
+    const cnt = (kind, from) => r.filter(d => (d.type === 'Bétonnage') === (kind === 'B') && (!from || d.date >= from)).reduce((a, d) => a + (d.rows || []).filter(x => x.element && x.status !== 'pending').length, 0);
+    const pvl = r.filter(d => d.type !== 'Bétonnage').flatMap(d => (d.rows || []).filter(pvMissing).map(x => d.date));
+    return { open: t.filter(x => !isLifted(x)).length, late: t.filter(isLate).length, pv: pvl.length, pvOld: pvl.filter(dt => daysSince(dt) >= 3).length,
+      today: cnt('F', today) + cnt('B', today), fT: cnt('F', today), fW: cnt('F', wk), fA: cnt('F'), bT: cnt('B', today), bW: cnt('B', wk), bA: cnt('B'),
+      rap: (p.rappels || []).filter(x => !x.done).sort((a, b) => (a.at || '9').localeCompare(b.at || '9')) };
   };
+  App.homeOpen = App.homeOpen || {};
   const HUES = [['#2563eb', '#1e3a8a'], ['#0d9488', '#134e4a'], ['#7c3aed', '#4c1d95'], ['#ea580c', '#7c2d12'], ['#db2777', '#831843'], ['#0891b2', '#164e63']];
   const hue = (s) => HUES[[...String(s)].reduce((a, c) => a + c.charCodeAt(0), 0) % HUES.length];
   const initials = (n) => String(n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
@@ -87,33 +91,49 @@ async function renderHome() {
         <button class="h2-sync" data-a="sync"><span class="cl">${icon('drive')}</span><span class="grow"><b>${Sync.enabled() ? 'Google Drive' : 'Connecter Google Drive'}</b><span data-syncstate>${Sync.enabled() ? Sync.statusLine() : '<span style="opacity:.8">Sauvegarde + synchro téléphone / PC</span>'}</span></span>${icon('chevright')}</button>
       </div>
       <div class="h2-body">
-        <div class="h2-tools"><button data-a="pdfmerge"><span class="ti" style="background:linear-gradient(135deg,#dc2626,#991b1b)">${icon('pdf')}</span><span><b>Fusionner des PDF</b><small>Plusieurs PDF / photos → un seul fichier</small></span>${icon('chevright')}</button></div>
         <div class="h2-sec"><span>Mes chantiers</span><small>${projects.length}</small></div>
-        ${projects.length ? projects.map(p => { const st = stats(p), [c1, c2] = hue(p.name);
-          return `<button class="h2-card" data-id="${p.id}">
+        ${projects.length ? projects.map(p => { const st = stats(p), [c1, c2] = hue(p.name), open = !!App.homeOpen[p.id];
+          const due = (x) => x.at && x.at.slice(0, 10) <= today;
+          return `<div class="h2-proj ${open ? 'open' : ''}"><button class="h2-card" data-id="${p.id}">
             <span class="h2-av" style="background:linear-gradient(135deg,${c1},${c2})">${esc(initials(p.name))}</span>
             <span class="grow"><b>${esc(p.name)}</b>${p.address ? `<small>${icon('pin')} ${esc(p.address)}</small>` : ''}
               <span class="h2-chips">
                 ${st.today ? `<i class="c-b">${st.today} réception(s) aujourd'hui</i>` : ''}
                 ${st.pv ? `<i class="c-r">${st.pv} PV à récupérer</i>` : ''}
+                ${st.rap.length ? `<i class="c-y">🔔 ${st.rap.length} rappel(s)</i>` : ''}
                 ${st.open ? `<i class="c-o">${st.open} réserve(s)</i>` : ''}
-                ${!st.today && !st.pv && !st.open ? '<i class="c-g">À jour ✓</i>' : ''}
+                ${!st.today && !st.pv && !st.open && !st.rap.length ? '<i class="c-g">À jour ✓</i>' : ''}
               </span></span>
-            ${icon('chevright')}</button>`; }).join('')
+            <span class="h2-chev">${icon('chevdown')}</span></button>
+            ${open ? `<div class="h2-det">
+              <table class="h2-tab"><tr><th></th><th>Aujourd'hui</th><th>7 jours</th><th>Total</th></tr>
+                <tr><td>Réception ferraillage</td><td><b>${st.fT}</b></td><td>${st.fW}</td><td>${st.fA}</td></tr>
+                <tr><td>Bétonnage</td><td><b>${st.bT}</b></td><td>${st.bW}</td><td>${st.bA}</td></tr></table>
+              <div class="h2-kpi"><div class="${st.pv ? 'r' : 'g'}"><b>${st.pv}</b><span>PV à récupérer</span>${st.pvOld ? `<small>dont ${st.pvOld} > 3 jours</small>` : ''}</div>
+                <div class="${st.open ? 'o' : 'g'}"><b>${st.open}</b><span>Réserves ouvertes</span>${st.late ? `<small>${st.late} en retard</small>` : ''}</div></div>
+              <div class="h2-rh"><b>🔔 Rappels</b><button data-addrap="${p.id}">${icon('plus')} Ajouter</button></div>
+              ${st.rap.length ? st.rap.map(x => `<div class="h2-rap ${due(x) ? 'due' : ''}"><button class="ck" data-rapok="${p.id}|${x.id}"></button><div class="grow"><span>${esc(x.text)}</span>${x.at ? `<small>${fmtDate(x.at.slice(0, 10))}${x.at.length > 10 ? ' · ' + x.at.slice(11, 16) : ''}</small>` : ''}</div><button class="iconbtn sm" data-rapdel="${p.id}|${x.id}">${icon('close')}</button></div>`).join('') : '<div class="h2-none">Aucun rappel</div>'}
+              <button class="btn" data-open="${p.id}" style="width:100%;margin-top:12px">Ouvrir le projet ${icon('chevright')}</button>
+            </div>` : ''}</div>`; }).join('')
         : `<div class="h2-empty"><div class="ic">${icon('hard')}</div><b>Aucun chantier pour le moment</b><span>Créez votre premier projet avec le bouton <b>+</b>, ou récupérez vos données avec Google Drive.</span>
             <button class="btn ghost" data-a="restore2" style="flex:none">${icon('undo')} Restaurer une sauvegarde</button></div>`}
       </div>
     </div>
     <button class="fab" data-a="new">${icon('plus')}</button>`;
-  $$('.h2-card[data-id]').forEach(r => r.onclick = async () => openProject(await DB.get('projects', r.dataset.id)));
+  $$('.h2-card[data-id]').forEach(r => r.onclick = () => { App.homeOpen[r.dataset.id] = !App.homeOpen[r.dataset.id]; renderHome(); });
+  $$('[data-open]').forEach(b => b.onclick = async () => openProject(await DB.get('projects', b.dataset.open)));
+  $$('[data-addrap]').forEach(b => b.onclick = () => addRappel(b.dataset.addrap));
+  $$('[data-rapok]').forEach(b => b.onclick = async () => { const [pid, id] = b.dataset.rapok.split('|'); const p = await DB.get('projects', pid); const x = (p.rappels || []).find(r => r.id === id); if (x) { x.done = true; cancelNotif(x); await DB.put('projects', p); toast('Rappel terminé ✓'); renderHome(); } });
+  $$('[data-rapdel]').forEach(b => b.onclick = async () => { const [pid, id] = b.dataset.rapdel.split('|'); const p = await DB.get('projects', pid); const x = (p.rappels || []).find(r => r.id === id); p.rappels = (p.rappels || []).filter(r => r.id !== id); if (x) cancelNotif(x); await DB.put('projects', p); renderHome(); });
   $('[data-a=sync]').onclick = () => Sync.openSyncSettings();
-  $('[data-a=pdfmerge]').onclick = () => openPdfMerger();
   $('[data-a=homemore]').onclick = async () => {
     const v = await menu('Chantier', [
+      { label: 'Outils PDF (fusionner, diviser, pages)', icon: 'pdf', value: 'pdf' },
       { label: 'Restaurer une sauvegarde', icon: 'undo', value: 'restore' },
       { label: `Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}`, icon: 'settings', value: null },
     ]);
     if (v === 'restore') restoreBackup();
+    if (v === 'pdf') openPdfTools();
   };
   const r2 = $('[data-a=restore2]'); if (r2) r2.onclick = restoreBackup;
   $('[data-a=new]').onclick = async () => {
@@ -175,6 +195,9 @@ async function openDrawer() {
   d.innerHTML = `
     <div class="drawer-head"><h3>${esc(App.project.name)}</h3><button class="iconbtn" data-home>${icon('home')}</button></div>
     ${Object.entries(SECTIONS).map(([k, s]) => `<button class="item ${App.section === k ? 'active' : ''}" data-s="${k}">${icon(s.icon)}<span>${s.label}</span>${k === 'reception' && nPv ? `<span class="count pvbadge">${nPv} PV</span>` : ''}</button>`).join('')}
+    <div class="group">Outils</div>
+    <button class="item" data-tool="pdf">${icon('pdf')}<span>Outils PDF</span><span class="count" style="font-size:12px;opacity:.6">fusionner · diviser</span></button>
+    <button class="item" data-tool="rap">${icon('calendar')}<span>Rappels</span>${(App.project.rappels || []).filter(x => !x.done).length ? `<span class="count">${(App.project.rappels || []).filter(x => !x.done).length}</span>` : ''}</button>
     <div class="group">Liens rapides (Drive)</div>
     ${(App.project.quickLinks || [{ id: 'reception', name: 'Tableau de réception (Drive)', url: '' }]).map(q => `<button class="item" data-q="${q.id}">${icon('grid')}<span>${esc(q.name)}</span>${q.url ? `<span class="count qe" data-qe="${q.id}">${icon('edit', 'style="width:18px;height:18px;opacity:.55"')}</span>` : '<span class="count" style="font-size:12px;opacity:.6">à lier</span>'}</button>`).join('')}
     <button class="item" data-q="__add" style="color:var(--muted)">${icon('plus')}<span>Ajouter un lien</span></button>
@@ -187,6 +210,7 @@ async function openDrawer() {
   bg.onclick = close;
   $('[data-home]', d).onclick = () => { close(); renderHome(); };
   $$('[data-s]', d).forEach(b => b.onclick = () => { close(); App.section = b.dataset.s; App.search = ''; renderSection(); });
+  $$('[data-tool]', d).forEach(b => b.onclick = () => { close(); if (b.dataset.tool === 'pdf') openPdfTools(); else addRappel(App.project.id); });
   $$('[data-q]', d).forEach(b => b.onclick = (e) => { close(); quickLink(b.dataset.q, !!e.target.closest('[data-qe]')); });
   $$('[data-f]', d).forEach(b => b.onclick = () => { close(); App.section = 'tasks'; App.taskFilter = b.dataset.f; App.companyFilter = 'all'; renderSection(); });
 }
@@ -228,10 +252,9 @@ async function renderPlans(root) {
   for (const { f, plans: ps } of groups) {
     const open = q ? true : App.openFolders[f.id];
     const card = document.createElement('div');
-    const FC = [['#1e3a8a', '#2563eb'], ['#134e4a', '#0f766e'], ['#3730a3', '#6366f1'], ['#7c2d12', '#c2410c'], ['#4c1d95', '#7c3aed'], ['#164e63', '#0891b2'], ['#14532d', '#15803d'], ['#831843', '#be185d']];
-    const [c1, c2] = FC[[...String(f.name)].reduce((a, c) => a + c.charCodeAt(0), 0) % FC.length];
+    const fc = FOLDER_COLORS.find(x => x.k === f.color) || FOLDER_COLORS[0];
     card.className = 'card fcard' + (open ? ' open' : '');
-    card.innerHTML = `<div class="folder-head" style="background:linear-gradient(120deg,${c1},${c2})"><span class="fh-ic">${icon('folder')}</span>
+    card.innerHTML = `<div class="folder-head" style="background:${fc.c}"><span class="fh-ic">📁</span>
       <div class="grow"><div class="title">${esc(f.name)}</div><div class="sub">${ps.length} plan${ps.length > 1 ? 's' : ''}</div></div>
       ${f.id !== '_none' ? `<button class="iconbtn" data-more>${icon('more')}</button>` : ''}
       <span class="fh-chev" style="transform:rotate(${open ? 180 : 0}deg)">${icon('chevdown')}</span></div>
@@ -297,9 +320,18 @@ async function addPlanTo(folderId, folders, root) {
   if (v) importPlans(folders, root, v === 'drive', folderId);
 }
 
+const FOLDER_COLORS = [
+  { k: 'nuit', l: 'Bleu nuit', c: '#24344d' }, { k: 'ardoise', l: 'Ardoise', c: '#3a4452' }, { k: 'pin', l: 'Vert sapin', c: '#24493d' },
+  { k: 'petrole', l: 'Bleu pétrole', c: '#1f4750' }, { k: 'bordeaux', l: 'Bordeaux', c: '#5a2a35' }, { k: 'prune', l: 'Prune', c: '#45304f' },
+  { k: 'brun', l: 'Brun', c: '#4f3b2b' }, { k: 'olive', l: 'Olive', c: '#434a2c' },
+];
 async function folderMenu(f, root) {
-  const v = await menu(f.name, [{ label: 'Ajouter un plan ici', icon: 'plus', value: 'add' }, { label: 'Renommer', icon: 'edit', value: 'rename' }, { label: 'Supprimer le dossier', icon: 'trash', danger: true, value: 'del' }]);
+  const v = await menu(f.name, [{ label: 'Ajouter un plan ici', icon: 'plus', value: 'add' }, { label: 'Renommer', icon: 'edit', value: 'rename' }, { label: 'Couleur', icon: 'fill', value: 'color' }, { label: 'Supprimer le dossier', icon: 'trash', danger: true, value: 'del' }]);
   if (v === 'add') { App.openFolders[f.id] = true; return addPlanTo(f.id, await DB.byProject('folders', App.project.id), root); }
+  if (v === 'color') {
+    const c = await menu('Couleur du dossier', FOLDER_COLORS.map(x => ({ label: x.l, value: x.k, swatch: x.c, checked: (f.color || 'nuit') === x.k })));
+    if (c) { f.color = c; await DB.put('folders', f); renderPlans(root); }
+  }
   if (v === 'rename') {
     const r = await formSheet('Renommer', [{ name: 'name', label: 'Nom du dossier', value: f.name }]);
     if (r && r.name) { f.name = r.name; await DB.put('folders', f); renderPlans(root); }
@@ -1073,7 +1105,7 @@ function initSwipeBack() {
   const TRIGGER = 32;
   const strip = document.createElement('div'); strip.id = 'swipeEdge'; document.body.appendChild(strip);
   let sx = 0, sy = 0, t0 = 0, on = false, fired = false, ind = null;
-  const allowed = () => !document.querySelector('.viewer, .sketch') && (App.project || BackStack.length);
+  const allowed = () => !document.querySelector('.viewer, .sketch, .lightbox') && (App.project || BackStack.length);
   const show = (d) => {
     if (!ind) { ind = document.createElement('div'); ind.className = 'swipe-back right'; ind.innerHTML = icon('chevright'); document.body.appendChild(ind); }
     ind.style.top = sy + 'px';
@@ -1154,3 +1186,30 @@ async function openPlansQuick() {
     }
   } catch (e) {}
 })();
+
+// ---------- Rappels (avec notification sur le téléphone si possible) ----------
+const notifId = (x) => Math.abs([...x.id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7)) % 2000000000;
+async function scheduleNotif(p, x) {
+  const LN = window.Capacitor?.Plugins?.LocalNotifications; if (!LN || !x.at || x.at.length <= 10) return;
+  try {
+    const perm = await LN.requestPermissions(); if (perm.display !== 'granted') return;
+    const at = new Date(x.at); if (at < new Date()) return;
+    await LN.schedule({ notifications: [{ id: notifId(x), title: `🔔 ${p.name}`, body: x.text, schedule: { at, allowWhileIdle: true } }] });
+  } catch (e) { console.warn('notif', e); }
+}
+function cancelNotif(x) { const LN = window.Capacitor?.Plugins?.LocalNotifications; if (LN) LN.cancel({ notifications: [{ id: notifId(x) }] }).catch(() => {}); }
+async function addRappel(pid) {
+  const r = await formSheet('Nouveau rappel', [
+    { name: 'text', label: 'Rappel', placeholder: 'Ex : Relancer SGTM pour les PV du 10/10' },
+    { name: 'date', label: 'Date', type: 'date', value: todayISO() },
+    { name: 'time', label: 'Heure de la notification (optionnel)', type: 'time' },
+  ], { okLabel: 'Ajouter' });
+  if (!r || !r.text) return;
+  const p = await DB.get('projects', pid);
+  const x = { id: DB.uid(), text: r.text, at: r.date ? r.date + (r.time ? 'T' + r.time : '') : '', done: false, createdAt: Date.now() };
+  p.rappels = [...(p.rappels || []), x]; await DB.put('projects', p);
+  await scheduleNotif(p, x);
+  toast(r.time ? 'Rappel ajouté — notification programmée ✓' : 'Rappel ajouté ✓');
+  if (!App.project) { App.homeOpen = App.homeOpen || {}; App.homeOpen[pid] = true; renderHome(); }
+  else App.project = p;
+}

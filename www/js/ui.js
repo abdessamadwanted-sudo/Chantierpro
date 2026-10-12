@@ -112,7 +112,7 @@ function sheet(html, { onMount, title } = {}) {
 function menu(title, options) {
   return new Promise((resolve) => {
     let picked = null;
-    const s = sheet(options.map((o, i) => `<button class="opt ${o.danger ? 'danger' : ''}" data-i="${i}">${o.icon ? icon(o.icon) : ''}<span>${esc(o.label)}</span>${o.checked ? `<span class="check">${icon('check')}</span>` : ''}</button>`).join(''), {
+    const s = sheet(options.map((o, i) => `<button class="opt ${o.danger ? 'danger' : ''}" data-i="${i}">${o.swatch ? `<span class="swatch" style="background:${o.swatch}"></span>` : o.icon ? icon(o.icon) : ''}<span>${esc(o.label)}</span>${o.checked ? `<span class="check">${icon('check')}</span>` : ''}</button>`).join(''), {
       title,
       onMount: (el) => $$('.opt', el).forEach(b => b.onclick = () => { picked = options[+b.dataset.i].value ?? +b.dataset.i; s.close(); }),
     });
@@ -248,32 +248,70 @@ async function pdfToImages(file, maxSide = 3000, onPage) {
 
 // Visionneuse photo plein écran
 function showImage(src, caption = '') { return showGallery([{ src, caption }], 0); }
-// Galerie plein écran : glisser à gauche / à droite pour passer d'une photo à l'autre
+// Galerie plein écran façon téléphone : la photo suit le doigt, zoom à deux doigts / double appui, miniatures
 function showGallery(items, start = 0) {
   items = items.filter(x => x && x.src);
   if (!items.length) return;
+  let i = Math.max(0, Math.min(start, items.length - 1)), dx = 0, zoom = 1, px = 0, py = 0;
   const el = document.createElement('div');
-  el.className = 'lightbox gallery';
+  el.className = 'lightbox gallery g2';
   el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1 class="gl-cap"></h1><span class="gl-n"></span>${items.some(x => x.fileId) ? `<button class="iconbtn" data-a="rot" title="Tourner">↻</button>` : ''}</div>
-    <div class="gl-track">${items.map(it => `<div class="gl-slide"><img src="${it.src}" draggable="false"></div>`).join('')}</div>
-    ${items.length > 1 ? `<div class="gl-dots">${items.map((_, i) => `<i data-i="${i}"></i>`).join('')}</div>` : ''}`;
+    <div class="g2-stage"><div class="g2-track"><div class="g2-s"><img draggable="false"></div><div class="g2-s"><img draggable="false"></div><div class="g2-s"><img draggable="false"></div></div></div>
+    ${items.length > 1 ? `<div class="g2-strip">${items.map((it, k) => `<button data-k="${k}"><img data-k="${k}" alt=""></button>`).join('')}</div>` : ''}`;
   document.body.appendChild(el);
   const unBack = pushBack(() => el.remove());
   $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
-  const tr = $('.gl-track', el);
-  const upd = () => {
-    const i = Math.round(tr.scrollLeft / tr.clientWidth);
-    $('.gl-cap', el).textContent = items[i]?.caption || '';
+  const stage = $('.g2-stage', el), track = $('.g2-track', el), slides = $$('.g2-s', el), W = () => stage.clientWidth;
+  const imgs = slides.map(sl => $('img', sl));
+  const setT = (anim) => { track.style.transition = anim ? 'transform .22s ease-out' : 'none'; track.style.transform = `translate3d(${-W() + dx}px,0,0)`; };
+  const applyZoom = (anim) => { const im = imgs[1]; im.style.transition = anim ? 'transform .2s' : 'none'; im.style.transform = `translate(${px}px,${py}px) scale(${zoom})`; };
+  function show() {
+    [-1, 0, 1].forEach((o, k) => { const it = items[i + o]; imgs[k].style.visibility = it ? 'visible' : 'hidden'; if (it && imgs[k].getAttribute('src') !== it.src) imgs[k].src = it.src; imgs[k].style.transform = ''; });
+    zoom = 1; px = py = 0; dx = 0; setT(false);
+    $('.gl-cap', el).textContent = items[i].caption || '';
     $('.gl-n', el).textContent = items.length > 1 ? `${i + 1} / ${items.length}` : '';
-    $$('.gl-dots i', el).forEach((d, j) => d.classList.toggle('on', j === i));
+    $$('.g2-strip button', el).forEach((b, k) => b.classList.toggle('on', k === i));
+    const on = $('.g2-strip button.on', el); if (on) on.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  }
+  function go(dir) {
+    if (!items[i + dir]) { dx = 0; return setT(true); }
+    dx = -dir * W(); setT(true);
+    setTimeout(() => { i += dir; show(); }, 220);
+  }
+  // gestes
+  const pts = new Map(); let sx = 0, sy = 0, st = 0, d0 = 0, z0 = 1, lastTap = 0, mode = null, ppx = 0, ppy = 0;
+  stage.addEventListener('pointerdown', (e) => {
+    stage.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pts.size === 1) { sx = e.clientX; sy = e.clientY; st = Date.now(); ppx = px; ppy = py; mode = zoom > 1 ? 'pan' : null; }
+    if (pts.size === 2) { const [a, b] = [...pts.values()]; d0 = Math.hypot(a[0] - b[0], a[1] - b[1]); z0 = zoom; mode = 'pinch'; dx = 0; setT(true); }
+  });
+  stage.addEventListener('pointermove', (e) => {
+    if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, [e.clientX, e.clientY]);
+    if (mode === 'pinch' && pts.size === 2) { const [a, b] = [...pts.values()]; zoom = Math.max(1, Math.min(5, z0 * Math.hypot(a[0] - b[0], a[1] - b[1]) / d0)); applyZoom(false); return; }
+    const mx = e.clientX - sx, my = e.clientY - sy;
+    if (mode === 'pan') { px = ppx + mx; py = ppy + my; applyZoom(false); return; }
+    if (!mode && Math.abs(mx) > 8 && Math.abs(mx) > Math.abs(my)) mode = 'swipe';
+    if (mode === 'swipe') { dx = mx * ((mx > 0 && !items[i - 1]) || (mx < 0 && !items[i + 1]) ? 0.3 : 1); setT(false); }
+  });
+  const up = (e) => {
+    if (!pts.has(e.pointerId)) return; pts.delete(e.pointerId);
+    if (pts.size) return;
+    if (mode === 'swipe') { const v = dx / Math.max(1, Date.now() - st); if (dx < -W() * 0.22 || v < -0.45) go(1); else if (dx > W() * 0.22 || v > 0.45) go(-1); else { dx = 0; setT(true); } }
+    else if (mode === 'pinch') { if (zoom < 1.05) { zoom = 1; px = py = 0; applyZoom(true); } }
+    else if (!mode || (mode === 'pan' && Math.hypot(e.clientX - sx, e.clientY - sy) < 8)) {
+      if (Date.now() - lastTap < 300) { if (zoom > 1) { zoom = 1; px = py = 0; } else zoom = 2.5; applyZoom(true); lastTap = 0; } else lastTap = Date.now();
+    }
+    mode = null;
   };
-  tr.addEventListener('scroll', () => requestAnimationFrame(upd), { passive: true });
+  stage.addEventListener('pointerup', up); stage.addEventListener('pointercancel', up);
+  $$('.g2-strip button', el).forEach(b => b.onclick = () => { i = +b.dataset.k; show(); });
+  $$('.g2-strip img', el).forEach(im => { const it = items[+im.dataset.k]; if (it.fileId && window.Thumbs) Thumbs.get(it.fileId).then(u => { im.src = u || it.src; }); else im.src = it.src; });
   const rb = $('[data-a=rot]', el); if (rb) rb.onclick = async () => {
-    const i = Math.round(tr.scrollLeft / tr.clientWidth), it = items[i]; if (!it || !it.fileId) return;
-    const url = await rotateFile(it.fileId); if (url) { it.src = url; $$('.gl-slide img', el)[i].src = url; }
+    const it = items[i]; if (!it || !it.fileId) return;
+    const url = await rotateFile(it.fileId); if (url) { it.src = url; imgs[1].src = url; const t = $(`.g2-strip img[data-k="${i}"]`, el); if (t) t.src = url; }
   };
-  $$('.gl-dots i', el).forEach(d => d.onclick = () => tr.scrollTo({ left: +d.dataset.i * tr.clientWidth, behavior: 'smooth' }));
-  requestAnimationFrame(() => { tr.scrollLeft = start * tr.clientWidth; upd(); });
+  window.addEventListener('resize', () => setT(false));
+  show();
 }
 
 // Visionneuse PDF (pages rendues avec pdf.js)

@@ -1,79 +1,143 @@
 // Outils : fusion de PDF (accueil) + constats de non-conformité (par projet)
 
-// ================= Fusion de PDF =================
-// Chaque page des PDF (et chaque image) est rendue puis assemblée dans un seul PDF, dans l'ordre choisi.
-async function openPdfMerger() {
-  const items = [];   // { id, name, kind: 'pdf'|'image', blob, pages }
-  const el = document.createElement('div'); el.className = 'fullpage toolpage'; document.body.appendChild(el);
+// ================= Outils PDF : fusionner, diviser, modifier les pages =================
+// pdf-lib copie les pages telles quelles (qualité d'origine, texte et traits vectoriels conservés).
+async function openPdfTools() {
+  if (!window.PDFLib) return alertBox('Module PDF non disponible — mettez l\'application à jour.');
+  const { PDFDocument } = PDFLib;
+  const sources = [];          // { name, kind: 'pdf'|'image', bytes, mime, pdfjs? }
+  let pages = [];              // { id, s: index source, p: index page (0..), thumb }
+  let sel = new Set(), result = null, name = 'Document';
+  const el = document.createElement('div'); el.className = 'fullpage toolpage pdft'; document.body.appendChild(el);
   const unBack = pushBack(() => el.remove());
-  const close = () => { unBack(); el.remove(); };
+  const close = async () => { if (result || !pages.length || await confirmBox('Quitter ? Le travail en cours sera perdu.', 'Quitter')) { unBack(); el.remove(); } };
+
+  async function readFiles(files) {
+    const out = [];
+    for (const f of files) {
+      const isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+      const bytes = new Uint8Array(await f.arrayBuffer());
+      const src = { name: f.name.replace(/\.[^.]+$/, ''), kind: isPdf ? 'pdf' : 'image', bytes, mime: f.type || (isPdf ? 'application/pdf' : 'image/jpeg') };
+      let n = 1;
+      if (isPdf) { try { src.pdfjs = await pdfjsLib.getDocument({ data: bytes.slice() }).promise; n = src.pdfjs.numPages; } catch (e) { toast('PDF illisible : ' + f.name); continue; } }
+      sources.push(src); const si = sources.length - 1;
+      for (let i = 0; i < n; i++) out.push({ id: DB.uid(), s: si, p: i, thumb: '' });
+    }
+    return out;
+  }
+  async function thumb(pg) {
+    if (pg.thumb) return pg.thumb;
+    const src = sources[pg.s];
+    if (src.kind === 'image') return (pg.thumb = URL.createObjectURL(new Blob([src.bytes], { type: src.mime })));
+    const page = await src.pdfjs.getPage(pg.p + 1), vp1 = page.getViewport({ scale: 1 }), vp = page.getViewport({ scale: 320 / Math.max(vp1.width, vp1.height) });
+    const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+    await page.render({ canvasContext: g, viewport: vp }).promise;
+    return (pg.thumb = c.toDataURL('image/jpeg', 0.75));
+  }
   async function add() {
-    const files = await pickFiles({ accept: 'application/pdf,image/*', multiple: true });
-    if (!files.length) return;
-    const ld = loading('Lecture des fichiers…');
-    try {
-      for (const f of files) {
-        const isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
-        let pages = 1;
-        if (isPdf && pdfReady()) { try { const d = await pdfjsLib.getDocument({ data: new Uint8Array(await f.arrayBuffer()) }).promise; pages = d.numPages; d.destroy(); } catch (e) { toast('PDF illisible : ' + f.name); continue; } }
-        items.push({ id: DB.uid(), name: f.name.replace(/\.[^.]+$/, ''), kind: isPdf ? 'pdf' : 'image', blob: f, pages });
+    const files = await pickFiles({ accept: 'application/pdf,image/*', multiple: true }); if (!files.length) return;
+    const ld = loading('Lecture…'); try { pages.push(...await readFiles(files)); if (name === 'Document' && sources[0]) name = sources[0].name; } finally { ld.close(); }
+    result = null; draw();
+  }
+  async function replace(i) {
+    const files = await pickFiles({ accept: 'application/pdf,image/*', multiple: false }); if (!files.length) return;
+    const np = await readFiles(files); if (!np.length) return;
+    let pick = np[0];
+    if (np.length > 1) { const v = await menu('Quelle page utiliser ?', np.map((x, k) => ({ label: `Page ${k + 1}`, icon: 'file', value: String(k) }))); if (v == null) return; pick = np[+v]; }
+    pages[i] = pick; result = null; draw(); toast('Page remplacée ✓');
+  }
+  // construit un PDF avec les pages données (qualité d'origine)
+  async function build(list) {
+    const out = await PDFDocument.create(), cache = new Map();
+    for (const pg of list) {
+      const src = sources[pg.s];
+      if (src.kind === 'pdf') {
+        if (!cache.has(pg.s)) cache.set(pg.s, await PDFDocument.load(src.bytes, { ignoreEncryption: true }));
+        const [cp] = await out.copyPages(cache.get(pg.s), [pg.p]); out.addPage(cp);
+      } else {
+        let img;
+        if (/png/i.test(src.mime)) img = await out.embedPng(src.bytes);
+        else if (/jpe?g/i.test(src.mime)) img = await out.embedJpg(src.bytes);
+        else { const j = await blobToJpegURL(new Blob([src.bytes], { type: src.mime }), 4000); img = await out.embedJpg(await (await fetch(j.url)).arrayBuffer()); }
+        const land = img.width > img.height, W = land ? 841.89 : 595.28, H = land ? 595.28 : 841.89, k = Math.min(W / img.width, H / img.height);
+        const page = out.addPage([W, H]); page.drawImage(img, { x: (W - img.width * k) / 2, y: (H - img.height * k) / 2, width: img.width * k, height: img.height * k });
       }
-    } finally { ld.close(); }
-    draw();
+    }
+    return new Blob([await out.save()], { type: 'application/pdf' });
   }
-  function draw() {
-    const total = items.reduce((a, x) => a + x.pages, 0);
-    el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1 style="flex:1">Fusionner des PDF</h1></div>
-      <div class="tool-body">
-        <div class="tool-intro">${icon('pdf')}<div><b>Assemblez plusieurs PDF et photos en un seul fichier</b><small>Ajoutez les fichiers, mettez-les dans l'ordre avec ▲ ▼, puis « Générer ».</small></div></div>
-        ${items.length ? `<div class="mg-list">${items.map((it, i) => `<div class="mg-row" data-i="${i}">
-            <span class="mg-n">${i + 1}</span><span class="mg-ic ${it.kind}">${icon(it.kind === 'pdf' ? 'pdf' : 'image')}</span>
-            <div class="grow"><b>${esc(it.name)}</b><small>${it.kind === 'pdf' ? `PDF · ${it.pages} page(s)` : 'Image · 1 page'}</small></div>
-            <button class="iconbtn sm" data-up="${i}" ${i ? '' : 'disabled'}>▲</button><button class="iconbtn sm" data-dn="${i}" ${i < items.length - 1 ? '' : 'disabled'}>▼</button><button class="iconbtn sm" data-rm="${i}">${icon('close')}</button></div>`).join('')}</div>` : '<div class="empty">Aucun fichier pour le moment.</div>'}
-        <button class="btn ghost" data-a="add" style="width:100%">${icon('plus')} Ajouter des PDF / photos</button>
-        ${items.length ? `<label class="mg-name"><small>Nom du fichier final</small><input data-a="name" value="${esc(items._name || 'Document fusionné')}"></label>
-          <button class="btn" data-a="go" style="width:100%">${icon('check')} Générer le PDF (${total} page${total > 1 ? 's' : ''})</button>` : ''}
-      </div>`;
-    $('[data-a=x]', el).onclick = close;
-    $('[data-a=add]', el).onclick = add;
-    $$('[data-up]', el).forEach(b => b.onclick = () => { const i = +b.dataset.up; [items[i - 1], items[i]] = [items[i], items[i - 1]]; draw(); });
-    $$('[data-dn]', el).forEach(b => b.onclick = () => { const i = +b.dataset.dn; [items[i + 1], items[i]] = [items[i], items[i + 1]]; draw(); });
-    $$('[data-rm]', el).forEach(b => b.onclick = () => { items.splice(+b.dataset.rm, 1); draw(); });
-    const nm = $('[data-a=name]', el); if (nm) nm.oninput = () => { items._name = nm.value; };
-    const go = $('[data-a=go]', el); if (go) go.onclick = generate;
-  }
+  const mo = (b) => (b.size / 1048576).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' Mo';
   async function generate() {
-    const { jsPDF } = window.jspdf; let doc = null;
     const ld = loading('Création du PDF…');
-    const addImg = (url, w, h) => {   // page à la taille de l'image (A4 portrait ou paysage)
-      const land = w > h, W = land ? 297 : 210, H = land ? 210 : 297;
-      if (!doc) doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: land ? 'l' : 'p' }); else doc.addPage('a4', land ? 'l' : 'p');
-      const k = Math.min(W / w, H / h); doc.addImage(url, 'JPEG', (W - w * k) / 2, (H - h * k) / 2, w * k, h * k);
-    };
+    try { result = { blob: await build(pages), name: `${safeName(name)}.pdf`, n: pages.length }; } catch (e) { alertBox('Erreur : ' + (e.message || e)); } finally { ld.close(); }
+    draw(); el.querySelector('.tool-body').scrollTop = 0;
+  }
+  async function split() {
+    const list = sel.size ? pages.filter(p => sel.has(p.id)) : pages;
+    const v = await menu(`Diviser (${list.length} page${list.length > 1 ? 's' : ''}${sel.size ? ' sélectionnées' : ''})`, [
+      { label: 'Un PDF par page', icon: 'layers', value: 'each' }, ...(sel.size ? [{ label: 'Extraire la sélection en un PDF', icon: 'pdf', value: 'one' }] : [])]);
+    if (!v) return;
+    const ld = loading('Création…');
     try {
-      let n = 0; const total = items.reduce((a, x) => a + x.pages, 0);
-      for (const it of items) {
-        if (it.kind === 'image') { const im = await blobToJpegURL(it.blob, 2200); addImg(im.url, im.w, im.h); ld.set(`Page ${++n} / ${total}`); continue; }
-        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(await it.blob.arrayBuffer()) }).promise;
-        for (let pg = 1; pg <= pdf.numPages; pg++) {
-          const page = await pdf.getPage(pg), vp1 = page.getViewport({ scale: 1 });
-          const vp = page.getViewport({ scale: Math.min(2.5, 2400 / Math.max(vp1.width, vp1.height)) });
-          const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
-          const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
-          await page.render({ canvasContext: g, viewport: vp }).promise;
-          addImg(c.toDataURL('image/jpeg', 0.85), c.width, c.height); ld.set(`Page ${++n} / ${total}`);
-        }
-        pdf.destroy();
-      }
-      const blob = doc.output('blob');
-      ld.close();
-      const fname = `${safeName(items._name || 'Document fusionné')}.pdf`;
-      const v = await menu(`PDF prêt · ${(blob.size / 1048576).toFixed(1)} Mo`, [
-        { label: 'Voir le PDF', icon: 'eye', value: 'see' }, { label: 'Envoyer / enregistrer', icon: 'share', value: 'share' }]);
-      if (v === 'see') showPdf(blob, fname); if (v === 'share') shareBlob(blob, fname);
+      if (v === 'one') { const b = await build(list); ld.close(); return shareBlob(b, `${safeName(name)}_extrait.pdf`); }
+      const blobs = []; for (const [k, pg] of list.entries()) { ld.set(`Page ${k + 1} / ${list.length}`); blobs.push({ b: await build([pg]), n: `${safeName(name)}_p${pages.indexOf(pg) + 1}.pdf` }); }
+      ld.close(); await shareBlobs(blobs);
     } catch (e) { ld.close(); alertBox('Erreur : ' + (e.message || e)); }
   }
-  draw(); add();
+  function draw() {
+    el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1 style="flex:1">Outils PDF</h1>${pages.length ? `<button class="iconbtn" data-a="add">${icon('plus')}</button>` : ''}</div>
+      <div class="tool-body">
+        ${result ? `<div class="pt-res"><span class="pp-ic">${icon('pdf')}</span><div class="grow"><b>${esc(result.name)}</b><small>${result.n} page(s) · ${mo(result.blob)} · qualité d'origine</small></div>
+          <div class="pt-res-a"><button data-a="see">${icon('eye')} Voir</button><button data-a="send">${icon('share')} Envoyer</button></div></div>` : ''}
+        ${!pages.length ? `<div class="tool-intro">${icon('pdf')}<div><b>Fusionner, diviser, modifier des pages</b><small>Ajoutez un ou plusieurs PDF / photos : chaque page s'affiche, vous pouvez la déplacer, la remplacer ou la supprimer.</small></div></div>
+          <button class="btn" data-a="add" style="width:100%">${icon('plus')} Ajouter des PDF / photos</button>` : `
+        <label class="mg-name"><small>Nom du fichier</small><input data-a="name" value="${esc(name)}"></label>
+        <div class="pt-bar"><span>${pages.length} page(s)${sel.size ? ` · ${sel.size} sélectionnée(s)` : ''}</span>${sel.size ? `<button data-a="unsel">Désélectionner</button><button data-a="delsel" class="d">${icon('trash')} Supprimer</button>` : '<small>Appui long = sélectionner</small>'}</div>
+        <div class="pt-grid">${pages.map((pg, i) => `<div class="pt-pg ${sel.has(pg.id) ? 'sel' : ''}" data-i="${i}">
+            <div class="pt-im"><img data-th="${i}" alt=""><span class="pt-n">${i + 1}</span>${sel.has(pg.id) ? `<span class="pt-ck">${icon('check')}</span>` : ''}</div>
+            <div class="pt-src">${esc(sources[pg.s].name)}${sources[pg.s].kind === 'pdf' ? ' · p' + (pg.p + 1) : ''}</div>
+            <div class="pt-act"><button data-l="${i}" ${i ? '' : 'disabled'}>◀</button><button data-r="${i}" title="Remplacer">⇄</button><button data-d="${i}" class="d">✕</button><button data-rt="${i}" ${i < pages.length - 1 ? '' : 'disabled'}>▶</button></div></div>`).join('')}</div>
+        <div class="pt-foot"><button class="btn ghost" data-a="split">${icon('layers')} Diviser</button><button class="btn" data-a="go">${icon('check')} ${pages.length > 1 ? 'Fusionner' : 'Générer'} (${pages.length} p.)</button></div>`}
+      </div>`;
+    $('[data-a=x]', el).onclick = close;
+    $$('[data-a=add]', el).forEach(b => b.onclick = add);
+    const nm = $('[data-a=name]', el); if (nm) nm.oninput = () => { name = nm.value; };
+    const g = $('[data-a=go]', el); if (g) g.onclick = generate;
+    const sp = $('[data-a=split]', el); if (sp) sp.onclick = split;
+    const se = $('[data-a=see]', el); if (se) se.onclick = () => showPdf(result.blob, result.name);
+    const sd = $('[data-a=send]', el); if (sd) sd.onclick = () => shareBlob(result.blob, result.name);
+    const us = $('[data-a=unsel]', el); if (us) us.onclick = () => { sel.clear(); draw(); };
+    const ds = $('[data-a=delsel]', el); if (ds) ds.onclick = () => { pages = pages.filter(p => !sel.has(p.id)); sel.clear(); result = null; draw(); };
+    const mv = (i, j) => { [pages[i], pages[j]] = [pages[j], pages[i]]; result = null; draw(); };
+    $$('[data-l]', el).forEach(b => b.onclick = () => mv(+b.dataset.l, +b.dataset.l - 1));
+    $$('[data-rt]', el).forEach(b => b.onclick = () => mv(+b.dataset.rt, +b.dataset.rt + 1));
+    $$('[data-d]', el).forEach(b => b.onclick = () => { pages.splice(+b.dataset.d, 1); result = null; draw(); });
+    $$('[data-r]', el).forEach(b => b.onclick = () => replace(+b.dataset.r));
+    $$('.pt-im', el).forEach(im => {
+      const i = +im.parentNode.dataset.i; let t = null;
+      im.addEventListener('pointerdown', () => { t = setTimeout(() => { t = 'long'; const id = pages[i].id; sel.has(id) ? sel.delete(id) : sel.add(id); draw(); }, 450); });
+      const cancel = () => { if (t && t !== 'long') clearTimeout(t); };
+      im.addEventListener('pointerup', async () => { if (t === 'long') { t = null; return; } cancel(); t = null;
+        if (sel.size) { const id = pages[i].id; sel.has(id) ? sel.delete(id) : sel.add(id); return draw(); }
+        const pg = pages[i]; const b = await build([pg]); showPdf(b, `Page ${i + 1}`); });
+      im.addEventListener('pointerleave', cancel); im.addEventListener('pointercancel', cancel);
+    });
+    $$('img[data-th]', el).forEach(async img => { const u = await thumb(pages[+img.dataset.th]); if (img.isConnected) img.src = u; });
+  }
+  draw();
+}
+const openPdfMerger = openPdfTools;
+async function shareBlobs(list) {
+  const P = window.Capacitor?.Plugins || {};
+  if (P.Filesystem && P.Share) {
+    const uris = [];
+    for (const { b, n } of list) {
+      const b64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(b); });
+      await P.Filesystem.writeFile({ path: n, data: b64, directory: 'CACHE' }); uris.push((await P.Filesystem.getUri({ path: n, directory: 'CACHE' })).uri);
+    }
+    try { await P.Share.share({ files: uris, dialogTitle: 'Envoyer' }); } catch (e) {}
+    return;
+  }
+  for (const { b, n } of list) await shareBlob(b, n);
 }
 
 // ================= Constats / non-conformités =================

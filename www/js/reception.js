@@ -30,27 +30,29 @@ const monthLabel = (ym) => { const [y, m] = ym.split('-'); return `${MONTHS[+m -
 const zoneKey = (r) => [isNaN(+r.zone) ? 9999 : +r.zone, String(r.zone || ''), String(r.niv || ''), String(r.element || '')];
 const cmpZone = (a, b) => { const x = zoneKey(a), y = zoneKey(b); for (let i = 0; i < x.length; i++) { if (x[i] < y[i]) return -1; if (x[i] > y[i]) return 1; } return 0; };
 // Message WhatsApp (même présentation pour 1 ouvrage, une sélection, une zone ou tout le tableau)
+const nivRank = (n) => { const i = NIVEAUX.findIndex(x => x.toLowerCase() === String(n || '').trim().toLowerCase()); if (i >= 0) return i; const m = String(n || '').match(/R\s*\+\s*(\d+)/i); return m ? 4 + +m[1] : 999; };
 function recMessage(p, day, rows, single = false) {
-  const K = kindOf(day);
+  const K = kindOf(day), B = isBeton(K);
   rows = reportRows(K, rows).slice().sort(cmpZone);
-  const item = (r) => `${isBeton(K) && !single ? '' : (REC_STATUS[r.status] || REC_STATUS.pending).mark + ' '}${r.niv ? r.niv + ' — ' : ''}${r.element}${isBeton(K) && r.classe ? ` (${r.classe})` : ''}` +
+  // ligne d'un ouvrage : ✅ en réception, • en bétonnage
+  const item = (r) => `${B ? '•' : (REC_STATUS[r.status] || REC_STATUS.pending).mark} ${r.element}${B && r.classe ? ` (${r.classe})` : ''}` +
     (r.obs ? `\n     ↳ ${r.status === 'reserve' ? resLabel(K) + ' : ' : ''}${r.obs}` : '') +
-    (r.status === 'reserve' && r.liftedAt ? `\n     ✔️ ${isBeton(K) ? 'Réparé' : 'Réserve levée'} le ${fmtDate(r.liftedAt)}` : '');
-  const sec = (st, title) => {
-    const l = rows.filter(r => r.status === st);
-    if (!l.length) return '';
-    const zones = [];
-    for (const r of l) { const z = String(r.zone || '').trim(); let g = zones.find(x => x.z === z); if (!g) zones.push(g = { z, rows: [] }); g.rows.push(r); }
-    return (single ? `\n*${title}*\n` : `\n*${title} (${l.length}) :*\n`) + zones.map(g => `*${g.z ? 'Zone ' + g.z : 'Sans zone'}*\n${g.rows.map(item).join('\n')}`).join('\n\n') + '\n';
+    (B && r.status === 'progress' && !/en cours/i.test(r.obs || '') ? `\n     ↳ En cours` : '') +
+    (r.status === 'reserve' && r.liftedAt ? `\n     ✔️ ${B ? 'Réparé' : 'Réserve levée'} le ${fmtDate(r.liftedAt)}` : '');
+  // Zone → *niveau* (gras) → ouvrages
+  const block = (l) => {
+    const zs = []; for (const r of l) { const z = String(r.zone || '').trim(); let g = zs.find(x => x.z === z); if (!g) zs.push(g = { z, rows: [] }); g.rows.push(r); }
+    return zs.map(g => {
+      const nv = []; for (const r of g.rows) { const n = String(r.niv || '').trim(); let h = nv.find(x => x.n === n); if (!h) nv.push(h = { n, rows: [] }); h.rows.push(r); }
+      nv.sort((a, b2) => nivRank(a.n) - nivRank(b2.n));
+      return `*${g.z ? 'Zone ' + g.z : 'Sans zone'}*\n` + nv.map(h => (h.n ? `*${h.n}*\n` : '') + h.rows.map(item).join('\n')).join('\n');
+    }).join('\n\n');
   };
-  if (single && isBeton(K)) return `*${recTitle(K)} du ${fmtDate(day.date)}*\n` + sec('ok', 'Bétonnage validé ✅') + sec('progress', 'Bétonnage en cours 🔄') + sec('reserve', 'Bétonné avec défaut ⚠️');
-  if (isBeton(K)) {
-    const byZone = (l) => { const zs = []; for (const r of l) { const z = String(r.zone || '').trim(); let g = zs.find(x => x.z === z); if (!g) zs.push(g = { z, rows: [] }); g.rows.push(r); } return zs.map(g => `*${g.z ? 'Zone ' + g.z : 'Sans zone'}*\n${g.rows.map(item).join('\n')}`).join('\n\n'); };
-    const done = rows.filter(r => r.status !== 'progress'), cur = rows.filter(r => r.status === 'progress');
-    return `*${recTitle(K)} du ${fmtDate(day.date)}*\n` + (done.length ? '\n' + byZone(done) + '\n' : '') + (cur.length ? `\n*En cours de bétonnage :*\n${byZone(cur)}\n` : '');
-  }
-  if (single) return `*${recTitle(K)} du ${fmtDate(day.date)}*\n` + sec('ok', isBeton(K) ? 'Bétonnage validé ✅' : 'Réception validée ✅') + sec('reserve', isBeton(K) ? 'Bétonné avec défaut ⚠️' : 'Réception avec réserve ⚠️') + sec('pending', isBeton(K) ? 'Non bétonné ⏳' : 'Non réceptionné ⏳');
-  return `*${recTitle(K)} du ${fmtDate(day.date)}*\n` + sec('ok', stLabel(K, 'ok')) + sec('reserve', stLabel(K, 'reserve')) + sec('pending', stLabel(K, 'pending'));
+  const head = `*${recTitle(K)} du ${fmtDate(day.date)}*\n`;
+  if (B) return head + (rows.length ? '\n' + block(rows) + '\n' : '');
+  const sec = (st, title) => { const l = rows.filter(r => r.status === st); return l.length ? (title ? `\n*${title} :*\n` : '\n') + block(l) + '\n' : ''; };
+  if (single) return head + sec('ok', '') + sec('reserve', 'Réception avec réserve ⚠️') + sec('pending', 'Non réceptionné ⏳');
+  return head + sec('ok', '') + sec('reserve', 'Avec réserve') + sec('pending', 'Non réceptionné');
 }
 const rowText = (p, day, r) => recMessage(p, day, [r], true);
 async function shareRow(p, day, r) {
@@ -208,15 +210,17 @@ async function renderReceptions(root, kind = 'Ferraillage') {
       if (App.openMonths[key] === undefined) App.openMonths[key] = m === months[0] || m === curM;
       const ds = all.filter(d => (d.date || '').slice(0, 7) === m);
       const nEl = ds.reduce((a, d) => a + d.rows.filter(r => r.element).length, 0), nRs = ds.reduce((a, d) => a + d.rows.filter(r => r.status === (isBeton(kind) ? 'progress' : 'reserve')).length, 0);
-      const card = document.createElement('div'); card.className = 'card';
+      const card = document.createElement('div'); card.className = 'card mcard';
       const open = App.openMonths[key];
-      card.innerHTML = `<div class="folder-head"><span class="icon-muted">${icon('calendar')}</span>
-        <div class="grow"><div class="title" style="font-size:18px">${monthLabel(m)}</div><div class="sub" style="color:var(--muted);margin-top:3px">${ds.length} jour(s) · ${nEl} élément(s)${nRs ? ` · <span style="color:${isBeton(kind) ? '#3b82f6' : '#f59e0b'}">${nRs} ${isBeton(kind) ? 'en cours' : 'réserve(s)'}</span>` : ''}</div></div>
-        <span class="icon-muted" style="transform:rotate(${open ? 180 : 0}deg)">${icon('chevdown')}</span></div>
+      const mPv = isBeton(kind) ? 0 : ds.reduce((a, d) => a + d.rows.filter(pvMissing).length, 0);
+      card.innerHTML = `<div class="folder-head"><span class="fh-ic">${icon('calendar')}</span>
+        <div class="grow"><div class="title">${monthLabel(m)}</div><div class="sub">${mPv ? `<span class="mpv">🔔 ${mPv} PV</span> · ` : ''}${ds.length} jour(s) · ${nEl} élément(s)${nRs ? ` · <span style="color:${isBeton(kind) ? '#3b82f6' : '#f59e0b'}">${nRs} ${isBeton(kind) ? 'en cours' : 'réserve(s)'}</span>` : ''}</div></div>
+        <span class="fh-chev" style="transform:rotate(${open ? 180 : 0}deg)">${icon('chevdown')}</span></div>
         ${open ? `<div class="plan-rows">${ds.map(d => {
-          const n = d.rows.filter(r => r.element).length, ok = d.rows.filter(r => r.status === 'ok').length, rs = d.rows.filter(r => r.status === (isBeton(kind) ? 'progress' : 'reserve')).length;
+          const n = d.rows.filter(r => r.element).length, ok = d.rows.filter(r => r.status === 'ok').length, rs = d.rows.filter(r => r.status === (isBeton(kind) ? 'progress' : 'reserve')).length, np = d.rows.filter(pvMissing).length;
+          const tag = isBeton(kind) ? `<span style="color:#15803d">${ok} bétonné(s)</span>` : np ? `<span class="tpv">🔔 ${np} PV non reçu${np > 1 ? 's' : ''}</span>` : (ok ? '<span class="tok">✓ PV complets</span>' : '');
           return `<div class="prow" data-id="${d.id}"><span class="daybox"><b>${(d.date || '').slice(8, 10)}</b><small>${MONTHS[+(d.date || '0-01').slice(5, 7) - 1].slice(0, 3)}</small></span>
-            <div class="nm"><div style="font-size:16px">${fmtDate(d.date)}</div><div style="font-size:13px;color:var(--muted);margin-top:2px">${n} élément(s) · <span style="color:#22c55e">${ok} OK</span>${rs ? ` · <span style="color:${isBeton(kind) ? '#3b82f6' : '#f59e0b'}">${rs} ${isBeton(kind) ? 'en cours' : 'réserve(s)'}</span>` : ''}${d.syncedAt ? ' · ☁' : ''}</div></div>${icon('chevright')}</div>`;
+            <div class="nm"><div style="font-size:16px">${fmtDate(d.date)}</div><div style="font-size:13px;color:var(--muted);margin-top:2px">${n} élément(s)${tag ? ' · ' + tag : ''}${rs ? ` · <span style="color:${isBeton(kind) ? '#3b82f6' : '#f59e0b'}">${rs} ${isBeton(kind) ? 'en cours' : 'réserve(s)'}</span>` : ''}${d.syncedAt ? ' · ☁' : ''}</div></div>${icon('chevright')}</div>`;
         }).join('')}</div>` : ''}`;
       body.appendChild(card);
       $('.folder-head', card).onclick = () => { App.openMonths[key] = !open; renderReceptions(root, kind); };
@@ -285,18 +289,28 @@ function openReceptionDay(day, opts = {}) {
       day.pvPdfId = rec.id;
     }
     let moveSel = -1;             // ligne sélectionnée pour la déplacer (appui long)
+    // jours voisins (même type) pour passer d'un jour à l'autre
+    let SIBS = [];
+    const loadSibs = async () => { SIBS = (await DB.byProject('receptions', day.projectId)).filter(d => kindOf(d) === K).sort((a, b) => (a.date || '').localeCompare(b.date || '')); };
+    const sib = (dir) => { const i = SIBS.findIndex(d => d.id === day.id); return i < 0 ? null : SIBS[i + dir] || null; };
+    async function goDay(dir) {
+      const d2 = sib(dir); if (!d2) return toast(dir < 0 ? 'Premier jour' : 'Dernier jour');
+      await save(); day = (await DB.get('receptions', d2.id)) || d2; moveSel = -1;
+      el.classList.remove('slide-l', 'slide-r'); void el.offsetWidth; el.classList.add(dir > 0 ? 'slide-l' : 'slide-r');
+      render();
+    }
+    await loadSibs();
     function render() {
       const n = day.rows.filter(r => r.element).length, ok = day.rows.filter(r => r.status === 'ok').length, rs = day.rows.filter(r => r.status === (isBeton(K) ? 'progress' : 'reserve')).length;
       el.innerHTML = `
         <div class="topbar"><button class="iconbtn" data-a="back">${icon('back')}</button>
-          <h1>${fmtDate(day.date)}</h1>
+          <div class="dnav"><button data-dn="-1" ${sib(-1) ? '' : 'disabled'}>‹</button><h1>${fmtDate(day.date)}</h1><button data-dn="1" ${sib(1) ? '' : 'disabled'}>›</button></div>
           <button class="iconbtn" data-a="share">${icon('share')}</button><button class="iconbtn" data-a="more">${icon('more')}</button></div>
         <div class="rec-sum"><span><b>${n}</b> éléments</span><span style="color:#22c55e"><b>${ok}</b> ${isBeton(K) ? 'bétonnés' : 'réceptionnés'}</span><span style="color:${isBeton(K) ? '#60a5fa' : '#f59e0b'}"><b>${rs}</b> ${isBeton(K) ? 'en cours' : 'réserves'}</span><span style="color:var(--muted)"><b>${n - ok - rs}</b> ${isBeton(K) ? 'non bétonnés' : 'en attente'}</span>${!isBeton(K) && day.rows.some(pvMissing) ? `<span style="color:#ef4444"><b>${day.rows.filter(pvMissing).length}</b> PV manquant(s)</span>` : ''}</div>
+        <div class="rec-info"><b>${fmtDate(day.date)}</b><span class="rp">${esc(p.pdfTitle || p.name)}</span><span class="rt">${recTitle(K)} (post jour)</span></div>
         <div class="rec-wrap">
           <table class="rec">
             <thead>
-              <tr><th colspan="${NC}" class="rt1">${esc(p.pdfTitle || p.name)}</th></tr>
-              <tr><th colspan="${NC - 2}" class="rt2">${recTitle(K)} (post jour)</th><th colspan="2" class="rt2 date">Date ${recDateLabel(day.date).slice(0, 5)}</th></tr>
               <tr><th>Zone</th><th>NIV</th><th class="el">${recColHead(K)}</th>${isBeton(K) ? '<th>Classe béton</th>' : ''}<th>Statut</th>${isBeton(K) ? '' : '<th>PV</th><th>Réceptionné avec</th>'}<th class="ob">Observation</th><th>${PH1}</th><th>${PH2}</th><th>Croquis</th></tr>
             </thead>
             <tbody>
@@ -346,6 +360,19 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         });
       })();
       $('[data-a=back]', el).onclick = () => { unBack(); finish(); };
+      $$('[data-dn]', el).forEach(b => b.onclick = () => goDay(+b.dataset.dn));
+      // glisser à gauche / à droite : en-tête, ou tableau quand il est au bord
+      (() => {
+        const wrap = $('.rec-wrap', el); let sx = 0, sy = 0, sl = 0, t0 = 0, zone = null;
+        el.ontouchstart = (e) => { if (e.touches.length !== 1 || e.target.closest('.sheet-bg, input, textarea')) { zone = null; return; } const t = e.touches[0]; sx = t.clientX; sy = t.clientY; t0 = Date.now(); zone = e.target.closest('.rec-wrap') ? 'tab' : 'head'; sl = wrap.scrollLeft; };
+        el.ontouchend = (e) => {
+          if (!zone) return; const t = e.changedTouches[0], dx = t.clientX - sx, dy = Math.abs(t.clientY - sy), fast = Date.now() - t0 < 450;
+          if (Math.abs(dx) < 70 || dy > Math.abs(dx) * 0.6 || !fast) return;
+          const max = wrap.scrollWidth - wrap.clientWidth;
+          if (zone === 'tab' && !((dx > 0 && sl <= 2) || (dx < 0 && sl >= max - 2))) return;
+          goDay(dx < 0 ? 1 : -1);
+        };
+      })();
       $('[data-a=add]', el).onclick = () => editRow(null);
       $('[data-a=paste]', el).onclick = async () => {
         const r = await formSheet('Coller un texte', [{ name: 'txt', label: 'Collez le message (WhatsApp, notes…) — une ligne par ouvrage', type: 'textarea', placeholder: 'Zone 11\nR+5 Voile CR 75\nR+5 Poutre C21 B30\nZone 12 R+2 Poteau CR 26' }], { okLabel: 'Analyser' });
@@ -393,7 +420,22 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
           { label: 'Fichier Excel (CSV)', icon: 'grid', value: 'csv' },
           { label: 'Envoyer vers Google Sheets (Drive)', icon: 'drive', value: 'sheets' },
         ]);
-        if (v === 'txt') shareWhatsApp(receptionText(p, day));
+        if (v === 'txt') {
+          const other = (await DB.byProject('receptions', day.projectId)).find(d => d.id !== day.id && d.date === day.date && kindOf(d) !== K && d.rows.some(r => r.element));
+          let what = 'one';
+          if (other) {
+            const fer = isBeton(K) ? other : day, bet = isBeton(K) ? day : other;
+            what = await menu(`Partager le ${fmtDate(day.date)}`, [
+              { label: 'Réception ferraillage seule', icon: 'layers', value: 'fer' },
+              { label: 'Programme de bétonnage seul', icon: 'calendar', value: 'bet' },
+              { label: 'Réception + Bétonnage (un seul message)', icon: 'share', value: 'both' }]);
+            if (!what) return;
+            if (what === 'fer') return shareWhatsApp(receptionText(p, fer));
+            if (what === 'bet') return shareWhatsApp(receptionText(p, bet));
+            return shareWhatsApp(receptionText(p, fer).trim() + '\n\n━━━━━━━━━━\n\n' + receptionText(p, bet).trim());
+          }
+          shareWhatsApp(receptionText(p, day));
+        }
         if (v === 'zone') {
           const zones = [...new Set(day.rows.filter(r => r.element).map(r => r.zone || ''))].sort((x, y) => (+x || 9999) - (+y || 9999));
           const z = await menu('Quelle zone ?', zones.map(zz => ({ label: zz ? `Zone ${zz}` : 'Sans zone', value: zz || '__none' })));
