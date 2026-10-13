@@ -24,6 +24,7 @@ const Sync = (() => {
     el.innerHTML = state === 'sync' ? `<span class="spin"></span>${esc(msg || 'Synchronisation…')}` : state === 'error' ? `⚠ ${esc(msg || 'Synchro impossible')}` : '';
     el.style.display = (state === 'sync' || state === 'error') ? 'flex' : 'none';
     document.querySelectorAll('[data-syncstate]').forEach(n => n.innerHTML = statusLine());
+    document.querySelectorAll('.h2-cloud').forEach(n => { n.classList.remove('st-ok', 'st-sync', 'st-error'); n.classList.add('st-' + (state || 'ok')); });
   }
   function statusLine() {
     if (!enabled()) return '<span style="color:var(--muted)">Non connecté</span>';

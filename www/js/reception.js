@@ -130,7 +130,8 @@ async function renderReceptions(root, kind = 'Ferraillage') {
   const tba = $('#tbActions');
   if (tba) tba.innerHTML = `<button class="iconbtn" data-a="sync" title="Google Sheets">${icon('grid')}</button>`;
 
-  root.innerHTML = `<div style="height:8px"></div>
+  const nPvAll = nMiss;
+  root.innerHTML = `<div class="kseg"><button class="${!isBeton(kind) ? 'on' : ''}" data-k="reception">${icon('layers')} Réception${nPvAll ? ` <i>${nPvAll}</i>` : ''}</button><button class="${isBeton(kind) ? 'on' : ''}" data-k="beton">${icon('calendar')} Bétonnage</button></div>
     <div class="search">${icon('search')}<input placeholder="Rechercher un ouvrage (ex : CR 77, voile…)" value="${esc(App.recSearch[kind] || '')}"></div>
     <div class="fbar">
       <button class="fsel ${nivF ? 'on' : ''}" data-f="niv"><small>Niveau</small><b>${esc(nivF || 'Tous')}</b>${icon('chevdown')}</button>
@@ -139,6 +140,16 @@ async function renderReceptions(root, kind = 'Ferraillage') {
     </div>
     ${!isBeton(kind) && (nMiss || pvF) ? `<div class="chips niv"><button class="chip pvchip ${pvF ? 'on' : ''}" data-a="pvf">🔔 PV non reçus <b>${nMiss}</b></button></div>` : ''}
     <div id="recBody"></div>`;
+  $$('.kseg [data-k]', root).forEach(b => b.onclick = () => { if (App.section !== b.dataset.k) { App.section = b.dataset.k; renderSection(); } });
+  // barre de partage unique (suit le tableau choisi)
+  const sb = document.createElement('div'); sb.className = 'sharebar';
+  sb.innerHTML = `<button data-sb>${icon('share')} Partager ${isBeton(kind) ? 'le bétonnage' : 'la réception'}…</button>`;
+  root.appendChild(sb);
+  $('[data-sb]', sb).onclick = async () => {
+    if (!all.length) return toast('Aucun tableau');
+    const d = await menu('Quel jour ?', all.slice(0, 12).map(x => ({ label: `${fmtDate(x.date)} · ${x.rows.filter(r => r.element).length} élément(s)`, icon: 'calendar', value: x.id })));
+    if (d) shareDayMenu(p, all.find(x => x.id === d));
+  };
   const pvb = $('[data-a=pvf]', root); if (pvb) pvb.onclick = () => { App.recPv[kind] = !pvF; renderReceptions(root, kind); };
   $$('[data-f]', root).forEach(b => b.onclick = async () => {
     const f = b.dataset.f;
@@ -192,7 +203,7 @@ async function renderReceptions(root, kind = 'Ferraillage') {
       <div class="row" data-h="${i}"><span class="rs" style="background:${(REC_STATUS[r.status] || REC_STATUS.pending).color};min-width:74px;text-align:center">${stLabel(kind, r.status)}</span>
         <div class="grow"><div class="title wrap">${esc(r.element)}</div>
         <div class="sub">📅 ${fmtDate(d.date)}${r.zone ? ' · Zone ' + esc(r.zone) : ''}${r.niv ? ' · ' + esc(r.niv) : ''}${r.classe ? ' · ' + esc(r.classe) : ''}${r.avec ? ' · avec ' + esc(r.avec) : ''}${!isBeton(kind) && r.status !== 'pending' ? (r.pvRecu ? ' · <span style="color:#22c55e">PV reçu</span>' : ' · <span style="color:#ef4444">PV manquant</span>') : ''}${r.obs ? `<br><span style="color:${r.status === 'reserve' ? '#f59e0b' : 'var(--muted)'}">${esc(r.obs)}</span>` : ''}</div></div>
-        <button class="iconbtn" data-sh="${i}">${icon('share')}</button></div>`).join('')}</div>`
+</div>`).join('')}</div>`
       : `<div class="empty">Aucun ouvrage trouvé${q ? ` pour « ${esc(q)} »` : ''}${nivF ? ` au niveau ${esc(nivF)}` : ''}${zoneF ? ` en zone ${esc(zoneF)}` : ''}.</div>`;
     $$('[data-h]', body).forEach(el => el.onclick = async (e) => {
       const { d, r } = hits[+el.dataset.h];
@@ -291,7 +302,9 @@ function openReceptionDay(day, opts = {}) {
     let moveSel = -1;             // ligne sélectionnée pour la déplacer (appui long)
     // jours voisins (même type) pour passer d'un jour à l'autre
     let SIBS = [];
-    const loadSibs = async () => { SIBS = (await DB.byProject('receptions', day.projectId)).filter(d => kindOf(d) === K).sort((a, b) => (a.date || '').localeCompare(b.date || '')); };
+    let ALLD = [];
+    const loadSibs = async () => { ALLD = await DB.byProject('receptions', day.projectId); SIBS = ALLD.filter(d => kindOf(d) === K).sort((a, b) => (a.date || '').localeCompare(b.date || '')); };
+    const otherKind = () => ALLD.find(d => d.date === day.date && kindOf(d) !== K);
     const sib = (dir) => { const i = SIBS.findIndex(d => d.id === day.id); return i < 0 ? null : SIBS[i + dir] || null; };
     async function goDay(dir) {
       const d2 = sib(dir); if (!d2) return toast(dir < 0 ? 'Premier jour' : 'Dernier jour');
@@ -306,8 +319,8 @@ function openReceptionDay(day, opts = {}) {
         <div class="topbar"><button class="iconbtn" data-a="back">${icon('back')}</button>
           <div class="dnav"><button data-dn="-1" ${sib(-1) ? '' : 'disabled'}>‹</button><h1>${fmtDate(day.date)}</h1><button data-dn="1" ${sib(1) ? '' : 'disabled'}>›</button></div>
           <button class="iconbtn" data-a="share">${icon('share')}</button><button class="iconbtn" data-a="more">${icon('more')}</button></div>
-        <div class="rec-sum"><span><b>${n}</b> éléments</span><span style="color:#22c55e"><b>${ok}</b> ${isBeton(K) ? 'bétonnés' : 'réceptionnés'}</span><span style="color:${isBeton(K) ? '#60a5fa' : '#f59e0b'}"><b>${rs}</b> ${isBeton(K) ? 'en cours' : 'réserves'}</span><span style="color:var(--muted)"><b>${n - ok - rs}</b> ${isBeton(K) ? 'non bétonnés' : 'en attente'}</span>${!isBeton(K) && day.rows.some(pvMissing) ? `<span style="color:#ef4444"><b>${day.rows.filter(pvMissing).length}</b> PV manquant(s)</span>` : ''}</div>
-        <div class="rec-info"><b>${fmtDate(day.date)}</b><span class="rp">${esc(p.pdfTitle || p.name)}</span><span class="rt">${recTitle(K)} (post jour)</span></div>
+        <div class="rec-sum"><span><b>${n}</b> éléments</span><span style="color:#22c55e"><b>${ok}</b> ${isBeton(K) ? 'bétonnés' : 'réceptionnés'}</span><span style="color:${isBeton(K) ? '#60a5fa' : '#f59e0b'}"><b>${rs}</b> ${isBeton(K) ? 'en cours' : 'réserves'}</span>${n - ok - rs ? `<span style="color:var(--muted)"><b>${n - ok - rs}</b> ${isBeton(K) ? 'non bétonné(s)' : 'en attente'}</span>` : ''}${!isBeton(K) && day.rows.some(pvMissing) ? `<span style="color:#ef4444"><b>${day.rows.filter(pvMissing).length}</b> PV manquant(s)</span>` : ''}</div>
+        <div class="rec-info"><b>${fmtDate(day.date)}</b><span class="rp">${esc(p.pdfTitle || p.name)}</span><span class="rt">${recTitle(K)} (post jour)</span><button class="kswitch" data-ks>${icon(isBeton(K) ? 'layers' : 'calendar')} ${isBeton(K) ? 'Réception' : 'Bétonnage'} du ${fmtDate(day.date).slice(0, 5)}</button></div>
         <div class="rec-wrap">
           <table class="rec">
             <thead>
@@ -361,6 +374,13 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
       })();
       $('[data-a=back]', el).onclick = () => { unBack(); finish(); };
       $$('[data-dn]', el).forEach(b => b.onclick = () => goDay(+b.dataset.dn));
+      $('[data-ks]', el).onclick = async () => {
+        let o = otherKind();
+        if (!o) { if (!await confirmBox(`Pas encore de ${isBeton(K) ? 'réception' : 'programme de bétonnage'} le ${fmtDate(day.date)}. Le créer ?`, 'Créer')) return; o = await DB.put('receptions', { projectId: day.projectId, date: day.date, type: isBeton(K) ? 'Ferraillage' : 'Bétonnage', rows: [] }); }
+        await save(); unBack(); el.remove(); resolve();
+        App.section = isBeton(K) ? 'reception' : 'beton'; renderSection();
+        setTimeout(() => openReceptionDay(o), 50);
+      };
       // glisser à gauche / à droite : en-tête, ou tableau quand il est au bord
       (() => {
         const wrap = $('.rec-wrap', el); let sx = 0, sy = 0, sl = 0, t0 = 0, zone = null;
@@ -410,51 +430,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         const [row] = R.splice(i, 1); R.splice(j, 0, row); moveSel = j; await save(); render();
         const tr = $(`tbody tr[data-i="${j}"]`, el); tr && tr.scrollIntoView({ block: 'nearest' });
       });
-      $('[data-a=share]', el).onclick = async () => {
-        const v = await menu('Partager', [
-          { label: 'Texte WhatsApp (tout le tableau)', icon: 'share', value: 'txt' },
-          { label: 'Une zone…', icon: 'share', value: 'zone' },
-          { label: 'Choisir des ouvrages…', icon: 'check', value: 'pick' },
-          { label: 'PDF du tableau', icon: 'report', value: 'pdf' },
-          ...((day.pvIds || []).length ? [{ label: `Envoyer les PV du jour (${day.pvIds.length})`, icon: 'camera', value: 'pv' }] : []),
-          { label: 'Fichier Excel (CSV)', icon: 'grid', value: 'csv' },
-          { label: 'Envoyer vers Google Sheets (Drive)', icon: 'drive', value: 'sheets' },
-        ]);
-        if (v === 'txt') {
-          const other = (await DB.byProject('receptions', day.projectId)).find(d => d.id !== day.id && d.date === day.date && kindOf(d) !== K && d.rows.some(r => r.element));
-          let what = 'one';
-          if (other) {
-            const fer = isBeton(K) ? other : day, bet = isBeton(K) ? day : other;
-            what = await menu(`Partager le ${fmtDate(day.date)}`, [
-              { label: 'Réception ferraillage seule', icon: 'layers', value: 'fer' },
-              { label: 'Programme de bétonnage seul', icon: 'calendar', value: 'bet' },
-              { label: 'Réception + Bétonnage (un seul message)', icon: 'share', value: 'both' }]);
-            if (!what) return;
-            if (what === 'fer') return shareWhatsApp(receptionText(p, fer));
-            if (what === 'bet') return shareWhatsApp(receptionText(p, bet));
-            return shareWhatsApp(receptionText(p, fer).trim() + '\n\n━━━━━━━━━━\n\n' + receptionText(p, bet).trim());
-          }
-          shareWhatsApp(receptionText(p, day));
-        }
-        if (v === 'zone') {
-          const zones = [...new Set(day.rows.filter(r => r.element).map(r => r.zone || ''))].sort((x, y) => (+x || 9999) - (+y || 9999));
-          const z = await menu('Quelle zone ?', zones.map(zz => ({ label: zz ? `Zone ${zz}` : 'Sans zone', value: zz || '__none' })));
-          if (z !== null && z !== undefined) shareWhatsApp(recMessage(p, day, day.rows.filter(r => (r.zone || '__none') === z)));
-        }
-        if (v === 'pick') {
-          const rows = day.rows.filter(r => r.element).slice().sort(cmpZone);
-          const sel = new Set();
-          const sh = sheet(`<div>${rows.map((r, j) => `<label class="selrow"><input type="checkbox" data-j="${j}"><span>${(REC_STATUS[r.status] || REC_STATUS.pending).mark} ${esc([r.zone && 'Zone ' + r.zone, r.niv].filter(Boolean).join(' · '))} — ${esc(r.element)}</span></label>`).join('')}</div>
-            <div class="btnrow"><button class="btn ghost" data-a="c">Annuler</button><button class="btn" data-a="s">${icon('share')} Envoyer</button></div>`, { title: 'Choisir les ouvrages' });
-          $$('[data-j]', sh.el).forEach(cb => cb.onchange = () => cb.checked ? sel.add(+cb.dataset.j) : sel.delete(+cb.dataset.j));
-          $('[data-a=c]', sh.el).onclick = () => sh.close();
-          $('[data-a=s]', sh.el).onclick = () => { if (!sel.size) return toast('Cochez au moins un ouvrage'); sh.close(); shareWhatsApp(recMessage(p, day, [...sel].map(j => rows[j]))); };
-        }
-        if (v === 'pdf') receptionPdf(p, day);
-        if (v === 'pv') { const f = day.pvPdfId && await DB.get('files', day.pvPdfId); if (f) shareBlob(f.blob, `PV_${safeName(recTitle(K))}_${day.date}.pdf`); else sharePhotos(day.pvIds, `PV — ${recTitle(K)} du ${fmtDate(day.date)}`); }
-        if (v === 'csv') receptionCsv(p, day);
-        if (v === 'sheets') { await save(); await sendToSheets(p, day); render(); }
-      };
+      $('[data-a=share]', el).onclick = async () => { await save(); await shareDayMenu(p, day); render(); };
       $('[data-a=more]', el).onclick = async () => {
         const v = await menu('Tableau', [
           { label: 'Changer la date', icon: 'calendar', value: 'date' },
@@ -785,3 +761,51 @@ function parseRecText(txt, K) {
   }
   return out;
 }
+
+// Menu de partage d'un tableau (un seul endroit, utilisé partout)
+async function shareDayMenu(p, day) {
+  const K = kindOf(day);
+        const v = await menu('Partager', [
+          { label: 'Texte WhatsApp (tout le tableau)', icon: 'share', value: 'txt' },
+          { label: 'Une zone…', icon: 'share', value: 'zone' },
+          { label: 'Choisir des ouvrages…', icon: 'check', value: 'pick' },
+          { label: 'PDF du tableau', icon: 'report', value: 'pdf' },
+          ...((day.pvIds || []).length ? [{ label: `Envoyer les PV du jour (${day.pvIds.length})`, icon: 'camera', value: 'pv' }] : []),
+          { label: 'Fichier Excel (CSV)', icon: 'grid', value: 'csv' },
+          { label: 'Envoyer vers Google Sheets (Drive)', icon: 'drive', value: 'sheets' },
+        ]);
+        if (v === 'txt') {
+          const other = (await DB.byProject('receptions', day.projectId)).find(d => d.id !== day.id && d.date === day.date && kindOf(d) !== K && d.rows.some(r => r.element));
+          let what = 'one';
+          if (other) {
+            const fer = isBeton(K) ? other : day, bet = isBeton(K) ? day : other;
+            what = await menu(`Partager le ${fmtDate(day.date)}`, [
+              { label: 'Réception ferraillage seule', icon: 'layers', value: 'fer' },
+              { label: 'Programme de bétonnage seul', icon: 'calendar', value: 'bet' },
+              { label: 'Réception + Bétonnage (un seul message)', icon: 'share', value: 'both' }]);
+            if (!what) return;
+            if (what === 'fer') return shareWhatsApp(receptionText(p, fer));
+            if (what === 'bet') return shareWhatsApp(receptionText(p, bet));
+            return shareWhatsApp(receptionText(p, fer).trim() + '\n\n━━━━━━━━━━\n\n' + receptionText(p, bet).trim());
+          }
+          shareWhatsApp(receptionText(p, day));
+        }
+        if (v === 'zone') {
+          const zones = [...new Set(day.rows.filter(r => r.element).map(r => r.zone || ''))].sort((x, y) => (+x || 9999) - (+y || 9999));
+          const z = await menu('Quelle zone ?', zones.map(zz => ({ label: zz ? `Zone ${zz}` : 'Sans zone', value: zz || '__none' })));
+          if (z !== null && z !== undefined) shareWhatsApp(recMessage(p, day, day.rows.filter(r => (r.zone || '__none') === z)));
+        }
+        if (v === 'pick') {
+          const rows = day.rows.filter(r => r.element).slice().sort(cmpZone);
+          const sel = new Set();
+          const sh = sheet(`<div>${rows.map((r, j) => `<label class="selrow"><input type="checkbox" data-j="${j}"><span>${(REC_STATUS[r.status] || REC_STATUS.pending).mark} ${esc([r.zone && 'Zone ' + r.zone, r.niv].filter(Boolean).join(' · '))} — ${esc(r.element)}</span></label>`).join('')}</div>
+            <div class="btnrow"><button class="btn ghost" data-a="c">Annuler</button><button class="btn" data-a="s">${icon('share')} Envoyer</button></div>`, { title: 'Choisir les ouvrages' });
+          $$('[data-j]', sh.el).forEach(cb => cb.onchange = () => cb.checked ? sel.add(+cb.dataset.j) : sel.delete(+cb.dataset.j));
+          $('[data-a=c]', sh.el).onclick = () => sh.close();
+          $('[data-a=s]', sh.el).onclick = () => { if (!sel.size) return toast('Cochez au moins un ouvrage'); sh.close(); shareWhatsApp(recMessage(p, day, [...sel].map(j => rows[j]))); };
+        }
+        if (v === 'pdf') receptionPdf(p, day);
+        if (v === 'pv') { const f = day.pvPdfId && await DB.get('files', day.pvPdfId); if (f) shareBlob(f.blob, `PV_${safeName(recTitle(K))}_${day.date}.pdf`); else sharePhotos(day.pvIds, `PV — ${recTitle(K)} du ${fmtDate(day.date)}`); }
+        if (v === 'csv') receptionCsv(p, day);
+        if (v === 'sheets') { await sendToSheets(p, day); await DB.put('receptions', day); }
+      }

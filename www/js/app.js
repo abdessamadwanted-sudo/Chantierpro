@@ -90,11 +90,14 @@ async function renderHome() {
   $('#app').innerHTML = `
     <div class="home2">
       <div class="h2-hero">
-        <div class="h2-top"><div class="brand"><span class="logo">${icon('hard')}</span>CHANTIER</div><button class="iconbtn" data-a="homemore">${icon('more')}</button></div>
+        <div class="h2-top"><div class="brand"><span class="logo">${icon('hard')}</span>CHANTIER</div>
+          <div class="h2-acts"><button class="h2-cloud ${Sync.enabled() ? 'on' : 'off'}" data-a="sync" title="Google Drive">${icon('drive')}<i data-syncdot></i></button>
+          ${Sync.enabled() ? `<button class="iconbtn" data-a="syncnow" title="Synchroniser">${icon('undo')}</button>` : ''}
+          <button class="iconbtn" data-a="quit" title="Fermer l'application">⏻</button>
+          <button class="iconbtn" data-a="homemore">${icon('more')}</button></div></div>
         <div class="h2-hello" data-a="uname">${hello}${uname ? ', ' + esc(uname) : ''} 👷</div>
         <div class="h2-phrase">${phrase}</div>
         <div class="h2-date">${dateL.charAt(0).toUpperCase() + dateL.slice(1)}</div>
-        <button class="h2-sync" data-a="sync"><span class="cl">${icon('drive')}</span><span class="grow"><b>${Sync.enabled() ? 'Google Drive' : 'Connecter Google Drive'}</b><span data-syncstate>${Sync.enabled() ? Sync.statusLine() : '<span style="opacity:.8">Sauvegarde + synchro téléphone / PC</span>'}</span></span>${icon('chevright')}</button>
       </div>
       <div class="h2-body">
         <div class="h2-sec"><span>Mes chantiers</span><small>${projects.length}</small></div>
@@ -112,14 +115,14 @@ async function renderHome() {
               </span></span>
             <span class="h2-chev">${icon('chevdown')}</span></button>
             ${open ? `<div class="h2-det">
+              <button class="btn h2-openbtn" data-open="${p.id}">Ouvrir le projet ${icon('chevright')}</button>
               <table class="h2-tab"><tr><th></th><th>Aujourd'hui</th><th>7 jours</th><th>Total</th></tr>
-                <tr><td>Réception ferraillage</td><td><b>${st.fT}</b></td><td>${st.fW}</td><td>${st.fA}</td></tr>
-                <tr><td>Bétonnage</td><td><b>${st.bT}</b></td><td>${st.bW}</td><td>${st.bA}</td></tr></table>
-              <div class="h2-kpi"><div class="${st.pv ? 'r' : 'g'}"><b>${st.pv}</b><span>PV à récupérer</span>${st.pvOld ? `<small>dont ${st.pvOld} > 3 jours</small>` : ''}</div>
-                <div class="${st.open ? 'o' : 'g'}"><b>${st.open}</b><span>Réserves ouvertes</span>${st.late ? `<small>${st.late} en retard</small>` : ''}</div></div>
+                <tr data-go="${p.id}|reception"><td>Réception ferraillage ›</td><td><b>${st.fT}</b></td><td>${st.fW}</td><td>${st.fA}</td></tr>
+                <tr data-go="${p.id}|beton"><td>Bétonnage ›</td><td><b>${st.bT}</b></td><td>${st.bW}</td><td>${st.bA}</td></tr></table>
+              <div class="h2-kpi"><div class="${st.pv ? 'r' : 'g'}" data-go="${p.id}|pv"><b>${st.pv}</b><span>PV à récupérer ›</span>${st.pvOld ? `<small>dont ${st.pvOld} > 3 jours</small>` : ''}</div>
+                <div class="${st.open ? 'o' : 'g'}" data-go="${p.id}|tasks"><b>${st.open}</b><span>Réserves ouvertes ›</span>${st.late ? `<small>${st.late} en retard</small>` : ''}</div></div>
               <div class="h2-rh"><b>🔔 Rappels</b><button data-addrap="${p.id}">${icon('plus')} Ajouter</button></div>
-              ${st.rap.length ? st.rap.map(x => `<div class="h2-rap ${due(x) ? 'due' : ''}"><button class="ck" data-rapok="${p.id}|${x.id}"></button><div class="grow"><span>${esc(x.text)}</span>${x.at ? `<small>${fmtDate(x.at.slice(0, 10))}${x.at.length > 10 ? ' · ' + x.at.slice(11, 16) : ''}</small>` : ''}</div><button class="iconbtn sm" data-rapdel="${p.id}|${x.id}">${icon('close')}</button></div>`).join('') : '<div class="h2-none">Aucun rappel</div>'}
-              <button class="btn" data-open="${p.id}" style="width:100%;margin-top:12px">Ouvrir le projet ${icon('chevright')}</button>
+              ${st.rap.length ? st.rap.map(x => `<div class="h2-rap ${due(x) ? 'due' : ''}"><button class="ck" data-rapok="${p.id}|${x.id}"></button><div class="grow" data-rapedit="${p.id}|${x.id}"><span>${esc(x.text)}</span>${x.at ? `<small>${fmtDate(x.at.slice(0, 10))}${x.at.length > 10 ? ' · ' + x.at.slice(11, 16) : ''}</small>` : ''}</div><button class="iconbtn sm" data-rapdel="${p.id}|${x.id}">${icon('close')}</button></div>`).join('') : '<div class="h2-none">Aucun rappel</div>'}
             </div>` : ''}</div>`; }).join('')
         : `<div class="h2-empty"><div class="ic">${icon('hard')}</div><b>Aucun chantier pour le moment</b><span>Créez votre premier projet avec le bouton <b>+</b>, ou récupérez vos données avec Google Drive.</span>
             <button class="btn ghost" data-a="restore2" style="flex:none">${icon('undo')} Restaurer une sauvegarde</button></div>`}
@@ -128,6 +131,15 @@ async function renderHome() {
     <button class="fab" data-a="new">${icon('plus')}</button>`;
   $$('.h2-card[data-id]').forEach(r => r.onclick = () => { App.homeOpen[r.dataset.id] = !App.homeOpen[r.dataset.id]; renderHome(); });
   $$('[data-open]').forEach(b => b.onclick = async () => openProject(await DB.get('projects', b.dataset.open)));
+  $$('[data-go]').forEach(b => b.onclick = async () => {
+    const [pid, where] = b.dataset.go.split('|'); const p = await DB.get('projects', pid);
+    await openProject(p);
+    if (where === 'pv') return goMissingPv();
+    App.section = where; App.search = ''; if (where === 'tasks') App.taskFilter = 'open'; renderSection();
+  });
+  $$('[data-rapedit]').forEach(b => b.onclick = () => { const [pid, id] = b.dataset.rapedit.split('|'); addRappel(pid, id); });
+  const q = $('[data-a=quit]'); q.onclick = async () => { const A = window.Capacitor?.Plugins?.App; if (A && A.exitApp) A.exitApp(); else toast('Fermez l\'onglet du navigateur'); };
+  const sn = $('[data-a=syncnow]'); if (sn) sn.onclick = () => { sn.classList.add('spinning'); Sync.run({ force: true }).finally(() => sn.classList.remove('spinning')); };
   $$('[data-addrap]').forEach(b => b.onclick = () => addRappel(b.dataset.addrap));
   $$('[data-rapok]').forEach(b => b.onclick = async () => { const [pid, id] = b.dataset.rapok.split('|'); const p = await DB.get('projects', pid); const x = (p.rappels || []).find(r => r.id === id); if (x) { x.done = true; cancelNotif(x); await DB.put('projects', p); toast('Rappel terminé ✓'); renderHome(); } });
   $$('[data-rapdel]').forEach(b => b.onclick = async () => { const [pid, id] = b.dataset.rapdel.split('|'); const p = await DB.get('projects', pid); const x = (p.rappels || []).find(r => r.id === id); p.rappels = (p.rappels || []).filter(r => r.id !== id); if (x) cancelNotif(x); await DB.put('projects', p); renderHome(); });
@@ -170,12 +182,13 @@ const SECTIONS = {
   dashboard: { label: 'Tableau de bord', icon: 'layers', render: (r) => renderDashboard(r) },
   plans: { label: 'Plans', icon: 'plans', render: renderPlans, title: 'Plans', subtitle: 'Toutes les tâches sur les plans' },
   tasks: { label: 'Réserves / Tâches', icon: 'tasks', render: renderTasks },
-  reception: { label: 'Réception ferraillage', icon: 'layers', render: (r) => renderReceptions(r, 'Ferraillage'), title: 'Réception ferraillage', subtitle: 'Tableau de réception par jour' },
-  beton: { label: 'Programme de bétonnage', icon: 'calendar', render: (r) => renderReceptions(r, 'Bétonnage'), title: 'Programme de bétonnage', subtitle: 'Programme et suivi par jour' },
+  reception: { label: 'Réception & Bétonnage', icon: 'layers', render: (r) => renderReceptions(r, 'Ferraillage'), title: 'Réception & Bétonnage', subtitle: 'Tableaux par jour' },
+  beton: { label: 'Programme de bétonnage', hidden: true, icon: 'calendar', render: (r) => renderReceptions(r, 'Bétonnage'), title: 'Réception & Bétonnage', subtitle: 'Tableaux par jour' },
   photos: { label: 'Photos', icon: 'camera', render: renderPhotos },
   forms: { label: 'Formulaires', icon: 'form', render: renderForms },
   reports: { label: 'Rapports journaliers', icon: 'report', render: renderReports },
   constat: { label: 'Constats / NC', icon: 'report', render: (r) => renderConstats(r) },
+  models3d: { label: 'Modèles 3D', icon: 'box', render: (r) => renderModels3D(r) },
   maquette: { label: 'Maquette 3D', icon: 'box', render: (r) => renderMaquettes(r) },
   calc: { label: 'Calculs & Topo', icon: 'ruler', render: (r) => renderCalcs(r) },
   team: { label: 'Équipe', icon: 'team', render: renderTeam },
@@ -206,7 +219,7 @@ async function openDrawer() {
   const d = document.createElement('div'); d.className = 'drawer';
   d.innerHTML = `
     <div class="drawer-head"><h3>${esc(App.project.name)}</h3><button class="iconbtn" data-home>${icon('home')}</button></div>
-    ${Object.entries(SECTIONS).map(([k, s]) => `<button class="item ${App.section === k ? 'active' : ''}" data-s="${k}">${icon(s.icon)}<span>${s.label}</span>${k === 'reception' && nPv ? `<span class="count pvbadge">${nPv} PV</span>` : ''}</button>`).join('')}
+    ${Object.entries(SECTIONS).filter(([, s]) => !s.hidden).map(([k, s]) => `<button class="item ${App.section === k || (k === 'reception' && App.section === 'beton') ? 'active' : ''}" data-s="${k === 'reception' && App.section === 'beton' ? 'beton' : k}">${icon(s.icon)}<span>${s.label}</span>${k === 'reception' && nPv ? `<span class="count pvbadge">${nPv} PV</span>` : ''}</button>`).join('')}
     <div class="group">Outils</div>
     <button class="item" data-tool="pdf">${icon('pdf')}<span>Outils PDF</span><span class="count" style="font-size:12px;opacity:.6">fusionner · diviser</span></button>
     <button class="item" data-tool="rap">${icon('calendar')}<span>Rappels</span>${(App.project.rappels || []).filter(x => !x.done).length ? `<span class="count">${(App.project.rappels || []).filter(x => !x.done).length}</span>` : ''}</button>
@@ -220,6 +233,9 @@ async function openDrawer() {
   const close = () => { unBack(); bg.remove(); d.remove(); };
   const unBack = pushBack(() => { bg.remove(); d.remove(); });
   bg.onclick = close;
+  // glisser vers la gauche pour fermer
+  let dsx = 0; d.addEventListener('touchstart', e => { dsx = e.touches[0].clientX; }, { passive: true });
+  d.addEventListener('touchend', e => { if (e.changedTouches[0].clientX - dsx < -50) close(); }, { passive: true });
   $('[data-home]', d).onclick = () => { close(); renderHome(); };
   $$('[data-s]', d).forEach(b => b.onclick = () => { close(); App.section = b.dataset.s; App.search = ''; renderSection(); });
   $$('[data-tool]', d).forEach(b => b.onclick = () => { close(); if (b.dataset.tool === 'pdf') openPdfTools(); else addRappel(App.project.id); });
@@ -518,12 +534,26 @@ function openLinkDetail(link) {
         <div class="lk2-addh">Ajouter</div>
         <div class="lk2-chips">
           ${all.filter(c => !c.legacy).map(c => `<button class="lk2-chip" data-add="${c.key}">${icon(c.icon)}<span>${esc(c.label)}</span></button>`).join('')}
+          <button class="lk2-chip m3" data-a="m3d">${icon('box')}<span>Modèle 3D</span></button>
           <button class="lk2-chip ghost" data-a="newcat">${icon('plus')}<span>Rubrique</span></button>
         </div>
         ${empty.some(c => c.custom) ? `<div class="lk2-rmrow">${empty.filter(c => c.custom).map(c => `<button data-rmcat="${c.key}">Retirer « ${esc(c.label)} »</button>`).join('')}</div>` : ''}`;
 
       const openItem = async (it) => {
-        if (it.kind === 'url') return openUrl(it.url);
+        if (it.kind === 'url') {
+          // lien Drive : on télécharge une fois, puis le fichier s'ouvre directement dans l'application
+          if (driveFileId(it.url) && isNative()) {
+            const ld = loading('Ouverture…');
+            try {
+              const file = await downloadFromDrive(it.url);
+              const rec = isRasterImage(file) ? await saveImageFile(pid, file, 'doc', { source: link.name, name: file.name })
+                : await DB.put('files', { projectId: pid, blob: file, mime: mimeFromName(file.name, file.type), name: file.name, role: 'doc' });
+              it.kind = 'file'; it.fileId = rec.id; files[rec.id] = rec; await save(); ld.close();
+              return openFileRecord(rec, it.name);
+            } catch (e) { ld.close(); toast(e.message); }
+          }
+          return openUrl(it.url);
+        }
         if (it.kind === 'note') return itemMenu(it);
         if (it.kind === 'plan') { const pl = plansById[it.planId]; if (!pl) return toast('Ce plan a été supprimé'); s.close(); return openPlanViewer(pl, planCtx(() => {})); }
         const f = files[it.fileId]; if (f) openFileRecord(f, it.name); else toast('Fichier en cours de téléchargement…');
@@ -539,6 +569,12 @@ function openLinkDetail(link) {
         if (e.target.closest('[data-m]')) return itemMenu(it);
         openItem(it);
       });
+      const m3b = $('[data-a=m3d]', box); if (m3b) m3b.onclick = async () => {
+        const pr = await DB.get('projects', pid), mine = (pr.models3d || []).filter(x => x.linkId === link.id);
+        let m = null;
+        if (mine.length) { const v = await menu('Modèles 3D de cet ouvrage', [...mine.map(x => ({ label: x.name, icon: 'box', value: x.id })), { label: 'Nouveau modèle…', icon: 'plus', value: '__new' }]); if (!v) return; m = v === '__new' ? null : mine.find(x => x.id === v); if (m) return openModel(m); }
+        m = await newModelFlow({ name: link.name, linkId: link.id, planId: link.planId }); if (m) openModel(m);
+      };
       $$('[data-add]', box).forEach(b => b.onclick = () => addItem(cats().find(c => c.key === b.dataset.add)));
       $$('[data-rmcat]', box).forEach(b => b.onclick = async () => { project.extraCats = (project.extraCats || []).filter(c => c.key !== b.dataset.rmcat); await DB.put('projects', project); render(); });
       $('[data-a=newcat]', box).onclick = async () => {
@@ -1186,6 +1222,11 @@ async function openPlansQuick() {
   if (capApp) capApp.addListener('backButton', () => { if (!navBack()) capApp.exitApp(); });
   initSwipeBack();
   initPlansButton();
+  // glisser depuis le bord gauche vers la droite = ouvrir le menu
+  const de = document.createElement('div'); de.id = 'drawerEdge'; document.body.appendChild(de);
+  let esx = 0, esy = 0, eon = false;
+  de.addEventListener('touchstart', e => { const t = e.touches[0]; esx = t.clientX; esy = t.clientY; eon = !!App.project && !document.querySelector('.fullpage, .viewer, .sheet-bg, .drawer, .lightbox'); }, { passive: true });
+  de.addEventListener('touchmove', e => { if (!eon) return; const t = e.touches[0]; if (t.clientX - esx > 40 && Math.abs(t.clientY - esy) < 50) { eon = false; openDrawer(); } }, { passive: true });
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   renderHome();
   Sync.start();
@@ -1206,22 +1247,27 @@ async function scheduleNotif(p, x) {
   try {
     const perm = await LN.requestPermissions(); if (perm.display !== 'granted') return;
     const at = new Date(x.at); if (at < new Date()) return;
-    await LN.schedule({ notifications: [{ id: notifId(x), title: `🔔 ${p.name}`, body: x.text, schedule: { at, allowWhileIdle: true } }] });
+    try { await LN.createChannel({ id: 'rappels', name: 'Rappels de chantier', description: 'Sonnerie des rappels', importance: 5, visibility: 1, vibration: true, lights: true }); } catch (e) {}
+    await LN.schedule({ notifications: [{ id: notifId(x), title: `🔔 ${p.name}`, body: x.text, channelId: 'rappels', schedule: { at, allowWhileIdle: true } }] });
   } catch (e) { console.warn('notif', e); }
 }
 function cancelNotif(x) { const LN = window.Capacitor?.Plugins?.LocalNotifications; if (LN) LN.cancel({ notifications: [{ id: notifId(x) }] }).catch(() => {}); }
-async function addRappel(pid) {
-  const r = await formSheet('Nouveau rappel', [
-    { name: 'text', label: 'Rappel', placeholder: 'Ex : Relancer SGTM pour les PV du 10/10' },
-    { name: 'date', label: 'Date', type: 'date', value: todayISO() },
-    { name: 'time', label: 'Heure de la notification (optionnel)', type: 'time' },
-  ], { okLabel: 'Ajouter' });
+async function addRappel(pid, editId) {
+  const p0 = await DB.get('projects', pid), old = editId ? (p0.rappels || []).find(x => x.id === editId) : null;
+  const r = await formSheet(old ? 'Modifier le rappel' : 'Nouveau rappel', [
+    { name: 'text', label: 'Rappel', value: old ? old.text : '', placeholder: 'Ex : Relancer SGTM pour les PV du 10/10' },
+    { name: 'date', label: 'Date', type: 'date', value: old ? (old.at || '').slice(0, 10) : todayISO() },
+    { name: 'time', label: 'Heure — sonnerie sur le téléphone (optionnel)', type: 'time', value: old && old.at && old.at.length > 10 ? old.at.slice(11, 16) : '' },
+  ], { okLabel: old ? 'Enregistrer' : 'Ajouter' });
   if (!r || !r.text) return;
   const p = await DB.get('projects', pid);
-  const x = { id: DB.uid(), text: r.text, at: r.date ? r.date + (r.time ? 'T' + r.time : '') : '', done: false, createdAt: Date.now() };
-  p.rappels = [...(p.rappels || []), x]; await DB.put('projects', p);
+  const at = r.date ? r.date + (r.time ? 'T' + r.time : '') : '';
+  let x;
+  if (old) { x = (p.rappels || []).find(y => y.id === editId); cancelNotif(x); Object.assign(x, { text: r.text, at }); }
+  else { x = { id: DB.uid(), text: r.text, at, done: false, createdAt: Date.now() }; p.rappels = [...(p.rappels || []), x]; }
+  await DB.put('projects', p);
   await scheduleNotif(p, x);
-  toast(r.time ? 'Rappel ajouté — notification programmée ✓' : 'Rappel ajouté ✓');
+  toast(r.time ? 'Rappel enregistré — sonnerie programmée 🔔' : 'Rappel enregistré ✓');
   if (!App.project) { App.homeOpen = App.homeOpen || {}; App.homeOpen[pid] = true; renderHome(); }
   else App.project = p;
 }
