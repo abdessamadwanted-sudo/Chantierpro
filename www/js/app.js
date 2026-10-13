@@ -165,6 +165,7 @@ const SECTIONS = {
   forms: { label: 'Formulaires', icon: 'form', render: renderForms },
   reports: { label: 'Rapports journaliers', icon: 'report', render: renderReports },
   constat: { label: 'Constats / NC', icon: 'report', render: (r) => renderConstats(r) },
+  maquette: { label: 'Maquette 3D', icon: 'box', render: (r) => renderMaquettes(r) },
   calc: { label: 'Calculs & Topo', icon: 'ruler', render: (r) => renderCalcs(r) },
   team: { label: 'Équipe', icon: 'team', render: renderTeam },
   settings: { label: 'Paramètres', icon: 'settings', render: renderSettings },
@@ -1212,4 +1213,46 @@ async function addRappel(pid) {
   toast(r.time ? 'Rappel ajouté — notification programmée ✓' : 'Rappel ajouté ✓');
   if (!App.project) { App.homeOpen = App.homeOpen || {}; App.homeOpen[pid] = true; renderHome(); }
   else App.project = p;
+}
+
+// ---------- Maquette 3D (lien Autodesk Viewer / BIM 360 / autre) ----------
+const DEFAULT_3D = 'https://viewer.autodesk.com/id/dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6YTM2MHZpZXdlci1wcm90ZWN0ZWQvdDE3Nzg0ODUwMDNfYzc1ZGQ5ODYtMGExYy00YmVkLWI4ZWItNDg2NTg0ZDM1ODc2LnJ2dA?sheetId=OTgyNDM4NzgtOGNiYy02MTJkLTA5Y2QtNzY5YmVjNjI4NTkz';
+async function renderMaquettes(root) {
+  const p = await DB.get('projects', App.project.id);
+  const list = p.maquettes || [];
+  root.innerHTML = `<div class="pagehead"><h2>Maquette 3D</h2><p>Liens Autodesk Viewer, BIM 360, Trimble…</p></div>
+    ${list.length ? `<div class="list">${list.map(m => `<div class="row" data-id="${m.id}"><span class="m3-ic">${icon('box')}</span>
+      <div class="grow"><div class="title">${esc(m.name)}</div><div class="sub">${esc(new URL(m.url).hostname)} · ajouté le ${fmtDate(m.date)}</div></div>
+      <button class="iconbtn sm" data-m="${m.id}">${icon('more')}</button></div>`).join('')}</div>`
+    : `<div class="empty">Aucune maquette liée.<br>Appuyez sur <b>+</b> pour ajouter le lien de la maquette 3D.</div>`}
+    <div class="muted" style="font-size:12.5px;line-height:1.5;padding:12px 18px">Le lien reste celui du propriétaire : s'il le désactive, le fait expirer ou publie une nouvelle version, demandez-lui le nouveau lien et remplacez-le ici (⋮ → Modifier le lien).</div>`;
+  const save = async (fn) => { const cur = await DB.get('projects', p.id); cur.maquettes = fn(cur.maquettes || []); await DB.put('projects', cur); renderMaquettes(root); };
+  $$('.row[data-id]', root).forEach(r => r.onclick = (e) => {
+    const m = list.find(x => x.id === r.dataset.id);
+    if (e.target.closest('[data-m]')) return (async () => {
+      const v = await menu(m.name, [{ label: 'Ouvrir dans l\'application', icon: 'box', value: 'in' }, { label: 'Ouvrir dans le navigateur', icon: 'external', value: 'out' }, { label: 'Modifier le lien', icon: 'edit', value: 'edit' }, { label: 'Supprimer', icon: 'trash', danger: true, value: 'del' }]);
+      if (v === 'in') openMaquette(m); if (v === 'out') openUrl(m.url);
+      if (v === 'edit') { const f = await formSheet('Modifier', [{ name: 'name', label: 'Nom', value: m.name }, { name: 'url', label: 'Lien', type: 'url', value: m.url }]); if (f && f.url) save(l => l.map(x => x.id === m.id ? { ...x, name: f.name || x.name, url: f.url.trim(), date: Date.now() } : x)); }
+      if (v === 'del' && await confirmBox('Retirer ce lien ?')) save(l => l.filter(x => x.id !== m.id));
+    })();
+    openMaquette(m);
+  });
+  fab(root, async () => {
+    const f = await formSheet('Ajouter une maquette 3D', [{ name: 'name', label: 'Nom', value: list.length ? '' : 'Maquette structure', placeholder: 'Ex : Maquette structure' }, { name: 'url', label: 'Lien (Autodesk Viewer…)', type: 'url', value: list.length ? '' : DEFAULT_3D }], { okLabel: 'Ajouter' });
+    if (!f || !f.url) return;
+    save(l => [...l, { id: DB.uid(), name: f.name || 'Maquette 3D', url: f.url.trim(), date: Date.now() }]);
+  });
+}
+function openMaquette(m) {
+  const el = document.createElement('div'); el.className = 'fullpage m3page';
+  el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1 style="flex:1;font-size:17px">${esc(m.name)}</h1>
+      <button class="iconbtn" data-a="reload" title="Recharger">${icon('undo')}</button><button class="iconbtn" data-a="out" title="Navigateur">${icon('external')}</button></div>
+    <div class="m3-wrap"><div class="m3-load">Chargement de la maquette…<br><small>Si rien ne s'affiche, utilisez le bouton <b>↗ Navigateur</b> en haut.</small></div>
+    <iframe src="${esc(m.url)}" allow="fullscreen; xr-spatial-tracking" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe></div>`;
+  document.body.appendChild(el);
+  const unBack = pushBack(() => el.remove());
+  $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
+  $('[data-a=out]', el).onclick = () => openUrl(m.url);
+  $('[data-a=reload]', el).onclick = () => { const f = $('iframe', el); f.src = m.url; };
+  $('iframe', el).onload = () => { const l = $('.m3-load', el); if (l) l.style.display = 'none'; };
 }
