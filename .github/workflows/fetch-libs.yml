@@ -10,16 +10,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          mkdir -p l3 && cd l3
-          npm pack three@0.147.0 tesseract.js@5.1.1 tesseract.js-core@5.1.1 @tesseract.js-data/eng@1.0.0 >/dev/null
-          for f in *.tgz; do mkdir -p x && tar xzf $f -C x && mv x/package "${f%.tgz}"; rm -rf x; done
-          ls
-          mkdir -p ../vendor3d
-          cp three-0.147.0/build/three.min.js three-0.147.0/examples/js/controls/OrbitControls.js ../vendor3d/
-          cp tesseract.js-5.1.1/dist/tesseract.min.js tesseract.js-5.1.1/dist/worker.min.js ../vendor3d/
-          cp tesseract.js-core-5.1.1/tesseract-core-simd-lstm.wasm.js tesseract.js-core-5.1.1/tesseract-core-lstm.wasm.js ../vendor3d/
-          find tesseract.js-data-eng-1.0.0 -name "*.traineddata.gz" | head
-          cp $(find tesseract.js-data-eng-1.0.0 -name "eng.traineddata.gz" -path "*4.0.0_best_int*" | head -1) ../vendor3d/eng.traineddata.gz || cp $(find tesseract.js-data-eng-1.0.0 -name "eng.traineddata.gz" | head -1) ../vendor3d/eng.traineddata.gz
-          cd .. && rm -rf l3 && ls -la vendor3d
+          mkdir -p l4 && cd l4
+          npm pack dxf-parser@1.1.2 >/dev/null && tar xzf dxf-parser-1.1.2.tgz
+          ls -R package/dist | head -20
+          mkdir -p ../vendordxf && cp package/dist/dxf-parser.js ../vendordxf/ 2>/dev/null || cp package/dist/*.js ../vendordxf/
+          cd .. && rm -rf l4 && ls -la vendordxf
           git config user.name bot && git config user.email bot@example.com
-          git add vendor3d && git commit -m "vendor3d" && git push
+          git add vendordxf && git commit -m "dxf" && git push
