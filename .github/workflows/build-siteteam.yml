@@ -1,8 +1,8 @@
-name: Build APK
+name: Build SiteTeam
 
 on:
   push:
-    branches: [main]
+    branches: [siteteam]
   workflow_dispatch:
 
 permissions:
@@ -40,7 +40,7 @@ jobs:
         run: npx cap add android
 
       - name: App icon & splash
-        run: npx @capacitor/assets generate --android --iconBackgroundColor '#1b1e24' --iconBackgroundColorDark '#1b1e24' --splashBackgroundColor '#1b1e24' --splashBackgroundColorDark '#1b1e24'
+        run: npx @capacitor/assets generate --android --iconBackgroundColor '#0f172a' --iconBackgroundColorDark '#0f172a' --splashBackgroundColor '#0f172a' --splashBackgroundColorDark '#0f172a'
         continue-on-error: true
 
       - name: Android versionCode / versionName (real update for Android)
@@ -61,23 +61,23 @@ jobs:
           mkdir -p ~/.android
           cp keystore/debug.keystore ~/.android/debug.keystore
 
-      - name: Build APK
+      - name: Build SiteTeam
         run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
-          cp app/build/outputs/apk/debug/app-debug.apk ../Chantier.apk
+          cp app/build/outputs/apk/debug/app-debug.apk ../SiteTeam.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Chantier-apk
-          path: Chantier.apk
+          name: SiteTeam-apk
+          path: SiteTeam.apk
 
       - name: Publish release (download link for the phone)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: Chantier v1.0.${{ github.run_number }}
-          body: "Téléchargez **Chantier.apk** ci-dessous et installez-le sur Android."
-          files: Chantier.apk
-          make_latest: true
+          tag_name: siteteam-v1.0.${{ github.run_number }}
+          name: SiteTeam v1.0.${{ github.run_number }}
+          body: "Téléchargez **SiteTeam.apk** ci-dessous et installez-le sur Android."
+          files: SiteTeam.apk
+          make_latest: false

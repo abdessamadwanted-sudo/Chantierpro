@@ -64,7 +64,7 @@ function shareWhatsApp(text) {
 async function renderHome() {
   App.project = null;
   BackStack.length = 0;
-  const projects = (await DB.all('projects')).sort((a, b) => b.updatedAt - a.updatedAt);
+  const projects = (await DB.all('projects')).filter(p => Team.canProject(p.id)).sort((a, b) => b.updatedAt - a.updatedAt);
   const [allTasks, allRecs] = await Promise.all([DB.all('tasks'), DB.all('receptions')]);
   const today = todayISO();
   const wk = new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10);
@@ -90,9 +90,10 @@ async function renderHome() {
   $('#app').innerHTML = `
     <div class="home2">
       <div class="h2-hero">
-        <div class="h2-top"><div class="brand notr"><span class="logo">${icon('hard')}</span>CHANTIER</div>
+        <div class="h2-top"><div class="brand notr"><span class="logo">${icon('hard')}</span>SITETEAM</div>
           <div class="h2-acts"><button class="h2-cloud ${Sync.enabled() ? 'on' : 'off'}" data-a="sync" title="Google Drive">${icon('drive')}<i data-syncdot></i></button>
           ${Sync.enabled() ? `<button class="iconbtn" data-a="syncnow" title="Synchroniser">${icon('undo')}</button>` : ''}
+          ${Team.ready() ? `<button class="iconbtn" data-a="company" title="Mon entreprise">${icon('team')}</button>` : ''}
           <button class="iconbtn" data-a="quit" title="Fermer l'application">${icon('power')}</button>
           <button class="iconbtn" data-a="homemore">${icon('more')}</button></div></div>
         <div class="h2-hello" data-a="uname">${tr(hello)}${uname ? (Lang.cur === 'ar' ? '، ' : ', ') + esc(uname) : ''} 👷</div>
@@ -129,7 +130,8 @@ async function renderHome() {
             <button class="btn ghost" data-a="restore2" style="flex:none">${icon('undo')} Restaurer une sauvegarde</button></div>`}
       </div>
     </div>
-    <button class="fab" data-a="new">${icon('plus')}</button>`;
+    ${Team.lvl('projet') >= 3 ? `<button class="fab" data-a="new">${icon('plus')}</button>` : ''}`;
+  const cb = $('[data-a=company]'); if (cb) cb.onclick = () => Team.openCompany();
   $$('.h2-card[data-id]').forEach(r => r.onclick = () => { App.homeOpen[r.dataset.id] = !App.homeOpen[r.dataset.id]; renderHome(); });
   $$('[data-open]').forEach(b => b.onclick = async () => openProject(await DB.get('projects', b.dataset.open)));
   $$('[data-go]').forEach(b => b.onclick = async () => {
@@ -150,22 +152,27 @@ async function renderHome() {
   $('[data-a=uname]').onclick = askName;
   try { if (!uname && !localStorage.getItem('askedName')) { localStorage.setItem('askedName', '1'); setTimeout(askName, 600); } } catch (e) {}
   $('[data-a=homemore]').onclick = async () => {
-    const v = await menu('Chantier', [
+    const v = await menu('SiteTeam', [
       { label: 'Outils PDF (fusionner, diviser, pages)', icon: 'pdf', value: 'pdf' },
+      ...(Team.ready() ? [{ label: 'Mon entreprise (équipe, organigramme)', icon: 'team', value: 'company' }, ...(Team.isAdmin() ? [{ label: 'Inviter un membre', icon: 'plus', value: 'invite' }] : [])] : []),
       { label: 'Tableau de dessin', icon: 'brush', value: 'board' },
       { label: 'Langue · اللغة · Language', icon: 'globe', value: 'lang' },
       { label: 'Mon prénom', icon: 'edit', value: 'name' },
       { label: 'Restaurer une sauvegarde', icon: 'undo', value: 'restore' },
+      ...(Team.ready() ? [{ label: 'Se déconnecter', icon: 'power', value: 'logout' }] : []),
       { label: `Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}`, icon: 'settings', value: null },
     ]);
     if (v === 'restore') restoreBackup();
     if (v === 'pdf') openPdfTools();
     if (v === 'name') askName();
     if (v === 'board') openBoardTool();
+    if (v === 'company') Team.openCompany();
+    if (v === 'invite') Team.inviteFlow();
+    if (v === 'logout') Team.logout();
     if (v === 'lang') chooseLang();
   };
   const r2 = $('[data-a=restore2]'); if (r2) r2.onclick = restoreBackup;
-  $('[data-a=new]').onclick = async () => {
+  const nb = $('[data-a=new]'); if (nb) nb.onclick = async () => {
     const r = await formSheet('Nouveau projet', [
       { name: 'name', label: 'Nom du projet', placeholder: 'Ex : Grand stade Hassan II Benslimane' },
       { name: 'address', label: 'Adresse / ville (optionnel)' },
@@ -204,6 +211,7 @@ const SECTIONS = {
 async function renderSection() {
   BackStack.length = 0;
   pushBack(() => { if (App.section !== 'plans') { App.section = 'plans'; App.search = ''; renderSection(); } else renderHome(); });
+  if (!Team.canSection(App.section)) App.section = Object.keys(SECTIONS).find(k => !SECTIONS[k].hidden && Team.canSection(k)) || 'plans';
   const s = SECTIONS[App.section];
   $('#app').innerHTML = `
     <div class="topbar dark">
@@ -215,6 +223,7 @@ async function renderSection() {
   $('[data-a=drawer]').onclick = openDrawer;
   const hb = $('[data-a=home]'); if (hb) hb.onclick = renderHome;
   await s.render($('#content'));
+  Team.decorateSection(App.section);
 }
 
 async function openDrawer(opts = {}) {
@@ -225,7 +234,8 @@ async function openDrawer(opts = {}) {
   const d = document.createElement('div'); d.className = 'drawer';
   d.innerHTML = `
     <div class="drawer-head"><h3>${esc(App.project.name)}</h3><button class="iconbtn" data-home>${icon('home')}</button></div>
-    ${Object.entries(SECTIONS).filter(([, s]) => !s.hidden).map(([k, s]) => `<button class="item ${App.section === k || (k === 'reception' && App.section === 'beton') ? 'active' : ''}" data-s="${k === 'reception' && App.section === 'beton' ? 'beton' : k}">${icon(s.icon)}<span>${s.label}</span>${k === 'reception' && nPv ? `<span class="count pvbadge">${nPv} PV</span>` : ''}</button>`).join('')}
+    ${Team.ready() ? `<button class="item tm-dr" data-company>${icon('team')}<span>${esc((Team.me() || {}).name || 'Mon entreprise')}</span><span class="count" style="font-size:11.5px;opacity:.7">${esc(roleOf((Team.me() || {}).role).l)}</span></button>` : ''}
+    ${Object.entries(SECTIONS).filter(([k, s]) => !s.hidden && Team.canSection(k)).map(([k, s]) => `<button class="item ${App.section === k || (k === 'reception' && App.section === 'beton') ? 'active' : ''}" data-s="${k === 'reception' && App.section === 'beton' ? 'beton' : k}">${icon(s.icon)}<span>${s.label}</span>${k === 'reception' && nPv ? `<span class="count pvbadge">${nPv} PV</span>` : ''}</button>`).join('')}
     <div class="group">Outils</div>
     <button class="item" data-tool="pdf">${icon('pdf')}<span>Outils PDF</span><span class="count" style="font-size:12px;opacity:.6">fusionner · diviser</span></button>
     <button class="item" data-tool="board">${icon('brush')}<span>Tableau de dessin</span><span class="count" style="font-size:12px;opacity:.6">${(App.project.boards || []).length || ''}</span></button>
@@ -257,6 +267,7 @@ async function openDrawer(opts = {}) {
   const te = e => { if (!dmov) return; const dx = e.changedTouches[0].clientX - dsx, v = -dx / Math.max(1, Date.now() - dst); if (-dx > W() * 0.3 || v > 0.4) close(); else setP(W(), true); };
   [d, bg].forEach(x => { x.addEventListener('touchstart', ts, { passive: true }); x.addEventListener('touchmove', tm, { passive: true }); x.addEventListener('touchend', te, { passive: true }); });
   $('[data-home]', d).onclick = () => { close(); renderHome(); };
+  const dc = $('[data-company]', d); if (dc) dc.onclick = () => { close(); Team.openCompany(); };
   $$('[data-s]', d).forEach(b => b.onclick = () => { close(); App.section = b.dataset.s; App.search = ''; renderSection(); });
   $$('[data-tool]', d).forEach(b => b.onclick = () => { close(); const t = b.dataset.tool; if (t === 'pdf') openPdfTools(); else if (t === 'board') openBoardTool(); else if (t === 'bar') openBarTool(); else if (t === 'lang') chooseLang(); else addRappel(App.project.id); });
   $$('[data-q]', d).forEach(b => b.onclick = (e) => { close(); quickLink(b.dataset.q, !!e.target.closest('[data-qe]')); });
@@ -1258,8 +1269,7 @@ async function openPlansQuick() {
     if (drag && drag.ctl) drag.ctl.move(dx); }, { passive: true });
   de.addEventListener('touchend', e => { if (drag && drag.ctl) { const dx = e.changedTouches[0].clientX - esx; drag.ctl.end(dx, dx / Math.max(1, Date.now() - est)); } eon = false; drag = null; }, { passive: true });
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-  renderHome();
-  Sync.start();
+  Team.boot().catch(e => console.error('team', e)).finally(() => { renderHome(); Sync.start(); });
   // message après une mise à jour
   try {
     const prev = localStorage.getItem('appVersion');

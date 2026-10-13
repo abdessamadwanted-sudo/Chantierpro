@@ -13,7 +13,9 @@ const Sync = (() => {
   let running = false, again = false, timer = null, autoT = null;
 
   const cfg = () => LS.get('cfg');
-  const enabled = () => !!(cfg() && cfg().url && cfg().key);
+  const hasDrive = () => !!(cfg() && cfg().url && cfg().key);
+  const teamOn = () => !!(window.Team && Team.ready());
+  const enabled = () => hasDrive() || teamOn();
 
   // ---------- état (pastille) ----------
   function setStatus(state, msg = '') {
@@ -122,7 +124,7 @@ const Sync = (() => {
     return false;
   }
   async function freeSpace() {
-    if (!enabled()) return 0;
+    if (!hasDrive()) return 0;
     let freed = 0;
     for (const f of await DB.all('files')) {
       if (f.blob && f.driveId && f.drivePath && !wantLocal(f)) { freed += f.blob.size || 0; f.blob = null; BlobURL.drop(f.id); await DB.putRaw('files', f); }
@@ -131,7 +133,7 @@ const Sync = (() => {
   }
   const pending = new Map();
   async function fetchBlob(f) {                                               // téléchargement à la demande depuis Drive
-    if (!f || f.blob || !f.driveId || !enabled()) return f;
+    if (!f || f.blob || !f.driveId || !hasDrive()) return f;
     if (!pending.has(f.id)) pending.set(f.id, (async () => {
       try { const d = await call('download', { id: f.driveId }); f.blob = fromB64(d.b64, f.mime || d.mime); f.lastUsed = Date.now(); await DB.putRaw('files', f); }
       catch (e) { console.warn('fetch', e); }
@@ -158,7 +160,7 @@ const Sync = (() => {
       // 1) envoyer les fichiers (photos, plans, PDF…) dans des dossiers rangés
       const paths = await buildPaths();
       const files = await DB.all('files');
-      const todo = files.filter(f => (f.blob && (!f.driveId || f.drivePath !== JSON.stringify(pathFor(f, paths)))) || (!f.blob && f.driveId && f.drivePath && f.drivePath !== JSON.stringify(pathFor(f, paths))));
+      const todo = !hasDrive() ? [] : files.filter(f => (f.blob && (!f.driveId || f.drivePath !== JSON.stringify(pathFor(f, paths)))) || (!f.blob && f.driveId && f.drivePath && f.drivePath !== JSON.stringify(pathFor(f, paths))));
       let i = 0;
       await pool(todo, 3, async (f) => {
         const pth = pathFor(f, paths), key = JSON.stringify(pth);
@@ -177,11 +179,17 @@ const Sync = (() => {
       const out = [];
       for (const s of DATA) for (const r of await DB.all(s)) if ((r.updatedAt || 0) > since) { const { blob, ...rest } = r; out.push({ ...rest, _store: s }); }
       for (const t of await DB.all('tomb')) if (t.at > since) out.push({ _store: t.store, id: t.rid, projectId: t.projectId, driveId: t.driveId, _deleted: true, updatedAt: t.at });
-      for (let k = 0; k < out.length; k += 150) { setStatus('sync', `Envoi des données ${Math.min(k + 150, out.length)}/${out.length}`); await call('push', { records: out.slice(k, k + 150) }); }
+      if (teamOn()) {
+        setStatus('sync', `Envoi des données (${out.length})`);
+        await Team.push(out);
+        // suppression des fichiers correspondants dans le Drive de l'entreprise
+        const del = out.filter(r => r._deleted && r.driveId);
+        if (del.length && hasDrive()) { try { await call('push', { records: del }); } catch (e) { console.warn('drive del', e); } }
+      } else for (let k = 0; k < out.length; k += 150) { setStatus('sync', `Envoi des données ${Math.min(k + 150, out.length)}/${out.length}`); await call('push', { records: out.slice(k, k + 150) }); }
       LS.set('pushAt', start);
       // 3) recevoir les changements des autres appareils
       setStatus('sync', 'Réception…');
-      const pull = await call('pull', { since: LS.get('pullAt', 0) });
+      const pull = teamOn() ? await Team.pull() : await call('pull', { since: LS.get('pullAt', 0) });
       for (const r of pull.records || []) {
         const store = r._store; if (!DATA.includes(store)) continue;
         const { _store, _srv, _deleted, ...rec } = r;
@@ -193,7 +201,7 @@ const Sync = (() => {
       }
       LS.set('pullAt', pull.now);
       // 4) télécharger les fichiers manquants (plans d'abord)
-      const missing = (await DB.all('files')).filter(f => f.driveId && !f.blob && wantLocal(f)).sort((a, b) => (b.role === 'plan') - (a.role === 'plan'));
+      const missing = !hasDrive() ? [] : (await DB.all('files')).filter(f => f.driveId && !f.blob && wantLocal(f)).sort((a, b) => (b.role === 'plan') - (a.role === 'plan'));
       let j = 0;
       await pool(missing, 4, async (f) => {
         try { const d = await call('download', { id: f.driveId }); f.blob = fromB64(d.b64, f.mime || d.mime); await DB.putRaw('files', f); pulledCount++; }
@@ -203,7 +211,7 @@ const Sync = (() => {
       // 4b) libérer l'espace du téléphone (fichiers déjà dans Drive)
       await freeSpace();
       // 5) documents lisibles dans Drive (PDF des tableaux, réserves, rapports)
-      if (force || Date.now() - LS.get('docsAt', 0) > 600000) { await syncDocs(); LS.set('docsAt', Date.now()); }
+      if (hasDrive() && (force || Date.now() - LS.get('docsAt', 0) > 600000)) { await syncDocs(); LS.set('docsAt', Date.now()); }
       st.last = Date.now(); LS.set('last', st.last);
       LS.set('fails', fails.slice(0, 20));
       if (fails.length) setStatus('error', `${fails.length} fichier(s) non envoyé(s) — touchez pour voir`); else setStatus('ok');
@@ -272,6 +280,7 @@ const Sync = (() => {
     setStatus('ok');
     setTimeout(() => (window.requestIdleCallback || setTimeout)(() => run({ quiet: true }), { timeout: 3000 }), 2500);
     clearInterval(autoT); autoT = setInterval(() => { if (document.visibilityState === 'visible') run({ quiet: false }); }, 120000);
+    if (start.done) return; start.done = true;
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') schedule(800); });
     window.addEventListener('online', () => schedule(800));
   }
@@ -452,5 +461,5 @@ function doPost(e) {
     };
   }
 
-  return { start, run, schedule, enabled, openSyncSettings, statusLine, cfg, buildPaths, pathFor, _call: call, _parse: parseCode, _script: script };
+  return { start, run, schedule, enabled, hasDrive, openSyncSettings, statusLine, cfg, buildPaths, pathFor, _call: call, _parse: parseCode, _script: script };
 })();

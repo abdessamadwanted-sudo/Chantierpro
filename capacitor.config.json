@@ -1,8 +1,8 @@
 {
-  "appId": "ma.chantier.app",
-  "appName": "Chantier",
+  "appId": "com.siteteam.app",
+  "appName": "SiteTeam",
   "webDir": "www",
   "android": {
-    "backgroundColor": "#1b1e24"
+    "backgroundColor": "#0f172a"
   }
 }

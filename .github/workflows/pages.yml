@@ -2,7 +2,7 @@ name: Site web (PC)
 
 on:
   push:
-    branches: [main]
+    branches: [never-siteteam]
   workflow_dispatch:
 
 permissions:
