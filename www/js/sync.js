@@ -14,7 +14,7 @@ const Sync = (() => {
 
   const cfg = () => LS.get('cfg');
   const hasDrive = () => !!(cfg() && cfg().url && cfg().key);
-  const teamOn = () => !!(window.Team && Team.ready());
+  const teamOn = () => typeof Team !== 'undefined' && Team.ready();
   const enabled = () => hasDrive() || teamOn();
 
   // ---------- état (pastille) ----------
