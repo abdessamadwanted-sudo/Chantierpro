@@ -851,7 +851,7 @@ body:has(.fullpage) .sharebar, body:has(.sheet-bg) .sharebar { display: none; }
 .bsd .sk-wrap { flex: 1; min-height: 0; } .bsd-snap button { white-space: nowrap; }
 
 /* ---- SiteTeam : connexion, entreprise, organigramme ---- */
-.tm-login { z-index: 90; background: radial-gradient(120% 80% at 50% 0%, #1e3a8a 0%, #0f172a 60%); display: flex; align-items: center; justify-content: center; overflow: auto; }
+.tm-login { z-index: 59; background: radial-gradient(120% 80% at 50% 0%, #1e3a8a 0%, #0f172a 60%); display: flex; align-items: center; justify-content: center; overflow: auto; }
 .tm-lg-in { width: 100%; max-width: 420px; padding: 28px 20px calc(28px + var(--safe-bottom, 0px)); color: #e2e8f0; text-align: center; }
 .tm-logo { width: 74px; height: 74px; border-radius: 22px; margin: 0 auto 12px; display: grid; place-items: center; background: #2563eb; color: #fff; box-shadow: 0 10px 30px rgba(37,99,235,.45); }
 .tm-logo .i { width: 40px; height: 40px; }
