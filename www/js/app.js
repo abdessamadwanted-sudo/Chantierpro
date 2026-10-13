@@ -86,16 +86,16 @@ async function renderHome() {
     : h < 18 ? ['Bon courage pour l\'après-midi 💪', 'Pensez aux PV de la matinée 📋', 'Le bétonnage avance ? 🏗️', 'Encore un effort, la journée avance bien', 'Un point sur les réserves ?']
     : ['Belle soirée, bon travail aujourd\'hui 👏', 'Le temps de faire le bilan du jour 📊', 'Pensez à envoyer les tableaux du jour 📤', 'Reposez-vous, demain on continue 🌙', 'Merci pour cette journée de chantier'];
   const phrase = PHR[(new Date().getDate() + h) % PHR.length];
-  const dateL = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const dateL = new Date().toLocaleDateString({ ar: 'ar-MA', en: 'en-GB' }[Lang.cur] || 'fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
   $('#app').innerHTML = `
     <div class="home2">
       <div class="h2-hero">
-        <div class="h2-top"><div class="brand"><span class="logo">${icon('hard')}</span>CHANTIER</div>
+        <div class="h2-top"><div class="brand notr"><span class="logo">${icon('hard')}</span>CHANTIER</div>
           <div class="h2-acts"><button class="h2-cloud ${Sync.enabled() ? 'on' : 'off'}" data-a="sync" title="Google Drive">${icon('drive')}<i data-syncdot></i></button>
           ${Sync.enabled() ? `<button class="iconbtn" data-a="syncnow" title="Synchroniser">${icon('undo')}</button>` : ''}
-          <button class="iconbtn" data-a="quit" title="Fermer l'application">⏻</button>
+          <button class="iconbtn" data-a="quit" title="Fermer l'application">${icon('power')}</button>
           <button class="iconbtn" data-a="homemore">${icon('more')}</button></div></div>
-        <div class="h2-hello" data-a="uname">${hello}${uname ? ', ' + esc(uname) : ''} 👷</div>
+        <div class="h2-hello" data-a="uname">${tr(hello)}${uname ? (Lang.cur === 'ar' ? '، ' : ', ') + esc(uname) : ''} 👷</div>
         <div class="h2-phrase">${phrase}</div>
         <div class="h2-date">${dateL.charAt(0).toUpperCase() + dateL.slice(1)}</div>
       </div>
@@ -103,7 +103,8 @@ async function renderHome() {
         <div class="h2-sec"><span>Mes chantiers</span><small>${projects.length}</small></div>
         ${projects.length ? projects.map(p => { const st = stats(p), [c1, c2] = hue(p.name), open = !!App.homeOpen[p.id];
           const due = (x) => x.at && x.at.slice(0, 10) <= today;
-          return `<div class="h2-proj ${open ? 'open' : ''}"><button class="h2-card" data-id="${p.id}">
+          const ropen = !!(App.homeRap || {})[p.id];
+          return `<div class="h2-proj ${open ? 'open' : ''}"><div class="h2-stick"><button class="h2-card" data-id="${p.id}">
             <span class="h2-av" style="background:linear-gradient(135deg,${c1},${c2})">${esc(initials(p.name))}</span>
             <span class="grow"><b>${esc(p.name)}</b>${p.address ? `<small>${icon('pin')} ${esc(p.address)}</small>` : ''}
               <span class="h2-chips">
@@ -114,15 +115,15 @@ async function renderHome() {
                 ${!st.today && !st.pv && !st.open && !st.rap.length ? '<i class="c-g">À jour ✓</i>' : ''}
               </span></span>
             <span class="h2-chev">${icon('chevdown')}</span></button>
+            ${open ? `<button class="btn h2-openbtn" data-open="${p.id}">Ouvrir le projet ${icon('chevright')}</button>` : ''}</div>
             ${open ? `<div class="h2-det">
-              <button class="btn h2-openbtn" data-open="${p.id}">Ouvrir le projet ${icon('chevright')}</button>
               <table class="h2-tab"><tr><th></th><th>Aujourd'hui</th><th>7 jours</th><th>Total</th></tr>
                 <tr data-go="${p.id}|reception"><td>Réception ferraillage ›</td><td><b>${st.fT}</b></td><td>${st.fW}</td><td>${st.fA}</td></tr>
                 <tr data-go="${p.id}|beton"><td>Bétonnage ›</td><td><b>${st.bT}</b></td><td>${st.bW}</td><td>${st.bA}</td></tr></table>
               <div class="h2-kpi"><div class="${st.pv ? 'r' : 'g'}" data-go="${p.id}|pv"><b>${st.pv}</b><span>PV à récupérer ›</span>${st.pvOld ? `<small>dont ${st.pvOld} > 3 jours</small>` : ''}</div>
                 <div class="${st.open ? 'o' : 'g'}" data-go="${p.id}|tasks"><b>${st.open}</b><span>Réserves ouvertes ›</span>${st.late ? `<small>${st.late} en retard</small>` : ''}</div></div>
-              <div class="h2-rh"><b>🔔 Rappels</b><button data-addrap="${p.id}">${icon('plus')} Ajouter</button></div>
-              ${st.rap.length ? st.rap.map(x => `<div class="h2-rap ${due(x) ? 'due' : ''}"><button class="ck" data-rapok="${p.id}|${x.id}"></button><div class="grow" data-rapedit="${p.id}|${x.id}"><span>${esc(x.text)}</span>${x.at ? `<small>${fmtDate(x.at.slice(0, 10))}${x.at.length > 10 ? ' · ' + x.at.slice(11, 16) : ''}</small>` : ''}</div><button class="iconbtn sm" data-rapdel="${p.id}|${x.id}">${icon('close')}</button></div>`).join('') : '<div class="h2-none">Aucun rappel</div>'}
+              <div class="h2-rh"><button class="h2-rt" data-raptog="${p.id}"><b>🔔 Rappels</b><span class="n">${st.rap.length}</span>${st.rap.some(due) ? '<span class="due">à faire</span>' : ''}<span class="chev" style="transform:rotate(${ropen ? 180 : 0}deg)">${icon('chevdown')}</span></button><button data-addrap="${p.id}">${icon('plus')} Ajouter</button></div>
+              ${!ropen ? '' : st.rap.length ? st.rap.map(x => `<div class="h2-rap ${due(x) ? 'due' : ''}"><button class="ck" data-rapok="${p.id}|${x.id}"></button><div class="grow" data-rapedit="${p.id}|${x.id}"><span>${esc(x.text)}</span>${x.at ? `<small>${fmtDate(x.at.slice(0, 10))}${x.at.length > 10 ? ' · ' + x.at.slice(11, 16) : ''}</small>` : ''}</div><button class="iconbtn sm" data-rapdel="${p.id}|${x.id}">${icon('close')}</button></div>`).join('') : '<div class="h2-none">Aucun rappel</div>'}
             </div>` : ''}</div>`; }).join('')
         : `<div class="h2-empty"><div class="ic">${icon('hard')}</div><b>Aucun chantier pour le moment</b><span>Créez votre premier projet avec le bouton <b>+</b>, ou récupérez vos données avec Google Drive.</span>
             <button class="btn ghost" data-a="restore2" style="flex:none">${icon('undo')} Restaurer une sauvegarde</button></div>`}
@@ -137,6 +138,7 @@ async function renderHome() {
     if (where === 'pv') return goMissingPv();
     App.section = where; App.search = ''; if (where === 'tasks') App.taskFilter = 'open'; renderSection();
   });
+  $$('[data-raptog]').forEach(b => b.onclick = () => { App.homeRap = App.homeRap || {}; App.homeRap[b.dataset.raptog] = !App.homeRap[b.dataset.raptog]; renderHome(); });
   $$('[data-rapedit]').forEach(b => b.onclick = () => { const [pid, id] = b.dataset.rapedit.split('|'); addRappel(pid, id); });
   const q = $('[data-a=quit]'); q.onclick = async () => { const A = window.Capacitor?.Plugins?.App; if (A && A.exitApp) A.exitApp(); else toast('Fermez l\'onglet du navigateur'); };
   const sn = $('[data-a=syncnow]'); if (sn) sn.onclick = () => { sn.classList.add('spinning'); Sync.run({ force: true }).finally(() => sn.classList.remove('spinning')); };
@@ -150,6 +152,8 @@ async function renderHome() {
   $('[data-a=homemore]').onclick = async () => {
     const v = await menu('Chantier', [
       { label: 'Outils PDF (fusionner, diviser, pages)', icon: 'pdf', value: 'pdf' },
+      { label: 'Tableau de dessin', icon: 'brush', value: 'board' },
+      { label: 'Langue · اللغة · Language', icon: 'globe', value: 'lang' },
       { label: 'Mon prénom', icon: 'edit', value: 'name' },
       { label: 'Restaurer une sauvegarde', icon: 'undo', value: 'restore' },
       { label: `Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}`, icon: 'settings', value: null },
@@ -157,6 +161,8 @@ async function renderHome() {
     if (v === 'restore') restoreBackup();
     if (v === 'pdf') openPdfTools();
     if (v === 'name') askName();
+    if (v === 'board') openBoardTool();
+    if (v === 'lang') chooseLang();
   };
   const r2 = $('[data-a=restore2]'); if (r2) r2.onclick = restoreBackup;
   $('[data-a=new]').onclick = async () => {
@@ -188,8 +194,8 @@ const SECTIONS = {
   forms: { label: 'Formulaires', icon: 'form', render: renderForms },
   reports: { label: 'Rapports journaliers', icon: 'report', render: renderReports },
   constat: { label: 'Constats / NC', icon: 'report', render: (r) => renderConstats(r) },
-  models3d: { label: 'Modèles 3D', icon: 'box', render: (r) => renderModels3D(r) },
-  maquette: { label: 'Maquette 3D', icon: 'box', render: (r) => renderMaquettes(r) },
+  models3d: { label: 'Modèles 3D', icon: 'cube', render: (r) => renderModels3D(r) },
+  maquette: { label: 'Maquette 3D', icon: 'cube', render: (r) => renderMaquettes(r) },
   calc: { label: 'Calculs & Topo', icon: 'ruler', render: (r) => renderCalcs(r) },
   team: { label: 'Équipe', icon: 'team', render: renderTeam },
   settings: { label: 'Paramètres', icon: 'settings', render: renderSettings },
@@ -211,7 +217,7 @@ async function renderSection() {
   await s.render($('#content'));
 }
 
-async function openDrawer() {
+async function openDrawer(opts = {}) {
   const tasks = await DB.byProject('tasks', App.project.id);
   const nPv = (await missingPvs(App.project.id)).length;
   const cnt = (st) => tasks.filter(t => st === 'all' || t.status === st).length;
@@ -222,6 +228,9 @@ async function openDrawer() {
     ${Object.entries(SECTIONS).filter(([, s]) => !s.hidden).map(([k, s]) => `<button class="item ${App.section === k || (k === 'reception' && App.section === 'beton') ? 'active' : ''}" data-s="${k === 'reception' && App.section === 'beton' ? 'beton' : k}">${icon(s.icon)}<span>${s.label}</span>${k === 'reception' && nPv ? `<span class="count pvbadge">${nPv} PV</span>` : ''}</button>`).join('')}
     <div class="group">Outils</div>
     <button class="item" data-tool="pdf">${icon('pdf')}<span>Outils PDF</span><span class="count" style="font-size:12px;opacity:.6">fusionner · diviser</span></button>
+    <button class="item" data-tool="board">${icon('brush')}<span>Tableau de dessin</span><span class="count" style="font-size:12px;opacity:.6">${(App.project.boards || []).length || ''}</span></button>
+    <button class="item" data-tool="bar">${icon('rows')}<span>Dessiner une barre</span><span class="count" style="font-size:12px;opacity:.6">façonnage</span></button>
+    <button class="item" data-tool="lang">${icon('globe')}<span>Langue</span><span class="count" style="font-size:12px;opacity:.6">${(LANGS.find(l => l[0] === Lang.cur) || [])[1] || ''}</span></button>
     <button class="item" data-tool="rap">${icon('calendar')}<span>Rappels</span>${(App.project.rappels || []).filter(x => !x.done).length ? `<span class="count">${(App.project.rappels || []).filter(x => !x.done).length}</span>` : ''}</button>
     <div class="group">Liens rapides (Drive)</div>
     ${(App.project.quickLinks || [{ id: 'reception', name: 'Tableau de réception (Drive)', url: '' }]).map(q => `<button class="item" data-q="${q.id}">${icon('grid')}<span>${esc(q.name)}</span>${q.url ? `<span class="count qe" data-qe="${q.id}">${icon('edit', 'style="width:18px;height:18px;opacity:.55"')}</span>` : '<span class="count" style="font-size:12px;opacity:.6">à lier</span>'}</button>`).join('')}
@@ -230,15 +239,26 @@ async function openDrawer() {
     ${[['all', 'Toutes'], ['late', 'En retard'], ['open', 'Ouvertes'], ['progress', 'En cours'], ['done', 'Levées (terminées)'], ['verified', 'Vérifiées']].map(([k, l]) =>
       `<button class="item" data-f="${k}">${k === 'all' ? icon('tasks') : k === 'late' ? icon('calendar') : `<span class="dot" style="background:${STATUS[k].color};margin:0 5px"></span>`}<span>${l}</span><span class="count">${k === 'late' ? tasks.filter(isLate).length : cnt(k)}</span></button>`).join('')}`;
   document.body.append(bg, d);
-  const close = () => { unBack(); bg.remove(); d.remove(); };
-  const unBack = pushBack(() => { bg.remove(); d.remove(); });
+  // style TikTok : le menu suit le doigt et pousse la page
+  const appEl = $('#app'), W = () => d.offsetWidth || 300;
+  const setP = (x, anim) => { const k = Math.max(0, Math.min(1, x / W())); [d, appEl, bg].forEach(e => e.style.transition = anim ? 'transform .22s ease-out, opacity .22s' : 'none');
+    d.style.transform = `translateX(${(k - 1) * 100}%)`; appEl.style.transform = `translateX(${k * W()}px)`; bg.style.opacity = String(k); };
+  const remove = () => { bg.remove(); d.remove(); appEl.style.transform = ''; appEl.style.transition = ''; };
+  const close = () => { unBack(); setP(0, true); setTimeout(remove, 230); };
+  const unBack = pushBack(() => { setP(0, true); setTimeout(remove, 230); });
+  d.style.animation = 'none'; bg.style.animation = 'none';
+  if (opts.drag) { setP(0); opts.drag.ctl = { move: (dx) => setP(dx), end: (dx, v) => { if (dx > W() * 0.35 || v > 0.4) setP(W(), true); else close(); } }; }
+  else { setP(0); requestAnimationFrame(() => setP(W(), true)); }
   bg.onclick = close;
-  // glisser vers la gauche pour fermer
-  let dsx = 0; d.addEventListener('touchstart', e => { dsx = e.touches[0].clientX; }, { passive: true });
-  d.addEventListener('touchend', e => { if (e.changedTouches[0].clientX - dsx < -50) close(); }, { passive: true });
+  // glisser vers la gauche pour fermer (le menu suit le doigt)
+  let dsx = 0, dst = 0, dmov = false;
+  const ts = e => { dsx = e.touches[0].clientX; dst = Date.now(); dmov = false; };
+  const tm = e => { const dx = e.touches[0].clientX - dsx; if (dx < -8) { dmov = true; setP(W() + dx); } };
+  const te = e => { if (!dmov) return; const dx = e.changedTouches[0].clientX - dsx, v = -dx / Math.max(1, Date.now() - dst); if (-dx > W() * 0.3 || v > 0.4) close(); else setP(W(), true); };
+  [d, bg].forEach(x => { x.addEventListener('touchstart', ts, { passive: true }); x.addEventListener('touchmove', tm, { passive: true }); x.addEventListener('touchend', te, { passive: true }); });
   $('[data-home]', d).onclick = () => { close(); renderHome(); };
   $$('[data-s]', d).forEach(b => b.onclick = () => { close(); App.section = b.dataset.s; App.search = ''; renderSection(); });
-  $$('[data-tool]', d).forEach(b => b.onclick = () => { close(); if (b.dataset.tool === 'pdf') openPdfTools(); else addRappel(App.project.id); });
+  $$('[data-tool]', d).forEach(b => b.onclick = () => { close(); const t = b.dataset.tool; if (t === 'pdf') openPdfTools(); else if (t === 'board') openBoardTool(); else if (t === 'bar') openBarTool(); else if (t === 'lang') chooseLang(); else addRappel(App.project.id); });
   $$('[data-q]', d).forEach(b => b.onclick = (e) => { close(); quickLink(b.dataset.q, !!e.target.closest('[data-qe]')); });
   $$('[data-f]', d).forEach(b => b.onclick = () => { close(); App.section = 'tasks'; App.taskFilter = b.dataset.f; App.companyFilter = 'all'; renderSection(); });
 }
@@ -519,6 +539,7 @@ function openLinkDetail(link) {
           <div class="grow"><div class="lk2-name">${esc(link.name)}</div><div class="lk2-sub">${link.items.length ? link.items.length + ' document(s)' : 'Aucun document'}</div></div>
           <button class="iconbtn" data-a="more">${icon('more')}</button>
         </div>
+        ${link.driveFolder ? `<button class="lk2-drive" data-a="opendf">${icon('drive')}<span class="grow"><b>Dossier Drive</b><small>${esc(link.driveFolderName || 'Ouvrir le dossier')}</small></span>${icon('external')}</button>` : ''}
         ${filled.length ? `<div class="lk2-list">${filled.map(c => {
           const items = link.items.filter(i => i.cat === c.key), one = items.length === 1, open = openCats.has(c.key);
           return `<div class="lk2-cat ${open ? 'open' : ''}" data-c="${c.key}">
@@ -534,6 +555,7 @@ function openLinkDetail(link) {
         <div class="lk2-addh">Ajouter</div>
         <div class="lk2-chips">
           ${all.filter(c => !c.legacy).map(c => `<button class="lk2-chip" data-add="${c.key}">${icon(c.icon)}<span>${esc(c.label)}</span></button>`).join('')}
+          <button class="lk2-chip" data-a="dfolder">${icon('drive')}<span>${link.driveFolder ? 'Changer le dossier Drive' : 'Dossier Drive'}</span></button>
           <button class="lk2-chip m3" data-a="m3d">${icon('box')}<span>Modèle 3D</span></button>
           <button class="lk2-chip ghost" data-a="newcat">${icon('plus')}<span>Rubrique</span></button>
         </div>
@@ -569,6 +591,11 @@ function openLinkDetail(link) {
         if (e.target.closest('[data-m]')) return itemMenu(it);
         openItem(it);
       });
+      const dfb = $('[data-a=dfolder]', box); if (dfb) dfb.onclick = async () => {
+        const r = await formSheet('Dossier Google Drive', [{ name: 'url', label: 'Lien du dossier Drive', type: 'url', value: link.driveFolder || '', placeholder: 'https://drive.google.com/drive/folders/…' }, { name: 'name', label: 'Nom (optionnel)', value: link.driveFolderName || '' }], { okLabel: 'Enregistrer' });
+        if (!r) return; link.driveFolder = (r.url || '').trim(); link.driveFolderName = r.name || ''; await save(); render();
+      };
+      const odf = $('[data-a=opendf]', box); if (odf) odf.onclick = () => openUrl(link.driveFolder);
       const m3b = $('[data-a=m3d]', box); if (m3b) m3b.onclick = async () => {
         const pr = await DB.get('projects', pid), mine = (pr.models3d || []).filter(x => x.linkId === link.id);
         let m = null;
@@ -1224,9 +1251,12 @@ async function openPlansQuick() {
   initPlansButton();
   // glisser depuis le bord gauche vers la droite = ouvrir le menu
   const de = document.createElement('div'); de.id = 'drawerEdge'; document.body.appendChild(de);
-  let esx = 0, esy = 0, eon = false;
-  de.addEventListener('touchstart', e => { const t = e.touches[0]; esx = t.clientX; esy = t.clientY; eon = !!App.project && !document.querySelector('.fullpage, .viewer, .sheet-bg, .drawer, .lightbox'); }, { passive: true });
-  de.addEventListener('touchmove', e => { if (!eon) return; const t = e.touches[0]; if (t.clientX - esx > 40 && Math.abs(t.clientY - esy) < 50) { eon = false; openDrawer(); } }, { passive: true });
+  let esx = 0, esy = 0, est = 0, eon = false, drag = null;
+  de.addEventListener('touchstart', e => { const t = e.touches[0]; esx = t.clientX; esy = t.clientY; est = Date.now(); drag = null; eon = !!App.project && !document.querySelector('.fullpage, .viewer, .sheet-bg, .drawer, .lightbox'); }, { passive: true });
+  de.addEventListener('touchmove', e => { if (!eon) return; const t = e.touches[0], dx = t.clientX - esx;
+    if (!drag && dx > 10 && Math.abs(t.clientY - esy) < 40) { drag = {}; openDrawer({ drag }); }
+    if (drag && drag.ctl) drag.ctl.move(dx); }, { passive: true });
+  de.addEventListener('touchend', e => { if (drag && drag.ctl) { const dx = e.changedTouches[0].clientX - esx; drag.ctl.end(dx, dx / Math.max(1, Date.now() - est)); } eon = false; drag = null; }, { passive: true });
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   renderHome();
   Sync.start();

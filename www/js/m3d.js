@@ -27,23 +27,28 @@ async function renderModels3D(root, filter) {
   const C = m3colors(p);
   const list = (p.models3d || []).filter(m => !filter || m.linkId === filter).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   root.innerHTML = `<div class="pagehead"><h2>Modèles 3D</h2><p>Coffrage tracé sur plan · ferraillage depuis la nomenclature</p></div>
-    ${list.length ? `<div class="list">${list.map(m => `<div class="row" data-id="${m.id}"><span class="m3-ic" style="background:${m.type === 'ferraillage' ? 'linear-gradient(135deg,#ef4444,#7f1d1d)' : 'linear-gradient(135deg,#60a5fa,#1e40af)'}">${icon(m.type === 'ferraillage' ? 'rows' : 'box')}</span>
-      <div class="grow"><div class="title">${esc(m.name)}</div><div class="sub">${m.type === 'ferraillage' ? `Ferraillage · ${(m.bars || []).length} repère(s) · ${nfx(ferTotalKg(m), 0)} kg` : `Coffrage · ${nfx(cofCalc(m).vol)} m³`} · <span style="color:${C[m.status || 'todo']}">● ${(M3D_STATUS.find(s => s.k === (m.status || 'todo')) || {}).l}</span></div></div>${icon('chevright')}</div>`).join('')}</div>`
+    ${list.length ? `<div class="list">${list.map(m => `<div class="row" data-id="${m.id}"><span class="m3-ic" style="background:${m.type === 'ferraillage' ? 'linear-gradient(135deg,#ef4444,#7f1d1d)' : m.type === 'dxf' ? 'linear-gradient(135deg,#22c55e,#14532d)' : 'linear-gradient(135deg,#60a5fa,#1e40af)'}">${icon(m.type === 'ferraillage' ? 'rows' : m.type === 'dxf' ? 'layers' : 'cube')}</span>
+      <div class="grow"><div class="title">${esc(m.name)}</div><div class="sub">${m.type === 'dxf' ? `Plan AutoCAD · ${(m.zones || []).length} partie(s) d'ouvrage` : m.type === 'ferraillage' ? `Ferraillage${m.mode === 'elem' ? ' ' + FER_ELEMS[m.elem.kind].l.toLowerCase() : ''} · ${(m.bars || []).length} repère(s) · ${nfx(ferTotalKg(m), 0)} kg` : `Coffrage · ${nfx(cofCalc(m).vol)} m³`} · <span style="color:${C[m.status || 'todo']}">● ${(M3D_STATUS.find(s => s.k === (m.status || 'todo')) || {}).l}</span></div></div>${icon('chevright')}</div>`).join('')}</div>`
     : `<div class="empty">Aucun modèle 3D.<br>Appuyez sur <b>+</b> : coffrage tracé sur un plan, ou ferraillage lu depuis le plan PDF.</div>`}`;
-  $$('.row[data-id]', root).forEach(r => r.onclick = async () => { await openModel(list.find(m => m.id === r.dataset.id)); renderModels3D(root, filter); });
-  fab(root, async () => { const m = await newModelFlow(); if (m) { await openModel(m); renderModels3D(root, filter); } });
+  $$('.row[data-id]', root).forEach(r => r.onclick = async () => { await openAnyModel(list.find(m => m.id === r.dataset.id)); renderModels3D(root, filter); });
+  fab(root, async () => { const m = await newModelFlow(); if (m) { await openAnyModel(m); renderModels3D(root, filter); } });
 }
 
+const openAnyModel = (m) => m.type === 'dxf' ? openDxfPlan(m) : openModel(m);
 async function newModelFlow(preset = {}) {
   const v = await menu('Nouveau modèle 3D', [
-    { label: 'Coffrage — tracer sur un plan', icon: 'box', value: 'cof' },
+    { label: 'Coffrage — tracer sur un plan', icon: 'cube', value: 'cof' },
     { label: 'Coffrage — dimensions (rectangle)', icon: 'edit', value: 'cofr' },
     { label: 'Ferraillage — lire la nomenclature du plan PDF', icon: 'pdf', value: 'ferocr' },
+    { label: 'Ferraillage détaillé par élément (semelle, poteau, poutre, dalle, voile)', icon: 'rows', value: 'ferelem' },
     { label: 'Ferraillage — saisie manuelle', icon: 'rows', value: 'ferman' },
+    { label: 'Plan AutoCAD (DXF) — parties d\'ouvrage colorées par état', icon: 'layers', value: 'dxf' },
   ]);
   if (!v) return null;
   const pid = App.project.id;
   const base = { id: DB.uid(), projectId: pid, name: preset.name || '', linkId: preset.linkId || null, status: 'todo', createdAt: Date.now() };
+  if (v === 'ferelem') return newElemModel(base);
+  if (v === 'dxf') return newDxfModel(base);
   if (v === 'cofr') {
     const r = await formSheet('Coffrage — dimensions', [{ name: 'name', label: 'Ouvrage', value: base.name, placeholder: 'Ex : Poteau P12 R+5' },
       { name: 'kind', label: 'Type', type: 'select', value: 'poteau', options: [{ value: 'poteau', label: 'Poteau / voile' }, { value: 'dalle', label: 'Dalle / radier' }, { value: 'poutre', label: 'Poutre' }] },
@@ -276,11 +281,12 @@ function editBars(bars, title) {
     const draw = () => {
       $('.fb-list', s.el).innerHTML = bars.map((b, i) => `<div class="fb-row" data-i="${i}"><input data-f="rep" value="${esc(b.rep)}"><select data-f="dia">${DIAS.map(d => `<option ${+b.dia === d ? 'selected' : ''}>${d}</option>`).join('')}</select>
         <input data-f="nb" inputmode="numeric" value="${b.nb}"><input data-f="long" inputmode="numeric" value="${b.long}"><input data-f="code" value="${esc(b.code)}"><button class="iconbtn sm" data-del="${i}">${icon('close')}</button>
-        <input class="fb-dims" data-f="dims" value="${esc(b.dims || '')}" placeholder="Dimensions : A=… B=… α=…"></div>`).join('');
+        <input class="fb-dims" data-f="dims" value="${esc(b.dims || '')}" placeholder="Dimensions : A=… B=… α=…"><button class="iconbtn sm fb-draw" data-draw="${i}" title="Dessiner la forme">✎</button></div>`).join('');
       const kg = bars.reduce((a, b) => a + (+b.nb) * (+b.long) / 100 * kgm(b.dia), 0);
       $('.fb-tot', s.el).innerHTML = `Total : <b>${nfx(kg, 1)} kg</b> · ${bars.length} repère(s) — comparez avec le « total » du plan`;
       $$('.fb-row', s.el).forEach(r => { const b = bars[+r.dataset.i]; $$('[data-f]', r).forEach(inp => inp.onchange = () => { b[inp.dataset.f] = ['dia', 'nb', 'long'].includes(inp.dataset.f) ? num(inp.value) : inp.value; draw(); }); });
       $$('[data-del]', s.el).forEach(x => x.onclick = () => { bars.splice(+x.dataset.del, 1); draw(); });
+      $$('[data-draw]', s.el).forEach(x => x.onclick = async () => { const b = bars[+x.dataset.draw]; const r = await drawBarShape({ path: b.path, dia: b.dia }); if (r) { b.path = r.pts; b.dims = r.dims; b.long = r.long; b.dia = r.dia; b.code = 'dessin'; draw(); } });
     };
     $('[data-a=add]', s.el).onclick = () => { bars.push({ rep: String(bars.length + 1).padStart(3, '0'), dia: 12, nb: 1, long: 100, code: '0.00', dims: '', place: '' }); draw(); };
     $('[data-a=c]', s.el).onclick = () => s.close();
@@ -314,7 +320,7 @@ async function openModel(m) {
     const close = () => { cancelAnimationFrame(raf); ro && ro.disconnect(); renderer && renderer.dispose(); el.remove(); resolve(); };
     el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><h1 style="flex:1;font-size:17px">${esc(m.name)}</h1>
         <button class="iconbtn" data-a="snap" title="Capture">${icon('camera')}</button><button class="iconbtn" data-a="more">${icon('more')}</button></div>
-      <div class="v3-stage"><div class="v3-views"><button data-v="3d">3D</button><button data-v="top">Dessus</button><button data-v="front">Face</button><button data-v="side">Côté</button></div></div>
+      <div class="v3-stage"><div class="v3-views"><button data-v="3d">3D</button><button data-v="top">Dessus</button><button data-v="front">Face</button><button data-v="side">Côté</button></div><button class="v3-full" data-a="full" title="Plein écran">${icon('expand')}</button></div>
       <div class="v3-panel"></div>`;
     $('[data-a=x]', el).onclick = () => { unBack(); close(); };
     const stage = $('.v3-stage', el);
@@ -327,7 +333,17 @@ async function openModel(m) {
     scene.add(new T.HemisphereLight('#ffffff', '#64748b', 0.9)); const dl = new T.DirectionalLight('#ffffff', 0.7); dl.position.set(5, 10, 7); scene.add(dl);
     const grp = new T.Group(); scene.add(grp);
     let info = '';
-    if (m.type === 'coffrage') {
+    if (m.type === 'dxf') {
+      buildDxfZones(T, grp, m, C);
+      info = `<div class="v3-bars">${m.zones.map((z, i) => `<button class="v3-bar" data-zi="${i}"><i style="background:${C[z.status || 'todo']}"></i><b>${esc(z.name)}</b> ${z.kind === 'dalle' ? 'ép.' : 'h'} ${nfx(z.h)} m<span>${(M3D_STATUS.find(s => s.k === (z.status || 'todo')) || {}).l}</span></button>`).join('')}</div>`;
+    } else if (m.mode === 'elem') {
+      buildElem(T, grp, m);
+      const kg = ferTotalKg(m), E = FER_ELEMS[m.elem.kind];
+      info = `<div class="v3-bars">${m.groups.map((g, i) => { const b = m.bars[i] || {}; return `<button class="v3-bar" data-gi="${i}"><i style="background:${DIA_COLORS[g.dia] || '#888'}"></i><div class="v3-bt"><b>${esc((E.roles[g.role] || [g.role])[0])}</b>${g.zone ? ' · ' + esc(g.zone) : ''}<br><small>${b.nb} HA${g.dia}${g.esp && !g.nb && g.role !== 'long' ? ' e=' + g.esp : ''} · ${b.long} cm${g.start ? ' · début ' + g.start : ''}</small></div><span>${nfx(b.nb * b.long / 100 * kgm(g.dia), 1)} kg</span></button>`; }).join('')}</div>
+        <div class="v3-kv"><span>Poids total acier</span><b style="color:#15803d">${nfx(kg, 1)} kg</b></div>
+        <div class="v3-kv"><span>${esc(E.l)}</span><b>${ferElemDims(m)} cm</b></div>
+        <div class="btnrow" style="padding:0;margin-top:8px"><button class="btn ghost small" data-a="groups">${icon('edit')} Modifier les barres et dimensions</button></div>`;
+    } else if (m.type === 'coffrage') {
       const sh = new T.Shape(m.poly.map(([x, y]) => new T.Vector2(x, y)));
       const geo = new T.ExtrudeGeometry(sh, { depth: m.h, bevelEnabled: false }); geo.rotateX(-Math.PI / 2);
       const mat = new T.MeshStandardMaterial({ color: C[m.status || 'todo'], roughness: .7, metalness: .05 });
@@ -346,7 +362,7 @@ async function openModel(m) {
         <div class="v3-kv"><span>Élément</span><b>${m.member.kind} ${m.member.b}×${m.member.h} cm · L ${nfx(m.member.L)} m${m.member.incl ? ` · ${m.member.incl}°` : ''}</b></div>
         <div class="btnrow" style="padding:0;margin-top:8px"><button class="btn ghost small" data-a="editbars">${icon('edit')} Repères</button><button class="btn ghost small" data-a="member">${icon('box')} Section / position</button></div>`;
     }
-    $('.v3-panel', el).innerHTML = `<div class="v3-st">${M3D_STATUS.map(s => `<button data-st="${s.k}" class="${(m.status || 'todo') === s.k ? 'on' : ''}" style="--c:${C[s.k]}"><i></i>${s.l}</button>`).join('')}</div>${info}`;
+    $('.v3-panel', el).innerHTML = m.type === 'dxf' ? `<div class="v3-hint">Touchez une partie pour changer son état</div>${info}` : `<div class="v3-st">${M3D_STATUS.map(s => `<button data-st="${s.k}" class="${(m.status || 'todo') === s.k ? 'on' : ''}" style="--c:${C[s.k]}"><i></i>${s.l}</button>`).join('')}</div>${info}`;
     // cadrage
     const box = new T.Box3().setFromObject(grp), ctr = box.getCenter(new T.Vector3()), size = box.getSize(new T.Vector3()).length() || 1;
     const view = (v) => { const d = size * (m.type === 'ferraillage' ? 0.75 : 1.4); const off = { '3d': [1, .8, 1.2], top: [0, 1, 0.0001], front: [0, 0, 1], side: [1, 0, 0] }[v].map(x => x * d);
@@ -359,11 +375,20 @@ async function openModel(m) {
     const loop = () => { raf = requestAnimationFrame(loop); ctl.update(); renderer.render(scene, cam); }; loop();
     $$('[data-st]', el).forEach(b => b.onclick = async () => { m.status = b.dataset.st; $$('[data-st]', el).forEach(x => x.classList.toggle('on', x === b)); if (grp.userData.recolor) grp.userData.recolor(C[m.status]); await saveModel(m.projectId, m); toast('État : ' + b.textContent.trim()); });
     $$('[data-bi]', el).forEach(b => b.onclick = () => showBarShape(m.bars[+b.dataset.bi]));
+    let selG = null;
+    $$('[data-gi]', el).forEach(b => b.onclick = () => { const i = +b.dataset.gi; selG = selG === i ? null : i; $$('[data-gi]', el).forEach(x => x.classList.toggle('on', +x.dataset.gi === selG)); grp.userData.highlight(selG);
+      const g = m.groups[i]; if (selG != null && g.role === 'forme' && g.path) showBarShape({ ...m.bars[i], path: g.path }); });
+    $$('[data-zi]', el).forEach(b => b.onclick = async () => { const z = m.zones[+b.dataset.zi];
+      const v = await menu(z.name, M3D_STATUS.map(s => ({ label: s.l, swatch: C[s.k], value: s.k, checked: (z.status || 'todo') === s.k }))); if (!v) return;
+      z.status = v; await saveModel(m.projectId, m); grp.children.forEach(o => { if (o.userData.zone === z) o.material.color.set(C[v]); }); b.querySelector('i').style.background = C[v]; b.querySelector('span').textContent = M3D_STATUS.find(s => s.k === v).l; });
+    const gb = $('[data-a=groups]', el); if (gb) gb.onclick = async () => { if (await editGroups(m)) { await saveModel(m.projectId, m); unBack(); close(); openModel(m); } };
+    $('[data-a=full]', el).onclick = () => { el.classList.toggle('v3full'); $('[data-a=full]', el).innerHTML = icon(el.classList.contains('v3full') ? 'shrink' : 'expand'); };
     const eb = $('[data-a=editbars]', el); if (eb) eb.onclick = async () => { const r = await editBars(m.bars.map(x => ({ ...x })), 'Repères'); if (r) { m.bars = r; autoPlace(m); await saveModel(m.projectId, m); unBack(); close(); openModel(m); } };
     const mb = $('[data-a=member]', el); if (mb) mb.onclick = async () => { if (await editMember(m)) { await saveModel(m.projectId, m); unBack(); close(); openModel(m); } };
     $('[data-a=snap]', el).onclick = () => { renderer.render(scene, cam); renderer.domElement.toBlob(b => shareBlob(b, `${safeName(m.name)}_3D.png`), 'image/png'); };
     $('[data-a=more]', el).onclick = async () => {
-      const v = await menu(m.name, [{ label: 'Renommer', icon: 'edit', value: 'ren' }, { label: 'Couleurs des états', icon: 'fill', value: 'col' }, ...(m.type === 'coffrage' ? [{ label: 'Hauteur / épaisseur', icon: 'ruler', value: 'h' }] : []), { label: 'Supprimer', icon: 'trash', danger: true, value: 'del' }]);
+      const v = await menu(m.name, [{ label: 'Renommer', icon: 'edit', value: 'ren' }, { label: 'Couleurs des états', icon: 'fill', value: 'col' }, ...(m.type === 'coffrage' ? [{ label: 'Hauteur / épaisseur', icon: 'ruler', value: 'h' }] : []), ...(m.mode === 'elem' ? [{ label: 'Nomenclature (repères)', icon: 'rows', value: 'nom' }] : []), { label: 'Supprimer', icon: 'trash', danger: true, value: 'del' }]);
+      if (v === 'nom') { await editBars(m.bars.map(x => ({ ...x })), 'Nomenclature calculée'); }
       if (v === 'ren') { const r = await formSheet('Renommer', [{ name: 'n', label: 'Nom', value: m.name }]); if (r && r.n) { m.name = r.n; await saveModel(m.projectId, m); $('h1', el).textContent = m.name; } }
       if (v === 'h') { const r = await formSheet('Hauteur', [{ name: 'h', label: 'Hauteur / épaisseur (m)', type: 'number', value: String(m.h) }]); if (r && num(r.h)) { m.h = num(r.h); await saveModel(m.projectId, m); unBack(); close(); openModel(m); } }
       if (v === 'col') { const st = await menu('Quel état ?', M3D_STATUS.map(s => ({ label: s.l, swatch: C[s.k], value: s.k }))); if (!st) return;
@@ -390,6 +415,7 @@ async function editMember(m) {
 }
 // segments d'une barre façonnée (en cm, dans un plan) à partir des dimensions A, B, C… et angles
 function barPath(b) {
+  if (b.path && b.path.length > 1) return b.path.map(p => [p[0], p[1]]);
   const d = dimsOf(b), keys = ['A', 'B', 'C', 'D', 'E'].filter(k => d[k]);
   if (/^5\./.test(b.code) && d.A && d.B) return [[0, 0], [d.A, 0], [d.A, d.B], [0, d.B], [0, 0], [6, 6]];
   if (!keys.length) return [[0, 0], [+b.long || 100, 0]];
