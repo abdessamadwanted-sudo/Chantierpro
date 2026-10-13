@@ -10,10 +10,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          mkdir -p l4 && cd l4
-          npm pack dxf-parser@1.1.2 >/dev/null && tar xzf dxf-parser-1.1.2.tgz
-          ls -R package/dist | head -20
-          mkdir -p ../vendordxf && cp package/dist/dxf-parser.js ../vendordxf/ 2>/dev/null || cp package/dist/*.js ../vendordxf/
-          cd .. && rm -rf l4 && ls -la vendordxf
+          mkdir -p l5 && cd l5
+          npm pack firebase@10.14.1 >/dev/null && tar xzf firebase-10.14.1.tgz
+          ls package | grep compat | head -40
+          mkdir -p ../vendorfb && cp package/firebase-app-compat.js package/firebase-auth-compat.js package/firebase-firestore-compat.js ../vendorfb/
+          cd .. && rm -rf l5 && ls -la vendorfb
           git config user.name bot && git config user.email bot@example.com
-          git add vendordxf && git commit -m "dxf" && git push
+          git add vendorfb && git commit -m "firebase" && git push
