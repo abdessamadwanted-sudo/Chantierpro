@@ -80,13 +80,19 @@ async function renderHome() {
   const HUES = [['#2563eb', '#1e3a8a'], ['#0d9488', '#134e4a'], ['#7c3aed', '#4c1d95'], ['#ea580c', '#7c2d12'], ['#db2777', '#831843'], ['#0891b2', '#164e63']];
   const hue = (s) => HUES[[...String(s)].reduce((a, c) => a + c.charCodeAt(0), 0) % HUES.length];
   const initials = (n) => String(n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
-  const h = new Date().getHours(), hello = h < 12 ? 'Bonjour' : h < 18 ? 'Bon après-midi' : 'Bonsoir';
+  const h = new Date().getHours(), hello = h < 5 ? 'Bonne nuit' : h < 12 ? 'Bonjour' : h < 18 ? 'Bon après-midi' : 'Bonsoir';
+  let uname = ''; try { uname = localStorage.getItem('userName') || ''; } catch (e) {}
+  const PHR = h < 12 ? ['Bonne journée sur le chantier ☀️', 'Prêt pour les réceptions du jour ?', 'Un café, et on attaque 💪', 'Nouvelle journée, nouveaux niveaux 🏗️', 'La qualité commence dès le matin ✅']
+    : h < 18 ? ['Bon courage pour l\'après-midi 💪', 'Pensez aux PV de la matinée 📋', 'Le bétonnage avance ? 🏗️', 'Encore un effort, la journée avance bien', 'Un point sur les réserves ?']
+    : ['Belle soirée, bon travail aujourd\'hui 👏', 'Le temps de faire le bilan du jour 📊', 'Pensez à envoyer les tableaux du jour 📤', 'Reposez-vous, demain on continue 🌙', 'Merci pour cette journée de chantier'];
+  const phrase = PHR[(new Date().getDate() + h) % PHR.length];
   const dateL = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
   $('#app').innerHTML = `
     <div class="home2">
       <div class="h2-hero">
         <div class="h2-top"><div class="brand"><span class="logo">${icon('hard')}</span>CHANTIER</div><button class="iconbtn" data-a="homemore">${icon('more')}</button></div>
-        <div class="h2-hello">${hello} 👷</div>
+        <div class="h2-hello" data-a="uname">${hello}${uname ? ', ' + esc(uname) : ''} 👷</div>
+        <div class="h2-phrase">${phrase}</div>
         <div class="h2-date">${dateL.charAt(0).toUpperCase() + dateL.slice(1)}</div>
         <button class="h2-sync" data-a="sync"><span class="cl">${icon('drive')}</span><span class="grow"><b>${Sync.enabled() ? 'Google Drive' : 'Connecter Google Drive'}</b><span data-syncstate>${Sync.enabled() ? Sync.statusLine() : '<span style="opacity:.8">Sauvegarde + synchro téléphone / PC</span>'}</span></span>${icon('chevright')}</button>
       </div>
@@ -126,14 +132,19 @@ async function renderHome() {
   $$('[data-rapok]').forEach(b => b.onclick = async () => { const [pid, id] = b.dataset.rapok.split('|'); const p = await DB.get('projects', pid); const x = (p.rappels || []).find(r => r.id === id); if (x) { x.done = true; cancelNotif(x); await DB.put('projects', p); toast('Rappel terminé ✓'); renderHome(); } });
   $$('[data-rapdel]').forEach(b => b.onclick = async () => { const [pid, id] = b.dataset.rapdel.split('|'); const p = await DB.get('projects', pid); const x = (p.rappels || []).find(r => r.id === id); p.rappels = (p.rappels || []).filter(r => r.id !== id); if (x) cancelNotif(x); await DB.put('projects', p); renderHome(); });
   $('[data-a=sync]').onclick = () => Sync.openSyncSettings();
+  const askName = async () => { const r = await formSheet('Votre prénom', [{ name: 'n', label: 'Comment vous appeler ?', value: uname, placeholder: 'Ex : Abdessamad' }], { okLabel: 'Enregistrer' }); if (r) { try { localStorage.setItem('userName', (r.n || '').trim()); localStorage.setItem('askedName', '1'); } catch (e) {} renderHome(); } };
+  $('[data-a=uname]').onclick = askName;
+  try { if (!uname && !localStorage.getItem('askedName')) { localStorage.setItem('askedName', '1'); setTimeout(askName, 600); } } catch (e) {}
   $('[data-a=homemore]').onclick = async () => {
     const v = await menu('Chantier', [
       { label: 'Outils PDF (fusionner, diviser, pages)', icon: 'pdf', value: 'pdf' },
+      { label: 'Mon prénom', icon: 'edit', value: 'name' },
       { label: 'Restaurer une sauvegarde', icon: 'undo', value: 'restore' },
       { label: `Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}`, icon: 'settings', value: null },
     ]);
     if (v === 'restore') restoreBackup();
     if (v === 'pdf') openPdfTools();
+    if (v === 'name') askName();
   };
   const r2 = $('[data-a=restore2]'); if (r2) r2.onclick = restoreBackup;
   $('[data-a=new]').onclick = async () => {

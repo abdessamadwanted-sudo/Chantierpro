@@ -745,3 +745,4 @@ body:has(.lightbox) #swipeEdge, body:has(.lightbox) #plansFab, body:has(.toolpag
 .m3-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 .m3-load { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; color: #475569; font-size: 15px; padding: 20px; line-height: 1.6; }
 body:has(.m3page) #plansFab, body:has(.m3page) #swipeEdge { display: none !important; }
+.h2-phrase { color: #cfe0ff; font-size: 15.5px; margin-top: 4px; } .h2-hello { cursor: pointer; }
