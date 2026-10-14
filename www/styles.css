@@ -966,3 +966,4 @@ body:has(.fullpage) .sharebar, body:has(.sheet-bg) .sharebar { display: none; }
 .viewer, .viewer *, .pb2, .pb2 .pb-zh, .pb2 .pb-ph, .pb-head, .lk2-band, .lk2-row, .h2-card, .drawer, .es-row, .lic-row { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .pb2 textarea, .pb2 input, .nt-t { -webkit-user-select: text; user-select: text; }
 .nt-pin { display: flex !important; align-items: center; gap: 10px; flex-direction: row !important; margin: 6px 0; } .nt-pin input { width: 22px !important; height: 22px; flex: none; margin: 0; }
+.pn-st { display: flex; gap: 6px; } .pn-st button { flex: 1; padding: 8px; border-radius: 12px; border: 1px solid var(--c); background: transparent; color: var(--c); font-weight: 700; font-size: 13px; } .pn-st button.on { background: var(--c); color: #fff; }

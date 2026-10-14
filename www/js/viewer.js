@@ -872,7 +872,7 @@ const PIN_EMOJIS = ['📐', '🔩', '✂️', '📷', '📄', '📝', '🧊', '�
 const PIN_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#7c3aed', '#ea580c', '#0891b2', '#ca8a04', '#db2777', '#475569', '#0f766e', '#1e3a8a', '#111827'];
 function pinLook(l) {
   if (l.kind === 'plansbox') return { e: l.emoji || '📚', c: l.pinColor || '#1e3a8a' };
-  if (l.kind === 'photonote') return { e: l.emoji || '📷', c: l.pinColor || '#0d9488' };
+  if (l.kind === 'photonote') return l.state === 'done' ? { e: '✅', c: '#16a34a' } : { e: l.emoji || '📷', c: l.pinColor || '#0d9488' };
   if (l.emoji) return { e: l.emoji, c: l.pinColor || l.color || '#2563eb' };
   const cats = [...new Set((l.items || []).map(i => i.kind === 'url' && !LINK_CATS.some(c => c.key === i.cat) ? 'url' : i.cat))];
   if (!cats.length) return { e: '', c: l.pinColor || l.color || '#5b8def' };

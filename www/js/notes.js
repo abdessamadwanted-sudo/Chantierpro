@@ -84,10 +84,12 @@ function openPhotoNote(l, ctx = {}) {
     const draw = async () => {
       const P = pinLook(l), box = $('.pn', s.el), ph = [];
       for (const id of l.photos) { const f = await DB.get('files', id); if (f && f.blob) ph.push({ id, src: BlobURL.get(id, f.blob) }); }
-      box.innerHTML = `<div class="pb-head" style="--c:${P.c}"><span class="pb-hic">${P.e || '📷'}</span><div class="grow"><b>${esc(l.name)}</b><small>${ph.length} photo(s) · ${l.notes.length} note(s)</small></div><button class="iconbtn" data-a="more">${icon('more')}</button></div>
+      box.innerHTML = `<div class="pb-head" style="--c:${P.c}"><span class="pb-hic">${P.e || '📷'}</span><div class="grow"><b>${esc(l.name)}</b><small>${ph.length} photo(s) · ${l.notes.length} note(s)${l.createdAt ? ' · ' + fmtDate(new Date(l.createdAt).toISOString().slice(0, 10)) : ''}</small></div><button class="iconbtn" data-a="more">${icon('more')}</button></div>
+        <div class="pn-st"><button data-st="" class="${!l.state ? 'on' : ''}" style="--c:#f59e0b">⏳ À traiter</button><button data-st="done" class="${l.state === 'done' ? 'on' : ''}" style="--c:#22c55e">✅ Traité${l.doneAt ? ' le ' + fmtDate(l.doneAt) : ''}</button></div>
         ${ph.length ? `<div class="pn-ph">${ph.map(p => `<div class="t"><img src="${p.src}" data-v="${p.id}"><button class="x" data-dp="${p.id}">×</button></div>`).join('')}</div>` : '<div class="pb-empty">Ajoutez des photos et des notes à cet endroit du plan.</div>'}
         <div class="btnrow" style="padding:0"><button class="btn small" data-a="ph">${icon('camera')} Photos</button><button class="btn small ghost" data-a="nt">${icon('edit')} Note</button>${ph.length || l.notes.length ? `<button class="btn small ghost" data-a="sh" style="flex:none">${icon('share')}</button>` : ''}</div>
         ${l.notes.length ? `<div class="nt-list">${await notesHTML(l.notes)}</div>` : ''}`;
+      $$('[data-st]', box).forEach(b => b.onclick = async () => { l.state = b.dataset.st || null; l.doneAt = l.state ? todayISO() : null; await save(); draw(); });
       $('[data-a=ph]', box).onclick = async () => { const recs = await addPhotos(l.projectId, { source: l.name }); if (recs.length) { l.photos.push(...recs.map(r => r.id)); await save(); draw(); } };
       $('[data-a=nt]', box).onclick = async () => { const n = await editNote(null, l.projectId); if (n) { l.notes.push(n); await save(); draw(); } };
       $$('[data-v]', box).forEach(img => img.onclick = () => showGallery(ph.map(p => ({ src: p.src })), ph.findIndex(p => p.id === img.dataset.v)));
