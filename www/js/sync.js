@@ -98,6 +98,7 @@ const Sync = (() => {
     return { map, P };
   }
   function pathFor(f, paths) {
+    if (f.projectId === '__career') return { segs: ['Mon dossier de candidature'], name: clean(`${f.cat || 'Document'} - ${String(f.name || f.id).replace(/\.\w{2,5}$/, '')}`) + extOf(f) };
     const m = paths.map[f.id];
     const ext = extOf(f);
     if (m) return { segs: m.segs, name: m.name + ext };

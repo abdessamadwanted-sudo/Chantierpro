@@ -440,6 +440,19 @@ Rappels à faire|تذكيرات للقيام بها|Reminders to do
 Bétonnage|الصب|Concreting
 Réception|الاستلام|Reception
 Version|الإصدار|Version
+Emploi & carrière|الشغل والمسار المهني|Jobs & career
+Rechercher un poste|البحث عن وظيفة|Search for a job
+Concours|المباريات|Public exams
+Mon dossier de candidature|ملف الترشيح ديالي|My application file
+Ajouter un site|إضافة موقع|Add a site
+Ajouter un document|إضافة وثيقة|Add a document
+Envoyer le dossier|إرسال الملف|Send the file
+Dossier Drive|مجلد درايف|Drive folder
+Lettre de motivation|رسالة التحفيز|Cover letter
+Diplôme|الدبلوم|Diploma
+Attestation de travail|شهادة العمل|Work certificate
+Partout|في كل مكان|Everywhere
+Afrique / international|إفريقيا / دولي|Africa / international
 7 jours|7 أيام|7 days
 Réserves ouvertes|التحفظات المفتوحة|Open snags
 Mes chantiers|أوراشي|My sites

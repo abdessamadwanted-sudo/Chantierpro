@@ -62,6 +62,7 @@ function shareWhatsApp(text) {
 
 // ---------- Accueil : projets ----------
 async function renderHome() {
+  const keepScroll = App.project ? 0 : (($('.h2-body') || {}).scrollTop || 0);
   App.project = null;
   BackStack.length = 0;
   const projects = (await DB.all('projects')).filter(p => Team.canProject(p.id)).sort((a, b) => b.updatedAt - a.updatedAt);
@@ -134,6 +135,7 @@ async function renderHome() {
     ${Team.lvl('projet') >= 3 ? `<button class="fab" data-a="new">${icon('plus')}</button>` : ''}`;
   const cb = $('[data-a=company]'); if (cb) cb.onclick = () => Team.openCompany();
   espaceBind($('#app'));
+  if (keepScroll) { const hb = $('.h2-body'); if (hb) hb.scrollTop = keepScroll; }
   $$('.h2-card[data-id]').forEach(r => r.onclick = () => { App.homeOpen[r.dataset.id] = !App.homeOpen[r.dataset.id]; renderHome(); });
   $$('[data-open]').forEach(b => b.onclick = async () => openProject(await DB.get('projects', b.dataset.open)));
   $$('[data-go]').forEach(b => b.onclick = async () => {
@@ -237,7 +239,7 @@ async function openDrawer(opts = {}) {
   d.innerHTML = `
     <div class="drawer-head"><h3>${esc(App.project.name)}</h3><button class="iconbtn" data-home>${icon('home')}</button></div>
     ${Team.ready() ? `<button class="item tm-dr" data-company>${icon('team')}<span>${esc((Team.me() || {}).name || 'Mon entreprise')}</span><span class="count" style="font-size:11.5px;opacity:.7">${esc(roleOf((Team.me() || {}).role).l)}</span></button>` : ''}
-    ${Object.entries(SECTIONS).filter(([k, s]) => !s.hidden && Team.canSection(k)).map(([k, s]) => `<button class="item ${App.section === k || (k === 'reception' && App.section === 'beton') ? 'active' : ''}" data-s="${k === 'reception' && App.section === 'beton' ? 'beton' : k}">${icon(s.icon)}<span>${s.label}</span>${k === 'reception' && nPv ? `<span class="count pvbadge">${nPv} PV</span>` : ''}</button>`).join('')}
+    ${Object.entries(SECTIONS).filter(([k, s]) => !s.hidden && k !== 'settings' && Team.canSection(k)).map(([k, s]) => `<button class="item ${App.section === k || (k === 'reception' && App.section === 'beton') ? 'active' : ''}" data-s="${k === 'reception' && App.section === 'beton' ? 'beton' : k}">${icon(s.icon)}<span>${s.label}</span>${k === 'reception' && nPv ? `<span class="count pvbadge">${nPv} PV</span>` : ''}</button>`).join('')}
     <div class="group">Outils</div>
     <button class="item" data-tool="pdf">${icon('pdf')}<span>Outils PDF</span><span class="count" style="font-size:12px;opacity:.6">fusionner · diviser</span></button>
     <button class="item" data-tool="board">${icon('brush')}<span>Tableau de dessin</span><span class="count" style="font-size:12px;opacity:.6">${(App.project.boards || []).length || ''}</span></button>
@@ -249,12 +251,13 @@ async function openDrawer(opts = {}) {
     <button class="item" data-q="__add" style="color:var(--muted)">${icon('plus')}<span>Ajouter un lien</span></button>
     <div class="group">Réserves</div>
     ${[['all', 'Toutes'], ['late', 'En retard'], ['open', 'Ouvertes'], ['progress', 'En cours'], ['done', 'Levées (terminées)'], ['verified', 'Vérifiées']].map(([k, l]) =>
-      `<button class="item" data-f="${k}">${k === 'all' ? icon('tasks') : k === 'late' ? icon('calendar') : `<span class="dot" style="background:${STATUS[k].color};margin:0 5px"></span>`}<span>${l}</span><span class="count">${k === 'late' ? tasks.filter(isLate).length : cnt(k)}</span></button>`).join('')}`;
+      `<button class="item" data-f="${k}">${k === 'all' ? icon('tasks') : k === 'late' ? icon('calendar') : `<span class="dot" style="background:${STATUS[k].color};margin:0 5px"></span>`}<span>${l}</span><span class="count">${k === 'late' ? tasks.filter(isLate).length : cnt(k)}</span></button>`).join('')}
+    <div class="dr-foot"><button class="item ${App.section === 'settings' ? 'active' : ''}" data-s="settings">${icon('settings')}<span>Paramètres</span></button></div>`;
   document.body.append(bg, d);
   // style TikTok : le menu suit le doigt et pousse la page
   const appEl = $('#app'), W = () => d.offsetWidth || 300;
   const setP = (x, anim) => { const k = Math.max(0, Math.min(1, x / W())); [d, appEl, bg].forEach(e => e.style.transition = anim ? 'transform .22s ease-out, opacity .22s' : 'none');
-    d.style.transform = `translateX(${(k - 1) * 100}%)`; appEl.style.transform = `translateX(${k * W()}px)`; bg.style.opacity = String(k); };
+    d.style.transform = `translateX(${(k - 1) * 100}%)`; bg.style.opacity = String(k); };   // le menu glisse seul, comme un rideau, par-dessus la page
   const remove = () => { bg.remove(); d.remove(); appEl.style.transform = ''; appEl.style.transition = ''; };
   const close = () => { unBack(); setP(0, true); setTimeout(remove, 230); };
   const unBack = pushBack(() => { setP(0, true); setTimeout(remove, 230); });
