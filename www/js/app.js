@@ -143,6 +143,9 @@ async function renderHome() {
     </div>
     <button class="fab" data-a="new">${icon('plus')}</button>`;
   $('[data-a=career]').onclick = openCareer;
+  photoReminder().then(r => { if (!r || App.project) return; const hb = $('.h2-body'); if (!hb || $('.h2-free', hb)) return;
+    hb.insertAdjacentHTML('afterbegin', `<button class="h2-free" data-a="freeph"><span class="ic">🧹</span><span class="grow"><b>${r.n} photos déjà dans Drive</b><small>Plus de 3 jours · libérer ${r.mb.toFixed(0)} Mo du téléphone (elles restent dans Drive)</small></span>${icon('chevright')}</button>`);
+    $('[data-a=freeph]', hb).onclick = freeOldPhotos; }).catch(() => {});
   if (keepScroll) { const hb = $('.h2-body'); if (hb) hb.scrollTop = keepScroll; }
   $$('.h2-card[data-id]').forEach(r => r.onclick = () => { App.homeOpen[r.dataset.id] = !App.homeOpen[r.dataset.id]; renderHome(); });
   $$('[data-open]').forEach(b => b.onclick = async () => openProject(await DB.get('projects', b.dataset.open)));
@@ -1291,6 +1294,10 @@ async function openPlansQuick() {
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   renderHome();
   Sync.start();
+  // photos partagées depuis la galerie (Partager → Chantier)
+  setTimeout(() => checkSharedIntent().catch(e => console.warn('share', e)), 300);
+  // toucher la notification « photos sauvegardées » → proposer de libérer l'espace
+  try { const LN = window.Capacitor?.Plugins?.LocalNotifications; if (LN) LN.addListener('localNotificationActionPerformed', (a) => { if (a?.notification?.extra?.action === 'freephotos') setTimeout(freeOldPhotos, 600); }); } catch (e) {}
   // message après une mise à jour
   try {
     const prev = localStorage.getItem('appVersion');

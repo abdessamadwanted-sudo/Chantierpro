@@ -48,6 +48,31 @@ jobs:
           sed -i -E "s/versionCode [0-9]+/versionCode ${{ github.run_number }}/; s/versionName \"[^\"]*\"/versionName \"1.0.${{ github.run_number }}\"/" android/app/build.gradle
           grep -n "version" android/app/build.gradle
 
+      - name: Share target (Partager → Chantier)
+        run: |
+          python3 - <<'PY'
+          p = 'android/app/src/main/AndroidManifest.xml'
+          s = open(p).read()
+          act = '''
+          <activity android:name="de.mindlib.sendIntent.SendIntentActivity" android:label="@string/app_name" android:exported="true" android:theme="@style/AppTheme.NoActionBar">
+              <intent-filter>
+                  <action android:name="android.intent.action.SEND" />
+                  <category android:name="android.intent.category.DEFAULT" />
+                  <data android:mimeType="image/*" />
+              </intent-filter>
+              <intent-filter>
+                  <action android:name="android.intent.action.SEND_MULTIPLE" />
+                  <category android:name="android.intent.category.DEFAULT" />
+                  <data android:mimeType="image/*" />
+              </intent-filter>
+          </activity>
+          '''
+          if 'SendIntentActivity' not in s:
+              s = s.replace('</application>', act + '</application>', 1)
+          open(p, 'w').write(s)
+          PY
+          grep -n "SendIntent" android/app/src/main/AndroidManifest.xml
+
       - name: Camera permission
         run: |
           sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#&\n    <uses-permission android:name="android.permission.CAMERA" />#' android/app/src/main/AndroidManifest.xml

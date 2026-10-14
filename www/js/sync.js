@@ -85,9 +85,9 @@ const Sync = (() => {
         // Photos / <ouvrage> / Réserve 1.jpg, Retour 1.jpg, Croquis.jpg
         const nm = clean(`${r.zone ? 'Zone ' + r.zone + ' · ' : ''}${r.niv ? r.niv + ' · ' : ''}${r.element || 'Ouvrage'}`);
         const dir = [...base, 'Photos', nm];
-        (r.photoIds || []).forEach((id, i) => put(id, dir, `${r.status === 'reserve' ? (bet ? 'Défaut' : 'Réserve') : (bet ? 'Défaut' : 'Photo')} ${i + 1}`));
-        (r.retourIds || []).forEach((id, i) => put(id, dir, `${bet ? 'Réparation' : 'Retour'} ${i + 1}`));
-        if (r.croquisId) put(r.croquisId, dir, 'Croquis');
+        (r.photoIds || []).forEach((id, i) => put(id, dir, `${nm} - ${r.status === 'reserve' ? (bet ? 'Défaut' : 'Réserve') : 'Photo'} ${i + 1}`));
+        (r.retourIds || []).forEach((id, i) => put(id, dir, `${nm} - ${bet ? 'Réparation' : 'Retour'} ${i + 1}`));
+        if (r.croquisId) put(r.croquisId, dir, `${nm} - Croquis`);
       }
     }
     for (const pr of projects) for (const c of pr.constats || []) (c.items || []).forEach((it, k) => (it.photoIds || []).forEach((id, i) => put(id, [P[pr.id] || 'Projet', 'Constats', `${c.date || ''} ${c.title || 'Constat'}`], `${k + 1}-${i + 1} ${it.probleme || 'photo'}`.slice(0, 80))));

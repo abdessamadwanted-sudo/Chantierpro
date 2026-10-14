@@ -99,7 +99,7 @@ async function pvReminder(p, force) {
   $('[data-a=see]', s.el).onclick = () => { s.close(); goMissingPv(); };
 }
 
-async function sharePhotos(ids, text) {
+async function sharePhotos(ids, text, base = 'pv') {
   const P = window.Capacitor?.Plugins || {};
   if (!(P.Share && P.Filesystem)) { for (const id of ids) { const f = await DB.get('files', id); if (!f) continue; const u = URL.createObjectURL(f.blob); const a = document.createElement('a'); a.href = u; a.download = (f.name || `pv_${id}.jpg`); document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 5000); } toast('Photos téléchargées'); return; }
   try {
@@ -107,11 +107,11 @@ async function sharePhotos(ids, text) {
     for (const id of ids) {
       const f = await DB.get('files', id); if (!f) continue;
       const b64 = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = rej; fr.readAsDataURL(f.blob); });
-      const name = `pv_${id}.jpg`;
+      const name = `${safeName(base)}_${files.length + 1}.jpg`;
       await P.Filesystem.writeFile({ path: name, data: b64, directory: 'CACHE' });
       files.push((await P.Filesystem.getUri({ path: name, directory: 'CACHE' })).uri);
     }
-    await P.Share.share({ text, files, dialogTitle: 'Envoyer les PV' });
+    await P.Share.share({ text, files, dialogTitle: 'Envoyer' });
   } catch (e) { if (!/cancel/i.test(String(e?.message))) alertBox('Envoi impossible : ' + (e.message || e)); }
 }
 
@@ -474,7 +474,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
           <div class="sk-row">${r.croquisId ? `<img class="sk-thumb" data-a="skview">` : ''}<button type="button" class="btn ghost small" data-a="sketch">${icon('pen')} ${r.croquisId ? 'Modifier le croquis' : 'Dessiner un croquis'}</button>${r.croquisId ? `<button type="button" class="btn ghost small" data-a="skdel" style="flex:none">${icon('trash')}</button>` : ''}</div>
           <div class="btnrow" style="padding:0">${!isNew ? `<button class="btn danger" data-a="del" style="flex:none;padding:14px 16px">${icon('trash')}</button>` : ''}
             <button class="btn ghost" data-a="cancel">Annuler</button><button class="btn" data-a="ok">${isNew ? 'Ajouter' : 'Enregistrer'}</button></div>
-          ${isNew ? `<button class="btn ghost" data-a="okmore" style="margin-top:-4px">Ajouter et ligne suivante</button>` : `<button class="btn ghost" data-a="wa" style="margin-top:-4px">${icon('share')} Envoyer cet ouvrage (WhatsApp)</button>`}`;
+          ${isNew ? `<button class="btn ghost" data-a="okmore" style="margin-top:-4px">Ajouter et ligne suivante</button>` : `<button class="btn ghost" data-a="wa" style="margin-top:-4px">${icon('share')} Envoyer cet ouvrage (WhatsApp)</button>${(r.photoIds.length + r.retourIds.length) ? `<button class="btn ghost" data-a="waph" style="margin-top:-4px">${icon('camera')} Envoyer toutes ses photos (${r.photoIds.length + r.retourIds.length})</button>` : ''}`}`;
         $$('[name]', f).forEach(inp => inp.oninput = () => { r[inp.name] = inp.value; });
         $$('[data-st]', f).forEach(b => b.onclick = () => { r.status = b.dataset.st; draw(); });
         $$('[data-pvr]', f).forEach(b => b.onclick = () => { r.pvRecu = b.dataset.pvr === '1'; draw(); });
@@ -513,6 +513,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         $('[data-a=ok]', f).onclick = async () => { if (await commit()) { s.close(); render(); } };
         const om = $('[data-a=okmore]', f); if (om) om.onclick = async () => { if (await commit()) { s.close(); render(); editRow(null); } };
         const wa = $('[data-a=wa]', f); if (wa) wa.onclick = async () => { if (await commit()) shareRow(p, day, r); };
+        const wph = $('[data-a=waph]', f); if (wph) wph.onclick = async () => { const ld = loading('Préparation des photos…'); try { await sharePhotos([...r.photoIds, ...r.retourIds], `${r.zone ? 'Zone ' + r.zone + ' · ' : ''}${r.niv ? r.niv + ' · ' : ''}${r.element} — ${fmtDate(day.date)}`, r.element || 'photo'); } finally { ld.close(); } };
         const del = $('[data-a=del]', f); if (del) del.onclick = async () => { if (await confirmBox('Supprimer cette ligne ?')) { day.rows.splice(i, 1); await save(); s.close(); render(); } };
         if (isNew && !r.element) setTimeout(() => $('[name=element]', f)?.focus(), 250);
       }
@@ -771,6 +772,7 @@ async function shareDayMenu(p, day) {
           { label: 'Choisir des ouvrages…', icon: 'check', value: 'pick' },
           { label: 'PDF du tableau', icon: 'report', value: 'pdf' },
           ...((day.pvIds || []).length ? [{ label: `Envoyer les PV du jour (${day.pvIds.length})`, icon: 'camera', value: 'pv' }] : []),
+          ...(day.rows.some(r => (r.photoIds || []).length + (r.retourIds || []).length) ? [{ label: `Toutes les photos du jour (${day.rows.reduce((a, r) => a + (r.photoIds || []).length + (r.retourIds || []).length, 0)})`, icon: 'image', value: 'allph' }] : []),
           { label: 'Fichier Excel (CSV)', icon: 'grid', value: 'csv' },
           { label: 'Envoyer vers Google Sheets (Drive)', icon: 'drive', value: 'sheets' },
         ]);
@@ -790,6 +792,7 @@ async function shareDayMenu(p, day) {
           }
           shareWhatsApp(receptionText(p, day));
         }
+        if (v === 'allph') { const ld = loading('Préparation des photos…'); try { await sharePhotos(day.rows.flatMap(r => [...(r.photoIds || []), ...(r.retourIds || [])]), `${recTitle(K)} du ${fmtDate(day.date)}`, `photos_${day.date}`); } finally { ld.close(); } }
         if (v === 'zone') {
           const zones = [...new Set(day.rows.filter(r => r.element).map(r => r.zone || ''))].sort((x, y) => (+x || 9999) - (+y || 9999));
           const z = await menu('Quelle zone ?', zones.map(zz => ({ label: zz ? `Zone ${zz}` : 'Sans zone', value: zz || '__none' })));
