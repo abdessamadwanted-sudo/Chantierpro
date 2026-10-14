@@ -1,0 +1,79 @@
+== 6.0.0
+npm notice 1B android/.gradle/4.10.1/fileChanges/last-build.bin
+npm notice 17B android/.gradle/4.10.1/fileContent/fileContent.lock
+npm notice 18.7kB android/.gradle/4.10.1/fileHashes/fileHashes.bin
+npm notice 17B android/.gradle/4.10.1/fileHashes/fileHashes.lock
+npm notice 0B android/.gradle/4.10.1/gc.properties
+npm notice 0B android/.gradle/vcs-1/gc.properties
+npm notice 3.3kB android/.idea/codeStyles/Project.xml
+npm notice 721B android/.idea/gradle.xml
+npm notice 333B android/.idea/misc.xml
+npm notice 254B android/.idea/modules.xml
+npm notice 2.0kB android/.idea/workspace.xml
+npm notice 828B android/android.iml
+== 6.0.1
+npm notice 1.2kB android/build.gradle
+npm notice 89B android/src/main/AndroidManifest.xml
+npm notice 3.9kB android/src/main/java/de/mindlib/sendIntent/SendIntent.java
+npm notice 505B android/src/main/java/de/mindlib/sendIntent/SendIntentActivity.java
+npm notice 591B android/src/main/res/layout/bridge_layout_main.xml
+npm notice 64B android/src/main/res/values/colors.xml
+npm notice 84B android/src/main/res/values/strings.xml
+npm notice 26B android/src/main/res/values/styles.xml
+== 6.0.2
+npm notice 1.2kB android/build.gradle
+npm notice 89B android/src/main/AndroidManifest.xml
+npm notice 3.9kB android/src/main/java/de/mindlib/sendIntent/SendIntent.java
+npm notice 505B android/src/main/java/de/mindlib/sendIntent/SendIntentActivity.java
+npm notice 591B android/src/main/res/layout/bridge_layout_main.xml
+npm notice 64B android/src/main/res/values/colors.xml
+npm notice 84B android/src/main/res/values/strings.xml
+npm notice 26B android/src/main/res/values/styles.xml
+== 6.0.3
+npm notice 1.2kB android/build.gradle
+npm notice 89B android/src/main/AndroidManifest.xml
+npm notice 3.9kB android/src/main/java/de/mindlib/sendIntent/SendIntent.java
+npm notice 505B android/src/main/java/de/mindlib/sendIntent/SendIntentActivity.java
+npm notice 591B android/src/main/res/layout/bridge_layout_main.xml
+npm notice 64B android/src/main/res/values/colors.xml
+npm notice 84B android/src/main/res/values/strings.xml
+npm notice 26B android/src/main/res/values/styles.xml
+== 7.0.0
+npm notice 2.0kB android/build.gradle
+npm notice 89B android/src/main/AndroidManifest.xml
+npm notice 3.9kB android/src/main/java/de/mindlib/sendIntent/SendIntent.java
+npm notice 505B android/src/main/java/de/mindlib/sendIntent/SendIntentActivity.java
+npm notice 591B android/src/main/res/layout/bridge_layout_main.xml
+npm notice 64B android/src/main/res/values/colors.xml
+npm notice 84B android/src/main/res/values/strings.xml
+npm notice 26B android/src/main/res/values/styles.xml
+package/LICENSE
+package/android/build.gradle
+package/android/src/main/java/de/mindlib/sendIntent/SendIntent.java
+package/android/src/main/java/de/mindlib/sendIntent/SendIntentActivity.java
+package/dist/esm/definitions.js
+package/dist/esm/index.js
+package/dist/plugin.cjs.js
+package/dist/plugin.js
+package/dist/esm/web.js
+package/dist/docs.json
+package/package.json
+package/dist/esm/definitions.js.map
+package/dist/esm/index.js.map
+package/dist/plugin.cjs.js.map
+package/dist/plugin.js.map
+package/dist/esm/web.js.map
+package/README.md
+package/SendIntent.podspec
+package/Package.swift
+package/ios/Sources/SendIntentPlugin/SendIntent.swift
+package/ios/Sources/SendIntentPlugin/SendIntentPlugin.swift
+package/ios/Sources/SendIntentPlugin/ShareStore.swift
+package/dist/esm/definitions.d.ts
+package/dist/esm/index.d.ts
+package/dist/esm/web.d.ts
+package/android/src/main/AndroidManifest.xml
+package/android/src/main/res/layout/bridge_layout_main.xml
+package/android/src/main/res/values/colors.xml
+package/android/src/main/res/values/strings.xml
+package/android/src/main/res/values/styles.xml
