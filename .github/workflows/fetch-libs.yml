@@ -10,8 +10,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          : > si-check.txt
-          for v in 6.0.0 6.0.1 6.0.2 6.0.3 7.0.0; do echo "== $v" >> si-check.txt; npm pack send-intent@$v --dry-run 2>&1 | grep -i "android" | head -12 >> si-check.txt; done
-          mkdir -p l7 && cd l7 && npm pack send-intent@6.0.3 >/dev/null && tar tzf send-intent-6.0.3.tgz >> ../si-check.txt; cd .. && rm -rf l7
+          mkdir -p l8 && cd l8 && npm pack send-intent@6.0.3 >/dev/null && tar xzf send-intent-6.0.3.tgz && cat package/android/src/main/java/de/mindlib/sendIntent/*.java package/android/src/main/res/values/*.xml package/android/src/main/res/layout/*.xml package/android/src/main/AndroidManifest.xml > ../si-java.txt; cd .. && rm -rf l8
           git config user.name bot && git config user.email bot@example.com
-          git add si-check.txt && git commit -m "si check" && git push
+          git add si-java.txt && git commit -m "si java" && git push
