@@ -10,9 +10,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          npm view send-intent versions --json | tail -15 > si-versions.txt
-          V=$(npm view "send-intent@^6" version | tail -1 | awk '{print $NF}' | tr -d "'") ; echo "V=$V" >> si-versions.txt
-          npm view send-intent@$V peerDependencies >> si-versions.txt || true
-          mkdir -p l6 && cd l6 && npm pack send-intent@$V >/dev/null && tar xzf send-intent-*.tgz && rm -rf ../vendorsi && cp -r package ../vendorsi && cd .. && rm -rf l6
+          : > si-check.txt
+          for v in 6.0.0 6.0.1 6.0.2 6.0.3 7.0.0; do echo "== $v" >> si-check.txt; npm pack send-intent@$v --dry-run 2>&1 | grep -i "android" | head -12 >> si-check.txt; done
+          mkdir -p l7 && cd l7 && npm pack send-intent@6.0.3 >/dev/null && tar tzf send-intent-6.0.3.tgz >> ../si-check.txt; cd .. && rm -rf l7
           git config user.name bot && git config user.email bot@example.com
-          git add vendorsi si-versions.txt && git commit -m "send-intent" && git push
+          git add si-check.txt && git commit -m "si check" && git push
