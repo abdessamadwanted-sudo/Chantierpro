@@ -1,0 +1,267 @@
+// ================= Licences : partager l'application avec un ami, la suspendre ou retirer l'accès, suivi de ses projets =================
+// Le propriétaire (ce téléphone, ou connexion avec son compte) crée des codes de licence. Le téléphone de l'ami s'active avec un code ;
+// l'application vérifie la licence à chaque ouverture (7 jours sans internet au maximum) et partage ses projets en lecture seule.
+const LIC_FB = { apiKey: 'AIzaSyAgrScRnLf1Itfnqpg8Z9Hs0cmmJQ_6yC0', authDomain: 'siteteam.firebaseapp.com', projectId: 'siteteam', storageBucket: 'siteteam.firebasestorage.app', messagingSenderId: '1060672691635', appId: '1:1060672691635:web:bfded73f3a1d10481a7fc6' };
+const LIC_GRACE = 7 * 864e5;
+const LIC_APK = 'https://github.com/abdessamadwanted-sudo/Chantierpro/releases/latest/download/Chantier.apk';
+const Lic = {
+  get() { try { return JSON.parse(localStorage.getItem('lic') || 'null'); } catch (e) { return null; } },
+  set(v) { try { localStorage.setItem('lic', JSON.stringify(v)); } catch (e) {} },
+  dev() { let d = localStorage.getItem('lic.dev'); if (!d) { d = Array.from(crypto.getRandomValues(new Uint8Array(10)), b => b.toString(16).padStart(2, '0')).join(''); try { localStorage.setItem('lic.dev', d); } catch (e) {} } return d; },
+  model() { const m = navigator.userAgent.match(/Android [\d.]+; ([^;)]+)/); return m ? m[1].trim() : (navigator.platform || 'Appareil'); },
+};
+let _licFb = null;
+async function licFb() {
+  if (_licFb) return _licFb;
+  await loadScript('vendor/firebase/firebase-app-compat.js'); await loadScript('vendor/firebase/firebase-auth-compat.js'); await loadScript('vendor/firebase/firebase-firestore-compat.js');
+  const app = firebase.apps.find(a => a.name === 'lic') || firebase.initializeApp(LIC_FB, 'lic');
+  const fs = app.firestore(); try { fs.settings({ experimentalAutoDetectLongPolling: true, merge: true }); } catch (e) {}
+  return (_licFb = { app, fs, auth: app.auth(), ts: () => firebase.firestore.FieldValue.serverTimestamp() });
+}
+const licTimeout = (p, ms = 12000) => Promise.race([p, new Promise((_, r) => setTimeout(() => r(new Error('Pas de réponse (internet ?)')), ms))]);
+const licExpired = (L) => L.expires && Date.now() > L.expires;
+
+// ---------- démarrage ----------
+async function licBoot() {
+  let st = Lic.get();
+  if (!st) {
+    // téléphone déjà utilisé (projets ou Drive connecté) = propriétaire : rien ne change pour lui
+    const owner = (await DB.all('projects')).length > 0 || !!localStorage.getItem('sync.cfg');
+    if (owner) { Lic.set({ mode: 'owner' }); return; }
+    await licActivateScreen(); st = Lic.get();
+  }
+  if (st.mode === 'owner') return;
+  await licVerify(true);
+  setInterval(() => licVerify(false), 6 * 3600e3);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - (Lic.get().checkedAt || 0) > 3600e3) licVerify(false); });
+  setTimeout(() => licPush().catch(e => console.warn('suivi', e)), 4000);
+  const prev = DB.onChange; DB.onChange = (s) => { try { prev && prev(s); } catch (e) {} clearTimeout(licPush._t); licPush._t = setTimeout(() => licPush().catch(() => {}), 60000); };
+}
+// vérifie la licence ; bloque l'application si elle n'est plus valable
+async function licVerify(blocking) {
+  const st = Lic.get(); if (!st || st.mode !== 'user') return;
+  let L = null, err = null;
+  try { const { fs } = await licFb(); const d = await licTimeout(fs.collection('licences').doc(st.code).get()); L = d.exists ? d.data() : { status: 'revoked' }; }
+  catch (e) { err = e; }
+  if (L) {
+    st.status = L.status; st.expires = L.expires || null; st.checkedAt = Date.now(); st.name = L.name; st.ownerName = L.ownerName || ''; st.block = L.block || null; licGuardSync();
+    if (L.device && L.device.id && L.device.id !== Lic.dev()) st.status = 'moved';
+    if (st.status === 'active' && !licExpired(L)) { st.lastOk = Date.now(); Lic.set(st);
+      try { const { fs, ts } = await licFb(); fs.collection('licences').doc(st.code).update({ lastSeen: ts(), version: APP_VERSION, device: { id: Lic.dev(), model: Lic.model() } }).catch(() => {}); } catch (e) {}
+      return; }
+    Lic.set(st);
+    return licLock(licExpired(L) && st.status === 'active' ? 'expired' : st.status);
+  }
+  // hors connexion : 7 jours de tolérance
+  if (Date.now() - (st.lastOk || 0) > LIC_GRACE) return licLock('offline');
+  if (st.status && st.status !== 'active') return licLock(st.status);
+  if (st.expires && Date.now() > st.expires) return licLock('expired');
+}
+const LIC_MSG = {
+  disabled: ['⏸️', 'Licence suspendue', 'L\'accès à l\'application est suspendu pour le moment.'],
+  revoked: ['🔒', 'Accès retiré', 'Cette licence n\'est plus valable. Vous pouvez désinstaller l\'application.'],
+  expired: ['⌛', 'Licence expirée', 'La durée de votre licence est terminée.'],
+  moved: ['📱', 'Licence utilisée sur un autre téléphone', 'Ce code est déjà activé sur un autre appareil.'],
+  offline: ['📶', 'Vérification nécessaire', 'Connectez-vous à internet pour vérifier votre licence (plus de 7 jours sans vérification).'],
+};
+function licLock(kind) {
+  return new Promise(() => {
+    document.querySelectorAll('.lic-lock').forEach(x => x.remove());
+    const [ic, t, m] = LIC_MSG[kind] || LIC_MSG.revoked;
+    const el = document.createElement('div'); el.className = 'fullpage lic-page lic-lock';
+    el.innerHTML = `<div class="lic-in"><div class="lic-ic">${ic}</div><h1>${t}</h1><p>${m}</p>
+      <button class="btn" data-a="retry">${icon('undo')} Réessayer</button><button class="linkbtn" data-a="other">J'ai un autre code</button></div>`;
+    document.body.appendChild(el);
+    $('[data-a=retry]', el).onclick = async () => { const ld = loading('Vérification…'); el.remove(); ld.close(); await licVerify(true); if (!document.querySelector('.lic-lock')) { toast('Licence valable ✓'); renderHome(); } };
+    $('[data-a=other]', el).onclick = async () => { el.remove(); await licActivateScreen(true); location.reload(); };
+  });
+}
+
+// ---------- activation (téléphone de l'ami) ----------
+function licActivateScreen(again) {
+  return new Promise((resolve) => {
+    const el = document.createElement('div'); el.className = 'fullpage lic-page';
+    el.innerHTML = `<div class="lic-in"><div class="lic-logo">${icon('hard')}</div><h1>Chantier</h1><p>Entrez le code de licence que l'on vous a envoyé.</p>
+      <div class="form"><label>Code de licence<input name="code" autocapitalize="characters" placeholder="CH-XXXX-XXXX" style="text-transform:uppercase;letter-spacing:1px"></label>
+      <button class="btn" data-a="go">Activer</button></div>
+      <button class="linkbtn" data-a="owner">Je suis le propriétaire de l'application</button></div>`;
+    document.body.appendChild(el);
+    $('[data-a=go]', el).onclick = async () => {
+      const code = $('[name=code]', el).value.toUpperCase().replace(/[^A-Z0-9-]/g, '').replace(/^CH(?!-)/, 'CH-');
+      if (code.length < 8) return toast('Code incomplet');
+      const ld = loading('Vérification du code…');
+      try {
+        const { fs, ts } = await licFb(); const ref = fs.collection('licences').doc(code); const d = await licTimeout(ref.get());
+        if (!d.exists) throw new Error('Code introuvable — vérifiez-le');
+        const L = d.data();
+        if (L.status !== 'active') throw new Error(L.status === 'disabled' ? 'Cette licence est suspendue' : 'Cette licence n\'est plus valable');
+        if (licExpired(L)) throw new Error('Cette licence est expirée');
+        if (L.device && L.device.id && L.device.id !== Lic.dev()) throw new Error('Ce code est déjà utilisé sur un autre téléphone');
+        ld.close();
+        const ok = await licNotice(L); if (!ok) return;
+        const ld2 = loading('Activation…');
+        try { await licTimeout(ref.update({ device: { id: Lic.dev(), model: Lic.model() }, accepted: true, lastSeen: ts(), version: APP_VERSION })); } finally { ld2.close(); }
+        Lic.set({ mode: 'user', code, status: 'active', lastOk: Date.now(), checkedAt: Date.now(), name: L.name, ownerName: L.ownerName || '', expires: L.expires || null, block: L.block || null, pushAt: 0 });
+        el.remove(); toast('Application activée ✓'); resolve();
+      } catch (e) { ld.close(); alertBox(e.message || String(e)); }
+    };
+    $('[data-a=owner]', el).onclick = async () => { if (await licOwnerLogin()) { Lic.set({ mode: 'owner' }); el.remove(); toast('Bienvenue ✓'); resolve(); } };
+    void again;
+  });
+}
+// message de partage de suivi (une seule fois, à l'activation)
+function licNotice(L) {
+  return new Promise((resolve) => {
+    const s = sheet(`<div class="form"><div class="lic-note">🤝 <b>Partage de suivi</b><br>Les projets créés avec cette licence sont partagés en lecture seule avec <b>${esc(L.ownerName || 'le titulaire de la licence')}</b>, pour le suivi du travail.</div>
+      <button class="btn" data-a="ok">OK</button></div>`, { title: 'Activation' });
+    s.onClose = () => resolve(false);
+    $('[data-a=ok]', s.el).onclick = () => { s.onClose = null; s.close(); resolve(true); };
+  });
+}
+
+// ---------- propriétaire : connexion ----------
+async function licOwnerLogin() {
+  const { auth } = await licFb();
+  if (auth.currentUser) return auth.currentUser;
+  const r = await formSheet('Compte propriétaire', [{ name: 'email', label: 'E-mail', type: 'email' }, { name: 'pw', label: 'Mot de passe', type: 'password' },
+    { name: 'mode', label: 'Compte', type: 'select', value: 'in', options: [{ value: 'in', label: 'J\'ai déjà un compte (SiteTeam / Chantier)' }, { value: 'up', label: 'Créer mon compte' }] }], { okLabel: 'Continuer' });
+  if (!r || !r.email || !r.pw) return null;
+  const ld = loading('Connexion…');
+  try { const c = r.mode === 'up' ? await auth.createUserWithEmailAndPassword(r.email, r.pw) : await auth.signInWithEmailAndPassword(r.email, r.pw); return c.user; }
+  catch (e) { alertBox(({ 'auth/invalid-credential': 'E-mail ou mot de passe incorrect', 'auth/invalid-login-credentials': 'E-mail ou mot de passe incorrect', 'auth/email-already-in-use': 'Ce compte existe déjà : choisissez « J\'ai déjà un compte »', 'auth/weak-password': 'Mot de passe trop court (6 caractères)', 'auth/network-request-failed': 'Pas de connexion internet' })[e.code] || e.message); return null; }
+  finally { ld.close(); }
+}
+
+// ---------- propriétaire : gestion des licences ----------
+const licCode = () => { const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789', r = Array.from(crypto.getRandomValues(new Uint8Array(8)), b => A[b % A.length]).join(''); return `CH-${r.slice(0, 4)}-${r.slice(4)}`; };
+const LIC_ST = { active: ['Active', '#22c55e'], disabled: ['Suspendue', '#f59e0b'], revoked: ['Accès retiré', '#ef4444'] };
+async function openLicences() {
+  const st = Lic.get(); if (st && st.mode === 'user') return toast('Réservé au propriétaire');
+  let user; try { user = await licOwnerLogin(); } catch (e) { return alertBox('Connexion impossible : ' + (e.message || e)); }
+  if (!user) return;
+  const { fs, ts, auth } = await licFb();
+  const el = document.createElement('div'); el.className = 'fullpage lic-admin'; document.body.appendChild(el);
+  const unBack = pushBack(() => el.remove());
+  const draw = async () => {
+    el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><h1 style="flex:1;font-size:17px">Licences</h1><button class="btn small" data-a="new" style="flex:none">${icon('plus')} Nouvelle</button></div><div class="lic-list"><div class="empty">Chargement…</div></div>`;
+    $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
+    $('[data-a=new]', el).onclick = () => newLic();
+    let list = [];
+    try { const q = await licTimeout(fs.collection('licences').where('ownerUid', '==', user.uid).get()); list = q.docs.map(d => ({ code: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+      const bl = await licOwnerBlock(); if (bl) list.filter(x => x.block !== bl).forEach(x => { x.block = bl; fs.collection('licences').doc(x.code).update({ block: bl }).catch(() => {}); }); }
+    catch (e) { $('.lic-list', el).innerHTML = `<div class="empty">${esc(e.code === 'permission-denied' ? 'Accès refusé : les règles Firestore doivent être mises à jour (voir les instructions).' : (e.message || e))}</div>`; return; }
+    const ago = (t) => { const ms = t?.toMillis ? Date.now() - t.toMillis() : null; if (ms == null) return 'jamais'; const h = ms / 3600e3; return h < 1 ? 'il y a moins d\'1 h' : h < 48 ? `il y a ${Math.round(h)} h` : `il y a ${Math.round(h / 24)} j`; };
+    $('.lic-list', el).innerHTML = list.length ? list.map(L => { const S = licExpired(L) && L.status === 'active' ? ['Expirée', '#94a3b8'] : LIC_ST[L.status] || ['?', '#94a3b8'];
+      return `<button class="lic-row" data-c="${L.code}"><span class="lic-av">${esc((L.name || '?')[0].toUpperCase())}</span><span class="grow"><b>${esc(L.name || 'Sans nom')}</b>
+        <small>${L.code} · ${L.device ? esc(L.device.model || 'téléphone') + ' · vu ' + ago(L.lastSeen) : 'pas encore activée'}${L.version ? ' · v' + esc(L.version) : ''}</small>
+        <small>${L.expires ? 'Expire le ' + fmtDate(L.expires) : 'Sans expiration'}</small></span><em style="--c:${S[1]}">${S[0]}</em></button>`; }).join('')
+      : '<div class="empty">Aucune licence.<br>Touchez <b>Nouvelle</b> pour partager l\'application avec quelqu\'un.</div>';
+    $$('[data-c]', el).forEach(b => b.onclick = () => licMenu(list.find(x => x.code === b.dataset.c)));
+  };
+  const shareCode = (L) => openUrl('https://wa.me/?text=' + encodeURIComponent(`Bonjour ${L.name || ''},\nVoici l'application *Chantier* pour le suivi de chantier :\n\n1️⃣ Téléchargez et installez : ${LIC_APK}\n2️⃣ Ouvrez l'application et entrez le code : *${L.code}*`));
+  const DUR = [['0', 'Sans expiration'], ['30', '1 mois'], ['90', '3 mois'], ['180', '6 mois'], ['365', '1 an']];
+  async function newLic() {
+    const r = await formSheet('Nouvelle licence', [{ name: 'name', label: 'Pour qui ?', placeholder: 'Ex : Youssef' }, { name: 'd', label: 'Durée', type: 'select', value: '0', options: DUR.map(([v, l]) => ({ value: v, label: l })) },
+      { name: 'me', label: 'Votre nom (affiché à l\'activation)', value: localStorage.getItem('userName') || '' }], { okLabel: 'Créer' });
+    if (!r || !r.name) return;
+    const code = licCode(), L = { block: await licOwnerBlock(), name: r.name, ownerUid: user.uid, ownerName: r.me || '', status: 'active', expires: +r.d ? Date.now() + (+r.d) * 864e5 : null, device: null, accepted: false, createdAt: ts() };
+    const ld = loading('Création…'); try { await licTimeout(fs.collection('licences').doc(code).set(L)); } catch (e) { ld.close(); return alertBox(e.code === 'permission-denied' ? 'Accès refusé : mettez à jour les règles Firestore (voir les instructions).' : (e.message || e)); } ld.close();
+    const v = await menu(`Code : ${code}`, [{ label: 'Envoyer par WhatsApp (lien + code)', icon: 'share', value: 'wa' }, { label: 'Copier le code', icon: 'file', value: 'cp' }, { label: 'Fermer', icon: 'check', value: 'ok' }]);
+    if (v === 'wa') shareCode({ ...L, code }); if (v === 'cp') navigator.clipboard.writeText(code).then(() => toast('Copié ✓'), () => alertBox(code));
+    draw();
+  }
+  async function licMenu(L) {
+    const ref = fs.collection('licences').doc(L.code);
+    const v = await menu(`${L.name} · ${L.code}`, [
+      { label: 'Voir ses projets (suivi)', icon: 'layers', value: 'see' },
+      L.status === 'active' ? { label: 'Suspendre (temporaire)', icon: 'calendar', value: 'disable' } : { label: 'Réactiver', icon: 'check', value: 'enable' },
+      { label: 'Prolonger / changer la durée', icon: 'calendar', value: 'exp' },
+      { label: 'Renvoyer le lien et le code', icon: 'share', value: 'share' },
+      { label: 'Libérer le téléphone (changement de téléphone)', icon: 'phone', value: 'free' },
+      ...(L.status !== 'revoked' ? [{ label: 'Retirer l\'accès définitivement', icon: 'close', danger: true, value: 'revoke' }] : []),
+      { label: 'Supprimer la licence', icon: 'trash', danger: true, value: 'del' }]);
+    try {
+      if (v === 'see') return openSuivi(L);
+      if (v === 'disable') await ref.update({ status: 'disabled' });
+      if (v === 'enable') await ref.update({ status: 'active' });
+      if (v === 'revoke' && await confirmBox(`Retirer l'accès de ${L.name} ? L'application se bloquera sur son téléphone à la prochaine ouverture avec internet.`, 'Retirer l\'accès')) await ref.update({ status: 'revoked' });
+      if (v === 'exp') { const r = await formSheet('Durée', [{ name: 'd', label: 'À partir d\'aujourd\'hui', type: 'select', value: '0', options: DUR.map(([x, l]) => ({ value: x, label: l })) }], { okLabel: 'Appliquer' }); if (r) await ref.update({ expires: +r.d ? Date.now() + (+r.d) * 864e5 : null }); }
+      if (v === 'share') shareCode(L);
+      if (v === 'free' && await confirmBox('Libérer ce code ? Il pourra être activé sur un nouveau téléphone (l\'ancien sera bloqué).', 'Libérer')) await ref.update({ device: null });
+      if (v === 'del' && await confirmBox(`Supprimer la licence de ${L.name} ? Son application sera bloquée et son suivi effacé.`)) { const q = await ref.collection('suivi').get(); for (let i = 0; i < q.docs.length; i += 400) { const b = fs.batch(); q.docs.slice(i, i + 400).forEach(d => b.delete(d.ref)); await b.commit(); } await ref.delete(); }
+      if (v && v !== 'share') { toast('Enregistré ✓'); draw(); }
+    } catch (e) { alertBox(e.message || String(e)); }
+  }
+  draw();
+  void auth;
+}
+
+// ---------- suivi : envoi des projets de l'ami (texte + miniatures des photos) ----------
+const SUIVI_STORES = ['projects', 'folders', 'plans', 'links', 'receptions', 'tasks', 'reports', 'forms', 'items'];
+async function licPush() {
+  const st = Lic.get(); if (!st || st.mode !== 'user' || st.status !== 'active' || navigator.onLine === false) return;
+  if (licPush.busy) return; licPush.busy = true;
+  try {
+    const { fs } = await licFb(), col = fs.collection('licences').doc(st.code).collection('suivi'), since = st.pushAt || 0, start = Date.now(), out = [];
+    for (const s of SUIVI_STORES) for (const r of await DB.all(s)) if ((r.updatedAt || 0) > since) { const { blob, croquis, data, annotations, ...rest } = r; out.push({ id: `${s}__${r.id}`, store: s, projectId: s === 'projects' ? r.id : r.projectId, updatedAt: r.updatedAt || 0, deleted: false, data: JSON.stringify(rest).slice(0, 900000) }); }
+    for (const t of await DB.all('tomb')) if (t.at > since && SUIVI_STORES.includes(t.store)) out.push({ id: `${t.store}__${t.rid}`, store: t.store, projectId: t.projectId, updatedAt: t.at, deleted: true, data: '' });
+    // miniatures (photos, PV, croquis) créées depuis le dernier envoi
+    const imgs = (await DB.all('files')).filter(f => f.blob && (f.createdAt || 0) > since && /^image\//.test(f.mime || f.blob.type || '') && f.role !== 'plan' && f.role !== 'plansrc').slice(0, 150);
+    for (const f of imgs) { try { out.push({ id: `thumb__${f.id}`, store: 'thumb', projectId: f.projectId, updatedAt: f.createdAt || 0, deleted: false, data: await licThumb(f.blob) }); } catch (e) {} }
+    for (let i = 0; i < out.length; i += 300) { const b = fs.batch(); out.slice(i, i + 300).forEach(o => b.set(col.doc(o.id), o)); await licTimeout(b.commit(), 60000); }
+    const cur = Lic.get(); cur.pushAt = start; Lic.set(cur);
+  } finally { licPush.busy = false; }
+}
+async function licThumb(blob) {
+  const bmp = await createImageBitmap(blob), k = Math.min(1, 320 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k); c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.6);
+}
+
+// ---------- suivi : lecture (propriétaire) ----------
+async function openSuivi(L) {
+  const { fs } = await licFb();
+  const ld = loading('Chargement des projets…'); let docs = [];
+  try { docs = (await licTimeout(fs.collection('licences').doc(L.code).collection('suivi').get(), 60000)).docs.map(d => d.data()).filter(d => !d.deleted); } catch (e) { ld.close(); return alertBox(e.message || String(e)); }
+  ld.close();
+  const recs = {}; docs.forEach(d => { if (d.store === 'thumb') return; try { (recs[d.store] = recs[d.store] || []).push(JSON.parse(d.data)); } catch (e) {} });
+  const thumbs = Object.fromEntries(docs.filter(d => d.store === 'thumb').map(d => [d.id.slice(7), d]));
+  const projects = (recs.projects || []).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const el = document.createElement('div'); el.className = 'fullpage lic-admin'; document.body.appendChild(el);
+  const unBack = pushBack(() => el.remove());
+  let pid = null, tab = 'rec';
+  const last = docs.reduce((a, d) => Math.max(a, d.updatedAt || 0), 0);
+  const draw = () => {
+    const P = projects.find(p => p.id === pid);
+    const head = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><h1 style="flex:1;font-size:16px">${esc(P ? P.name : 'Projets de ' + L.name)}</h1></div>`;
+    if (!P) {
+      el.innerHTML = head + `<div class="lic-list"><div class="lic-sub">👁 Lecture seule · dernière mise à jour ${last ? fmtDateTime(last) : '—'}</div>${projects.map(p => {
+        const nRec = (recs.receptions || []).filter(r => r.projectId === p.id).length, nRes = (recs.tasks || []).filter(t => t.projectId === p.id).length;
+        return `<button class="lic-row" data-p="${p.id}"><span class="lic-av">${esc((p.name || '?')[0])}</span><span class="grow"><b>${esc(p.name)}</b><small>${nRec} tableau(x) · ${nRes} réserve(s)</small></span>${icon('chevright')}</button>`; }).join('') || '<div class="empty">Aucun projet pour le moment.</div>'}</div>`;
+      $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
+      $$('[data-p]', el).forEach(b => b.onclick = () => { pid = b.dataset.p; draw(); }); return;
+    }
+    const days = (recs.receptions || []).filter(r => r.projectId === pid).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    const tasks = (recs.tasks || []).filter(t => t.projectId === pid), reps = (recs.reports || []).filter(r => r.projectId === pid).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    const photoIds = days.flatMap(d => (d.rows || []).flatMap(r => [...(r.photoIds || []), ...(r.retourIds || [])]).concat(d.pvIds || [])).concat(tasks.flatMap(t => t.photoIds || [])).filter(id => thumbs[id]);
+    const stc = (s) => ({ ok: '#22c55e', reserve: '#f59e0b', progress: '#3b82f6', pending: '#94a3b8' })[s] || '#94a3b8';
+    let body = '';
+    if (tab === 'rec') body = days.map(d => `<div class="sv-day"><div class="sv-dh"><b>${fmtDate(d.date)}</b><span>${d.type === 'Bétonnage' ? 'Bétonnage' : 'Réception ferraillage'} · ${(d.rows || []).filter(r => r.element).length} ouvrage(s)${(d.pvIds || []).length ? ` · ${d.pvIds.length} PV` : ''}</span></div>
+      ${(d.rows || []).filter(r => r.element).map(r => `<div class="sv-row"><i style="background:${stc(r.status)}"></i><span class="z">${esc(r.zone || '')}</span><span class="n">${esc(r.niv || '')}</span><span class="grow">${esc(r.element)}${r.obs ? `<small>${esc(r.obs)}</small>` : ''}</span>${(r.photoIds || []).length ? '📷' + r.photoIds.length : ''}</div>`).join('')}</div>`).join('') || '<div class="empty">Aucun tableau.</div>';
+    if (tab === 'res') body = tasks.map(t => `<div class="sv-row"><i style="background:${(STATUS[t.status] || STATUS.open).color}"></i><span class="grow">#${t.num || ''} ${esc(t.title || '')}<small>${(STATUS[t.status] || STATUS.open).label}${t.due ? ' · échéance ' + fmtDate(t.due) : ''}</small></span></div>`).join('') || '<div class="empty">Aucune réserve.</div>';
+    if (tab === 'rap') body = reps.map(r => `<div class="sv-day"><div class="sv-dh"><b>${fmtDate(r.date)}</b></div><div class="sv-txt">${esc([r.travaux, r.problemes, r.obs].filter(Boolean).join('\n')).replace(/\n/g, '<br>') || '—'}</div></div>`).join('') + ((P.rappels || []).length ? `<div class="sv-dh"><b>Rappels</b></div>${P.rappels.map(x => `<div class="sv-row"><span class="grow">${x.done ? '✅' : '🔔'} ${esc(x.text)}<small>${x.at ? fmtDate(x.at.slice(0, 10)) : ''}</small></span></div>`).join('')}` : '') || '<div class="empty">Aucun rapport.</div>';
+    if (tab === 'ph') body = photoIds.length ? `<div class="sv-ph">${photoIds.map(id => `<img src="${thumbs[id].data}" data-ph="${id}">`).join('')}</div><div class="lic-sub">Miniatures — les photos complètes sont dans son Google Drive.</div>` : '<div class="empty">Aucune photo.</div>';
+    el.innerHTML = head + `<div class="tm-tabs">${[['rec', 'Réception & bétonnage'], ['res', 'Réserves'], ['rap', 'Rapports & rappels'], ['ph', 'Photos']].map(([k, l]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div><div class="lic-list">${body}</div>`;
+    $('[data-a=x]', el).onclick = () => { pid = null; draw(); };
+    $$('[data-t]', el).forEach(b => b.onclick = () => { tab = b.dataset.t; draw(); });
+    $$('[data-ph]', el).forEach(img => img.onclick = () => showGallery(photoIds.map(id => ({ src: thumbs[id].data })), photoIds.indexOf(img.dataset.ph)));
+  };
+  draw();
+}
+
+// ---------- Séparation des données : l'application d'une licence ne peut JAMAIS se connecter au Google Drive du propriétaire ----------
+async function licHash(t) { try { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(t || '').trim())); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('').slice(0, 32); } catch (e) { return null; } }
+async function licOwnerBlock() { const c = Sync.cfg && Sync.cfg(); return c && c.url ? await licHash(c.url) : null; }
+// true si cette URL de script est celle du propriétaire (interdit en mode licence)
+async function licIsOwnerScript(url) { const st = Lic.get(); if (!st || st.mode !== 'user' || !st.block) return false; return (await licHash(url)) === st.block; }
+async function licGuardSync() { const c = Sync.cfg && Sync.cfg(); if (c && c.url && await licIsOwnerScript(c.url)) { Sync.disconnect(); toast('Google Drive du titulaire refusé — connectez votre propre Drive'); } }

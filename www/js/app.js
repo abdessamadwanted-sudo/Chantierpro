@@ -169,6 +169,7 @@ async function renderHome() {
   $('[data-a=homemore]').onclick = async () => {
     const v = await menu('Chantier', [
       { label: 'Outils PDF (fusionner, diviser, pages)', icon: 'pdf', value: 'pdf' },
+      ...((Lic.get() || {}).mode === 'user' ? [{ label: `🤝 Partage de suivi : ${(Lic.get() || {}).ownerName || 'titulaire de la licence'} (lecture seule)`, icon: 'team', value: 'licinfo' }] : [{ label: 'Licences (partager l\'application)', icon: 'team', value: 'lic' }]),
       { label: 'Tableau de dessin', icon: 'brush', value: 'board' },
       { label: 'Langue · اللغة · Language', icon: 'globe', value: 'lang' },
       { label: 'Mon prénom', icon: 'edit', value: 'name' },
@@ -179,6 +180,8 @@ async function renderHome() {
     if (v === 'pdf') openPdfTools();
     if (v === 'name') askName();
     if (v === 'board') openBoardTool();
+    if (v === 'lic') openLicences();
+    if (v === 'licinfo') { const L = Lic.get(); alertBox(`Licence : ${L.name || ''} (${L.code})\nLes projets créés avec cette licence sont partagés en lecture seule avec ${L.ownerName || 'le titulaire de la licence'}, pour le suivi du travail.${L.expires ? '\nExpire le ' + fmtDate(L.expires) : ''}`); }
     if (v === 'lang') chooseLang();
   };
   const r2 = $('[data-a=restore2]'); if (r2) r2.onclick = restoreBackup;
@@ -1292,8 +1295,7 @@ async function openPlansQuick() {
     if (drag) { e.preventDefault(); if (drag.ctl) drag.ctl.move(dx); } }, { passive: false });
   de.addEventListener('touchend', e => { if (drag && drag.ctl) { const dx = e.changedTouches[0].clientX - esx; drag.ctl.end(dx, dx / Math.max(1, Date.now() - est)); } eon = false; drag = null; }, { passive: true });
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-  renderHome();
-  Sync.start();
+  licBoot().catch(e => console.warn('licence', e)).finally(() => { renderHome(); Sync.start(); });
   // photos partagées depuis la galerie (Partager → Chantier)
   setTimeout(() => checkSharedIntent().catch(e => console.warn('share', e)), 300);
   // toucher la notification « photos sauvegardées » → proposer de libérer l'espace

@@ -75,6 +75,8 @@ const Sync = (() => {
       put(l.fileId, base.slice(0, -1), clean(l.name));
       for (const it of l.items || []) if (it.fileId) put(it.fileId, [...base, it.cat || 'Documents'], clean(it.name || it.cat));
       for (const z of l.zones || []) for (const pt of z.parts || []) for (const dd of pt.docs || []) if (dd.fileId) put(dd.fileId, [...base.slice(0, -1), 'Plans par ouvrage', z.name, pt.name], clean(dd.name));
+      (l.photos || []).forEach((id, i) => put(id, [...base.slice(0, -1), 'Photos et notes', l.name || 'Pin'], `${clean(l.name || 'Photo')} - ${i + 1}`));
+      for (const n of l.notes || []) { (n.photos || []).forEach((id, i) => put(id, [...base.slice(0, -1), 'Photos et notes', l.name || 'Pin', 'Notes'], `Note ${new Date(n.at).toISOString().slice(0, 10)} - ${i + 1}`)); if (n.audio) put(n.audio, [...base.slice(0, -1), 'Photos et notes', l.name || 'Pin', 'Notes'], `Note vocale ${new Date(n.at).toISOString().slice(0, 10)}`); }
     }
     for (const d of recs) {
       const bet = d.type === 'Bétonnage';
@@ -288,6 +290,7 @@ const Sync = (() => {
   async function connect(code, pendingKey) {
     const c = parseCode(code); if (!c) throw new Error('Collez l\'URL de l\'application Web (https://script.google.com/macros/s/…/exec)');
     if (!c.key) c.key = pendingKey; if (!c.key) throw new Error('Code incomplet');
+    if (typeof licIsOwnerScript === 'function' && await licIsOwnerScript(c.url)) throw new Error('Ce Google Drive appartient au titulaire de la licence. Connectez VOTRE propre compte Google (onglet « Première fois »).');
     LS.set('cfg', c);
     try { const r = await call('ping', { code: codeOf(c) }); c.folder = r.folder; LS.set('cfg', c); }
     catch (e) { LS.del('cfg'); throw e; }
@@ -454,5 +457,5 @@ function doPost(e) {
     };
   }
 
-  return { start, run, schedule, enabled, openSyncSettings, statusLine, cfg, buildPaths, pathFor, _call: call, _parse: parseCode, _script: script };
+  return { start, run, schedule, enabled, disconnect, openSyncSettings, statusLine, cfg, buildPaths, pathFor, _call: call, _parse: parseCode, _script: script };
 })();

@@ -49,7 +49,9 @@ function openPlansBox(l, ctx = {}) {
     const move = (arr, i, d) => { const j = i + d; if (j < 0 || j >= arr.length) return; [arr[i], arr[j]] = [arr[j], arr[i]]; };
     const nDocs = (z) => (z.parts || []).reduce((a, p) => a + (p.docs || []).length, 0);
     const match = (t) => !q || fuzzyHas(t, q);
-    const draw = () => {
+    l.notes = l.notes || [];
+    const partsAll = () => l.zones.flatMap(z => (z.parts || []).map(p => ({ id: p.id, name: `${z.name} · ${p.name}` })));
+    const draw = async () => {
       const P = pinLook(l), box = $('.pb2', s.el);
       const zones = l.zones.map((z, zi) => {
         const zHit = match(z.name), parts = (z.parts || []).map((p, pi) => ({ p, pi, hit: zHit || match(p.name) || (p.docs || []).some(d => match(d.name)) })).filter(x => !q || x.hit);
@@ -65,10 +67,14 @@ function openPlansBox(l, ctx = {}) {
             ${(z.parts || []).length < PB_MAX ? `<button class="pb-add" data-addp="${zi}">${icon('plus')} Partie d'ouvrage</button>` : '<div class="pb-max">10 parties maximum</div>'}</div>` : ''}</div>`;
       }).join('');
       box.innerHTML = `<div class="pb-head" style="--c:${P.c}"><span class="pb-hic">${P.e}</span><div class="grow"><b>${esc(l.name)}</b><small>${l.zones.length} zone(s) · ${plansboxCount(l)} plan(s)</small></div><button class="iconbtn" data-a="more">${icon('more')}</button></div>
-        ${plansboxCount(l) > 3 ? `<div class="search pb-search">${icon('search')}<input placeholder="Rechercher (ex : CR 78, coffrage…)" value="${esc(q)}"></div>` : ''}
+        ${plansboxCount(l) + l.notes.length > 3 ? `<div class="search pb-search">${icon('search')}<input placeholder="Rechercher (ex : CR 78, coffrage…)" value="${esc(q)}"></div>` : ''}
         <div class="pb-zones">${zones || (q ? '<div class="pb-empty">Aucun résultat</div>' : '<div class="pb-empty">Ajoutez une zone, puis ses parties d\'ouvrage et leurs plans PDF.</div>')}</div>
-        ${l.zones.length < PB_MAX ? `<button class="btn ghost small pb-addz" data-a="addz">${icon('plus')} Zone</button>` : '<div class="pb-max">10 zones maximum</div>'}`;
-      const si = $('.pb-search input', box); if (si) si.oninput = (e) => { q = e.target.value.trim(); clearTimeout(s._t); s._t = setTimeout(() => { draw(); const n = $('.pb-search input', box); if (n) { n.focus(); n.setSelectionRange(q.length, q.length); } }, 250); };
+        ${l.zones.length < PB_MAX ? `<button class="btn ghost small pb-addz" data-a="addz">${icon('plus')} Zone</button>` : '<div class="pb-max">10 zones maximum</div>'}
+        <div class="nt-sec"><span>📝 Notes${l.notes.length ? ` (${l.notes.length})` : ''}</span><button class="btn small ghost" data-a="addnote">${icon('plus')} Note</button></div>
+        <div class="nt-list">${await notesHTML(q ? l.notes.filter(n => fuzzyHas(`${n.text} ${(n.check || []).map(c => c.t).join(' ')}`, q)) : l.notes, { parts: partsAll() })}</div>`;
+      $('[data-a=addnote]', box).onclick = async () => { const n = await editNote(null, l.projectId, { parts: partsAll() }); if (n) { l.notes.push(n); await save(); draw(); } };
+      await bindNotes(box, l.notes, l.projectId, save, draw, { parts: partsAll(), title: l.name });
+      const si = $('.pb-search input', box); if (si) si.oninput = (e) => { q = e.target.value.trim(); clearTimeout(s._t); s._t = setTimeout(() => { draw().then(() => { const n = $('.pb-search input', box); if (n) { n.focus(); n.setSelectionRange(q.length, q.length); } }); }, 250); };
       $$('[data-z]', box).forEach(h => h.onclick = (e) => { if (e.target.closest('[data-zm]')) return; const z = l.zones[+h.dataset.z]; openZ.has(z.id) ? openZ.delete(z.id) : openZ.add(z.id); draw(); });
       $$('[data-p]', box).forEach(h => h.onclick = (e) => { if (e.target.closest('[data-pm]')) return; const [zi, pi] = h.dataset.p.split('|').map(Number), p = l.zones[zi].parts[pi];
         if ((p.docs || []).length === 1 && !openP.has(p.id)) return pbOpenDoc(p.docs[0], l, ctx);

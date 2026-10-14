@@ -253,7 +253,7 @@ async function openPlanViewer(plan, ctx) {
         ${m >= 0.25 ? `<text x="0" y="-21" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" font-family="Arial">${t.num}</text>` : ''}</g>`;
     }).join('');
     gLinks.innerHTML = st.links.filter(l => l.planId === plan.id).map(l => {
-      const n = showCount ? (l.kind === 'plansbox' ? plansboxCount(l) : (l.items || []).length) : 0;
+      const n = showCount ? (l.kind === 'plansbox' ? plansboxCount(l) : l.kind === 'photonote' ? (l.photos || []).length + (l.notes || []).length : (l.items || []).length) : 0;
       const ls = 1 / st.scale;
       const [px, py] = linkXY(l);
       if (l.kind === 'planlink') return `<g transform="translate(${px},${py}) scale(${s})">
@@ -309,7 +309,7 @@ async function openPlanViewer(plan, ctx) {
     ['arrow', 'arrow', 'Flèche'], ['text', 'text', 'Texte'],
   ];
   const TOOLS = [
-    ['pan', 'hand', 'Déplacer'], ['pin', 'pin', 'Tâche'], ['link', 'link', 'Élément'], ['planlink', 'section', 'Lien plan / coupe'], ['plansbox', 'plans', 'Plans de l\'ouvrage'],
+    ['pan', 'hand', 'Déplacer'], ['pin', 'pin', 'Tâche'], ['link', 'link', 'Élément'], ['planlink', 'section', 'Lien plan / coupe'], ['plansbox', 'plans', 'Plans de l\'ouvrage'], ['photonote', 'camera', 'Photos / note'],
     ['draw', 'pen', 'Dessin'], ['select', 'cursor', 'Modifier'], ['erase', 'eraser', 'Gomme'],
   ];
   const shapeInfo = () => SHAPES.find(x => x[0] === st.shape) || SHAPES[0];
@@ -318,6 +318,7 @@ async function openPlanViewer(plan, ctx) {
   function hintText() {
     if (st.tool === 'pin') return 'Touchez pour placer une tâche';
     if (st.tool === 'link') return 'Touchez pour placer un élément';
+    if (st.tool === 'photonote') return 'Touchez pour placer un pin photos / note';
     if (st.tool === 'plansbox') return 'Touchez pour placer un pin « Plans » (zones → parties d\'ouvrage → PDF)';
     if (st.tool === 'planlink') return 'Touchez pour placer un lien (PDF de coupe, plan…)';
     if (st.tool === 'erase') return 'Touchez un dessin pour l\'effacer';
@@ -355,19 +356,19 @@ async function openPlanViewer(plan, ctx) {
     if (st.tool === 'select' && st.selPin) {
       if (!bar) { bar = document.createElement('div'); bar.className = 'pbar'; viewer.appendChild(bar); }
       const { kind, obj } = st.selPin;
-      const label = kind === 'task' ? `Tâche #${obj.num} ${obj.title || ''}` : kind === 'planlink' ? `Lien : ${obj.name}` : kind === 'plansbox' ? `Plans : ${obj.name}` : `Élément : ${obj.name}`;
+      const label = kind === 'task' ? `Tâche #${obj.num} ${obj.title || ''}` : kind === 'planlink' ? `Lien : ${obj.name}` : kind === 'plansbox' ? `Plans : ${obj.name}` : kind === 'photonote' ? `Photos : ${obj.name}` : `Élément : ${obj.name}`;
       bar.innerHTML = `<div class="pb-row"><span class="pb-t" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${icon(kind === 'task' ? 'pin' : kind === 'planlink' ? 'section' : 'link')} ${esc(label)}</span>
         <button class="pb" data-p="open">${icon('edit')}<span>Modifier</span></button><button class="pb danger" data-p="delpin">${icon('trash')}</button><button class="pb ok" data-p="unsel">${icon('check')}</button></div>
         <div class="muted" style="font-size:12px">Glissez le pin pour le déplacer</div>`;
       $('[data-p=unsel]', bar).onclick = () => { st.selPin = null; renderSel(); renderTools(); };
       $('[data-p=open]', bar).onclick = async () => {
-        if (kind === 'task') await ctx.openTask(obj); else if (kind === 'planlink') await editPlanLink(obj); else if (kind === 'plansbox') await openPlansBox(obj, ctx); else await ctx.openLink(obj);
+        if (kind === 'task') await ctx.openTask(obj); else if (kind === 'planlink') await editPlanLink(obj); else if (kind === 'plansbox') await openPlansBox(obj, ctx); else if (kind === 'photonote') await openPhotoNote(obj, ctx); else await ctx.openLink(obj);
         st.selPin = null; await reloadData(); renderSel(); renderTools();
       };
       $('[data-p=delpin]', bar).onclick = async () => {
         if (!await confirmBox(kind === 'task' ? 'Retirer cette tâche du plan ? (la tâche reste dans la liste)' : 'Supprimer ce pin et ses documents ?')) return;
         if (kind === 'task') { obj.planId = null; obj.x = obj.y = null; await DB.put('tasks', obj); }
-        else { for (const it of obj.items || []) if (it.fileId) await DB.del('files', it.fileId); for (const z of obj.zones || []) for (const pt of z.parts || []) for (const dd of pt.docs || []) if (dd.fileId) await DB.del('files', dd.fileId); if (obj.fileId) await DB.del('files', obj.fileId); await DB.del('links', obj.id); }
+        else { for (const it of obj.items || []) if (it.fileId) await DB.del('files', it.fileId); for (const z of obj.zones || []) for (const pt of z.parts || []) for (const dd of pt.docs || []) if (dd.fileId) await DB.del('files', dd.fileId); for (const id of [...(obj.photos || []), ...(obj.notes || []).flatMap(n => [...(n.photos || []), n.audio].filter(Boolean))]) await DB.del('files', id); if (obj.fileId) await DB.del('files', obj.fileId); await DB.del('links', obj.id); }
         st.selPin = null; await reloadData(); renderSel(); renderTools(); toast('Supprimé ✓');
       };
       return;
@@ -602,7 +603,7 @@ async function openPlanViewer(plan, ctx) {
       if (hi >= 0) g.edit = { kind: 'handle', i: hi };
       else if (hitAnnot(a, p[0], p[1], 18 / st.scale)) g.edit = { kind: 'move' };
     }
-    if (['pan', 'pin', 'link', 'planlink', 'plansbox'].includes(st.tool) && !g.edit) {
+    if (['pan', 'pin', 'link', 'planlink', 'plansbox', 'photonote'].includes(st.tool) && !g.edit) {
       const g0 = g;
       g0.lpTimer = setTimeout(() => {
         if (g !== g0 || g0.moved) return;
@@ -615,7 +616,7 @@ async function openPlanViewer(plan, ctx) {
       }, 480);
     }
     const dragDraw = st.tool === 'draw' && !st.pend && (st.shape === 'free' || TWO_PT.includes(st.shape));
-    g.mode = g.edit ? 'edit' : (dragDraw || (st.tool === 'draw' && st.shape === 'poly') || ['pin', 'link', 'planlink', 'plansbox'].includes(st.tool)) ? 'draw' : 'pan';
+    g.mode = g.edit ? 'edit' : (dragDraw || (st.tool === 'draw' && st.shape === 'poly') || ['pin', 'link', 'planlink', 'plansbox', 'photonote'].includes(st.tool)) ? 'draw' : 'pan';
   });
   viewer.addEventListener('pointermove', (e) => {
     if (!ptrs.has(e.pointerId)) return;
@@ -677,7 +678,7 @@ async function openPlanViewer(plan, ctx) {
     if (cur.mode === 'edit' && cur.moved) { saveAnnots(); renderSel(); return; }
     if (!cur.moved) return onTap(cur.start);
     if (cur.mode !== 'draw' || !cur.end) return;
-    if (st.tool === 'pin' || st.tool === 'link' || st.tool === 'planlink' || st.tool === 'plansbox') return onTap(cur.end, true);
+    if (['pin', 'link', 'planlink', 'plansbox', 'photonote'].includes(st.tool)) return onTap(cur.end, true);
     if (st.tool === 'draw' && st.shape === 'poly') {
       if (!st.pend) st.pend = { pts: [cur.start, cur.end] }; else st.pend.pts.push(cur.end);
       drawPending(); renderTools(); return;
@@ -713,8 +714,9 @@ async function openPlanViewer(plan, ctx) {
       for (const l of st.links) {
         if (l.planId !== plan.id) continue;
         const [lx, ly] = linkXY(l);
-        if (l.kind === 'planlink' || l.kind === 'plansbox') consider(Math.hypot(x - lx, y - ly) * 0.9, { kind: l.kind, obj: l });
-        else consider(Math.min(Math.hypot(x - lx, y - (ly - head(31))), Math.hypot(x - lx, y - ly)), { kind: 'link', obj: l });
+        // le pin ET son nom sont touchables (un simple appui ouvre)
+        if (l.kind === 'planlink' || l.kind === 'plansbox') consider(Math.min(Math.hypot(x - lx, y - ly) * 0.8, Math.hypot((x - lx) * 0.5, y - (ly + head(l.kind === 'plansbox' ? 32 : 29)))), { kind: l.kind, obj: l });
+        else consider(Math.min(Math.hypot(x - lx, y - (ly - head(31))) * 0.8, Math.hypot(x - lx, y - ly), Math.hypot((x - lx) * 0.5, y - (ly + head(16)))), { kind: l.kind === 'photonote' ? 'photonote' : 'link', obj: l });
       }
     }
     return best;
@@ -755,11 +757,15 @@ async function openPlanViewer(plan, ctx) {
       return toast('Aucune annotation ici');
     }
     const hit = aimed ? null : hitMarker(x, y);
-    if (hit && hit.kind === 'plansbox' && ['pan', 'pin', 'link', 'planlink', 'plansbox'].includes(st.tool)) {
+    if (hit && hit.kind === 'photonote' && ['pan', 'pin', 'link', 'planlink', 'plansbox', 'photonote'].includes(st.tool)) {
+      await openPhotoNote(hit.obj, ctx);
+      await reloadData(); return;
+    }
+    if (hit && hit.kind === 'plansbox' && ['pan', 'pin', 'link', 'planlink', 'plansbox', 'photonote'].includes(st.tool)) {
       await openPlansBox(hit.obj, ctx);
       await reloadData(); return;
     }
-    if (hit && hit.kind === 'planlink' && ['pan', 'pin', 'link', 'planlink', 'plansbox'].includes(st.tool)) {
+    if (hit && hit.kind === 'planlink' && ['pan', 'pin', 'link', 'planlink', 'plansbox', 'photonote'].includes(st.tool)) {
       await openPlanLink(hit.obj);
       await reloadData(); return;
     }
@@ -781,6 +787,11 @@ async function openPlanViewer(plan, ctx) {
       createLink({ shape: 'point', x, y });
     } else if (st.tool === 'planlink') {
       createPlanLink(x, y);
+    } else if (st.tool === 'photonote') {
+      const r = await formSheet('Pin photos / note', [{ name: 'name', label: 'Titre', placeholder: 'Ex : Fissure voile V12, réservation manquante…' }], { okLabel: 'Créer' });
+      if (!r) return;
+      const l = await DB.put('links', { projectId: plan.projectId, planId: plan.id, kind: 'photonote', shape: 'point', x, y, name: r.name || 'Photos', photos: [], notes: [], items: [] });
+      await reloadData(); await openPhotoNote(l, ctx); await reloadData();
     } else if (st.tool === 'plansbox') {
       const r = await formSheet('Pin « Plans »', [{ name: 'name', label: 'Nom affiché sur le plan', placeholder: 'Ex : Plans R+5 · Zone 1' }], { okLabel: 'Créer' });
       if (!r) return;
@@ -861,6 +872,7 @@ const PIN_EMOJIS = ['📐', '🔩', '✂️', '📷', '📄', '📝', '🧊', '�
 const PIN_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#7c3aed', '#ea580c', '#0891b2', '#ca8a04', '#db2777', '#475569', '#0f766e', '#1e3a8a', '#111827'];
 function pinLook(l) {
   if (l.kind === 'plansbox') return { e: l.emoji || '📚', c: l.pinColor || '#1e3a8a' };
+  if (l.kind === 'photonote') return { e: l.emoji || '📷', c: l.pinColor || '#0d9488' };
   if (l.emoji) return { e: l.emoji, c: l.pinColor || l.color || '#2563eb' };
   const cats = [...new Set((l.items || []).map(i => i.kind === 'url' && !LINK_CATS.some(c => c.key === i.cat) ? 'url' : i.cat))];
   if (!cats.length) return { e: '', c: l.pinColor || l.color || '#5b8def' };

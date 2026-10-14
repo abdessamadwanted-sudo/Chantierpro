@@ -928,3 +928,41 @@ body:has(.fullpage) .sharebar, body:has(.sheet-bg) .sharebar { display: none; }
 .ib-pv { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 12px; background: #1e3a8a; color: #fff; border: 0; text-align: left; }
 .ib-rows { display: grid; gap: 5px; } .ib-row { display: flex; align-items: center; gap: 8px; padding: 11px 10px; border-radius: 12px; background: #1a1e29; border: 1px solid #2a3142; color: #e5e7eb; text-align: left; font-size: 14.5px; }
 .ib-z { min-width: 26px; height: 26px; border-radius: 7px; background: #2563eb; color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 12.5px; padding: 0 4px; } .ib-n { color: #93c5fd; font-weight: 700; font-size: 13px; min-width: 34px; } .ib-c { color: #94a3b8; font-size: 12px; white-space: nowrap; }
+/* ---- Licences ---- */
+.lic-page { z-index: 59; background: radial-gradient(120% 80% at 50% 0%, #2b4b8f 0%, #12151c 60%); display: flex; align-items: center; justify-content: center; overflow: auto; }
+.lic-lock { z-index: 94; }
+.lic-in { width: 100%; max-width: 420px; padding: 28px 22px; text-align: center; color: #e5e7eb; }
+.lic-in h1 { font-size: 26px; margin: 8px 0 4px; color: #fff; } .lic-in p { color: #94a3b8; font-size: 14.5px; line-height: 1.5; margin: 0 0 18px; } .lic-in .form { text-align: left; }
+.lic-logo { width: 72px; height: 72px; border-radius: 20px; margin: 0 auto; display: grid; place-items: center; background: #f5b82e; color: #1b1e24; } .lic-logo .i { width: 40px; height: 40px; }
+.lic-ic { font-size: 56px; } .lic-in .btn { width: 100%; margin-top: 6px; }
+.lic-note { background: rgba(37,99,235,.12); border: 1px solid rgba(37,99,235,.35); border-radius: 12px; padding: 12px; font-size: 14.5px; line-height: 1.55; color: #dbeafe; }
+.lic-admin { z-index: 56; background: #12151c; display: flex; flex-direction: column; }
+.lic-list { flex: 1; overflow: auto; padding: 10px 12px calc(30px + var(--safe-bottom, 0px)); display: grid; gap: 6px; align-content: start; }
+.lic-row { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border-radius: 14px; background: #1a1e29; border: 1px solid #2a3142; color: #e5e7eb; text-align: left; }
+.lic-row b { display: block; font-size: 15px; } .lic-row small { display: block; color: #94a3b8; font-size: 12px; }
+.lic-row em { font-style: normal; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 10px; background: color-mix(in srgb, var(--c) 20%, transparent); color: var(--c); white-space: nowrap; }
+.lic-av { width: 38px; height: 38px; border-radius: 50%; background: #2563eb; color: #fff; display: grid; place-items: center; font-weight: 800; flex: none; }
+.lic-sub { color: #94a3b8; font-size: 12.5px; padding: 4px 2px; }
+.sv-day { background: #1a1e29; border: 1px solid #2a3142; border-radius: 14px; padding: 8px 10px; } .sv-dh { display: flex; gap: 8px; align-items: baseline; padding: 4px 0 6px; color: #e5e7eb; } .sv-dh span { color: #94a3b8; font-size: 12.5px; }
+.sv-row { display: flex; align-items: center; gap: 8px; padding: 6px 2px; border-top: 1px solid rgba(255,255,255,.05); color: #e5e7eb; font-size: 14px; } .sv-row i { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.sv-row .z { min-width: 22px; color: #93c5fd; font-weight: 700; } .sv-row .n { min-width: 34px; color: #94a3b8; font-size: 12.5px; } .sv-row small { display: block; color: #94a3b8; font-size: 12px; }
+.sv-txt { color: #cbd5e1; font-size: 13.5px; line-height: 1.5; } .sv-ph { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; } .sv-ph img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; }
+/* notes + pin photos / note */
+.nt-sec { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; font-weight: 800; color: #e5e7eb; font-size: 15px; }
+.nt-list { display: grid; gap: 8px; }
+.nt-card { border-radius: 14px; background: rgba(255,255,255,.05); border-left: 4px solid var(--c); padding: 8px 10px; display: grid; gap: 6px; }
+.nt-h { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); } .nt-h .grow { flex: 1; }
+.nt-h em { font-style: normal; font-weight: 700; color: var(--c); background: color-mix(in srgb, var(--c) 18%, transparent); padding: 2px 8px; border-radius: 9px; }
+.nt-part { background: rgba(59,130,246,.18); color: #93c5fd; padding: 2px 8px; border-radius: 9px; font-weight: 600; }
+.nt-t { color: var(--text, #e5e7eb); font-size: 14.5px; line-height: 1.5; }
+.nt-ck { display: grid; gap: 3px; } .nt-ck button { display: flex; gap: 8px; text-align: left; background: none; border: 0; color: #e5e7eb; font-size: 14px; padding: 3px 0; } .nt-ck button.on { color: #86efac; text-decoration: line-through; }
+.nt-ph, .pn-ph { display: flex; gap: 6px; overflow-x: auto; } .nt-ph img { width: 78px; height: 78px; object-fit: cover; border-radius: 10px; flex: none; }
+.pn-ph .t { position: relative; flex: none; } .pn-ph img { width: 96px; height: 96px; object-fit: cover; border-radius: 12px; display: block; }
+.pn-ph .x { position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; border-radius: 50%; background: rgba(0,0,0,.65); color: #fff; border: 0; }
+.nt-card audio { width: 100%; height: 36px; }
+.nt-tags { display: flex; flex-wrap: wrap; gap: 6px; } .nt-tags button { padding: 6px 11px; border-radius: 14px; border: 1px solid var(--c); background: transparent; color: var(--c); font-weight: 600; font-size: 13px; } .nt-tags button.on { background: var(--c); color: #fff; }
+.nt-voice { display: flex; align-items: center; gap: 8px; } .nt-voice audio { flex: 1; height: 36px; }
+/* pas de sélection de texte en appui long sur le plan et les fiches de pins */
+.viewer, .viewer *, .pb2, .pb2 .pb-zh, .pb2 .pb-ph, .pb-head, .lk2-band, .lk2-row, .h2-card, .drawer, .es-row, .lic-row { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.pb2 textarea, .pb2 input, .nt-t { -webkit-user-select: text; user-select: text; }
+.nt-pin { display: flex !important; align-items: center; gap: 10px; flex-direction: row !important; margin: 6px 0; } .nt-pin input { width: 22px !important; height: 22px; flex: none; margin: 0; }
