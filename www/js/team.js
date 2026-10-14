@@ -187,9 +187,21 @@ const Team = (() => {
     try {
       const ref = fs.collection('companies').doc(S.cid).collection('private').doc('drive');
       const d = await ref.get(), remote = d.exists ? d.data() : null, local = Sync.cfg();
-      if (remote && remote.url && (!local || local.url !== remote.url || local.key !== remote.key)) { localStorage.setItem('sync.cfg', JSON.stringify({ url: remote.url, key: remote.key, folder: remote.folder || '' })); Sync.start(); }
-      else if (!remote && local && local.url && isAdmin()) await ref.set({ url: local.url, key: local.key, folder: local.folder || '', by: S.user.uid, at: ts() });
+      const same = remote && local && local.url === remote.url && local.key === remote.key;
+      // l'administrateur : son Drive (vérifié SiteTeam) fait foi ; les membres : celui de l'entreprise
+      if (isAdmin() && local && local.url && !same) { if (await isSiteTeamScript(local)) await ref.set({ url: local.url, key: local.key, folder: local.folder || '', by: S.user.uid, at: ts() }); }
+      else if (remote && remote.url && !same && await isSiteTeamScript(remote)) { localStorage.setItem('sync.cfg', JSON.stringify({ url: remote.url, key: remote.key, folder: remote.folder || '' })); Sync.start(); }
+      // ancien code de Chantier connecté par erreur : on le retire de SiteTeam (les données de Chantier ne sont pas touchées)
+      if (local && local.url && !(await isSiteTeamScript(local))) { localStorage.removeItem('sync.cfg'); if (isAdmin() && remote && remote.url === local.url) await ref.delete(); toast('Drive de Chantier détaché de SiteTeam — connectez le script SiteTeam'); }
     } catch (e) { console.warn('drive cfg', e); }
+  }
+  const _chk = {};
+  async function isSiteTeamScript(c) {
+    if (c.url in _chk) return _chk[c.url];
+    try { const r = await fetch(c.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ key: c.key, action: 'ping' }) }); const j = JSON.parse(await r.text()); _chk[c.url] = j.ok && j.app === 'siteteam'; }
+    catch (e) { const http = window.Capacitor?.Plugins?.CapacitorHttp; if (!http) return true;
+      try { const x = await http.post({ url: c.url, headers: { 'Content-Type': 'text/plain;charset=utf-8' }, data: JSON.stringify({ key: c.key, action: 'ping' }), responseType: 'text' }); const j = JSON.parse(typeof x.data === 'string' ? x.data : JSON.stringify(x.data)); _chk[c.url] = j.ok && j.app === 'siteteam'; } catch (e2) { return true; } }
+    return _chk[c.url];
   }
   async function shareDrive() {
     const c = Sync.cfg(); if (!c || !c.url) return alertBox('Connectez d\'abord Google Drive (Paramètres › Google Drive).');
