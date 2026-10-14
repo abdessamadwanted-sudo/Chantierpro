@@ -10,10 +10,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          mkdir -p l5 && cd l5
-          npm pack firebase@10.14.1 >/dev/null && tar xzf firebase-10.14.1.tgz
-          ls package | grep compat | head -40
-          mkdir -p ../vendorfb && cp package/firebase-app-compat.js package/firebase-auth-compat.js package/firebase-firestore-compat.js ../vendorfb/
-          cd .. && rm -rf l5 && ls -la vendorfb
+          npm view send-intent versions --json | tail -15 > si-versions.txt
+          npm view send-intent@6 peerDependencies >> si-versions.txt || true
+          mkdir -p l6 && cd l6 && V=$(npm view send-intent@6 version | tail -1) && echo "V=$V" >> ../si-versions.txt
+          npm pack send-intent@$V >/dev/null && tar xzf send-intent-*.tgz && rm -rf ../vendorsi && cp -r package ../vendorsi && cd .. && rm -rf l6
           git config user.name bot && git config user.email bot@example.com
-          git add vendorfb && git commit -m "firebase" && git push
+          git add vendorsi si-versions.txt && git commit -m "send-intent" && git push
