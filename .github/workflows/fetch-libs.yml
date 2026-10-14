@@ -11,8 +11,8 @@ jobs:
       - uses: actions/checkout@v4
       - run: |
           npm view send-intent versions --json | tail -15 > si-versions.txt
-          npm view send-intent@6 peerDependencies >> si-versions.txt || true
-          mkdir -p l6 && cd l6 && V=$(npm view send-intent@6 version | tail -1) && echo "V=$V" >> ../si-versions.txt
-          npm pack send-intent@$V >/dev/null && tar xzf send-intent-*.tgz && rm -rf ../vendorsi && cp -r package ../vendorsi && cd .. && rm -rf l6
+          V=$(npm view "send-intent@^6" version | tail -1 | awk '{print $NF}' | tr -d "'") ; echo "V=$V" >> si-versions.txt
+          npm view send-intent@$V peerDependencies >> si-versions.txt || true
+          mkdir -p l6 && cd l6 && npm pack send-intent@$V >/dev/null && tar xzf send-intent-*.tgz && rm -rf ../vendorsi && cp -r package ../vendorsi && cd .. && rm -rf l6
           git config user.name bot && git config user.email bot@example.com
           git add vendorsi si-versions.txt && git commit -m "send-intent" && git push
