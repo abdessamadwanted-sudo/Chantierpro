@@ -76,7 +76,8 @@ async function renderHome() {
   App.project = null;
   BackStack.length = 0;
   const projects = (await DB.all('projects')).sort((a, b) => b.updatedAt - a.updatedAt);
-  const [allTasks, allRecs] = await Promise.all([DB.all('tasks'), DB.all('receptions')]);
+  const [allTasks, allRecs, allLinks] = await Promise.all([DB.all('tasks'), DB.all('receptions'), DB.all('links')]);
+  const fRec = featOn('reception'), fTasks = featOn('tasks'), fAv = featOn('avancement');
   const today = todayISO();
   const wk = new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10);
   const stats = (p) => {
@@ -85,7 +86,8 @@ async function renderHome() {
     const pvl = r.filter(d => d.type !== 'Bétonnage').flatMap(d => (d.rows || []).filter(pvMissing).map(x => d.date));
     return { open: t.filter(x => !isLifted(x)).length, late: t.filter(isLate).length, pv: pvl.length, pvOld: pvl.filter(dt => daysSince(dt) >= 3).length,
       today: cnt('F', today) + cnt('B', today), fT: cnt('F', today), fW: cnt('F', wk), fA: cnt('F'), bT: cnt('B', today), bW: cnt('B', wk), bA: cnt('B'),
-      rap: (p.rappels || []).filter(x => !x.done).sort((a, b) => rapRank(a) - rapRank(b) || (a.at || '9').localeCompare(b.at || '9')) };
+      rap: (p.rappels || []).filter(x => !x.done).sort((a, b) => rapRank(a) - rapRank(b) || (a.at || '9').localeCompare(b.at || '9')),
+      av: fAv ? avHomeStats(p, allLinks) : null };
   };
   App.homeOpen = App.homeOpen || {};
   const HUES = [['#2563eb', '#1e3a8a'], ['#0d9488', '#134e4a'], ['#7c3aed', '#4c1d95'], ['#ea580c', '#7c2d12'], ['#db2777', '#831843'], ['#0891b2', '#164e63']];
@@ -111,11 +113,12 @@ async function renderHome() {
         <div class="h2-date">${dateL.charAt(0).toUpperCase() + dateL.slice(1)}</div>
       </div>
       <div class="h2-body">
-        <button class="h2-job" data-a="career"><span class="ic">💼</span><span class="grow"><b>Emploi & carrière</b><small>Indeed · LinkedIn · Glassdoor · concours · mon CV</small></span>${icon('chevright')}</button>
+        ${featOn('career') ? '' : '<!--'}<button class="h2-job" data-a="career"><span class="ic">💼</span><span class="grow"><b>Emploi & carrière</b><small>Indeed · LinkedIn · Glassdoor · concours · mon CV</small></span>${icon('chevright')}</button>${featOn('career') ? '' : '-->'}
         <div class="h2-sec"><span>Mes chantiers</span><small>${projects.length}</small></div>
         ${projects.length ? projects.map(p => { const st = stats(p), [c1, c2] = hue(p.name), open = !!App.homeOpen[p.id];
           const due = (x) => x.at && x.at.slice(0, 10) <= today;
           const ropen = !!(App.homeRap || {})[p.id];
+          if (!fRec) { st.today = 0; st.pv = 0; } if (!fTasks) { st.open = 0; st.late = 0; }
           return `<div class="h2-proj ${open ? 'open' : ''}"><div class="h2-stick"><button class="h2-card" data-id="${p.id}">
             <span class="h2-av" style="background:linear-gradient(135deg,${c1},${c2})">${esc(initials(p.name))}</span>
             <span class="grow"><b>${esc(p.name)}</b>${p.address ? `<small>${icon('pin')} ${esc(p.address)}</small>` : ''}
@@ -124,16 +127,18 @@ async function renderHome() {
                 ${st.pv ? `<i class="c-r">${st.pv} PV à récupérer</i>` : ''}
                 ${st.rap.length ? `<i class="${st.rap.some(x => rapState(x) === 'late') ? 'c-r' : st.rap.some(x => rapState(x) === 'soon') ? 'c-g2' : 'c-y'}">🔔 ${st.rap.length} rappel(s)</i>` : ''}
                 ${st.open ? `<i class="c-o">${st.open} réserve(s)</i>` : ''}
-                ${!st.today && !st.pv && !st.open && !st.rap.length ? '<i class="c-g">À jour ✓</i>' : ''}
+                ${st.av ? `<i class="${st.av.late ? 'c-r' : 'c-b'}">🏗️ ${st.av.pct}%${st.av.late ? ` · ${st.av.late} en retard` : ''}</i>` : ''}
+                ${!st.today && !st.pv && !st.open && !st.rap.length && !(st.av && st.av.late) ? '<i class="c-g">À jour ✓</i>' : ''}
               </span></span>
             <span class="h2-chev">${icon('chevdown')}</span></button>
             ${open ? `<button class="btn h2-openbtn" data-open="${p.id}">Ouvrir le projet ${icon('chevright')}</button>` : ''}</div>
             ${open ? `<div class="h2-det">
-              <table class="h2-tab"><tr><th></th><th>Aujourd'hui</th><th>7 jours</th><th>Total</th></tr>
+              ${st.av ? `<div class="h2-kpi" style="grid-template-columns:1fr;margin:0 0 10px"><div class="${st.av.late ? 'r' : 'g'}" data-go="${p.id}|avancement"><b>${st.av.pct}%</b><span>Avancement second œuvre · ${st.av.locs} locaux ›</span>${st.av.late ? `<small>${st.av.late} engagement(s) en retard</small>` : ''}</div></div>` : ''}
+              ${fRec ? `<table class="h2-tab"><tr><th></th><th>Aujourd'hui</th><th>7 jours</th><th>Total</th></tr>
                 <tr data-go="${p.id}|reception"><td>Réception ferraillage ›</td><td><b>${st.fT}</b></td><td>${st.fW}</td><td>${st.fA}</td></tr>
-                <tr data-go="${p.id}|beton"><td>Bétonnage ›</td><td><b>${st.bT}</b></td><td>${st.bW}</td><td>${st.bA}</td></tr></table>
-              <div class="h2-kpi"><div class="${st.pv ? 'r' : 'g'}" data-go="${p.id}|pv"><b>${st.pv}</b><span>PV à récupérer ›</span>${st.pvOld ? `<small>dont ${st.pvOld} > 3 jours</small>` : ''}</div>
-                <div class="${st.open ? 'o' : 'g'}" data-go="${p.id}|tasks"><b>${st.open}</b><span>Réserves ouvertes ›</span>${st.late ? `<small>${st.late} en retard</small>` : ''}</div></div>
+                <tr data-go="${p.id}|beton"><td>Bétonnage ›</td><td><b>${st.bT}</b></td><td>${st.bW}</td><td>${st.bA}</td></tr></table>` : ''}
+              ${fRec || fTasks ? `<div class="h2-kpi" style="${fRec && fTasks ? '' : 'grid-template-columns:1fr'}">${fRec ? `<div class="${st.pv ? 'r' : 'g'}" data-go="${p.id}|pv"><b>${st.pv}</b><span>PV à récupérer ›</span>${st.pvOld ? `<small>dont ${st.pvOld} > 3 jours</small>` : ''}</div>` : ''}
+                ${fTasks ? `<div class="${st.open ? 'o' : 'g'}" data-go="${p.id}|tasks"><b>${st.open}</b><span>Réserves ouvertes ›</span>${st.late ? `<small>${st.late} en retard</small>` : ''}</div>` : ''}</div>` : ''}
               <div class="h2-rh"><button class="h2-rt" data-raptog="${p.id}"><b>🔔 Rappels</b><span class="n">${st.rap.length}</span>${st.rap.some(due) ? '<span class="due">à faire</span>' : ''}<span class="chev" style="transform:rotate(${ropen ? 180 : 0}deg)">${icon('chevdown')}</span></button><button data-addrap="${p.id}">${icon('plus')} Ajouter</button></div>
               ${!ropen ? '' : st.rap.length ? st.rap.map(x => `<div class="h2-rap ${rapState(x)}"><button class="ck" data-rapok="${p.id}|${x.id}"></button><div class="grow" data-rapedit="${p.id}|${x.id}"><span>${esc(x.text)}</span>${x.at ? `<small>${fmtDate(x.at.slice(0, 10))}${x.at.length > 10 ? ' · ' + x.at.slice(11, 16) : ''}${rapLabel(x)}</small>` : ''}</div><button class="iconbtn sm" data-rapdel="${p.id}|${x.id}">${icon('close')}</button></div>`).join('') : '<div class="h2-none">Aucun rappel</div>'}
             </div>` : ''}</div>`; }).join('')
@@ -142,7 +147,7 @@ async function renderHome() {
       </div>
     </div>
     <button class="fab" data-a="new">${icon('plus')}</button>`;
-  $('[data-a=career]').onclick = openCareer;
+  const cb = $('[data-a=career]'); if (cb) cb.onclick = openCareer;
   photoReminder().then(r => { if (!r || App.project) return; const hb = $('.h2-body'); if (!hb || $('.h2-free', hb)) return;
     hb.insertAdjacentHTML('afterbegin', `<button class="h2-free" data-a="freeph"><span class="ic">🧹</span><span class="grow"><b>${r.n} photos déjà dans Drive</b><small>Plus de 3 jours · libérer ${r.mb.toFixed(0)} Mo du téléphone (elles restent dans Drive)</small></span>${icon('chevright')}</button>`);
     $('[data-a=freeph]', hb).onclick = freeOldPhotos; }).catch(() => {});
@@ -171,12 +176,16 @@ async function renderHome() {
       { label: 'Outils PDF (fusionner, diviser, pages)', icon: 'pdf', value: 'pdf' },
       ...((Lic.get() || {}).mode === 'user' ? [{ label: `🤝 Partage de suivi : ${(Lic.get() || {}).ownerName || 'titulaire de la licence'} (lecture seule)`, icon: 'team', value: 'licinfo' }] : [{ label: 'Licences (partager l\'application)', icon: 'team', value: 'lic' }]),
       { label: 'Tableau de dessin', icon: 'brush', value: 'board' },
+      { label: 'Fonctions affichées', icon: 'grid', value: 'feat' },
+      { label: 'Rechercher une mise à jour', icon: 'upload', value: 'upd' },
       { label: 'Langue · اللغة · Language', icon: 'globe', value: 'lang' },
       { label: 'Mon prénom', icon: 'edit', value: 'name' },
       { label: 'Restaurer une sauvegarde', icon: 'undo', value: 'restore' },
       { label: `Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}`, icon: 'settings', value: null },
     ]);
     if (v === 'restore') restoreBackup();
+    if (v === 'feat') chooseMyFeatures();
+    if (v === 'upd') checkUpdate(true);
     if (v === 'pdf') openPdfTools();
     if (v === 'name') askName();
     if (v === 'board') openBoardTool();
@@ -200,12 +209,13 @@ async function openProject(p) {
   renderSection();
   const late = (await DB.byProject('tasks', p.id)).filter(isLate).length;
   if (late) setTimeout(() => toast(`⚠ ${late} réserve(s) en retard`), 400);
-  setTimeout(() => pvReminder(p), 700);
+  if (featOn('reception')) setTimeout(() => pvReminder(p), 700);
 }
 
 // ---------- Structure d'un projet ----------
 const SECTIONS = {
   dashboard: { label: 'Tableau de bord', icon: 'layers', render: (r) => renderDashboard(r) },
+  avancement: { label: 'Avancement (lots · locaux)', icon: 'grid', render: (r) => renderAvancement(r), title: 'Avancement', subtitle: 'Lots · niveaux · locaux · engagements' },
   plans: { label: 'Plans', icon: 'plans', render: renderPlans, title: 'Plans', subtitle: 'Toutes les tâches sur les plans' },
   clauses: { label: 'Clauses techniques', icon: 'book', render: (r) => renderClauses(r) },
   tasks: { label: 'Réserves / Tâches', icon: 'tasks', render: renderTasks },
@@ -224,6 +234,7 @@ const SECTIONS = {
 
 async function renderSection() {
   BackStack.length = 0;
+  if (!SECTIONS[App.section] || !sectionOn(App.section)) App.section = 'plans';
   pushBack(() => { if (App.section !== 'plans') { App.section = 'plans'; App.search = ''; renderSection(); } else renderHome(); });
   const s = SECTIONS[App.section];
   $('#app').innerHTML = `
@@ -259,7 +270,7 @@ async function openDrawer(opts = {}) {
   const d = document.createElement('div'); d.className = 'drawer';
   d.innerHTML = `
     <div class="drawer-head"><h3>${esc(App.project.name)}</h3><button class="iconbtn" data-home>${icon('home')}</button></div>
-    ${Object.entries(SECTIONS).filter(([k, s]) => !s.hidden && k !== 'settings').map(([k, s]) => `<button class="item ${App.section === k || (k === 'reception' && App.section === 'beton') ? 'active' : ''}" data-s="${k === 'reception' && App.section === 'beton' ? 'beton' : k}">${icon(s.icon)}<span>${s.label}</span>${k === 'reception' && nPv ? `<span class="count pvbadge">${nPv} PV</span>` : ''}${k === 'tasks' ? `<span class="count dr-rt" data-rtog>${tasks.filter(t => t.status === 'open').length || ''}<i style="display:inline-block;transform:rotate(${resOpen ? 180 : 0}deg)">${icon('chevdown', 'style="width:18px;height:18px"')}</i></span>` : ''}</button>${k === 'tasks' ? `<div class="dr-sub" style="${resOpen ? '' : 'display:none'}">${resRows}</div>` : ''}`).join('')}
+    ${Object.entries(SECTIONS).filter(([k, s]) => !s.hidden && k !== 'settings' && sectionOn(k)).map(([k, s]) => `<button class="item ${App.section === k || (k === 'reception' && App.section === 'beton') ? 'active' : ''}" data-s="${k === 'reception' && App.section === 'beton' ? 'beton' : k}">${icon(s.icon)}<span>${s.label}</span>${k === 'reception' && nPv ? `<span class="count pvbadge">${nPv} PV</span>` : ''}${k === 'tasks' ? `<span class="count dr-rt" data-rtog>${tasks.filter(t => t.status === 'open').length || ''}<i style="display:inline-block;transform:rotate(${resOpen ? 180 : 0}deg)">${icon('chevdown', 'style="width:18px;height:18px"')}</i></span>` : ''}</button>${k === 'tasks' ? `<div class="dr-sub" style="${resOpen ? '' : 'display:none'}">${resRows}</div>` : ''}`).join('')}
     <div class="group">Outils</div>
     <button class="item" data-tool="pdf">${icon('pdf')}<span>Outils PDF</span><span class="count" style="font-size:12px;opacity:.6">fusionner · diviser</span></button>
     <button class="item" data-tool="board">${icon('brush')}<span>Tableau de dessin</span><span class="count" style="font-size:12px;opacity:.6">${(App.project.boards || []).length || ''}</span></button>
@@ -313,6 +324,8 @@ async function renderPlans(root) {
   const [folders, plans, tasks] = await Promise.all([DB.byProject('folders', pid), DB.byProject('plans', pid), DB.byProject('tasks', pid)]);
   folders.sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true }));
   plans.sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true }));
+  const allPlans = plans.slice(); plans.length = 0; plans.push(...allPlans.filter(isCurrentPlan));   // seulement le dernier indice de chaque plan
+  const indTag = (p) => p.indice && p.indice !== 'A' || p.prevId ? ` <span class="ind-tag">Ind. ${esc(planIndice(p))}</span>` : '';
   const q = App.search.toLowerCase();
   const shown = plans.filter(p => !q || fuzzyHas(p.name, q));
   const openCount = (planId) => tasks.filter(t => t.planId === planId && t.status !== 'verified').length;
@@ -357,8 +370,8 @@ async function renderPlans(root) {
       for (const p of ps) {
         const t = document.createElement('div');
         const n = openCount(p.id);
-        if (App.planView === 'grid') { t.className = 'ptile'; t.innerHTML = `<div class="im"><img data-thumb="${p.fileId}" alt=""></div><div class="nm">${esc(p.name)}</div>${n ? `<span class="badge">${n}</span>` : ''}`; }
-        else { t.className = 'prow'; t.innerHTML = `<span class="im"><img data-thumb="${p.fileId}" alt=""></span><div class="nm">${esc(p.name)}</div>${n ? `<span class="badge">${n}</span>` : ''}${icon('chevright')}`; }
+        if (App.planView === 'grid') { t.className = 'ptile'; t.innerHTML = `<div class="im"><img data-thumb="${p.fileId}" alt=""></div><div class="nm">${esc(p.name)}${indTag(p)}</div>${n ? `<span class="badge">${n}</span>` : ''}`; }
+        else { t.className = 'prow'; t.innerHTML = `<span class="im"><img data-thumb="${p.fileId}" alt=""></span><div class="nm">${esc(p.name)}${indTag(p)}</div>${n ? `<span class="badge">${n}</span>` : ''}${icon('chevright')}`; }
         t.onclick = () => openPlanViewer(p, planCtx(() => renderPlans(root)));
         grid.appendChild(t);
       }
@@ -448,14 +461,17 @@ async function importPlans(folders, root, fromDrive = false, presetFolder) {
     catch (e) { ld0.close(); return alertBox(e.message); }
     ld0.close();
   } else {
-    files = await pickFiles({ accept: 'image/*,application/pdf', multiple: true });
+    files = await pickFiles({ accept: 'image/*,application/pdf,.dxf,.dwg,application/dxf,application/octet-stream', multiple: true });
   }
   if (!files.length) return;
   const ld = loading('Import du plan…');
   try {
     for (const file of files) {
       const base = file.name.replace(/\.[^.]+$/, '');
-      if (/\.(dwg|dxf)$/i.test(file.name)) { await alertBox('Les fichiers AutoCAD (DWG/DXF) ne s\'affichent pas comme plan. Exportez le plan en PDF, ou ajoutez le DWG dans un pin (Plan coffrage / ferraillage / coupe).'); continue; }
+      if (/\.(dwg|dxf)$/i.test(file.name)) {   // AutoCAD : DXF affiché comme plan (le DWG est expliqué)
+        for (const im of await fileToPlanImages(file, pid, ld)) await DB.put('plans', { projectId: pid, folderId, fileId: im.fileId, dxfFileId: im.dxfFileId, w: im.w, h: im.h, name: im.name, annotations: [], indice: 'A' });
+        continue;
+      }
       if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf' && !isRasterImage(file)) { await alertBox(`Format non pris en charge : ${file.name}`); continue; }
       if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
         const pages = await pdfToImages(file, 5000, (p, n) => ld.set(`Conversion PDF… page ${p}/${n}`));
@@ -1249,7 +1265,7 @@ function initPlansButton() {
   const b = document.createElement('button'); b.id = 'plansFab'; b.title = 'Plans'; b.innerHTML = icon('plans');
   document.body.appendChild(b);
   b.onclick = () => openPlansQuick();
-  const upd = () => { b.style.display = App.project ? '' : 'none'; };
+  const upd = () => { b.style.display = App.project && !document.querySelector('.av-page') ? '' : 'none'; };
   setInterval(upd, 600); upd();
 }
 async function openPlansQuick() {
@@ -1297,7 +1313,8 @@ async function openPlansQuick() {
     if (drag) { e.preventDefault(); if (drag.ctl) drag.ctl.move(dx); } }, { passive: false });
   de.addEventListener('touchend', e => { if (drag && drag.ctl) { const dx = e.changedTouches[0].clientX - esx; drag.ctl.end(dx, dx / Math.max(1, Date.now() - est)); } eon = false; drag = null; }, { passive: true });
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-  licBoot().catch(e => console.warn('licence', e)).finally(() => { renderHome(); Sync.start(); });
+  licBoot().catch(e => console.warn('licence', e)).finally(() => { renderHome(); Sync.start(); setTimeout(() => checkUpdate(false).catch(() => {}), 2500); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(false).catch(() => {}); });
   // photos partagées depuis la galerie (Partager → Chantier)
   setTimeout(() => checkSharedIntent().catch(e => console.warn('share', e)), 300);
   // toucher la notification « photos sauvegardées » → proposer de libérer l'espace

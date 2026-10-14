@@ -47,6 +47,8 @@ async function licVerify(blocking) {
   catch (e) { err = e; }
   if (L) {
     st.status = L.status; st.expires = L.expires || null; st.checkedAt = Date.now(); st.name = L.name; st.ownerName = L.ownerName || ''; st.block = L.block || null; licGuardSync();
+    const fOld = JSON.stringify(st.features || null); st.features = L.features || null;
+    if (!blocking && fOld !== JSON.stringify(st.features)) setTimeout(() => { try { Lic.set(st); App.project ? renderSection() : renderHome(); toast('Fonctions mises à jour par le titulaire'); } catch (e) {} }, 0);
     if (L.device && L.device.id && L.device.id !== Lic.dev()) st.status = 'moved';
     if (st.status === 'active' && !licExpired(L)) { st.lastOk = Date.now(); Lic.set(st);
       try { const { fs, ts } = await licFb(); fs.collection('licences').doc(st.code).update({ lastSeen: ts(), version: APP_VERSION, device: { id: Lic.dev(), model: Lic.model() } }).catch(() => {}); } catch (e) {}
@@ -103,7 +105,7 @@ function licActivateScreen(again) {
         const ok = await licNotice(L); if (!ok) return;
         const ld2 = loading('Activation…');
         try { await licTimeout(ref.update({ device: { id: Lic.dev(), model: Lic.model() }, accepted: true, lastSeen: ts(), version: APP_VERSION })); } finally { ld2.close(); }
-        Lic.set({ mode: 'user', code, status: 'active', lastOk: Date.now(), checkedAt: Date.now(), name: L.name, ownerName: L.ownerName || '', expires: L.expires || null, block: L.block || null, pushAt: 0 });
+        Lic.set({ mode: 'user', code, status: 'active', lastOk: Date.now(), checkedAt: Date.now(), name: L.name, ownerName: L.ownerName || '', expires: L.expires || null, block: L.block || null, features: L.features || null, pushAt: 0 });
         el.remove(); toast('Application activée ✓'); resolve();
       } catch (e) { ld.close(); alertBox(e.message || String(e)); }
     };
@@ -156,7 +158,7 @@ async function openLicences() {
     $('.lic-list', el).innerHTML = list.length ? list.map(L => { const S = licExpired(L) && L.status === 'active' ? ['Expirée', '#94a3b8'] : LIC_ST[L.status] || ['?', '#94a3b8'];
       return `<button class="lic-row" data-c="${L.code}"><span class="lic-av">${esc((L.name || '?')[0].toUpperCase())}</span><span class="grow"><b>${esc(L.name || 'Sans nom')}</b>
         <small>${L.code} · ${L.device ? esc(L.device.model || 'téléphone') + ' · vu ' + ago(L.lastSeen) : 'pas encore activée'}${L.version ? ' · v' + esc(L.version) : ''}</small>
-        <small>${L.expires ? 'Expire le ' + fmtDate(L.expires) : 'Sans expiration'}</small></span><em style="--c:${S[1]}">${S[0]}</em></button>`; }).join('')
+        <small>${L.expires ? 'Expire le ' + fmtDate(L.expires) : 'Sans expiration'}${L.features && Object.values(L.features).some(v => v === false) ? ` · ${Object.values(L.features).filter(v => v === false).length} fonction(s) masquée(s)` : ''}</small></span><em style="--c:${S[1]}">${S[0]}</em></button>`; }).join('')
       : '<div class="empty">Aucune licence.<br>Touchez <b>Nouvelle</b> pour partager l\'application avec quelqu\'un.</div>';
     $$('[data-c]', el).forEach(b => b.onclick = () => licMenu(list.find(x => x.code === b.dataset.c)));
   };
@@ -164,9 +166,14 @@ async function openLicences() {
   const DUR = [['0', 'Sans expiration'], ['30', '1 mois'], ['90', '3 mois'], ['180', '6 mois'], ['365', '1 an']];
   async function newLic() {
     const r = await formSheet('Nouvelle licence', [{ name: 'name', label: 'Pour qui ?', placeholder: 'Ex : Youssef' }, { name: 'd', label: 'Durée', type: 'select', value: '0', options: DUR.map(([v, l]) => ({ value: v, label: l })) },
-      { name: 'me', label: 'Votre nom (affiché à l\'activation)', value: localStorage.getItem('userName') || '' }], { okLabel: 'Créer' });
+      { name: 'me', label: 'Votre nom (affiché à l\'activation)', value: localStorage.getItem('userName') || '' },
+      { name: 'f', label: 'Fonctions', type: 'select', value: 'norec', options: [{ value: 'all', label: 'Toutes les fonctions' }, { value: 'norec', label: 'Sans Réception & bétonnage / PV' }, { value: 'av', label: 'Avancement seulement (+ plans, photos)' }, { value: 'pick', label: 'Choisir une par une…' }] }], { okLabel: 'Créer' });
     if (!r || !r.name) return;
-    const code = licCode(), L = { block: await licOwnerBlock(), name: r.name, ownerUid: user.uid, ownerName: r.me || '', status: 'active', expires: +r.d ? Date.now() + (+r.d) * 864e5 : null, device: null, accepted: false, createdAt: ts() };
+    let features = null;
+    if (r.f === 'norec') features = { reception: false };
+    if (r.f === 'av') features = Object.fromEntries(FEATURES.map(([k]) => [k, ['avancement', 'photos'].includes(k)]));
+    if (r.f === 'pick') { features = await editLicFeatures({ name: r.name, features: { reception: false } }); if (!features) return; }
+    const code = licCode(), L = { features, block: await licOwnerBlock(), name: r.name, ownerUid: user.uid, ownerName: r.me || '', status: 'active', expires: +r.d ? Date.now() + (+r.d) * 864e5 : null, device: null, accepted: false, createdAt: ts() };
     const ld = loading('Création…'); try { await licTimeout(fs.collection('licences').doc(code).set(L)); } catch (e) { ld.close(); return alertBox(e.code === 'permission-denied' ? 'Accès refusé : mettez à jour les règles Firestore (voir les instructions).' : (e.message || e)); } ld.close();
     const v = await menu(`Code : ${code}`, [{ label: 'Envoyer par WhatsApp (lien + code)', icon: 'share', value: 'wa' }, { label: 'Copier le code', icon: 'file', value: 'cp' }, { label: 'Fermer', icon: 'check', value: 'ok' }]);
     if (v === 'wa') shareCode({ ...L, code }); if (v === 'cp') navigator.clipboard.writeText(code).then(() => toast('Copié ✓'), () => alertBox(code));
@@ -176,6 +183,7 @@ async function openLicences() {
     const ref = fs.collection('licences').doc(L.code);
     const v = await menu(`${L.name} · ${L.code}`, [
       { label: 'Voir ses projets (suivi)', icon: 'layers', value: 'see' },
+      { label: 'Fonctions autorisées (ce qu\'il voit)', icon: 'grid', value: 'feat' },
       L.status === 'active' ? { label: 'Suspendre (temporaire)', icon: 'calendar', value: 'disable' } : { label: 'Réactiver', icon: 'check', value: 'enable' },
       { label: 'Prolonger / changer la durée', icon: 'calendar', value: 'exp' },
       { label: 'Renvoyer le lien et le code', icon: 'share', value: 'share' },
@@ -184,6 +192,7 @@ async function openLicences() {
       { label: 'Supprimer la licence', icon: 'trash', danger: true, value: 'del' }]);
     try {
       if (v === 'see') return openSuivi(L);
+      if (v === 'feat') { const f = await editLicFeatures(L); if (!f) return; await ref.update({ features: f }); }
       if (v === 'disable') await ref.update({ status: 'disabled' });
       if (v === 'enable') await ref.update({ status: 'active' });
       if (v === 'revoke' && await confirmBox(`Retirer l'accès de ${L.name} ? L'application se bloquera sur son téléphone à la prochaine ouverture avec internet.`, 'Retirer l\'accès')) await ref.update({ status: 'revoked' });
@@ -231,7 +240,7 @@ async function openSuivi(L) {
   const projects = (recs.projects || []).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   const el = document.createElement('div'); el.className = 'fullpage lic-admin'; document.body.appendChild(el);
   const unBack = pushBack(() => el.remove());
-  let pid = null, tab = 'rec';
+  let pid = null, tab = (recs.links || []).some(l => l.kind === 'local') ? 'av' : 'rec';
   const last = docs.reduce((a, d) => Math.max(a, d.updatedAt || 0), 0);
   const draw = () => {
     const P = projects.find(p => p.id === pid);
@@ -245,15 +254,21 @@ async function openSuivi(L) {
     }
     const days = (recs.receptions || []).filter(r => r.projectId === pid).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     const tasks = (recs.tasks || []).filter(t => t.projectId === pid), reps = (recs.reports || []).filter(r => r.projectId === pid).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-    const photoIds = days.flatMap(d => (d.rows || []).flatMap(r => [...(r.photoIds || []), ...(r.retourIds || [])]).concat(d.pvIds || [])).concat(tasks.flatMap(t => t.photoIds || [])).filter(id => thumbs[id]);
+    const photoIds = days.flatMap(d => (d.rows || []).flatMap(r => [...(r.photoIds || []), ...(r.retourIds || [])]).concat(d.pvIds || [])).concat(tasks.flatMap(t => t.photoIds || [])).concat((recs.links || []).filter(l => l.kind === 'local' && l.projectId === pid).flatMap(l => Object.values(l.lots || {}).flatMap(r => r.photos || []))).filter(id => thumbs[id]);
     const stc = (s) => ({ ok: '#22c55e', reserve: '#f59e0b', progress: '#3b82f6', pending: '#94a3b8' })[s] || '#94a3b8';
     let body = '';
     if (tab === 'rec') body = days.map(d => `<div class="sv-day"><div class="sv-dh"><b>${fmtDate(d.date)}</b><span>${d.type === 'Bétonnage' ? 'Bétonnage' : 'Réception ferraillage'} · ${(d.rows || []).filter(r => r.element).length} ouvrage(s)${(d.pvIds || []).length ? ` · ${d.pvIds.length} PV` : ''}</span></div>
       ${(d.rows || []).filter(r => r.element).map(r => `<div class="sv-row"><i style="background:${stc(r.status)}"></i><span class="z">${esc(r.zone || '')}</span><span class="n">${esc(r.niv || '')}</span><span class="grow">${esc(r.element)}${r.obs ? `<small>${esc(r.obs)}</small>` : ''}</span>${(r.photoIds || []).length ? '📷' + r.photoIds.length : ''}</div>`).join('')}</div>`).join('') || '<div class="empty">Aucun tableau.</div>';
+    if (tab === 'av') {
+      const locs = (recs.links || []).filter(l => l.kind === 'local' && l.projectId === pid), lots = (P.lots && P.lots.length) ? P.lots : AV_DEFAULT_LOTS;
+      body = (P.avNiveaux || []).map(n => { const ls = locs.filter(l => l.nivId === n.id).sort(avNameSort); if (!ls.length) return '';
+        return `<div class="sv-day"><div class="sv-dh"><b>${esc(n.name)}</b><span>${lots.map(lot => `${esc(lot.name)} ${avStats(ls, lot.id).pct}%`).join(' · ')}</span></div>
+          ${ls.map(l => `<div class="sv-row"><span class="grow">${esc(l.name)}<small>${lots.map(lot => { const r = (l.lots || {})[lot.id], k = avStatus(r); return `<b style="color:${AV_ST[k][1]}">●</b> ${esc(lot.name)} : ${AV_ST[k][0]}${r && r.due ? ' (eng. ' + fmtDate(r.due) + ')' : ''}`; }).join('<br>')}</small></span>${lots.reduce((a, lot) => a + (((l.lots || {})[lot.id] || {}).photos || []).length, 0) ? '📷' : ''}</div>`).join('')}</div>`; }).join('') || '<div class="empty">Aucun local.</div>';
+    }
     if (tab === 'res') body = tasks.map(t => `<div class="sv-row"><i style="background:${(STATUS[t.status] || STATUS.open).color}"></i><span class="grow">#${t.num || ''} ${esc(t.title || '')}<small>${(STATUS[t.status] || STATUS.open).label}${t.due ? ' · échéance ' + fmtDate(t.due) : ''}</small></span></div>`).join('') || '<div class="empty">Aucune réserve.</div>';
     if (tab === 'rap') body = reps.map(r => `<div class="sv-day"><div class="sv-dh"><b>${fmtDate(r.date)}</b></div><div class="sv-txt">${esc([r.travaux, r.problemes, r.obs].filter(Boolean).join('\n')).replace(/\n/g, '<br>') || '—'}</div></div>`).join('') + ((P.rappels || []).length ? `<div class="sv-dh"><b>Rappels</b></div>${P.rappels.map(x => `<div class="sv-row"><span class="grow">${x.done ? '✅' : '🔔'} ${esc(x.text)}<small>${x.at ? fmtDate(x.at.slice(0, 10)) : ''}</small></span></div>`).join('')}` : '') || '<div class="empty">Aucun rapport.</div>';
     if (tab === 'ph') body = photoIds.length ? `<div class="sv-ph">${photoIds.map(id => `<img src="${thumbs[id].data}" data-ph="${id}">`).join('')}</div><div class="lic-sub">Miniatures — les photos complètes sont dans son Google Drive.</div>` : '<div class="empty">Aucune photo.</div>';
-    el.innerHTML = head + `<div class="tm-tabs">${[['rec', 'Réception & bétonnage'], ['res', 'Réserves'], ['rap', 'Rapports & rappels'], ['ph', 'Photos']].map(([k, l]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div><div class="lic-list">${body}</div>`;
+    el.innerHTML = head + `<div class="tm-tabs">${[['av', 'Avancement'], ['rec', 'Réception & bétonnage'], ['res', 'Réserves'], ['rap', 'Rapports & rappels'], ['ph', 'Photos']].map(([k, l]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div><div class="lic-list">${body}</div>`;
     $('[data-a=x]', el).onclick = () => { pid = null; draw(); };
     $$('[data-t]', el).forEach(b => b.onclick = () => { tab = b.dataset.t; draw(); });
     $$('[data-ph]', el).forEach(img => img.onclick = () => showGallery(photoIds.map(id => ({ src: thumbs[id].data })), photoIds.indexOf(img.dataset.ph)));

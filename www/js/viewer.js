@@ -124,7 +124,8 @@ async function openPlanViewer(plan, ctx) {
   el.innerHTML = `
     <div class="topbar">
       <button class="iconbtn" data-a="back">${icon('back')}</button>
-      <h1>${esc(plan.name)}</h1>
+      <h1>${esc(plan.name)}${plan.indice || plan.prevId ? ` <span class="ind-tag">Ind. ${esc(planIndice(plan))}</span>` : ''}${plan.supersededBy ? ' <span class="ind-tag old">ancien</span>' : ''}</h1>
+      <button class="iconbtn" data-a="ind" title="Indices / mise à jour du plan">${icon('history')}</button>
       <button class="iconbtn" data-a="filters">${icon('eye')}</button>
       <button class="iconbtn" data-a="more">${icon('more')}</button>
     </div>
@@ -288,7 +289,7 @@ async function openPlanViewer(plan, ctx) {
 
   async function reloadData() {
     st.tasks = await DB.byProject('tasks', plan.projectId);
-    st.links = await DB.byProject('links', plan.projectId);
+    st.links = (await DB.byProject('links', plan.projectId)).filter(l => l.kind !== 'local');   // les locaux (avancement) ont leur propre écran
     renderMarkers();
   }
 
@@ -835,19 +836,26 @@ async function openPlanViewer(plan, ctx) {
       if (sz) { st.pinSize = sz; try { localStorage.setItem('pinSize', sz); } catch (e) {} renderMarkers(); }
     } else if (v) { st.filters[v] = !st.filters[v]; renderAnnots(); renderMarkers(); }
   };
+  const openIndMenu = () => planIndicesMenu(plan, { onNew: (np) => { close(); openPlanViewer(np, ctx); }, onOpen: (p2) => { if (p2.id !== plan.id) { close(); openPlanViewer(p2, ctx); } } });
+  $('[data-a=ind]', el).onclick = openIndMenu;
   $('[data-a=more]', el).onclick = async () => {
     const v = await menu(plan.name, [
+      { label: 'Mettre à jour le plan (nouvel indice)', icon: 'upload', value: 'indice' },
+      { label: 'Indices : historique · comparer', icon: 'history', value: 'indmenu' },
       { label: 'Renommer', icon: 'edit', value: 'rename' },
       { label: 'Ajuster à l\'écran', icon: 'plans', value: 'fit' },
       { label: 'Supprimer le plan', icon: 'trash', danger: true, value: 'del' },
     ]);
     if (v === 'fit') fit();
+    if (v === 'indice') { const np = await newPlanIndice(plan); if (np) { close(); openPlanViewer(np, ctx); } }
+    if (v === 'indmenu') openIndMenu();
     if (v === 'rename') {
       const r = await formSheet('Renommer', [{ name: 'name', label: 'Nom du plan', value: plan.name }]);
       if (r && r.name) { plan.name = r.name; await DB.put('plans', plan); $('h1', el).textContent = plan.name; }
     }
     if (v === 'del' && await confirmBox('Supprimer ce plan et ses annotations ?')) {
       await DB.del('plans', plan.id); await DB.del('files', plan.fileId);
+      if (plan.prevId) { const prev = await DB.get('plans', plan.prevId); if (prev && prev.supersededBy === plan.id) { delete prev.supersededBy; await DB.put('plans', prev); } }   // l'indice précédent redevient le plan actuel
       if (plan.pdfFileId && !(await DB.byProject('plans', plan.projectId)).some(p => p.pdfFileId === plan.pdfFileId)) await DB.del('files', plan.pdfFileId);
       for (const l of st.links.filter(l => l.planId === plan.id)) await DB.del('links', l.id);
       for (const t of st.tasks.filter(t => t.planId === plan.id)) { t.planId = null; t.x = t.y = null; await DB.put('tasks', t); }
