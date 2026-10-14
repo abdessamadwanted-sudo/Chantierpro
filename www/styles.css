@@ -951,3 +951,4 @@ body:has(.fullpage) .sharebar, body:has(.sheet-bg) .sharebar { display: none; }
 .cr-doc > button.grow { display: flex; align-items: center; gap: 10px; text-align: left; background: none; border: 0; color: #e5e7eb; padding: 6px 0; min-width: 0; }
 .cr-doc b { display: block; font-size: 14.5px; } .cr-doc small { color: #94a3b8; font-size: 12px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 52vw; }
 .cr-ic { width: 34px; height: 34px; border-radius: 9px; background: #263049; display: grid; place-items: center; color: #93c5fd; flex: none; }
+.es-det { padding: 0 16px calc(16px + var(--safe-bottom, 0px)); } .es-det .btnrow { flex-wrap: wrap; } .es-det .btnrow .btn { flex: 1 1 auto; }
