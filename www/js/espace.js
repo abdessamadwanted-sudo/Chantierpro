@@ -6,7 +6,7 @@ const MAT_CATS = ['Coffrage', 'Étaiement', 'Échafaudage', 'Engin', 'Outillage'
 const nowHM = () => new Date().toTimeString().slice(0, 5);
 
 // statuts : [clé, libellé, couleur, services autorisés à mettre ce statut (vide = tous ceux qui peuvent modifier)]
-const KINDS = {
+const ES_KINDS = {
   impl: { mod: 'topo', l: "Demandes d'implantation", one: "Demande d'implantation", ic: 'pin',
     f: [['ouvrage', 'Ouvrage / élément', 'text', 'Ex : Voile V12'], ['zone', 'Zone', 'text'], ['niveau', 'Niveau', 'text', 'Ex : R+3'], ['axes', 'Axes / repères', 'text', 'Ex : axes C-D / 4-6'],
       ['date', 'Pour le', 'date'], ['heure', 'Heure souhaitée', 'time'], ['resp', 'Demandeur', 'member'], ['topo', 'Topographe', 'member'], ['note', 'Remarque', 'textarea']],
@@ -57,16 +57,16 @@ const SERVICE_TOOLS = {
   topo: ['impl', 'leve'], qualite: ['impl', 'leve', 'bl', 'hse'], hse: ['hse', 'pt'], metre: ['rdt', 'board', 'leve'], bim: ['impl'], logistique: ['pt', 'stock', 'mat'], externe: ['board', 'hse'],
 };
 const TOOL_LBL = { board: ['Tableau de bord des équipes', 'layers', 'Effectifs, rendement, matériel par conducteur'] };
-const esLvl = (k) => k === 'board' ? Math.max(Team.lvl('pointage'), Team.lvl('rapports')) : Team.lvl(KINDS[k].mod);
+const esLvl = (k) => k === 'board' ? Math.max(Team.lvl('pointage'), Team.lvl('rapports')) : Team.lvl(ES_KINDS[k].mod);
 const myService = () => (Team.me() || {}).service || roleOf((Team.me() || {}).role).s;
 
 // ---------- bloc « Mon espace » sur l'accueil ----------
 function espaceHome() {
   if (!Team.ready()) return '';
   const svc = myService(), main = (SERVICE_TOOLS[svc] || ['board']).filter(k => esLvl(k) >= 1);
-  const others = Object.keys(KINDS).filter(k => !main.includes(k) && esLvl(k) >= 1);
+  const others = Object.keys(ES_KINDS).filter(k => !main.includes(k) && esLvl(k) >= 1);
   if (!main.length && !others.length) return '';
-  const tile = (k) => { const [l, ic] = k === 'board' ? TOOL_LBL.board : [KINDS[k].l, KINDS[k].ic]; return `<button class="es-tile" data-es="${k}" style="--c:${serviceOf(svc).c}">${icon(ic)}<span>${esc(l)}</span><i data-esn="${k}"></i></button>`; };
+  const tile = (k) => { const [l, ic] = k === 'board' ? TOOL_LBL.board : [ES_KINDS[k].l, ES_KINDS[k].ic]; return `<button class="es-tile" data-es="${k}" style="--c:${serviceOf(svc).c}">${icon(ic)}<span>${esc(l)}</span><i data-esn="${k}"></i></button>`; };
   return `<div class="es-wrap"><div class="h2-sec"><span>Espace ${esc(serviceOf(svc).l)}</span><small>${esc(roleOf((Team.me() || {}).role).l)}</small></div>
     <div class="es-grid">${main.map(tile).join('')}</div>
     ${others.length ? `<details class="es-more"><summary>Autres outils (${others.length})</summary><div class="es-grid">${others.map(tile).join('')}</div></details>` : ''}</div>`;
@@ -87,7 +87,7 @@ async function pickProjectId() {
   return projects;
 }
 async function openKind(kind, opts = {}) {
-  const K = KINDS[kind], L = esLvl(kind), svc = myService();
+  const K = ES_KINDS[kind], L = esLvl(kind), svc = myService();
   const el = document.createElement('div'); el.className = 'fullpage es-page'; document.body.appendChild(el);
   const unBack = pushBack(() => el.remove());
   let pid = opts.pid || localStorage.getItem('es.pid') || '', filt = 'all', q = '';
@@ -120,13 +120,13 @@ const memberName = (uid) => { const m = (Team.members() || []).find(x => x.uid =
 
 // ---------- formulaire ----------
 async function editItem(kind, base) {
-  const K = KINDS[kind], isNew = !base.id, me = Team.uid();
+  const K = ES_KINDS[kind], isNew = !base.id, me = Team.uid();
   const cmds = K.f.some(f => f[2] === 'cmd') ? (await DB.byProject('items', base.projectId)).filter(x => x.kind === 'cmd' && x.status !== 'annulee') : [];
   const def = { date: todayISO(), heure: nowHM(), resp: me, h: 8, ...base };
   const fields = K.f.map(([n, l, t, opt]) => {
     if (t === 'member') return { name: n, label: l, type: 'select', value: def[n] || '', options: [{ value: '', label: '—' }, ...(Team.members() || []).map(m => ({ value: m.uid, label: `${m.name || m.email} · ${roleOf(m.role).l}` }))] };
     if (t === 'select') return { name: n, label: l, type: 'select', value: def[n] || opt[0], options: opt };
-    if (t === 'cmd') return { name: n, label: l, type: 'select', value: def[n] || '', options: [{ value: '', label: '—' }, ...cmds.map(c => ({ value: c.id, label: KINDS.cmd.t(c) + ' · ' + fmtDate(c.date) }))] };
+    if (t === 'cmd') return { name: n, label: l, type: 'select', value: def[n] || '', options: [{ value: '', label: '—' }, ...cmds.map(c => ({ value: c.id, label: ES_KINDS.cmd.t(c) + ' · ' + fmtDate(c.date) }))] };
     return { name: n, label: l, type: t === 'num' ? 'number' : t, value: def[n] ?? '', placeholder: opt || '' };
   });
   const r = await formSheet(isNew ? K.one : 'Modifier', fields, { okLabel: isNew ? 'Ajouter' : 'Enregistrer', danger: isNew ? null : 'Supprimer' });
@@ -141,7 +141,7 @@ async function lastLines(pid, resp) { const prev = (await DB.byProject('items', 
 // ---------- fiche détaillée ----------
 async function openItem(x) {
   if (!x) return;
-  const K = KINDS[x.kind], L = esLvl(x.kind), svc = myService();
+  const K = ES_KINDS[x.kind], L = esLvl(x.kind), svc = myService();
   return new Promise((resolve) => {
     const s = sheet('<div class="es-det"></div>', { title: K.one });
     s.onClose = () => resolve();
@@ -158,7 +158,7 @@ async function openItem(x) {
       if (x.kind === 'pt') extra = `<div class="es-sub">Ouvriers (${(x.lines || []).filter(l => l.p).length} présents)</div><div class="es-lines">${(x.lines || []).map((l, i) => `<div class="es-line"><button data-pp="${i}" class="${l.p ? 'on' : ''}">${l.p ? 'P' : 'A'}</button><span class="grow">${esc(l.n)}<small>${esc(l.poste || '')}</small></span><input data-ph="${i}" inputmode="decimal" value="${l.h ?? 8}" ${L >= 2 ? '' : 'disabled'}><span>h</span>${L >= 2 ? `<button class="iconbtn sm" data-pd="${i}">${icon('close')}</button>` : ''}</div>`).join('') || '<div class="cr-none">Aucun ouvrier — ajoutez la liste une fois, elle est reprise les jours suivants.</div>'}</div>
         ${L >= 2 ? '<button class="btn ghost small" data-m="addl">+ Ajouter des ouvriers</button>' : ''}`;
       if (x.kind === 'cmd') { const bls = (await DB.byProject('items', x.projectId)).filter(b => b.kind === 'bl' && b.cmd === x.id); const v = bls.reduce((a, b) => a + (+b.vol || 0), 0);
-        extra = `<div class="es-sub">Livraisons : ${nf(v)} / ${x.vol || 0} m³ (${bls.length} toupie(s))</div>${bls.map(b => `<div class="es-log">${esc(KINDS.bl.t(b))} · ${esc(KINDS.bl.s(b))}</div>`).join('')}${esLvl('bl') >= 2 && ['centrale', 'direction'].includes(svc) ? '<button class="btn ghost small" data-m="bl">+ Bon de livraison</button>' : ''}`; }
+        extra = `<div class="es-sub">Livraisons : ${nf(v)} / ${x.vol || 0} m³ (${bls.length} toupie(s))</div>${bls.map(b => `<div class="es-log">${esc(ES_KINDS.bl.t(b))} · ${esc(ES_KINDS.bl.s(b))}</div>`).join('')}${esLvl('bl') >= 2 && ['centrale', 'direction'].includes(svc) ? '<button class="btn ghost small" data-m="bl">+ Bon de livraison</button>' : ''}`; }
       if (x.kind === 'rdt') extra = `<div class="es-kv"><span>Rendement</span><b style="color:#16a34a">${nf(rdtVal(x), 2)} ${rdtUnit(x)} / h·homme</b></div><div class="es-kv"><span>Par jour et par ouvrier</span><b>${nf(rdtVal(x) * (+x.h || 8), 1)} ${rdtUnit(x)}</b></div>`;
       $('.es-det', s.el).innerHTML = `<div class="es-head"><b>${esc(K.t(x))}</b>${S ? `<em style="--c:${S[2]}">${S[1]}</em>` : ''}</div>
         ${K.f.filter(([n, , t]) => t !== 'cmd' && x[n] !== undefined && x[n] !== '' && x[n] !== null).map(([n, l, t]) => `<div class="es-kv"><span>${esc(l)}</span><b>${esc(t === 'member' ? memberName(x[n]) : t === 'date' ? fmtDate(x[n]) : t === 'cmd' ? '…' : String(x[n]))}</b></div>`).join('')}
