@@ -20,9 +20,10 @@ async function signup(pg, name, email) {
   await pg.click('[data-a=go]'); await pg.waitForSelector('.tm-choice', { timeout: 20000 });
 }
 const shot = (pg, n) => pg.screenshot({ path: `${O}/${n}.png` });
+let A, B, C, D;
 try {
   // ---- patron
-  const A = await newUser('A');
+  A = await newUser('A');
   await shot(A.pg, '01_login');
   await signup(A.pg, 'Abdessamad Patron', 'patron@test.ma');
   await shot(A.pg, '02_onboard');
@@ -58,7 +59,7 @@ try {
   await A.pg.click('[data-t=set]'); await A.pg.waitForTimeout(400); await shot(A.pg, '08_settings');
 
   // ---- conducteur
-  const B = await newUser('B');
+  B = await newUser('B');
   await signup(B.pg, 'Youssef Conducteur', 'youssef@test.ma');
   await B.pg.click('[data-a=join]'); await B.pg.fill('[name=code]', code1); await B.pg.click('.sheet [data-a=ok]');
   await B.pg.waitForSelector('.home2', { timeout: 20000 });
@@ -82,7 +83,7 @@ try {
   log('B invite create', await B.pg.evaluate(async () => { try { await firebase.firestore().collection('invites').doc('HACK1234').set({ cid: Team.company().id, role: 'patron', used: false }); return 'ALLOWED (BAD)'; } catch (e) { return 'denied OK: ' + e.code; } }));
 
   // ---- MO (lecture seule)
-  const C = await newUser('C');
+  C = await newUser('C');
   await signup(C.pg, 'Client MO', 'mo@test.ma');
   await C.pg.click('[data-a=join]'); await C.pg.fill('[name=code]', code2); await C.pg.click('.sheet [data-a=ok]');
   await C.pg.waitForSelector('.home2', { timeout: 20000 });
@@ -109,7 +110,7 @@ try {
   await A.pg.fill('[data-f=name]', 'Karim Topo'); await A.pg.selectOption('[data-f=role]', 'cheftopo');
   await A.pg.click('.tm-form [data-a=ok]'); await A.pg.waitForSelector('.sheet h3', { timeout: 15000 }); await A.pg.waitForTimeout(400);
   const code3 = (await A.pg.textContent('.sheet h3')).split(':').pop().trim(); await A.pg.click('.opt:has-text("Fermer")');
-  const D = await newUser('D'); await signup(D.pg, 'Karim Topo', 'topo@test.ma');
+  D = await newUser('D'); await signup(D.pg, 'Karim Topo', 'topo@test.ma');
   await D.pg.click('[data-a=join]'); await D.pg.fill('[name=code]', code3); await D.pg.click('.sheet [data-a=ok]'); await D.pg.waitForSelector('.home2', { timeout: 20000 });
   // conducteur B : demande d'implantation + commande béton + rendement + pointage (via l'interface pour la 1re)
   await B.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); renderHome(); }); await B.pg.waitForTimeout(800);
@@ -145,5 +146,5 @@ try {
   await A.pg.evaluate(() => { document.querySelectorAll('.fullpage').forEach(x => x.remove()); openKind('mat'); }); await A.pg.waitForTimeout(600); await A.pg.click('.es-row'); await A.pg.waitForTimeout(500); await shot(A.pg, '23_mat');
   await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); openKind('pt'); }); await A.pg.waitForTimeout(600); await A.pg.click('.es-row'); await A.pg.waitForTimeout(500); await shot(A.pg, '24_pointage');
   log('errors', [...A.errs, ...B.errs, ...C.errs, ...D.errs]);
-} catch (e) { log('FAIL', e.message, e.stack); }
+} catch (e) { log('FAIL', e.message.slice(0, 300)); try { for (const x of [A, B, C, D]) if (x) { log('ERRS', x.errs); await shot(x.pg, 'zz_fail_' + Math.random().toString(36).slice(2, 6)); } } catch (e2) {} }
 await b.close();
