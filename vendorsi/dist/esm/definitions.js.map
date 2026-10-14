@@ -1,0 +1,1 @@
+{"version":3,"file":"definitions.js","sourceRoot":"","sources":["../../src/definitions.ts"],"names":[],"mappings":"","sourcesContent":["export interface Intent {\n  title?: string;\n  description?: string;\n  type?: string;\n  url?: string;\n  additionalItems?: any;\n}\n\nexport interface SendIntentPlugin {\n  checkSendIntentReceived(): Promise<Intent>;\n  finish(): void;\n}\n"]}

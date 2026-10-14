@@ -1,0 +1,82 @@
+{
+  "api": {
+    "name": "SendIntentPlugin",
+    "slug": "sendintentplugin",
+    "docs": "",
+    "tags": [],
+    "methods": [
+      {
+        "name": "checkSendIntentReceived",
+        "signature": "() => Promise<Intent>",
+        "parameters": [],
+        "returns": "Promise<Intent>",
+        "tags": [],
+        "docs": "",
+        "complexTypes": [
+          "Intent"
+        ],
+        "slug": "checksendintentreceived"
+      },
+      {
+        "name": "finish",
+        "signature": "() => void",
+        "parameters": [],
+        "returns": "void",
+        "tags": [],
+        "docs": "",
+        "complexTypes": [],
+        "slug": "finish"
+      }
+    ],
+    "properties": []
+  },
+  "interfaces": [
+    {
+      "name": "Intent",
+      "slug": "intent",
+      "docs": "",
+      "tags": [],
+      "methods": [],
+      "properties": [
+        {
+          "name": "title",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string | undefined"
+        },
+        {
+          "name": "description",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string | undefined"
+        },
+        {
+          "name": "type",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string | undefined"
+        },
+        {
+          "name": "url",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string | undefined"
+        },
+        {
+          "name": "additionalItems",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "any"
+        }
+      ]
+    }
+  ],
+  "enums": [],
+  "typeAliases": [],
+  "pluginConfigs": []
+}
