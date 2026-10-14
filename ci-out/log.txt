@@ -1,0 +1,15 @@
+A sync state <span style="color:#22c55e">✓ Synchronisé</span> <span style="color:var(--muted)">· 14/10 08:10</span>
+code conducteur VD8HHSFK
+code MO H4HPE5MA
+B projects ["Grand stade Benslimane"]
+B tasks ["Enrobage insuffisant voile V12"]
+B receptions 1
+A sees task ["Enrobage insuffisant voile V12 (repris) / progress"]
+B self-admin denied OK: permission-denied
+B invite create denied OK: permission-denied
+C fab 0 projects ["Grand stade Benslimane"]
+C write task denied OK: permission-denied
+D items ["impl:demandee","cmd:demandee","pt:","rdt:"]
+D topo write cmd denied OK: permission-denied
+A items ["impl:implantee","cmd:demandee","pt:","rdt:","mat:","stock:"]
+errors []
