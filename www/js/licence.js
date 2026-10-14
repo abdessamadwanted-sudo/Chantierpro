@@ -199,13 +199,13 @@ async function openLicences() {
 }
 
 // ---------- suivi : envoi des projets de l'ami (texte + miniatures des photos) ----------
-const SUIVI_STORES = ['projects', 'folders', 'plans', 'links', 'receptions', 'tasks', 'reports', 'forms', 'items'];
+const SUIVI_STORES = ['projects', 'folders', 'plans', 'links', 'receptions', 'tasks', 'reports', 'forms'];
 async function licPush() {
   const st = Lic.get(); if (!st || st.mode !== 'user' || st.status !== 'active' || navigator.onLine === false) return;
   if (licPush.busy) return; licPush.busy = true;
   try {
     const { fs } = await licFb(), col = fs.collection('licences').doc(st.code).collection('suivi'), since = st.pushAt || 0, start = Date.now(), out = [];
-    for (const s of SUIVI_STORES) for (const r of await DB.all(s)) if ((r.updatedAt || 0) > since) { const { blob, croquis, data, annotations, ...rest } = r; out.push({ id: `${s}__${r.id}`, store: s, projectId: s === 'projects' ? r.id : r.projectId, updatedAt: r.updatedAt || 0, deleted: false, data: JSON.stringify(rest).slice(0, 900000) }); }
+    for (const s of SUIVI_STORES) for (const r of await DB.all(s).catch(() => [])) if ((r.updatedAt || 0) > since) { const { blob, croquis, data, annotations, ...rest } = r; out.push({ id: `${s}__${r.id}`, store: s, projectId: s === 'projects' ? r.id : r.projectId, updatedAt: r.updatedAt || 0, deleted: false, data: JSON.stringify(rest).slice(0, 900000) }); }
     for (const t of await DB.all('tomb')) if (t.at > since && SUIVI_STORES.includes(t.store)) out.push({ id: `${t.store}__${t.rid}`, store: t.store, projectId: t.projectId, updatedAt: t.at, deleted: true, data: '' });
     // miniatures (photos, PV, croquis) créées depuis le dernier envoi
     const imgs = (await DB.all('files')).filter(f => f.blob && (f.createdAt || 0) > since && /^image\//.test(f.mime || f.blob.type || '') && f.role !== 'plan' && f.role !== 'plansrc').slice(0, 150);
