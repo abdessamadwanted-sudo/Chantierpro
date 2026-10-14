@@ -1,5 +1,5 @@
 // Synchronisation Google Drive (téléphone ⇄ PC ⇄ autres appareils)
-// Tout est envoyé dans « Mon Drive / Chantier Pro / <Projet> / … » par un petit script Google (Apps Script)
+// Tout est envoyé dans « Mon Drive / SiteTeam / <Projet> / … » par un petit script Google (Apps Script)
 // que l'utilisateur installe une seule fois dans son compte. Les données restent dans SON Drive.
 const Sync = (() => {
   const DATA = ['projects', 'folders', 'plans', 'tasks', 'links', 'files', 'forms', 'reports', 'receptions'];
@@ -296,7 +296,7 @@ const Sync = (() => {
     const c = parseCode(code); if (!c) throw new Error('Collez l\'URL de l\'application Web (https://script.google.com/macros/s/…/exec)');
     if (!c.key) c.key = pendingKey; if (!c.key) throw new Error('Code incomplet');
     LS.set('cfg', c);
-    try { const r = await call('ping', { code: codeOf(c) }); c.folder = r.folder; LS.set('cfg', c); }
+    try { const r = await call('ping', { code: codeOf(c) }); if (r.app !== 'siteteam') throw new Error('Ce code est celui de l\'application Chantier. Pour ne pas mélanger les données, SiteTeam utilise son propre script : onglet « Première fois ». (Pour récupérer les projets de Chantier : Mon entreprise › Réglages › Importer.)'); c.folder = r.folder; LS.set('cfg', c); }
     catch (e) { LS.del('cfg'); throw e; }
     // première synchro complète
     LS.set('pushAt', 0); LS.set('pullAt', 0);
@@ -306,14 +306,14 @@ const Sync = (() => {
   function disconnect() { LS.del('cfg'); LS.del('pushAt'); LS.del('pullAt'); clearInterval(autoT); setStatus('off'); }
 
   function script(key) {
-    return `// Chantier Pro → Google Drive (synchronisation téléphone / PC)
+    return `// SiteTeam → Google Drive (synchronisation téléphone / PC)
 // Collez ce code dans script.google.com puis : Déployer → Nouveau déploiement → Application Web
 // Exécuter en tant que : Moi · Accès : Tout le monde
 const KEY = '${key}';
-const ROOT_NAME = 'Chantier Pro';
+const ROOT_NAME = 'SiteTeam';
 
 function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
-function doGet() { return out({ ok: true, app: 'chantier' }); }
+function doGet() { return out({ ok: true, app: 'siteteam' }); }
 function root_() {
   const pr = PropertiesService.getScriptProperties(); const id = pr.getProperty('ROOT');
   if (id) { try { const f = DriveApp.getFolderById(id); if (!f.isTrashed()) return f; } catch (e) {} }
@@ -337,7 +337,7 @@ function doPost(e) {
     if (d.action === 'ping') {
       const r = root_();
       if (d.code && !r.getFilesByName('Code de connexion.txt').hasNext()) r.createFile('Code de connexion.txt', d.code);
-      return out({ ok: true, folder: r.getUrl(), now: Date.now() });
+      return out({ ok: true, app: 'siteteam', folder: r.getUrl(), now: Date.now() });
     }
     if (d.action === 'pull') {
       const db = load_(), s = d.since || 0, recs = [];
@@ -388,7 +388,7 @@ function doPost(e) {
     if (c) {
       const s = sheet(`<div class="form">
         <div class="sync-card"><div class="cl">☁</div><div class="grow"><b>Google Drive connecté</b><div data-syncstate>${statusLine()}</div></div></div>
-        <div class="muted" style="font-size:13.5px;line-height:1.55">Tout est rangé dans <b>Mon Drive › Chantier Pro › (projet)</b> : Plans par niveau, Réception ferraillage et Programme de bétonnage par mois et par jour (Réserves, Retours, PV du jour), Réserves, Photos…<br>La synchro se fait toute seule (après chaque modification, à l'ouverture et toutes les 2 minutes).</div>
+        <div class="muted" style="font-size:13.5px;line-height:1.55">Tout est rangé dans <b>Mon Drive › SiteTeam › (projet)</b> : Plans par niveau, Réception ferraillage et Programme de bétonnage par mois et par jour (Réserves, Retours, PV du jour), Réserves, Photos…<br>La synchro se fait toute seule (après chaque modification, à l'ouverture et toutes les 2 minutes).</div>
         <div class="sync-diag" data-syncdiag>…</div>
         <div class="keep-box"><div class="fld">Garder sur le téléphone</div>
           <select data-keep>
@@ -445,7 +445,7 @@ function doPost(e) {
         <label style="margin-top:10px">URL de l'application Web<input name="url" placeholder="https://script.google.com/macros/s/…/exec"></label>
       </div>
       <div data-pane="code" style="display:none">
-        <div class="muted steps">Vous avez déjà connecté un autre appareil ? Collez ici le <b>code de connexion</b> (Paramètres › Google Drive › Copier le code de connexion), ou ouvrez le fichier <b>Code de connexion.txt</b> dans <b>Mon Drive › Chantier Pro</b>.<br>Tous vos projets, plans, photos et tableaux seront récupérés.</div>
+        <div class="muted steps">Vous avez déjà connecté un autre appareil ? Collez ici le <b>code de connexion</b> (Paramètres › Google Drive › Copier le code de connexion), ou ouvrez le fichier <b>Code de connexion.txt</b> dans <b>Mon Drive › SiteTeam</b>.<br>Tous vos projets, plans, photos et tableaux seront récupérés.</div>
         <label>Code de connexion<textarea name="code" style="min-height:80px" placeholder="https://script.google.com/macros/s/…/exec#k=…"></textarea></label>
       </div>
       <button class="btn" data-a="ok">${icon('check')} Connecter</button>
