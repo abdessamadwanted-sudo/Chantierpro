@@ -35,7 +35,9 @@ async function licBoot() {
   setInterval(() => licVerify(false), 6 * 3600e3);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - (Lic.get().checkedAt || 0) > 3600e3) licVerify(false); });
   setTimeout(() => licPush().catch(e => console.warn('suivi', e)), 4000);
-  const prev = DB.onChange; DB.onChange = (s) => { try { prev && prev(s); } catch (e) {} clearTimeout(licPush._t); licPush._t = setTimeout(() => licPush().catch(() => {}), 60000); };
+  // (Sync remplace DB.onChange : il appelle licOnChange) — sans Sync, on se branche directement
+  if (!DB.onChange) DB.onChange = (s) => licOnChange(s);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') licPush().catch(() => {}); });
 }
 // vérifie la licence ; bloque l'application si elle n'est plus valable
 async function licVerify(blocking) {
@@ -265,3 +267,6 @@ async function licOwnerBlock() { const c = Sync.cfg && Sync.cfg(); return c && c
 // true si cette URL de script est celle du propriétaire (interdit en mode licence)
 async function licIsOwnerScript(url) { const st = Lic.get(); if (!st || st.mode !== 'user' || !st.block) return false; return (await licHash(url)) === st.block; }
 async function licGuardSync() { const c = Sync.cfg && Sync.cfg(); if (c && c.url && await licIsOwnerScript(c.url)) { Sync.disconnect(); toast('Google Drive du titulaire refusé — connectez votre propre Drive'); } }
+
+// envoi du suivi 20 s après une modification (et dès qu'on quitte l'application)
+function licOnChange() { const st = Lic.get(); if (!st || st.mode !== 'user') return; clearTimeout(licPush._t); licPush._t = setTimeout(() => licPush().catch(() => {}), 20000); }

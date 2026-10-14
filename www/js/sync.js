@@ -272,7 +272,7 @@ const Sync = (() => {
   function schedule(ms = 4000) { if (!enabled()) return; clearTimeout(timer); timer = setTimeout(() => run(), ms); }
 
   function start() {
-    DB.onChange = () => schedule();
+    DB.onChange = (s) => { schedule(); if (typeof licOnChange === 'function') licOnChange(s); };
     if (!enabled()) return;
     setStatus('ok');
     setTimeout(() => (window.requestIdleCallback || setTimeout)(() => run({ quiet: true }), { timeout: 3000 }), 2500);
