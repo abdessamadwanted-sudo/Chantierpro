@@ -1,8 +1,8 @@
 // Stockage local (IndexedDB) — tout reste sur le téléphone, fonctionne sans internet.
 const DB = (() => {
   const NAME = 'chantier';
-  const VERSION = 3;
-  const STORES = ['projects', 'folders', 'plans', 'tasks', 'links', 'files', 'forms', 'reports', 'receptions', 'tomb'];  // tomb = suppressions à synchroniser
+  const VERSION = 4;
+  const STORES = ['projects', 'folders', 'plans', 'tasks', 'links', 'files', 'forms', 'reports', 'receptions', 'items', 'tomb'];  // tomb = suppressions à synchroniser
   let dbp = null;
 
   function open() {
@@ -55,7 +55,7 @@ const DB = (() => {
       const old = await this.get(store, id);
       await wrap((await tx(store, 'readwrite')).delete(id));
       if (old && store !== 'tomb') {
-        await wrap((await tx('tomb', 'readwrite')).put({ id: store + ':' + id, store, rid: id, projectId: old.projectId || (store === 'projects' ? id : null), driveId: old.driveId || null, at: Date.now() }));
+        await wrap((await tx('tomb', 'readwrite')).put({ id: store + ':' + id, store, rid: id, projectId: old.projectId || (store === 'projects' ? id : null), kind: old.kind || null, driveId: old.driveId || null, at: Date.now() }));
         changed(store);
       }
     },

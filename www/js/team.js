@@ -19,35 +19,39 @@ const SERVICES = [
 ];
 // modules (= droits) : projet (infos, rappels, constats, 3D…), plans, réserves, réception & bétonnage, photos, formulaires, rapports, constats, calculs, équipe, fichiers
 const MODS = [['projet', 'Projet (infos, rappels, 3D)'], ['plans', 'Plans & maquettes'], ['reserves', 'Réserves / tâches'], ['reception', 'Réception & bétonnage'], ['photos', 'Photos'],
-  ['forms', 'Formulaires / PV'], ['rapports', 'Rapports journaliers'], ['constats', 'Constats / NC'], ['calc', 'Calculs & topo'], ['equipe', 'Équipe du projet'], ['files', 'Fichiers']];
+  ['forms', 'Formulaires / PV'], ['rapports', 'Rapports journaliers'], ['constats', 'Constats / NC'], ['calc', 'Calculs & topo'], ['equipe', 'Équipe du projet'], ['files', 'Fichiers'],
+  ['topo', 'Topographie (implantations, levés)'], ['centrale', 'Centrale à béton (commandes, BL)'], ['materiel', 'Matériel & stock'], ['pointage', 'Pointage & effectifs'], ['hse', 'HSE (sécurité)']];
 const LEVELS = ['Aucun accès', 'Voir', 'Modifier', 'Valider', 'Administrer'];
 // droits par rôle : chiffres dans l'ordre de MODS (0 aucun · 1 voir · 2 modifier · 3 valider · 4 administrer)
 const ROLES = [
-  ['patron', 'Patron / Gérant', 'direction', '44444444444', 1], ['dirprojet', 'Directeur de projet', 'direction', '44444444444', 1],
-  ['dirtravaux', 'Directeur travaux', 'travaux', '33333333333'], ['conducteur', 'Conducteur de travaux', 'travaux', '22332232222'],
-  ['techtravaux', 'Technicien travaux', 'travaux', '21222222212'], ['chefchantier', 'Chef de chantier', 'travaux', '21222122212'],
-  ['chefequipe', "Chef d'équipe", 'travaux', '11112010112'], ['caporal', 'Caporal', 'travaux', '11112010112'],
-  ['condferraillage', 'Conducteur travaux ferraillage', 'ferraillage', '22332232222'], ['techferraillage', 'Technicien ferraillage', 'ferraillage', '21222222212'],
-  ['chefchantierfer', 'Chef de chantier ferraillage', 'ferraillage', '21222122212'], ['chefequipefer', "Chef d'équipe ferrailleurs", 'ferraillage', '11112010112'],
-  ['caporalfer', 'Caporal ferraillage', 'ferraillage', '11112010112'],
-  ['respcentrale', 'Responsable centrale à béton', 'centrale', '11021020202'], ['pilotecentrale', 'Pilote centrale', 'centrale', '10012010102'],
-  ['laborantin', 'Laborantin centrale', 'centrale', '10022220102'], ['chefparc', 'Chef de parc toupies', 'centrale', '10012010102'],
-  ['chauffeur', 'Chauffeur toupie', 'centrale', '10012000002'], ['pompiste', 'Pompiste', 'centrale', '10012000002'],
-  ['respmateriel', 'Responsable matériel', 'materiel', '11002020102'], ['magmateriel', 'Magasinier matériel', 'materiel', '10002010002'],
-  ['mecanicien', 'Mécanicien', 'materiel', '10002010002'], ['conducteurengin', "Conducteur d'engins", 'materiel', '10002010002'],
-  ['cheftopo', 'Chef topographe', 'topo', '22112220302'], ['techtopo', 'Technicien topographe', 'topo', '21002220202'], ['topoext', 'Topographe extérieur', 'topo', '11002200202'],
-  ['respqualite', 'Responsable qualité', 'qualite', '22332313102'], ['techqualite', 'Technicien qualité', 'qualite', '21332212102'],
-  ['resphse', 'Responsable HSE', 'hse', '21202313002'], ['animhse', 'Animateur HSE', 'hse', '21202202002'],
-  ['metreur', 'Métreur', 'metre', '12111111302'], ['bimmanager', 'BIM manager', 'bim', '23001000202'], ['projeteur', 'Projeteur', 'bim', '12000000102'],
-  ['magasinier', 'Magasinier', 'logistique', '10002010002'], ['resppointage', 'Responsable pointage', 'logistique', '10001020022'], ['pointeur', 'Pointeur', 'logistique', '10001020022'],
-  ['mo', "Maître d'ouvrage", 'externe', '11111111011'], ['mod', "Maître d'ouvrage délégué", 'externe', '11111111011'], ['architecte', 'Architecte', 'externe', '12211011011'],
-  ['bet', "BET (bureau d'études)", 'externe', '12211112111'], ['bcontrole', 'Bureau de contrôle', 'externe', '11211112011'], ['labo', 'Laboratoire', 'externe', '10012200001'],
-  ['soustraitant', 'Sous-traitant', 'externe', '11202010012'],
+  ['patron', 'Patron / Gérant', 'direction', '4444444444444444', 1], ['dirprojet', 'Directeur de projet', 'direction', '4444444444444444', 1],
+  ['dirtravaux', 'Directeur travaux', 'travaux', '3333333333333333'], ['conducteur', 'Conducteur de travaux', 'travaux', '2233223222222232'],
+  ['techtravaux', 'Technicien travaux', 'travaux', '2122222221222222'], ['chefchantier', 'Chef de chantier', 'travaux', '2122212221222222'],
+  ['chefequipe', "Chef d'équipe", 'travaux', '1111201011211121'], ['caporal', 'Caporal', 'travaux', '1111201011211121'],
+  ['condferraillage', 'Conducteur travaux ferraillage', 'ferraillage', '2233223222222232'], ['techferraillage', 'Technicien ferraillage', 'ferraillage', '2122222221222222'],
+  ['chefchantierfer', 'Chef de chantier ferraillage', 'ferraillage', '2122212221222222'], ['chefequipefer', "Chef d'équipe ferrailleurs", 'ferraillage', '1111201011211121'],
+  ['caporalfer', 'Caporal ferraillage', 'ferraillage', '1111201011211121'],
+  ['respcentrale', 'Responsable centrale à béton', 'centrale', '1102102020204221'], ['pilotecentrale', 'Pilote centrale', 'centrale', '1001201010203011'],
+  ['laborantin', 'Laborantin centrale', 'centrale', '1002222010202011'], ['chefparc', 'Chef de parc toupies', 'centrale', '1001201010203021'],
+  ['chauffeur', 'Chauffeur toupie', 'centrale', '1001200000202001'], ['pompiste', 'Pompiste', 'centrale', '1001200000202001'],
+  ['respmateriel', 'Responsable matériel', 'materiel', '1100202010200421'], ['magmateriel', 'Magasinier matériel', 'materiel', '1000201000200311'],
+  ['mecanicien', 'Mécanicien', 'materiel', '1000201000200201'], ['conducteurengin', "Conducteur d'engins", 'materiel', '1000201000200101'],
+  ['cheftopo', 'Chef topographe', 'topo', '2211222030241011'], ['techtopo', 'Technicien topographe', 'topo', '2100222020231011'], ['topoext', 'Topographe extérieur', 'topo', '1100220020221001'],
+  ['respqualite', 'Responsable qualité', 'qualite', '2233231310221112'], ['techqualite', 'Technicien qualité', 'qualite', '2133221210221111'],
+  ['resphse', 'Responsable HSE', 'hse', '2120231300211114'], ['animhse', 'Animateur HSE', 'hse', '2120220200211113'],
+  ['metreur', 'Métreur', 'metre', '1211111130211110'], ['bimmanager', 'BIM manager', 'bim', '2300100020210000'], ['projeteur', 'Projeteur', 'bim', '1200000010210000'],
+  ['magasinier', 'Magasinier', 'logistique', '1000201000200311'], ['resppointage', 'Responsable pointage', 'logistique', '1000102002200041'], ['pointeur', 'Pointeur', 'logistique', '1000102002200031'],
+  ['mo', "Maître d'ouvrage", 'externe', '1111111101111001'], ['mod', "Maître d'ouvrage délégué", 'externe', '1111111101111001'], ['architecte', 'Architecte', 'externe', '1221101101110000'],
+  ['bet', "BET (bureau d'études)", 'externe', '1221111211111001'], ['bcontrole', 'Bureau de contrôle', 'externe', '1121111201111001'], ['labo', 'Laboratoire', 'externe', '1001220000102000'],
+  ['soustraitant', 'Sous-traitant', 'externe', '1120201001211011'],
 ].map(([k, l, s, p, adm]) => ({ k, l, s, perms: Object.fromEntries(MODS.map(([m], i) => [m, +p[i] || 0])), admin: !!adm }));
 const roleOf = (k) => ROLES.find(r => r.k === k) || { k, l: k, s: 'externe', perms: {}, admin: false };
 const serviceOf = (k) => SERVICES.find(s => s.k === k) || SERVICES[SERVICES.length - 1];
 // magasin local → module (sous-collection Firestore)
-const STORE_MOD = { projects: 'projet', folders: 'plans', plans: 'plans', links: 'plans', tasks: 'reserves', receptions: 'reception', forms: 'forms', reports: 'rapports', files: 'files' };
+const STORE_MOD = { projects: 'projet', folders: 'plans', plans: 'plans', links: 'plans', tasks: 'reserves', receptions: 'reception', forms: 'forms', reports: 'rapports', files: 'files', items: '*' };
+// éléments des espaces (store « items ») : module selon le type
+const KIND_MOD = { impl: 'topo', leve: 'topo', cmd: 'centrale', bl: 'centrale', mat: 'materiel', stock: 'materiel', pt: 'pointage', hse: 'hse', rdt: 'rapports' };
+const modOf = (store, rec) => store === 'items' ? KIND_MOD[(rec || {}).kind] : STORE_MOD[store];
 // section de l'application → module
 const SECTION_MOD = { dashboard: 'projet', plans: 'plans', tasks: 'reserves', reception: 'reception', beton: 'reception', photos: 'photos', forms: 'forms', reports: 'rapports',
   constat: 'constats', models3d: 'plans', maquette: 'plans', calc: 'calc', team: 'equipe', settings: 'projet' };
@@ -173,7 +177,8 @@ const Team = (() => {
     } catch (e) { if (!S.me || S.me.uid !== S.user.uid) { await alertBox('Connexion impossible : ' + errMsg(e)); return loadMembership(); } }
     S.ready = true;
     try { if (!localStorage.getItem('userName') && S.me.name) localStorage.setItem('userName', S.me.name.split(' ')[0]); localStorage.setItem('askedName', '1'); } catch (e) {}
-    refreshMembers();
+    await refreshMembers();
+    migratePerms();
     syncDriveCfg();
   }
   async function refreshMembers() {
@@ -181,6 +186,16 @@ const Team = (() => {
       const me = S.members.find(x => x.uid === S.user.uid); if (me) { const changed = JSON.stringify(me.perms) !== JSON.stringify(S.me.perms) || me.role !== S.me.role || me.allProjects !== S.me.allProjects || JSON.stringify(me.projects) !== JSON.stringify(S.me.projects); S.me = me; LS.set('me', me); if (changed && !document.querySelector('.fullpage, .sheet-bg')) { try { App.project ? renderSection() : renderHome(); } catch (e) {} } } }
     catch (e) { console.warn('members', e); }
     return S.members;
+  }
+  // nouveaux modules (topo, centrale, matériel, pointage, HSE) : l'administrateur complète les droits de chacun selon son poste
+  async function migratePerms() {
+    if (!isAdmin()) return;
+    for (const m of S.members) {
+      const P = m.perms || {}, miss = MODS.filter(([k]) => !(k in P)).map(([k]) => k); if (!miss.length) continue;
+      const R = roleOf(m.role), np = { ...P }; miss.forEach(k => { np[k] = m.admin ? 4 : (R.perms[k] || 0); });
+      try { await fs.collection('companies').doc(S.cid).collection('members').doc(m.uid).update({ perms: np }); m.perms = np; if (m.uid === S.user.uid) { S.me.perms = np; LS.set('me', S.me); } } catch (e) { console.warn('migrate', e); }
+    }
+    LS.set('members', S.members);
   }
   // Drive de l'entreprise : l'administrateur connecte son script, les membres le reçoivent automatiquement
   async function syncDriveCfg() {
@@ -292,15 +307,15 @@ const Team = (() => {
   const projRef = (pid) => fs.collection('companies').doc(S.cid).collection('projects').doc(pid);
   async function push(records) {
     if (!S.ready) return;
-    const ok = records.filter(r => { const m = STORE_MOD[r._store]; return m && lvl(m) >= 2 && (r._store === 'projects' ? (canProject(r.id) || lvl('projet') >= 3) : canProject(r.projectId)); });
+    const ok = records.filter(r => { const m = modOf(r._store, r); return m && lvl(m) >= 2 && (r._store === 'projects' ? (canProject(r.id) || lvl('projet') >= 3) : canProject(r.projectId)); });
     const skipped = records.length - ok.length;
     for (let i = 0; i < ok.length; i += 400) {
       const b = fs.batch();
       for (const r of ok.slice(i, i + 400)) {
-        const { _store, _deleted, ...rec } = r, mod = STORE_MOD[_store], pid = _store === 'projects' ? rec.id : rec.projectId;
+        const { _store, _deleted, ...rec } = r, mod = modOf(_store, r), pid = _store === 'projects' ? rec.id : rec.projectId;
         if (!pid) continue;
         const doc = projRef(pid).collection('m').doc(mod).collection('r').doc(`${_store}__${rec.id}`);
-        b.set(doc, { store: _store, id: rec.id, projectId: pid, updatedAt: rec.updatedAt || Date.now(), deleted: !!_deleted, data: _deleted ? '' : JSON.stringify(rec), by: S.user.uid, srv: ts() });
+        b.set(doc, { store: _store, id: rec.id, projectId: pid, kind: rec.kind || null, updatedAt: rec.updatedAt || Date.now(), deleted: !!_deleted, data: _deleted ? '' : JSON.stringify(rec), by: S.user.uid, srv: ts() });
         if (_store === 'projects') b.set(projRef(pid), { name: rec.name || '', address: rec.address || '', deleted: !!_deleted, updatedAt: rec.updatedAt || Date.now(), by: S.user.uid }, { merge: true });
       }
       await withTimeout(b.commit(), 45000);
@@ -316,7 +331,7 @@ const Team = (() => {
     await refreshMembers();
     const since = LS.get('pullAt', {}), out = [];
     const pids = await withTimeout(projectIds(), 30000);
-    const mods = [...new Set(Object.values(STORE_MOD))].filter(m => lvl(m) >= 1);
+    const mods = [...new Set([...Object.values(STORE_MOD), ...Object.values(KIND_MOD)])].filter(m => m !== '*' && lvl(m) >= 1);
     for (const pid of pids) for (const mod of mods) {
       const key = pid + '/' + mod, t = since[key] || 0;
       let q = projRef(pid).collection('m').doc(mod).collection('r');
@@ -324,7 +339,7 @@ const Team = (() => {
       const snap = await withTimeout(q.get(), 45000);
       let mx = t;
       snap.forEach(d => { const x = d.data(); const s = x.srv ? x.srv.toMillis() : 0; if (s > mx) mx = s;
-        if (x.deleted) out.push({ _store: x.store, id: x.id, projectId: x.projectId, _deleted: true, updatedAt: x.updatedAt });
+        if (x.deleted) out.push({ _store: x.store, id: x.id, projectId: x.projectId, kind: x.kind, _deleted: true, updatedAt: x.updatedAt });
         else { try { out.push({ ...JSON.parse(x.data), _store: x.store }); } catch (e) {} } });
       since[key] = mx;
     }
@@ -518,7 +533,7 @@ const Team = (() => {
     const ld2 = loading('Import…'); let n = 0, nf = 0;
     try {
       for (const x of sel) {
-        const { _store, _srv, ...rec } = x; if (!STORE_MOD[_store]) continue;
+        const { _store, _srv, ...rec } = x; if (!STORE_MOD[_store] || _store === 'items') continue;
         rec.updatedAt = Date.now();
         if (_store === 'files' && rec.driveId && !sameDrive) {
           try { const d = await callOld('download', { id: rec.driveId }); const bin = atob(d.b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); rec.blob = new Blob([u], { type: rec.mime || d.mime }); nf++; } catch (e) { console.warn('import file', e); }
@@ -546,6 +561,6 @@ const Team = (() => {
 
   return {
     boot, push, pull, resetPull, lvl, canSection, canProject, isAdmin, openCompany, inviteFlow, logout, decorateSection, removeMember, refreshMembers,
-    ready: () => S.ready, me: () => S.me, company: () => S.company, members: () => S.members, rules: FIRESTORE_RULES,
+    ready: () => S.ready, me: () => S.me, uid: () => S.user && S.user.uid, company: () => S.company, members: () => S.members, rules: FIRESTORE_RULES,
   };
 })();

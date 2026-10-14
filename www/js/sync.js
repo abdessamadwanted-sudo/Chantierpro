@@ -2,7 +2,7 @@
 // Tout est envoyé dans « Mon Drive / SiteTeam / <Projet> / … » par un petit script Google (Apps Script)
 // que l'utilisateur installe une seule fois dans son compte. Les données restent dans SON Drive.
 const Sync = (() => {
-  const DATA = ['projects', 'folders', 'plans', 'tasks', 'links', 'files', 'forms', 'reports', 'receptions'];
+  const DATA = ['projects', 'folders', 'plans', 'tasks', 'links', 'files', 'forms', 'reports', 'receptions', 'items'];
   const LS = {
     get(k, d = null) { try { const v = localStorage.getItem('sync.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem('sync.' + k, JSON.stringify(v)); } catch (e) {} },
@@ -178,7 +178,7 @@ const Sync = (() => {
       const since = LS.get('pushAt', 0), start = Date.now();
       const out = [];
       for (const s of DATA) for (const r of await DB.all(s)) if ((r.updatedAt || 0) > since) { const { blob, ...rest } = r; out.push({ ...rest, _store: s }); }
-      for (const t of await DB.all('tomb')) if (t.at > since) out.push({ _store: t.store, id: t.rid, projectId: t.projectId, driveId: t.driveId, _deleted: true, updatedAt: t.at });
+      for (const t of await DB.all('tomb')) if (t.at > since) out.push({ _store: t.store, id: t.rid, projectId: t.projectId, kind: t.kind, driveId: t.driveId, _deleted: true, updatedAt: t.at });
       if (teamOn()) {
         setStatus('sync', `Envoi des données (${out.length})`);
         await Team.push(out);

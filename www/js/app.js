@@ -101,6 +101,7 @@ async function renderHome() {
         <div class="h2-date">${dateL.charAt(0).toUpperCase() + dateL.slice(1)}</div>
       </div>
       <div class="h2-body">
+        ${espaceHome()}
         <div class="h2-sec"><span>Mes chantiers</span><small>${projects.length}</small></div>
         ${projects.length ? projects.map(p => { const st = stats(p), [c1, c2] = hue(p.name), open = !!App.homeOpen[p.id];
           const due = (x) => x.at && x.at.slice(0, 10) <= today;
@@ -132,6 +133,7 @@ async function renderHome() {
     </div>
     ${Team.lvl('projet') >= 3 ? `<button class="fab" data-a="new">${icon('plus')}</button>` : ''}`;
   const cb = $('[data-a=company]'); if (cb) cb.onclick = () => Team.openCompany();
+  espaceBind($('#app'));
   $$('.h2-card[data-id]').forEach(r => r.onclick = () => { App.homeOpen[r.dataset.id] = !App.homeOpen[r.dataset.id]; renderHome(); });
   $$('[data-open]').forEach(b => b.onclick = async () => openProject(await DB.get('projects', b.dataset.open)));
   $$('[data-go]').forEach(b => b.onclick = async () => {
