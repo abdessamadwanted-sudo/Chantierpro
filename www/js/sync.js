@@ -92,6 +92,7 @@ const Sync = (() => {
         if (r.croquisId) put(r.croquisId, dir, `${nm} - Croquis`);
       }
     }
+    for (const pr of projects) for (const c of pr.clauses || []) put(c.fileId, [P[pr.id] || 'Projet', 'Clauses techniques', c.type || 'Autre'], clean(c.name));
     for (const pr of projects) for (const c of pr.constats || []) (c.items || []).forEach((it, k) => (it.photoIds || []).forEach((id, i) => put(id, [P[pr.id] || 'Projet', 'Constats', `${c.date || ''} ${c.title || 'Constat'}`], `${k + 1}-${i + 1} ${it.probleme || 'photo'}`.slice(0, 80))));
     for (const t of tasks) (t.photoIds || []).forEach((id, i) => put(id, [P[t.projectId] || 'Projet', 'Réserves', `#${t.num || ''} ${t.title || ''}`], `#${t.num || ''} - ${i + 1}`));
     for (const f of forms) (f.photoIds || []).forEach((id, i) => put(id, [P[f.projectId] || 'Projet', 'Formulaires', `${(f.date || '').slice(0, 10)} ${f.title || ''}`], `photo ${i + 1}`));

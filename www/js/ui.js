@@ -12,6 +12,7 @@ const ICONS = {
   camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
   image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>',
   form: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v2h6V3M9 10h6M9 14h6M9 18h3"/>',
+  book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/><path d="M9 7h7M9 11h5"/>',
   report: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>',
   team: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
@@ -323,16 +324,25 @@ function showGallery(items, start = 0) {
 }
 
 // Visionneuse PDF (pages rendues avec pdf.js)
-async function showPdf(blob, caption = 'PDF') {
+// Texte d'un PDF (normalisé sans accents) : recherche dans les cahiers et dans le lecteur
+const normTxt = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+async function pdfPagesText(pdf, onProg) {
+  const out = [];
+  for (let p = 1; p <= pdf.numPages; p++) { try { const tc = await (await pdf.getPage(p)).getTextContent(); out.push(tc.items.map(i => i.str + (i.hasEOL ? '\n' : ' ')).join('').replace(/[ \t]+/g, ' ')); } catch (e) { out.push(''); } if (onProg) onProg(p, pdf.numPages); }
+  return out;
+}
+// opts : { page: n (ouvrir à cette page), q: 'mot' (surligner + recherche) }
+async function showPdf(blob, caption = 'PDF', opts = {}) {
   if (!pdfReady()) { toast('Lecteur PDF non disponible'); return; }
   const el = document.createElement('div');
   el.className = 'lightbox';
-  el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1>${esc(caption)}</h1></div><div class="pdf-pages"><div class="pdf-zoom"></div></div><div class="pdf-ind"><span data-pg></span><button data-a="fit">⤢</button></div>`;
+  el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1>${esc(caption)}</h1><button class="iconbtn" data-a="find">${icon('search')}</button></div>
+    <div class="pdf-find" style="display:none"><input placeholder="Rechercher dans le document…"><span data-fc></span><button data-a="prev">‹</button><button data-a="next">›</button></div>
+    <div class="pdf-pages"><div class="pdf-zoom"></div></div><div class="pdf-ind"><span data-pg></span><button data-a="fit">⤢</button></div>`;
   document.body.appendChild(el);
   const unBack = pushBack(() => el.remove());
   $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
   const scroller = $('.pdf-pages', el), box = $('.pdf-zoom', el);
-  // zoom : pincer à deux doigts, double-tap, bouton ⤢ pour revenir
   let zk = 1, pinch = null, lastTap = 0, nPages = 0;
   const setZoom = (nk, mx, my) => {
     nk = Math.max(1, Math.min(5, nk)); const r = scroller.getBoundingClientRect(); mx = mx ?? r.width / 2; my = my ?? r.height / 2;
@@ -347,22 +357,45 @@ async function showPdf(blob, caption = 'PDF') {
   scroller.addEventListener('touchend', (e) => { if (e.touches.length < 2) pinch = null; }, { passive: true });
   scroller.addEventListener('wheel', (e) => { if (!e.ctrlKey) return; e.preventDefault(); const r = scroller.getBoundingClientRect(); setZoom(zk * (e.deltaY < 0 ? 1.15 : 0.87), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
   $('[data-a=fit]', el).onclick = () => setZoom(1); $('[data-a=fit]', el).style.display = 'none';
-  const pgInd = () => { const cs = [...box.querySelectorAll('canvas')]; if (!cs.length) return; const mid = scroller.scrollTop + scroller.clientHeight / 3; let n = 1; cs.forEach((c, j) => { if (c.offsetTop <= mid) n = j + 1; }); $('[data-pg]', el).textContent = `Page ${n} / ${nPages || cs.length}`; };
+  const cs = () => [...box.querySelectorAll('canvas')];
+  const pgInd = () => { const c = cs(); if (!c.length) return; const mid = scroller.scrollTop + scroller.clientHeight / 3; let n = 1; c.forEach((x, j) => { if (x.offsetTop <= mid) n = j + 1; }); $('[data-pg]', el).textContent = `Page ${n} / ${nPages}`; };
   scroller.addEventListener('scroll', pgInd, { passive: true });
+  let pdf, q = normTxt(opts.q || ''), texts = null;
+  const goPage = (n) => { const c = cs()[n - 1]; if (c) scroller.scrollTop = c.offsetTop - 6; pgInd(); };
+  // rendu à la demande (les pages visibles d'abord) → on peut sauter direct à la page 150
+  const render = async (c, force) => {
+    if (c._r && !force) return; c._r = true; const n = +c.dataset.p;
+    const page = await pdf.getPage(n), vp1 = page.getViewport({ scale: 1 });
+    const vp = page.getViewport({ scale: Math.min(3, (window.innerWidth * 2) / vp1.width) });
+    c.width = vp.width; c.height = vp.height; const g = c.getContext('2d');
+    await page.render({ canvasContext: g, viewport: vp }).promise;
+    if (q) { try { const tc = await page.getTextContent(); g.save(); g.globalCompositeOperation = 'multiply'; g.fillStyle = 'rgba(255,214,0,.55)';
+      for (const it of tc.items) { if (!normTxt(it.str).includes(q)) continue; const t = pdfjsLib.Util.transform(vp.transform, it.transform), h = Math.hypot(t[2], t[3]); g.fillRect(t[4], t[5] - h, it.width * vp.scale, h * 1.15); }
+      g.restore(); } catch (e) {} }
+  };
+  const io = new IntersectionObserver((en) => en.forEach(e => { if (e.isIntersecting) render(e.target); }), { root: scroller, rootMargin: '600px 0px' });
   try {
-    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
-    nPages = pdf.numPages;
-    for (let p = 1; p <= pdf.numPages; p++) {
-      if (!el.isConnected) break;
-      const page = await pdf.getPage(p);
-      const vp1 = page.getViewport({ scale: 1 });
-      const vp = page.getViewport({ scale: Math.min(3, (window.innerWidth * 2) / vp1.width) });
-      const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
-      box.appendChild(c);
-      await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
-      pgInd();
-    }
-  } catch (e) { box.innerHTML = `<div class="empty">Impossible d'ouvrir ce PDF</div>`; }
+    pdf = await pdfjsLib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+    nPages = pdf.numPages; const v1 = (await pdf.getPage(1)).getViewport({ scale: 1 });
+    for (let p = 1; p <= nPages; p++) { const c = document.createElement('canvas'); c.dataset.p = p; c.width = 600; c.height = Math.round(600 * v1.height / v1.width); box.appendChild(c); io.observe(c); }
+    if (opts.page > 1) { await render(cs()[opts.page - 1]); requestAnimationFrame(() => goPage(opts.page)); }
+    pgInd();
+  } catch (e) { box.innerHTML = `<div class="empty">Impossible d'ouvrir ce PDF</div>`; return; }
+  // recherche dans le document
+  const fb = $('.pdf-find', el), fi = $('input', fb); let hits = [], hi = 0;
+  const show = () => { $('[data-fc]', fb).textContent = q ? (hits.length ? `${hi + 1}/${hits.length}` : '0') : ''; if (hits.length) goPage(hits[hi]); };
+  const find = async () => {
+    q = normTxt(fi.value.trim()); hits = []; hi = 0;
+    cs().forEach(c => { if (c._r) { c._r = false; } }); cs().forEach(c => { const r = c.getBoundingClientRect(); if (r.bottom > -600 && r.top < innerHeight + 600) render(c); });
+    if (!q) return show();
+    if (!texts) { $('[data-fc]', fb).textContent = '…'; texts = (await pdfPagesText(pdf)).map(normTxt); }
+    hits = texts.map((t, i) => t.includes(q) ? i + 1 : 0).filter(Boolean); show();
+  };
+  $('[data-a=find]', el).onclick = () => { fb.style.display = fb.style.display === 'none' ? '' : 'none'; if (fb.style.display === '') fi.focus(); };
+  fi.onkeydown = (e) => { if (e.key === 'Enter') find(); }; let ft; fi.oninput = () => { clearTimeout(ft); ft = setTimeout(find, 500); };
+  $('[data-a=next]', fb).onclick = () => { if (hits.length) { hi = (hi + 1) % hits.length; show(); } };
+  $('[data-a=prev]', fb).onclick = () => { if (hits.length) { hi = (hi - 1 + hits.length) % hits.length; show(); } };
+  if (opts.q) { fb.style.display = ''; fi.value = opts.q; find().then(() => { if (opts.page) { const k = hits.indexOf(opts.page); if (k >= 0) { hi = k; show(); } } }); }
 }
 
 // Ouvre un lien (Google Drive, etc.) dans le navigateur du téléphone

@@ -967,3 +967,20 @@ body:has(.fullpage) .sharebar, body:has(.sheet-bg) .sharebar { display: none; }
 .pb2 textarea, .pb2 input, .nt-t { -webkit-user-select: text; user-select: text; }
 .nt-pin { display: flex !important; align-items: center; gap: 10px; flex-direction: row !important; margin: 6px 0; } .nt-pin input { width: 22px !important; height: 22px; flex: none; margin: 0; }
 .pn-st { display: flex; gap: 6px; } .pn-st button { flex: 1; padding: 8px; border-radius: 12px; border: 1px solid var(--c); background: transparent; color: var(--c); font-weight: 700; font-size: 13px; } .pn-st button.on { background: var(--c); color: #fff; }
+/* recherche dans le PDF */
+.pdf-find { display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #1f2937; } .pdf-find input { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 10px; border: 0; background: #111827; color: #fff; font-size: 15px; }
+.pdf-find span { color: #cbd5e1; font-size: 13px; min-width: 34px; text-align: center; } .pdf-find button { width: 38px; height: 38px; border-radius: 10px; border: 0; background: #374151; color: #fff; font-size: 20px; }
+/* clauses techniques */
+.cl-search { margin: 0 0 8px; } .cl-prog:empty { display: none; } .cl-prog { font-size: 13px; color: #93c5fd; margin: 0 2px 8px; }
+.cl-g { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 12px 4px 6px; }
+.cl-ty { min-width: 44px; height: 30px; padding: 0 6px; border-radius: 8px; background: #312e81; color: #c7d2fe; font-weight: 800; font-size: 11px; display: grid; place-items: center; }
+.cl-res { display: grid; gap: 8px; } .cl-rh { font-size: 13px; color: var(--muted); }
+.cl-hit { text-align: left; border: 0; border-radius: 12px; padding: 10px 12px; background: var(--card, #1f2937); color: inherit; display: grid; gap: 4px; }
+.cl-hm { font-size: 13px; } .cl-hm b { color: #a5b4fc; } .cl-hm span { color: var(--muted); float: right; }
+.cl-sn { font-size: 13.5px; line-height: 1.45; opacity: .9; } .cl-sn mark { background: #fde047; color: #111; border-radius: 3px; padding: 0 2px; }
+.cl-none { color: var(--muted); padding: 14px; text-align: center; }
+/* pin photos : tâches / formulaires */
+.pn-row { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; border: 0; border-radius: 12px; padding: 10px; background: rgba(255,255,255,.05); color: #e5e7eb; font-size: 14px; }
+.pn-row .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .pn-row small { color: var(--muted); font-size: 12px; } .pn-row .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+/* menu : filtres réserves repliés sous « Réserves / Tâches » */
+.drawer .dr-rt { display: flex; align-items: center; gap: 4px; padding: 4px 2px 4px 10px; } .drawer .dr-sub .item.sub { padding-left: 34px; min-height: 44px; font-size: 14.5px; opacity: .92; }
