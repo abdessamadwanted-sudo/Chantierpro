@@ -29,7 +29,8 @@ async function fileURL(fileId) {
   return f ? BlobURL.get(f.id, f.blob) : '';
 }
 async function saveImageFile(projectId, file, role = 'photo', extra = {}) {
-  const { blob, w, h } = await compressImage(file, role === 'plan' ? 5000 : 1600, role === 'plan' ? 0.93 : 0.82);
+  const hq = extra.hq; delete extra.hq;
+  const { blob, w, h } = await compressImage(file, role === 'plan' ? 5000 : hq ? 2200 : 1600, role === 'plan' ? 0.93 : hq ? 0.86 : 0.82);
   return DB.put('files', { projectId, blob, mime: 'image/jpeg', name: file.name, role, w, h, ...extra });
 }
 async function addPhotos(projectId, extra = {}) {
@@ -38,12 +39,14 @@ async function addPhotos(projectId, extra = {}) {
     { label: 'Choisir dans la galerie', icon: 'image', value: 'gal' },
   ]);
   if (!src) return [];
-  const files = await pickFiles({ accept: 'image/*', multiple: src === 'gal', capture: src === 'cam' });
+  let files = await pickFiles({ accept: 'image/*', multiple: src === 'gal', capture: src === 'cam' });
   if (!files.length) return [];
+  const scan = extra.scan; delete extra.scan;
+  if (scan) { const sc = await scanDocuments(files); if (!sc || !sc.length) return []; files = sc; extra.hq = true; }
   const ld = loading('Enregistrement…');
   try {
     const out = [];
-    for (const f of files) out.push(await saveImageFile(projectId, f, 'photo', extra));
+    for (const f of files) out.push(await saveImageFile(projectId, f, 'photo', { ...extra }));
     return out;
   } finally { ld.close(); }
 }
@@ -60,6 +63,13 @@ function shareWhatsApp(text) {
   openUrl('https://wa.me/?text=' + encodeURIComponent(text));
 }
 
+// ---------- Rappels : couleur selon l'échéance ----------
+// late = aujourd'hui ou dépassé (rouge, reste jusqu'au ✓) · soon = demain (vert) · '' = plus tard
+const rapDays = (x) => { if (!x.at) return 99; const d = new Date(x.at.slice(0, 10) + 'T00:00:00'), t = new Date(todayISO() + 'T00:00:00'); return Math.round((d - t) / 864e5); };
+const rapState = (x) => { const d = rapDays(x); return d <= 0 ? 'late' : d === 1 ? 'soon' : ''; };
+const rapRank = (x) => ({ late: 0, soon: 1 })[rapState(x)] ?? 2;
+const rapLabel = (x) => { const d = rapDays(x); return d < 0 ? ` · en retard de ${-d} j` : d === 0 ? " · aujourd'hui" : d === 1 ? ' · demain' : ''; };
+
 // ---------- Accueil : projets ----------
 async function renderHome() {
   const keepScroll = App.project ? 0 : (($('.h2-body') || {}).scrollTop || 0);
@@ -75,7 +85,7 @@ async function renderHome() {
     const pvl = r.filter(d => d.type !== 'Bétonnage').flatMap(d => (d.rows || []).filter(pvMissing).map(x => d.date));
     return { open: t.filter(x => !isLifted(x)).length, late: t.filter(isLate).length, pv: pvl.length, pvOld: pvl.filter(dt => daysSince(dt) >= 3).length,
       today: cnt('F', today) + cnt('B', today), fT: cnt('F', today), fW: cnt('F', wk), fA: cnt('F'), bT: cnt('B', today), bW: cnt('B', wk), bA: cnt('B'),
-      rap: (p.rappels || []).filter(x => !x.done).sort((a, b) => (a.at || '9').localeCompare(b.at || '9')) };
+      rap: (p.rappels || []).filter(x => !x.done).sort((a, b) => rapRank(a) - rapRank(b) || (a.at || '9').localeCompare(b.at || '9')) };
   };
   App.homeOpen = App.homeOpen || {};
   const HUES = [['#2563eb', '#1e3a8a'], ['#0d9488', '#134e4a'], ['#7c3aed', '#4c1d95'], ['#ea580c', '#7c2d12'], ['#db2777', '#831843'], ['#0891b2', '#164e63']];
@@ -112,7 +122,7 @@ async function renderHome() {
               <span class="h2-chips">
                 ${st.today ? `<i class="c-b">${st.today} réception(s) aujourd'hui</i>` : ''}
                 ${st.pv ? `<i class="c-r">${st.pv} PV à récupérer</i>` : ''}
-                ${st.rap.length ? `<i class="c-y">🔔 ${st.rap.length} rappel(s)</i>` : ''}
+                ${st.rap.length ? `<i class="${st.rap.some(x => rapState(x) === 'late') ? 'c-r' : st.rap.some(x => rapState(x) === 'soon') ? 'c-g2' : 'c-y'}">🔔 ${st.rap.length} rappel(s)</i>` : ''}
                 ${st.open ? `<i class="c-o">${st.open} réserve(s)</i>` : ''}
                 ${!st.today && !st.pv && !st.open && !st.rap.length ? '<i class="c-g">À jour ✓</i>' : ''}
               </span></span>
@@ -125,7 +135,7 @@ async function renderHome() {
               <div class="h2-kpi"><div class="${st.pv ? 'r' : 'g'}" data-go="${p.id}|pv"><b>${st.pv}</b><span>PV à récupérer ›</span>${st.pvOld ? `<small>dont ${st.pvOld} > 3 jours</small>` : ''}</div>
                 <div class="${st.open ? 'o' : 'g'}" data-go="${p.id}|tasks"><b>${st.open}</b><span>Réserves ouvertes ›</span>${st.late ? `<small>${st.late} en retard</small>` : ''}</div></div>
               <div class="h2-rh"><button class="h2-rt" data-raptog="${p.id}"><b>🔔 Rappels</b><span class="n">${st.rap.length}</span>${st.rap.some(due) ? '<span class="due">à faire</span>' : ''}<span class="chev" style="transform:rotate(${ropen ? 180 : 0}deg)">${icon('chevdown')}</span></button><button data-addrap="${p.id}">${icon('plus')} Ajouter</button></div>
-              ${!ropen ? '' : st.rap.length ? st.rap.map(x => `<div class="h2-rap ${due(x) ? 'due' : ''}"><button class="ck" data-rapok="${p.id}|${x.id}"></button><div class="grow" data-rapedit="${p.id}|${x.id}"><span>${esc(x.text)}</span>${x.at ? `<small>${fmtDate(x.at.slice(0, 10))}${x.at.length > 10 ? ' · ' + x.at.slice(11, 16) : ''}</small>` : ''}</div><button class="iconbtn sm" data-rapdel="${p.id}|${x.id}">${icon('close')}</button></div>`).join('') : '<div class="h2-none">Aucun rappel</div>'}
+              ${!ropen ? '' : st.rap.length ? st.rap.map(x => `<div class="h2-rap ${rapState(x)}"><button class="ck" data-rapok="${p.id}|${x.id}"></button><div class="grow" data-rapedit="${p.id}|${x.id}"><span>${esc(x.text)}</span>${x.at ? `<small>${fmtDate(x.at.slice(0, 10))}${x.at.length > 10 ? ' · ' + x.at.slice(11, 16) : ''}${rapLabel(x)}</small>` : ''}</div><button class="iconbtn sm" data-rapdel="${p.id}|${x.id}">${icon('close')}</button></div>`).join('') : '<div class="h2-none">Aucun rappel</div>'}
             </div>` : ''}</div>`; }).join('')
         : `<div class="h2-empty"><div class="ic">${icon('hard')}</div><b>Aucun chantier pour le moment</b><span>Créez votre premier projet avec le bouton <b>+</b>, ou récupérez vos données avec Google Drive.</span>
             <button class="btn ghost" data-a="restore2" style="flex:none">${icon('undo')} Restaurer une sauvegarde</button></div>`}
@@ -222,8 +232,18 @@ async function renderSection() {
 }
 
 async function openDrawer(opts = {}) {
-  const tasks = await DB.byProject('tasks', App.project.id);
-  const nPv = (await missingPvs(App.project.id)).length;
+  // le menu s'affiche tout de suite (compteurs du dernier passage), les chiffres se mettent à jour juste après
+  App.drawerCache = App.drawerCache || {};
+  const dc = App.drawerCache[App.project.id] || { tasks: [], nPv: 0 };
+  const tasks = dc.tasks, nPv = dc.nPv;
+  Promise.all([DB.byProject('tasks', App.project.id), missingPvs(App.project.id)]).then(([t, pv]) => {
+    const changed = t.length !== tasks.length || pv.length !== nPv || JSON.stringify(t.map(x => x.status)) !== JSON.stringify(tasks.map(x => x.status));
+    App.drawerCache[App.project.id] = { tasks: t, nPv: pv.length };
+    if (!changed || !d.isConnected) return;
+    const b = d.querySelector('.pvbadge'); if (b) b.textContent = pv.length + ' PV'; else if (pv.length) { const r = d.querySelector('[data-s=reception],[data-s=beton]'); if (r) r.insertAdjacentHTML('beforeend', `<span class="count pvbadge">${pv.length} PV</span>`); }
+    if (b && !pv.length) b.remove();
+    $$('[data-f]', d).forEach(x => { const k = x.dataset.f, c = x.querySelector('.count'); if (c) c.textContent = k === 'late' ? t.filter(isLate).length : t.filter(y => k === 'all' || y.status === k).length; });
+  });
   const cnt = (st) => tasks.filter(t => st === 'all' || t.status === st).length;
   const bg = document.createElement('div'); bg.className = 'drawer-bg';
   const d = document.createElement('div'); d.className = 'drawer';
@@ -252,15 +272,20 @@ async function openDrawer(opts = {}) {
   const close = () => { unBack(); setP(0, true); setTimeout(remove, 230); };
   const unBack = pushBack(() => { setP(0, true); setTimeout(remove, 230); });
   d.style.animation = 'none'; bg.style.animation = 'none';
-  if (opts.drag) { setP(0); opts.drag.ctl = { move: (dx) => setP(dx), end: (dx, v) => { if (dx > W() * 0.35 || v > 0.4) setP(W(), true); else close(); } }; }
+  if (opts.drag) { setP(0); opts.drag.ctl = { move: (dx) => setP(dx), end: (dx, v) => { if (dx > W() * 0.3 || v > 0.3) setP(W(), true); else close(); } }; }
   else { setP(0); requestAnimationFrame(() => setP(W(), true)); }
   bg.onclick = close;
   // glisser vers la gauche pour fermer (le menu suit le doigt)
-  let dsx = 0, dst = 0, dmov = false;
-  const ts = e => { dsx = e.touches[0].clientX; dst = Date.now(); dmov = false; };
-  const tm = e => { const dx = e.touches[0].clientX - dsx; if (dx < -8) { dmov = true; setP(W() + dx); } };
-  const te = e => { if (!dmov) return; const dx = e.changedTouches[0].clientX - dsx, v = -dx / Math.max(1, Date.now() - dst); if (-dx > W() * 0.3 || v > 0.4) close(); else setP(W(), true); };
-  [d, bg].forEach(x => { x.addEventListener('touchstart', ts, { passive: true }); x.addEventListener('touchmove', tm, { passive: true }); x.addEventListener('touchend', te, { passive: true }); });
+  // glisser : on verrouille la direction (horizontal = fermer, vertical = défiler la liste), jamais les deux
+  let dsx = 0, dsy = 0, dst = 0, dir = null;
+  const ts = e => { dsx = e.touches[0].clientX; dsy = e.touches[0].clientY; dst = Date.now(); dir = null; };
+  const tm = e => {
+    const dx = e.touches[0].clientX - dsx, dy = e.touches[0].clientY - dsy;
+    if (!dir && Math.hypot(dx, dy) > 8) dir = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
+    if (dir === 'h') { e.preventDefault(); d.style.overflowY = 'hidden'; setP(W() + Math.min(0, dx)); }
+  };
+  const te = e => { d.style.overflowY = ''; if (dir !== 'h') return; const dx = e.changedTouches[0].clientX - dsx, v = -dx / Math.max(1, Date.now() - dst); if (-dx > W() * 0.25 || v > 0.3) close(); else setP(W(), true); };
+  [d, bg].forEach(x => { x.addEventListener('touchstart', ts, { passive: true }); x.addEventListener('touchmove', tm, { passive: false }); x.addEventListener('touchend', te, { passive: true }); x.addEventListener('touchcancel', te, { passive: true }); });
   $('[data-home]', d).onclick = () => { close(); renderHome(); };
   $$('[data-s]', d).forEach(b => b.onclick = () => { close(); App.section = b.dataset.s; App.search = ''; renderSection(); });
   $$('[data-tool]', d).forEach(b => b.onclick = () => { close(); const t = b.dataset.tool; if (t === 'pdf') openPdfTools(); else if (t === 'board') openBoardTool(); else if (t === 'bar') openBarTool(); else if (t === 'lang') chooseLang(); else addRappel(App.project.id); });
@@ -540,7 +565,7 @@ function openLinkDetail(link) {
       };
       box.innerHTML = `
         <div class="lk2-band" style="--c:${link.color}">
-          <span class="lk2-ic">${icon('link')}</span>
+          <span class="lk2-ic">${pinLook(link).e ? `<span style="font-size:22px">${pinLook(link).e}</span>` : icon('link')}</span>
           <div class="grow"><div class="lk2-name">${esc(link.name)}</div><div class="lk2-sub">${link.items.length ? link.items.length + ' document(s)' : 'Aucun document'}</div></div>
           <button class="iconbtn" data-a="more">${icon('more')}</button>
         </div>
@@ -622,13 +647,14 @@ function openLinkDetail(link) {
       $('[data-a=more]', box).onclick = async () => {
         const v = await menu(link.name, [
           { label: 'Renommer', icon: 'edit', value: 'rename' },
-          { label: 'Changer la couleur', icon: 'layers', value: 'color' },
+          { label: 'Icône et couleur du pin', icon: 'pin', value: 'look' },
           { label: 'Supprimer l\'élément', icon: 'trash', danger: true, value: 'del' },
         ]);
         if (v === 'rename') {
           const r = await formSheet('Renommer', [{ name: 'name', label: 'Nom', value: link.name }]);
           if (r && r.name) { link.name = r.name; await save(); render(); }
         }
+        if (v === 'look') { if (await choosePinLook(link)) render(); }
         if (v === 'color') {
           const c = await menu('Couleur', PALETTE.filter(c => c !== '#ffffff').map(c => ({ label: c, value: c, checked: c === link.color })));
           if (c) { link.color = c; await save(); render(); }
@@ -1258,9 +1284,9 @@ async function openPlansQuick() {
   const de = document.createElement('div'); de.id = 'drawerEdge'; document.body.appendChild(de);
   let esx = 0, esy = 0, est = 0, eon = false, drag = null;
   de.addEventListener('touchstart', e => { const t = e.touches[0]; esx = t.clientX; esy = t.clientY; est = Date.now(); drag = null; eon = !!App.project && !document.querySelector('.fullpage, .viewer, .sheet-bg, .drawer, .lightbox'); }, { passive: true });
-  de.addEventListener('touchmove', e => { if (!eon) return; const t = e.touches[0], dx = t.clientX - esx;
-    if (!drag && dx > 10 && Math.abs(t.clientY - esy) < 40) { drag = {}; openDrawer({ drag }); }
-    if (drag && drag.ctl) drag.ctl.move(dx); }, { passive: true });
+  de.addEventListener('touchmove', e => { if (!eon) return; const t = e.touches[0], dx = t.clientX - esx, dy = t.clientY - esy;
+    if (!drag && dx > 6 && Math.abs(dx) > Math.abs(dy)) { drag = {}; openDrawer({ drag }); }
+    if (drag) { e.preventDefault(); if (drag.ctl) drag.ctl.move(dx); } }, { passive: false });
   de.addEventListener('touchend', e => { if (drag && drag.ctl) { const dx = e.changedTouches[0].clientX - esx; drag.ctl.end(dx, dx / Math.max(1, Date.now() - est)); } eon = false; drag = null; }, { passive: true });
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   renderHome();

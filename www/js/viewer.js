@@ -253,15 +253,20 @@ async function openPlanViewer(plan, ctx) {
         ${m >= 0.25 ? `<text x="0" y="-21" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" font-family="Arial">${t.num}</text>` : ''}</g>`;
     }).join('');
     gLinks.innerHTML = st.links.filter(l => l.planId === plan.id).map(l => {
-      const n = showCount ? (l.items || []).length : 0;
+      const n = showCount ? (l.kind === 'plansbox' ? plansboxCount(l) : (l.items || []).length) : 0;
       const ls = 1 / st.scale;
       const [px, py] = linkXY(l);
       if (l.kind === 'planlink') return `<g transform="translate(${px},${py}) scale(${s})">
         <rect x="-15" y="-15" width="30" height="30" rx="7" fill="#1e88e5" stroke="#fff" stroke-width="2"/>
         <g transform="translate(-9,-9) scale(.75)" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${ICONS.section}</g>
         ${showLabel ? `<text x="0" y="29" text-anchor="middle" font-size="12" fill="#1e88e5" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`;
-      return `<g transform="translate(${px},${py}) scale(${s})">${linkPin(l.color, n)}
-        ${showLabel ? `<text x="0" y="16" text-anchor="middle" font-size="12" fill="${l.color}" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`;
+      if (l.kind === 'plansbox') { const P = pinLook(l); return `<g transform="translate(${px},${py}) scale(${s})">
+        <rect x="-17" y="-17" width="34" height="34" rx="9" fill="${P.c}" stroke="#fff" stroke-width="2.4"/><text x="0" y="6.5" text-anchor="middle" font-size="18">${P.e}</text>
+        ${n ? `<circle cx="16" cy="-16" r="9" fill="#111" stroke="#fff" stroke-width="1.5"/><text x="16" y="-12" text-anchor="middle" font-size="11" font-weight="700" fill="#fff" font-family="Arial">${n}</text>` : ''}
+        ${showLabel ? `<text x="0" y="32" text-anchor="middle" font-size="12" fill="${P.c}" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`; }
+      const P = pinLook(l);
+      return `<g transform="translate(${px},${py}) scale(${s})">${linkPin(P.c, n, P.e)}
+        ${showLabel ? `<text x="0" y="16" text-anchor="middle" font-size="12" fill="${P.c}" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`;
     }).join('');
     if (typeof drawPending === 'function' && st.pend) drawPending();
     if (typeof renderSel === 'function' && (st.sel >= 0 || st.selPin)) renderSel();
@@ -270,9 +275,9 @@ async function openPlanViewer(plan, ctx) {
     info.textContent = `${nt} tâche(s) · ${nl} lien(s) · ${plan.annotations.length} annotation(s)`;
   }
   const linkXY = (l) => l.shape === 'zone' ? [l.x + l.w / 2, l.y + l.h / 2] : [l.x, l.y];
-  function linkPin(color, n) {
+  function linkPin(color, n, emoji) {
     return `<path d="M0,0 C-5,-12 -17,-17 -17,-31 A17,17 0 1 1 17,-31 C17,-17 5,-12 0,0Z" fill="${color}" stroke="#fff" stroke-width="2"/>
-      <g transform="translate(-8,-39) scale(.67)" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round">${ICONS.link}</g>
+      ${emoji ? `<text x="0" y="-25" text-anchor="middle" font-size="17">${emoji}</text>` : `<g transform="translate(-8,-39) scale(.67)" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round">${ICONS.link}</g>`}
       ${n ? `<circle cx="15" cy="-44" r="9" fill="#111" stroke="#fff" stroke-width="1.5"/><text x="15" y="-40" text-anchor="middle" font-size="11" font-weight="700" fill="#fff" font-family="Arial">${n}</text>` : ''}`;
   }
   function linkBadge(color, n) {
@@ -304,7 +309,7 @@ async function openPlanViewer(plan, ctx) {
     ['arrow', 'arrow', 'Flèche'], ['text', 'text', 'Texte'],
   ];
   const TOOLS = [
-    ['pan', 'hand', 'Déplacer'], ['pin', 'pin', 'Tâche'], ['link', 'link', 'Élément'], ['planlink', 'section', 'Lien plan / coupe'],
+    ['pan', 'hand', 'Déplacer'], ['pin', 'pin', 'Tâche'], ['link', 'link', 'Élément'], ['planlink', 'section', 'Lien plan / coupe'], ['plansbox', 'plans', 'Plans de l\'ouvrage'],
     ['draw', 'pen', 'Dessin'], ['select', 'cursor', 'Modifier'], ['erase', 'eraser', 'Gomme'],
   ];
   const shapeInfo = () => SHAPES.find(x => x[0] === st.shape) || SHAPES[0];
@@ -313,6 +318,7 @@ async function openPlanViewer(plan, ctx) {
   function hintText() {
     if (st.tool === 'pin') return 'Touchez pour placer une tâche';
     if (st.tool === 'link') return 'Touchez pour placer un élément';
+    if (st.tool === 'plansbox') return 'Touchez pour placer un pin « Plans » (zones → parties d\'ouvrage → PDF)';
     if (st.tool === 'planlink') return 'Touchez pour placer un lien (PDF de coupe, plan…)';
     if (st.tool === 'erase') return 'Touchez un dessin pour l\'effacer';
     if (st.tool === 'select') return st.selPin ? '' : st.sel >= 0 ? 'Glissez les points · glissez le dessin pour le déplacer' : 'Touchez un pin ou un dessin pour le modifier / déplacer / supprimer';
@@ -349,19 +355,19 @@ async function openPlanViewer(plan, ctx) {
     if (st.tool === 'select' && st.selPin) {
       if (!bar) { bar = document.createElement('div'); bar.className = 'pbar'; viewer.appendChild(bar); }
       const { kind, obj } = st.selPin;
-      const label = kind === 'task' ? `Tâche #${obj.num} ${obj.title || ''}` : kind === 'planlink' ? `Lien : ${obj.name}` : `Élément : ${obj.name}`;
+      const label = kind === 'task' ? `Tâche #${obj.num} ${obj.title || ''}` : kind === 'planlink' ? `Lien : ${obj.name}` : kind === 'plansbox' ? `Plans : ${obj.name}` : `Élément : ${obj.name}`;
       bar.innerHTML = `<div class="pb-row"><span class="pb-t" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${icon(kind === 'task' ? 'pin' : kind === 'planlink' ? 'section' : 'link')} ${esc(label)}</span>
         <button class="pb" data-p="open">${icon('edit')}<span>Modifier</span></button><button class="pb danger" data-p="delpin">${icon('trash')}</button><button class="pb ok" data-p="unsel">${icon('check')}</button></div>
         <div class="muted" style="font-size:12px">Glissez le pin pour le déplacer</div>`;
       $('[data-p=unsel]', bar).onclick = () => { st.selPin = null; renderSel(); renderTools(); };
       $('[data-p=open]', bar).onclick = async () => {
-        if (kind === 'task') await ctx.openTask(obj); else if (kind === 'planlink') await editPlanLink(obj); else await ctx.openLink(obj);
+        if (kind === 'task') await ctx.openTask(obj); else if (kind === 'planlink') await editPlanLink(obj); else if (kind === 'plansbox') await openPlansBox(obj, ctx); else await ctx.openLink(obj);
         st.selPin = null; await reloadData(); renderSel(); renderTools();
       };
       $('[data-p=delpin]', bar).onclick = async () => {
         if (!await confirmBox(kind === 'task' ? 'Retirer cette tâche du plan ? (la tâche reste dans la liste)' : 'Supprimer ce pin et ses documents ?')) return;
         if (kind === 'task') { obj.planId = null; obj.x = obj.y = null; await DB.put('tasks', obj); }
-        else { for (const it of obj.items || []) if (it.fileId) await DB.del('files', it.fileId); if (obj.fileId) await DB.del('files', obj.fileId); await DB.del('links', obj.id); }
+        else { for (const it of obj.items || []) if (it.fileId) await DB.del('files', it.fileId); for (const z of obj.zones || []) for (const pt of z.parts || []) for (const dd of pt.docs || []) if (dd.fileId) await DB.del('files', dd.fileId); if (obj.fileId) await DB.del('files', obj.fileId); await DB.del('links', obj.id); }
         st.selPin = null; await reloadData(); renderSel(); renderTools(); toast('Supprimé ✓');
       };
       return;
@@ -596,7 +602,7 @@ async function openPlanViewer(plan, ctx) {
       if (hi >= 0) g.edit = { kind: 'handle', i: hi };
       else if (hitAnnot(a, p[0], p[1], 18 / st.scale)) g.edit = { kind: 'move' };
     }
-    if (['pan', 'pin', 'link', 'planlink'].includes(st.tool) && !g.edit) {
+    if (['pan', 'pin', 'link', 'planlink', 'plansbox'].includes(st.tool) && !g.edit) {
       const g0 = g;
       g0.lpTimer = setTimeout(() => {
         if (g !== g0 || g0.moved) return;
@@ -609,7 +615,7 @@ async function openPlanViewer(plan, ctx) {
       }, 480);
     }
     const dragDraw = st.tool === 'draw' && !st.pend && (st.shape === 'free' || TWO_PT.includes(st.shape));
-    g.mode = g.edit ? 'edit' : (dragDraw || (st.tool === 'draw' && st.shape === 'poly') || ['pin', 'link', 'planlink'].includes(st.tool)) ? 'draw' : 'pan';
+    g.mode = g.edit ? 'edit' : (dragDraw || (st.tool === 'draw' && st.shape === 'poly') || ['pin', 'link', 'planlink', 'plansbox'].includes(st.tool)) ? 'draw' : 'pan';
   });
   viewer.addEventListener('pointermove', (e) => {
     if (!ptrs.has(e.pointerId)) return;
@@ -671,7 +677,7 @@ async function openPlanViewer(plan, ctx) {
     if (cur.mode === 'edit' && cur.moved) { saveAnnots(); renderSel(); return; }
     if (!cur.moved) return onTap(cur.start);
     if (cur.mode !== 'draw' || !cur.end) return;
-    if (st.tool === 'pin' || st.tool === 'link' || st.tool === 'planlink') return onTap(cur.end, true);
+    if (st.tool === 'pin' || st.tool === 'link' || st.tool === 'planlink' || st.tool === 'plansbox') return onTap(cur.end, true);
     if (st.tool === 'draw' && st.shape === 'poly') {
       if (!st.pend) st.pend = { pts: [cur.start, cur.end] }; else st.pend.pts.push(cur.end);
       drawPending(); renderTools(); return;
@@ -707,7 +713,7 @@ async function openPlanViewer(plan, ctx) {
       for (const l of st.links) {
         if (l.planId !== plan.id) continue;
         const [lx, ly] = linkXY(l);
-        if (l.kind === 'planlink') consider(Math.hypot(x - lx, y - ly) * 0.9, { kind: 'planlink', obj: l });
+        if (l.kind === 'planlink' || l.kind === 'plansbox') consider(Math.hypot(x - lx, y - ly) * 0.9, { kind: l.kind, obj: l });
         else consider(Math.min(Math.hypot(x - lx, y - (ly - head(31))), Math.hypot(x - lx, y - ly)), { kind: 'link', obj: l });
       }
     }
@@ -749,7 +755,11 @@ async function openPlanViewer(plan, ctx) {
       return toast('Aucune annotation ici');
     }
     const hit = aimed ? null : hitMarker(x, y);
-    if (hit && hit.kind === 'planlink' && ['pan', 'pin', 'link', 'planlink'].includes(st.tool)) {
+    if (hit && hit.kind === 'plansbox' && ['pan', 'pin', 'link', 'planlink', 'plansbox'].includes(st.tool)) {
+      await openPlansBox(hit.obj, ctx);
+      await reloadData(); return;
+    }
+    if (hit && hit.kind === 'planlink' && ['pan', 'pin', 'link', 'planlink', 'plansbox'].includes(st.tool)) {
       await openPlanLink(hit.obj);
       await reloadData(); return;
     }
@@ -771,6 +781,11 @@ async function openPlanViewer(plan, ctx) {
       createLink({ shape: 'point', x, y });
     } else if (st.tool === 'planlink') {
       createPlanLink(x, y);
+    } else if (st.tool === 'plansbox') {
+      const r = await formSheet('Pin « Plans »', [{ name: 'name', label: 'Nom affiché sur le plan', placeholder: 'Ex : Plans R+5 · Zone 1' }], { okLabel: 'Créer' });
+      if (!r) return;
+      const l = await DB.put('links', { projectId: plan.projectId, planId: plan.id, kind: 'plansbox', shape: 'point', x, y, name: r.name || 'Plans', zones: [], items: [] });
+      await reloadData(); await openPlansBox(l, ctx); await reloadData();
     } else if (st.tool === 'draw' && st.shape === 'text') {
       const r = await formSheet('Texte', [{ name: 'text', label: 'Texte à afficher sur le plan' }], { okLabel: 'Ajouter' });
       if (r && r.text) {
@@ -835,3 +850,30 @@ async function openPlanViewer(plan, ctx) {
   requestAnimationFrame(fit);
   window.addEventListener('resize', fit);
 }
+
+// ---------- Apparence des pins d'éléments : emoji + couleur selon le contenu (ou choix manuel) ----------
+const PIN_LOOKS = {
+  coffrage: ['📐', '#2563eb', 'Plan coffrage'], ferraillage: ['🔩', '#dc2626', 'Plan ferraillage'], coupe: ['✂️', '#7c3aed', 'Coupe'],
+  photo: ['📷', '#16a34a', 'Photos'], pv: ['📝', '#475569', 'PV'], note: ['🗒️', '#475569', 'Notes'], doc: ['📄', '#475569', 'Document'],
+  cad: ['🧊', '#0891b2', 'AutoCAD / 3D'], url: ['🔗', '#ea580c', 'Lien web / Drive'], custom: ['📁', '#d97706', 'Rubrique'], mix: ['📎', '#ca8a04', 'Plusieurs types'],
+};
+const PIN_EMOJIS = ['📐', '🔩', '✂️', '📷', '📄', '📝', '🧊', '🔗', '📁', '📎', '🏗️', '🧱', '🪜', '🚪', '🪟', '⚡', '💧', '🔥', '⚠️', '✅', '⭐', '📌', '🎯', '🧰', '🛗', '🌀', '🏛️', '🔷'];
+const PIN_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#7c3aed', '#ea580c', '#0891b2', '#ca8a04', '#db2777', '#475569', '#0f766e', '#1e3a8a', '#111827'];
+function pinLook(l) {
+  if (l.kind === 'plansbox') return { e: l.emoji || '📚', c: l.pinColor || '#1e3a8a' };
+  if (l.emoji) return { e: l.emoji, c: l.pinColor || l.color || '#2563eb' };
+  const cats = [...new Set((l.items || []).map(i => i.kind === 'url' && !LINK_CATS.some(c => c.key === i.cat) ? 'url' : i.cat))];
+  if (!cats.length) return { e: '', c: l.pinColor || l.color || '#5b8def' };
+  if (cats.length > 1) return { e: PIN_LOOKS.mix[0], c: l.pinColor || PIN_LOOKS.mix[1] };
+  const k = PIN_LOOKS[cats[0]] ? cats[0] : String(cats[0]).startsWith('x_') ? 'custom' : 'doc';
+  return { e: PIN_LOOKS[k][0], c: l.pinColor || PIN_LOOKS[k][1] };
+}
+async function choosePinLook(l) {
+  const v = await menu('Icône du pin', [{ label: 'Automatique (selon les documents)', icon: 'check', value: '__auto', checked: !l.emoji }, ...PIN_EMOJIS.map(e => ({ label: `${e}`, value: e, checked: l.emoji === e }))]);
+  if (!v) return false;
+  l.emoji = v === '__auto' ? null : v;
+  const c = await menu('Couleur du pin', [{ label: 'Automatique', icon: 'check', value: '__auto', checked: !l.pinColor }, ...PIN_COLORS.map(x => ({ label: x, swatch: x, value: x, checked: l.pinColor === x }))]);
+  if (c) l.pinColor = c === '__auto' ? null : c;
+  await DB.put('links', l); return true;
+}
+const plansboxCount = (l) => (l.zones || []).reduce((a, z) => a + (z.parts || []).reduce((b, p) => b + (p.docs || []).length, 0), 0);

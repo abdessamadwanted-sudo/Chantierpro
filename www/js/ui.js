@@ -17,6 +17,7 @@ const ICONS = {
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" fill="currentColor" stroke="none"/>',
   chevdown: '<path d="M6 9l6 6 6-6"/>',
+  chevup: '<path d="M6 15l6-6 6 6"/>',
   power: '<path d="M12 3v9"/><path d="M6.4 6.6a8 8 0 1 0 11.2 0"/>',
   expand: '<path d="M4 9V4h5"/><path d="M20 9V4h-5"/><path d="M4 15v5h5"/><path d="M20 15v5h-5"/>',
   shrink: '<path d="M9 4v5H4"/><path d="M15 4v5h5"/><path d="M9 20v-5H4"/><path d="M15 20v-5h5"/>',
@@ -326,13 +327,31 @@ async function showPdf(blob, caption = 'PDF') {
   if (!pdfReady()) { toast('Lecteur PDF non disponible'); return; }
   const el = document.createElement('div');
   el.className = 'lightbox';
-  el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1>${esc(caption)}</h1></div><div class="pdf-pages"></div>`;
+  el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1>${esc(caption)}</h1></div><div class="pdf-pages"><div class="pdf-zoom"></div></div><div class="pdf-ind"><span data-pg></span><button data-a="fit">⤢</button></div>`;
   document.body.appendChild(el);
   const unBack = pushBack(() => el.remove());
   $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
-  const box = $('.pdf-pages', el);
+  const scroller = $('.pdf-pages', el), box = $('.pdf-zoom', el);
+  // zoom : pincer à deux doigts, double-tap, bouton ⤢ pour revenir
+  let zk = 1, pinch = null, lastTap = 0, nPages = 0;
+  const setZoom = (nk, mx, my) => {
+    nk = Math.max(1, Math.min(5, nk)); const r = scroller.getBoundingClientRect(); mx = mx ?? r.width / 2; my = my ?? r.height / 2;
+    const cx = (scroller.scrollLeft + mx) / zk, cy = (scroller.scrollTop + my) / zk; zk = nk; box.style.width = (zk * 100) + '%';
+    scroller.scrollLeft = cx * zk - mx; scroller.scrollTop = cy * zk - my; $('[data-a=fit]', el).style.display = zk > 1.02 ? '' : 'none';
+  };
+  scroller.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) { const [a, b] = e.touches, r = scroller.getBoundingClientRect(); pinch = { d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), k: zk, mx: (a.clientX + b.clientX) / 2 - r.left, my: (a.clientY + b.clientY) / 2 - r.top }; }
+    else if (e.touches.length === 1) { const now = Date.now(); if (now - lastTap < 280) { const r = scroller.getBoundingClientRect(), t = e.touches[0]; setZoom(zk > 1.3 ? 1 : 2.5, t.clientX - r.left, t.clientY - r.top); lastTap = 0; } else lastTap = now; }
+  }, { passive: true });
+  scroller.addEventListener('touchmove', (e) => { if (!pinch || e.touches.length !== 2) return; e.preventDefault(); const [a, b] = e.touches; setZoom(pinch.k * Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) / pinch.d, pinch.mx, pinch.my); }, { passive: false });
+  scroller.addEventListener('touchend', (e) => { if (e.touches.length < 2) pinch = null; }, { passive: true });
+  scroller.addEventListener('wheel', (e) => { if (!e.ctrlKey) return; e.preventDefault(); const r = scroller.getBoundingClientRect(); setZoom(zk * (e.deltaY < 0 ? 1.15 : 0.87), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+  $('[data-a=fit]', el).onclick = () => setZoom(1); $('[data-a=fit]', el).style.display = 'none';
+  const pgInd = () => { const cs = [...box.querySelectorAll('canvas')]; if (!cs.length) return; const mid = scroller.scrollTop + scroller.clientHeight / 3; let n = 1; cs.forEach((c, j) => { if (c.offsetTop <= mid) n = j + 1; }); $('[data-pg]', el).textContent = `Page ${n} / ${nPages || cs.length}`; };
+  scroller.addEventListener('scroll', pgInd, { passive: true });
   try {
     const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+    nPages = pdf.numPages;
     for (let p = 1; p <= pdf.numPages; p++) {
       if (!el.isConnected) break;
       const page = await pdf.getPage(p);
@@ -341,6 +360,7 @@ async function showPdf(blob, caption = 'PDF') {
       const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
       box.appendChild(c);
       await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+      pgInd();
     }
   } catch (e) { box.innerHTML = `<div class="empty">Impossible d'ouvrir ce PDF</div>`; }
 }
@@ -443,3 +463,20 @@ async function rotateFile(id) {
   await DB.put('files', f);
   return BlobURL.get(f.id, f.blob);
 }
+
+// ✕ dans toutes les barres de recherche (efface tout le texte d'un appui)
+(function searchClear() {
+  const add = (root) => {
+    if (!root || !root.querySelectorAll) return;
+    const list = root.matches && root.matches('.search') ? [root] : root.querySelectorAll('.search');
+    list.forEach(s => {
+      const i = s.querySelector('input'); if (!i || s.querySelector('.sx')) return;
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'sx'; b.setAttribute('aria-label', 'Effacer'); b.innerHTML = icon('close');
+      const upd = () => s.classList.toggle('has-v', !!i.value);
+      b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); i.value = ''; i.dispatchEvent(new Event('input', { bubbles: true })); upd(); const n = s.querySelector('input'); if (n) n.focus(); };
+      i.addEventListener('input', upd); s.appendChild(b); upd();
+    });
+  };
+  const start = () => { add(document.body); new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) add(n); }))).observe(document.body, { childList: true, subtree: true }); };
+  if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+})();

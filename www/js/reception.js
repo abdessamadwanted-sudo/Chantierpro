@@ -358,7 +358,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
           : pvs.map(f => `<div class="t" data-pv="${f.id}"><img src="${BlobURL.get(f.id, f.blob)}"><button class="x" data-pvdel="${f.id}">×</button></div>`).join('') + `<button class="t add" data-a="addpv">${icon('camera')}</button>`
             + (pvs.length > 1 ? `<div class="pv-acts"><button data-a="mergepv">${icon('pdf')} Fusionner en un seul PDF</button></div>` : '');
         $('[data-a=addpv]', box).onclick = async () => {
-          const recs = await addPhotos(day.projectId, { source: `PV ${recTitle(K)} ${recDateLabel(day.date)}` });
+          const recs = await addPhotos(day.projectId, { source: `PV ${recTitle(K)} ${recDateLabel(day.date)}`, scan: true });
           if (recs.length) { day.pvIds = [...(day.pvIds || []), ...recs.map(x => x.id)]; if (day.pvPdfId) await mergePv(); await save(); render(); }
         };
         const mb = $('[data-a=mergepv]', box); if (mb) mb.onclick = async () => { const ld = loading('Création du PDF…'); try { await mergePv(); await save(); toast('PV fusionnés en un PDF ✓'); } finally { ld.close(); } render(); };
@@ -404,7 +404,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
           <div class="btnrow" style="padding:0"><button class="btn ghost" data-a="c">Annuler</button><button class="btn" data-a="ok">${icon('check')} Ajouter ${rows.length} ligne(s)</button></div>`, { title: `${rows.length} ouvrage(s) reconnu(s)` });
         $('[data-a=c]', sh.el).onclick = () => sh.close();
         $('[data-a=ok]', sh.el).onclick = async () => {
-          for (const x of rows) day.rows.push({ id: DB.uid(), zone: x.zone, niv: x.niv, element: x.element, classe: x.classe || '', avec: '', pvRecu: false, status: x.status || (isBeton(K) ? 'ok' : 'ok'), obs: '', photoIds: [], retourIds: [] });
+          for (const x of rows) day.rows.push({ id: DB.uid(), zone: x.zone, niv: x.niv, element: x.element, classe: x.classe || '', avec: '', pvRecu: false, status: x.status || (isBeton(K) ? 'progress' : 'pending'), obs: '', photoIds: [], retourIds: [] });
           await save(); sh.close(); render(); toast(`${rows.length} ligne(s) ajoutée(s) ✓`);
         };
       };
@@ -449,7 +449,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
     function editRow(i) {
       const isNew = i === null;
       const last = day.rows[day.rows.length - 1] || {};
-      const r = isNew ? { id: DB.uid(), zone: last.zone || '', niv: last.niv || '', element: '', classe: last.classe || '', avec: last.avec || '', pvRecu: false, status: 'ok', obs: '', photoIds: [], retourIds: [] } : { ...day.rows[i], photoIds: [...(day.rows[i].photoIds || [])], retourIds: [...(day.rows[i].retourIds || [])] };
+      const r = isNew ? { id: DB.uid(), zone: last.zone || '', niv: last.niv || '', element: '', classe: last.classe || '', avec: last.avec || '', pvRecu: false, status: isBeton(K) ? 'progress' : 'pending', obs: '', photoIds: [], retourIds: [] } : { ...day.rows[i], photoIds: [...(day.rows[i].photoIds || [])], retourIds: [...(day.rows[i].retourIds || [])] };
       const s = sheet(`<div class="form" id="rowf"></div>`, { title: isNew ? 'Nouvelle ligne' : 'Modifier la ligne' });
       const f = $('#rowf', s.el);
       async function draw() {

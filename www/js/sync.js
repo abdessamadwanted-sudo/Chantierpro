@@ -74,6 +74,7 @@ const Sync = (() => {
       const base = [P[l.projectId] || 'Projet', 'Plans', F[pl.folderId] || 'Sans dossier', `${pl.name} - éléments`, l.name || 'Élément'];
       put(l.fileId, base.slice(0, -1), clean(l.name));
       for (const it of l.items || []) if (it.fileId) put(it.fileId, [...base, it.cat || 'Documents'], clean(it.name || it.cat));
+      for (const z of l.zones || []) for (const pt of z.parts || []) for (const dd of pt.docs || []) if (dd.fileId) put(dd.fileId, [...base.slice(0, -1), 'Plans par ouvrage', z.name, pt.name], clean(dd.name));
     }
     for (const d of recs) {
       const bet = d.type === 'Bétonnage';
