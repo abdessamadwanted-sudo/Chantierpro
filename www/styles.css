@@ -1417,3 +1417,13 @@ html.glass.th-sakura .h2-hello { color: #ffe1ef; } html.glass.th-lavande .h2-hel
 .dd-row b { display: block; font-size: 14px; } .dd-row small { color: var(--muted); font-size: 12px; } .dd-e { font-size: 20px; }
 .dd-row i { font-style: normal; font-weight: 800; font-size: 12px; border-radius: 9px; padding: 3px 8px; color: #fff; background: #16a34a; white-space: nowrap; }
 .dd-row.soon i { background: #f59e0b; } .dd-row.late i { background: #dc2626; }
+
+/* ===== mesures sur le plan ===== */
+.topbar .iconbtn.on { background: var(--accent, #3b82f6); color: #fff; border-radius: 12px; }
+.meas-bar { position: absolute; left: 8px; right: 8px; bottom: calc(10px + var(--safe-bottom, 0px)); z-index: 30; display: grid; gap: 8px; padding: 10px; border-radius: 16px; background: rgba(17,24,39,.94); color: #fff; box-shadow: 0 10px 30px rgba(0,0,0,.45); backdrop-filter: blur(8px); }
+.mb-seg { display: flex; gap: 6px; } .mb-seg button { flex: 1; padding: 8px 6px; border-radius: 10px; background: rgba(255,255,255,.08); color: #fff; font-size: 13px; font-weight: 600; } .mb-seg button.on { background: var(--accent, #3b82f6); }
+.mb-v { font-size: 17px; font-weight: 800; text-align: center; } .mb-v small { display: block; font-size: 11.5px; font-weight: 500; color: #9ca3af; margin-top: 2px; }
+.mb-act { display: flex; gap: 6px; } .mb-act button { flex: 1; padding: 8px 4px; border-radius: 10px; background: rgba(255,255,255,.1); color: #fff; font-size: 13px; } .mb-act button:disabled { opacity: .35; } .mb-act button[data-x=end] { background: #374151; }
+body:has(.meas-bar) .ind-pill { display: none; }
+
+.cl-art { font-size: 12.5px; font-weight: 700; color: #f59e0b; margin: 4px 0 2px; }

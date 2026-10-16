@@ -633,7 +633,7 @@ async function planToolsMenu(root) {
       return v === 'plot' ? plotPlan(pl, re) : exportDxfOfPlan(pl);
     }
     if (src !== 'ph') return;
-    const [file] = await pickFiles({ accept: '.dwg,.dxf,application/acad,application/dxf,application/octet-stream', multiple: false }); if (!file) return;
+    const [file] = await pickFiles({ accept: '*/*', multiple: false }); if (!file) return;
     if (!/\.(dwg|dxf)$/i.test(file.name)) return alertBox('Choisissez un fichier .dwg ou .dxf');
     const ld = loading('Lecture du fichier AutoCAD…'); let D;
     try { D = await cadReadPicked(file, ld); } catch (e) { ld.close(); return alertBox('Lecture impossible : ' + e.message); }

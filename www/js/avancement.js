@@ -131,7 +131,7 @@ async function avPickOrImportPlan(p, title = 'Plan du niveau') {
     return id ? plans.find(x => x.id === id) : null;
   }
   if (v === 'imp') {
-    const [file] = await pickFiles({ accept: 'image/*,application/pdf,.dxf,.dwg,application/dxf,application/octet-stream', multiple: false });
+    const [file] = await pickFiles({ accept: '*/*', multiple: false });
     if (!file) return null;
     const ld = loading('Import du plan…');
     try {

@@ -69,7 +69,7 @@ const ptInPoly = (pt, P) => { let ins = false; for (let i = 0, j = P.length - 1;
 
 // ---------- Création : importer un DXF ----------
 async function newDxfModel(base) {
-  const [f] = await pickFiles({ accept: '.dxf,.dwg,application/dxf,image/vnd.dxf,application/acad,application/octet-stream,*/*', multiple: false }); if (!f) return null;
+  const [f] = await pickFiles({ accept: '*/*', multiple: false }); if (!f) return null;
   const ld = loading('Lecture du plan AutoCAD…'); let D, rec;
   try {
     const dwg = /\.dwg$/i.test(f.name), blob = dwg ? new Blob([cadToDxf(await cadFromDwgFile(f))], { type: 'application/dxf' }) : f;   // DWG → DXF sur le téléphone

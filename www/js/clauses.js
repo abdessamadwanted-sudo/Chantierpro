@@ -33,7 +33,7 @@ async function renderClauses(root) {
       const noIdx = p.clauses.filter(c => !idx[c.id]).length;
       res = `<div class="cl-res">${ideas.length ? `<div class="cl-ideas">Compris : ${ideas.map(I => `<span class="${I.raw ? 'raw' : ''}">${esc(I.label)}</span>`).join('')}</div>` : ''}
         <div class="cl-rh">${hits.length ? `${hits.length} passage(s), les plus pertinents d'abord` : ''}${noIdx ? ` · ${noIdx} cahier(s) non indexé(s)` : ''}</div>
-        ${hits.slice(0, 60).map((h, i) => `<button class="cl-hit" data-h="${i}"><div class="cl-hm"><b>${esc(h.c.type)}</b> ${esc(h.c.name)} <span>p. ${h.page}</span><i class="cl-sc" style="--p:${h.pct || 0}%"></i></div>${h.snip ? `<div class="cl-sn">${h.snip}</div>` : ''}</button>`).join('') || '<div class="cl-none">Aucun passage trouvé. Essayez d\'autres mots (ex : « délai décoffrage poutre », « ch7al enrobage », « dosage ciment béton propreté »). Les cahiers scannés (images) ne sont pas lisibles.</div>'}</div>`;
+        ${hits.slice(0, 60).map((h, i) => `<button class="cl-hit" data-h="${i}"><div class="cl-hm"><b>${esc(h.c.type)}</b> ${esc(h.c.name)} <span>p. ${h.page}</span><i class="cl-sc" style="--p:${h.pct || 0}%"></i></div>${h.art ? `<div class="cl-art">📑 ${esc(h.art)}</div>` : ''}${h.snip ? `<div class="cl-sn">${h.snip}</div>` : ''}</button>`).join('') || '<div class="cl-none">Aucun passage trouvé. Essayez d\'autres mots (ex : « délai décoffrage poutre », « ch7al enrobage », « dosage ciment béton propreté »). Les cahiers scannés (images) ne sont pas lisibles.</div>'}</div>`;
       draw.hits = hits;
     }
     const groups = CL_TYPES.map(t => [t, p.clauses.filter(c => c.type === t)]).filter(([, l]) => l.length);

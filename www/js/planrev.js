@@ -78,7 +78,7 @@ function scaleGeom(o, kx, ky) {
 }
 
 async function newPlanIndice(plan) {
-  const [file] = await pickFiles({ accept: 'image/*,application/pdf,.dxf,.dwg,application/dxf,application/octet-stream', multiple: false });
+  const [file] = await pickFiles({ accept: '*/*', multiple: false });
   if (!file) return null;
   const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
   let cart = null; if (isPdf) { const l0 = loading('Lecture du cartouche…'); try { cart = await cartoucheFromFile(file, plan.pdfPage || 1); } catch (e) {} l0.close(); }

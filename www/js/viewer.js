@@ -126,12 +126,13 @@ async function openPlanViewer(plan, ctx) {
       <button class="iconbtn" data-a="back">${icon('back')}</button>
       <h1>${esc(plan.name)}${plan.supersededBy ? ' <span class="ind-tag old">ancien</span>' : ''}</h1>
       <button class="iconbtn" data-a="ind" title="Indices / mise à jour du plan">${icon('history')}</button>
+      <button class="iconbtn" data-a="meas" title="Mesurer (distance · surface)">${icon('ruler')}</button>
       <button class="iconbtn" data-a="filters">${icon('eye')}</button>
       <button class="iconbtn" data-a="more">${icon('more')}</button>
     </div>
     <div class="viewer">
       <div class="stage"><img src="${src}" width="${W}" height="${H}"><canvas class="hd"></canvas><svg class="ov" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-        <g class="g-annots"></g><g class="g-preview"></g><g class="g-links"></g><g class="g-tasks"></g></svg></div>
+        <g class="g-annots"></g><g class="g-preview"></g><g class="g-links"></g><g class="g-tasks"></g><g class="g-meas"></g></svg></div>
       <div class="tools"></div>
       <div class="loupe"><div class="lst"><img src="${src}" width="${W}" height="${H}"><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><g class="l-ann"></g><g class="l-prev"></g></svg></div><div class="cross"></div></div>
     </div>
@@ -169,7 +170,7 @@ async function openPlanViewer(plan, ctx) {
     clampT();
     scheduleHD();
     stage.style.transform = `translate(${st.tx}px,${st.ty}px) scale(${st.scale})`;
-    if (!rafPending) { rafPending = true; requestAnimationFrame(() => { rafPending = false; renderMarkers(); }); }
+    if (!rafPending) { rafPending = true; requestAnimationFrame(() => { rafPending = false; renderMarkers(); if (typeof renderMeas === 'function') renderMeas(); }); }
   }
   function toImg(cx, cy) {
     const r = viewer.getBoundingClientRect();
@@ -198,7 +199,29 @@ async function openPlanViewer(plan, ctx) {
     } catch (e) { console.error(e); }
     return pdfPage;
   }
+  const isCad = !!(plan.dwgFileId || plan.dxfFileId);
+  let cad = null, cadP = null;
+  async function loadCad() {
+    if (!isCad) return null; if (cad) return cad;
+    if (!cadP) cadP = (async () => { try { const D = await cadOfPlan(plan); const [x0, y0, x1, y1] = D.box; cad = { D, x0, y0, x1, y1, s: W / (x1 - x0), hidden: plan.hiddenLayers || [] }; } catch (e) { console.warn('cad', e); } return cad; })();
+    return cadP;
+  }
+  // DWG / DXF : la zone visible est redessinée en vectoriel → traits et textes nets à tous les zooms
+  async function renderCadHD() {
+    const C = await loadCad(); if (!C || g || !el.isConnected) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5), vw = viewer.clientWidth, vh = viewer.clientHeight, sc = st.scale, tx = st.tx, ty = st.ty;
+    if (sc * dpr <= 1.05 && !C.hidden.length) { hd.style.display = 'none'; return; }
+    const c = document.createElement('canvas'); c.width = Math.round(vw * dpr); c.height = Math.round(vh * dpr);
+    const gg = c.getContext('2d'); gg.fillStyle = '#fff'; gg.fillRect(0, 0, c.width, c.height); gg.lineJoin = gg.lineCap = 'round';
+    const ix0 = -tx / sc, iy0 = -ty / sc, ix1 = (vw - tx) / sc, iy1 = (vh - ty) / sc;
+    const clip = [C.x0 + ix0 / C.s, C.y1 - iy1 / C.s, C.x0 + ix1 / C.s, C.y1 - iy0 / C.s];
+    cadPaint(canvasDev(gg, sc * dpr), C.D, { color: 'screen', lwMode: 'col', plotAll: true, hidden: C.hidden }, { x0: C.x0, y1: C.y1, k: C.s, ox: tx / sc, oy: ty / sc, clip });
+    if (st.scale !== sc || st.tx !== tx || st.ty !== ty) return;
+    const ctx2 = hd.getContext('2d'); hd.width = c.width; hd.height = c.height; ctx2.drawImage(c, 0, 0);
+    Object.assign(hd.style, { display: 'block', left: ix0 + 'px', top: iy0 + 'px', width: (vw / sc) + 'px', height: (vh / sc) + 'px' });
+  }
   function scheduleHD() {
+    if (isCad) { clearTimeout(hdTimer); hdTimer = setTimeout(renderCadHD, 180); return; }
     if (!plan.pdfFileId) return;
     clearTimeout(hdTimer);
     hdTimer = setTimeout(renderHD, 220);
@@ -222,6 +245,104 @@ async function openPlanViewer(plan, ctx) {
     const ctx2 = hd.getContext('2d');
     hd.width = c.width; hd.height = c.height; ctx2.drawImage(c, 0, 0);
     Object.assign(hd.style, { display: 'block', left: (-tx / sc) + 'px', top: (-ty / sc) + 'px', width: (vw / sc) + 'px', height: (vh / sc) + 'px' });
+  }
+
+  // ---------- Mesures : distance, surface, périmètre, coordonnées (aimantation sur les extrémités des DWG/DXF) ----------
+  const gMeas = $('.g-meas', el);
+  const M = { on: false, mode: 'dist', pts: [], calib: null, snapPts: null };
+  const unitM = async () => {   // mètres par pixel de l'image
+    if (isCad) { const C = await loadCad(); if (C) { const span = Math.max(C.x1 - C.x0, C.y1 - C.y0), u = DXF_UNITS[C.D.ins] || (span > 2000 ? 0.001 : 1); return u / C.s; } }
+    return plan.calib || null;
+  };
+  async function buildSnap() {
+    if (M.snapPts || !isCad) return; const C = await loadCad(); if (!C) return;
+    const hid = new Set(C.hidden), arr = [];
+    for (const p of C.D.prims) { if (p.t !== 'pl' || hid.has(p.layer)) continue; const P = p.pts; for (let i = 0; i < P.length; i++) { arr.push((P[i][0] - C.x0) * C.s, (C.y1 - P[i][1]) * C.s); if (i && P.length < 6) arr.push(((P[i][0] + P[i - 1][0]) / 2 - C.x0) * C.s, (C.y1 - (P[i][1] + P[i - 1][1]) / 2) * C.s); } }
+    M.snapPts = new Float32Array(arr);
+  }
+  function snap(x, y) {
+    const A = M.snapPts; if (!A) return [x, y, false]; const tol = 16 / st.scale; let bd = tol * tol, bx = x, by = y, hit = false;
+    for (let i = 0; i < A.length; i += 2) { const dx = A[i] - x, dy = A[i + 1] - y, d = dx * dx + dy * dy; if (d < bd) { bd = d; bx = A[i]; by = A[i + 1]; hit = true; } }
+    return [bx, by, hit];
+  }
+  const fmtL = (m) => m >= 1000 ? (m / 1000).toFixed(3) + ' km' : m >= 1 ? m.toFixed(2) + ' m' : (m * 100).toFixed(1) + ' cm';
+  const fmtA = (a) => a >= 1e4 ? (a / 1e4).toFixed(2) + ' ha' : a.toFixed(2) + ' m²';
+  let measK = null;
+  function renderMeas() {
+    if (!M.on) { gMeas.innerHTML = ''; return; }
+    const k = 1 / st.scale, P = M.pts, fs = 13 * k, sw = 2.2 * k, r = 5 * k, mk = measK || 0;
+    let h = '';
+    if (P.length > 1) { const pts = (M.mode === 'area' && P.length > 2 ? [...P, P[0]] : P).map(q => q.join(',')).join(' ');
+      if (M.mode === 'area' && P.length > 2) h += `<polygon points="${P.map(q => q.join(',')).join(' ')}" fill="rgba(37,99,235,.18)" stroke="none"/>`;
+      h += `<polyline points="${pts}" fill="none" stroke="#fff" stroke-width="${sw * 2.2}" stroke-linejoin="round"/><polyline points="${pts}" fill="none" stroke="${M.calib ? '#f59e0b' : '#2563eb'}" stroke-width="${sw}" stroke-linejoin="round" ${M.mode === 'area' ? '' : ''}/>`;
+      if (mk) for (let i = 1; i < P.length; i++) { const a = P[i - 1], b = P[i], L = Math.hypot(b[0] - a[0], b[1] - a[1]) * mk, mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+        h += `<g transform="translate(${mx},${my})"><rect x="${-fs * 2.4}" y="${-fs * 0.85}" width="${fs * 4.8}" height="${fs * 1.5}" rx="${fs * .4}" fill="#111827" opacity=".85"/><text y="${fs * .35}" text-anchor="middle" font-size="${fs}" font-weight="700" fill="#fff" font-family="Arial">${fmtL(L)}</text></g>`; } }
+    h += P.map((q, i) => `<circle cx="${q[0]}" cy="${q[1]}" r="${r}" fill="${i === P.length - 1 ? '#f59e0b' : '#2563eb'}" stroke="#fff" stroke-width="${1.6 * k}"/>`).join('');
+    gMeas.innerHTML = h;
+  }
+  function measResult() {
+    const P = M.pts, mk = measK; if (!mk) return { txt: M.calib ? 'Touchez les 2 extrémités d’une cote connue' : 'Échelle inconnue : étalonnez d’abord', v: '' };
+    let len = 0; for (let i = 1; i < P.length; i++) len += Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
+    if (M.mode === 'dist') return { txt: P.length < 2 ? 'Touchez les points à mesurer' : `📏 ${fmtL(len * mk)}${P.length > 2 ? ` (${P.length - 1} segments)` : ''}`, v: fmtL(len * mk) };
+    if (P.length < 3) return { txt: 'Touchez les sommets de la surface', v: '' };
+    let a = 0; for (let i = 0; i < P.length; i++) { const p1 = P[i], p2 = P[(i + 1) % P.length]; a += p1[0] * p2[1] - p2[0] * p1[1]; }
+    const per = len + Math.hypot(P[0][0] - P[P.length - 1][0], P[0][1] - P[P.length - 1][1]);
+    return { txt: `⬛ ${fmtA(Math.abs(a) / 2 * mk * mk)} · périmètre ${fmtL(per * mk)}`, v: `${fmtA(Math.abs(a) / 2 * mk * mk)} (périmètre ${fmtL(per * mk)})` };
+  }
+  async function measBar() {
+    let b = $('.meas-bar', el);
+    if (!M.on) { if (b) b.remove(); return; }
+    if (!b) { b = document.createElement('div'); b.className = 'meas-bar'; el.appendChild(b); }
+    measK = M.calib ? null : await unitM();
+    const R = measResult(), C = isCad && cad, last = M.pts[M.pts.length - 1];
+    const xy = C && last ? `X ${(C.x0 + last[0] / C.s).toFixed(2)} · Y ${(C.y1 - last[1] / C.s).toFixed(2)}` : '';
+    b.innerHTML = `<div class="mb-seg"><button data-m="dist" class="${M.mode === 'dist' ? 'on' : ''}">📏 Distance</button><button data-m="area" class="${M.mode === 'area' ? 'on' : ''}">⬛ Surface</button>${isCad ? '' : `<button data-m="cal" class="${M.calib ? 'on' : ''}">📐 Étalonner</button>`}</div>
+      <div class="mb-v">${R.txt}${xy ? `<small>${xy}</small>` : ''}</div>
+      <div class="mb-act"><button data-x="undo" ${M.pts.length ? '' : 'disabled'}>↶</button><button data-x="clr" ${M.pts.length ? '' : 'disabled'}>Effacer</button><button data-x="cp" ${R.v ? '' : 'disabled'}>Copier</button><button data-x="end">Fermer</button></div>`;
+    $$('[data-m]', b).forEach(x => x.onclick = () => { const m = x.dataset.m; if (m === 'cal') { M.calib = M.calib ? null : 'pick'; M.pts = []; if (M.calib) toast('Touchez les 2 extrémités d’une cote dont vous connaissez la longueur'); } else { if (M.mode !== m) M.pts = []; M.mode = m; M.calib = null; } measBar(); renderMeas(); });
+    $$('[data-x]', b).forEach(x => x.onclick = async () => { const a = x.dataset.x; if (a === 'undo') M.pts.pop(); if (a === 'clr') M.pts = []; if (a === 'cp') { try { await navigator.clipboard.writeText(R.v); toast('Copié ✓'); } catch (e) { toast(R.v); } } if (a === 'end') return measToggle(false); measBar(); renderMeas(); });
+  }
+  async function measToggle(on) {
+    M.on = on; M.pts = []; M.calib = null; st.tool = on ? 'measure' : 'pan'; renderTools();
+    if (on) { buildSnap(); if (!isCad && !plan.calib) { M.calib = 'pick'; toast('Étalonnage : touchez les 2 extrémités d’une cote connue'); } }
+    $('[data-a=meas]', el).classList.toggle('on', on); await measBar(); renderMeas();
+  }
+  async function measTap(x, y) {
+    const [sx, sy, hit] = snap(x, y); if (hit) { try { navigator.vibrate && navigator.vibrate(8); } catch (e) {} }
+    M.pts.push([sx, sy]);
+    if (M.calib && M.pts.length === 2) {
+      const px = Math.hypot(M.pts[1][0] - M.pts[0][0], M.pts[1][1] - M.pts[0][1]);
+      const r = await formSheet('Étalonnage', [{ name: 'l', label: 'Longueur réelle de ce segment (en mètres)', type: 'number', placeholder: 'Ex : 5.40' }], { okLabel: 'Valider' });
+      const L = r && parseFloat(String(r.l).replace(',', '.'));
+      if (L > 0 && px > 0) { plan.calib = L / px; await DB.put('plans', plan); toast('Échelle enregistrée pour ce plan ✓'); }
+      M.calib = null; M.pts = [];
+    }
+    await measBar(); renderMeas();
+  }
+  $('[data-a=meas]', el).onclick = () => measToggle(!M.on);
+  // calques (DWG / DXF)
+  async function cadLayers() {
+    const C = await loadCad(); if (!C) return toast('Plan AutoCAD illisible');
+    const names = Object.keys(C.D.layers).sort((a, b) => a.localeCompare(b, 'fr', { numeric: true }));
+    for (;;) {
+      const v = await menu('Calques (toucher pour afficher / masquer)', [{ label: 'Tout afficher', icon: 'eye', value: '__all' }, ...names.map(n => ({ label: `${C.hidden.includes(n) ? '◻' : '☑'} ${n}`, value: n, swatch: C.D.layers[n].color || undefined }))]);
+      if (!v) break;
+      if (v === '__all') C.hidden = []; else C.hidden = C.hidden.includes(v) ? C.hidden.filter(x => x !== v) : [...C.hidden, v];
+    }
+    plan.hiddenLayers = C.hidden; await DB.put('plans', plan); M.snapPts = null; if (M.on) buildSnap();
+    const ld = loading('Mise à jour du plan…');
+    try { const { canvas } = cadRaster(C.D, Math.max(W, H), { hidden: C.hidden }); const url = URL.createObjectURL(await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.9))); $$('img', stage).concat($$('.lst img', el)).forEach(im => im.src = url); } finally { ld.close(); }
+    renderCadHD();
+  }
+  async function cadFind() {
+    const C = await loadCad(); if (!C) return;
+    const r = await formSheet('Rechercher dans le plan', [{ name: 'q', label: 'Texte (repère, cote, nom de local…)', placeholder: 'Ex : P12, R+3, V14' }], { okLabel: 'Chercher' }); if (!r || !r.q) return;
+    const q = normQ(r.q), hits = C.D.prims.filter(p => p.t === 'tx' && normQ(p.s).includes(q)).slice(0, 40);
+    if (!hits.length) return toast('Aucun texte trouvé');
+    const i = hits.length === 1 ? 0 : await menu(`${hits.length} résultat(s)`, hits.map((p, k) => ({ label: p.s, icon: 'search', value: String(k) })));
+    if (i == null) return; const p = hits[+i], ix = (p.p[0] - C.x0) * C.s, iy = (C.y1 - p.p[1]) * C.s;
+    const vw = viewer.clientWidth, vh = viewer.clientHeight; st.scale = Math.max(st.fitScale * 6, st.scale); st.tx = vw / 2 - ix * st.scale; st.ty = vh / 2 - iy * st.scale; applyT();
+    gPrev.innerHTML = `<circle cx="${ix}" cy="${iy}" r="${40 / st.scale}" fill="none" stroke="#f59e0b" stroke-width="${4 / st.scale}"><animate attributeName="r" values="${20 / st.scale};${60 / st.scale};${20 / st.scale}" dur="1.2s" repeatCount="3"/></circle>`; setTimeout(() => { gPrev.innerHTML = ''; }, 3800);
   }
 
   // ---------- Loupe (voir sous le doigt pendant le dessin) ----------
@@ -347,7 +468,7 @@ async function openPlanViewer(plan, ctx) {
       : `<div class="grp"><button class="tool ${st.tool === 'pan' ? 'on' : ''}" data-t="hand">${icon('hand')}</button>
            ${st.tool !== 'pan' ? `<button class="tool on" data-t="${st.tool === 'draw' ? 'draw' : st.tool}">${ic(cur[0], cur[1])}</button>` : ''}</div>
          ${['draw', 'select', 'erase'].includes(st.tool) ? `<div class="grp"><button class="tool" data-t="undo">${icon('undo')}</button></div>` : ''}`;
-    $$('.tool', t).forEach(b => b.onclick = (e) => { e.stopPropagation(); onTool(b.dataset.t, b); });
+    $$('.tool', t).forEach(b => b.onclick = (e) => { e.stopPropagation(); if (M.on) { M.on = false; M.pts = []; measBar(); renderMeas(); $('[data-a=meas]', el).classList.remove('on'); } onTool(b.dataset.t, b); });
     let hint = $('.hint', viewer);
     const msg = hintText();
     if (msg) { if (!hint) { hint = document.createElement('div'); hint.className = 'hint'; viewer.appendChild(hint); } hint.textContent = msg; }
@@ -726,6 +847,7 @@ async function openPlanViewer(plan, ctx) {
       zoomAt(r.left + x * st.scale + st.tx, r.top + y * st.scale + st.ty, 2); lastTap = 0; return;
     }
     lastTap = now;
+    if (st.tool === 'measure') return measTap(x, y);
     if (st.tool === 'select') {
       const hp = hitMarker(x, y);
       if (hp) { st.selPin = hp; st.sel = -1; renderSel(); renderTools(); return; }
@@ -845,15 +967,21 @@ async function openPlanViewer(plan, ctx) {
     const v = await menu(plan.name, [
       { label: 'Mettre à jour le plan (nouvel indice)', icon: 'upload', value: 'indice' },
       { label: 'Indices : historique · comparer', icon: 'history', value: 'indmenu' },
-      ...(plan.dwgFileId || plan.dxfFileId ? [{ label: 'Tracer en PDF vectoriel (format, épaisseurs)', icon: 'pdf', value: 'plot' }] : []),
+      { label: 'Partager…', icon: 'share', value: 'share' },
+      { label: 'Mesurer (distance · surface)', icon: 'ruler', value: 'meas' },
+      ...(isCad ? [{ label: 'Calques (afficher / masquer)', icon: 'layers', value: 'layers' }, { label: 'Rechercher un texte dans le plan', icon: 'search', value: 'find' }] : []),
+      ...(plan.dwgFileId || plan.dxfFileId ? [{ label: 'Tracer en PDF vectoriel (A0 → A4, épaisseurs)', icon: 'pdf', value: 'plot' }] : []),
       ...(plan.dwgFileId ? [{ label: 'Exporter en DXF', icon: 'share', value: 'dxf' }] : []),
-      ...(plan.pdfFileId ? [{ label: 'Partager le PDF d\'origine', icon: 'share', value: 'pdfsh' }, { label: 'Diviser ce PDF (pages / plages)', icon: 'plans', value: 'split' }] : []),
-      ...(plan.dwgFileId ? [{ label: 'Partager le DWG d\'origine', icon: 'share', value: 'dwgsh' }] : []),
+      ...(plan.pdfFileId ? [{ label: 'Diviser ce PDF (pages / plages)', icon: 'plans', value: 'split' }] : []),
       { label: 'Renommer', icon: 'edit', value: 'rename' },
       { label: 'Ajuster à l\'écran', icon: 'plans', value: 'fit' },
       { label: 'Supprimer le plan', icon: 'trash', danger: true, value: 'del' },
     ]);
     if (v === 'fit') fit();
+    if (v === 'meas') measToggle(true);
+    if (v === 'layers') cadLayers();
+    if (v === 'find') cadFind();
+    if (v === 'share') sharePlanMenu(plan, { tasks: st.tasks, links: st.links });
     if (v === 'plot') plotPlan(plan);
     if (v === 'dxf') exportDxfOfPlan(plan);
     if (v === 'split') splitPdfFlow(null, plan);
@@ -909,3 +1037,66 @@ async function choosePinLook(l) {
   await DB.put('links', l); return true;
 }
 const plansboxCount = (l) => (l.zones || []).reduce((a, z) => a + (z.parts || []).reduce((b, p) => b + (p.docs || []).length, 0), 0);
+
+// ---------- Partager un plan : fichier d'origine (PDF / DWG / DXF / image) ou PDF annoté (dessins, couleurs, pins) ----------
+async function planOverlayCanvas(plan, tasks, links, outW) {
+  const W = plan.w, H = plan.h, k = outW / W, base = Math.max(W, H), pr = base / 90;
+  const pins = [
+    ...tasks.filter(t => t.planId === plan.id && t.x != null).map(t => { const c = (STATUS[t.status] || STATUS.open).color; return `<g transform="translate(${t.x},${t.y})"><path d="M0,0 C${-pr * .3},${-pr * .7} ${-pr},${-pr} ${-pr},${-pr * 1.85} A${pr},${pr} 0 1 1 ${pr},${-pr * 1.85} C${pr},${-pr} ${pr * .3},${-pr * .7} 0,0Z" fill="${c}" stroke="#fff" stroke-width="${pr * .14}"/><text x="0" y="${-pr * 1.5}" text-anchor="middle" font-size="${pr * .95}" font-weight="700" fill="#fff" font-family="Arial">${t.num || ''}</text></g>`; }),
+    ...links.filter(l => l.planId === plan.id).map(l => { const x = l.shape === 'zone' ? l.x + l.w / 2 : l.x, y = l.shape === 'zone' ? l.y + l.h / 2 : l.y, P = pinLook(l);
+      return `<g transform="translate(${x},${y})"><circle r="${pr * .8}" fill="${P.c}" stroke="#fff" stroke-width="${pr * .12}"/>${l.name ? `<text y="${pr * 1.9}" text-anchor="middle" font-size="${pr * .8}" font-weight="700" fill="${P.c}" stroke="#fff" stroke-width="${pr * .18}" paint-order="stroke" font-family="Arial">${esc(String(l.name).slice(0, 30))}</text>` : ''}</g>`; }),
+  ].join('');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(W * k)}" height="${Math.round(H * k)}" viewBox="0 0 ${W} ${H}">${(plan.annotations || []).map(annotSVG).join('')}${pins}</svg>`;
+  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+  try { const im = await loadImage(url); const c = document.createElement('canvas'); c.width = Math.round(W * k); c.height = Math.round(H * k); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); return c; }
+  finally { URL.revokeObjectURL(url); }
+}
+async function annotatedPlanPdf(plan, tasks, links, fmt) {
+  // 1) plan PDF d'origine : la page reste vectorielle, les annotations sont posées par-dessus
+  if (plan.pdfFileId && window.PDFLib) {
+    const f = await DB.get('files', plan.pdfFileId);
+    if (f && f.blob) { try {
+      const src = await PDFLib.PDFDocument.load(await f.blob.arrayBuffer(), { ignoreEncryption: true }), out = await PDFLib.PDFDocument.create();
+      const [pg] = await out.copyPages(src, [(plan.pdfPage || 1) - 1]); out.addPage(pg);
+      const rot = ((pg.getRotation().angle % 360) + 360) % 360;
+      if (rot === 0) { const { width, height } = pg.getSize(); const ov = await planOverlayCanvas(plan, tasks, links, Math.min(6000, plan.w));
+        const png = await out.embedPng(await new Promise(r => ov.toBlob(b => b.arrayBuffer().then(r), 'image/png')));
+        const mb = pg.getMediaBox(); pg.drawImage(png, { x: mb.x, y: mb.y, width, height }); return new Blob([await out.save()], { type: 'application/pdf' }); }
+    } catch (e) { console.warn('pdf annot', e); } }
+  }
+  // 2) DWG / DXF / image : rendu haute définition + annotations, mis en page sur le format choisi
+  let base;
+  if (plan.dwgFileId || plan.dxfFileId) { const D = await cadOfPlan(plan); base = cadRaster(D, 7000, { hidden: plan.hiddenLayers || [] }).canvas; }
+  else { const f = await DB.get('files', plan.fileId); base = document.createElement('canvas'); const im = await loadImage(BlobURL.get(f.id, f.blob)); base.width = im.naturalWidth; base.height = im.naturalHeight; base.getContext('2d').drawImage(im, 0, 0); }
+  const ov = await planOverlayCanvas(plan, tasks, links, base.width); base.getContext('2d').drawImage(ov, 0, 0, base.width, base.height);
+  const { jsPDF } = window.jspdf; let [PW, PH] = PAPER[fmt] || PAPER.A3; const land = base.width >= base.height; if (!land) [PW, PH] = [PH, PW];
+  const doc = new jsPDF({ orientation: land ? 'l' : 'p', unit: 'mm', format: [PW, PH], compress: true });
+  const M = 6, k = Math.min((PW - 2 * M) / base.width, (PH - 2 * M) / base.height), w = base.width * k, h = base.height * k;
+  doc.addImage(base.toDataURL('image/jpeg', 0.9), 'JPEG', (PW - w) / 2, (PH - h) / 2, w, h, undefined, 'FAST');
+  doc.setFontSize(8); doc.setTextColor(90); doc.text(pt(`${plan.name}${plan.indice ? ' · Ind. ' + planIndice(plan) : ''} · annoté le ${fmtDate(todayISO())}`), M, PH - 2.5);
+  return doc.output('blob');
+}
+async function sharePlanMenu(plan, { tasks = [], links = [] } = {}) {
+  const orig = plan.pdfFileId ? ['pdf', 'PDF'] : plan.dwgFileId ? ['dwg', 'DWG'] : plan.dxfFileId ? ['dxf', 'DXF'] : ['img', 'image'];
+  const nA = (plan.annotations || []).length + tasks.filter(t => t.planId === plan.id && t.x != null).length + links.filter(l => l.planId === plan.id).length;
+  const v = await menu('Partager le plan', [
+    { label: `📄 Original (${orig[1]} tel que reçu)`, icon: 'share', value: 'orig' },
+    { label: `✏️ PDF annoté (dessins, couleurs, pins${nA ? ' · ' + nA : ''})`, icon: 'pdf', value: 'annot' },
+    ...(plan.dwgFileId ? [{ label: '📐 DXF (pour AutoCAD)', icon: 'share', value: 'dxf' }] : []),
+    ...(plan.dwgFileId || plan.dxfFileId ? [{ label: '🖨️ PDF vectoriel à l\'échelle (A0 → A4)', icon: 'pdf', value: 'plot' }] : []),
+  ]);
+  if (!v) return;
+  const nm = safeName(plan.name.replace(/ - p\d+$/, ''));
+  if (v === 'orig') {
+    const id = plan.pdfFileId || plan.dwgFileId || plan.dxfFileId || plan.fileId, f = await DB.get('files', id);
+    if (!f || !f.blob) return toast('Fichier introuvable (synchronisez)');
+    return shareBlob(f.blob, nm + '.' + (orig[0] === 'img' ? ((f.mime || '').includes('png') ? 'png' : 'jpg') : orig[0]));
+  }
+  if (v === 'dxf') return exportDxfOfPlan(plan);
+  if (v === 'plot') return plotPlan(plan);
+  const fmt = plan.pdfFileId ? 'A3' : await menu('Format du PDF annoté', ['A0', 'A1', 'A2', 'A3', 'A4'].map(x => ({ label: x, value: x, checked: x === 'A3' })));
+  if (!fmt) return;
+  const ld = loading('Création du PDF annoté…');
+  try { const b = await annotatedPlanPdf(plan, tasks, links, fmt); ld.close(); await shareBlob(b, nm + '_annote.pdf'); }
+  catch (e) { ld.close(); console.error(e); alertBox('Erreur : ' + (e.message || e)); }
+}

@@ -71,12 +71,18 @@ const _clChunks = new Map();
 function clChunks(fileId, pages) {
   if (_clChunks.has(fileId)) return _clChunks.get(fileId);
   const out = [];
+  // n° et titre de l'article en cours (ARTICLE 12 – BÉTONS, Art. 3.2.1 Coffrages, 4.1.2 - Armatures…)
+  const ART = /(?:^|\s)(?:ARTICLE|Article|ART\.?|Art\.)\s*([0-9IVXL]+(?:[.\-][0-9]+)*)\s*[:.\-–—]?\s*([A-ZÀ-Ýa-zà-ÿ'’ ,\/()-]{3,70})?|(?:^|\s)((?:\d{1,2}\.){1,3}\d{1,2})\.?\s+[-–—]?\s*([A-ZÀ-Ý][A-ZÀ-Ýa-zà-ÿ'’ ,\/()-]{3,60})/;
+  let art = '';
+  const artOf = (x) => { const m = x.match(ART); if (!m) return null; const n = m[1] || m[3], t = (m[2] || m[4] || '').replace(/\s+(Le|La|Les|Il|Ce|Cette|L'|Pour|Dans)\b.*$/, '').trim(); return `Art. ${n}${t ? ' — ' + t.charAt(0).toUpperCase() + t.slice(1).toLowerCase() : ''}`; };
   pages.forEach((txt, pi) => {
     const s = String(txt || '').replace(/\s+/g, ' ').trim(); if (!s) return;
     const sent = s.split(/(?<=[.;:!?])\s+(?=[A-ZÀ-Ý0-9•\-–(])/);
-    let cur = '';
-    for (const x of sent) { if ((cur + ' ' + x).length > 420 && cur) { out.push({ page: pi + 1, t: cur }); cur = cur.length > 160 ? cur.slice(-120) + ' ' + x : x; } else cur = cur ? cur + ' ' + x : x; }
-    if (cur) out.push({ page: pi + 1, t: cur });
+    let cur = '', cart = art;
+    for (const x of sent) { const a = artOf(x.slice(0, 120));
+      if ((cur + ' ' + x).length > 420 && cur) { out.push({ page: pi + 1, t: cur, art: cart }); cur = cur.length > 160 ? cur.slice(-120) + ' ' + x : x; cart = art; } else cur = cur ? cur + ' ' + x : x;
+      if (a) { art = a; if (cur === x || cur.endsWith(x) && cur.length < 140) cart = a; } }
+    if (cur) out.push({ page: pi + 1, t: cur, art: cart });
   });
   out.forEach(c => { c.n = clNorm(c.t); c.w = new Set(clTok(c.t)); });
   _clChunks.set(fileId, out); return out;
@@ -106,7 +112,7 @@ function clSmart(q, clauses, idx) {
     sc *= .55 + .45 * got / ideas.length;
     if (nq.length > 3 && ch.n.includes(nq)) sc += 3;
     if (/\d/.test(ch.t) && ideas.some(I => ['dosage', 'délai', 'épaisseur', 'résistance', 'tolérance'].includes(I.label))) sc *= 1.15;   // une valeur chiffrée répond souvent à la question
-    hits.push({ c, page: ch.page, score: sc, got, t: ch.t, hl });
+    hits.push({ c, page: ch.page, score: sc, got, t: ch.t, hl, art: ch.art });
   }
   hits.sort((a, b) => b.score - a.score);
   const seen = new Set(), out = [];

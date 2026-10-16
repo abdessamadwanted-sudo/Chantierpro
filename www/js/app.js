@@ -506,7 +506,9 @@ async function importPlans(folders, root, fromDrive = false, presetFolder) {
     catch (e) { ld0.close(); return alertBox(e.message); }
     ld0.close();
   } else {
-    files = await pickFiles({ accept: 'image/*,application/pdf,.dxf,.dwg,application/dxf,application/octet-stream', multiple: true });
+    files = await pickFiles({ accept: '*/*', multiple: true });   // tout accepter : sinon Android grise les .dwg / .dxf
+    const bad = files.filter(f => !/\.(pdf|dwg|dxf|jpe?g|png|webp|heic|heif|gif|bmp)$/i.test(f.name) && !/^image\/|pdf/.test(f.type || ''));
+    if (bad.length) { toast(`Ignoré : ${bad.map(f => f.name).join(', ')} (PDF, image, DWG ou DXF)`); files = files.filter(f => !bad.includes(f)); }
   }
   if (!files.length) return;
   const ld = loading('Import du plan…');
