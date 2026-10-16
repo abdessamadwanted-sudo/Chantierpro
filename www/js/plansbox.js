@@ -39,8 +39,9 @@ async function pbOpenDoc(d, l, ctx) {
   toast('Fichier introuvable');
 }
 function openPlansBox(l, ctx = {}) {
-  return new Promise((resolve) => {
+  return new Promise(async (resolve) => {
     l.zones = l.zones || [];
+    if (l.recSrc) await pbFromRec(l);
     const openZ = new Set(l.zones.length === 1 ? [l.zones[0].id] : []), openP = new Set();
     let q = '';
     const s = sheet('<div class="pb2"></div>', {});
@@ -58,18 +59,19 @@ function openPlansBox(l, ctx = {}) {
         if (q && !zHit && !parts.length) return '';
         const zo = openZ.has(z.id) || !!q;
         return `<div class="pb-z ${zo ? 'open' : ''}"><div class="pb-zh" data-z="${zi}"><span class="pb-zi">${zi + 1}</span><div class="grow"><b>${esc(z.name)}</b><small>${(z.parts || []).length} partie(s) · ${nDocs(z)} plan(s)</small></div>
-            <button class="iconbtn sm" data-zm="${zi}">${icon('more')}</button><span class="chev">${icon('chevdown')}</span></div>
+            ${l.recSrc ? '' : `<button class="iconbtn sm" data-zm="${zi}">${icon('more')}</button>`}<span class="chev">${icon('chevdown')}</span></div>
           ${zo ? `<div class="pb-parts">${parts.map(({ p, pi }) => { const po = openP.has(p.id) || (!!q && (p.docs || []).some(d => match(d.name)));
             return `<div class="pb-p ${po ? 'open' : ''}"><div class="pb-ph" data-p="${zi}|${pi}"><span class="pb-dot"></span><div class="grow"><b>${esc(p.name)}</b><small>${(p.docs || []).length} plan(s)</small></div>
-                <button class="iconbtn sm" data-pm="${zi}|${pi}">${icon('more')}</button><span class="chev">${icon('chevdown')}</span></div>
+                ${l.recSrc ? '' : `<button class="iconbtn sm" data-pm="${zi}|${pi}">${icon('more')}</button>`}<span class="chev">${icon('chevdown')}</span></div>
               ${po ? `<div class="pb-docs">${(p.docs || []).filter(d => !q || match(d.name) || match(p.name) || zHit).map((d, di) => `<div class="pb-d"><button class="grow" data-d="${zi}|${pi}|${p.docs.indexOf(d)}"><span class="pb-di">${icon(d.url && !d.fileId ? 'drive' : d.planId ? 'plans' : 'pdf')}</span><span>${esc(d.name)}</span></button><button class="iconbtn sm" data-dm="${zi}|${pi}|${p.docs.indexOf(d)}">${icon('more')}</button></div>`).join('')}
                 <button class="pb-add" data-adddoc="${zi}|${pi}">${icon('plus')} Ajouter un plan (PDF)</button></div>` : ''}</div>`; }).join('')}
-            ${(z.parts || []).length < PB_MAX ? `<button class="pb-add" data-addp="${zi}">${icon('plus')} Partie d'ouvrage</button>` : '<div class="pb-max">10 parties maximum</div>'}</div>` : ''}</div>`;
+            ${l.recSrc ? '' : (z.parts || []).length < PB_MAX ? `<button class="pb-add" data-addp="${zi}">${icon('plus')} Partie d'ouvrage</button>` : '<div class="pb-max">10 parties maximum</div>'}</div>` : ''}</div>`;
       }).join('');
       box.innerHTML = `<div class="pb-head" style="--c:${P.c}"><span class="pb-hic">${P.e}</span><div class="grow"><b>${esc(l.name)}</b><small>${l.zones.length} zone(s) · ${plansboxCount(l)} plan(s)</small></div><button class="iconbtn" data-a="more">${icon('more')}</button></div>
+        ${l.recSrc ? `<button class="pb-rec" data-a="recsrc">📅 Programme de réception · <b>${l.recSrc.mode === 'today' ? 'aujourd\u2019hui (automatique)' : 'du ' + fmtDate(l.recSrc.date)}</b><small>${l.zones.reduce((a, z) => a + z.parts.length, 0)} ouvrage(s) · touchez pour changer</small></button>` : ''}
         ${plansboxCount(l) + l.notes.length > 3 ? `<div class="search pb-search">${icon('search')}<input placeholder="Rechercher (ex : CR 78, coffrage…)" value="${esc(q)}"></div>` : ''}
-        <div class="pb-zones">${zones || (q ? '<div class="pb-empty">Aucun résultat</div>' : '<div class="pb-empty">Ajoutez une zone, puis ses parties d\'ouvrage et leurs plans PDF.</div>')}</div>
-        ${l.zones.length < PB_MAX ? `<button class="btn ghost small pb-addz" data-a="addz">${icon('plus')} Zone</button>` : '<div class="pb-max">10 zones maximum</div>'}
+        <div class="pb-zones">${zones || (q ? '<div class="pb-empty">Aucun résultat</div>' : (l.recSrc ? '<div class="pb-empty">Aucun ouvrage dans ce programme de réception.</div>' : '<div class="pb-empty">Ajoutez une zone, puis ses parties d\'ouvrage et leurs plans PDF.</div>'))}</div>
+        ${l.recSrc ? '' : l.zones.length < PB_MAX ? `<button class="btn ghost small pb-addz" data-a="addz">${icon('plus')} Zone</button>` : '<div class="pb-max">10 zones maximum</div>'}
         <div class="nt-sec"><span>📝 Notes${l.notes.length ? ` (${l.notes.length})` : ''}</span><button class="btn small ghost" data-a="addnote">${icon('plus')} Note</button></div>
         <div class="nt-list">${await notesHTML(q ? l.notes.filter(n => fuzzyHas(`${n.text} ${(n.check || []).map(c => c.t).join(' ')}`, q)) : l.notes, { parts: partsAll() })}</div>`;
       $('[data-a=addnote]', box).onclick = async () => { const n = await editNote(null, l.projectId, { parts: partsAll() }); if (n) { l.notes.push(n); await save(); draw(); } };
@@ -104,10 +106,46 @@ function openPlansBox(l, ctx = {}) {
         if (v === 'open') pbOpenDoc(d, l, ctx); if (v === 'ren') rename(d, 'Nom du plan'); if (v === 'up') { move(p.docs, di, -1); await save(); draw(); }
         if (v === 'rep') { const [nd] = await pbPickDocs(l.projectId); if (nd) { if (d.fileId && d.fileId !== nd.fileId) await DB.del('files', d.fileId); Object.assign(d, { fileId: nd.fileId || null, planId: nd.planId || null, url: nd.url || null }); await save(); toast('Remplacé ✓'); draw(); } }
         if (v === 'del' && await confirmBox('Retirer ce plan ?')) { if (d.fileId) await DB.del('files', d.fileId); p.docs.splice(di, 1); await save(); draw(); } });
-      $('[data-a=more]', box).onclick = async () => { const v = await menu(l.name, [{ label: 'Renommer le pin', icon: 'edit', value: 'ren' }, { label: 'Icône et couleur du pin', icon: 'pin', value: 'look' }, { label: 'Supprimer le pin', icon: 'trash', danger: true, value: 'del' }]);
+      const rsb = $('[data-a=recsrc]', box); if (rsb) rsb.onclick = async () => { if (await pbChooseRec(l)) { await save(); await pbFromRec(l); draw(); } };
+      $('[data-a=more]', box).onclick = async () => { const v = await menu(l.name, [{ label: l.recSrc ? 'Programme de réception lié…' : 'Remplir depuis le programme de réception…', icon: 'calendar', value: 'rec' }, { label: 'Renommer le pin', icon: 'edit', value: 'ren' }, { label: 'Icône et couleur du pin', icon: 'pin', value: 'look' }, { label: 'Supprimer le pin', icon: 'trash', danger: true, value: 'del' }]);
+        if (v === 'rec') { if (await pbChooseRec(l)) { await save(); if (l.recSrc) await pbFromRec(l); draw(); } }
         if (v === 'ren') rename(l, 'Nom du pin'); if (v === 'look') { await choosePinLook(l); draw(); }
         if (v === 'del' && await confirmBox(`Supprimer le pin « ${l.name} » et ses ${plansboxCount(l)} plan(s) ?`)) { for (const z of l.zones) for (const p of z.parts || []) for (const d of p.docs || []) if (d.fileId) await DB.del('files', d.fileId); await DB.del('links', l.id); s.close(); } };
     };
     draw();
   });
+}
+
+// ---------- Pin « Plans » rempli depuis le programme de réception ----------
+// zones et parties d'ouvrage = lignes du tableau de réception (un jour fixe, ou « aujourd'hui » qui change chaque jour) ;
+// les plans ajoutés restent attachés à l'ouvrage (niveau + élément), même s'il revient un autre jour.
+async function pbFromRec(l) {
+  const S = l.recSrc; if (!S) return;
+  const date = S.mode === 'today' ? todayISO() : S.date;
+  const days = (await DB.byProject('receptions', l.projectId)).filter(d => kindOf(d) === 'Ferraillage' && d.date === date);
+  l.recDocs = l.recDocs || {};
+  const zm = new Map();
+  for (const r of days.flatMap(d => d.rows)) {
+    if (!r.element) continue;
+    const zk = String(r.zone || '').trim();
+    if (!zm.has(zk)) zm.set(zk, { id: 'rz_' + (zk || '0'), name: zk ? 'Zone ' + zk : 'Sans zone', parts: [] });
+    const key = normQ(`${r.niv || ''}|${r.element}`);
+    const docs = l.recDocs[key] = l.recDocs[key] || [];
+    l.recNames = l.recNames || {}; l.recNames[key] = `${r.niv ? r.niv + ' · ' : ''}${r.element}`;
+    if (!zm.get(zk).parts.some(p => p.id === 'rp_' + key)) zm.get(zk).parts.push({ id: 'rp_' + key, name: `${r.niv ? r.niv + ' · ' : ''}${r.element}`, docs });
+  }
+  l.zones = [...zm.values()].sort((a, b) => (parseFloat(a.name.replace(/\D+/g, '')) || 0) - (parseFloat(b.name.replace(/\D+/g, '')) || 0));
+}
+async function pbChooseRec(l) {
+  const days = (await DB.byProject('receptions', l.projectId)).filter(d => kindOf(d) === 'Ferraillage').sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const v = await menu('Remplir depuis le programme de réception', [
+    { label: 'Aujourd\u2019hui — se met à jour chaque jour', icon: 'calendar', value: 'today' },
+    ...days.slice(0, 20).map(d => ({ label: `Le ${fmtDate(d.date)} · ${d.rows.filter(r => r.element).length} ouvrage(s)`, icon: 'layers', value: 'd:' + d.date })),
+    ...(l.recSrc ? [{ label: 'Ne plus lier (garder la liste actuelle)', icon: 'close', value: 'off' }] : []),
+  ]);
+  if (!v) return false;
+  if (v === 'off') { delete l.recSrc; return true; }
+  if (!l.recSrc && plansboxCount(l) && !await confirmBox('Les zones / parties seront remplacées par celles du programme de réception. Les plans déjà ajoutés restent dans Drive. Continuer ?', 'Continuer')) return false;
+  l.recSrc = v === 'today' ? { mode: 'today' } : { mode: 'day', date: v.slice(2) };
+  return true;
 }

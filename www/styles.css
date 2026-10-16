@@ -1115,3 +1115,9 @@ body:has(.fullpage) .sharebar, body:has(.sheet-bg) .sharebar { display: none; }
 .dcf-ban { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 11px 14px; margin-bottom: 10px; border-radius: 14px; border: 1px solid rgba(245,158,11,.4); background: rgba(245,158,11,.1); color: #e5e7eb; }
 .dcf-ban .ic { font-size: 22px; } .dcf-ban .grow { flex: 1; display: grid; } .dcf-ban small { color: #cbd5e1; } .dcf-ban .g { color: #4ade80; } .dcf-ban .o { color: #fbbf24; }
 .dcf-leg { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12.5px; color: var(--muted); margin: 4px 2px 10px; } .dcf-leg i { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+/* placer un ouvrage sur un plan */
+.place-ban { position: absolute; left: 10px; right: 10px; top: 64px; z-index: 30; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: rgba(37,99,235,.95); color: #fff; font-size: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.35); }
+.place-ban span { flex: 1; } .place-ban button { border: 0; border-radius: 10px; padding: 7px 12px; background: rgba(255,255,255,.2); color: #fff; font-weight: 700; }
+/* pin Plans lié au programme de réception */
+.pb-rec { display: grid; gap: 2px; width: 100%; text-align: left; padding: 9px 12px; margin: 4px 0 8px; border-radius: 12px; border: 1px solid rgba(96,165,250,.45); background: rgba(59,130,246,.12); color: #e5e7eb; font-size: 13.5px; }
+.pb-rec small { color: #93c5fd; font-size: 12px; }

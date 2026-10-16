@@ -86,6 +86,7 @@ const Sync = (() => {
       put(l.fileId, base, clean(l.name));
       for (const it of l.items || []) if (it.fileId) put(it.fileId, [...el, it.cat || 'Documents'], clean(it.name || it.cat));
       for (const z of l.zones || []) for (const pt of z.parts || []) for (const dd of pt.docs || []) if (dd.fileId) put(dd.fileId, [...base, 'Plans par ouvrage', z.name, pt.name], clean(dd.name));
+      for (const [k, docs] of Object.entries(l.recDocs || {})) for (const dd of docs) if (dd.fileId) put(dd.fileId, [...base, 'Plans par ouvrage', (l.recNames || {})[k] || 'Ouvrage'], clean(dd.name));
       (l.photos || []).forEach((id, i) => put(id, [...base, 'Photos et notes', l.name || 'Pin'], `${clean(l.name || 'Photo')} - ${i + 1}`));
       if (l.kind === 'local' && l.lots) { const pr = PR[l.projectId] || {}; for (const [lid, rr] of Object.entries(l.lots)) { const lot = (pr.lots || []).find(x => x.id === lid); (rr.photos || []).forEach((id, i) => put(id, [pj(l.projectId), '11 - Avancement', F[pl.folderId] || 'Sans dossier', lot ? lot.name : 'Lot', l.name || 'Local'], `${clean(l.name || 'Local')} - ${i + 1}`)); } }
       for (const n of l.notes || []) { const d = new Date(n.at).toISOString().slice(0, 10); (n.photos || []).forEach((id, i) => put(id, [...base, 'Photos et notes', l.name || 'Pin', 'Notes'], `Note ${d} - ${i + 1}`)); if (n.audio) put(n.audio, [...base, 'Photos et notes', l.name || 'Pin', 'Notes'], `Note vocale ${d}`); }

@@ -492,6 +492,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
             <div class="ph3-b ok"><div class="fld">✅ ${isBeton(K) ? 'Réparation des défauts' : 'Réparation des anomalies'}</div>${thumbs(retours, 'retourIds')}
               ${r.status === 'reserve' || anoms.length || r.liftedAt ? `<button type="button" class="btn ${r.liftedAt ? 'ghost' : ''} small" data-a="lift" style="align-self:flex-start;margin-top:8px">${icon('check')} ${r.liftedAt ? `${isBeton(K) ? 'Réparé' : 'Réserve levée'} le ${recDateLabel(r.liftedAt)} (annuler)` : (isBeton(K) ? 'Marquer comme réparé' : 'Marquer la réserve comme levée')}</button>` : ''}</div>
           </div>
+          ${!isNew ? `<button type="button" class="btn ghost small bon-btn" data-a="place">📍 ${r.pinId ? 'Voir sur le plan / déplacer' : 'Placer sur un plan'}</button>` : ''}
           ${!isNew ? `<button type="button" class="btn ghost small bon-btn" data-a="bon">📝 ${r.bon ? 'Bon de bétonnage (voir / modifier)' : 'Bon de bétonnage'}</button>` : ''}
           ${!isNew && !isBeton(K) ? `<button type="button" class="btn ghost small cp-btn" data-a="cpb">${icon('calendar')} Copier vers le programme de bétonnage</button>` : ''}
           ${[...photos, ...anoms, ...retours].some(x => x.blob) && !isNew ? `<button type="button" class="btn ghost small fr-btn" data-a="free">☁ Libérer ${[...photos, ...anoms, ...retours].filter(x => x.blob).length} photo(s) du téléphone</button>` : ''}${[...photos, ...anoms, ...retours].some(x => !x.blob && x.freed) ? `<div class="fr-mini">☁ ${[...photos, ...anoms, ...retours].filter(x => !x.blob && x.freed).length} photo(s) uniquement dans Drive</div>` : ''}
@@ -501,6 +502,23 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
             <button class="btn ghost" data-a="cancel">Annuler</button><button class="btn" data-a="ok">${isNew ? 'Ajouter' : 'Enregistrer'}</button></div>
           ${isNew ? `<button class="btn ghost" data-a="okmore" style="margin-top:-4px">Ajouter et ligne suivante</button>` : `<button class="btn ghost" data-a="wa" style="margin-top:-4px">${icon('share')} Envoyer cet ouvrage (WhatsApp)</button>${(r.photoIds.length + r.retourIds.length) ? `<button class="btn ghost" data-a="waph" style="margin-top:-4px">${icon('camera')} Envoyer toutes ses photos (${r.photoIds.length + r.retourIds.length})</button>` : ''}`}`;
         Thumbs.fill(f);
+        const plc = $('[data-a=place]', f); if (plc) plc.onclick = async (e) => {
+          e.preventDefault(); if (!await commit()) return;
+          const L = r.pinId ? await DB.get('links', r.pinId) : null;
+          if (L) {
+            const v = await menu(r.element, [{ label: 'Ouvrir le plan', icon: 'plans', value: 'open' }, { label: 'Changer l\u2019emplacement', icon: 'pin', value: 'move' }, { label: 'Retirer du plan', icon: 'trash', danger: true, value: 'del' }]);
+            if (!v) return;
+            if (v === 'open') { const pl = await DB.get('plans', L.planId); if (!pl) return toast('Plan supprimé'); s.close(); return openPlanViewer(pl, planCtx(() => {})); }
+            if (v === 'del') { await DB.del('links', L.id); r.pinId = null; await commit(); return draw(); }
+          }
+          const pl = await pickPlanFor(day.projectId, r.niv); if (!pl) return;
+          s.close();
+          openPlanViewer(pl, { ...planCtx(() => render()), place: { label: r.element, onPlace: async (x, y, plan) => {
+            if (L) await DB.del('links', L.id);
+            const nl = await DB.put('links', { projectId: day.projectId, planId: plan.id, kind: 'recpin', shape: 'point', x, y, name: recPinName(r), recDay: day.id, recRow: r.id, recStatus: r.status, recKind: K, items: [] });
+            r.pinId = nl.id; await save(); toast('📍 Placé sur le plan ✓');
+          } } });
+        };
         const bnb = $('[data-a=bon]', f); if (bnb) bnb.onclick = async (e) => { e.preventDefault(); if (!await commit()) return; const cfg = bonCfg(p); const b = r.bon ? { ...r.bon, sig: { ...(r.bon.sig || {}) } } : bonFromRow(r, day.date, cfg); await openBon(p, b, async (bb) => { r.bon = bb; await commit(); }); draw(); };
         const cpb = $('[data-a=cpb]', f); if (cpb) cpb.onclick = async (e) => { e.preventDefault(); if (!await commit()) return; await copyToBeton(day.projectId, [r]); };
         const frb = $('[data-a=free]', f); if (frb) frb.onclick = async (e) => { e.preventDefault(); if (!await commit()) return; await freeFilesUI([...r.photoIds, ...(r.anomIds || []), ...r.retourIds], r.element || 'ouvrage'); draw(); };
@@ -541,14 +559,16 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         const commit = async () => {
           if (!r.element.trim()) { toast('Écrivez l\'élément'); return false; }
           if (isNew) day.rows.push(r); else day.rows[i] = r;
-          await save(); return true;
+          await save();
+          if (r.pinId) { const L = await DB.get('links', r.pinId); if (L && (L.recStatus !== r.status || L.name !== recPinName(r))) { L.recStatus = r.status; L.name = recPinName(r); await DB.put('links', L); } }
+          return true;
         };
         $('[data-a=cancel]', f).onclick = () => s.close();
         $('[data-a=ok]', f).onclick = async () => { if (await commit()) { s.close(); render(); } };
         const om = $('[data-a=okmore]', f); if (om) om.onclick = async () => { if (await commit()) { s.close(); render(); editRow(null); } };
         const wa = $('[data-a=wa]', f); if (wa) wa.onclick = async () => { if (await commit()) shareRow(p, day, r); };
         const wph = $('[data-a=waph]', f); if (wph) wph.onclick = async () => { const ld = loading('Préparation des photos…'); try { await sharePhotos([...r.photoIds, ...(r.anomIds || []), ...r.retourIds], `${r.zone ? 'Zone ' + r.zone + ' · ' : ''}${r.niv ? r.niv + ' · ' : ''}${r.element} — ${fmtDate(day.date)}`, r.element || 'photo'); } finally { ld.close(); } };
-        const del = $('[data-a=del]', f); if (del) del.onclick = async () => { if (await confirmBox('Supprimer cette ligne ?')) { day.rows.splice(i, 1); await save(); s.close(); render(); } };
+        const del = $('[data-a=del]', f); if (del) del.onclick = async () => { if (await confirmBox('Supprimer cette ligne ?')) { if (r.pinId) await DB.del('links', r.pinId); day.rows.splice(i, 1); await save(); s.close(); render(); } };
         if (isNew && !r.element) setTimeout(() => $('[name=element]', f)?.focus(), 250);
       }
       draw();
@@ -928,4 +948,18 @@ function openDecof(p) {
     };
     draw();
   });
+}
+
+// ---------- Ouvrage placé sur un plan ----------
+const recPinName = (r) => `${r.zone ? 'Z' + r.zone + ' · ' : ''}${r.element || ''}`.slice(0, 60);
+async function pickPlanFor(projectId, niv) {
+  const [plans, folders] = await Promise.all([DB.byProject('plans', projectId), DB.byProject('folders', projectId)]);
+  const F = Object.fromEntries(folders.map(f => [f.id, f.name]));
+  const cur = plans.filter(p => typeof isCurrentPlan !== 'function' || isCurrentPlan(p));
+  const n = normQ(niv || '');
+  const score = (p) => (n && normQ(`${F[p.folderId] || ''} ${p.name}`).includes(n) ? 0 : 1);
+  cur.sort((a, b) => score(a) - score(b) || (F[a.folderId] || '').localeCompare(F[b.folderId] || '', 'fr', { numeric: true }) || a.name.localeCompare(b.name, 'fr', { numeric: true }));
+  if (!cur.length) { toast('Aucun plan dans ce projet'); return null; }
+  const id = await menu(`Sur quel plan${niv ? ' (' + niv + ')' : ''} ?`, cur.slice(0, 40).map(p => ({ label: `${score(p) ? '' : '⭐ '}${F[p.folderId] ? F[p.folderId] + ' › ' : ''}${p.name}`, icon: 'plans', value: p.id })));
+  return cur.find(p => p.id === id) || null;
 }

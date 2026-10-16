@@ -145,6 +145,8 @@ async function openPlanViewer(plan, ctx) {
   const close = () => { unBack(); teardown(); };
   const unBack = pushBack(teardown);
   $('[data-a=back]', el).onclick = close;
+  // mode « placer un ouvrage » : un appui sur le plan donne l'emplacement
+  if (ctx.place) { const pb = document.createElement('div'); pb.className = 'place-ban'; pb.innerHTML = `<span>📍 Touchez l\u2019emplacement de <b>${esc(ctx.place.label)}</b></span><button>Annuler</button>`; el.appendChild(pb); pb.querySelector('button').onclick = close; }
 
   // ---------- Transform ----------
   function fit() {
@@ -708,13 +710,14 @@ async function openPlanViewer(plan, ctx) {
         const [lx, ly] = linkXY(l);
         // le pin ET son nom sont touchables (un simple appui ouvre)
         if (l.kind === 'planlink' || l.kind === 'plansbox') consider(Math.min(Math.hypot(x - lx, y - ly) * 0.8, Math.hypot((x - lx) * 0.5, y - (ly + head(l.kind === 'plansbox' ? 32 : 29)))), { kind: l.kind, obj: l });
-        else consider(Math.min(Math.hypot(x - lx, y - (ly - head(31))) * 0.8, Math.hypot(x - lx, y - ly), Math.hypot((x - lx) * 0.5, y - (ly + head(16)))), { kind: l.kind === 'photonote' ? 'photonote' : 'link', obj: l });
+        else consider(Math.min(Math.hypot(x - lx, y - (ly - head(31))) * 0.8, Math.hypot(x - lx, y - ly), Math.hypot((x - lx) * 0.5, y - (ly + head(16)))), { kind: l.kind === 'photonote' ? 'photonote' : l.kind === 'recpin' ? 'recpin' : 'link', obj: l });
       }
     }
     return best;
   }
 
   async function onTap([x, y], aimed = false) {
+    if (ctx.place) { const ok = await ctx.place.onPlace(x, y, plan); if (ok !== false) close(); return; }
     // double-tap = zoom
     const now = Date.now();
     if (!aimed && st.tool === 'pan' && now - lastTap < 300 && !hitMarker(x, y)) {
@@ -749,6 +752,11 @@ async function openPlanViewer(plan, ctx) {
       return toast('Aucune annotation ici');
     }
     const hit = aimed ? null : hitMarker(x, y);
+    if (hit && hit.kind === 'recpin' && st.tool !== 'select') {
+      const d = await DB.get('receptions', hit.obj.recDay);
+      if (!d) return toast('Ce tableau a été supprimé');
+      await openReceptionDay(d, { focus: hit.obj.recRow }); await reloadData(); return;
+    }
     if (hit && hit.kind === 'photonote' && ['pan', 'pin', 'link', 'planlink', 'plansbox', 'photonote'].includes(st.tool)) {
       await openPhotoNote(hit.obj, ctx);
       await reloadData(); return;
@@ -787,7 +795,10 @@ async function openPlanViewer(plan, ctx) {
     } else if (st.tool === 'plansbox') {
       const r = await formSheet('Pin « Plans »', [{ name: 'name', label: 'Nom affiché sur le plan', placeholder: 'Ex : Plans R+5 · Zone 1' }], { okLabel: 'Créer' });
       if (!r) return;
+      const src = await menu('Contenu du pin', [{ label: 'Vide — j\u2019ajoute zones et parties moi-même', icon: 'plus', value: 'empty' }, { label: 'Depuis le programme de réception…', icon: 'calendar', value: 'rec' }]);
+      if (!src) return;
       const l = await DB.put('links', { projectId: plan.projectId, planId: plan.id, kind: 'plansbox', shape: 'point', x, y, name: r.name || 'Plans', zones: [], items: [] });
+      if (src === 'rec' && await pbChooseRec(l)) await DB.put('links', l);
       await reloadData(); await openPlansBox(l, ctx); await reloadData();
     } else if (st.tool === 'draw' && st.shape === 'text') {
       const r = await formSheet('Texte', [{ name: 'text', label: 'Texte à afficher sur le plan' }], { okLabel: 'Ajouter' });
@@ -871,6 +882,7 @@ const PIN_EMOJIS = ['📐', '🔩', '✂️', '📷', '📄', '📝', '🧊', '�
 const PIN_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#7c3aed', '#ea580c', '#0891b2', '#ca8a04', '#db2777', '#475569', '#0f766e', '#1e3a8a', '#111827'];
 function pinLook(l) {
   if (l.kind === 'plansbox') return { e: l.emoji || '📚', c: l.pinColor || '#1e3a8a' };
+  if (l.kind === 'recpin') return { e: l.recKind === 'Bétonnage' ? '🧱' : '🔩', c: ({ ok: '#16a34a', reserve: '#f59e0b', pending: '#64748b', progress: '#2563eb' })[l.recStatus] || '#64748b' };
   if (l.kind === 'photonote') return l.state === 'done' ? { e: '✅', c: '#16a34a' } : { e: l.emoji || '📷', c: l.pinColor || '#0d9488' };
   if (l.emoji) return { e: l.emoji, c: l.pinColor || l.color || '#2563eb' };
   const cats = [...new Set((l.items || []).map(i => i.kind === 'url' && !LINK_CATS.some(c => c.key === i.cat) ? 'url' : i.cat))];
