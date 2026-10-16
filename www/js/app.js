@@ -1,4 +1,28 @@
-try { if (localStorage.getItem('theme') === 'glass') document.documentElement.classList.add('glass'); } catch (e) {}
+// ---------- Thèmes ----------
+const THEMES = [
+  ['dark', 'Classique', 'linear-gradient(160deg,#2c313a,#1b1e24)', '#5b8def'],
+  ['glass', 'Verre', 'radial-gradient(60% 40% at 0 0,#3b82f6aa,transparent),radial-gradient(50% 40% at 100% 40%,#a855f7aa,transparent),#0e1430', 'linear-gradient(135deg,#4f8cff,#a855f7)'],
+  ['sakura', '🌸 Sakura', 'radial-gradient(60% 40% at 0 0,#ff6faecc,transparent),radial-gradient(50% 40% at 100% 40%,#ffb6d5aa,transparent),#2a0f22', 'linear-gradient(135deg,#ff6fae,#c084fc)'],
+  ['lavande', '💜 Lavande', 'radial-gradient(60% 40% at 0 0,#a78bfacc,transparent),radial-gradient(50% 40% at 100% 40%,#f0abfc88,transparent),#1b1533', 'linear-gradient(135deg,#a78bfa,#f0abfc)'],
+  ['peche', '🍑 Pêche', 'radial-gradient(60% 40% at 0 0,#fb923ccc,transparent),radial-gradient(50% 40% at 100% 40%,#fda4afaa,transparent),#2a1514', 'linear-gradient(135deg,#fb923c,#f472b6)'],
+  ['ocean', '🌊 Océan', 'radial-gradient(60% 40% at 0 0,#06b6d4cc,transparent),radial-gradient(50% 40% at 100% 40%,#3b82f6aa,transparent),#061a26', 'linear-gradient(135deg,#06b6d4,#3b82f6)'],
+  ['foret', '🌿 Forêt', 'radial-gradient(60% 40% at 0 0,#22c55ebb,transparent),radial-gradient(50% 40% at 100% 40%,#14b8a688,transparent),#0b1a12', 'linear-gradient(135deg,#22c55e,#14b8a6)'],
+  ['sunset', '🌅 Sunset', 'radial-gradient(60% 40% at 0 0,#f97316cc,transparent),radial-gradient(50% 40% at 100% 40%,#ec4899bb,transparent),#1f0f24', 'linear-gradient(135deg,#f97316,#8b5cf6)'],
+  ['noir-or', '🖤 Noir & Or', 'radial-gradient(60% 40% at 0 0,#d4a53766,transparent),#0a0a0a', 'linear-gradient(135deg,#d4a537,#f5d77a)'],
+];
+function applyTheme(t) {
+  const h = document.documentElement;
+  h.className = h.className.split(' ').filter(c => c && c !== 'glass' && !c.startsWith('th-')).join(' ');
+  if (t && t !== 'dark') { h.classList.add('glass'); if (t !== 'glass') h.classList.add('th-' + t); }
+  const meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.content = ({ dark: '#1b1e24', glass: '#0e1430' })[t] || getComputedStyle(h).getPropertyValue('--base').trim() || '#1b1e24';
+}
+const curTheme = () => { try { return localStorage.getItem('theme') || 'dark'; } catch (e) { return 'dark'; } };
+try { applyTheme(curTheme()); } catch (e) {}
+function chooseTheme(after) {
+  const s = sheet(`<h3 style="margin:0 0 10px">Apparence</h3><div class="thm-grid">${THEMES.map(([k, l, bg, fab]) => `<button class="thm ${curTheme() === k ? 'on' : ''}" data-t="${k}"><i style="background:${bg};--fab:${fab}"><u></u></i>${l}</button>`).join('')}</div>
+    <small style="color:var(--muted)">Le thème s'applique tout de suite, sur tous les écrans.</small>`, {});
+  $$('[data-t]', s.el).forEach(b => b.onclick = () => { const t = b.dataset.t; try { localStorage.setItem('theme', t); } catch (e) {} applyTheme(t); $$('.thm', s.el).forEach(x => x.classList.toggle('on', x === b)); after && after(); });
+}
 // Application principale : écrans et navigation
 const CATEGORIES = ['Gros œuvre', 'Coffrage', 'Ferraillage', 'Béton', 'Maçonnerie', 'Étanchéité', 'Électricité', 'Plomberie', 'Menuiserie', 'Finitions', 'Sécurité', 'Qualité'];
 const LINK_CATS = [
@@ -182,7 +206,8 @@ async function renderHome() {
       { label: 'Tableau de dessin', icon: 'brush', value: 'board' },
       { label: 'Fonctions affichées', icon: 'grid', value: 'feat' },
       { label: 'Rechercher une mise à jour', icon: 'upload', value: 'upd' },
-      { label: 'Apparence (classique / verre)', icon: 'brush', value: 'theme' },
+      { label: 'Apparence (thèmes : Sakura, Océan, Noir & Or…)', icon: 'brush', value: 'theme' },
+      { label: `Écran d'ouverture : ${Splash.on() ? (Splash.soundOn() ? 'animé + son' : 'animé, sans son') : 'désactivé'}`, icon: 'eye', value: 'splash' },
       { label: 'Langue · اللغة · Language', icon: 'globe', value: 'lang' },
       { label: 'Mon prénom', icon: 'edit', value: 'name' },
       { label: 'Restaurer une sauvegarde', icon: 'undo', value: 'restore' },
@@ -200,7 +225,9 @@ async function renderHome() {
     if (v === 'lic') openLicences();
     if (v === 'licinfo') { const L = Lic.get(); alertBox(`Licence : ${L.name || ''} (${L.code})\nLes projets créés avec cette licence sont partagés en lecture seule avec ${L.ownerName || 'le titulaire de la licence'}, pour le suivi du travail.${L.expires ? '\nExpire le ' + fmtDate(L.expires) : ''}`); }
     if (v === 'lang') chooseLang();
-    if (v === 'theme') { const t = await menu('Apparence', [{ label: 'Classique (sombre)', icon: 'check', value: 'dark', checked: !document.documentElement.classList.contains('glass') }, { label: 'Verre (glass) — transparent et coloré', icon: 'brush', value: 'glass', checked: document.documentElement.classList.contains('glass') }]); if (t) { document.documentElement.classList.toggle('glass', t === 'glass'); try { localStorage.setItem('theme', t); } catch (e) {} renderHome(); } }
+    if (v === 'theme') chooseTheme(() => {});
+    if (v === 'splash') { const t = await menu('Écran d\'ouverture', [{ label: 'Animé + son du clavier', icon: 'check', value: 'a', checked: Splash.on() && Splash.soundOn() }, { label: 'Animé, sans son', icon: 'check', value: 'b', checked: Splash.on() && !Splash.soundOn() }, { label: 'Désactivé', icon: 'close', value: 'c', checked: !Splash.on() }, { label: '▶ Voir l\'animation', icon: 'eye', value: 'd' }]);
+      if (t === 'a' || t === 'b') { Splash.set('splash.off', '0'); Splash.set('splash.sound', t === 'a' ? '1' : '0'); } if (t === 'c') Splash.set('splash.off', '1'); if (t === 'd') Splash.show(true); }
   };
   const r2 = $('[data-a=restore2]'); if (r2) r2.onclick = restoreBackup;
   $('[data-a=new]').onclick = async () => {
@@ -1353,6 +1380,7 @@ async function openPlansQuick() {
   const gend = e => { if (gdrag && gdrag.ctl) { const dx = e.changedTouches[0].clientX - gx; gdrag.ctl.end(dx, dx / Math.max(1, Date.now() - gt)); } gon = false; gdrag = null; };
   document.addEventListener('touchend', gend, { passive: true }); document.addEventListener('touchcancel', gend, { passive: true });
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  try { Splash.show(); } catch (e) {}
   licBoot().catch(e => console.warn('licence', e)).finally(() => { renderHome(); Sync.start(); setTimeout(() => checkUpdate(false).catch(() => {}), 2500); try { dwgCrashCheck(); } catch (e) {} try { if (AppLock.get()) lockScreen(); } catch (e) {} setTimeout(showWhatsNew, 1800); setTimeout(() => otaBoot().catch(() => {}), 1200); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(false).catch(() => {}); });
   // photos partagées depuis la galerie (Partager → Chantier)
