@@ -93,6 +93,13 @@ jobs:
           ./gradlew assembleDebug --no-daemon
           cp app/build/outputs/apk/debug/app-debug.apk ../Chantier.apk
 
+      - name: Sign with the fixed key (same signature for every version → updates install over the old one)
+        run: |
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          $BT/apksigner sign --ks keystore/debug.keystore --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android Chantier.apk
+          $BT/apksigner verify --print-certs Chantier.apk | tee certs.txt
+          grep -qi "e3ecf43100a66eb4e55ef18aa18236a4374f56d0e3651ef30b62d9d058bee024" certs.txt || (echo "WRONG SIGNING KEY" && exit 1)
+
       - uses: actions/upload-artifact@v4
         with:
           name: Chantier-apk
