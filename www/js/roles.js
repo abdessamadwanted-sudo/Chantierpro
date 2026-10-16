@@ -83,6 +83,12 @@ const AppLock = {
   set(v) { try { v ? localStorage.setItem('lock', JSON.stringify(v)) : localStorage.removeItem('lock'); } catch (e) {} },
   async hash(pin) { return licHash('chantier-pin|' + pin); },
 };
+// empreinte / visage (plugin natif) — le code PIN reste toujours possible
+const Bio = {
+  P: () => window.Capacitor?.Plugins?.NativeBiometric,
+  async available() { try { const P = Bio.P(); if (!P) return false; const r = await P.isAvailable(); return !!(r && r.isAvailable); } catch (e) { return false; } },
+  async verify() { try { await Bio.P().verifyIdentity({ reason: 'Déverrouiller Chantier', title: 'Chantier', subtitle: 'Empreinte ou visage', description: '' }); return true; } catch (e) { return false; } },
+};
 let _lockHiddenAt = 0;
 function lockScreen() {
   return new Promise((resolve) => {
@@ -95,7 +101,8 @@ function lockScreen() {
       el.innerHTML = `<div class="lk-in"><div class="lk-logo">${icon('hard')}</div><b>${esc(name ? 'Bonjour ' + name : 'Chantier')}</b><span>${esc(msg || 'Entrez votre code PIN')}</span>
         <div class="lk-dots">${Array.from({ length: L.len || 4 }, (_, i) => `<i class="${i < pin.length ? 'on' : ''}"></i>`).join('')}</div>
         <div class="lk-pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9, '', 0, '⌫'].map(k => `<button data-k="${k}" ${k === '' ? 'disabled' : ''}>${k}</button>`).join('')}</div>
-        <button class="linkbtn" data-a="forgot">Code oublié ?</button></div>`;
+        ${L.bio ? '<button class="lk-bio" data-a="bio">👆 Empreinte / visage</button>' : ''}<button class="linkbtn" data-a="forgot">Code oublié ?</button></div>`;
+      const bb = $('[data-a=bio]', el); if (bb) bb.onclick = tryBio;
       $$('[data-k]', el).forEach(b => b.onclick = async () => {
         const k = b.dataset.k; if (k === '⌫') pin = pin.slice(0, -1); else if (k !== '' && pin.length < (L.len || 4)) pin += k;
         if (pin.length === (L.len || 4)) {
@@ -117,19 +124,28 @@ function lockScreen() {
         try { const u = await licOwnerLogin(); if (u) { AppLock.set(null); el.remove(); toast('Code PIN retiré ✓'); resolve(); } } catch (e) { alertBox(e.message || String(e)); }
       };
     };
+    const tryBio = async () => { if (await Bio.verify()) { el.remove(); resolve(); } };
     draw(); document.body.appendChild(el);
+    if (L.bio) Bio.available().then(ok => ok && setTimeout(tryBio, 300));
   });
 }
 async function setPinDialog() {
   const cur = AppLock.get();
   const v = await menu('Verrouillage par code PIN', [
     { label: cur ? 'Changer le code PIN' : 'Créer un code PIN', icon: 'edit', value: 'set' },
-    ...(cur ? [{ label: `Verrouiller après ${cur.after || 5} min en arrière-plan`, icon: 'history', value: 'after' }, { label: 'Retirer le code PIN', icon: 'close', danger: true, value: 'del' }] : []),
+    ...(cur ? [{ label: cur.bio ? '👆 Empreinte / visage : activé (désactiver)' : '👆 Déverrouiller avec l\'empreinte / le visage', icon: 'check', value: 'bio' }, { label: `Verrouiller après ${cur.after || 5} min en arrière-plan`, icon: 'history', value: 'after' }, { label: 'Retirer le code PIN', icon: 'close', danger: true, value: 'del' }] : []),
   ]);
   if (v === 'set') {
     const r = await formSheet('Code PIN', [{ name: 'a', label: 'Nouveau code (4 à 6 chiffres)', type: 'password', placeholder: '••••' }, { name: 'b', label: 'Confirmez le code', type: 'password' }], { okLabel: 'Enregistrer' });
     if (!r) return; if (!/^\d{4,6}$/.test(r.a || '')) return alertBox('Le code doit contenir 4 à 6 chiffres.'); if (r.a !== r.b) return alertBox('Les deux codes sont différents.');
-    AppLock.set({ h: await AppLock.hash(r.a), len: r.a.length, after: (cur && cur.after) || 5 }); toast('🔒 Code PIN enregistré');
+    AppLock.set({ h: await AppLock.hash(r.a), len: r.a.length, after: (cur && cur.after) || 5, bio: !!(cur && cur.bio) }); toast('🔒 Code PIN enregistré');
+    if (!cur && await Bio.available() && (await menu('Utiliser aussi l\'empreinte / le visage pour déverrouiller ?', [{ label: '👆 Oui, activer', value: 'y' }, { label: 'Non, le code PIN suffit', icon: 'close', value: 'n' }])) === 'y') { if (await Bio.verify()) { const c2 = AppLock.get(); c2.bio = true; AppLock.set(c2); toast('👆 Empreinte activée'); } }
+  }
+  if (v === 'bio') {
+    if (cur.bio) { cur.bio = false; AppLock.set(cur); return toast('Empreinte désactivée'); }
+    if (!(await Bio.available())) return alertBox('Empreinte / visage non disponible : enregistrez une empreinte dans les réglages du téléphone, puis réessayez.');
+    if (!(await Bio.verify())) return toast('Annulé');
+    cur.bio = true; AppLock.set(cur); toast('👆 Empreinte activée');
   }
   if (v === 'after') { const m = await menu('Verrouiller après', [0, 1, 5, 15, 60].map(n => ({ label: n ? `${n} min en arrière-plan` : 'Immédiatement', value: String(n), checked: cur.after === n }))); if (m != null) { cur.after = +m; AppLock.set(cur); } }
   if (v === 'del') { if (!cur) return; await lockScreen(); AppLock.set(null); toast('Code PIN retiré'); }

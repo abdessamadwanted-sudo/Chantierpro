@@ -47,7 +47,7 @@ async function licVerify(blocking) {
   try { const { fs } = await licFb(); const d = await licTimeout(fs.collection('licences').doc(st.code).get()); L = d.exists ? d.data() : { status: 'revoked' }; }
   catch (e) { err = e; }
   if (L) {
-    st.status = L.status; st.expires = L.expires || null; st.checkedAt = Date.now(); st.name = L.name; st.ownerName = L.ownerName || ''; st.block = L.block || null; st.role = L.role || null; st.pack = L.pack || null; st.team = L.team || []; licGuardSync();
+    st.status = L.status; st.expires = L.expires || null; st.checkedAt = Date.now(); st.name = L.name; st.ownerName = L.ownerName || ''; st.block = L.block || null; st.role = L.role || null; st.suiviPhotos = L.suiviPhotos !== false; st.pack = L.pack || null; st.team = L.team || []; licGuardSync();
     const fOld = JSON.stringify(st.features || null); st.features = L.features || null;
     if (!blocking && fOld !== JSON.stringify(st.features)) setTimeout(() => { try { Lic.set(st); App.project ? renderSection() : renderHome(); toast('Fonctions mises à jour par le titulaire'); } catch (e) {} }, 0);
     if (L.device && L.device.id && L.device.id !== Lic.dev()) st.status = 'moved';
@@ -207,6 +207,7 @@ async function openLicences() {
     const v = await menu(`${L.name} · ${L.code}`, [
       { label: 'Voir ses projets (suivi)', icon: 'layers', value: 'see' },
       { label: 'Fonctions autorisées (ce qu\'il voit)', icon: 'grid', value: 'feat' },
+      { label: L.suiviPhotos === false ? '📷 Photos dans le suivi : non (activer)' : '📷 Photos dans le suivi : oui, 30 jours (désactiver)', icon: 'image', value: 'ph' },
       { label: `Rôle et pack${L.role ? ' · ' + ((roleOf(L.role) || {}).n || '') : ''}`, icon: 'team', value: 'role' },
       { label: L.chef ? `Rattaché à : ${(list.find(x => x.code === L.chef) || {}).name || L.chef} (changer)` : 'Rattacher à un chef (équipe)…', icon: 'layers', value: 'chef' },
       L.status === 'active' ? { label: 'Suspendre (temporaire)', icon: 'calendar', value: 'disable' } : { label: 'Réactiver', icon: 'check', value: 'enable' },
@@ -219,6 +220,7 @@ async function openLicences() {
     try {
       if (v === 'see') return openSuivi(L);
       if (v === 'feat') { const f = await editLicFeatures(L); if (!f) return; await ref.update({ features: f }); }
+      if (v === 'ph') await ref.update({ suiviPhotos: L.suiviPhotos === false });
       if (v === 'role') {
         const r = await formSheet(`Rôle et pack · ${L.name}`, [{ name: 'role', label: 'Rôle', type: 'select', value: L.role || 'chef', options: ROLES.map(x => ({ value: x.k, label: `${x.e} ${x.n}` })) }, { name: 'pack', label: 'Pack', type: 'select', value: L.pack || 'pro', options: PACKS.map(x => ({ value: x.k, label: `${x.n} — ${x.d}` })) }], { okLabel: 'Appliquer (fonctions selon le rôle)' });
         if (r) await ref.update({ role: r.role, pack: r.pack, features: featuresFor(r.role, r.pack) });
@@ -259,16 +261,19 @@ async function licPush() {
     for (const s of SUIVI_STORES) for (const r of await DB.all(s).catch(() => [])) if ((r.updatedAt || 0) > since) { const { blob, croquis, data, annotations, ...rest } = r; out.push({ id: `${s}__${r.id}`, store: s, projectId: s === 'projects' ? r.id : r.projectId, updatedAt: r.updatedAt || 0, deleted: false, data: JSON.stringify(rest).slice(0, 900000) }); }
     for (const t of await DB.all('tomb')) if (t.at > since && SUIVI_STORES.includes(t.store)) out.push({ id: `${t.store}__${t.rid}`, store: t.store, projectId: t.projectId, updatedAt: t.at, deleted: true, data: '' });
     // miniatures (photos, PV, croquis) créées depuis le dernier envoi
-    const imgs = (await DB.all('files')).filter(f => f.blob && (f.createdAt || 0) > since && /^image\//.test(f.mime || f.blob.type || '') && f.role !== 'plan' && f.role !== 'plansrc').slice(0, 150);
+    const lim30 = Date.now() - 30 * 864e5;   // Firebase léger : miniatures des 30 derniers jours seulement, si le titulaire l'autorise
+    const imgs = st.suiviPhotos === false ? [] : (await DB.all('files')).filter(f => f.blob && (f.createdAt || 0) > Math.max(since, lim30) && /^image\//.test(f.mime || f.blob.type || '') && !['plan', 'plansrc', 'sig', 'board', 'sketchbg'].includes(f.role)).slice(0, 100);
     for (const f of imgs) { try { out.push({ id: `thumb__${f.id}`, store: 'thumb', projectId: f.projectId, updatedAt: f.createdAt || 0, deleted: false, data: await licThumb(f.blob) }); } catch (e) {} }
     for (let i = 0; i < out.length; i += 300) { const b = fs.batch(); out.slice(i, i + 300).forEach(o => b.set(col.doc(o.id), o)); await licTimeout(b.commit(), 60000); }
-    const cur = Lic.get(); cur.pushAt = start; Lic.set(cur);
+    const cur = Lic.get(); cur.pushAt = start; cur.pushN = (cur.pushN || 0) + out.length; Lic.set(cur);
+    // nettoyage (1 fois par jour) : miniatures de plus de 30 jours retirées de Firebase
+    if (Date.now() - (cur.cleanAt || 0) > 864e5) { try { const old = await licTimeout(col.where('updatedAt', '<', lim30).limit(300).get(), 30000); const th = old.docs.filter(d => d.data().store === 'thumb'); for (let i = 0; i < th.length; i += 300) { const b = fs.batch(); th.slice(i, i + 300).forEach(d => b.delete(d.ref)); await b.commit(); } } catch (e) {} const c2 = Lic.get(); c2.cleanAt = Date.now(); Lic.set(c2); }
   } finally { licPush.busy = false; }
 }
 async function licThumb(blob) {
-  const bmp = await createImageBitmap(blob), k = Math.min(1, 320 / Math.max(bmp.width, bmp.height));
+  const bmp = await createImageBitmap(blob), k = Math.min(1, 240 / Math.max(bmp.width, bmp.height));
   const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k); c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
-  return c.toDataURL('image/jpeg', 0.6);
+  return c.toDataURL('image/jpeg', 0.5);
 }
 
 // ---------- suivi : lecture (propriétaire) ----------
@@ -288,11 +293,17 @@ async function openSuivi(L) {
     const P = projects.find(p => p.id === pid);
     const head = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><h1 style="flex:1;font-size:16px">${esc(P ? P.name : 'Projets de ' + L.name)}</h1></div>`;
     if (!P) {
-      el.innerHTML = head + `<div class="lic-list"><div class="lic-sub">👁 Lecture seule · dernière mise à jour ${last ? fmtDateTime(last) : '—'}</div>${projects.map(p => {
+      const nTh = docs.filter(d => d.store === 'thumb').length, kb = Math.round(docs.reduce((a, d) => a + (d.data || '').length, 0) / 1024);
+      el.innerHTML = head + `<div class="lic-list"><div class="lic-sub">👁 Lecture seule · dernière mise à jour ${last ? fmtDateTime(last) : '—'}</div>
+        <div class="lic-sub">☁ Firebase : ${docs.length - nTh} élément(s) · ${nTh} miniature(s) · ≈ ${kb > 1024 ? (kb / 1024).toFixed(1) + ' Mo' : kb + ' Ko'} <button class="linkbtn" data-a="purge">Effacer les miniatures > 30 j</button></div>${projects.map(p => {
         const nRec = (recs.receptions || []).filter(r => r.projectId === p.id).length, nRes = (recs.tasks || []).filter(t => t.projectId === p.id).length;
         return `<button class="lic-row" data-p="${p.id}"><span class="lic-av">${esc((p.name || '?')[0])}</span><span class="grow"><b>${esc(p.name)}</b><small>${nRec} tableau(x) · ${nRes} réserve(s)</small></span>${icon('chevright')}</button>`; }).join('') || '<div class="empty">Aucun projet pour le moment.</div>'}</div>`;
       $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
-      $$('[data-p]', el).forEach(b => b.onclick = () => { pid = b.dataset.p; draw(); }); return;
+      $$('[data-p]', el).forEach(b => b.onclick = () => { pid = b.dataset.p; draw(); });
+      $('[data-a=purge]', el).onclick = async () => { const lim = Date.now() - 30 * 864e5, ld = loading('Nettoyage…'); let n = 0;
+        try { const q = await licTimeout(fs.collection('licences').doc(L.code).collection('suivi').where('updatedAt', '<', lim).get(), 60000); const th = q.docs.filter(d => d.data().store === 'thumb'); for (let i = 0; i < th.length; i += 400) { const b = fs.batch(); th.slice(i, i + 400).forEach(d => b.delete(d.ref)); await b.commit(); n += th.slice(i, i + 400).length; } }
+        catch (e) { ld.close(); return alertBox(e.message || String(e)); } ld.close(); toast(`${n} miniature(s) effacée(s)`); };
+      return;
     }
     const days = (recs.receptions || []).filter(r => r.projectId === pid).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     const tasks = (recs.tasks || []).filter(t => t.projectId === pid), reps = (recs.reports || []).filter(r => r.projectId === pid).sort((a, b) => (b.date || '').localeCompare(a.date || ''));

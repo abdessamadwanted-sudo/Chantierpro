@@ -1,5 +1,4 @@
-## Nouveautés — Phase 4 (rôles, packs, équipe, code PIN)
-- Licences : rôle (Directeur, Conducteur, Chef de chantier, TS qualité, Topographe, Second œuvre, Sous-traitant) + pack (Essentiel, Pro, Entreprise) → fonctions choisies automatiquement (modifiables une par une)
-- Équipe : rattacher une licence à un Directeur / Conducteur ; il voit le suivi de son équipe (accueil › ⋮ › Mon équipe)
-- Nouveau projet : type (Bâtiment, Équipement, Génie civil, Second œuvre, VRD, Rénovation) → sections adaptées ; modifiable dans Paramètres › Type de projet & fonctions
-- Code PIN : bouton ⏻ › Protéger par un code PIN ; verrouillage à l'ouverture et après quelques minutes en arrière-plan ; « Code oublié ? »
+## Nouveautés — empreinte · suivi plus léger
+- Déverrouillage par empreinte / visage (⏻ › Code PIN › Empreinte) ; le code PIN reste possible
+- Suivi des licences plus léger dans Firebase : miniatures plus petites, seulement les 30 derniers jours, effacées ensuite automatiquement
+- Licences : « Photos dans le suivi » oui / non pour chaque personne ; compteur Firebase (éléments, miniatures, taille) et « Effacer les miniatures > 30 j »
