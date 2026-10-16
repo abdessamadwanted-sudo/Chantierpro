@@ -1185,3 +1185,38 @@ body:has(.fullpage) .sharebar, body:has(.sheet-bg) .sharebar { display: none; }
 .ind-dt input { min-width: 0; }
 .rec td.ix { white-space: nowrap; }
 .rec td.ix .ix-d { font-weight: 500; color: #64748b; font-size: 11px; }
+/* recherche intelligente CPS + fiches */
+.cl-ideas { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12.5px; color: var(--muted); }
+.cl-ideas span { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--text); border-radius: 999px; padding: 3px 10px; font-weight: 600; }
+.cl-ideas span.raw { background: var(--card2); }
+.cl-hm { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cl-sc { margin-left: auto; width: 54px; height: 6px; border-radius: 3px; background: var(--line); position: relative; overflow: hidden; }
+.cl-sc::after { content: ''; position: absolute; inset: 0 auto 0 0; width: var(--p); background: #22c55e; border-radius: 3px; }
+.clf-row { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 10px; scrollbar-width: none; }
+.clf-row button { flex: none; border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 12px; padding: 9px 12px; font-size: 13.5px; font-weight: 600; }
+.clf-h { display: flex; gap: 10px; align-items: center; font-size: 18px; margin-bottom: 10px; } .clf-h span { font-size: 28px; }
+.clf-t { display: grid; gap: 6px; margin-bottom: 10px; }
+.clf-t div { display: grid; grid-template-columns: 1fr fit-content(50%); gap: 10px; background: var(--card2); border-radius: 10px; padding: 9px 11px; font-size: 13.5px; }
+.clf-t b { text-align: right; }
+.clf-w { font-size: 12.5px; color: var(--orange); margin-bottom: 12px; }
+/* Stockage & sauvegarde */
+.st-body { padding: 12px 14px 40px; overflow: auto; flex: 1; display: grid; gap: 10px; align-content: start; }
+.st-hero { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.st-hero div { background: linear-gradient(135deg, #1e3a8a, #312e81); border-radius: 16px; padding: 14px; display: grid; gap: 2px; }
+.st-hero b { font-size: 24px; } .st-hero span { font-size: 12.5px; color: #c7d2fe; }
+.st-sync { display: flex; gap: 10px; align-items: center; border-radius: 14px; padding: 12px; background: var(--card); border: 1px solid var(--line); }
+.st-sync.ok { border-color: #16a34a; } .st-sync.w { border-color: var(--orange); } .st-sync.off { border-color: var(--red); }
+.st-sync .ic { font-size: 24px; } .st-sync small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.st-sec { font-weight: 800; font-size: 14px; margin-top: 8px; } .st-sec small { font-weight: 500; color: var(--muted); }
+.st-cats, .st-acts, .st-proj { display: grid; gap: 6px; }
+.st-cat { display: flex; gap: 10px; align-items: center; background: var(--card); border-radius: 12px; padding: 10px 12px; }
+.st-cat .e { font-size: 22px; } .st-cat .t { display: flex; justify-content: space-between; font-size: 14px; }
+.st-cat .bar { height: 8px; border-radius: 4px; background: var(--bg2); margin: 6px 0 4px; position: relative; overflow: hidden; }
+.st-cat .bar i { position: absolute; inset: 0 auto 0 0; background: var(--orange); border-radius: 4px; }
+.st-cat .bar u { position: absolute; inset: 0 auto 0 0; background: #22c55e; border-radius: 4px; }
+.st-cat small { color: var(--muted); font-size: 12px; } .st-cat em { color: var(--orange); font-style: normal; }
+.st-acts button { display: flex; gap: 10px; align-items: center; text-align: left; background: var(--card); border: 1px solid var(--line); color: var(--text); border-radius: 12px; padding: 11px 12px; }
+.st-acts button:disabled { opacity: .45; } .st-acts span { font-size: 22px; } .st-acts small { display: block; color: var(--muted); font-size: 12px; }
+.st-p { display: flex; gap: 10px; align-items: center; background: var(--card); border-radius: 12px; padding: 10px 12px; } .st-p small { display: block; color: var(--muted); font-size: 12px; }
+.st-tree { background: var(--card); border-radius: 12px; padding: 12px; font-size: 13px; line-height: 1.7; } .st-tree div { padding-left: 14px; color: var(--muted); }
+.st-note { font-size: 12.5px; color: var(--muted); line-height: 1.5; }

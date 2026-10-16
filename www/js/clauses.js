@@ -27,26 +27,27 @@ async function renderClauses(root) {
     const idx = {}; for (const c of p.clauses) idx[c.id] = await ClIdx.get(c.fileId).catch(() => null);
     let res = '';
     if (q.trim().length >= 2) {
-      const nq = normTxt(q.trim()), hits = [];
-      for (const c of p.clauses) {
-        if (normTxt(c.name).includes(nq)) hits.push({ c, page: 1, snip: '' });
-        (idx[c.id] || []).forEach((t, i) => { const n = normTxt(t), k = n.indexOf(nq); if (k < 0) return;
-          let cnt = 0, j = k; while (j >= 0 && cnt < 99) { cnt++; j = n.indexOf(nq, j + nq.length); }
-          const a = Math.max(0, k - 70), raw = t.slice(a, k + nq.length + 110).replace(/\s+/g, ' ');
-          hits.push({ c, page: i + 1, cnt, snip: (a ? '…' : '') + esc(raw).replace(new RegExp(esc(t.slice(k, k + nq.length)).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), m => `<mark>${m}</mark>`) + '…' }); });
-      }
-      res = `<div class="cl-res"><div class="cl-rh">${hits.length} résultat(s) pour « ${esc(q.trim())} »</div>${hits.slice(0, 150).map((h, i) => `<button class="cl-hit" data-h="${i}"><div class="cl-hm"><b>${esc(h.c.type)}</b> ${esc(h.c.name)} <span>p. ${h.page}${h.cnt > 1 ? ' · ' + h.cnt + '×' : ''}</span></div>${h.snip ? `<div class="cl-sn">${h.snip}</div>` : ''}</button>`).join('') || '<div class="cl-none">Aucun résultat. Vérifiez que les cahiers sont indexés (texte lisible, pas un scan).</div>'}</div>`;
+      // recherche intelligente (darija, synonymes, fautes, phrase incomplète) — les passages les plus proches de la question d'abord
+      const { ideas, hits } = clSmart(q, p.clauses, idx);
+      for (const c of p.clauses) if (normTxt(c.name).includes(normTxt(q.trim()))) hits.unshift({ c, page: 1, snip: '', pct: 100, hl: [] });
+      const noIdx = p.clauses.filter(c => !idx[c.id]).length;
+      res = `<div class="cl-res">${ideas.length ? `<div class="cl-ideas">Compris : ${ideas.map(I => `<span class="${I.raw ? 'raw' : ''}">${esc(I.label)}</span>`).join('')}</div>` : ''}
+        <div class="cl-rh">${hits.length ? `${hits.length} passage(s), les plus pertinents d'abord` : ''}${noIdx ? ` · ${noIdx} cahier(s) non indexé(s)` : ''}</div>
+        ${hits.slice(0, 60).map((h, i) => `<button class="cl-hit" data-h="${i}"><div class="cl-hm"><b>${esc(h.c.type)}</b> ${esc(h.c.name)} <span>p. ${h.page}</span><i class="cl-sc" style="--p:${h.pct || 0}%"></i></div>${h.snip ? `<div class="cl-sn">${h.snip}</div>` : ''}</button>`).join('') || '<div class="cl-none">Aucun passage trouvé. Essayez d\'autres mots (ex : « délai décoffrage poutre », « ch7al enrobage », « dosage ciment béton propreté »). Les cahiers scannés (images) ne sont pas lisibles.</div>'}</div>`;
       draw.hits = hits;
     }
     const groups = CL_TYPES.map(t => [t, p.clauses.filter(c => c.type === t)]).filter(([, l]) => l.length);
-    root.innerHTML = `<div class="pagehead"><h2>Clauses techniques</h2><p>CPS, CCTP, CCAP… · recherche dans tout le texte</p></div><div class="cl-prog"></div>
-      <div class="search cl-search">${icon('search')}<input placeholder="Rechercher dans les cahiers (ex : enrobage, B25, décoffrage)" value="${esc(q)}"></div>
+    root.innerHTML = `<div class="pagehead"><h2>Clauses techniques</h2><p>CPS, CCTP, CCAP… · posez votre question (français ou darija)</p></div><div class="cl-prog"></div>
+      <div class="search cl-search">${icon('search')}<input placeholder="Posez la question (ex : ch7al enrobage f poteau, délai décoffrage)" value="${esc(q)}"></div>
+      ${!q.trim() ? `<div class="clf-row">${CL_FICHES.map(F => `<button data-f="${F.k}">${F.e} ${esc(F.t)}</button>`).join('')}</div>` : ''}
       ${res || (p.clauses.length ? groups.map(([t, l]) => `<div class="cl-g">${esc(t)}</div><div class="list">${l.map(c => `<div class="row" data-c="${c.id}"><span class="cl-ty">${esc(c.type.split(' ')[0])}</span><div class="grow"><div class="title">${esc(c.name)}</div><div class="sub">${idx[c.id] ? idx[c.id].length + ' page(s) · ✓ indexé' : clIndexing[c.fileId] ? 'Indexation…' : 'Non indexé'}${c.at ? ' · ' + fmtDate(new Date(c.at).toISOString().slice(0, 10)) : ''}</div></div><button class="iconbtn" data-cm="${c.id}">${icon('more')}</button></div>`).join('')}</div>`).join('')
         : `<div class="empty">Aucun cahier.<br>Appuyez sur <b>+</b> pour ajouter le CPS, le CCTP… (PDF).<br>Vous pourrez ensuite chercher un mot dans tous les cahiers.</div>`)}`;
     if (draw.fab) root.appendChild(draw.fab);
     const si = $('.cl-search input', root);
     si.oninput = () => { q = App.clQ = si.value; clearTimeout(root._t); root._t = setTimeout(() => draw().then(() => { const n = $('.cl-search input', root); n.focus(); n.setSelectionRange(q.length, q.length); }), 300); };
-    $$('[data-h]', root).forEach(b => b.onclick = async () => { const h = draw.hits[+b.dataset.h]; const f = await DB.get('files', h.c.fileId); if (f && f.blob) showPdf(f.blob, h.c.name, { page: h.page, q: q.trim() }); else toast('Fichier indisponible'); });
+    $$('[data-h]', root).forEach(b => b.onclick = async () => { const h = draw.hits[+b.dataset.h]; const f = await DB.get('files', h.c.fileId); if (f && f.blob) showPdf(f.blob, h.c.name, { page: h.page, q: (h.hl && h.hl[0]) || q.trim() }); else toast('Fichier indisponible'); });
+    const goQ = (nq) => { q = App.clQ = nq; draw(); };
+    $$('[data-f]', root).forEach(b => b.onclick = () => clFiche(CL_FICHES.find(F => F.k === b.dataset.f), goQ));
     $$('[data-c]', root).forEach(r => r.onclick = async (e) => { if (e.target.closest('[data-cm]')) return; const c = p.clauses.find(x => x.id === r.dataset.c); const f = await DB.get('files', c.fileId); if (f && f.blob) showPdf(f.blob, c.name); else toast('Fichier indisponible'); });
     $$('[data-cm]', root).forEach(b => b.onclick = async () => {
       const c = p.clauses.find(x => x.id === b.dataset.cm);

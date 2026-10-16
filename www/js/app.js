@@ -173,6 +173,7 @@ async function renderHome() {
   try { if (!uname && !localStorage.getItem('askedName')) { localStorage.setItem('askedName', '1'); setTimeout(askName, 600); } } catch (e) {}
   $('[data-a=homemore]').onclick = async () => {
     const v = await menu('Chantier', [
+      { label: 'Stockage & sauvegarde (libérer, Drive)', icon: 'cloud', value: 'stock' },
       { label: 'Outils PDF (fusionner, diviser, pages)', icon: 'pdf', value: 'pdf' },
       ...((Lic.get() || {}).mode === 'user' ? [{ label: `🤝 Partage de suivi : ${(Lic.get() || {}).ownerName || 'titulaire de la licence'} (lecture seule)`, icon: 'team', value: 'licinfo' }] : [{ label: 'Licences (partager l\'application)', icon: 'team', value: 'lic' }]),
       { label: 'Tableau de dessin', icon: 'brush', value: 'board' },
@@ -184,6 +185,7 @@ async function renderHome() {
       { label: `Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}`, icon: 'settings', value: null },
     ]);
     if (v === 'restore') restoreBackup();
+    if (v === 'stock') openStorage();
     if (v === 'feat') chooseMyFeatures();
     if (v === 'upd') checkUpdate(true);
     if (v === 'pdf') openPdfTools();
@@ -1169,12 +1171,14 @@ async function renderSettings(root) {
         <div style="font-weight:600;margin-bottom:6px">Sauvegarde manuelle (fichier)</div>
         <div style="color:var(--muted);font-size:14px;line-height:1.5;margin-bottom:12px">Crée un fichier <b>.chantier</b> avec tout le projet (plans, pins, tâches, photos, formulaires, rapports). Enregistrez-le dans Google Drive ou envoyez-le sur WhatsApp. Pour le récupérer : accueil → ⋮ → Restaurer une sauvegarde.</div>
         <button class="btn" data-a="backup" style="width:100%">${icon('share')} Sauvegarder ce projet</button>
+        <button class="btn ghost" data-a="stock" style="width:100%;margin-top:8px">${icon('cloud')} Stockage du téléphone · libérer de l'espace</button>
       </div>
       <div style="height:20px"></div>
       <button class="btn danger" data-a="del">${icon('trash')} Supprimer le projet</button>
       <p style="color:var(--muted);font-size:13px;line-height:1.5">Les données sont enregistrées sur l'appareil (fonctionne sans internet). Avec Google Drive connecté, tout est aussi copié dans votre Drive et partagé entre téléphone et PC : après une réinstallation, reconnectez Drive avec votre code de connexion pour tout récupérer.<br>Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}</p>
     </div>`;
   $('[data-a=sync]', root).onclick = () => Sync.openSyncSettings();
+  $('[data-a=stock]', root).onclick = () => openStorage();
   $('[data-a=save]', root).onclick = async () => { p.name = $('[name=name]', root).value.trim() || p.name; p.address = $('[name=address]', root).value.trim(); p.pdfTitle = $('[name=pdfTitle]', root).value.trim(); await DB.put('projects', p); toast('Enregistré ✓'); renderSection(); };
   $('[data-a=backup]', root).onclick = async () => {
     const ld = loading('Préparation de la sauvegarde…');
