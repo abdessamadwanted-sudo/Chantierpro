@@ -400,10 +400,12 @@ async function renderPlans(root) {
 
   fab(root, async () => {
     const v = await menu('Ajouter', [
-      { label: 'Importer un plan (PDF / image)', icon: 'plans', value: 'plan' },
+      { label: 'Importer un plan (PDF / image / DWG / DXF)', icon: 'plans', value: 'plan' },
       { label: 'Importer depuis Google Drive (lien)', icon: 'drive', value: 'drive' },
       { label: 'Nouveau dossier (niveau)', icon: 'folder', value: 'folder' },
+      { label: 'Outils : DWG → PDF / DXF, fusionner, diviser', icon: 'layers', value: 'tools' },
     ]);
+    if (v === 'tools') return planToolsMenu(root);
     if (v === 'folder') {
       const r = await formSheet('Nouveau dossier', [{ name: 'name', label: 'Nom du dossier / niveau', placeholder: 'Ex : Plancher R+2, Sous-sol, Fondations…' }], { okLabel: 'Créer' });
       if (r && r.name) {
@@ -473,7 +475,7 @@ async function importPlans(folders, root, fromDrive = false, presetFolder) {
     for (const file of files) {
       const base = file.name.replace(/\.[^.]+$/, '');
       if (/\.(dwg|dxf)$/i.test(file.name)) {   // AutoCAD : DXF affiché comme plan (le DWG est expliqué)
-        for (const im of await fileToPlanImages(file, pid, ld)) await DB.put('plans', { projectId: pid, folderId, fileId: im.fileId, dxfFileId: im.dxfFileId, w: im.w, h: im.h, name: im.name, annotations: [], indice: 'A' });
+        for (const im of await fileToPlanImages(file, pid, ld)) await DB.put('plans', { projectId: pid, folderId, fileId: im.fileId, dxfFileId: im.dxfFileId, dwgFileId: im.dwgFileId || null, w: im.w, h: im.h, name: im.name, annotations: [], indice: 'A' });
         continue;
       }
       if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf' && !isRasterImage(file)) { await alertBox(`Format non pris en charge : ${file.name}`); continue; }
@@ -1317,7 +1319,7 @@ async function openPlansQuick() {
     if (drag) { e.preventDefault(); if (drag.ctl) drag.ctl.move(dx); } }, { passive: false });
   de.addEventListener('touchend', e => { if (drag && drag.ctl) { const dx = e.changedTouches[0].clientX - esx; drag.ctl.end(dx, dx / Math.max(1, Date.now() - est)); } eon = false; drag = null; }, { passive: true });
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-  licBoot().catch(e => console.warn('licence', e)).finally(() => { renderHome(); Sync.start(); setTimeout(() => checkUpdate(false).catch(() => {}), 2500); });
+  licBoot().catch(e => console.warn('licence', e)).finally(() => { renderHome(); Sync.start(); setTimeout(() => checkUpdate(false).catch(() => {}), 2500); try { dwgCrashCheck(); } catch (e) {} });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(false).catch(() => {}); });
   // photos partagées depuis la galerie (Partager → Chantier)
   setTimeout(() => checkSharedIntent().catch(e => console.warn('share', e)), 300);

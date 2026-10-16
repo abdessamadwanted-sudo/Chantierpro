@@ -1,5 +1,5 @@
 // ================= Plans AutoCAD (DXF) : affichage vectoriel, sélection / tracé de parties d'ouvrage, couleurs par état, 3D =================
-// Le DWG est un format fermé : depuis AutoCAD, « Enregistrer sous… → DXF » (ou demander le DXF au BET).
+// Le DWG est lu sur le téléphone (js/dwg.js, LibreDWG) puis converti en DXF.
 async function needDXF() { await loadScript('vendor/dxf/dxf-parser.js'); }
 const _dxfCache = {};
 async function dxfLoad(fileId) {
@@ -61,7 +61,7 @@ function dxfRender(D, hidden = [], maxPx = 3200) {
     if (hidden.includes(p.layer)) continue;
     const col = dark(p.col || (D.layers[p.layer] || {}).color);
     if (p.t === 'pl') { g.strokeStyle = col; g.beginPath(); p.pts.forEach((q, i) => { const [a, b] = X(q); i ? g.lineTo(a, b) : g.moveTo(a, b); }); if (p.closed) g.closePath(); g.stroke(); }
-    else { const fs = p.h * s; if (fs < 3) continue; const [a, b] = X(p.p); g.save(); g.translate(a, b); g.rotate(-p.rot * Math.PI / 180); g.fillStyle = col; g.font = `${fs}px sans-serif`; g.fillText(p.s, 0, 0); g.restore(); }
+    else if (p.t === 'tx') { const fs = p.h * s; if (fs < 3) continue; const [a, b] = X(p.p); g.save(); g.translate(a, b); g.rotate(-p.rot * Math.PI / 180); g.fillStyle = col; g.font = `${fs}px sans-serif`; g.fillText(p.s, 0, 0); g.restore(); }
   }
   return { canvas: c, s, toWorld: (px, py) => [x0 + px / s, y1 - py / s], toPx: (p) => X(p) };
 }
@@ -69,11 +69,11 @@ const ptInPoly = (pt, P) => { let ins = false; for (let i = 0, j = P.length - 1;
 
 // ---------- Création : importer un DXF ----------
 async function newDxfModel(base) {
-  const [f] = await pickFiles({ accept: '.dxf,application/dxf,image/vnd.dxf,application/octet-stream,*/*', multiple: false }); if (!f) return null;
-  if (/\.dwg$/i.test(f.name)) { alertBox('Le format DWG est fermé : dans AutoCAD faites « Enregistrer sous… » → DXF (ou demandez le DXF au bureau d\'études), puis importez le fichier .dxf.'); return null; }
+  const [f] = await pickFiles({ accept: '.dxf,.dwg,application/dxf,image/vnd.dxf,application/acad,application/octet-stream,*/*', multiple: false }); if (!f) return null;
   const ld = loading('Lecture du plan AutoCAD…'); let D, rec;
   try {
-    rec = await DB.put('files', { projectId: base.projectId, blob: f, mime: 'application/dxf', name: f.name, role: 'dxf' });
+    const dwg = /\.dwg$/i.test(f.name), blob = dwg ? new Blob([cadToDxf(await cadFromDwgFile(f))], { type: 'application/dxf' }) : f;   // DWG → DXF sur le téléphone
+    rec = await DB.put('files', { projectId: base.projectId, blob, mime: 'application/dxf', name: dwg ? f.name.replace(/\.dwg$/i, '.dxf') : f.name, role: 'dxf' });
     D = await dxfLoad(rec.id);
   } catch (e) { ld.close(); alertBox('DXF illisible : ' + (e.message || e)); return null; } ld.close();
   const u0 = DXF_UNITS[D.ins] || (Math.max(D.box[2] - D.box[0], D.box[3] - D.box[1]) > 2000 ? 0.001 : 1);

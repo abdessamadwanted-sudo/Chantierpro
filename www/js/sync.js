@@ -77,6 +77,7 @@ const Sync = (() => {
       const base = old ? [pj(pl.projectId), D.plans, F[pl.folderId] || 'Sans dossier', 'Anciens indices'] : [pj(pl.projectId), D.plans, F[pl.folderId] || 'Sans dossier'];
       put(pl.pdfFileId, base, clean(pl.name.replace(/ - p\d+$/, '') + ind));
       put(pl.dxfFileId, base, clean(pl.name + ind));
+      put(pl.dwgFileId, base, clean(pl.name + ind));
       put(pl.fileId, [...base, 'Aperçus'], clean(pl.name + ind));
     }
     for (const l of links) {

@@ -141,7 +141,7 @@ async function avPickOrImportPlan(p, title = 'Plan du niveau') {
       const folders = await DB.byProject('folders', p.id);
       let f = folders.find(x => x.name === 'Plans de niveau (avancement)'); if (!f) f = await DB.put('folders', { projectId: p.id, name: 'Plans de niveau (avancement)' });
       const im = imgs[0];
-      return await DB.put('plans', { projectId: p.id, folderId: f.id, fileId: im.fileId, pdfFileId: im.pdfFileId || null, pdfPage: im.pdfPage || null, dxfFileId: im.dxfFileId || null, w: im.w, h: im.h, name: im.name, annotations: [], indice: 'A' });
+      return await DB.put('plans', { projectId: p.id, folderId: f.id, fileId: im.fileId, pdfFileId: im.pdfFileId || null, pdfPage: im.pdfPage || null, dxfFileId: im.dxfFileId || null, dwgFileId: im.dwgFileId || null, w: im.w, h: im.h, name: im.name, annotations: [], indice: 'A' });
     } catch (e) { alertBox('Import impossible : ' + (e.message || e)); return null; } finally { ld.close(); }
   }
   return null;

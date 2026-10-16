@@ -845,11 +845,19 @@ async function openPlanViewer(plan, ctx) {
     const v = await menu(plan.name, [
       { label: 'Mettre à jour le plan (nouvel indice)', icon: 'upload', value: 'indice' },
       { label: 'Indices : historique · comparer', icon: 'history', value: 'indmenu' },
+      ...(plan.dwgFileId || plan.dxfFileId ? [{ label: 'Tracer en PDF vectoriel (format, épaisseurs)', icon: 'pdf', value: 'plot' }] : []),
+      ...(plan.dwgFileId ? [{ label: 'Exporter en DXF', icon: 'share', value: 'dxf' }] : []),
+      ...(plan.pdfFileId ? [{ label: 'Partager le PDF d\'origine', icon: 'share', value: 'pdfsh' }, { label: 'Diviser ce PDF (pages / plages)', icon: 'plans', value: 'split' }] : []),
+      ...(plan.dwgFileId ? [{ label: 'Partager le DWG d\'origine', icon: 'share', value: 'dwgsh' }] : []),
       { label: 'Renommer', icon: 'edit', value: 'rename' },
       { label: 'Ajuster à l\'écran', icon: 'plans', value: 'fit' },
       { label: 'Supprimer le plan', icon: 'trash', danger: true, value: 'del' },
     ]);
     if (v === 'fit') fit();
+    if (v === 'plot') plotPlan(plan);
+    if (v === 'dxf') exportDxfOfPlan(plan);
+    if (v === 'split') splitPdfFlow(null, plan);
+    if (v === 'pdfsh' || v === 'dwgsh') { const f = await DB.get('files', v === 'pdfsh' ? plan.pdfFileId : plan.dwgFileId); if (f && f.blob) shareBlob(f.blob, safeName(plan.name.replace(/ - p\d+$/, '')) + (v === 'pdfsh' ? '.pdf' : '.dwg')); else toast('Fichier introuvable (synchronisez)'); }
     if (v === 'indice') { const np = await newPlanIndice(plan); if (np) { close(); openPlanViewer(np, ctx); } }
     if (v === 'indmenu') openIndMenu();
     if (v === 'rename') {

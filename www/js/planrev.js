@@ -22,9 +22,17 @@ async function latestPlanOfSerie(projectId, serieId, plans) {
 // renvoie [{ fileId, pdfFileId, pdfPage, dxfFileId, w, h, name }]
 async function fileToPlanImages(file, projectId, ld, onlyPage) {
   const base = file.name.replace(/\.[^.]+$/, '');
-  if (/\.dwg$/i.test(file.name)) {
-    await alertBox('Le format DWG est fermé et ne peut pas être lu sur le téléphone.\n\nDans AutoCAD : « Enregistrer sous… » → AutoCAD DXF (ou demandez le DXF au bureau d\'études), puis importez le fichier .dxf — il s\'affiche comme un plan, avec pins et indices.');
-    return [];
+  if (/\.dwg$/i.test(file.name)) {   // DWG lu directement (LibreDWG) → aperçu + DXF généré + DWG d'origine
+    if (ld) ld.set('Lecture du plan AutoCAD (DWG)…');
+    let D; try { D = await cadFromDwgFile(file); } catch (e) { console.error(e); await alertBox('Lecture du DWG impossible : ' + (e.message || e) + '\n\nSi le fichier est très récent ou protégé, exportez-le en DXF ou PDF depuis AutoCAD.'); return []; }
+    if (ld) ld.set('Création de l\'aperçu…');
+    const { canvas } = cadRaster(D, 5000);
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.92));
+    const src = await DB.put('files', { projectId, blob: file, mime: 'application/acad', role: 'plansrc', name: file.name });
+    const dxf = await DB.put('files', { projectId, blob: new Blob([cadToDxf(D)], { type: 'application/dxf' }), mime: 'application/dxf', role: 'plansrc', name: base + '.dxf' });
+    const f = await DB.put('files', { projectId, blob, mime: 'image/jpeg', role: 'plan', w: canvas.width, h: canvas.height, name: file.name });
+    _cadCache[src.id] = D;
+    return [{ fileId: f.id, dxfFileId: dxf.id, dwgFileId: src.id, w: canvas.width, h: canvas.height, name: base }];
   }
   if (/\.dxf$/i.test(file.name)) {
     if (ld) ld.set('Lecture du plan AutoCAD (DXF)…');
@@ -88,7 +96,7 @@ async function newPlanIndice(plan) {
     if (!img) { ld.close(); return null; }
     const kx = img.w / plan.w, ky = img.h / plan.h;
     np = await DB.put('plans', {
-      projectId: plan.projectId, folderId: plan.folderId, fileId: img.fileId, pdfFileId: img.pdfFileId || null, pdfPage: img.pdfPage || null, dxfFileId: img.dxfFileId || null,
+      projectId: plan.projectId, folderId: plan.folderId, fileId: img.fileId, pdfFileId: img.pdfFileId || null, pdfPage: img.pdfPage || null, dxfFileId: img.dxfFileId || null, dwgFileId: img.dwgFileId || null,
       w: img.w, h: img.h, name: plan.name, annotations: (plan.annotations || []).map(a => scaleAnnot(a, kx, ky)),
       indice: (r.ind || nextIndice(planIndice(plan))).toUpperCase(), serieId: planSerie(plan), prevId: plan.id, indiceNote: r.note || '', indiceDate: r.date || todayISO(),
     });
