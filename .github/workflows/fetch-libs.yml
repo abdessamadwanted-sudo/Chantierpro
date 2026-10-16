@@ -10,6 +10,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          (npm view @capgo/capacitor-native-biometric versions --json | tail -15; npm view @capgo/capacitor-native-biometric@6 peerDependencies --json; npm view @capgo/capacitor-native-biometric@6 version) > bio.txt 2>&1; cat bio.txt
+          mkdir -p l10 fflate && cd l10 && npm pack fflate@0.8.2 && tar xzf *.tgz && ls package package/umd 2>/dev/null; cp package/umd/index.js ../fflate/fflate.min.js; cp package/LICENSE ../fflate/ ; cd .. && rm -rf l10; ls -la fflate
           git config user.name bot && git config user.email bot@example.com
-          git add bio.txt && git commit -m "bio" && git push
+          git add fflate && git commit -m "fflate" && git push
