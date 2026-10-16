@@ -10,6 +10,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          mkdir -p l8 fonts && cd l8 && npm pack @fontsource/caveat >/dev/null && tar xzf fontsource-caveat-*.tgz && ls package/files | head -50 > ../fonts/list.txt && cp package/files/caveat-latin-500-normal.woff2 package/files/caveat-latin-600-normal.woff2 ../fonts/ && cp package/LICENSE ../fonts/CAVEAT-LICENSE.txt 2>/dev/null; cd .. && rm -rf l8
+          mkdir -p l8 dwg && cd l8 && npm view @mlightcad/libredwg-web versions --json | tail -5 > ../dwg/versions.txt; npm pack @mlightcad/libredwg-web >/dev/null && tar xzf mlightcad-libredwg-web-*.tgz && (cd package && find . -type f | xargs ls -la > ../../dwg/files.txt; cat package.json > ../../dwg/package.json; cat README.md > ../../dwg/README.md 2>/dev/null; ls dist wasm 2>/dev/null >> ../../dwg/files.txt); cd .. && rm -rf l8
           git config user.name bot && git config user.email bot@example.com
-          git add fonts && git commit -m "fonts" && git push
+          git add dwg && git commit -m "dwg info" && git push
