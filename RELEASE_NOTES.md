@@ -1,5 +1,5 @@
-## Nouveautés — Licences par Gmail · protection
-- Nouvelle licence : adresse Gmail de la personne ; le code lui est lié (activation = code + son Gmail)
-- « Envoyer par Gmail » : e-mail prêt avec le lien de l'application, le code et les étapes (aussi dans ⋮ de chaque licence)
-- « Je suis le propriétaire » réservé au compte du propriétaire ; « Créer un compte » supprimé ; « Mot de passe oublié » (lien dans Gmail)
-- Protection anti-copie : l'inspection du code de l'application depuis un PC est désactivée
+## Nouveautés — Phase 4 (rôles, packs, équipe, code PIN)
+- Licences : rôle (Directeur, Conducteur, Chef de chantier, TS qualité, Topographe, Second œuvre, Sous-traitant) + pack (Essentiel, Pro, Entreprise) → fonctions choisies automatiquement (modifiables une par une)
+- Équipe : rattacher une licence à un Directeur / Conducteur ; il voit le suivi de son équipe (accueil › ⋮ › Mon équipe)
+- Nouveau projet : type (Bâtiment, Équipement, Génie civil, Second œuvre, VRD, Rénovation) → sections adaptées ; modifiable dans Paramètres › Type de projet & fonctions
+- Code PIN : bouton ⏻ › Protéger par un code PIN ; verrouillage à l'ouverture et après quelques minutes en arrière-plan ; « Code oublié ? »

@@ -47,7 +47,7 @@ async function licVerify(blocking) {
   try { const { fs } = await licFb(); const d = await licTimeout(fs.collection('licences').doc(st.code).get()); L = d.exists ? d.data() : { status: 'revoked' }; }
   catch (e) { err = e; }
   if (L) {
-    st.status = L.status; st.expires = L.expires || null; st.checkedAt = Date.now(); st.name = L.name; st.ownerName = L.ownerName || ''; st.block = L.block || null; licGuardSync();
+    st.status = L.status; st.expires = L.expires || null; st.checkedAt = Date.now(); st.name = L.name; st.ownerName = L.ownerName || ''; st.block = L.block || null; st.role = L.role || null; st.pack = L.pack || null; st.team = L.team || []; licGuardSync();
     const fOld = JSON.stringify(st.features || null); st.features = L.features || null;
     if (!blocking && fOld !== JSON.stringify(st.features)) setTimeout(() => { try { Lic.set(st); App.project ? renderSection() : renderHome(); toast('Fonctions mises à jour par le titulaire'); } catch (e) {} }, 0);
     if (L.device && L.device.id && L.device.id !== Lic.dev()) st.status = 'moved';
@@ -162,17 +162,19 @@ async function openLicences() {
   const { fs, ts, auth } = await licFb();
   const el = document.createElement('div'); el.className = 'fullpage lic-admin'; document.body.appendChild(el);
   const unBack = pushBack(() => el.remove());
+  let list = [];
   const draw = async () => {
     el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><h1 style="flex:1;font-size:17px">Licences</h1><button class="btn small" data-a="new" style="flex:none">${icon('plus')} Nouvelle</button></div><div class="lic-list"><div class="empty">Chargement…</div></div>`;
     $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
     $('[data-a=new]', el).onclick = () => newLic();
-    let list = [];
+    list = [];
     try { const q = await licTimeout(fs.collection('licences').where('ownerUid', '==', user.uid).get()); list = q.docs.map(d => ({ code: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
       const bl = await licOwnerBlock(); if (bl) list.filter(x => x.block !== bl).forEach(x => { x.block = bl; fs.collection('licences').doc(x.code).update({ block: bl }).catch(() => {}); }); }
     catch (e) { $('.lic-list', el).innerHTML = `<div class="empty">${esc(e.code === 'permission-denied' ? 'Accès refusé : les règles Firestore doivent être mises à jour (voir les instructions).' : (e.message || e))}</div>`; return; }
     const ago = (t) => { const ms = t?.toMillis ? Date.now() - t.toMillis() : null; if (ms == null) return 'jamais'; const h = ms / 3600e3; return h < 1 ? 'il y a moins d\'1 h' : h < 48 ? `il y a ${Math.round(h)} h` : `il y a ${Math.round(h / 24)} j`; };
     $('.lic-list', el).innerHTML = list.length ? list.map(L => { const S = licExpired(L) && L.status === 'active' ? ['Expirée', '#94a3b8'] : LIC_ST[L.status] || ['?', '#94a3b8'];
-      return `<button class="lic-row" data-c="${L.code}"><span class="lic-av">${esc((L.name || '?')[0].toUpperCase())}</span><span class="grow"><b>${esc(L.name || 'Sans nom')}</b>
+      const R = roleOf(L.role), chefN = L.chef && (list.find(x => x.code === L.chef) || {}).name;
+      return `<button class="lic-row" data-c="${L.code}"><span class="lic-av">${R ? R.e : esc((L.name || '?')[0].toUpperCase())}</span><span class="grow"><b>${esc(L.name || 'Sans nom')}${R ? ` <span class="lic-role">${esc(R.n)}${L.pack ? ' · ' + esc((packOf(L.pack) || {}).n || '') : ''}</span>` : ''}</b>${chefN || (L.team || []).length ? `<small>${chefN ? '↳ équipe de ' + esc(chefN) : ''}${(L.team || []).length ? `👥 chef de ${L.team.length} personne(s)` : ''}</small>` : ''}
         <small>${L.code}${L.email ? ' · ' + esc(L.email) : ''} · ${L.device ? esc(L.device.model || 'téléphone') + ' · vu ' + ago(L.lastSeen) : 'pas encore activée'}${L.version ? ' · v' + esc(L.version) : ''}</small>
         <small>${L.expires ? 'Expire le ' + fmtDate(L.expires) : 'Sans expiration'}${L.features && Object.values(L.features).some(v => v === false) ? ` · ${Object.values(L.features).filter(v => v === false).length} fonction(s) masquée(s)` : ''}</small></span><em style="--c:${S[1]}">${S[0]}</em></button>`; }).join('')
       : '<div class="empty">Aucune licence.<br>Touchez <b>Nouvelle</b> pour partager l\'application avec quelqu\'un.</div>';
@@ -188,13 +190,13 @@ async function openLicences() {
   async function newLic() {
     const r = await formSheet('Nouvelle licence', [{ name: 'name', label: 'Pour qui ?', placeholder: 'Ex : Youssef' }, { name: 'email', label: 'Son adresse Gmail (le code lui sera lié)', type: 'email', placeholder: 'youssef@gmail.com' }, { name: 'd', label: 'Durée', type: 'select', value: '0', options: DUR.map(([v, l]) => ({ value: v, label: l })) },
       { name: 'me', label: 'Votre nom (affiché à l\'activation)', value: localStorage.getItem('userName') || '' },
-      { name: 'f', label: 'Fonctions', type: 'select', value: 'norec', options: [{ value: 'all', label: 'Toutes les fonctions' }, { value: 'norec', label: 'Sans Réception & bétonnage / PV' }, { value: 'av', label: 'Avancement seulement (+ plans, photos)' }, { value: 'pick', label: 'Choisir une par une…' }] }], { okLabel: 'Créer' });
+      { name: 'role', label: 'Rôle (métier)', type: 'select', value: 'chef', options: ROLES.map(x => ({ value: x.k, label: `${x.e} ${x.n}` })) },
+      { name: 'pack', label: 'Pack', type: 'select', value: 'pro', options: PACKS.map(x => ({ value: x.k, label: `${x.n} — ${x.d}` })) },
+      { name: 'f', label: 'Fonctions', type: 'select', value: 'auto', options: [{ value: 'auto', label: 'Selon le rôle et le pack' }, { value: 'all', label: 'Toutes les fonctions' }, { value: 'pick', label: 'Choisir une par une…' }] }], { okLabel: 'Créer' });
     if (!r || !r.name) return;
-    let features = null;
-    if (r.f === 'norec') features = { reception: false };
-    if (r.f === 'av') features = Object.fromEntries(FEATURES.map(([k]) => [k, ['avancement', 'photos'].includes(k)]));
-    if (r.f === 'pick') { features = await editLicFeatures({ name: r.name, features: { reception: false } }); if (!features) return; }
-    const code = licCode(), L = { features, block: await licOwnerBlock(), name: r.name, email: (r.email || '').trim().toLowerCase() || null, ownerUid: user.uid, ownerName: r.me || '', status: 'active', expires: +r.d ? Date.now() + (+r.d) * 864e5 : null, device: null, accepted: false, createdAt: ts() };
+    let features = r.f === 'all' ? null : featuresFor(r.role, r.pack);
+    if (r.f === 'pick') { features = await editLicFeatures({ name: r.name, features }); if (!features) return; }
+    const code = licCode(), L = { features, block: await licOwnerBlock(), name: r.name, email: (r.email || '').trim().toLowerCase() || null, role: r.role, pack: r.pack, ownerUid: user.uid, ownerName: r.me || '', status: 'active', expires: +r.d ? Date.now() + (+r.d) * 864e5 : null, device: null, accepted: false, createdAt: ts() };
     const ld = loading('Création…'); try { await licTimeout(fs.collection('licences').doc(code).set(L)); } catch (e) { ld.close(); return alertBox(e.code === 'permission-denied' ? 'Accès refusé : mettez à jour les règles Firestore (voir les instructions).' : (e.message || e)); } ld.close();
     const v = await menu(`Code : ${code}`, [...(L.email ? [{ label: `Envoyer par Gmail à ${L.email}`, icon: 'external', value: 'mail' }] : []), { label: 'Envoyer par WhatsApp (lien + code)', icon: 'share', value: 'wa' }, { label: 'Copier le code', icon: 'file', value: 'cp' }, { label: 'Fermer', icon: 'check', value: 'ok' }]);
     if (v === 'wa') shareCode({ ...L, code }); if (v === 'mail') mailCode({ ...L, code }); if (v === 'cp') navigator.clipboard.writeText(code).then(() => toast('Copié ✓'), () => alertBox(code));
@@ -205,6 +207,8 @@ async function openLicences() {
     const v = await menu(`${L.name} · ${L.code}`, [
       { label: 'Voir ses projets (suivi)', icon: 'layers', value: 'see' },
       { label: 'Fonctions autorisées (ce qu\'il voit)', icon: 'grid', value: 'feat' },
+      { label: `Rôle et pack${L.role ? ' · ' + ((roleOf(L.role) || {}).n || '') : ''}`, icon: 'team', value: 'role' },
+      { label: L.chef ? `Rattaché à : ${(list.find(x => x.code === L.chef) || {}).name || L.chef} (changer)` : 'Rattacher à un chef (équipe)…', icon: 'layers', value: 'chef' },
       L.status === 'active' ? { label: 'Suspendre (temporaire)', icon: 'calendar', value: 'disable' } : { label: 'Réactiver', icon: 'check', value: 'enable' },
       { label: 'Prolonger / changer la durée', icon: 'calendar', value: 'exp' },
       { label: 'Renvoyer par WhatsApp', icon: 'share', value: 'share' },
@@ -215,6 +219,21 @@ async function openLicences() {
     try {
       if (v === 'see') return openSuivi(L);
       if (v === 'feat') { const f = await editLicFeatures(L); if (!f) return; await ref.update({ features: f }); }
+      if (v === 'role') {
+        const r = await formSheet(`Rôle et pack · ${L.name}`, [{ name: 'role', label: 'Rôle', type: 'select', value: L.role || 'chef', options: ROLES.map(x => ({ value: x.k, label: `${x.e} ${x.n}` })) }, { name: 'pack', label: 'Pack', type: 'select', value: L.pack || 'pro', options: PACKS.map(x => ({ value: x.k, label: `${x.n} — ${x.d}` })) }], { okLabel: 'Appliquer (fonctions selon le rôle)' });
+        if (r) await ref.update({ role: r.role, pack: r.pack, features: featuresFor(r.role, r.pack) });
+      }
+      if (v === 'chef') {
+        const chefs = list.filter(x => x.code !== L.code && (roleOf(x.role) || {}).team);
+        const c = await menu(`${L.name} est rattaché à…`, [{ label: 'Moi seulement (titulaire)', icon: 'check', value: '__none', checked: !L.chef }, ...chefs.map(x => ({ label: `${(roleOf(x.role) || {}).e || ''} ${x.name}`, value: x.code, checked: L.chef === x.code }))]);
+        if (c) {
+          const me = { code: L.code, name: L.name, role: L.role || null };
+          if (L.chef) { const old = list.find(x => x.code === L.chef); if (old) await fs.collection('licences').doc(old.code).update({ team: (old.team || []).filter(m => m.code !== L.code) }); }
+          if (c !== '__none') { const ch = list.find(x => x.code === c); await fs.collection('licences').doc(c).update({ team: [...(ch.team || []).filter(m => m.code !== L.code), me] }); }
+          await ref.update({ chef: c === '__none' ? null : c });
+          if (!chefs.length && c === '__none') toast('Astuce : donnez le rôle Directeur ou Conducteur à une licence pour en faire un chef d\'équipe');
+        }
+      }
       if (v === 'disable') await ref.update({ status: 'disabled' });
       if (v === 'enable') await ref.update({ status: 'active' });
       if (v === 'revoke' && await confirmBox(`Retirer l'accès de ${L.name} ? L'application se bloquera sur son téléphone à la prochaine ouverture avec internet.`, 'Retirer l\'accès')) await ref.update({ status: 'revoked' });

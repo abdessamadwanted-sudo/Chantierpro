@@ -163,7 +163,7 @@ async function renderHome() {
   });
   $$('[data-raptog]').forEach(b => b.onclick = () => { App.homeRap = App.homeRap || {}; App.homeRap[b.dataset.raptog] = !App.homeRap[b.dataset.raptog]; renderHome(); });
   $$('[data-rapedit]').forEach(b => b.onclick = () => { const [pid, id] = b.dataset.rapedit.split('|'); addRappel(pid, id); });
-  const q = $('[data-a=quit]'); q.onclick = async () => { const A = window.Capacitor?.Plugins?.App; if (A && A.exitApp) A.exitApp(); else toast('Fermez l\'onglet du navigateur'); };
+  const q = $('[data-a=quit]'); q.onclick = () => powerMenu();
   const sn = $('[data-a=syncnow]'); if (sn) sn.onclick = () => { sn.classList.add('spinning'); Sync.run({ force: true }).finally(() => sn.classList.remove('spinning')); };
   $$('[data-addrap]').forEach(b => b.onclick = () => addRappel(b.dataset.addrap));
   $$('[data-rapok]').forEach(b => b.onclick = async () => { const [pid, id] = b.dataset.rapok.split('|'); const p = await DB.get('projects', pid); const x = (p.rappels || []).find(r => r.id === id); if (x) { x.done = true; cancelNotif(x); await DB.put('projects', p); toast('Rappel terminé ✓'); renderHome(); } });
@@ -174,6 +174,8 @@ async function renderHome() {
   try { if (!uname && !localStorage.getItem('askedName')) { localStorage.setItem('askedName', '1'); setTimeout(askName, 600); } } catch (e) {}
   $('[data-a=homemore]').onclick = async () => {
     const v = await menu('Chantier', [
+      ...((Lic.get() || {}).mode === 'user' && ((Lic.get() || {}).team || []).length ? [{ label: `👥 Mon équipe (${Lic.get().team.length}) — suivi`, icon: 'team', value: 'team' }] : []),
+      { label: 'Code PIN (verrouillage)', icon: 'settings', value: 'pin' },
       { label: 'Stockage & sauvegarde (libérer, Drive)', icon: 'cloud', value: 'stock' },
       { label: 'Outils PDF (fusionner, diviser, pages)', icon: 'pdf', value: 'pdf' },
       ...((Lic.get() || {}).mode === 'user' ? [{ label: `🤝 Partage de suivi : ${(Lic.get() || {}).ownerName || 'titulaire de la licence'} (lecture seule)`, icon: 'team', value: 'licinfo' }] : [{ label: 'Licences (partager l\'application)', icon: 'team', value: 'lic' }]),
@@ -188,6 +190,8 @@ async function renderHome() {
     ]);
     if (v === 'restore') restoreBackup();
     if (v === 'stock') openStorage();
+    if (v === 'team') openMyTeam();
+    if (v === 'pin') setPinDialog();
     if (v === 'feat') chooseMyFeatures();
     if (v === 'upd') checkUpdate(true);
     if (v === 'pdf') openPdfTools();
@@ -200,11 +204,7 @@ async function renderHome() {
   };
   const r2 = $('[data-a=restore2]'); if (r2) r2.onclick = restoreBackup;
   $('[data-a=new]').onclick = async () => {
-    const r = await formSheet('Nouveau projet', [
-      { name: 'name', label: 'Nom du projet', placeholder: 'Ex : Grand stade Hassan II Benslimane' },
-      { name: 'address', label: 'Adresse / ville (optionnel)' },
-    ], { okLabel: 'Créer' });
-    if (r && r.name) { const p = await DB.put('projects', { name: r.name, address: r.address, team: [] }); openProject(p); }
+    newProjectDialog();
   };
 }
 
@@ -1174,6 +1174,7 @@ async function renderSettings(root) {
         <div style="font-weight:600;margin-bottom:6px">Sauvegarde manuelle (fichier)</div>
         <div style="color:var(--muted);font-size:14px;line-height:1.5;margin-bottom:12px">Crée un fichier <b>.chantier</b> avec tout le projet (plans, pins, tâches, photos, formulaires, rapports). Enregistrez-le dans Google Drive ou envoyez-le sur WhatsApp. Pour le récupérer : accueil → ⋮ → Restaurer une sauvegarde.</div>
         <button class="btn" data-a="backup" style="width:100%">${icon('share')} Sauvegarder ce projet</button>
+        <button class="btn ghost" data-a="pfeat" style="width:100%;margin-top:8px">${icon('grid')} Type de projet & fonctions du projet${p.type && projTypeOf(p.type) ? ' · ' + projTypeOf(p.type).e : ''}</button>
         <button class="btn ghost" data-a="stock" style="width:100%;margin-top:8px">${icon('cloud')} Stockage du téléphone · libérer de l'espace</button>
       </div>
       <div style="height:20px"></div>
@@ -1182,6 +1183,7 @@ async function renderSettings(root) {
     </div>`;
   $('[data-a=sync]', root).onclick = () => Sync.openSyncSettings();
   $('[data-a=stock]', root).onclick = () => openStorage();
+  $('[data-a=pfeat]', root).onclick = () => projectFeaturesDialog(p);
   $('[data-a=save]', root).onclick = async () => { p.name = $('[name=name]', root).value.trim() || p.name; p.address = $('[name=address]', root).value.trim(); p.pdfTitle = $('[name=pdfTitle]', root).value.trim(); await DB.put('projects', p); toast('Enregistré ✓'); renderSection(); };
   $('[data-a=backup]', root).onclick = async () => {
     const ld = loading('Préparation de la sauvegarde…');
@@ -1326,7 +1328,7 @@ async function openPlansQuick() {
     if (drag) { e.preventDefault(); if (drag.ctl) drag.ctl.move(dx); } }, { passive: false });
   de.addEventListener('touchend', e => { if (drag && drag.ctl) { const dx = e.changedTouches[0].clientX - esx; drag.ctl.end(dx, dx / Math.max(1, Date.now() - est)); } eon = false; drag = null; }, { passive: true });
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-  licBoot().catch(e => console.warn('licence', e)).finally(() => { renderHome(); Sync.start(); setTimeout(() => checkUpdate(false).catch(() => {}), 2500); try { dwgCrashCheck(); } catch (e) {} });
+  licBoot().catch(e => console.warn('licence', e)).finally(() => { renderHome(); Sync.start(); setTimeout(() => checkUpdate(false).catch(() => {}), 2500); try { dwgCrashCheck(); } catch (e) {} try { if (AppLock.get()) lockScreen(); } catch (e) {} });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(false).catch(() => {}); });
   // photos partagées depuis la galerie (Partager → Chantier)
   setTimeout(() => checkSharedIntent().catch(e => console.warn('share', e)), 300);
