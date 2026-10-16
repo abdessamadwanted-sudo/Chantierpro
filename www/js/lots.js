@@ -29,7 +29,7 @@ function lotBarInto(card, f, ps, root) {
   $$('[data-l]', bar).forEach(b => {
     b.onclick = async () => {
       if (b.dataset.l === '__add') { const r = await formSheet('Nouveau lot', [{ name: 'n', label: 'Nom', placeholder: 'Ex : Faux plafond' }, { name: 'e', label: 'Emoji', value: '🔧' }], { okLabel: 'Ajouter' }); if (r && r.n) { lots.push({ id: DB.uid(), name: r.n, e: r.e || '🔧', c: ['#0ea5e9', '#22c55e', '#f97316', '#8b5cf6', '#e11d48'][lots.length % 5], points: [] }); await DB.put('projects', p); renderPlans(root); } return; }
-      App.lotSel = App.lotSel || {}; App.lotSel[f.id] = b.dataset.l; renderPlans(root);
+      App.lotSel = App.lotSel || {}; App.lotSel[f.id] = b.dataset.l; App.scrollFolder = f.id; renderPlans(root);
     };
     if (b.dataset.l && b.dataset.l !== '__add') b.oncontextmenu = (e) => { e.preventDefault(); lotMenu(lots.find(l => l.id === b.dataset.l), root); };
   });

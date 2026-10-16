@@ -107,6 +107,8 @@ async function renderHome() {
         <div class="h2-top"><div class="brand notr"><span class="logo">${icon('hard')}</span>CHANTIER</div>
           <div class="h2-acts"><button class="h2-cloud ${Sync.enabled() ? 'on' : 'off'}" data-a="sync" title="Google Drive">${icon('drive')}<i data-syncdot></i></button>
           ${Sync.enabled() ? `<button class="iconbtn" data-a="syncnow" title="Synchroniser">${icon('undo')}</button>` : ''}
+          ${featOn('career') ? `<button class="iconbtn h2-emo" data-a="career" title="Emploi & carrière">💼${(() => { try { return +localStorage.getItem('job.new') > 0 ? `<i class="h2-badge">${localStorage.getItem('job.new')}</i>` : ''; } catch (e) { return ''; } })()}</button>` : ''}
+          <button class="iconbtn h2-emo off" data-a="freeph" title="Stockage">🧹</button>
           <button class="iconbtn" data-a="quit" title="Fermer l'application">${icon('power')}</button>
           <button class="iconbtn" data-a="homemore">${icon('more')}</button></div></div>
         <div class="h2-hello" data-a="uname">${tr(hello)}${uname ? (Lang.cur === 'ar' ? '، ' : ', ') + esc(uname) : ''} 👷</div>
@@ -114,7 +116,6 @@ async function renderHome() {
         <div class="h2-date">${dateL.charAt(0).toUpperCase() + dateL.slice(1)}</div>
       </div>
       <div class="h2-body">
-        ${featOn('career') ? '' : '<!--'}<button class="h2-job" data-a="career"><span class="ic">💼</span><span class="grow"><b>Emploi & carrière</b><small>Indeed · LinkedIn · Glassdoor · concours · mon CV</small></span>${icon('chevright')}</button>${featOn('career') ? '' : '-->'}
         <div class="h2-sec"><span>Mes chantiers</span><small>${projects.length}</small></div>
         ${projects.length ? projects.map(p => { const st = stats(p), [c1, c2] = hue(p.name), open = !!App.homeOpen[p.id];
           const due = (x) => x.at && x.at.slice(0, 10) <= today;
@@ -149,9 +150,8 @@ async function renderHome() {
     </div>
     <button class="fab" data-a="new">${icon('plus')}</button>`;
   const cb = $('[data-a=career]'); if (cb) cb.onclick = openCareer;
-  photoReminder().then(r => { if (!r || App.project) return; const hb = $('.h2-body'); if (!hb || $('.h2-free', hb)) return;
-    hb.insertAdjacentHTML('afterbegin', `<button class="h2-free" data-a="freeph"><span class="ic">🧹</span><span class="grow"><b>${r.n} photos déjà dans Drive</b><small>Plus de 3 jours · libérer ${r.mb.toFixed(0)} Mo du téléphone (elles restent dans Drive)</small></span>${icon('chevright')}</button>`);
-    $('[data-a=freeph]', hb).onclick = freeOldPhotos; }).catch(() => {});
+  const fpb = $('[data-a=freeph]'); fpb.onclick = () => openStorage();
+  photoReminder().then(r => { if (!r || App.project || !fpb.isConnected) return; fpb.classList.remove('off'); fpb.title = `${r.n} photos déjà dans Drive · libérer ${r.mb.toFixed(0)} Mo`; fpb.insertAdjacentHTML('beforeend', `<i class="h2-badge y">${r.n > 99 ? '99+' : r.n}</i>`); }).catch(() => {});
   if (keepScroll) { const hb = $('.h2-body'); if (hb) hb.scrollTop = keepScroll; }
   $$('.h2-card[data-id]').forEach(r => r.onclick = () => { App.homeOpen[r.dataset.id] = !App.homeOpen[r.dataset.id]; renderHome(); });
   $$('[data-open]').forEach(b => b.onclick = async () => openProject(await DB.get('projects', b.dataset.open)));
@@ -363,7 +363,7 @@ async function renderPlans(root) {
     const open = q ? true : App.openFolders[f.id];
     const card = document.createElement('div');
     const fc = FOLDER_COLORS.find(x => x.k === f.color) || FOLDER_COLORS[0];
-    card.className = 'card fcard' + (open ? ' open' : '');
+    card.className = 'card fcard' + (open ? ' open' : ''); card.dataset.fid = f.id;
     card.innerHTML = `<div class="folder-head" style="background:${fc.c}"><span class="fh-ic">📁</span>
       <div class="grow"><div class="title">${esc(f.name)}</div><div class="sub">${ps.length} plan${ps.length > 1 ? 's' : ''}</div></div>
       ${f.id !== '_none' ? `<button class="iconbtn" data-more>${icon('more')}</button>` : ''}
@@ -398,6 +398,7 @@ async function renderPlans(root) {
       grid.appendChild(add);
     }
   }
+  if (App.scrollFolder) { const fid = App.scrollFolder; App.scrollFolder = null; const c = box.querySelector(`[data-fid="${fid}"]`); if (c) requestAnimationFrame(() => c.scrollIntoView({ block: 'start', behavior: 'smooth' })); }
   $('[data-a=fold]').onclick = () => { groups.forEach(g => App.openFolders[g.f.id] = !anyOpen); renderPlans(root); };
   $('[data-a=view]').onclick = () => { App.planView = App.planView === 'grid' ? 'list' : 'grid'; try { localStorage.setItem('planView', App.planView); } catch (e) {} renderPlans(root); };
   $('[data-a=recent]').onclick = async () => {
@@ -1285,9 +1286,15 @@ function initSwipeBack() {
 function initPlansButton() {
   const b = document.createElement('button'); b.id = 'plansFab'; b.title = 'Plans'; b.innerHTML = icon('plans');
   document.body.appendChild(b);
-  b.onclick = () => openPlansQuick();
-  const upd = () => { b.style.display = App.project && !document.querySelector('.av-page') ? '' : 'none'; };
-  setInterval(upd, 600); upd();
+  b.onclick = () => {
+    if (document.body.classList.contains('pq-on')) { for (let i = 0; i < 12 && document.querySelector('.plansq'); i++) if (!navBack()) break; return; }
+    openPlansQuick();
+  };
+  let was = null;
+  const upd = () => { b.style.display = App.project && !document.querySelector('.av-page') ? '' : 'none';
+    const on = !!document.querySelector('.plansq'); document.body.classList.toggle('pq-on', on);
+    if (on !== was) { was = on; b.innerHTML = icon(on ? 'close' : 'plans'); b.classList.toggle('on', on); } };
+  setInterval(upd, 300); upd();
 }
 async function openPlansQuick() {
   if (!App.project || document.querySelector('.plansq')) return;
@@ -1304,10 +1311,12 @@ async function openPlansQuick() {
     for (const g of groups) {
       const ps = plans.filter(p => (p.folderId || null) === g.id && match(p)).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'fr', { numeric: true }));
       if (!ps.length) continue;
-      html.push(`<div class="pq-h">${icon('folder')} ${esc(g.name)} <span>${ps.length}</span></div><div class="pq-grid">${ps.map(p => `<button class="pq-t" data-p="${p.id}"><span class="pq-img"><img data-thumb="${p.fileId}" alt=""></span><span class="pq-n">${esc(p.name)}</span></button>`).join('')}</div>`);
+      const shut = !q && (App.pqShut || {})[g.id || '_'];
+      html.push(`<button class="pq-h ${shut ? 'shut' : ''}" data-g="${g.id || '_'}">${icon('folder')} ${esc(g.name)} <span>${ps.length}</span><i class="grow"></i>${icon('chevdown')}</button><div class="pq-grid" style="${shut ? 'display:none' : ''}">${ps.map(p => `<button class="pq-t" data-p="${p.id}"><span class="pq-img"><img data-thumb="${p.fileId}" alt=""></span><span class="pq-n">${esc(p.name)}</span></button>`).join('')}</div>`);
     }
     $('.pq-body', el).innerHTML = html.join('') || `<div class="empty">${plans.length ? 'Aucun plan trouvé' : 'Aucun plan dans ce projet.<br>Ajoutez-les dans « Plans ».'}</div>`;
     Thumbs.fill(el);
+    $$('[data-g]', el).forEach(h => h.onclick = () => { App.pqShut = App.pqShut || {}; const k = h.dataset.g, sh = !App.pqShut[k]; App.pqShut[k] = sh; h.classList.toggle('shut', sh); h.nextElementSibling.style.display = sh ? 'none' : ''; });
     $$('[data-p]', el).forEach(t => t.onclick = () => { const pl = plans.find(p => p.id === t.dataset.p); openPlanViewer(pl, planCtx(() => {})); });
   }
   el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1 style="flex:1">Plans</h1></div>
@@ -1333,6 +1342,16 @@ async function openPlansQuick() {
     if (!drag && dx > 6 && Math.abs(dx) > Math.abs(dy)) { drag = {}; openDrawer({ drag }); }
     if (drag) { e.preventDefault(); if (drag.ctl) drag.ctl.move(dx); } }, { passive: false });
   de.addEventListener('touchend', e => { if (drag && drag.ctl) { const dx = e.changedTouches[0].clientX - esx; drag.ctl.end(dx, dx / Math.max(1, Date.now() - est)); } eon = false; drag = null; }, { passive: true });
+  // glisser vers la droite n'importe où sur la page (sauf zones qui défilent horizontalement) = ouvrir le menu
+  const hScroll = (el) => { for (let x = el; x && x !== document.body; x = x.parentElement) { if (/^(INPUT|TEXTAREA|SELECT|CANVAS)$/.test(x.tagName)) return true; const cs = getComputedStyle(x); if (/(auto|scroll)/.test(cs.overflowX) && x.scrollWidth > x.clientWidth + 2) return true; } return false; };
+  let gx = 0, gy = 0, gt = 0, gon = false, gdrag = null;
+  document.addEventListener('touchstart', e => { gon = false; gdrag = null; if (e.target === de || e.touches.length > 1) return; const t = e.touches[0]; gx = t.clientX; gy = t.clientY; gt = Date.now();
+    gon = !!App.project && gx < innerWidth * 0.6 && !document.querySelector('.fullpage, .viewer, .sheet-bg, .drawer, .lightbox, .sketch, .lock') && !!e.target.closest('#app') && !hScroll(e.target); }, { passive: true });
+  document.addEventListener('touchmove', e => { if (!gon) return; const t = e.touches[0], dx = t.clientX - gx, dy = t.clientY - gy;
+    if (!gdrag) { if (Math.abs(dy) > 14 && Math.abs(dy) > Math.abs(dx)) { gon = false; return; } if (dx > 22 && dx > Math.abs(dy) * 1.8) { gdrag = { off: dx }; openDrawer({ drag: gdrag }); } else return; }
+    e.preventDefault(); if (gdrag.ctl) gdrag.ctl.move(dx - gdrag.off + 20); }, { passive: false });
+  const gend = e => { if (gdrag && gdrag.ctl) { const dx = e.changedTouches[0].clientX - gx; gdrag.ctl.end(dx, dx / Math.max(1, Date.now() - gt)); } gon = false; gdrag = null; };
+  document.addEventListener('touchend', gend, { passive: true }); document.addEventListener('touchcancel', gend, { passive: true });
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   licBoot().catch(e => console.warn('licence', e)).finally(() => { renderHome(); Sync.start(); setTimeout(() => checkUpdate(false).catch(() => {}), 2500); try { dwgCrashCheck(); } catch (e) {} try { if (AppLock.get()) lockScreen(); } catch (e) {} setTimeout(showWhatsNew, 1800); setTimeout(() => otaBoot().catch(() => {}), 1200); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(false).catch(() => {}); });
