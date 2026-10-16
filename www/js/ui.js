@@ -111,7 +111,9 @@ function sheet(html, { onMount, title } = {}) {
     if (api.onClose) api.onClose();
   }
   const api = { el: bg.firstElementChild, close: () => close(false), onClose: null };
-  bg.addEventListener('click', (e) => { if (e.target === bg) api.close(); });
+  // « clic fantôme » : le doigt qui vient d'ouvrir la feuille (appui court sur un pin…) ne doit pas la refermer aussitôt
+  const born = Date.now();
+  bg.addEventListener('click', (e) => { if (e.target === bg && Date.now() - born > 450) api.close(); });
   $('#sheet-root').appendChild(bg);
   if (onMount) onMount(api.el, api);
   return api;

@@ -149,3 +149,15 @@ async function pbChooseRec(l) {
   l.recSrc = v === 'today' ? { mode: 'today' } : { mode: 'day', date: v.slice(2) };
   return true;
 }
+
+// ---------- Dossier « Plans des ouvrages » du programme de réception (sans plan : dans la liste des Plans et dans le tableau) ----------
+async function recBoxOf(projectId) {
+  const l = (await DB.byProject('links', projectId)).find(x => x.kind === 'plansbox' && x.recBox);
+  return l || DB.put('links', { projectId, planId: null, kind: 'plansbox', recBox: true, shape: 'point', x: 0, y: 0, name: 'Plans des ouvrages', emoji: '📚', zones: [], items: [], recSrc: { mode: 'today' } });
+}
+async function openRecBox(projectId, date) {
+  const l = await recBoxOf(projectId);
+  l.recSrc = !date || date === todayISO() ? { mode: 'today' } : { mode: 'day', date };
+  await DB.put('links', l);
+  await openPlansBox(l, planCtx(() => {}));
+}

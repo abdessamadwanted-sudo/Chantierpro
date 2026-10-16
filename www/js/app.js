@@ -351,7 +351,13 @@ async function renderPlans(root) {
     <div style="height:8px"></div>
     <div class="search">${icon('search')}<input placeholder="Rechercher des plans" value="${esc(App.search)}"></div>
     ${groups.length ? '' : `<div class="empty">Aucun plan.<br>Appuyez sur <b>+</b> pour importer un plan (PDF ou image).</div>`}
+    ${typeof featOn === 'function' && featOn('reception') && sectionOn('reception') && !q ? `<button class="rb-card" data-a="recbox"><span class="rb-ic">📚</span><span class="grow"><b>Plans des ouvrages du jour</b><small>Programme de réception d'aujourd'hui · <span class="rb-n">…</span></small></span>${icon('chevright')}</button>` : ''}
     <div id="folders"></div>`;
+  const rbc = $('[data-a=recbox]', root);
+  if (rbc) {
+    rbc.onclick = () => openRecBox(pid);
+    DB.byProject('receptions', pid).then(ds => { const n = ds.filter(d => d.date === todayISO() && kindOf(d) === 'Ferraillage').reduce((a, d) => a + d.rows.filter(r => r.element).length, 0); const x = $('.rb-n', rbc); if (x) x.textContent = n ? `${n} ouvrage(s) — touchez pour ajouter / ouvrir les plans` : 'aucun ouvrage aujourd\'hui'; }).catch(() => {});
+  }
   const box = $('#folders', root);
   for (const { f, plans: ps } of groups) {
     const open = q ? true : App.openFolders[f.id];

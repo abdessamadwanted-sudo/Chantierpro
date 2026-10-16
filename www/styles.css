@@ -1271,3 +1271,6 @@ html.glass .drawer .item.active { background: linear-gradient(135deg, #4f8cff, #
 html.glass .drawer-bg { background: rgba(5,8,20,.72); backdrop-filter: blur(3px); }
 html.glass .dr-foot { background: #121a3a; }
 html.glass .loading, html.glass .toast { background: #1a2350; }
+.rb-card { display: flex; align-items: center; gap: 12px; width: calc(100% - 28px); margin: 0 14px 12px; padding: 12px 14px; border-radius: 16px; text-align: left; border: 1px solid rgba(96,165,250,.35); background: linear-gradient(135deg, rgba(30,58,138,.55), rgba(49,46,129,.45)); color: #fff; }
+.rb-card .rb-ic { font-size: 26px; width: 44px; height: 44px; display: grid; place-items: center; background: rgba(255,255,255,.12); border-radius: 12px; }
+.rb-card small { display: block; color: #c7d2fe; font-size: 12.5px; margin-top: 2px; }
