@@ -1361,3 +1361,34 @@ html.glass.th-sakura .h2-hello { color: #ffe1ef; } html.glass.th-lavande .h2-hel
 .sp-skip { position: absolute; bottom: calc(22px + var(--safe-bottom, 0px)); left: 0; right: 0; text-align: center; color: rgba(255,255,255,.35); font-size: 12px; }
 @media (max-width: 440px) { .h2-top .brand .bt { display: none; } }
 .h2-top .brand .bt { font-weight: inherit; }
+
+/* ===== Emploi : sections dépliables, cartes à glisser ===== */
+.cr-hero { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 4px 0 12px; }
+.cr-hero > div { border-radius: 14px; padding: 10px 6px; text-align: center; background: linear-gradient(160deg, rgba(255,255,255,.09), rgba(255,255,255,.03)); border: 1px solid rgba(255,255,255,.09); }
+.cr-hero b { display: block; font-size: 20px; } .cr-hero span { font-size: 10.5px; color: #94a3b8; } .cr-hero .r b { color: #f87171; }
+.cr-grp { margin: 10px 0; border-radius: 16px; background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.07); overflow: hidden; }
+.cr-gh { display: flex; align-items: center; gap: 8px; width: 100%; padding: 13px 14px; text-align: left; font-weight: 800; font-size: 15.5px; color: var(--text, #e5e7eb); }
+.cr-gh > .i { width: 20px; height: 20px; color: var(--muted); transition: transform .25s; } .cr-grp.open .cr-gh > .i { transform: rotate(180deg); }
+.cr-sum { display: block; font-weight: 500; font-size: 12px; color: #94a3b8; margin-top: 2px; }
+.cr-gb { display: none; padding: 0 10px 12px; } .cr-grp.open .cr-gb { display: block; animation: crDown .22s ease-out; }
+@keyframes crDown { from { opacity: 0; transform: translateY(-6px); } }
+.cr-b { font-style: normal; font-size: 11px; font-weight: 700; border-radius: 10px; padding: 2px 8px; white-space: nowrap; }
+.cr-b.ok { color: #86efac; background: rgba(34,197,94,.14); } .cr-b.nw { color: #fcd34d; background: rgba(245,158,11,.14); } .cr-b.late { color: #fff; background: #dc2626; }
+.cr-site { transition: transform .12s, background .2s; } .cr-site:active { transform: scale(.98); }
+.cr-rbar.anim i { background: linear-gradient(90deg, #22c55e, #3b82f6, #a855f7, #22c55e); background-size: 300% 100%; animation: crFlow 3s linear infinite; transition: width .6s ease; }
+@keyframes crFlow { to { background-position: 300% 0; } }
+.cr-rcfg { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.1); }
+.cr-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 0 10px; }
+.cr-chips button { flex: none; border-radius: 18px; padding: 6px 11px; font-size: 12.5px; font-weight: 600; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); color: var(--text, #e5e7eb); }
+.cr-chips button small { opacity: .6; } .cr-chips button.on { background: var(--accent, #3b82f6); border-color: transparent; color: #fff; }
+.cr-card { position: relative; border-radius: 16px; overflow: hidden; background: #1f2937; margin-bottom: 6px; }
+.cr-card::before, .cr-card::after { position: absolute; top: 50%; transform: translateY(-50%); font-weight: 800; font-size: 13px; opacity: 0; transition: opacity .15s; }
+.cr-card::before { content: '→ étape suivante'; left: 14px; color: #86efac; } .cr-card::after { content: 'archiver ←'; right: 14px; color: #fca5a5; }
+.cr-card.go-r { background: #14532d; } .cr-card.go-r::before { opacity: 1; } .cr-card.go-l { background: #7f1d1d; } .cr-card.go-l::after { opacity: 1; }
+.cr-cin { position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; padding: 11px 12px; background: linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.03)), #171c27; border-left: 4px solid var(--sc); border-radius: 16px; transition: transform .25s ease; }
+.cr-cin b { display: block; font-size: 15px; } .cr-cin small { display: block; color: #94a3b8; font-size: 12px; }
+.cr-av { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-weight: 800; font-size: 17px; color: #fff; background: var(--sc); flex: none; }
+.cr-st { font-size: 11.5px; font-weight: 700; color: #fff; background: var(--sc); border-radius: 10px; padding: 3px 8px; white-space: nowrap; }
+.cr-ou { font-size: 17px; padding: 4px; }
+.cr-cin .cr-b.late { position: absolute; top: -1px; right: 10px; font-size: 10px; padding: 1px 6px; border-radius: 0 0 8px 8px; }
+.cr-gh .grow { flex: 1; min-width: 0; } .cr-gb .cr-add { width: 100%; justify-content: center; margin-top: 4px; } .cr-gb .cr-apps { display: block; }
