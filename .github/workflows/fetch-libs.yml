@@ -11,6 +11,6 @@ jobs:
       - uses: actions/checkout@v4
       - run: |
           set -x
-          mkdir -p l8 && cd l8 && npm pack @mlightcad/libredwg-web@0.8.0 && tar xzf *.tgz && rm -rf ../dwg2 && mkdir -p ../dwg2 && cp -r package/dist package/wasm package/lib ../dwg2/ && cd .. && rm -rf l8 && ls -R dwg2 | head -50
+          mkdir -p l9 pdflib && cd l9 && npm pack pdf-lib@1.17.1 && tar xzf *.tgz && cp package/dist/pdf-lib.min.js package/LICENSE.md ../pdflib/ ; cd .. && rm -rf l9 && ls -la pdflib
           git config user.name bot && git config user.email bot@example.com
-          git add dwg2 && git commit -m "dwg files" && git push
+          git add pdflib && git commit -m "pdflib" && git push
