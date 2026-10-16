@@ -10,6 +10,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          mkdir -p l10 fflate && cd l10 && npm pack fflate@0.8.2 && tar xzf *.tgz && ls package package/umd 2>/dev/null; cp package/umd/index.js ../fflate/fflate.min.js; cp package/LICENSE ../fflate/ ; cd .. && rm -rf l10; ls -la fflate
+          mkdir -p l11 capsrc && cd l11 && npm pack @capacitor/android@6 && tar xzf *.tgz && find package -name "Bridge.java" -o -name "WebView.java" -o -name "WebViewLocalServer.java" | xargs -I{} cp {} ../capsrc/ ; cd .. && rm -rf l11; ls capsrc
           git config user.name bot && git config user.email bot@example.com
-          git add fflate && git commit -m "fflate" && git push
+          git add capsrc && git commit -m "capsrc" && git push
