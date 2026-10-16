@@ -19,8 +19,8 @@ function applyTheme(t) {
 const curTheme = () => { try { return localStorage.getItem('theme') || 'dark'; } catch (e) { return 'dark'; } };
 try { applyTheme(curTheme()); } catch (e) {}
 function chooseTheme(after) {
-  const s = sheet(`<h3 style="margin:0 0 10px">Apparence</h3><div class="thm-grid">${THEMES.map(([k, l, bg, fab]) => `<button class="thm ${curTheme() === k ? 'on' : ''}" data-t="${k}"><i style="background:${bg};--fab:${fab}"><u></u></i>${l}</button>`).join('')}</div>
-    <small style="color:var(--muted)">Le thème s'applique tout de suite, sur tous les écrans.</small>`, {});
+  const s = sheet(`<div style="padding:0 16px 14px"><h3 style="margin:0 0 10px">Apparence</h3><div class="thm-grid">${THEMES.map(([k, l, bg, fab]) => `<button class="thm ${curTheme() === k ? 'on' : ''}" data-t="${k}"><i style="background:${bg};--fab:${fab}"><u></u></i>${l}</button>`).join('')}</div>
+    <small style="color:var(--muted)">Le thème s'applique tout de suite, sur tous les écrans.</small></div>`, {});
   $$('[data-t]', s.el).forEach(b => b.onclick = () => { const t = b.dataset.t; try { localStorage.setItem('theme', t); } catch (e) {} applyTheme(t); $$('.thm', s.el).forEach(x => x.classList.toggle('on', x === b)); after && after(); });
 }
 // Application principale : écrans et navigation
@@ -128,7 +128,7 @@ async function renderHome() {
   $('#app').innerHTML = `
     <div class="home2">
       <div class="h2-hero">
-        <div class="h2-top"><div class="brand notr"><span class="logo">${icon('hard')}</span>CHANTIER</div>
+        <div class="h2-top"><div class="brand notr"><span class="logo">${icon('hard')}</span><b class="bt">CHANTIER</b></div>
           <div class="h2-acts"><button class="h2-cloud ${Sync.enabled() ? 'on' : 'off'}" data-a="sync" title="Google Drive">${icon('drive')}<i data-syncdot></i></button>
           ${Sync.enabled() ? `<button class="iconbtn" data-a="syncnow" title="Synchroniser">${icon('undo')}</button>` : ''}
           ${featOn('career') ? `<button class="iconbtn h2-emo" data-a="career" title="Emploi & carrière">💼${(() => { try { return +localStorage.getItem('job.new') > 0 ? `<i class="h2-badge">${localStorage.getItem('job.new')}</i>` : ''; } catch (e) { return ''; } })()}</button>` : ''}

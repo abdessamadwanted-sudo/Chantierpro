@@ -1359,3 +1359,5 @@ html.glass.th-sakura .h2-hello { color: #ffe1ef; } html.glass.th-lavande .h2-hel
 .sp-term .ok { color: #fcd34d; }
 @keyframes spBlink { 50% { opacity: 0; } }
 .sp-skip { position: absolute; bottom: calc(22px + var(--safe-bottom, 0px)); left: 0; right: 0; text-align: center; color: rgba(255,255,255,.35); font-size: 12px; }
+@media (max-width: 440px) { .h2-top .brand .bt { display: none; } }
+.h2-top .brand .bt { font-weight: inherit; }
