@@ -63,8 +63,9 @@ async function renderDashboard(root) {
     </div>
     <div class="card dash">
       <div class="dash-h">Rapports PDF</div>
-      <button class="btn" data-a="pdf" style="width:100%">${icon('report')} Rapport des réserves (PDF)</button>
-      <div class="muted" style="margin-top:8px">Par entreprise ou global, avec extraits de plan et photos — à envoyer par WhatsApp ou e-mail.</div>
+      <button class="btn" data-a="wk" style="width:100%;margin-bottom:8px">${icon('calendar')} Rapport hebdomadaire (PDF)</button>
+      <button class="btn ghost" data-a="pdf" style="width:100%">${icon('report')} Rapport des réserves (PDF)</button>
+      <div class="muted" style="margin-top:8px">Hebdomadaire : réception, bétonnage, PV manquants, réserves, avancement, journaux. Réserves : par entreprise ou global, avec extraits de plan et photos.</div>
     </div>
     ${activity.length ? `<div class="card dash"><div class="dash-h">Activité récente</div><div class="log">${activity.map(a =>
       `<div data-t="${a.t2.id}"><b>#${a.t2.num}</b> ${esc(a.msg)} <span style="float:right">${fmtDateTime(a.t)}</span></div>`).join('')}</div></div>` : ''}`;
@@ -76,6 +77,7 @@ async function renderDashboard(root) {
   const pvm = $('[data-a=pvmiss]', root); if (pvm) pvm.onclick = () => goMissingPv();
   $('[data-a=addco]', root).onclick = async () => { if (await editCompany(App.project)) renderDashboard(root); };
   $('[data-a=pdf]', root).onclick = () => reservesReportDialog();
+  $('[data-a=wk]', root).onclick = () => weeklyReportDialog();
   $$('.log [data-t]', root).forEach(d => d.onclick = async () => { await openTaskDetail(tasks.find(t => t.id === d.dataset.t)); renderDashboard(root); });
 }
 

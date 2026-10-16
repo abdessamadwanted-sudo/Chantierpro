@@ -1,4 +1,4 @@
-## Nouveautés — empreinte · suivi plus léger
-- Déverrouillage par empreinte / visage (⏻ › Code PIN › Empreinte) ; le code PIN reste possible
-- Suivi des licences plus léger dans Firebase : miniatures plus petites, seulement les 30 derniers jours, effacées ensuite automatiquement
-- Licences : « Photos dans le suivi » oui / non pour chaque personne ; compteur Firebase (éléments, miniatures, taille) et « Effacer les miniatures > 30 j »
+## Nouveautés — rapport hebdomadaire
+- Tableau de bord › Rapport hebdomadaire (PDF) : cette semaine, la semaine dernière ou une date au choix
+- Contenu : indicateurs (ferraillage réceptionné, éléments bétonnés, PV manquants, PV à livrer au BET, réserves), tableau par jour, éléments en réserve, liste des PV manquants avec l'attente en jours, réserves en retard, avancement second œuvre, rapports journaliers
+- Après chaque mise à jour, l'écran « Nouveautés » montre ce qui a changé

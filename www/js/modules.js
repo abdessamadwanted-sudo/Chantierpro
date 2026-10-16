@@ -70,7 +70,7 @@ async function checkUpdate(manual = false) {
   try { localStorage.setItem('upd.at', String(Date.now())); } catch (e) {}
   if (!rel || !rel.tag_name) { if (manual) toast('Impossible de vérifier (internet ?)'); return; }
   const latest = rel.tag_name.replace(/^v/, '');
-  if (verCmp(latest, cur) > 0) { window._updRel = rel; return showUpdate(latest, rel.body || ''); }
+  if (verCmp(latest, cur) > 0) { window._updRel = rel; try { localStorage.setItem('updNotes', JSON.stringify({ v: latest, notes: rel.body || '' })); } catch (e) {} return showUpdate(latest, rel.body || ''); }
   if (manual) toast(`Application à jour ✓ (${cur})`);
 }
 
@@ -111,4 +111,17 @@ async function installUpdate() {
   }
   openUrl(url);
   toast('Ouvrez le fichier téléchargé puis « Mettre à jour »');
+}
+
+// après une mise à jour : « Nouveautés » affichées une fois
+function showWhatsNew() {
+  try {
+    const cur = typeof APP_VERSION === 'string' ? APP_VERSION : ''; if (!/^\d/.test(cur)) return;
+    const seen = localStorage.getItem('seenVer'); localStorage.setItem('seenVer', cur);
+    if (!seen || seen === cur) return;
+    const N = JSON.parse(localStorage.getItem('updNotes') || 'null'); if (!N || N.v !== cur || !N.notes) return;
+    const lines = String(N.notes).split('\n').map(l => l.trim()).filter(Boolean);
+    const sh = sheet(`<div class="upd-sheet"><div class="upd-ic">🎉</div><p><b>Mise à jour installée : version ${esc(cur)}</b></p><div class="upd-notes">${lines.map(l => /^#+\s/.test(l) ? `<b>${esc(l.replace(/^#+\s*/, ''))}</b>` : `<div>• ${esc(l.replace(/^[-*•]\s*/, ''))}</div>`).join('')}</div><button class="btn" data-a="ok" style="width:100%">OK</button></div>`, { title: 'Nouveautés' });
+    sh.el.querySelector('[data-a=ok]').onclick = () => sh.close();
+  } catch (e) {}
 }
