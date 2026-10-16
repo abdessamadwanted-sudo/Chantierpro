@@ -20,8 +20,10 @@ const reportRows = (kind, rows) => rows.filter(r => r.element && (!isBeton(kind)
 const resLabel = (kind) => isBeton(kind) ? 'Défaut' : 'Réserve';                       // ségrégation, nid de cailloux…
 const photoLabels = (kind) => isBeton(kind) ? ['Photo défaut', 'Photo réparation'] : ['Photo réserve', 'Photo retour'];
 const liftLabel = (kind) => isBeton(kind) ? 'Réparé' : 'Levée';
-const pvMissing = (r) => r.element && r.status !== 'pending' && !r.pvRecu;
-const pvCell = (r) => r.pvRecu ? '<span class="rs" style="background:#16a34a">Reçu</span>' : r.status !== 'pending' && r.element ? '<span class="rs" style="background:#dc2626">Manquant</span>' : '';
+const pvMissing = (r) => r.element && r.status !== 'pending' && !r.pvRecu && !r.pvExist;
+const pvToBet = (r) => (r.pvRecu || r.pvExist) && !r.pvLivre;
+const pvBet = (r) => (r.pvRecu || r.pvExist) ? (r.pvLivre ? '<br><small class="bet ok">BET ✓</small>' : '<br><small class="bet no">à livrer BET</small>') : '';
+const pvCell = (r) => r.pvRecu ? '<span class="rs" style="background:#16a34a">Reçu</span>' + pvBet(r) : r.pvExist ? '<span class="rs" style="background:#2563eb">Existe</span>' + pvBet(r) : r.status !== 'pending' && r.element ? '<span class="rs" style="background:#dc2626">Manquant</span>' : '';
 const CLASSES = ['B20', 'B25', 'B30', 'B35', 'B40', 'C25/30', 'C30/37', 'C35/45', 'C40/50'];
 const MONTHS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 const monthLabel = (ym) => { const [y, m] = ym.split('-'); return `${MONTHS[+m - 1]} ${y}`; };
@@ -58,7 +60,7 @@ const rowText = (p, day, r) => recMessage(p, day, [r], true);
 async function shareRow(p, day, r) {
   const text = rowText(p, day, r);
   const P = window.Capacitor?.Plugins || {};
-  const ids = [...(r.photoIds || []), ...(r.retourIds || [])].slice(0, 6);
+  const ids = [...(r.photoIds || []), ...(r.anomIds || []), ...(r.retourIds || [])].slice(0, 6);
   if (ids.length && P.Share && P.Filesystem) {
     try {
       const files = [];
@@ -132,6 +134,7 @@ async function renderReceptions(root, kind = 'Ferraillage') {
 
   const nPvAll = nMiss;
   root.innerHTML = `<div class="kseg"><button class="${!isBeton(kind) ? 'on' : ''}" data-k="reception">${icon('layers')} Réception${nPvAll ? ` <i>${nPvAll}</i>` : ''}</button><button class="${isBeton(kind) ? 'on' : ''}" data-k="beton">${icon('calendar')} Bétonnage</button></div>
+    ${isBeton(kind) ? decofBanner(p, all) : ''}
     <div class="search">${icon('search')}<input placeholder="Rechercher un ouvrage (ex : CR 77, voile…)" value="${esc(App.recSearch[kind] || '')}"></div>
     <div class="fbar">
       <button class="fsel ${nivF ? 'on' : ''}" data-f="niv"><small>Niveau</small><b>${esc(nivF || 'Tous')}</b>${icon('chevdown')}</button>
@@ -239,6 +242,7 @@ ${!isBeton(kind) ? `<button class="btn ghost small cp-bet" data-cp="${i}" title=
       $$('.prow[data-id]', card).forEach(r => r.onclick = async () => { await openReceptionDay(ds.find(d => d.id === r.dataset.id)); renderReceptions(root, kind); });
     }
   }
+  const dcb = $('[data-a=decof]', root); if (dcb) dcb.onclick = async () => { await openDecof(p); renderReceptions(root, kind); };
   const inp = $('.search input', root);
   inp.oninput = () => { App.recSearch[kind] = inp.value; clearTimeout(inp._t); inp._t = setTimeout(() => renderReceptions(root, kind).then(() => { const i = $('.search input', root); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }), 250); };
   $('[data-a=sync]').onclick = () => sheetsSetup();
@@ -280,7 +284,8 @@ function openReceptionDay(day, opts = {}) {
     const unBack = pushBack(finish);
 
     const K = kindOf(day);
-    const NC = isBeton(K) ? 9 : 10;
+    if (isBeton(K)) el.classList.add('rec-compact');
+    const NC = isBeton(K) ? 10 : 12;
     let NAMES = [];
     DB.byProject('receptions', day.projectId).then(l => { NAMES = [...new Set(l.flatMap(d => d.rows.map(r => (r.avec || '').trim()).filter(Boolean)))]; });
     const [PH1, PH2] = photoLabels(K);
@@ -319,30 +324,30 @@ function openReceptionDay(day, opts = {}) {
       el.innerHTML = `
         <div class="topbar"><button class="iconbtn" data-a="back">${icon('back')}</button>
           <div class="dnav"><button data-dn="-1" ${sib(-1) ? '' : 'disabled'}>‹</button><h1>${fmtDate(day.date)}</h1><button data-dn="1" ${sib(1) ? '' : 'disabled'}>›</button></div>
-          <button class="iconbtn" data-a="share">${icon('share')}</button><button class="iconbtn" data-a="more">${icon('more')}</button></div>
+          ${isBeton(K) ? '' : `<button class="iconbtn" data-a="share">${icon('share')}</button>`}<button class="iconbtn" data-a="more">${icon('more')}</button></div>
         <div class="rec-sum"><span><b>${n}</b> éléments</span><span style="color:#22c55e"><b>${ok}</b> ${isBeton(K) ? 'bétonnés' : 'réceptionnés'}</span><span style="color:${isBeton(K) ? '#60a5fa' : '#f59e0b'}"><b>${rs}</b> ${isBeton(K) ? 'en cours' : 'réserves'}</span>${n - ok - rs ? `<span style="color:var(--muted)"><b>${n - ok - rs}</b> ${isBeton(K) ? 'non bétonné(s)' : 'en attente'}</span>` : ''}${!isBeton(K) && day.rows.some(pvMissing) ? `<span style="color:#ef4444"><b>${day.rows.filter(pvMissing).length}</b> PV manquant(s)</span>` : ''}</div>
         <div class="rec-info"><b>${fmtDate(day.date)}</b><span class="rp">${esc(p.pdfTitle || p.name)}</span><span class="rt">${recTitle(K)} (post jour)</span><button class="kswitch" data-ks>${icon(isBeton(K) ? 'layers' : 'calendar')} ${isBeton(K) ? 'Réception' : 'Bétonnage'} du ${fmtDate(day.date).slice(0, 5)}</button></div>
         <div class="rec-wrap">
           <table class="rec">
             <thead>
-              <tr><th>Zone</th><th>NIV</th><th class="el">${recColHead(K)}</th>${isBeton(K) ? '<th>Classe béton</th>' : ''}<th>Statut</th>${isBeton(K) ? '' : '<th>PV</th><th>Réceptionné avec</th>'}<th class="ob">Observation</th><th>${PH1}</th><th>${PH2}</th><th>Croquis</th></tr>
+              <tr><th>Zone</th><th>NIV</th><th class="el">${recColHead(K)}</th>${isBeton(K) ? '<th>Classe béton</th>' : '<th class="ix">Ind. coff.</th><th class="ix">Ind. fer.</th>'}<th>Statut</th>${isBeton(K) ? '' : '<th>PV</th><th>Réceptionné avec</th>'}<th class="ob">Observation</th><th>${PH1}</th><th>${PH2}</th><th>Croquis</th>${isBeton(K) ? '<th>Décoffrage</th>' : ''}</tr>
             </thead>
             <tbody>
               ${day.rows.map((r, i) => `<tr data-i="${i}" class="st-${r.status} ${moveSel === i ? 'moving' : ''}">
-                <td class="c">${esc(r.zone)}</td><td class="c">${esc(r.niv)}</td><td class="el">${esc(r.element)}</td>${isBeton(K) ? `<td class="c">${esc(r.classe || '')}</td>` : ''}
+                <td class="c">${esc(r.zone)}</td><td class="c">${esc(r.niv)}</td><td class="el">${esc(r.element)}</td>${isBeton(K) ? `<td class="c">${esc(r.classe || '')}</td>` : `<td class="c ix">${esc(r.indCof || '')}</td><td class="c ix">${esc(r.indFer || '')}</td>`}
                 <td class="c"><span class="rs" style="background:${(REC_STATUS[r.status] || REC_STATUS.pending).color}">${r.status === 'ok' ? 'OK' : r.status === 'reserve' ? resLabel(K) : r.status === 'progress' ? 'En cours' : 'Attente'}</span>${r.status === 'reserve' && r.liftedAt ? `<br><span class="rs" style="background:#16a34a;margin-top:4px">${liftLabel(K)} ${recDateLabel(r.liftedAt).slice(0, 5)}</span>` : ''}</td>
 ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec || '')}</td>`}
                 <td class="ob">${esc(r.obs)}</td>
-                <td class="c ph">${(r.photoIds || []).length ? `📷 ${r.photoIds.length}` : ''}</td>
+                <td class="c ph">${(r.photoIds || []).length ? `📷 ${r.photoIds.length}` : ''}${(r.anomIds || []).length ? ` <span class="an">⚠ ${r.anomIds.length}</span>` : ''}</td>
                 <td class="c ph">${(r.retourIds || []).length ? `📷 ${r.retourIds.length}` : ''}</td>
-                <td class="c ph sk">${r.croquisId ? `<img data-sk="${r.croquisId}" alt="✏️">` : ''}</td></tr>`).join('')}
+                <td class="c ph sk">${r.croquisId ? `<img data-sk="${r.croquisId}" alt="✏️">` : ''}</td>${isBeton(K) ? `<td class="c">${decofCell(p, day, r)}</td>` : ''}</tr>`).join('')}
               <tr class="addrow"><td colspan="${NC}"><button data-a="add">${icon('plus')} Ajouter une ligne</button><button data-a="paste">${icon('edit')} Coller un texte</button><span class="hint-lp">Appui long sur une ligne pour la déplacer</span></td></tr>
             </tbody>
           </table>
-          <div class="pv-day">
+          ${isBeton(K) ? '' : `<div class="pv-day">
             <div class="pv-h">${icon('report')} PV du jour <span>${(day.pvIds || []).length || ''}</span></div>
             <div class="thumbs" id="pvThumbs"></div>
-          </div>
+          </div>`}
         </div>
         ${moveSel >= 0 ? `<div class="movebar"><span>Déplacer la ligne ${moveSel + 1}</span>
           <button data-mv="top" title="Tout en haut">⤒</button><button data-mv="up">▲</button><button data-mv="down">▼</button><button data-mv="bottom" title="Tout en bas">⤓</button>
@@ -431,7 +436,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         const [row] = R.splice(i, 1); R.splice(j, 0, row); moveSel = j; await save(); render();
         const tr = $(`tbody tr[data-i="${j}"]`, el); tr && tr.scrollIntoView({ block: 'nearest' });
       });
-      $('[data-a=share]', el).onclick = async () => { await save(); await shareDayMenu(p, day); render(); };
+      const shb = $('[data-a=share]', el); if (shb) shb.onclick = async () => { await save(); await shareDayMenu(p, day); render(); };
       $('[data-a=more]', el).onclick = async () => {
         const v = await menu('Tableau', [
           { label: 'Changer la date', icon: 'calendar', value: 'date' },
@@ -444,10 +449,10 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         if (v === 'bons') { const list = day.rows.filter(x => x.bon).map(x => x.bon); if (!list.length) toast('Aucun bon : ouvrez un ouvrage › « Bon de bétonnage »'); else await bonsPdf(p, list, `Bons de bétonnage ${fmtDate(day.date).replace(/\//g, '-')}`); }
         if (v === 'bonfree') { const cfg = bonCfg(p); const b = { id: DB.uid(), date: day.date, area: '', zone: '', ouvrage: '', partie: '', type: '', sig: { ...(cfg.last || {}) } }; await openBon(p, b, async (bb) => { p.bons = (p.bons || []).filter(x => x.id !== bb.id).concat(bb); await DB.put('projects', p); }); }
         if (v === 'cpb') { await save(); const pick = await pickRows(day.rows.filter(x => x.element), 'Copier vers le bétonnage'); if (pick && pick.length) await copyToBeton(day.projectId, pick); }
-        if (v === 'free') { await save(); await freeFilesUI([...(day.pvIds || []), ...day.rows.flatMap(r => [...(r.photoIds || []), ...(r.retourIds || [])])], `${recTitle(K)} du ${fmtDate(day.date)}`); render(); }
+        if (v === 'free') { await save(); await freeFilesUI([...(day.pvIds || []), ...day.rows.flatMap(r => [...(r.photoIds || []), ...(r.anomIds || []), ...(r.retourIds || [])])], `${recTitle(K)} du ${fmtDate(day.date)}`); render(); }
         if (v === 'date') { const r = await formSheet('Date', [{ name: 'date', label: 'Date', type: 'date', value: day.date }]); if (r && r.date) { day.date = r.date; await save(); render(); } }
         if (v === 'del' && await confirmBox('Supprimer ce tableau ?')) {
-          for (const r of day.rows) for (const id of [...(r.photoIds || []), ...(r.retourIds || [])]) await DB.del('files', id);
+          for (const r of day.rows) for (const id of [...(r.photoIds || []), ...(r.anomIds || []), ...(r.retourIds || [])]) await DB.del('files', id);
           for (const id of day.pvIds || []) await DB.del('files', id);
           await DB.del('receptions', day.id); unBack(); el.remove(); resolve();
         }
@@ -458,31 +463,38 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
     function editRow(i) {
       const isNew = i === null;
       const last = day.rows[day.rows.length - 1] || {};
-      const r = isNew ? { id: DB.uid(), zone: last.zone || '', niv: last.niv || '', element: '', classe: last.classe || '', avec: last.avec || '', pvRecu: false, status: isBeton(K) ? 'progress' : 'pending', obs: '', photoIds: [], retourIds: [] } : { ...day.rows[i], photoIds: [...(day.rows[i].photoIds || [])], retourIds: [...(day.rows[i].retourIds || [])] };
+      const r = isNew ? { id: DB.uid(), zone: last.zone || '', niv: last.niv || '', element: '', classe: last.classe || '', avec: last.avec || '', pvRecu: false, status: isBeton(K) ? 'progress' : 'pending', obs: '', photoIds: [], retourIds: [] } : { ...day.rows[i], photoIds: [...(day.rows[i].photoIds || [])], anomIds: [...(day.rows[i].anomIds || [])], retourIds: [...(day.rows[i].retourIds || [])] };
       const s = sheet(`<div class="form" id="rowf"></div>`, { title: isNew ? 'Nouvelle ligne' : 'Modifier la ligne' });
       const f = $('#rowf', s.el);
       async function draw() {
         const peekAll = async (ids) => { const o = []; for (const id of ids || []) { const x = await DB.peek('files', id); if (x) o.push(x); } return o; };
-        const photos = await peekAll(r.photoIds), retours = await peekAll(r.retourIds);
+        r.anomIds = r.anomIds || [];
+        const photos = await peekAll(r.photoIds), anoms = await peekAll(r.anomIds), retours = await peekAll(r.retourIds);
         const thumbs = (list, sec) => `<div class="thumbs">${list.map(f => `<div class="t" data-id="${f.id}" data-sec="${sec}">${fileThumbHTML(f)}<button class="x" data-del="${f.id}">×</button></div>`).join('')}<button class="t add" data-add="${sec}">${icon('camera')}</button></div>`;
         f.innerHTML = `
           <div class="kv"><label>Zone<input name="zone" value="${esc(r.zone)}" inputmode="numeric" placeholder="11"></label>
             <label>Niveau<input name="niv" list="dl-niv" value="${esc(r.niv)}" placeholder="R+5"></label></div>
           <datalist id="dl-niv">${NIVEAUX.map(n => `<option value="${n}">`).join('')}</datalist>
           <label>Élément<input name="element" value="${esc(r.element)}" placeholder="Ex : Voile CR 77 Axe D2"></label>
-          ${isBeton(K) ? `<label>Classe béton<input name="classe" list="dl-classe" value="${esc(r.classe || '')}" placeholder="Ex : B30"></label><datalist id="dl-classe">${CLASSES.map(c => `<option value="${c}">`).join('')}</datalist>` : ''}
+          <div class="kv"><label>Indice coffrage<input name="indCof" value="${esc(r.indCof || '')}" placeholder="Ex : B" maxlength="8"></label><label>Indice ferraillage<input name="indFer" value="${esc(r.indFer || '')}" placeholder="Ex : C" maxlength="8"></label></div>
+          ${isBeton(K) ? `<label>Classe béton<input name="classe" list="dl-classe" value="${esc(r.classe || '')}" placeholder="Ex : B30"></label><datalist id="dl-classe">${CLASSES.map(c => `<option value="${c}">`).join('')}</datalist>
+          <div class="fld">Suivi décoffrage<div class="seg"><button type="button" data-dcf="1" class="${decofOn(r) ? 'on' : ''}">Oui</button><button type="button" data-dcf="0" class="${!decofOn(r) ? 'on' : ''}">Non</button></div>
+            ${decofOn(r) ? `<div class="dcf-row">${r.status === 'ok' ? decofCell(p, day, r) : '<small class="pv-help">Le suivi démarre quand l\u2019élément est « bétonné »</small>'}${r.status === 'ok' ? `<button type="button" class="btn ghost small" data-a="decofok">${r.decofAt ? 'Annuler « décoffré »' : 'Décoffré aujourd\u2019hui'}</button>` : ''}</div>` : ''}</div>` : ''}
           <div class="fld">Statut<div class="seg seg3">${statusesFor(K).map(k => [k, REC_STATUS[k]]).map(([k, v]) => `<button type="button" data-st="${k}" class="${r.status === k ? 'on' : ''}" style="${r.status === k ? `background:${v.color}` : ''}">${stLabel(K, k)}</button>`).join('')}</div></div>
-          ${isBeton(K) ? '' : `<div class="fld">PV<div class="seg"><button type="button" data-pvr="1" class="${r.pvRecu ? 'on' : ''}" style="${r.pvRecu ? 'background:#16a34a' : ''}">PV reçu</button><button type="button" data-pvr="0" class="${!r.pvRecu ? 'on' : ''}" style="${!r.pvRecu ? 'background:#dc2626' : ''}">Pas encore</button></div></div>
+          ${isBeton(K) ? '' : `<div class="fld">PV<div class="seg seg3"><button type="button" data-pvr="1" class="${r.pvRecu ? 'on' : ''}" style="${r.pvRecu ? 'background:#16a34a' : ''}">PV reçu</button><button type="button" data-pvr="e" class="${r.pvExist ? 'on' : ''}" style="${r.pvExist ? 'background:#2563eb' : ''}">PV existe</button><button type="button" data-pvr="0" class="${!r.pvRecu && !r.pvExist ? 'on' : ''}" style="${!r.pvRecu && !r.pvExist ? 'background:#dc2626' : ''}">Pas encore</button></div>
+            ${r.pvExist ? '<small class="pv-help">PV déjà fait ailleurs : plus de rappel « manquant »</small>' : ''}</div>
+          ${r.pvRecu || r.pvExist ? `<div class="fld">PV livré au BET<div class="seg"><button type="button" data-bet="1" class="${r.pvLivre ? 'on' : ''}" style="${r.pvLivre ? 'background:#16a34a' : ''}">Livré${r.pvLivreAt ? ' le ' + recDateLabel(r.pvLivreAt) : ''}</button><button type="button" data-bet="0" class="${!r.pvLivre ? 'on' : ''}" style="${!r.pvLivre ? 'background:#f59e0b' : ''}">Pas encore</button></div></div>` : ''}
           <label>Réceptionné avec<input name="avec" list="dl-avec" value="${esc(r.avec || '')}" placeholder="Nom (ex : M. Alaoui — BET)"></label><datalist id="dl-avec">${NAMES.map(n => `<option value="${esc(n)}">`).join('')}</datalist>`}
           <label>Observation ${r.status === 'reserve' ? '/ ' + resLabel(K).toLowerCase() : ''}<textarea name="obs" style="min-height:64px" placeholder="${r.status === 'reserve' ? (isBeton(K) ? 'Ex : ségrégation en pied de voile, nid de cailloux…' : 'Ex : cales manquantes côté axe D2') : 'Optionnel'}">${esc(r.obs)}</textarea></label>
-          <div class="fld">${isBeton(K) ? 'Photos du défaut (ségrégation…) — si besoin' : r.status === 'reserve' ? 'Photos de la réserve' : 'Photos'}</div>${thumbs(photos, 'photoIds')}
-          ${r.status === 'reserve' || r.retourIds.length || (isBeton(K) && photos.length) ? `<div class="retour-box">
-            <div class="fld">${isBeton(K) ? 'Photos de la réparation' : 'Photos du retour (levée de réserve)'}</div>${thumbs(retours, 'retourIds')}
-            ${r.status === 'reserve' || (isBeton(K) && photos.length) ? `<button type="button" class="btn ${r.liftedAt ? 'ghost' : ''} small" data-a="lift" style="align-self:flex-start;margin-top:8px">${icon('check')} ${r.liftedAt ? `${isBeton(K) ? 'Réparé' : 'Réserve levée'} le ${recDateLabel(r.liftedAt)} (annuler)` : (isBeton(K) ? 'Marquer comme réparé' : 'Marquer la réserve levée')}</button>` : ''}
-          </div>` : ''}
+          <div class="ph3">
+            <div class="ph3-b"><div class="fld">📷 Photos ${isBeton(K) ? 'du bétonnage' : 'de la partie d\u2019ouvrage'}</div>${thumbs(photos, 'photoIds')}</div>
+            <div class="ph3-b an"><div class="fld">⚠️ ${isBeton(K) ? 'Défauts (ségrégation, nid de cailloux…)' : 'Anomalies'}</div>${thumbs(anoms, 'anomIds')}</div>
+            <div class="ph3-b ok"><div class="fld">✅ ${isBeton(K) ? 'Réparation des défauts' : 'Réparation des anomalies'}</div>${thumbs(retours, 'retourIds')}
+              ${r.status === 'reserve' || anoms.length || r.liftedAt ? `<button type="button" class="btn ${r.liftedAt ? 'ghost' : ''} small" data-a="lift" style="align-self:flex-start;margin-top:8px">${icon('check')} ${r.liftedAt ? `${isBeton(K) ? 'Réparé' : 'Réserve levée'} le ${recDateLabel(r.liftedAt)} (annuler)` : (isBeton(K) ? 'Marquer comme réparé' : 'Marquer la réserve comme levée')}</button>` : ''}</div>
+          </div>
           ${!isNew ? `<button type="button" class="btn ghost small bon-btn" data-a="bon">📝 ${r.bon ? 'Bon de bétonnage (voir / modifier)' : 'Bon de bétonnage'}</button>` : ''}
           ${!isNew && !isBeton(K) ? `<button type="button" class="btn ghost small cp-btn" data-a="cpb">${icon('calendar')} Copier vers le programme de bétonnage</button>` : ''}
-          ${[...photos, ...retours].some(x => x.blob) && !isNew ? `<button type="button" class="btn ghost small fr-btn" data-a="free">☁ Libérer ${[...photos, ...retours].filter(x => x.blob).length} photo(s) du téléphone</button>` : ''}${[...photos, ...retours].some(x => !x.blob && x.freed) ? `<div class="fr-mini">☁ ${[...photos, ...retours].filter(x => !x.blob && x.freed).length} photo(s) uniquement dans Drive</div>` : ''}
+          ${[...photos, ...anoms, ...retours].some(x => x.blob) && !isNew ? `<button type="button" class="btn ghost small fr-btn" data-a="free">☁ Libérer ${[...photos, ...anoms, ...retours].filter(x => x.blob).length} photo(s) du téléphone</button>` : ''}${[...photos, ...anoms, ...retours].some(x => !x.blob && x.freed) ? `<div class="fr-mini">☁ ${[...photos, ...anoms, ...retours].filter(x => !x.blob && x.freed).length} photo(s) uniquement dans Drive</div>` : ''}
           <div class="fld">Croquis ${isBeton(K) ? '(partie bétonnée en couleur)' : '(partie réceptionnée en couleur)'}</div>
           <div class="sk-row">${r.croquisId ? `<img class="sk-thumb" data-a="skview">` : ''}<button type="button" class="btn ghost small" data-a="sketch">${icon('pen')} ${r.croquisId ? 'Modifier le croquis' : 'Dessiner un croquis'}</button>${r.croquisId ? `<button type="button" class="btn ghost small" data-a="skdel" style="flex:none">${icon('trash')}</button>` : ''}</div>
           <div class="btnrow" style="padding:0">${!isNew ? `<button class="btn danger" data-a="del" style="flex:none;padding:14px 16px">${icon('trash')}</button>` : ''}
@@ -491,15 +503,19 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         Thumbs.fill(f);
         const bnb = $('[data-a=bon]', f); if (bnb) bnb.onclick = async (e) => { e.preventDefault(); if (!await commit()) return; const cfg = bonCfg(p); const b = r.bon ? { ...r.bon, sig: { ...(r.bon.sig || {}) } } : bonFromRow(r, day.date, cfg); await openBon(p, b, async (bb) => { r.bon = bb; await commit(); }); draw(); };
         const cpb = $('[data-a=cpb]', f); if (cpb) cpb.onclick = async (e) => { e.preventDefault(); if (!await commit()) return; await copyToBeton(day.projectId, [r]); };
-        const frb = $('[data-a=free]', f); if (frb) frb.onclick = async (e) => { e.preventDefault(); if (!await commit()) return; await freeFilesUI([...r.photoIds, ...r.retourIds], r.element || 'ouvrage'); draw(); };
+        const frb = $('[data-a=free]', f); if (frb) frb.onclick = async (e) => { e.preventDefault(); if (!await commit()) return; await freeFilesUI([...r.photoIds, ...(r.anomIds || []), ...r.retourIds], r.element || 'ouvrage'); draw(); };
         $$('[name]', f).forEach(inp => inp.oninput = () => { r[inp.name] = inp.value; });
         $$('[data-st]', f).forEach(b => b.onclick = () => { r.status = b.dataset.st; draw(); });
-        $$('[data-pvr]', f).forEach(b => b.onclick = () => { r.pvRecu = b.dataset.pvr === '1'; draw(); });
+        $$('[data-pvr]', f).forEach(b => b.onclick = () => { r.pvRecu = b.dataset.pvr === '1'; r.pvExist = b.dataset.pvr === 'e'; draw(); });
+        $$('[data-dcf]', f).forEach(b => b.onclick = () => { r.decof = b.dataset.dcf === '1'; draw(); });
+        const dco = $('[data-a=decofok]', f); if (dco) dco.onclick = () => { r.decofAt = r.decofAt ? null : todayISO(); draw(); };
+        $$('[data-bet]', f).forEach(b => b.onclick = () => { r.pvLivre = b.dataset.bet === '1'; r.pvLivreAt = r.pvLivre ? todayISO() : null; draw(); });
         $$('[data-add]', f).forEach(b => b.onclick = async (e) => {
           e.preventDefault(); const sec = b.dataset.add;
-          const recs = await addPhotos(day.projectId, { source: `${sec === 'retourIds' ? 'Retour' : 'Réception'} ${recDateLabel(day.date)} · ${r.element || ''}` });
+          const recs = await addPhotos(day.projectId, { source: `${sec === 'retourIds' ? 'Réparation' : sec === 'anomIds' ? 'Anomalie' : 'Réception'} ${recDateLabel(day.date)} · ${r.element || ''}` });
           if (recs.length) {
-            r[sec].push(...recs.map(x => x.id));
+            r[sec] = r[sec] || []; r[sec].push(...recs.map(x => x.id));
+            if (sec === 'anomIds' && r.status !== 'reserve' && !isBeton(K) && await confirmBox('Passer cet ouvrage en « Avec réserve » ?', 'Oui')) r.status = 'reserve';
             if (sec === 'retourIds' && r.status === 'reserve' && !r.liftedAt && await confirmBox(isBeton(K) ? 'Marquer comme réparé aujourd\'hui ?' : 'Marquer la réserve comme levée aujourd\'hui ?', isBeton(K) ? 'Oui, réparé' : 'Oui, réserve levée')) r.liftedAt = todayISO();
             draw();
           }
@@ -517,8 +533,8 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         $$('.thumbs .t[data-id]', f).forEach(t => t.onclick = async (e) => {
           const id = t.dataset.id, sec = t.dataset.sec;
           if (e.target.closest('[data-del]')) { e.preventDefault(); r[sec] = r[sec].filter(x => x !== id); draw(); return; }
-          if ([...photos, ...retours].some(x => !x.blob)) { const l3 = loading('Téléchargement depuis Drive…'); try { for (const x of [...photos, ...retours]) if (!x.blob) { const g = await DB.get('files', x.id); if (g && g.blob) x.blob = g.blob; } } finally { l3.close(); } }
-          const all = [...photos.map(x => [x, r.status === 'reserve' ? photoLabels(K)[0] : 'Photo']), ...retours.map(x => [x, photoLabels(K)[1]])].filter(([x]) => x.blob);
+          if ([...photos, ...anoms, ...retours].some(x => !x.blob)) { const l3 = loading('Téléchargement depuis Drive…'); try { for (const x of [...photos, ...anoms, ...retours]) if (!x.blob) { const g = await DB.get('files', x.id); if (g && g.blob) x.blob = g.blob; } } finally { l3.close(); } }
+          const all = [...photos.map(x => [x, 'Photo']), ...anoms.map(x => [x, isBeton(K) ? 'Défaut' : 'Anomalie']), ...retours.map(x => [x, 'Réparation'])].filter(([x]) => x.blob);
           showGallery(all.map(([x, lb]) => ({ src: BlobURL.get(x.id, x.blob), caption: `${lb} · ${r.element}`, fileId: x.id })), all.findIndex(([x]) => x.id === id));
           const gl = document.querySelector('.gallery [data-a=x]'); if (gl) { const o = gl.onclick; gl.onclick = () => { o(); draw(); }; }
         });
@@ -531,7 +547,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         $('[data-a=ok]', f).onclick = async () => { if (await commit()) { s.close(); render(); } };
         const om = $('[data-a=okmore]', f); if (om) om.onclick = async () => { if (await commit()) { s.close(); render(); editRow(null); } };
         const wa = $('[data-a=wa]', f); if (wa) wa.onclick = async () => { if (await commit()) shareRow(p, day, r); };
-        const wph = $('[data-a=waph]', f); if (wph) wph.onclick = async () => { const ld = loading('Préparation des photos…'); try { await sharePhotos([...r.photoIds, ...r.retourIds], `${r.zone ? 'Zone ' + r.zone + ' · ' : ''}${r.niv ? r.niv + ' · ' : ''}${r.element} — ${fmtDate(day.date)}`, r.element || 'photo'); } finally { ld.close(); } };
+        const wph = $('[data-a=waph]', f); if (wph) wph.onclick = async () => { const ld = loading('Préparation des photos…'); try { await sharePhotos([...r.photoIds, ...(r.anomIds || []), ...r.retourIds], `${r.zone ? 'Zone ' + r.zone + ' · ' : ''}${r.niv ? r.niv + ' · ' : ''}${r.element} — ${fmtDate(day.date)}`, r.element || 'photo'); } finally { ld.close(); } };
         const del = $('[data-a=del]', f); if (del) del.onclick = async () => { if (await confirmBox('Supprimer cette ligne ?')) { day.rows.splice(i, 1); await save(); s.close(); render(); } };
         if (isNew && !r.element) setTimeout(() => $('[name=element]', f)?.focus(), 250);
       }
@@ -790,7 +806,7 @@ async function shareDayMenu(p, day) {
           { label: 'Choisir des ouvrages…', icon: 'check', value: 'pick' },
           { label: 'PDF du tableau', icon: 'report', value: 'pdf' },
           ...((day.pvIds || []).length ? [{ label: `Envoyer les PV du jour (${day.pvIds.length})`, icon: 'camera', value: 'pv' }] : []),
-          ...(day.rows.some(r => (r.photoIds || []).length + (r.retourIds || []).length) ? [{ label: `Toutes les photos du jour (${day.rows.reduce((a, r) => a + (r.photoIds || []).length + (r.retourIds || []).length, 0)})`, icon: 'image', value: 'allph' }] : []),
+          ...(day.rows.some(r => (r.photoIds || []).length + (r.anomIds || []).length + (r.retourIds || []).length) ? [{ label: `Toutes les photos du jour (${day.rows.reduce((a, r) => a + (r.photoIds || []).length + (r.anomIds || []).length + (r.retourIds || []).length, 0)})`, icon: 'image', value: 'allph' }] : []),
           { label: 'Fichier Excel (CSV)', icon: 'grid', value: 'csv' },
           { label: 'Envoyer vers Google Sheets (Drive)', icon: 'drive', value: 'sheets' },
         ]);
@@ -810,7 +826,7 @@ async function shareDayMenu(p, day) {
           }
           shareWhatsApp(receptionText(p, day));
         }
-        if (v === 'allph') { const ld = loading('Préparation des photos…'); try { await sharePhotos(day.rows.flatMap(r => [...(r.photoIds || []), ...(r.retourIds || [])]), `${recTitle(K)} du ${fmtDate(day.date)}`, `photos_${day.date}`); } finally { ld.close(); } }
+        if (v === 'allph') { const ld = loading('Préparation des photos…'); try { await sharePhotos(day.rows.flatMap(r => [...(r.photoIds || []), ...(r.anomIds || []), ...(r.retourIds || [])]), `${recTitle(K)} du ${fmtDate(day.date)}`, `photos_${day.date}`); } finally { ld.close(); } }
         if (v === 'zone') {
           const zones = [...new Set(day.rows.filter(r => r.element).map(r => r.zone || ''))].sort((x, y) => (+x || 9999) - (+y || 9999));
           const z = await menu('Quelle zone ?', zones.map(zz => ({ label: zz ? `Zone ${zz}` : 'Sans zone', value: zz || '__none' })));
@@ -869,4 +885,47 @@ async function copyToBeton(projectId, rows) {
   }
   await DB.put('receptions', d);
   toast(n ? `✓ ${n} ouvrage(s) ajouté(s) au bétonnage du ${fmtDate(date)}${dup ? ` · ${dup} déjà présent(s)` : ''}` : `Déjà dans le bétonnage du ${fmtDate(date)}`);
+}
+
+// ---------- Suivi décoffrage (planchers, dalles, poutres, escaliers…) ----------
+// À partir du jour du bétonnage : J+7 / J+15 / J+28 (modifiables). Vert = délai atteint, orange = aujourd'hui, rouge = pas encore.
+const DECOF_DEF = [7, 15, 28];
+const decofDays = (p) => (p && Array.isArray(p.decofDays) && p.decofDays.length ? p.decofDays : DECOF_DEF);
+const decofOn = (r) => r.decof === true || (r.decof !== false && /plancher|dalle|poutre|escalier|console|linteau|pr[ée]dalle|\bpl[_ ]?\d|\bpl\b/i.test(r.element || ''));
+const decofAge = (iso) => Math.round((Date.parse(todayISO()) - Date.parse(iso)) / 864e5);
+function decofCell(p, day, r) {
+  if (!decofOn(r) || r.status !== 'ok') return '';
+  if (r.decofAt) return `<span class="dcf-done">✓ Décoffré ${recDateLabel(r.decofAt).slice(0, 5)}</span>`;
+  const a = decofAge(day.date);
+  return `<span class="dcf-j">J+${a}</span><span class="dcf">${decofDays(p).map(d => `<i class="${a > d ? 'ok' : a === d ? 'today' : 'no'}" title="J+${d}">${d}</i>`).join('')}</span>`;
+}
+function decofList(p, days) {
+  const out = [];
+  for (const d of days) if (isBeton(kindOf(d))) for (const r of d.rows) if (r.element && r.status === 'ok' && decofOn(r) && !r.decofAt) out.push({ d, r, a: decofAge(d.date) });
+  return out.sort((x, y) => y.a - x.a);
+}
+function decofBanner(p, days) {
+  const L = decofList(p, days); if (!L.length) return '';
+  const D = decofDays(p), ready = L.filter(x => x.a >= D[0]).length, today = L.filter(x => D.includes(x.a)).length;
+  return `<button class="dcf-ban" data-a="decof"><span class="ic">🧱</span><span class="grow"><b>Suivi décoffrage</b><small>${L.length} élément(s) · <span class="g">${ready} ≥ J+${D[0]}</span>${today ? ` · <span class="o">${today} aujourd\u2019hui</span>` : ''}</small></span>${icon('chevright')}</button>`;
+}
+function openDecof(p) {
+  return new Promise(async (resolve) => {
+    const el = document.createElement('div'); el.className = 'fullpage'; document.body.appendChild(el);
+    const unBack = pushBack(() => { el.remove(); resolve(); });
+    const draw = async () => {
+      const days = await DB.byProject('receptions', p.id), L = decofList(p, days), D = decofDays(p);
+      el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><h1 style="flex:1;font-size:17px">Suivi décoffrage</h1><button class="iconbtn" data-a="cfg" title="Délais">${icon('settings')}</button></div>
+        <div class="content"><div class="dcf-leg"><i class="ok"></i> délai atteint <i class="today"></i> aujourd\u2019hui <i class="no"></i> pas encore · délais : ${D.map(d => 'J+' + d).join(' / ')}</div>
+        ${L.length ? `<div class="list">${L.map(({ d, r, a }, i) => `<div class="row dcf-it" data-i="${i}"><div class="grow"><div class="title wrap">${esc(r.element)}</div>
+          <div class="sub">Bétonné le ${fmtDate(d.date)}${r.zone ? ' · Zone ' + esc(r.zone) : ''}${r.niv ? ' · ' + esc(r.niv) : ''}${r.classe ? ' · ' + esc(r.classe) : ''}</div>
+          <div class="dcf-row">${decofCell(p, d, r)}</div></div><button class="btn small" data-ok="${i}">Décoffré</button></div>`).join('')}</div>`
+        : '<div class="empty">Aucun élément à suivre.<br>Le suivi démarre quand un plancher / une poutre / une dalle est « bétonné » dans le programme de bétonnage.</div>'}</div>`;
+      $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); resolve(); };
+      $('[data-a=cfg]', el).onclick = async () => { const r = await formSheet('Délais de décoffrage (jours)', [{ name: 'v', label: 'Séparés par des virgules', value: D.join(', '), placeholder: '7, 15, 28' }], { okLabel: 'Enregistrer' }); if (r) { const v = String(r.v || '').split(/[,; ]+/).map(x => parseInt(x, 10)).filter(x => x > 0).sort((a, b) => a - b); p.decofDays = v.length ? v : DECOF_DEF; await DB.put('projects', p); draw(); } };
+      $$('[data-ok]', el).forEach(b => b.onclick = async (e) => { e.stopPropagation(); const { d, r } = L[+b.dataset.ok]; r.decofAt = todayISO(); await DB.put('receptions', d); toast('Décoffré ✓'); draw(); });
+      $$('.dcf-it', el).forEach(rw => rw.onclick = async (e) => { if (e.target.closest('[data-ok]')) return; const { d, r } = L[+rw.dataset.i]; await openReceptionDay(d, { focus: r.id }); draw(); });
+    };
+    draw();
+  });
 }

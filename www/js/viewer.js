@@ -604,18 +604,8 @@ async function openPlanViewer(plan, ctx) {
       if (hi >= 0) g.edit = { kind: 'handle', i: hi };
       else if (hitAnnot(a, p[0], p[1], 18 / st.scale)) g.edit = { kind: 'move' };
     }
-    if (['pan', 'pin', 'link', 'planlink', 'plansbox', 'photonote'].includes(st.tool) && !g.edit) {
-      const g0 = g;
-      g0.lpTimer = setTimeout(() => {
-        if (g !== g0 || g0.moved) return;
-        const hp = hitMarker(p[0], p[1]);
-        if (!hp) return;
-        st.tool = 'select'; st.selPin = hp; st.sel = -1; st.toolsOpen = false;
-        g0.edit = { kind: 'pin' }; g0.mode = 'edit'; g0.lp = true;
-        try { navigator.vibrate && navigator.vibrate(30); } catch (e) {}
-        renderSel(); renderTools();
-      }, 480);
-    }
+    // un appui (court ou long) sur un pin l'ouvre ; on ne déplace un pin qu'avec l'outil « Sélection »
+    if (['pan', 'pin', 'link', 'planlink', 'plansbox', 'photonote'].includes(st.tool) && !g.edit && hitMarker(p[0], p[1])) g.onPin = true;
     const dragDraw = st.tool === 'draw' && !st.pend && (st.shape === 'free' || TWO_PT.includes(st.shape));
     g.mode = g.edit ? 'edit' : (dragDraw || (st.tool === 'draw' && st.shape === 'poly') || ['pin', 'link', 'planlink', 'plansbox', 'photonote'].includes(st.tool)) ? 'draw' : 'pan';
   });
@@ -633,7 +623,7 @@ async function openPlanViewer(plan, ctx) {
       return;
     }
     if (g.type !== 'one') return;
-    const slop = g.mode === 'draw' && st.tool === 'draw' ? 6 : (g.mode === 'edit' ? 4 : 14);
+    const slop = g.mode === 'draw' && st.tool === 'draw' ? 6 : (g.mode === 'edit' ? 4 : g.onPin ? 28 : 14);
     if (Math.hypot(e.clientX - g.sx, e.clientY - g.sy) > slop) g.moved = true;
     if (!g.moved) { g.lx = e.clientX; g.ly = e.clientY; return; }
     const p = toImg(e.clientX, e.clientY);
@@ -678,6 +668,7 @@ async function openPlanViewer(plan, ctx) {
     }
     if (cur.mode === 'edit' && cur.moved) { saveAnnots(); renderSel(); return; }
     if (!cur.moved) return onTap(cur.start);
+    if (cur.onPin && Date.now() - cur.t0 < 700 && Math.hypot(e.clientX - cur.sx, e.clientY - cur.sy) < 44) return onTap(cur.start);
     if (cur.mode !== 'draw' || !cur.end) return;
     if (['pin', 'link', 'planlink', 'plansbox', 'photonote'].includes(st.tool)) return onTap(cur.end, true);
     if (st.tool === 'draw' && st.shape === 'poly') {
@@ -726,7 +717,7 @@ async function openPlanViewer(plan, ctx) {
   async function onTap([x, y], aimed = false) {
     // double-tap = zoom
     const now = Date.now();
-    if (!aimed && st.tool === 'pan' && now - lastTap < 300) {
+    if (!aimed && st.tool === 'pan' && now - lastTap < 300 && !hitMarker(x, y)) {
       const r = viewer.getBoundingClientRect();
       zoomAt(r.left + x * st.scale + st.tx, r.top + y * st.scale + st.ty, 2); lastTap = 0; return;
     }

@@ -1,6 +1,7 @@
 ## Nouveautés
-- Bon de bétonnage (Demande de bétonnage et contrôle de coffrage) : même modèle que le bon papier, écriture manuscrite bleue
-- Rempli automatiquement depuis la réception ou le programme de bétonnage (Area, Zone, Ouvrage, Partie, Type de béton) — tout reste modifiable
-- Signatures Travaux / Topographe / Qualité / HSE : chaque personne signe une fois (ou depuis une photo), puis on la choisit en touchant sa case
-- Partage WhatsApp (image) et PDF 6 bons par page A4 ; rangé dans Drive (03 - Bétonnage › jour › Bons de bétonnage)
-- Bon libre (sans ouvrage du programme) depuis le menu ⋮ du tableau
+- PV : nouveau choix « PV existe » (plus de rappel « manquant ») et « PV livré au BET » (Pas encore par défaut, date de livraison)
+- Indice coffrage et indice ferraillage pour chaque partie d'ouvrage (fiche + colonnes du tableau)
+- Photos de l'ouvrage en 3 parties : Photos · Anomalies · Réparations (rangées dans Drive dans 3 dossiers)
+- Suivi décoffrage des planchers / poutres / dalles : J+7 / J+15 / J+28 en couleurs (vert = atteint, orange = aujourd'hui, rouge = pas encore), page « Suivi décoffrage », délais modifiables
+- Programme de bétonnage plus compact (sans PV du jour ni bouton partage — le partage reste dans la réception)
+- Plans : un simple appui ouvre les pins (Élément, Photos / note, Plans) ; l'appui long ne les déplace plus (déplacer avec l'outil Sélection)
