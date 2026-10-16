@@ -70,7 +70,7 @@ async function checkUpdate(manual = false) {
   try { localStorage.setItem('upd.at', String(Date.now())); } catch (e) {}
   if (!rel || !rel.tag_name) { if (manual) toast('Impossible de vérifier (internet ?)'); return; }
   const latest = rel.tag_name.replace(/^v/, '');
-  if (verCmp(latest, cur) > 0) return showUpdate(latest, rel.body || '');
+  if (verCmp(latest, cur) > 0) { window._updRel = rel; return showUpdate(latest, rel.body || ''); }
   if (manual) toast(`Application à jour ✓ (${cur})`);
 }
 
@@ -87,21 +87,28 @@ function showUpdate(latest, notes = '') {
 }
 
 // téléchargement direct dans l'application puis ouverture de l'installateur Android ; sinon, lien dans le navigateur
+// - lien exact de la version (pas « latest », qui peut renvoyer une ancienne version en cache → « Application non installée »)
+// - nom de fichier unique, anciens APK effacés, taille vérifiée avant d'installer
 async function installUpdate() {
-  const P = window.Capacitor?.Plugins || {};
+  const P = window.Capacitor?.Plugins || {}, rel = window._updRel || null;
+  const asset = rel && (rel.assets || []).find(a => /\.apk$/i.test(a.name));
+  const ver = rel ? rel.tag_name.replace(/^v/, '') : 'latest', url = asset ? asset.browser_download_url : UPD_APK;
   if (P.Filesystem && P.Filesystem.downloadFile && P.FileOpener) {
     const ld = loading('Téléchargement de la mise à jour…');
-    let h = null;
+    let h = null; const path = `Chantier-${ver}-${Date.now() % 100000}.apk`;
     try {
+      try { const d = await P.Filesystem.readdir({ path: '', directory: 'CACHE' }); for (const f of d.files || []) { const n = typeof f === 'string' ? f : f.name; if (/^Chantier.*\.apk$/i.test(n)) await P.Filesystem.deleteFile({ path: n, directory: 'CACHE' }).catch(() => {}); } } catch (e) {}
       if (P.Filesystem.addListener) h = await P.Filesystem.addListener('progress', (e) => { if (e && e.contentLength) ld.set(`Téléchargement… ${Math.round(e.bytes / e.contentLength * 100)} %`); });
-      const r = await P.Filesystem.downloadFile({ url: UPD_APK, path: 'Chantier-update.apk', directory: 'CACHE', progress: true });
-      const uri = r.path || (await P.Filesystem.getUri({ path: 'Chantier-update.apk', directory: 'CACHE' })).uri;
+      const r = await P.Filesystem.downloadFile({ url, path, directory: 'CACHE', progress: true });
+      const st = await P.Filesystem.stat({ path, directory: 'CACHE' }).catch(() => null);
+      if (asset && st && st.size && Math.abs(st.size - asset.size) > 16) throw new Error(`téléchargement incomplet (${Math.round(st.size / 1e6)} / ${Math.round(asset.size / 1e6)} Mo)`);
+      const uri = r.path || (await P.Filesystem.getUri({ path, directory: 'CACHE' })).uri;
       ld.close();
       await P.FileOpener.open({ filePath: uri, contentType: 'application/vnd.android.package-archive', openWithDefault: true });
       return;
-    } catch (e) { console.warn('maj directe', e); ld.close(); }
+    } catch (e) { console.warn('maj directe', e); ld.close(); toast('Téléchargement direct impossible : ' + (e.message || e) + ' — ouverture du navigateur'); }
     finally { try { h && h.remove && h.remove(); } catch (e) {} }
   }
-  openUrl(UPD_APK);
+  openUrl(url);
   toast('Ouvrez le fichier téléchargé puis « Mettre à jour »');
 }

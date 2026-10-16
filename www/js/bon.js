@@ -29,11 +29,15 @@ function bonHand(g, text, x, y, maxW, size, seed) {
   text = String(text || '').trim(); if (!text) return;
   let fs = size;
   const setF = () => { g.font = `600 ${fs}px BonHand, 'Segoe Script', cursive`; };
-  setF(); while (g.measureText(text).width > maxW && fs > 24) { fs -= 2; setF(); }
+  // écriture aérée : lettres un peu espacées, espaces larges ; on réduit peu la taille (jamais minuscule)
+  let sp = 1.07; const wid = () => g.measureText(text).width * sp + (text.split(' ').length - 1) * fs * 0.12;
+  setF(); while (wid() > maxW && fs > 46) { fs -= 2; setF(); }
+  while (wid() > maxW && sp > 0.98) sp -= 0.01;
+  while (wid() > maxW && fs > 34) { fs -= 2; setF(); }
   const R = bonRand(seed + '|' + text);
-  g.save(); g.translate(x, y); g.rotate((R() - 0.5) * 0.035); g.fillStyle = BON_INK; g.textBaseline = 'alphabetic';
+  g.save(); g.translate(x, y); g.rotate((R() - 0.5) * 0.03); g.fillStyle = BON_INK; g.textBaseline = 'alphabetic';
   let cx = 0;
-  for (const ch of text) { const w = g.measureText(ch).width; g.fillText(ch, cx, (R() - 0.5) * fs * 0.07); cx += w * (0.97 + R() * 0.05); }
+  for (const ch of text) { const w = g.measureText(ch).width; g.fillText(ch, cx, (R() - 0.5) * fs * 0.06); cx += w * (sp - 0.02 + R() * 0.04) + (ch === ' ' ? fs * 0.12 : 0); }
   g.restore();
 }
 function bonDots(g, x1, x2, y) { g.save(); g.strokeStyle = '#333'; g.setLineDash([2.5, 7]); g.lineWidth = 2.6; g.lineCap = 'round'; g.beginPath(); g.moveTo(x1, y); g.lineTo(x2, y); g.stroke(); g.restore(); }
@@ -56,7 +60,7 @@ async function bonRender(b, cfg) {
   g.textAlign = 'left';
   // date
   g.font = '44px "Times New Roman", "Noto Serif", serif'; g.fillText('DATE :', 860, 462); bonDots(g, 1010, 1500, 468);
-  bonHand(g, b.date ? fmtDate(b.date).replace(/\/\d{4}$/, (m) => b.fullYear ? m : '') : '', 1030, 452, 470, 70, 'date' + b.id);
+  bonHand(g, b.date ? fmtDate(b.date).replace(/\/\d{4}$/, (m) => b.fullYear ? m : '') : '', 1030, 454, 470, 78, 'date' + b.id);
   hits.push({ k: 'date', x: 840, y: 400, w: 700, h: 90 });
   // champs
   const ys = [545, 625, 705, 785, 865];
@@ -64,7 +68,7 @@ async function bonRender(b, cfg) {
     const y = ys[i]; g.fillStyle = '#111'; g.font = '44px "Times New Roman", "Noto Serif", serif'; g.fillText(lab, 70, y);
     const lx = 70 + g.measureText(lab).width + 6; bonDots(g, lx, BON_W - 80, y + 4);
     const vx = k === 'area' ? Math.max(lx + 40, 560) : lx + 30;
-    bonHand(g, b[k], vx, y - 8, BON_W - 90 - vx, 70, k + b.id);
+    bonHand(g, b[k], vx, y - 6, BON_W - 90 - vx, 78, k + b.id);
     hits.push({ k, x: 50, y: y - 60, w: BON_W - 100, h: 78 });
   });
   // tableau des visas
@@ -79,7 +83,7 @@ async function bonRender(b, cfg) {
     bonDots(g, x + 92, x + cw - 14, top + hh + 56); bonDots(g, x + 92, x + cw - 14, top + hh + 132);
     const pid = (b.sig || {})[k], per = (cfg.people[k] || []).find(q => q.id === pid);
     if (per) {
-      bonHand(g, per.name, x + 100, top + hh + 46, cw - 120, 56, k + b.id);
+      bonHand(g, per.name, x + 96, top + hh + 48, cw - 112, 62, k + b.id);
       if (per.sigId) {
         const f = await DB.peek('files', per.sigId).catch(() => null) || await DB.get('files', per.sigId).catch(() => null);
         if (f && f.blob) { try { const im = await loadImage(BlobURL.get(f.id, f.blob)); const bw = cw - 40, bh = bot - (top + hh + 66) - 8, k2 = Math.min(bw / im.width, bh / im.height); g.drawImage(im, x + 20 + (bw - im.width * k2) / 2, top + hh + 66 + (bh - im.height * k2) / 2, im.width * k2, im.height * k2); } catch (e) {} }

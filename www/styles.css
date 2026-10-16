@@ -1095,7 +1095,7 @@ body:has(.fullpage) .sharebar, body:has(.sheet-bg) .sharebar { display: none; }
 /* PV : existe / livré au BET */
 .rec small.bet { display: inline-block; margin-top: 3px; font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 8px; } .rec small.bet.ok { background: #dcfce7; color: #15803d; } .rec small.bet.no { background: #fef3c7; color: #b45309; }
 .pv-help { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
-.rec th.ix, .rec td.ix { min-width: 52px; font-weight: 700; color: #1d4ed8; }
+.rec th.ix, .rec td.ix { min-width: 52px; padding-left: 6px; padding-right: 6px; font-weight: 700; color: #1d4ed8; }
 .rec td .an { color: #dc2626; font-weight: 700; }
 /* photos en 3 parties */
 .ph3 { display: grid; gap: 10px; } .ph3-b { padding: 8px 10px; border-radius: 12px; background: rgba(255,255,255,.04); border-left: 4px solid #64748b; }
@@ -1171,3 +1171,17 @@ body:has(.fullpage) .sharebar, body:has(.sheet-bg) .sharebar { display: none; }
 .mg-it small { color: var(--muted); font-size: 11px; }
 .plot .ctb-r, .plot .ly { flex-direction: row !important; align-items: center !important; text-align: left; }
 .plot .ctb-r span, .plot .ly span { margin: 0; }
+/* aperçu modifiable du texte collé (programme) */
+.ps-head, .ps-ed { display: grid; grid-template-columns: 52px 62px 1fr 34px; gap: 5px; align-items: center; }
+.ps-head.b, .ps-ed.b { grid-template-columns: 48px 56px 1fr 58px 34px; }
+.ps-head { padding: 0 6px 4px; font-size: 11.5px; color: var(--muted); font-weight: 700; }
+.ps-list { display: grid; gap: 5px; max-height: 58vh; overflow: auto; }
+.ps-ed { padding: 5px 6px; }
+.ps-ed input { width: 100%; min-width: 0; padding: 8px 7px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg2); color: var(--text); font-size: 14px; }
+.ps-ed input[data-f=element] { font-weight: 600; }
+.ps-ed input[data-f=zone], .ps-ed input[data-f=niv], .ps-ed input[data-f=classe] { color: #93c5fd; text-align: center; padding: 8px 3px; }
+.ps-ed input:focus { border-color: var(--accent); outline: none; }
+.ind-dt { display: grid; grid-template-columns: 90px 1fr; gap: 8px; }
+.ind-dt input { min-width: 0; }
+.rec td.ix { white-space: nowrap; }
+.rec td.ix .ix-d { font-weight: 500; color: #64748b; font-size: 11px; }

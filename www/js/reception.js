@@ -334,7 +334,7 @@ function openReceptionDay(day, opts = {}) {
             </thead>
             <tbody>
               ${day.rows.map((r, i) => `<tr data-i="${i}" class="st-${r.status} ${moveSel === i ? 'moving' : ''}">
-                <td class="c">${esc(r.zone)}</td><td class="c">${esc(r.niv)}</td><td class="el">${esc(r.element)}</td>${isBeton(K) ? `<td class="c">${esc(r.classe || '')}</td>` : `<td class="c ix">${esc(r.indCof || '')}</td><td class="c ix">${esc(r.indFer || '')}</td>`}
+                <td class="c">${esc(r.zone)}</td><td class="c">${esc(r.niv)}</td><td class="el">${esc(r.element)}</td>${isBeton(K) ? `<td class="c">${esc(r.classe || '')}</td>` : `<td class="c ix">${indCell(r.indCof, r.indCofD)}</td><td class="c ix">${indCell(r.indFer, r.indFerD)}</td>`}
                 <td class="c"><span class="rs" style="background:${(REC_STATUS[r.status] || REC_STATUS.pending).color}">${r.status === 'ok' ? 'OK' : r.status === 'reserve' ? resLabel(K) : r.status === 'progress' ? 'En cours' : 'Attente'}</span>${r.status === 'reserve' && r.liftedAt ? `<br><span class="rs" style="background:#16a34a;margin-top:4px">${liftLabel(K)} ${recDateLabel(r.liftedAt).slice(0, 5)}</span>` : ''}</td>
 ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec || '')}</td>`}
                 <td class="ob">${esc(r.obs)}</td>
@@ -405,13 +405,25 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         if (!r || !r.txt) return;
         const rows = parseRecText(r.txt, K);
         if (!rows.length) return toast('Aucun ouvrage reconnu');
-        const sh = sheet(`<div class="ps-list">${rows.map(x => `<div class="ps-row"><span>${esc(x.zone || '—')}</span><span>${esc(x.niv || '—')}</span><b>${esc(x.element)}</b>${isBeton(K) ? `<span>${esc(x.classe || '')}</span>` : ''}</div>`).join('')}</div>
-          <div class="muted" style="font-size:12.5px;margin:8px 0">Vérifiez : vous pourrez corriger chaque ligne ensuite.</div>
-          <div class="btnrow" style="padding:0"><button class="btn ghost" data-a="c">Annuler</button><button class="btn" data-a="ok">${icon('check')} Ajouter ${rows.length} ligne(s)</button></div>`, { title: `${rows.length} ouvrage(s) reconnu(s)` });
+        // aperçu modifiable : chaque case se corrige avant d'entrer dans le tableau
+        const bet = isBeton(K), NIVS = ['SSL', 'Mezz', 'RDC', ...Array.from({ length: 12 }, (_, i) => 'R+' + (i + 1)), 'Terrasse'];
+        const rowHTML = (x) => `<div class="ps-row ps-ed" data-st="${esc(x.status || '')}"><input data-f="zone" value="${esc(x.zone || '')}" placeholder="Zone"><input data-f="niv" list="ps-niv" value="${esc(x.niv || '')}" placeholder="Niv"><input data-f="element" value="${esc(x.element || '')}" placeholder="Ouvrage">${bet ? `<input data-f="classe" value="${esc(x.classe || '')}" placeholder="Classe">` : ''}<button class="iconbtn sm" data-del>${icon('close')}</button></div>`;
+        const sh = sheet(`<datalist id="ps-niv">${NIVS.map(n => `<option value="${n}">`).join('')}</datalist>
+          <div class="ps-head ${bet ? 'b' : ''}"><span>Zone</span><span>Niv</span><span>Ouvrage</span>${bet ? '<span>Classe</span>' : ''}<span></span></div>
+          <div class="ps-list">${rows.map(rowHTML).join('')}</div>
+          <button class="btn ghost" data-a="addl" style="width:100%;margin-top:6px">${icon('plus')} Ajouter une ligne</button>
+          <div class="muted" style="font-size:12.5px;margin:8px 0">Touchez une case pour la corriger avant d'ajouter. ✕ = supprimer la ligne.</div>
+          <div class="btnrow" style="padding:0"><button class="btn ghost" data-a="c">Annuler</button><button class="btn" data-a="ok">${icon('check')} Ajouter <span class="ps-n">${rows.length}</span> ligne(s)</button></div>`, { title: `${rows.length} ouvrage(s) reconnu(s) — vérifiez` });
+        const list = $('.ps-list', sh.el), cnt = () => { $('.ps-n', sh.el).textContent = $$('.ps-ed', list).length; };
+        const wire = (row) => { $('[data-del]', row).onclick = () => { row.remove(); cnt(); }; if (bet) row.classList.add('b'); };
+        $$('.ps-ed', list).forEach(wire);
+        $('[data-a=addl]', sh.el).onclick = () => { const last = $$('.ps-ed', list).pop(); const t = document.createElement('div'); t.innerHTML = rowHTML({ zone: last ? $('[data-f=zone]', last).value : '', niv: last ? $('[data-f=niv]', last).value : '' }); const row = t.firstElementChild; list.appendChild(row); wire(row); cnt(); $('[data-f=element]', row).focus(); };
         $('[data-a=c]', sh.el).onclick = () => sh.close();
         $('[data-a=ok]', sh.el).onclick = async () => {
-          for (const x of rows) day.rows.push({ id: DB.uid(), zone: x.zone, niv: x.niv, element: x.element, classe: x.classe || '', avec: '', pvRecu: false, status: x.status || (isBeton(K) ? 'progress' : 'pending'), obs: '', photoIds: [], retourIds: [] });
-          await save(); sh.close(); render(); toast(`${rows.length} ligne(s) ajoutée(s) ✓`);
+          const final = $$('.ps-ed', list).map(row => { const v = (f) => { const i = $(`[data-f=${f}]`, row); return i ? i.value.trim() : ''; }; return { zone: v('zone'), niv: v('niv'), element: v('element'), classe: v('classe'), st: row.dataset.st }; }).filter(x => x.element);
+          if (!final.length) return toast('Aucune ligne');
+          for (const x of final) day.rows.push({ id: DB.uid(), zone: x.zone, niv: x.niv, element: x.element, classe: x.classe || '', avec: '', pvRecu: false, status: x.st || (bet ? 'progress' : 'pending'), obs: '', photoIds: [], retourIds: [] });
+          await save(); sh.close(); render(); toast(`${final.length} ligne(s) ajoutée(s) ✓`);
         };
       };
       $$('img[data-sk]', el).forEach(async im => { const f = await DB.get('files', im.dataset.sk); if (f && f.blob) im.src = BlobURL.get(f.id, f.blob); });
@@ -476,7 +488,8 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
             <label>Niveau<input name="niv" list="dl-niv" value="${esc(r.niv)}" placeholder="R+5"></label></div>
           <datalist id="dl-niv">${NIVEAUX.map(n => `<option value="${n}">`).join('')}</datalist>
           <label>Élément<input name="element" value="${esc(r.element)}" placeholder="Ex : Voile CR 77 Axe D2"></label>
-          <div class="kv"><label>Indice coffrage<input name="indCof" value="${esc(r.indCof || '')}" placeholder="Ex : B" maxlength="8"></label><label>Indice ferraillage<input name="indFer" value="${esc(r.indFer || '')}" placeholder="Ex : C" maxlength="8"></label></div>
+          <div class="fld">Indice coffrage<div class="ind-dt"><input name="indCof" value="${esc(r.indCof || '')}" placeholder="P1" maxlength="8"><input name="indCofD" type="date" value="${esc(r.indCofD || '')}"></div></div>
+          <div class="fld">Indice ferraillage<div class="ind-dt"><input name="indFer" value="${esc(r.indFer || '')}" placeholder="P1" maxlength="8"><input name="indFerD" type="date" value="${esc(r.indFerD || '')}"></div></div>
           ${isBeton(K) ? `<label>Classe béton<input name="classe" list="dl-classe" value="${esc(r.classe || '')}" placeholder="Ex : B30"></label><datalist id="dl-classe">${CLASSES.map(c => `<option value="${c}">`).join('')}</datalist>
           <div class="fld">Suivi décoffrage<div class="seg"><button type="button" data-dcf="1" class="${decofOn(r) ? 'on' : ''}">Oui</button><button type="button" data-dcf="0" class="${!decofOn(r) ? 'on' : ''}">Non</button></div>
             ${decofOn(r) ? `<div class="dcf-row">${r.status === 'ok' ? decofCell(p, day, r) : '<small class="pv-help">Le suivi démarre quand l\u2019élément est « bétonné »</small>'}${r.status === 'ok' ? `<button type="button" class="btn ghost small" data-a="decofok">${r.decofAt ? 'Annuler « décoffré »' : 'Décoffré aujourd\u2019hui'}</button>` : ''}</div>` : ''}</div>` : ''}
@@ -792,7 +805,7 @@ async function shareBlob(blob, fname) {
 
 // Analyse un texte libre → lignes { zone, niv, element, classe, status }
 function parseRecText(txt, K) {
-  const NIV = /\b(R\s*\+\s*\d+|RDC|R\.?D\.?C|Mezz(?:anine)?|SS\s*\d*|SSL|Sous[- ]sol\s*\d*|Fondations?|Terrasse|Toiture)\b/i;
+  const NIV = /(?<![A-Za-z0-9])(R\s*\+\s*\d+(?!\d)|(?:RDC|R\.?D\.?C|Mezz(?:anine)?|SS\s*\d*|SSL|Sous[- ]sol\s*\d*|Fondations?|Terrasse|Toiture)\b)/i;   // « R+4deux poteaux » → R+4
   const out = []; let zone = '', niv = '', status = '';
   for (let raw of String(txt).split(/\r?\n/)) {
     let l = raw.trim().replace(/^[*_~]+|[*_~]+$/g, '').replace(/(^|\s)[*_~]+(?=\S)|(?<=\S)[*_~]+(?=\s|$)/g, '$1').replace(/[✅❌⏳⚠️\u{1F504}✔☑\u{1F7E2}\u{1F534}]/gu, '').replace(/^[\s\-•·▪►>]+/, '').trim();
@@ -963,3 +976,6 @@ async function pickPlanFor(projectId, niv) {
   const id = await menu(`Sur quel plan${niv ? ' (' + niv + ')' : ''} ?`, cur.slice(0, 40).map(p => ({ label: `${score(p) ? '' : '⭐ '}${F[p.folderId] ? F[p.folderId] + ' › ' : ''}${p.name}`, icon: 'plans', value: p.id })));
   return cur.find(p => p.id === id) || null;
 }
+
+// indice + date dans la même case : « P1 · 12/10/26 »
+function indCell(ind, d) { if (!ind && !d) return ''; const ds = d ? d.split('-').reverse().map((x, i) => i === 2 ? x.slice(2) : x).join('/') : ''; return `${esc(ind || '—')}${ds ? ` <small class="ix-d">· ${ds}</small>` : ''}`; }
