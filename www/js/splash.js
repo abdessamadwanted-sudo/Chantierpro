@@ -55,13 +55,13 @@ const Splash = (() => {
         const row = document.createElement('div'); row.className = line.startsWith('✓') ? 'ok' : ''; term.appendChild(row);
         for (let i = 0; i < line.length; i++) {
           if (done) return;
-          row.textContent = line.slice(0, i + 1); if (line[i] !== ' ' && i % 2 === 0) click();
-          await new Promise(r => setTimeout(r, 14 + Math.random() * 22));
+          row.textContent = line.slice(0, i + 1); if (line[i] !== ' ') click();
+          await new Promise(r => setTimeout(r, (line[i] === ' ' ? 40 : 60) + Math.random() * 45));
         }
-        await new Promise(r => setTimeout(r, 120));
+        await new Promise(r => setTimeout(r, 420));
       }
-      setTimeout(finish, 650);
-      setTimeout(finish, 6000);
+      setTimeout(finish, 1600);
+      setTimeout(finish, 16000);
     });
   }
   return { show, on, soundOn, set: (k, v) => LS(k, v) };
