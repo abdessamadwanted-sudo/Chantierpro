@@ -59,23 +59,9 @@ function recMessage(p, day, rows, single = false) {
 const rowText = (p, day, r) => recMessage(p, day, [r], true);
 async function shareRow(p, day, r) {
   const text = rowText(p, day, r);
-  const P = window.Capacitor?.Plugins || {};
-  const ids = [...(r.photoIds || []), ...(r.anomIds || []), ...(r.retourIds || [])].slice(0, 6);
-  if (ids.length && P.Share && P.Filesystem) {
-    try {
-      const files = [];
-      for (const id of ids) {
-        const f = await DB.get('files', id); if (!f) continue;
-        const b64 = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = rej; fr.readAsDataURL(f.blob); });
-        const name = `photo_${id}.jpg`;
-        await P.Filesystem.writeFile({ path: name, data: b64, directory: 'CACHE' });
-        files.push((await P.Filesystem.getUri({ path: name, directory: 'CACHE' })).uri);
-      }
-      await P.Share.share({ text, files, dialogTitle: 'Envoyer (WhatsApp…)' });
-      return;
-    } catch (e) { if (/cancel/i.test(String(e?.message))) return; }
-  }
-  shareWhatsApp(text);
+  const ids = [...(r.photoIds || []), ...(r.anomIds || []), ...(r.retourIds || []), ...(r.croquisId ? [r.croquisId] : [])].slice(0, 10);
+  if (!ids.length) return shareWhatsApp(text);
+  return sharePhotos(ids, text, r.element || 'ouvrage');
 }
 
 // ---- Rappel des PV non reçus
@@ -101,19 +87,26 @@ async function pvReminder(p, force) {
   $('[data-a=see]', s.el).onclick = () => { s.close(); goMissingPv(); };
 }
 
+// envoi des photos (+ texte) : les photos libérées du téléphone sont reprises dans Drive avant l'envoi
 async function sharePhotos(ids, text, base = 'pv') {
   const P = window.Capacitor?.Plugins || {};
-  if (!(P.Share && P.Filesystem)) { for (const id of ids) { const f = await DB.get('files', id); if (!f) continue; const u = URL.createObjectURL(f.blob); const a = document.createElement('a'); a.href = u; a.download = (f.name || `pv_${id}.jpg`); document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 5000); } toast('Photos téléchargées'); return; }
+  const ld = ids.length > 1 ? loading('Préparation des photos…') : null;
+  const recs = []; let miss = 0;
+  try { for (const id of ids) { const f = await DB.get('files', id); if (f && f.blob) recs.push(f); else miss++; } } finally { ld && ld.close(); }
+  if (!recs.length) { await alertBox(`Les photos ne sont pas sur le téléphone${miss ? ` (${miss} dans Google Drive)` : ''}.\nConnectez-vous à internet puis réessayez : elles seront reprises automatiquement.`); return text ? shareWhatsApp(text) : null; }
+  if (miss) toast(`${miss} photo(s) introuvable(s) — envoi des ${recs.length} autres`);
+  if (!(P.Share && P.Filesystem)) { for (const f of recs) { const u = URL.createObjectURL(f.blob); const a = document.createElement('a'); a.href = u; a.download = (f.name || `${base}.jpg`); document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 5000); } toast('Photos téléchargées'); return; }
   try {
     const files = [];
-    for (const id of ids) {
-      const f = await DB.get('files', id); if (!f) continue;
+    for (const f of recs) {
       const b64 = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = rej; fr.readAsDataURL(f.blob); });
-      const name = `${safeName(base)}_${files.length + 1}.jpg`;
+      const ext = /png/.test(f.mime || f.blob.type || '') ? 'png' : /pdf/.test(f.mime || f.blob.type || '') ? 'pdf' : 'jpg';
+      const name = `${safeName(base)}_${files.length + 1}.${ext}`;
       await P.Filesystem.writeFile({ path: name, data: b64, directory: 'CACHE' });
       files.push((await P.Filesystem.getUri({ path: name, directory: 'CACHE' })).uri);
     }
-    await P.Share.share({ text, files, dialogTitle: 'Envoyer' });
+    if (text) { try { await navigator.clipboard.writeText(text); } catch (e) {} }   // WhatsApp garde parfois seulement les photos : le texte est aussi copié (coller en légende)
+    await P.Share.share({ text: text || undefined, files, dialogTitle: 'Envoyer (WhatsApp…)' });
   } catch (e) { if (!/cancel/i.test(String(e?.message))) alertBox('Envoi impossible : ' + (e.message || e)); }
 }
 
