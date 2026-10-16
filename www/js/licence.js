@@ -3,6 +3,7 @@
 // l'application vérifie la licence à chaque ouverture (7 jours sans internet au maximum) et partage ses projets en lecture seule.
 const LIC_FB = { apiKey: 'AIzaSyAgrScRnLf1Itfnqpg8Z9Hs0cmmJQ_6yC0', authDomain: 'siteteam.firebaseapp.com', projectId: 'siteteam', storageBucket: 'siteteam.firebasestorage.app', messagingSenderId: '1060672691635', appId: '1:1060672691635:web:bfded73f3a1d10481a7fc6' };
 const LIC_GRACE = 7 * 864e5;
+const LIC_OWNERS = ['abdessamad.daga94@gmail.com'];   // seuls comptes autorisés comme « propriétaire »
 const LIC_APK = 'https://github.com/abdessamadwanted-sudo/Chantierpro/releases/latest/download/Chantier.apk';
 const Lic = {
   get() { try { return JSON.parse(localStorage.getItem('lic') || 'null'); } catch (e) { return null; } },
@@ -85,8 +86,9 @@ function licLock(kind) {
 function licActivateScreen(again) {
   return new Promise((resolve) => {
     const el = document.createElement('div'); el.className = 'fullpage lic-page';
-    el.innerHTML = `<div class="lic-in"><div class="lic-logo">${icon('hard')}</div><h1>Chantier</h1><p>Entrez le code de licence que l'on vous a envoyé.</p>
+    el.innerHTML = `<div class="lic-in"><div class="lic-logo">${icon('hard')}</div><h1>Chantier</h1><p>Entrez le code de licence reçu (Gmail ou WhatsApp) et votre adresse Gmail.</p>
       <div class="form"><label>Code de licence<input name="code" autocapitalize="characters" placeholder="CH-XXXX-XXXX" style="text-transform:uppercase;letter-spacing:1px"></label>
+      <label>Votre adresse Gmail<input name="email" type="email" inputmode="email" autocapitalize="none" placeholder="prenom.nom@gmail.com"></label>
       <button class="btn" data-a="go">Activer</button></div>
       <button class="linkbtn" data-a="owner">Je suis le propriétaire de l'application</button></div>`;
     document.body.appendChild(el);
@@ -101,11 +103,13 @@ function licActivateScreen(again) {
         if (L.status !== 'active') throw new Error(L.status === 'disabled' ? 'Cette licence est suspendue' : 'Cette licence n\'est plus valable');
         if (licExpired(L)) throw new Error('Cette licence est expirée');
         if (L.device && L.device.id && L.device.id !== Lic.dev()) throw new Error('Ce code est déjà utilisé sur un autre téléphone');
+        const em = ($('[name=email]', el).value || '').trim().toLowerCase();
+        if (L.email && em !== String(L.email).toLowerCase()) throw new Error(em ? 'Ce code est lié à une autre adresse Gmail. Utilisez l\'adresse à laquelle le code a été envoyé.' : 'Entrez votre adresse Gmail (celle qui a reçu le code).');
         ld.close();
         const ok = await licNotice(L); if (!ok) return;
         const ld2 = loading('Activation…');
         try { await licTimeout(ref.update({ device: { id: Lic.dev(), model: Lic.model() }, accepted: true, lastSeen: ts(), version: APP_VERSION })); } finally { ld2.close(); }
-        Lic.set({ mode: 'user', code, status: 'active', lastOk: Date.now(), checkedAt: Date.now(), name: L.name, ownerName: L.ownerName || '', expires: L.expires || null, block: L.block || null, features: L.features || null, pushAt: 0 });
+        Lic.set({ mode: 'user', code, email: em || L.email || '', status: 'active', lastOk: Date.now(), checkedAt: Date.now(), name: L.name, ownerName: L.ownerName || '', expires: L.expires || null, block: L.block || null, features: L.features || null, pushAt: 0 });
         el.remove(); toast('Application activée ✓'); resolve();
       } catch (e) { ld.close(); alertBox(e.message || String(e)); }
     };
@@ -125,14 +129,26 @@ function licNotice(L) {
 
 // ---------- propriétaire : connexion ----------
 async function licOwnerLogin() {
-  const { auth } = await licFb();
-  if (auth.currentUser) return auth.currentUser;
-  const r = await formSheet('Compte propriétaire', [{ name: 'email', label: 'E-mail', type: 'email' }, { name: 'pw', label: 'Mot de passe', type: 'password' },
-    { name: 'mode', label: 'Compte', type: 'select', value: 'in', options: [{ value: 'in', label: 'J\'ai déjà un compte (SiteTeam / Chantier)' }, { value: 'up', label: 'Créer mon compte' }] }], { okLabel: 'Continuer' });
-  if (!r || !r.email || !r.pw) return null;
+  const { auth, fs } = await licFb();
+  // seul le propriétaire (son adresse, ou un compte qui a déjà créé des licences) peut entrer
+  const allowed = async (u) => { if (!u) return false; if (LIC_OWNERS.includes(String(u.email || '').toLowerCase())) return true;
+    try { const q = await licTimeout(fs.collection('licences').where('ownerUid', '==', u.uid).limit(1).get()); return !q.empty; } catch (e) { return false; } };
+  if (auth.currentUser) { if (await allowed(auth.currentUser)) return auth.currentUser; await auth.signOut().catch(() => {}); }
+  const r = await formSheet('Compte propriétaire', [{ name: 'email', label: 'E-mail du propriétaire', type: 'email' }, { name: 'pw', label: 'Mot de passe', type: 'password' }], { okLabel: 'Se connecter', danger: 'Mot de passe oublié' });
+  if (!r) return null;
+  if (r.__danger) {
+    const m = await formSheet('Mot de passe oublié', [{ name: 'email', label: 'E-mail du propriétaire', type: 'email' }], { okLabel: 'Envoyer le lien' });
+    if (m && m.email) { if (!LIC_OWNERS.includes(m.email.trim().toLowerCase())) { alertBox('Cette adresse n\'est pas celle du propriétaire.'); return null; } try { await auth.sendPasswordResetEmail(m.email.trim()); alertBox('📧 Lien envoyé : ouvrez Gmail et choisissez un nouveau mot de passe.'); } catch (e) { alertBox(e.message || String(e)); } }
+    return null;
+  }
+  if (!r.email || !r.pw) return null;
   const ld = loading('Connexion…');
-  try { const c = r.mode === 'up' ? await auth.createUserWithEmailAndPassword(r.email, r.pw) : await auth.signInWithEmailAndPassword(r.email, r.pw); return c.user; }
-  catch (e) { alertBox(({ 'auth/invalid-credential': 'E-mail ou mot de passe incorrect', 'auth/invalid-login-credentials': 'E-mail ou mot de passe incorrect', 'auth/email-already-in-use': 'Ce compte existe déjà : choisissez « J\'ai déjà un compte »', 'auth/weak-password': 'Mot de passe trop court (6 caractères)', 'auth/network-request-failed': 'Pas de connexion internet' })[e.code] || e.message); return null; }
+  try {
+    const c = await auth.signInWithEmailAndPassword(r.email.trim(), r.pw);
+    if (!(await allowed(c.user))) { await auth.signOut().catch(() => {}); alertBox('🔒 Accès réservé au propriétaire de l\'application.\nSi on vous a donné un code de licence, entrez-le sur l\'écran d\'activation.'); return null; }
+    return c.user;
+  }
+  catch (e) { alertBox(({ 'auth/invalid-credential': 'E-mail ou mot de passe incorrect', 'auth/invalid-login-credentials': 'E-mail ou mot de passe incorrect', 'auth/user-not-found': 'E-mail ou mot de passe incorrect', 'auth/wrong-password': 'E-mail ou mot de passe incorrect', 'auth/too-many-requests': 'Trop d\'essais : réessayez plus tard', 'auth/network-request-failed': 'Pas de connexion internet' })[e.code] || e.message); return null; }
   finally { ld.close(); }
 }
 
@@ -157,15 +173,20 @@ async function openLicences() {
     const ago = (t) => { const ms = t?.toMillis ? Date.now() - t.toMillis() : null; if (ms == null) return 'jamais'; const h = ms / 3600e3; return h < 1 ? 'il y a moins d\'1 h' : h < 48 ? `il y a ${Math.round(h)} h` : `il y a ${Math.round(h / 24)} j`; };
     $('.lic-list', el).innerHTML = list.length ? list.map(L => { const S = licExpired(L) && L.status === 'active' ? ['Expirée', '#94a3b8'] : LIC_ST[L.status] || ['?', '#94a3b8'];
       return `<button class="lic-row" data-c="${L.code}"><span class="lic-av">${esc((L.name || '?')[0].toUpperCase())}</span><span class="grow"><b>${esc(L.name || 'Sans nom')}</b>
-        <small>${L.code} · ${L.device ? esc(L.device.model || 'téléphone') + ' · vu ' + ago(L.lastSeen) : 'pas encore activée'}${L.version ? ' · v' + esc(L.version) : ''}</small>
+        <small>${L.code}${L.email ? ' · ' + esc(L.email) : ''} · ${L.device ? esc(L.device.model || 'téléphone') + ' · vu ' + ago(L.lastSeen) : 'pas encore activée'}${L.version ? ' · v' + esc(L.version) : ''}</small>
         <small>${L.expires ? 'Expire le ' + fmtDate(L.expires) : 'Sans expiration'}${L.features && Object.values(L.features).some(v => v === false) ? ` · ${Object.values(L.features).filter(v => v === false).length} fonction(s) masquée(s)` : ''}</small></span><em style="--c:${S[1]}">${S[0]}</em></button>`; }).join('')
       : '<div class="empty">Aucune licence.<br>Touchez <b>Nouvelle</b> pour partager l\'application avec quelqu\'un.</div>';
     $$('[data-c]', el).forEach(b => b.onclick = () => licMenu(list.find(x => x.code === b.dataset.c)));
   };
-  const shareCode = (L) => openUrl('https://wa.me/?text=' + encodeURIComponent(`Bonjour ${L.name || ''},\nVoici l'application *Chantier* pour le suivi de chantier :\n\n1️⃣ Téléchargez et installez : ${LIC_APK}\n2️⃣ Ouvrez l'application et entrez le code : *${L.code}*`));
+  const shareCode = (L) => openUrl('https://wa.me/?text=' + encodeURIComponent(`Bonjour ${L.name || ''},\nVoici l'application *Chantier* pour le suivi de chantier :\n\n1️⃣ Téléchargez et installez : ${LIC_APK}\n2️⃣ Ouvrez l'application et entrez le code : *${L.code}*${L.email ? `\n3️⃣ Avec votre adresse Gmail : ${L.email}` : ''}`));
+  const mailCode = (L) => {
+    const sub = `Votre licence Chantier : ${L.code}`;
+    const body = `Bonjour ${L.name || ''},\n\nVoici votre accès à l'application Chantier (suivi de chantier).\n\n1) Téléchargez et installez l'application :\n${LIC_APK}\n(si Android le demande : autoriser l'installation)\n\n2) Ouvrez Chantier et entrez :\n   - Code de licence : ${L.code}\n   - Votre adresse Gmail : ${L.email || '(cette adresse)'}\n\n3) Les mises à jour se font ensuite depuis l'application (⋮ › Rechercher une mise à jour), sans désinstaller.\n\nCe code ne fonctionne que sur un seul téléphone.${L.expires ? `\nValable jusqu'au ${fmtDate(L.expires)}.` : ''}\n\n${L.ownerName || ''}`;
+    openUrl(`mailto:${encodeURIComponent(L.email || '')}?subject=${encodeURIComponent(sub)}&body=${encodeURIComponent(body)}`);
+  };
   const DUR = [['0', 'Sans expiration'], ['30', '1 mois'], ['90', '3 mois'], ['180', '6 mois'], ['365', '1 an']];
   async function newLic() {
-    const r = await formSheet('Nouvelle licence', [{ name: 'name', label: 'Pour qui ?', placeholder: 'Ex : Youssef' }, { name: 'd', label: 'Durée', type: 'select', value: '0', options: DUR.map(([v, l]) => ({ value: v, label: l })) },
+    const r = await formSheet('Nouvelle licence', [{ name: 'name', label: 'Pour qui ?', placeholder: 'Ex : Youssef' }, { name: 'email', label: 'Son adresse Gmail (le code lui sera lié)', type: 'email', placeholder: 'youssef@gmail.com' }, { name: 'd', label: 'Durée', type: 'select', value: '0', options: DUR.map(([v, l]) => ({ value: v, label: l })) },
       { name: 'me', label: 'Votre nom (affiché à l\'activation)', value: localStorage.getItem('userName') || '' },
       { name: 'f', label: 'Fonctions', type: 'select', value: 'norec', options: [{ value: 'all', label: 'Toutes les fonctions' }, { value: 'norec', label: 'Sans Réception & bétonnage / PV' }, { value: 'av', label: 'Avancement seulement (+ plans, photos)' }, { value: 'pick', label: 'Choisir une par une…' }] }], { okLabel: 'Créer' });
     if (!r || !r.name) return;
@@ -173,10 +194,10 @@ async function openLicences() {
     if (r.f === 'norec') features = { reception: false };
     if (r.f === 'av') features = Object.fromEntries(FEATURES.map(([k]) => [k, ['avancement', 'photos'].includes(k)]));
     if (r.f === 'pick') { features = await editLicFeatures({ name: r.name, features: { reception: false } }); if (!features) return; }
-    const code = licCode(), L = { features, block: await licOwnerBlock(), name: r.name, ownerUid: user.uid, ownerName: r.me || '', status: 'active', expires: +r.d ? Date.now() + (+r.d) * 864e5 : null, device: null, accepted: false, createdAt: ts() };
+    const code = licCode(), L = { features, block: await licOwnerBlock(), name: r.name, email: (r.email || '').trim().toLowerCase() || null, ownerUid: user.uid, ownerName: r.me || '', status: 'active', expires: +r.d ? Date.now() + (+r.d) * 864e5 : null, device: null, accepted: false, createdAt: ts() };
     const ld = loading('Création…'); try { await licTimeout(fs.collection('licences').doc(code).set(L)); } catch (e) { ld.close(); return alertBox(e.code === 'permission-denied' ? 'Accès refusé : mettez à jour les règles Firestore (voir les instructions).' : (e.message || e)); } ld.close();
-    const v = await menu(`Code : ${code}`, [{ label: 'Envoyer par WhatsApp (lien + code)', icon: 'share', value: 'wa' }, { label: 'Copier le code', icon: 'file', value: 'cp' }, { label: 'Fermer', icon: 'check', value: 'ok' }]);
-    if (v === 'wa') shareCode({ ...L, code }); if (v === 'cp') navigator.clipboard.writeText(code).then(() => toast('Copié ✓'), () => alertBox(code));
+    const v = await menu(`Code : ${code}`, [...(L.email ? [{ label: `Envoyer par Gmail à ${L.email}`, icon: 'external', value: 'mail' }] : []), { label: 'Envoyer par WhatsApp (lien + code)', icon: 'share', value: 'wa' }, { label: 'Copier le code', icon: 'file', value: 'cp' }, { label: 'Fermer', icon: 'check', value: 'ok' }]);
+    if (v === 'wa') shareCode({ ...L, code }); if (v === 'mail') mailCode({ ...L, code }); if (v === 'cp') navigator.clipboard.writeText(code).then(() => toast('Copié ✓'), () => alertBox(code));
     draw();
   }
   async function licMenu(L) {
@@ -186,7 +207,8 @@ async function openLicences() {
       { label: 'Fonctions autorisées (ce qu\'il voit)', icon: 'grid', value: 'feat' },
       L.status === 'active' ? { label: 'Suspendre (temporaire)', icon: 'calendar', value: 'disable' } : { label: 'Réactiver', icon: 'check', value: 'enable' },
       { label: 'Prolonger / changer la durée', icon: 'calendar', value: 'exp' },
-      { label: 'Renvoyer le lien et le code', icon: 'share', value: 'share' },
+      { label: 'Renvoyer par WhatsApp', icon: 'share', value: 'share' },
+      { label: L.email ? `Renvoyer par Gmail (${L.email})` : 'Envoyer par Gmail…', icon: 'external', value: 'mail' },
       { label: 'Libérer le téléphone (changement de téléphone)', icon: 'phone', value: 'free' },
       ...(L.status !== 'revoked' ? [{ label: 'Retirer l\'accès définitivement', icon: 'close', danger: true, value: 'revoke' }] : []),
       { label: 'Supprimer la licence', icon: 'trash', danger: true, value: 'del' }]);
@@ -198,6 +220,7 @@ async function openLicences() {
       if (v === 'revoke' && await confirmBox(`Retirer l'accès de ${L.name} ? L'application se bloquera sur son téléphone à la prochaine ouverture avec internet.`, 'Retirer l\'accès')) await ref.update({ status: 'revoked' });
       if (v === 'exp') { const r = await formSheet('Durée', [{ name: 'd', label: 'À partir d\'aujourd\'hui', type: 'select', value: '0', options: DUR.map(([x, l]) => ({ value: x, label: l })) }], { okLabel: 'Appliquer' }); if (r) await ref.update({ expires: +r.d ? Date.now() + (+r.d) * 864e5 : null }); }
       if (v === 'share') shareCode(L);
+      if (v === 'mail') { let e = L.email; if (!e) { const r = await formSheet('Adresse Gmail', [{ name: 'e', label: 'Gmail de ' + (L.name || 'la personne'), type: 'email' }], { okLabel: 'Lier et envoyer' }); if (!r || !r.e) return; e = r.e.trim().toLowerCase(); await ref.update({ email: e }); } mailCode({ ...L, email: e }); return; }
       if (v === 'free' && await confirmBox('Libérer ce code ? Il pourra être activé sur un nouveau téléphone (l\'ancien sera bloqué).', 'Libérer')) await ref.update({ device: null });
       if (v === 'del' && await confirmBox(`Supprimer la licence de ${L.name} ? Son application sera bloquée et son suivi effacé.`)) { const q = await ref.collection('suivi').get(); for (let i = 0; i < q.docs.length; i += 400) { const b = fs.batch(); q.docs.slice(i, i + 400).forEach(d => b.delete(d.ref)); await b.commit(); } await ref.delete(); }
       if (v && v !== 'share') { toast('Enregistré ✓'); draw(); }

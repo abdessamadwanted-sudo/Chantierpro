@@ -1,2 +1,5 @@
-## Test de mise à jour
-- Version de test : elle doit s'installer par-dessus la 1.0.67 depuis l'application, sans désinstaller (vos données restent)
+## Nouveautés — Licences par Gmail · protection
+- Nouvelle licence : adresse Gmail de la personne ; le code lui est lié (activation = code + son Gmail)
+- « Envoyer par Gmail » : e-mail prêt avec le lien de l'application, le code et les étapes (aussi dans ⋮ de chaque licence)
+- « Je suis le propriétaire » réservé au compte du propriétaire ; « Créer un compte » supprimé ; « Mot de passe oublié » (lien dans Gmail)
+- Protection anti-copie : l'inspection du code de l'application depuis un PC est désactivée

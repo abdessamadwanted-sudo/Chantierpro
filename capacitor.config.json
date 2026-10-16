@@ -3,6 +3,8 @@
   "appName": "Chantier",
   "webDir": "www",
   "android": {
-    "backgroundColor": "#1b1e24"
+    "backgroundColor": "#1b1e24",
+    "webContentsDebuggingEnabled": false,
+    "allowMixedContent": false
   }
 }

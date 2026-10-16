@@ -400,7 +400,7 @@ async function showPdf(blob, caption = 'PDF', opts = {}) {
 
 // Ouvre un lien (Google Drive, etc.) dans le navigateur du téléphone
 function openUrl(url) {
-  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  if (!/^(https?|mailto|tel|sms|whatsapp|intent|geo):/i.test(url)) url = 'https://' + url;
   if (isNative()) window.location.href = url; // Capacitor l'ouvre dans le navigateur externe
   else window.open(url, '_blank');
 }
