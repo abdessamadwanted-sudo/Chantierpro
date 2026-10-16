@@ -231,21 +231,23 @@ async function openPlanCompare(oldPlan, newPlan) {
 // ---------- Barre « indice » en bas du plan ----------
 async function planIndiceBar(el, plan, ctx, close) {
   if (typeof planHistory !== 'function') return;
+  // indice lu automatiquement dans le cartouche (une seule fois par plan)
+  if (!plan.cartRead && (plan.pdfFileId || plan.dxfFileId) && (!plan.indiceDate || !plan.indice || plan.indice === 'A')) {
+    plan.cartRead = true;
+    cartoucheOfPlan(plan).then(async c => { if (c) { if (c.indice) plan.indice = c.indice; if (c.date) plan.indiceDate = c.date; if (c.desc && !plan.indiceNote) plan.indiceNote = c.desc; } await DB.put('plans', plan); if (c && el.isConnected) { const o = $('.ind-pill', el); if (o) o.remove(); planIndiceBar(el, plan, ctx, close); } }).catch(() => DB.put('plans', plan).catch(() => {}));
+  }
   const hist = await planHistory(plan); if (!el.isConnected) return;
-  const cur = hist.find(isCurrentPlan) || plan, old = !isCurrentPlan(plan);
-  const lab = (p) => `Indice ${planIndice(p)}${p.indiceDate ? ' · ' + fmtDate(p.indiceDate) : ''}`;
-  const bar = document.createElement('button'); bar.className = 'ind-bar' + (old ? ' old' : '');
-  bar.innerHTML = old ? `⚠️ <span class="grow"><span>Ancien ${esc(lab(plan))}</span><small>Touchez pour revenir à l’indice actuel ${esc(planIndice(cur))}</small></span>`
-    : `📐 <span class="grow"><span>${esc(lab(plan))} <i>(actuel)</i></span>${hist.length > 1 ? `<small>${hist.length} indices · touchez pour voir les anciens</small>` : ''}</span>${hist.length > 1 ? icon('chevup') : ''}`;
-  const bottom = $('.viewer-bottom', el); if (!bottom) return;
-  bottom.parentNode.insertBefore(bar, bottom);
-  bar.onclick = async () => {
-    if (old) { close(); return openPlanViewer(cur, ctx); }
-    if (hist.length < 2) return planIndicesMenu(plan, { onNew: (np) => { close(); openPlanViewer(np, ctx); } });
+  const lab = (p) => `${planIndice(p)}${p.indiceDate ? '  ' + fmtDate(p.indiceDate) : ''}`;
+  const viewer = $('.viewer', el); if (!viewer) return;
+  const pill = document.createElement('div'); pill.className = 'ind-pill' + (isCurrentPlan(plan) ? '' : ' old');
+  pill.innerHTML = `<button class="ip-t">${esc(lab(plan))}</button><button class="ip-a">${icon('chevup')}</button>`;
+  viewer.appendChild(pill);
+  ['pointerdown', 'pointerup', 'click'].forEach(ev => pill.addEventListener(ev, e => e.stopPropagation()));
+  pill.onclick = async () => {
     const v = await menu('Indices du plan', [
-      ...hist.slice().reverse().map(p => ({ label: `${lab(p)}${isCurrentPlan(p) ? ' (actuel)' : ''}${p.indiceNote ? ' · ' + p.indiceNote : ''}`, icon: isCurrentPlan(p) ? 'check' : 'history', value: 'o:' + p.id })),
-      { label: 'Comparer avec l’indice précédent', icon: 'layers', value: 'cmp' },
-      { label: 'Autres actions (nouvel indice, modifier, cartouches)…', icon: 'more', value: 'more' }]);
+      ...hist.slice().reverse().map(p => ({ label: `${lab(p)}${p.indiceNote ? ' · ' + p.indiceNote : ''}`, icon: p.id === plan.id ? 'check' : 'plans', value: 'o:' + p.id, checked: p.id === plan.id })),
+      ...(hist.length > 1 ? [{ label: 'Comparer avec l’indice précédent', icon: 'layers', value: 'cmp' }] : []),
+      { label: 'Nouvel indice, modifier, lire les cartouches…', icon: 'more', value: 'more' }]);
     if (!v) return;
     if (v === 'cmp') { const prev = hist.find(p => p.id === plan.prevId) || hist[hist.length - 2]; return openPlanCompare(prev, plan); }
     if (v === 'more') return planIndicesMenu(plan, { onNew: (np) => { close(); openPlanViewer(np, ctx); }, onOpen: (p2) => { if (p2.id !== plan.id) { close(); openPlanViewer(p2, ctx); } } });

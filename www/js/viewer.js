@@ -124,7 +124,7 @@ async function openPlanViewer(plan, ctx) {
   el.innerHTML = `
     <div class="topbar">
       <button class="iconbtn" data-a="back">${icon('back')}</button>
-      <h1>${esc(plan.name)}${plan.indice || plan.prevId ? ` <span class="ind-tag">Ind. ${esc(planIndice(plan))}</span>` : ''}${plan.supersededBy ? ' <span class="ind-tag old">ancien</span>' : ''}</h1>
+      <h1>${esc(plan.name)}${plan.supersededBy ? ' <span class="ind-tag old">ancien</span>' : ''}</h1>
       <button class="iconbtn" data-a="ind" title="Indices / mise à jour du plan">${icon('history')}</button>
       <button class="iconbtn" data-a="filters">${icon('eye')}</button>
       <button class="iconbtn" data-a="more">${icon('more')}</button>

@@ -1274,3 +1274,8 @@ html.glass .loading, html.glass .toast { background: #1a2350; }
 .rb-card { display: flex; align-items: center; gap: 12px; width: calc(100% - 28px); margin: 0 14px 12px; padding: 12px 14px; border-radius: 16px; text-align: left; border: 1px solid rgba(96,165,250,.35); background: linear-gradient(135deg, rgba(30,58,138,.55), rgba(49,46,129,.45)); color: #fff; }
 .rb-card .rb-ic { font-size: 26px; width: 44px; height: 44px; display: grid; place-items: center; background: rgba(255,255,255,.12); border-radius: 12px; }
 .rb-card small { display: block; color: #c7d2fe; font-size: 12.5px; margin-top: 2px; }
+/* indice du plan : pastille fixe en bas à gauche (indice + date) */
+.ind-pill { position: absolute; left: 12px; bottom: 12px; z-index: 6; display: flex; align-items: stretch; border-radius: 10px; overflow: hidden; background: rgba(31,41,55,.94); box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+.ind-pill button { border: 0; background: transparent; color: #fff; font-size: 16px; font-weight: 600; padding: 10px 14px; letter-spacing: .3px; white-space: pre; }
+.ind-pill .ip-a { border-left: 1px solid rgba(255,255,255,.25); padding: 8px 12px; display: grid; place-items: center; } .ind-pill .ip-a svg { width: 18px; height: 18px; }
+.ind-pill.old { background: rgba(124,45,18,.94); }
