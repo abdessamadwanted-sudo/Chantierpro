@@ -436,9 +436,13 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         const v = await menu('Tableau', [
           { label: 'Changer la date', icon: 'calendar', value: 'date' },
           { label: 'Libérer les photos de ce jour (gardées dans Drive)', icon: 'drive', value: 'free' },
+          { label: `Bons de bétonnage du jour (PDF, 6 par page)${day.rows.some(x => x.bon) ? ' · ' + day.rows.filter(x => x.bon).length : ''}`, icon: 'pdf', value: 'bons' },
+          { label: 'Nouveau bon de bétonnage (libre)…', icon: 'edit', value: 'bonfree' },
           ...(!isBeton(K) ? [{ label: 'Copier des ouvrages vers le bétonnage…', icon: 'calendar', value: 'cpb' }] : []),
           { label: 'Supprimer ce tableau', icon: 'trash', danger: true, value: 'del' },
         ]);
+        if (v === 'bons') { const list = day.rows.filter(x => x.bon).map(x => x.bon); if (!list.length) toast('Aucun bon : ouvrez un ouvrage › « Bon de bétonnage »'); else await bonsPdf(p, list, `Bons de bétonnage ${fmtDate(day.date).replace(/\//g, '-')}`); }
+        if (v === 'bonfree') { const cfg = bonCfg(p); const b = { id: DB.uid(), date: day.date, area: '', zone: '', ouvrage: '', partie: '', type: '', sig: { ...(cfg.last || {}) } }; await openBon(p, b, async (bb) => { p.bons = (p.bons || []).filter(x => x.id !== bb.id).concat(bb); await DB.put('projects', p); }); }
         if (v === 'cpb') { await save(); const pick = await pickRows(day.rows.filter(x => x.element), 'Copier vers le bétonnage'); if (pick && pick.length) await copyToBeton(day.projectId, pick); }
         if (v === 'free') { await save(); await freeFilesUI([...(day.pvIds || []), ...day.rows.flatMap(r => [...(r.photoIds || []), ...(r.retourIds || [])])], `${recTitle(K)} du ${fmtDate(day.date)}`); render(); }
         if (v === 'date') { const r = await formSheet('Date', [{ name: 'date', label: 'Date', type: 'date', value: day.date }]); if (r && r.date) { day.date = r.date; await save(); render(); } }
@@ -476,6 +480,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
             <div class="fld">${isBeton(K) ? 'Photos de la réparation' : 'Photos du retour (levée de réserve)'}</div>${thumbs(retours, 'retourIds')}
             ${r.status === 'reserve' || (isBeton(K) && photos.length) ? `<button type="button" class="btn ${r.liftedAt ? 'ghost' : ''} small" data-a="lift" style="align-self:flex-start;margin-top:8px">${icon('check')} ${r.liftedAt ? `${isBeton(K) ? 'Réparé' : 'Réserve levée'} le ${recDateLabel(r.liftedAt)} (annuler)` : (isBeton(K) ? 'Marquer comme réparé' : 'Marquer la réserve levée')}</button>` : ''}
           </div>` : ''}
+          ${!isNew ? `<button type="button" class="btn ghost small bon-btn" data-a="bon">📝 ${r.bon ? 'Bon de bétonnage (voir / modifier)' : 'Bon de bétonnage'}</button>` : ''}
           ${!isNew && !isBeton(K) ? `<button type="button" class="btn ghost small cp-btn" data-a="cpb">${icon('calendar')} Copier vers le programme de bétonnage</button>` : ''}
           ${[...photos, ...retours].some(x => x.blob) && !isNew ? `<button type="button" class="btn ghost small fr-btn" data-a="free">☁ Libérer ${[...photos, ...retours].filter(x => x.blob).length} photo(s) du téléphone</button>` : ''}${[...photos, ...retours].some(x => !x.blob && x.freed) ? `<div class="fr-mini">☁ ${[...photos, ...retours].filter(x => !x.blob && x.freed).length} photo(s) uniquement dans Drive</div>` : ''}
           <div class="fld">Croquis ${isBeton(K) ? '(partie bétonnée en couleur)' : '(partie réceptionnée en couleur)'}</div>
@@ -484,6 +489,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
             <button class="btn ghost" data-a="cancel">Annuler</button><button class="btn" data-a="ok">${isNew ? 'Ajouter' : 'Enregistrer'}</button></div>
           ${isNew ? `<button class="btn ghost" data-a="okmore" style="margin-top:-4px">Ajouter et ligne suivante</button>` : `<button class="btn ghost" data-a="wa" style="margin-top:-4px">${icon('share')} Envoyer cet ouvrage (WhatsApp)</button>${(r.photoIds.length + r.retourIds.length) ? `<button class="btn ghost" data-a="waph" style="margin-top:-4px">${icon('camera')} Envoyer toutes ses photos (${r.photoIds.length + r.retourIds.length})</button>` : ''}`}`;
         Thumbs.fill(f);
+        const bnb = $('[data-a=bon]', f); if (bnb) bnb.onclick = async (e) => { e.preventDefault(); if (!await commit()) return; const cfg = bonCfg(p); const b = r.bon ? { ...r.bon, sig: { ...(r.bon.sig || {}) } } : bonFromRow(r, day.date, cfg); await openBon(p, b, async (bb) => { r.bon = bb; await commit(); }); draw(); };
         const cpb = $('[data-a=cpb]', f); if (cpb) cpb.onclick = async (e) => { e.preventDefault(); if (!await commit()) return; await copyToBeton(day.projectId, [r]); };
         const frb = $('[data-a=free]', f); if (frb) frb.onclick = async (e) => { e.preventDefault(); if (!await commit()) return; await freeFilesUI([...r.photoIds, ...r.retourIds], r.element || 'ouvrage'); draw(); };
         $$('[name]', f).forEach(inp => inp.oninput = () => { r[inp.name] = inp.value; });

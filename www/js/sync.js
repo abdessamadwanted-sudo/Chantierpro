@@ -103,8 +103,10 @@ const Sync = (() => {
         (r.anomIds || []).forEach((id, i) => put(id, [...dir, 'Anomalies'], `${nm} - ${bet ? 'Défaut' : 'Anomalie'} ${i + 1}`));
         (r.retourIds || []).forEach((id, i) => put(id, [...dir, 'Réparations'], `${nm} - Réparation ${i + 1}`));
         if (r.croquisId) put(r.croquisId, dir, `${nm} - Croquis`);
+        if (r.bon && r.bon.fileId) put(r.bon.fileId, [...base, 'Bons de bétonnage'], `Bon - ${nm}`);
       }
     }
+    for (const pr of projects) { for (const b of pr.bons || []) if (b.fileId) put(b.fileId, [pj(pr.id), D.bet, 'Bons libres', b.date || ''], clean(`Bon - ${b.ouvrage || ''} ${b.partie || ''}`)); const bc = pr.bon || {}; for (const L of Object.values(bc.people || {})) for (const q of L) if (q.sigId) put(q.sigId, [pj(pr.id), D.bet, 'Signatures'], clean(`Signature ${q.name}`)); }
     for (const pr of projects) for (const c of pr.clauses || []) put(c.fileId, [pj(pr.id), D.cl, c.type || 'Autre'], clean(c.name));
     for (const pr of projects) for (const c of pr.constats || []) (c.items || []).forEach((it, k) => (it.photoIds || []).forEach((id, i) => put(id, [pj(pr.id), D.cons, `${c.date || ''} ${c.title || 'Constat'}`], `${k + 1}-${i + 1} ${it.probleme || 'photo'}`.slice(0, 80))));
     for (const t of tasks) (t.photoIds || []).forEach((id, i) => put(id, [pj(t.projectId), D.res, `#${t.num || ''} ${t.title || ''}`], `#${t.num || ''} - ${i + 1}`));
@@ -132,6 +134,7 @@ const Sync = (() => {
   const keepMode = () => LS.get('keep', 'plans');
   const isPlan = (f) => f.role === 'plan' || f.role === 'plansrc';
   function wantLocal(f, mode = keepMode()) {
+    if (f.role === 'sig') return true;
     if (f.freed) return !!(f.lastUsed && Date.now() - f.lastUsed < 2 * 864e5);   // libérée volontairement : reste dans Drive
     if (mode === 'all') return true;
     if (f.role === 'croquis') return true;                                   // petits

@@ -76,7 +76,7 @@ function attachSharedPhotos(files) {
 }
 
 // ---------- Rappel : photos déjà sauvegardées dans Drive depuis plus de 3 jours → libérer le téléphone (Drive garde tout) ----------
-const isPhotoFile = (f) => f && f.blob && f.driveId && f.drivePath && /^image\//.test(f.mime || f.blob.type || '') && !['plan', 'plansrc', 'croquis', 'doc', 'career', 'board', 'sketchbg'].includes(f.role);
+const isPhotoFile = (f) => f && f.blob && f.driveId && f.drivePath && /^image\//.test(f.mime || f.blob.type || '') && !['plan', 'plansrc', 'croquis', 'doc', 'career', 'board', 'sketchbg', 'sig'].includes(f.role);
 async function oldDrivePhotos() {
   const lim = Date.now() - 3 * 864e5;
   return (await DB.all('files')).filter(f => isPhotoFile(f) && (f.createdAt || 0) < lim && !(f.lastUsed && f.lastUsed > lim));

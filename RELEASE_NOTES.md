@@ -1,5 +1,6 @@
 ## Nouveautés
-- Google Drive rangé de façon pro : 01 - Plans, 02 - Réception ferraillage, 03 - Bétonnage, 04 - Réserves… un dossier par mois, par jour et par ouvrage (les fichiers existants sont déplacés, jamais dupliqués)
-- Libérer les photos d'un ouvrage ou d'un jour : vérifiées dans Drive puis retirées du téléphone (une miniature reste)
-- Copier un ouvrage de la réception vers le programme de bétonnage (aujourd'hui, demain ou une date) depuis la fiche, la recherche ou le menu du tableau
-- Mise à jour : la liste des nouveautés s'affiche avant d'installer
+- Bon de bétonnage (Demande de bétonnage et contrôle de coffrage) : même modèle que le bon papier, écriture manuscrite bleue
+- Rempli automatiquement depuis la réception ou le programme de bétonnage (Area, Zone, Ouvrage, Partie, Type de béton) — tout reste modifiable
+- Signatures Travaux / Topographe / Qualité / HSE : chaque personne signe une fois (ou depuis une photo), puis on la choisit en touchant sa case
+- Partage WhatsApp (image) et PDF 6 bons par page A4 ; rangé dans Drive (03 - Bétonnage › jour › Bons de bétonnage)
+- Bon libre (sans ouvrage du programme) depuis le menu ⋮ du tableau

@@ -1080,3 +1080,15 @@ body:has(.fullpage) .sharebar, body:has(.sheet-bg) .sharebar { display: none; }
 .pk-r { display: flex; gap: 8px; align-items: center; text-align: left; border: 0; border-radius: 10px; padding: 9px 10px; background: rgba(255,255,255,.05); color: #e5e7eb; font-size: 14px; }
 .pk-r.on { background: rgba(59,130,246,.22); } .pk-r i { font-style: normal; font-size: 17px; } .pk-r .z { min-width: 26px; color: #93c5fd; font-weight: 700; } .pk-r .n { min-width: 40px; color: var(--muted); } .pk-r .grow { flex: 1; }
 .upd-notes { display: grid; gap: 5px; text-align: left; padding: 10px 12px; margin: 8px 0; border-radius: 12px; background: rgba(255,255,255,.05); max-height: 40vh; overflow: auto; font-size: 14px; line-height: 1.45; }
+/* bon de bétonnage */
+.bon-page .bon-body { overflow: auto; flex: 1; padding: 10px 12px 30px; }
+.bon-prev { background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 6px 22px rgba(0,0,0,.35); }
+.bon-prev img { width: 100%; display: block; cursor: pointer; }
+.bon-hint { font-size: 12.5px; color: var(--muted); text-align: center; margin: 6px 0 10px; }
+.bon-form { gap: 10px; }
+.bon-sigs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.bon-sig { display: grid; gap: 2px; text-align: left; padding: 10px 12px; border-radius: 12px; border: 1px dashed rgba(148,163,184,.5); background: rgba(255,255,255,.04); color: #e5e7eb; }
+.bon-sig small { color: var(--muted); font-size: 12px; } .bon-sig.on { border-style: solid; border-color: #60a5fa; background: rgba(59,130,246,.14); } .bon-sig.on b { color: #93c5fd; }
+.bon-pad { background: #fff; border-radius: 12px; overflow: hidden; touch-action: none; } .bon-pad canvas { display: block; }
+.bon-ok { display: flex !important; flex-direction: row !important; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.4; color: #cbd5e1; } .bon-ok input { width: 22px !important; height: 22px; flex: none; margin: 0; }
+.bon-btn { align-self: flex-start; }
