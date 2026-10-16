@@ -14,10 +14,11 @@ const FEATURES = [
   ['clauses', 'Clauses techniques'],
   ['models3d', 'Modèles 3D / Maquette 3D'],
   ['calc', 'Calculs & Topo'],
+  ['gestion', 'Gestion : stock, rendement, attachements / situations, labo'],
   ['career', 'Emploi & carrière'],
 ];
 // section du menu → fonction qui la commande (les sections absentes sont toujours visibles)
-const SECTION_FEATURE = { reception: 'reception', beton: 'reception', avancement: 'avancement', tasks: 'tasks', photos: 'photos', forms: 'forms', reports: 'reports', constat: 'constat', clauses: 'clauses', models3d: 'models3d', maquette: 'models3d', calc: 'calc' };
+const SECTION_FEATURE = { reception: 'reception', beton: 'reception', avancement: 'avancement', tasks: 'tasks', photos: 'photos', forms: 'forms', reports: 'reports', constat: 'constat', clauses: 'clauses', models3d: 'models3d', maquette: 'models3d', calc: 'calc', gestion: 'gestion' };
 
 function myFeatures() { try { return JSON.parse(localStorage.getItem('myFeatures') || '{}') || {}; } catch (e) { return {}; } }
 // fonction autorisée par la licence (l'ami ne peut pas la réactiver lui-même)

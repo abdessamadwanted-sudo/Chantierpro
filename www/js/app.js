@@ -135,6 +135,7 @@ async function renderHome() {
           <button class="iconbtn h2-emo off" data-a="freeph" title="Stockage">🧹</button>
           <button class="iconbtn" data-a="quit" title="Fermer l'application">${icon('power')}</button>
           <button class="iconbtn" data-a="homemore">${icon('more')}</button></div></div>
+        ${(() => { const r = applyRoleColor(), R = r && roleOf(r); return R ? `<button class="h2-role" data-a="role">${R.e} ${esc(R.n.split(' / ')[0])}</button>` : ''; })()}
         <div class="h2-hello" data-a="uname">${tr(hello)}${uname ? (Lang.cur === 'ar' ? '، ' : ', ') + esc(uname) : ''} 👷</div>
         <div class="h2-phrase">${phrase}</div>
         <div class="h2-date">${dateL.charAt(0).toUpperCase() + dateL.slice(1)}</div>
@@ -195,6 +196,7 @@ async function renderHome() {
   $('[data-a=sync]').onclick = () => Sync.openSyncSettings();
   const askName = async () => { const r = await formSheet('Votre prénom', [{ name: 'n', label: 'Comment vous appeler ?', value: uname, placeholder: 'Ex : Abdessamad' }], { okLabel: 'Enregistrer' }); if (r) { try { localStorage.setItem('userName', (r.n || '').trim()); localStorage.setItem('askedName', '1'); } catch (e) {} renderHome(); } };
   $('[data-a=uname]').onclick = askName;
+  const rb = $('[data-a=role]'); if (rb) rb.onclick = async () => { const v = await menu('Mon profil (couleur et titre)', ROLES.map(x => ({ label: `${x.e} ${x.n}`, value: x.k, swatch: ROLE_COLORS[x.k], checked: x.k === myRole() }))); if (v) { try { localStorage.setItem('myRole', v); } catch (e) {} renderHome(); } };
   try { if (!uname && !localStorage.getItem('askedName')) { localStorage.setItem('askedName', '1'); setTimeout(askName, 600); } } catch (e) {}
   $('[data-a=homemore]').onclick = async () => {
     const v = await menu('Chantier', [
@@ -260,6 +262,7 @@ const SECTIONS = {
   models3d: { label: 'Modèles 3D', icon: 'cube', render: (r) => renderModels3D(r) },
   maquette: { label: 'Maquette 3D', icon: 'cube', render: (r) => renderMaquettes(r) },
   calc: { label: 'Calculs & Topo', icon: 'ruler', render: (r) => renderCalcs(r) },
+  gestion: { label: 'Gestion (stock · rendement · situations · labo)', icon: 'grid', render: (r) => renderGestion(r), title: 'Gestion du chantier', subtitle: 'Stock · rendement · attachements · labo' },
   team: { label: 'Équipe', icon: 'team', render: renderTeam },
   settings: { label: 'Paramètres', icon: 'settings', render: renderSettings },
 };

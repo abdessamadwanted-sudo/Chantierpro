@@ -3,18 +3,22 @@
 const ROLES = [
   { k: 'directeur', e: '🎯', n: 'Directeur / Directeur qualité', d: 'Voit tout + le suivi de son équipe', f: null, team: true },
   { k: 'conducteur', e: '🏗️', n: 'Conducteur de travaux', d: 'Plans, réception & bétonnage, réserves, rapports, avancement', f: null, team: true },
-  { k: 'chef', e: '👷', n: 'Chef de chantier', d: 'Plans, réception & bétonnage, réserves, photos, rapports', f: ['reception', 'tasks', 'photos', 'reports', 'forms', 'calc'] },
-  { k: 'qualite', e: '✅', n: 'Technicien / TS qualité', d: 'Réception, PV, constats, formulaires QC, clauses CPS', f: ['reception', 'tasks', 'photos', 'forms', 'constat', 'clauses', 'reports'] },
+  { k: 'chef', e: '👷', n: 'Chef de chantier', d: 'Plans, réception & bétonnage, réserves, photos, rapports, gestion', f: ['reception', 'tasks', 'photos', 'reports', 'forms', 'calc', 'gestion'] },
+  { k: 'qualite', e: '✅', n: 'Technicien / TS qualité', d: 'Réception, PV, constats, formulaires QC, clauses CPS', f: ['reception', 'tasks', 'photos', 'forms', 'constat', 'clauses', 'reports', 'gestion'] },
   { k: 'topo', e: '📐', n: 'Topographe', d: 'Plans, calculs & topo, photos', f: ['calc', 'photos', 'tasks', 'models3d'] },
   { k: 'second', e: '🎨', n: 'Chef d\'équipe second œuvre', d: 'Avancement des lots, réserves, photos', f: ['avancement', 'tasks', 'photos', 'reports'] },
   { k: 'st', e: '🤝', n: 'Sous-traitant', d: 'Ses réserves et ses photos seulement', f: ['tasks', 'photos'] },
 ];
 const PACKS = [
   { k: 'essentiel', n: 'Essentiel', d: 'Plans, réserves, photos, rapports', f: ['tasks', 'photos', 'reports', 'career'] },
-  { k: 'pro', n: 'Pro', d: '+ réception & bétonnage, PV, formulaires, constats, CPS, avancement', f: ['tasks', 'photos', 'reports', 'career', 'reception', 'forms', 'constat', 'clauses', 'avancement', 'calc'] },
+  { k: 'pro', n: 'Pro', d: '+ réception & bétonnage, PV, formulaires, constats, CPS, avancement', f: ['tasks', 'photos', 'reports', 'career', 'reception', 'forms', 'constat', 'clauses', 'avancement', 'calc', 'gestion'] },
   { k: 'entreprise', n: 'Entreprise', d: 'Tout : + 3D, calculs, suivi d\'équipe', f: null },
 ];
 const roleOf = (k) => ROLES.find(r => r.k === k);
+// couleur de profil (selon le rôle de la licence ; le propriétaire = directeur)
+const ROLE_COLORS = { directeur: '#d4a537', conducteur: '#3b82f6', chef: '#f97316', qualite: '#22c55e', topo: '#06b6d4', second: '#ec4899', st: '#94a3b8' };
+function myRole() { const L = (typeof Lic !== 'undefined' && Lic.get()) || {}; let r = L.mode === 'owner' ? 'directeur' : L.role || null; try { r = localStorage.getItem('myRole') || r; } catch (e) {} return r; }
+function applyRoleColor() { const r = myRole(), c = ROLE_COLORS[r]; if (c) document.documentElement.style.setProperty('--role', c); else document.documentElement.style.removeProperty('--role'); return r; }
 const packOf = (k) => PACKS.find(p => p.k === k);
 // fonctions d'une licence : true / false pour chaque fonction
 function featuresFor(role, pack) {
@@ -30,6 +34,12 @@ const PROJ_TYPES = [
   { k: 'so', e: '🎨', n: 'Second œuvre / finitions', off: ['reception', 'models3d'] },
   { k: 'vrd', e: '🛣️', n: 'VRD / infrastructure / réseaux', off: ['avancement', 'models3d'] },
   { k: 'reno', e: '🔧', n: 'Réhabilitation / rénovation', off: ['models3d'] },
+  { k: 'villa', e: '🏡', n: 'Villa / maison individuelle', off: ['models3d', 'avancement'] },
+  { k: 'pont', e: '🌁', n: 'Pont / viaduc', off: ['avancement'] },
+  { k: 'route', e: '🛣️', n: 'Route / autoroute', off: ['avancement', 'models3d', 'reception'] },
+  { k: 'indus', e: '🏭', n: 'Industriel / hangar / charpente', off: ['avancement'] },
+  { k: 'hydro', e: '💧', n: 'Hydraulique (barrage, réservoir, station)', off: ['avancement'] },
+  { k: 'ext', e: '🌳', n: 'Aménagements extérieurs / espaces verts', off: ['reception', 'models3d'] },
 ];
 const projTypeOf = (k) => PROJ_TYPES.find(t => t.k === k);
 // section visible : licence + choix du téléphone + fonctions du projet

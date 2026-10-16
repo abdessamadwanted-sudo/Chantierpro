@@ -1,5 +1,8 @@
-## Mises à jour sans réinstaller
-- Nouveau : les prochaines mises à jour se font « à chaud » — l'application télécharge seulement son contenu et redémarre dessus, sans passer par l'installateur Android (plus de « Application non installée »)
-- Sécurité : la nouvelle version ne devient définitive qu'après avoir démarré correctement ; sinon l'application revient toute seule à la précédente
-- Si une mise à jour touche la partie Android (rare), l'installation classique est utilisée
-- Comprend : comparaison d'indices rapide, pastille d'indice, pins en un appui, Plans des ouvrages du jour
+## Nouveautés
+- **Thèmes** : Sakura 🌸, Lavande 💜, Pêche 🍑, Océan 🌊, Forêt 🌿, Sunset 🌅, Noir & Or 🖤 (⋮ › Apparence) + écran d'ouverture animé
+- **Plans AutoCAD** : zoom net en vectoriel, mesures (distance, surface, périmètre), calques, recherche de texte, PDF A0 → A4
+- **Partager un plan** : l'original ou un PDF annoté (dessins, couleurs, pins)
+- **Lots** : échéance du maître d'ouvrage (compte à rebours), points d'arrêt et points critiques
+- **Gestion** : stock et besoins, rendement des équipes, attachements et situations (PDF), labo (éprouvettes 7 j / 28 j), visites BET / BC, fiches matériaux
+- **Emploi** : sections dépliables, cartes de candidature à glisser
+- **Corrections** : Plans des ouvrages du jour (les plans ne disparaissent plus, un dossier par jour), sauvegarde du projet (.zip + Partager), photos rechargées depuis Drive, menu par glissement, bouton Plans
