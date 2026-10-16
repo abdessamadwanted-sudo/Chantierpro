@@ -10,7 +10,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          set -x
-          mkdir -p l9 pdflib && cd l9 && npm pack pdf-lib@1.17.1 && tar xzf *.tgz && cp package/dist/pdf-lib.min.js package/LICENSE.md ../pdflib/ ; cd .. && rm -rf l9 && ls -la pdflib
+          npm view @mlightcad/libredwg-web versions time --json > dwgver.json; cat dwgver.json | tail -30
           git config user.name bot && git config user.email bot@example.com
-          git add pdflib && git commit -m "pdflib" && git push
+          git add dwgver.json && git commit -m "ver" && git push
