@@ -145,6 +145,7 @@ async function openPlanViewer(plan, ctx) {
   const close = () => { unBack(); teardown(); };
   const unBack = pushBack(teardown);
   $('[data-a=back]', el).onclick = close;
+  if (!ctx.place && typeof planIndiceBar === 'function') planIndiceBar(el, plan, ctx, close).catch(() => {});
   // mode « placer un ouvrage » : un appui sur le plan donne l'emplacement
   if (ctx.place) { const pb = document.createElement('div'); pb.className = 'place-ban'; pb.innerHTML = `<span>📍 Touchez l\u2019emplacement de <b>${esc(ctx.place.label)}</b></span><button>Annuler</button>`; el.appendChild(pb); pb.querySelector('button').onclick = close; }
 

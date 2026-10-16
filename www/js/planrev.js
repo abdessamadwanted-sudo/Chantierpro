@@ -73,10 +73,12 @@ async function newPlanIndice(plan) {
   const [file] = await pickFiles({ accept: 'image/*,application/pdf,.dxf,.dwg,application/dxf,application/octet-stream', multiple: false });
   if (!file) return null;
   const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+  let cart = null; if (isPdf) { const l0 = loading('Lecture du cartouche…'); try { cart = await cartoucheFromFile(file, plan.pdfPage || 1); } catch (e) {} l0.close(); }
   const r = await formSheet(`Nouvel indice — ${plan.name}`, [
-    { name: 'ind', label: `Indice (actuel : ${planIndice(plan)})`, value: nextIndice(planIndice(plan)) },
+    { name: 'ind', label: `Indice (actuel : ${planIndice(plan)})${cart ? ' · lu dans le cartouche' : ''}`, value: (cart && cart.indice) || nextIndice(planIndice(plan)) },
+    { name: 'date', label: 'Date de l\u2019indice', type: 'date', value: (cart && cart.date) || todayISO() },
     ...(isPdf ? [{ name: 'page', label: 'Page du PDF (si le PDF a plusieurs pages)', type: 'number', value: String(plan.pdfPage || 1) }] : []),
-    { name: 'note', label: 'Objet de la modification (optionnel)', type: 'textarea', placeholder: 'Ex : déplacement cloison local 12, ajout porte…' },
+    { name: 'note', label: 'Objet de la modification (optionnel)', type: 'textarea', value: (cart && cart.desc) || '', placeholder: 'Ex : déplacement cloison local 12, ajout porte…' },
   ], { okLabel: 'Mettre à jour le plan' });
   if (!r) return null;
   const ld = loading('Import du nouvel indice…');
@@ -88,14 +90,14 @@ async function newPlanIndice(plan) {
     np = await DB.put('plans', {
       projectId: plan.projectId, folderId: plan.folderId, fileId: img.fileId, pdfFileId: img.pdfFileId || null, pdfPage: img.pdfPage || null, dxfFileId: img.dxfFileId || null,
       w: img.w, h: img.h, name: plan.name, annotations: (plan.annotations || []).map(a => scaleAnnot(a, kx, ky)),
-      indice: (r.ind || nextIndice(planIndice(plan))).toUpperCase(), serieId: planSerie(plan), prevId: plan.id, indiceNote: r.note || '', indiceDate: todayISO(),
+      indice: (r.ind || nextIndice(planIndice(plan))).toUpperCase(), serieId: planSerie(plan), prevId: plan.id, indiceNote: r.note || '', indiceDate: r.date || todayISO(),
     });
     if (!plan.indice) plan.indice = 'A';
     if (!plan.serieId) plan.serieId = plan.id;
     plan.supersededBy = np.id; await DB.put('plans', plan);
     // zones modifiées entre les deux indices (pour signaler les pins à vérifier)
     ld.set('Recherche des modifications…');
-    let diff = null; try { diff = await planDiff(plan, np, 1400); } catch (e) { console.warn('diff', e); }
+    let diff = null; try { diff = await planDiff(plan, np, 1400, { map: await planAlignMap(plan, np) }); } catch (e) { console.warn('diff', e); }
     const inChange = (x, y) => diff && diff.rects.some(q => x >= q.x - q.pad && x <= q.x + q.w + q.pad && y >= q.y - q.pad && y <= q.y + q.h + q.pad);
     ld.set('Report des pins sur le nouvel indice…');
     for (const l of await DB.byProject('links', plan.projectId)) {
@@ -138,7 +140,11 @@ async function planIndicesMenu(plan, { onNew, onOpen } = {}) {
     ...(prev ? [{ label: `Comparer avec l'indice ${planIndice(prev)}`, icon: 'layers', value: 'cmp' }] : []),
     ...(hist.length > 2 ? [{ label: 'Comparer deux indices au choix', icon: 'layers', value: 'cmp2' }] : []),
     ...(hist.length > 1 ? [{ label: `Historique des indices (${hist.length})`, icon: 'history', value: 'hist' }] : []),
+    { label: 'Modifier l\u2019indice (nom, date, objet)', icon: 'edit', value: 'edit' },
+    ...(hist.some(p => p.pdfFileId) ? [{ label: 'Lire indices et dates dans les cartouches', icon: 'search', value: 'cart' }] : []),
   ]);
+  if (v === 'edit') { const r = await formSheet(`Indice — ${plan.name}`, [{ name: 'i', label: 'Indice', value: planIndice(plan) }, { name: 'd', label: 'Date', type: 'date', value: plan.indiceDate || '' }, { name: 'n', label: 'Objet', type: 'textarea', value: plan.indiceNote || '' }], { okLabel: 'Enregistrer' }); if (r) { plan.indice = (r.i || planIndice(plan)).trim(); plan.indiceDate = r.d || plan.indiceDate || ''; plan.indiceNote = r.n || ''; await DB.put('plans', plan); toast('Indice enregistré ✓'); if (onNew) onNew(plan); } }
+  if (v === 'cart') { const ld = loading('Lecture des cartouches…'); let n = 0; try { for (const p of hist) { const c = await cartoucheOfPlan(p).catch(() => null); if (c) { if (c.indice) p.indice = c.indice; if (c.date) p.indiceDate = c.date; if (c.desc && !p.indiceNote) p.indiceNote = c.desc; await DB.put('plans', p); n++; } } } finally { ld.close(); } toast(n ? `${n} indice(s) mis à jour ✓` : 'Aucun cartouche lisible'); if (n && onNew) onNew(await DB.get('plans', plan.id)); }
   if (v === 'new') { const np = await newPlanIndice(plan); if (np && onNew) onNew(np); }
   if (v === 'cmp') openPlanCompare(prev, plan);
   if (v === 'cmp2') {
@@ -155,11 +161,12 @@ async function planIndicesMenu(plan, { onNew, onOpen } = {}) {
 
 // ---------- Détection des modifications entre deux indices ----------
 // encre (traits sombres) de chaque plan → « supprimé » (rouge) / « ajouté » (vert), puis regroupement en zones encadrées
-async function planImageData(plan, W, H) {
+async function planImageData(plan, W, H, place) {
   const src = await fileURL(plan.fileId); if (!src) throw new Error('Image du plan introuvable');
   const img = await loadImage(src);
   const c = document.createElement('canvas'); c.width = W; c.height = H;
-  const g = c.getContext('2d', { willReadFrequently: true }); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); g.drawImage(img, 0, 0, W, H);
+  const g = c.getContext('2d', { willReadFrequently: true }); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+  if (place) g.drawImage(img, place.x, place.y, place.w, place.h); else g.drawImage(img, 0, 0, W, H);
   return g.getImageData(0, 0, W, H);
 }
 function inkMap(id) {
@@ -174,10 +181,13 @@ function dilate(m, W, H, r) {
   return o;
 }
 // rects en coordonnées du NOUVEAU plan (pixels de son image)
-async function planDiff(oldPlan, newPlan, maxSide = 1800) {
+async function planDiff(oldPlan, newPlan, maxSide = 1800, opts = {}) {
   const k = Math.min(1, maxSide / Math.max(newPlan.w, newPlan.h));
   const W = Math.max(50, Math.round(newPlan.w * k)), H = Math.max(50, Math.round(newPlan.h * k));
-  const [A, B] = await Promise.all([planImageData(oldPlan, W, H), planImageData(newPlan, W, H)]);
+  // recalage : position de l'ancien plan dans les coordonnées du nouveau (opts.map = { sx, sy, ox, oy } en pixels du nouveau plan)
+  const M = opts.map, place = M ? { x: M.ox * k, y: M.oy * k, w: oldPlan.w * M.sx * k, h: oldPlan.h * M.sy * k } : null;
+  const [A, B] = await Promise.all([planImageData(oldPlan, W, H, place), planImageData(newPlan, W, H)]);
+  const sens = opts.sens || 1;
   const a = inkMap(A), b = inkMap(B), r = Math.max(1, Math.round(W / 900));
   const da = dilate(a, W, H, r), db = dilate(b, W, H, r);
   const out = new ImageData(W, H), o = out.data;
@@ -190,13 +200,13 @@ async function planDiff(oldPlan, newPlan, maxSide = 1800) {
     o[j] = R; o[j + 1] = G; o[j + 2] = Bc; o[j + 3] = 255;
   }
   // zones : cellules significatives voisines regroupées
-  const TH = Math.max(4, CELL * 0.35), seen = new Uint8Array(CW * CH), rects = [];
+  const TH = Math.max(2, CELL * 0.35 * sens), seen = new Uint8Array(CW * CH), rects = [];
   for (let s = 0; s < cells.length; s++) {
     if (seen[s] || cells[s] < TH) continue;
     let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1, tot = 0; const q = [s]; seen[s] = 1;
     while (q.length) { const c = q.pop(), cx = c % CW, cy = (c / CW) | 0; tot += cells[c]; x0 = Math.min(x0, cx); y0 = Math.min(y0, cy); x1 = Math.max(x1, cx); y1 = Math.max(y1, cy);
       for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const nx = cx + dx, ny = cy + dy; if (nx < 0 || ny < 0 || nx >= CW || ny >= CH) continue; const n = ny * CW + nx; if (!seen[n] && cells[n] >= TH) { seen[n] = 1; q.push(n); } } }
-    if (tot < CELL * 1.5) continue;
+    if (tot < CELL * 1.5 * sens) continue;
     const iK = 1 / k; rects.push({ x: x0 * CELL * iK, y: y0 * CELL * iK, w: (x1 - x0 + 1) * CELL * iK, h: (y1 - y0 + 1) * CELL * iK, pad: CELL * 2 * iK, n: tot });
   }
   rects.sort((p, q) => (p.y - q.y) || (p.x - q.x));

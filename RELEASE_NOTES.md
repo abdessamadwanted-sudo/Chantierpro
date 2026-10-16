@@ -1,3 +1,7 @@
-## Nouveautés
-- Pin « Plans » 📚 rempli depuis le programme de réception : zones et parties d'ouvrage automatiques (aujourd'hui, mis à jour chaque jour, ou un jour choisi) ; vous ajoutez seulement les plans, ils restent attachés à l'ouvrage
-- Partie d'ouvrage « Placer sur un plan » : choisissez le plan (ceux du niveau en premier), touchez l'endroit → pin coloré selon l'état (vert réceptionné, orange réserve, gris en attente) ; un appui sur le pin ouvre le tableau sur cet ouvrage
+## Nouveautés — Plans
+- Comparaison d'indices nette (vectorielle) : en zoomant, la superposition est recalculée depuis le PDF — traits nets, rouge = supprimé, vert = ajouté (traits épaissis)
+- Recalage automatique si le plan a bougé entre deux indices
+- Lecture des textes et cotes : liste écrite des modifications (« Cote 2000 » → « Cote 6000 », ajouté, supprimé, déplacé) ; un appui vous amène à l'endroit
+- Réglage de sensibilité (tout / normal / grosses modifications) ; partage de l'image nette + liste WhatsApp
+- Barre d'indice en bas du plan : indice actuel et date, liste des anciens indices, bandeau orange quand vous regardez un ancien indice
+- Nouvel indice : l'indice, la date et l'objet sont lus dans le cartouche « SUIVI DES MODIFICATIONS » (modifiables) ; « Lire indices et dates dans les cartouches » pour les plans existants ; « Modifier l'indice »

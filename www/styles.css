@@ -1121,3 +1121,13 @@ body:has(.fullpage) .sharebar, body:has(.sheet-bg) .sharebar { display: none; }
 /* pin Plans lié au programme de réception */
 .pb-rec { display: grid; gap: 2px; width: 100%; text-align: left; padding: 9px 12px; margin: 4px 0 8px; border-radius: 12px; border: 1px solid rgba(96,165,250,.45); background: rgba(59,130,246,.12); color: #e5e7eb; font-size: 13.5px; }
 .pb-rec small { color: #93c5fd; font-size: 12px; }
+/* barre d'indice en bas du plan */
+.ind-bar { display: flex; align-items: center; gap: 10px; width: calc(100% - 20px); margin: 0 10px 6px; padding: 8px 12px; border-radius: 12px; border: 1px solid rgba(96,165,250,.35); background: rgba(30,41,59,.92); color: #e5e7eb; text-align: left; font-size: 14px; z-index: 5; position: relative; }
+.ind-bar .grow { flex: 1; display: grid; } .ind-bar i { font-style: normal; color: #86efac; font-size: 12.5px; } .ind-bar small { color: #94a3b8; font-size: 11.5px; }
+.ind-bar.old { background: rgba(194,65,12,.95); border-color: #fb923c; } .ind-bar.old small { color: #fed7aa; }
+.ind-bar svg { width: 18px; height: 18px; }
+/* comparaison : liste des modifications */
+.cmp-list { display: grid; gap: 4px; } .cmp-h { font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin: 8px 2px 2px; }
+.cmp-it { display: flex; gap: 10px; align-items: center; text-align: left; border: 0; border-radius: 10px; padding: 9px 10px; background: rgba(255,255,255,.05); color: #e5e7eb; font-size: 14px; }
+.cmp-it .k { flex: none; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 8px; background: #334155; } .cmp-it .k-add { background: #14532d; color: #86efac; } .cmp-it .k-del { background: #7f1d1d; color: #fca5a5; } .cmp-it .k-mod, .cmp-it .k-mov { background: #78350f; color: #fcd34d; } .cmp-it .k-z { background: #ef4444; color: #fff; }
+.cmp-it .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
