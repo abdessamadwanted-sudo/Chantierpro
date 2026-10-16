@@ -1,3 +1,4 @@
+try { if (localStorage.getItem('theme') === 'glass') document.documentElement.classList.add('glass'); } catch (e) {}
 // Application principale : écrans et navigation
 const CATEGORIES = ['Gros œuvre', 'Coffrage', 'Ferraillage', 'Béton', 'Maçonnerie', 'Étanchéité', 'Électricité', 'Plomberie', 'Menuiserie', 'Finitions', 'Sécurité', 'Qualité'];
 const LINK_CATS = [
@@ -179,6 +180,7 @@ async function renderHome() {
       { label: 'Tableau de dessin', icon: 'brush', value: 'board' },
       { label: 'Fonctions affichées', icon: 'grid', value: 'feat' },
       { label: 'Rechercher une mise à jour', icon: 'upload', value: 'upd' },
+      { label: 'Apparence (classique / verre)', icon: 'brush', value: 'theme' },
       { label: 'Langue · اللغة · Language', icon: 'globe', value: 'lang' },
       { label: 'Mon prénom', icon: 'edit', value: 'name' },
       { label: 'Restaurer une sauvegarde', icon: 'undo', value: 'restore' },
@@ -194,6 +196,7 @@ async function renderHome() {
     if (v === 'lic') openLicences();
     if (v === 'licinfo') { const L = Lic.get(); alertBox(`Licence : ${L.name || ''} (${L.code})\nLes projets créés avec cette licence sont partagés en lecture seule avec ${L.ownerName || 'le titulaire de la licence'}, pour le suivi du travail.${L.expires ? '\nExpire le ' + fmtDate(L.expires) : ''}`); }
     if (v === 'lang') chooseLang();
+    if (v === 'theme') { const t = await menu('Apparence', [{ label: 'Classique (sombre)', icon: 'check', value: 'dark', checked: !document.documentElement.classList.contains('glass') }, { label: 'Verre (glass) — transparent et coloré', icon: 'brush', value: 'glass', checked: document.documentElement.classList.contains('glass') }]); if (t) { document.documentElement.classList.toggle('glass', t === 'glass'); try { localStorage.setItem('theme', t); } catch (e) {} renderHome(); } }
   };
   const r2 = $('[data-a=restore2]'); if (r2) r2.onclick = restoreBackup;
   $('[data-a=new]').onclick = async () => {
@@ -1328,7 +1331,7 @@ async function openPlansQuick() {
   // photos partagées depuis la galerie (Partager → Chantier)
   setTimeout(() => checkSharedIntent().catch(e => console.warn('share', e)), 300);
   // toucher la notification « photos sauvegardées » → proposer de libérer l'espace
-  try { const LN = window.Capacitor?.Plugins?.LocalNotifications; if (LN) LN.addListener('localNotificationActionPerformed', (a) => { if (a?.notification?.extra?.action === 'freephotos') setTimeout(freeOldPhotos, 600); }); } catch (e) {}
+  try { const LN = window.Capacitor?.Plugins?.LocalNotifications; if (LN) LN.addListener('localNotificationActionPerformed', (a) => { if (a?.notification?.extra?.action === 'freephotos') setTimeout(freeOldPhotos, 600); if (a?.notification?.extra?.action === 'jobrobot') setTimeout(() => openCareer({ robot: true }), 600); }); } catch (e) {}
   // message après une mise à jour
   try {
     const prev = localStorage.getItem('appVersion');

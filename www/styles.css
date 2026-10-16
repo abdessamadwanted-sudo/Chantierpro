@@ -1220,3 +1220,37 @@ body:has(.fullpage) .sharebar, body:has(.sheet-bg) .sharebar { display: none; }
 .st-p { display: flex; gap: 10px; align-items: center; background: var(--card); border-radius: 12px; padding: 10px 12px; } .st-p small { display: block; color: var(--muted); font-size: 12px; }
 .st-tree { background: var(--card); border-radius: 12px; padding: 12px; font-size: 13px; line-height: 1.7; } .st-tree div { padding-left: 14px; color: var(--muted); }
 .st-note { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+/* Emploi : listes déroulantes, robot, candidatures */
+.cr-dd { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.cr-dd label { display: grid; gap: 4px; font-size: 12px; color: #94a3b8; font-weight: 600; }
+.cr-dd select, .cr-dd input { width: 100%; min-width: 0; padding: 10px 8px; border-radius: 10px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.06); color: #f1f5f9; font-size: 14px; }
+.cr-dd select option { color: #111; }
+.cr-robot { border-radius: 16px; padding: 12px; margin-bottom: 10px; background: linear-gradient(135deg, rgba(37,99,235,.18), rgba(124,58,237,.18)); border: 1px solid rgba(124,58,237,.35); display: grid; gap: 6px; }
+.cr-robot.on { border-color: #22c55e; }
+.cr-robot .h { display: flex; gap: 8px; align-items: center; font-size: 16px; } .cr-robot .h span { margin-left: auto; font-size: 12px; color: #a5b4fc; }
+.cr-robot small, .cr-tour small { color: #94a3b8; font-size: 12px; }
+.cr-rbar { height: 8px; border-radius: 4px; background: rgba(255,255,255,.08); overflow: hidden; } .cr-rbar i { display: block; height: 100%; background: #22c55e; border-radius: 4px; }
+.cr-ti { display: grid; gap: 5px; max-height: 50vh; overflow: auto; }
+.cr-ti button { display: flex; gap: 10px; align-items: center; text-align: left; background: var(--card2); border: 0; color: var(--text); border-radius: 10px; padding: 8px 10px; }
+.cr-ti button.ok { opacity: .55; } .cr-ti small { display: block; } .cr-ti i { font-style: normal; color: #22c55e; font-weight: 800; }
+.cr-done { text-align: center; padding: 14px; font-weight: 700; color: #22c55e; }
+.cr-ck { display: grid; gap: 6px; } .cr-ck label { display: flex !important; flex-direction: row !important; gap: 8px; align-items: center; color: var(--text) !important; }
+.cr-ck input { width: 18px; height: 18px; }
+.cr-n { background: rgba(255,255,255,.1); border-radius: 10px; padding: 1px 8px; font-size: 12px; margin-left: 4px; }
+.cr-apps { display: grid; gap: 6px; }
+.cr-app { display: flex; gap: 8px; align-items: center; text-align: left; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); color: #f1f5f9; border-radius: 12px; padding: 10px 12px; }
+.cr-app small { display: block; color: #94a3b8; font-size: 12px; }
+.cr-app i { font-style: normal; font-size: 11.5px; font-weight: 700; color: #fff; border-radius: 10px; padding: 3px 8px; white-space: nowrap; } .cr-app i.late { background: #f59e0b; color: #111; }
+/* ---- Apparence « Verre » (glass) ---- */
+html.glass { --bg: #0e1430; --bg2: rgba(255,255,255,.07); --card: rgba(255,255,255,.085); --card2: rgba(255,255,255,.13); --line: rgba(255,255,255,.15);
+  --glassbg: radial-gradient(60% 40% at 0% 0%, rgba(59,130,246,.45), transparent 70%), radial-gradient(50% 35% at 100% 30%, rgba(168,85,247,.38), transparent 70%), radial-gradient(60% 40% at 30% 100%, rgba(20,184,166,.32), transparent 70%), linear-gradient(160deg, #101735, #0b1024 60%, #0d1a2b); }
+html.glass body, html.glass .home2, html.glass .fullpage:not(.viewer-page) { background: var(--glassbg) fixed, #0b1024; }
+html.glass .h2-hero { background: linear-gradient(160deg, rgba(255,255,255,.10), rgba(255,255,255,.02)); border-bottom: 1px solid rgba(255,255,255,.12); backdrop-filter: blur(14px); }
+html.glass .h2-card, html.glass .h2-proj { background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.14); box-shadow: 0 8px 30px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.12); }
+html.glass .h2-proj { border-radius: 18px; backdrop-filter: blur(12px); }
+html.glass .sheet { background: rgba(26,32,62,.84); backdrop-filter: blur(20px) saturate(150%); -webkit-backdrop-filter: blur(20px) saturate(150%); border-top: 1px solid rgba(255,255,255,.2); }
+html.glass .topbar { background: rgba(18,24,50,.62); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-bottom: 1px solid rgba(255,255,255,.08); }
+html.glass .card, html.glass .st-cat, html.glass .st-p, html.glass .cl-hit { border: 1px solid rgba(255,255,255,.1); box-shadow: inset 0 1px 0 rgba(255,255,255,.08); }
+html.glass .btn:not(.ghost):not(.danger) { background: linear-gradient(135deg, #4f8cff, #7c5cff); box-shadow: 0 6px 18px rgba(79,140,255,.35); }
+html.glass .fab { background: linear-gradient(135deg, #4f8cff, #a855f7); box-shadow: 0 10px 28px rgba(124,92,255,.45); }
+html.glass input, html.glass select, html.glass textarea { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.16); }
