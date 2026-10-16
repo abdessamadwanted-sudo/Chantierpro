@@ -1,5 +1,5 @@
-## Corrections
-- Comparaison des indices (superposition) beaucoup plus légère et rapide : rendu par la carte graphique, zone déjà nette réutilisée quand on se déplace un peu, mémoire libérée → plus de blocage ni de boutons qui disparaissent
-- Superposition plus lisible : supprimé en rouge et ajouté en vert (traits épais), inchangé en gris clair
-- Indice et date lus dans le cartouche, pastille fixe en bas à gauche (▲ liste des indices)
-- Pins : un appui court les ouvre ; « 📚 Plans des ouvrages du jour » ; menu latéral lisible en Verre
+## Mises à jour sans réinstaller
+- Nouveau : les prochaines mises à jour se font « à chaud » — l'application télécharge seulement son contenu et redémarre dessus, sans passer par l'installateur Android (plus de « Application non installée »)
+- Sécurité : la nouvelle version ne devient définitive qu'après avoir démarré correctement ; sinon l'application revient toute seule à la précédente
+- Si une mise à jour touche la partie Android (rare), l'installation classique est utilisée
+- Comprend : comparaison d'indices rapide, pastille d'indice, pins en un appui, Plans des ouvrages du jour

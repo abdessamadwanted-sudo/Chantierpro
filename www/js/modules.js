@@ -86,6 +86,62 @@ function showUpdate(latest, notes = '') {
   $('[data-a=go]', s.el).onclick = () => { s.close(); installUpdate(); };
 }
 
+// ---------- Mise à jour rapide (sans réinstaller) : paquet web téléchargé puis chargé à la place de celui de l'APK ----------
+// Possible quand la partie native ne change pas (même empreinte). Sinon : installation de l'APK.
+// Sécurité : le nouveau paquet ne devient permanent qu'après avoir démarré correctement (sinon, retour automatique à l'ancien).
+const NATIVE_ID = '__NATIVE_ID__';
+const OTA_WV = () => window.Capacitor?.Plugins?.WebView;
+const b64ToBytes = (b64) => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; };
+const bytesToB64 = (u) => { let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+async function otaInstall(rel, ld) {
+  const P = window.Capacitor?.Plugins || {}, FS = P.Filesystem, WV = OTA_WV();
+  if (!FS || !FS.downloadFile || !WV || !WV.setServerBasePath || /^__/.test(NATIVE_ID)) return false;
+  try { if (localStorage.getItem('ota.off')) return false; } catch (e) {}
+  const A = (n) => (rel.assets || []).find(a => a.name === n), aj = A('ota.json'), az = A('www.zip');
+  if (!aj || !az) return false;
+  const ver = rel.tag_name.replace(/^v/, '');
+  await FS.downloadFile({ url: aj.browser_download_url, path: 'ota.json', directory: 'CACHE' });
+  const meta = JSON.parse(atob((await FS.readFile({ path: 'ota.json', directory: 'CACHE' })).data));
+  if (meta.native !== NATIVE_ID || meta.version !== ver) return false;          // partie native modifiée → APK
+  ld.set('Téléchargement de la mise à jour…');
+  let h = null; try { if (FS.addListener) h = await FS.addListener('progress', (e) => { if (e && e.contentLength) ld.set(`Téléchargement… ${Math.round(e.bytes / e.contentLength * 100)} %`); }); } catch (e) {}
+  try { await FS.downloadFile({ url: az.browser_download_url, path: 'www.zip', directory: 'CACHE', progress: true }); } finally { try { h && h.remove && h.remove(); } catch (e) {} }
+  const st = await FS.stat({ path: 'www.zip', directory: 'CACHE' }).catch(() => null);
+  if (!st || Math.abs((st.size || 0) - az.size) > 16) throw new Error('téléchargement incomplet');
+  ld.set('Préparation…');
+  await loadScript('vendor/fflate.min.js');
+  let zipBytes = null;
+  try { const { uri } = await FS.getUri({ path: 'www.zip', directory: 'CACHE' }); const r = await fetch(window.Capacitor.convertFileSrc(uri)); if (r.ok) zipBytes = new Uint8Array(await r.arrayBuffer()); } catch (e) {}
+  if (!zipBytes || Math.abs(zipBytes.length - az.size) > 16) zipBytes = b64ToBytes((await FS.readFile({ path: 'www.zip', directory: 'CACHE' })).data);
+  const files = fflate.unzipSync(zipBytes); zipBytes = null;
+  const names = Object.keys(files).filter(n => !n.endsWith('/'));
+  if (names.length !== meta.files || !files['index.html']) throw new Error('paquet incomplet');
+  const dir = `ota/${ver}`;
+  try { await FS.rmdir({ path: dir, directory: 'DATA', recursive: true }); } catch (e) {}
+  let i = 0;
+  for (const n of names) { await FS.writeFile({ path: `${dir}/${n}`, data: bytesToB64(files[n]), directory: 'DATA', recursive: true }); files[n] = null; if (++i % 10 === 0) ld.set(`Installation… ${Math.round(i / names.length * 100)} %`); }
+  FS.deleteFile({ path: 'www.zip', directory: 'CACHE' }).catch(() => {});
+  const { uri } = await FS.getUri({ path: dir, directory: 'DATA' });
+  const path = decodeURIComponent(uri.replace(/^file:\/\//, ''));
+  try { localStorage.setItem('ota.try', JSON.stringify({ v: ver, at: Date.now() })); } catch (e) {}
+  ld.set('Redémarrage…');
+  await WV.setServerBasePath({ path });                                          // l'application redémarre sur la nouvelle version
+  return true;
+}
+// au démarrage : rendre permanent le paquet qui vient de démarrer, nettoyer les anciens
+async function otaBoot() {
+  const P = window.Capacitor?.Plugins || {}, FS = P.Filesystem, WV = OTA_WV(); if (!FS || !WV || !WV.getServerBasePath) return;
+  try {
+    const { path } = await WV.getServerBasePath(), onOta = /\/ota\//.test(path || '');
+    let T = null; try { T = JSON.parse(localStorage.getItem('ota.try') || 'null'); } catch (e) {}
+    if (onOta) { await WV.persistServerBasePath(); try { localStorage.removeItem('ota.try'); } catch (e) {} }
+    else if (T && T.v !== APP_VERSION && Date.now() - T.at < 10 * 60000) { try { localStorage.setItem('ota.off', '1'); localStorage.removeItem('ota.try'); } catch (e) {} }   // le changement n'a pas pris : on repasse par l'APK
+    const cur = onOta ? path.split('/ota/')[1].split('/')[0] : '';
+    const d = await FS.readdir({ path: 'ota', directory: 'DATA' }).catch(() => null);
+    for (const f of (d && d.files) || []) { const n = typeof f === 'string' ? f : f.name; if (n && n !== cur) FS.rmdir({ path: `ota/${n}`, directory: 'DATA', recursive: true }).catch(() => {}); }
+  } catch (e) { console.warn('ota', e); }
+}
+
 // téléchargement direct dans l'application puis ouverture de l'installateur Android ; sinon, lien dans le navigateur
 // - lien exact de la version (pas « latest », qui peut renvoyer une ancienne version en cache → « Application non installée »)
 // - nom de fichier unique, anciens APK effacés, taille vérifiée avant d'installer
@@ -93,6 +149,11 @@ async function installUpdate() {
   const P = window.Capacitor?.Plugins || {}, rel = window._updRel || null;
   const asset = rel && (rel.assets || []).find(a => /\.apk$/i.test(a.name));
   const ver = rel ? rel.tag_name.replace(/^v/, '') : 'latest', url = asset ? asset.browser_download_url : UPD_APK;
+  if (rel) {   // d'abord la mise à jour rapide (sans réinstaller)
+    const l0 = loading('Recherche de la mise à jour rapide…');
+    try { if (await otaInstall(rel, l0)) return; } catch (e) { console.warn('ota', e); toast('Mise à jour rapide impossible (' + (e.message || e) + ') — installation classique'); }
+    finally { l0.close(); }
+  }
   if (P.Filesystem && P.Filesystem.downloadFile && P.FileOpener) {
     const ld = loading('Téléchargement de la mise à jour…');
     let h = null; const path = `Chantier-${ver}-${Date.now() % 100000}.apk`;

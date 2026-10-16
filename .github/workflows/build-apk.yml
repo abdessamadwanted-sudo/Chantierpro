@@ -33,6 +33,10 @@ jobs:
         run: |
           V=1.0.${{ github.run_number }}
           sed -i "s/__APP_VERSION__/$V/" www/js/app.js
+          # empreinte de la partie native : si elle ne change pas, la mise à jour se fait sans réinstaller (paquet web)
+          NID=$(cat package.json capacitor.config.json keystore/debug.keystore .github/workflows/build-apk.yml assets/* 2>/dev/null | sha1sum | cut -c1-16)
+          sed -i "s/__NATIVE_ID__/$NID/" www/js/modules.js
+          echo "{\"version\":\"$V\",\"native\":\"$NID\"}" > ota.json; cat ota.json
           sed -i -E "s#(src|href)=\"(js|lib|vendor)/([^\"?]+)\"#\1=\"\2/\3?v=$V\"#g; s#href=\"styles.css\"#href=\"styles.css?v=$V\"#" www/index.html
           grep -n "v=$V" www/index.html
 
@@ -100,6 +104,11 @@ jobs:
           $BT/apksigner verify --print-certs Chantier.apk | tee certs.txt
           grep -qi "e3ecf43100a66eb4e55ef18aa18236a4374f56d0e3651ef30b62d9d058bee024" certs.txt || (echo "WRONG SIGNING KEY" && exit 1)
 
+      - name: Web bundle for fast updates (no reinstall)
+        run: |
+          cd www && zip -q -r -9 ../www.zip . && cd .. && ls -la www.zip
+          python3 -c "import zipfile,json; z=zipfile.ZipFile('www.zip'); m=json.load(open('ota.json')); m['files']=sum(1 for i in z.infolist() if not i.is_dir()); m['size']=sum(i.file_size for i in z.infolist()); json.dump(m,open('ota.json','w')); print(m)"
+
       - uses: actions/upload-artifact@v4
         with:
           name: Chantier-apk
@@ -111,5 +120,8 @@ jobs:
           tag_name: v1.0.${{ github.run_number }}
           name: Chantier v1.0.${{ github.run_number }}
           body_path: RELEASE_NOTES.md
-          files: Chantier.apk
+          files: |
+            Chantier.apk
+            www.zip
+            ota.json
           make_latest: true
