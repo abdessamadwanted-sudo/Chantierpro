@@ -1487,3 +1487,10 @@ body:has(.meas-bar) .ind-pill { display: none; }
 .splash.gating .sp-skip { color: rgba(255,255,255,.6); }
 .sp-gate { width: min(94vw, 420px) !important; }
 .g-frame { filter: drop-shadow(0 22px 34px rgba(0,0,0,.6)) !important; }
+
+/* devise sous le texte de bienvenue */
+.sp-motto { position: relative; display: flex; align-items: center; gap: 10px; margin-top: 4px; padding: 10px 4px 12px; font-size: 13.5px; letter-spacing: 2.5px; color: #f5d27a; }
+.sp-motto b, .sp-motto i { opacity: 0; transform: translateY(8px) scale(.9); animation: spIn .45s ease-out forwards; font-style: normal; }
+.sp-motto i { color: #9ef0a8; font-size: 9px; animation-delay: .25s; } .sp-motto b:nth-of-type(2) { animation-delay: .35s; } .sp-motto i:nth-of-type(2) { animation-delay: .55s; } .sp-motto b:nth-of-type(3) { animation-delay: .65s; }
+.sp-motto u { position: absolute; left: 50%; bottom: 0; height: 2px; width: 0; background: linear-gradient(90deg, transparent, #f5b942, transparent); animation: spLine .9s .8s ease-out forwards; }
+@keyframes spLine { to { left: 0; width: 100%; } }
