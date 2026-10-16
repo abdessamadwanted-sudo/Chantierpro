@@ -46,33 +46,66 @@ const Splash = (() => {
   }
   // porte monumentale (style des grandes portes impériales marocaines) : arc outrepassé, zellige, merlons, battants cloutés
   function gateHTML() {
-    const merlons = Array.from({ length: 15 }, (_, i) => `<path d="M${i * 20 + 2},34 v-12 h5 v-6 h6 v6 h5 v12z"/>`).join('');
-    const studs = (x0) => Array.from({ length: 7 }, (_, r) => Array.from({ length: 3 }, (_, c) => `<circle cx="${x0 + 10 + c * 15}" cy="${r * 30 + 30}" r="2.2"/>`).join('')).join('');
+    // merlons en escalier, bastions à niches, sebka (losanges) verte, zellige, arc outrepassé à lobes, colonnes de marbre, frise noire et or
+    const merl = (x0, x1, y) => { let d = ''; for (let x = x0; x < x1 - 1; x += 16) d += `M${x + 1},${y} v-9 h3 v-5 h3 v-4 h2 v4 h3 v5 h3 v9z`; return d; };
+    const studs = (x0) => Array.from({ length: 9 }, (_, r) => Array.from({ length: 3 }, (_, c) => `<circle cx="${x0 + 11 + c * 14}" cy="${r * 24 + 18}" r="1.9"/>`).join('')).join('');
+    const star = (cx, cy, r) => { let d = ''; for (let i = 0; i < 16; i++) { const a = Math.PI * i / 8, rr = i % 2 ? r * .45 : r; d += (i ? 'L' : 'M') + (cx + rr * Math.cos(a)).toFixed(1) + ' ' + (cy + rr * Math.sin(a)).toFixed(1); } return d + 'Z'; };
+    const door = (side) => `<svg viewBox="0 0 58 228" preserveAspectRatio="none"><rect width="58" height="228" fill="url(#gWood)"/>
+        <rect x="3" y="3" width="52" height="222" fill="none" stroke="#2a160a" stroke-width="2"/>
+        ${[0, 1, 2].map(k => `<g transform="translate(29 ${48 + k * 66})"><rect x="-21" y="-28" width="42" height="56" rx="2" fill="url(#gWood2)" stroke="#2a160a" stroke-width="1.6"/><path d="${star(0, 0, 13)}" fill="none" stroke="#c99a3c" stroke-width="1.3"/><circle r="3" fill="#e6c25c"/></g>`).join('')}
+        <g fill="#e9c46a" stroke="#7a5a1c" stroke-width=".5">${studs(side === 'l' ? 1 : 2)}</g>
+        <circle cx="${side === 'l' ? 51 : 7}" cy="132" r="5.5" fill="none" stroke="#e6c25c" stroke-width="2.2"/><circle cx="${side === 'l' ? 51 : 7}" cy="126" r="2" fill="#e6c25c"/>
+        <rect x="${side === 'l' ? 54 : 0}" width="4" height="228" fill="#000" opacity=".35"/></svg>`;
+    const OPEN = 'M102 330 V192.6 A58 58 0 1 1 198 192.6 V330Z';
     return `<div class="sp-gate">
       <svg width="0" height="0" style="position:absolute"><clipPath id="gArch" clipPathUnits="objectBoundingBox"><path d="M0.0862,1 V0.397 A0.5,0.2544 0 1 1 0.9138,0.397 V1 Z"/></clipPath></svg>
       <div class="g-light"></div>
-      <div class="g-doors"><div class="g-door l"><svg viewBox="0 0 58 228" preserveAspectRatio="none"><rect width="58" height="228" fill="url(#gWood)"/>${[0, 1, 2, 3].map(k => `<rect x="5" y="${12 + k * 54}" width="48" height="46" rx="3" fill="none" stroke="#3b2210" stroke-width="2"/>`).join('')}<g fill="#e6c25c">${studs(0)}</g><circle cx="50" cy="140" r="5" fill="none" stroke="#e6c25c" stroke-width="2"/></svg></div>
-        <div class="g-door r"><svg viewBox="0 0 58 228" preserveAspectRatio="none"><rect width="58" height="228" fill="url(#gWood)"/>${[0, 1, 2, 3].map(k => `<rect x="5" y="${12 + k * 54}" width="48" height="46" rx="3" fill="none" stroke="#3b2210" stroke-width="2"/>`).join('')}<g fill="#e6c25c">${studs(3)}</g><circle cx="8" cy="140" r="5" fill="none" stroke="#e6c25c" stroke-width="2"/></svg></div></div>
+      <div class="g-doors"><div class="g-door l">${door('l')}</div><div class="g-door r">${door('r')}</div></div>
       <svg class="g-frame" viewBox="0 0 300 340">
         <defs>
-          <pattern id="gZel" width="20" height="20" patternUnits="userSpaceOnUse"><rect width="20" height="20" fill="#f3ead6"/><path d="M10 1 L12.6 7.4 19 10 12.6 12.6 10 19 7.4 12.6 1 10 7.4 7.4Z" fill="#1d6b4f"/><circle cx="10" cy="10" r="2.4" fill="#f3ead6"/><path d="M0 0h3v3H0zM17 0h3v3h-3zM0 17h3v3H0zM17 17h3v3h-3z" fill="#1c3f7a"/></pattern>
-          <pattern id="gZel2" width="12" height="12" patternUnits="userSpaceOnUse"><rect width="12" height="12" fill="#1d6b4f"/><path d="M6 0 L12 6 6 12 0 6Z" fill="#e9dcc0"/><rect x="4.5" y="4.5" width="3" height="3" fill="#1c3f7a"/></pattern>
-          <linearGradient id="gWood" x1="0" x2="1"><stop offset="0" stop-color="#6b3d1c"/><stop offset=".5" stop-color="#8a5326"/><stop offset="1" stop-color="#5a3216"/></linearGradient>
-          <linearGradient id="gStone" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d9b77c"/><stop offset="1" stop-color="#b98d52"/></linearGradient>
+          <filter id="gTex" x="0" y="0" width="1" height="1"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" seed="7"/><feColorMatrix values="0 0 0 0 .35  0 0 0 0 .22  0 0 0 0 .1  0 0 0 .55 0"/><feComposite in2="SourceGraphic" operator="in"/><feBlend in2="SourceGraphic" mode="multiply"/></filter>
+          <linearGradient id="gStone" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e2bd82"/><stop offset=".55" stop-color="#cfa064"/><stop offset="1" stop-color="#a87a45"/></linearGradient>
+          <linearGradient id="gBast" x1="0" x2="1"><stop offset="0" stop-color="#b8884f"/><stop offset=".45" stop-color="#d9b077"/><stop offset="1" stop-color="#a97b46"/></linearGradient>
+          <pattern id="gSebka" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="16" height="16" fill="#0e5a40"/><path d="M8 .8 L15.2 8 8 15.2 .8 8Z" fill="none" stroke="#d8e9cf" stroke-width="1.1"/><path d="M8 4 L12 8 8 12 4 8Z" fill="#0a2e22"/><circle cx="8" cy="8" r="1.1" fill="#d4af37"/><path d="M0 0h1.6v1.6H0zM14.4 0H16v1.6h-1.6zM0 14.4h1.6V16H0zM14.4 14.4H16V16h-1.6z" fill="#d8e9cf"/></pattern>
+          <pattern id="gZel" width="18" height="18" patternUnits="userSpaceOnUse"><rect width="18" height="18" fill="#f1e7d0"/><path d="${star(9, 9, 7.5)}" fill="#13684b"/><path d="${star(9, 9, 3.6)}" fill="#f1e7d0"/><circle cx="9" cy="9" r="1.4" fill="#1b3d78"/><path d="M0 0l3 0 0 3zM18 0l-3 0 0 3zM0 18l3 0 0-3zM18 18l-3 0 0-3z" fill="#111"/></pattern>
+          <pattern id="gBand" width="10" height="10" patternUnits="userSpaceOnUse"><rect width="10" height="10" fill="#0b2b20"/><path d="M5 1 9 5 5 9 1 5Z" fill="#d4af37"/></pattern>
+          <linearGradient id="gWood" x1="0" x2="1"><stop offset="0" stop-color="#4a2510"/><stop offset=".5" stop-color="#6e3b18"/><stop offset="1" stop-color="#40200d"/></linearGradient>
+          <linearGradient id="gWood2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7a4520"/><stop offset="1" stop-color="#55290f"/></linearGradient>
+          <linearGradient id="gMarble" x1="0" x2="1"><stop offset="0" stop-color="#cfc6b4"/><stop offset=".4" stop-color="#fbf7ee"/><stop offset="1" stop-color="#bdb3a0"/></linearGradient>
+          <mask id="gHole" maskUnits="userSpaceOnUse" x="0" y="0" width="300" height="340"><rect width="300" height="340" fill="#fff"/><path d="${OPEN}" fill="#000"/></mask>
+          <radialGradient id="gShade" cx=".5" cy=".55" r=".6"><stop offset=".6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".35"/></radialGradient>
         </defs>
-        <g fill="url(#gStone)">${merlons}</g>
-        <path fill-rule="evenodd" fill="url(#gStone)" d="M0 34H300V340H0Z M102 330 V192.6 A58 58 0 1 1 198 192.6 V330Z"/>
-        <rect x="0" y="34" width="300" height="5" fill="#9c7342"/>
-        <path fill-rule="evenodd" fill="url(#gZel)" d="M52 64 H248 V340 H52Z M102 330 V192.6 A58 58 0 1 1 198 192.6 V330Z"/>
-        <rect x="52" y="64" width="196" height="16" fill="url(#gZel2)"/>
-        <text x="150" y="76.5" text-anchor="middle" font-size="13" font-weight="700" fill="#f6d77a" font-family="serif" stroke="#1d3f2f" stroke-width=".6" paint-order="stroke">مرحبا بكم</text>
-        <path d="M102 330 V192.6 A58 58 0 1 1 198 192.6 V330" fill="none" stroke="#e9dcc0" stroke-width="13"/>
-        <path d="M102 330 V192.6 A58 58 0 1 1 198 192.6 V330" fill="none" stroke="#1d6b4f" stroke-width="13" stroke-dasharray="7 7"/>
-        <path d="M95.5 330 V192 A64.5 64.5 0 1 1 204.5 192 V330" fill="none" stroke="#c9a24a" stroke-width="2"/>
-        <rect x="80" y="196" width="9" height="134" rx="2" fill="#efe6d3"/><rect x="211" y="196" width="9" height="134" rx="2" fill="#efe6d3"/>
-        <rect x="77" y="190" width="15" height="7" rx="2" fill="#c9a24a"/><rect x="208" y="190" width="15" height="7" rx="2" fill="#c9a24a"/>
-        <rect x="10" y="60" width="34" height="280" fill="#c99f62" opacity=".55"/><rect x="256" y="60" width="34" height="280" fill="#c99f62" opacity=".55"/>
-        <path d="M16 100h22v30H16zM16 160h22v30H16zM262 100h22v30h-22zM262 160h22v30h-22z" fill="url(#gZel2)" opacity=".9"/>
+        <!-- bastions -->
+        <g filter="url(#gTex)">
+          <rect x="0" y="40" width="50" height="300" fill="url(#gBast)"/><rect x="250" y="40" width="50" height="300" fill="url(#gBast)"/>
+          <path d="${merl(0, 50, 40)} ${merl(250, 300, 40)}" fill="#d2a86d"/>
+          <path fill-rule="evenodd" fill="url(#gStone)" d="M50 52H250V340H50Z ${OPEN}"/>
+          <path d="${merl(50, 250, 52)}" fill="#ddb67c"/>
+        </g>
+        <path d="M14 120 v-26 a11 11 0 0 1 22 0 v26z M264 120 v-26 a11 11 0 0 1 22 0 v26z M14 210 v-26 a11 11 0 0 1 22 0 v26z M264 210 v-26 a11 11 0 0 1 22 0 v26z" fill="url(#gSebka)" stroke="#8c6234" stroke-width="1.5"/>
+        <rect x="50" y="52" width="3" height="288" fill="#000" opacity=".18"/><rect x="247" y="52" width="3" height="288" fill="#000" opacity=".18"/>
+        <!-- grand panneau (alfiz) : sebka verte au-dessus de l'arc, zellige sur les côtés -->
+        <g mask="url(#gHole)">
+          <rect x="62" y="70" width="176" height="270" fill="#7d5a2c"/>
+          <rect x="66" y="92" width="168" height="104" fill="url(#gSebka)"/>
+          <rect x="66" y="196" width="168" height="144" fill="url(#gZel)"/>
+          <rect x="66" y="92" width="168" height="248" fill="url(#gShade)"/>
+        </g>
+        <!-- frise noire et or -->
+        <rect x="62" y="70" width="176" height="22" fill="#0b2b20"/><rect x="62" y="70" width="176" height="3" fill="url(#gBand)"/><rect x="62" y="89" width="176" height="3" fill="url(#gBand)"/>
+        <text x="150" y="86.5" text-anchor="middle" font-size="14" font-weight="700" fill="#e9c46a" font-family="'Noto Naskh Arabic','Amiri',serif">مرحبا بكم</text>
+        <!-- claveaux de l'arc + lobes -->
+        <path d="M102 330 V192.6 A58 58 0 1 1 198 192.6 V330" fill="none" stroke="#efe3c6" stroke-width="14"/>
+        <path d="M102 330 V192.6 A58 58 0 1 1 198 192.6 V330" fill="none" stroke="#0e5a40" stroke-width="6" stroke-dasharray="4 4" transform="translate(0 0)" opacity=".85"/>
+        
+        <path d="M93.6 330 V192 A66.5 66.5 0 1 1 206.4 192 V330" fill="none" stroke="#d4af37" stroke-width="1.6"/>
+        <path d="M110.4 330 V193 A50 50 0 1 1 189.6 193 V330" fill="none" stroke="#000" stroke-opacity=".25" stroke-width="3"/>
+        <g fill="#efe3c6" stroke="#8c6234" stroke-width=".8"><circle cx="101.9" cy="127.6" r="5.6"/><circle cx="107.8" cy="120.2" r="5.6"/><circle cx="114.8" cy="113.9" r="5.6"/><circle cx="122.8" cy="108.8" r="5.6"/><circle cx="131.4" cy="105.1" r="5.6"/><circle cx="140.6" cy="102.8" r="5.6"/><circle cx="150.0" cy="102.0" r="5.6"/><circle cx="159.4" cy="102.8" r="5.6"/><circle cx="168.6" cy="105.1" r="5.6"/><circle cx="177.2" cy="108.8" r="5.6"/><circle cx="185.2" cy="113.9" r="5.6"/><circle cx="192.2" cy="120.2" r="5.6"/><circle cx="198.1" cy="127.6" r="5.6"/></g>
+        <!-- colonnes de marbre -->
+        <g><rect x="80" y="200" width="10" height="130" rx="2" fill="url(#gMarble)"/><rect x="210" y="200" width="10" height="130" rx="2" fill="url(#gMarble)"/>
+          <path d="M76 200h18l-3 -8h-12z M206 200h18l-3 -8h-12z" fill="#d4af37"/><rect x="76" y="326" width="18" height="6" fill="#bfa77a"/><rect x="206" y="326" width="18" height="6" fill="#bfa77a"/></g>
+        <!-- sol -->
+        <rect x="0" y="330" width="300" height="10" fill="#6f4d26" opacity=".55"/>
       </svg>
       <button class="g-enter">🔑 Entrer au chantier</button>
     </div>`;
@@ -110,11 +143,11 @@ const Splash = (() => {
         for (let i = 0; i < line.length; i++) {
           if (gate || done) return;
           row.textContent = line.slice(0, i + 1); if (line[i] !== ' ') click();
-          await new Promise(r => setTimeout(r, (line[i] === ' ' ? 40 : 60) + Math.random() * 45));
+          await new Promise(r => setTimeout(r, (line[i] === ' ' ? 25 : 38) + Math.random() * 28));
         }
-        await new Promise(r => setTimeout(r, 420));
+        await new Promise(r => setTimeout(r, 300));
       }
-      setTimeout(toGate, 900);
+      setTimeout(toGate, 650);
     });
   }
   return { show, on, soundOn, set: (k, v) => LS(k, v) };

@@ -1481,3 +1481,9 @@ body:has(.meas-bar) .ind-pill { display: none; }
 .sp-gate.open .g-enter { opacity: 0; transition: opacity .3s; }
 .splash.through .sp-gate { transform: scale(3.2); opacity: 0; transition: transform .9s cubic-bezier(.6,0,.4,1), opacity .9s ease-in; }
 .splash.through { background: #fff7e0; transition: background .9s; }
+
+/* porte : ciel du soir derrière, plus grande */
+.splash.gating { background: radial-gradient(90% 55% at 50% 100%, rgba(245,158,11,.45), transparent 70%), linear-gradient(180deg, #0b1230 0%, #23264f 45%, #6b3a4a 75%, #c06a3a 100%); }
+.splash.gating .sp-skip { color: rgba(255,255,255,.6); }
+.sp-gate { width: min(94vw, 420px) !important; }
+.g-frame { filter: drop-shadow(0 22px 34px rgba(0,0,0,.6)) !important; }
