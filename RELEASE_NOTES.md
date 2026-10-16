@@ -1,7 +1,5 @@
-## Nouveautés — Plans
-- Comparaison d'indices nette (vectorielle) : en zoomant, la superposition est recalculée depuis le PDF — traits nets, rouge = supprimé, vert = ajouté (traits épaissis)
-- Recalage automatique si le plan a bougé entre deux indices
-- Lecture des textes et cotes : liste écrite des modifications (« Cote 2000 » → « Cote 6000 », ajouté, supprimé, déplacé) ; un appui vous amène à l'endroit
-- Réglage de sensibilité (tout / normal / grosses modifications) ; partage de l'image nette + liste WhatsApp
-- Barre d'indice en bas du plan : indice actuel et date, liste des anciens indices, bandeau orange quand vous regardez un ancien indice
-- Nouvel indice : l'indice, la date et l'objet sont lus dans le cartouche « SUIVI DES MODIFICATIONS » (modifiables) ; « Lire indices et dates dans les cartouches » pour les plans existants ; « Modifier l'indice »
+## Nouveautés — Lots dans les niveaux
+- Dans chaque dossier de niveau (Plans) : barre de lots colorés — Gros œuvre, Maçonnerie, Chape, Enduit, Étanchéité, Électricité, Plomberie, Menuiserie, Peinture, Carrelage (+ vos lots)
+- Toucher un lot affiche ses plans et son panneau : raccourcis (Réception · Bétonnage · Suivi décoffrage du niveau pour le Gros œuvre ; Avancement pour les lots du second œuvre ; Réserves du niveau)
+- Points de contrôle par lot, les mêmes pour tous les niveaux (cochés niveau par niveau, avec date) + notes du lot pour ce niveau
+- Appui long sur un plan › choisir son lot ; un plan ajouté quand un lot est choisi est classé dedans ; appui long sur un lot › renommer, couleur, déplacer, supprimer

@@ -367,19 +367,23 @@ async function renderPlans(root) {
     if (more) more.onclick = () => folderMenu(f, root);
     if (open) {
       const grid = $('.plan-grid, .plan-rows', card);
-      for (const p of ps) {
+      if (f.id !== '_none' && !q && typeof lotBarInto === 'function') lotBarInto(card, f, ps, root);
+      const lotOf = (p) => { const L = p.lotId && planLots(App.project).find(l => l.id === p.lotId); return L ? `<span class="lot-dot" style="background:${L.c}" title="${esc(L.name)}">${L.e}</span>` : ''; };
+      for (const p of (typeof lotFilter === 'function' && !q ? lotFilter(ps, f) : ps)) {
         const t = document.createElement('div');
         const n = openCount(p.id);
         if (App.planView === 'grid') { t.className = 'ptile'; t.innerHTML = `<div class="im"><img data-thumb="${p.fileId}" alt=""></div><div class="nm">${esc(p.name)}${indTag(p)}</div>${n ? `<span class="badge">${n}</span>` : ''}`; }
         else { t.className = 'prow'; t.innerHTML = `<span class="im"><img data-thumb="${p.fileId}" alt=""></span><div class="nm">${esc(p.name)}${indTag(p)}</div>${n ? `<span class="badge">${n}</span>` : ''}${icon('chevright')}`; }
         t.onclick = () => openPlanViewer(p, planCtx(() => renderPlans(root)));
+        if (typeof planLotMenu === 'function') { t.oncontextmenu = (e) => { e.preventDefault(); planLotMenu(p, root); }; t.insertAdjacentHTML('beforeend', lotOf(p)); }
         grid.appendChild(t);
       }
       Thumbs.fill(grid);
       const add = document.createElement('div');
       add.className = App.planView === 'grid' ? 'ptile add' : 'prow';
       add.innerHTML = App.planView === 'grid' ? `${icon('plus')}<span>Ajouter un plan</span>` : `<span class="pic" style="color:var(--accent)">${icon('plus')}</span><div class="nm" style="color:var(--accent)">Ajouter un plan</div>`;
-      add.onclick = () => addPlanTo(f.id === '_none' ? null : f.id, folders, root);
+      add.onclick = async () => { const t0 = Date.now(), sel = lotSelOf(f.id); await addPlanTo(f.id === '_none' ? null : f.id, folders, root); if (sel && f.id !== '_none') { await tagNewPlans(pid, f.id, sel, t0); renderPlans(root); } };
+      if (lotSelOf(f.id) && !lotFilter(ps, f).length) grid.insertAdjacentHTML('afterbegin', `<div class="lot-empty">Aucun plan dans ce lot. Ajoutez-en un, ou appui long sur un plan › choisir le lot.</div>`);
       grid.appendChild(add);
     }
   }

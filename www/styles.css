@@ -1131,3 +1131,18 @@ body:has(.fullpage) .sharebar, body:has(.sheet-bg) .sharebar { display: none; }
 .cmp-it { display: flex; gap: 10px; align-items: center; text-align: left; border: 0; border-radius: 10px; padding: 9px 10px; background: rgba(255,255,255,.05); color: #e5e7eb; font-size: 14px; }
 .cmp-it .k { flex: none; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 8px; background: #334155; } .cmp-it .k-add { background: #14532d; color: #86efac; } .cmp-it .k-del { background: #7f1d1d; color: #fca5a5; } .cmp-it .k-mod, .cmp-it .k-mov { background: #78350f; color: #fcd34d; } .cmp-it .k-z { background: #ef4444; color: #fff; }
 .cmp-it .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+/* lots dans les dossiers de niveau */
+.lot-bar { display: flex; gap: 6px; overflow-x: auto; padding: 10px 10px 4px; scrollbar-width: none; } .lot-bar::-webkit-scrollbar { display: none; }
+.lot-c { flex: none; display: inline-flex; align-items: center; gap: 5px; padding: 7px 12px; border-radius: 18px; border: 1.5px solid var(--c); background: var(--t, rgba(100,116,139,.12)); color: #1f2937; font-weight: 700; font-size: 13px; white-space: nowrap; backdrop-filter: blur(6px); }
+.lot-c small { font-size: 11px; background: rgba(255,255,255,.75); padding: 0 6px; border-radius: 8px; color: #334155; } .lot-c.on { background: var(--c); color: #fff; box-shadow: 0 4px 12px rgba(0,0,0,.18); } .lot-c.on small { background: rgba(255,255,255,.3); color: #fff; }
+.lot-c.add { border-style: dashed; color: #64748b; background: transparent; }
+.lot-panel { margin: 6px 10px 4px; padding: 10px 12px; border-radius: 14px; background: var(--t); border: 1px solid var(--c); display: grid; gap: 8px; color: #1f2937; }
+.lp-h { display: flex; align-items: center; gap: 10px; } .lp-h .grow { flex: 1; display: grid; } .lp-h small { color: #475569; font-size: 12px; } .lp-e { font-size: 24px; }
+.lp-links { display: flex; flex-wrap: wrap; gap: 6px; } .lp-links button { border: 1px solid rgba(0,0,0,.12); background: rgba(255,255,255,.75); border-radius: 12px; padding: 7px 10px; font-size: 13px; font-weight: 600; color: #1f2937; }
+.lp-pts { display: grid; gap: 3px; } .lp-pt { display: flex; gap: 8px; align-items: center; text-align: left; border: 0; background: rgba(255,255,255,.6); border-radius: 10px; padding: 7px 10px; font-size: 13.5px; color: #1f2937; }
+.lp-pt i { font-style: normal; font-size: 16px; } .lp-pt.on { color: #15803d; } .lp-pt.on span { text-decoration: line-through; } .lp-pt small { display: block; font-size: 11px; color: #64748b; text-decoration: none; } .lp-pt .grow { flex: 1; }
+.lp-add { border: 1px dashed rgba(0,0,0,.25); background: transparent; border-radius: 10px; padding: 7px; font-size: 12.5px; color: #475569; }
+.lp-note { display: grid; gap: 4px; font-size: 12px; color: #475569; } .lp-note textarea { min-height: 54px; border-radius: 10px; border: 1px solid rgba(0,0,0,.15); padding: 8px; font-size: 13.5px; background: rgba(255,255,255,.85); color: #111; }
+.lot-dot { position: absolute; top: 6px; left: 6px; font-size: 13px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; box-shadow: 0 2px 6px rgba(0,0,0,.25); } .prow .lot-dot { position: static; flex: none; }
+.ptile { position: relative; } .lot-empty { grid-column: 1 / -1; font-size: 13px; color: #64748b; padding: 6px 4px; }
+.lp-det summary { cursor: pointer; font-size: 13px; font-weight: 700; color: #334155; padding: 4px 2px; } .lp-det[open] summary { margin-bottom: 6px; } .lp-det { display: grid; gap: 6px; }
