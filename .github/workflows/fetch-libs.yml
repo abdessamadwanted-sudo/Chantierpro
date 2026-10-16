@@ -10,6 +10,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          mkdir -p l8 dwg && cd l8 && npm view @mlightcad/libredwg-web versions --json | tail -5 > ../dwg/versions.txt; npm pack @mlightcad/libredwg-web >/dev/null && tar xzf mlightcad-libredwg-web-*.tgz && (cd package && find . -type f | xargs ls -la > ../../dwg/files.txt; cat package.json > ../../dwg/package.json; cat README.md > ../../dwg/README.md 2>/dev/null; ls dist wasm 2>/dev/null >> ../../dwg/files.txt); cd .. && rm -rf l8
+          mkdir -p l8 dwg2 && cd l8 && npm pack @mlightcad/libredwg-web@0.8.0 >/dev/null && tar xzf mlightcad-libredwg-web-*.tgz && cp package/dist/libredwg-web.umd.cjs package/wasm/libredwg-web.wasm ../dwg2/ && cp package/LICENSE ../dwg2/ 2>/dev/null; (cd package/lib/database && tar czf ../../../../dwg2/dts.tgz $(find . -name "*.d.ts")); (cd package/lib/converter && cp converter.js entityConverter.js ../../../../dwg2/); cd .. && rm -rf l8
           git config user.name bot && git config user.email bot@example.com
-          git add dwg && git commit -m "dwg info" && git push
+          git add dwg2 && git commit -m "dwg files" && git push
