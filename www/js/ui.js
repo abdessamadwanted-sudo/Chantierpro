@@ -137,6 +137,7 @@ function formSheet(title, fields, { okLabel = 'Enregistrer', danger } = {}) {
     let result = null;
     const body = `<div class="form">${fields.map(f => {
       const v = esc(f.value ?? '');
+      if (f.type === 'info') return `<div class="fs-info"><b>${esc(f.label)}</b><div>${v.replace(/\n/g, '<br>')}</div></div>`;
       let input;
       if (f.type === 'textarea') input = `<textarea name="${f.name}" placeholder="${esc(f.placeholder || '')}">${v}</textarea>`;
       else if (f.type === 'select') input = `<select name="${f.name}">${f.options.map(o => `<option value="${esc(o.value ?? o)}" ${(o.value ?? o) == f.value ? 'selected' : ''}>${esc(o.label ?? o)}</option>`).join('')}</select>`;

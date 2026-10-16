@@ -76,6 +76,9 @@ async function buildWeeklyPdf(p, W) {
   else C.text('✓ Tous les PV sont récupérés.', { color: [22, 163, 74] });
   // réserves en retard
   if (tLate.length) { sec(`Réserves en retard (${tLate.length})`); table(['N°', 'Réserve', 'Échéance', 'Statut'], tLate.slice(0, 60).map(t => ['#' + (t.num || ''), t.title || '', fmtDate(t.due), (STATUS[t.status] || {}).label || '']), [14, 112, 28, 28]); }
+  // échéances des lots + points d'arrêt
+  if (typeof lotDueList === 'function') { const dl = await lotDueList(p); if (dl.length) { sec(`Échéances des lots${p.mo ? ' (' + p.mo + ')' : ''}`);
+    table(['Lot', 'Niveau', 'Échéance', 'Reste', "Points d'arrêt à lever"], dl.map(x => [x.L.name, x.f.name, x.di ? `${fmtDate(x.D._due)} (${x.D._dueBy || 'MO'})` : '—', x.di ? x.di.txt : '', x.po.map(z => z.t).join(' ; ') || '—']), [30, 32, 38, 22, 60], (i, c) => i === 3 && /Retard/.test(c) ? [220, 38, 38] : i === 4 && c !== '—' ? [234, 88, 12] : null); } }
   // avancement second œuvre
   const locs = links.filter(l => l.kind === 'local');
   if (locs.length) {

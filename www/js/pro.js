@@ -51,6 +51,7 @@ async function renderDashboard(root) {
       <div class="kpi" data-f="toLift"><div class="v" style="color:var(--red)">${toLift}</div><div class="l">À lever</div></div>
       <div class="kpi" data-f="late"><div class="v" style="color:var(--orange)">${late.length}</div><div class="l">En retard</div></div>
     </div>
+    <div id="dashDue"></div>
     <div class="card dash">
       <div class="dash-h">Avancement par entreprise</div>
       ${comps.length ? comps.map(x => `
@@ -69,6 +70,10 @@ async function renderDashboard(root) {
     </div>
     ${activity.length ? `<div class="card dash"><div class="dash-h">Activité récente</div><div class="log">${activity.map(a =>
       `<div data-t="${a.t2.id}"><b>#${a.t2.num}</b> ${esc(a.msg)} <span style="float:right">${fmtDateTime(a.t)}</span></div>`).join('')}</div></div>` : ''}`;
+  if (typeof lotDueList === 'function') lotDueList(p).then(list => { const box = $('#dashDue', root); if (!box || !list.length) return;
+    box.innerHTML = `<div class="card dash"><div class="dash-h">⏳ Échéances des lots${p.mo ? ' · ' + esc(p.mo) : ''}</div>${list.slice(0, 12).map(x => `<div class="dd-row ${x.di ? x.di.cls : 'w'}" data-fid="${x.f.id}" data-lid="${x.L.id}"><span class="dd-e">${x.L.e}</span><span class="grow"><b>${esc(x.L.name)} · ${esc(x.f.name)}</b><small>${x.di ? `${esc(x.D._dueBy || 'MO')} : ${fmtDate(x.D._due)}` : 'sans échéance'}${x.po.length ? ` · 🛑 ${x.po.length} point(s) d'arrêt à lever` : ''}</small></span>${x.di ? `<i>${x.di.txt}</i>` : ''}</div>`).join('')}</div>`;
+    $$('[data-lid]', box).forEach(r => r.onclick = () => { App.lotSel = App.lotSel || {}; App.lotSel[r.dataset.fid] = r.dataset.lid; App.openFolders = App.openFolders || {}; App.openFolders[r.dataset.fid] = true; App.scrollFolder = r.dataset.fid; App.section = 'plans'; App.search = ''; renderSection(); });
+  }).catch(() => {});
 
   const goTasks = (status, company) => { App.section = 'tasks'; App.taskFilter = status; App.companyFilter = company ?? 'all'; renderSection(); };
   $$('.kpi[data-f]', root).forEach(k => k.onclick = () => goTasks(k.dataset.f));
