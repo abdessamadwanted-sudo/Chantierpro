@@ -1,6 +1,5 @@
-## Nouveautés — indice des plans
-- Indice et date lus automatiquement dans le cartouche du plan (ex : PE01 23/12/2025)
-- Pastille fixe en bas à gauche du plan : indice + date ; ▲ pour la liste des indices, toucher un indice ouvre ce plan
-- Plus de bandeau « revenir au dernier indice »
-- Pins : un appui court les ouvre directement
-- « 📚 Plans des ouvrages du jour » dans la liste des plans + bouton dans le tableau de réception
+## Corrections
+- Comparaison des indices (superposition) beaucoup plus légère et rapide : rendu par la carte graphique, zone déjà nette réutilisée quand on se déplace un peu, mémoire libérée → plus de blocage ni de boutons qui disparaissent
+- Superposition plus lisible : supprimé en rouge et ajouté en vert (traits épais), inchangé en gris clair
+- Indice et date lus dans le cartouche, pastille fixe en bas à gauche (▲ liste des indices)
+- Pins : un appui court les ouvre ; « 📚 Plans des ouvrages du jour » ; menu latéral lisible en Verre

@@ -101,9 +101,9 @@ const TXT_LBL = { mod: '✏️ Modifié', add: '🟢 Ajouté', del: '🔴 Suppri
 const txtLine = (c) => c.t === 'mod' ? `« ${c.a} » → « ${c.b} »` : c.t === 'add' ? `« ${c.b} »` : `« ${c.a} »`;
 
 // ---------- Rendu net d'une zone d'un plan (PDF vectoriel si possible, sinon image pleine résolution) ----------
-async function renderPlanRegion(plan, P, x0, y0, w, h, outW, outH, M) {
+async function renderPlanRegion(plan, P, x0, y0, w, h, outW, outH, M, gpu) {
   const c = document.createElement('canvas'); c.width = outW; c.height = outH;
-  const g = c.getContext('2d', { willReadFrequently: true }); g.fillStyle = '#fff'; g.fillRect(0, 0, outW, outH);
+  const g = c.getContext('2d', gpu ? {} : { willReadFrequently: true }); g.fillStyle = '#fff'; g.fillRect(0, 0, outW, outH);
   // (x0,y0,w,h) sont en pixels du NOUVEAU plan ; M place ce plan dans ce repère
   const s = outW / w;                                   // pixels écran par pixel du nouveau plan
   if (P) {
@@ -116,6 +116,25 @@ async function renderPlanRegion(plan, P, x0, y0, w, h, outW, outH, M) {
     g.drawImage(img, (x0 - M.ox) / M.sx, (y0 - M.oy) / M.sy, w / M.sx, h / M.sy, 0, 0, outW, outH);
   }
   return c;
+}
+// superposition rapide (carte graphique) : supprimé en rouge, ajouté en vert (traits épais), inchangé en gris clair
+function overlayCanvases(ca, cb) {
+  const W = ca.width, H = ca.height, k = Math.max(1, Math.round(W / 1100)), tmp = [];
+  const mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; tmp.push(c); return c; };
+  const cp = (src) => { const c = mk(); c.getContext('2d').drawImage(src, 0, 0); return c; };
+  const op = (c, mode, fn) => { const g = c.getContext('2d'); g.globalCompositeOperation = mode; fn(g); g.globalCompositeOperation = 'source-over'; return c; };
+  const thick = (c, r) => op(c, 'darken', g => { for (let i = 1; i <= r; i++) for (const [dx, dy] of [[i, 0], [-i, 0], [0, i], [0, -i]]) g.drawImage(c, dx, dy); });
+  const fill = (c, mode, col) => op(c, mode, g => { g.fillStyle = col; g.fillRect(0, 0, W, H); });
+  const mul = (dst, src) => op(dst, 'multiply', g => g.drawImage(src, 0, 0));
+  const only = (a, b, col) => {   // traits de a absents de b (tolérance : b épaissi), en couleur sur fond blanc
+    const m = fill(cp(a), 'difference', '#fff'); mul(m, thick(cp(b), k + 1));
+    fill(m, 'difference', '#fff'); fill(m, 'color-dodge', '#808080'); for (let i = 0; i < 2; i++) mul(m, m);   // seuil : restes gris clairs → blanc, traits → noir
+    thick(m, k); return fill(m, 'screen', col);
+  };
+  const rem = only(ca, cb, '#dc1f1f'), add = only(cb, ca, '#0a9a4a');
+  fill(cb, 'screen', '#c4c4c4'); mul(cb, rem); mul(cb, add);
+  tmp.forEach(c => { c.width = c.height = 0; }); ca.width = ca.height = 0;
+  return cb;
 }
 function diffCanvases(ca, cb, mode) {
   const W = ca.width, H = ca.height, A = ca.getContext('2d').getImageData(0, 0, W, H).data, B = cb.getContext('2d').getImageData(0, 0, W, H).data;
@@ -144,12 +163,12 @@ async function openPlanCompare(oldPlan, newPlan) {
     [PA, PB] = await Promise.all([planPdfPage(oldPlan), planPdfPage(newPlan)]);
     M = await planAlignMap(oldPlan, newPlan);
     ld.set('Recherche des modifications…');
-    D = await planDiff(oldPlan, newPlan, 2600, { map: M, sens });
+    D = await planDiff(oldPlan, newPlan, 2000, { map: M, sens });
     if (PA && PB) { ld.set('Lecture des textes et des cotes…'); const [A, B] = await Promise.all([pageTexts(PA.page, PA.k), pageTexts(PB.page, PB.k)]); TX = textDiff(A, B, M); }
   } catch (e) { ld.close(); return alertBox('Comparaison impossible : ' + (e.message || e)); }
   const [srcOld, srcNew] = await Promise.all([fileURL(oldPlan.fileId), fileURL(newPlan.fileId)]);
   ld.close();
-  const diffURL = D.canvas.toDataURL('image/png');
+  let diffURL = URL.createObjectURL(await new Promise(r => D.canvas.toBlob(r, 'image/png'))); D.canvas.width = D.canvas.height = 0;
   const W = newPlan.w, H = newPlan.h, vec = !!(PA && PB);
   let mode = 'diff', boxes = true, hdT = 0, hdSeq = 0;
   const iA = planIndice(oldPlan), iB = planIndice(newPlan);
@@ -163,7 +182,7 @@ async function openPlanCompare(oldPlan, newPlan) {
       <button class="btn small" data-a="list">${D.rects.length} zone(s)${TX.length ? ' · ' + TX.length + ' texte(s)' : ''}</button></div>`;
   document.body.appendChild(el);
   const unBack = pushBack(() => el.remove());
-  $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
+  $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); try { URL.revokeObjectURL(diffURL); hd.width = hd.height = 0; } catch (e) {} };
   const view = $('.av-view', el), stage = $('.av-stage', el), img = $('img', stage), ov = $('.av-ov', el), hd = $('.cmp-hd', el);
   hd.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;display:none';
   let focusI = -1;
@@ -173,28 +192,39 @@ async function openPlanCompare(oldPlan, newPlan) {
       <g transform="translate(${q.x},${q.y})"><circle r="${11 / s}" fill="#ef4444"/><text y="${4.5 / s}" text-anchor="middle" font-size="${fs * 0.85}" font-weight="700" fill="#fff" font-family="Arial">${i + 1}</text></g>`).join('')
       + TX.map((c, i) => `<rect x="${c.x - 3 / s}" y="${c.y - c.h - 3 / s}" width="${c.w + 6 / s}" height="${c.h + 6 / s}" fill="none" stroke="${c.t === 'add' ? '#16a34a' : c.t === 'del' ? '#dc2626' : '#f59e0b'}" stroke-width="${(focusI === i ? 4 : 1.8) / s}" rx="${3 / s}"/>`).join('');
   };
-  // rendu net de la zone visible
+  // rendu net de la zone visible (avec une marge : un petit déplacement ne relance pas le rendu)
+  let last = null, busy = false, again = false;
+  const visible = () => { const r = view.getBoundingClientRect(), [ax, ay] = pz.toImg([0, 0]), [bx, by] = pz.toImg([r.width, r.height]); return { x0: Math.max(0, ax), y0: Math.max(0, ay), x1: Math.min(W, bx), y1: Math.min(H, by), s: pz.st.s }; };
+  const covered = (v) => last && last.mode === mode && v.x0 >= last.x0 && v.y0 >= last.y0 && v.x1 <= last.x1 && v.y1 <= last.y1 && Math.abs(Math.log(v.s / last.s)) < 0.22;
   const renderHD = async () => {
-    const seq = ++hdSeq, st = pz.st, r = view.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
-    const [ax, ay] = pz.toImg([0, 0]), [bx, by] = pz.toImg([r.width, r.height]);
-    const x0 = Math.max(0, ax), y0 = Math.max(0, ay), x1 = Math.min(W, bx), y1 = Math.min(H, by);
-    if (x1 - x0 < 4 || y1 - y0 < 4 || st.s < st.fit * 1.15) { hd.style.display = 'none'; return; }   // vue d'ensemble : l'image suffit
+    if (busy) { again = true; return; }
+    const v = visible(), st = pz.st;
+    if (v.x1 - v.x0 < 4 || v.y1 - v.y0 < 4 || st.s < st.fit * 1.15) { hd.style.display = 'none'; last = null; return; }   // vue d'ensemble : l'image suffit
+    if (covered(v)) { hd.style.display = ''; return; }
+    busy = true; const seq = ++hdSeq;
+    const mw = (v.x1 - v.x0) * 0.3, mh = (v.y1 - v.y0) * 0.3;
+    const x0 = Math.max(0, v.x0 - mw), y0 = Math.max(0, v.y0 - mh), x1 = Math.min(W, v.x1 + mw), y1 = Math.min(H, v.y1 + mh);
+    const dpr = Math.min(1.5, window.devicePixelRatio || 1);
     let outW = Math.round((x1 - x0) * st.s * dpr), outH = Math.round((y1 - y0) * st.s * dpr);
-    const cap = 2600 / Math.max(outW, outH); if (cap < 1) { outW = Math.round(outW * cap); outH = Math.round(outH * cap); }
+    const cap = Math.min(1, 2000 / Math.max(outW, outH), Math.sqrt(2.4e6 / (outW * outH))); if (cap < 1) { outW = Math.round(outW * cap); outH = Math.round(outH * cap); }
     try {
       const I = { sx: 1, sy: 1, ox: 0, oy: 0 };
       let c;
-      if (mode === 'old') c = await renderPlanRegion(oldPlan, PA, x0, y0, x1 - x0, y1 - y0, outW, outH, M);
-      else if (mode === 'new') c = await renderPlanRegion(newPlan, PB, x0, y0, x1 - x0, y1 - y0, outW, outH, I);
-      else { const [ca, cb] = await Promise.all([renderPlanRegion(oldPlan, PA, x0, y0, x1 - x0, y1 - y0, outW, outH, M), renderPlanRegion(newPlan, PB, x0, y0, x1 - x0, y1 - y0, outW, outH, I)]); c = diffCanvases(ca, cb); }
-      if (seq !== hdSeq) return;
-      hd.width = c.width; hd.height = c.height; hd.getContext('2d').drawImage(c, 0, 0);
-      hd.style.left = x0 + 'px'; hd.style.top = y0 + 'px'; hd.style.width = (x1 - x0) + 'px'; hd.style.height = (y1 - y0) + 'px'; hd.style.display = '';
+      if (mode === 'old') c = await renderPlanRegion(oldPlan, PA, x0, y0, x1 - x0, y1 - y0, outW, outH, M, true);
+      else if (mode === 'new') c = await renderPlanRegion(newPlan, PB, x0, y0, x1 - x0, y1 - y0, outW, outH, I, true);
+      else { const ca = await renderPlanRegion(oldPlan, PA, x0, y0, x1 - x0, y1 - y0, outW, outH, M, true); const cb = await renderPlanRegion(newPlan, PB, x0, y0, x1 - x0, y1 - y0, outW, outH, I, true); c = overlayCanvases(ca, cb); }
+      if (seq === hdSeq && el.isConnected) {
+        hd.width = c.width; hd.height = c.height; hd.getContext('2d').drawImage(c, 0, 0);
+        hd.style.left = x0 + 'px'; hd.style.top = y0 + 'px'; hd.style.width = (x1 - x0) + 'px'; hd.style.height = (y1 - y0) + 'px'; hd.style.display = '';
+        last = { mode, x0, y0, x1, y1, s: st.s };
+      }
+      c.width = c.height = 0;
     } catch (e) { console.warn('hd', e); }
+    finally { busy = false; if (again) { again = false; clearTimeout(hdT); hdT = setTimeout(renderHD, 120); } }
   };
-  const pz = panZoom(view, stage, W, H, { onChange: (st) => { drawBoxes(st.s); clearTimeout(hdT); hd.style.display = 'none'; hdT = setTimeout(renderHD, 220); } });
+  const pz = panZoom(view, stage, W, H, { onChange: (st) => { drawBoxes(st.s); clearTimeout(hdT); const v = visible(); if (!covered(v)) { if (last && Math.abs(Math.log(st.s / last.s)) >= 0.22) hd.style.display = 'none'; hdT = setTimeout(renderHD, 350); } } });
   requestAnimationFrame(pz.fit);
-  const setMode = (m) => { mode = m; img.src = m === 'old' ? srcOld : m === 'new' ? srcNew : diffURL; $$('[data-m]', el).forEach(b => b.classList.toggle('on', b.dataset.m === mode || (b.dataset.m === 'box' && boxes))); clearTimeout(hdT); hdT = setTimeout(renderHD, 50); };
+  const setMode = (m) => { mode = m; last = null; hd.style.display = 'none'; img.src = m === 'old' ? srcOld : m === 'new' ? srcNew : diffURL; $$('[data-m]', el).forEach(b => b.classList.toggle('on', b.dataset.m === mode || (b.dataset.m === 'box' && boxes))); clearTimeout(hdT); hdT = setTimeout(renderHD, 50); };
   $$('[data-m]', el).forEach(b => b.onclick = () => { if (b.dataset.m === 'box') { boxes = !boxes; drawBoxes(pz.st.s); setMode(mode); } else setMode(b.dataset.m); });
   $('[data-a=list]', el).onclick = () => {
     if (!D.rects.length && !TX.length) return toast('Aucune modification détectée');
@@ -206,7 +236,8 @@ async function openPlanCompare(oldPlan, newPlan) {
   $('[data-a=sens]', el).onclick = async () => {
     const v = await menu('Sensibilité de la détection', [{ label: 'Tout (même les petits détails)', value: '0.45', checked: sens === 0.45 }, { label: 'Normale', value: '1', checked: sens === 1 }, { label: 'Seulement les grosses modifications', value: '2', checked: sens === 2 }]);
     if (!v) return; sens = +v; try { localStorage.setItem('cmp.sens', v); } catch (e) {}
-    const l2 = loading('Recherche des modifications…'); try { D = await planDiff(oldPlan, newPlan, 2600, { map: M, sens }); } finally { l2.close(); }
+    const l2 = loading('Recherche des modifications…'); try { D = await planDiff(oldPlan, newPlan, 2000, { map: M, sens }); } finally { l2.close(); }
+    try { URL.revokeObjectURL(diffURL); } catch (e) {} diffURL = URL.createObjectURL(await new Promise(r => D.canvas.toBlob(r, 'image/png'))); D.canvas.width = D.canvas.height = 0; if (mode === 'diff') img.src = diffURL;
     $('[data-a=list]', el).textContent = `${D.rects.length} zone(s)${TX.length ? ' · ' + TX.length + ' texte(s)' : ''}`; drawBoxes(pz.st.s);
   };
   $('[data-a=share]', el).onclick = async () => {
