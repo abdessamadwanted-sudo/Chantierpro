@@ -10,6 +10,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          mkdir -p l8 dwg2 && cd l8 && npm pack @mlightcad/libredwg-web@0.8.0 >/dev/null && tar xzf mlightcad-libredwg-web-*.tgz && cp package/dist/libredwg-web.umd.cjs package/wasm/libredwg-web.wasm ../dwg2/ && cp package/LICENSE ../dwg2/ 2>/dev/null; (cd package/lib/database && tar czf ../../../../dwg2/dts.tgz $(find . -name "*.d.ts")); (cd package/lib/converter && cp converter.js entityConverter.js ../../../../dwg2/); cd .. && rm -rf l8
+          set -x
+          mkdir -p l8 && cd l8 && npm pack @mlightcad/libredwg-web@0.8.0 && tar xzf *.tgz && rm -rf ../dwg2 && mkdir -p ../dwg2 && cp -r package/dist package/wasm package/lib ../dwg2/ && cd .. && rm -rf l8 && ls -R dwg2 | head -50
           git config user.name bot && git config user.email bot@example.com
           git add dwg2 && git commit -m "dwg files" && git push
