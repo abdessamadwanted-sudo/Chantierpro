@@ -10,6 +10,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          mkdir -p l8 && cd l8 && npm pack send-intent@6.0.3 >/dev/null && tar xzf send-intent-6.0.3.tgz && cat package/android/src/main/java/de/mindlib/sendIntent/*.java package/android/src/main/res/values/*.xml package/android/src/main/res/layout/*.xml package/android/src/main/AndroidManifest.xml > ../si-java.txt; cd .. && rm -rf l8
+          mkdir -p l8 fonts && cd l8 && npm pack @fontsource/caveat >/dev/null && tar xzf fontsource-caveat-*.tgz && ls package/files | head -50 > ../fonts/list.txt && cp package/files/caveat-latin-500-normal.woff2 package/files/caveat-latin-600-normal.woff2 ../fonts/ && cp package/LICENSE ../fonts/CAVEAT-LICENSE.txt 2>/dev/null; cd .. && rm -rf l8
           git config user.name bot && git config user.email bot@example.com
-          git add si-java.txt && git commit -m "si java" && git push
+          git add fonts && git commit -m "fonts" && git push
