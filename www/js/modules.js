@@ -70,14 +70,16 @@ async function checkUpdate(manual = false) {
   try { localStorage.setItem('upd.at', String(Date.now())); } catch (e) {}
   if (!rel || !rel.tag_name) { if (manual) toast('Impossible de vérifier (internet ?)'); return; }
   const latest = rel.tag_name.replace(/^v/, '');
-  if (verCmp(latest, cur) > 0) return showUpdate(latest);
+  if (verCmp(latest, cur) > 0) return showUpdate(latest, rel.body || '');
   if (manual) toast(`Application à jour ✓ (${cur})`);
 }
 
-function showUpdate(latest) {
+function showUpdate(latest, notes = '') {
+  const lines = String(notes).split('\n').map(l => l.trim()).filter(l => l && !/^téléchargez/i.test(l));
+  const news = lines.length ? `<div class="upd-notes">${lines.map(l => /^#+\s/.test(l) ? `<b>${esc(l.replace(/^#+\s*/, ''))}</b>` : `<div>• ${esc(l.replace(/^[-*•]\s*/, ''))}</div>`).join('')}</div>` : '';
   if (document.querySelector('.upd-sheet')) return;
   const s = sheet(`<div class="upd-sheet"><div class="upd-ic">⬆️</div>
-    <p><b>Nouvelle version ${esc(latest)}</b> disponible (vous avez ${esc(APP_VERSION)}).</p>
+    <p><b>Nouvelle version ${esc(latest)}</b> disponible (vous avez ${esc(APP_VERSION)}).</p>${news}
     <p class="muted">Installez-la <b>par-dessus</b> l'application : <b>ne la désinstallez pas</b>. Vos projets, plans, photos et réglages restent sur le téléphone.</p>
     <div class="btnrow"><button class="btn ghost" data-a="later">Plus tard</button><button class="btn" data-a="go">${icon('upload')} Mettre à jour</button></div></div>`, { title: 'Mise à jour' });
   $('[data-a=later]', s.el).onclick = () => s.close();

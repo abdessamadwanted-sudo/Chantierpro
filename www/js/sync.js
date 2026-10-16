@@ -57,46 +57,59 @@ const Sync = (() => {
   // ---------- rangement dans Drive ----------
   const clean = (s, d = 'Sans nom') => (String(s || '').replace(/[\\/:*?"<>|#\n\r\t]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 90)) || d;
   const extOf = (f) => { const t = f.mime || (f.blob && f.blob.type) || ''; if (t === 'image/png') return '.png'; if (/^image\/(jpe?g|webp|heic)/.test(t)) return '.jpg'; if (t === 'application/pdf') return '.pdf'; const m = String(f.name || '').match(/\.(\w{2,5})$/); return m ? '.' + m[1].toLowerCase() : ''; };
+  // Rangement Drive « pro » : un dossier par projet, sous-dossiers numérotés, un dossier par jour et par ouvrage.
+  // Changer un chemin DÉPLACE le fichier dans Drive (jamais de doublon).
+  const D = { plans: '01 - Plans', rec: '02 - Réception ferraillage', bet: '03 - Bétonnage', res: '04 - Réserves', rap: '05 - Rapports journaliers', form: '06 - Formulaires', cons: '07 - Constats', cl: '08 - Clauses techniques', doc: '09 - Documents', ph: '10 - Photos' };
+  const MOIS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+  const moisDe = (iso) => { const m = String(iso || '').match(/^(\d{4})-(\d{2})/); return m ? `${m[1]}-${m[2]} ${MOIS[+m[2] - 1]}` : 'Sans date'; };
   async function buildPaths() {
     const [projects, folders, plans, links, recs, tasks, forms, reports] = await Promise.all(['projects', 'folders', 'plans', 'links', 'receptions', 'tasks', 'forms', 'reports'].map(s => DB.all(s)));
     const P = Object.fromEntries(projects.map(p => [p.id, clean(p.name, 'Projet')]));
     const F = Object.fromEntries(folders.map(f => [f.id, clean(f.name)]));
     const PL = Object.fromEntries(plans.map(p => [p.id, p]));
+    const PR = Object.fromEntries(projects.map(p => [p.id, p]));
     const map = {};
     const put = (id, segs, name) => { if (id && !map[id]) map[id] = { segs: segs.map(s => clean(s)), name }; };
+    const pj = (pid) => P[pid] || 'Projet';
     for (const pl of plans) {
-      const base = [P[pl.projectId] || 'Projet', 'Plans', F[pl.folderId] || 'Sans dossier'];
-      put(pl.pdfFileId, base, clean(pl.name.replace(/ - p\d+$/, '')));
-      put(pl.fileId, pl.pdfFileId ? [...base, 'Aperçus'] : base, clean(pl.name));
+      // plan actuel dans le dossier du niveau ; anciens indices rangés à part (jamais écrasés)
+      const old = !!pl.supersededBy, ind = pl.indice ? ` (ind ${pl.indice})` : '';
+      const base = old ? [pj(pl.projectId), D.plans, F[pl.folderId] || 'Sans dossier', 'Anciens indices'] : [pj(pl.projectId), D.plans, F[pl.folderId] || 'Sans dossier'];
+      put(pl.pdfFileId, base, clean(pl.name.replace(/ - p\d+$/, '') + ind));
+      put(pl.dxfFileId, base, clean(pl.name + ind));
+      put(pl.fileId, [...base, 'Aperçus'], clean(pl.name + ind));
     }
     for (const l of links) {
       const pl = PL[l.planId]; if (!pl) continue;
-      const base = [P[l.projectId] || 'Projet', 'Plans', F[pl.folderId] || 'Sans dossier', `${pl.name} - éléments`, l.name || 'Élément'];
-      put(l.fileId, base.slice(0, -1), clean(l.name));
-      for (const it of l.items || []) if (it.fileId) put(it.fileId, [...base, it.cat || 'Documents'], clean(it.name || it.cat));
-      for (const z of l.zones || []) for (const pt of z.parts || []) for (const dd of pt.docs || []) if (dd.fileId) put(dd.fileId, [...base.slice(0, -1), 'Plans par ouvrage', z.name, pt.name], clean(dd.name));
-      (l.photos || []).forEach((id, i) => put(id, [...base.slice(0, -1), 'Photos et notes', l.name || 'Pin'], `${clean(l.name || 'Photo')} - ${i + 1}`));
-      for (const n of l.notes || []) { (n.photos || []).forEach((id, i) => put(id, [...base.slice(0, -1), 'Photos et notes', l.name || 'Pin', 'Notes'], `Note ${new Date(n.at).toISOString().slice(0, 10)} - ${i + 1}`)); if (n.audio) put(n.audio, [...base.slice(0, -1), 'Photos et notes', l.name || 'Pin', 'Notes'], `Note vocale ${new Date(n.at).toISOString().slice(0, 10)}`); }
+      const base = [pj(l.projectId), D.plans, F[pl.folderId] || 'Sans dossier', `${pl.name} - éléments`];
+      const el = [...base, l.name || 'Élément'];
+      put(l.fileId, base, clean(l.name));
+      for (const it of l.items || []) if (it.fileId) put(it.fileId, [...el, it.cat || 'Documents'], clean(it.name || it.cat));
+      for (const z of l.zones || []) for (const pt of z.parts || []) for (const dd of pt.docs || []) if (dd.fileId) put(dd.fileId, [...base, 'Plans par ouvrage', z.name, pt.name], clean(dd.name));
+      (l.photos || []).forEach((id, i) => put(id, [...base, 'Photos et notes', l.name || 'Pin'], `${clean(l.name || 'Photo')} - ${i + 1}`));
+      if (l.kind === 'local' && l.lots) { const pr = PR[l.projectId] || {}; for (const [lid, rr] of Object.entries(l.lots)) { const lot = (pr.lots || []).find(x => x.id === lid); (rr.photos || []).forEach((id, i) => put(id, [pj(l.projectId), '11 - Avancement', F[pl.folderId] || 'Sans dossier', lot ? lot.name : 'Lot', l.name || 'Local'], `${clean(l.name || 'Local')} - ${i + 1}`)); } }
+      for (const n of l.notes || []) { const d = new Date(n.at).toISOString().slice(0, 10); (n.photos || []).forEach((id, i) => put(id, [...base, 'Photos et notes', l.name || 'Pin', 'Notes'], `Note ${d} - ${i + 1}`)); if (n.audio) put(n.audio, [...base, 'Photos et notes', l.name || 'Pin', 'Notes'], `Note vocale ${d}`); }
     }
     for (const d of recs) {
       const bet = d.type === 'Bétonnage';
-      const base = [P[d.projectId] || 'Projet', bet ? 'Programme de bétonnage' : 'Réception ferraillage', (d.date || '').slice(0, 7), d.date || 'date'];
+      const base = [pj(d.projectId), bet ? D.bet : D.rec, moisDe(d.date), d.date || 'Sans date'];
       (d.pvIds || []).forEach((id, i) => put(id, [...base, 'PV du jour'], `PV ${d.date} - ${i + 1}`));
       if (d.pvPdfId) put(d.pvPdfId, [...base, 'PV du jour'], `PV du ${d.date} (fusionné)`);
       for (const r of d.rows || []) {
-        // Photos / <ouvrage> / Réserve 1.jpg, Retour 1.jpg, Croquis.jpg
+        // <jour> / Ouvrages / <Zone · Niveau · Élément> / Photos | Anomalies | Réparations
         const nm = clean(`${r.zone ? 'Zone ' + r.zone + ' · ' : ''}${r.niv ? r.niv + ' · ' : ''}${r.element || 'Ouvrage'}`);
-        const dir = [...base, 'Photos', nm];
-        (r.photoIds || []).forEach((id, i) => put(id, dir, `${nm} - ${r.status === 'reserve' ? (bet ? 'Défaut' : 'Réserve') : 'Photo'} ${i + 1}`));
-        (r.retourIds || []).forEach((id, i) => put(id, dir, `${nm} - ${bet ? 'Réparation' : 'Retour'} ${i + 1}`));
+        const dir = [...base, 'Ouvrages', nm];
+        (r.photoIds || []).forEach((id, i) => put(id, [...dir, 'Photos'], `${nm} - Photo ${i + 1}`));
+        (r.anomIds || []).forEach((id, i) => put(id, [...dir, 'Anomalies'], `${nm} - ${bet ? 'Défaut' : 'Anomalie'} ${i + 1}`));
+        (r.retourIds || []).forEach((id, i) => put(id, [...dir, 'Réparations'], `${nm} - Réparation ${i + 1}`));
         if (r.croquisId) put(r.croquisId, dir, `${nm} - Croquis`);
       }
     }
-    for (const pr of projects) for (const c of pr.clauses || []) put(c.fileId, [P[pr.id] || 'Projet', 'Clauses techniques', c.type || 'Autre'], clean(c.name));
-    for (const pr of projects) for (const c of pr.constats || []) (c.items || []).forEach((it, k) => (it.photoIds || []).forEach((id, i) => put(id, [P[pr.id] || 'Projet', 'Constats', `${c.date || ''} ${c.title || 'Constat'}`], `${k + 1}-${i + 1} ${it.probleme || 'photo'}`.slice(0, 80))));
-    for (const t of tasks) (t.photoIds || []).forEach((id, i) => put(id, [P[t.projectId] || 'Projet', 'Réserves', `#${t.num || ''} ${t.title || ''}`], `#${t.num || ''} - ${i + 1}`));
-    for (const f of forms) (f.photoIds || []).forEach((id, i) => put(id, [P[f.projectId] || 'Projet', 'Formulaires', `${(f.date || '').slice(0, 10)} ${f.title || ''}`], `photo ${i + 1}`));
-    for (const r of reports) (r.photoIds || []).forEach((id, i) => put(id, [P[r.projectId] || 'Projet', 'Rapports journaliers', r.date || ''], `photo ${i + 1}`));
+    for (const pr of projects) for (const c of pr.clauses || []) put(c.fileId, [pj(pr.id), D.cl, c.type || 'Autre'], clean(c.name));
+    for (const pr of projects) for (const c of pr.constats || []) (c.items || []).forEach((it, k) => (it.photoIds || []).forEach((id, i) => put(id, [pj(pr.id), D.cons, `${c.date || ''} ${c.title || 'Constat'}`], `${k + 1}-${i + 1} ${it.probleme || 'photo'}`.slice(0, 80))));
+    for (const t of tasks) (t.photoIds || []).forEach((id, i) => put(id, [pj(t.projectId), D.res, `#${t.num || ''} ${t.title || ''}`], `#${t.num || ''} - ${i + 1}`));
+    for (const f of forms) (f.photoIds || []).forEach((id, i) => put(id, [pj(f.projectId), D.form, `${(f.date || '').slice(0, 10)} ${f.title || ''}`], `photo ${i + 1}`));
+    for (const r of reports) (r.photoIds || []).forEach((id, i) => put(id, [pj(r.projectId), D.rap, moisDe(r.date), r.date || ''], `photo ${i + 1}`));
     return { map, P };
   }
   function pathFor(f, paths) {
@@ -104,9 +117,9 @@ const Sync = (() => {
     const m = paths.map[f.id];
     const ext = extOf(f);
     if (m) return { segs: m.segs, name: m.name + ext };
-    const month = new Date(f.createdAt || Date.now()).toISOString().slice(0, 7);
+    const day = new Date(f.createdAt || Date.now()).toISOString().slice(0, 10);
     const base = (f.name || f.id).replace(/\.\w{2,5}$/, '');
-    return { segs: [paths.P[f.projectId] || 'Projet', f.role === 'doc' ? 'Documents' : 'Photos', month], name: clean(base) + ext };
+    return { segs: [paths.P[f.projectId] || 'Projet', f.role === 'doc' ? D.doc : D.ph, moisDe(day)], name: clean(base) + ext };
   }
   const b64 = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
   const fromB64 = (s, type) => { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type }); };
@@ -119,6 +132,7 @@ const Sync = (() => {
   const keepMode = () => LS.get('keep', 'plans');
   const isPlan = (f) => f.role === 'plan' || f.role === 'plansrc';
   function wantLocal(f, mode = keepMode()) {
+    if (f.freed) return !!(f.lastUsed && Date.now() - f.lastUsed < 2 * 864e5);   // libérée volontairement : reste dans Drive
     if (mode === 'all') return true;
     if (f.role === 'croquis') return true;                                   // petits
     if (f.lastUsed && Date.now() - f.lastUsed < 2 * 864e5) return true;      // ouvert récemment
@@ -148,7 +162,8 @@ const Sync = (() => {
   // DB.get / DB.byProject sur « files » : si le fichier n'est plus sur le téléphone, on le reprend dans Drive
   const _get = DB.get.bind(DB), _byP = DB.byProject.bind(DB);
   DB.get = async (store, id) => { const r = await _get(store, id); if (store === 'files' && r && !r.blob && r.driveId) { await fetchBlob(r); } return r; };
-  DB.byProject = async (store, pid) => { const l = await _byP(store, pid); if (store === 'files') await pool(l.filter(f => !f.blob && f.driveId).slice(0, 40), 4, fetchBlob); return l; };
+  DB.byProject = async (store, pid) => { const l = await _byP(store, pid); if (store === 'files') await pool(l.filter(f => !f.blob && f.driveId && !f.freed).slice(0, 40), 4, fetchBlob); return l; };
+  DB.peek = (store, id) => _get(store, id);   // lecture sans téléchargement depuis Drive
   async function usage() { let local = 0, n = 0, cloud = 0; for (const f of await DB.all('files')) { if (f.blob) { local += f.blob.size || 0; n++; } else if (f.driveId) cloud++; } return { local, n, cloud }; }
 
   // ---------- synchronisation ----------

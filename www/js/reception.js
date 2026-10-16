@@ -203,10 +203,11 @@ async function renderReceptions(root, kind = 'Ferraillage') {
       <div class="row" data-h="${i}"><span class="rs" style="background:${(REC_STATUS[r.status] || REC_STATUS.pending).color};min-width:74px;text-align:center">${stLabel(kind, r.status)}</span>
         <div class="grow"><div class="title wrap">${esc(r.element)}</div>
         <div class="sub">📅 ${fmtDate(d.date)}${r.zone ? ' · Zone ' + esc(r.zone) : ''}${r.niv ? ' · ' + esc(r.niv) : ''}${r.classe ? ' · ' + esc(r.classe) : ''}${r.avec ? ' · avec ' + esc(r.avec) : ''}${!isBeton(kind) && r.status !== 'pending' ? (r.pvRecu ? ' · <span style="color:#22c55e">PV reçu</span>' : ' · <span style="color:#ef4444">PV manquant</span>') : ''}${r.obs ? `<br><span style="color:${r.status === 'reserve' ? '#f59e0b' : 'var(--muted)'}">${esc(r.obs)}</span>` : ''}</div></div>
-</div>`).join('')}</div>`
+${!isBeton(kind) ? `<button class="btn ghost small cp-bet" data-cp="${i}" title="Copier vers le bétonnage">→ Béton</button>` : ''}</div>`).join('')}</div>`
       : `<div class="empty">Aucun ouvrage trouvé${q ? ` pour « ${esc(q)} »` : ''}${nivF ? ` au niveau ${esc(nivF)}` : ''}${zoneF ? ` en zone ${esc(zoneF)}` : ''}.</div>`;
     $$('[data-h]', body).forEach(el => el.onclick = async (e) => {
       const { d, r } = hits[+el.dataset.h];
+      if (e.target.closest('[data-cp]')) { e.stopPropagation(); return copyToBeton(d.projectId, [r]); }
       if (e.target.closest('[data-sh]')) return shareRow(p, d, r);
       await openReceptionDay(d, { focus: r.id }); renderReceptions(root, kind);
     });
@@ -434,8 +435,12 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
       $('[data-a=more]', el).onclick = async () => {
         const v = await menu('Tableau', [
           { label: 'Changer la date', icon: 'calendar', value: 'date' },
+          { label: 'Libérer les photos de ce jour (gardées dans Drive)', icon: 'drive', value: 'free' },
+          ...(!isBeton(K) ? [{ label: 'Copier des ouvrages vers le bétonnage…', icon: 'calendar', value: 'cpb' }] : []),
           { label: 'Supprimer ce tableau', icon: 'trash', danger: true, value: 'del' },
         ]);
+        if (v === 'cpb') { await save(); const pick = await pickRows(day.rows.filter(x => x.element), 'Copier vers le bétonnage'); if (pick && pick.length) await copyToBeton(day.projectId, pick); }
+        if (v === 'free') { await save(); await freeFilesUI([...(day.pvIds || []), ...day.rows.flatMap(r => [...(r.photoIds || []), ...(r.retourIds || [])])], `${recTitle(K)} du ${fmtDate(day.date)}`); render(); }
         if (v === 'date') { const r = await formSheet('Date', [{ name: 'date', label: 'Date', type: 'date', value: day.date }]); if (r && r.date) { day.date = r.date; await save(); render(); } }
         if (v === 'del' && await confirmBox('Supprimer ce tableau ?')) {
           for (const r of day.rows) for (const id of [...(r.photoIds || []), ...(r.retourIds || [])]) await DB.del('files', id);
@@ -453,8 +458,9 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
       const s = sheet(`<div class="form" id="rowf"></div>`, { title: isNew ? 'Nouvelle ligne' : 'Modifier la ligne' });
       const f = $('#rowf', s.el);
       async function draw() {
-        const photos = await loadFiles(r.photoIds), retours = await loadFiles(r.retourIds);
-        const thumbs = (list, sec) => `<div class="thumbs">${list.map(f => `<div class="t" data-id="${f.id}" data-sec="${sec}"><img src="${BlobURL.get(f.id, f.blob)}"><button class="x" data-del="${f.id}">×</button></div>`).join('')}<button class="t add" data-add="${sec}">${icon('camera')}</button></div>`;
+        const peekAll = async (ids) => { const o = []; for (const id of ids || []) { const x = await DB.peek('files', id); if (x) o.push(x); } return o; };
+        const photos = await peekAll(r.photoIds), retours = await peekAll(r.retourIds);
+        const thumbs = (list, sec) => `<div class="thumbs">${list.map(f => `<div class="t" data-id="${f.id}" data-sec="${sec}">${fileThumbHTML(f)}<button class="x" data-del="${f.id}">×</button></div>`).join('')}<button class="t add" data-add="${sec}">${icon('camera')}</button></div>`;
         f.innerHTML = `
           <div class="kv"><label>Zone<input name="zone" value="${esc(r.zone)}" inputmode="numeric" placeholder="11"></label>
             <label>Niveau<input name="niv" list="dl-niv" value="${esc(r.niv)}" placeholder="R+5"></label></div>
@@ -470,11 +476,16 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
             <div class="fld">${isBeton(K) ? 'Photos de la réparation' : 'Photos du retour (levée de réserve)'}</div>${thumbs(retours, 'retourIds')}
             ${r.status === 'reserve' || (isBeton(K) && photos.length) ? `<button type="button" class="btn ${r.liftedAt ? 'ghost' : ''} small" data-a="lift" style="align-self:flex-start;margin-top:8px">${icon('check')} ${r.liftedAt ? `${isBeton(K) ? 'Réparé' : 'Réserve levée'} le ${recDateLabel(r.liftedAt)} (annuler)` : (isBeton(K) ? 'Marquer comme réparé' : 'Marquer la réserve levée')}</button>` : ''}
           </div>` : ''}
+          ${!isNew && !isBeton(K) ? `<button type="button" class="btn ghost small cp-btn" data-a="cpb">${icon('calendar')} Copier vers le programme de bétonnage</button>` : ''}
+          ${[...photos, ...retours].some(x => x.blob) && !isNew ? `<button type="button" class="btn ghost small fr-btn" data-a="free">☁ Libérer ${[...photos, ...retours].filter(x => x.blob).length} photo(s) du téléphone</button>` : ''}${[...photos, ...retours].some(x => !x.blob && x.freed) ? `<div class="fr-mini">☁ ${[...photos, ...retours].filter(x => !x.blob && x.freed).length} photo(s) uniquement dans Drive</div>` : ''}
           <div class="fld">Croquis ${isBeton(K) ? '(partie bétonnée en couleur)' : '(partie réceptionnée en couleur)'}</div>
           <div class="sk-row">${r.croquisId ? `<img class="sk-thumb" data-a="skview">` : ''}<button type="button" class="btn ghost small" data-a="sketch">${icon('pen')} ${r.croquisId ? 'Modifier le croquis' : 'Dessiner un croquis'}</button>${r.croquisId ? `<button type="button" class="btn ghost small" data-a="skdel" style="flex:none">${icon('trash')}</button>` : ''}</div>
           <div class="btnrow" style="padding:0">${!isNew ? `<button class="btn danger" data-a="del" style="flex:none;padding:14px 16px">${icon('trash')}</button>` : ''}
             <button class="btn ghost" data-a="cancel">Annuler</button><button class="btn" data-a="ok">${isNew ? 'Ajouter' : 'Enregistrer'}</button></div>
           ${isNew ? `<button class="btn ghost" data-a="okmore" style="margin-top:-4px">Ajouter et ligne suivante</button>` : `<button class="btn ghost" data-a="wa" style="margin-top:-4px">${icon('share')} Envoyer cet ouvrage (WhatsApp)</button>${(r.photoIds.length + r.retourIds.length) ? `<button class="btn ghost" data-a="waph" style="margin-top:-4px">${icon('camera')} Envoyer toutes ses photos (${r.photoIds.length + r.retourIds.length})</button>` : ''}`}`;
+        Thumbs.fill(f);
+        const cpb = $('[data-a=cpb]', f); if (cpb) cpb.onclick = async (e) => { e.preventDefault(); if (!await commit()) return; await copyToBeton(day.projectId, [r]); };
+        const frb = $('[data-a=free]', f); if (frb) frb.onclick = async (e) => { e.preventDefault(); if (!await commit()) return; await freeFilesUI([...r.photoIds, ...r.retourIds], r.element || 'ouvrage'); draw(); };
         $$('[name]', f).forEach(inp => inp.oninput = () => { r[inp.name] = inp.value; });
         $$('[data-st]', f).forEach(b => b.onclick = () => { r.status = b.dataset.st; draw(); });
         $$('[data-pvr]', f).forEach(b => b.onclick = () => { r.pvRecu = b.dataset.pvr === '1'; draw(); });
@@ -500,7 +511,8 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         $$('.thumbs .t[data-id]', f).forEach(t => t.onclick = async (e) => {
           const id = t.dataset.id, sec = t.dataset.sec;
           if (e.target.closest('[data-del]')) { e.preventDefault(); r[sec] = r[sec].filter(x => x !== id); draw(); return; }
-          const all = [...photos.map(x => [x, r.status === 'reserve' ? photoLabels(K)[0] : 'Photo']), ...retours.map(x => [x, photoLabels(K)[1]])];
+          if ([...photos, ...retours].some(x => !x.blob)) { const l3 = loading('Téléchargement depuis Drive…'); try { for (const x of [...photos, ...retours]) if (!x.blob) { const g = await DB.get('files', x.id); if (g && g.blob) x.blob = g.blob; } } finally { l3.close(); } }
+          const all = [...photos.map(x => [x, r.status === 'reserve' ? photoLabels(K)[0] : 'Photo']), ...retours.map(x => [x, photoLabels(K)[1]])].filter(([x]) => x.blob);
           showGallery(all.map(([x, lb]) => ({ src: BlobURL.get(x.id, x.blob), caption: `${lb} · ${r.element}`, fileId: x.id })), all.findIndex(([x]) => x.id === id));
           const gl = document.querySelector('.gallery [data-a=x]'); if (gl) { const o = gl.onclick; gl.onclick = () => { o(); draw(); }; }
         });
@@ -812,3 +824,43 @@ async function shareDayMenu(p, day) {
         if (v === 'csv') receptionCsv(p, day);
         if (v === 'sheets') { await sendToSheets(p, day); await DB.put('receptions', day); }
       }
+
+// ---------- Copier des ouvrages de la réception vers le programme de bétonnage ----------
+function pickRows(rows, title) {
+  return new Promise((resolve) => {
+    const sel = new Set();
+    const s = sheet(`<div class="form pk-rows"></div>`, { title });
+    s.onClose = () => resolve(null);
+    const box = $('.pk-rows', s.el);
+    const draw = () => {
+      box.innerHTML = `<div class="fr-tools"><button type="button" class="btn ghost small" data-pa="all">Tout</button><button type="button" class="btn ghost small" data-pa="none">Aucun</button></div>
+        <div class="pk-list">${rows.map((r, i) => `<button type="button" class="pk-r ${sel.has(i) ? 'on' : ''}" data-i="${i}"><i>${sel.has(i) ? '☑' : '☐'}</i><span class="z">${esc(r.zone || '–')}</span><span class="n">${esc(r.niv || '')}</span><span class="grow">${esc(r.element)}</span></button>`).join('')}</div>
+        <button class="btn" data-pa="ok" ${sel.size ? '' : 'disabled'}>${icon('check')} Copier ${sel.size} ouvrage(s)</button>`;
+      $$('[data-i]', box).forEach(b => b.onclick = () => { const i = +b.dataset.i; sel.has(i) ? sel.delete(i) : sel.add(i); draw(); });
+      $('[data-pa=all]', box).onclick = () => { rows.forEach((_, i) => sel.add(i)); draw(); };
+      $('[data-pa=none]', box).onclick = () => { sel.clear(); draw(); };
+      $('[data-pa=ok]', box).onclick = () => { const out = rows.filter((_, i) => sel.has(i)); s.onClose = null; s.close(); resolve(out); };
+    };
+    draw();
+  });
+}
+async function copyToBeton(projectId, rows) {
+  if (!rows || !rows.length) return;
+  const t = todayISO(), tm = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+  let date = await menu(`Copier ${rows.length > 1 ? rows.length + ' ouvrages' : '« ' + rows[0].element + ' »'} vers le bétonnage du…`, [
+    { label: `Aujourd'hui · ${fmtDate(t)}`, icon: 'calendar', value: t }, { label: `Demain · ${fmtDate(tm)}`, icon: 'calendar', value: tm }, { label: 'Autre date…', icon: 'calendar', value: 'other' }]);
+  if (!date) return;
+  if (date === 'other') { const r = await formSheet('Date du bétonnage', [{ name: 'd', label: 'Date', type: 'date', value: t }], { okLabel: 'Copier' }); if (!r || !r.d) return; date = r.d; }
+  const all = await DB.byProject('receptions', projectId);
+  let d = all.find(x => isBeton(kindOf(x)) && x.date === date);
+  if (!d) d = await DB.put('receptions', { projectId, date, type: 'Bétonnage', rows: [] });
+  const key = (r) => normQ(`${r.zone}|${r.niv}|${r.element}`);
+  const have = new Set(d.rows.map(key)); let n = 0, dup = 0;
+  for (const r of rows) {
+    if (have.has(key(r))) { dup++; continue; }
+    d.rows.push({ id: DB.uid(), zone: r.zone || '', niv: r.niv || '', element: r.element, classe: r.classe || '', avec: '', pvRecu: false, status: 'progress', obs: '', photoIds: [], retourIds: [], fromRec: r.id });
+    have.add(key(r)); n++;
+  }
+  await DB.put('receptions', d);
+  toast(n ? `✓ ${n} ouvrage(s) ajouté(s) au bétonnage du ${fmtDate(date)}${dup ? ` · ${dup} déjà présent(s)` : ''}` : `Déjà dans le bétonnage du ${fmtDate(date)}`);
+}

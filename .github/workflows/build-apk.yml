@@ -103,6 +103,6 @@ jobs:
         with:
           tag_name: v1.0.${{ github.run_number }}
           name: Chantier v1.0.${{ github.run_number }}
-          body: "Téléchargez **Chantier.apk** ci-dessous et installez-le sur Android."
+          body_path: RELEASE_NOTES.md
           files: Chantier.apk
           make_latest: true

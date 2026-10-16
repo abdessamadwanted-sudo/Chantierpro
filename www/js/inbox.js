@@ -104,3 +104,42 @@ async function photoReminder() {
   } catch (e) {}
   return { n: list.length, mb };
 }
+
+// ---------- Libérer des photos choisies (ouvrage, jour…) : vérifiées dans Drive puis retirées du téléphone ----------
+// Les photos restent dans Google Drive (rangées par ouvrage) ; une miniature reste visible ; la photo complète se re-télécharge si on l'ouvre.
+async function freeFilesUI(ids, title = 'Photos') {
+  ids = [...new Set((ids || []).filter(Boolean))];
+  if (!Sync.enabled()) return alertBox('Connectez d\'abord Google Drive (Paramètres › Google Drive) : les photos doivent être sauvegardées avant d\'être retirées du téléphone.');
+  const ld = loading('Sauvegarde dans Drive…');
+  try { await Promise.race([Sync.run({ quiet: true }), new Promise(r => setTimeout(r, 60000))]); } catch (e) {}
+  ld.set('Vérification…');
+  const recs = []; for (const id of ids) { const f = await DB.peek('files', id); if (f) recs.push(f); }
+  ld.close();
+  const ok = recs.filter(f => f.blob && f.driveId && f.drivePath), wait = recs.filter(f => f.blob && !(f.driveId && f.drivePath)), done = recs.filter(f => !f.blob && f.driveId);
+  if (!ok.length) return alertBox(wait.length ? `${wait.length} photo(s) pas encore dans Drive (connexion ?). Réessayez quand l\'envoi est terminé.` : done.length ? `✅ Ces ${done.length} photo(s) sont déjà libérées : elles sont uniquement dans Drive.` : 'Aucune photo.');
+  const sel = new Set(ok.map(f => f.id));
+  const s = sheet(`<div class="form fr-sheet"></div>`, { title: `Libérer · ${title}` });
+  const box = $('.fr-sheet', s.el);
+  const draw = () => {
+    const mb = ok.filter(f => sel.has(f.id)).reduce((a, f) => a + (f.blob.size || 0), 0) / 1048576;
+    box.innerHTML = `<div class="fr-info">☁ <b>${ok.length}</b> photo(s) vérifiée(s) dans Drive${wait.length ? ` · <span class="w">${wait.length} pas encore envoyée(s)</span>` : ''}${done.length ? ` · ${done.length} déjà libérée(s)` : ''}</div>
+      <div class="fr-tools"><button type="button" class="btn ghost small" data-fa="all">Tout</button><button type="button" class="btn ghost small" data-fa="none">Aucune</button></div>
+      <div class="fr-grid">${ok.map(f => `<button type="button" class="fr-t ${sel.has(f.id) ? 'on' : ''}" data-f="${f.id}"><img src="${BlobURL.get(f.id, f.blob)}"><i>✓</i><small>☁</small></button>`).join('')}</div>
+      <div class="fr-note">Elles restent dans <b>Google Drive</b> (dossier de l'ouvrage). Une miniature reste dans l'application ; la photo complète se télécharge si vous l'ouvrez.</div>
+      <button class="btn" data-fa="go" ${sel.size ? '' : 'disabled'}>☁ Libérer ${sel.size} photo(s) · ${mb.toFixed(1)} Mo</button>`;
+    $$('[data-f]', box).forEach(b => b.onclick = () => { sel.has(b.dataset.f) ? sel.delete(b.dataset.f) : sel.add(b.dataset.f); draw(); });
+    $('[data-fa=all]', box).onclick = () => { ok.forEach(f => sel.add(f.id)); draw(); };
+    $('[data-fa=none]', box).onclick = () => { sel.clear(); draw(); };
+    $('[data-fa=go]', box).onclick = async () => {
+      const l2 = loading('Libération…'); let n = 0, freed = 0;
+      try { for (const f of ok.filter(x => sel.has(x.id))) { try { await Thumbs.get(f.id); } catch (e) {} freed += f.blob.size || 0; f.blob = null; f.freed = true; f.freedAt = Date.now(); delete f.lastUsed; BlobURL.drop(f.id); await DB.putRaw('files', f); n++; } }
+      finally { l2.close(); }
+      s.close(); toast(`☁ ${n} photo(s) libérée(s) · ${(freed / 1048576).toFixed(1)} Mo gagnés`);
+      if (typeof freeFilesUI.onDone === 'function') freeFilesUI.onDone();
+    };
+  };
+  draw();
+  return new Promise(res => { s.onClose = res; });
+}
+// miniature d'un fichier (sans re-télécharger une photo libérée)
+function fileThumbHTML(f) { return f.blob ? `<img src="${BlobURL.get(f.id, f.blob)}">` : `<img data-thumb="${f.id}" alt=""><span class="cloud-b">☁</span>`; }
