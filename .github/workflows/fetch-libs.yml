@@ -10,6 +10,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          npm view @mlightcad/libredwg-web versions time --json > dwgver.json; cat dwgver.json | tail -30
+          (npm view @capgo/capacitor-native-biometric versions --json | tail -15; npm view @capgo/capacitor-native-biometric@6 peerDependencies --json; npm view @capgo/capacitor-native-biometric@6 version) > bio.txt 2>&1; cat bio.txt
           git config user.name bot && git config user.email bot@example.com
-          git add dwgver.json && git commit -m "ver" && git push
+          git add bio.txt && git commit -m "bio" && git push
