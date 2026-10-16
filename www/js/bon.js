@@ -1,8 +1,8 @@
 // ================= Bon de bétonnage : « Demande de bétonnage et contrôle de coffrage — cales en PVC » =================
 // Même présentation que le bon papier ; écriture manuscrite bleue ; rempli depuis la réception / le programme de bétonnage ;
-// signatures (Travaux, Topographe, Qualité, HSE) enregistrées UNE fois par chaque personne, avec son accord.
+// signatures (Travaux, Topographe, Qualité) enregistrées UNE fois par chaque personne, avec son accord.
 const BON_W = 1600, BON_H = 1240, BON_INK = '#1c34b0';
-const BON_ROLES = [['travaux', 'TRAVEAUX', 'Travaux'], ['topo', 'TOPOGRAPHE', 'Topographe'], ['qualite', 'QUALITE', 'Qualité'], ['hse', 'HSE', 'HSE']];
+const BON_ROLES = [['travaux', 'TRAVEAUX', 'Travaux'], ['topo', 'TOPOGRAPHE', 'Topographe'], ['qualite', 'QUALITE', 'Qualité']];
 const BON_FIELDS = [['area', 'AREA:', 'Area (niveau)', 'Ex : R+5'], ['zone', 'ZONE:', 'Zone', 'Ex : 11'], ['ouvrage', 'OUVRAGE:', 'Ouvrage', 'Ex : Voiles CR 23'], ['partie', 'PARTIE D’OUVRAGE:', 'Partie d’ouvrage', 'Ex : Axe D13-D14 entre fil H et I'], ['type', 'TYPE DE BETON:', 'Type de béton', 'Ex : B40/G0']];
 let bonFontP = null;
 function bonFont() {
@@ -16,7 +16,6 @@ function bonCfg(p) {
   p.bon = p.bon || {};
   const c = p.bon;
   c.title = c.title ?? 'Grand Stade Hassan 2';
-  c.hse = c.hse ?? true;
   c.people = c.people || {};
   BON_ROLES.forEach(([k]) => { c.people[k] = c.people[k] || []; });
   c.last = c.last || {};
@@ -69,7 +68,7 @@ async function bonRender(b, cfg) {
     hits.push({ k, x: 50, y: y - 60, w: BON_W - 100, h: 78 });
   });
   // tableau des visas
-  const roles = BON_ROLES.filter(([k]) => k !== 'hse' || cfg.hse);
+  const roles = BON_ROLES;
   const tx = 70, tw = BON_W - 140, top = 905, hh = 100, bot = BON_H - 55, cw = tw / roles.length;
   g.strokeStyle = '#111'; g.lineWidth = 3; g.strokeRect(tx, top, tw, bot - top);
   g.beginPath(); g.moveTo(tx, top + hh); g.lineTo(tx + tw, top + hh); for (let i = 1; i < roles.length; i++) { g.moveTo(tx + cw * i, top); g.lineTo(tx + cw * i, bot); } g.stroke();
@@ -198,7 +197,7 @@ function openBon(p, bon, onSave) {
           <div class="btnrow" style="padding:0"><button class="btn" data-a="save">${icon('check')} Enregistrer</button><button class="btn ghost" data-a="wa">${icon('share')} WhatsApp</button></div>
         </div></div>`;
     const img = $('.bon-prev img', el);
-    const sigs = () => { $('.bon-sigs', el).innerHTML = BON_ROLES.filter(([k]) => k !== 'hse' || cfg.hse).map(([k, , lab]) => { const q = cfg.people[k].find(x => x.id === bon.sig[k]); return `<button type="button" class="bon-sig ${q ? 'on' : ''}" data-r="${k}"><small>${lab}</small><b>${q ? esc(q.name) + (q.sigId ? ' ✍' : '') : 'Choisir…'}</b></button>`; }).join('');
+    const sigs = () => { $('.bon-sigs', el).innerHTML = BON_ROLES.map(([k, , lab]) => { const q = cfg.people[k].find(x => x.id === bon.sig[k]); return `<button type="button" class="bon-sig ${q ? 'on' : ''}" data-r="${k}"><small>${lab}</small><b>${q ? esc(q.name) + (q.sigId ? ' ✍' : '') : 'Choisir…'}</b></button>`; }).join('');
       $$('[data-r]', el).forEach(b => b.onclick = () => pick(b.dataset.r)); };
     const draw = async () => { const r = await bonRender(bon, cfg); hits = r.hits; img.src = r.canvas.toDataURL('image/jpeg', 0.9); img._cv = r.canvas; };
     const redraw = () => { clearTimeout(t); t = setTimeout(draw, 250); };
@@ -224,8 +223,7 @@ function openBon(p, bon, onSave) {
     $('[data-a=wa]', el).onclick = share; $('[data-a=share]', el).onclick = share;
     $('[data-a=x]', el).onclick = async () => { if (dirty && await confirmBox('Enregistrer le bon ?', 'Enregistrer')) await save(); close(); };
     $('[data-a=more]', el).onclick = async () => {
-      const v = await menu('Bon', [{ label: 'PDF du bon', icon: 'pdf', value: 'pdf' }, { label: `Colonne HSE : ${cfg.hse ? 'oui' : 'non'}`, icon: 'team', value: 'hse' }, { label: 'Nom du chantier sur le bon', icon: 'edit', value: 'title' }]);
-      if (v === 'hse') { cfg.hse = !cfg.hse; await DB.put('projects', p); sigs(); draw(); }
+      const v = await menu('Bon', [{ label: 'PDF du bon', icon: 'pdf', value: 'pdf' }, { label: 'Nom du chantier sur le bon', icon: 'edit', value: 'title' }]);
       if (v === 'title') { const r = await formSheet('Nom du chantier', [{ name: 't', label: 'Sous le titre du bon', value: cfg.title }]); if (r) { cfg.title = r.t || ''; await DB.put('projects', p); draw(); } }
       if (v === 'pdf') { await save(true); await bonsPdf(p, [bon], `Bon ${bon.ouvrage || ''}`); }
     };
