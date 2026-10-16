@@ -961,7 +961,7 @@ function openDecof(p) {
 const recPinName = (r) => `${r.zone ? 'Z' + r.zone + ' · ' : ''}${r.element || ''}`.slice(0, 60);
 async function pickPlanFor(projectId, niv) {
   const [plans, folders] = await Promise.all([DB.byProject('plans', projectId), DB.byProject('folders', projectId)]);
-  const F = Object.fromEntries(folders.map(f => [f.id, f.name]));
+  const F = Object.fromEntries(folders.map(f => [f.id, folderPath(f, folders)]));
   const cur = plans.filter(p => typeof isCurrentPlan !== 'function' || isCurrentPlan(p));
   const n = normQ(niv || '');
   const score = (p) => (n && normQ(`${F[p.folderId] || ''} ${p.name}`).includes(n) ? 0 : 1);

@@ -65,7 +65,7 @@ const Sync = (() => {
   async function buildPaths() {
     const [projects, folders, plans, links, recs, tasks, forms, reports] = await Promise.all(['projects', 'folders', 'plans', 'links', 'receptions', 'tasks', 'forms', 'reports'].map(s => DB.all(s)));
     const P = Object.fromEntries(projects.map(p => [p.id, clean(p.name, 'Projet')]));
-    const F = Object.fromEntries(folders.map(f => [f.id, clean(f.name)]));
+    const F = Object.fromEntries(folders.map(f => [f.id, clean(folderPath(f, folders, ' - '))]));
     const PL = Object.fromEntries(plans.map(p => [p.id, p]));
     const PR = Object.fromEntries(projects.map(p => [p.id, p]));
     const map = {};

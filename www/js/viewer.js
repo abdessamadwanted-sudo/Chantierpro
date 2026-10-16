@@ -584,7 +584,7 @@ async function openPlanViewer(plan, ctx) {
     const [plans, folders] = await Promise.all([DB.byProject('plans', plan.projectId), DB.byProject('folders', plan.projectId)]);
     const others = plans.filter(p => p.id !== plan.id);
     if (!others.length) { toast('Importez d\'abord la coupe / le plan dans « Plans »'); return null; }
-    const fname = (id) => (folders.find(f => f.id === id) || {}).name;
+    const fname = (id) => folderPath(folders.find(f => f.id === id), folders);
     others.sort((a, b) => `${fname(a.folderId) || ''} ${a.name}`.localeCompare(`${fname(b.folderId) || ''} ${b.name}`, 'fr', { numeric: true }));
     const id = await menu(title, others.map(p => ({ label: (fname(p.folderId) ? fname(p.folderId) + ' / ' : '') + p.name, icon: 'plans', value: p.id })));
     return id ? others.find(p => p.id === id) : null;

@@ -1494,3 +1494,25 @@ body:has(.meas-bar) .ind-pill { display: none; }
 .sp-motto i { color: #9ef0a8; font-size: 9px; animation-delay: .25s; } .sp-motto b:nth-of-type(2) { animation-delay: .35s; } .sp-motto i:nth-of-type(2) { animation-delay: .55s; } .sp-motto b:nth-of-type(3) { animation-delay: .65s; }
 .sp-motto u { position: absolute; left: 50%; bottom: 0; height: 2px; width: 0; background: linear-gradient(90deg, transparent, #f5b942, transparent); animation: spLine .9s .8s ease-out forwards; }
 @keyframes spLine { to { left: 0; width: 100%; } }
+
+/* ---------- Sous-dossiers dans un niveau (ex : NIV R+3 › Plancher) ---------- */
+.fcard .fbody { background: #e9edf2; padding-bottom: 4px; }
+.fcard .fbody > .plan-grid.fw, .fcard .fbody > .plan-rows { background: transparent; }
+.subfs { display: flex; flex-direction: column; gap: 8px; padding: 10px 10px 2px; }
+.subf { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(15,23,42,.10); overflow: hidden; border-left: 4px solid var(--fc, #24344d); }
+.subf-head { display: flex; align-items: center; gap: 10px; padding: 8px 4px 8px 10px; color: #0f172a; cursor: pointer; }
+.subf-head:active { background: #f1f5f9; }
+.subf-head .grow { flex: 1; min-width: 0; }
+.subf-head .title { font-size: 15px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.subf-head .sub { font-size: 12px; color: #64748b; }
+.subf .sf-ic { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; flex: none; color: var(--fc, #24344d); background: #eef2f7; background: color-mix(in srgb, var(--fc, #24344d) 14%, #fff); }
+.subf .sf-ic svg.i { width: 18px; height: 18px; }
+.subf-head .iconbtn { color: #64748b; width: 36px; height: 36px; }
+.subf .sf-chev { display: grid; color: #64748b; padding: 0 6px; transition: transform .15s; }
+.subf .plan-grid.fw { background: #f6f8fa !important; border-top: 1px solid #e5e7eb; padding: 10px; gap: 10px; }
+.subf .plan-rows { background: #fff !important; border-top: 1px solid #e5e7eb; }
+.subf .ptile { background: #fff; }
+.fb-actions { display: flex; gap: 8px; padding: 8px 10px 8px; }
+.fb-btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 10px; border-radius: 10px; border: 1.5px dashed #93c5fd; background: transparent; color: #2563eb; font: inherit; font-size: 13.5px; font-weight: 600; }
+.fb-btn svg.i { width: 18px; height: 18px; }
+.fb-btn:active { background: #dbeafe; }

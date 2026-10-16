@@ -366,9 +366,15 @@ async function renderPlans(root) {
   const openCount = (planId) => tasks.filter(t => t.planId === planId && t.status !== 'verified').length;
   App.openFolders = App.openFolders || {};
 
-  const groups = [...folders.map(f => ({ f, plans: shown.filter(p => p.folderId === f.id) }))];
+  // dossiers principaux (niveaux) + sous-dossiers (parentId)
+  const tops = folders.filter(f => !f.parentId || !folders.find(x => x.id === f.parentId));
+  const subsOf = (fid) => folders.filter(x => x.parentId === fid);
+  const fMatch = (f) => q && fuzzyHas(f.name, q);
+  const plansIn = (f) => (q && fMatch(f) ? plans : shown).filter(p => p.folderId === f.id);
+  const groups = tops.map(f => ({ f, plans: plansIn(f), subs: subsOf(f.id).map(sf => ({ f: sf, plans: q && fMatch(f) ? plans.filter(p => p.folderId === sf.id) : plansIn(sf) })).filter(g => !q || fMatch(f) || fMatch(g.f) || g.plans.length) }))
+    .filter(g => !q || fMatch(g.f) || g.plans.length || g.subs.length);
   const loose = shown.filter(p => !p.folderId || !folders.find(f => f.id === p.folderId));
-  if (loose.length) groups.push({ f: { id: '_none', name: 'Sans dossier' }, plans: loose });
+  if (loose.length) groups.push({ f: { id: '_none', name: 'Sans dossier' }, plans: loose, subs: [] });
 
   App.planView = App.planView || (() => { try { return localStorage.getItem('planView') || 'grid'; } catch (e) { return 'grid'; } })();
   const anyOpen = groups.some(g => App.openFolders[g.f.id]);
@@ -389,16 +395,39 @@ async function renderPlans(root) {
     DB.byProject('receptions', pid).then(ds => { const n = ds.filter(d => d.date === todayISO() && kindOf(d) === 'Ferraillage').reduce((a, d) => a + d.rows.filter(r => r.element).length, 0); const x = $('.rb-n', rbc); if (x) x.textContent = n ? `${n} ouvrage(s) — touchez pour ajouter / ouvrir les plans` : 'aucun ouvrage aujourd\'hui'; }).catch(() => {});
   }
   const box = $('#folders', root);
-  for (const { f, plans: ps } of groups) {
+  const lotOf = (p) => { const L = p.lotId && planLots(App.project).find(l => l.id === p.lotId); return L ? `<span class="lot-dot" style="background:${L.c}" title="${esc(L.name)}">${L.e}</span>` : ''; };
+  // remplit une grille / liste de plans + la tuile « Ajouter un plan »
+  const fillPlans = (grid, ps, f, lotF) => {
+    const list = typeof lotFilter === 'function' && !q && lotF ? lotFilter(ps, lotF) : ps;
+    for (const p of list) {
+      const t = document.createElement('div');
+      const n = openCount(p.id);
+      if (App.planView === 'grid') { t.className = 'ptile'; t.innerHTML = `<div class="im"><img data-thumb="${p.fileId}" alt=""></div><div class="nm">${esc(p.name)}${indTag(p)}</div>${n ? `<span class="badge">${n}</span>` : ''}`; }
+      else { t.className = 'prow'; t.innerHTML = `<span class="im"><img data-thumb="${p.fileId}" alt=""></span><div class="nm">${esc(p.name)}${indTag(p)}</div>${n ? `<span class="badge">${n}</span>` : ''}${icon('chevright')}`; }
+      t.onclick = () => openPlanViewer(p, planCtx(() => renderPlans(root)));
+      if (typeof planLotMenu === 'function') { t.oncontextmenu = (e) => { e.preventDefault(); planLotMenu(p, root); }; t.insertAdjacentHTML('beforeend', lotOf(p)); }
+      grid.appendChild(t);
+    }
+    Thumbs.fill(grid);
+    const add = document.createElement('div');
+    add.className = App.planView === 'grid' ? 'ptile add' : 'prow';
+    add.innerHTML = App.planView === 'grid' ? `${icon('plus')}<span>Ajouter un plan</span>` : `<span class="pic" style="color:var(--accent)">${icon('plus')}</span><div class="nm" style="color:var(--accent)">Ajouter un plan</div>`;
+    add.onclick = async () => { const t0 = Date.now(), sel = lotF ? lotSelOf(lotF.id) : ''; await addPlanTo(f.id === '_none' ? null : f.id, folders, root); if (sel && f.id !== '_none') { await tagNewPlans(pid, f.id, sel, t0); renderPlans(root); } };
+    if (lotF && lotSelOf(lotF.id) && !list.length && ps.length) grid.insertAdjacentHTML('afterbegin', `<div class="lot-empty">Aucun plan de ce lot ici.</div>`);
+    grid.appendChild(add);
+  };
+  const gridHTML = () => App.planView === 'grid' ? `<div class="plan-grid fw"></div>` : `<div class="plan-rows"></div>`;
+  for (const { f, plans: ps, subs } of groups) {
     const open = q ? true : App.openFolders[f.id];
     const card = document.createElement('div');
     const fc = FOLDER_COLORS.find(x => x.k === f.color) || FOLDER_COLORS[0];
-    card.className = 'card fcard' + (open ? ' open' : ''); card.dataset.fid = f.id;
+    const nAll = ps.length + subs.reduce((a, s) => a + s.plans.length, 0);
+    card.className = 'card fcard' + (open ? ' open' : ''); card.dataset.fid = f.id; card.style.setProperty('--fc', fc.c);
     card.innerHTML = `<div class="folder-head" style="background:${fc.c}"><span class="fh-ic">📁</span>
-      <div class="grow"><div class="title">${esc(f.name)}</div><div class="sub">${ps.length} plan${ps.length > 1 ? 's' : ''}</div></div>
+      <div class="grow"><div class="title">${esc(f.name)}</div><div class="sub">${subs.length ? `${subs.length} dossier${subs.length > 1 ? 's' : ''} · ` : ''}${nAll} plan${nAll > 1 ? 's' : ''}</div></div>
       ${f.id !== '_none' ? `<button class="iconbtn" data-more>${icon('more')}</button>` : ''}
       <span class="fh-chev" style="transform:rotate(${open ? 180 : 0}deg)">${icon('chevdown')}</span></div>
-      ${open ? (App.planView === 'grid' ? `<div class="plan-grid fw"></div>` : `<div class="plan-rows"></div>`) : ''}`;
+      ${open ? `<div class="fbody">${subs.length ? '<div class="subfs"></div>' : ''}${ps.length || !subs.length ? gridHTML() : ''}${f.id !== '_none' && !q ? `<div class="fb-actions">${subs.length ? `<button class="fb-btn" data-a="addplan">${icon('plus')} Plan ici</button>` : ''}<button class="fb-btn" data-a="addsub">${icon('folder')} Sous-dossier</button></div>` : ''}</div>` : ''}`;
     box.appendChild(card);
     $('.folder-head', card).onclick = (e) => {
       if (e.target.closest('[data-more]')) return;
@@ -406,30 +435,31 @@ async function renderPlans(root) {
     };
     const more = $('[data-more]', card);
     if (more) more.onclick = () => folderMenu(f, root);
-    if (open) {
-      const grid = $('.plan-grid, .plan-rows', card);
-      if (f.id !== '_none' && !q && typeof lotBarInto === 'function') lotBarInto(card, f, ps, root);
-      const lotOf = (p) => { const L = p.lotId && planLots(App.project).find(l => l.id === p.lotId); return L ? `<span class="lot-dot" style="background:${L.c}" title="${esc(L.name)}">${L.e}</span>` : ''; };
-      for (const p of (typeof lotFilter === 'function' && !q ? lotFilter(ps, f) : ps)) {
-        const t = document.createElement('div');
-        const n = openCount(p.id);
-        if (App.planView === 'grid') { t.className = 'ptile'; t.innerHTML = `<div class="im"><img data-thumb="${p.fileId}" alt=""></div><div class="nm">${esc(p.name)}${indTag(p)}</div>${n ? `<span class="badge">${n}</span>` : ''}`; }
-        else { t.className = 'prow'; t.innerHTML = `<span class="im"><img data-thumb="${p.fileId}" alt=""></span><div class="nm">${esc(p.name)}${indTag(p)}</div>${n ? `<span class="badge">${n}</span>` : ''}${icon('chevright')}`; }
-        t.onclick = () => openPlanViewer(p, planCtx(() => renderPlans(root)));
-        if (typeof planLotMenu === 'function') { t.oncontextmenu = (e) => { e.preventDefault(); planLotMenu(p, root); }; t.insertAdjacentHTML('beforeend', lotOf(p)); }
-        grid.appendChild(t);
-      }
-      Thumbs.fill(grid);
-      const add = document.createElement('div');
-      add.className = App.planView === 'grid' ? 'ptile add' : 'prow';
-      add.innerHTML = App.planView === 'grid' ? `${icon('plus')}<span>Ajouter un plan</span>` : `<span class="pic" style="color:var(--accent)">${icon('plus')}</span><div class="nm" style="color:var(--accent)">Ajouter un plan</div>`;
-      add.onclick = async () => { const t0 = Date.now(), sel = lotSelOf(f.id); await addPlanTo(f.id === '_none' ? null : f.id, folders, root); if (sel && f.id !== '_none') { await tagNewPlans(pid, f.id, sel, t0); renderPlans(root); } };
-      if (lotSelOf(f.id) && !lotFilter(ps, f).length) grid.insertAdjacentHTML('afterbegin', `<div class="lot-empty">Aucun plan dans ce lot. Ajoutez-en un, ou appui long sur un plan › choisir le lot.</div>`);
-      grid.appendChild(add);
+    if (!open) continue;
+    if (f.id !== '_none' && !q && typeof lotBarInto === 'function') lotBarInto(card, f, ps.concat(...subs.map(s => s.plans)), root);
+    const lotF = f.id !== '_none' ? f : null;
+    const grid = $('.fbody > .plan-grid, .fbody > .plan-rows', card);
+    if (grid) fillPlans(grid, ps, f, lotF);
+    const sb = $('[data-a=addsub]', card); if (sb) sb.onclick = () => newFolder(root, f);
+    const ap = $('[data-a=addplan]', card); if (ap) ap.onclick = () => addPlanTo(f.id, folders, root);
+    const sbox = $('.subfs', card);
+    for (const { f: sf, plans: sps } of subs) {
+      const sopen = q ? true : App.openFolders[sf.id];
+      const el = document.createElement('div');
+      el.className = 'subf' + (sopen ? ' open' : ''); el.dataset.fid = sf.id;
+      el.innerHTML = `<div class="subf-head"><span class="sf-ic">${icon('folder')}</span>
+        <div class="grow"><div class="title">${esc(sf.name)}</div><div class="sub">${sps.length} plan${sps.length > 1 ? 's' : ''}</div></div>
+        <button class="iconbtn sm" data-more>${icon('more')}</button>
+        <span class="sf-chev" style="transform:rotate(${sopen ? 180 : 0}deg)">${icon('chevdown')}</span></div>
+        ${sopen ? gridHTML() : ''}`;
+      sbox.appendChild(el);
+      $('.subf-head', el).onclick = (e) => { if (e.target.closest('[data-more]')) return; App.openFolders[sf.id] = !sopen; renderPlans(root); };
+      $('[data-more]', el).onclick = () => folderMenu(sf, root);
+      if (sopen) fillPlans($('.plan-grid, .plan-rows', el), sps, sf, lotF);
     }
   }
   if (App.scrollFolder) { const fid = App.scrollFolder; App.scrollFolder = null; const c = box.querySelector(`[data-fid="${fid}"]`); if (c) requestAnimationFrame(() => c.scrollIntoView({ block: 'start', behavior: 'smooth' })); }
-  $('[data-a=fold]').onclick = () => { groups.forEach(g => App.openFolders[g.f.id] = !anyOpen); renderPlans(root); };
+  $('[data-a=fold]').onclick = () => { groups.forEach(g => { App.openFolders[g.f.id] = !anyOpen; g.subs.forEach(sg => App.openFolders[sg.f.id] = !anyOpen); }); renderPlans(root); };
   $('[data-a=view]').onclick = () => { App.planView = App.planView === 'grid' ? 'list' : 'grid'; try { localStorage.setItem('planView', App.planView); } catch (e) {} renderPlans(root); };
   $('[data-a=recent]').onclick = async () => {
     const rec = plans.filter(p => p.lastOpened).sort((a, b) => b.lastOpened - a.lastOpened).slice(0, 8);
@@ -445,18 +475,36 @@ async function renderPlans(root) {
       { label: 'Importer un plan (PDF / image / DWG / DXF)', icon: 'plans', value: 'plan' },
       { label: 'Importer depuis Google Drive (lien)', icon: 'drive', value: 'drive' },
       { label: 'Nouveau dossier (niveau)', icon: 'folder', value: 'folder' },
+      ...(tops.length ? [{ label: 'Nouveau sous-dossier (dans un niveau)', icon: 'folder', value: 'subfolder' }] : []),
       { label: 'Outils : DWG → PDF / DXF, fusionner, diviser', icon: 'layers', value: 'tools' },
     ]);
     if (v === 'tools') return planToolsMenu(root);
-    if (v === 'folder') {
-      const r = await formSheet('Nouveau dossier', [{ name: 'name', label: 'Nom du dossier / niveau', placeholder: 'Ex : Plancher R+2, Sous-sol, Fondations…' }], { okLabel: 'Créer' });
-      if (r && r.name) {
-        const f = await DB.put('folders', { projectId: pid, name: r.name }); App.openFolders[f.id] = true; await renderPlans(root);
-        addPlanTo(f.id, [...folders, f], root);
-      }
+    if (v === 'folder') newFolder(root, null);
+    if (v === 'subfolder') {
+      const pidF = await menu('Dans quel niveau ?', tops.map(f => ({ label: f.name, icon: 'folder', value: f.id })));
+      if (pidF) newFolder(root, tops.find(f => f.id === pidF));
     }
     if (v === 'plan' || v === 'drive') importPlans(folders, root, v === 'drive');
   });
+}
+
+// chemin lisible d'un dossier : « R+3 › Plancher »
+function folderPath(f, folders, sep = ' › ') {
+  if (!f) return '';
+  const par = f.parentId && (folders || []).find(x => x.id === f.parentId);
+  return par ? `${par.name}${sep}${f.name}` : f.name;
+}
+async function newFolder(root, parent) {
+  const pid = App.project.id;
+  const r = await formSheet(parent ? `Sous-dossier dans « ${parent.name} »` : 'Nouveau dossier (niveau)', [{ name: 'name', label: parent ? 'Nom du sous-dossier' : 'Nom du dossier / niveau', placeholder: parent ? 'Ex : Plancher, Poteaux + voiles, Coffrage…' : 'Ex : NIV R+3, Sous-sol, Fondations…' }], { okLabel: 'Créer' });
+  if (!r || !r.name) return;
+  const f = await DB.put('folders', { projectId: pid, name: r.name.trim(), parentId: parent ? parent.id : null, color: parent ? parent.color : undefined });
+  App.openFolders = App.openFolders || {}; App.openFolders[f.id] = true; if (parent) App.openFolders[parent.id] = true;
+  App.scrollFolder = f.id;
+  await renderPlans(root);
+  const v = await menu(`« ${r.name.trim()} » créé ✓`, [{ label: 'Ajouter un plan maintenant', icon: 'plus', value: 'add' }, ...(parent ? [] : [{ label: 'Créer un sous-dossier dedans', icon: 'folder', value: 'sub' }]), { label: 'Plus tard', icon: 'close', value: 'no' }]);
+  if (v === 'add') addPlanTo(f.id, await DB.byProject('folders', pid), root);
+  if (v === 'sub') newFolder(root, f);
 }
 
 async function addPlanTo(folderId, folders, root) {
@@ -473,8 +521,24 @@ const FOLDER_COLORS = [
   { k: 'brun', l: 'Brun', c: '#4f3b2b' }, { k: 'olive', l: 'Olive', c: '#434a2c' },
 ];
 async function folderMenu(f, root) {
-  const v = await menu(f.name, [{ label: 'Ajouter un plan ici', icon: 'plus', value: 'add' }, { label: 'Renommer', icon: 'edit', value: 'rename' }, { label: 'Couleur', icon: 'fill', value: 'color' }, { label: 'Supprimer le dossier', icon: 'trash', danger: true, value: 'del' }]);
-  if (v === 'add') { App.openFolders[f.id] = true; return addPlanTo(f.id, await DB.byProject('folders', App.project.id), root); }
+  const all = await DB.byProject('folders', App.project.id);
+  const isSub = !!(f.parentId && all.find(x => x.id === f.parentId)), hasSubs = all.some(x => x.parentId === f.id);
+  const tops = all.filter(x => x.id !== f.id && (!x.parentId || !all.find(y => y.id === x.parentId)));
+  const v = await menu(folderPath(f, all), [{ label: 'Ajouter un plan ici', icon: 'plus', value: 'add' },
+    ...(isSub ? [] : [{ label: 'Nouveau sous-dossier', icon: 'folder', value: 'sub' }]),
+    { label: 'Renommer', icon: 'edit', value: 'rename' },
+    ...(hasSubs ? [] : [{ label: isSub ? 'Déplacer vers un autre niveau…' : 'Mettre dans un niveau…', icon: 'layers', value: 'move' }]),
+    ...(isSub ? [] : [{ label: 'Couleur', icon: 'fill', value: 'color' }]),
+    { label: 'Supprimer le dossier', icon: 'trash', danger: true, value: 'del' }]);
+  if (v === 'add') { App.openFolders[f.id] = true; if (f.parentId) App.openFolders[f.parentId] = true; return addPlanTo(f.id, all, root); }
+  if (v === 'sub') return newFolder(root, f);
+  if (v === 'move') {
+    const to = await menu('Déplacer vers', [...(isSub ? [{ label: 'Dossier principal (niveau)', icon: 'folder', value: '_top' }] : []), ...tops.filter(x => x.id !== f.parentId).map(x => ({ label: x.name, icon: 'folder', value: x.id }))]);
+    if (!to) return;
+    f.parentId = to === '_top' ? null : to; await DB.put('folders', f);
+    if (f.parentId) App.openFolders[f.parentId] = true; App.openFolders[f.id] = true;
+    return renderPlans(root);
+  }
   if (v === 'color') {
     const c = await menu('Couleur du dossier', FOLDER_COLORS.map(x => ({ label: x.l, value: x.k, swatch: x.c, checked: (f.color || 'nuit') === x.k })));
     if (c) { f.color = c; await DB.put('folders', f); renderPlans(root); }
@@ -483,9 +547,10 @@ async function folderMenu(f, root) {
     const r = await formSheet('Renommer', [{ name: 'name', label: 'Nom du dossier', value: f.name }]);
     if (r && r.name) { f.name = r.name; await DB.put('folders', f); renderPlans(root); }
   }
-  if (v === 'del' && await confirmBox('Supprimer le dossier ? (les plans iront dans « Sans dossier »)')) {
+  if (v === 'del' && await confirmBox(isSub ? `Supprimer le sous-dossier ? (ses plans iront dans « ${all.find(x => x.id === f.parentId).name} »)` : hasSubs ? 'Supprimer le dossier ? (les sous-dossiers deviennent des dossiers principaux, les plans vont dans « Sans dossier »)' : 'Supprimer le dossier ? (les plans iront dans « Sans dossier »)')) {
     const plans = await DB.byProject('plans', App.project.id);
-    for (const p of plans.filter(p => p.folderId === f.id)) { p.folderId = null; await DB.put('plans', p); }
+    for (const p of plans.filter(p => p.folderId === f.id)) { p.folderId = isSub ? f.parentId : null; await DB.put('plans', p); }
+    for (const x of all.filter(x => x.parentId === f.id)) { x.parentId = null; await DB.put('folders', x); }
     await DB.del('folders', f.id); renderPlans(root);
   }
 }
@@ -494,7 +559,8 @@ async function importPlans(folders, root, fromDrive = false, presetFolder) {
   const pid = App.project.id;
   let folderId = presetFolder === undefined ? null : presetFolder;
   if (presetFolder === undefined && folders.length) {
-    folderId = await menu('Dans quel dossier ?', [...folders.map(f => ({ label: f.name, icon: 'folder', value: f.id })), { label: 'Sans dossier', icon: 'plans', value: '_none' }]);
+    const fl = folders.map(f => ({ f, l: folderPath(f, folders) })).sort((a, b) => a.l.localeCompare(b.l, 'fr', { numeric: true }));
+    folderId = await menu('Dans quel dossier ?', [...fl.map(({ f, l }) => ({ label: l, icon: 'folder', value: f.id })), { label: 'Sans dossier', icon: 'plans', value: '_none' }]);
     if (!folderId) return;
     if (folderId === '_none') folderId = null;
   }
@@ -536,7 +602,7 @@ async function importPlans(folders, root, fromDrive = false, presetFolder) {
         await DB.put('plans', { projectId: pid, folderId, fileId: f.id, w: f.w, h: f.h, name: base, annotations: [] });
       }
     }
-    if (folderId) App.openFolders[folderId] = true; else App.openFolders._none = true;
+    if (folderId) { App.openFolders[folderId] = true; const fo = folders.find(x => x.id === folderId); if (fo && fo.parentId) App.openFolders[fo.parentId] = true; } else App.openFolders._none = true;
     toast('Plan importé ✓');
   } catch (e) {
     console.error(e); toast('Erreur d\'import : ' + e.message);
@@ -788,7 +854,7 @@ function openLinkDetail(link) {
         const [plans, folders] = await Promise.all([DB.byProject('plans', pid), DB.byProject('folders', pid)]);
         const others = plans.filter(p => p.id !== link.planId);
         if (!others.length) { toast('Importez d\'abord ce plan dans « Plans »'); return render(); }
-        const fname = (id) => (folders.find(f => f.id === id) || {}).name;
+        const fname = (id) => folderPath(folders.find(f => f.id === id), folders);
         others.sort((a, b) => `${fname(a.folderId) || ''} ${a.name}`.localeCompare(`${fname(b.folderId) || ''} ${b.name}`, 'fr', { numeric: true }));
         const planId = await menu('Choisir le plan', others.map(p => ({ label: (fname(p.folderId) ? fname(p.folderId) + ' / ' : '') + p.name, icon: 'plans', value: p.id })));
         if (!planId) return render();
@@ -1337,7 +1403,7 @@ async function openPlansQuick() {
   const close = () => { unBack(); el.remove(); };
   const unBack = pushBack(() => el.remove());
   let q = '';
-  const groups = [...folders.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'fr', { numeric: true })).map(f => ({ id: f.id, name: f.name })), { id: null, name: 'Sans dossier' }];
+  const groups = [...folders.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'fr', { numeric: true })).map(f => ({ id: f.id, name: folderPath(f, folders) })).sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true })), { id: null, name: 'Sans dossier' }];
   async function render() {
     const match = (p) => !q || fuzzyHas(p.name, q);
     const html = [];

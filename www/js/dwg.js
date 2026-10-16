@@ -470,7 +470,7 @@ function plotDialog(D, title) {
 
 // ---------- après création d'un PDF : partager / ajouter aux plans ----------
 async function pickPlanFolder(title = 'Ajouter dans quel dossier (niveau) ?') {
-  const pid = App.project.id, fs = (await DB.byProject('folders', pid)).sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true }));
+  const pid = App.project.id, all = await DB.byProject('folders', pid), fs = all.map(f => ({ id: f.id, name: folderPath(f, all) })).sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true }));
   const v = await menu(title, [...fs.map(f => ({ label: f.name, icon: 'folder', value: f.id })), { label: 'Nouveau dossier…', icon: 'plus', value: '__new' }, { label: 'Sans dossier', icon: 'plans', value: '__none' }]);
   if (!v) return undefined;
   if (v === '__none') return null;
@@ -483,7 +483,7 @@ async function addPdfAsPlans(blob, name, folderId, extra = {}) {
     const file = new File([blob], name.replace(/\.pdf$/i, '') + '.pdf', { type: 'application/pdf' });
     for (const im of await fileToPlanImages(file, pid, ld)) out.push(await DB.put('plans', { projectId: pid, folderId, fileId: im.fileId, pdfFileId: im.pdfFileId || null, pdfPage: im.pdfPage || null, w: im.w, h: im.h, name: im.name, annotations: [], indice: 'A', ...extra }));
   } finally { ld.close(); }
-  if (folderId) { App.openFolders = App.openFolders || {}; App.openFolders[folderId] = true; }
+  if (folderId) { App.openFolders = App.openFolders || {}; App.openFolders[folderId] = true; const fo = await DB.get('folders', folderId); if (fo && fo.parentId) App.openFolders[fo.parentId] = true; }
   toast(`${out.length} plan${out.length > 1 ? 's' : ''} ajouté${out.length > 1 ? 's' : ''} ✓`);
   return out;
 }
@@ -543,7 +543,7 @@ async function planPdfBytes(plan) {
 async function mergePdfFlow(onAdded) {
   const pid = App.project.id;
   const [plans, folders] = await Promise.all([DB.byProject('plans', pid), DB.byProject('folders', pid)]);
-  const cur = plans.filter(isCurrentPlan).sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true })), fn = (id) => (folders.find(f => f.id === id) || {}).name || 'Sans dossier';
+  const cur = plans.filter(isCurrentPlan).sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true })), fn = (id) => folderPath(folders.find(f => f.id === id), folders) || 'Sans dossier';
   const groups = {}; cur.forEach(p => (groups[fn(p.folderId)] = groups[fn(p.folderId)] || []).push(p));
   const order = [], phone = [];
   const items = await new Promise((resolve) => {
