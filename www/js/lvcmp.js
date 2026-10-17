@@ -241,8 +241,8 @@ async function openLevelCompare(low, up, opts = {}) {
   const counts = () => {
     const by = (st) => R.filter(r => r.st === st && (tf === 'all' || r.type === tf)).length;
     $('.lv-how', el).textContent = `Calage : ${how}`;
-    $('.lv-types', el).innerHTML = [['all', 'Tous', R.length], ...Object.entries(LV_T).map(([k, v]) => [k, v[1], R.filter(r => r.type === k).length]).filter(x => x[2])].map(([k, l, n]) => `<button data-t="${k}" class="${tf === k ? 'on' : ''}">${l} · ${n}</button>`).join('');
-    $('.lv-leg', el).innerHTML = `${['new', 'stop', 'mod', 'cont'].map(st => `<button data-s="${st}" class="${hide.has(st) ? 'off' : ''}"><i style="background:${LV_S[st][1]}"></i>${st === 'new' ? 'Nouveau en ' + esc(iB) : st === 'stop' ? 'S\'arrête en ' + esc(iA) : LV_S[st][0]} · ${by(st)}</button>`).join('')}<button class="btn small" data-a="list">Liste des changements</button>`;
+    $('.lv-types', el).innerHTML = [['all', 'Tous', R.length], ...Object.entries(LV_T).map(([k, v]) => [k, v[1], R.filter(r => r.type === k).length]).filter(x => x[2])].map(([k, l, n]) => `<button data-t="${k}" class="${tf === k ? 'on' : ''}">${l}</button>`).join('');
+    $('.lv-leg', el).innerHTML = `${['new', 'stop', 'mod', 'cont'].map(st => `<button data-s="${st}" class="${hide.has(st) ? 'off' : ''}"><i style="background:${LV_S[st][1]}"></i>${st === 'new' ? 'Nouveau en ' + esc(iB) : st === 'stop' ? 'S\'arrête en ' + esc(iA) : LV_S[st][0]}</button>`).join('')}<button class="btn small" data-a="list">Liste des changements</button>`;
     $$('[data-t]', el).forEach(b => b.onclick = () => { tf = b.dataset.t; counts(); draw(); });
     $$('[data-s]', el).forEach(b => b.onclick = () => { hide.has(b.dataset.s) ? hide.delete(b.dataset.s) : hide.add(b.dataset.s); counts(); draw(); });
     $('[data-a=list]', el).onclick = list;

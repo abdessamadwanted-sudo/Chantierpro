@@ -174,7 +174,8 @@ async function planImageData(plan, W, H, place) {
   const img = await loadImage(src);
   const c = document.createElement('canvas'); c.width = W; c.height = H;
   const g = c.getContext('2d', { willReadFrequently: true }); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
-  if (place) g.drawImage(img, place.x, place.y, place.w, place.h); else g.drawImage(img, 0, 0, W, H);
+  if (place && place.rot) { g.save(); g.translate(place.x, place.y); g.rotate(place.rot); g.drawImage(img, 0, 0, place.w, place.h); g.restore(); }
+  else if (place) g.drawImage(img, place.x, place.y, place.w, place.h); else g.drawImage(img, 0, 0, W, H);
   return g.getImageData(0, 0, W, H);
 }
 function inkMap(id) {
@@ -193,7 +194,7 @@ async function planDiff(oldPlan, newPlan, maxSide = 1800, opts = {}) {
   const k = Math.min(1, maxSide / Math.max(newPlan.w, newPlan.h));
   const W = Math.max(50, Math.round(newPlan.w * k)), H = Math.max(50, Math.round(newPlan.h * k));
   // recalage : position de l'ancien plan dans les coordonnées du nouveau (opts.map = { sx, sy, ox, oy } en pixels du nouveau plan)
-  const M = opts.map, place = M ? { x: M.ox * k, y: M.oy * k, w: oldPlan.w * M.sx * k, h: oldPlan.h * M.sy * k } : null;
+  const M = opts.map, place = M ? { x: M.ox * k, y: M.oy * k, w: oldPlan.w * M.sx * k, h: oldPlan.h * M.sy * k, rot: M.rot || 0 } : null;
   const [A, B] = await Promise.all([planImageData(oldPlan, W, H, place), planImageData(newPlan, W, H)]);
   const sens = opts.sens || 1;
   // niveaux : on ne compare que la structure (voiles, poteaux, corbeaux…), pas les textes ni les cotes

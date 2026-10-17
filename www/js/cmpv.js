@@ -110,10 +110,12 @@ async function renderPlanRegion(plan, P, x0, y0, w, h, outW, outH, M, gpu) {
     const S = P.k * M.sx * s;                           // pixels écran par unité PDF de CE plan
     const vp = P.page.getViewport({ scale: S });
     const ox = (x0 - M.ox) * s, oy = (y0 - M.oy) * s;   // décalage dans le viewport
-    await P.page.render({ canvasContext: g, viewport: vp, transform: [1, 0, 0, 1, -ox, -oy], background: 'white' }).promise;
+    const c0 = Math.cos(M.rot || 0), s0 = Math.sin(M.rot || 0);
+    await P.page.render({ canvasContext: g, viewport: vp, transform: [c0, s0, -s0, c0, -ox, -oy], background: 'white' }).promise;
   } else {
     const src = await fileURL(plan.fileId); const img = await loadImage(src);
-    g.drawImage(img, (x0 - M.ox) / M.sx, (y0 - M.oy) / M.sy, w / M.sx, h / M.sy, 0, 0, outW, outH);
+    if (M.rot) { g.save(); g.translate((M.ox - x0) * s, (M.oy - y0) * s); g.rotate(M.rot); g.drawImage(img, 0, 0, plan.w * M.sx * s, plan.h * M.sy * s); g.restore(); }
+    else g.drawImage(img, (x0 - M.ox) / M.sx, (y0 - M.oy) / M.sy, w / M.sx, h / M.sy, 0, 0, outW, outH);
   }
   return c;
 }
@@ -160,11 +162,11 @@ const NOSTRUCT_LAY = /cot|dim|txt|text|axe|axis|cart|cadre|titre|mob|meub|plomb|
 function bErode(m, W, H, r) { const n = new Uint8Array(m.length); for (let i = 0; i < m.length; i++) n[i] = m[i] ? 0 : 1; const d = dilate(n, W, H, r); for (let i = 0; i < m.length; i++) d[i] = d[i] ? 0 : 1; return d; }
 const bClose = (m, W, H, r) => bErode(dilate(m, W, H, r), W, H, r), bOpen = (m, W, H, r) => dilate(bErode(m, W, H, r), W, H, r);
 async function structMap(plan, W, H, k, place, imgData) {
-  const sc = place ? place.w / plan.w : k, ox = place ? place.x : 0, oy = place ? place.y : 0;
+  const sc = place ? place.w / plan.w : k, ox = place ? place.x : 0, oy = place ? place.y : 0, rc = Math.cos((place && place.rot) || 0), rs = Math.sin((place && place.rot) || 0);
   const cv = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d', { willReadFrequently: true }); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); return [c, g]; };
   // 1) plans AutoCAD : hachures pleines + contours fermés des calques de structure
   if (plan.dwgFileId || plan.dxfFileId) { try { const D = await cadOfPlan(plan);
-    if (D && D.prims && D.box) { const s = plan.w / (D.box[2] - D.box[0]), T = (q) => [ox + (q[0] - D.box[0]) * s * sc, oy + (D.box[3] - q[1]) * s * sc];
+    if (D && D.prims && D.box) { const s = plan.w / (D.box[2] - D.box[0]), T = (q) => { const lx = (q[0] - D.box[0]) * s * sc, ly = (D.box[3] - q[1]) * s * sc; return [ox + rc * lx - rs * ly, oy + rs * lx + rc * ly]; };
       const [c, g] = cv(); g.fillStyle = '#000'; g.strokeStyle = '#000'; g.lineWidth = 1.6; let n = 0;
       const path = (P) => { g.beginPath(); P.forEach((q, i) => { const [x, y] = T(q); i ? g.lineTo(x, y) : g.moveTo(x, y); }); };
       for (const p of D.prims) { const L = String(p.layer || ''); if (p.t === 'tx' || NOSTRUCT_LAY.test(L)) continue; const st = STRUCT_LAY.test(L);
@@ -180,7 +182,7 @@ async function structMap(plan, W, H, k, place, imgData) {
   // 2) PDF vectoriel : rendu sans les textes, puis on garde les masses (hachures remplies, traits fins enlevés)
   let m = null;
   try { const P = await planPdfPage(plan); if (P) { const [c, g] = cv(); g.fillText = g.strokeText = () => {};
-    await P.page.render({ canvasContext: g, viewport: P.page.getViewport({ scale: P.k * sc }), transform: [1, 0, 0, 1, ox, oy], background: 'white' }).promise; m = inkMap(g.getImageData(0, 0, W, H)); } } catch (e) { console.warn('struct pdf', e); }
+    await P.page.render({ canvasContext: g, viewport: P.page.getViewport({ scale: P.k * sc }), transform: [rc, rs, -rs, rc, ox, oy], background: 'white' }).promise; m = inkMap(g.getImageData(0, 0, W, H)); } } catch (e) { console.warn('struct pdf', e); }
   // 3) image : même traitement (les textes peuvent rester en partie)
   if (!m) m = inkMap(imgData);
   const r = Math.max(1, Math.round(W / 700));
@@ -194,7 +196,8 @@ async function openPlanCompare(oldPlan, newPlan, opts = {}) {
   let sens = +(localStorage.getItem('cmp.sens') || 1);
   try {
     [PA, PB] = await Promise.all([planPdfPage(oldPlan), planPdfPage(newPlan)]);
-    M = (LV && await cadAlignMap(oldPlan, newPlan)) || await planAlignMap(oldPlan, newPlan);
+    M = opts.map || (LV && await cadAlignMap(oldPlan, newPlan)) || null;
+    if (!M) { const M0 = await planAlignMap(oldPlan, newPlan); M = (LV && typeof lvTextAxisMap === 'function' && await lvTextAxisMap(oldPlan, newPlan, M0)) || M0; }
     ld.set(LV ? 'Recherche de ce qui continue / s\'arrête…' : 'Recherche des modifications…');
     D = await planDiff(oldPlan, newPlan, LV ? 2600 : 2000, { map: M, sens, struct: LV });
     if (PA && PB && !LV) { ld.set('Lecture des textes et des cotes…'); const [A, B] = await Promise.all([pageTexts(PA.page, PA.k), pageTexts(PB.page, PB.k)]); TX = textDiff(A, B, M); }
@@ -208,12 +211,12 @@ async function openPlanCompare(oldPlan, newPlan, opts = {}) {
   const el = document.createElement('div'); el.className = 'fullpage av-page';
   el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button>
       <div class="tb-title" style="flex:1"><b>${LV ? `Niveaux ${esc(iA)} ↔ ${esc(iB)}` : esc(newPlan.name)}</b><span>${LV ? `${esc(oldPlan.name)} sous ${esc(newPlan.name)}` : `Comparaison indice ${esc(iA)} → ${esc(iB)}`}${vec ? ' · vectoriel' : ''}</span></div>
-      ${LV ? `<button class="iconbtn" data-a="recal" title="Recaler (1 point commun)">🎯</button>` : ''}
+      ${LV ? `<button class="iconbtn" data-a="recal" title="Calage à la règle">${icon('ruler')}</button>` : ''}
       <button class="iconbtn" data-a="sens" title="Sensibilité">${icon('settings')}</button><button class="iconbtn" data-a="share" title="Partager">${icon('share')}</button></div>
     <div class="av-chips cmp-modes"><button data-m="diff" class="on">Superposition</button><button data-m="old">${LV ? '' : 'Ind. '}${esc(iA)}</button><button data-m="new">${LV ? '' : 'Ind. '}${esc(iB)}</button><button data-m="box" class="on">▢ Zones</button></div>
     <div class="av-view"><div class="av-stage"><img width="${W}" height="${H}" src="${diffURL}"><canvas class="cmp-hd"></canvas><svg class="av-ov" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"></svg></div></div>
     <div class="cmp-legend">${LV ? `<span><i style="background:#dc2626"></i>S'arrête en ${esc(iA)}</span><span><i style="background:#16a34a"></i>Nouveau en ${esc(iB)}</span><span><i style="background:#5f5f5f"></i>Continue</span><span><i style="background:#d7d7d7"></i>Textes, cotes (ignorés)</span>` : `<span><i style="background:#dc2626"></i>Supprimé</span><span><i style="background:#16a34a"></i>Ajouté</span><span><i style="background:#8c8c8c"></i>Inchangé</span>`}
-      <button class="btn small" data-a="list">${D.rects.length} zone(s)${TX.length ? ' · ' + TX.length + ' texte(s)' : ''}</button></div>`;
+      <button class="btn small" data-a="list">${LV ? 'Voir les changements' : `${D.rects.length} zone(s)${TX.length ? ' · ' + TX.length + ' texte(s)' : ''}`}</button></div>`;
   document.body.appendChild(el);
   const unBack = pushBack(() => el.remove());
   $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); try { URL.revokeObjectURL(diffURL); hd.width = hd.height = 0; } catch (e) {} };
@@ -222,6 +225,14 @@ async function openPlanCompare(oldPlan, newPlan, opts = {}) {
   let focusI = -1;
   const drawBoxes = (s) => {
     const lw = 2.5 / s, fs = 14 / s;
+    if (LV) {   // niveaux : un cercle et une flèche sur chaque changement, sans numéros ni comptage
+      ov.innerHTML = !boxes ? '' : D.rects.map((q, i) => { const cx = q.x + q.w / 2, cy = q.y + q.h / 2, R = Math.max(q.w, q.h) / 2 * 1.25 + 8 / s, c = focusI === i ? '#2563eb' : '#f97316';
+        const ax = cx - R * 0.707, ay = cy - R * 0.707, bx = ax - 46 / s, by = ay - 46 / s, h = 11 / s;
+        return `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${c}" fill-opacity=".08" stroke="${c}" stroke-width="${(focusI === i ? 4 : 2.6) / s}"/>
+          <line x1="${bx}" y1="${by}" x2="${ax - 3 / s}" y2="${ay - 3 / s}" stroke="${c}" stroke-width="${3 / s}" stroke-linecap="round"/>
+          <path d="M${ax} ${ay} l${-h} ${-h * .35} l${h * .65} ${-h * .65} z" fill="${c}"/>`; }).join('');
+      return;
+    }
     ov.innerHTML = !boxes ? '' : D.rects.map((q, i) => `<rect x="${q.x}" y="${q.y}" width="${q.w}" height="${q.h}" fill="none" stroke="#ef4444" stroke-width="${lw}" stroke-dasharray="${6 / s} ${4 / s}" rx="${4 / s}"/>
       <g transform="translate(${q.x},${q.y})"><circle r="${11 / s}" fill="#ef4444"/><text y="${4.5 / s}" text-anchor="middle" font-size="${fs * 0.85}" font-weight="700" fill="#fff" font-family="Arial">${i + 1}</text></g>`).join('')
       + TX.map((c, i) => `<rect x="${c.x - 3 / s}" y="${c.y - c.h - 3 / s}" width="${c.w + 6 / s}" height="${c.h + 6 / s}" fill="none" stroke="${c.t === 'add' ? '#16a34a' : c.t === 'del' ? '#dc2626' : '#f59e0b'}" stroke-width="${(focusI === i ? 4 : 1.8) / s}" rx="${3 / s}"/>`).join('');
@@ -262,6 +273,13 @@ async function openPlanCompare(oldPlan, newPlan, opts = {}) {
   const setMode = (m) => { mode = m; last = null; hd.style.display = 'none'; img.src = m === 'old' ? srcOld : m === 'new' ? srcNew : diffURL; $$('[data-m]', el).forEach(b => b.classList.toggle('on', b.dataset.m === mode || (b.dataset.m === 'box' && boxes))); clearTimeout(hdT); hdT = setTimeout(renderHD, 50); };
   $$('[data-m]', el).forEach(b => b.onclick = () => { if (b.dataset.m === 'box') { boxes = !boxes; drawBoxes(pz.st.s); setMode(mode); } else setMode(b.dataset.m); });
   $('[data-a=list]', el).onclick = () => {
+    if (LV) {   // liste sans comptage : où regarder sur le plan
+      if (!D.rects.length) return toast('Aucun changement de structure détecté ✓');
+      const where = (q) => { const cx = (q.x + q.w / 2) / W, cy = (q.y + q.h / 2) / H; return `${cy < .34 ? 'en haut' : cy > .66 ? 'en bas' : 'au milieu'}${cx < .34 ? ' à gauche' : cx > .66 ? ' à droite' : cy >= .34 && cy <= .66 ? '' : ' au centre'}`; };
+      const s = sheet(`<div class="cmp-list">${D.rects.map((q, i) => `<button class="cmp-it" data-z="${i}"><span class="k" style="background:#f97316">➜</span><span class="grow"><b>Changement ${where(q)}</b><small>Touchez pour zoomer dessus</small></span></button>`).join('')}</div>`, { title: `${iA} → ${iB}` });
+      $$('[data-z]', s.el).forEach(b => b.onclick = () => { const q = D.rects[+b.dataset.z]; focusI = +b.dataset.z; s.close(); pz.zoomTo(q.x, q.y, q.w, q.h); drawBoxes(pz.st.s); });
+      return;
+    }
     if (!D.rects.length && !TX.length) return toast('Aucune modification détectée');
     const s = sheet(`<div class="cmp-list">${TX.length ? `<div class="cmp-h">Textes et cotes (${TX.length})</div>${TX.map((c, i) => `<button class="cmp-it" data-t="${i}"><span class="k k-${c.t}">${TXT_LBL[c.t]}</span><span class="grow">${esc(txtLine(c))}</span></button>`).join('')}` : ''}
       ${D.rects.length ? `<div class="cmp-h">Zones de dessin modifiées (${D.rects.length})</div>${D.rects.map((q, i) => `<button class="cmp-it" data-z="${i}"><span class="k k-z">${i + 1}</span><span class="grow">Zone ${i + 1}</span></button>`).join('')}` : ''}</div>`, { title: `Modifications ${iA} → ${iB}` });
@@ -273,9 +291,10 @@ async function openPlanCompare(oldPlan, newPlan, opts = {}) {
     if (!v) return; sens = +v; try { localStorage.setItem('cmp.sens', v); } catch (e) {}
     const l2 = loading('Recherche des modifications…'); try { D = await planDiff(oldPlan, newPlan, LV ? 2600 : 2000, { map: M, sens, struct: LV }); } finally { l2.close(); }
     try { URL.revokeObjectURL(diffURL); } catch (e) {} diffURL = URL.createObjectURL(await new Promise(r => D.canvas.toBlob(r, 'image/png'))); D.canvas.width = D.canvas.height = 0; if (mode === 'diff') img.src = diffURL;
-    $('[data-a=list]', el).textContent = `${D.rects.length} zone(s)${TX.length ? ' · ' + TX.length + ' texte(s)' : ''}`; drawBoxes(pz.st.s);
+    $('[data-a=list]', el).textContent = LV ? 'Voir les changements' : `${D.rects.length} zone(s)${TX.length ? ' · ' + TX.length + ' texte(s)' : ''}`; drawBoxes(pz.st.s);
   };
-  const rc = $('[data-a=recal]', el); if (rc) rc.onclick = async () => {
+  const rc = $('[data-a=recal]', el); if (rc && LV) rc.onclick = async () => { const M2 = await openRulerCalage(oldPlan, newPlan, { la: iA, lb: iB }); if (!M2) return; unBack(); el.remove(); openPlanCompare(oldPlan, newPlan, { ...opts, map: M2 }); };
+  if (rc && !LV) rc.onclick = async () => {
     // toucher un repère (croisement d'axes, angle de poteau…) sur le niveau du dessous, puis le même sur celui du dessus
     const tapOn = (m, msg) => new Promise(res => { setMode(m); toast(msg); const h = (e) => { if (e.target.closest('.topbar, .cmp-legend, .cmp-modes')) return; view.removeEventListener('click', h, true); e.stopPropagation(); const r = view.getBoundingClientRect(); res(pz.toImg([e.clientX - r.left, e.clientY - r.top])); }; setTimeout(() => view.addEventListener('click', h, true), 50); });
     const A = await tapOn('old', `1/2 · Touchez un repère sur ${iA} (croisement d'axes…)`);
@@ -284,19 +303,19 @@ async function openPlanCompare(oldPlan, newPlan, opts = {}) {
     M = { ...M, ox: B[0] - ax * M.sx, oy: B[1] - ay * M.sy };
     const l2 = loading('Nouvelle superposition…'); try { D = await planDiff(oldPlan, newPlan, LV ? 2600 : 2000, { map: M, sens, struct: LV }); } finally { l2.close(); }
     try { URL.revokeObjectURL(diffURL); } catch (e) {} diffURL = URL.createObjectURL(await new Promise(r => D.canvas.toBlob(r, 'image/png'))); D.canvas.width = D.canvas.height = 0;
-    $('[data-a=list]', el).textContent = `${D.rects.length} zone(s)${TX.length ? ' · ' + TX.length + ' texte(s)' : ''}`; setMode('diff'); drawBoxes(pz.st.s); toast('Recalé ✓');
+    $('[data-a=list]', el).textContent = LV ? 'Voir les changements' : `${D.rects.length} zone(s)${TX.length ? ' · ' + TX.length + ' texte(s)' : ''}`; setMode('diff'); drawBoxes(pz.st.s); toast('Recalé ✓');
   };
   $('[data-a=share]', el).onclick = async () => {
     const l3 = loading('Préparation…');
     try {
       const k = Math.min(1, 3200 / Math.max(W, H)), ow = Math.round(W * k), oh = Math.round(H * k);
-      const [ca, cb] = await Promise.all([renderPlanRegion(oldPlan, PA, 0, 0, W, H, ow, oh, M), renderPlanRegion(newPlan, PB, 0, 0, W, H, ow, oh, { sx: 1, sy: 1, ox: 0, oy: 0 })]);
-      const d = diffCanvases(ca, cb);
+      let d; if (LV) d = await loadImage(diffURL); else { const [ca, cb] = await Promise.all([renderPlanRegion(oldPlan, PA, 0, 0, W, H, ow, oh, M), renderPlanRegion(newPlan, PB, 0, 0, W, H, ow, oh, { sx: 1, sy: 1, ox: 0, oy: 0 })]); d = diffCanvases(ca, cb); }
       const c = document.createElement('canvas'); c.width = ow; c.height = oh + 70; const g = c.getContext('2d');
-      g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(d, 0, 70);
+      g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(d, 0, 70, ow, oh);
       g.fillStyle = '#111'; g.font = 'bold 30px Arial'; g.fillText(LV ? `Niveaux ${iA} (dessous) → ${iB} (dessus) — rouge : s'arrête · vert : nouveau` : `${newPlan.name} — indice ${iA} → ${iB}`, 16, 44);
       g.strokeStyle = '#ef4444'; g.lineWidth = 3; g.fillStyle = '#ef4444'; g.font = 'bold 22px Arial';
-      D.rects.forEach((q, i) => { g.strokeRect(q.x * k, q.y * k + 70, q.w * k, q.h * k); g.fillText(String(i + 1), q.x * k + 4, q.y * k + 70 + 22); });
+      if (LV) { g.strokeStyle = '#f97316'; g.lineWidth = 4; D.rects.forEach(q => { const cx = (q.x + q.w / 2) * k, cy = (q.y + q.h / 2) * k + 70, R = Math.max(q.w, q.h) / 2 * k * 1.25 + 10; g.beginPath(); g.arc(cx, cy, R, 0, 7); g.stroke(); const ax = cx - R * .707, ay = cy - R * .707; g.beginPath(); g.moveTo(ax - 50, ay - 50); g.lineTo(ax - 3, ay - 3); g.stroke(); g.fillStyle = '#f97316'; g.beginPath(); g.moveTo(ax, ay); g.lineTo(ax - 14, ay - 5); g.lineTo(ax - 5, ay - 14); g.fill(); }); }
+      else D.rects.forEach((q, i) => { g.strokeRect(q.x * k, q.y * k + 70, q.w * k, q.h * k); g.fillText(String(i + 1), q.x * k + 4, q.y * k + 70 + 22); });
       const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.92));
       l3.close();
       await shareBlob(blob, `${newPlan.name} - comparaison ${iA}-${iB}.jpg`.replace(/[\\/:*?"<>|]+/g, '-'));
@@ -358,5 +377,15 @@ async function levelCompareFrom(plan) {
   let low = plan, up = other;
   if (rm != null && ro != null) { if (ro < rm) { low = other; up = plan; } }
   else { const v = await menu('Lequel est en dessous ?', [{ label: `${niv(plan) || plan.name} (dessous)`, value: 'a' }, { label: `${niv(other) || other.name} (dessous)`, value: 'b' }]); if (!v) return; if (v === 'b') { low = other; up = plan; } }
-  return openLevelCompare(low, up, { la: niv(low) || low.name, lb: niv(up) || up.name });
+  const la = niv(low) || low.name, lb = niv(up) || up.name, saved = (up.lvCal || {})[low.id];
+  const how = await menu(`Calage ${la} ↔ ${lb}`, [...(saved ? [{ label: `Utiliser le calage enregistré (règle${saved.at ? ', ' + new Date(saved.at).toLocaleDateString('fr-FR') : ''})`, icon: 'check', value: 'saved' }] : []),
+    { label: saved ? 'Refaire le calage à la règle' : 'Calage à la règle (recommandé)', icon: 'ruler', value: 'rule' },
+    { label: 'Calage automatique (fils / axes)', icon: 'layers', value: 'auto' },
+    { label: 'Détail élément par élément (automatique)', icon: 'grid', value: 'el' }]);
+  if (!how) return;
+  if (how === 'el') return openLevelCompare(low, up, { la, lb });
+  let map = null;
+  if (how === 'saved') map = saved;
+  if (how === 'rule') { map = await openRulerCalage(low, up, { la, lb }); if (!map) return; }
+  return openPlanCompare(low, up, { levels: true, la, lb, map });
 }

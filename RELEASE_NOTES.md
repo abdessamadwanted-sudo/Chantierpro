@@ -1,3 +1,4 @@
 ## Nouveautés
-- **Comparer deux niveaux : lecture des fils** — les fils sont reconnus même s'ils ne sont pas sur un calque « AXE » : bulles (cercles) avec leur lettre ou leur chiffre, étiquettes « A », « 3 », « A' », « FIL B », « Fil 3 », « AXE C » ; marche aussi avec les plans PDF (le texte des fils sert au calage)
-- Section des poteaux : un petit changement (30 → 25) est maintenant détecté sur les plans PDF / images
+- **Comparer deux niveaux : calage à la règle** — une règle ① ② fixe à l'écran : on la pose sur deux croisements de fils de R+3, on fixe, puis on pose la même règle sur les mêmes croisements de R+4 → décalage, rotation et échelle exacts, même si le niveau est dessiné ailleurs ou tourné. Une fois fixée, la règle suit le plan (zoom avant / arrière) ; 🔒 Plan fixe pour ajuster ① et ② sans bouger le plan. Le calage est enregistré pour la prochaine fois
+- Retour de la **superposition** (structure seule) avec un **cercle et une flèche** sur chaque changement, sans comptage ; liste « où regarder » (en haut à gauche…)
+- Le calage automatique (fils / axes) et le détail élément par élément restent au choix
