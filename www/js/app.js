@@ -1307,6 +1307,7 @@ async function renderSettings(root) {
       <label>Maître d'ouvrage<input name="mo" value="${esc(p.mo || '')}" placeholder="Ex : SONARGES, ONEE, Commune…"></label>
       <button class="btn" data-a="save">Enregistrer</button>
       <div style="height:12px"></div>
+      ${Org.owner() ? `<button class="btn ghost" data-a="welcome" style="margin-bottom:12px">👋 Revoir l'écran de bienvenue (service et poste)</button>` : ''}
       <div class="sync-card" data-a="sync" style="margin:0 0 12px"><div class="cl">☁</div><div class="grow"><b>Synchronisation Google Drive</b><div data-syncstate>${Sync.statusLine()}</div></div>${icon('chevright')}</div>
       <div class="card" style="margin:0;padding:16px">
         <div style="font-weight:600;margin-bottom:6px">Sauvegarde manuelle (fichier)</div>
@@ -1322,6 +1323,7 @@ async function renderSettings(root) {
   $('[data-a=sync]', root).onclick = () => Sync.openSyncSettings();
   $('[data-a=stock]', root).onclick = () => openStorage();
   $('[data-a=pfeat]', root).onclick = () => projectFeaturesDialog(p);
+  const wb = $('[data-a=welcome]', root); if (wb) wb.onclick = () => orgOnboard(true);
   $('[data-a=save]', root).onclick = async () => { p.name = $('[name=name]', root).value.trim() || p.name; p.address = $('[name=address]', root).value.trim(); p.pdfTitle = $('[name=pdfTitle]', root).value.trim(); p.mo = $('[name=mo]', root).value.trim(); await DB.put('projects', p); toast('Enregistré ✓'); renderSection(); };
   $('[data-a=backup]', root).onclick = async () => {
     const ld = loading('Préparation de la sauvegarde…');
