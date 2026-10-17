@@ -1,2 +1,2 @@
 ## Nouveautés
-- **Paramètres** : « Revoir l'écran de bienvenue (service et poste) » pour le titulaire de l'application (rien n'est effacé)
+- **Comparer deux niveaux : équerre de calage** — une règle horizontale (rouge) et une règle verticale (bleue) sur toute la largeur et la hauteur de l'écran : on colle l'une sur un fil horizontal (fil 1) et l'autre sur un fil vertical (fil A), on fixe, puis même chose sur l'autre niveau → calage exact (décalage + rotation ; échelle lue dans le PDF / DWG). Centre ◎ à glisser, bouton ⟲ pour tourner, 🔒 plan fixe, zoom sans que l'équerre bouge une fois fixée. Le mode « 2 croisements » ①② reste disponible
