@@ -1865,3 +1865,6 @@ tr.addrow .addrow-in button + button { margin-left: 0; }
 .rl-bar { background: var(--card); padding: 10px 12px calc(12px + var(--safe-bottom)); display: grid; gap: 8px; }
 .rl-hint { margin: 0; font-size: 13.5px; color: var(--muted); line-height: 1.4; } .rl-hint b { color: var(--text); }
 .rl-btns { display: flex; gap: 8px; } .rl-btns .btn { flex: 1; height: 46px; }
+body:has(.splash.brief) .sheet-bg { z-index: 10070; }
+.bf-sc { font-size: 34px; }
+.bf-cust { width: 100%; padding: 12px; border-radius: 16px; border: 1.5px dashed rgba(255,255,255,.25); color: #cbd5e1; font-weight: 700; font-size: 14px; background: rgba(255,255,255,.04); }

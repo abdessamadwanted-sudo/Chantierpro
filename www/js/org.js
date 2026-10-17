@@ -18,44 +18,71 @@ Object.assign(ICONS, {
 });
 
 const ALL_F = '*';
+// hiérarchie de chaque service, du plus haut au plus bas (lv = niveau dans l'organigramme)
+const F_TRAV = ['avancement', 'reception', 'tasks', 'photos', 'forms', 'reports', 'constat', 'calc', 'gestion', 'planning', 'reunions', 'rfi', 'visa', 'pointage', 'hse', 'labo', 'finance', 'tce', 'st', 'org', 'models3d', 'career'];
+const F_QUAL = ['reception', 'tasks', 'photos', 'forms', 'reports', 'constat', 'clauses', 'labo', 'rfi', 'visa', 'reunions', 'planning', 'org', 'career'];
+const F_LABO = ['labo', 'reception', 'photos', 'reports', 'rfi', 'forms', 'org', 'career'];
+const F_HSE = ['hse', 'tasks', 'photos', 'reports', 'reunions', 'forms', 'constat', 'org', 'career'];
+const F_ETU = ['calc', 'models3d', 'planning', 'rfi', 'visa', 'tasks', 'photos', 'reports', 'reunions', 'avancement', 'tce', 'gestion', 'org', 'career'];
+const F_LOG = ['gestion', 'pointage', 'photos', 'reports', 'planning', 'finance', 'st', 'org', 'career'];
+const F_FIN = ['finance', 'tce', 'st', 'pointage', 'gestion', 'planning', 'org', 'career'];
 const SERVICES = [
   { k: 'trav', e: '🏗️', n: 'Travaux', d: 'Exécution, planning, équipes, réception', c: '#3b82f6', postes: [
-    { k: 'dirtrav', n: 'Directeur de travaux', lv: 1, f: ALL_F, va: ALL_F },
-    { k: 'conduct', n: 'Conducteur de travaux', lv: 2, f: ['avancement', 'reception', 'tasks', 'photos', 'forms', 'reports', 'constat', 'calc', 'gestion', 'planning', 'reunions', 'rfi', 'visa', 'pointage', 'hse', 'labo', 'finance', 'tce', 'st', 'org', 'career'], va: ['pointage', 'st', 'finance', 'visa', 'gestion'] },
-    { k: 'chef', n: 'Chef de chantier', lv: 3, f: ['reception', 'tasks', 'photos', 'forms', 'reports', 'calc', 'gestion', 'planning', 'reunions', 'pointage', 'hse', 'labo', 'org', 'career'], ro: ['planning', 'labo', 'org'] },
-    { k: 'cheq', n: 'Chef d\'équipe', lv: 4, f: ['tasks', 'photos', 'reports', 'pointage', 'avancement'] },
+    { k: 'dirproj', n: 'Directeur de projet', lv: 1, f: ALL_F, va: ALL_F },
+    { k: 'dirtrav', n: 'Directeur de travaux', lv: 2, f: ALL_F, va: ALL_F },
+    { k: 'ingtrav', n: 'Ingénieur travaux', lv: 3, f: F_TRAV, va: ['pointage', 'st', 'finance', 'visa', 'gestion', 'labo'] },
+    { k: 'conduct', n: 'Conducteur de travaux', lv: 4, f: F_TRAV, va: ['pointage', 'st', 'finance', 'visa', 'gestion'] },
+    { k: 'chef', n: 'Chef de chantier', lv: 5, f: ['reception', 'tasks', 'photos', 'forms', 'reports', 'calc', 'gestion', 'planning', 'reunions', 'pointage', 'hse', 'labo', 'org', 'career'], ro: ['planning', 'labo', 'org'] },
+    { k: 'cheq', n: 'Chef d\'équipe', lv: 6, f: ['tasks', 'photos', 'reports', 'pointage', 'avancement'] },
   ] },
   { k: 'qual', e: '✅', n: 'Qualité', d: 'Réception, PV, contrôles, non-conformités', c: '#22c55e', postes: [
-    { k: 'respq', n: 'Responsable qualité', lv: 2, f: ['reception', 'tasks', 'photos', 'forms', 'reports', 'constat', 'clauses', 'labo', 'rfi', 'visa', 'reunions', 'planning', 'org', 'career'], ro: ['planning'], va: ['labo', 'visa', 'constat'] },
-    { k: 'tsq', n: 'TS / Technicien qualité', lv: 3, f: ['reception', 'tasks', 'photos', 'forms', 'reports', 'constat', 'clauses', 'labo', 'rfi', 'visa', 'reunions', 'career'] },
-    { k: 'ctrl', n: 'Contrôleur qualité', lv: 4, f: ['reception', 'tasks', 'photos', 'forms', 'constat', 'labo'] },
+    { k: 'dirq', n: 'Directeur qualité', lv: 1, f: ALL_F, va: ALL_F },
+    { k: 'ingq', n: 'Ingénieur qualité', lv: 2, f: F_QUAL, va: ['labo', 'visa', 'constat', 'rfi', 'reception'] },
+    { k: 'respq', n: 'Responsable qualité', lv: 3, f: F_QUAL, ro: ['planning'], va: ['labo', 'visa', 'constat'] },
+    { k: 'tsq', n: 'TS / Technicien qualité', lv: 4, f: F_QUAL, ro: ['planning', 'org'] },
+    { k: 'ctrl', n: 'Contrôleur qualité', lv: 5, f: ['reception', 'tasks', 'photos', 'forms', 'constat', 'labo'] },
   ] },
   { k: 'labo', e: '🧪', n: 'Laboratoire', d: 'Essais béton, sols, granulats, aciers', c: '#8b5cf6', postes: [
-    { k: 'resplab', n: 'Responsable laboratoire', lv: 2, f: ['labo', 'reception', 'photos', 'reports', 'rfi', 'forms', 'career'], ro: ['reception'], va: ['labo'] },
-    { k: 'techlab', n: 'Technicien laboratoire', lv: 3, f: ['labo', 'photos', 'reception'], ro: ['reception'] },
-    { k: 'oper', n: 'Opérateur d\'essais', lv: 4, f: ['labo', 'photos'] },
+    { k: 'dirlab', n: 'Directeur du laboratoire', lv: 1, f: ALL_F, va: ALL_F },
+    { k: 'inglab', n: 'Ingénieur laboratoire', lv: 2, f: F_LABO, ro: ['reception'], va: ['labo'] },
+    { k: 'resplab', n: 'Responsable laboratoire', lv: 3, f: F_LABO, ro: ['reception'], va: ['labo'] },
+    { k: 'techlab', n: 'Technicien laboratoire', lv: 4, f: ['labo', 'photos', 'reception', 'reports'], ro: ['reception'] },
+    { k: 'oper', n: 'Opérateur d\'essais', lv: 5, f: ['labo', 'photos'] },
   ] },
   { k: 'hse', e: '🦺', n: 'HSE', d: 'Sécurité, causeries, EPI, permis', c: '#f97316', postes: [
-    { k: 'resphse', n: 'Responsable HSE', lv: 2, f: ['hse', 'tasks', 'photos', 'reports', 'reunions', 'forms', 'constat', 'org', 'career'], va: ['hse'] },
-    { k: 'anim', n: 'Animateur HSE', lv: 3, f: ['hse', 'tasks', 'photos', 'reports', 'forms'] },
+    { k: 'dirhse', n: 'Directeur HSE', lv: 1, f: ALL_F, va: ALL_F },
+    { k: 'inghse', n: 'Ingénieur HSE', lv: 2, f: F_HSE, va: ['hse'] },
+    { k: 'resphse', n: 'Responsable HSE', lv: 3, f: F_HSE, va: ['hse'] },
+    { k: 'suphse', n: 'HSE Supervisor', lv: 4, f: F_HSE, ro: ['org'] },
+    { k: 'anim', n: 'Animateur HSE', lv: 5, f: ['hse', 'tasks', 'photos', 'reports', 'forms'] },
+    { k: 'secu', n: 'Secouriste / agent sécurité', lv: 6, f: ['hse', 'photos', 'tasks'] },
   ] },
   { k: 'etu', e: '📐', n: 'Études & méthodes · Topo', d: 'Plans, métrés, calculs, 3D', c: '#06b6d4', postes: [
-    { k: 'meth', n: 'Ingénieur méthodes', lv: 2, f: ['calc', 'models3d', 'planning', 'rfi', 'visa', 'tasks', 'photos', 'reports', 'reunions', 'avancement', 'tce', 'career'] },
+    { k: 'dirtech', n: 'Directeur technique', lv: 1, f: ALL_F, va: ALL_F },
+    { k: 'ingstr', n: 'Ingénieur structure', lv: 2, f: F_ETU, va: ['visa', 'rfi'] },
+    { k: 'meth', n: 'Ingénieur méthodes', lv: 2, f: F_ETU, va: ['visa'] },
+    { k: 'proj', n: 'Projeteur / dessinateur', lv: 3, f: ['calc', 'models3d', 'rfi', 'visa', 'tasks', 'photos', 'career'] },
     { k: 'metreur', n: 'Métreur', lv: 3, f: ['calc', 'gestion', 'finance', 'avancement', 'photos', 'career'], ro: ['finance'] },
     { k: 'topo', n: 'Topographe', lv: 3, f: ['calc', 'models3d', 'photos', 'tasks', 'career'] },
   ] },
   { k: 'log', e: '📦', n: 'Logistique / Magasin', d: 'Stock, commandes, livraisons, engins', c: '#eab308', postes: [
-    { k: 'logi', n: 'Logisticien', lv: 2, f: ['gestion', 'pointage', 'photos', 'reports', 'planning', 'career'], ro: ['planning'], va: ['gestion'] },
-    { k: 'mag', n: 'Magasinier', lv: 3, f: ['gestion', 'photos'] },
+    { k: 'dirlog', n: 'Directeur logistique', lv: 1, f: ALL_F, va: ALL_F },
+    { k: 'respach', n: 'Responsable achats', lv: 2, f: F_LOG, va: ['gestion', 'st'] },
+    { k: 'logi', n: 'Logisticien', lv: 3, f: F_LOG, ro: ['planning', 'finance', 'st'], va: ['gestion'] },
     { k: 'ach', n: 'Acheteur', lv: 3, f: ['gestion', 'finance', 'st', 'career'], ro: ['st'] },
+    { k: 'mag', n: 'Magasinier', lv: 4, f: ['gestion', 'photos'] },
   ] },
   { k: 'fin', e: '💰', n: 'Administration & finance', d: 'Marché, factures, sous-traitants, paie', c: '#a855f7', postes: [
-    { k: 'gest', n: 'Gestionnaire / contrôleur de gestion', lv: 2, f: ['finance', 'tce', 'st', 'pointage', 'gestion', 'planning', 'org', 'career'], ro: ['planning'], va: ['finance', 'st', 'pointage'] },
-    { k: 'compta', n: 'Comptable chantier', lv: 3, f: ['finance', 'st', 'pointage'], ro: ['pointage'] },
+    { k: 'daf', n: 'Directeur administratif et financier (DAF)', lv: 1, f: ALL_F, va: ALL_F },
+    { k: 'gest', n: 'Contrôleur de gestion', lv: 2, f: F_FIN, ro: ['planning'], va: ['finance', 'st', 'pointage'] },
+    { k: 'compta', n: 'Comptable chantier', lv: 3, f: ['finance', 'st', 'pointage', 'org'], ro: ['pointage', 'org'] },
+    { k: 'assist', n: 'Assistant(e) administratif', lv: 4, f: ['finance', 'pointage', 'reports', 'photos'], ro: ['finance'] },
   ] },
   { k: 'ext', e: '🤝', n: 'Externes', d: 'Maître d\'ouvrage, BET, architecte, sous-traitant', c: '#94a3b8', postes: [
     { k: 'mo', n: 'Maître d\'ouvrage / client', lv: 1, f: ['planning', 'avancement', 'photos', 'reports', 'tasks', 'reunions', 'finance', 'tce', 'org'], ro: ['planning', 'avancement', 'reports', 'tce', 'org', 'reunions'], va: ['finance'] },
-    { k: 'bet', n: 'Bureau de contrôle / BET', lv: 2, f: ['rfi', 'visa', 'tasks', 'photos', 'reception', 'labo', 'reunions'], ro: ['reception', 'labo', 'reunions'], va: ['visa', 'rfi'] },
+    { k: 'amo', n: 'AMO (assistance au maître d\'ouvrage)', lv: 2, f: ['planning', 'avancement', 'photos', 'reports', 'tasks', 'reunions', 'tce', 'rfi', 'visa', 'org'], ro: ['planning', 'avancement', 'reports', 'tce', 'org'], va: ['visa'] },
+    { k: 'bet', n: 'BET (bureau d\'études)', lv: 2, f: ['rfi', 'visa', 'tasks', 'photos', 'reception', 'labo', 'reunions'], ro: ['reception', 'labo', 'reunions'], va: ['visa', 'rfi'] },
+    { k: 'bc', n: 'Bureau de contrôle', lv: 2, f: ['rfi', 'visa', 'tasks', 'photos', 'reception', 'labo', 'constat', 'reunions'], ro: ['reception', 'labo', 'reunions'], va: ['visa'] },
     { k: 'archi', n: 'Architecte', lv: 2, f: ['rfi', 'visa', 'tasks', 'photos', 'avancement', 'reunions'], ro: ['avancement', 'reunions'], va: ['visa'] },
     { k: 'sst', n: 'Sous-traitant', lv: 3, f: ['tasks', 'photos', 'st', 'reports'], ro: ['st'] },
   ] },
@@ -70,7 +97,7 @@ const Org = {
   // niveau d'accès d'une fonction : 'see' (visible), 'edit' (modifier), 'valid' (valider)
   can(f, lvl = 'edit') {
     const P = Org.poste(); if (!P || !f) return true;
-    if (lvl !== 'see' && Org.owner()) return true;   // le titulaire peut tout faire sur son compte
+    if (Org.owner()) return true;   // le titulaire voit et fait tout sur son compte (le poste ne règle que l'ordre et l'accueil)
     const vis = P.f === ALL_F || P.f.includes(f);
     if (lvl === 'see') return vis;
     if (lvl === 'edit') return vis && !(P.ro || []).includes(f);
@@ -278,3 +305,5 @@ async function orgFiche(p, m, canE, save, redraw) {
   const wa = $('[data-wa]', s.el); if (wa) wa.onclick = () => openUrl('https://wa.me/' + String(m.phone).replace(/\D/g, '').replace(/^0/, '212'));
   const ed = $('[data-ed]', s.el); if (ed) ed.onclick = () => { s.close(); orgEditMember(p, m, save, redraw); };
 }
+// le titulaire voit toutes ses fonctions (Maquette 3D, Modèles 3D, Calculs…) : on annule une seule fois le masquage fait par le choix du poste
+try { if (Org.owner() && !localStorage.getItem('feat.reset2')) { localStorage.removeItem('myFeatures'); localStorage.setItem('feat.reset2', '1'); } } catch (e) {}

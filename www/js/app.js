@@ -211,7 +211,6 @@ async function renderHome() {
       { title: 'Aujourd\'hui', color: '#22c55e', items: [{ label: 'Briefing du jour', sub: 'notes, rappels, PV à livrer, tâches', icon: 'calendar', value: 'brief' }] },
       { title: 'Mon compte', color: '#3b82f6', items: [
         { label: 'Mon prénom', sub: uname || 'pour les messages d\'accueil', icon: 'edit', value: 'name' },
-        { label: 'Mon service et mon poste', sub: Org.label() || 'à choisir', icon: 'users', value: 'poste' },
         ...(LI.mode === 'user' && (LI.team || []).length ? [{ label: `Mon équipe (${LI.team.length})`, sub: 'suivi', icon: 'team', value: 'team' }] : []),
         LI.mode === 'user' ? { label: 'Partage de suivi', sub: `${LI.ownerName || 'titulaire de la licence'} · lecture seule`, icon: 'team', value: 'licinfo' } : { label: 'Licences', sub: 'partager l\'application', icon: 'team', value: 'lic' }] },
       { title: 'Apparence', color: '#a855f7', items: [
@@ -233,7 +232,6 @@ async function renderHome() {
     ]);
     if (v === 'brief') { const act = await briefingShow(); if (act) act(); }
     if (v === 'trash') { const ps = (await DB.all('projects')).filter(p => (p.trash || []).length); if (!ps.length) toast('La corbeille est vide'); else { const id = ps.length === 1 ? ps[0].id : await menu('Corbeille de quel chantier ?', ps.map(p => ({ label: `${p.name} · ${p.trash.length}`, icon: 'trash', value: p.id }))); if (id) openTrash(id); } }
-    if (v === 'poste') orgOnboard(true);
     if (v === 'packs') openPacks();
     if (v === 'restore') restoreBackup();
     if (v === 'stock') openStorage();
@@ -337,15 +335,15 @@ async function openDrawer(opts = {}) {
   d.innerHTML = `
     <div class="drawer-head"><h3>${esc(App.project.name)}</h3><button class="iconbtn" data-home>${icon('home')}</button></div>
     ${drawerSections((k) => { const s = SECTIONS[k]; return `<button class="item ${App.section === k || (k === 'reception' && App.section === 'beton') ? 'active' : ''}" data-s="${k === 'reception' && App.section === 'beton' ? 'beton' : k}">${icon(s.icon)}<span>${s.label}</span>${k === 'reception' && nPv ? `<span class="count pvbadge">${nPv} PV</span>` : ''}${k === 'tasks' ? `<span class="count dr-rt" data-rtog>${tasks.filter(t => t.status === 'open').length || ''}<i style="display:inline-block;transform:rotate(${resOpen ? 180 : 0}deg)">${icon('chevdown', 'style="width:18px;height:18px"')}</i></span>` : ''}</button>${k === 'tasks' ? `<div class="dr-sub" style="${resOpen ? '' : 'display:none'}">${resRows}</div>` : ''}`; })}
-    <div class="group">Outils</div>
+    <div class="dr-g ${(() => { try { const v = localStorage.getItem('dr.g.tools'); return v === '1'; } catch (e) { return false; } })() ? 'open' : ''}" data-g="tools"><button class="group dr-gh" data-gt="tools"><span>🧰 Outils</span><i>5</i>${icon('chevdown', 'style="width:16px;height:16px"')}</button><div class="dr-gb">
     <button class="item" data-tool="pdf">${icon('pdf')}<span>Outils PDF</span><span class="count" style="font-size:12px;opacity:.6">fusionner · diviser</span></button>
     <button class="item" data-tool="board">${icon('brush')}<span>Tableau de dessin</span><span class="count" style="font-size:12px;opacity:.6">${(App.project.boards || []).length || ''}</span></button>
     <button class="item" data-tool="bar">${icon('rows')}<span>Dessiner une barre</span><span class="count" style="font-size:12px;opacity:.6">façonnage</span></button>
     <button class="item" data-tool="lang">${icon('globe')}<span>Langue</span><span class="count" style="font-size:12px;opacity:.6">${(LANGS.find(l => l[0] === Lang.cur) || [])[1] || ''}</span></button>
-    <button class="item" data-tool="rap">${icon('calendar')}<span>Rappels</span>${(App.project.rappels || []).filter(x => !x.done).length ? `<span class="count">${(App.project.rappels || []).filter(x => !x.done).length}</span>` : ''}</button>
-    <div class="group">Liens rapides (Drive)</div>
+    <button class="item" data-tool="rap">${icon('calendar')}<span>Rappels</span>${(App.project.rappels || []).filter(x => !x.done).length ? `<span class="count">${(App.project.rappels || []).filter(x => !x.done).length}</span>` : ''}</button></div></div>
+    <div class="dr-g ${(() => { try { const v = localStorage.getItem('dr.g.links'); return v === '1'; } catch (e) { return false; } })() ? 'open' : ''}" data-g="links"><button class="group dr-gh" data-gt="links"><span>🔗 Liens rapides (Drive)</span><i>${(App.project.quickLinks || [1]).length}</i>${icon('chevdown', 'style="width:16px;height:16px"')}</button><div class="dr-gb">
     ${(App.project.quickLinks || [{ id: 'reception', name: 'Tableau de réception (Drive)', url: '' }]).map(q => `<button class="item" data-q="${q.id}">${icon('grid')}<span>${esc(q.name)}</span>${q.url ? `<span class="count qe" data-qe="${q.id}">${icon('edit', 'style="width:18px;height:18px;opacity:.55"')}</span>` : '<span class="count" style="font-size:12px;opacity:.6">à lier</span>'}</button>`).join('')}
-    <button class="item" data-q="__add" style="color:var(--muted)">${icon('plus')}<span>Ajouter un lien</span></button>
+    <button class="item" data-q="__add" style="color:var(--muted)">${icon('plus')}<span>Ajouter un lien</span></button></div></div>
     <div class="dr-foot"><button class="item ${App.section === 'settings' ? 'active' : ''}" data-s="settings">${icon('settings')}<span>Paramètres</span></button></div>`;
   document.body.append(bg, d);
   // style TikTok : le menu suit le doigt et pousse la page

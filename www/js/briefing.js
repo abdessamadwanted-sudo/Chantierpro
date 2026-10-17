@@ -4,6 +4,14 @@ const BriefNotes = {
   get() { try { return JSON.parse(localStorage.getItem('brief.notes') || '[]'); } catch (e) { return []; } },
   set(v) { try { localStorage.setItem('brief.notes', JSON.stringify(v)); } catch (e) {} },
 };
+// cartes choisies par l'utilisateur : masquées, et raccourcis vers des sections
+const BriefCfg = {
+  get() { try { return { hide: [], sc: [], ...(JSON.parse(localStorage.getItem('brief.cfg') || '{}') || {}) }; } catch (e) { return { hide: [], sc: [] }; } },
+  set(v) { try { localStorage.setItem('brief.cfg', JSON.stringify(v)); } catch (e) {} },
+};
+const BRIEF_KINDS = [['rap', '🔔 Rappels du jour'], ['pv', '📋 PV à livrer au BET'], ['rec', '🔩 Réception du jour'], ['tasks', '⚠️ Tâches / réserves'], ['pt', '👷 Pointage du jour'], ['plan', '📅 Planning en retard'], ['due', '⏳ Échéances des lots'], ['lab', '🧪 Labo : écrasements'], ['stock', '📦 Stock bas'],
+  ['reg:reu', '🗓️ Actions des réunions'], ['reg:rfi', '❓ RFI sans réponse'], ['reg:visa', '🛂 Visas en attente'], ['reg:perm', '🦺 Permis expirés'], ['reg:ess', '🔬 Essais non conformes'], ['reg:st', '🤝 Sous-traitants'], ['valid', '✍️ À valider'], ['job', '💼 Candidatures à relancer']];
+const SC_EMO = { dashboard: '📊', plans: '🗺️', reception: '🔩', avancement: '🏗️', planning: '📅', reunions: '🗓️', tasks: '⚠️', reports: '📝', photos: '📷', pointage: '👷', labo: '🧪', forms: '📋', constat: '🚫', clauses: '📚', rfi: '❓', visa: '🛂', hse: '🦺', calc: '📐', models3d: '🧊', maquette: '🏢', finance: '💰', avenants: '📑', gestion: '📦', tce: '🏢', st: '🤝', org: '👥', team: '👷' };
 // ordre des cartes selon le service (les autres suivent)
 const BRIEF_ORDER = {
   trav: ['valid', 'pt', 'plan', 'rec', 'reg:reu', 'tasks', 'rap', 'due', 'reg:st', 'stock', 'pv'],
@@ -18,6 +26,7 @@ const BRIEF_ORDER = {
 async function briefingData() {
   const today = todayISO(), [ps, recs, tasks] = await Promise.all([DB.all('projects'), DB.all('receptions'), DB.all('tasks')]);
   const P = (id) => ps.find(p => p.id === id) || {}, see = (f) => !f || (featOn(f) && Org.can(f, 'see'));
+  const CFG = BriefCfg.get();
   const C = [];
   // rappels
   const rap = ps.flatMap(p => (p.rappels || []).filter(x => !x.done && (!x.at || x.at.slice(0, 10) <= today)).map(x => ({ pid: p.id, label: x.text, sub: `${p.name}${x.at ? ' · ' + fmtDate(x.at.slice(0, 10)) : ''}`, late: x.at && x.at.slice(0, 10) < today })));
@@ -55,7 +64,10 @@ async function briefingData() {
   const me = Org.me(), O = BRIEF_ORDER[me && me.service] || [];
   const rank = (c) => { const i = O.indexOf(c.k); return i < 0 ? 50 + (c.alert ? 0 : 1) : i; };
   C.sort((a, b) => rank(a) - rank(b));
-  return { cards: C, ps };
+  const out = C.filter(c => !CFG.hide.includes(c.k));
+  // raccourcis ajoutés par l'utilisateur
+  for (const k of CFG.sc) { const S = SECTIONS[k]; if (!S || (SECTION_FEATURE[k] && !featOn(SECTION_FEATURE[k]))) continue; out.push({ k: 'sc:' + k, e: SC_EMO[k] || '📁', t: S.label.split(' (')[0], c: '#475569', n: '', sc: true, items: ps.map(p => ({ pid: p.id, label: p.name })) }); }
+  return { cards: out, ps };
 }
 // ouverture d'un projet puis d'une section
 async function briefGo(pid, fn) { const p = await DB.get('projects', pid); if (!p) return; await openProject(p); document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); await fn(p); }
@@ -76,6 +88,7 @@ function briefAction(card) {
     if (card.k === 'stock') return go('gestion', () => { App.gsTab = 'stock'; });
     if (card.k === 'valid') { const it = card.items.find(x => x.pid === pid); return briefGo(pid, () => regGo(it ? it.rk : 'av')); }
     if (card.k.startsWith('reg:')) return briefGo(pid, () => regGo(card.k.slice(4)));
+    if (card.k.startsWith('sc:')) return go(card.k.slice(3));
   };
 }
 // retour au briefing (bouton Retour depuis l'endroit ouvert)
@@ -111,16 +124,17 @@ function briefingShow(opts = {}) {
     const d = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
     const drawNotes = () => { const N = BriefNotes.get(); return `${N.map((x, i) => `<label class="bn-i ${x.done ? 'done' : ''}"><input type="checkbox" data-n="${i}" ${x.done ? 'checked' : ''}><span>${esc(x.t)}</span><button data-nd="${i}">✕</button></label>`).join('')}<div class="bn-add"><input placeholder="Ajouter une chose à faire aujourd'hui…"><button>＋</button></div>`; };
     const anim = !opts.scroll;
-    el.innerHTML = `<div class="bf-head"><small>${esc(d.charAt(0).toUpperCase() + d.slice(1))}${Org.label() ? ' · ' + esc(Org.label()) : ''}</small><b>Briefing du jour${name ? ', ' + esc(name) : ''}</b><span>${cards.length ? `${cards.reduce((a, c) => a + c.n, 0)} point(s) à voir` : 'Tout est à jour ✓'}</span></div>
+    el.innerHTML = `<div class="bf-head"><small>${esc(d.charAt(0).toUpperCase() + d.slice(1))}${Org.label() ? ' · ' + esc(Org.label()) : ''}</small><b>Briefing du jour${name ? ', ' + esc(name) : ''}</b><span>${(() => { const n = cards.filter(c => !c.sc).reduce((a, c) => a + (+c.n || 0), 0); return n ? `${n} point(s) à voir` : 'Tout est à jour ✓'; })()}</span></div>
       <div class="bf-body">
         <div class="bf-notes"><div class="bf-ch"><span>📝</span><b>Mes notes · à cocher</b><i>${notes.filter(x => !x.done).length || ''}</i></div><div class="bn">${drawNotes()}</div></div>
-        <div class="bf-grid">${cards.map((c, i) => `<button class="bf-card ${anim ? '' : 'noanim'} ${c.alert ? 'bf-alert' : ''}" data-c="${i}" style="--c:${c.c};animation-delay:${.1 + i * .06}s"><div class="bf-ch"><span>${c.e}</span><b>${esc(c.t)}</b></div><div class="bf-n" data-n="${c.n}">${anim ? 0 : c.n}</div>${c.sub ? `<small class="bf-s">${esc(c.sub)}</small>` : ''}<div class="bf-l">${c.items.slice(0, 2).map(x => `<div>${x.late ? '🔴 ' : ''}${esc(x.label)}</div>`).join('')}</div><span class="bf-go">Ouvrir ›</span></button>`).join('')}</div>
+        <div class="bf-grid">${cards.map((c, i) => `<button class="bf-card ${anim ? '' : 'noanim'} ${c.alert ? 'bf-alert' : ''}" data-c="${i}" style="--c:${c.c};animation-delay:${.1 + i * .06}s"><div class="bf-ch"><span>${c.e}</span><b>${esc(c.t)}</b></div>${c.sc ? `<div class="bf-n bf-sc">${c.e}</div>` : `<div class="bf-n" data-n="${c.n}">${anim ? 0 : c.n}</div>`}${c.sub ? `<small class="bf-s">${esc(c.sub)}</small>` : ''}<div class="bf-l">${c.sc ? '<div>Raccourci</div>' : c.items.slice(0, 2).map(x => `<div>${x.late ? '🔴 ' : ''}${esc(x.label)}</div>`).join('')}</div><span class="bf-go">Ouvrir ›</span></button>`).join('')}</div>
+        <button class="bf-cust">＋ Ajouter / masquer des cartes</button>
       </div>
       <div class="bf-foot"><button class="bf-enter">Entrer au chantier ›</button></div>`;
     document.body.appendChild(el);
     const body = $('.bf-body', el); if (opts.scroll) body.scrollTop = opts.scroll;
     // les chiffres comptent jusqu'à leur valeur
-    if (anim) { const t0 = performance.now(), ns = $$('.bf-n', el); const step = (t) => { const k = Math.min(1, (t - t0 - 250) / 700), e = k < 0 ? 0 : 1 - Math.pow(1 - k, 3); ns.forEach(n => n.textContent = Math.round(+n.dataset.n * e)); if (k < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); }
+    if (anim) { const t0 = performance.now(), ns = $$('.bf-n[data-n]', el); const step = (t) => { const k = Math.min(1, (t - t0 - 250) / 700), e = k < 0 ? 0 : 1 - Math.pow(1 - k, 3); ns.forEach(n => n.textContent = Math.round(+n.dataset.n * e)); if (k < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); }
     // effet de profondeur : la grille s'incline avec le téléphone
     const grid = $('.bf-grid', el), tilt = (e) => { if (e.gamma == null) return; const rx = Math.max(-6, Math.min(6, ((e.beta || 45) - 45) / 6)), ry = Math.max(-6, Math.min(6, e.gamma / 6)); grid.style.transform = `perspective(900px) rotateX(${-rx}deg) rotateY(${ry}deg)`; };
     window.addEventListener('deviceorientation', tilt);
@@ -133,20 +147,33 @@ function briefingShow(opts = {}) {
     bindNotes();
     // les notes cochées depuis plus d'un jour disparaissent
     BriefNotes.set(BriefNotes.get().filter(x => !(x.done && x.doneAt && x.doneAt < todayISO())).map(x => x.done && !x.doneAt ? { ...x, doneAt: todayISO() } : x));
-    // ouverture 3D : la carte pivote et s'agrandit, un balayage holographique traverse l'écran
+    // ouverture douce : la carte s'enfonce légèrement puis s'ouvre
     $$('[data-c]', el).forEach(b => b.onclick = () => {
       if (el._going) return; el._going = true;
       const card = cards[+b.dataset.c], fb = { scroll: body.scrollTop }, act = briefAction(card);
-      const r = b.getBoundingClientRect(), g = b.cloneNode(true);
-      g.classList.add('bf-fly'); Object.assign(g.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' }); el.appendChild(g); b.style.visibility = 'hidden';
-      const dx = innerWidth / 2 - (r.left + r.width / 2), dy = innerHeight / 2 - (r.top + r.height / 2), s = Math.max(innerWidth / r.width, innerHeight / r.height) * 1.05;
-      const sc = document.createElement('div'); sc.className = 'bf-scan'; sc.style.setProperty('--c', card.c); el.appendChild(sc);
-      try { navigator.vibrate && navigator.vibrate(12); } catch (e) {}
-      try { g.animate([{ transform: 'perspective(900px) translate(0,0) rotateY(0) rotateX(0) scale(1)', opacity: 1 },
-        { transform: `perspective(900px) translate(${dx * .45}px,${dy * .45}px) rotateY(-28deg) rotateX(10deg) scale(${1 + (s - 1) * .25})`, opacity: 1, offset: .45 },
-        { transform: `perspective(900px) translate(${dx}px,${dy}px) rotateY(0) rotateX(0) scale(${s})`, opacity: 0 }], { duration: 640, easing: 'cubic-bezier(.55,0,.25,1)', fill: 'forwards' }); } catch (e) {}
-      setTimeout(() => done(async () => { App.fromBrief = fb; await act(); }), 560);
+      try { navigator.vibrate && navigator.vibrate(10); } catch (e) {}
+      try { b.animate([{ transform: 'scale(1)', filter: 'brightness(1)' }, { transform: 'scale(.96)', filter: 'brightness(1.25)' }, { transform: 'scale(1.02)', filter: 'brightness(1.1)' }], { duration: 240, easing: 'ease-out', fill: 'forwards' }); } catch (e) {}
+      setTimeout(() => done(async () => { App.fromBrief = fb; await act(); }), 230);
     });
+    $('.bf-cust', el).onclick = async () => { const ok = await briefCustomize(cards); if (ok) { done(async () => { const a = await briefingShow({ scroll: body.scrollTop }); if (a) a(); }); } };
     $('.bf-enter', el).onclick = () => done(null);
+  });
+}
+
+// choisir les cartes du briefing : cartes du jour (afficher / masquer) + raccourcis vers les sections
+function briefCustomize() {
+  return new Promise((resolve) => {
+    const C = BriefCfg.get(); let ok = false;
+    const secs = Object.entries(SECTIONS).filter(([k, S]) => !S.hidden && k !== 'settings' && (!SECTION_FEATURE[k] || featOn(SECTION_FEATURE[k])));
+    const row = (on, k, l, grp) => `<button class="ft-r ${on ? 'on' : ''}" data-${grp}="${k}"><span class="grow">${esc(l)}</span><i class="ft-sw"><u></u></i></button>`;
+    const s = sheet(`<div class="ft-w"><div class="ft"><p class="ft-sub">Cartes du jour (elles apparaissent quand il y a quelque chose à voir)</p>
+      ${BRIEF_KINDS.map(([k, l]) => row(!C.hide.includes(k), k, l, 'h')).join('')}
+      <p class="ft-sub" style="margin-top:10px">Raccourcis (toujours affichés, un toucher ouvre la section)</p>
+      ${secs.map(([k, S]) => row(C.sc.includes(k), k, `${SC_EMO[k] || '📁'} ${S.label}`, 'sc')).join('')}
+      <button class="btn ft-ok" data-ok>Enregistrer</button></div></div>`, { title: 'Cartes du briefing' });
+    $$('[data-h]', s.el).forEach(b => b.onclick = () => { const k = b.dataset.h, i = C.hide.indexOf(k); i >= 0 ? C.hide.splice(i, 1) : C.hide.push(k); b.classList.toggle('on', i >= 0); });
+    $$('[data-sc]', s.el).forEach(b => b.onclick = () => { const k = b.dataset.sc, i = C.sc.indexOf(k); i >= 0 ? C.sc.splice(i, 1) : C.sc.push(k); b.classList.toggle('on', i < 0); });
+    $('[data-ok]', s.el).onclick = () => { BriefCfg.set(C); ok = true; s.close(); };
+    s.onClose = () => resolve(ok);
   });
 }
