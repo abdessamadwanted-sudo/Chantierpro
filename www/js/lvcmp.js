@@ -3,6 +3,8 @@
 // 2) calage par les fils / axes (A, B, C… / 1, 2, 3…), sinon par la trame des poteaux (vote), sinon manuel (toucher le même poteau)
 // 3) appariement → continue · nouveau · s'arrête · modifié (section, longueur, déplacement) ; textes et cotes ignorés
 const LV_AX_LAY = /ax|fil|grid|trame|quadr|repere/i;
+// étiquette de fil / axe : « A », « 12 », « A' », « FIL B », « Fil 3 », « AXE C »… → « A », « 12 », « A' », « B », « 3 », « C »
+function lvAxLab(s) { const t = String(s || '').toUpperCase().replace(/^(FILE?S?|AXES?|AXIS|F)\s*[-:.]?\s*(?=[A-Z0-9])/, '').replace(/\s+/g, '').trim(); return /^([A-Z]{1,2}|\d{1,2})('|'')?(BIS)?$/.test(t) ? t : ''; }
 const LV_NAME = /^(CR|PT|PO|P|VL|V|C|PL|R|RD)\s?-?\s?\d{1,3}[a-z]?$/i;
 const LV_SECT = /(\d{2,3})\s?[x×*\/]\s?(\d{2,3})/i;
 const LV_T = { pot: ['Poteau', 'Poteaux', '#3b82f6'], voile: ['Voile', 'Voiles', '#a855f7'], cor: ['Corbeau', 'Corbeaux', '#f59e0b'], autre: ['Élément', 'Autres éléments', '#64748b'] };
@@ -41,8 +43,9 @@ function lvClassify(e) {
 // ---------- extraction : DWG / DXF ----------
 async function lvFromCad(plan) {
   const D = await cadOfPlan(plan); if (!D || !D.prims || !D.box) return null;
-  const polys = [], texts = [], axl = [];
+  const polys = [], texts = [], axl = [], lines = [], circ = [];
   for (const p of D.prims) { const L = String(p.layer || '');
+    if (p.t === 'pl' && p.pts.length >= 2) { if (!p.closed) lines.push({ a: p.pts[0], b: p.pts[p.pts.length - 1] }); else if (p.pts.length >= 8) { const o = lvOBB(p.pts); if (o.L / Math.max(o.w, 1e-9) < 1.2) circ.push({ x: o.cx, y: o.cy, r: o.L / 2 }); } }
     if (p.t === 'tx') { texts.push({ s: String(p.s || '').trim(), x: p.p[0] + String(p.s || '').length * p.h * 0.3, y: p.p[1] + p.h * 0.5, h: p.h, ax: LV_AX_LAY.test(L) }); continue; }
     if (LV_AX_LAY.test(L)) { if (p.t === 'pl') { if (!p.closed && p.pts.length >= 2) axl.push({ a: p.pts[0], b: p.pts[p.pts.length - 1] }); else if (p.closed) texts.push({ bubble: true, pts: p.pts }); } continue; }
     if (NOSTRUCT_LAY.test(L)) continue;
@@ -79,10 +82,22 @@ async function lvFromCad(plan) {
     else if (!us.has(ei) && !ut.has(ti)) { e.sect = t.s.match(LV_SECT)[0]; us.add(ei); ut.add(ti); } }
   keep.forEach((e, i) => { e.id = 'e' + i; e.type = lvClassify(e); });
   // axes : lignes des calques d'axes + étiquettes (bulles)
-  const AX = axl.map(l => ({ a: [l.a[0] * u, l.a[1] * u], b: [l.b[0] * u, l.b[1] * u] })).filter(l => Math.hypot(l.b[0] - l.a[0], l.b[1] - l.a[1]) > 2);
-  const lab = T.filter(t => t.ax || /^[A-Z]{1,2}'?$|^\d{1,2}'?$/.test(t.s)).filter(t => t.s.length <= 3);
-  for (const l of AX) { let best = null; for (const t of lab) for (const q of [l.a, l.b]) { const d = Math.hypot(t.x - q[0], t.y - q[1]); if (d < 2.5 && (!best || d < best.d)) best = { d, s: t.s }; } l.lab = best && best.s; l.dir = Math.abs(l.b[0] - l.a[0]) < Math.abs(l.b[1] - l.a[1]) ? 'v' : 'h'; }
-  return { E: keep, axes: AX.filter(l => l.lab), m: true, u, toPx: (x, y) => px(x / u, y / u), fromPx: (X, Y) => [(X / s + D.box[0]) * u, (D.box[3] - Y / s) * u], src: 'cad' };
+  // fils / axes : étiquettes (A, 1, FIL B…), bulles (cercles avec étiquette), lignes qui partent des bulles ou des calques d'axes
+  const sc2 = (q) => [q[0] * u, q[1] * u], len = (l) => Math.hypot(l.b[0] - l.a[0], l.b[1] - l.a[1]);
+  const lab = T.map(t => ({ ...t, lab: lvAxLab(t.s) })).filter(t => t.lab);
+  const bub = circ.map(c => ({ x: c.x * u, y: c.y * u, r: c.r * u })).filter(c => c.r >= 0.12 && c.r <= 1.6).map(c => { let b = null; for (const t of lab) { const d = Math.hypot(t.x - c.x, t.y - c.y); if (d < c.r * 1.6 && (!b || d < b.d)) b = { d, lab: t.lab }; } return b ? { ...c, lab: b.lab } : null; }).filter(Boolean);
+  const cand2 = [...axl.map(l => ({ a: sc2(l.a), b: sc2(l.b), lay: 1 })), ...lines.map(l => ({ a: sc2(l.a), b: sc2(l.b) }))].filter(l => len(l) > 3);
+  const AX = [];
+  for (const l of cand2) {
+    let best = null;
+    for (const c of bub) for (const q of [l.a, l.b]) { const d = Math.hypot(c.x - q[0], c.y - q[1]); if (d < c.r * 2.4 && (!best || d < best.d)) best = { d, s: c.lab }; }
+    if (!best && l.lay) for (const t of lab) for (const q of [l.a, l.b]) { const d = Math.hypot(t.x - q[0], t.y - q[1]); if (d < 2.5 && (!best || d < best.d)) best = { d, s: t.lab }; }
+    if (!best) continue;
+    l.lab = best.s; l.dir = Math.abs(l.b[0] - l.a[0]) < Math.abs(l.b[1] - l.a[1]) ? 'v' : 'h'; AX.push(l);
+  }
+  // un seul trait par fil (le plus long)
+  const byLab = {}; for (const l of AX) if (!byLab[l.lab] || len(l) > len(byLab[l.lab])) byLab[l.lab] = l;
+  return { E: keep, axes: Object.values(byLab), m: true, u, toPx: (x, y) => px(x / u, y / u), fromPx: (X, Y) => [(X / s + D.box[0]) * u, (D.box[3] - Y / s) * u], src: 'cad' };
 }
 // ---------- extraction : PDF / image (masses du dessin, textes enlevés quand c'est possible) ----------
 async function lvFromImage(plan, W, H, k, place, imgData) {
@@ -99,6 +114,17 @@ async function lvFromImage(plan, W, H, k, place, imgData) {
   return { E, axes: [], m: false, ref, toPx: (x, y) => [x, y], fromPx: (X, Y) => [X, Y], src: 'img' };
 }
 // ---------- calage ----------
+// PDF : les étiquettes des fils (A, B… 1, 2…) lues dans le texte du plan donnent le décalage entre les deux niveaux
+async function lvTextAxisMap(low, up, base) {
+  try { const [A, B] = await Promise.all([planTexts(low), planTexts(up)]); if (!A || !B) return null;
+    const la = A.map(t => ({ ...t, l: lvAxLab(t.s) })).filter(t => t.l), lb = B.map(t => ({ ...t, l: lvAxLab(t.s) })).filter(t => t.l);
+    const votes = new Map(), bin = Math.max(6, up.w / 400);
+    for (const a of la) for (const b of lb) { if (a.l !== b.l) continue; const ox = b.x - a.x * base.sx, oy = b.y - a.y * base.sy, k = `${Math.round(ox / bin)},${Math.round(oy / bin)}`; const v = votes.get(k) || { n: 0, labs: new Set(), ox: [], oy: [] }; v.labs.add(a.l); v.ox.push(ox); v.oy.push(oy); votes.set(k, v); }
+    let best = null; for (const v of votes.values()) if (!best || v.labs.size > best.labs.size) best = v;
+    if (!best || best.labs.size < 3) return null;
+    return { ...base, ox: lvMed(best.ox), oy: lvMed(best.oy), how: `fils ${[...best.labs].sort((x, y) => (isNaN(x) - isNaN(y)) || String(x).localeCompare(String(y), 'fr', { numeric: true })).slice(0, 12).join(',')}` };
+  } catch (e) { return null; }
+}
 const lvApply = (T, x, y) => [T.c * x - T.s * y + T.tx, T.s * x + T.c * y + T.ty];
 function lvInter(l1, l2) { const [x1, y1] = l1.a, [x2, y2] = l1.b, [x3, y3] = l2.a, [x4, y4] = l2.b, d = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4); if (Math.abs(d) < 1e-9) return null;
   const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / d; return [x1 + t * (x2 - x1), y1 + t * (y2 - y1)]; }
@@ -145,7 +171,7 @@ function lvMatch(A, B, T, m) {
   const dims = (e) => m ? (e.type === 'voile' || e.L > 1.2 ? `ép. ${Math.round(e.w * 100)} cm · L ${e.L.toFixed(2).replace('.', ',')} m` : e.nh > 10 && e.L / e.w < 1.15 ? `Ø${Math.round(e.L * 100)}` : `${Math.round(e.w * 100)}×${Math.round(e.L * 100)}`) : '';
   for (const c of cand) { if (ua.has(c.a.id) || ub.has(c.b.id)) continue; ua.add(c.a.id); ub.add(c.b.id);
     const { a, b } = c, dW = Math.abs(a.w - b.w), dL = Math.abs(a.L - b.L), d = Math.hypot(a.cx - b.cx, a.cy - b.cy);
-    const th = m ? { s: 0.03, p: 0.05 } : { s: ref * 0.18, p: ref * 0.35 }, chg = [];
+    const th = m ? { s: 0.03, p: 0.05 } : { s: ref * 0.12, p: ref * 0.3 }, chg = [];
     if (dW > th.s || dL > th.s) chg.push(m ? `${dims(a)} → ${dims(b)}` : (b.w * b.L > a.w * a.L ? 'plus grand' : 'plus petit'));
     // un voile raccourci bouge son centre : seul compte le décalage de travers (ou au-delà du raccourcissement)
     let dm = d; if (b.L / Math.max(b.w, 1e-6) >= 2.5) { const nx = -Math.sin(b.ang), ny = Math.cos(b.ang), vx = b.cx - a.cx, vy = b.cy - a.cy, perp = Math.abs(vx * nx + vy * ny), par = Math.abs(vx * ny - vy * nx); dm = Math.max(perp, par - dL / 2 - th.s); }
@@ -164,7 +190,8 @@ async function openLevelCompare(low, up, opts = {}) {
   try {
     if ((low.dwgFileId || low.dxfFileId) && (up.dwgFileId || up.dxfFileId)) { [A, B] = await Promise.all([lvFromCad(low), lvFromCad(up)]); }
     if (!A || !B || A.E.length < 2 || B.E.length < 2) {   // PDF / image : dans le repère du nouveau plan (recalage par les textes au départ)
-      const M = await planAlignMap(low, up), k = Math.min(1, 2600 / Math.max(up.w, up.h)), W = Math.round(up.w * k), H = Math.round(up.h * k);
+      const M0 = await planAlignMap(low, up), MA = await lvTextAxisMap(low, up, M0), M = MA || M0, k = Math.min(1, 2600 / Math.max(up.w, up.h)), W = Math.round(up.w * k), H = Math.round(up.h * k);
+      if (MA) how = MA.how;
       const place = { x: M.ox * k, y: M.oy * k, w: low.w * M.sx * k, h: low.h * M.sy * k };
       const [ia, ib] = await Promise.all([planImageData(low, W, H, place), planImageData(up, W, H)]);
       [A, B] = await Promise.all([lvFromImage(low, W, H, k, place, ia), lvFromImage(up, W, H, k, null, ib)]);
@@ -172,7 +199,9 @@ async function openLevelCompare(low, up, opts = {}) {
     ld.set('Calage par les fils et les axes…');
     const m = A.m && B.m, tol = m ? 0.15 : (B.ref || 10) * 0.7;
     const ax = m ? lvAxisCal(A, B) : null;
-    if (ax && !ax.partial) { T = ax; how = ax.how; }
+    if (ax && !ax.partial) { T = ax; how = ax.how.replace(/^axes/, 'fils'); }
+    else if (!m && how) {   // PDF déjà calé par les fils : on n'accepte qu'un petit affinage
+      let v = lvVoteCal(A, B, tol, null); if (v && Math.hypot(v.tx, v.ty) > (B.ref || 10) * 3) v = null; T = v || { c: 1, s: 0, tx: 0, ty: 0 }; if (v && Math.hypot(v.tx, v.ty) > 1) how += ' + affinage'; }
     else { const v = lvVoteCal(A, B, tol, ax && ax.partial ? ax : null); T = v || { c: 1, s: 0, tx: 0, ty: 0 }; how = ax ? ax.how + ' + ' + (v ? v.how : '') : v ? v.how : 'sans calage'; }
   } catch (e) { ld.close(); console.error(e); return alertBox('Comparaison impossible : ' + (e.message || e)); }
   ld.close();
