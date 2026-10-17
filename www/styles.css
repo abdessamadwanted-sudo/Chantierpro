@@ -1943,5 +1943,5 @@ body:has(.splash.brief) .sheet-bg { z-index: 10070; }
 @keyframes lvsP { 50% { opacity: .6; } }
 .lvs-bar { flex: none; background: var(--bg); padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 6px; }
 .lvs-op { width: 100%; accent-color: #f97316; }
-.lvs-nav { display: flex; align-items: center; gap: 8px; } .lvs-nav .btn { margin-left: auto; } .lvs-nav .iconbtn:disabled { opacity: .3; }
+.lvs-nav { display: flex; align-items: center; gap: 8px; } .lvs-nav { justify-content: space-between; } .lvs-nav .iconbtn:disabled { opacity: .3; }
 .lvs-dots { display: flex; gap: 5px; } .lvs-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); } .lvs-dots i.on { background: #f97316; width: 20px; border-radius: 4px; }

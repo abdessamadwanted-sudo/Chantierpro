@@ -101,6 +101,9 @@ const TXT_LBL = { mod: '✏️ Modifié', add: '🟢 Ajouté', del: '🔴 Suppri
 const txtLine = (c) => c.t === 'mod' ? `« ${c.a} » → « ${c.b} »` : c.t === 'add' ? `« ${c.b} »` : `« ${c.a} »`;
 
 // ---------- Rendu net d'une zone d'un plan (PDF vectoriel si possible, sinon image pleine résolution) ----------
+// images décodées gardées pour le rendu net (les deux derniers plans seulement : mémoire du téléphone)
+const _rprC = [];
+async function rprImg(fileId) { let e = _rprC.find(x => x.id === fileId); if (!e) { e = { id: fileId, p: fileURL(fileId).then(loadImage) }; _rprC.push(e); if (_rprC.length > 2) _rprC.shift(); } return e.p; }
 async function renderPlanRegion(plan, P, x0, y0, w, h, outW, outH, M, gpu) {
   const c = document.createElement('canvas'); c.width = outW; c.height = outH;
   const g = c.getContext('2d', gpu ? {} : { willReadFrequently: true }); g.fillStyle = '#fff'; g.fillRect(0, 0, outW, outH);
@@ -113,7 +116,7 @@ async function renderPlanRegion(plan, P, x0, y0, w, h, outW, outH, M, gpu) {
     const c0 = Math.cos(M.rot || 0), s0 = Math.sin(M.rot || 0);
     await P.page.render({ canvasContext: g, viewport: vp, transform: [c0, s0, -s0, c0, -ox, -oy], background: 'white' }).promise;
   } else {
-    const src = await fileURL(plan.fileId); const img = await loadImage(src);
+    const img = await rprImg(plan.fileId);
     if (M.rot) { g.save(); g.translate((M.ox - x0) * s, (M.oy - y0) * s); g.rotate(M.rot); g.drawImage(img, 0, 0, plan.w * M.sx * s, plan.h * M.sy * s); g.restore(); }
     else g.drawImage(img, (x0 - M.ox) / M.sx, (y0 - M.oy) / M.sy, w / M.sx, h / M.sy, 0, 0, outW, outH);
   }
