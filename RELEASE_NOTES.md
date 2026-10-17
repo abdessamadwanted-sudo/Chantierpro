@@ -1,14 +1,4 @@
 ## Nouveautés
-- **Premier démarrage : service → poste** (Travaux, Qualité, Laboratoire, HSE, Études & méthodes, Logistique, Administration & finance, Externes) : chacun a son espace, son menu, son briefing et ses droits (consulter · modifier · valider). À changer dans ⋮ › Mon compte
-- **Packs** Découverte · Essentiel · Pro · Entreprise : ce qui n'est pas inclus apparaît avec 🔒 et se demande en un geste
-- **Organigramme dessiné** (zoom, branches pliables, N+1, intérim) + export PDF A4/A3 et image
-- **Réunions de chantier** : compte rendu, présents, actions (qui / quand) → PDF et WhatsApp, actions rappelées au briefing
-- **RFI** (demandes au BET / architecte), **Visas des documents** et **bordereaux d'envoi** (les PV reçus s'y ajoutent et passent « livrés »)
-- **Planning Gantt** : prévu / réel / retard, lots TCE importés, fin du marché recalculée avec avenants et OS
-- **Pointage de la main d'œuvre** : ✓ ½ ✗ par jour, semaine validée par le responsable, coût envoyé au Financier
-- **Laboratoire** : éprouvettes, slump, essais (sols, granulats, aciers) · **HSE** : causeries, EPI, accidents, permis, jours sans accident
-- **Avenants & ordres de service** (statuts, délais) · **Sous-traitants** : contrat, situations, paiements, retenue, assurance, notes
-- **Validations** : circuit vers le responsable, carte « À valider » au briefing (rouge après 48 h)
-- **Tableau de bord** : indicateurs selon votre poste · menu latéral rangé par groupes
-- **Briefing** : notes visibles, cartes alignées, ouverture en 3D, retour au même endroit, « Marquer livrés jusqu'au… »
-- **Comparer deux niveaux** : seulement la structure (voiles, poteaux, corbeaux…), les textes et les cotes sont ignorés
+- **Comparer deux niveaux, élément par élément** : poteaux, voiles, corbeaux reconnus un par un ; calage par les fils et axes (A, B… / 1, 2…) même si le niveau est dessiné ailleurs, sinon par la trame des poteaux, ou 🎯 manuel ; résultat : nouveau · s'arrête · modifié (section 30×30 → 25×25, longueur du voile, déplacement) ; textes et cotes ignorés ; liste par type, zoom sur chaque élément, PDF et Excel
+- **Licences** : la personne reçoit toutes les fonctions ; chaque fonction s'active / se désactive avec un interrupteur coloré. Le titulaire peut tout faire sur son compte
+- **Accueil** : le projet touché monte en haut pour voir tout son détail ; le poste s'affiche (il ne se change plus depuis l'accueil)

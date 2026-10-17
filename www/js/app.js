@@ -136,7 +136,7 @@ async function renderHome() {
           <button class="iconbtn h2-emo off" data-a="freeph" title="Stockage">🧹</button>
           <button class="iconbtn h2-quit" data-a="quit" title="Fermer (appui long : verrouiller)">${icon('power')}</button>
           <button class="iconbtn" data-a="homemore">${icon('more')}</button></div></div>
-        ${(() => { const r = applyRoleColor(), R = r && roleOf(r); return R ? `<button class="h2-role" data-a="role">${R.e} ${esc(R.n.split(' / ')[0])}</button>` : ''; })()}
+        ${(() => { const P = Org.poste(); if (P) { Org.apply(); return `<span class="h2-role" title="Vous êtes connecté comme">${P.svc.e} ${esc(P.n)}</span>`; } const r = applyRoleColor(), R = r && roleOf(r); return R ? `<button class="h2-role" data-a="role">${R.e} ${esc(R.n.split(' / ')[0])}</button>` : ''; })()}
         <div class="h2-hello" data-a="uname">${tr(hello)}${uname ? (Lang.cur === 'ar' ? '، ' : ', ') + esc(uname) : ''} 👷</div>
         <div class="h2-phrase">${phrase}</div>
         <div class="h2-date">${dateL.charAt(0).toUpperCase() + dateL.slice(1)}</div>
@@ -179,7 +179,10 @@ async function renderHome() {
   const fpb = $('[data-a=freeph]'); fpb.onclick = () => openStorage();
   photoReminder().then(r => { if (!r || App.project || !fpb.isConnected) return; fpb.classList.remove('off'); fpb.title = `${r.n} photos déjà dans Drive · libérer ${r.mb.toFixed(0)} Mo`; fpb.insertAdjacentHTML('beforeend', `<i class="h2-badge y">${r.n > 99 ? '99+' : r.n}</i>`); }).catch(() => {});
   if (keepScroll) { const hb = $('.h2-body'); if (hb) hb.scrollTop = keepScroll; }
-  $$('.h2-card[data-id]').forEach(r => r.onclick = async (e) => { const pv = e.target.closest('[data-pvgo]'); if (pv) { await openProject(await DB.get('projects', pv.dataset.pvgo)); return goMissingPv(); } App.homeOpen[r.dataset.id] = !App.homeOpen[r.dataset.id]; renderHome(); });
+  $$('.h2-card[data-id]').forEach(r => r.onclick = async (e) => { const pv = e.target.closest('[data-pvgo]'); if (pv) { await openProject(await DB.get('projects', pv.dataset.pvgo)); return goMissingPv(); } const id = r.dataset.id; App.homeOpen[id] = !App.homeOpen[id]; await renderHome();
+    // le projet ouvert monte en haut de l'écran (sous l'en-tête) pour voir tout son détail
+    if (App.homeOpen[id]) { const hb = $('.h2-body'), c = $(`.h2-card[data-id="${id}"]`); if (hb && c) { const top = c.getBoundingClientRect().top - hb.getBoundingClientRect().top + hb.scrollTop - 8;
+      const need = top + hb.clientHeight - hb.scrollHeight; if (need > 0) hb.style.setProperty("padding-bottom", `calc(150px + ${need}px)`, "important"); requestAnimationFrame(() => hb.scrollTo({ top, behavior: 'smooth' })); } } });
   $$('[data-open]').forEach(b => b.onclick = async () => openProject(await DB.get('projects', b.dataset.open)));
   $$('[data-go]').forEach(b => b.onclick = async () => {
     const [pid, where] = b.dataset.go.split('|'); const p = await DB.get('projects', pid);
@@ -209,7 +212,6 @@ async function renderHome() {
       { title: 'Mon compte', color: '#3b82f6', items: [
         { label: 'Mon prénom', sub: uname || 'pour les messages d\'accueil', icon: 'edit', value: 'name' },
         { label: 'Mon service et mon poste', sub: Org.label() || 'à choisir', icon: 'users', value: 'poste' },
-        { label: 'Packs', sub: 'comparer · demander un pack', icon: 'lock', value: 'packs' },
         ...(LI.mode === 'user' && (LI.team || []).length ? [{ label: `Mon équipe (${LI.team.length})`, sub: 'suivi', icon: 'team', value: 'team' }] : []),
         LI.mode === 'user' ? { label: 'Partage de suivi', sub: `${LI.ownerName || 'titulaire de la licence'} · lecture seule`, icon: 'team', value: 'licinfo' } : { label: 'Licences', sub: 'partager l\'application', icon: 'team', value: 'lic' }] },
       { title: 'Apparence', color: '#a855f7', items: [

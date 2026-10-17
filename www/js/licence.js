@@ -191,11 +191,11 @@ async function openLicences() {
     const r = await formSheet('Nouvelle licence', [{ name: 'name', label: 'Pour qui ?', placeholder: 'Ex : Youssef' }, { name: 'email', label: 'Son adresse Gmail (le code lui sera lié)', type: 'email', placeholder: 'youssef@gmail.com' }, { name: 'd', label: 'Durée', type: 'select', value: '0', options: DUR.map(([v, l]) => ({ value: v, label: l })) },
       { name: 'me', label: 'Votre nom (affiché à l\'activation)', value: localStorage.getItem('userName') || '' },
       { name: 'role', label: 'Rôle (métier)', type: 'select', value: 'chef', options: ROLES.map(x => ({ value: x.k, label: `${x.e} ${x.n}` })) },
-      { name: 'pack', label: 'Pack', type: 'select', value: 'pro', options: PACKS.map(x => ({ value: x.k, label: `${x.n} — ${x.d}` })) },
-      { name: 'f', label: 'Fonctions', type: 'select', value: 'auto', options: [{ value: 'auto', label: 'Selon le rôle et le pack' }, { value: 'all', label: 'Toutes les fonctions' }, { value: 'pick', label: 'Choisir une par une…' }] }], { okLabel: 'Créer' });
+      { name: 'f', label: 'Fonctions', type: 'select', value: 'all', options: [{ value: 'all', label: 'Toutes les fonctions (activées)' }, { value: 'pick', label: 'Activer / désactiver une par une…' }] }], { okLabel: 'Créer' });
     if (!r || !r.name) return;
-    let features = r.f === 'all' ? null : featuresFor(r.role, r.pack);
-    if (r.f === 'pick') { features = await editLicFeatures({ name: r.name, features }); if (!features) return; }
+    r.pack = 'entreprise';   // tout est inclus ; le titulaire active / désactive chaque fonction
+    let features = null;
+    if (r.f === 'pick') { features = await editLicFeatures({ name: r.name, features: {} }); if (!features) return; }
     const code = licCode(), L = { features, block: await licOwnerBlock(), name: r.name, email: (r.email || '').trim().toLowerCase() || null, role: r.role, pack: r.pack, ownerUid: user.uid, ownerName: r.me || '', status: 'active', expires: +r.d ? Date.now() + (+r.d) * 864e5 : null, device: null, accepted: false, createdAt: ts() };
     const ld = loading('Création…'); try { await licTimeout(fs.collection('licences').doc(code).set(L)); } catch (e) { ld.close(); return alertBox(e.code === 'permission-denied' ? 'Accès refusé : mettez à jour les règles Firestore (voir les instructions).' : (e.message || e)); } ld.close();
     const v = await menu(`Code : ${code}`, [...(L.email ? [{ label: `Envoyer par Gmail à ${L.email}`, icon: 'external', value: 'mail' }] : []), { label: 'Envoyer par WhatsApp (lien + code)', icon: 'share', value: 'wa' }, { label: 'Copier le code', icon: 'file', value: 'cp' }, { label: 'Fermer', icon: 'check', value: 'ok' }]);
@@ -206,9 +206,9 @@ async function openLicences() {
     const ref = fs.collection('licences').doc(L.code);
     const v = await menu(`${L.name} · ${L.code}`, [
       { label: 'Voir ses projets (suivi)', icon: 'layers', value: 'see' },
-      { label: 'Fonctions autorisées (ce qu\'il voit)', icon: 'grid', value: 'feat' },
+      { label: 'Fonctions : activer / désactiver', icon: 'grid', value: 'feat' },
       { label: L.suiviPhotos === false ? '📷 Photos dans le suivi : non (activer)' : '📷 Photos dans le suivi : oui, 30 jours (désactiver)', icon: 'image', value: 'ph' },
-      { label: `Rôle et pack${L.role ? ' · ' + ((roleOf(L.role) || {}).n || '') : ''}`, icon: 'team', value: 'role' },
+      { label: `Rôle${L.role ? ' · ' + ((roleOf(L.role) || {}).n || '') : ''}`, icon: 'team', value: 'role' },
       { label: L.chef ? `Rattaché à : ${(list.find(x => x.code === L.chef) || {}).name || L.chef} (changer)` : 'Rattacher à un chef (équipe)…', icon: 'layers', value: 'chef' },
       L.status === 'active' ? { label: 'Suspendre (temporaire)', icon: 'calendar', value: 'disable' } : { label: 'Réactiver', icon: 'check', value: 'enable' },
       { label: 'Prolonger / changer la durée', icon: 'calendar', value: 'exp' },
@@ -222,8 +222,8 @@ async function openLicences() {
       if (v === 'feat') { const f = await editLicFeatures(L); if (!f) return; await ref.update({ features: f }); }
       if (v === 'ph') await ref.update({ suiviPhotos: L.suiviPhotos === false });
       if (v === 'role') {
-        const r = await formSheet(`Rôle et pack · ${L.name}`, [{ name: 'role', label: 'Rôle', type: 'select', value: L.role || 'chef', options: ROLES.map(x => ({ value: x.k, label: `${x.e} ${x.n}` })) }, { name: 'pack', label: 'Pack', type: 'select', value: L.pack || 'pro', options: PACKS.map(x => ({ value: x.k, label: `${x.n} — ${x.d}` })) }], { okLabel: 'Appliquer (fonctions selon le rôle)' });
-        if (r) await ref.update({ role: r.role, pack: r.pack, features: featuresFor(r.role, r.pack) });
+        const r = await formSheet(`Rôle · ${L.name}`, [{ name: 'role', label: 'Rôle', type: 'select', value: L.role || 'chef', options: ROLES.map(x => ({ value: x.k, label: `${x.e} ${x.n}` })) }], { okLabel: 'Appliquer' });
+        if (r) await ref.update({ role: r.role });   // le rôle ne retire aucune fonction : elles se règlent avec les interrupteurs
       }
       if (v === 'chef') {
         const chefs = list.filter(x => x.code !== L.code && (roleOf(x.role) || {}).team);

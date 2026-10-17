@@ -38,27 +38,30 @@ function featOn(k) { return featAllowed(k) && myFeatures()[k] !== false; }
 function sectionOn(key) { const f = SECTION_FEATURE[key]; return !f || featOn(f); }
 
 // choix des fonctions affichées sur ce téléphone
+// feuille d'interrupteurs colorés (activer / désactiver chaque fonction) → renvoie le nouvel état ou null
+function featToggles(title, state, keys, { sub } = {}) {
+  return new Promise((resolve) => {
+    const f = { ...state }; let res = null;
+    const ICO = { avancement: '🏗️', reception: '🔩', tasks: '⚠️', photos: '📷', forms: '📋', reports: '📝', constat: '🚫', clauses: '📚', models3d: '🧊', calc: '📐', gestion: '📦', planning: '📅', reunions: '🗓️', rfi: '❓', visa: '🛂', pointage: '👷', hse: '🦺', labo: '🧪', finance: '💰', tce: '🏢', st: '🤝', org: '👥', career: '💼' };
+    const body = () => `<div class="ft">${sub ? `<p class="ft-sub">${esc(sub)}</p>` : ''}<div class="ft-all"><button class="btn small ghost" data-all="1">Tout activer</button><button class="btn small ghost" data-all="0">Tout désactiver</button><span>${keys.filter(k => f[k] !== false).length} / ${keys.length}</span></div>
+      ${keys.map(k => `<button class="ft-r ${f[k] !== false ? 'on' : ''}" data-k="${k}"><span class="ft-e">${ICO[k] || '•'}</span><span class="grow">${esc((FEATURES.find(x => x[0] === k) || [k, k])[1])}</span><i class="ft-sw"><u></u></i></button>`).join('')}
+      <button class="btn ft-ok" data-ok>Enregistrer</button></div>`;
+    const s = sheet('<div class="ft-w"></div>', { title });
+    const w = $('.ft-w', s.el), bind = () => { w.innerHTML = body();
+      $$('[data-k]', w).forEach(b => b.onclick = () => { const k = b.dataset.k; f[k] = f[k] === false; b.classList.toggle('on', f[k] !== false); $('.ft-all span', w).textContent = `${keys.filter(k => f[k] !== false).length} / ${keys.length}`; try { navigator.vibrate && navigator.vibrate(8); } catch (e) {} });
+      $$('[data-all]', w).forEach(b => b.onclick = () => { keys.forEach(k => f[k] = b.dataset.all === '1'); bind(); });
+      $('[data-ok]', w).onclick = () => { res = f; s.close(); }; };
+    bind(); s.onClose = () => resolve(res);
+  });
+}
 async function chooseMyFeatures() {
-  const mine = myFeatures();
-  for (;;) {
-    const opts = FEATURES.filter(([k]) => featAllowed(k)).map(([k, l]) => ({ label: l, value: k, checked: mine[k] !== false }));
-    const v = await menu('Fonctions affichées (touchez pour activer / masquer)', [...opts, { label: 'Terminé', icon: 'check', value: '__ok' }]);
-    if (!v || v === '__ok') break;
-    mine[v] = mine[v] === false ? true : false;
-    try { localStorage.setItem('myFeatures', JSON.stringify(mine)); } catch (e) {}
-  }
+  const r = await featToggles('Fonctions affichées', myFeatures(), FEATURES.filter(([k]) => featAllowed(k)).map(([k]) => k), { sub: 'Masquez ce qui ne sert pas sur ce téléphone.' });
+  if (!r) return; try { localStorage.setItem('myFeatures', JSON.stringify(r)); } catch (e) {}
   if (App.project) renderSection(); else renderHome();
 }
-
 // éditeur des fonctions d'une licence (propriétaire) → renvoie l'objet features ou null
 async function editLicFeatures(L) {
-  const f = { ...(L.features || {}) };
-  for (;;) {
-    const v = await menu(`Fonctions de ${L.name || 'la licence'}`, [...FEATURES.map(([k, l]) => ({ label: l, value: k, checked: f[k] !== false })), { label: 'Enregistrer', icon: 'check', value: '__ok' }]);
-    if (!v) return null;
-    if (v === '__ok') return f;
-    f[v] = f[v] === false ? true : false;
-  }
+  return featToggles(`Fonctions de ${L.name || 'la licence'}`, L.features || {}, FEATURES.map(([k]) => k), { sub: 'Vert = activé pour cette personne. Vous pouvez changer à tout moment.' });
 }
 
 // ---------- Mises à jour (sans désinstaller : même signature, les données restent) ----------

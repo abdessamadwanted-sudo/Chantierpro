@@ -1833,3 +1833,24 @@ tr.addrow .addrow-in button + button { margin-left: 0; }
 #toast.act { width: min(420px, calc(100vw - 32px)); justify-content: space-between; text-align: left; } .toast-act { flex: none; }
 .rg-wrap { padding: 0 14px 14px; }
 .pk { padding: 0 14px 14px; }
+/* comparaison des niveaux par éléments */
+.lvc .lv-how { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lvc .lv-bg { opacity: .32; filter: grayscale(1); }
+.lvc .av-view { background: #fff; position: relative; }
+.lv-types { overflow-x: auto; flex-wrap: nowrap; } .lv-types button { flex: none; }
+.lv-tip { position: absolute; left: 12px; right: 12px; top: 10px; padding: 9px 12px; border-radius: 12px; background: rgba(15,23,42,.92); color: #fff; font-size: 13.5px; display: none; pointer-events: none; z-index: 2; } .lv-tip small { color: #cbd5e1; }
+.lv-leg { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 10px calc(10px + var(--safe-bottom)); background: var(--card); }
+.lv-leg button[data-s] { display: inline-flex; align-items: center; gap: 6px; padding: 6px 9px; border-radius: 999px; background: var(--card2); font-size: 12.5px; font-weight: 600; } .lv-leg button.off { opacity: .4; text-decoration: line-through; }
+.lv-leg i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; } .lv-leg .btn { margin-left: auto; }
+.cmp-it .k { color: #fff; }
+.cmp-it .grow { display: grid; text-align: left; } .cmp-it .grow small { color: var(--muted); font-size: 12px; }
+/* interrupteurs des fonctions */
+.ft-w { padding: 0 14px 14px; } .ft { display: grid; gap: 6px; } .ft-sub { margin: 0 0 4px; color: var(--muted); font-size: 13px; }
+.ft-all { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; } .ft-all span { margin-left: auto; font-weight: 700; color: var(--muted); font-size: 13px; }
+.ft-r { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: var(--card2); border: 1px solid var(--line); text-align: left; transition: background .2s, border-color .2s; }
+.ft-r .grow { flex: 1; font-size: 14px; } .ft-e { font-size: 18px; width: 24px; text-align: center; filter: grayscale(1); opacity: .6; transition: .2s; }
+.ft-r.on { background: color-mix(in srgb, #22c55e 14%, var(--card2)); border-color: color-mix(in srgb, #22c55e 45%, transparent); } .ft-r.on .ft-e { filter: none; opacity: 1; }
+.ft-sw { flex: none; width: 44px; height: 26px; border-radius: 13px; background: #475569; position: relative; transition: background .2s; }
+.ft-sw u { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .2s; }
+.ft-r.on .ft-sw { background: #22c55e; } .ft-r.on .ft-sw u { transform: translateX(18px); }
+.ft-ok { margin-top: 6px; height: 48px; }

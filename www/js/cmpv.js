@@ -358,5 +358,5 @@ async function levelCompareFrom(plan) {
   let low = plan, up = other;
   if (rm != null && ro != null) { if (ro < rm) { low = other; up = plan; } }
   else { const v = await menu('Lequel est en dessous ?', [{ label: `${niv(plan) || plan.name} (dessous)`, value: 'a' }, { label: `${niv(other) || other.name} (dessous)`, value: 'b' }]); if (!v) return; if (v === 'b') { low = other; up = plan; } }
-  return openPlanCompare(low, up, { levels: true, la: niv(low) || low.name, lb: niv(up) || up.name });
+  return openLevelCompare(low, up, { la: niv(low) || low.name, lb: niv(up) || up.name });
 }

@@ -70,11 +70,13 @@ const Org = {
   // niveau d'accès d'une fonction : 'see' (visible), 'edit' (modifier), 'valid' (valider)
   can(f, lvl = 'edit') {
     const P = Org.poste(); if (!P || !f) return true;
+    if (lvl !== 'see' && Org.owner()) return true;   // le titulaire peut tout faire sur son compte
     const vis = P.f === ALL_F || P.f.includes(f);
     if (lvl === 'see') return vis;
     if (lvl === 'edit') return vis && !(P.ro || []).includes(f);
     return P.va === ALL_F || (P.va || []).includes(f);
   },
+  owner() { const L = (typeof Lic !== 'undefined' && Lic.get()) || {}; return L.mode === 'owner'; },
   apply() { const P = Org.poste(); if (P) document.documentElement.style.setProperty('--role', P.svc.c); },
   label() { const P = Org.poste(); return P ? `${P.svc.e} ${P.n}` : ''; },
 };
@@ -100,12 +102,12 @@ function orgOnboard(force) {
       if (step === 2) { const P = Org.poste(), fs = FEATURES.map(([k]) => k).filter(k => P.f === ALL_F || P.f.includes(k));
         el.innerHTML = `<div class="ob-in">${dots(2)}<button class="ob-back" data-b>${icon('back')}</button><h1>Votre espace est prêt ✓</h1><p>${P.svc.e} <b>${esc(P.n)}</b> · ${esc(P.svc.n)}</p>
           <div class="ob-sum">${fs.map(k => `<div class="${featAllowed(k) ? '' : 'lk'}"><span>${featAllowed(k) ? (orgEdit(k) ? '✓' : '👁') : '🔒'}</span>${esc(featName(k))}${orgValid(k) && P.va !== ALL_F ? ' <i>valide</i>' : ''}</div>`).join('')}</div>
-          <small class="ob-leg">✓ modifier · 👁 consulter · 🔒 dans un autre pack · <i>valide</i> = vous validez</small>
+          <small class="ob-leg">✓ modifier · 👁 consulter · 🔒 désactivé par le titulaire · <i>valide</i> = vous validez</small>
           <button class="btn ob-go" data-go>Entrer ›</button></div>`; }
       $$('[data-s]', el).forEach(b => b.onclick = () => { const n = $('.ob-name input', el); if (n) try { localStorage.setItem('userName', n.value.trim()); localStorage.setItem('askedName', '1'); } catch (e) {} svc = svcOf(b.dataset.s); step = 1; draw(); });
       $$('[data-p]', el).forEach(b => b.onclick = () => { const P = posteOf(b.dataset.p);
         Org.set({ service: svc.k, poste: P.k, at: todayISO() });
-        try { localStorage.setItem('myFeatures', JSON.stringify(Object.fromEntries(FEATURES.map(([k]) => [k, P.f === ALL_F || P.f.includes(k)])))); } catch (e) {}
+        if (!Org.owner()) try { localStorage.setItem('myFeatures', JSON.stringify(Object.fromEntries(FEATURES.map(([k]) => [k, P.f === ALL_F || P.f.includes(k)])))); } catch (e) {}
         step = 2; draw(); });
       const bk = $('[data-b]', el); if (bk) bk.onclick = () => { step--; draw(); };
       const x = $('[data-x]', el); if (x) x.onclick = () => { el.remove(); resolve(); };
@@ -143,10 +145,16 @@ function drawerSections(itemHtml) {
 }
 function drawerGroupsBind(d, close) {
   $$('[data-gt]', d).forEach(b => b.onclick = () => { const g = b.parentElement, o = !g.classList.contains('open'); g.classList.toggle('open', o); try { localStorage.setItem('dr.g.' + b.dataset.gt, o ? '1' : '0'); } catch (e) {} });
-  $$('[data-lock]', d).forEach(b => b.onclick = () => { close(); openPacks(b.dataset.lock); });
+  $$('[data-lock]', d).forEach(b => b.onclick = () => { close(); featLocked(b.dataset.lock); });
 }
 
-// ---------- packs : comparer et demander ----------
+// fonction désactivée par le titulaire de la licence : on peut lui demander de l'activer
+async function featLocked(f) {
+  const L = (typeof Lic !== 'undefined' && Lic.get()) || {};
+  const v = await menu(`🔒 « ${featName(f)} » est désactivé pour votre compte.\n${L.ownerName || 'Le titulaire de la licence'} peut l'activer.`, [{ label: 'Demander l\'activation (WhatsApp)', icon: 'share', value: 'wa' }, { label: 'Fermer', icon: 'close', value: 'x' }]);
+  if (v === 'wa') openUrl('https://wa.me/?text=' + encodeURIComponent(`Bonjour${L.ownerName ? ' ' + L.ownerName : ''}, pouvez-vous activer « ${featName(f)} » sur mon application Chantier ?${L.code ? '\nMon code : ' + L.code : ''}`));
+}
+// ---------- packs : comparer et demander (pour plus tard) ----------
 function openPacks(feat) {
   const L = (typeof Lic !== 'undefined' && Lic.get()) || {}, cur = L.mode === 'owner' ? 'entreprise' : L.pack || (L.mode === 'user' ? 'pro' : 'entreprise');
   const has = (P, k) => !P.f || P.f.includes(k);
