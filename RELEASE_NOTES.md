@@ -1,4 +1,5 @@
 ## Nouveautés
+- **Briefing** : « PV à livrer au BET » = seulement les ouvrages réceptionnés dont le PV n'est pas encore livré (la carte Bétonnage est retirée)
 - **Financier** (menu principal) : marché + avenants, dépenses par catégorie, factures fournisseurs (à payer / en retard), encaissements, situations, marge estimée — sections dépliables + **export Excel (.xlsx)**
 - **TCE** (menu principal) : un volet par lot (entreprise, contact, montant, dates, avancement %, statut, réserves), liste des lots types, historique d'avancement + **export Excel**
 - **Ouverture** : bouton ⏻ au centre, puis **Briefing du jour** interactif (notes à cocher, rappels, tâches, PV à livrer au BET, réception / bétonnage, échéances, labo, stock) — horaires matin / soir avec ou sans son (⋮ › Écran d'ouverture)

@@ -11,13 +11,13 @@ async function briefingData() {
   const rap = ps.flatMap(p => (p.rappels || []).filter(x => !x.done && (!x.at || x.at.slice(0, 10) <= today)).map(x => ({ pid: p.id, label: x.text, sub: `${p.name}${x.at ? ' · ' + fmtDate(x.at.slice(0, 10)) : ''}`, late: x.at && x.at.slice(0, 10) < today })));
   if (rap.length) C.push({ k: 'rap', e: '🔔', t: 'Rappels du jour', c: '#f59e0b', n: rap.length, items: rap, alert: rap.some(x => x.late) });
   // PV à livrer au BET (ouvrages réceptionnés dont le PV n'est pas encore livré), du plus ancien au plus récent
-  const pv = recs.filter(d => kindOf(d) === 'Ferraillage').flatMap(d => (d.rows || []).filter(r => r.element && r.status !== 'pending' && !r.pvLivre).map(r => ({ pid: d.projectId, did: d.id, rid: r.id, date: d.date, label: `${r.niv ? r.niv + ' · ' : ''}${r.element}`, sub: `${fmtDate(d.date)} · ${r.pvRecu || r.pvExist ? 'PV reçu, à livrer' : 'PV pas encore reçu'}`, recu: !!(r.pvRecu || r.pvExist) }))).sort((a, b) => a.date.localeCompare(b.date));
+  const pv = recs.filter(d => kindOf(d) === 'Ferraillage').flatMap(d => (d.rows || []).filter(r => r.element && (!r.status || r.status === 'ok' || r.status === 'reserve') && !r.pvLivre).map(r => ({ pid: d.projectId, did: d.id, rid: r.id, date: d.date, label: `${r.niv ? r.niv + ' · ' : ''}${r.element}`, sub: `${fmtDate(d.date)} · ${r.pvRecu || r.pvExist ? 'PV reçu, à livrer' : 'PV pas encore reçu'}`, recu: !!(r.pvRecu || r.pvExist) }))).sort((a, b) => a.date.localeCompare(b.date));
   if (pv.length) C.push({ k: 'pv', e: '📋', t: 'PV à livrer au BET', c: '#ef4444', n: pv.length, items: pv, alert: pv.some(x => daysSince(x.date) >= 3) });
   // tâches / réserves
   const tk = tasks.filter(t => !isLifted(t)).map(t => ({ pid: t.projectId, label: `#${t.num || ''} ${t.title || ''}`, sub: `${P(t.projectId).name || ''}${t.due ? ' · échéance ' + fmtDate(t.due) : ''}`, late: isLate(t) })).sort((a, b) => b.late - a.late);
   if (tk.length) C.push({ k: 'tasks', e: '⚠️', t: 'Tâches / réserves', c: '#fb923c', n: tk.length, items: tk, alert: tk.some(x => x.late), sub: tk.filter(x => x.late).length ? `${tk.filter(x => x.late).length} en retard` : '' });
-  // réception et bétonnage du jour
-  for (const [k, kind, e, t, c] of [['rec', 'Ferraillage', '🔩', 'Réception du jour', '#3b82f6'], ['bet', 'Bétonnage', '🧱', 'Bétonnage du jour', '#64748b']]) {
+  // réception du jour (le bétonnage n'est pas rappelé ici)
+  for (const [k, kind, e, t, c] of [['rec', 'Ferraillage', '🔩', 'Réception du jour', '#3b82f6']]) {
     const ds = recs.filter(d => d.date === today && kindOf(d) === kind && (d.rows || []).some(r => r.element));
     if (!ds.length) continue;
     const rows = ds.flatMap(d => d.rows.filter(r => r.element).map(r => ({ pid: d.projectId, did: d.id, label: `${r.niv ? r.niv + ' · ' : ''}${r.element}`, sub: r.status === 'ok' ? '✓ fait' : r.status === 'reserve' ? 'réserve' : 'en attente', done: r.status === 'ok' })));
