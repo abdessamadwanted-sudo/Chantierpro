@@ -95,7 +95,7 @@ function scanDocuments(files) {
       <div class="sc-hint">Ajustez les 4 coins sur les bords de la feuille</div>
       <div class="sc-stage"><canvas class="sc-cv"></canvas><svg class="sc-ov"></svg><canvas class="sc-loupe"></canvas></div>
       <div class="sc-bar"><div class="sc-f">${[['orig', 'Original'], ['doc', 'Document'], ['bw', 'Noir & blanc']].map(([k, l]) => `<button data-f="${k}">${l}</button>`).join('')}</div>
-        <div class="sc-act"><button data-a="prev">‹</button><button data-a="rot">↻ Pivoter</button><button data-a="full">⛶ Page entière</button><button data-a="auto">✨ Auto</button><button data-a="next">›</button></div></div>`;
+        <div class="sc-act"><button data-a="prev">‹</button><button data-a="rotl" title="Tourner à gauche"><svg class="i" viewBox="0 0 24 24"><path d="M3 4v5h5"/><path d="M3.5 9a9 9 0 1 1-.3 5"/></svg></button><button data-a="rot" title="Tourner à droite"><svg class="i" viewBox="0 0 24 24"><path d="M21 4v5h-5"/><path d="M20.5 9a9 9 0 1 0 .3 5"/></svg></button><button data-a="full">⛶ Page entière</button><button data-a="auto">✨ Auto</button><button data-a="next">›</button></div></div>`;
     const stage = $('.sc-stage', el), cv = $('.sc-cv', el), ov = $('.sc-ov', el), lp = $('.sc-loupe', el);
     let k = 1, ox = 0, oy = 0;
     const D = () => docs[i];
@@ -130,7 +130,9 @@ function scanDocuments(files) {
       g.strokeStyle = '#ef4444'; g.lineWidth = 2 * devicePixelRatio; g.beginPath(); g.moveTo(lp.width / 2, 0); g.lineTo(lp.width / 2, lp.height); g.moveTo(0, lp.height / 2); g.lineTo(lp.width, lp.height / 2); g.stroke();
     }
     $$('[data-f]', el).forEach(b => b.onclick = () => { filter = b.dataset.f; try { localStorage.setItem('scan.filter', filter); } catch (e) {} drawOv(); toast(b.textContent + ' — appliqué à l\'enregistrement'); });
-    $('[data-a=rot]', el).onclick = () => { D().rot = (D().rot + 1) % 4; toast(`Rotation ${D().rot * 90}°`); };
+    const rotV = () => { cv.style.transition = 'transform .25s'; cv.style.transform = `rotate(${D().rot * 90}deg)`; };
+    $('[data-a=rot]', el).onclick = () => { D().rot = (D().rot + 1) % 4; rotV(); };
+    $('[data-a=rotl]', el).onclick = () => { D().rot = (D().rot + 3) % 4; rotV(); };
     $('[data-a=full]', el).onclick = () => { const b = D().bmp; D().quad = [[0, 0], [b.width, 0], [b.width, b.height], [0, b.height]]; drawOv(); };
     $('[data-a=auto]', el).onclick = () => { D().quad = scanDetect(D().bmp); drawOv(); };
     $('[data-a=prev]', el).onclick = () => { if (i > 0) { i--; layout(); } };

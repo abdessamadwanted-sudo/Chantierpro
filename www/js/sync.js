@@ -384,6 +384,16 @@ function doPost(e) {
       const nf = folder.createFile(Utilities.newBlob(Utilities.base64Decode(d.b64), d.mime || 'application/octet-stream', d.name));
       return out({ ok: true, id: nf.getId() });
     }
+    if (d.action === 'ocr') {   // lecture d'une photo (OCR de Google Drive) → texte
+      const blob = Utilities.newBlob(Utilities.base64Decode(d.b64), d.mime || 'image/jpeg', 'pv.jpg'), tok = ScriptApp.getOAuthToken(), bd = 'chantierOcr' + Date.now();
+      const head = Utilities.newBlob('--' + bd + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify({ title: 'ocr-tmp', mimeType: 'application/vnd.google-apps.document' }) + '\r\n--' + bd + '\r\nContent-Type: ' + blob.getContentType() + '\r\n\r\n').getBytes();
+      const tail = Utilities.newBlob('\r\n--' + bd + '--').getBytes();
+      const r = UrlFetchApp.fetch('https://www.googleapis.com/upload/drive/v2/files?uploadType=multipart&ocr=true&ocrLanguage=fr', { method: 'post', contentType: 'multipart/related; boundary=' + bd, payload: head.concat(blob.getBytes()).concat(tail), headers: { Authorization: 'Bearer ' + tok }, muteHttpExceptions: true });
+      const id = JSON.parse(r.getContentText()).id; if (!id) return out({ ok: false, error: r.getContentText().slice(0, 200) });
+      const t = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + id + '/export?mimeType=text/plain', { headers: { Authorization: 'Bearer ' + tok }, muteHttpExceptions: true }).getContentText();
+      try { DriveApp.getFileById(id).setTrashed(true); } catch (e) {}
+      return out({ ok: true, text: t });
+    }
     if (d.action === 'download') {
       const b = DriveApp.getFileById(d.id).getBlob();
       return out({ ok: true, mime: b.getContentType(), b64: Utilities.base64Encode(b.getBytes()) });

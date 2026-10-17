@@ -79,10 +79,11 @@ const fmtDateTime = (t) => t ? new Date(t).toLocaleString('fr-FR', { day: '2-dig
 const todayISO = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 const isNative = () => !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 
-function toast(msg) {
+function toast(msg, opts = {}) {
   const t = $('#toast');
-  t.textContent = msg; t.classList.add('show');
-  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2200);
+  t.textContent = msg; t.classList.add('show'); t.classList.toggle('act', !!opts.action);
+  if (opts.action) { const b = document.createElement('button'); b.className = 'toast-act'; b.textContent = opts.action; b.onclick = (e) => { e.stopPropagation(); t.classList.remove('show'); clearTimeout(t._h); opts.onAction && opts.onAction(); }; t.appendChild(b); }
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), opts.ms || (opts.action ? 6000 : 2200));
 }
 
 function loading(msg = 'Chargement…') {
@@ -184,6 +185,39 @@ function pickFiles({ accept = 'image/*', multiple = true, capture = false } = {}
   });
 }
 
+// menu en groupes (titre de groupe, icône dans une pastille colorée, libellé + détail)
+function groupMenu(title, groups) {
+  return new Promise((resolve) => {
+    let v = null;
+    const s = sheet(`<div class="gm">${groups.filter(g => g.items.length).map(g => `<div class="gm-g">${esc(g.title)}</div><div class="gm-box">${g.items.map(it => `<button class="gm-i" ${it.value != null ? `data-v="${esc(it.value)}"` : 'disabled'}><span class="gm-ic" style="--c:${g.color}">${icon(it.icon)}</span><span class="grow"><b>${esc(it.label)}</b>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span>${it.value != null ? icon('chevright') : ''}</button>`).join('')}</div>`).join('')}</div>`, { title });
+    $$('[data-v]', s.el).forEach(b => b.onclick = () => { v = b.dataset.v; s.close(); });
+    s.onClose = () => resolve(v);
+  });
+}
+// choix de la source (Appareil photo · Photos · Fichiers) en cartes, comme les applis modernes
+function pickSource(title = 'Ajouter') {
+  return new Promise((resolve) => {
+    let v = null;
+    const s = sheet(`<div class="src-h"><b>${esc(title)}</b></div><div class="src-grid">
+      <button data-v="cam"><span class="src-ic">${icon('camera')}</span><span>Appareil photo</span></button>
+      <button data-v="gal"><span class="src-ic">${icon('image')}</span><span>Photos</span></button>
+      <button data-v="file"><span class="src-ic"><svg class="i" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 17v-6M9.5 13.5 12 11l2.5 2.5"/></svg></span><span>Fichiers</span></button></div>`, {});
+    s.el.classList.add('src-sheet');
+    $$('[data-v]', s.el).forEach(b => b.onclick = () => { v = b.dataset.v; s.close(); });
+    s.onClose = () => resolve(v);
+  });
+}
+// fichiers choisis → images (les PDF deviennent une image par page)
+async function pickImages(src) {
+  let files = await pickFiles({ accept: src === 'file' ? 'image/*,application/pdf' : 'image/*', multiple: src !== 'cam', capture: src === 'cam' });
+  const out = [];
+  for (const f of files) {
+    if (/pdf/i.test(f.type) || /\.pdf$/i.test(f.name)) { try { for (const pg of await pdfToImages(f, 2400)) out.push(new File([pg.blob], f.name.replace(/\.pdf$/i, '') + `_p${pg.page}.jpg`, { type: 'image/jpeg' })); } catch (e) { toast('PDF illisible'); } }
+    else out.push(f);
+  }
+  return out;
+}
+
 function loadImage(src) {
   return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; });
 }
@@ -267,7 +301,7 @@ function showGallery(items, start = 0, opts = {}) {
   let i = Math.max(0, Math.min(start, items.length - 1)), dx = 0, zoom = 1, px = 0, py = 0;
   const el = document.createElement('div');
   el.className = 'lightbox gallery g2';
-  el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1 class="gl-cap"></h1><span class="gl-n"></span>${items.some(x => x.fileId) ? `<button class="iconbtn" data-a="rot" title="Tourner">↻</button>` : ''}${opts.onDelete ? `<button class="iconbtn" data-a="gdel" title="Supprimer">${icon('trash')}</button>` : ''}</div>
+  el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1 class="gl-cap"></h1><span class="gl-n"></span>${items.some(x => x.fileId) ? `<button class="iconbtn" data-a="rotl" title="Tourner à gauche"><svg class="i" viewBox="0 0 24 24"><path d="M3 4v5h5"/><path d="M3.5 9a9 9 0 1 1-.3 5"/></svg></button><button class="iconbtn" data-a="rot" title="Tourner à droite"><svg class="i" viewBox="0 0 24 24"><path d="M21 4v5h-5"/><path d="M20.5 9a9 9 0 1 0 .3 5"/></svg></button>` : ''}${opts.onDelete ? `<button class="iconbtn" data-a="gdel" title="Supprimer">${icon('trash')}</button>` : ''}</div>
     <div class="g2-stage"><div class="g2-track"><div class="g2-s"><img draggable="false"></div><div class="g2-s"><img draggable="false"></div><div class="g2-s"><img draggable="false"></div></div></div>
     ${items.length > 1 ? `<div class="g2-strip">${items.map((it, k) => `<button data-k="${k}"><img data-k="${k}" alt=""></button>`).join('')}</div>` : ''}`;
   document.body.appendChild(el);
@@ -325,10 +359,19 @@ function showGallery(items, start = 0, opts = {}) {
   stage.addEventListener('pointerup', up); stage.addEventListener('pointercancel', up);
   $$('.g2-strip button', el).forEach(b => b.onclick = () => { i = +b.dataset.k; show(); });
   $$('.g2-strip img', el).forEach(im => { const it = items[+im.dataset.k]; if (it.fileId && window.Thumbs) Thumbs.get(it.fileId).then(u => { im.src = u || it.src; }); else im.src = it.src; });
-  const rb = $('[data-a=rot]', el); if (rb) rb.onclick = async () => {
+  // rotation instantanée à l'écran, enregistrée en arrière-plan (plusieurs appuis = une seule opération)
+  const rotPend = new Map();
+  const rot = (d) => {
     const it = items[i]; if (!it || !it.fileId) return;
-    const url = await rotateFile(it.fileId); if (url) { it.src = url; imgs[1].src = url; const t = $(`.g2-strip img[data-k="${i}"]`, el); if (t) t.src = url; }
+    const n = (rotPend.get(it) || { q: 0, t: 0 }); n.q += d; rotPend.set(it, n);
+    imgs[1].style.transition = 'transform .25s ease'; imgs[1].style.transform = `rotate(${n.q * 90}deg)`;
+    const th = $(`.g2-strip img[data-k="${i}"]`, el); if (th) { th.style.transition = 'transform .25s'; th.style.transform = `rotate(${n.q * 90}deg)`; }
+    clearTimeout(n.t); n.t = setTimeout(async () => { const q = n.q; rotPend.delete(it); const url = await rotateFile(it.fileId, q); if (!url) return; it.src = url;
+      const k = items.indexOf(it); if (k === i) { imgs[1].style.transition = 'none'; imgs[1].style.transform = ''; imgs[1].src = url; }
+      const t2 = $(`.g2-strip img[data-k="${k}"]`, el); if (t2) { t2.style.transition = 'none'; t2.style.transform = ''; t2.src = url; } }, 700);
   };
+  const rb = $('[data-a=rot]', el); if (rb) rb.onclick = () => rot(1);
+  const rl = $('[data-a=rotl]', el); if (rl) rl.onclick = () => rot(-1);
   window.addEventListener('resize', () => setT(false));
   show();
 }
@@ -495,12 +538,13 @@ const normQ = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').to
 const fuzzyHas = (text, q) => { const n = normQ(q); return !n || normQ(text).includes(n); };
 
 // Tourne une photo de 90° (sens horaire) et l'enregistre (renvoyée vers Drive à la prochaine synchro)
-async function rotateFile(id) {
+async function rotateFile(id, quarter = 1) {   // quarter : +1 = droite, -1 = gauche (cumulable)
+  const q = ((quarter % 4) + 4) % 4; if (!q) return '';
   const f = await DB.get('files', id); if (!f || !f.blob) return '';
-  const bmp = await createImageBitmap(f.blob);
-  const c = document.createElement('canvas'); c.width = bmp.height; c.height = bmp.width;
-  const g = c.getContext('2d'); g.translate(c.width / 2, c.height / 2); g.rotate(Math.PI / 2); g.drawImage(bmp, -bmp.width / 2, -bmp.height / 2);
-  f.blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.88)); f.mime = 'image/jpeg'; f.w = c.width; f.h = c.height;
+  const bmp = await createImageBitmap(f.blob), sw = q % 2 === 1;
+  const c = document.createElement('canvas'); c.width = sw ? bmp.height : bmp.width; c.height = sw ? bmp.width : bmp.height;
+  const g = c.getContext('2d'); g.translate(c.width / 2, c.height / 2); g.rotate(q * Math.PI / 2); g.drawImage(bmp, -bmp.width / 2, -bmp.height / 2); bmp.close && bmp.close();
+  f.blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9)); f.mime = 'image/jpeg'; f.w = c.width; f.h = c.height; c.width = c.height = 0;
   f.driveId = null; f.drivePath = null;
   BlobURL.drop(id); if (window.Thumbs) Thumbs.drop(id);
   await DB.put('files', f);

@@ -1,9 +1,12 @@
 ## Nouveautés
-- **Plans : sous-dossiers** — un niveau (ex : NIV R+3) peut contenir des dossiers dépliables (Plancher, Poteaux + voiles…), chacun avec ses plans ; ⋮ › Nouveau sous-dossier / Déplacer vers un autre niveau
-- **Thèmes** : Sakura 🌸, Lavande 💜, Pêche 🍑, Océan 🌊, Forêt 🌿, Sunset 🌅, Noir & Or 🖤 (⋮ › Apparence) + écran d'ouverture animé
-- **Plans AutoCAD** : zoom net en vectoriel, mesures (distance, surface, périmètre), calques, recherche de texte, PDF A0 → A4
-- **Partager un plan** : l'original ou un PDF annoté (dessins, couleurs, pins)
-- **Lots** : échéance du maître d'ouvrage (compte à rebours), points d'arrêt et points critiques
-- **Gestion** : stock et besoins, rendement des équipes, attachements et situations (PDF), labo (éprouvettes 7 j / 28 j), visites BET / BC, fiches matériaux
-- **Emploi** : sections dépliables, cartes de candidature à glisser
-- **Corrections** : Plans des ouvrages du jour (les plans ne disparaissent plus, un dossier par jour), sauvegarde du projet (.zip + Partager), photos rechargées depuis Drive, menu par glissement, bouton Plans
+- **Financier** (menu principal) : marché + avenants, dépenses par catégorie, factures fournisseurs (à payer / en retard), encaissements, situations, marge estimée — sections dépliables + **export Excel (.xlsx)**
+- **TCE** (menu principal) : un volet par lot (entreprise, contact, montant, dates, avancement %, statut, réserves), liste des lots types, historique d'avancement + **export Excel**
+- **Ouverture** : bouton ⏻ au centre, puis **Briefing du jour** interactif (notes à cocher, rappels, tâches, PV à livrer au BET, réception / bétonnage, échéances, labo, stock) — horaires matin / soir avec ou sans son (⋮ › Écran d'ouverture)
+- **Bouton rouge** : « Au revoir » léger avant de quitter
+- **PV intelligent** : le PV est lu automatiquement, l'application propose « Reçu » sur le bon ouvrage et alerte si la date ou l'ouvrage ne correspond pas
+- **Tableaux** : annuler / rétablir (↶ ↷), **Corbeille** 30 jours, annuler le report au lendemain, boutons d'ajout toujours visibles
+- **Ajouter des photos / PV** : choix Appareil photo · Photos · Fichiers
+- **Bon de bétonnage** : s'affiche depuis le programme, import de la signature depuis la photo d'un bon signé, écriture plus naturelle, date centrée, signature plus nette
+- **Photos** : rotation gauche / droite plus légère
+- **Thèmes** : couleurs plus nettes (mode Net / Verre), dossiers aux couleurs du thème
+- **Menu ⋮** réorganisé par groupes · rappel de sauvegarde hebdomadaire · indicateur hors ligne · la pastille « PV à récupérer » ouvre la liste

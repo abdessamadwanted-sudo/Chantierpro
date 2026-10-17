@@ -10,17 +10,20 @@ const THEMES = [
   ['sunset', '🌅 Sunset', 'radial-gradient(60% 40% at 0 0,#f97316cc,transparent),radial-gradient(50% 40% at 100% 40%,#ec4899bb,transparent),#1f0f24', 'linear-gradient(135deg,#f97316,#8b5cf6)'],
   ['noir-or', '🖤 Noir & Or', 'radial-gradient(60% 40% at 0 0,#d4a53766,transparent),#0a0a0a', 'linear-gradient(135deg,#d4a537,#f5d77a)'],
 ];
+const themeInt = () => { try { return localStorage.getItem('theme.int') || 'compact'; } catch (e) { return 'compact'; } };
 function applyTheme(t) {
   const h = document.documentElement;
-  h.className = h.className.split(' ').filter(c => c && c !== 'glass' && !c.startsWith('th-')).join(' ');
-  if (t && t !== 'dark') { h.classList.add('glass'); if (t !== 'glass') h.classList.add('th-' + t); }
+  h.className = h.className.split(' ').filter(c => c && c !== 'glass' && !c.startsWith('th-') && !c.startsWith('gi-')).join(' ');
+  if (t && t !== 'dark') { h.classList.add('glass'); if (t !== 'glass') h.classList.add('th-' + t); h.classList.add('gi-' + themeInt()); }
   const meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.content = ({ dark: '#1b1e24', glass: '#0e1430' })[t] || getComputedStyle(h).getPropertyValue('--base').trim() || '#1b1e24';
 }
 const curTheme = () => { try { return localStorage.getItem('theme') || 'dark'; } catch (e) { return 'dark'; } };
 try { applyTheme(curTheme()); } catch (e) {}
 function chooseTheme(after) {
   const s = sheet(`<div style="padding:0 16px 14px"><h3 style="margin:0 0 10px">Apparence</h3><div class="thm-grid">${THEMES.map(([k, l, bg, fab]) => `<button class="thm ${curTheme() === k ? 'on' : ''}" data-t="${k}"><i style="background:${bg};--fab:${fab}"><u></u></i>${l}</button>`).join('')}</div>
+    <div class="thm-int"><span>Rendu</span><button data-int="compact" class="${themeInt() === 'compact' ? 'on' : ''}">Net (compact)</button><button data-int="verre" class="${themeInt() === 'verre' ? 'on' : ''}">Verre (transparent)</button></div>
     <small style="color:var(--muted)">Le thème s'applique tout de suite, sur tous les écrans.</small></div>`, {});
+  $$('[data-int]', s.el).forEach(b => b.onclick = () => { try { localStorage.setItem('theme.int', b.dataset.int); } catch (e) {} applyTheme(curTheme()); $$('[data-int]', s.el).forEach(x => x.classList.toggle('on', x === b)); after && after(); });
   $$('[data-t]', s.el).forEach(b => b.onclick = () => { const t = b.dataset.t; try { localStorage.setItem('theme', t); } catch (e) {} applyTheme(t); $$('.thm', s.el).forEach(x => x.classList.toggle('on', x === b)); after && after(); });
 }
 // Application principale : écrans et navigation
@@ -59,12 +62,9 @@ async function saveImageFile(projectId, file, role = 'photo', extra = {}) {
   return DB.put('files', { projectId, blob, mime: 'image/jpeg', name: file.name, role, w, h, ...extra });
 }
 async function addPhotos(projectId, extra = {}) {
-  const src = await menu('Ajouter des photos', [
-    { label: 'Prendre une photo', icon: 'camera', value: 'cam' },
-    { label: 'Choisir dans la galerie', icon: 'image', value: 'gal' },
-  ]);
+  const src = await pickSource(extra.scan ? 'Ajouter un PV' : 'Ajouter des photos');
   if (!src) return [];
-  let files = await pickFiles({ accept: 'image/*', multiple: src === 'gal', capture: src === 'cam' });
+  let files = await pickImages(src);
   if (!files.length) return [];
   const scan = extra.scan; delete extra.scan;
   if (scan) { const sc = await scanDocuments(files); if (!sc || !sc.length) return []; files = sc; extra.hq = true; }
@@ -151,7 +151,7 @@ async function renderHome() {
             <span class="grow"><b>${esc(p.name)}</b>${p.address ? `<small>${icon('pin')} ${esc(p.address)}</small>` : ''}
               <span class="h2-chips">
                 ${st.today ? `<i class="c-b">${st.today} réception(s) aujourd'hui</i>` : ''}
-                ${st.pv ? `<i class="c-r">${st.pv} PV à récupérer</i>` : ''}
+                ${st.pv ? `<i class="c-r c-go" data-pvgo="${p.id}">${st.pv} PV à récupérer ›</i>` : ''}
                 ${st.rap.length ? `<i class="${st.rap.some(x => rapState(x) === 'late') ? 'c-r' : st.rap.some(x => rapState(x) === 'soon') ? 'c-g2' : 'c-y'}">🔔 ${st.rap.length} rappel(s)</i>` : ''}
                 ${st.open ? `<i class="c-o">${st.open} réserve(s)</i>` : ''}
                 ${st.av ? `<i class="${st.av.late ? 'c-r' : 'c-b'}">🏗️ ${st.av.pct}%${st.av.late ? ` · ${st.av.late} en retard` : ''}</i>` : ''}
@@ -178,7 +178,7 @@ async function renderHome() {
   const fpb = $('[data-a=freeph]'); fpb.onclick = () => openStorage();
   photoReminder().then(r => { if (!r || App.project || !fpb.isConnected) return; fpb.classList.remove('off'); fpb.title = `${r.n} photos déjà dans Drive · libérer ${r.mb.toFixed(0)} Mo`; fpb.insertAdjacentHTML('beforeend', `<i class="h2-badge y">${r.n > 99 ? '99+' : r.n}</i>`); }).catch(() => {});
   if (keepScroll) { const hb = $('.h2-body'); if (hb) hb.scrollTop = keepScroll; }
-  $$('.h2-card[data-id]').forEach(r => r.onclick = () => { App.homeOpen[r.dataset.id] = !App.homeOpen[r.dataset.id]; renderHome(); });
+  $$('.h2-card[data-id]').forEach(r => r.onclick = async (e) => { const pv = e.target.closest('[data-pvgo]'); if (pv) { await openProject(await DB.get('projects', pv.dataset.pvgo)); return goMissingPv(); } App.homeOpen[r.dataset.id] = !App.homeOpen[r.dataset.id]; renderHome(); });
   $$('[data-open]').forEach(b => b.onclick = async () => openProject(await DB.get('projects', b.dataset.open)));
   $$('[data-go]').forEach(b => b.onclick = async () => {
     const [pid, where] = b.dataset.go.split('|'); const p = await DB.get('projects', pid);
@@ -202,22 +202,32 @@ async function renderHome() {
   const rb = $('[data-a=role]'); if (rb) rb.onclick = async () => { const v = await menu('Mon profil (couleur et titre)', ROLES.map(x => ({ label: `${x.e} ${x.n}`, value: x.k, swatch: ROLE_COLORS[x.k], checked: x.k === myRole() }))); if (v) { try { localStorage.setItem('myRole', v); } catch (e) {} renderHome(); } };
   try { if (!uname && !localStorage.getItem('askedName')) { localStorage.setItem('askedName', '1'); setTimeout(askName, 600); } } catch (e) {}
   $('[data-a=homemore]').onclick = async () => {
-    const v = await menu('Chantier', [
-      ...((Lic.get() || {}).mode === 'user' && ((Lic.get() || {}).team || []).length ? [{ label: `👥 Mon équipe (${Lic.get().team.length}) — suivi`, icon: 'team', value: 'team' }] : []),
-      { label: 'Code PIN (verrouillage)', icon: 'settings', value: 'pin' },
-      { label: 'Stockage & sauvegarde (libérer, Drive)', icon: 'cloud', value: 'stock' },
-      { label: 'Outils PDF (fusionner, diviser, pages)', icon: 'pdf', value: 'pdf' },
-      ...((Lic.get() || {}).mode === 'user' ? [{ label: `🤝 Partage de suivi : ${(Lic.get() || {}).ownerName || 'titulaire de la licence'} (lecture seule)`, icon: 'team', value: 'licinfo' }] : [{ label: 'Licences (partager l\'application)', icon: 'team', value: 'lic' }]),
-      { label: 'Tableau de dessin', icon: 'brush', value: 'board' },
-      { label: 'Fonctions affichées', icon: 'grid', value: 'feat' },
-      { label: 'Rechercher une mise à jour', icon: 'upload', value: 'upd' },
-      { label: 'Apparence (thèmes : Sakura, Océan, Noir & Or…)', icon: 'brush', value: 'theme' },
-      { label: `Écran d'ouverture : ${Splash.on() ? (Splash.soundOn() ? 'animé + son' : 'animé, sans son') : 'désactivé'}`, icon: 'eye', value: 'splash' },
-      { label: 'Langue · اللغة · Language', icon: 'globe', value: 'lang' },
-      { label: 'Mon prénom', icon: 'edit', value: 'name' },
-      { label: 'Restaurer une sauvegarde', icon: 'undo', value: 'restore' },
-      { label: `Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}`, icon: 'settings', value: null },
+    const LI = Lic.get() || {};
+    const v = await groupMenu('Chantier', [
+      { title: 'Aujourd\'hui', color: '#22c55e', items: [{ label: 'Briefing du jour', sub: 'notes, rappels, PV à livrer, tâches', icon: 'calendar', value: 'brief' }] },
+      { title: 'Mon compte', color: '#3b82f6', items: [
+        { label: 'Mon prénom', sub: uname || 'pour les messages d\'accueil', icon: 'edit', value: 'name' },
+        ...(LI.mode === 'user' && (LI.team || []).length ? [{ label: `Mon équipe (${LI.team.length})`, sub: 'suivi', icon: 'team', value: 'team' }] : []),
+        LI.mode === 'user' ? { label: 'Partage de suivi', sub: `${LI.ownerName || 'titulaire de la licence'} · lecture seule`, icon: 'team', value: 'licinfo' } : { label: 'Licences', sub: 'partager l\'application', icon: 'team', value: 'lic' }] },
+      { title: 'Apparence', color: '#a855f7', items: [
+        { label: 'Thèmes', sub: 'Sakura, Océan, Noir & Or… · net ou verre', icon: 'brush', value: 'theme' },
+        { label: 'Écran d\'ouverture', sub: Splash.label(), icon: 'eye', value: 'splash' },
+        { label: 'Langue', sub: 'Français · العربية · English', icon: 'globe', value: 'lang' }] },
+      { title: 'Sécurité', color: '#ef4444', items: [{ label: 'Code PIN et empreinte', sub: 'verrouillage de l\'application', icon: 'settings', value: 'pin' }] },
+      { title: 'Données', color: '#0ea5e9', items: [
+        { label: 'Stockage & sauvegarde', sub: 'libérer · Google Drive · .zip', icon: 'cloud', value: 'stock' },
+        { label: 'Restaurer une sauvegarde', sub: 'fichier .zip ou .chantier', icon: 'undo', value: 'restore' },
+        { label: 'Corbeille', sub: 'lignes et tableaux supprimés (30 jours)', icon: 'trash', value: 'trash' }] },
+      { title: 'Outils', color: '#f59e0b', items: [
+        { label: 'Outils PDF', sub: 'fusionner · diviser · pages', icon: 'pdf', value: 'pdf' },
+        { label: 'Tableau de dessin', icon: 'brush', value: 'board' },
+        { label: 'Fonctions affichées', sub: 'masquer ce qui ne sert pas', icon: 'grid', value: 'feat' }] },
+      { title: 'Application', color: '#64748b', items: [
+        { label: 'Rechercher une mise à jour', icon: 'upload', value: 'upd' },
+        { label: `Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}`, icon: 'settings', value: null }] },
     ]);
+    if (v === 'brief') { const act = await briefingShow(); if (act) act(); }
+    if (v === 'trash') { const ps = (await DB.all('projects')).filter(p => (p.trash || []).length); if (!ps.length) toast('La corbeille est vide'); else { const id = ps.length === 1 ? ps[0].id : await menu('Corbeille de quel chantier ?', ps.map(p => ({ label: `${p.name} · ${p.trash.length}`, icon: 'trash', value: p.id }))); if (id) openTrash(id); } }
     if (v === 'restore') restoreBackup();
     if (v === 'stock') openStorage();
     if (v === 'team') openMyTeam();
@@ -231,8 +241,7 @@ async function renderHome() {
     if (v === 'licinfo') { const L = Lic.get(); alertBox(`Licence : ${L.name || ''} (${L.code})\nLes projets créés avec cette licence sont partagés en lecture seule avec ${L.ownerName || 'le titulaire de la licence'}, pour le suivi du travail.${L.expires ? '\nExpire le ' + fmtDate(L.expires) : ''}`); }
     if (v === 'lang') chooseLang();
     if (v === 'theme') chooseTheme(() => {});
-    if (v === 'splash') { const t = await menu('Écran d\'ouverture', [{ label: 'Animé + son du clavier', icon: 'check', value: 'a', checked: Splash.on() && Splash.soundOn() }, { label: 'Animé, sans son', icon: 'check', value: 'b', checked: Splash.on() && !Splash.soundOn() }, { label: 'Désactivé', icon: 'close', value: 'c', checked: !Splash.on() }, { label: '▶ Voir l\'animation', icon: 'eye', value: 'd' }]);
-      if (t === 'a' || t === 'b') { Splash.set('splash.off', '0'); Splash.set('splash.sound', t === 'a' ? '1' : '0'); } if (t === 'c') Splash.set('splash.off', '1'); if (t === 'd') Splash.show(true); }
+    if (v === 'splash') Splash.settings();
   };
   const r2 = $('[data-a=restore2]'); if (r2) r2.onclick = restoreBackup;
   $('[data-a=new]').onclick = async () => {
@@ -266,6 +275,8 @@ const SECTIONS = {
   maquette: { label: 'Maquette 3D', icon: 'cube', render: (r) => renderMaquettes(r) },
   calc: { label: 'Calculs & Topo', icon: 'ruler', render: (r) => renderCalcs(r) },
   gestion: { label: 'Gestion (stock · rendement · situations · labo)', icon: 'grid', render: (r) => renderGestion(r), title: 'Gestion du chantier', subtitle: 'Stock · rendement · attachements · labo' },
+  finance: { label: 'Financier (marché · dépenses · factures · marge)', icon: 'grid', render: (r) => renderFinance(r), title: 'Financier', subtitle: 'Marché · dépenses · factures · marge' },
+  tce: { label: 'TCE (tous corps d\'état)', icon: 'layers', render: (r) => renderTce(r), title: 'TCE', subtitle: 'Lots · entreprises · avancement' },
   team: { label: 'Équipe', icon: 'team', render: renderTeam },
   settings: { label: 'Paramètres', icon: 'settings', render: renderSettings },
 };
@@ -278,7 +289,7 @@ async function renderSection() {
   $('#app').innerHTML = `
     <div class="topbar dark">
       <button class="iconbtn" data-a="drawer">${icon('menu')}</button>
-      ${s.title ? `<div class="tb-title"><b>${esc(s.title)}</b><span>${esc(s.subtitle || '')}</span></div><div class="tb-actions" id="tbActions"></div>`
+      ${s.title ? `<div class="tb-title"><b>${esc(s.title)}</b><span>${esc(App.project.name)}</span></div><div class="tb-actions" id="tbActions"></div>`
         : `<h1>${esc(App.project.name)}</h1><button class="iconbtn" data-a="home">${icon('home')}</button>`}
     </div>
     <div class="content" id="content"></div>`;
@@ -426,7 +437,7 @@ async function renderPlans(root) {
     const fc = FOLDER_COLORS.find(x => x.k === f.color) || FOLDER_COLORS[0];
     const nAll = ps.length + subs.reduce((a, s) => a + s.plans.length, 0);
     card.className = 'card fcard' + (open ? ' open' : ''); card.dataset.fid = f.id; card.style.setProperty('--fc', fc.c);
-    card.innerHTML = `<div class="folder-head" style="background:${fc.c}"><span class="fh-ic">📁</span>
+    card.innerHTML = `<div class="folder-head ${f.color ? '' : 'th-fold'}" style="${f.color || !document.documentElement.classList.contains('glass') ? `background:${fc.c}` : ''}"><span class="fh-ic">📁</span>
       <div class="grow"><div class="title">${esc(f.name)}</div><div class="sub">${subs.length ? `${subs.length} dossier${subs.length > 1 ? 's' : ''} · ` : ''}${nAll} plan${nAll > 1 ? 's' : ''}</div></div>
       ${f.id !== '_none' ? `<button class="iconbtn" data-more>${icon('more')}</button>` : ''}
       <span class="fh-chev" style="transform:rotate(${open ? 180 : 0}deg)">${icon('chevdown')}</span></div>
@@ -1460,6 +1471,15 @@ async function openPlansQuick() {
   try { Splash.boot(); } catch (e) {}
   licBoot().catch(e => console.warn('licence', e)).finally(() => { renderHome(); Sync.start(); setTimeout(() => checkUpdate(false).catch(() => {}), 2500); try { dwgCrashCheck(); } catch (e) {} setTimeout(showWhatsNew, 1800); setTimeout(() => otaBoot().catch(() => {}), 1200); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(false).catch(() => {}); });
+  // hors ligne : petite pastille en haut
+  const net = () => { let b = document.getElementById('offBadge'); if (navigator.onLine) { if (b) b.remove(); return; } if (!b) { b = document.createElement('div'); b.id = 'offBadge'; b.textContent = '⚡ Hors ligne'; b.onclick = () => toast('Pas d\'internet : les photos et fichiers de Drive se chargeront au retour du réseau'); document.body.appendChild(b); } };
+  window.addEventListener('online', () => { net(); toast('✓ Connexion rétablie'); try { Sync.schedule(1500); } catch (e) {} }); window.addEventListener('offline', net); net();
+  // sauvegarde : rappel chaque semaine (fichier .zip) ; la synchro Drive tourne en continu
+  setTimeout(async () => { try {
+    const ps = await DB.all('projects'), old = ps.filter(p => !p.lastBackup || Date.now() - p.lastBackup > 7 * 864e5);
+    const k = 'bkRemind', last = +(localStorage.getItem(k) || 0);
+    if (old.length && Date.now() - last > 3 * 864e5) { localStorage.setItem(k, Date.now()); toast(`💾 ${old.length} projet(s) sans sauvegarde depuis 7 jours`, { action: 'Sauvegarder', onAction: () => openStorage() }); }
+  } catch (e) {} }, 9000);
   // photos partagées depuis la galerie (Partager → Chantier)
   setTimeout(() => checkSharedIntent().catch(e => console.warn('share', e)), 300);
   // toucher la notification « photos sauvegardées » → proposer de libérer l'espace

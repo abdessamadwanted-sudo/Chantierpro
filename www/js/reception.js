@@ -112,7 +112,7 @@ async function sharePhotos(ids, text, base = 'pv') {
 
 async function renderReceptions(root, kind = 'Ferraillage') {
   const p = App.project;
-  if (kind === 'Ferraillage') { try { const n = await carryPending(p.id); if (n) toast(`↪ ${n} ouvrage(s) non réceptionné(s) reporté(s) au lendemain`); } catch (e) { console.warn('report', e); } }
+  if (kind === 'Ferraillage') { try { const n = await carryPending(p.id); if (n) { const u = carryPending.undo; toast(`↪ ${n} ouvrage(s) non réceptionné(s) reporté(s) au lendemain`, { action: 'Annuler', onAction: async () => { await u(); toast('Report annulé ✓'); renderSection(); } }); } } catch (e) { console.warn('report', e); } }
   const all = (await DB.byProject('receptions', p.id)).filter(d => kindOf(d) === kind).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   App.recSearch = App.recSearch || {}; App.openMonths = App.openMonths || {};
   const q = (App.recSearch[kind] || '').trim().toLowerCase();
@@ -268,20 +268,44 @@ ${!isBeton(kind) ? `<button class="btn ghost small cp-bet" data-cp="${i}" title=
 }
 
 // ---------- Tableau d'un jour ----------
+// ---------- Corbeille (30 jours) : lignes et tableaux supprimés ----------
+async function trashPut(projectId, item) {
+  const p = await DB.get('projects', projectId); if (!p) return;
+  p.trash = (p.trash || []).filter(x => Date.now() - x.t < 30 * 864e5); p.trash.unshift({ id: DB.uid(), t: Date.now(), ...item }); p.trash = p.trash.slice(0, 300);
+  await DB.put('projects', p); if (App.project && App.project.id === p.id) App.project.trash = p.trash;
+}
+async function openTrash(projectId) {
+  const p = await DB.get('projects', projectId); const L = (p.trash || []).filter(x => Date.now() - x.t < 30 * 864e5);
+  if (!L.length) return toast('La corbeille est vide');
+  const lab = (x) => x.kind === 'row' ? `Ligne · ${x.row.niv ? x.row.niv + ' · ' : ''}${x.row.element || '—'} (tableau du ${fmtDate(x.date)})` : `Tableau ${x.day.type === 'Bétonnage' ? 'de bétonnage' : 'de réception'} du ${fmtDate(x.day.date)} · ${x.day.rows.length} ligne(s)`;
+  const id = await menu(`Corbeille · ${L.length} élément(s) · 30 jours`, L.map(x => ({ label: `${lab(x)} — supprimé le ${new Date(x.t).toLocaleDateString('fr-FR')}`, icon: 'undo', value: x.id })));
+  const x = L.find(y => y.id === id); if (!x) return;
+  if (!await confirmBox(`Restaurer ?\n${lab(x)}`, 'Restaurer')) return;
+  if (x.kind === 'row') { let d = await DB.get('receptions', x.dayId); if (!d) d = await DB.put('receptions', { projectId, date: x.date, type: x.type || 'Ferraillage', rows: [] }); d.rows.splice(Math.min(x.idx ?? d.rows.length, d.rows.length), 0, x.row); await DB.put('receptions', d); }
+  else { const ex = await DB.get('receptions', x.day.id); if (ex) { ex.rows.push(...x.day.rows); await DB.put('receptions', ex); } else await DB.putRaw('receptions', x.day); }
+  p.trash = (p.trash || []).filter(y => y.id !== x.id); await DB.put('projects', p);
+  toast('Restauré ✓'); if (App.section === 'reception' || App.section === 'beton') renderSection();
+}
+
 // ouvrages du tableau de réception non réceptionnés un jour passé → reportés au lendemain (marqués « ✗ Reporté »)
 const _nextISO = (d) => { const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + 1); return x.toISOString().slice(0, 10); };
 async function carryPending(projectId) {
-  const today = todayISO(); let moved = 0;
+  const today = todayISO(); let moved = 0; const snap = new Map(), created = [];
+  const keep = (d) => { if (!snap.has(d.id)) snap.set(d.id, JSON.parse(JSON.stringify(d))); };
   for (let pass = 0; pass < 10; pass++) {
     const all = (await DB.byProject('receptions', projectId)).filter(d => kindOf(d) === 'Ferraillage');
-    const src = all.filter(d => d.date && d.date < today && d.rows.some(r => r.element && r.status === 'pending')).sort((a, b) => a.date.localeCompare(b.date))[0];
+    const src = all.filter(d => d.date && d.date < today && d.rows.some(r => r.element && r.status === 'pending' && !r.noCarry)).sort((a, b) => a.date.localeCompare(b.date))[0];
     if (!src) break;
-    const nd = _nextISO(src.date), take = src.rows.filter(r => r.element && r.status === 'pending');
-    let dst = all.find(d => d.date === nd) || await DB.put('receptions', { projectId, date: nd, type: 'Ferraillage', rows: [] });
+    const nd = _nextISO(src.date), take = src.rows.filter(r => r.element && r.status === 'pending' && !r.noCarry);
+    keep(src); let dst = all.find(d => d.date === nd); if (dst) keep(dst); else { dst = await DB.put('receptions', { projectId, date: nd, type: 'Ferraillage', rows: [] }); created.push(dst.id); }
     for (const r of take) { if (!dst.rows.some(x => normQ(`${x.niv}|${x.element}`) === normQ(`${r.niv}|${r.element}`))) dst.rows.push({ ...r, id: DB.uid(), repFrom: r.repFrom || src.date }); moved++; }
     src.rows = src.rows.filter(r => !take.includes(r));
     await DB.put('receptions', dst); await DB.put('receptions', src);
   }
+  carryPending.undo = moved ? async () => {   // remettre comme avant (et ne plus reporter ces ouvrages automatiquement)
+    for (const id of created) await DB.del('receptions', id);
+    for (const [id, d] of snap) { if (created.includes(id)) continue; d.rows.forEach(r => { if (r.element && r.status === 'pending') r.noCarry = true; }); await DB.put('receptions', d); }
+  } : null;
   return moved;
 }
 function openReceptionDay(day, opts = {}) {
@@ -329,16 +353,24 @@ function openReceptionDay(day, opts = {}) {
       el.classList.remove('slide-l', 'slide-r'); void el.offsetWidth; el.classList.add(dir > 0 ? 'slide-l' : 'slide-r');
       render();
     }
-    if (!isBeton(K)) { try { if (await carryPending(day.projectId)) day = (await DB.get('receptions', day.id)) || day; } catch (e) { console.warn('report', e); } }
+    if (!isBeton(K)) { try { const n = await carryPending(day.projectId); if (n) { day = (await DB.get('receptions', day.id)) || day; const u = carryPending.undo; toast(`↪ ${n} ouvrage(s) reporté(s) au lendemain`, { action: 'Annuler', onAction: async () => { await u(); day = (await DB.get('receptions', day.id)) || day; await loadSibs(); render(); toast('Report annulé ✓'); } }); } } catch (e) { console.warn('report', e); } }
     await loadSibs();
+    // ↶ / ↷ : historique des modifications du tableau (comme sur ordinateur)
+    let hist = [], hpos = -1, histDay = null;
+    const snapJ = () => JSON.stringify({ rows: day.rows, pvIds: day.pvIds || [] });
+    const track = () => { if (histDay !== day.id) { hist = []; hpos = -1; histDay = day.id; } const j = snapJ(); if (hist[hpos] === j) return; hist = hist.slice(0, hpos + 1); hist.push(j); if (hist.length > 60) hist.shift(); hpos = hist.length - 1; };
+    const restore = async (j) => { const o = JSON.parse(j); day.rows = o.rows; day.pvIds = o.pvIds; await save(); render(); };
+    const undo = async () => { if (hpos <= 0) return toast('Rien à annuler'); hpos--; await restore(hist[hpos]); toast('↶ Annulé'); };
+    const redo = async () => { if (hpos >= hist.length - 1) return toast('Rien à rétablir'); hpos++; await restore(hist[hpos]); toast('↷ Rétabli'); };
     function render() {
+      track();
       const n = day.rows.filter(r => r.element).length, ok = day.rows.filter(r => r.status === 'ok').length, rs = day.rows.filter(r => r.status === (isBeton(K) ? 'progress' : 'reserve')).length;
       el.innerHTML = `
         <div class="topbar"><button class="iconbtn" data-a="back">${icon('back')}</button>
           <div class="dnav"><button data-dn="-1" ${sib(-1) ? '' : 'disabled'}>‹</button><h1>${fmtDate(day.date)}</h1><button data-dn="1" ${sib(1) ? '' : 'disabled'}>›</button></div>
           ${isBeton(K) ? '' : `<button class="iconbtn" data-a="share">${icon('share')}</button>`}<button class="iconbtn" data-a="more">${icon('more')}</button></div>
         <div class="rec-sum"><span><b>${n}</b> éléments</span><span style="color:#22c55e"><b>${ok}</b> ${isBeton(K) ? 'bétonnés' : 'réceptionnés'}</span><span style="color:${isBeton(K) ? '#60a5fa' : '#f59e0b'}"><b>${rs}</b> ${isBeton(K) ? 'en cours' : 'réserves'}</span>${n - ok - rs ? `<span style="color:var(--muted)"><b>${n - ok - rs}</b> ${isBeton(K) ? 'non bétonné(s)' : 'en attente'}</span>` : ''}${!isBeton(K) && day.rows.some(pvMissing) ? `<span style="color:#ef4444"><b>${day.rows.filter(pvMissing).length}</b> PV manquant(s)</span>` : ''}</div>
-        <div class="rec-info"><b>${fmtDate(day.date)}</b><span class="rp">${esc(p.pdfTitle || p.name)}</span><span class="rt">${recTitle(K)} (post jour)</span>${day.date !== todayISO() ? `<button class="kswitch ktoday" data-a="today">📅 Aujourd'hui</button>` : ''}<button class="kswitch ksort" data-a="sort">⇅ Trier</button><button class="kswitch" data-ks>${icon(isBeton(K) ? 'layers' : 'calendar')} ${isBeton(K) ? 'Réception' : 'Bétonnage'} du ${fmtDate(day.date).slice(0, 5)}</button></div>
+        <div class="rec-info"><b>${fmtDate(day.date)}</b><span class="rp">${esc(p.pdfTitle || p.name)}</span><span class="rt">${recTitle(K)} (post jour)</span>${day.date !== todayISO() ? `<button class="kswitch ktoday" data-a="today">📅 Aujourd'hui</button>` : ''}<button class="kswitch kur" data-a="undo" title="Annuler" ${hpos > 0 ? '' : 'disabled'}>↶</button><button class="kswitch kur" data-a="redo" title="Rétablir" ${hpos < hist.length - 1 ? '' : 'disabled'}>↷</button><button class="kswitch ksort" data-a="sort">⇅ Trier</button><button class="kswitch" data-ks>${icon(isBeton(K) ? 'layers' : 'calendar')} ${isBeton(K) ? 'Réception' : 'Bétonnage'} du ${fmtDate(day.date).slice(0, 5)}</button></div>
         <div class="rec-wrap">
           <table class="rec">
             <thead>
@@ -353,7 +385,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
                 <td class="c ph">${(r.photoIds || []).length ? `📷 ${r.photoIds.length}` : ''}${(r.anomIds || []).length ? ` <span class="an">⚠ ${r.anomIds.length}</span>` : ''}</td>
                 <td class="c ph">${(r.retourIds || []).length ? `📷 ${r.retourIds.length}` : ''}</td>
                 <td class="c ph sk">${r.croquisId ? `<img data-sk="${r.croquisId}" alt="✏️">` : ''}</td>${isBeton(K) ? `<td class="c">${decofCell(p, day, r)}</td>` : ''}</tr>`).join('')}
-              <tr class="addrow"><td colspan="${NC}"><button data-a="add">${icon('plus')} Ajouter une ligne</button><button data-a="paste">${icon('edit')} Coller un texte</button><span class="hint-lp">Appui long sur une ligne pour la déplacer</span></td></tr>
+              <tr class="addrow"><td colspan="${NC}"><div class="addrow-in"><button data-a="add">${icon('plus')} Ajouter une ligne</button><button data-a="paste">${icon('edit')} Coller un texte</button><span class="hint-lp">Appui long sur une ligne pour la déplacer</span></div></td></tr>
             </tbody>
           </table>
           ${isBeton(K) ? '' : `<div class="pv-day">
@@ -375,18 +407,17 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
              <div class="pv-acts"><button data-a="sharepvpdf">${icon('share')} Envoyer le PDF</button><button data-a="splitpv">${icon('layers')} Séparer</button></div>`
           : pvs.map(f => `<div class="t" data-pv="${f.id}"><img src="${BlobURL.get(f.id, f.blob)}"><button class="x" data-pvdel="${f.id}">×</button></div>`).join('') + `<button class="t add" data-a="addpv">${icon('camera')}</button>`
             + (pvs.length > 1 ? `<div class="pv-acts"><button data-a="mergepv">${icon('pdf')} Fusionner en un seul PDF</button></div>` : '');
-        const addPv = async (gal) => {
-          let files = await pickFiles({ accept: 'image/*', multiple: !!gal, capture: !gal }); if (!files.length) return;
-          const ld = loading('Recadrage automatique…');
-          try { files = await scanAuto(files); const recs = []; for (const f of files) recs.push(await saveImageFile(day.projectId, f, 'photo', { source: `PV ${recTitle(K)} ${recDateLabel(day.date)}`, hq: true }));
+        const addPv = async () => {
+          const src = await pickSource('Ajouter un PV'); if (!src) return;
+          let files = await pickImages(src); if (!files.length) return;
+          const ld = loading('Recadrage automatique…'); let recs = [];
+          try { files = await scanAuto(files); for (const f of files) recs.push(await saveImageFile(day.projectId, f, 'photo', { source: `PV ${recTitle(K)} ${recDateLabel(day.date)}`, hq: true }));
             day.pvIds = [...(day.pvIds || []), ...recs.map(x => x.id)]; if (day.pvPdfId) await mergePv(); await save(); }
           finally { ld.close(); }
-          toast('PV recadré ✓ (appui long sur 📷 = galerie)'); render();
+          toast(`${recs.length} PV recadré(s) ✓`); render();
+          if (typeof pvSmartCheck === 'function') pvSmartCheck(p, day, recs, () => { save(); render(); });
         };
-        { const ab = $('[data-a=addpv]', box); let t = null, lpv = false;
-          ab.addEventListener('pointerdown', () => { lpv = false; t = setTimeout(() => { lpv = true; try { navigator.vibrate && navigator.vibrate(20); } catch (e) {} addPv(true); }, 550); });
-          ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => ab.addEventListener(ev, () => clearTimeout(t)));
-          ab.onclick = () => { if (!lpv) addPv(false); }; }
+        $('[data-a=addpv]', box).onclick = () => addPv();
         const mb = $('[data-a=mergepv]', box); if (mb) mb.onclick = async () => { const ld = loading('Création du PDF…'); try { await mergePv(); await save(); toast('PV fusionnés en un PDF ✓'); } finally { ld.close(); } render(); };
         const sp = $('[data-a=splitpv]', box); if (sp) sp.onclick = async () => { if (!await confirmBox('Séparer le PDF ? Les photos des PV redeviennent séparées.', 'Séparer')) return; await DB.del('files', day.pvPdfId); day.pvPdfId = null; await save(); render(); };
         const op = $('[data-a=openpvpdf]', box); if (op) op.onclick = async () => { const f = await DB.get('files', day.pvPdfId); if (f) showPdf(f.blob, `PV du ${fmtDate(day.date)}`); };
@@ -414,6 +445,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         setTimeout(() => openReceptionDay(o), 50);
       };
       $('[data-a=add]', el).onclick = () => editRow(null);
+      $('[data-a=undo]', el).onclick = undo; $('[data-a=redo]', el).onclick = redo;
       $('[data-a=sort]', el).onclick = async () => {   // zone croissante, puis niveau du plus haut au plus bas
         const zn = (r) => { const z = parseFloat(String(r.zone || '').replace(',', '.')); return isNaN(z) ? 1e9 : z; };
         day.rows.sort((a, b) => (!a.element - !b.element) || zn(a) - zn(b) || String(a.zone || '').localeCompare(String(b.zone || ''), 'fr', { numeric: true }) || nivRank(b.niv) - nivRank(a.niv) || String(a.element || '').localeCompare(String(b.element || ''), 'fr', { numeric: true }));
@@ -476,6 +508,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
           { label: `Bons de bétonnage du jour (PDF, 6 par page)${day.rows.some(x => x.bon) ? ' · ' + day.rows.filter(x => x.bon).length : ''}`, icon: 'pdf', value: 'bons' },
           { label: 'Nouveau bon de bétonnage (libre)…', icon: 'edit', value: 'bonfree' },
           ...(!isBeton(K) ? [{ label: 'Copier des ouvrages vers le bétonnage…', icon: 'calendar', value: 'cpb' }] : []),
+          { label: 'Corbeille (restaurer une ligne / un tableau)', icon: 'undo', value: 'trash' },
           { label: 'Supprimer ce tableau', icon: 'trash', danger: true, value: 'del' },
         ]);
         if (v === 'bons') { const list = day.rows.filter(x => x.bon).map(x => x.bon); if (!list.length) toast('Aucun bon : ouvrez un ouvrage › « Bon de bétonnage »'); else await bonsPdf(p, list, `Bons de bétonnage ${fmtDate(day.date).replace(/\//g, '-')}`); }
@@ -483,11 +516,11 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         if (v === 'cpb') { await save(); const pick = await pickRows(day.rows.filter(x => x.element), 'Copier vers le bétonnage'); if (pick && pick.length) await copyToBeton(day.projectId, pick); }
         if (v === 'free') { await save(); await freeFilesUI([...(day.pvIds || []), ...day.rows.flatMap(r => [...(r.photoIds || []), ...(r.anomIds || []), ...(r.retourIds || [])])], `${recTitle(K)} du ${fmtDate(day.date)}`); render(); }
         if (v === 'date') { const r = await formSheet('Date', [{ name: 'date', label: 'Date', type: 'date', value: day.date }]); if (r && r.date) { day.date = r.date; await save(); render(); } }
-        if (v === 'del' && await confirmBox('Supprimer ce tableau ?')) {
-          for (const r of day.rows) for (const id of [...(r.photoIds || []), ...(r.anomIds || []), ...(r.retourIds || [])]) await DB.del('files', id);
-          for (const id of day.pvIds || []) await DB.del('files', id);
-          await DB.del('receptions', day.id); unBack(); el.remove(); resolve();
+        if (v === 'del' && await confirmBox('Supprimer ce tableau ?\n(il reste 30 jours dans la corbeille : ⋮ › Corbeille)')) {
+          await save(); await trashPut(day.projectId, { kind: 'day', day: JSON.parse(JSON.stringify(day)) });
+          await DB.del('receptions', day.id); unBack(); el.remove(); resolve(); toast('Tableau mis à la corbeille', { action: 'Annuler', onAction: () => openTrash(day.projectId) });
         }
+        if (v === 'trash') openTrash(day.projectId);
       };
     }
 
@@ -552,7 +585,9 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
             r.pinId = nl.id; await save(); toast('📍 Placé sur le plan ✓');
           } } });
         };
-        const bnb = $('[data-a=bon]', f); if (bnb) bnb.onclick = async (e) => { e.preventDefault(); if (!await commit()) return; const cfg = bonCfg(p); const b = r.bon ? { ...r.bon, sig: { ...(r.bon.sig || {}) } } : bonFromRow(r, day.date, cfg); await openBon(p, b, async (bb) => { r.bon = bb; await commit(); }); draw(); };
+        const bnb = $('[data-a=bon]', f); if (bnb) bnb.onclick = async (e) => { e.preventDefault(); if (!await commit()) return; const cfg = bonCfg(p); const b = r.bon ? { ...r.bon, sig: { ...(r.bon.sig || {}) } } : bonFromRow(r, day.date, cfg);
+          const idx = day.rows.indexOf(r) >= 0 ? day.rows.indexOf(r) : i; s.close();   // la fiche se ferme pour laisser le bon s'afficher par-dessus
+          await openBon(p, b, async (bb) => { r.bon = bb; day.rows[idx] = r; await save(); }); render(); };
         const cpb = $('[data-a=cpb]', f); if (cpb) cpb.onclick = async (e) => { e.preventDefault(); if (!await commit()) return; await copyToBeton(day.projectId, [r]); };
         const frb = $('[data-a=free]', f); if (frb) frb.onclick = async (e) => { e.preventDefault(); if (!await commit()) return; await freeFilesUI([...r.photoIds, ...(r.anomIds || []), ...r.retourIds], r.element || 'ouvrage'); draw(); };
         $$('[name]', f).forEach(inp => inp.oninput = () => { r[inp.name] = inp.value; });
@@ -601,7 +636,8 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         const om = $('[data-a=okmore]', f); if (om) om.onclick = async () => { if (await commit()) { s.close(); render(); editRow(null); } };
         const wa = $('[data-a=wa]', f); if (wa) wa.onclick = async () => { if (await commit()) shareRow(p, day, r); };
         const wph = $('[data-a=waph]', f); if (wph) wph.onclick = async () => { const ld = loading('Préparation des photos…'); try { await sharePhotos([...r.photoIds, ...(r.anomIds || []), ...r.retourIds], `${r.zone ? 'Zone ' + r.zone + ' · ' : ''}${r.niv ? r.niv + ' · ' : ''}${r.element} — ${fmtDate(day.date)}`, r.element || 'photo'); } finally { ld.close(); } };
-        const del = $('[data-a=del]', f); if (del) del.onclick = async () => { if (await confirmBox('Supprimer cette ligne ?')) { if (r.pinId) await DB.del('links', r.pinId); day.rows.splice(i, 1); await save(); s.close(); render(); } };
+        const del = $('[data-a=del]', f); if (del) del.onclick = async () => { if (await confirmBox('Supprimer cette ligne ?')) { const row = day.rows[i]; await trashPut(day.projectId, { kind: 'row', dayId: day.id, date: day.date, type: day.type, idx: i, row }); day.rows.splice(i, 1); await save(); s.close(); render();
+          toast('Ligne supprimée', { action: 'Annuler', onAction: () => undo() }); } };
         if (isNew && !r.element) setTimeout(() => $('[name=element]', f)?.focus(), 250);
       }
       draw();

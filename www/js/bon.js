@@ -35,9 +35,15 @@ function bonHand(g, text, x, y, maxW, size, seed) {
   while (wid() > maxW && sp > 0.98) sp -= 0.01;
   while (wid() > maxW && fs > 34) { fs -= 2; setF(); }
   const R = bonRand(seed + '|' + text);
-  g.save(); g.translate(x, y); g.rotate((R() - 0.5) * 0.03); g.fillStyle = BON_INK; g.textBaseline = 'alphabetic';
-  let cx = 0;
-  for (const ch of text) { const w = g.measureText(ch).width; g.fillText(ch, cx, (R() - 0.5) * fs * 0.06); cx += w * (sp - 0.02 + R() * 0.04) + (ch === ' ' ? fs * 0.12 : 0); }
+  // écriture plus naturelle : taille, pente et ligne de base qui varient un peu à chaque lettre, encre plus ou moins chargée
+  g.save(); g.translate(x, y); g.rotate((R() - 0.5) * 0.035 - 0.012); g.textBaseline = 'alphabetic';
+  let cx = 0; const wave = R() * 6.28, amp = fs * (0.025 + R() * 0.02);
+  for (const [k, ch] of [...text].entries()) {
+    const sc = 0.93 + R() * 0.13, rot = (R() - 0.5) * 0.09, dy = Math.sin(wave + k * 0.55) * amp + (R() - 0.5) * fs * 0.05;
+    g.save(); g.translate(cx, dy); g.rotate(rot); g.scale(sc, sc); g.transform(1, 0, -0.08 - R() * 0.06, 1, 0, 0);
+    g.globalAlpha = 0.86 + R() * 0.14; g.fillStyle = BON_INK; g.fillText(ch, 0, 0); g.restore();
+    cx += g.measureText(ch).width * sc * (sp - 0.03 + R() * 0.05) + (ch === ' ' ? fs * (0.1 + R() * 0.06) : 0);
+  }
   g.restore();
 }
 function bonDots(g, x1, x2, y) { g.save(); g.strokeStyle = '#333'; g.setLineDash([2.5, 7]); g.lineWidth = 2.6; g.lineCap = 'round'; g.beginPath(); g.moveTo(x1, y); g.lineTo(x2, y); g.stroke(); g.restore(); }
@@ -60,7 +66,7 @@ async function bonRender(b, cfg) {
   g.textAlign = 'left';
   // date
   g.font = '44px "Times New Roman", "Noto Serif", serif'; g.fillText('DATE :', 860, 462); bonDots(g, 1010, 1500, 468);
-  bonHand(g, b.date ? fmtDate(b.date).replace(/\/\d{4}$/, (m) => b.fullYear ? m : '') : '', 1030, 454, 470, 78, 'date' + b.id);
+  { const dt = b.date ? fmtDate(b.date).replace(/\/\d{4}$/, (m) => b.fullYear ? m : '') : ''; g.font = `600 78px BonHand, cursive`; const dw = Math.min(470, g.measureText(dt).width * 1.05); bonHand(g, dt, 1255 - dw / 2, 454, 470, 78, 'date' + b.id); }
   hits.push({ k: 'date', x: 840, y: 400, w: 700, h: 90 });
   // champs
   const ys = [545, 625, 705, 785, 865];
@@ -83,11 +89,13 @@ async function bonRender(b, cfg) {
     bonDots(g, x + 92, x + cw - 14, top + hh + 56); bonDots(g, x + 92, x + cw - 14, top + hh + 132);
     const pid = (b.sig || {})[k], per = (cfg.people[k] || []).find(q => q.id === pid);
     if (per) {
-      bonHand(g, per.name, x + 96, top + hh + 48, cw - 112, 62, k + b.id);
-      if (per.sigId) {
-        const f = await DB.peek('files', per.sigId).catch(() => null) || await DB.get('files', per.sigId).catch(() => null);
-        if (f && f.blob) { try { const im = await loadImage(BlobURL.get(f.id, f.blob)); const bw = cw - 40, bh = bot - (top + hh + 66) - 8, k2 = Math.min(bw / im.width, bh / im.height); g.drawImage(im, x + 20 + (bw - im.width * k2) / 2, top + hh + 66 + (bh - im.height * k2) / 2, im.width * k2, im.height * k2); } catch (e) {} }
-      }
+      const imgOf = async (id) => { const f = await DB.peek('files', id).catch(() => null) || await DB.get('files', id).catch(() => null); return f && f.blob ? loadImage(BlobURL.get(f.id, f.blob)).catch(() => null) : null; };
+      const bold = (im, dx, dy, w, h) => { const r = Math.max(1, Math.round(w / 260)); for (const [ox, oy] of [[0, 0], [r, 0], [0, r], [-r, 0], [0, -r]]) g.drawImage(im, dx + ox, dy + oy, w, h); };   // trait plus épais = signature bien visible
+      const nim = per.nameImgId ? await imgOf(per.nameImgId) : null;
+      if (nim) { const bw = cw - 112, bh = 58, k3 = Math.min(bw / nim.width, bh / nim.height); g.drawImage(nim, x + 96, top + hh + 8 + (bh - nim.height * k3) / 2, nim.width * k3, nim.height * k3); }
+      else if (!per.noName) bonHand(g, per.name, x + 96, top + hh + 48, cw - 112, 62, k + b.id);
+      if (per.sigId) { const im = await imgOf(per.sigId);
+        if (im) { const bw = cw - 40, bh = bot - (top + hh + 66) - 8, k2 = Math.min(bw / im.width, bh / im.height, 2.4); bold(im, x + 20 + (bw - im.width * k2) / 2, top + hh + 66 + (bh - im.height * k2) / 2, im.width * k2, im.height * k2); } }
     }
     hits.push({ k: 'sig:' + k, x, y: top, w: cw, h: bot - top });
   }
@@ -162,17 +170,50 @@ function bonAddPerson(p, role) {
     };
   });
 }
+// signature reprise d'un bon papier signé : on redresse la feuille, on lit la case du rôle (nom + visa) et on garde seulement l'encre
+async function bonImportSig(p, role) {
+  const src = await pickSource('Photo du bon signé'); if (!src) return null;
+  const [f] = await pickImages(src); if (!f) return null;
+  const sc = await scanDocuments([f]); if (!sc || !sc.length) return null;   // ajuster les 4 coins sur le bord du bon
+  const im = await loadImage(URL.createObjectURL(sc[0]));
+  const c = document.createElement('canvas'); c.width = BON_W; c.height = BON_H; c.getContext('2d').drawImage(im, 0, 0, BON_W, BON_H);
+  const ri = BON_ROLES.findIndex(r => r[0] === role), tx = 70, tw = BON_W - 140, top = 905, hh = 100, bot = BON_H - 55, cw = tw / BON_ROLES.length, x = tx + cw * ri;
+  const cut = (x0, y0, w, h) => { const t = document.createElement('canvas'); t.width = w; t.height = h; t.getContext('2d').drawImage(c, x0, y0, w, h, 0, 0, w, h); return bonInk(t); };
+  const nameInk = cut(x + 88, top + hh + 4, cw - 96, 62), sigInk = cut(x + 8, top + hh + 70, cw - 16, bot - (top + hh + 70) - 6);
+  if (!sigInk) { toast('Aucune signature trouvée dans la case ' + BON_ROLES[ri][2] + ' — vérifiez le recadrage'); return null; }
+  return new Promise((resolve) => {
+    const s = sheet(`<div class="form bon-imp"><div class="fld">Case « ${BON_ROLES[ri][2]} » lue sur le bon</div>
+      ${nameInk ? `<div class="bi-prev"><small>Nom écrit</small><img data-n></div>` : ''}<div class="bi-prev"><small>Signature</small><img data-s></div>
+      <label>Nom (pour la liste)<input name="n" placeholder="Ex : Walid"></label>
+      ${nameInk ? `<label class="bon-ok"><input type="checkbox" data-a="keep" checked> Garder le nom écrit à la main sur les bons</label>` : `<label class="bon-ok"><input type="checkbox" data-a="non"> Pas de nom sur les bons (signature seule)</label>`}
+      <label class="bon-ok"><input type="checkbox" data-a="agree"> J'ai l'accord de cette personne pour utiliser sa signature sur les bons qu'elle a validés.</label>
+      <button class="btn" data-a="ok">${icon('check')} Enregistrer</button></div>`, { title: `Signature · ${BON_ROLES[ri][2]}` });
+    if (nameInk) $('[data-n]', s.el).src = nameInk.toDataURL('image/png'); $('[data-s]', s.el).src = sigInk.toDataURL('image/png');
+    s.onClose = () => resolve(null);
+    $('[data-a=ok]', s.el).onclick = async () => {
+      if (!$('[data-a=agree]', s.el).checked) return toast('Cochez l\'accord de la personne');
+      const name = $('[name=n]', s.el).value.trim() || 'Signature';
+      const put = async (cv, nm) => (await DB.put('files', { projectId: p.id, blob: await new Promise(r => cv.toBlob(r, 'image/png')), mime: 'image/png', role: 'sig', name: nm })).id;
+      const keep = nameInk && $('[data-a=keep]', s.el).checked, non = !nameInk && $('[data-a=non]', s.el) && $('[data-a=non]', s.el).checked;
+      const per = { id: DB.uid(), name, sigId: await put(sigInk, `Signature ${name}.png`), nameImgId: keep ? await put(nameInk, `Nom ${name}.png`) : null, noName: !!non, at: Date.now() };
+      bonCfg(p).people[role].push(per); await DB.put('projects', p);
+      s.onClose = null; s.close(); toast('Signature importée ✓'); resolve(per);
+    };
+  });
+}
 async function bonPickPerson(p, role, cur) {
   const cfg = bonCfg(p), R = BON_ROLES.find(r => r[0] === role);
   const v = await menu(R[2], [
     ...cfg.people[role].map(q => ({ label: `${q.name}${q.sigId ? ' ✍' : ''}`, icon: q.id === cur ? 'check' : 'team', value: q.id })),
     { label: 'Ajouter une personne…', icon: 'plus', value: '__add' },
+    { label: 'Importer depuis un bon signé (photo)', icon: 'camera', value: '__imp' },
     ...(cfg.people[role].length ? [{ label: 'Gérer la liste…', icon: 'edit', value: '__edit' }] : []),
     ...(cur ? [{ label: 'Laisser vide', icon: 'close', value: '__none' }] : []),
   ]);
   if (!v) return undefined;
   if (v === '__none') return null;
   if (v === '__add') { const q = await bonAddPerson(p, role); return q ? q.id : undefined; }
+  if (v === '__imp') { const q = await bonImportSig(p, role); return q ? q.id : undefined; }
   if (v === '__edit') {
     const id = await menu('Supprimer qui ?', cfg.people[role].map(q => ({ label: q.name, icon: 'trash', value: q.id })));
     const q = cfg.people[role].find(x => x.id === id);
