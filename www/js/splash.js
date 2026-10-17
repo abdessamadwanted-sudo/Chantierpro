@@ -101,6 +101,7 @@ const Splash = (() => {
   }
   async function boot() {
     try { if (typeof AppLock !== 'undefined' && AppLock.get() && typeof lockScreen === 'function') await lockScreen(); } catch (e) { console.warn(e); }
+    try { if (typeof orgOnboard === 'function') { Org.apply(); await orgOnboard(); } } catch (e) { console.warn(e); }
     const S = sched(), anim = on();
     if (!anim && !S.brief) return;
     await welcome();

@@ -1,13 +1,14 @@
 ## Nouveautés
-- **Briefing** : « PV à livrer au BET » = seulement les ouvrages réceptionnés dont le PV n'est pas encore livré (la carte Bétonnage est retirée)
-- **Financier** (menu principal) : marché + avenants, dépenses par catégorie, factures fournisseurs (à payer / en retard), encaissements, situations, marge estimée — sections dépliables + **export Excel (.xlsx)**
-- **TCE** (menu principal) : un volet par lot (entreprise, contact, montant, dates, avancement %, statut, réserves), liste des lots types, historique d'avancement + **export Excel**
-- **Ouverture** : bouton ⏻ au centre, puis **Briefing du jour** interactif (notes à cocher, rappels, tâches, PV à livrer au BET, réception / bétonnage, échéances, labo, stock) — horaires matin / soir avec ou sans son (⋮ › Écran d'ouverture)
-- **Bouton rouge** : « Au revoir » léger avant de quitter
-- **PV intelligent** : le PV est lu automatiquement, l'application propose « Reçu » sur le bon ouvrage et alerte si la date ou l'ouvrage ne correspond pas
-- **Tableaux** : annuler / rétablir (↶ ↷), **Corbeille** 30 jours, annuler le report au lendemain, boutons d'ajout toujours visibles
-- **Ajouter des photos / PV** : choix Appareil photo · Photos · Fichiers
-- **Bon de bétonnage** : s'affiche depuis le programme, import de la signature depuis la photo d'un bon signé, écriture plus naturelle, date centrée, signature plus nette
-- **Photos** : rotation gauche / droite plus légère
-- **Thèmes** : couleurs plus nettes (mode Net / Verre), dossiers aux couleurs du thème
-- **Menu ⋮** réorganisé par groupes · rappel de sauvegarde hebdomadaire · indicateur hors ligne · la pastille « PV à récupérer » ouvre la liste
+- **Premier démarrage : service → poste** (Travaux, Qualité, Laboratoire, HSE, Études & méthodes, Logistique, Administration & finance, Externes) : chacun a son espace, son menu, son briefing et ses droits (consulter · modifier · valider). À changer dans ⋮ › Mon compte
+- **Packs** Découverte · Essentiel · Pro · Entreprise : ce qui n'est pas inclus apparaît avec 🔒 et se demande en un geste
+- **Organigramme dessiné** (zoom, branches pliables, N+1, intérim) + export PDF A4/A3 et image
+- **Réunions de chantier** : compte rendu, présents, actions (qui / quand) → PDF et WhatsApp, actions rappelées au briefing
+- **RFI** (demandes au BET / architecte), **Visas des documents** et **bordereaux d'envoi** (les PV reçus s'y ajoutent et passent « livrés »)
+- **Planning Gantt** : prévu / réel / retard, lots TCE importés, fin du marché recalculée avec avenants et OS
+- **Pointage de la main d'œuvre** : ✓ ½ ✗ par jour, semaine validée par le responsable, coût envoyé au Financier
+- **Laboratoire** : éprouvettes, slump, essais (sols, granulats, aciers) · **HSE** : causeries, EPI, accidents, permis, jours sans accident
+- **Avenants & ordres de service** (statuts, délais) · **Sous-traitants** : contrat, situations, paiements, retenue, assurance, notes
+- **Validations** : circuit vers le responsable, carte « À valider » au briefing (rouge après 48 h)
+- **Tableau de bord** : indicateurs selon votre poste · menu latéral rangé par groupes
+- **Briefing** : notes visibles, cartes alignées, ouverture en 3D, retour au même endroit, « Marquer livrés jusqu'au… »
+- **Comparer deux niveaux** : seulement la structure (voiles, poteaux, corbeaux…), les textes et les cotes sont ignorés

@@ -3,16 +3,17 @@
 const ROLES = [
   { k: 'directeur', e: '🎯', n: 'Directeur / Directeur qualité', d: 'Voit tout + le suivi de son équipe', f: null, team: true },
   { k: 'conducteur', e: '🏗️', n: 'Conducteur de travaux', d: 'Plans, réception & bétonnage, réserves, rapports, avancement', f: null, team: true },
-  { k: 'chef', e: '👷', n: 'Chef de chantier', d: 'Plans, réception & bétonnage, réserves, photos, rapports, gestion', f: ['reception', 'tasks', 'photos', 'reports', 'forms', 'calc', 'gestion'] },
-  { k: 'qualite', e: '✅', n: 'Technicien / TS qualité', d: 'Réception, PV, constats, formulaires QC, clauses CPS', f: ['reception', 'tasks', 'photos', 'forms', 'constat', 'clauses', 'reports', 'gestion'] },
-  { k: 'topo', e: '📐', n: 'Topographe', d: 'Plans, calculs & topo, photos', f: ['calc', 'photos', 'tasks', 'models3d'] },
-  { k: 'second', e: '🎨', n: 'Chef d\'équipe second œuvre', d: 'Avancement des lots, réserves, photos', f: ['avancement', 'tasks', 'photos', 'reports'] },
-  { k: 'st', e: '🤝', n: 'Sous-traitant', d: 'Ses réserves et ses photos seulement', f: ['tasks', 'photos'] },
+  { k: 'chef', e: '👷', n: 'Chef de chantier', d: 'Plans, réception & bétonnage, réserves, photos, rapports, gestion', f: ['reception', 'tasks', 'photos', 'reports', 'forms', 'calc', 'gestion', 'planning', 'reunions', 'pointage', 'hse', 'labo', 'org'] },
+  { k: 'qualite', e: '✅', n: 'Technicien / TS qualité', d: 'Réception, PV, constats, formulaires QC, clauses CPS', f: ['reception', 'tasks', 'photos', 'forms', 'constat', 'clauses', 'reports', 'gestion', 'labo', 'rfi', 'visa', 'reunions'] },
+  { k: 'topo', e: '📐', n: 'Topographe', d: 'Plans, calculs & topo, photos', f: ['calc', 'photos', 'tasks', 'models3d', 'rfi'] },
+  { k: 'second', e: '🎨', n: 'Chef d\'équipe second œuvre', d: 'Avancement des lots, réserves, photos', f: ['avancement', 'tasks', 'photos', 'reports', 'pointage', 'planning'] },
+  { k: 'st', e: '🤝', n: 'Sous-traitant', d: 'Ses réserves et ses photos seulement', f: ['tasks', 'photos', 'st'] },
 ];
 const PACKS = [
-  { k: 'essentiel', n: 'Essentiel', d: 'Plans, réserves, photos, rapports', f: ['tasks', 'photos', 'reports', 'career'] },
-  { k: 'pro', n: 'Pro', d: '+ réception & bétonnage, PV, formulaires, constats, CPS, avancement', f: ['tasks', 'photos', 'reports', 'career', 'reception', 'forms', 'constat', 'clauses', 'avancement', 'calc', 'gestion'] },
-  { k: 'entreprise', n: 'Entreprise', d: 'Tout : + 3D, calculs, suivi d\'équipe', f: null },
+  { k: 'decouverte', n: 'Découverte', d: 'Gratuit : plans, réserves, photos', f: ['tasks', 'photos', 'career'] },
+  { k: 'essentiel', n: 'Essentiel', d: '+ rapports, réception, formulaires, planning, réunions, pointage', f: ['tasks', 'photos', 'reports', 'career', 'reception', 'forms', 'planning', 'reunions', 'pointage'] },
+  { k: 'pro', n: 'Pro', d: '+ qualité, labo, HSE, RFI, visas, financier, TCE, sous-traitants', f: ['tasks', 'photos', 'reports', 'career', 'reception', 'forms', 'planning', 'reunions', 'pointage', 'constat', 'clauses', 'avancement', 'calc', 'gestion', 'rfi', 'visa', 'hse', 'labo', 'finance', 'tce', 'st'] },
+  { k: 'entreprise', n: 'Entreprise', d: 'Tout : + 3D, organigramme et hiérarchie, suivi d\'équipe', f: null },
 ];
 const roleOf = (k) => ROLES.find(r => r.k === k);
 // couleur de profil (selon le rôle de la licence ; le propriétaire = directeur)
@@ -22,7 +23,7 @@ function applyRoleColor() { const r = myRole(), c = ROLE_COLORS[r]; if (c) docum
 const packOf = (k) => PACKS.find(p => p.k === k);
 // fonctions d'une licence : true / false pour chaque fonction
 function featuresFor(role, pack) {
-  const R = roleOf(role), P = packOf(pack) || PACKS[2];
+  const R = roleOf(role), P = packOf(pack) || PACKS[3];
   return Object.fromEntries(FEATURES.map(([k]) => [k, (k === 'career' || !R || !R.f || R.f.includes(k)) && (!P.f || P.f.includes(k))]));
 }
 

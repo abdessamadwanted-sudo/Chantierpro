@@ -39,17 +39,19 @@ function finData(p) { p.fin = p.fin || {}; const F = p.fin; for (const k of ['av
 function finCalc(p) {
   const F = finData(p), G = p.gs || {};
   const bpu = (G.bpu || []).reduce((s, it) => s + fN(it.qm) * fN(it.pu), 0);
-  const base = fN(F.base) || bpu, av = F.av.reduce((s, a) => s + fN(a.m), 0), marche = base + av;
+  const base = fN(F.base) || bpu, av = F.av.filter(a => !['br', 'ref'].includes(a.st)).reduce((s, a) => s + fN(a.m), 0), marche = base + av;
   const sits = G.sit || [], sitCum = sits.length ? sits[sits.length - 1].cum : 0;
-  const enc = F.enc.reduce((s, e) => s + fN(e.m), 0), dep = F.dep.reduce((s, d) => s + fN(d.m), 0);
+  // dépenses automatiques : pointage (main d'œuvre) et situations payées aux sous-traitants
+  const mo = typeof ptCost === 'function' ? ptCost(p) : 0, stp = (p.st || []).reduce((s, x) => s + (x.sit || []).filter(y => y.st === 'pay').reduce((a, y) => a + fN(y.m), 0), 0);
+  const enc = F.enc.reduce((s, e) => s + fN(e.m), 0), dep = F.dep.reduce((s, d) => s + fN(d.m), 0) + mo + stp;
   const facT = F.fac.reduce((s, f) => s + fN(f.m), 0), facDue = F.fac.filter(f => f.st !== 'paye').reduce((s, f) => s + fN(f.m), 0);
   const facLate = F.fac.filter(f => f.st !== 'paye' && f.ech && f.ech < todayISO()).length;
   const real = sitCum || enc;
-  return { base, av, marche, sitCum, enc, dep, facT, facDue, facLate, marge: real - dep, pct: marche ? Math.round(real / marche * 100) : 0, reste: marche - enc };
+  return { base, av, marche, sitCum, enc, dep, mo, stp, facT, facDue, facLate, marge: real - dep, pct: marche ? Math.round(real / marche * 100) : 0, reste: marche - enc };
 }
 async function renderFinance(root) {
   const p = App.project, F = finData(p), save = () => DB.put('projects', p), redraw = () => renderFinance(root), K = finCalc(p);
-  const byCat = FIN_CATS.map(c => [c, F.dep.filter(d => (d.cat || 'Divers') === c).reduce((s, d) => s + fN(d.m), 0)]).filter(x => x[1]);
+  const byCat = FIN_CATS.map(c => [c, F.dep.filter(d => (d.cat || 'Divers') === c).reduce((s, d) => s + fN(d.m), 0) + (c === 'Main d\'œuvre' ? K.mo : c === 'Sous-traitance' ? K.stp : 0)]).filter(x => x[1]);
   const mx = Math.max(1, ...byCat.map(x => x[1]));
   const rowsOf = (L, fn) => L.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).map(fn).join('');
   root.innerHTML = `<div class="fn">
@@ -62,9 +64,10 @@ async function renderFinance(root) {
     </div>
     <div class="fn-acts"><button class="btn small" data-a="xls">${icon('grid')} Export Excel</button><button class="btn ghost small" data-a="att">🧾 Attachements & situations</button></div>
     ${finSec('mar', '📑 Marché & avenants', `${F.av.length} avenant(s)`, `<button class="fn-row" data-a="base"><span class="grow"><b>Montant du marché de base HT</b><small>${fN(F.base) ? 'saisi' : K.base ? 'calculé depuis le BPU (Gestion)' : 'à saisir'}</small></span><span class="fn-v">${fDH(K.base)}</span></button>
-      ${F.av.map(a => `<button class="fn-row" data-av="${a.id}"><span class="grow"><b>Avenant n° ${esc(a.n || '')} · ${esc(a.obj || '')}</b><small>${a.date ? fmtDate(a.date) : ''}</small></span><span class="fn-v ${fN(a.m) < 0 ? 'neg' : ''}">${fN(a.m) > 0 ? '+' : ''}${fDH(fN(a.m))}</span></button>`).join('')}
-      <button class="fn-add" data-a="addav">${icon('plus')} Avenant</button>`, true)}
+      ${F.av.map(a => regRowHtml(REG.av, a).replace('data-rid=', 'data-av=')).join('')}
+      <button class="fn-add" data-a="addav">${icon('plus')} Avenant</button><button class="btn ghost small" data-a="gav">Avenants & ordres de service ›</button>`, true)}
     ${finSec('dep', '💸 Dépenses', `${F.dep.length} ligne(s) · ${fDH(K.dep)}`, `${byCat.length ? `<div class="fn-bars">${byCat.map(([c, v]) => `<div><span>${esc(c)}</span><i><u style="width:${Math.round(v / mx * 100)}%"></u></i><b>${fDH(v)}</b></div>`).join('')}</div>` : ''}
+      ${K.mo ? `<button class="fn-row auto" data-go="pointage"><span class="grow"><b>👷 Main d'œuvre (pointage)</b><small>calculé automatiquement</small></span><span class="fn-v">${fDH(K.mo)}</span></button>` : ''}${K.stp ? `<button class="fn-row auto" data-go="st"><span class="grow"><b>🤝 Sous-traitants (situations payées)</b><small>calculé automatiquement</small></span><span class="fn-v">${fDH(K.stp)}</span></button>` : ''}
       ${rowsOf(F.dep, d => `<button class="fn-row" data-dep="${d.id}"><span class="grow"><b>${esc(d.lib || d.cat || '')}</b><small>${d.date ? fmtDate(d.date) : ''} · ${esc(d.cat || '')}${d.fr ? ' · ' + esc(d.fr) : ''}</small></span><span class="fn-v">${fDH(fN(d.m))}</span></button>`) || '<div class="fn-empty">Notez main d\'œuvre, matériaux, location d\'engins, sous-traitance…</div>'}
       <button class="fn-add" data-a="adddep">${icon('plus')} Dépense</button>`, false)}
     ${finSec('fac', '🧾 Factures fournisseurs / sous-traitants', `${F.fac.filter(f => f.st !== 'paye').length} à payer${K.facLate ? ` · <em>${K.facLate} en retard</em>` : ''}`, `${rowsOf(F.fac, f => { const late = f.st !== 'paye' && f.ech && f.ech < todayISO(); return `<button class="fn-row ${f.st === 'paye' ? 'paid' : late ? 'late' : ''}" data-fac="${f.id}"><span class="grow"><b>${esc(f.fr || '')} · n° ${esc(f.n || '')}</b><small>${f.date ? fmtDate(f.date) : ''}${f.ech ? ' · échéance ' + fmtDate(f.ech) : ''}</small></span><span class="fn-v">${fDH(fN(f.m))}<small>${f.st === 'paye' ? '✓ payée' : late ? 'en retard' : 'à payer'}</small></span></button>`; }) || '<div class="fn-empty">Aucune facture.</div>'}
@@ -81,11 +84,14 @@ async function renderFinance(root) {
   const DEPF = [{ name: 'date', label: 'Date', type: 'date', value: todayISO() }, { name: 'cat', label: 'Catégorie', type: 'select', options: FIN_CATS, value: FIN_CATS[1] }, { name: 'lib', label: 'Libellé', placeholder: 'Ex : 200 sacs CPJ45' }, { name: 'fr', label: 'Fournisseur / équipe', list: [...new Set(F.dep.map(d => d.fr).filter(Boolean))] }, { name: 'm', label: 'Montant (DH)', type: 'number' }];
   const FACF = [{ name: 'fr', label: 'Fournisseur / sous-traitant', list: [...new Set(F.fac.map(f => f.fr).filter(Boolean))] }, { name: 'n', label: 'N° de facture' }, { name: 'date', label: 'Date', type: 'date', value: todayISO() }, { name: 'ech', label: 'Échéance de paiement', type: 'date' }, { name: 'm', label: 'Montant TTC (DH)', type: 'number' }, { name: 'st', label: 'Statut', type: 'select', options: [{ value: 'due', label: 'À payer' }, { value: 'paye', label: 'Payée' }], value: 'due' }];
   const ENCF = [{ name: 'date', label: 'Date', type: 'date', value: todayISO() }, { name: 'ref', label: 'Référence', placeholder: 'Ex : Situation n° 3' }, { name: 'm', label: 'Montant reçu (DH)', type: 'number' }];
-  A('addav').onclick = () => finEdit(F.av, null, 'Avenant', AVF, save, redraw);
+  A('addav').onclick = async () => { const x = await regEdit(p, 'av', null, redraw); if (x) regOpen(p, 'av', x, redraw); };
+  $$('[data-go]', root).forEach(b => b.onclick = () => { App.section = b.dataset.go; renderSection(); });
+  A('gav').onclick = () => { App.section = 'avenants'; renderSection(); };
+  if (!orgEdit('finance')) $$('.fn-add', root).forEach(b => b.remove());
   A('adddep').onclick = () => finEdit(F.dep, null, 'Dépense', DEPF, save, redraw);
   A('addfac').onclick = () => finEdit(F.fac, null, 'Facture', FACF, save, redraw);
   A('addenc').onclick = () => finEdit(F.enc, null, 'Encaissement', ENCF, save, redraw);
-  $$('[data-av]', root).forEach(b => b.onclick = () => finEdit(F.av, F.av.find(x => x.id === b.dataset.av), 'Avenant', AVF, save, redraw));
+  $$('.fn-g [data-av]', root).forEach(b => b.onclick = () => regOpen(p, 'av', F.av.find(x => x.id === b.dataset.av), redraw));
   $$('[data-dep]', root).forEach(b => b.onclick = () => finEdit(F.dep, F.dep.find(x => x.id === b.dataset.dep), 'Dépense', DEPF, save, redraw));
   $$('[data-fac]', root).forEach(b => b.onclick = () => finEdit(F.fac, F.fac.find(x => x.id === b.dataset.fac), 'Facture', FACF, save, redraw));
   $$('[data-enc]', root).forEach(b => b.onclick = () => finEdit(F.enc, F.enc.find(x => x.id === b.dataset.enc), 'Encaissement', ENCF, save, redraw));
@@ -97,7 +103,7 @@ async function renderFinance(root) {
       const b = await xlsxBlob([
         { name: 'Synthèse', title: true, head: 2, rows: [[`${p.name} — synthèse financière au ${fmtDate(todayISO())}`], [], ['Poste', 'Montant (DH)'], ['Marché de base HT', K.base], ['Avenants HT', K.av], ['Marché total HT', K.marche], ['Réalisé (situations, cumul HT)', K.sitCum], ['Avancement financier (%)', K.pct], ['Encaissé', K.enc], ['Reste à encaisser', K.reste], ['Dépenses', K.dep], ['Factures à payer', K.facDue], ['Marge estimée', K.marge]], widths: [38, 20] },
         { name: 'Avenants', ...T(['N°', 'Objet', 'Date', 'Montant HT'], F.av.map(a => [a.n || '', a.obj || '', a.date ? fmtDate(a.date) : '', fN(a.m)]), [8, 44, 12, 18], ['', 'TOTAL', '', sum(F.av)]) },
-        { name: 'Dépenses', ...T(['Date', 'Catégorie', 'Libellé', 'Fournisseur', 'Montant'], F.dep.map(d => [d.date ? fmtDate(d.date) : '', d.cat || '', d.lib || '', d.fr || '', fN(d.m)]), [12, 20, 38, 24, 16], ['', '', 'TOTAL', '', sum(F.dep)]) },
+        { name: 'Dépenses', ...T(['Date', 'Catégorie', 'Libellé', 'Fournisseur', 'Montant'], [...F.dep.map(d => [d.date ? fmtDate(d.date) : '', d.cat || '', d.lib || '', d.fr || '', fN(d.m)]), ...(K.mo ? [['', 'Main d\'œuvre', 'Pointage (automatique)', '', K.mo]] : []), ...(K.stp ? [['', 'Sous-traitance', 'Situations payées (automatique)', '', K.stp]] : [])], [12, 20, 38, 24, 16], ['', '', 'TOTAL', '', K.dep]) },
         { name: 'Factures', ...T(['Fournisseur', 'N°', 'Date', 'Échéance', 'Montant TTC', 'Statut'], F.fac.map(f => [f.fr || '', f.n || '', f.date ? fmtDate(f.date) : '', f.ech ? fmtDate(f.ech) : '', fN(f.m), f.st === 'paye' ? 'Payée' : 'À payer']), [28, 12, 12, 12, 16, 10], ['TOTAL', '', '', '', sum(F.fac), '']) },
         { name: 'Encaissements', ...T(['Date', 'Référence', 'Montant'], F.enc.map(e => [e.date ? fmtDate(e.date) : '', e.ref || '', fN(e.m)]), [12, 34, 16], ['', 'TOTAL', sum(F.enc)]) },
       ]);
@@ -135,10 +141,11 @@ async function renderTce(root) {
     <button class="fn-add" data-a="add">${icon('plus')} Lot</button>
   </div>`;
   finBind(root, redraw);
-  const FIELDS = [{ name: 'lot', label: 'Lot', list: TCE_LOTS }, { name: 'ent', label: 'Entreprise', list: comps.map(c => c.name) }, { name: 'tel', label: 'Téléphone', type: 'tel' }, { name: 'm', label: 'Montant du marché HT (DH)', type: 'number' },
+  const FIELDS = [{ name: 'lot', label: 'Lot', list: TCE_LOTS }, { name: 'ent', label: 'Entreprise / sous-traitant', list: [...new Set([...comps.map(c => c.name), ...(p.st || []).map(x => x.nom).filter(Boolean)])] }, { name: 'tel', label: 'Téléphone', type: 'tel' }, { name: 'm', label: 'Montant du marché HT (DH)', type: 'number' },
     { name: 'deb', label: 'Début prévu', type: 'date' }, { name: 'fin', label: 'Fin prévue', type: 'date' }, { name: 'finR', label: 'Fin réelle', type: 'date' }, { name: 'av', label: 'Avancement (%)', type: 'number' },
     { name: 'st', label: 'Statut', type: 'select', options: TCE_ST.filter(x => x[0] !== 'ret').map(([value, label]) => ({ value, label })), value: 'nd' }, { name: 'note', label: 'Notes', type: 'textarea' }];
   $('[data-a=add]', root).onclick = () => finEdit(T.lots, null, 'Lot TCE', FIELDS, save, redraw);
+  if (!orgEdit('tce')) $$('.fn-add, [data-ed], [data-av], [data-a=tpl]', root).forEach(b => b.style.display = 'none');
   $$('[data-ed]', root).forEach(b => b.onclick = () => finEdit(T.lots, T.lots.find(x => x.id === b.dataset.ed), 'Lot TCE', FIELDS, save, redraw));
   $$('[data-av]', root).forEach(b => b.onclick = async () => { const L = T.lots.find(x => x.id === b.dataset.av); const r = await formSheet(`Avancement · ${L.lot}`, [{ name: 'v', label: 'Avancement (%)', type: 'number', value: L.av || '' }, { name: 'n', label: 'Commentaire', placeholder: 'Ex : 2e couche R+3 terminée' }], { okLabel: 'Enregistrer' });
     if (!r) return; L.av = Math.max(0, Math.min(100, fN(r.v))); (L.hist = L.hist || []).push({ d: todayISO(), v: L.av, n: r.n }); if (L.av >= 100 && L.st !== 'rec') { L.st = 'fin'; L.finR = L.finR || todayISO(); } else if (L.av > 0 && L.st === 'nd') L.st = 'ec'; await save(); redraw(); });

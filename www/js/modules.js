@@ -15,10 +15,21 @@ const FEATURES = [
   ['models3d', 'Modèles 3D / Maquette 3D'],
   ['calc', 'Calculs & Topo'],
   ['gestion', 'Gestion : stock, rendement, attachements / situations, labo'],
+  ['planning', 'Planning (Gantt)'],
+  ['reunions', 'Réunions de chantier (comptes rendus)'],
+  ['rfi', 'RFI : demandes au BET / architecte'],
+  ['visa', 'Visas des documents · bordereaux d\'envoi'],
+  ['pointage', 'Pointage de la main d\'œuvre'],
+  ['hse', 'HSE : sécurité, causeries, EPI, permis'],
+  ['labo', 'Laboratoire : béton, slump, sols, essais'],
+  ['finance', 'Financier · avenants & ordres de service'],
+  ['tce', 'TCE (tous corps d\'état)'],
+  ['st', 'Sous-traitants'],
+  ['org', 'Organigramme & hiérarchie'],
   ['career', 'Emploi & carrière'],
 ];
 // section du menu → fonction qui la commande (les sections absentes sont toujours visibles)
-const SECTION_FEATURE = { reception: 'reception', beton: 'reception', avancement: 'avancement', tasks: 'tasks', photos: 'photos', forms: 'forms', reports: 'reports', constat: 'constat', clauses: 'clauses', models3d: 'models3d', maquette: 'models3d', calc: 'calc', gestion: 'gestion' };
+const SECTION_FEATURE = { reception: 'reception', beton: 'reception', avancement: 'avancement', tasks: 'tasks', photos: 'photos', forms: 'forms', reports: 'reports', constat: 'constat', clauses: 'clauses', models3d: 'models3d', maquette: 'models3d', calc: 'calc', gestion: 'gestion', planning: 'planning', reunions: 'reunions', rfi: 'rfi', visa: 'visa', pointage: 'pointage', hse: 'hse', labo: 'labo', finance: 'finance', avenants: 'finance', tce: 'tce', st: 'st', org: 'org' };
 
 function myFeatures() { try { return JSON.parse(localStorage.getItem('myFeatures') || '{}') || {}; } catch (e) { return {}; } }
 // fonction autorisée par la licence (l'ami ne peut pas la réactiver lui-même)

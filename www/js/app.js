@@ -97,6 +97,7 @@ const rapLabel = (x) => { const d = rapDays(x); return d < 0 ? ` · en retard de
 
 // ---------- Accueil : projets ----------
 async function renderHome() {
+  App.fromBrief = null;
   const keepScroll = App.project ? 0 : (($('.h2-body') || {}).scrollTop || 0);
   App.project = null;
   BackStack.length = 0;
@@ -207,6 +208,8 @@ async function renderHome() {
       { title: 'Aujourd\'hui', color: '#22c55e', items: [{ label: 'Briefing du jour', sub: 'notes, rappels, PV à livrer, tâches', icon: 'calendar', value: 'brief' }] },
       { title: 'Mon compte', color: '#3b82f6', items: [
         { label: 'Mon prénom', sub: uname || 'pour les messages d\'accueil', icon: 'edit', value: 'name' },
+        { label: 'Mon service et mon poste', sub: Org.label() || 'à choisir', icon: 'users', value: 'poste' },
+        { label: 'Packs', sub: 'comparer · demander un pack', icon: 'lock', value: 'packs' },
         ...(LI.mode === 'user' && (LI.team || []).length ? [{ label: `Mon équipe (${LI.team.length})`, sub: 'suivi', icon: 'team', value: 'team' }] : []),
         LI.mode === 'user' ? { label: 'Partage de suivi', sub: `${LI.ownerName || 'titulaire de la licence'} · lecture seule`, icon: 'team', value: 'licinfo' } : { label: 'Licences', sub: 'partager l\'application', icon: 'team', value: 'lic' }] },
       { title: 'Apparence', color: '#a855f7', items: [
@@ -228,6 +231,8 @@ async function renderHome() {
     ]);
     if (v === 'brief') { const act = await briefingShow(); if (act) act(); }
     if (v === 'trash') { const ps = (await DB.all('projects')).filter(p => (p.trash || []).length); if (!ps.length) toast('La corbeille est vide'); else { const id = ps.length === 1 ? ps[0].id : await menu('Corbeille de quel chantier ?', ps.map(p => ({ label: `${p.name} · ${p.trash.length}`, icon: 'trash', value: p.id }))); if (id) openTrash(id); } }
+    if (v === 'poste') orgOnboard(true);
+    if (v === 'packs') openPacks();
     if (v === 'restore') restoreBackup();
     if (v === 'stock') openStorage();
     if (v === 'team') openMyTeam();
@@ -277,6 +282,16 @@ const SECTIONS = {
   gestion: { label: 'Gestion (stock · rendement · situations · labo)', icon: 'grid', render: (r) => renderGestion(r), title: 'Gestion du chantier', subtitle: 'Stock · rendement · attachements · labo' },
   finance: { label: 'Financier (marché · dépenses · factures · marge)', icon: 'grid', render: (r) => renderFinance(r), title: 'Financier', subtitle: 'Marché · dépenses · factures · marge' },
   tce: { label: 'TCE (tous corps d\'état)', icon: 'layers', render: (r) => renderTce(r), title: 'TCE', subtitle: 'Lots · entreprises · avancement' },
+  planning: { label: 'Planning (Gantt)', icon: 'gantt', render: (r) => renderPlanning(r), title: 'Planning', subtitle: 'Prévu · réel · retards' },
+  reunions: { label: 'Réunions de chantier', icon: 'meet', render: (r) => renderReunions(r), title: 'Réunions', subtitle: 'Comptes rendus · actions' },
+  pointage: { label: 'Pointage main d\'œuvre', icon: 'clock', render: (r) => renderPointage(r), title: 'Pointage', subtitle: 'Présences · coût' },
+  rfi: { label: 'RFI · demandes au BET', icon: 'ask', render: (r) => renderRfi(r), title: 'RFI', subtitle: 'Demandes d\'information' },
+  visa: { label: 'Visas & bordereaux', icon: 'stamp', render: (r) => renderVisa(r), title: 'Visas', subtitle: 'Documents · bordereaux d\'envoi' },
+  labo: { label: 'Laboratoire', icon: 'flask', render: (r) => renderLabo(r), title: 'Laboratoire', subtitle: 'Béton · slump · essais' },
+  hse: { label: 'HSE · sécurité', icon: 'shield', render: (r) => renderHse(r), title: 'HSE', subtitle: 'Causeries · EPI · accidents · permis' },
+  avenants: { label: 'Avenants & OS', icon: 'sign', render: (r) => renderAvenants(r), title: 'Avenants & OS', subtitle: 'Montants · délais' },
+  st: { label: 'Sous-traitants', icon: 'hands', render: (r) => renderSt(r), title: 'Sous-traitants', subtitle: 'Contrats · situations · paiements' },
+  org: { label: 'Organigramme', icon: 'org', render: (r) => renderOrg(r), title: 'Organigramme', subtitle: 'Hiérarchie du chantier' },
   team: { label: 'Équipe', icon: 'team', render: renderTeam },
   settings: { label: 'Paramètres', icon: 'settings', render: renderSettings },
 };
@@ -284,7 +299,7 @@ const SECTIONS = {
 async function renderSection() {
   BackStack.length = 0;
   if (!SECTIONS[App.section] || !sectionOn(App.section)) App.section = 'plans';
-  pushBack(() => { if (App.section !== 'plans') { App.section = 'plans'; App.search = ''; renderSection(); } else renderHome(); });
+  pushBack(() => { if (App.fromBrief && typeof briefReopen === 'function') return briefReopen(); if (App.section !== 'plans') { App.section = 'plans'; App.search = ''; renderSection(); } else renderHome(); });
   const s = SECTIONS[App.section];
   $('#app').innerHTML = `
     <div class="topbar dark">
@@ -319,7 +334,7 @@ async function openDrawer(opts = {}) {
   const d = document.createElement('div'); d.className = 'drawer';
   d.innerHTML = `
     <div class="drawer-head"><h3>${esc(App.project.name)}</h3><button class="iconbtn" data-home>${icon('home')}</button></div>
-    ${Object.entries(SECTIONS).filter(([k, s]) => !s.hidden && k !== 'settings' && sectionOn(k)).map(([k, s]) => `<button class="item ${App.section === k || (k === 'reception' && App.section === 'beton') ? 'active' : ''}" data-s="${k === 'reception' && App.section === 'beton' ? 'beton' : k}">${icon(s.icon)}<span>${s.label}</span>${k === 'reception' && nPv ? `<span class="count pvbadge">${nPv} PV</span>` : ''}${k === 'tasks' ? `<span class="count dr-rt" data-rtog>${tasks.filter(t => t.status === 'open').length || ''}<i style="display:inline-block;transform:rotate(${resOpen ? 180 : 0}deg)">${icon('chevdown', 'style="width:18px;height:18px"')}</i></span>` : ''}</button>${k === 'tasks' ? `<div class="dr-sub" style="${resOpen ? '' : 'display:none'}">${resRows}</div>` : ''}`).join('')}
+    ${drawerSections((k) => { const s = SECTIONS[k]; return `<button class="item ${App.section === k || (k === 'reception' && App.section === 'beton') ? 'active' : ''}" data-s="${k === 'reception' && App.section === 'beton' ? 'beton' : k}">${icon(s.icon)}<span>${s.label}</span>${k === 'reception' && nPv ? `<span class="count pvbadge">${nPv} PV</span>` : ''}${k === 'tasks' ? `<span class="count dr-rt" data-rtog>${tasks.filter(t => t.status === 'open').length || ''}<i style="display:inline-block;transform:rotate(${resOpen ? 180 : 0}deg)">${icon('chevdown', 'style="width:18px;height:18px"')}</i></span>` : ''}</button>${k === 'tasks' ? `<div class="dr-sub" style="${resOpen ? '' : 'display:none'}">${resRows}</div>` : ''}`; })}
     <div class="group">Outils</div>
     <button class="item" data-tool="pdf">${icon('pdf')}<span>Outils PDF</span><span class="count" style="font-size:12px;opacity:.6">fusionner · diviser</span></button>
     <button class="item" data-tool="board">${icon('brush')}<span>Tableau de dessin</span><span class="count" style="font-size:12px;opacity:.6">${(App.project.boards || []).length || ''}</span></button>
@@ -354,6 +369,7 @@ async function openDrawer(opts = {}) {
   const te = e => { d.style.overflowY = ''; if (dir !== 'h') return; const dx = e.changedTouches[0].clientX - dsx, v = -dx / Math.max(1, Date.now() - dst); if (-dx > W() * 0.25 || v > 0.3) close(); else setP(W(), true); };
   [d, bg].forEach(x => { x.addEventListener('touchstart', ts, { passive: true }); x.addEventListener('touchmove', tm, { passive: false }); x.addEventListener('touchend', te, { passive: true }); x.addEventListener('touchcancel', te, { passive: true }); });
   $('[data-home]', d).onclick = () => { close(); renderHome(); };
+  drawerGroupsBind(d, close);
   const rt = $('[data-rtog]', d); if (rt) rt.onclick = (e) => { e.stopPropagation(); resOpen = !resOpen; try { localStorage.setItem('dr.res', resOpen ? '1' : '0'); } catch (x) {} $('.dr-sub', d).style.display = resOpen ? '' : 'none'; rt.querySelector('i').style.transform = `rotate(${resOpen ? 180 : 0}deg)`; };
   $$('[data-s]', d).forEach(b => b.onclick = () => { close(); App.section = b.dataset.s; App.search = ''; renderSection(); });
   $$('[data-tool]', d).forEach(b => b.onclick = () => { close(); const t = b.dataset.tool; if (t === 'pdf') openPdfTools(); else if (t === 'board') openBoardTool(); else if (t === 'bar') openBarTool(); else if (t === 'lang') chooseLang(); else addRappel(App.project.id); });

@@ -154,6 +154,38 @@ function diffCanvases(ca, cb, mode) {
 }
 
 // ---------- Écran de comparaison (remplace la version image) ----------
+// ---------- structure seule (comparaison de niveaux) ----------
+const STRUCT_LAY = /voil|pot|corb|pout|b[eé]ton|(^|[^a-z])ba([^a-z]|$)|struct|coffr|(^|[^a-z])mur|dall|acrot|longr|semel|raid|chain|lint|escal|palier|gradin|radier/i;
+const NOSTRUCT_LAY = /cot|dim|txt|text|axe|axis|cart|cadre|titre|mob|meub|plomb|elec|sanit|fen|port|menuis|legend|nomencl|grille|hab|annot/i;
+function bErode(m, W, H, r) { const n = new Uint8Array(m.length); for (let i = 0; i < m.length; i++) n[i] = m[i] ? 0 : 1; const d = dilate(n, W, H, r); for (let i = 0; i < m.length; i++) d[i] = d[i] ? 0 : 1; return d; }
+const bClose = (m, W, H, r) => bErode(dilate(m, W, H, r), W, H, r), bOpen = (m, W, H, r) => dilate(bErode(m, W, H, r), W, H, r);
+async function structMap(plan, W, H, k, place, imgData) {
+  const sc = place ? place.w / plan.w : k, ox = place ? place.x : 0, oy = place ? place.y : 0;
+  const cv = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d', { willReadFrequently: true }); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); return [c, g]; };
+  // 1) plans AutoCAD : hachures pleines + contours fermés des calques de structure
+  if (plan.dwgFileId || plan.dxfFileId) { try { const D = await cadOfPlan(plan);
+    if (D && D.prims && D.box) { const s = plan.w / (D.box[2] - D.box[0]), T = (q) => [ox + (q[0] - D.box[0]) * s * sc, oy + (D.box[3] - q[1]) * s * sc];
+      const [c, g] = cv(); g.fillStyle = '#000'; g.strokeStyle = '#000'; g.lineWidth = 1.6; let n = 0;
+      const path = (P) => { g.beginPath(); P.forEach((q, i) => { const [x, y] = T(q); i ? g.lineTo(x, y) : g.moveTo(x, y); }); };
+      for (const p of D.prims) { const L = String(p.layer || ''); if (p.t === 'tx' || NOSTRUCT_LAY.test(L)) continue; const st = STRUCT_LAY.test(L);
+        if (p.t === 'fl') { for (const P of p.loops) { path(P); g.closePath(); g.fill(); } n++; }
+        else if (p.t === 'pl' && st) { path(p.pts); if (p.closed) { g.closePath(); g.fill(); } else g.stroke(); n++; } }
+      if (n > 3) return bClose(inkMap(g.getImageData(0, 0, W, H)), W, H, Math.max(1, Math.round(W / 900)));
+      // calques sans nom de structure : tout le dessin SAUF textes et cotes, puis on garde les masses
+      const [c2, g2] = cv(); g2.fillStyle = g2.strokeStyle = '#000'; g2.lineWidth = 1.2; 
+      for (const p of D.prims) { if (p.t === 'tx' || NOSTRUCT_LAY.test(String(p.layer || ''))) continue;
+        if (p.t === 'fl') for (const P of p.loops) { g2.beginPath(); P.forEach((q, i) => { const [x, y] = T(q); i ? g2.lineTo(x, y) : g2.moveTo(x, y); }); g2.closePath(); g2.fill(); }
+        else if (p.t === 'pl') { g2.beginPath(); p.pts.forEach((q, i) => { const [x, y] = T(q); i ? g2.lineTo(x, y) : g2.moveTo(x, y); }); if (p.closed) g2.closePath(); g2.stroke(); } }
+      const r0 = Math.max(1, Math.round(W / 700)); return bOpen(bClose(inkMap(g2.getImageData(0, 0, W, H)), W, H, r0 + 1), W, H, r0); } } catch (e) { console.warn('struct cad', e); } }
+  // 2) PDF vectoriel : rendu sans les textes, puis on garde les masses (hachures remplies, traits fins enlevés)
+  let m = null;
+  try { const P = await planPdfPage(plan); if (P) { const [c, g] = cv(); g.fillText = g.strokeText = () => {};
+    await P.page.render({ canvasContext: g, viewport: P.page.getViewport({ scale: P.k * sc }), transform: [1, 0, 0, 1, ox, oy], background: 'white' }).promise; m = inkMap(g.getImageData(0, 0, W, H)); } } catch (e) { console.warn('struct pdf', e); }
+  // 3) image : même traitement (les textes peuvent rester en partie)
+  if (!m) m = inkMap(imgData);
+  const r = Math.max(1, Math.round(W / 700));
+  return bOpen(bClose(m, W, H, r + 1), W, H, r);
+}
 async function openPlanCompare(oldPlan, newPlan, opts = {}) {
   if (!oldPlan || !newPlan) return;
   const LV = !!opts.levels;   // comparaison entre deux niveaux (étage du dessous → étage du dessus)
@@ -164,8 +196,8 @@ async function openPlanCompare(oldPlan, newPlan, opts = {}) {
     [PA, PB] = await Promise.all([planPdfPage(oldPlan), planPdfPage(newPlan)]);
     M = (LV && await cadAlignMap(oldPlan, newPlan)) || await planAlignMap(oldPlan, newPlan);
     ld.set(LV ? 'Recherche de ce qui continue / s\'arrête…' : 'Recherche des modifications…');
-    D = await planDiff(oldPlan, newPlan, 2000, { map: M, sens });
-    if (PA && PB) { ld.set('Lecture des textes et des cotes…'); const [A, B] = await Promise.all([pageTexts(PA.page, PA.k), pageTexts(PB.page, PB.k)]); TX = textDiff(A, B, M); }
+    D = await planDiff(oldPlan, newPlan, LV ? 2600 : 2000, { map: M, sens, struct: LV });
+    if (PA && PB && !LV) { ld.set('Lecture des textes et des cotes…'); const [A, B] = await Promise.all([pageTexts(PA.page, PA.k), pageTexts(PB.page, PB.k)]); TX = textDiff(A, B, M); }
   } catch (e) { ld.close(); return alertBox('Comparaison impossible : ' + (e.message || e)); }
   const [srcOld, srcNew] = await Promise.all([fileURL(oldPlan.fileId), fileURL(newPlan.fileId)]);
   ld.close();
@@ -180,7 +212,7 @@ async function openPlanCompare(oldPlan, newPlan, opts = {}) {
       <button class="iconbtn" data-a="sens" title="Sensibilité">${icon('settings')}</button><button class="iconbtn" data-a="share" title="Partager">${icon('share')}</button></div>
     <div class="av-chips cmp-modes"><button data-m="diff" class="on">Superposition</button><button data-m="old">${LV ? '' : 'Ind. '}${esc(iA)}</button><button data-m="new">${LV ? '' : 'Ind. '}${esc(iB)}</button><button data-m="box" class="on">▢ Zones</button></div>
     <div class="av-view"><div class="av-stage"><img width="${W}" height="${H}" src="${diffURL}"><canvas class="cmp-hd"></canvas><svg class="av-ov" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"></svg></div></div>
-    <div class="cmp-legend">${LV ? `<span><i style="background:#dc2626"></i>S'arrête en ${esc(iA)}</span><span><i style="background:#16a34a"></i>Nouveau en ${esc(iB)}</span><span><i style="background:#8c8c8c"></i>Continue</span>` : `<span><i style="background:#dc2626"></i>Supprimé</span><span><i style="background:#16a34a"></i>Ajouté</span><span><i style="background:#8c8c8c"></i>Inchangé</span>`}
+    <div class="cmp-legend">${LV ? `<span><i style="background:#dc2626"></i>S'arrête en ${esc(iA)}</span><span><i style="background:#16a34a"></i>Nouveau en ${esc(iB)}</span><span><i style="background:#5f5f5f"></i>Continue</span><span><i style="background:#d7d7d7"></i>Textes, cotes (ignorés)</span>` : `<span><i style="background:#dc2626"></i>Supprimé</span><span><i style="background:#16a34a"></i>Ajouté</span><span><i style="background:#8c8c8c"></i>Inchangé</span>`}
       <button class="btn small" data-a="list">${D.rects.length} zone(s)${TX.length ? ' · ' + TX.length + ' texte(s)' : ''}</button></div>`;
   document.body.appendChild(el);
   const unBack = pushBack(() => el.remove());
@@ -200,6 +232,7 @@ async function openPlanCompare(oldPlan, newPlan, opts = {}) {
   const covered = (v) => last && last.mode === mode && v.x0 >= last.x0 && v.y0 >= last.y0 && v.x1 <= last.x1 && v.y1 <= last.y1 && Math.abs(Math.log(v.s / last.s)) < 0.22;
   const renderHD = async () => {
     if (busy) { again = true; return; }
+    if (LV && mode === 'diff') { hd.style.display = 'none'; last = null; return; }   // niveaux : la superposition « structure seule » reste affichée
     const v = visible(), st = pz.st;
     if (v.x1 - v.x0 < 4 || v.y1 - v.y0 < 4 || st.s < st.fit * 1.15) { hd.style.display = 'none'; last = null; return; }   // vue d'ensemble : l'image suffit
     if (covered(v)) { hd.style.display = ''; return; }
@@ -238,7 +271,7 @@ async function openPlanCompare(oldPlan, newPlan, opts = {}) {
   $('[data-a=sens]', el).onclick = async () => {
     const v = await menu('Sensibilité de la détection', [{ label: 'Tout (même les petits détails)', value: '0.45', checked: sens === 0.45 }, { label: 'Normale', value: '1', checked: sens === 1 }, { label: 'Seulement les grosses modifications', value: '2', checked: sens === 2 }]);
     if (!v) return; sens = +v; try { localStorage.setItem('cmp.sens', v); } catch (e) {}
-    const l2 = loading('Recherche des modifications…'); try { D = await planDiff(oldPlan, newPlan, 2000, { map: M, sens }); } finally { l2.close(); }
+    const l2 = loading('Recherche des modifications…'); try { D = await planDiff(oldPlan, newPlan, LV ? 2600 : 2000, { map: M, sens, struct: LV }); } finally { l2.close(); }
     try { URL.revokeObjectURL(diffURL); } catch (e) {} diffURL = URL.createObjectURL(await new Promise(r => D.canvas.toBlob(r, 'image/png'))); D.canvas.width = D.canvas.height = 0; if (mode === 'diff') img.src = diffURL;
     $('[data-a=list]', el).textContent = `${D.rects.length} zone(s)${TX.length ? ' · ' + TX.length + ' texte(s)' : ''}`; drawBoxes(pz.st.s);
   };
@@ -249,7 +282,7 @@ async function openPlanCompare(oldPlan, newPlan, opts = {}) {
     const B = await tapOn('new', `2/2 · Touchez le même repère sur ${iB}`);
     const ax = A[0] * oldPlan.w / W, ay = A[1] * oldPlan.h / H;
     M = { ...M, ox: B[0] - ax * M.sx, oy: B[1] - ay * M.sy };
-    const l2 = loading('Nouvelle superposition…'); try { D = await planDiff(oldPlan, newPlan, 2000, { map: M, sens }); } finally { l2.close(); }
+    const l2 = loading('Nouvelle superposition…'); try { D = await planDiff(oldPlan, newPlan, LV ? 2600 : 2000, { map: M, sens, struct: LV }); } finally { l2.close(); }
     try { URL.revokeObjectURL(diffURL); } catch (e) {} diffURL = URL.createObjectURL(await new Promise(r => D.canvas.toBlob(r, 'image/png'))); D.canvas.width = D.canvas.height = 0;
     $('[data-a=list]', el).textContent = `${D.rects.length} zone(s)${TX.length ? ' · ' + TX.length + ' texte(s)' : ''}`; setMode('diff'); drawBoxes(pz.st.s); toast('Recalé ✓');
   };

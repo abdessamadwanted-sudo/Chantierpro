@@ -196,7 +196,9 @@ async function planDiff(oldPlan, newPlan, maxSide = 1800, opts = {}) {
   const M = opts.map, place = M ? { x: M.ox * k, y: M.oy * k, w: oldPlan.w * M.sx * k, h: oldPlan.h * M.sy * k } : null;
   const [A, B] = await Promise.all([planImageData(oldPlan, W, H, place), planImageData(newPlan, W, H)]);
   const sens = opts.sens || 1;
-  const a = inkMap(A), b = inkMap(B), r = Math.max(1, Math.round(W / 900));
+  // niveaux : on ne compare que la structure (voiles, poteaux, corbeaux…), pas les textes ni les cotes
+  const ctx = opts.struct ? inkMap(B) : null;
+  const a = opts.struct ? await structMap(oldPlan, W, H, k, place, A) : inkMap(A), b = opts.struct ? await structMap(newPlan, W, H, k, null, B) : inkMap(B), r = Math.max(1, Math.round(W / 900));
   const da = dilate(a, W, H, r), db = dilate(b, W, H, r);
   const out = new ImageData(W, H), o = out.data;
   const CELL = Math.max(8, Math.round(W / 110)), CW = Math.ceil(W / CELL), CH = Math.ceil(H / CELL), cells = new Uint16Array(CW * CH);
@@ -204,7 +206,8 @@ async function planDiff(oldPlan, newPlan, maxSide = 1800, opts = {}) {
     const j = i * 4; let R = 255, G = 255, Bc = 255;
     if (a[i] && !db[i]) { R = 220; G = 38; Bc = 38; cells[((y / CELL) | 0) * CW + ((x / CELL) | 0)]++; }        // supprimé (ancien seulement)
     else if (b[i] && !da[i]) { R = 22; G = 163; Bc = 74; cells[((y / CELL) | 0) * CW + ((x / CELL) | 0)]++; }   // ajouté (nouveau seulement)
-    else if (a[i] || b[i]) { R = G = Bc = 150; }                                                                 // inchangé
+    else if (a[i] || b[i]) { R = G = Bc = opts.struct ? 95 : 150; }                                                // inchangé
+    else if (ctx && ctx[i]) { R = G = Bc = 215; }                                                                // contexte (textes, cotes) en très clair
     o[j] = R; o[j + 1] = G; o[j + 2] = Bc; o[j + 3] = 255;
   }
   // zones : cellules significatives voisines regroupées

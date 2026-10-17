@@ -43,8 +43,10 @@ async function renderDashboard(root) {
   const conf = fs.filter(s => s.status === 'Conforme').length, nconf = fs.filter(s => s.status === 'Non conforme').length;
   const activity = tasks.flatMap(t => (t.log || []).map(l => ({ ...l, t2: t }))).sort((a, b) => b.t - a.t).slice(0, 6);
 
+  const dk = typeof dashKpis === 'function' ? await dashKpis(p) : '';
   root.innerHTML = `
-    <div class="pagehead"><h2>Tableau de bord</h2><p>${esc(p.name)}${p.address ? ' · ' + esc(p.address) : ''}</p></div>
+    <div class="pagehead"><h2>Tableau de bord</h2><p>${esc(p.name)}${p.address ? ' · ' + esc(p.address) : ''}${Org.label() ? ' · ' + esc(Org.label()) : ''}</p></div>
+    ${dk}
     ${late.length ? `<div class="alert" data-a="late">${icon('calendar')}<div><b>${late.length} réserve(s) en retard</b><br><span>Échéance dépassée — touchez pour voir</span></div></div>` : ''}
     ${nPv ? `<div class="alert pv" data-a="pvmiss">${icon('report')}<div><b>🔔 ${nPv} PV de réception pas encore reçu(s)</b><br><span>Touchez pour voir la liste et cocher les PV reçus</span></div></div>` : ''}
     <div class="kpis">
@@ -80,6 +82,7 @@ async function renderDashboard(root) {
   const al = $('[data-a=late]', root); if (al) al.onclick = () => goTasks('late');
   $$('.crow', root).forEach(r => r.onclick = () => goTasks('all', r.dataset.c));
   const pvm = $('[data-a=pvmiss]', root); if (pvm) pvm.onclick = () => goMissingPv();
+  $$('[data-dk]', root).forEach(b => b.onclick = () => { App.section = b.dataset.dk; renderSection(); });
   $('[data-a=addco]', root).onclick = async () => { if (await editCompany(App.project)) renderDashboard(root); };
   $('[data-a=pdf]', root).onclick = () => reservesReportDialog();
   $('[data-a=wk]', root).onclick = () => weeklyReportDialog();
