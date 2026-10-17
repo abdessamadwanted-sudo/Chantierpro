@@ -119,6 +119,7 @@ async function pvBetSheet(fromBrief) {
 function briefingShow(opts = {}) {
   return new Promise(async (resolve) => {
     const { cards } = await briefingData();
+    const GS = await gameStrip().catch((e) => { console.warn('game', e); return null; });
     const notes = BriefNotes.get();
     const el = document.createElement('div'); el.className = 'splash brief';
     const name = (() => { try { return localStorage.getItem('userName') || ''; } catch (e) { return ''; } })();
@@ -127,6 +128,7 @@ function briefingShow(opts = {}) {
     const anim = !opts.scroll;
     el.innerHTML = `<div class="bf-head"><small>${esc(d.charAt(0).toUpperCase() + d.slice(1))}${Org.label() ? ' · ' + esc(Org.label()) : ''}</small><b>Briefing du jour${name ? ', ' + esc(name) : ''}</b><span>${(() => { const n = cards.filter(c => !c.sc).reduce((a, c) => a + (+c.n || 0), 0); return n ? `${n} point(s) à voir` : 'Tout est à jour ✓'; })()}</span></div>
       <div class="bf-body">
+        ${GS ? `<div class="gm">${GS.html}</div>` : ''}
         <div class="bf-notes"><div class="bf-ch"><span>📝</span><b>Mes notes · à cocher</b><i>${notes.filter(x => !x.done).length || ''}</i></div><div class="bn">${drawNotes()}</div></div>
         <div class="bf-grid">${cards.map((c, i) => `<button class="bf-card ${anim ? '' : 'noanim'} ${c.alert ? 'bf-alert' : ''}" data-c="${i}" style="--c:${c.c};animation-delay:${.1 + i * .06}s"><div class="bf-ch"><span>${c.e}</span><b>${esc(c.t)}</b></div>${c.sc ? `<div class="bf-n bf-sc">${c.e}</div>` : `<div class="bf-n" data-n="${c.n}">${anim ? 0 : c.n}</div>`}${c.sub ? `<small class="bf-s">${esc(c.sub)}</small>` : ''}<div class="bf-l">${c.sc ? '<div>Raccourci</div>' : c.items.slice(0, 2).map(x => `<div>${x.late ? '🔴 ' : ''}${esc(x.label)}</div>`).join('')}</div><span class="bf-go">Ouvrir ›</span></button>`).join('')}</div>
         <button class="bf-cust">＋ Ajouter / masquer des cartes</button>
@@ -134,13 +136,21 @@ function briefingShow(opts = {}) {
       <div class="bf-foot"><button class="bf-enter">Entrer au chantier ›</button></div>`;
     document.body.appendChild(el);
     const body = $('.bf-body', el); if (opts.scroll) body.scrollTop = opts.scroll;
+    const gm = $('[data-gm]', el); if (gm) gm.onclick = () => gameSheet();
+    if (GS && GS.news.length) setTimeout(() => { confetti(); GS.news.forEach((m, i) => setTimeout(() => toast(m), i * 1800)); }, 700);
     // les chiffres comptent jusqu'à leur valeur
     if (anim) { const t0 = performance.now(), ns = $$('.bf-n[data-n]', el); const step = (t) => { const k = Math.min(1, (t - t0 - 250) / 700), e = k < 0 ? 0 : 1 - Math.pow(1 - k, 3); ns.forEach(n => n.textContent = Math.round(+n.dataset.n * e)); if (k < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); }
     // effet de profondeur : la grille s'incline avec le téléphone
-    // relief : la grille s'incline avec le téléphone, chaque carte bouge un peu à sa façon et un reflet de verre glisse dessus
-    const grid = $('.bf-grid', el), tilt = (e) => { if (e.gamma == null || !Fx.on('tilt')) return; const rx = Math.max(-14, Math.min(14, ((e.beta || 45) - 45) / 3)), ry = Math.max(-14, Math.min(14, e.gamma / 3));
-      grid.style.transform = `perspective(700px) rotateX(${-rx}deg) rotateY(${ry}deg)`; grid.style.setProperty('--mx', (50 + ry * 3.2) + '%'); grid.style.setProperty('--my', (50 + rx * 3.2) + '%');
-      $$('.bf-card', grid).forEach((c, i) => { const d = 1 + (i % 3) * .45; c.style.setProperty('--px', (ry * d * .6).toFixed(1) + 'px'); c.style.setProperty('--py', (rx * d * .6).toFixed(1) + 'px'); }); };
+    // relief : chaque carte s'incline À L'INVERSE du téléphone (elle « regarde » l'utilisateur) ; au repos elle redevient nette
+    const grid = $('.bf-grid', el); let base = null, tiltT = 0;
+    setTimeout(() => $$('.bf-card', grid).forEach(c => c.classList.add('noanim')), 1300);   // fin de l'entrée animée : on peut piloter la carte
+    const tilt = (e) => { if (e.gamma == null || !Fx.on('tilt')) return; if (!base) base = { b: e.beta || 0, g: e.gamma || 0 };
+      const db = (e.beta || 0) - base.b, dg = (e.gamma || 0) - base.g; base.b += db * .02; base.g += dg * .02;   // la position de repos suit doucement
+      const rx = Math.max(-10, Math.min(10, db / 2.2)), ry = Math.max(-10, Math.min(10, dg / 2.2)), q = (v) => Math.round(v * 2) / 2;
+      grid.style.setProperty('--mx', (50 - ry * 4) + '%'); grid.style.setProperty('--my', (40 - rx * 4) + '%');
+      $$('.bf-card.noanim', grid).forEach((c, i) => { const k = 1 + (i % 3) * .25, X = q(rx * k), Y = q(-ry * k);
+        c.style.transform = Math.abs(X) < 1 && Math.abs(Y) < 1 ? '' : `perspective(800px) rotateX(${X}deg) rotateY(${Y}deg)`; c.style.setProperty('--px', (-ry * k * .5).toFixed(1) + 'px'); c.style.setProperty('--py', (-rx * k * .5).toFixed(1) + 'px'); });
+      clearTimeout(tiltT); tiltT = setTimeout(() => $$('.bf-card.noanim', grid).forEach(c => { c.style.transform = ''; }), 2500); };
     window.addEventListener('deviceorientation', tilt);
     const done = (act) => { window.removeEventListener('deviceorientation', tilt); el.classList.add('out'); setTimeout(() => { el.remove(); resolve(act); }, 350); };
     const bindNotes = () => { const box = $('.bn', el);

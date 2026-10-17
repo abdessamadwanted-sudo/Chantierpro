@@ -73,7 +73,7 @@ function verCmp(a, b) { const A = verNum(a), B = verNum(b); for (let i = 0; i < 
 async function checkUpdate(manual = false) {
   const cur = typeof APP_VERSION === 'string' ? APP_VERSION : '';
   if (!/^\d+\.\d+\.\d+$/.test(cur)) { if (manual) alertBox('Version de développement : la mise à jour se fait depuis le téléphone.'); return; }
-  if (!manual) { let last = 0; try { last = +localStorage.getItem('upd.at') || 0; } catch (e) {} if (Date.now() - last < 3 * 3600e3) return; }
+  if (!manual) { let last = 0; try { last = +localStorage.getItem('upd.at') || 0; } catch (e) {} if (Date.now() - last < 15 * 60e3) return; }
   if (navigator.onLine === false) { if (manual) toast('Pas de connexion internet'); return; }
   const ld = manual ? loading('Recherche d\'une mise à jour…') : null;
   let rel = null;

@@ -378,7 +378,7 @@ function openReceptionDay(day, opts = {}) {
             </thead>
             <tbody>
               ${day.rows.map((r, i) => `<tr data-i="${i}" class="st-${r.status} ${moveSel === i ? 'moving' : ''} ${selId && r.id === selId ? 'sel' : ''} ${!isBeton(K) && r.element && r.status !== 'pending' && !r.pvLivre ? 'pv-nl' : ''}">
-                <td class="c">${esc(r.zone)}</td><td class="c">${esc(r.niv)}</td><td class="el">${esc(r.element)}</td>${isBeton(K) ? `<td class="c">${esc(r.classe || '')}</td>` : `<td class="c ix">${r.repFrom ? '<span class="rep-b">✗ Reporté</span>' : ''}${indCell(r.indCof, r.indCofD)}</td><td class="c ix">${indCell(r.indFer, r.indFerD)}</td>`}
+                <td class="c">${esc(r.zone)}</td><td class="c">${esc(r.niv)}</td><td class="el">${esc(r.element)}${!isBeton(K) && r.element && r.status !== 'pending' ? `<button class="bet-q ${r.pvLivre ? 'ok' : ''}" data-betq="${i}" title="PV livré au BET ?">${r.pvLivre ? 'BET ✓' : 'BET ✗'}</button>` : ''}</td>${isBeton(K) ? `<td class="c">${esc(r.classe || '')}</td>` : `<td class="c ix">${r.repFrom ? '<span class="rep-b">✗ Reporté</span>' : ''}${indCell(r.indCof, r.indCofD)}</td><td class="c ix">${indCell(r.indFer, r.indFerD)}</td>`}
                 <td class="c"><span class="rs" style="background:${(REC_STATUS[r.status] || REC_STATUS.pending).color}">${r.status === 'ok' ? 'OK' : r.status === 'reserve' ? resLabel(K) : r.status === 'progress' ? 'En cours' : 'Attente'}</span>${r.status === 'reserve' && r.liftedAt ? `<br><span class="rs" style="background:#16a34a;margin-top:4px">${liftLabel(K)} ${recDateLabel(r.liftedAt).slice(0, 5)}</span>` : ''}</td>
 ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec || '')}</td>`}
                 <td class="ob">${esc(r.obs)}</td>
@@ -488,7 +488,8 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         tr.addEventListener('pointerdown', () => { lp = false; clearTimeout(t); t = setTimeout(() => { lp = true; moveSel = +tr.dataset.i; try { navigator.vibrate && navigator.vibrate(25); } catch (e) {} render(); }, 500); });
         ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => tr.addEventListener(ev, () => clearTimeout(t)));
         tr.addEventListener('pointermove', (e) => { if (Math.abs(e.movementY) + Math.abs(e.movementX) > 3) clearTimeout(t); });
-        tr.onclick = () => { if (lp) return; if (moveSel >= 0) { moveSel = +tr.dataset.i; return render(); }
+        tr.onclick = async (e) => { if (lp) return;
+          const bq = e.target.closest('[data-betq]'); if (bq) { const r = day.rows[+bq.dataset.betq]; r.pvLivre = !r.pvLivre; if (r.pvLivre) { if (!r.pvRecu && !r.pvExist) r.pvRecu = true; r.pvLivreAt = todayISO(); } else r.pvLivreAt = null; try { navigator.vibrate && navigator.vibrate(12); } catch (x) {} await save(); toast(r.pvLivre ? `PV livré au BET ✓ · ${r.element}` : `PV pas encore livré · ${r.element}`); return render(); } if (moveSel >= 0) { moveSel = +tr.dataset.i; return render(); }
           $$('tbody tr.sel', el).forEach(x => x.classList.remove('sel')); tr.classList.add('sel'); selId = (day.rows[+tr.dataset.i] || {}).id || null;
           editRow(+tr.dataset.i); };
       });
