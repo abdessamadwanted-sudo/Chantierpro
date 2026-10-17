@@ -137,7 +137,10 @@ function briefingShow(opts = {}) {
     // les chiffres comptent jusqu'à leur valeur
     if (anim) { const t0 = performance.now(), ns = $$('.bf-n[data-n]', el); const step = (t) => { const k = Math.min(1, (t - t0 - 250) / 700), e = k < 0 ? 0 : 1 - Math.pow(1 - k, 3); ns.forEach(n => n.textContent = Math.round(+n.dataset.n * e)); if (k < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); }
     // effet de profondeur : la grille s'incline avec le téléphone
-    const grid = $('.bf-grid', el), tilt = (e) => { if (e.gamma == null) return; const rx = Math.max(-6, Math.min(6, ((e.beta || 45) - 45) / 6)), ry = Math.max(-6, Math.min(6, e.gamma / 6)); grid.style.transform = `perspective(900px) rotateX(${-rx}deg) rotateY(${ry}deg)`; };
+    // relief : la grille s'incline avec le téléphone, chaque carte bouge un peu à sa façon et un reflet de verre glisse dessus
+    const grid = $('.bf-grid', el), tilt = (e) => { if (e.gamma == null || !Fx.on('tilt')) return; const rx = Math.max(-14, Math.min(14, ((e.beta || 45) - 45) / 3)), ry = Math.max(-14, Math.min(14, e.gamma / 3));
+      grid.style.transform = `perspective(700px) rotateX(${-rx}deg) rotateY(${ry}deg)`; grid.style.setProperty('--mx', (50 + ry * 3.2) + '%'); grid.style.setProperty('--my', (50 + rx * 3.2) + '%');
+      $$('.bf-card', grid).forEach((c, i) => { const d = 1 + (i % 3) * .45; c.style.setProperty('--px', (ry * d * .6).toFixed(1) + 'px'); c.style.setProperty('--py', (rx * d * .6).toFixed(1) + 'px'); }); };
     window.addEventListener('deviceorientation', tilt);
     const done = (act) => { window.removeEventListener('deviceorientation', tilt); el.classList.add('out'); setTimeout(() => { el.remove(); resolve(act); }, 350); };
     const bindNotes = () => { const box = $('.bn', el);
