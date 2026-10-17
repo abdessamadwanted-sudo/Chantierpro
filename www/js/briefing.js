@@ -22,6 +22,7 @@ const BRIEF_ORDER = {
   log: ['stock', 'pt', 'rap', 'valid'],
   fin: ['valid', 'reg:st', 'pt', 'rap'],
   ext: ['reg:rfi', 'reg:visa', 'plan', 'tasks', 'rap', 'valid'],
+  archi: ['reg:rfi', 'reg:visa', 'plan', 'tasks', 'rap'], bet: ['reg:rfi', 'reg:visa', 'lab', 'tasks', 'rap'], bc: ['reg:visa', 'reg:ess', 'lab', 'tasks', 'rap'], mo: ['plan', 'valid', 'reg:reu', 'rap'],
 };
 async function briefingData() {
   const today = todayISO(), [ps, recs, tasks] = await Promise.all([DB.all('projects'), DB.all('receptions'), DB.all('tasks')]);

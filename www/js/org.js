@@ -78,13 +78,32 @@ const SERVICES = [
     { k: 'compta', n: 'Comptable chantier', lv: 3, f: ['finance', 'st', 'pointage', 'org'], ro: ['pointage', 'org'] },
     { k: 'assist', n: 'Assistant(e) administratif', lv: 4, f: ['finance', 'pointage', 'reports', 'photos'], ro: ['finance'] },
   ] },
-  { k: 'ext', e: '🤝', n: 'Externes', d: 'Maître d\'ouvrage, BET, architecte, sous-traitant', c: '#94a3b8', postes: [
-    { k: 'mo', n: 'Maître d\'ouvrage / client', lv: 1, f: ['planning', 'avancement', 'photos', 'reports', 'tasks', 'reunions', 'finance', 'tce', 'org'], ro: ['planning', 'avancement', 'reports', 'tce', 'org', 'reunions'], va: ['finance'] },
+  { k: 'archi', e: '🏛️', n: 'Architecture', d: 'Conception, plans, suivi architectural', c: '#ec4899', postes: [
+    { k: 'archic', n: 'Architecte en chef / associé', lv: 1, f: ['rfi', 'visa', 'tasks', 'photos', 'avancement', 'reunions', 'planning', 'reports', 'org'], ro: ['planning', 'org'], va: ['visa', 'rfi'] },
+    { k: 'archi', n: 'Architecte', lv: 2, f: ['rfi', 'visa', 'tasks', 'photos', 'avancement', 'reunions', 'reports'], ro: ['avancement', 'reunions'], va: ['visa'] },
+    { k: 'archint', n: 'Architecte d\'intérieur', lv: 3, f: ['rfi', 'visa', 'tasks', 'photos', 'avancement'], ro: ['avancement'] },
+    { k: 'dessar', n: 'Dessinateur / projeteur archi', lv: 4, f: ['rfi', 'visa', 'tasks', 'photos', 'calc'] },
+  ] },
+  { k: 'bet', e: '🧮', n: 'Bureau d\'études (BET)', d: 'Structure, fluides, notes de calcul', c: '#0ea5e9', postes: [
+    { k: 'dirbet', n: 'Directeur BET', lv: 1, f: ['rfi', 'visa', 'tasks', 'photos', 'reception', 'labo', 'reunions', 'calc', 'models3d', 'planning', 'org'], ro: ['reception', 'labo', 'planning'], va: ['visa', 'rfi', 'labo'] },
+    { k: 'bet', n: 'Ingénieur BET structure', lv: 2, f: ['rfi', 'visa', 'tasks', 'photos', 'reception', 'labo', 'reunions', 'calc', 'models3d'], ro: ['reception', 'labo', 'reunions'], va: ['visa', 'rfi'] },
+    { k: 'betflu', n: 'Ingénieur BET fluides / électricité', lv: 2, f: ['rfi', 'visa', 'tasks', 'photos', 'reunions', 'calc'], ro: ['reunions'], va: ['visa', 'rfi'] },
+    { k: 'projbet', n: 'Projeteur BET', lv: 3, f: ['rfi', 'visa', 'tasks', 'photos', 'calc', 'models3d'] },
+  ] },
+  { k: 'bc', e: '🔍', n: 'Bureau de contrôle', d: 'Contrôle technique, visites, avis', c: '#14b8a6', postes: [
+    { k: 'dirbc', n: 'Directeur du bureau de contrôle', lv: 1, f: ['rfi', 'visa', 'tasks', 'photos', 'reception', 'labo', 'constat', 'reunions', 'org'], ro: ['reception', 'labo', 'org'], va: ['visa', 'constat'] },
+    { k: 'bc', n: 'Ingénieur contrôleur', lv: 2, f: ['rfi', 'visa', 'tasks', 'photos', 'reception', 'labo', 'constat', 'reunions'], ro: ['reception', 'labo', 'reunions'], va: ['visa'] },
+    { k: 'ctbc', n: 'Contrôleur technique', lv: 3, f: ['tasks', 'photos', 'reception', 'constat', 'labo'], ro: ['reception', 'labo'] },
+  ] },
+  { k: 'mo', e: '🏢', n: 'Maître d\'ouvrage', d: 'Client, AMO, suivi du projet', c: '#f43f5e', postes: [
+    { k: 'mo', n: 'Directeur de projet (MO)', lv: 1, f: ['planning', 'avancement', 'photos', 'reports', 'tasks', 'reunions', 'finance', 'tce', 'org'], ro: ['planning', 'avancement', 'reports', 'tce', 'org', 'reunions'], va: ['finance'] },
+    { k: 'cpmo', n: 'Chef de projet (MO)', lv: 2, f: ['planning', 'avancement', 'photos', 'reports', 'tasks', 'reunions', 'finance', 'tce', 'org'], ro: ['planning', 'avancement', 'reports', 'tce', 'org'], va: ['finance'] },
     { k: 'amo', n: 'AMO (assistance au maître d\'ouvrage)', lv: 2, f: ['planning', 'avancement', 'photos', 'reports', 'tasks', 'reunions', 'tce', 'rfi', 'visa', 'org'], ro: ['planning', 'avancement', 'reports', 'tce', 'org'], va: ['visa'] },
-    { k: 'bet', n: 'BET (bureau d\'études)', lv: 2, f: ['rfi', 'visa', 'tasks', 'photos', 'reception', 'labo', 'reunions'], ro: ['reception', 'labo', 'reunions'], va: ['visa', 'rfi'] },
-    { k: 'bc', n: 'Bureau de contrôle', lv: 2, f: ['rfi', 'visa', 'tasks', 'photos', 'reception', 'labo', 'constat', 'reunions'], ro: ['reception', 'labo', 'reunions'], va: ['visa'] },
-    { k: 'archi', n: 'Architecte', lv: 2, f: ['rfi', 'visa', 'tasks', 'photos', 'avancement', 'reunions'], ro: ['avancement', 'reunions'], va: ['visa'] },
-    { k: 'sst', n: 'Sous-traitant', lv: 3, f: ['tasks', 'photos', 'st', 'reports'], ro: ['st'] },
+    { k: 'repmo', n: 'Représentant du maître d\'ouvrage', lv: 3, f: ['avancement', 'photos', 'reports', 'tasks', 'reunions'], ro: ['avancement', 'reports', 'reunions'] },
+  ] },
+  { k: 'ext', e: '🤝', n: 'Sous-traitance', d: 'Entreprises sous-traitantes, équipes', c: '#94a3b8', postes: [
+    { k: 'gerst', n: 'Gérant sous-traitant', lv: 2, f: ['tasks', 'photos', 'st', 'reports', 'pointage'], ro: ['st'] },
+    { k: 'sst', n: 'Chef d\'équipe sous-traitant', lv: 3, f: ['tasks', 'photos', 'st', 'reports'], ro: ['st'] },
   ] },
 ];
 const svcOf = (k) => SERVICES.find(s => s.k === k);
@@ -131,11 +150,15 @@ function orgOnboard(force) {
           <div class="ob-sum">${fs.map(k => `<div class="${featAllowed(k) ? '' : 'lk'}"><span>${featAllowed(k) ? (orgEdit(k) ? '✓' : '👁') : '🔒'}</span>${esc(featName(k))}${orgValid(k) && P.va !== ALL_F ? ' <i>valide</i>' : ''}</div>`).join('')}</div>
           <small class="ob-leg">✓ modifier · 👁 consulter · 🔒 désactivé par le titulaire · <i>valide</i> = vous validez</small>
           <button class="btn ob-go" data-go>Entrer ›</button></div>`; }
-      $$('[data-s]', el).forEach(b => b.onclick = () => { const n = $('.ob-name input', el); if (n) try { localStorage.setItem('userName', n.value.trim()); localStorage.setItem('askedName', '1'); } catch (e) {} svc = svcOf(b.dataset.s); step = 1; draw(); });
-      $$('[data-p]', el).forEach(b => b.onclick = () => { const P = posteOf(b.dataset.p);
+      // toucher : onde lumineuse, la carte se soulève et vibre, les autres s'effacent, puis on passe à l'étape suivante
+      const pressFx = (b, e, go) => { if (el._busy) return; el._busy = true; try { navigator.vibrate && navigator.vibrate([12, 30, 18]); } catch (x) {}
+        const r = b.getBoundingClientRect(), w = document.createElement('i'); w.className = 'ob-wave'; w.style.left = ((e && e.clientX) ? e.clientX - r.left : r.width / 2) + 'px'; w.style.top = ((e && e.clientY) ? e.clientY - r.top : r.height / 2) + 'px'; b.appendChild(w);
+        b.classList.add('ob-pick'); el.classList.add('ob-picking'); setTimeout(() => { el._busy = false; el.classList.remove('ob-picking'); go(); }, 520); };
+      $$('[data-s]', el).forEach(b => b.onclick = (e) => pressFx(b, e, () => { const n = $('.ob-name input', el); if (n) try { localStorage.setItem('userName', n.value.trim()); localStorage.setItem('askedName', '1'); } catch (x) {} svc = svcOf(b.dataset.s); step = 1; draw(); }));
+      $$('[data-p]', el).forEach(b => b.onclick = (e) => pressFx(b, e, () => { const P = posteOf(b.dataset.p);
         Org.set({ service: svc.k, poste: P.k, at: todayISO() });
         if (!Org.owner()) try { localStorage.setItem('myFeatures', JSON.stringify(Object.fromEntries(FEATURES.map(([k]) => [k, P.f === ALL_F || P.f.includes(k)])))); } catch (e) {}
-        step = 2; draw(); });
+        step = 2; draw(); }));
       const bk = $('[data-b]', el); if (bk) bk.onclick = () => { step--; draw(); };
       const x = $('[data-x]', el); if (x) x.onclick = () => { el.remove(); resolve(); };
       const go = $('[data-go]', el); if (go) go.onclick = () => { el.classList.add('out'); setTimeout(() => { el.remove(); resolve(); if (App.project) renderSection(); else if (typeof renderHome === 'function') renderHome(); }, 300); };
@@ -154,7 +177,7 @@ const DR_GROUPS = [
   ['fin', '💰 Finance, stock & contrats', ['finance', 'avenants', 'gestion', 'tce', 'st']],
   ['org', '👥 Organisation', ['org', 'team']],
 ];
-const SVC_GROUP = { trav: 'trav', qual: 'qual', labo: 'qual', hse: 'hse', etu: 'etu', log: 'fin', fin: 'fin', ext: 'trav' };
+const SVC_GROUP = { trav: 'trav', qual: 'qual', labo: 'qual', hse: 'hse', etu: 'etu', log: 'fin', fin: 'fin', ext: 'trav', archi: 'trav', bet: 'etu', bc: 'qual', mo: 'trav' };
 function drawerSections(itemHtml) {
   const me = Org.me(), first = SVC_GROUP[me && me.service] || 'trav';
   const placed = new Set(DR_GROUPS.flatMap(g => g[2]));
