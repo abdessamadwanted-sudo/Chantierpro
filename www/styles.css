@@ -1918,3 +1918,10 @@ body:has(.splash.brief) .sheet-bg { z-index: 10070; }
 .gm-bd { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; } .gm-bd div { display: grid; justify-items: center; gap: 2px; padding: 8px 4px; border-radius: 12px; background: var(--card2); text-align: center; opacity: .45; } .gm-bd div.ok { opacity: 1; box-shadow: inset 0 0 0 1.5px #f59e0b; } .gm-bd span { font-size: 24px; } .gm-bd small { font-size: 10.5px; }
 .gm-xp { display: grid; gap: 4px; } .gm-xp div { display: flex; justify-content: space-between; padding: 7px 10px; border-radius: 10px; background: var(--card2); font-size: 13px; } .gm-xp b { color: #a5b4fc; }
 .gm-lvs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; } .gm-lvs div { display: grid; justify-items: center; padding: 6px 2px; border-radius: 10px; background: var(--card2); text-align: center; opacity: .5; } .gm-lvs div.ok { opacity: 1; } .gm-lvs span { font-size: 20px; } .gm-lvs b { font-size: 10.5px; } .gm-lvs small { font-size: 9.5px; color: var(--muted); }
+/* vague plus petite + couleur choisie */
+.fx-wave i, .fx-wave b { left: -14px; top: -14px; width: 28px; height: 28px; }
+.fx-wave i { border-color: color-mix(in srgb, var(--fx-c, var(--g1, var(--accent))) 60%, rgba(255,255,255,.8)); box-shadow: 0 0 8px color-mix(in srgb, var(--fx-c, var(--g1, var(--accent))) 45%, transparent), inset 0 0 6px rgba(255,255,255,.3); animation-name: fxRing2; animation-duration: .6s; }
+.fx-wave b { background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.5), color-mix(in srgb, var(--fx-c, var(--g1, var(--accent))) 30%, transparent) 55%, transparent 72%); }
+@keyframes fxRing2 { 0% { transform: scale(.3); opacity: .9; } 100% { transform: scale(2.4); opacity: 0; } }
+.fx-p { display: grid; gap: 6px; } .fx-cl { display: grid; gap: 6px; margin-top: 4px; font-size: 13.5px; } .fx-cl > div { display: flex; gap: 8px; flex-wrap: wrap; }
+.fx-cl button { width: 34px; height: 34px; border-radius: 50%; border: 2px solid rgba(255,255,255,.25); } .fx-cl button.on { border-color: #fff; box-shadow: 0 0 0 3px var(--accent); }
