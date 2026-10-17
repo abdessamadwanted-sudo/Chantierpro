@@ -5,6 +5,7 @@ const LIC_FB = { apiKey: 'AIzaSyAgrScRnLf1Itfnqpg8Z9Hs0cmmJQ_6yC0', authDomain: 
 const LIC_GRACE = 7 * 864e5;
 const LIC_OWNERS = ['abdessamad.daga94@gmail.com'];   // seuls comptes autorisés comme « propriétaire »
 const LIC_APK = 'https://github.com/abdessamadwanted-sudo/Chantierpro/releases/latest/download/Chantier.apk';
+const licApk = (L) => L && L.ver ? `https://github.com/abdessamadwanted-sudo/Chantierpro/releases/download/v${L.ver}/Chantier.apk` : LIC_APK;
 const Lic = {
   get() { try { return JSON.parse(localStorage.getItem('lic') || 'null'); } catch (e) { return null; } },
   set(v) { try { localStorage.setItem('lic', JSON.stringify(v)); } catch (e) {} },
@@ -48,6 +49,8 @@ async function licVerify(blocking) {
   catch (e) { err = e; }
   if (L) {
     st.status = L.status; st.expires = L.expires || null; st.checkedAt = Date.now(); st.name = L.name; st.ownerName = L.ownerName || ''; st.block = L.block || null; st.role = L.role || null; st.suiviPhotos = L.suiviPhotos !== false; st.pack = L.pack || null; st.team = L.team || []; licGuardSync();
+    const vOld = st.ver || null; st.ver = L.ver || null;
+    if (st.ver && st.ver !== vOld && typeof pinnedUpdate === 'function') setTimeout(() => pinnedUpdate(st.ver, APP_VERSION, false).catch(() => {}), 1500);
     const fOld = JSON.stringify(st.features || null); st.features = L.features || null;
     if (!blocking && fOld !== JSON.stringify(st.features)) setTimeout(() => { try { Lic.set(st); App.project ? renderSection() : renderHome(); toast('Fonctions mises à jour par le titulaire'); } catch (e) {} }, 0);
     if (L.device && L.device.id && L.device.id !== Lic.dev()) st.status = 'moved';
@@ -175,15 +178,15 @@ async function openLicences() {
     $('.lic-list', el).innerHTML = list.length ? list.map(L => { const S = licExpired(L) && L.status === 'active' ? ['Expirée', '#94a3b8'] : LIC_ST[L.status] || ['?', '#94a3b8'];
       const R = roleOf(L.role), chefN = L.chef && (list.find(x => x.code === L.chef) || {}).name;
       return `<button class="lic-row" data-c="${L.code}"><span class="lic-av">${R ? R.e : esc((L.name || '?')[0].toUpperCase())}</span><span class="grow"><b>${esc(L.name || 'Sans nom')}${R ? ` <span class="lic-role">${esc(R.n)}${L.pack ? ' · ' + esc((packOf(L.pack) || {}).n || '') : ''}</span>` : ''}</b>${chefN || (L.team || []).length ? `<small>${chefN ? '↳ équipe de ' + esc(chefN) : ''}${(L.team || []).length ? `👥 chef de ${L.team.length} personne(s)` : ''}</small>` : ''}
-        <small>${L.code}${L.email ? ' · ' + esc(L.email) : ''} · ${L.device ? esc(L.device.model || 'téléphone') + ' · vu ' + ago(L.lastSeen) : 'pas encore activée'}${L.version ? ' · v' + esc(L.version) : ''}</small>
+        <small>${L.ver ? `📌 v${esc(L.ver)} · ` : ''}${L.code}${L.email ? ' · ' + esc(L.email) : ''} · ${L.device ? esc(L.device.model || 'téléphone') + ' · vu ' + ago(L.lastSeen) : 'pas encore activée'}${L.version ? ' · v' + esc(L.version) : ''}</small>
         <small>${L.expires ? 'Expire le ' + fmtDate(L.expires) : 'Sans expiration'}${L.features && Object.values(L.features).some(v => v === false) ? ` · ${Object.values(L.features).filter(v => v === false).length} fonction(s) masquée(s)` : ''}</small></span><em style="--c:${S[1]}">${S[0]}</em></button>`; }).join('')
       : '<div class="empty">Aucune licence.<br>Touchez <b>Nouvelle</b> pour partager l\'application avec quelqu\'un.</div>';
     $$('[data-c]', el).forEach(b => b.onclick = () => licMenu(list.find(x => x.code === b.dataset.c)));
   };
-  const shareCode = (L) => openUrl('https://wa.me/?text=' + encodeURIComponent(`Bonjour ${L.name || ''},\nVoici l'application *Chantier* pour le suivi de chantier :\n\n1️⃣ Téléchargez et installez : ${LIC_APK}\n2️⃣ Ouvrez l'application et entrez le code : *${L.code}*${L.email ? `\n3️⃣ Avec votre adresse Gmail : ${L.email}` : ''}`));
+  const shareCode = (L) => openUrl('https://wa.me/?text=' + encodeURIComponent(`Bonjour ${L.name || ''},\nVoici l'application *Chantier* pour le suivi de chantier :\n\n1️⃣ Téléchargez et installez : ${licApk(L)}\n2️⃣ Ouvrez l'application et entrez le code : *${L.code}*${L.email ? `\n3️⃣ Avec votre adresse Gmail : ${L.email}` : ''}`));
   const mailCode = (L) => {
     const sub = `Votre licence Chantier : ${L.code}`;
-    const body = `Bonjour ${L.name || ''},\n\nVoici votre accès à l'application Chantier (suivi de chantier).\n\n1) Téléchargez et installez l'application :\n${LIC_APK}\n(si Android le demande : autoriser l'installation)\n\n2) Ouvrez Chantier et entrez :\n   - Code de licence : ${L.code}\n   - Votre adresse Gmail : ${L.email || '(cette adresse)'}\n\n3) Les mises à jour se font ensuite depuis l'application (⋮ › Rechercher une mise à jour), sans désinstaller.\n\nCe code ne fonctionne que sur un seul téléphone.${L.expires ? `\nValable jusqu'au ${fmtDate(L.expires)}.` : ''}\n\n${L.ownerName || ''}`;
+    const body = `Bonjour ${L.name || ''},\n\nVoici votre accès à l'application Chantier (suivi de chantier).\n\n1) Téléchargez et installez l'application :\n${licApk(L)}\n(si Android le demande : autoriser l'installation)\n\n2) Ouvrez Chantier et entrez :\n   - Code de licence : ${L.code}\n   - Votre adresse Gmail : ${L.email || '(cette adresse)'}\n\n3) Les mises à jour se font ensuite depuis l'application (⋮ › Rechercher une mise à jour), sans désinstaller.\n\nCe code ne fonctionne que sur un seul téléphone.${L.expires ? `\nValable jusqu'au ${fmtDate(L.expires)}.` : ''}\n\n${L.ownerName || ''}`;
     openUrl(`mailto:${encodeURIComponent(L.email || '')}?subject=${encodeURIComponent(sub)}&body=${encodeURIComponent(body)}`);
   };
   const DUR = [['0', 'Sans expiration'], ['30', '1 mois'], ['90', '3 mois'], ['180', '6 mois'], ['365', '1 an']];
@@ -209,6 +212,7 @@ async function openLicences() {
       { label: 'Fonctions : activer / désactiver', icon: 'grid', value: 'feat' },
       { label: L.suiviPhotos === false ? '📷 Photos dans le suivi : non (activer)' : '📷 Photos dans le suivi : oui, 30 jours (désactiver)', icon: 'image', value: 'ph' },
       { label: `Rôle${L.role ? ' · ' + ((roleOf(L.role) || {}).n || '') : ''}`, icon: 'team', value: 'role' },
+      { label: `Version : ${L.ver ? '📌 v' + L.ver + ' (figée)' : 'toujours la dernière'}`, icon: 'upload', value: 'ver' },
       { label: L.chef ? `Rattaché à : ${(list.find(x => x.code === L.chef) || {}).name || L.chef} (changer)` : 'Rattacher à un chef (équipe)…', icon: 'layers', value: 'chef' },
       L.status === 'active' ? { label: 'Suspendre (temporaire)', icon: 'calendar', value: 'disable' } : { label: 'Réactiver', icon: 'check', value: 'enable' },
       { label: 'Prolonger / changer la durée', icon: 'calendar', value: 'exp' },
@@ -221,6 +225,7 @@ async function openLicences() {
       if (v === 'see') return openSuivi(L);
       if (v === 'feat') { const f = await editLicFeatures(L); if (!f) return; await ref.update({ features: f }); }
       if (v === 'ph') await ref.update({ suiviPhotos: L.suiviPhotos === false });
+      if (v === 'ver') { const nv = await licPickVersion(L); if (nv !== undefined) { await ref.update({ ver: nv }); toast(nv ? `${L.name} passera sur la v${nv} (dans les 15 min ou à l'ouverture)` : `${L.name} suivra toujours la dernière version`); } }
       if (v === 'role') {
         const r = await formSheet(`Rôle · ${L.name}`, [{ name: 'role', label: 'Rôle', type: 'select', value: L.role || 'chef', options: ROLES.map(x => ({ value: x.k, label: `${x.e} ${x.n}` })) }], { okLabel: 'Appliquer' });
         if (r) await ref.update({ role: r.role });   // le rôle ne retire aucune fonction : elles se règlent avec les interrupteurs
@@ -338,3 +343,18 @@ async function licGuardSync() { const c = Sync.cfg && Sync.cfg(); if (c && c.url
 
 // envoi du suivi 20 s après une modification (et dès qu'on quitte l'application)
 function licOnChange() { const st = Lic.get(); if (!st || st.mode !== 'user') return; clearTimeout(licPush._t); licPush._t = setTimeout(() => licPush().catch(() => {}), 20000); }
+
+// choisir la version d'une licence : la dernière, ou une version figée (seulement celles qui s'installent sans réinstaller)
+async function licPickVersion(L) {
+  const ld = loading('Liste des versions…'); let rels = [];
+  try { const r = await fetch('https://api.github.com/repos/abdessamadwanted-sudo/Chantierpro/releases?per_page=60', { headers: { Accept: 'application/vnd.github+json' } }); if (r.ok) rels = await r.json(); } catch (e) {} finally { ld.close(); }
+  if (!rels.length) { toast('Impossible de lire les versions (internet ?)'); return undefined; }
+  const ok = rels.filter(r => (r.assets || []).some(a => a.name === 'www.zip') && (r.assets || []).some(a => a.name === 'ota.json'));
+  const v = await menu(`Version de ${L.name}`, [{ label: '🔄 Toujours la dernière version', value: '__last', checked: !L.ver },
+    ...ok.map(r => { const n = r.tag_name.replace(/^v/, ''), first = String(r.body || '').split('\n').map(x => x.replace(/^[-*#\s]+/, '').replace(/\*\*/g, '')).find(x => x.trim()) || ''; return { label: `📌 v${n} · ${new Date(r.published_at).toLocaleDateString('fr-FR')}${first ? ' — ' + first.slice(0, 60) : ''}`, value: n, checked: L.ver === n }; })]);
+  if (!v) return undefined;
+  if (v === '__last') return null;
+  const latest = ok[0] && ok[0].tag_name.replace(/^v/, '');
+  if (latest && v !== latest && verCmp(v, latest) < 0 && !await confirmBox(`Figer ${L.name} sur la v${v} ?\nIl ne recevra plus les nouveautés ni les corrections tant que vous ne changez pas.`, 'Figer cette version')) return undefined;
+  return v;
+}

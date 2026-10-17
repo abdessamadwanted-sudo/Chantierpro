@@ -73,6 +73,8 @@ function verCmp(a, b) { const A = verNum(a), B = verNum(b); for (let i = 0; i < 
 async function checkUpdate(manual = false) {
   const cur = typeof APP_VERSION === 'string' ? APP_VERSION : '';
   if (!/^\d+\.\d+\.\d+$/.test(cur)) { if (manual) alertBox('Version de développement : la mise à jour se fait depuis le téléphone.'); return; }
+  // licence avec une version figée par le titulaire : pas de proposition de mise à jour, on va sur SA version
+  const LI = (typeof Lic !== 'undefined' && Lic.get()) || {}; if (LI.mode === 'user' && LI.ver) return pinnedUpdate(LI.ver, cur, manual);
   if (!manual) { let last = 0; try { last = +localStorage.getItem('upd.at') || 0; } catch (e) {} if (Date.now() - last < 15 * 60e3) return; }
   if (navigator.onLine === false) { if (manual) toast('Pas de connexion internet'); return; }
   const ld = manual ? loading('Recherche d\'une mise à jour…') : null;
@@ -89,6 +91,16 @@ async function checkUpdate(manual = false) {
   if (manual) toast(`Application à jour ✓ (${cur})`);
 }
 
+async function pinnedUpdate(ver, cur, manual) {
+  if (ver === cur) { if (manual) toast(`Version fixée par le titulaire : v${ver} ✓`); return; }
+  if (navigator.onLine === false) return;
+  if (document.querySelector('.loading')) return;
+  let rel = null; try { const r = await fetch(`https://api.github.com/repos/abdessamadwanted-sudo/Chantierpro/releases/tags/v${ver}`, { headers: { Accept: 'application/vnd.github+json' } }); if (r.ok) rel = await r.json(); } catch (e) {}
+  if (!rel) { if (manual) toast('Version introuvable'); return; }
+  const L = (typeof Lic !== 'undefined' && Lic.get()) || {};
+  toast(`Passage à la version v${ver}, choisie par ${L.ownerName || 'le titulaire'}…`);
+  window._updRel = rel; setTimeout(() => installUpdate(), 1200);
+}
 function showUpdate(latest, notes = '') {
   const lines = String(notes).split('\n').map(l => l.trim()).filter(l => l && !/^téléchargez/i.test(l));
   const news = lines.length ? `<div class="upd-notes">${lines.map(l => /^#+\s/.test(l) ? `<b>${esc(l.replace(/^#+\s*/, ''))}</b>` : `<div>• ${esc(l.replace(/^[-*•]\s*/, ''))}</div>`).join('')}</div>` : '';

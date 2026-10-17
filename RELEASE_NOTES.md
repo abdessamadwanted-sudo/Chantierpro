@@ -1,3 +1,2 @@
 ## Nouveautés
-- **Vague au toucher plus petite**, et seulement sur un vrai toucher : plus rien quand on fait glisser ou défiler
-- **Paramètres › Sons et effets** : son de bulle, vague, relief (activer / désactiver) et **couleur de la vague** (thème, bleu eau, vert, violet, rose, or, blanc verre)
+- **Licences : version figée** — Licences › la personne › « Version » : « toujours la dernière » ou une version précise (liste de toutes les versions avec leur date). Vous pouvez la changer quand vous voulez (monter ou revenir en arrière) : son application passe d'elle-même sur la version choisie (dans les 15 minutes ou à l'ouverture), sans message de mise à jour et sans perdre ses projets. Le lien envoyé par WhatsApp / Gmail télécharge la version choisie ; 📌 la version s'affiche dans la liste des licences
