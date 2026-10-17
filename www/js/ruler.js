@@ -77,7 +77,10 @@ function openRulerCalage(low, up, opts = {}) {
       if (view) view.remove(); view = document.createElement('div'); view.className = 'av-view rl-v'; $('.rl-view', el).appendChild(view);
       const P = plans[i]; view.innerHTML = `<div class="av-stage"><img width="${P.w}" height="${P.h}" src="${srcs[i]}"></div>`;
       pz = panZoom(view, $('.av-stage', view), P.w, P.h, { onChange: () => { cancelAnimationFrame(draw._r); draw._r = requestAnimationFrame(draw); } });
-      requestAnimationFrame(() => { if (opts.keep && opts.keep[i]) { Object.assign(pz.st, opts.keep[i]); pz.apply(); } else pz.fit(); draw(); });
+      const fit = () => { if (!view.clientWidth) return setTimeout(fit, 80); if (opts.keep && opts.keep[i]) { Object.assign(pz.st, opts.keep[i]); pz.apply(); } else pz.fit(); draw(); };
+      requestAnimationFrame(fit);
+      // le plan peut arriver après (Drive) : on recadre quand l'image est prête
+      const im = $('img', view); im.onload = () => { if (!anchored) fit(); }; im.onerror = () => toast('Image du plan introuvable (connexion ?)');
     };
     const ui = () => {
       $('.rl-step', el).textContent = `Étape ${step + 1}/2 · ${names[step]}`;

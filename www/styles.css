@@ -1877,3 +1877,4 @@ body:has(.splash.brief) .sheet-bg { z-index: 10070; }
 .ob-pick span { display: inline-block; animation: obBounce .5s cubic-bezier(.3,1.6,.5,1); }
 @keyframes obBounce { 0% { transform: scale(1) rotate(0); } 40% { transform: scale(1.45) rotate(-10deg); } 70% { transform: scale(.9) rotate(6deg); } 100% { transform: scale(1.15) rotate(0); } }
 .ob-p.ob-pick::after { content: '✓'; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; border-radius: 50%; background: var(--c); color: #fff; display: grid; place-items: center; font-weight: 800; animation: obBounce .45s; }
+.rl-v { width: 100%; height: 100%; }
