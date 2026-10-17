@@ -480,7 +480,9 @@ async function renderPlans(root) {
       { label: 'Nouveau dossier (niveau)', icon: 'folder', value: 'folder' },
       ...(tops.length ? [{ label: 'Nouveau sous-dossier (dans un niveau)', icon: 'folder', value: 'subfolder' }] : []),
       { label: 'Outils : DWG → PDF / DXF, fusionner, diviser', icon: 'layers', value: 'tools' },
+      { label: 'Comparer deux niveaux (R+5 ↔ R+6…)', icon: 'layers', value: 'lvl' },
     ]);
+    if (v === 'lvl') { const id = await menu('Plan du premier niveau', plans.map(p => ({ label: p.name, icon: 'plans', value: p.id }))); const pl = plans.find(p => p.id === id); if (pl) levelCompareFrom(pl); return; }
     if (v === 'tools') return planToolsMenu(root);
     if (v === 'folder') newFolder(root, null);
     if (v === 'subfolder') {

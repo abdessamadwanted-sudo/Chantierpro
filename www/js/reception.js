@@ -338,7 +338,7 @@ function openReceptionDay(day, opts = {}) {
           <div class="dnav"><button data-dn="-1" ${sib(-1) ? '' : 'disabled'}>‹</button><h1>${fmtDate(day.date)}</h1><button data-dn="1" ${sib(1) ? '' : 'disabled'}>›</button></div>
           ${isBeton(K) ? '' : `<button class="iconbtn" data-a="share">${icon('share')}</button>`}<button class="iconbtn" data-a="more">${icon('more')}</button></div>
         <div class="rec-sum"><span><b>${n}</b> éléments</span><span style="color:#22c55e"><b>${ok}</b> ${isBeton(K) ? 'bétonnés' : 'réceptionnés'}</span><span style="color:${isBeton(K) ? '#60a5fa' : '#f59e0b'}"><b>${rs}</b> ${isBeton(K) ? 'en cours' : 'réserves'}</span>${n - ok - rs ? `<span style="color:var(--muted)"><b>${n - ok - rs}</b> ${isBeton(K) ? 'non bétonné(s)' : 'en attente'}</span>` : ''}${!isBeton(K) && day.rows.some(pvMissing) ? `<span style="color:#ef4444"><b>${day.rows.filter(pvMissing).length}</b> PV manquant(s)</span>` : ''}</div>
-        <div class="rec-info"><b>${fmtDate(day.date)}</b><span class="rp">${esc(p.pdfTitle || p.name)}</span><span class="rt">${recTitle(K)} (post jour)</span><button class="kswitch ksort" data-a="sort">⇅ Trier</button><button class="kswitch" data-ks>${icon(isBeton(K) ? 'layers' : 'calendar')} ${isBeton(K) ? 'Réception' : 'Bétonnage'} du ${fmtDate(day.date).slice(0, 5)}</button></div>
+        <div class="rec-info"><b>${fmtDate(day.date)}</b><span class="rp">${esc(p.pdfTitle || p.name)}</span><span class="rt">${recTitle(K)} (post jour)</span>${day.date !== todayISO() ? `<button class="kswitch ktoday" data-a="today">📅 Aujourd'hui</button>` : ''}<button class="kswitch ksort" data-a="sort">⇅ Trier</button><button class="kswitch" data-ks>${icon(isBeton(K) ? 'layers' : 'calendar')} ${isBeton(K) ? 'Réception' : 'Bétonnage'} du ${fmtDate(day.date).slice(0, 5)}</button></div>
         <div class="rec-wrap">
           <table class="rec">
             <thead>
@@ -401,6 +401,11 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
       })();
       $('[data-a=back]', el).onclick = () => { unBack(); finish(); };
       $$('[data-dn]', el).forEach(b => b.onclick = () => goDay(+b.dataset.dn));
+      const tdb = $('[data-a=today]', el); if (tdb) tdb.onclick = async () => {
+        await save(); await loadSibs(); let t = SIBS.find(d => d.date === todayISO());
+        if (!t) { if (!await confirmBox(`Pas encore de tableau ${isBeton(K) ? 'de bétonnage' : 'de réception'} aujourd'hui. Le créer ?`, 'Créer')) return; t = await DB.put('receptions', { projectId: day.projectId, date: todayISO(), type: isBeton(K) ? 'Bétonnage' : 'Ferraillage', rows: [] }); await loadSibs(); }
+        const dir = t.date > day.date ? 1 : -1; day = (await DB.get('receptions', t.id)) || t; moveSel = -1;
+        el.classList.remove('slide-l', 'slide-r'); void el.offsetWidth; el.classList.add(dir > 0 ? 'slide-l' : 'slide-r'); render(); };
       $('[data-ks]', el).onclick = async () => {
         let o = otherKind();
         if (!o) { if (!await confirmBox(`Pas encore de ${isBeton(K) ? 'réception' : 'programme de bétonnage'} le ${fmtDate(day.date)}. Le créer ?`, 'Créer')) return; o = await DB.put('receptions', { projectId: day.projectId, date: day.date, type: isBeton(K) ? 'Ferraillage' : 'Bétonnage', rows: [] }); }

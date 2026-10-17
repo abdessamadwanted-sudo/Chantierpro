@@ -967,6 +967,7 @@ async function openPlanViewer(plan, ctx) {
     const v = await menu(plan.name, [
       { label: 'Mettre à jour le plan (nouvel indice)', icon: 'upload', value: 'indice' },
       { label: 'Indices : historique · comparer', icon: 'history', value: 'indmenu' },
+      { label: 'Comparer avec un autre niveau (ce qui continue / s\'arrête)', icon: 'layers', value: 'lvl' },
       { label: 'Partager…', icon: 'share', value: 'share' },
       { label: 'Mesurer (distance · surface)', icon: 'ruler', value: 'meas' },
       ...(isCad ? [{ label: 'Calques (afficher / masquer)', icon: 'layers', value: 'layers' }, { label: 'Rechercher un texte dans le plan', icon: 'search', value: 'find' }] : []),
@@ -979,6 +980,7 @@ async function openPlanViewer(plan, ctx) {
     ]);
     if (v === 'fit') fit();
     if (v === 'meas') measToggle(true);
+    if (v === 'lvl') levelCompareFrom(plan);
     if (v === 'layers') cadLayers();
     if (v === 'find') cadFind();
     if (v === 'share') sharePlanMenu(plan, { tasks: st.tasks, links: st.links });

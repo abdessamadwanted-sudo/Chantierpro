@@ -154,15 +154,16 @@ function diffCanvases(ca, cb, mode) {
 }
 
 // ---------- Écran de comparaison (remplace la version image) ----------
-async function openPlanCompare(oldPlan, newPlan) {
+async function openPlanCompare(oldPlan, newPlan, opts = {}) {
   if (!oldPlan || !newPlan) return;
-  const ld = loading('Comparaison des indices…');
+  const LV = !!opts.levels;   // comparaison entre deux niveaux (étage du dessous → étage du dessus)
+  const ld = loading(LV ? 'Superposition des deux niveaux…' : 'Comparaison des indices…');
   let D, M, PA, PB, TX = [];
   let sens = +(localStorage.getItem('cmp.sens') || 1);
   try {
     [PA, PB] = await Promise.all([planPdfPage(oldPlan), planPdfPage(newPlan)]);
-    M = await planAlignMap(oldPlan, newPlan);
-    ld.set('Recherche des modifications…');
+    M = (LV && await cadAlignMap(oldPlan, newPlan)) || await planAlignMap(oldPlan, newPlan);
+    ld.set(LV ? 'Recherche de ce qui continue / s\'arrête…' : 'Recherche des modifications…');
     D = await planDiff(oldPlan, newPlan, 2000, { map: M, sens });
     if (PA && PB) { ld.set('Lecture des textes et des cotes…'); const [A, B] = await Promise.all([pageTexts(PA.page, PA.k), pageTexts(PB.page, PB.k)]); TX = textDiff(A, B, M); }
   } catch (e) { ld.close(); return alertBox('Comparaison impossible : ' + (e.message || e)); }
@@ -171,14 +172,15 @@ async function openPlanCompare(oldPlan, newPlan) {
   let diffURL = URL.createObjectURL(await new Promise(r => D.canvas.toBlob(r, 'image/png'))); D.canvas.width = D.canvas.height = 0;
   const W = newPlan.w, H = newPlan.h, vec = !!(PA && PB);
   let mode = 'diff', boxes = true, hdT = 0, hdSeq = 0;
-  const iA = planIndice(oldPlan), iB = planIndice(newPlan);
+  const iA = LV ? opts.la : planIndice(oldPlan), iB = LV ? opts.lb : planIndice(newPlan);
   const el = document.createElement('div'); el.className = 'fullpage av-page';
   el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button>
-      <div class="tb-title" style="flex:1"><b>${esc(newPlan.name)}</b><span>Comparaison indice ${esc(iA)} → ${esc(iB)}${vec ? ' · vectoriel' : ''}</span></div>
+      <div class="tb-title" style="flex:1"><b>${LV ? `Niveaux ${esc(iA)} ↔ ${esc(iB)}` : esc(newPlan.name)}</b><span>${LV ? `${esc(oldPlan.name)} sous ${esc(newPlan.name)}` : `Comparaison indice ${esc(iA)} → ${esc(iB)}`}${vec ? ' · vectoriel' : ''}</span></div>
+      ${LV ? `<button class="iconbtn" data-a="recal" title="Recaler (1 point commun)">🎯</button>` : ''}
       <button class="iconbtn" data-a="sens" title="Sensibilité">${icon('settings')}</button><button class="iconbtn" data-a="share" title="Partager">${icon('share')}</button></div>
-    <div class="av-chips cmp-modes"><button data-m="diff" class="on">Superposition</button><button data-m="old">Ind. ${esc(iA)}</button><button data-m="new">Ind. ${esc(iB)}</button><button data-m="box" class="on">▢ Zones</button></div>
+    <div class="av-chips cmp-modes"><button data-m="diff" class="on">Superposition</button><button data-m="old">${LV ? '' : 'Ind. '}${esc(iA)}</button><button data-m="new">${LV ? '' : 'Ind. '}${esc(iB)}</button><button data-m="box" class="on">▢ Zones</button></div>
     <div class="av-view"><div class="av-stage"><img width="${W}" height="${H}" src="${diffURL}"><canvas class="cmp-hd"></canvas><svg class="av-ov" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"></svg></div></div>
-    <div class="cmp-legend"><span><i style="background:#dc2626"></i>Supprimé</span><span><i style="background:#16a34a"></i>Ajouté</span><span><i style="background:#8c8c8c"></i>Inchangé</span>
+    <div class="cmp-legend">${LV ? `<span><i style="background:#dc2626"></i>S'arrête en ${esc(iA)}</span><span><i style="background:#16a34a"></i>Nouveau en ${esc(iB)}</span><span><i style="background:#8c8c8c"></i>Continue</span>` : `<span><i style="background:#dc2626"></i>Supprimé</span><span><i style="background:#16a34a"></i>Ajouté</span><span><i style="background:#8c8c8c"></i>Inchangé</span>`}
       <button class="btn small" data-a="list">${D.rects.length} zone(s)${TX.length ? ' · ' + TX.length + ' texte(s)' : ''}</button></div>`;
   document.body.appendChild(el);
   const unBack = pushBack(() => el.remove());
@@ -240,6 +242,17 @@ async function openPlanCompare(oldPlan, newPlan) {
     try { URL.revokeObjectURL(diffURL); } catch (e) {} diffURL = URL.createObjectURL(await new Promise(r => D.canvas.toBlob(r, 'image/png'))); D.canvas.width = D.canvas.height = 0; if (mode === 'diff') img.src = diffURL;
     $('[data-a=list]', el).textContent = `${D.rects.length} zone(s)${TX.length ? ' · ' + TX.length + ' texte(s)' : ''}`; drawBoxes(pz.st.s);
   };
+  const rc = $('[data-a=recal]', el); if (rc) rc.onclick = async () => {
+    // toucher un repère (croisement d'axes, angle de poteau…) sur le niveau du dessous, puis le même sur celui du dessus
+    const tapOn = (m, msg) => new Promise(res => { setMode(m); toast(msg); const h = (e) => { if (e.target.closest('.topbar, .cmp-legend, .cmp-modes')) return; view.removeEventListener('click', h, true); e.stopPropagation(); const r = view.getBoundingClientRect(); res(pz.toImg([e.clientX - r.left, e.clientY - r.top])); }; setTimeout(() => view.addEventListener('click', h, true), 50); });
+    const A = await tapOn('old', `1/2 · Touchez un repère sur ${iA} (croisement d'axes…)`);
+    const B = await tapOn('new', `2/2 · Touchez le même repère sur ${iB}`);
+    const ax = A[0] * oldPlan.w / W, ay = A[1] * oldPlan.h / H;
+    M = { ...M, ox: B[0] - ax * M.sx, oy: B[1] - ay * M.sy };
+    const l2 = loading('Nouvelle superposition…'); try { D = await planDiff(oldPlan, newPlan, 2000, { map: M, sens }); } finally { l2.close(); }
+    try { URL.revokeObjectURL(diffURL); } catch (e) {} diffURL = URL.createObjectURL(await new Promise(r => D.canvas.toBlob(r, 'image/png'))); D.canvas.width = D.canvas.height = 0;
+    $('[data-a=list]', el).textContent = `${D.rects.length} zone(s)${TX.length ? ' · ' + TX.length + ' texte(s)' : ''}`; setMode('diff'); drawBoxes(pz.st.s); toast('Recalé ✓');
+  };
   $('[data-a=share]', el).onclick = async () => {
     const l3 = loading('Préparation…');
     try {
@@ -248,7 +261,7 @@ async function openPlanCompare(oldPlan, newPlan) {
       const d = diffCanvases(ca, cb);
       const c = document.createElement('canvas'); c.width = ow; c.height = oh + 70; const g = c.getContext('2d');
       g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(d, 0, 70);
-      g.fillStyle = '#111'; g.font = 'bold 30px Arial'; g.fillText(`${newPlan.name} — indice ${iA} → ${iB}`, 16, 44);
+      g.fillStyle = '#111'; g.font = 'bold 30px Arial'; g.fillText(LV ? `Niveaux ${iA} (dessous) → ${iB} (dessus) — rouge : s'arrête · vert : nouveau` : `${newPlan.name} — indice ${iA} → ${iB}`, 16, 44);
       g.strokeStyle = '#ef4444'; g.lineWidth = 3; g.fillStyle = '#ef4444'; g.font = 'bold 22px Arial';
       D.rects.forEach((q, i) => { g.strokeRect(q.x * k, q.y * k + 70, q.w * k, q.h * k); g.fillText(String(i + 1), q.x * k + 4, q.y * k + 70 + 22); });
       const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.92));
@@ -284,4 +297,33 @@ async function planIndiceBar(el, plan, ctx, close) {
     if (v === 'more') return planIndicesMenu(plan, { onNew: (np) => { close(); openPlanViewer(np, ctx); }, onOpen: (p2) => { if (p2.id !== plan.id) { close(); openPlanViewer(p2, ctx); } } });
     const p2 = hist.find(p => 'o:' + p.id === v); if (p2 && p2.id !== plan.id) { close(); openPlanViewer(p2, ctx); }
   };
+}
+
+// ---------- Superposition de deux niveaux : recalage par les coordonnées AutoCAD (même origine) ----------
+async function cadAlignMap(oldPlan, newPlan) {
+  if (!(oldPlan.dwgFileId || oldPlan.dxfFileId) || !(newPlan.dwgFileId || newPlan.dxfFileId)) return null;
+  try {
+    const [A, B] = await Promise.all([cadOfPlan(oldPlan), cadOfPlan(newPlan)]);
+    const sa = oldPlan.w / (A.box[2] - A.box[0]), sb = newPlan.w / (B.box[2] - B.box[0]);
+    const M = { sx: sb / sa, sy: sb / sa, ox: (A.box[0] - B.box[0]) * sb, oy: (B.box[3] - A.box[3]) * sb };
+    // dessins sans origine commune (très éloignés) → on garde le recalage par les textes
+    const far = Math.abs(M.ox) > newPlan.w * 0.9 || Math.abs(M.oy) > newPlan.h * 0.9; return far ? null : M;
+  } catch (e) { return null; }
+}
+async function levelCompareFrom(plan) {
+  const all = (await DB.byProject('plans', plan.projectId)).filter(p => p.id !== plan.id && (typeof isCurrentPlan !== 'function' || isCurrentPlan(p)));
+  const folders = await DB.byProject('folders', plan.projectId), fn = (p) => (folders.find(f => f.id === p.folderId) || {}).name || '';
+  const niv = (p) => nivOfFolder(fn(p)) || nivOfFolder(p.name) || '';
+  const rank = (n) => { const m = String(n).match(/R\+?(\d+)/i); return /ssl|ss\d*|sous/i.test(n) ? -2 : /fond/i.test(n) ? -3 : /rdc/i.test(n) ? 0 : /mezz/i.test(n) ? -1 : /terr/i.test(n) ? 99 : m ? +m[1] : null; };
+  const me = niv(plan), rm = rank(me);
+  const sim = (p) => { const a = normQ(plan.name).replace(/r\s?\+?\s?\d+|rdc|ssl|mezz\w*|niveau|niv/g, ''), b = normQ(p.name).replace(/r\s?\+?\s?\d+|rdc|ssl|mezz\w*|niveau|niv/g, ''); let k = 0; for (const w of a.split(/\W+/)) if (w.length > 2 && b.includes(w)) k++; return k; };
+  const cand = all.filter(p => niv(p) !== me || !me).sort((x, y) => (rm != null && rank(niv(x)) != null ? Math.abs(rank(niv(x)) - rm) : 9) - (rm != null && rank(niv(y)) != null ? Math.abs(rank(niv(y)) - rm) : 9) || sim(y) - sim(x) || (x.name || '').localeCompare(y.name || '', 'fr', { numeric: true }));
+  if (!cand.length) return toast('Aucun autre plan dans le projet');
+  const id = await menu(`Comparer ${me || plan.name} avec…`, cand.slice(0, 40).map(p => ({ label: `${niv(p) ? niv(p) + ' · ' : ''}${p.name}`, icon: p.dwgFileId || p.dxfFileId ? 'cad' : 'plans', value: p.id })));
+  const other = cand.find(p => p.id === id); if (!other) return;
+  const ro = rank(niv(other));
+  let low = plan, up = other;
+  if (rm != null && ro != null) { if (ro < rm) { low = other; up = plan; } }
+  else { const v = await menu('Lequel est en dessous ?', [{ label: `${niv(plan) || plan.name} (dessous)`, value: 'a' }, { label: `${niv(other) || other.name} (dessous)`, value: 'b' }]); if (!v) return; if (v === 'b') { low = other; up = plan; } }
+  return openPlanCompare(low, up, { levels: true, la: niv(low) || low.name, lb: niv(up) || up.name });
 }
