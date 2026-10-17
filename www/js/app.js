@@ -133,7 +133,7 @@ async function renderHome() {
           ${Sync.enabled() ? `<button class="iconbtn" data-a="syncnow" title="Synchroniser">${icon('undo')}</button>` : ''}
           ${featOn('career') ? `<button class="iconbtn h2-emo" data-a="career" title="Emploi & carrière">💼${(() => { try { return +localStorage.getItem('job.new') > 0 ? `<i class="h2-badge">${localStorage.getItem('job.new')}</i>` : ''; } catch (e) { return ''; } })()}</button>` : ''}
           <button class="iconbtn h2-emo off" data-a="freeph" title="Stockage">🧹</button>
-          <button class="iconbtn" data-a="quit" title="Fermer l'application">${icon('power')}</button>
+          <button class="iconbtn h2-quit" data-a="quit" title="Fermer (appui long : verrouiller)">${icon('power')}</button>
           <button class="iconbtn" data-a="homemore">${icon('more')}</button></div></div>
         ${(() => { const r = applyRoleColor(), R = r && roleOf(r); return R ? `<button class="h2-role" data-a="role">${R.e} ${esc(R.n.split(' / ')[0])}</button>` : ''; })()}
         <div class="h2-hello" data-a="uname">${tr(hello)}${uname ? (Lang.cur === 'ar' ? '، ' : ', ') + esc(uname) : ''} 👷</div>
@@ -188,7 +188,10 @@ async function renderHome() {
   });
   $$('[data-raptog]').forEach(b => b.onclick = () => { App.homeRap = App.homeRap || {}; App.homeRap[b.dataset.raptog] = !App.homeRap[b.dataset.raptog]; renderHome(); });
   $$('[data-rapedit]').forEach(b => b.onclick = () => { const [pid, id] = b.dataset.rapedit.split('|'); addRappel(pid, id); });
-  const q = $('[data-a=quit]'); q.onclick = () => powerMenu();
+  const q = $('[data-a=quit]'); { let t = null, lp = false;   // toucher = au revoir et fermer ; appui long = verrouiller / code PIN
+    q.addEventListener('pointerdown', () => { lp = false; t = setTimeout(() => { lp = true; powerMenu(); }, 550); });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => q.addEventListener(ev, () => clearTimeout(t)));
+    q.onclick = () => { if (!lp) Splash.bye(); }; }
   const sn = $('[data-a=syncnow]'); if (sn) sn.onclick = () => { sn.classList.add('spinning'); Sync.run({ force: true }).finally(() => sn.classList.remove('spinning')); };
   $$('[data-addrap]').forEach(b => b.onclick = () => addRappel(b.dataset.addrap));
   $$('[data-rapok]').forEach(b => b.onclick = async () => { const [pid, id] = b.dataset.rapok.split('|'); const p = await DB.get('projects', pid); const x = (p.rappels || []).find(r => r.id === id); if (x) { x.done = true; cancelNotif(x); await DB.put('projects', p); toast('Rappel terminé ✓'); renderHome(); } });
@@ -1452,8 +1455,8 @@ async function openPlansQuick() {
   const gend = e => { if (gdrag && gdrag.ctl) { const dx = e.changedTouches[0].clientX - gx; gdrag.ctl.end(dx, dx / Math.max(1, Date.now() - gt)); } gon = false; gdrag = null; };
   document.addEventListener('touchend', gend, { passive: true }); document.addEventListener('touchcancel', gend, { passive: true });
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-  try { Splash.show(); } catch (e) {}
-  licBoot().catch(e => console.warn('licence', e)).finally(() => { renderHome(); Sync.start(); setTimeout(() => checkUpdate(false).catch(() => {}), 2500); try { dwgCrashCheck(); } catch (e) {} try { if (AppLock.get()) lockScreen(); } catch (e) {} setTimeout(showWhatsNew, 1800); setTimeout(() => otaBoot().catch(() => {}), 1200); });
+  try { Splash.boot(); } catch (e) {}
+  licBoot().catch(e => console.warn('licence', e)).finally(() => { renderHome(); Sync.start(); setTimeout(() => checkUpdate(false).catch(() => {}), 2500); try { dwgCrashCheck(); } catch (e) {} setTimeout(showWhatsNew, 1800); setTimeout(() => otaBoot().catch(() => {}), 1200); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(false).catch(() => {}); });
   // photos partagées depuis la galerie (Partager → Chantier)
   setTimeout(() => checkSharedIntent().catch(e => console.warn('share', e)), 300);

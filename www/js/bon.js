@@ -192,7 +192,7 @@ function openBon(p, bon, onSave) {
     const unBack = pushBack(() => { el.remove(); resolve(bon); });
     let hits = [], t = null, dirty = false;
     el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><h1 style="flex:1;font-size:17px">Bon de bétonnage</h1>
-        <button class="iconbtn" data-a="share" title="Partager">${icon('share')}</button><button class="iconbtn" data-a="more">${icon('more')}</button></div>
+        <button class="iconbtn" data-a="view" title="Afficher en grand">${icon('eye')}</button><button class="iconbtn" data-a="share" title="Partager">${icon('share')}</button><button class="iconbtn" data-a="more">${icon('more')}</button></div>
       <div class="bon-body"><div class="bon-prev"><img alt="Bon"></div><div class="bon-hint">Touchez une case du bon pour la modifier ou choisir la signature</div>
         <div class="form bon-form">
           <label>Date<input type="date" name="date" value="${esc(bon.date || todayISO())}"></label>
@@ -209,7 +209,7 @@ function openBon(p, bon, onSave) {
     $$('.bon-form [name]', el).forEach(i => i.oninput = () => { bon[i.name] = i.value; dirty = true; redraw(); });
     img.onclick = (e) => {
       const r = img.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * BON_W, y = (e.clientY - r.top) / r.height * BON_H;
-      const h = hits.filter(q => x >= q.x && x <= q.x + q.w && y >= q.y && y <= q.y + q.h).pop(); if (!h) return;
+      const h = hits.filter(q => x >= q.x && x <= q.x + q.w && y >= q.y && y <= q.y + q.h).pop(); if (!h) return view();
       if (h.k.startsWith('sig:')) return pick(h.k.slice(4));
       const inp = $(`.bon-form [name=${h.k}]`, el); if (inp) { inp.scrollIntoView({ block: 'center', behavior: 'smooth' }); setTimeout(() => inp.focus(), 250); }
     };
@@ -231,7 +231,10 @@ function openBon(p, bon, onSave) {
       if (v === 'title') { const r = await formSheet('Nom du chantier', [{ name: 't', label: 'Sous le titre du bon', value: cfg.title }]); if (r) { cfg.title = r.t || ''; await DB.put('projects', p); draw(); } }
       if (v === 'pdf') { await save(true); await bonsPdf(p, [bon], `Bon ${bon.ouvrage || ''}`); }
     };
+    const view = () => { if (img.src) showGallery([{ src: img.src, caption: `Bon de bétonnage · ${[bon.ouvrage, bon.partie].filter(Boolean).join(' · ')}` }], 0); };
+    $('[data-a=view]', el).onclick = view;
     sigs(); await draw();
+    if (bon.fileId || bon.at) view();   // bon déjà fait : on l'affiche directement (fermer = revenir pour modifier)
   });
 }
 

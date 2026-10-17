@@ -168,7 +168,7 @@ async function powerMenu() {
     { label: 'Fermer l\'application', icon: 'power', value: 'quit' }]);
   if (v === 'lock') lockScreen();
   if (v === 'pin') setPinDialog();
-  if (v === 'quit') { const A = window.Capacitor?.Plugins?.App; if (A && A.exitApp) A.exitApp(); else toast('Fermez l\'onglet du navigateur'); }
+  if (v === 'quit') Splash.bye();
 }
 document.addEventListener('visibilitychange', () => {
   const L = AppLock.get(); if (!L) return;

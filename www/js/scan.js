@@ -150,3 +150,14 @@ function scanDocuments(files) {
     requestAnimationFrame(layout);
   });
 }
+
+// recadrage automatique sans écran (photo prise → feuille détectée, redressée, nettoyée)
+async function scanAuto(files) {
+  const filter = (() => { try { return localStorage.getItem('scan.filter') || 'doc'; } catch (e) { return 'doc'; } })(), out = [];
+  for (const f of files) {
+    try { const bmp = await scanLoad(f), c = scanWarp(bmp, scanDetect(bmp), 0, filter); const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.86));
+      out.push(new File([blob], (f.name || 'pv').replace(/\.\w+$/, '') + '_scan.jpg', { type: 'image/jpeg' })); }
+    catch (e) { console.warn('scanAuto', e); out.push(f); }
+  }
+  return out;
+}

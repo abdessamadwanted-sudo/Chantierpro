@@ -112,6 +112,7 @@ async function sharePhotos(ids, text, base = 'pv') {
 
 async function renderReceptions(root, kind = 'Ferraillage') {
   const p = App.project;
+  if (kind === 'Ferraillage') { try { const n = await carryPending(p.id); if (n) toast(`↪ ${n} ouvrage(s) non réceptionné(s) reporté(s) au lendemain`); } catch (e) { console.warn('report', e); } }
   const all = (await DB.byProject('receptions', p.id)).filter(d => kindOf(d) === kind).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   App.recSearch = App.recSearch || {}; App.openMonths = App.openMonths || {};
   const q = (App.recSearch[kind] || '').trim().toLowerCase();
@@ -267,6 +268,22 @@ ${!isBeton(kind) ? `<button class="btn ghost small cp-bet" data-cp="${i}" title=
 }
 
 // ---------- Tableau d'un jour ----------
+// ouvrages du tableau de réception non réceptionnés un jour passé → reportés au lendemain (marqués « ✗ Reporté »)
+const _nextISO = (d) => { const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + 1); return x.toISOString().slice(0, 10); };
+async function carryPending(projectId) {
+  const today = todayISO(); let moved = 0;
+  for (let pass = 0; pass < 10; pass++) {
+    const all = (await DB.byProject('receptions', projectId)).filter(d => kindOf(d) === 'Ferraillage');
+    const src = all.filter(d => d.date && d.date < today && d.rows.some(r => r.element && r.status === 'pending')).sort((a, b) => a.date.localeCompare(b.date))[0];
+    if (!src) break;
+    const nd = _nextISO(src.date), take = src.rows.filter(r => r.element && r.status === 'pending');
+    let dst = all.find(d => d.date === nd) || await DB.put('receptions', { projectId, date: nd, type: 'Ferraillage', rows: [] });
+    for (const r of take) { if (!dst.rows.some(x => normQ(`${x.niv}|${x.element}`) === normQ(`${r.niv}|${r.element}`))) dst.rows.push({ ...r, id: DB.uid(), repFrom: r.repFrom || src.date }); moved++; }
+    src.rows = src.rows.filter(r => !take.includes(r));
+    await DB.put('receptions', dst); await DB.put('receptions', src);
+  }
+  return moved;
+}
 function openReceptionDay(day, opts = {}) {
   let focusId = opts.focus || null; const hlId = opts.focus || null;   // surlignage gardé jusqu'à la fermeture
   return new Promise(async (resolve) => {
@@ -299,6 +316,7 @@ function openReceptionDay(day, opts = {}) {
       day.pvPdfId = rec.id;
     }
     let moveSel = -1;             // ligne sélectionnée pour la déplacer (appui long)
+    let selId = hlId || null;      // ouvrage touché (surligné)
     // jours voisins (même type) pour passer d'un jour à l'autre
     let SIBS = [];
     let ALLD = [];
@@ -311,6 +329,7 @@ function openReceptionDay(day, opts = {}) {
       el.classList.remove('slide-l', 'slide-r'); void el.offsetWidth; el.classList.add(dir > 0 ? 'slide-l' : 'slide-r');
       render();
     }
+    if (!isBeton(K)) { try { if (await carryPending(day.projectId)) day = (await DB.get('receptions', day.id)) || day; } catch (e) { console.warn('report', e); } }
     await loadSibs();
     function render() {
       const n = day.rows.filter(r => r.element).length, ok = day.rows.filter(r => r.status === 'ok').length, rs = day.rows.filter(r => r.status === (isBeton(K) ? 'progress' : 'reserve')).length;
@@ -319,22 +338,22 @@ function openReceptionDay(day, opts = {}) {
           <div class="dnav"><button data-dn="-1" ${sib(-1) ? '' : 'disabled'}>‹</button><h1>${fmtDate(day.date)}</h1><button data-dn="1" ${sib(1) ? '' : 'disabled'}>›</button></div>
           ${isBeton(K) ? '' : `<button class="iconbtn" data-a="share">${icon('share')}</button>`}<button class="iconbtn" data-a="more">${icon('more')}</button></div>
         <div class="rec-sum"><span><b>${n}</b> éléments</span><span style="color:#22c55e"><b>${ok}</b> ${isBeton(K) ? 'bétonnés' : 'réceptionnés'}</span><span style="color:${isBeton(K) ? '#60a5fa' : '#f59e0b'}"><b>${rs}</b> ${isBeton(K) ? 'en cours' : 'réserves'}</span>${n - ok - rs ? `<span style="color:var(--muted)"><b>${n - ok - rs}</b> ${isBeton(K) ? 'non bétonné(s)' : 'en attente'}</span>` : ''}${!isBeton(K) && day.rows.some(pvMissing) ? `<span style="color:#ef4444"><b>${day.rows.filter(pvMissing).length}</b> PV manquant(s)</span>` : ''}</div>
-        <div class="rec-info"><b>${fmtDate(day.date)}</b><span class="rp">${esc(p.pdfTitle || p.name)}</span><span class="rt">${recTitle(K)} (post jour)</span><button class="kswitch" data-ks>${icon(isBeton(K) ? 'layers' : 'calendar')} ${isBeton(K) ? 'Réception' : 'Bétonnage'} du ${fmtDate(day.date).slice(0, 5)}</button></div>
+        <div class="rec-info"><b>${fmtDate(day.date)}</b><span class="rp">${esc(p.pdfTitle || p.name)}</span><span class="rt">${recTitle(K)} (post jour)</span><button class="kswitch ksort" data-a="sort">⇅ Trier</button><button class="kswitch" data-ks>${icon(isBeton(K) ? 'layers' : 'calendar')} ${isBeton(K) ? 'Réception' : 'Bétonnage'} du ${fmtDate(day.date).slice(0, 5)}</button></div>
         <div class="rec-wrap">
           <table class="rec">
             <thead>
               <tr><th>Zone</th><th>NIV</th><th class="el">${recColHead(K)}</th>${isBeton(K) ? '<th>Classe béton</th>' : '<th class="ix">Ind. coff.</th><th class="ix">Ind. fer.</th>'}<th>Statut</th>${isBeton(K) ? '' : '<th>PV</th><th>Réceptionné avec</th>'}<th class="ob">Observation</th><th>${PH1}</th><th>${PH2}</th><th>Croquis</th>${isBeton(K) ? '<th>Décoffrage</th>' : ''}</tr>
             </thead>
             <tbody>
-              ${day.rows.map((r, i) => `<tr data-i="${i}" class="st-${r.status} ${moveSel === i ? 'moving' : ''}">
-                <td class="c">${esc(r.zone)}</td><td class="c">${esc(r.niv)}</td><td class="el">${esc(r.element)}</td>${isBeton(K) ? `<td class="c">${esc(r.classe || '')}</td>` : `<td class="c ix">${indCell(r.indCof, r.indCofD)}</td><td class="c ix">${indCell(r.indFer, r.indFerD)}</td>`}
+              ${day.rows.map((r, i) => `<tr data-i="${i}" class="st-${r.status} ${moveSel === i ? 'moving' : ''} ${selId && r.id === selId ? 'sel' : ''} ${!isBeton(K) && r.element && r.status !== 'pending' && !r.pvLivre ? 'pv-nl' : ''}">
+                <td class="c">${esc(r.zone)}</td><td class="c">${esc(r.niv)}</td><td class="el">${esc(r.element)}</td>${isBeton(K) ? `<td class="c">${esc(r.classe || '')}</td>` : `<td class="c ix">${r.repFrom ? '<span class="rep-b">✗ Reporté</span>' : ''}${indCell(r.indCof, r.indCofD)}</td><td class="c ix">${indCell(r.indFer, r.indFerD)}</td>`}
                 <td class="c"><span class="rs" style="background:${(REC_STATUS[r.status] || REC_STATUS.pending).color}">${r.status === 'ok' ? 'OK' : r.status === 'reserve' ? resLabel(K) : r.status === 'progress' ? 'En cours' : 'Attente'}</span>${r.status === 'reserve' && r.liftedAt ? `<br><span class="rs" style="background:#16a34a;margin-top:4px">${liftLabel(K)} ${recDateLabel(r.liftedAt).slice(0, 5)}</span>` : ''}</td>
 ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec || '')}</td>`}
                 <td class="ob">${esc(r.obs)}</td>
                 <td class="c ph">${(r.photoIds || []).length ? `📷 ${r.photoIds.length}` : ''}${(r.anomIds || []).length ? ` <span class="an">⚠ ${r.anomIds.length}</span>` : ''}</td>
                 <td class="c ph">${(r.retourIds || []).length ? `📷 ${r.retourIds.length}` : ''}</td>
                 <td class="c ph sk">${r.croquisId ? `<img data-sk="${r.croquisId}" alt="✏️">` : ''}</td>${isBeton(K) ? `<td class="c">${decofCell(p, day, r)}</td>` : ''}</tr>`).join('')}
-              <tr class="addrow"><td colspan="${NC}"><button data-a="add">${icon('plus')} Ajouter une ligne</button><button data-a="paste">${icon('edit')} Coller un texte</button>${isBeton(K) ? '' : `<button data-a="pbox">📚 Plans des ouvrages</button>`}<span class="hint-lp">Appui long sur une ligne pour la déplacer</span></td></tr>
+              <tr class="addrow"><td colspan="${NC}"><button data-a="add">${icon('plus')} Ajouter une ligne</button><button data-a="paste">${icon('edit')} Coller un texte</button><span class="hint-lp">Appui long sur une ligne pour la déplacer</span></td></tr>
             </tbody>
           </table>
           ${isBeton(K) ? '' : `<div class="pv-day">
@@ -356,10 +375,18 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
              <div class="pv-acts"><button data-a="sharepvpdf">${icon('share')} Envoyer le PDF</button><button data-a="splitpv">${icon('layers')} Séparer</button></div>`
           : pvs.map(f => `<div class="t" data-pv="${f.id}"><img src="${BlobURL.get(f.id, f.blob)}"><button class="x" data-pvdel="${f.id}">×</button></div>`).join('') + `<button class="t add" data-a="addpv">${icon('camera')}</button>`
             + (pvs.length > 1 ? `<div class="pv-acts"><button data-a="mergepv">${icon('pdf')} Fusionner en un seul PDF</button></div>` : '');
-        $('[data-a=addpv]', box).onclick = async () => {
-          const recs = await addPhotos(day.projectId, { source: `PV ${recTitle(K)} ${recDateLabel(day.date)}`, scan: true });
-          if (recs.length) { day.pvIds = [...(day.pvIds || []), ...recs.map(x => x.id)]; if (day.pvPdfId) await mergePv(); await save(); render(); }
+        const addPv = async (gal) => {
+          let files = await pickFiles({ accept: 'image/*', multiple: !!gal, capture: !gal }); if (!files.length) return;
+          const ld = loading('Recadrage automatique…');
+          try { files = await scanAuto(files); const recs = []; for (const f of files) recs.push(await saveImageFile(day.projectId, f, 'photo', { source: `PV ${recTitle(K)} ${recDateLabel(day.date)}`, hq: true }));
+            day.pvIds = [...(day.pvIds || []), ...recs.map(x => x.id)]; if (day.pvPdfId) await mergePv(); await save(); }
+          finally { ld.close(); }
+          toast('PV recadré ✓ (appui long sur 📷 = galerie)'); render();
         };
+        { const ab = $('[data-a=addpv]', box); let t = null, lpv = false;
+          ab.addEventListener('pointerdown', () => { lpv = false; t = setTimeout(() => { lpv = true; try { navigator.vibrate && navigator.vibrate(20); } catch (e) {} addPv(true); }, 550); });
+          ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => ab.addEventListener(ev, () => clearTimeout(t)));
+          ab.onclick = () => { if (!lpv) addPv(false); }; }
         const mb = $('[data-a=mergepv]', box); if (mb) mb.onclick = async () => { const ld = loading('Création du PDF…'); try { await mergePv(); await save(); toast('PV fusionnés en un PDF ✓'); } finally { ld.close(); } render(); };
         const sp = $('[data-a=splitpv]', box); if (sp) sp.onclick = async () => { if (!await confirmBox('Séparer le PDF ? Les photos des PV redeviennent séparées.', 'Séparer')) return; await DB.del('files', day.pvPdfId); day.pvPdfId = null; await save(); render(); };
         const op = $('[data-a=openpvpdf]', box); if (op) op.onclick = async () => { const f = await DB.get('files', day.pvPdfId); if (f) showPdf(f.blob, `PV du ${fmtDate(day.date)}`); };
@@ -367,7 +394,8 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         $$('[data-pv]', box).forEach(t => t.onclick = async (e) => {
           const id = t.dataset.pv;
           if (e.target.closest('[data-pvdel]')) { if (await confirmBox('Retirer ce PV ?')) { day.pvIds = day.pvIds.filter(x => x !== id); await DB.del('files', id); await save(); render(); } return; }
-          showGallery(pvs.map((f, k) => ({ src: BlobURL.get(f.id, f.blob), caption: `PV du ${fmtDate(day.date)} (${k + 1})`, fileId: f.id })), pvs.findIndex(x => x.id === id));
+          showGallery(pvs.map((f, k) => ({ src: BlobURL.get(f.id, f.blob), caption: `PV du ${fmtDate(day.date)} (${k + 1})`, fileId: f.id })), pvs.findIndex(x => x.id === id),
+            { onDelete: async (it) => { day.pvIds = (day.pvIds || []).filter(x => x !== it.fileId); await DB.del('files', it.fileId); if (day.pvPdfId) { if (day.pvIds.length) await mergePv(); else { await DB.del('files', day.pvPdfId); day.pvPdfId = null; } } await save(); return true; } });
           const gl = document.querySelector('.gallery [data-a=x]'); if (gl) { const o = gl.onclick; gl.onclick = () => { o(); render(); }; }
         });
       })();
@@ -380,20 +408,11 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         App.section = isBeton(K) ? 'reception' : 'beton'; renderSection();
         setTimeout(() => openReceptionDay(o), 50);
       };
-      // glisser à gauche / à droite : en-tête, ou tableau quand il est au bord
-      (() => {
-        const wrap = $('.rec-wrap', el); let sx = 0, sy = 0, sl = 0, t0 = 0, zone = null;
-        el.ontouchstart = (e) => { if (e.touches.length !== 1 || e.target.closest('.sheet-bg, input, textarea')) { zone = null; return; } const t = e.touches[0]; sx = t.clientX; sy = t.clientY; t0 = Date.now(); zone = e.target.closest('.rec-wrap') ? 'tab' : 'head'; sl = wrap.scrollLeft; };
-        el.ontouchend = (e) => {
-          if (!zone) return; const t = e.changedTouches[0], dx = t.clientX - sx, dy = Math.abs(t.clientY - sy), fast = Date.now() - t0 < 450;
-          if (Math.abs(dx) < 70 || dy > Math.abs(dx) * 0.6 || !fast) return;
-          const max = wrap.scrollWidth - wrap.clientWidth;
-          if (zone === 'tab' && !((dx > 0 && sl <= 2) || (dx < 0 && sl >= max - 2))) return;
-          goDay(dx < 0 ? 1 : -1);
-        };
-      })();
       $('[data-a=add]', el).onclick = () => editRow(null);
-      const pbx = $('[data-a=pbox]', el); if (pbx) pbx.onclick = async () => { await save(); openRecBox(day.projectId, day.date); };
+      $('[data-a=sort]', el).onclick = async () => {   // zone croissante, puis niveau du plus haut au plus bas
+        const zn = (r) => { const z = parseFloat(String(r.zone || '').replace(',', '.')); return isNaN(z) ? 1e9 : z; };
+        day.rows.sort((a, b) => (!a.element - !b.element) || zn(a) - zn(b) || String(a.zone || '').localeCompare(String(b.zone || ''), 'fr', { numeric: true }) || nivRank(b.niv) - nivRank(a.niv) || String(a.element || '').localeCompare(String(b.element || ''), 'fr', { numeric: true }));
+        moveSel = -1; await save(); render(); toast('Trié par zone puis niveau ✓'); };
       $('[data-a=paste]', el).onclick = async () => {
         const r = await formSheet('Coller un texte', [{ name: 'txt', label: 'Collez le message (WhatsApp, notes…) — une ligne par ouvrage', type: 'textarea', placeholder: 'Zone 11\nR+5 Voile CR 75\nR+5 Poutre C21 B30\nZone 12 R+2 Poteau CR 26' }], { okLabel: 'Analyser' });
         if (!r || !r.txt) return;
@@ -432,7 +451,9 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         tr.addEventListener('pointerdown', () => { lp = false; clearTimeout(t); t = setTimeout(() => { lp = true; moveSel = +tr.dataset.i; try { navigator.vibrate && navigator.vibrate(25); } catch (e) {} render(); }, 500); });
         ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => tr.addEventListener(ev, () => clearTimeout(t)));
         tr.addEventListener('pointermove', (e) => { if (Math.abs(e.movementY) + Math.abs(e.movementX) > 3) clearTimeout(t); });
-        tr.onclick = () => { if (lp) return; if (moveSel >= 0) { moveSel = +tr.dataset.i; return render(); } editRow(+tr.dataset.i); };
+        tr.onclick = () => { if (lp) return; if (moveSel >= 0) { moveSel = +tr.dataset.i; return render(); }
+          $$('tbody tr.sel', el).forEach(x => x.classList.remove('sel')); tr.classList.add('sel'); selId = (day.rows[+tr.dataset.i] || {}).id || null;
+          editRow(+tr.dataset.i); };
       });
       $$('[data-mv]', el).forEach(b => b.onclick = async () => {
         const v = b.dataset.mv, i = moveSel, R = day.rows;

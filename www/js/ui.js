@@ -261,18 +261,25 @@ async function pdfToImages(file, maxSide = 3000, onPage) {
 // Visionneuse photo plein écran
 function showImage(src, caption = '') { return showGallery([{ src, caption }], 0); }
 // Galerie plein écran façon téléphone : la photo suit le doigt, zoom à deux doigts / double appui, miniatures
-function showGallery(items, start = 0) {
+function showGallery(items, start = 0, opts = {}) {
   items = items.filter(x => x && x.src);
   if (!items.length) return;
   let i = Math.max(0, Math.min(start, items.length - 1)), dx = 0, zoom = 1, px = 0, py = 0;
   const el = document.createElement('div');
   el.className = 'lightbox gallery g2';
-  el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1 class="gl-cap"></h1><span class="gl-n"></span>${items.some(x => x.fileId) ? `<button class="iconbtn" data-a="rot" title="Tourner">↻</button>` : ''}</div>
+  el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1 class="gl-cap"></h1><span class="gl-n"></span>${items.some(x => x.fileId) ? `<button class="iconbtn" data-a="rot" title="Tourner">↻</button>` : ''}${opts.onDelete ? `<button class="iconbtn" data-a="gdel" title="Supprimer">${icon('trash')}</button>` : ''}</div>
     <div class="g2-stage"><div class="g2-track"><div class="g2-s"><img draggable="false"></div><div class="g2-s"><img draggable="false"></div><div class="g2-s"><img draggable="false"></div></div></div>
     ${items.length > 1 ? `<div class="g2-strip">${items.map((it, k) => `<button data-k="${k}"><img data-k="${k}" alt=""></button>`).join('')}</div>` : ''}`;
   document.body.appendChild(el);
   const unBack = pushBack(() => el.remove());
   $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
+  const gd = $('[data-a=gdel]', el); if (gd) gd.onclick = async () => {
+    if (!await confirmBox('Supprimer cette photo ?', 'Supprimer')) return;
+    if (await opts.onDelete(items[i], i) === false) return;
+    items.splice(i, 1); const sb = $(`.g2-strip button[data-k="${i}"]`, el); if (sb) sb.remove();
+    $$('.g2-strip button', el).forEach((b, k) => { b.dataset.k = k; const im = $('img', b); if (im) im.dataset.k = k; });
+    if (!items.length) { unBack(); el.remove(); return; } i = Math.min(i, items.length - 1); show(); toast('Photo supprimée');
+  };
   const stage = $('.g2-stage', el), track = $('.g2-track', el), slides = $$('.g2-s', el), W = () => stage.clientWidth;
   const imgs = slides.map(sl => $('img', sl));
   const setT = (anim) => { track.style.transition = anim ? 'transform .22s ease-out' : 'none'; track.style.transform = `translate3d(${-W() + dx}px,0,0)`; };
