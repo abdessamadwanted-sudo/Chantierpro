@@ -9,7 +9,7 @@ const BriefCfg = {
   get() { try { return { hide: [], sc: [], ...(JSON.parse(localStorage.getItem('brief.cfg') || '{}') || {}) }; } catch (e) { return { hide: [], sc: [] }; } },
   set(v) { try { localStorage.setItem('brief.cfg', JSON.stringify(v)); } catch (e) {} },
 };
-const BRIEF_KINDS = [['rap', '🔔 Rappels du jour'], ['pv', '📋 PV à livrer au BET'], ['rec', '🔩 Réception du jour'], ['tasks', '⚠️ Tâches / réserves'], ['pt', '👷 Pointage du jour'], ['plan', '📅 Planning en retard'], ['due', '⏳ Échéances des lots'], ['lab', '🧪 Labo : écrasements'], ['stock', '📦 Stock bas'],
+const BRIEF_KINDS = [['rap', '🔔 Rappels du jour'], ['pv', '📋 PV à livrer au BET'], ['rec', '🔩 Réception du jour'], ['tasks', '⚠️ Tâches / réserves'], ['pt', '👷 Pointage du jour'], ['plan', '📅 Planning en retard'], ['due', '⏳ Échéances des lots'], ['lab', '🧪 Labo : écrasements'], ['stock', '📦 Stock bas'], ['lvs', '🏢 Changements entre niveaux'],
   ['reg:reu', '🗓️ Actions des réunions'], ['reg:rfi', '❓ RFI sans réponse'], ['reg:visa', '🛂 Visas en attente'], ['reg:perm', '🦺 Permis expirés'], ['reg:ess', '🔬 Essais non conformes'], ['reg:st', '🤝 Sous-traitants'], ['valid', '✍️ À valider'], ['job', '💼 Candidatures à relancer']];
 const SC_EMO = { dashboard: '📊', plans: '🗺️', reception: '🔩', avancement: '🏗️', planning: '📅', reunions: '🗓️', tasks: '⚠️', reports: '📝', photos: '📷', pointage: '👷', labo: '🧪', forms: '📋', constat: '🚫', clauses: '📚', rfi: '❓', visa: '🛂', hse: '🦺', calc: '📐', models3d: '🧊', maquette: '🏢', finance: '💰', avenants: '📑', gestion: '📦', tce: '🏢', st: '🤝', org: '👥', team: '👷' };
 // ordre des cartes selon le service (les autres suivent)
@@ -60,6 +60,11 @@ async function briefingData() {
   if (due.length && see('avancement')) C.push({ k: 'due', e: '⏳', t: 'Échéances des lots', c: '#a855f7', n: due.length, items: due, alert: due.some(x => x.late) });
   if (lab.length && (see('labo') || see('gestion'))) C.push({ k: 'lab', e: '🧪', t: 'Labo : écrasements', c: '#06b6d4', n: lab.length, items: lab, alert: lab.some(x => x.late) });
   if (stk.length && see('gestion')) C.push({ k: 'stock', e: '📦', t: 'Stock bas', c: '#eab308', n: stk.length, items: stk });
+  // changements entre niveaux pas encore vus (comparaison des niveaux)
+  try { const pls = await DB.all('plans'), it = [];
+    for (const up of pls) for (const [lid, c] of Object.entries(up.lvChk || {})) { const left = (c.n || 0) - ((up.lvSeen || {})[lid] || []).length; if (left > 0) it.push({ pid: up.projectId, lowId: lid, upId: up.id, label: `${c.lowName || ''} → ${c.upName || up.name}`, sub: `${(P(up.projectId)).name || ''} · ${left} changement(s) à vérifier` }); }
+    if (it.length) C.push({ k: 'lvs', e: '🏢', t: 'Changements entre niveaux', c: '#f97316', n: it.reduce((a, x) => a + (+x.sub.match(/· (\d+) chang/)[1]), 0), items: it });
+  } catch (e) { console.warn('lvs brief', e); }
   try { C.push(...regBriefCards(ps)); } catch (e) { console.warn('reg brief', e); }
   try { const n = typeof careerBadge === 'function' && see('career') ? careerBadge() : 0; if (n) C.push({ k: 'job', e: '💼', t: 'Candidatures à relancer', c: '#22c55e', n, items: [{ label: `${n} candidature(s) envoyée(s) il y a plus de 7 jours` }] }); } catch (e) {}
   const me = Org.me(), O = BRIEF_ORDER[me && me.service] || [];
@@ -77,6 +82,7 @@ function briefAction(card) {
   return async () => {
     if (card.k === 'job') return openCareer();
     if (card.k === 'pv') return pvBetSheet(App.fromBrief);
+    if (card.k === 'lvs') { let it = card.items[0]; if (card.items.length > 1) { const v = await menu('Quelle paire ?', card.items.map((x, i) => ({ label: `${x.label} · ${x.sub}`, icon: 'layers', value: String(i) }))); it = v == null ? null : card.items[+v]; } if (!it) return; return briefGo(it.pid, () => lvsOpenPair(it.lowId, it.upId)); }
     const pid = await briefPick(card.items); if (!pid) { if (App.fromBrief) briefReopen(); return; }
     const go = (sec, extra) => briefGo(pid, async () => { App.section = sec; App.search = ''; if (extra) extra(); await renderSection(); });
     if (card.k === 'rap') { App.fromBrief = null; App.homeOpen = App.homeOpen || {}; App.homeOpen[pid] = true; App.homeRap = App.homeRap || {}; App.homeRap[pid] = true; return renderHome(); }

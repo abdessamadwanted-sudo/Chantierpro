@@ -1925,3 +1925,23 @@ body:has(.splash.brief) .sheet-bg { z-index: 10070; }
 @keyframes fxRing2 { 0% { transform: scale(.3); opacity: .9; } 100% { transform: scale(2.4); opacity: 0; } }
 .fx-p { display: grid; gap: 6px; } .fx-cl { display: grid; gap: 6px; margin-top: 4px; font-size: 13.5px; } .fx-cl > div { display: flex; gap: 8px; flex-wrap: wrap; }
 .fx-cl button { width: 34px; height: 34px; border-radius: 50%; border: 2px solid rgba(255,255,255,.25); } .fx-cl button.on { border-color: #fff; box-shadow: 0 0 0 3px var(--accent); }
+/* ===== Comparer les niveaux (rideau / clignoter / transparence) ===== */
+.lvs { display: flex; flex-direction: column; background: #0f172a; }
+.lvs .tb-title { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; } .lvs .tb-title b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .lvs-s { font-size: 11.5px; opacity: .75; }
+.lvs-wrap { flex: 1; position: relative; overflow: hidden; background: #fff; }
+.lvs-v, .lvs-vv { position: absolute; inset: 0; } .lvs-vv { background: #fff; }
+.lvs-L { position: absolute; left: 0; top: 0; } .lvs-L img { position: absolute; left: 0; top: 0; }
+.lvs-L.hi { overflow: visible; } .lvs-L.hi img { position: relative; }
+.lvs-hd { position: absolute; display: none; pointer-events: none; image-rendering: auto; }
+.lvs-split { position: absolute; top: 0; bottom: 0; width: 44px; margin-left: -22px; z-index: 5; touch-action: none; cursor: ew-resize; }
+.lvs-split i { position: absolute; left: 21px; top: 0; bottom: 0; width: 3px; background: #f97316; box-shadow: 0 0 0 1px rgba(255,255,255,.8); }
+.lvs-split i::after { content: '⇆'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 34px; height: 34px; border-radius: 50%; background: #f97316; color: #fff; font: 800 17px/34px Arial; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,.3); }
+.lvs-split b { position: absolute; top: 8px; font-size: 11.5px; font-weight: 800; padding: 3px 8px; border-radius: 10px; background: rgba(15,23,42,.82); color: #fff; white-space: nowrap; pointer-events: none; }
+.lvs-split b.l { right: 30px; } .lvs-split b.r { left: 30px; }
+.lvs-pill { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 5; padding: 6px 14px; border-radius: 16px; background: rgba(15,23,42,.85); color: #fff; font-weight: 800; font-size: 13px; }
+.lvs-busy { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); z-index: 5; padding: 6px 12px; border-radius: 14px; background: rgba(249,115,22,.92); color: #fff; font-size: 12.5px; font-weight: 700; animation: lvsP 1.2s ease-in-out infinite; }
+@keyframes lvsP { 50% { opacity: .6; } }
+.lvs-bar { flex: none; background: var(--bg); padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 6px; }
+.lvs-op { width: 100%; accent-color: #f97316; }
+.lvs-nav { display: flex; align-items: center; gap: 8px; } .lvs-nav .btn { margin-left: auto; } .lvs-nav .iconbtn:disabled { opacity: .3; }
+.lvs-dots { display: flex; gap: 5px; } .lvs-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); } .lvs-dots i.on { background: #f97316; width: 20px; border-radius: 4px; }

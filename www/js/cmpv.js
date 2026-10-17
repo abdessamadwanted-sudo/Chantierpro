@@ -362,7 +362,8 @@ async function cadAlignMap(oldPlan, newPlan) {
     const far = Math.abs(M.ox) > newPlan.w * 0.9 || Math.abs(M.oy) > newPlan.h * 0.9; return far ? null : M;
   } catch (e) { return null; }
 }
-async function levelCompareFrom(plan) {
+async function levelCompareFrom(plan) { return openLevelStack(plan); }
+async function levelCompareFromOld(plan) {
   const all = (await DB.byProject('plans', plan.projectId)).filter(p => p.id !== plan.id && (typeof isCurrentPlan !== 'function' || isCurrentPlan(p)));
   const folders = await DB.byProject('folders', plan.projectId), fn = (p) => (folders.find(f => f.id === p.folderId) || {}).name || '';
   const niv = (p) => nivOfFolder(fn(p)) || nivOfFolder(p.name) || '';
