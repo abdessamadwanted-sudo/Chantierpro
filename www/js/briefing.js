@@ -70,6 +70,33 @@ async function briefingData() {
   for (const k of CFG.sc) { const S = SECTIONS[k]; if (!S || (SECTION_FEATURE[k] && !featOn(SECTION_FEATURE[k]))) continue; out.push({ k: 'sc:' + k, e: SC_EMO[k] || '📁', t: S.label.split(' (')[0], c: '#475569', n: '', sc: true, items: ps.map(p => ({ pid: p.id, label: p.name })) }); }
   return { cards: out, ps };
 }
+// catégories du briefing (repliables) et ordre choisi par l'utilisateur
+const BF_CATS = [['rec', '🔩 Réception & PV', ['pv', 'rec', 'lab', 'reg:ess']], ['suivi', '⚠️ Suivi du chantier', ['tasks', 'rap', 'plan', 'due', 'pt', 'reg:perm']], ['docs', '❓ Documents & validations', ['valid', 'reg:rfi', 'reg:visa', 'reg:reu']], ['gest', '📦 Gestion', ['stock', 'reg:st', 'job']], ['sc', '🔗 Raccourcis', []]];
+const bfOpen = (k, d) => { try { const v = localStorage.getItem('bf.open.' + k); return v == null ? d : v === '1'; } catch (e) { return d; } };
+const bfOpenSet = (k, v) => { try { localStorage.setItem('bf.open.' + k, v ? '1' : '0'); } catch (e) {} };
+const bfOrd = () => { try { return { cat: {}, ord: [], cats: [], ...(JSON.parse(localStorage.getItem('bf.ord') || '{}') || {}) }; } catch (e) { return { cat: {}, ord: [], cats: [] }; } };
+const bfOrdSet = (o) => { try { localStorage.setItem('bf.ord', JSON.stringify(o)); } catch (e) {} };
+const bfCatOf = (c, O) => O.cat[c.k] || (c.sc ? 'sc' : (BF_CATS.find(x => x[2].includes(c.k)) || ['suivi'])[0]);
+function bfGroups(cards) {
+  const O = bfOrd(), cats = [...O.cats.filter(k => BF_CATS.some(x => x[0] === k)), ...BF_CATS.map(x => x[0]).filter(k => !O.cats.includes(k))];
+  const rank = (c) => { const i = O.ord.indexOf(c.k); return i < 0 ? 999 : i; };
+  return cats.map(ck => [ck, BF_CATS.find(x => x[0] === ck)[1], cards.map((c, i) => ({ c, i })).filter(({ c }) => bfCatOf(c, O) === ck).sort((a, b) => rank(a.c) - rank(b.c) || a.i - b.i)]).filter(g => g[2].length);
+}
+async function bfMove(card, cards) {
+  const O = bfOrd(), G = bfGroups(cards), g = G.find(x => x[2].some(({ c }) => c === card)), L = g ? g[2].map(({ c }) => c.k) : [];
+  const v = await menu(`${card.e} ${card.t}`, [{ label: '⬆️ Monter', value: 'up' }, { label: '⬇️ Descendre', value: 'down' }, { label: '↪ Mettre dans une autre catégorie…', value: 'cat' }, { label: '🗂 Ordre des catégories…', value: 'cats' }, { label: '🙈 Masquer cette carte', value: 'hide' }, { label: '↺ Ordre par défaut', value: 'reset' }]);
+  if (!v) return false;
+  if (v === 'reset') { try { localStorage.removeItem('bf.ord'); } catch (e) {} return true; }
+  if (v === 'hide') { const C = BriefCfg.get(); if (card.k.startsWith('sc:')) C.sc = C.sc.filter(x => 'sc:' + x !== card.k); else if (!C.hide.includes(card.k)) C.hide.push(card.k); BriefCfg.set(C); return true; }
+  // ordre global = ordre actuel de toutes les cartes, puis on déplace
+  const all = G.flatMap(x => x[2].map(({ c }) => c.k)); O.ord = [...all, ...O.ord.filter(k => !all.includes(k))];
+  if (v === 'up' || v === 'down') { const j = L.indexOf(card.k), t = L[j + (v === 'up' ? -1 : 1)]; if (!t) return false; const a = O.ord.indexOf(card.k), b = O.ord.indexOf(t); [O.ord[a], O.ord[b]] = [O.ord[b], O.ord[a]]; }
+  if (v === 'cat') { const to = await menu('Vers quelle catégorie ?', BF_CATS.map(x => ({ label: x[1], value: x[0], checked: g && g[0] === x[0] }))); if (!to) return false; O.cat[card.k] = to; }
+  if (v === 'cats') { const cs = [...O.cats.filter(k => BF_CATS.some(x => x[0] === k)), ...BF_CATS.map(x => x[0]).filter(k => !O.cats.includes(k))];
+    for (;;) { const k = await menu('Ordre des catégories (touchez pour monter)', cs.map((x, n) => ({ label: `${n + 1}. ${BF_CATS.find(y => y[0] === x)[1]}`, value: x })).concat([{ label: '✓ Terminé', value: '__ok' }])); if (!k || k === '__ok') break; const n = cs.indexOf(k); if (n > 0) { cs.splice(n, 1); cs.splice(n - 1, 0, k); } }
+    O.cats = cs; }
+  bfOrdSet(O); return true;
+}
 // ouverture d'un projet puis d'une section
 async function briefGo(pid, fn) { const p = await DB.get('projects', pid); if (!p) return; await openProject(p); document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); await fn(p); }
 async function briefPick(items) { const ids = [...new Set(items.map(x => x.pid).filter(Boolean))]; if (ids.length <= 1) return ids[0]; const ps = await DB.all('projects'); return menu('Quel chantier ?', ids.map(id => ({ label: `${(ps.find(p => p.id === id) || {}).name || id} · ${items.filter(x => x.pid === id).length}`, icon: 'hard', value: id }))); }
@@ -163,9 +190,12 @@ function briefingShow(opts = {}) {
     const anim = !opts.scroll;
     el.innerHTML = `<div class="bf-head"><small>${esc(d.charAt(0).toUpperCase() + d.slice(1))}${Org.label() ? ' · ' + esc(Org.label()) : ''}</small><b>${PJ ? `Briefing · ${esc(PJ.name)}` : `Briefing du jour${name ? ', ' + esc(name) : ''}`}</b><span>${(() => { const n = cards.filter(c => !c.sc).reduce((a, c) => a + (+c.n || 0), 0); return n ? `${n} point(s) à voir` : 'Tout est à jour ✓'; })()}</span></div>
       <div class="bf-body">
-        ${GS ? `<div class="gm">${GS.html}</div>` : ''}
-        <div class="bf-notes"><div class="bf-ch"><span>📝</span><b>Mes notes · à cocher</b><i>${notes.filter(x => !x.done).length || ''}</i></div><div class="bn">${drawNotes()}</div></div>
-        <div class="bf-grid">${cards.map((c, i) => `<button class="bf-card ${anim ? '' : 'noanim'} ${c.alert ? 'bf-alert' : ''}" data-c="${i}" style="--c:${c.c};animation-delay:${.1 + i * .06}s"><div class="bf-ch"><span>${c.e}</span><b>${esc(c.t)}</b></div>${c.sc ? `<div class="bf-n bf-sc">${c.e}</div>` : `<div class="bf-n" data-n="${c.n}">${anim ? 0 : c.n}</div>`}${c.sub ? `<small class="bf-s">${esc(c.sub)}</small>` : ''}<div class="bf-l">${c.sc ? '<div>Raccourci</div>' : c.items.slice(0, 2).map(x => `<div>${x.late ? '🔴 ' : ''}${esc(x.label)}</div>`).join('')}</div><span class="bf-go">Ouvrir ›</span></button>`).join('')}</div>
+        <div class="bf-sec bf-top ${bfOpen('top', false) ? 'open' : ''}" data-sec="top"><button class="bf-sh" data-st="top"><span class="grow">${GS ? esc(GS.sum) : '🎮 Progression'} · 📝 ${notes.filter(x => !x.done).length} note(s)</span>${icon('chevdown')}</button>
+          <div class="bf-sb">${GS ? `<div class="gm">${GS.html}</div>` : ''}
+          <div class="bf-notes"><div class="bf-ch"><span>📝</span><b>Mes notes · à cocher</b><i>${notes.filter(x => !x.done).length || ''}</i></div><div class="bn">${drawNotes()}</div></div></div></div>
+        ${bfGroups(cards).map(([ck, cl, L]) => { const n = L.filter(({ c }) => !c.sc).reduce((a, { c }) => a + (+c.n || 0), 0), al = L.some(({ c }) => c.alert), o = bfOpen(ck, true);
+          return `<div class="bf-sec ${o ? 'open' : ''}" data-sec="${ck}"><button class="bf-sh" data-st="${ck}"><span class="grow">${cl}</span>${n ? `<i class="${al ? 'al' : ''}">${n}</i>` : ''}${icon('chevdown')}</button>
+          <div class="bf-sb"><div class="bf-grid">${L.map(({ c, i }) => `<button class="bf-card ${anim ? '' : 'noanim'} ${c.alert ? 'bf-alert' : ''}" data-c="${i}" style="--c:${c.c};animation-delay:${.1 + i * .06}s"><div class="bf-ch"><span>${c.e}</span><b>${esc(c.t)}</b></div>${c.sc ? `<div class="bf-n bf-sc">${c.e}</div>` : `<div class="bf-n" data-n="${c.n}">${anim ? 0 : c.n}</div>`}${c.sub ? `<small class="bf-s">${esc(c.sub)}</small>` : ''}<div class="bf-l">${c.sc ? '<div>Raccourci</div>' : c.items.slice(0, 2).map(x => `<div>${x.late ? '🔴 ' : ''}${esc(x.label)}</div>`).join('')}</div><span class="bf-go">Ouvrir ›</span></button>`).join('')}</div></div></div>`; }).join('')}
         <button class="bf-cust">＋ Ajouter / masquer des cartes</button>
       </div>
       <div class="bf-foot"><button class="bf-enter">${PJ ? 'Entrer ›' : 'Entrer au chantier ›'}</button></div>`;
@@ -177,7 +207,7 @@ function briefingShow(opts = {}) {
     if (anim) { const t0 = performance.now(), ns = $$('.bf-n[data-n]', el); const step = (t) => { const k = Math.min(1, (t - t0 - 250) / 700), e = k < 0 ? 0 : 1 - Math.pow(1 - k, 3); ns.forEach(n => n.textContent = Math.round(+n.dataset.n * e)); if (k < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); }
     // effet de profondeur : la grille s'incline avec le téléphone
     // relief : chaque carte s'incline À L'INVERSE du téléphone (elle « regarde » l'utilisateur) ; au repos elle redevient nette
-    const grid = $('.bf-grid', el); let base = null, tiltT = 0;
+    const grid = $('.bf-body', el); let base = null, tiltT = 0;
     setTimeout(() => $$('.bf-card', grid).forEach(c => c.classList.add('noanim')), 1300);   // fin de l'entrée animée : on peut piloter la carte
     const tilt = (e) => { if (e.gamma == null || !Fx.on('tilt')) return; if (!base) base = { b: e.beta || 0, g: e.gamma || 0 };
       const db = (e.beta || 0) - base.b, dg = (e.gamma || 0) - base.g; base.b += db * .02; base.g += dg * .02;   // la position de repos suit doucement
@@ -197,7 +227,11 @@ function briefingShow(opts = {}) {
     // les notes cochées depuis plus d'un jour disparaissent
     BriefNotes.set(BriefNotes.get().filter(x => !(x.done && x.doneAt && x.doneAt < todayISO())).map(x => x.done && !x.doneAt ? { ...x, doneAt: todayISO() } : x));
     // ouverture douce : la carte s'enfonce légèrement puis s'ouvre
+    $$('[data-st]', el).forEach(h => h.onclick = () => { const S = h.parentElement, o = !S.classList.contains('open'); S.classList.toggle('open', o); bfOpenSet(h.dataset.st, o); });
+    // appui long sur une carte : la déplacer (monter, descendre, autre catégorie) ou la masquer
+    $$('[data-c]', el).forEach(b => b.oncontextmenu = async (e) => { e.preventDefault(); b._lp = Date.now(); const ok = await bfMove(cards[+b.dataset.c], cards); if (ok) done(async () => { const a = await briefingShow({ scroll: body.scrollTop, pid: opts.pid }); if (a) a(); }); });
     $$('[data-c]', el).forEach(b => b.onclick = () => {
+      if (b._lp && Date.now() - b._lp < 900) return;
       if (el._going) return; el._going = true;
       const card = cards[+b.dataset.c], fb = { scroll: body.scrollTop, pid: opts.pid }, act = briefAction(card);
       try { navigator.vibrate && navigator.vibrate(10); } catch (e) {}

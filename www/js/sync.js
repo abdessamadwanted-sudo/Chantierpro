@@ -95,22 +95,24 @@ const Sync = (() => {
     for (const d of recs) {
       const bet = d.type === 'Bétonnage';
       const base = [pj(d.projectId), bet ? D.bet : D.rec, moisDe(d.date), d.date || 'Sans date'];
-      (d.pvIds || []).forEach((id, i) => put(id, [...base, 'PV du jour'], `PV ${d.date} - ${i + 1}`));
-      if (d.pvPdfId) put(d.pvPdfId, [...base, 'PV du jour'], `PV du ${d.date} (fusionné)`);
+      (d.pvIds || []).forEach((id, i) => put(id, [...base, 'PV', 'Pages photographiées'], `PV ${d.date} - page ${i + 1}`));
+      if (d.pvPdfId) put(d.pvPdfId, [...base, 'PV'], `PV du ${d.date}`);   // un seul PDF par jour, remplacé quand on ajoute un PV
       for (const r of d.rows || []) {
         // <jour> / Ouvrages / <Zone · Niveau · Élément> / Photos | Anomalies | Réparations
         const nm = clean(`${r.zone ? 'Zone ' + r.zone + ' · ' : ''}${r.niv ? r.niv + ' · ' : ''}${r.element || 'Ouvrage'}`);
-        const dir = [...base, 'Ouvrages', nm];
-        (r.photoIds || []).forEach((id, i) => put(id, [...dir, 'Photos'], `${nm} - Photo ${i + 1}`));
+        const dir = [...base, 'Photos', nm];
+        (r.photoIds || []).forEach((id, i) => put(id, dir, `${nm} - Photo ${i + 1}`));
         (r.anomIds || []).forEach((id, i) => put(id, [...dir, 'Anomalies'], `${nm} - ${bet ? 'Défaut' : 'Anomalie'} ${i + 1}`));
         (r.retourIds || []).forEach((id, i) => put(id, [...dir, 'Réparations'], `${nm} - Réparation ${i + 1}`));
         if (r.croquisId) put(r.croquisId, dir, `${nm} - Croquis`);
-        if (r.pvGenId) put(r.pvGenId, [...base, 'PV du jour', 'Fiches remplies (à signer)'], `Fiche - ${nm}`);
+        if (r.pvGenId) put(r.pvGenId, [...base, 'PV', 'Fiches remplies (à signer)'], `Fiche - ${nm}`);
+        for (const [tid, fid] of Object.entries(r.fiches || {})) { const t = ((PR[d.projectId] || {}).ficheTpls || []).find(x => x.id === tid); put(fid, [...base, 'PV', 'Fiches remplies (à signer)'], `${t ? t.name : 'Fiche'} - ${nm}`); }
         if (r.bon && r.bon.fileId) put(r.bon.fileId, [...base, 'Bons de bétonnage'], `Bon - ${nm}`);
       }
     }
     for (const pr of projects) { for (const b of pr.bons || []) if (b.fileId) put(b.fileId, [pj(pr.id), D.bet, 'Bons libres', b.date || ''], clean(`Bon - ${b.ouvrage || ''} ${b.partie || ''}`)); const bc = pr.bon || {}; for (const L of Object.values(bc.people || {})) for (const q of L) if (q.sigId) put(q.sigId, [pj(pr.id), D.bet, 'Signatures'], clean(`Signature ${q.name}`)); }
     for (const pr of projects) if (pr.pvTpl) put(pr.pvTpl, [pj(pr.id), D.doc, 'Modèles'], 'Modèle fiche de contrôle');
+    for (const pr of projects) for (const t of pr.ficheTpls || []) put(t.fileId, [pj(pr.id), D.doc, 'Modèles'], `Modèle ${t.name}`);
     for (const pr of projects) for (const c of pr.clauses || []) put(c.fileId, [pj(pr.id), D.cl, c.type || 'Autre'], clean(c.name));
     for (const pr of projects) for (const c of pr.constats || []) (c.items || []).forEach((it, k) => (it.photoIds || []).forEach((id, i) => put(id, [pj(pr.id), D.cons, `${c.date || ''} ${c.title || 'Constat'}`], `${k + 1}-${i + 1} ${it.probleme || 'photo'}`.slice(0, 80))));
     for (const t of tasks) (t.photoIds || []).forEach((id, i) => put(id, [pj(t.projectId), D.res, `#${t.num || ''} ${t.title || ''}`], `#${t.num || ''} - ${i + 1}`));
@@ -232,6 +234,7 @@ const Sync = (() => {
       // 5) documents lisibles dans Drive (PDF des tableaux, réserves, rapports)
       if (force || Date.now() - LS.get('docsAt', 0) > 600000) { await syncDocs(); LS.set('docsAt', Date.now()); }
       st.last = Date.now(); LS.set('last', st.last);
+      if (Date.now() - LS.get('chkAt', 0) > 7 * 864e5) weeklyCheck().catch(e => console.warn('check', e));
       LS.set('fails', fails.slice(0, 20));
       if (fails.length) setStatus('error', `${fails.length} fichier(s) non envoyé(s) — touchez pour voir`); else setStatus('ok');
       if (pulledCount) {
@@ -245,6 +248,20 @@ const Sync = (() => {
       running = false;
       if (again) schedule(1500);
     }
+  }
+  // ---------- contrôle hebdomadaire : tout est-il bien dans Drive ? ----------
+  const SCRIPT_VER = 3;
+  async function scriptVer() { const c = cfg(); if (!c) return 0; try { const r = await call('ping', {}); c.ver = r.ver || 1; LS.set('cfg', c); return c.ver; } catch (e) { return c.ver || 0; } }
+  async function weeklyCheck(manual) {
+    if ((await scriptVer()) < SCRIPT_VER) { LS.set('chkAt', Date.now()); if (manual) alertBox('Mettez d\'abord à jour le script Google (Synchronisation › « Mettre à jour le script »).'); return null; }
+    const files = (await DB.all('files')).filter(f => f.driveId), miss = [];
+    for (let i = 0; i < files.length; i += 150) { const r = await call('check', { ids: files.slice(i, i + 150).map(f => f.driveId) }); miss.push(...(r.missing || [])); }
+    let fixed = 0, lost = 0;
+    for (const f of files) if (miss.includes(f.driveId)) { if (f.blob) { f.driveId = null; f.drivePath = null; await DB.putRaw('files', f); fixed++; } else lost++; }
+    const res = { at: Date.now(), n: files.length, fixed, lost }; LS.set('chk', res); LS.set('chkAt', Date.now());
+    if (fixed) schedule(1000);
+    if (manual || fixed || lost) toast(fixed || lost ? `☁ Contrôle Drive : ${fixed} fichier(s) renvoyé(s)${lost ? ` · ${lost} introuvable(s)` : ''}` : `☁ Contrôle Drive ✓ : ${files.length} fichiers bien rangés`, { ms: 4000 });
+    return res;
   }
   // ---------- PDF automatiques rangés par date ----------
   const hash = (o) => { const s = JSON.stringify(o, (k, v) => (k === 'updatedAt' || k === 'lastOpened' || k === 'driveDocs' || k === 'syncedAt' || k === 'blob') ? undefined : v); let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return String(h); };
@@ -265,7 +282,7 @@ const Sync = (() => {
         if (!(d.rows || []).some(r => r.element)) continue;
         const bet = d.type === 'Bétonnage', title = bet ? 'Programme de bétonnage' : 'Réception ferraillage';
         const files = []; for (const r of d.rows) files.push(...(r.photoIds || []), ...(r.retourIds || []), r.croquisId || ''); files.push(...(d.pvIds || []));
-        jobs.push({ key: 'rec:' + d.id, sig: hash([d, p.pdfTitle, files.length]), segs: [pn, title, (d.date || '').slice(0, 7), d.date], name: `${title} ${d.date}.pdf`, make: () => receptionPdf(p, d) });
+        jobs.push({ key: 'rec:' + d.id, sig: 'v2|' + hash([d, p.pdfTitle, files.length]), segs: [pn, bet ? D.bet : D.rec, moisDe(d.date), d.date || 'Sans date', 'Programme de réception'], name: `${bet ? 'Programme de bétonnage' : 'Programme de réception'} ${d.date}.pdf`, make: () => receptionPdf(p, d) });
       }
       const tasks = await DB.byProject('tasks', p.id);
       if (tasks.length) jobs.push({ key: 'res', sig: hash(tasks), segs: [pn, 'Réserves'], name: 'Liste des réserves (à jour).pdf', make: () => buildReservesPdf(p, { company: 'all', status: 'all', period: 'all', photos: 'yes' }, () => {}) });
@@ -315,7 +332,7 @@ const Sync = (() => {
     if (!c.key) c.key = pendingKey; if (!c.key) throw new Error('Code incomplet');
     if (typeof licIsOwnerScript === 'function' && await licIsOwnerScript(c.url)) throw new Error('Ce Google Drive appartient au titulaire de la licence. Connectez VOTRE propre compte Google (onglet « Première fois »).');
     LS.set('cfg', c);
-    try { const r = await call('ping', { code: codeOf(c) }); c.folder = r.folder; LS.set('cfg', c); }
+    try { const r = await call('ping', { code: codeOf(c) }); c.folder = r.folder; c.ver = r.ver || 1; LS.set('cfg', c); }
     catch (e) { LS.del('cfg'); throw e; }
     // première synchro complète
     LS.set('pushAt', 0); LS.set('pullAt', 0);
@@ -330,6 +347,7 @@ const Sync = (() => {
 // Exécuter en tant que : Moi · Accès : Tout le monde
 const KEY = '${key}';
 const ROOT_NAME = 'Chantier Pro';
+const VER = 3;
 
 function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 function doGet() { return out({ ok: true, app: 'chantier' }); }
@@ -339,7 +357,19 @@ function root_() {
   const it = DriveApp.getFoldersByName(ROOT_NAME); const f = it.hasNext() ? it.next() : DriveApp.createFolder(ROOT_NAME);
   pr.setProperty('ROOT', f.getId()); return f;
 }
-function sub_(parent, name) { const it = parent.getFoldersByName(name); return it.hasNext() ? it.next() : parent.createFolder(name); }
+// un seul dossier par nom : les doublons sont fusionnés dans le premier (fichiers et sous-dossiers déplacés)
+function merge_(keep, dup) {
+  const fi = dup.getFiles(); while (fi.hasNext()) { const x = fi.next(); if (x.getName() === 'db.json' && keep.getFilesByName('db.json').hasNext()) x.setTrashed(true); else x.moveTo(keep); }   // la base utilisée reste celle du premier dossier
+  const fo = dup.getFolders(); while (fo.hasNext()) { const c = fo.next(), same = keep.getFoldersByName(c.getName()); if (same.hasNext()) merge_(same.next(), c); else c.moveTo(keep); }
+  dup.setTrashed(true);
+}
+function sub_(parent, name) {
+  const it = parent.getFoldersByName(name); if (!it.hasNext()) return parent.createFolder(name);
+  const f = it.next(); while (it.hasNext()) merge_(f, it.next()); return f;
+}
+function dedupe_(f, n) { const seen = {}, it = f.getFolders(), list = []; while (it.hasNext()) list.push(it.next());
+  list.forEach(function (c) { const k = c.getName(); if (seen[k]) { merge_(seen[k], c); n.n++; } else seen[k] = c; });
+  for (const k in seen) dedupe_(seen[k], n); return n; }
 function path_(segs) { let f = root_(); segs.forEach(function (s) { f = sub_(f, s); }); return f; }
 function dbFile_() {
   const sys = sub_(root_(), '_sync (ne pas toucher)'); const it = sys.getFilesByName('db.json');
@@ -356,7 +386,7 @@ function doPost(e) {
     if (d.action === 'ping') {
       const r = root_();
       if (d.code && !r.getFilesByName('Code de connexion.txt').hasNext()) r.createFile('Code de connexion.txt', d.code);
-      return out({ ok: true, folder: r.getUrl(), now: Date.now() });
+      return out({ ok: true, folder: r.getUrl(), now: Date.now(), ver: VER });
     }
     if (d.action === 'pull') {
       const db = load_(), s = d.since || 0, recs = [];
@@ -378,7 +408,10 @@ function doPost(e) {
       save_(db);
       return out({ ok: true, now: now });
     }
+    if (d.action === 'dedupe') { lock.waitLock(30000); const n = dedupe_(root_(), { n: 0 }); return out({ ok: true, merged: n.n }); }
+    if (d.action === 'check') { const miss = []; (d.ids || []).forEach(function (id) { try { if (DriveApp.getFileById(id).isTrashed()) miss.push(id); } catch (e) { miss.push(id); } }); return out({ ok: true, missing: miss }); }
     if (d.action === 'upload') {
+      lock.waitLock(30000);
       const folder = path_(d.path); let f = null;
       if (d.driveId) { try { f = DriveApp.getFileById(d.driveId); if (f.isTrashed()) f = null; } catch (e) { f = null; } }
       if (f && !d.b64) { f.moveTo(folder); f.setName(d.name); return out({ ok: true, id: f.getId() }); }
@@ -432,6 +465,9 @@ function doPost(e) {
         <button class="btn" data-a="now">${icon('undo')} Synchroniser maintenant</button>
         ${c.folder ? `<button class="btn ghost" data-a="open">${icon('drive')} Ouvrir le dossier dans Drive</button>` : ''}
         <button class="btn ghost" data-a="code">${icon('phone')} Copier le code de connexion (PC / autre téléphone)</button>
+        <div class="sync-upd" data-upd></div>
+        <button class="btn ghost" data-a="dedupe">🧹 Fusionner les dossiers en double dans Drive</button>
+        <button class="btn ghost" data-a="check">🔎 Vérifier que tout est dans Drive${LS.get('chk') ? ` <small style="opacity:.7">· ${new Date(LS.get('chk').at).toLocaleDateString('fr-FR')}</small>` : ''}</button>
         <button class="btn ghost" data-a="script">${icon('file')} Copier le code du script</button>
         <button class="btn danger" data-a="off">Déconnecter cet appareil</button>
       </div>`, { title: 'Synchronisation Google Drive' });
@@ -457,6 +493,11 @@ function doPost(e) {
       const o = $('[data-a=open]', s.el); if (o) o.onclick = () => openUrl(c.folder);
       $('[data-a=code]', s.el).onclick = () => copy(codeOf(c));
       $('[data-a=script]', s.el).onclick = () => copy(script(c.key));
+      scriptVer().then(v => { const u = $('[data-upd]', s.el); if (!u || v >= SCRIPT_VER) return;
+        u.innerHTML = `<div class="sync-warn"><b>⚠️ Mettre à jour le script Google (une fois)</b><br>Nécessaire pour fusionner les dossiers en double et ne plus en créer.<br><b>1.</b> Copiez le nouveau code ci-dessous.<br><b>2.</b> Sur script.google.com, ouvrez votre projet « Chantier », effacez tout et collez.<br><b>3.</b> <b>Déployer → Gérer les déploiements → ✏️ Modifier → Version : Nouvelle version → Déployer</b> (le lien reste le même).</div><button class="btn small" data-a="copy3">${icon('file')} Copier le nouveau code</button>`;
+        $('[data-a=copy3]', u).onclick = () => copy(script(c.key)); });
+      $('[data-a=dedupe]', s.el).onclick = async () => { if ((await scriptVer()) < SCRIPT_VER) return alertBox('Mettez d\'abord à jour le script Google (encadré ci-dessus).'); const ld = loading('Fusion des dossiers en double…'); try { const r = await call('dedupe', {}); toast(r.merged ? `${r.merged} dossier(s) en double fusionné(s) ✓` : 'Aucun dossier en double ✓'); } catch (e) { alertBox(String(e.message || e)); } finally { ld.close(); } };
+      $('[data-a=check]', s.el).onclick = async () => { const ld = loading('Vérification dans Drive…'); try { await weeklyCheck(true); } catch (e) { alertBox(String(e.message || e)); } finally { ld.close(); } };
       $('[data-a=off]', s.el).onclick = async () => { if (await confirmBox('Déconnecter Google Drive sur cet appareil ? (les données restent sur l\'appareil et dans Drive)')) { disconnect(); s.close(); toast('Déconnecté'); } };
       return;
     }

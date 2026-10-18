@@ -178,10 +178,35 @@ const DR_GROUPS = [
   ['org', '👥 Organisation', ['org', 'team']],
 ];
 const SVC_GROUP = { trav: 'trav', qual: 'qual', labo: 'qual', hse: 'hse', etu: 'etu', log: 'fin', fin: 'fin', ext: 'trav', archi: 'trav', bet: 'etu', bc: 'qual', mo: 'trav' };
+// ordre du menu choisi par l'utilisateur (groupes et rubriques) : { g: [groupe…], k: { groupe: [rubrique…] } }
+const drOrd = () => { try { return JSON.parse(localStorage.getItem('dr.ord') || 'null'); } catch (e) { return null; } };
+const drOrdSet = (o) => { try { localStorage.setItem('dr.ord', JSON.stringify(o)); } catch (e) {} };
+function drLayout(groups) {
+  const O = drOrd(); if (!O) return groups;
+  const all = new Map(groups.map(g => [g[0], g])), taken = new Set();
+  const out = (O.g || []).filter(k => all.has(k)).map(k => all.get(k)); groups.forEach(g => { if (!out.includes(g)) out.push(g); });
+  const res = out.map(([gk, gl, keys]) => { const mine = ((O.k || {})[gk] || []).filter(k => SECTIONS[k]); mine.forEach(k => taken.add(k)); return [gk, gl, mine, keys]; });
+  return res.map(([gk, gl, mine, keys]) => [gk, gl, [...mine, ...keys.filter(k => !taken.has(k) && !mine.includes(k))]]);
+}
+// déplacer une rubrique (appui long dans le menu) ou organiser tout le menu
+async function drMove(k, redraw) {
+  const placed = new Set(DR_GROUPS.flatMap(g => g[2])), base = DR_GROUPS.map(g => g[0] === 'trav' ? [g[0], g[1], [...g[2], ...Object.keys(SECTIONS).filter(x => !placed.has(x))]] : g);
+  const L = drLayout(base), gi = L.findIndex(g => g[2].includes(k)); if (gi < 0) return;
+  const vis = (g) => g[2].filter(x => SECTIONS[x] && !SECTIONS[x].hidden && x !== 'settings' && sectionOn(x));
+  const v = await menu(`${SECTIONS[k].label}`, [{ label: '⬆️ Monter', value: 'up' }, { label: '⬇️ Descendre', value: 'down' }, { label: '⏫ Tout en haut du groupe', value: 'top' }, { label: '↪ Déplacer vers un autre groupe…', value: 'mv' }, { label: '🗂 Organiser les groupes…', value: 'grp' }, { label: '↺ Ordre par défaut', value: 'reset' }]);
+  if (!v) return;
+  if (v === 'reset') { try { localStorage.removeItem('dr.ord'); } catch (e) {} return redraw(); }
+  const O = { g: L.map(g => g[0]), k: Object.fromEntries(L.map(g => [g[0], [...g[2]]])) }, arr = O.k[L[gi][0]], i = arr.indexOf(k);
+  if (v === 'up' || v === 'down') { const V = vis(L[gi]), j = V.indexOf(k), t = V[j + (v === 'up' ? -1 : 1)]; if (!t) return; const ti = arr.indexOf(t); arr.splice(i, 1); arr.splice(arr.indexOf(t) + (v === 'down' ? 1 : 0), 0, k); void ti; }
+  if (v === 'top') { arr.splice(i, 1); arr.unshift(k); }
+  if (v === 'mv') { const to = await menu('Vers quel groupe ?', L.filter((_, x) => x !== gi).map(g => ({ label: g[1], value: g[0] }))); if (!to) return; arr.splice(i, 1); O.k[to].unshift(k); }
+  if (v === 'grp') { for (;;) { const g = await menu('Ordre des groupes (touchez pour monter)', O.g.map((x, n) => ({ label: `${n + 1}. ${(L.find(y => y[0] === x) || [])[1] || x}`, value: x })).concat([{ label: '✓ Terminé', value: '__ok' }])); if (!g || g === '__ok') break; const n = O.g.indexOf(g); if (n > 0) { O.g.splice(n, 1); O.g.splice(n - 1, 0, g); } } }
+  drOrdSet(O); redraw();
+}
 function drawerSections(itemHtml) {
   const me = Org.me(), first = SVC_GROUP[me && me.service] || 'trav';
   const placed = new Set(DR_GROUPS.flatMap(g => g[2]));
-  const groups = DR_GROUPS.map(g => g[0] === 'trav' ? [g[0], g[1], [...g[2], ...Object.keys(SECTIONS).filter(k => !placed.has(k))]] : g).sort((a, b) => (b[0] === first) - (a[0] === first));
+  const groups = drLayout(DR_GROUPS.map(g => g[0] === 'trav' ? [g[0], g[1], [...g[2], ...Object.keys(SECTIONS).filter(k => !placed.has(k))]] : g).sort((a, b) => (b[0] === first) - (a[0] === first)));
   const st = (k) => { try { const v = localStorage.getItem('dr.g.' + k); return v == null ? null : v === '1'; } catch (e) { return null; } };
   return groups.map(([gk, gl, keys]) => {
     const items = keys.filter(k => SECTIONS[k] && !SECTIONS[k].hidden && k !== 'settings').map(k => { const f = SECTION_FEATURE[k];

@@ -54,7 +54,16 @@ function featToggles(title, state, keys, { sub } = {}) {
     bind(); s.onClose = () => resolve(res);
   });
 }
+// mode simple : seulement ce qui sert au poste (le reste reste disponible, juste caché)
+const SIMPLE_BY_SVC = { qual: ['reception', 'tasks', 'photos', 'forms', 'constat', 'clauses', 'rfi', 'visa', 'labo', 'reports'], trav: ['reception', 'tasks', 'photos', 'reports', 'planning', 'reunions', 'pointage', 'avancement', 'gestion', 'tce', 'st'],
+  labo: ['labo', 'reception', 'forms', 'reports', 'photos'], hse: ['hse', 'tasks', 'photos', 'reports', 'reunions'], etu: ['calc', 'models3d', 'rfi', 'visa', 'planning', 'clauses'], log: ['gestion', 'pointage', 'reports'],
+  fin: ['finance', 'gestion', 'st', 'tce', 'pointage'], archi: ['rfi', 'visa', 'tasks', 'photos', 'planning', 'reunions'], bet: ['rfi', 'visa', 'labo', 'tasks', 'calc'], bc: ['visa', 'labo', 'tasks', 'constat', 'forms'], mo: ['planning', 'reunions', 'finance', 'tasks', 'reports'], ext: ['rfi', 'visa', 'tasks', 'reports', 'photos'] };
+function simpleModeList() { const me = Org.me() || {}, P = Org.poste(); const L = P && P.f && P.f !== ALL_F && P.f.length ? P.f : (SIMPLE_BY_SVC[me.service] || SIMPLE_BY_SVC.trav); return L; }
 async function chooseMyFeatures() {
+  const P = Org.poste(), v = await menu('Fonctions affichées', [{ label: `✨ Mode simple${P ? ' · ' + P.n : ''} (seulement l'essentiel)`, icon: 'check', value: 'simple' }, { label: 'Tout afficher', icon: 'grid', value: 'all' }, { label: 'Choisir une par une…', icon: 'edit', value: 'pick' }]);
+  if (!v) return;
+  if (v !== 'pick') { const L = simpleModeList(), cur = myFeatures(); const r = Object.fromEntries(FEATURES.map(([k]) => [k, v === 'all' ? true : (k === 'career' || k === 'org') ? cur[k] !== false : L.includes(k)]));
+    try { localStorage.setItem('myFeatures', JSON.stringify(r)); } catch (e) {} toast(v === 'all' ? 'Tout est affiché ✓' : `Mode simple ✓ · ${L.length} fonctions (le reste est caché, pas supprimé)`); if (App.project) renderSection(); else renderHome(); return; }
   const r = await featToggles('Fonctions affichées', myFeatures(), FEATURES.filter(([k]) => featAllowed(k)).map(([k]) => k), { sub: 'Masquez ce qui ne sert pas sur ce téléphone.' });
   if (!r) return; try { localStorage.setItem('myFeatures', JSON.stringify(r)); } catch (e) {}
   if (App.project) renderSection(); else renderHome();

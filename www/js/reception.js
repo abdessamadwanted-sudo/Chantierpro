@@ -412,7 +412,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
           let files = await pickImages(src); if (!files.length) return;
           const ld = loading('Recadrage automatique…'); let recs = [];
           try { files = await scanAuto(files); for (const f of files) recs.push(await saveImageFile(day.projectId, f, 'photo', { source: `PV ${recTitle(K)} ${recDateLabel(day.date)}`, hq: true }));
-            day.pvIds = [...(day.pvIds || []), ...recs.map(x => x.id)]; if (day.pvPdfId) await mergePv(); await save(); }
+            day.pvIds = [...(day.pvIds || []), ...recs.map(x => x.id)]; await mergePv(); await save(); }   // un seul PDF du jour, mis à jour à chaque PV ajouté
           finally { ld.close(); }
           toast(`${recs.length} PV recadré(s) ✓`); render();
           if (typeof pvSmartCheck === 'function') pvSmartCheck(p, day, recs, () => { save(); render(); });
@@ -504,7 +504,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
       const shb = $('[data-a=share]', el); if (shb) shb.onclick = async () => { await save(); await shareDayMenu(p, day); render(); };
       $('[data-a=more]', el).onclick = async () => {
         const v = await menu('Tableau', [
-          ...(!isBeton(K) ? [{ label: '📝 Fiches de contrôle (PV) de tous les ouvrages du jour', icon: 'pdf', value: 'pvgday' }, { label: 'Modèle PDF de la fiche de contrôle…', icon: 'upload', value: 'pvgtpl' }] : []),
+          ...(!isBeton(K) ? [{ label: '📝 Fiches de contrôle (PV) de tous les ouvrages du jour', icon: 'pdf', value: 'pvgday' }, { label: 'Modèles de fiches (mes PDF)…', icon: 'upload', value: 'pvgtpl' }] : []),
           { label: 'Changer la date', icon: 'calendar', value: 'date' },
           { label: 'Libérer les photos de ce jour (gardées dans Drive)', icon: 'drive', value: 'free' },
           { label: `Bons de bétonnage du jour (PDF, 6 par page)${day.rows.some(x => x.bon) ? ' · ' + day.rows.filter(x => x.bon).length : ''}`, icon: 'pdf', value: 'bons' },
@@ -518,7 +518,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         if (v === 'cpb') { await save(); const pick = await pickRows(day.rows.filter(x => x.element), 'Copier vers le bétonnage'); if (pick && pick.length) await copyToBeton(day.projectId, pick); }
         if (v === 'free') { await save(); await freeFilesUI([...(day.pvIds || []), ...day.rows.flatMap(r => [...(r.photoIds || []), ...(r.anomIds || []), ...(r.retourIds || [])])], `${recTitle(K)} du ${fmtDate(day.date)}`); render(); }
         if (v === 'pvgday') return pvgDay(p, day, save);
-        if (v === 'pvgtpl') { await pvgTemplate(p, true); return; }
+        if (v === 'pvgtpl') { const w = await menu('Modèles de fiches', [{ label: 'Modèle intégré : changer le PDF de la fiche de contrôle', icon: 'upload', value: 'b' }, { label: '＋ Nouveau modèle (mon PDF)…', icon: 'plus', value: 'n' }, ...(ftList(p).length ? [{ label: 'Gérer mes modèles…', icon: 'settings', value: 'm' }] : [])]); if (w === 'b') await pvgTemplate(p, true); if (w === 'n') await ftNew(p); if (w === 'm') await ftManage(p); return; }
         if (v === 'date') { const r = await formSheet('Date', [{ name: 'date', label: 'Date', type: 'date', value: day.date }]); if (r && r.date) { day.date = r.date; await save(); render(); } }
         if (v === 'del' && await confirmBox('Supprimer ce tableau ?\n(il reste 30 jours dans la corbeille : ⋮ › Corbeille)')) {
           await save(); await trashPut(day.projectId, { kind: 'day', day: JSON.parse(JSON.stringify(day)) });
@@ -570,7 +570,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
           <div class="sk-row">${r.croquisId ? `<img class="sk-thumb" data-a="skview">` : ''}<button type="button" class="btn ghost small" data-a="sketch">${icon('pen')} ${r.croquisId ? 'Modifier le croquis' : 'Dessiner un croquis'}</button>${r.croquisId ? `<button type="button" class="btn ghost small" data-a="skdel" style="flex:none">${icon('trash')}</button>` : ''}</div>
           <div class="btnrow" style="padding:0">${!isNew ? `<button class="btn danger" data-a="del" style="flex:none;padding:14px 16px">${icon('trash')}</button>` : ''}
             <button class="btn ghost" data-a="cancel">Annuler</button><button class="btn" data-a="ok">${isNew ? 'Ajouter' : 'Enregistrer'}</button></div>
-          ${isNew ? `<button class="btn ghost" data-a="okmore" style="margin-top:-4px">Ajouter et ligne suivante</button>` : `${!isBeton(K) ? `<button class="btn pvg-b" data-a="pvgen" style="margin-top:-4px">📝 Fiche de contrôle (PV)${r.pvGenId ? ' · générée ✓' : ' · remplir'}</button>` : ''}<button class="btn ghost" data-a="wa" style="margin-top:-4px">${icon('share')} Envoyer cet ouvrage (WhatsApp)</button>${(r.photoIds.length + r.retourIds.length) ? `<button class="btn ghost" data-a="waph" style="margin-top:-4px">${icon('camera')} Envoyer toutes ses photos (${r.photoIds.length + r.retourIds.length})</button>` : ''}`}`;
+          ${isNew ? `<button class="btn ghost" data-a="okmore" style="margin-top:-4px">Ajouter et ligne suivante</button>` : `${!isBeton(K) ? `<button class="btn pvg-b" data-a="pvgen" style="margin-top:-4px">📝 Fiches de contrôle (PV)${r.pvGenId || Object.keys(r.fiches || {}).length ? ' · ' + ((r.pvGenId ? 1 : 0) + Object.keys(r.fiches || {}).length) + ' ✓' : ' · remplir'}</button>` : ''}<button class="btn ghost" data-a="wa" style="margin-top:-4px">${icon('share')} Envoyer cet ouvrage (WhatsApp)</button>${(r.photoIds.length + r.retourIds.length) ? `<button class="btn ghost" data-a="waph" style="margin-top:-4px">${icon('camera')} Envoyer toutes ses photos (${r.photoIds.length + r.retourIds.length})</button>` : ''}`}`;
         Thumbs.fill(f);
         const plc = $('[data-a=place]', f); if (plc) plc.onclick = async (e) => {
           e.preventDefault(); if (!await commit()) return;
@@ -639,7 +639,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         $('[data-a=ok]', f).onclick = async () => { if (await commit()) { s.close(); render(); } };
         const om = $('[data-a=okmore]', f); if (om) om.onclick = async () => { if (await commit()) { s.close(); render(); editRow(null); } };
         const wa = $('[data-a=wa]', f); if (wa) wa.onclick = async () => { if (await commit()) shareRow(p, day, r); };
-        const pvb = $('[data-a=pvgen]', f); if (pvb) pvb.onclick = async () => { if (await commit()) { await pvgOpen(p, day, r, save); draw(); } };
+        const pvb = $('[data-a=pvgen]', f); if (pvb) pvb.onclick = async () => { if (await commit()) { await ficheMenu(p, day, r, save); draw(); } };
         const wph = $('[data-a=waph]', f); if (wph) wph.onclick = async () => { const ld = loading('Préparation des photos…'); try { await sharePhotos([...r.photoIds, ...(r.anomIds || []), ...r.retourIds], `${r.zone ? 'Zone ' + r.zone + ' · ' : ''}${r.niv ? r.niv + ' · ' : ''}${r.element} — ${fmtDate(day.date)}`, r.element || 'photo'); } finally { ld.close(); } };
         const del = $('[data-a=del]', f); if (del) del.onclick = async () => { if (await confirmBox('Supprimer cette ligne ?')) { const row = day.rows[i]; await trashPut(day.projectId, { kind: 'row', dayId: day.id, date: day.date, type: day.type, idx: i, row }); day.rows.splice(i, 1); await save(); s.close(); render();
           toast('Ligne supprimée', { action: 'Annuler', onAction: () => undo() }); } };

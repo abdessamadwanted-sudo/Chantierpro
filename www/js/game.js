@@ -108,7 +108,7 @@ async function gameStrip() {
     <div class="gm-goals"><svg viewBox="0 0 40 40" class="gm-ring"><circle cx="20" cy="20" r="${R}" class="bg"/><circle cx="20" cy="20" r="${R}" class="fg" style="stroke-dasharray:${C};stroke-dashoffset:${C * (1 - done / Math.max(1, G.length))}"/><text x="20" y="24" text-anchor="middle">${done}/${G.length}</text></svg>
       <div class="gm-gl"><b>🎯 Objectifs du jour</b>${G.map(g => `<div class="${g.done ? 'ok' : ''}">${g.done ? '✓' : g.e} ${esc(g.t)}${g.need > 1 ? ` <small>${Math.min(g.have, g.need)}/${g.need}</small>` : ''}</div>`).join('')}</div></div>
     <div class="gm-tip">💡 <b>Le saviez-vous ?</b> ${esc(Game.tip())}</div>`;
-  return { html, news, S };
+  return { html, news, S, sum: `${L.e} ${L.n} · 🎯 ${done}/${G.length} · 🔥 ${S.streak}` };
 }
 // écran « Mon parcours » : niveau, badges, bilan de la semaine, record
 async function gameSheet() {

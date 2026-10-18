@@ -8,14 +8,17 @@ const THEMES = [
   ['ocean', '🌊 Océan', 'radial-gradient(60% 40% at 0 0,#06b6d4cc,transparent),radial-gradient(50% 40% at 100% 40%,#3b82f6aa,transparent),#061a26', 'linear-gradient(135deg,#06b6d4,#3b82f6)'],
   ['foret', '🌿 Forêt', 'radial-gradient(60% 40% at 0 0,#22c55ebb,transparent),radial-gradient(50% 40% at 100% 40%,#14b8a688,transparent),#0b1a12', 'linear-gradient(135deg,#22c55e,#14b8a6)'],
   ['sunset', '🌅 Sunset', 'radial-gradient(60% 40% at 0 0,#f97316cc,transparent),radial-gradient(50% 40% at 100% 40%,#ec4899bb,transparent),#1f0f24', 'linear-gradient(135deg,#f97316,#8b5cf6)'],
+  ['pro', '💼 Pro sobre', 'linear-gradient(160deg,#20242a,#15171b)', '#4b6584'],
+  ['net', '📄 Net clair', 'linear-gradient(160deg,#ffffff,#eef1f5)', '#334155'],
   ['noir-or', '🖤 Noir & Or', 'radial-gradient(60% 40% at 0 0,#d4a53766,transparent),#0a0a0a', 'linear-gradient(135deg,#d4a537,#f5d77a)'],
 ];
 const themeInt = () => { try { return localStorage.getItem('theme.int') || 'compact'; } catch (e) { return 'compact'; } };
 function applyTheme(t) {
   const h = document.documentElement;
-  h.className = h.className.split(' ').filter(c => c && c !== 'glass' && !c.startsWith('th-') && !c.startsWith('gi-')).join(' ');
-  if (t && t !== 'dark') { h.classList.add('glass'); if (t !== 'glass') h.classList.add('th-' + t); h.classList.add('gi-' + themeInt()); }
-  const meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.content = ({ dark: '#1b1e24', glass: '#0e1430' })[t] || getComputedStyle(h).getPropertyValue('--base').trim() || '#1b1e24';
+  h.className = h.className.split(' ').filter(c => c && c !== 'glass' && c !== 'sober' && !c.startsWith('th-') && !c.startsWith('gi-')).join(' ');
+  if (t === 'pro' || t === 'net') h.classList.add('sober', 'th-' + t);   // thèmes professionnels : sobres, sans effets
+  else if (t && t !== 'dark') { h.classList.add('glass'); if (t !== 'glass') h.classList.add('th-' + t); h.classList.add('gi-' + themeInt()); }
+  const meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.content = ({ dark: '#1b1e24', glass: '#0e1430', pro: '#15171b', net: '#ffffff' })[t] || getComputedStyle(h).getPropertyValue('--base').trim() || '#1b1e24';
 }
 const curTheme = () => { try { return localStorage.getItem('theme') || 'dark'; } catch (e) { return 'dark'; } };
 try { applyTheme(curTheme()); } catch (e) {}
@@ -343,7 +346,7 @@ async function openDrawer(opts = {}) {
   const d = document.createElement('div'); d.className = 'drawer';
   d.innerHTML = `
     <div class="drawer-head"><h3>${esc(App.project.name)}</h3><button class="iconbtn" data-home>${icon('home')}</button></div>
-    ${drawerSections((k) => { const s = SECTIONS[k]; return `<button class="item ${App.section === k || (k === 'reception' && App.section === 'beton') ? 'active' : ''}" data-s="${k === 'reception' && App.section === 'beton' ? 'beton' : k}">${icon(s.icon)}<span>${s.label}</span>${k === 'reception' && nPv ? `<span class="count pvbadge">${nPv} PV</span>` : ''}${k === 'tasks' ? `<span class="count dr-rt" data-rtog>${tasks.filter(t => t.status === 'open').length || ''}<i style="display:inline-block;transform:rotate(${resOpen ? 180 : 0}deg)">${icon('chevdown', 'style="width:18px;height:18px"')}</i></span>` : ''}</button>${k === 'tasks' ? `<div class="dr-sub" style="${resOpen ? '' : 'display:none'}">${resRows}</div>` : ''}`; })}
+    <div class="dr-scroll">${drawerSections((k) => { const s = SECTIONS[k]; return `<button class="item ${App.section === k || (k === 'reception' && App.section === 'beton') ? 'active' : ''}" data-s="${k === 'reception' && App.section === 'beton' ? 'beton' : k}">${icon(s.icon)}<span>${s.label}</span>${k === 'reception' && nPv ? `<span class="count pvbadge">${nPv} PV</span>` : ''}${k === 'tasks' ? `<span class="count dr-rt" data-rtog>${tasks.filter(t => t.status === 'open').length || ''}<i style="display:inline-block;transform:rotate(${resOpen ? 180 : 0}deg)">${icon('chevdown', 'style="width:18px;height:18px"')}</i></span>` : ''}</button>${k === 'tasks' ? `<div class="dr-sub" style="${resOpen ? '' : 'display:none'}">${resRows}</div>` : ''}`; })}
     <div class="dr-g ${(() => { try { const v = localStorage.getItem('dr.g.tools'); return v === '1'; } catch (e) { return false; } })() ? 'open' : ''}" data-g="tools"><button class="group dr-gh" data-gt="tools"><span>🧰 Outils</span><i>5</i>${icon('chevdown', 'style="width:16px;height:16px"')}</button><div class="dr-gb">
     <button class="item" data-tool="pdf">${icon('pdf')}<span>Outils PDF</span><span class="count" style="font-size:12px;opacity:.6">fusionner · diviser</span></button>
     <button class="item" data-tool="board">${icon('brush')}<span>Tableau de dessin</span><span class="count" style="font-size:12px;opacity:.6">${(App.project.boards || []).length || ''}</span></button>
@@ -353,7 +356,7 @@ async function openDrawer(opts = {}) {
     <div class="dr-g ${(() => { try { const v = localStorage.getItem('dr.g.links'); return v === '1'; } catch (e) { return false; } })() ? 'open' : ''}" data-g="links"><button class="group dr-gh" data-gt="links"><span>🔗 Liens rapides (Drive)</span><i>${(App.project.quickLinks || [1]).length}</i>${icon('chevdown', 'style="width:16px;height:16px"')}</button><div class="dr-gb">
     ${(App.project.quickLinks || [{ id: 'reception', name: 'Tableau de réception (Drive)', url: '' }]).map(q => `<button class="item" data-q="${q.id}">${icon('grid')}<span>${esc(q.name)}</span>${q.url ? `<span class="count qe" data-qe="${q.id}">${icon('edit', 'style="width:18px;height:18px;opacity:.55"')}</span>` : '<span class="count" style="font-size:12px;opacity:.6">à lier</span>'}</button>`).join('')}
     <button class="item" data-q="__add" style="color:var(--muted)">${icon('plus')}<span>Ajouter un lien</span></button></div></div>
-    <div class="dr-foot"><button class="item ${App.section === 'settings' ? 'active' : ''}" data-s="settings">${icon('settings')}<span>Paramètres</span></button></div>`;
+    </div><div class="dr-foot"><button class="item ${App.section === 'settings' ? 'active' : ''}" data-s="settings">${icon('settings')}<span>Paramètres</span></button><button class="dr-org" data-a="drorg" title="Organiser le menu">${icon('edit', 'style="width:18px;height:18px"')}</button></div>`;
   document.body.append(bg, d);
   // style TikTok : le menu suit le doigt et pousse la page
   const appEl = $('#app'), W = () => d.offsetWidth || 300;
@@ -380,7 +383,11 @@ async function openDrawer(opts = {}) {
   $('[data-home]', d).onclick = () => { close(); renderHome(); };
   drawerGroupsBind(d, close);
   const rt = $('[data-rtog]', d); if (rt) rt.onclick = (e) => { e.stopPropagation(); resOpen = !resOpen; try { localStorage.setItem('dr.res', resOpen ? '1' : '0'); } catch (x) {} $('.dr-sub', d).style.display = resOpen ? '' : 'none'; rt.querySelector('i').style.transform = `rotate(${resOpen ? 180 : 0}deg)`; };
-  $$('[data-s]', d).forEach(b => b.onclick = () => { close(); App.section = b.dataset.s; App.search = ''; renderSection(); });
+  let lp = false;
+  $$('[data-s]', d).forEach(b => { b.onclick = () => { if (lp) { lp = false; return; } close(); App.section = b.dataset.s; App.search = ''; renderSection(); };
+    // appui long : monter / descendre / changer de groupe
+    if (b.dataset.s !== 'settings') b.oncontextmenu = (e) => { e.preventDefault(); lp = true; setTimeout(() => { lp = false; }, 600); drMove(b.dataset.s === 'beton' ? 'reception' : b.dataset.s, () => { remove(); openDrawer(); }); }; });
+  const dro = $('[data-a=drorg]', d); if (dro) dro.onclick = async () => { const k = await menu('Organiser le menu : quelle rubrique ?', [...$$('.dr-scroll [data-s]', d)].map(b => ({ label: b.querySelector('span').textContent, value: b.dataset.s === 'beton' ? 'reception' : b.dataset.s }))); if (k) drMove(k, () => { remove(); openDrawer(); }); };
   $$('[data-tool]', d).forEach(b => b.onclick = () => { close(); const t = b.dataset.tool; if (t === 'pdf') openPdfTools(); else if (t === 'board') openBoardTool(); else if (t === 'bar') openBarTool(); else if (t === 'lang') chooseLang(); else addRappel(App.project.id); });
   $$('[data-q]', d).forEach(b => b.onclick = (e) => { close(); quickLink(b.dataset.q, !!e.target.closest('[data-qe]')); });
   $$('[data-f]', d).forEach(b => b.onclick = () => { close(); App.section = 'tasks'; App.taskFilter = b.dataset.f; App.companyFilter = 'all'; renderSection(); });

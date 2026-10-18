@@ -24,7 +24,7 @@ const Fx = {
   },
   // vague : deux anneaux de verre qui s'élargissent depuis le doigt, à la couleur du thème
   wave(x, y) {
-    if (!Fx.on('wave')) return;
+    if (!Fx.on('wave') || document.documentElement.classList.contains('sober')) return;
     const w = document.createElement('div'); w.className = 'fx-wave'; w.style.left = x + 'px'; w.style.top = y + 'px';
     const c = Fx.color(); if (c) w.style.setProperty('--fx-c', c);
     w.innerHTML = '<i></i><i></i><b></b>'; document.body.appendChild(w); setTimeout(() => w.remove(), 800);
