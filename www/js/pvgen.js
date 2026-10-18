@@ -134,6 +134,7 @@ async function pvgOpen(p, day, r, save) {
     if (!v) return;
     if (v === 'open' || v === 'share') { const f = await DB.get('files', r.pvGenId); if (!f) { r.pvGenId = null; continue; } if (v === 'open') openFileRecord(f, f.name); else shareBlob(f.blob, f.name); return; }
     if (v === 'del') { if (await confirmBox('Supprimer cette fiche (aussi dans Drive) ?')) { await DB.del('files', r.pvGenId).catch(() => {}); r.pvGenId = null; await save(); toast('Fiche supprimée'); } return; }
+    if (!(await pvgTemplate(p))) return;   // la question du modèle avant l'écran d'attente
     const e = await pvgEdit(p, day, r); if (!e) return;
     if (e === 'del') { await save(); toast('Fiche supprimée'); return; }
     const ld = loading('Écriture de la fiche…'); let made; try { made = await pvgMake(p, day, [r]); } catch (er) { ld.close(); return alertBox('Fiche impossible : ' + (er.message || er)); } ld.close();
@@ -143,6 +144,7 @@ async function pvgOpen(p, day, r, save) {
 // toutes les fiches du jour en un seul PDF (et une fiche par ouvrage gardée)
 async function pvgDay(p, day, save) {
   const rows = day.rows.filter(r => r.element); if (!rows.length) return toast('Aucun ouvrage');
+  if (!(await pvgTemplate(p))) return;
   const ld = loading('Écriture des fiches…');
   try {
     const made = await pvgMake(p, day, rows); if (!made) { ld.close(); return; }

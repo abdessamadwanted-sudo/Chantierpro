@@ -146,3 +146,91 @@ async function ftManage(p) {
   if (v === 'ren') { const r = await formSheet('Renommer', [{ name: 'n', label: 'Nom', value: t.name }]); if (r && r.n) { t.name = r.n; await DB.put('projects', p); } }
   if (v === 'del' && await confirmBox(`Supprimer le modèle « ${t.name} » ? (les fiches déjà générées restent)`)) { await DB.del('files', t.fileId).catch(() => {}); p.ficheTpls = L.filter(x => x !== t); await DB.put('projects', p); }
 }
+
+// ================= Fiches de contrôle sous le programme de réception : toutes les parties, un modèle au choix =================
+// Le PDF du modèle est gardé tel quel (vectoriel, jamais modifié) : on écrit seulement par-dessus, à l'encre bleue manuscrite.
+const FC_PV = '__pv';
+const fcSel = (p) => p.ftSel && (p.ftSel === FC_PV || ftList(p).some(t => t.id === p.ftSel)) ? p.ftSel : FC_PV;
+const fcName = (p, id) => id === FC_PV ? 'Fiche de contrôle ferraillage (intégrée)' : (ftList(p).find(t => t.id === id) || {}).name || '?';
+const fcFile = (r, id) => id === FC_PV ? r.pvGenId : (r.fiches || {})[id];
+// le modèle est prêt AVANT tout écran d'attente (sinon la question du PDF restait cachée derrière « Écriture… »)
+async function fcReady(p, id) {
+  if (id === FC_PV) return !!(await pvgTemplate(p));
+  const t = ftList(p).find(x => x.id === id); if (!t) return false;
+  if (!t.fields.length) { toast('Placez d\'abord les cases du modèle'); await ftEditor(p, t); }
+  return t.fields.length > 0;
+}
+async function fcMakeOne(p, day, r, id) {
+  if (id === FC_PV) { const made = await pvgMake(p, day, [r]); return made && made[0]; }
+  const t = ftList(p).find(x => x.id === id); if (!t) return null;
+  const vals = ftDefaults(p, day, r, t), blob = await ftMake(p, t, vals, r.id || 'x'), nm = safeName(`${pvgParse(r).ouvrage} ${pvgParse(r).axe}`.trim()) || 'ouvrage';
+  const rec = await DB.put('files', { projectId: p.id, blob, mime: 'application/pdf', role: 'pvgen', name: `${t.name} ${day.date} ${nm}.pdf` });
+  r.fiches = r.fiches || {}; if (r.fiches[id] && r.fiches[id] !== rec.id) await DB.del('files', r.fiches[id]).catch(() => {});
+  r.fiches[id] = rec.id; r.fv = r.fv || {}; r.fv[id] = vals; return rec;
+}
+async function fcDel(r, id) {
+  const f = fcFile(r, id); if (f) await DB.del('files', f).catch(() => {});
+  if (id === FC_PV) r.pvGenId = null; else if (r.fiches) delete r.fiches[id];
+}
+async function fcEdit(p, day, r, id, save) {
+  if (!(await fcReady(p, id))) return;
+  if (id !== FC_PV) return ftFill(p, day, r, ftList(p).find(x => x.id === id), save);
+  const e = await pvgEdit(p, day, r); if (!e) return;
+  if (e === 'del') { await save(); toast('Fiche supprimée'); return; }
+  const ld = loading('Écriture de la fiche…'); let rec;
+  try { rec = await fcMakeOne(p, day, r, id); } catch (er) { ld.close(); return alertBox('Fiche impossible : ' + (er.message || er)); }
+  ld.close(); if (!rec) return; await save(); toast('Fiche écrite ✓ (aussi dans Drive)'); openFileRecord(rec, rec.name);
+}
+async function fcModelMenu(p) {
+  const L = ftList(p), cur = fcSel(p);
+  const v = await menu('Modèle de fiche', [
+    { label: `📝 Fiche de contrôle ferraillage (intégrée)${p.pvTpl ? '' : ' · PDF à donner'}`, value: FC_PV, checked: cur === FC_PV },
+    ...L.map(t => ({ label: `📄 ${t.name} · ${t.fields.length} case(s)`, value: t.id, checked: cur === t.id })),
+    { label: '＋ Donner un nouveau modèle (mon PDF)…', icon: 'plus', value: '__new' },
+    { label: 'Changer le PDF de la fiche intégrée', icon: 'upload', value: '__tpl' },
+    ...(L.length ? [{ label: 'Gérer mes modèles (cases, nom, supprimer)…', icon: 'settings', value: '__man' }] : [])]);
+  if (!v) return false;
+  if (v === '__new') { const t = await ftNew(p); if (!t) return false; p.ftSel = t.id; await DB.put('projects', p); return true; }
+  if (v === '__tpl') { await pvgTemplate(p, true); p.ftSel = FC_PV; await DB.put('projects', p); return true; }
+  if (v === '__man') { await ftManage(p); return true; }
+  if (v === FC_PV && !p.pvTpl && !(await pvgTemplate(p))) return false;
+  p.ftSel = v; await DB.put('projects', p); return true;
+}
+// le bloc sous le tableau
+async function fcBox(p, day, box, save, rerender) {
+  if (!box) return;
+  const id = fcSel(p), rows = day.rows.map((r, i) => ({ r, i })).filter(x => x.r.element), done = rows.filter(x => fcFile(x.r, id)).length, miss = rows.length - done;
+  box.innerHTML = `<div class="fc-h">${icon('report')} Fiches de contrôle <span>${done}/${rows.length}</span></div>
+    <button class="fc-model" data-fc="model"><span class="grow"><small>Modèle</small><b>${esc(fcName(p, id))}</b>${id === FC_PV && !p.pvTpl ? '<i>PDF vierge à donner une fois</i>' : ''}</span><u>Changer ›</u></button>
+    ${rows.length ? `<div class="fc-list">${rows.map(({ r, i }) => { const f = fcFile(r, id); return `<div class="fc-r ${f ? 'ok' : ''}" data-fi="${i}"><div class="grow"><b>${esc(r.element)}</b><small>${f ? '✓ fiche écrite' : 'pas encore écrite'}${r.niv ? ' · ' + esc(r.niv) : ''}</small></div>
+      ${f ? `<button data-fx="open" title="Ouvrir">${icon('eye')}</button><button data-fx="edit" title="Modifier">${icon('edit')}</button><button data-fx="del" class="d" title="Supprimer">${icon('trash')}</button>` : `<button data-fx="edit" title="Remplir puis écrire">${icon('edit')}</button><button data-fx="gen" class="g">✍️ Écrire</button>`}</div>`; }).join('')}</div>
+    <div class="fc-act"><button class="btn" data-fc="all">✍️ ${done ? (miss ? `Écrire les ${miss} manquante(s)…` : 'Réécrire toutes les fiches') : `Écrire toutes les fiches (${rows.length})`}</button>${done ? `<button class="btn ghost" data-fc="pdf">${icon('pdf')} Un seul PDF (${done})</button>` : ''}</div>`
+    : '<div class="fc-none">Ajoutez des ouvrages dans le tableau pour écrire leurs fiches</div>'}`;
+  $('[data-fc=model]', box).onclick = async () => { if (await fcModelMenu(p)) rerender(); };
+  $$('[data-fx]', box).forEach(b => b.onclick = async (e) => {
+    e.stopPropagation(); const r = day.rows[+b.closest('[data-fi]').dataset.fi], k = b.dataset.fx;
+    if (k === 'open') { const f = await DB.get('files', fcFile(r, id)); if (f) openFileRecord(f, f.name); else { await fcDel(r, id); await save(); rerender(); } return; }
+    if (k === 'del') { if (!await confirmBox(`Supprimer la fiche de « ${r.element} » (aussi dans Drive) ?`, 'Supprimer')) return; await fcDel(r, id); await save(); toast('Fiche supprimée'); return rerender(); }
+    if (k === 'edit') { await fcEdit(p, day, r, id, save); return rerender(); }
+    if (k === 'gen') { if (!(await fcReady(p, id))) return; const ld = loading('Écriture de la fiche…'); try { await fcMakeOne(p, day, r, id); await save(); ld.close(); toast('Fiche écrite ✓'); } catch (er) { ld.close(); alertBox('Fiche impossible : ' + (er.message || er)); } return rerender(); }
+  });
+  const ab = $('[data-fc=all]', box); if (ab) ab.onclick = async () => {
+    let list = rows.map(x => x.r);
+    if (done && miss) { const w = await menu('Écrire les fiches', [{ label: `Seulement les manquantes (${miss})`, icon: 'pen', value: 'm' }, { label: `Toutes, en réécrivant (${rows.length})`, icon: 'undo', value: 'a' }]); if (!w) return; if (w === 'm') list = list.filter(r => !fcFile(r, id)); }
+    else if (done && !await confirmBox(`Réécrire les ${rows.length} fiches ? (vos modifications sont gardées)`, 'Réécrire')) return;
+    if (!(await fcReady(p, id))) return;
+    const ld = loading(`Écriture des fiches… 0/${list.length}`); let n = 0;
+    try { for (const r of list) { await fcMakeOne(p, day, r, id); n++; ld.set(`Écriture des fiches… ${n}/${list.length}`); } await save(); ld.close(); toast(`${n} fiche(s) écrite(s) ✓ (aussi dans Drive)`); }
+    catch (er) { await save(); ld.close(); alertBox(`Arrêt après ${n} fiche(s) : ${er.message || er}`); }
+    rerender();
+  };
+  const pb = $('[data-fc=pdf]', box); if (pb) pb.onclick = async () => {
+    const ld = loading('Création du PDF…');
+    try { const PDFLib = await needPdfLib(), all = await PDFLib.PDFDocument.create();
+      for (const { r } of rows) { const fid = fcFile(r, id); if (!fid) continue; const f = await DB.get('files', fid); if (!f || !f.blob) continue; const d = await PDFLib.PDFDocument.load(await f.blob.arrayBuffer()); (await all.copyPages(d, d.getPageIndices())).forEach(x => all.addPage(x)); }
+      const blob = new Blob([await all.save()], { type: 'application/pdf' }), nm = `Fiches ${safeName(fcName(p, id).replace(/\s*\(.*\)/, ''))} ${day.date}.pdf`; ld.close();
+      const w = await menu(nm, [{ label: 'Ouvrir', icon: 'pdf', value: 'o' }, { label: 'Partager (WhatsApp, imprimer…)', icon: 'share', value: 's' }]);
+      if (w === 'o') openFileRecord({ blob, mime: 'application/pdf', name: nm }, nm); if (w === 's') shareBlob(blob, nm);
+    } catch (er) { ld.close(); alertBox('PDF impossible : ' + (er.message || er)); }
+  };
+}

@@ -138,7 +138,7 @@ async function pvBetPage(fromBrief, keep) {
   const unBack = pushBack(() => leave(true));
   const leave = (reopen) => { el.classList.add('out'); setTimeout(() => el.remove(), 300); if (reopen) briefReopen(fromBrief); };
   const mark = async (pairs, kind) => { const byD = {}; pairs.forEach(([did, rid]) => (byD[did] = byD[did] || []).push(rid));
-    for (const [did, rids] of Object.entries(byD)) { const d = await DB.get('receptions', did); if (!d) continue; for (const r of d.rows) if (rids.includes(r.id)) { if (kind === 'recu') { r.pvRecu = true; r.pvRecuAt = todayISO(); } else if (kind === 'unrecu') { r.pvRecu = false; r.pvExist = false; r.pvRecuAt = null; r.pvLivre = false; r.pvLivreAt = null; } else if (kind === 'unliv') { r.pvLivre = false; r.pvLivreAt = null; } else { r.pvLivre = true; if (!r.pvRecu && !r.pvExist) r.pvRecu = true; r.pvLivreAt = todayISO(); } } await DB.put('receptions', d); } };
+    for (const [did, rids] of Object.entries(byD)) { const d = await DB.get('receptions', did); if (!d) continue; for (const r of d.rows) if (rids.includes(r.id)) { if (kind === 'recu') { r.pvRecu = true; r.pvRecuAt = todayISO(); } else if (kind === 'unrecu') { r.pvRecu = false; r.pvExist = false; r.pvRecuAt = null; } else if (kind === 'unliv') { r.pvLivre = false; r.pvLivreAt = null; } else { r.pvLivre = true; r.pvLivreAt = todayISO(); } } await DB.put('receptions', d); } };
   const draw = () => {
     const act = items.filter(x => !(x.recu && x.liv)), L = act.filter(x => filt === 'all' || (filt === 'rec' ? !x.recu : !x.liv)), byDate = {};
     L.forEach(x => (byDate[x.date] = byDate[x.date] || []).push(x));
@@ -147,7 +147,7 @@ async function pvBetPage(fromBrief, keep) {
       <div class="pvp-f"><button data-f="all" class="${filt === 'all' ? 'on' : ''}">Tous <i>${act.length}</i></button><button data-f="rec" class="${filt === 'rec' ? 'on' : ''}" style="--c:#f59e0b">Non reçus <i>${nR}</i></button><button data-f="liv" class="${filt === 'liv' ? 'on' : ''}" style="--c:#ef4444">Non livrés <i>${nL}</i></button></div>
       <div class="bf-body pvp-b">${Object.keys(byDate).sort().map(d => { const xs = byDate[d], o = open.has(d), r = xs.filter(x => !x.recu).length, l = xs.filter(x => !x.liv).length;
         return `<div class="pvp-d ${o ? 'open' : ''} ${daysSince(d) >= 3 ? 'old' : ''}"><button class="pvp-dh" data-d="${d}"><b>${fmtDate(d)}</b><span class="pvp-dn">${r ? `<i class="a">${r} non reçu</i>` : ''}${l ? `<i class="b">${l} non livré</i>` : ''}</span><small>${daysSince(d)} j</small><u>${icon('chevdown')}</u></button>
-          ${o ? `<table class="pvp-t"><tbody>${xs.map(x => `<tr data-r="${x.did}|${x.rid}" class="${x.recu ? 'liv' : 'rec'}"><td class="pvp-o"><b>${esc(x.label)}</b><small>${x.recu ? 'reçu · à livrer au BET' : 'à récupérer puis livrer'}</small></td>
+          ${o ? `<table class="pvp-t"><tbody>${xs.map(x => `<tr data-r="${x.did}|${x.rid}" class="${x.recu ? 'liv' : 'rec'}"><td class="pvp-o"><b>${esc(x.label)}</b><small>${x.recu ? 'reçu · à livrer au BET' : x.liv ? 'livré · PV pas encore reçu' : 'à récupérer et à livrer'}</small></td>
             <td class="pvp-a"><button class="pvp-btn ${x.recu ? 'on' : 'r'}" data-k="${x.recu ? 'unrecu' : 'recu'}">${x.recu ? 'Reçu ✓' : 'Non reçu'}</button><button class="pvp-btn ${x.liv ? 'on' : 'l'}" data-k="${x.liv ? 'unliv' : 'liv'}">${x.liv ? 'Livré ✓' : 'Non livré'}</button></td></tr>`).join('')}</tbody></table>` : ''}</div>`; }).join('') || '<div class="pvp-none">Rien ici ✓</div>'}
         <button class="bf-cust" data-all>✓ Marquer livrés au BET jusqu'au…</button></div>
       <div class="bf-foot"><button class="bf-enter" data-x>‹ Retour au briefing</button></div>`;
@@ -156,7 +156,7 @@ async function pvBetPage(fromBrief, keep) {
     $$('[data-d]', el).forEach(b => b.onclick = () => { const d = b.dataset.d; open.has(d) ? open.delete(d) : open.add(d); const sc = $('.pvp-b', el).scrollTop; draw(); $('.pvp-b', el).scrollTop = sc; });
     $$('.pvp-btn', el).forEach(b => b.onclick = async (e) => { e.stopPropagation(); const tr = b.closest('[data-r]'), [did, rid] = tr.dataset.r.split('|'), x = items.find(y => y.did === did && y.rid === rid);
       const k = b.dataset.k; await mark([[did, rid]], k); try { navigator.vibrate && navigator.vibrate(10); } catch (er) {}
-      if (k === 'recu') x.recu = true; else if (k === 'liv') { x.liv = true; x.recu = true; } else if (k === 'unrecu') { x.recu = false; x.liv = false; } else x.liv = false;
+      if (k === 'recu') x.recu = true; else if (k === 'liv') x.liv = true; else if (k === 'unrecu') x.recu = false; else x.liv = false;
       if (x.recu && x.liv) { tr.classList.add('done'); b.disabled = true; setTimeout(() => { const sc = $('.pvp-b', el).scrollTop; draw(); $('.pvp-b', el).scrollTop = sc; }, 450); }
       else { const sc = $('.pvp-b', el).scrollTop; draw(); $('.pvp-b', el).scrollTop = sc; } });
     // toucher un ouvrage : ouvrir sa réception (le retour revient au briefing)
@@ -170,7 +170,7 @@ async function pvBetPage(fromBrief, keep) {
       const ds = [...new Set(items.filter(x => !x.liv).map(x => x.date))].sort(); const r = await formSheet('Marquer livrés au BET', [{ name: 'd', label: 'Tous les PV jusqu\'au (inclus)', type: 'date', value: ds[0] }], { okLabel: 'Marquer livrés' });
       if (!r || !r.d) return; const L2 = items.filter(x => !x.liv && x.date <= r.d); if (!L2.length) return toast('Aucun PV avant cette date');
       if (!await confirmBox(`Marquer ${L2.length} PV comme livrés au BET (jusqu'au ${fmtDate(r.d)}) ?`, 'Marquer livrés')) return;
-      await mark(L2.map(x => [x.did, x.rid]), 'liv'); L2.forEach(x => { x.liv = true; x.recu = true; }); toast(`${L2.length} PV marqué(s) livré(s) ✓`); draw(); };
+      await mark(L2.map(x => [x.did, x.rid]), 'liv'); L2.forEach(x => { x.liv = true; }); toast(`${L2.length} PV marqué(s) livré(s) ✓`); draw(); };
   };
   // la date la plus ancienne est ouverte
   const first = items.map(x => x.date).sort()[0]; if (first && !keep.open) open.add(first);

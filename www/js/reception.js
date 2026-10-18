@@ -393,11 +393,13 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r, i)}</td><td class="c">${esc(r.ave
           ${isBeton(K) ? '' : `<div class="pv-day">
             <div class="pv-h">${icon('report')} PV du jour <span>${(day.pvIds || []).length || ''}</span></div>
             <div class="thumbs" id="pvThumbs"></div>
-          </div>`}
+          </div>
+          <div class="fc-box" id="fcBox"></div>`}
         </div>
         ${moveSel >= 0 ? `<div class="movebar"><span>Déplacer la ligne ${moveSel + 1}</span>
           <button data-mv="top" title="Tout en haut">⤒</button><button data-mv="up">▲</button><button data-mv="down">▼</button><button data-mv="bottom" title="Tout en bas">⤓</button>
           <button data-mv="done" class="ok">${icon('check')}</button></div>` : ''}`;
+      if (!isBeton(K) && typeof fcBox === 'function') fcBox(p, day, $('#fcBox', el), save, render).catch(e => console.warn('fiches', e));
       // PV du jour
       (async () => {
         const pvs = await loadFiles(day.pvIds || []);
@@ -492,8 +494,8 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r, i)}</td><td class="c">${esc(r.ave
         tr.addEventListener('pointermove', (e) => { if (Math.abs(e.movementY) + Math.abs(e.movementX) > 3) clearTimeout(t); });
         tr.onclick = async (e) => { if (lp) return;
           const pq = e.target.closest('[data-pvq]'); if (pq) { const [ix, w] = pq.dataset.pvq.split('|'), r = day.rows[+ix];
-            if (w === 'r') { const on = !pvRec(r); r.pvRecu = on; r.pvExist = false; r.pvRecuAt = on ? todayISO() : null; if (!on) { r.pvLivre = false; r.pvLivreAt = null; } }
-            else { r.pvLivre = !r.pvLivre; r.pvLivreAt = r.pvLivre ? todayISO() : null; if (r.pvLivre && !pvRec(r)) { r.pvRecu = true; r.pvRecuAt = todayISO(); } }
+            if (w === 'r') { const on = !pvRec(r); r.pvRecu = on; r.pvExist = false; r.pvRecuAt = on ? todayISO() : null; }   // reçu et livré sont indépendants
+            else { r.pvLivre = !r.pvLivre; r.pvLivreAt = r.pvLivre ? todayISO() : null; }
             try { navigator.vibrate && navigator.vibrate(12); } catch (x) {} await save(); toast(w === 'r' ? (pvRec(r) ? `PV reçu ✓ · ${r.element}` : `PV non reçu · ${r.element}`) : (r.pvLivre ? `PV livré au BET ✓ · ${r.element}` : `PV non livré · ${r.element}`)); return render(); } if (moveSel >= 0) { moveSel = +tr.dataset.i; return render(); }
           $$('tbody tr.sel', el).forEach(x => x.classList.remove('sel')); tr.classList.add('sel'); selId = (day.rows[+tr.dataset.i] || {}).id || null;
           editRow(+tr.dataset.i); };
@@ -599,8 +601,8 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r, i)}</td><td class="c">${esc(r.ave
         const frb = $('[data-a=free]', f); if (frb) frb.onclick = async (e) => { e.preventDefault(); if (!await commit()) return; await freeFilesUI([...r.photoIds, ...(r.anomIds || []), ...r.retourIds], r.element || 'ouvrage'); draw(); };
         $$('[name]', f).forEach(inp => inp.oninput = () => { r[inp.name] = inp.value; });
         $$('[data-st]', f).forEach(b => b.onclick = () => { r.status = b.dataset.st; draw(); });
-        $$('[data-pvt]', f).forEach(b => b.onclick = () => { if (b.dataset.pvt === 'r') { const on = !pvRec(r); r.pvRecu = on; r.pvExist = false; r.pvRecuAt = on ? todayISO() : null; if (!on) { r.pvLivre = false; r.pvLivreAt = null; } }
-          else { r.pvLivre = !r.pvLivre; r.pvLivreAt = r.pvLivre ? todayISO() : null; if (r.pvLivre && !pvRec(r)) { r.pvRecu = true; r.pvRecuAt = todayISO(); } } draw(); });
+        $$('[data-pvt]', f).forEach(b => b.onclick = () => { if (b.dataset.pvt === 'r') { const on = !pvRec(r); r.pvRecu = on; r.pvExist = false; r.pvRecuAt = on ? todayISO() : null; }
+          else { r.pvLivre = !r.pvLivre; r.pvLivreAt = r.pvLivre ? todayISO() : null; } draw(); });
         $$('[data-dcf]', f).forEach(b => b.onclick = () => { r.decof = b.dataset.dcf === '1'; draw(); });
         const dco = $('[data-a=decofok]', f); if (dco) dco.onclick = () => { r.decofAt = r.decofAt ? null : todayISO(); draw(); };
         $$('[data-bet]', f).forEach(b => b.onclick = () => { r.pvLivre = b.dataset.bet === '1'; r.pvLivreAt = r.pvLivre ? todayISO() : null; draw(); });
