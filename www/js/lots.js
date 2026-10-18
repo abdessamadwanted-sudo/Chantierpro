@@ -56,31 +56,44 @@ function lotBarInto(card, f, ps, root) {
 }
 const lotFilter = (ps, f) => { const s = lotSelOf(f.id); return s ? ps.filter(p => p.lotId === s) : ps; };
 
+// panneau du lot : replié par défaut (une ligne), on l'ouvre au toucher ; « ＋ Ajouter » pour y mettre ce qu'il faut
+const lotOpenK = (L) => { try { return (JSON.parse(localStorage.getItem('lot.open') || '{}'))[L.id]; } catch (e) { return false; } };
+const lotOpenSet = (L, v) => { try { const o = JSON.parse(localStorage.getItem('lot.open') || '{}'); o[L.id] = v; localStorage.setItem('lot.open', JSON.stringify(o)); } catch (e) {} };
+const LOT_GS = [['bpu', '📑 BPU'], ['att', '📐 Attachements'], ['dec', '🧾 Décompte'], ['stock', '📦 Stock']];
 function lotPanel(L, f, root) {
   const p = App.project, niv = nivOfFolder(f.name);
   f.lotData = f.lotData || {}; const D = f.lotData[L.id] = f.lotData[L.id] || {};
   const av = (p.lots || []).find(x => normQ(x.name) === normQ(L.name));
-  const done = (L.points || []).filter(x => (D[x.id] || {}).done).length;
-  const el = document.createElement('div'); el.className = 'lot-panel'; el.style.setProperty('--c', L.c); el.style.setProperty('--t', tint(L.c, .12));
-  el.innerHTML = `<div class="lp-h"><span class="lp-e">${L.e}</span><div class="grow"><b>${esc(L.name)}</b><small>${esc(f.name)}${(L.points || []).length ? ` · ${done}/${L.points.length} points` : ''}</small></div><button class="iconbtn sm" data-a="lm">${icon('more')}</button></div>
+  const done = (L.points || []).filter(x => (D[x.id] || {}).done).length, open = !!lotOpenK(L), po = paOpen(L, D).length, di = dueInfo(D);
+  const sc = L.sc || [], docs = D._docs || [];
+  const el = document.createElement('div'); el.className = 'lot-panel' + (open ? ' open' : ''); el.style.setProperty('--c', L.c); el.style.setProperty('--t', tint(L.c, .12));
+  el.innerHTML = `<div class="lp-h" data-a="tog"><span class="lp-e">${L.e}</span><div class="grow"><b>${esc(L.name)}</b><small>${esc(f.name)}${(L.points || []).length ? ` · ${done}/${L.points.length} points` : ''}${po ? ` · 🛑 ${po}` : ''}${di ? ` · ⏳ ${di.txt}` : ''}</small></div><button class="iconbtn sm" data-a="lm">${icon('more')}</button><span class="lp-chev">${icon('chevdown')}</span></div>
+    ${!open ? '' : `<div class="lp-body">
     ${lotDueHTML(L, D, f)}
     ${lotPaHTML(L, D)}
     <div class="lp-links">
       ${L.id === 'go' ? `<button data-go="rec">🔩 Réception ferraillage${niv ? ' · ' + esc(niv) : ''}</button><button data-go="bet">🧱 Bétonnage${niv ? ' · ' + esc(niv) : ''}</button><button data-go="dec">⏱️ Suivi décoffrage</button>` : ''}
       ${av ? `<button data-go="av">📊 Avancement ${esc(L.name)}</button>` : ''}
       <button data-go="tasks">⚠️ Réserves${niv ? ' · ' + esc(niv) : ''}</button>
+      ${LOT_GS.map(([k, l]) => `<button data-gs="${k}">${l}</button>`).join('')}
+      ${sc.map((x, i) => `<button data-sc="${i}">${SC_EMO && SC_EMO[x.sec] ? SC_EMO[x.sec] + ' ' : '🔗 '}${esc(x.label)}</button>`).join('')}
     </div>
+    ${docs.length ? `<div class="lp-docs">${docs.map((d, i) => `<div class="lp-doc"><button class="grow" data-doc="${i}">${icon(d.url && !d.fileId ? 'drive' : d.planId ? 'plans' : 'pdf')}<span>${esc(d.name)}</span></button><button class="iconbtn sm" data-docm="${i}">${icon('more')}</button></div>`).join('')}</div>` : ''}
     <details class="lp-det" ${App.lotDet ? 'open' : ''}><summary>☑ Points de contrôle ${done}/${(L.points || []).length} · notes</summary>
     <div class="lp-pts">${(L.points || []).map(x => { const v = D[x.id] || {}; return `<button class="lp-pt ${v.done ? 'on' : ''}" data-pt="${x.id}"><i>${v.done ? '☑' : '☐'}</i><span class="grow">${esc(x.t)}${v.at ? `<small>${fmtDate(v.at)}</small>` : ''}</span></button>`; }).join('')}
       <button class="lp-add" data-a="addpt">${icon('plus')} Point de contrôle (pour tous les niveaux)</button></div>
-    <label class="lp-note">Notes ${esc(L.name)} · ${esc(f.name)}<textarea placeholder="Remarques, besoins, matériel…">${esc(D._note || '')}</textarea></label></details>`;
-  const save = () => DB.put('folders', f);
+    <label class="lp-note">Notes ${esc(L.name)} · ${esc(f.name)}<textarea placeholder="Remarques, besoins, matériel…">${esc(D._note || '')}</textarea></label></details>
+    <button class="lp-plus" data-a="plus">${icon('plus')} Ajouter dans ${esc(L.name)}</button></div>`}`;
+  const save = () => DB.put('folders', f), redraw = () => renderPlans(root);
+  $('[data-a=tog]', el).onclick = (e) => { if (e.target.closest('[data-a=lm]')) return; lotOpenSet(L, !open); App.scrollFolder = f.id; redraw(); };
+  $('[data-a=lm]', el).onclick = (e) => { e.stopPropagation(); lotMenu(L, root); };
+  if (!open) return el;
   $('.lp-det', el).ontoggle = (e) => { App.lotDet = e.target.open; };
-  $$('[data-pt]', el).forEach(b => b.onclick = async () => { const v = D[b.dataset.pt] = D[b.dataset.pt] || {}; v.done = !v.done; v.at = v.done ? todayISO() : null; await save(); renderPlans(root); });
-  $('[data-a=addpt]', el).onclick = async () => { const r = await formSheet(`Point de contrôle · ${L.name}`, [{ name: 't', label: 'Intitulé (ajouté à tous les niveaux)', placeholder: 'Ex : Réservations vérifiées' }], { okLabel: 'Ajouter' }); if (r && r.t) { L.points = L.points || []; L.points.push({ id: DB.uid(), t: r.t }); await DB.put('projects', p); renderPlans(root); } };
+  $$('[data-pt]', el).forEach(b => b.onclick = async () => { const v = D[b.dataset.pt] = D[b.dataset.pt] || {}; v.done = !v.done; v.at = v.done ? todayISO() : null; await save(); redraw(); });
+  const addPt = async () => { const r = await formSheet(`Point de contrôle · ${L.name}`, [{ name: 't', label: 'Intitulé (ajouté à tous les niveaux)', placeholder: 'Ex : Réservations vérifiées' }], { okLabel: 'Ajouter' }); if (r && r.t) { L.points = L.points || []; L.points.push({ id: DB.uid(), t: r.t }); App.lotDet = true; await DB.put('projects', p); redraw(); } };
+  $('[data-a=addpt]', el).onclick = addPt;
   const ta = $('textarea', el); ta.oninput = () => { D._note = ta.value; clearTimeout(ta._t); ta._t = setTimeout(save, 500); };
-  $('[data-a=lm]', el).onclick = () => lotMenu(L, root);
-  bindLotDue(el, L, D, f, save, () => renderPlans(root));
+  bindLotDue(el, L, D, f, save, redraw);
   $$('[data-go]', el).forEach(b => b.onclick = async () => {
     const g = b.dataset.go;
     if (g === 'rec' || g === 'bet') { const k = g === 'rec' ? 'Ferraillage' : 'Bétonnage'; App.recNiv = App.recNiv || {}; App.recNiv[k] = niv; App.section = g === 'rec' ? 'reception' : 'beton'; return renderSection(); }
@@ -88,6 +101,28 @@ function lotPanel(L, f, root) {
     if (g === 'av') { App.avTab = av.id; App.section = 'avancement'; return renderSection(); }
     if (g === 'tasks') { App.section = 'tasks'; App.search = niv || ''; return renderSection(); }
   });
+  $$('[data-gs]', el).forEach(b => b.onclick = () => { App.gsTab = b.dataset.gs; App.gsLot = b.dataset.gs === 'stock' ? '' : L.id; App.section = 'gestion'; renderSection(); });
+  $$('[data-sc]', el).forEach(b => { const x = sc[+b.dataset.sc]; b.onclick = () => { if (!SECTIONS[x.sec]) return toast('Section introuvable'); App.section = x.sec; App.search = x.q || ''; renderSection(); };
+    b.oncontextmenu = async (e) => { e.preventDefault(); if (await confirmBox(`Retirer le raccourci « ${x.label} » de ${L.name} ?`)) { sc.splice(+b.dataset.sc, 1); await DB.put('projects', p); redraw(); } }; });
+  $$('[data-doc]', el).forEach(b => b.onclick = () => pbOpenDoc(docs[+b.dataset.doc], { projectId: p.id }, planCtx(() => {})));
+  $$('[data-docm]', el).forEach(b => b.onclick = async () => { const i = +b.dataset.docm, d = docs[i];
+    const v = await menu(d.name, [{ label: 'Ouvrir', icon: 'pdf', value: 'open' }, { label: 'Renommer', icon: 'edit', value: 'ren' }, { label: 'Monter', icon: 'chevup', value: 'up' }, { label: 'Retirer', icon: 'trash', danger: true, value: 'del' }]);
+    if (v === 'open') pbOpenDoc(d, { projectId: p.id }, planCtx(() => {}));
+    if (v === 'ren') { const r = await formSheet('Renommer', [{ name: 'n', label: 'Nom', value: d.name }]); if (r && r.n) { d.name = r.n; await save(); redraw(); } }
+    if (v === 'up' && i > 0) { [docs[i - 1], docs[i]] = [docs[i], docs[i - 1]]; await save(); redraw(); }
+    if (v === 'del' && await confirmBox('Retirer ce document ?')) { if (d.fileId) await DB.del('files', d.fileId); docs.splice(i, 1); await save(); redraw(); } });
+  // ＋ Ajouter : ce qu'il faut dans ce lot
+  $('[data-a=plus]', el).onclick = async () => {
+    const v = await menu(`Ajouter dans ${L.e} ${L.name}`, [{ label: '☑ Point de contrôle (tous les niveaux)', icon: 'check', value: 'pt' }, { label: '🛑 Point d\'arrêt', icon: 'close', value: 'pa' }, { label: '⚠️ Point critique', icon: 'ask', value: 'pc' },
+      { label: '🔗 Raccourci vers une section', icon: 'layers', value: 'sc' }, { label: `📄 Document / plan (${f.name})`, icon: 'pdf', value: 'doc' }, { label: '📝 Note', icon: 'edit', value: 'note' }]);
+    if (v === 'pt') addPt();
+    if (v === 'pa' || v === 'pc') { const b = $(v === 'pa' ? '[data-a=addpa]' : '[data-a=addpc]', el); if (b) b.click(); }
+    if (v === 'sc') { const secs = Object.entries(SECTIONS).filter(([k, S]) => !S.hidden && k !== 'settings' && (!SECTION_FEATURE[k] || featOn(SECTION_FEATURE[k])));
+      const k = await menu('Raccourci vers…', secs.map(([k2, S]) => ({ label: `${(SC_EMO && SC_EMO[k2]) || '📁'} ${S.label}`, value: k2 }))); if (!k) return;
+      L.sc = L.sc || []; L.sc.push({ sec: k, label: SECTIONS[k].label.split(' (')[0] }); await DB.put('projects', p); toast('Raccourci ajouté (pour tous les niveaux) ✓'); redraw(); }
+    if (v === 'doc') { const ds = await pbPickDocs(p.id); if (ds.length) { D._docs = [...docs, ...ds]; await save(); redraw(); } }
+    if (v === 'note') { App.lotDet = true; redraw(); setTimeout(() => { const t = document.querySelector(`.lot-panel.open textarea`); if (t) { t.focus(); t.scrollIntoView({ block: 'center' }); } }, 200); }
+  };
   return el;
 }
 async function lotMenu(L, root) {

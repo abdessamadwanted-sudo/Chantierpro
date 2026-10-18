@@ -58,6 +58,17 @@ async function openLevelStack(startPlan) {
   if (todo.length) { const ok = await openEquerreSteps(todo.map(x => x.p), todo.map(x => x.niv || x.p.name), pr[0].p); if (!ok) return; }
   openStackView(pr);
 }
+// niveau du dessous déjà tourné / décalé dans le repère du dessus (une seule fois) : les deux calques bougent pareil, sans lag
+const _lvsWarp = new Map();
+async function lvsWarpURL(low, up, M, max = 2400) {
+  const key = `${low.id}|${up.id}|${[M.sx, M.rot, M.ox, M.oy].map(v => Math.round(v * 100)).join(',')}`;
+  if (_lvsWarp.has(key)) return _lvsWarp.get(key);
+  const pr = (async () => { const img = await loadImage(await lvsLiteURL(low.fileId, max)), kU = Math.min(1, max / Math.max(up.w, up.h)), kL = img.naturalWidth / low.w;
+    const c = document.createElement('canvas'); c.width = Math.round(up.w * kU); c.height = Math.round(up.h * kU); const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+    const co = Math.cos(M.rot), si = Math.sin(M.rot); g.imageSmoothingQuality = 'high'; g.scale(kU, kU); g.transform(M.sx * co, M.sx * si, -M.sx * si, M.sx * co, M.ox, M.oy); g.scale(1 / kL, 1 / kL); g.drawImage(img, 0, 0);
+    const b = await new Promise(r => c.toBlob(r, 'image/jpeg', .92)); c.width = c.height = 0; return URL.createObjectURL(b); })();
+  _lvsWarp.set(key, pr); return pr;
+}
 // image allégée pour l'écran (le zoom net vient du rendu HD de la zone visible)
 const _lvsLite = new Map();
 async function lvsLiteURL(fileId, max = 2400) {
@@ -85,31 +96,31 @@ const lvsShort = (n) => { n = String(n || ''); if (n.length <= 16) return n; con
 const lvsKey = (q) => `${Math.round((q.x + q.w / 2) / 20)},${Math.round((q.y + q.h / 2) / 20)}`;
 async function openStackView(chain) {
   chain = [...chain];
-  let hdSeq = 0, hdLast = null, hdBusy = false, hdAgain = false, hdT = 0, k = 0, mode = 'curtain', M = null, blinkT = 0, split = .5, op = .55, pz = null;
+  let hdSeq = 0, hdLast = null, hdBusy = false, hdAgain = false, hdT = 0, k = 0, mode = 'curtain', M = null, show = 'up', split = .5, pz = null;
   const el = document.createElement('div'); el.className = 'fullpage av-page lvs';
   el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><div class="tb-title" style="flex:1"><b class="lvs-t"></b><span class="lvs-s"></span></div>
       <button class="iconbtn" data-a="cal" title="Refaire le calage de cette paire">${icon('ruler')}</button><button class="iconbtn" data-a="share">${icon('share')}</button></div>
-    <div class="av-chips lvs-modes"><button data-m="curtain">🎚️ Rideau</button><button data-m="blink">👁️ Clignoter</button><button data-m="fade">🔆 Transparence</button></div>
+    <div class="av-chips lvs-modes"><button data-m="curtain">🎚️ Rideau</button><button data-m="swap">👁️ Un niveau à la fois</button></div><div class="lvs-sw"><button data-s="low"></button><button data-s="up"></button></div>
     <div class="lvs-wrap"><div class="lvs-v"></div><div class="lvs-split"><i></i><b class="l"></b><b class="r"></b></div><div class="lvs-pill"></div></div>
-    <div class="lvs-bar"><input type="range" min="0" max="100" class="lvs-op"><div class="lvs-nav"><button class="btn small ghost" data-a="chg">⇅ Changer les niveaux</button><span class="lvs-tip">Touchez le plan : réserve / RFI</span></div></div>`;
+    <div class="lvs-bar"><div class="lvs-nav"><button class="btn small ghost" data-a="chg">⇅ Changer les niveaux</button><span class="lvs-tip">Touchez le plan : réserve / RFI</span></div></div>`;
   document.body.appendChild(el);
-  const unBack = pushBack(() => close()); const close = () => { clearInterval(blinkT); clearTimeout(hdT); hdSeq++; el.remove(); };
+  const unBack = pushBack(() => close()); const close = () => { clearTimeout(hdT); hdSeq++; el.remove(); };
   $('[data-a=x]', el).onclick = () => { unBack(); close(); };
-  const wrap = $('.lvs-wrap', el), splitEl = $('.lvs-split', el), pill = $('.lvs-pill', el), opEl = $('.lvs-op', el);
+  const wrap = $('.lvs-wrap', el), splitEl = $('.lvs-split', el), pill = $('.lvs-pill', el), swEl = $('.lvs-sw', el);
   let imgLow, imgUp, ov, view;
   const pair = () => [chain[k].p, chain[k + 1].p], nm = (i) => chain[i].niv || lvsShort(chain[i].p.name);
   // rideau : on déplace seulement une « fenêtre » (pas de re-dessin du plan) → fluide, sans zones blanches
   const applySplit = () => { if (!imgUp) return; const r = wrap.getBoundingClientRect(), X = mode === 'curtain' ? split * r.width : 0; splitEl.style.left = split * r.width + 'px';
     imgUp.style.left = X + 'px'; imgUp.firstElementChild.style.left = -X + 'px'; };
   const setMode = (m) => {
-    mode = m; clearInterval(blinkT); $$('.lvs-modes [data-m]', el).forEach(b => b.classList.toggle('on', b.dataset.m === m));
-    splitEl.style.display = m === 'curtain' ? '' : 'none'; opEl.style.display = m === 'fade' ? '' : 'none'; pill.style.display = m === 'blink' ? '' : 'none';
-    if (!imgUp) return; imgUp.style.opacity = m === 'fade' ? op : 1; imgUp.style.visibility = 'visible'; applySplit();
-    if (m === 'blink') { let on = true; const tick = () => { on = !on; imgUp.style.visibility = on ? 'visible' : 'hidden'; pill.textContent = on ? `▲ ${nm(k + 1)}` : `▼ ${nm(k)}`; }; pill.textContent = `▲ ${nm(k + 1)}`; blinkT = setInterval(tick, 950);
-      pill.onclick = () => { if (blinkT) { clearInterval(blinkT); blinkT = 0; pill.textContent += ' ⏸'; } else setMode('blink'); }; }
+    mode = m; $$('.lvs-modes [data-m]', el).forEach(b => b.classList.toggle('on', b.dataset.m === m));
+    splitEl.style.display = m === 'curtain' ? '' : 'none'; swEl.style.display = m === 'swap' ? '' : 'none'; pill.style.display = 'none';
+    if (!imgUp) return; imgUp.style.visibility = m === 'swap' && show === 'low' ? 'hidden' : 'visible'; applySplit();
+    $$('[data-s]', swEl).forEach(b => b.classList.toggle('on', b.dataset.s === show));
   };
+  // « un niveau à la fois » : deux boutons côte à côte, on touche le niveau à voir
+  $$('[data-s]', swEl).forEach(b => b.onclick = () => { show = b.dataset.s; if (imgUp) imgUp.style.visibility = show === 'low' ? 'hidden' : 'visible'; $$('[data-s]', swEl).forEach(x => x.classList.toggle('on', x === b)); try { navigator.vibrate && navigator.vibrate(8); } catch (e) {} });
   $$('.lvs-modes [data-m]', el).forEach(b => b.onclick = () => setMode(b.dataset.m));
-  opEl.value = op * 100; opEl.oninput = () => { op = opEl.value / 100; if (imgUp) imgUp.style.opacity = op; };
   // rideau : la barre se glisse au doigt
   splitEl.onpointerdown = (e) => { e.preventDefault(); e.stopPropagation(); const r = wrap.getBoundingClientRect();
     const mv = (ev) => { split = Math.max(.03, Math.min(.97, (ev.clientX - r.left) / r.width)); applySplit(); };
@@ -117,11 +128,11 @@ async function openStackView(chain) {
   const load = async () => {
     const [low, up] = pair(); M = await lvsMap(low, up);
     $('.lvs-t', el).textContent = `${nm(k)} → ${nm(k + 1)}`; $('.lvs-s', el).textContent = `base ${nm(k)} · supérieur ${nm(k + 1)}`;
-    $('.lvs-split .l', el).textContent = `◀ ${nm(k)}`; $('.lvs-split .r', el).textContent = `${nm(k + 1)} ▶`;
-    const [sl, su] = await Promise.all([lvsLiteURL(low.fileId), lvsLiteURL(up.fileId)]);
+    $('[data-s=low]', swEl).textContent = `▼ ${nm(k)}`; $('[data-s=up]', swEl).textContent = `▲ ${nm(k + 1)}`; $('.lvs-split .l', el).textContent = `◀ ${nm(k)}`; $('.lvs-split .r', el).textContent = `${nm(k + 1)} ▶`;
+    const [sl, su] = await Promise.all([lvsWarpURL(low, up, M), lvsLiteURL(up.fileId)]);
     if (view) view.remove(); view = document.createElement('div'); view.className = 'av-view lvs-vv'; $('.lvs-v', el).appendChild(view);
     const c = Math.cos(M.rot), s = Math.sin(M.rot);
-    view.innerHTML = `<div class="av-stage lvs-sl"><div class="lvs-L lo"><img class="lo" width="${low.w}" height="${low.h}" src="${sl}" decoding="async" style="transform-origin:0 0;transform:matrix(${M.sx * c},${M.sx * s},${-M.sx * s},${M.sx * c},${M.ox},${M.oy})"><canvas class="lvs-hd"></canvas></div></div>
+    view.innerHTML = `<div class="av-stage lvs-sl"><div class="lvs-L lo"><img class="lo" width="${up.w}" height="${up.h}" src="${sl}" decoding="async"><canvas class="lvs-hd"></canvas></div></div>
       <div class="lvs-cw"><div class="av-stage lvs-su"><div class="lvs-L hi" style="width:${up.w}px;height:${up.h}px"><img width="${up.w}" height="${up.h}" src="${su}" decoding="async"><canvas class="lvs-hd"></canvas></div></div></div>
       <div class="av-stage lvs-so"><svg class="av-ov" width="${up.w}" height="${up.h}" viewBox="0 0 ${up.w} ${up.h}"></svg></div>`;
     imgLow = $('img.lo', view); imgUp = $('.lvs-cw', view); ov = $('svg', view);
@@ -135,12 +146,12 @@ async function openStackView(chain) {
       if (hdBusy) { hdAgain = true; return; }
       const st = pz.st, r = view.getBoundingClientRect(), [ax, ay] = pz.toImg([0, 0]), [bx, by] = pz.toImg([r.width, r.height]);
       const v = { x0: Math.max(0, ax), y0: Math.max(0, ay), x1: Math.min(up.w, bx), y1: Math.min(up.h, by), s: st.s };
-      if (v.x1 - v.x0 < 4 || v.y1 - v.y0 < 4 || st.s < st.fit * 1.3) { hdLo.style.display = hdHi.style.display = 'none'; hdLast = null; return; }
-      if (hdLast && v.x0 >= hdLast.x0 && v.y0 >= hdLast.y0 && v.x1 <= hdLast.x1 && v.y1 <= hdLast.y1 && Math.abs(Math.log(v.s / hdLast.s)) < .25) return;
+      if (v.x1 - v.x0 < 4 || v.y1 - v.y0 < 4) return;
+      if (hdLast && v.x0 >= hdLast.x0 && v.y0 >= hdLast.y0 && v.x1 <= hdLast.x1 && v.y1 <= hdLast.y1 && Math.abs(Math.log(v.s / hdLast.s)) < .12) return;
       hdBusy = true;
-      const mw = (v.x1 - v.x0) * .25, mh = (v.y1 - v.y0) * .25, x0 = Math.max(0, v.x0 - mw), y0 = Math.max(0, v.y0 - mh), x1 = Math.min(up.w, v.x1 + mw), y1 = Math.min(up.h, v.y1 + mh);
-      const dpr = Math.min(1.5, window.devicePixelRatio || 1); let oW = Math.round((x1 - x0) * st.s * dpr), oH = Math.round((y1 - y0) * st.s * dpr);
-      const cap = Math.min(1, 1800 / Math.max(oW, oH), Math.sqrt(2e6 / (oW * oH))); if (cap < 1) { oW = Math.round(oW * cap); oH = Math.round(oH * cap); }
+      const mw = (v.x1 - v.x0) * .15, mh = (v.y1 - v.y0) * .15, x0 = Math.max(0, v.x0 - mw), y0 = Math.max(0, v.y0 - mh), x1 = Math.min(up.w, v.x1 + mw), y1 = Math.min(up.h, v.y1 + mh);
+      const dpr = Math.min(2.5, window.devicePixelRatio || 1); let oW = Math.round((x1 - x0) * st.s * dpr), oH = Math.round((y1 - y0) * st.s * dpr);
+      const cap = Math.min(1, 3200 / Math.max(oW, oH), Math.sqrt(5e6 / (oW * oH))); if (cap < 1) { oW = Math.round(oW * cap); oH = Math.round(oH * cap); }
       try {
         const [PA, PB] = await PP;
         const [ca, cb] = await Promise.all([renderPlanRegion(low, PA, x0, y0, x1 - x0, y1 - y0, oW, oH, M, true), renderPlanRegion(up, PB, x0, y0, x1 - x0, y1 - y0, oW, oH, { sx: 1, sy: 1, ox: 0, oy: 0 }, true)]);
@@ -151,9 +162,8 @@ async function openStackView(chain) {
       } catch (e) { console.warn('hd', e); } finally { hdBusy = false; if (hdAgain) { hdAgain = false; clearTimeout(hdT); hdT = setTimeout(renderHD, 120); } }
     };
     pz = panZoom(view, stageProxy, up.w, up.h, { onChange: (st) => {
-      if (hdLast && Math.abs(Math.log(st.s / hdLast.s)) >= .25) { hdLo.style.display = hdHi.style.display = 'none'; hdLast = null; } clearTimeout(hdT); hdT = setTimeout(renderHD, 450); }, onTap: ([x, y]) => tapAt(x, y) });
-    requestAnimationFrame(() => { pz.fit(); setMode(mode); });
-    pill.style.display = mode === 'blink' ? '' : 'none';
+      clearTimeout(hdT); hdT = setTimeout(renderHD, 160); }, onTap: ([x, y]) => tapAt(x, y) });
+    requestAnimationFrame(() => { pz.fit(); setMode(mode); clearTimeout(hdT); hdT = setTimeout(renderHD, 60); });
   };
   $('[data-a=chg]', el).onclick = async () => { const L = await lvsLevels(chain[0].p.projectId), pr = await lvsChoosePair(L, chain[0].p); if (!pr) return;
     const todo = pr.filter(x => !x.p.lvRef); if (todo.length && !(await openEquerreSteps(todo.map(x => x.p), todo.map(x => x.niv || x.p.name), pr[0].p))) return;

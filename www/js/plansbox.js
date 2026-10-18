@@ -41,6 +41,7 @@ async function pbOpenDoc(d, l, ctx) {
 function openPlansBox(l, ctx = {}) {
   return new Promise(async (resolve) => {
     l.zones = l.zones || [];
+    if (l.recBox) l.recSrc = { mode: 'today' };   // « Plans des ouvrages » : seulement le programme d'aujourd'hui
     if (l.recSrc) await pbFromRec(l);
     const openZ = new Set(l.zones.length === 1 ? [l.zones[0].id] : []), openP = new Set();
     let q = '';
@@ -61,15 +62,14 @@ function openPlansBox(l, ctx = {}) {
         return `<div class="pb-z ${zo ? 'open' : ''}"><div class="pb-zh" data-z="${zi}"><span class="pb-zi">${zi + 1}</span><div class="grow"><b>${esc(z.name)}</b><small>${(z.parts || []).length} partie(s) · ${nDocs(z)} plan(s)</small></div>
             ${l.recSrc ? '' : `<button class="iconbtn sm" data-zm="${zi}">${icon('more')}</button>`}<span class="chev">${icon('chevdown')}</span></div>
           ${zo ? `<div class="pb-parts">${parts.map(({ p, pi }) => { const po = openP.has(p.id) || (!!q && (p.docs || []).some(d => match(d.name)));
-            return `<div class="pb-p ${po ? 'open' : ''}"><div class="pb-ph" data-p="${zi}|${pi}"><span class="pb-dot"></span><div class="grow"><b>${esc(p.name)}</b><small>${(p.docs || []).length} plan(s)${p.prev && !(p.docs || []).length ? ' · ↺ plans d\'un jour précédent' : ''}</small></div>
+            return `<div class="pb-p ${po ? 'open' : ''}"><div class="pb-ph" data-p="${zi}|${pi}"><span class="pb-dot"></span><div class="grow"><b>${esc(p.name)}</b><small>${(p.docs || []).length} plan(s)</small></div>
                 ${l.recSrc ? (p.extra ? `<button class="iconbtn sm" data-px="${zi}|${pi}">${icon('more')}</button>` : '') : `<button class="iconbtn sm" data-pm="${zi}|${pi}">${icon('more')}</button>`}<span class="chev">${icon('chevdown')}</span></div>
               ${po ? `<div class="pb-docs">${(p.docs || []).filter(d => !q || match(d.name) || match(p.name) || zHit).map((d, di) => `<div class="pb-d"><button class="grow" data-d="${zi}|${pi}|${p.docs.indexOf(d)}"><span class="pb-di">${icon(d.url && !d.fileId ? 'drive' : d.planId ? 'plans' : 'pdf')}</span><span>${esc(d.name)}</span></button><button class="iconbtn sm" data-dm="${zi}|${pi}|${p.docs.indexOf(d)}">${icon('more')}</button></div>`).join('')}
-                ${p.prev && !(p.docs || []).length ? `<button class="pb-add pb-prev" data-prev="${zi}|${pi}">↺ Reprendre ${p.prev.docs.length} plan(s)${p.prev.date ? ' du ' + fmtDate(p.prev.date) : ''}</button>` : ''}
                 <button class="pb-add" data-adddoc="${zi}|${pi}">${icon('plus')} ${(p.docs || []).length ? 'Ajouter d\'autres plans' : 'Ajouter des plans (PDF · plusieurs)'}</button></div>` : ''}</div>`; }).join('')}
             ${l.recSrc ? `<button class="pb-add" data-addrp="${zi}">${icon('plus')} Partie d'ouvrage dans ${esc(z.name)}</button>` : (z.parts || []).length < PB_MAX ? `<button class="pb-add" data-addp="${zi}">${icon('plus')} Partie d'ouvrage</button>` : '<div class="pb-max">10 parties maximum</div>'}</div>` : ''}</div>`;
       }).join('');
       box.innerHTML = `<div class="pb-head" style="--c:${P.c}"><span class="pb-hic">${P.e}</span><div class="grow"><b>${esc(l.name)}</b><small>${l.zones.length} zone(s) · ${plansboxCount(l)} plan(s)</small></div><button class="iconbtn" data-a="more">${icon('more')}</button></div>
-        ${l.recSrc ? `<div class="pb-day"><button class="iconbtn sm" data-day="-1">${icon('back')}</button><button class="pb-rec grow" data-a="recsrc">📅 <b>${l.curDate === todayISO() ? 'Aujourd\u2019hui' : fmtDate(l.curDate)}</b><small>${l.zones.reduce((a, z) => a + z.parts.length, 0)} ouvrage(s)${l.dayHasProg ? ' · programme de réception' : ' · pas de programme ce jour'} · changer</small></button><button class="iconbtn sm" data-day="1">${icon('chevright')}</button></div>
+        ${l.recSrc ? `<div class="pb-day"><div class="pb-rec grow">📅 <b>Aujourd\u2019hui · ${fmtDate(todayISO())}</b><small>${l.zones.reduce((a, z) => a + z.parts.length, 0)} ouvrage(s)${l.dayHasProg ? ' · programme de réception du jour' : ' · pas de programme aujourd\u2019hui'}</small></div></div>
           <button class="pb-add pb-addrec" data-a="addrec">${icon('plus')} Ajouter un ouvrage (zone · niveau · élément)</button>` : ''}
         ${plansboxCount(l) + l.notes.length > 3 ? `<div class="search pb-search">${icon('search')}<input placeholder="Rechercher (ex : CR 78, coffrage…)" value="${esc(q)}"></div>` : ''}
         <div class="pb-zones">${zones || (q ? '<div class="pb-empty">Aucun résultat</div>' : (l.recSrc ? '<div class="pb-empty">Aucun ouvrage dans ce programme de réception.</div>' : '<div class="pb-empty">Ajoutez une zone, puis ses parties d\'ouvrage et leurs plans PDF.</div>'))}</div>
@@ -179,7 +179,7 @@ async function recBoxOf(projectId) {
 }
 async function openRecBox(projectId, date) {
   const l = await recBoxOf(projectId);
-  l.recSrc = !date || date === todayISO() ? { mode: 'today' } : { mode: 'day', date };
+  l.recSrc = { mode: 'today' };
   await DB.put('links', l);
   await openPlansBox(l, planCtx(() => {}));
 }

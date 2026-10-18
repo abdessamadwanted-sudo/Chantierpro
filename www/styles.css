@@ -2007,3 +2007,44 @@ body:has(.splash.brief) .sheet-bg { z-index: 10070; }
 .pb-add { color: color-mix(in srgb, var(--pa) 65%, #fff) !important; border-color: color-mix(in srgb, var(--pa) 40%, transparent) !important; }
 .pb-prev { color: color-mix(in srgb, var(--pa) 65%, #fff) !important; }
 .pb-day .iconbtn { color: color-mix(in srgb, var(--pa) 65%, #fff); }
+.lvs-sw { display: flex; gap: 8px; padding: 0 10px 8px; background: var(--bg); flex: none; }
+.lvs-sw button { flex: 1; padding: 11px 8px; border-radius: 14px; font-weight: 800; font-size: 15px; background: var(--card); border: 1.5px solid var(--line); color: var(--text, #e5e7eb); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lvs-sw button.on { background: #f97316; border-color: #f97316; color: #fff; box-shadow: 0 6px 16px rgba(249,115,22,.35); }
+/* Plans des ouvrages : sans fonds (parties et plans à plat, séparés par un trait fin) */
+.pb-parts { gap: 0 !important; padding: 0 6px 8px 14px !important; }
+.pb-p { background: transparent !important; border-left: 0 !important; border-radius: 0 !important; border-top: 1px solid rgba(255,255,255,.07); }
+.pb-p:first-child { border-top: 0; }
+.pb-d > button.grow { background: transparent !important; padding: 8px 6px !important; border-radius: 8px !important; }
+.pb-docs { gap: 0 !important; padding: 0 4px 8px 22px !important; }
+.pb-rec { cursor: default; }
+/* ===== Gestion : tableaux (BPU, attachements, décompte, inventaire) ===== */
+.gt-lots { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 0 10px; }
+.gt-lots button { flex: none; padding: 7px 12px; border-radius: 16px; font-size: 13px; font-weight: 700; background: var(--card); border: 1px solid var(--line); color: var(--text, #e5e7eb); }
+.gt-lots button.on { background: var(--accent, #3b82f6); border-color: var(--accent, #3b82f6); color: #fff; }
+.gt-w { overflow-x: auto; border-radius: 14px; border: 1px solid var(--line); background: var(--card); margin-bottom: 10px; }
+.gt { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 100%; }
+.gt th { position: sticky; top: 0; background: color-mix(in srgb, var(--accent, #3b82f6) 18%, var(--card)); color: var(--text, #e5e7eb); font-weight: 700; font-size: 11.5px; padding: 9px 7px; text-align: right; white-space: nowrap; }
+.gt td { padding: 9px 7px; border-top: 1px solid var(--line); text-align: right; white-space: nowrap; color: var(--text, #e5e7eb); font-variant-numeric: tabular-nums; }
+.gt .l { text-align: left; white-space: normal; min-width: 140px; } .gt td.l b { display: block; font-weight: 600; } .gt td small { display: block; color: var(--muted); font-size: 11.5px; font-weight: 500; }
+.gt tbody tr:nth-child(even) td { background: rgba(255,255,255,.025); }
+.gt tr[data-bpu], .gt tr[data-att], .gt td[data-art] { cursor: pointer; } .gt tbody tr:active td { background: rgba(255,255,255,.06); }
+.gt tfoot td { font-weight: 800; background: color-mix(in srgb, var(--accent, #3b82f6) 10%, transparent); }
+.gt td.hi { color: #22c55e; font-weight: 700; } .gt td.in { color: #4ade80; } .gt td.out { color: #f87171; }
+.gt tr.low td { background: rgba(239,68,68,.1) !important; } .gt tr.low td b { color: #fca5a5; }
+.gt tr.gt-cat td { text-align: left; font-weight: 800; font-size: 11.5px; letter-spacing: .4px; text-transform: uppercase; color: var(--muted); background: rgba(255,255,255,.03) !important; }
+.gt td.pm { display: flex; gap: 4px; justify-content: flex-end; } .gt .gs-pm { width: 32px; height: 30px; }
+.gt-sub { color: var(--muted); font-size: 12.5px; margin-left: auto; }
+.gt-tot { display: grid; gap: 2px; padding: 10px 12px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); margin-bottom: 10px; }
+.gt-tot > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 5px 0; font-size: 13.5px; } .gt-tot span { color: var(--muted); }
+.gt-tot > div.s { border-top: 1px solid var(--line); padding-top: 8px; } .gt-tot > div.s span { color: var(--text, #e5e7eb); font-weight: 700; } .gt-tot > div.n b { font-size: 17px; color: #22c55e; }
+.gt-pc { padding: 2px 8px; border-radius: 8px; font-weight: 700; font-size: 12px; background: rgba(255,255,255,.08); color: var(--text, #e5e7eb); margin-left: 4px; }
+.gt-acts { display: flex; gap: 8px; margin-bottom: 14px; } .gt-acts .btn { flex: 1; }
+/* panneau du lot replié / ouvert */
+.lot-panel .lp-h { cursor: pointer; }
+.lp-chev { display: grid; color: var(--c); transition: transform .2s; } .lp-chev svg.i { width: 20px; height: 20px; } .lot-panel.open .lp-chev { transform: rotate(180deg); }
+.lot-panel:not(.open) { padding-top: 8px !important; padding-bottom: 8px !important; }
+.lp-body { display: grid; gap: 10px; margin-top: 10px; animation: spIn .25s ease-out both; }
+.lp-plus { width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 11px; border-radius: 14px; font-weight: 800; font-size: 14px; color: var(--c); background: var(--t); border: 1.5px dashed var(--c); }
+.lp-docs { display: grid; gap: 4px; }
+.lp-doc { display: flex; align-items: center; gap: 4px; } .lp-doc > button.grow { flex: 1; display: flex; align-items: center; gap: 8px; text-align: left; padding: 9px 10px; border-radius: 12px; background: rgba(255,255,255,.55); color: #0f172a; font-weight: 600; font-size: 13.5px; }
+.lp-doc svg.i { width: 18px; height: 18px; color: var(--c); flex: none; }

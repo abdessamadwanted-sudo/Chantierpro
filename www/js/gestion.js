@@ -1,7 +1,7 @@
 // ================= Gestion de chantier (petites entreprises, conducteurs) =================
 // 📦 Stock & besoins · ⚙️ Rendement des équipes · 🧾 Attachements & situations · 🧪 Labo / BET / Topo · 📚 Fiches matériaux
 // Les données sont rangées dans le projet (p.gs), donc sauvegardées et synchronisées avec lui.
-const GS_TABS = [['stock', '📦', 'Stock'], ['rend', '⚙️', 'Rendement'], ['att', '🧾', 'Attachements'], ['labo', '🧪', 'Labo · BET'], ['fiche', '📚', 'Fiches']];
+const GS_TABS = [['stock', '📦', 'Stock'], ['bpu', '📑', 'BPU'], ['att', '📐', 'Attachements'], ['dec', '🧾', 'Décompte'], ['rend', '⚙️', 'Rendement'], ['labo', '🧪', 'Labo · BET'], ['fiche', '📚', 'Fiches']];
 const GS_ART_TPL = [
   ['Ciment CPJ 45', 'sac', 'Ciment'], ['Ciment CPJ 55', 'sac', 'Ciment'], ['Acier HA8', 'barre', 'Acier'], ['Acier HA10', 'barre', 'Acier'], ['Acier HA12', 'barre', 'Acier'], ['Acier HA14', 'barre', 'Acier'],
   ['Acier HA16', 'barre', 'Acier'], ['Acier HA20', 'barre', 'Acier'], ['Acier HA25', 'barre', 'Acier'], ['Fil à ligaturer', 'kg', 'Acier'], ['Sable', 'm³', 'Granulats'], ['Gravette 8/15', 'm³', 'Granulats'],
@@ -28,7 +28,9 @@ async function renderGestion(root) {
   const T = App.gsTab;
   if (T === 'stock') gsStockTab(box, p, G, save, redraw);
   if (T === 'rend') gsRendTab(box, p, G, save, redraw);
+  if (T === 'bpu') gsBpuTab(box, p, G, save, redraw);
   if (T === 'att') gsAttTab(box, p, G, save, redraw);
+  if (T === 'dec') gsDecTab(box, p, G, save, redraw);
   if (T === 'labo') gsLaboTab(box, p, G, save, redraw);
   if (T === 'fiche') gsFichesTab(box);
 }
@@ -40,10 +42,9 @@ function gsStockTab(box, p, G, save, redraw) {
   const cats = [...new Set(G.art.map(a => a.cat || 'Divers'))];
   box.innerHTML = `
     ${low.length ? `<div class="gs-alert">⚠️ <b>${low.length} article(s) sous le seuil</b> : ${low.map(a => esc(a.nom)).join(', ')}</div>` : ''}
-    <div class="gs-h"><b>Stock sur chantier</b><button class="btn small ghost" data-a="addart">${icon('plus')} Article</button></div>
-    ${G.art.length ? cats.map(c => `<div class="gs-cat">${esc(c)}</div>` + G.art.filter(a => (a.cat || 'Divers') === c).map(a => { const q = gsStock(G, a.id), l = a.seuil && q <= gsNum(a.seuil);
-      return `<div class="gs-row ${l ? 'low' : ''}"><button class="grow" data-art="${a.id}"><b>${esc(a.nom)}</b><small>${a.seuil ? `seuil ${gsF(gsNum(a.seuil))} ${esc(a.unite)}` : 'sans seuil'}</small></button>
-        <span class="gs-q">${gsF(q)} <small>${esc(a.unite)}</small></span><button class="gs-pm" data-in="${a.id}">＋</button><button class="gs-pm out" data-out="${a.id}">－</button></div>`; }).join('')).join('')
+    <div class="gs-h"><b>📦 Inventaire du stock</b><button class="btn small ghost" data-a="addart">${icon('plus')} Article</button></div>
+    ${G.art.length ? `<div class="gt-w"><table class="gt inv"><thead><tr><th class="l">Article</th><th>U</th><th>Entrées</th><th>Sorties</th><th>Stock</th><th></th></tr></thead><tbody>${cats.map(c => `<tr class="gt-cat"><td colspan="6">${esc(c)}</td></tr>` + G.art.filter(a => (a.cat || 'Divers') === c).map(a => { const q = gsStock(G, a.id), l = a.seuil && q <= gsNum(a.seuil), M2 = G.mv.filter(m => m.art === a.id), ins = M2.filter(m => gsNum(m.q) > 0).reduce((t, m) => t + gsNum(m.q), 0), outs = M2.filter(m => gsNum(m.q) < 0).reduce((t, m) => t - gsNum(m.q), 0);
+      return `<tr class="${l ? 'low' : ''}"><td class="l" data-art="${a.id}"><b>${esc(a.nom)}</b>${a.seuil ? `<small>seuil ${gsF(gsNum(a.seuil))}</small>` : ''}</td><td>${esc(a.unite)}</td><td class="in">${gsF(ins)}</td><td class="out">${gsF(outs)}</td><td><b>${gsF(q)}</b></td><td class="pm"><button class="gs-pm" data-in="${a.id}">＋</button><button class="gs-pm out" data-out="${a.id}">－</button></td></tr>`; }).join('')).join('')}</tbody></table></div>`
       : `<div class="gs-empty">Ajoutez vos articles (ciment, acier, agglos…) puis notez les entrées <b>＋</b> et les sorties <b>－</b>. <button class="btn small" data-a="tpl" style="margin-top:8px">📋 Charger la liste type</button></div>`}
     <div class="gs-h"><b>Besoins / commandes</b> <span class="cr-n">${open.length}</span><button class="btn small ghost" data-a="addbes">${icon('plus')} Besoin</button></div>
     ${G.bes.slice().sort((a, b) => (a.st === 'livre') - (b.st === 'livre') || (a.pour || '').localeCompare(b.pour || '')).map(b => { const late = b.st !== 'livre' && b.pour && b.pour < todayISO();
@@ -110,57 +111,100 @@ function gsRendTab(box, p, G, save, redraw) {
   $$('[data-r]', box).forEach(b => b.onclick = () => edit(G.rend.find(x => x.id === b.dataset.r)));
 }
 
-// ---------- 🧾 Attachements & situations ----------
+// ---------- 📑 BPU · 📐 Attachements · 🧾 Décompte (tableaux, par lot) ----------
+const gsLotList = (p) => (typeof planLots === 'function' ? planLots(p) : []).map(l => ({ id: l.id, name: l.name, e: l.e }));
+const gsLotOf = (p, it) => it.lot || '';
+const gsLotSel = () => App.gsLot || '';
+function gsLotChips(p, G) {
+  const L = gsLotList(p).filter(l => G.bpu.some(it => it.lot === l.id)), s = gsLotSel();
+  if (!L.length) return '';
+  return `<div class="gt-lots"><button data-lot="" class="${!s ? 'on' : ''}">Tous les lots</button>${L.map(l => `<button data-lot="${l.id}" class="${s === l.id ? 'on' : ''}">${l.e} ${esc(l.name)}</button>`).join('')}</div>`;
+}
+function gsBindLots(box, redraw) { $$('[data-lot]', box).forEach(b => b.onclick = () => { App.gsLot = b.dataset.lot; redraw(); }); }
+const gsBpuOf = (p, G) => { const s = gsLotSel(); return s ? G.bpu.filter(it => it.lot === s) : G.bpu; };
+const gsCum = (G, id, upto, from) => G.att.filter(a => (!upto || a.date <= upto) && (!from || a.date > from)).reduce((s, a) => s + gsNum((a.q || {})[id]), 0);
+const gsLotName = (p, id) => { const l = gsLotList(p).find(x => x.id === id); return l ? `${l.e} ${l.name}` : ''; };
+async function gsEditBpu(p, G, it, save, redraw) {
+  const lots = gsLotList(p);
+  const r = await formSheet(it ? 'Prix' : 'Nouveau prix', [{ name: 'n', label: 'N° de prix', value: it ? it.n : String(G.bpu.length + 1) }, { name: 'des', label: 'Désignation', value: it ? it.des : '', placeholder: 'Ex : Béton armé B25 pour voiles' },
+    { name: 'lot', label: 'Lot', type: 'select', value: it ? it.lot || '' : gsLotSel(), options: [{ value: '', label: '— sans lot —' }, ...lots.map(l => ({ value: l.id, label: `${l.e} ${l.name}` }))] },
+    { name: 'u', label: 'Unité', value: it ? it.u : 'm³', list: ['m³', 'm²', 'ml', 'kg', 't', 'u', 'ens', 'forfait'] }, { name: 'pu', label: 'Prix unitaire HT (DH)', type: 'number', value: it ? it.pu : '' }, { name: 'qm', label: 'Quantité du marché', type: 'number', value: it ? it.qm : '' }],
+    { okLabel: 'Enregistrer', danger: it ? 'Supprimer' : null });
+  if (!r) return; if (r.__danger) G.bpu = G.bpu.filter(x => x !== it); else if (it) Object.assign(it, r); else if (r.des) G.bpu.push({ id: DB.uid(), ...r }); await save(); redraw();
+}
+function gsBpuTab(box, p, G, save, redraw) {
+  const B = gsBpuOf(p, G), marche = B.reduce((s, it) => s + gsNum(it.qm) * gsNum(it.pu), 0);
+  box.innerHTML = `${gsLotChips(p, G)}<div class="gs-kpi"><div><b>${gsDH(marche)}</b><span>montant du marché HT${gsLotSel() ? ' · ' + esc(gsLotName(p, gsLotSel())) : ''}</span></div><div><b>${B.length}</b><span>prix</span></div></div>
+    <div class="gs-h"><b>📑 Bordereau des prix</b><button class="btn small ghost" data-a="xls">${icon('grid')} Excel</button><button class="btn small" data-a="add">${icon('plus')} Prix</button></div>
+    ${B.length ? `<div class="gt-w"><table class="gt"><thead><tr><th>N°</th><th class="l">Désignation</th><th>U</th><th>PU HT</th><th>Q. marché</th><th>Montant HT</th></tr></thead><tbody>
+      ${B.map(it => `<tr data-bpu="${it.id}"><td>${esc(it.n || '')}</td><td class="l"><b>${esc(it.des)}</b>${!gsLotSel() && it.lot ? `<small>${esc(gsLotName(p, it.lot))}</small>` : ''}</td><td>${esc(it.u || '')}</td><td>${gsF(gsNum(it.pu))}</td><td>${gsF(gsNum(it.qm))}</td><td><b>${gsF(gsNum(it.qm) * gsNum(it.pu))}</b></td></tr>`).join('')}
+      </tbody><tfoot><tr><td colspan="5" class="l">Total HT</td><td><b>${gsF(marche)}</b></td></tr></tfoot></table></div>` : '<div class="gs-empty">Saisissez les prix du marché : n°, désignation, lot, unité, prix unitaire, quantité.</div>'}`;
+  gsBindLots(box, redraw);
+  $('[data-a=add]', box).onclick = () => gsEditBpu(p, G, null, save, redraw);
+  $$('[data-bpu]', box).forEach(b => b.onclick = () => gsEditBpu(p, G, G.bpu.find(x => x.id === b.dataset.bpu), save, redraw));
+  $('[data-a=xls]', box).onclick = async () => { const b = await xlsxBlob([{ name: 'BPU', head: 0, total: true, widths: [8, 50, 18, 8, 14, 14, 16], rows: [['N°', 'Désignation', 'Lot', 'U', 'PU HT', 'Q. marché', 'Montant HT'], ...B.map(it => [it.n || '', it.des, gsLotName(p, it.lot).replace(/^\S+ /, ''), it.u || '', gsNum(it.pu), gsNum(it.qm), gsNum(it.qm) * gsNum(it.pu)]), ['', 'TOTAL', '', '', '', '', marche]] }]); shareBlob(b, `BPU_${safeName(p.name)}.xlsx`); };
+}
 function gsAttTab(box, p, G, save, redraw) {
-  const cum = (id, upto) => G.att.filter(a => !upto || a.date <= upto).reduce((s, a) => s + gsNum((a.q || {})[id]), 0);
-  const tot = (fn) => G.bpu.reduce((s, it) => s + fn(it) * gsNum(it.pu), 0);
-  const marche = tot(it => gsNum(it.qm)), fait = tot(it => cum(it.id));
-  box.innerHTML = `<div class="gs-kpi"><div><b>${gsDH(marche)}</b><span>montant marché HT</span></div><div><b>${gsDH(fait)}</b><span>réalisé HT · ${marche ? Math.round(fait / marche * 100) : 0}%</span></div></div>
-    <div class="gs-h"><b>Bordereau des prix (BPU)</b><button class="btn small ghost" data-a="addbpu">${icon('plus')} Prix</button></div>
-    ${G.bpu.map(it => { const c = cum(it.id), pc = gsNum(it.qm) ? Math.min(100, c / gsNum(it.qm) * 100) : 0; return `<button class="gs-row bpu" data-bpu="${it.id}"><span class="gs-n">${esc(it.n || '')}</span><span class="grow"><b>${esc(it.des)}</b><small>${gsF(c)} / ${gsF(gsNum(it.qm))} ${esc(it.u)} · PU ${gsDH(gsNum(it.pu))}</small><span class="gs-pb"><i style="width:${pc}%"></i></span></span><span class="gs-q">${gsDH(c * gsNum(it.pu))}</span></button>`; }).join('') || '<div class="gs-empty">Saisissez les prix du marché (n°, désignation, unité, prix unitaire, quantité du marché).</div>'}
-    <div class="gs-h"><b>Attachements (métrés)</b><button class="btn small" data-a="addatt" ${G.bpu.length ? '' : 'disabled'}>${icon('plus')} Attachement</button></div>
-    ${G.att.slice().reverse().map(a => `<button class="gs-row" data-att="${a.id}"><span class="grow"><b>Attachement du ${fmtDate(a.date)}</b><small>${Object.values(a.q || {}).filter(v => gsNum(v)).length} poste(s)${a.ouv ? ' · ' + esc(a.ouv) : ''}</small></span><span class="gs-q">${gsDH(G.bpu.reduce((s, it) => s + gsNum((a.q || {})[it.id]) * gsNum(it.pu), 0))}</span></button>`).join('') || '<div class="gs-empty">—</div>'}
-    <div class="gs-h"><b>Situations</b></div>
-    <button class="btn" data-a="sit" style="width:100%" ${G.bpu.length ? '' : 'disabled'}>${icon('pdf')} Établir la situation n° ${G.sit.length + 1} (PDF)</button>
-    ${G.sit.slice().reverse().map(s => `<div class="gs-mv"><span>N° ${s.n}</span><b class="in">${gsDH(s.ttc)}</b><span class="grow">au ${fmtDate(s.date)} · cumul HT ${gsDH(s.cum)}</span></div>`).join('')}`;
-  const A = (k) => $(`[data-a=${k}]`, box);
-  const editBpu = async (it) => { const r = await formSheet(it ? 'Prix' : 'Nouveau prix', [{ name: 'n', label: 'N° de prix', value: it ? it.n : String(G.bpu.length + 1) }, { name: 'des', label: 'Désignation', value: it ? it.des : '', placeholder: 'Ex : Béton armé B25 pour voiles' }, { name: 'u', label: 'Unité', value: it ? it.u : 'm³', list: ['m³', 'm²', 'ml', 'kg', 't', 'u', 'ens', 'forfait'] }, { name: 'pu', label: 'Prix unitaire HT (DH)', type: 'number', value: it ? it.pu : '' }, { name: 'qm', label: 'Quantité du marché', type: 'number', value: it ? it.qm : '' }], { okLabel: 'Enregistrer', danger: it ? 'Supprimer' : null });
-    if (!r) return; if (r.__danger) G.bpu = G.bpu.filter(x => x !== it); else if (it) Object.assign(it, r); else if (r.des) G.bpu.push({ id: DB.uid(), ...r }); await save(); redraw(); };
-  A('addbpu').onclick = () => editBpu(null);
-  $$('[data-bpu]', box).forEach(b => b.onclick = () => editBpu(G.bpu.find(x => x.id === b.dataset.bpu)));
-  const editAtt = async (a) => {
-    const r = await formSheet(a ? `Attachement du ${fmtDate(a.date)}` : 'Nouvel attachement', [{ name: 'date', label: 'Date', type: 'date', value: a ? a.date : todayISO() }, { name: 'ouv', label: 'Ouvrage / zone (optionnel)', value: a ? a.ouv : '' },
-      ...G.bpu.map(it => ({ name: 'q_' + it.id, label: `${it.n ? it.n + ' · ' : ''}${it.des} (${it.u})`, type: 'number', value: a ? (a.q || {})[it.id] || '' : '' }))], { okLabel: 'Enregistrer', danger: a ? 'Supprimer' : null });
+  const s = gsLotSel(), A = G.att.filter(a => !s || a.lot === s || Object.keys(a.q || {}).some(id => (G.bpu.find(x => x.id === id) || {}).lot === s)).slice().reverse();
+  const mt = (a) => G.bpu.filter(it => !s || it.lot === s).reduce((t, it) => t + gsNum((a.q || {})[it.id]) * gsNum(it.pu), 0);
+  box.innerHTML = `${gsLotChips(p, G)}<div class="gs-h"><b>📐 Attachements (métrés)</b><button class="btn small" data-a="add" ${G.bpu.length ? '' : 'disabled'}>${icon('plus')} Attachement</button></div>
+    ${!G.bpu.length ? '<div class="gs-empty">Commencez par le BPU (onglet 📑) : les attachements se saisissent sur ses prix.</div>' : A.length ? `<div class="gt-w"><table class="gt"><thead><tr><th>Date</th><th class="l">Lot · zone / niveau</th><th>Postes</th><th>Montant HT</th></tr></thead><tbody>
+      ${A.map(a => `<tr data-att="${a.id}"><td>${fmtDate(a.date)}</td><td class="l"><b>${esc(gsLotName(p, a.lot) || '—')}</b><small>${esc(a.ouv || '')}</small></td><td>${Object.values(a.q || {}).filter(v => gsNum(v)).length}</td><td><b>${gsF(mt(a))}</b></td></tr>`).join('')}
+      </tbody><tfoot><tr><td colspan="3" class="l">Total</td><td><b>${gsF(A.reduce((t, a) => t + mt(a), 0))}</b></td></tr></tfoot></table></div>` : '<div class="gs-empty">Aucun attachement.</div>'}`;
+  gsBindLots(box, redraw);
+  const edit = async (a) => {
+    const lots = gsLotList(p), lot0 = a ? a.lot || '' : s;
+    const items = G.bpu.filter(it => !lot0 || it.lot === lot0);
+    const r = await formSheet(a ? `Attachement du ${fmtDate(a.date)}` : 'Nouvel attachement', [{ name: 'date', label: 'Date', type: 'date', value: a ? a.date : todayISO() },
+      { name: 'lot', label: 'Lot', type: 'select', value: lot0, options: [{ value: '', label: '— tous —' }, ...lots.map(l => ({ value: l.id, label: `${l.e} ${l.name}` }))] },
+      { name: 'ouv', label: 'Zone / niveau / ouvrage', value: a ? a.ouv : '', placeholder: 'Ex : Zone 3 · R+2 · voiles' },
+      ...items.map(it => ({ name: 'q_' + it.id, label: `${it.n ? it.n + ' · ' : ''}${it.des} (${it.u})`, type: 'number', value: a ? (a.q || {})[it.id] || '' : '' })),
+      { name: 'obs', label: 'Observation', value: a ? a.obs || '' : '' }], { okLabel: 'Enregistrer', danger: a ? 'Supprimer' : null });
     if (!r) return; if (r.__danger) { G.att = G.att.filter(x => x !== a); await save(); return redraw(); }
-    const q = {}; G.bpu.forEach(it => { const v = gsNum(r['q_' + it.id]); if (v) q[it.id] = v; });
-    if (a) Object.assign(a, { date: r.date, ouv: r.ouv, q }); else G.att.push({ id: DB.uid(), date: r.date || todayISO(), ouv: r.ouv, q });
+    const q = a ? { ...(a.q || {}) } : {}; items.forEach(it => { const v = gsNum(r['q_' + it.id]); if (v) q[it.id] = v; else delete q[it.id]; });
+    const o = { date: r.date || todayISO(), lot: r.lot, ouv: r.ouv, obs: r.obs, q };
+    if (a) Object.assign(a, o); else G.att.push({ id: DB.uid(), ...o });
     G.att.sort((x, y) => (x.date || '').localeCompare(y.date || '')); await save(); redraw(); };
-  if (A('addatt')) A('addatt').onclick = () => editAtt(null);
-  $$('[data-att]', box).forEach(b => b.onclick = () => editAtt(G.att.find(x => x.id === b.dataset.att)));
-  if (A('sit')) A('sit').onclick = async () => {
-    const r = await formSheet(`Situation n° ${G.sit.length + 1}`, [{ name: 'date', label: 'Arrêtée au', type: 'date', value: todayISO() }, { name: 'tva', label: 'TVA (%)', type: 'number', value: p.gsTva || 20 }, { name: 'rg', label: 'Retenue de garantie (%)', type: 'number', value: p.gsRg ?? 7 }, { name: 'ent', label: 'Entreprise', value: p.gsEnt || '' }], { okLabel: 'Créer le PDF' });
-    if (!r) return; p.gsTva = gsNum(r.tva); p.gsRg = gsNum(r.rg); p.gsEnt = r.ent;
-    const prev = G.sit.length ? G.sit[G.sit.length - 1] : null;
-    const rows = G.bpu.map(it => { const c = cum(it.id, r.date), pr = prev ? cum(it.id, prev.date) : 0; return { it, c, pr, m: (c - pr) * gsNum(it.pu), mc: c * gsNum(it.pu) }; });
-    const cumHT = rows.reduce((s, x) => s + x.mc, 0), prevHT = prev ? prev.cum : 0, ht = cumHT - prevHT, rg = ht * p.gsRg / 100, tva = (ht - rg) * p.gsTva / 100, ttc = ht - rg + tva;
-    const n = G.sit.length + 1, C = newDoc(`Situation n° ${n}`, p), { doc, M, W } = C;
-    C.text(`Situation de travaux n° ${n}`, { size: 17, bold: true, gap: 0 }); C.text(`${p.pdfTitle || p.name}${p.mo ? ' · Maître d\'ouvrage : ' + p.mo : ''}${r.ent ? ' · Entreprise : ' + r.ent : ''}`, { size: 10, color: [80, 90, 110] }); C.text(`Arrêtée au ${fmtDate(r.date)}${prev ? ' · précédente au ' + fmtDate(prev.date) : ''}`, { size: 10, color: [80, 90, 110], gap: 4 });
-    const cols = [['N°', 12], ['Désignation', 62], ['U', 10], ['PU', 20], ['Q. marché', 18], ['Q. cumul', 18], ['Q. préc.', 18], ['Montant', 24]], rh = 6.2;
-    const head = () => { C.need(rh + 2); doc.setFillColor(30, 41, 59); doc.rect(M, C.y, W - 2 * M, rh, 'F'); doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(7.8); let x = M; cols.forEach(([h, w]) => { doc.text(h, x + 1.5, C.y + 4.2); x += w; }); C.y += rh; };
+  const ad = $('[data-a=add]', box); if (ad) ad.onclick = () => edit(null);
+  $$('[data-att]', box).forEach(b => b.onclick = () => edit(G.att.find(x => x.id === b.dataset.att)));
+}
+function gsDecTab(box, p, G, save, redraw) {
+  const B = gsBpuOf(p, G), prev = G.sit.length ? G.sit[G.sit.length - 1] : null, rgP = p.gsRg ?? 10, tvaP = p.gsTva ?? 20;
+  const rows = B.map(it => { const pr = prev ? gsCum(G, it.id, prev.date) : 0, c = gsCum(G, it.id), pu = gsNum(it.pu); return { it, pr, m: c - pr, c, mc: c * pu }; });
+  const cumHT = rows.reduce((s, x) => s + x.mc, 0), prevHT = rows.reduce((s, x) => s + x.pr * gsNum(x.it.pu), 0), ht = cumHT - prevHT, rg = ht * rgP / 100, tva = (ht - rg) * tvaP / 100, net = ht - rg + tva;
+  box.innerHTML = `${gsLotChips(p, G)}<div class="gs-h"><b>🧾 Décompte n° ${G.sit.length + 1}</b><span class="gt-sub">${prev ? 'depuis le ' + fmtDate(prev.date) : 'premier décompte'}</span></div>
+    ${B.length ? `<div class="gt-w"><table class="gt"><thead><tr><th>N°</th><th class="l">Désignation</th><th>U</th><th>PU</th><th>Q. préc.</th><th>Q. mois</th><th>Q. cumul</th><th>Montant cumul</th></tr></thead><tbody>
+      ${rows.map(x => `<tr><td>${esc(x.it.n || '')}</td><td class="l"><b>${esc(x.it.des)}</b></td><td>${esc(x.it.u || '')}</td><td>${gsF(gsNum(x.it.pu))}</td><td>${gsF(x.pr)}</td><td class="${x.m ? 'hi' : ''}">${gsF(x.m)}</td><td>${gsF(x.c)}</td><td><b>${gsF(x.mc)}</b></td></tr>`).join('')}</tbody></table></div>
+    <div class="gt-tot"><div><span>Cumul des travaux HT</span><b>${gsDH(cumHT)}</b></div><div><span>À déduire : décomptes précédents</span><b>${gsDH(prevHT)}</b></div><div class="s"><span>Montant du décompte HT</span><b>${gsDH(ht)}</b></div>
+      <div><span>Retenue de garantie <button class="gt-pc" data-a="rg">${gsF(rgP)} %</button></span><b>- ${gsDH(rg)}</b></div><div><span>TVA <button class="gt-pc" data-a="tva">${gsF(tvaP)} %</button></span><b>${gsDH(tva)}</b></div><div class="s n"><span>Net à payer TTC</span><b>${gsDH(net)}</b></div></div>
+    <div class="gt-acts"><button class="btn" data-a="sit">${icon('pdf')} Établir le décompte n° ${G.sit.length + 1} (PDF)</button><button class="btn ghost" data-a="xls">${icon('grid')} Excel</button></div>` : '<div class="gs-empty">Il faut le BPU et des attachements.</div>'}
+    ${G.sit.length ? `<div class="gs-h"><b>Décomptes établis</b></div><div class="gt-w"><table class="gt"><thead><tr><th>N°</th><th>Date</th><th>Cumul HT</th><th>Net TTC</th></tr></thead><tbody>${G.sit.slice().reverse().map(s => `<tr><td>${s.n}</td><td>${fmtDate(s.date)}</td><td>${gsF(s.cum)}</td><td><b>${gsF(s.ttc)}</b></td></tr>`).join('')}</tbody></table></div>` : ''}`;
+  gsBindLots(box, redraw);
+  const pc = (k, lbl) => { const b = $(`[data-a=${k}]`, box); if (b) b.onclick = async () => { const r = await formSheet(lbl, [{ name: 'v', label: `${lbl} (%)`, type: 'number', value: k === 'rg' ? rgP : tvaP }], { okLabel: 'OK' }); if (r) { p[k === 'rg' ? 'gsRg' : 'gsTva'] = gsNum(r.v); await save(); redraw(); } }; };
+  pc('rg', 'Retenue de garantie'); pc('tva', 'TVA');
+  const xb = $('[data-a=xls]', box); if (xb) xb.onclick = async () => { const b = await xlsxBlob([{ name: 'Décompte', head: 0, widths: [8, 46, 8, 12, 12, 12, 12, 16], rows: [['N°', 'Désignation', 'U', 'PU', 'Q. préc.', 'Q. mois', 'Q. cumul', 'Montant cumul HT'], ...rows.map(x => [x.it.n || '', x.it.des, x.it.u || '', gsNum(x.it.pu), x.pr, x.m, x.c, x.mc]), [], ['', 'Cumul des travaux HT', '', '', '', '', '', cumHT], ['', 'Décomptes précédents', '', '', '', '', '', prevHT], ['', 'Montant du décompte HT', '', '', '', '', '', ht], ['', `Retenue de garantie ${rgP} %`, '', '', '', '', '', -rg], ['', `TVA ${tvaP} %`, '', '', '', '', '', tva], ['', 'Net à payer TTC', '', '', '', '', '', net]] }]); shareBlob(b, `Decompte_${G.sit.length + 1}_${safeName(p.name)}.xlsx`); };
+  const sb = $('[data-a=sit]', box); if (sb) sb.onclick = async () => {
+    const r = await formSheet(`Décompte n° ${G.sit.length + 1}`, [{ name: 'date', label: 'Arrêté au', type: 'date', value: todayISO() }, { name: 'ent', label: 'Entreprise', value: p.gsEnt || '' }], { okLabel: 'Créer le PDF' });
+    if (!r) return; p.gsEnt = r.ent;
+    const R2 = B.map(it => { const c = gsCum(G, it.id, r.date), pr = prev ? gsCum(G, it.id, prev.date) : 0; return { it, c, pr, m: (c - pr) * gsNum(it.pu), mc: c * gsNum(it.pu) }; });
+    const cH = R2.reduce((s, x) => s + x.mc, 0), pH = R2.reduce((s, x) => s + x.pr * gsNum(x.it.pu), 0), h = cH - pH, g = h * rgP / 100, t = (h - g) * tvaP / 100, ttc = h - g + t;
+    const n = G.sit.length + 1, C = newDoc(`Décompte n° ${n}`, p), { doc, M, W } = C;
+    C.text(`Décompte n° ${n}${gsLotSel() ? ' · ' + gsLotName(p, gsLotSel()).replace(/^\S+ /, '') : ''}`, { size: 17, bold: true, gap: 0 }); C.text(`${p.pdfTitle || p.name}${p.mo ? ' · Maître d\'ouvrage : ' + p.mo : ''}${r.ent ? ' · Entreprise : ' + r.ent : ''}`, { size: 10, color: [80, 90, 110] }); C.text(`Arrêté au ${fmtDate(r.date)}${prev ? ' · précédent au ' + fmtDate(prev.date) : ''}`, { size: 10, color: [80, 90, 110], gap: 4 });
+    const cols = [['N°', 11], ['Désignation', 58], ['U', 9], ['PU', 19], ['Q. préc.', 18], ['Q. mois', 18], ['Q. cumul', 18], ['Montant', 25]], rh = 6.2;
+    const head = () => { C.need(rh + 2); doc.setFillColor(30, 41, 59); doc.rect(M, C.y, W - 2 * M, rh, 'F'); doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(7.8); let x = M; cols.forEach(([hh, w]) => { doc.text(hh, x + 1.5, C.y + 4.2); x += w; }); C.y += rh; };
     head();
-    rows.forEach((x, i) => { if (C.y + rh > C.H - 40) { doc.addPage(); C.header(); head(); } if (i % 2) { doc.setFillColor(246, 248, 251); doc.rect(M, C.y, W - 2 * M, rh, 'F'); }
+    R2.forEach((x, i) => { if (C.y + rh > C.H - 40) { doc.addPage(); C.header(); head(); } if (i % 2) { doc.setFillColor(246, 248, 251); doc.rect(M, C.y, W - 2 * M, rh, 'F'); }
       doc.setTextColor(30); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.8); let xx = M;
-      [x.it.n || '', x.it.des, x.it.u, gsF(gsNum(x.it.pu)), gsF(gsNum(x.it.qm)), gsF(x.c), gsF(x.pr), gsF(x.m)].forEach((v, k) => { doc.text(doc.splitTextToSize(pt(String(v)), cols[k][1] - 2.5)[0] || '', xx + 1.5, C.y + 4.2); xx += cols[k][1]; }); C.y += rh; });
+      [x.it.n || '', x.it.des, x.it.u, gsF(gsNum(x.it.pu)), gsF(x.pr), gsF(x.c - x.pr), gsF(x.c), gsF(x.mc)].forEach((v, k) => { doc.text(doc.splitTextToSize(pt(String(v)), cols[k][1] - 2.5)[0] || '', xx + 1.5, C.y + 4.2); xx += cols[k][1]; }); C.y += rh; });
     C.y += 4;
-    const line = (l, v, b) => { C.need(7); doc.setFont('helvetica', b ? 'bold' : 'normal'); doc.setFontSize(b ? 11 : 10); doc.setTextColor(20); doc.text(pt(l), W - M - 75, C.y + 4); doc.text(pt(v), W - M, C.y + 4, { align: 'right' }); C.y += 6.5; };
-    line('Cumul des travaux HT', gsDH(cumHT)); line('À déduire : situations précédentes', gsDH(prevHT)); line(`Montant de la situation HT`, gsDH(ht), true); line(`Retenue de garantie ${p.gsRg} %`, '- ' + gsDH(rg)); line(`TVA ${p.gsTva} %`, gsDH(tva)); line('Net à payer TTC', gsDH(ttc), true);
-    C.y += 10; C.need(26); doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.text("L'entreprise", M + 10, C.y); doc.text('Le maître d\'ouvrage / maître d\'œuvre'.replace('œ', 'oe'), W - M - 70, C.y);
+    const line = (l, v, b) => { C.need(7); doc.setFont('helvetica', b ? 'bold' : 'normal'); doc.setFontSize(b ? 11 : 10); doc.setTextColor(20); doc.text(pt(l), W - M - 80, C.y + 4); doc.text(pt(v), W - M, C.y + 4, { align: 'right' }); C.y += 6.5; };
+    line('Cumul des travaux HT', gsDH(cH)); line('À déduire : décomptes précédents', gsDH(pH)); line('Montant du décompte HT', gsDH(h), true); line(`Retenue de garantie ${rgP} %`, '- ' + gsDH(g)); line(`TVA ${tvaP} %`, gsDH(t)); line('Net à payer TTC', gsDH(ttc), true);
+    C.y += 10; C.need(26); doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.text("L'entreprise", M + 10, C.y); doc.text('Le maitre d\'ouvrage / maitre d\'oeuvre', W - M - 70, C.y);
     C.finish();
-    G.sit.push({ id: DB.uid(), n, date: r.date, cum: cumHT, ht, ttc }); await save();
-    await sharePdf(doc, `Situation_${n}_${safeName(p.name)}.pdf`); redraw();
+    G.sit.push({ id: DB.uid(), n, date: r.date, cum: cH, ht: h, ttc, lot: gsLotSel() }); await save();
+    await sharePdf(doc, `Decompte_${n}_${safeName(p.name)}.pdf`); redraw();
   };
 }
-
 // ---------- 🧪 Labo (éprouvettes) · visites BET / BC / topo ----------
 function gsLaboTab(box, p, G, save, redraw) {
   const t = todayISO(), add = (d, n) => { const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };

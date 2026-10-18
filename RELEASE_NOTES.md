@@ -1,4 +1,6 @@
 ## Nouveautés
-- **Plans des ouvrages · une seule couleur** : zones, parties, plans, boutons et en-tête dans la couleur du thème (plus de mélange de couleurs)
-- **＋ Partie d'ouvrage dans chaque zone** : même quand la liste vient du programme de réception, ajoutez des parties d'ouvrage à une zone (zone déjà remplie, il reste niveau + élément). ⋮ sur une partie ajoutée : ajouter des plans ou la retirer
-- **Plusieurs plans par ouvrage** : toucher un ouvrage l'ouvre toujours (même s'il a déjà un plan), avec « Ajouter des plans (PDF · plusieurs) » puis « Ajouter d'autres plans » ; on peut choisir plusieurs PDF d'un coup
+- **Comparer deux niveaux** : plus de transparence ; « Un niveau à la fois » = deux boutons côte à côte (▼ R+3 · ▲ R+4), on touche celui qu'on veut voir. Plus de décalage quand on fait glisser (le niveau du dessous est préparé déjà calé). Plans PDF dessinés depuis le PDF lui-même (net comme l'original), dès l'ouverture et à chaque zoom
+- **Plans des ouvrages** : seulement le programme d'aujourd'hui (plus de navigation entre les jours ni de reprise des jours passés — ils restent gardés) ; parties d'ouvrage et plans à plat, sans fonds
+- **Lots (dans les dossiers de niveau)** : le panneau du lot est replié (une ligne : lot · points · 🛑 · échéance) et s'ouvre au toucher. Nouveau bouton « ＋ Ajouter dans … » : point de contrôle, point d'arrêt, point critique, raccourci vers une section, document / plan, note. Raccourcis BPU · Attachements · Décompte · Stock pour chaque lot
+- **TCE** : Maçonnerie ajoutée (avec Enduits et Chapes) ; ajoutée automatiquement aux projets qui avaient déjà la liste
+- **Gestion rangée en tableaux** : 📦 Inventaire du stock (entrées · sorties · stock · seuil), 📑 BPU par lot, 📐 Attachements (date · lot · zone / niveau · montant), 🧾 Décompte (Q. préc. · Q. mois · Q. cumul · montant, retenue de garantie 10 % et TVA 20 % modifiables, PDF et Excel). Filtre par lot

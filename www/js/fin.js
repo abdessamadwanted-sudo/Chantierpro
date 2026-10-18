@@ -78,7 +78,7 @@ async function renderFinance(root) {
   </div>`;
   finBind(root, redraw);
   const A = (k) => $(`[data-a=${k}]`, root);
-  A('att').onclick = () => { App.section = 'gestion'; App.gsTab = 'att'; renderSection(); };
+  A('att').onclick = () => { App.section = 'gestion'; App.gsTab = 'dec'; renderSection(); };
   A('base').onclick = async () => { const r = await formSheet('Marché de base', [{ name: 'b', label: 'Montant HT (DH) — vide = calcul depuis le BPU', type: 'number', value: F.base || '' }]); if (r) { F.base = r.b; await save(); redraw(); } };
   const AVF = [{ name: 'n', label: 'N°' }, { name: 'obj', label: 'Objet', placeholder: 'Ex : travaux supplémentaires R+6' }, { name: 'date', label: 'Date', type: 'date', value: todayISO() }, { name: 'm', label: 'Montant HT (DH, négatif = moins-value)', type: 'number' }];
   const DEPF = [{ name: 'date', label: 'Date', type: 'date', value: todayISO() }, { name: 'cat', label: 'Catégorie', type: 'select', options: FIN_CATS, value: FIN_CATS[1] }, { name: 'lib', label: 'Libellé', placeholder: 'Ex : 200 sacs CPJ45' }, { name: 'fr', label: 'Fournisseur / équipe', list: [...new Set(F.dep.map(d => d.fr).filter(Boolean))] }, { name: 'm', label: 'Montant (DH)', type: 'number' }];
@@ -113,12 +113,14 @@ async function renderFinance(root) {
 }
 
 // ================= TCE (tous corps d'état) =================
-const TCE_LOTS = ['Gros œuvre', 'Étanchéité', 'Charpente métallique', 'Menuiserie aluminium', 'Menuiserie bois', 'Menuiserie métallique / serrurerie', 'Plomberie sanitaire', 'Électricité CFO / CFA', 'Climatisation / ventilation (CVC)', 'Protection incendie', 'Ascenseurs', 'Faux plafond', 'Revêtements sols et murs', 'Peinture', 'VRD', 'Espaces verts'];
+const TCE_LOTS = ['Gros œuvre', 'Maçonnerie', 'Enduits', 'Chapes', 'Étanchéité', 'Charpente métallique', 'Menuiserie aluminium', 'Menuiserie bois', 'Menuiserie métallique / serrurerie', 'Plomberie sanitaire', 'Électricité CFO / CFA', 'Climatisation / ventilation (CVC)', 'Protection incendie', 'Ascenseurs', 'Faux plafond', 'Revêtements sols et murs', 'Peinture', 'VRD', 'Espaces verts'];
 const TCE_ST = [['nd', 'Non démarré', '#64748b'], ['ec', 'En cours', '#3b82f6'], ['ret', 'En retard', '#ef4444'], ['fin', 'Terminé', '#22c55e'], ['rec', 'Réceptionné', '#16a34a']];
 function tceData(p) { p.tce = p.tce || {}; if (!p.tce.lots) p.tce.lots = []; return p.tce; }
 const tceLate = (L) => L.st !== 'fin' && L.st !== 'rec' && L.fin && L.fin < todayISO();
 async function renderTce(root) {
   const p = App.project, T = tceData(p), save = () => DB.put('projects', p), redraw = () => renderTce(root);
+  // Maçonnerie manquait dans la liste type : on l'ajoute (une fois) aux projets qui l'avaient déjà chargée
+  if (T.lots.length && !T.macOk) { T.macOk = true; if (!T.lots.some(L => /ma[cç]onn/i.test(L.lot || ''))) { const i = T.lots.findIndex(L => /gros/i.test(L.lot || '')); T.lots.splice(i + 1, 0, { id: DB.uid(), lot: 'Maçonnerie', st: 'nd', av: 0 }); } await save(); }
   const tasks = await DB.byProject('tasks', p.id), comps = p.companies || [];
   const resOf = (L) => { const c = comps.find(x => normQ(x.name) === normQ(L.ent || '')); return c ? tasks.filter(t => t.companyId === c.id && !isLifted(t)).length : 0; };
   const tot = T.lots.reduce((s, L) => s + fN(L.m), 0), avg = tot ? T.lots.reduce((s, L) => s + fN(L.m) * fN(L.av), 0) / tot : (T.lots.length ? T.lots.reduce((s, L) => s + fN(L.av), 0) / T.lots.length : 0);
