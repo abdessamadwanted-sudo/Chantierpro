@@ -14,8 +14,33 @@ const PVG = {
   obs: [[18.5, 662.5, 181.5, 77], [200, 662.5, 181, 77], [381, 662.5, 183, 77]],
   dates: [[[54.5, 739.5, 36.5, 22.5], [91, 739.5, 36, 22.5], [127, 739.5, 73, 22.5]], [[200, 739.5, 36, 22.5], [236, 739.5, 36, 22.5], [272, 739.5, 109, 22.5]], [[381, 739.5, 36, 22.5], [417, 739.5, 36, 22.5], [453, 739.5, 111, 22.5]]],
   names: [[54.5, 762, 145.5, 22.5], [200, 762, 181, 22.5], [381, 762, 183, 22.5]],
+  visa: [[54.5, 785, 145.5, 40], [200, 785, 181, 40], [381, 785, 183, 40]],
 };
-const PVG_K = 3.6;   // pixels par point pour l'écriture (≈ 260 dpi, net à l'impression)
+const PVG_K = 6.5;   // pixels par point pour l'écriture (≈ 470 dpi : reste net quand on zoome sur le PDF)
+// les écritures sont regroupées en quelques bandes horizontales (une image transparente par bande) : net et léger
+async function pvgCompose(out, pg, ops, sx = 1, sy = 1) {
+  const PH = pg.getSize().height, bands = [];
+  for (const o of ops.filter(o => o.cv).sort((a, b) => a.y - b.y)) { const b = bands[bands.length - 1];
+    if (b && o.y <= b.y1 + 24) { b.y1 = Math.max(b.y1, o.y + o.h); b.x0 = Math.min(b.x0, o.x); b.x1 = Math.max(b.x1, o.x + o.w); b.ops.push(o); }
+    else bands.push({ y0: o.y, y1: o.y + o.h, x0: o.x, x1: o.x + o.w, ops: [o] }); }
+  for (const b of bands) {
+    const bw = b.x1 - b.x0, bh = b.y1 - b.y0, K = Math.min(PVG_K, Math.sqrt(6e6 / Math.max(1, bw * bh)));
+    const c = document.createElement('canvas'); c.width = Math.ceil(bw * K); c.height = Math.ceil(bh * K); const g = c.getContext('2d');
+    for (const o of b.ops) g.drawImage(o.cv, (o.x - b.x0) * K, (o.y - b.y0) * K, o.w * K, o.h * K);
+    const png = await out.embedPng(await new Promise(r => c.toBlob(bl => bl.arrayBuffer().then(r), 'image/png')));
+    pg.drawImage(png, { x: b.x0 * sx, y: PH - b.y1 * sy, width: bw * sx, height: bh * sy }); c.width = c.height = 0;
+  }
+}
+// nom écrit à la main / signature d'une personne enregistrée (mêmes que sur le bon de bétonnage)
+const pvgPeople = (p) => { const c = typeof bonCfg === 'function' ? bonCfg(p) : { people: {} }, seen = new Set(); return Object.values(c.people || {}).flat().filter(q => q && !seen.has(q.id) && seen.add(q.id)); };
+async function pvgImgCanvas(fileId, w, h, bold) {
+  const f = fileId ? (await DB.peek('files', fileId).catch(() => null) || await DB.get('files', fileId).catch(() => null)) : null; if (!f || !f.blob) return null;
+  const im = await loadImage(URL.createObjectURL(f.blob)).catch(() => null); if (!im) return null;
+  const c = document.createElement('canvas'); c.width = Math.ceil(w * PVG_K); c.height = Math.ceil(h * PVG_K); const g = c.getContext('2d');
+  const k = Math.min((c.width - 8) / im.width, (c.height - 8) / im.height, 3.2), dw = im.width * k, dh = im.height * k, dx = (c.width - dw) / 2, dy = (c.height - dh) / 2;
+  const r = bold ? Math.max(1.5, dw / 260) : 0; for (const [ox, oy] of r ? [[0, 0], [r, 0], [0, r], [-r, 0], [0, -r]] : [[0, 0]]) g.drawImage(im, dx + ox, dy + oy, dw, dh);
+  return c;
+}
 function pvgParse(r) {
   const el = String(r.element || '').trim(), grab = (re) => ((el.match(re) || [])[1] || '');
   const nice = (s) => s.replace(/\s*[*+]\s*/g, ' & ').replace(/\s*,\s*/g, ' & ').replace(/\s+et\s+/gi, ' & ').trim();
@@ -32,7 +57,7 @@ async function pvgInk(text, w, h, size, seed, align = 'center') {
   const px = size * PVG_K; g.font = `600 ${px}px BonHand, cursive`;
   const tw = Math.min(c.width - 8, g.measureText(text).width * 1.07 + (text.split(' ').length - 1) * px * 0.12);
   const x = align === 'center' ? Math.max(4, (c.width - tw) / 2) : 3 * PVG_K, y = c.height / 2 + px * 0.3;
-  bonHand(g, text, x, y, c.width - x - 4, px, seed);
+  bonHand(g, text, x, y, c.width - x - 4, px, seed, { pen: true });
   return c;
 }
 // coche dessinée au stylo
@@ -49,9 +74,7 @@ const pvgDate = (iso) => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(
 async function pvgPage(PDFLib, out, src, d) {
   const [pg] = await out.copyPages(src, [0]); out.addPage(pg);
   const { width: PW, height: PH } = pg.getSize(), sx = PW / PVG.W, sy = PH / PVG.H;
-  // toutes les écritures sont posées sur UNE image transparente de la page (une seule compression PNG au lieu d'une trentaine)
-  const big = document.createElement('canvas'); big.width = Math.ceil(PVG.W * PVG_K); big.height = Math.ceil(PVG.H * PVG_K); const G = big.getContext('2d');
-  const put = async (cv, [x, y, w, h]) => { if (cv) G.drawImage(cv, x * PVG_K, y * PVG_K, w * PVG_K, h * PVG_K); };
+  const ops = [], put = async (cv, [x, y, w, h]) => { if (cv) ops.push({ cv, x, y, w, h }); };
   const seed = d.seed || d.ouvrage;
   if (d.fiche) await put(await pvgInk(d.fiche, PVG.fiche[2], PVG.fiche[3], 12, seed + 'f'), PVG.fiche);
   const [dd, mm, yy] = pvgDate(d.date);
@@ -73,10 +96,12 @@ async function pvgPage(PDFLib, out, src, d) {
   for (let j = 0; j < 3; j++) {
     const o = (d.obs || [])[j]; if (o) await put(await pvgInk(o, PVG.obs[j][2] - 8, 18, 14, seed + 'ob' + j, 'left'), [PVG.obs[j][0] + 4, PVG.obs[j][1] + 6, PVG.obs[j][2] - 8, 18]);
     const dt = (d.dates || [])[j]; if (dt) { const parts = pvgDate(dt); for (let i = 0; i < 3; i++) await put(await pvgInk(parts[i], PVG.dates[j][i][2], PVG.dates[j][i][3], 17.5, seed + 'dt' + j + i), PVG.dates[j][i]); }
-    const nm = (d.names || [])[j]; if (nm) await put(await pvgInk(nm, PVG.names[j][2], PVG.names[j][3], 17.5, seed + 'n' + j), PVG.names[j]);
+    const per = (d.people || [])[j], nm = (d.names || [])[j];
+    if (per && per.nameImgId && (!nm || nm === per.name)) await put(await pvgImgCanvas(per.nameImgId, PVG.names[j][2] - 8, PVG.names[j][3] - 2), [PVG.names[j][0] + 4, PVG.names[j][1] + 1, PVG.names[j][2] - 8, PVG.names[j][3] - 2]);
+    else if (nm) await put(await pvgInk(nm, PVG.names[j][2], PVG.names[j][3], 17.5, seed + 'n' + j), PVG.names[j]);
+    if (per && per.sigId) await put(await pvgImgCanvas(per.sigId, PVG.visa[j][2] - 10, PVG.visa[j][3] - 4, true), [PVG.visa[j][0] + 5, PVG.visa[j][1] + 2, PVG.visa[j][2] - 10, PVG.visa[j][3] - 4]);
   }
-  const png = await out.embedPng(await new Promise(r => big.toBlob(b => b.arrayBuffer().then(r), 'image/png')));
-  pg.drawImage(png, { x: 0, y: 0, width: PW, height: PH }); big.width = big.height = 0;
+  await pvgCompose(out, pg, ops, sx, sy);
 }
 async function pvgTemplate(p, replace) {
   if (p.pvTpl && !replace) { const f = await DB.get('files', p.pvTpl); if (f && f.blob) return f.blob; }
@@ -91,7 +116,8 @@ function pvgData(p, day, r) {
   const C = p.pvCfg = p.pvCfg || {}, P = pvgParse(r), o = r.pv || {};
   return { fiche: o.fiche || '', date: o.date || day.date, ouvrage: o.ouvrage ?? P.ouvrage, axe: o.axe ?? P.axe, file: o.file ?? P.file, proc: o.proc ?? (C.proc || ''),
     ferr: o.ferr ?? '', ferrInd: o.ferrInd ?? (r.indFer || ''), coff: o.coff ?? '', coffInd: o.coffInd ?? (r.indCof || ''),
-    ctrl: o.ctrl || [...(C.ctrl || PVG_DEF)], obs: o.obs || ['', '', ''], names: o.names || [...(C.names || ['', '', ''])], dates: o.dates || [day.date, day.date, ''], seed: r.id };
+    ctrl: o.ctrl || [...(C.ctrl || PVG_DEF)], obs: o.obs || ['', '', ''], names: o.names || [...(C.names || ['', '', ''])], dates: o.dates || [day.date, day.date, ''], seed: r.id,
+    sig: o.sig || [...(C.sig || ['', '', ''])], get people() { const L = pvgPeople(p); return this.sig.map(id => L.find(q => q.id === id) || null); } };
 }
 async function pvgEdit(p, day, r) {
   const d = pvgData(p, day, r), O = [{ value: 'c', label: 'Conforme' }, { value: 'nc', label: 'Non conforme' }, { value: 'na', label: 'Non applicable' }, { value: '', label: '— vide —' }];
@@ -102,6 +128,7 @@ async function pvgEdit(p, day, r) {
     { name: 'ferr', label: 'Plan de ferraillage N°', value: d.ferr, placeholder: 'Ex : 067452' }, { name: 'ferrInd', label: 'Indice ferraillage', value: d.ferrInd, placeholder: 'Ex : PE00' },
     { name: 'coff', label: 'Plan de coffrage N°', value: d.coff, placeholder: 'Ex : 066274' }, { name: 'coffInd', label: 'Indice coffrage', value: d.coffInd, placeholder: 'Ex : PE01' },
     ...PVG_CTRL.map((t, i) => ({ name: 'c' + i, label: t, type: 'select', value: d.ctrl[i] || '', options: O })),
+    ...[0, 1, 2].map(j => ({ name: 's' + j, label: `Contrôle ${['interne', 'externe', 'extérieur'][j]} · nom + signature enregistrés`, type: 'select', value: d.sig[j] || '', options: [{ value: '', label: '— aucune (écrire le nom) —' }, ...pvgPeople(p).map(q => ({ value: q.id, label: `${q.name}${q.sigId ? ' ✍' : ''}` }))] })),
     { name: 'n0', label: 'Contrôle interne · nom', value: d.names[0] }, { name: 'd0', label: 'Contrôle interne · date', type: 'date', value: d.dates[0] }, { name: 'o0', label: 'Contrôle interne · observation', value: d.obs[0] },
     { name: 'n1', label: 'Contrôle externe · nom', value: d.names[1] }, { name: 'd1', label: 'Contrôle externe · date', type: 'date', value: d.dates[1] }, { name: 'o1', label: 'Contrôle externe · observation', value: d.obs[1] },
     { name: 'n2', label: 'Contrôle extérieur · nom', value: d.names[2] }, { name: 'd2', label: 'Contrôle extérieur · date', type: 'date', value: d.dates[2] }, { name: 'o2', label: 'Contrôle extérieur · observation', value: d.obs[2] },
@@ -109,8 +136,10 @@ async function pvgEdit(p, day, r) {
   if (!res) return null;
   if (res.__danger) { if (!(await confirmBox('Supprimer cette fiche générée (aussi dans Drive) ?'))) return null; if (r.pvGenId) await DB.del('files', r.pvGenId).catch(() => {}); r.pvGenId = null; return 'del'; }
   r.pv = { fiche: res.fiche, date: res.date, ouvrage: res.ouvrage, axe: res.axe, file: res.file, proc: res.proc, ferr: res.ferr, ferrInd: res.ferrInd, coff: res.coff, coffInd: res.coffInd,
-    ctrl: PVG_CTRL.map((_, i) => res['c' + i]), names: [res.n0, res.n1, res.n2], dates: [res.d0, res.d1, res.d2], obs: [res.o0, res.o1, res.o2] };
-  const C = p.pvCfg = p.pvCfg || {}; C.proc = res.proc; C.names = [res.n0, res.n1, res.n2]; C.ctrl = r.pv.ctrl; await DB.put('projects', p);
+    ctrl: PVG_CTRL.map((_, i) => res['c' + i]), names: [res.n0, res.n1, res.n2], dates: [res.d0, res.d1, res.d2], obs: [res.o0, res.o1, res.o2], sig: [res.s0 || '', res.s1 || '', res.s2 || ''] };
+  // une personne choisie sans nom tapé : on reprend son nom
+  const L = pvgPeople(p); r.pv.sig.forEach((id, j) => { const q = L.find(x => x.id === id); if (q && !r.pv.names[j]) r.pv.names[j] = q.name; });
+  const C = p.pvCfg = p.pvCfg || {}; C.proc = res.proc; C.names = r.pv.names.slice(); C.ctrl = r.pv.ctrl; C.sig = r.pv.sig.slice(); await DB.put('projects', p);
   return 'ok';
 }
 // génère (ou regénère) la fiche d'une ligne → fichier PDF gardé dans le projet (et Drive)

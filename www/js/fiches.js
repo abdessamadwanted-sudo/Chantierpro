@@ -82,18 +82,16 @@ async function ftMake(p, tpl, vals, seed) {
   const PDFLib = await needPdfLib(), src = await PDFLib.PDFDocument.load(await (await ftTemplateBlob(tpl)).arrayBuffer(), { ignoreEncryption: true });
   const out = await PDFLib.PDFDocument.create(), [pg] = await out.copyPages(src, [0]); out.addPage(pg);
   const { width: PW, height: PH } = pg.getSize();
-  // une seule image transparente pour toute l'écriture (rapide sur téléphone)
-  const big = document.createElement('canvas'); big.width = Math.ceil(PW * PVG_K); big.height = Math.ceil(PH * PVG_K); const G = big.getContext('2d'); let any = false;
+  const ops = [];
   for (const f of tpl.fields) {
     const key = f.k === 'coche' || f.k === 'libre' ? f.id : f.k, v = vals[key];
     let cv = null;
     if (f.k === 'coche') { if (v === true || v === 'o') cv = pvgTick(f.w, f.h, seed + f.id); }
     else if (v) cv = await pvgInk(String(v), f.w, f.h, f.size || Math.max(9, Math.min(22, f.h * .78)), seed + f.id, f.align === 'left' ? 'left' : 'center');
     if (!cv) continue;
-    G.drawImage(cv, f.x * PVG_K, f.y * PVG_K, f.w * PVG_K, f.h * PVG_K); any = true;
+    ops.push({ cv, x: f.x, y: f.y, w: f.w, h: f.h });
   }
-  if (any) { const png = await out.embedPng(await new Promise(r => big.toBlob(b => b.arrayBuffer().then(r), 'image/png'))); pg.drawImage(png, { x: 0, y: 0, width: PW, height: PH }); }
-  big.width = big.height = 0;
+  await pvgCompose(out, pg, ops);
   return new Blob([await out.save()], { type: 'application/pdf' });
 }
 // remplir pour une ligne du programme
@@ -124,20 +122,17 @@ async function ftNew(p) {
   const tpl = { id: DB.uid(), name: r.n, fileId: rec.id, fields: [] }; ftList(p).push(tpl); await DB.put('projects', p);
   await ftEditor(p, tpl); return tpl;
 }
-// menu « Fiches » d'une ligne : modèle intégré + modèles de l'utilisateur
-async function ficheMenu(p, day, r, save) {
-  const L = ftList(p), done = r.fiches || {};
-  const v = await menu('Fiche à remplir', [{ label: `📝 Fiche de contrôle ferraillage${r.pvGenId ? '  ✓' : ''}`, value: '__pv' }, ...L.map(t => ({ label: `📄 ${t.name}${done[t.id] ? '  ✓' : ''}`, value: t.id })),
-    { label: '＋ Nouveau modèle (mon PDF)…', icon: 'plus', value: '__new' }, ...(L.length ? [{ label: 'Gérer les modèles…', icon: 'settings', value: '__man' }] : [])]);
+// « Fiche » d'une ligne : va directement au modèle choisi pour le projet (changer de modèle : bouton ⇄ à côté)
+async function ficheMenu(p, day, r, save, opt = {}) {
+  const id = fcSel(p);
+  if (opt.change) { if (await fcModelMenu(p)) toast(`Modèle : ${fcName(p, fcSel(p))}`); return; }
+  const f = fcFile(r, id);
+  if (!f) return fcEdit(p, day, r, id, save);
+  const v = await menu(`${fcName(p, id).replace(/\s*\(.*\)/, '')} · ${r.element}`, [{ label: 'Ouvrir la fiche', icon: 'pdf', value: 'open' }, { label: 'Modifier puis réécrire', icon: 'edit', value: 'edit' }, { label: 'Partager (WhatsApp, imprimer…)', icon: 'share', value: 'share' }, { label: 'Supprimer la fiche', icon: 'trash', danger: true, value: 'del' }]);
   if (!v) return;
-  if (v === '__pv') return pvgOpen(p, day, r, save);
-  if (v === '__new') { const t = await ftNew(p); if (t && t.fields.length) return ftFill(p, day, r, t, save); return; }
-  if (v === '__man') return ftManage(p);
-  const t = L.find(x => x.id === v); if (!t) return;
-  if (done[t.id]) { const a = await menu(t.name, [{ label: 'Ouvrir la fiche', icon: 'pdf', value: 'open' }, { label: 'Modifier puis regénérer', icon: 'edit', value: 'edit' }, { label: 'Partager', icon: 'share', value: 'share' }]);
-    if (a === 'open' || a === 'share') { const f = await DB.get('files', done[t.id]); if (f) { if (a === 'open') openFileRecord(f, f.name); else shareBlob(f.blob, f.name); } return; } if (a !== 'edit') return; }
-  if (!t.fields.length) { toast('Placez d\'abord les cases du modèle'); await ftEditor(p, t); if (!t.fields.length) return; }
-  return ftFill(p, day, r, t, save);
+  if (v === 'open' || v === 'share') { const rec = await DB.get('files', f); if (!rec) { await fcDel(r, id); await save(); return toast('Fiche introuvable'); } return v === 'open' ? openFileRecord(rec, rec.name) : shareBlob(rec.blob, rec.name); }
+  if (v === 'del') { if (await confirmBox('Supprimer cette fiche (aussi dans Drive) ?', 'Supprimer')) { await fcDel(r, id); await save(); toast('Fiche supprimée'); } return; }
+  return fcEdit(p, day, r, id, save);
 }
 async function ftManage(p) {
   const L = ftList(p), id = await menu('Modèles de fiches', L.map(t => ({ label: `${t.name} · ${t.fields.length} case(s)`, icon: 'pdf', value: t.id }))); if (!id) return;
@@ -200,13 +195,17 @@ async function fcModelMenu(p) {
 async function fcBox(p, day, box, save, rerender) {
   if (!box) return;
   const id = fcSel(p), rows = day.rows.map((r, i) => ({ r, i })).filter(x => x.r.element), done = rows.filter(x => fcFile(x.r, id)).length, miss = rows.length - done;
-  box.innerHTML = `<div class="fc-h">${icon('report')} Fiches de contrôle <span>${done}/${rows.length}</span></div>
+  let open = false; try { open = localStorage.getItem('fc.open') === '1'; } catch (e) {}
+  box.classList.toggle('open', open);
+  box.innerHTML = `<button class="fc-h" data-fc="tog">${icon('report')} Fiches de contrôle <span>${done}/${rows.length}</span><u>${icon('chevdown')}</u></button>
+    ${!open ? (rows.length && miss ? `<button class="fc-quick" data-fc="all">✍️ Écrire ${done ? `les ${miss} manquante(s)` : `toutes (${rows.length})`}</button>` : '') : `
     <button class="fc-model" data-fc="model"><span class="grow"><small>Modèle</small><b>${esc(fcName(p, id))}</b>${id === FC_PV && !p.pvTpl ? '<i>PDF vierge à donner une fois</i>' : ''}</span><u>Changer ›</u></button>
     ${rows.length ? `<div class="fc-list">${rows.map(({ r, i }) => { const f = fcFile(r, id); return `<div class="fc-r ${f ? 'ok' : ''}" data-fi="${i}"><div class="grow"><b>${esc(r.element)}</b><small>${f ? '✓ fiche écrite' : 'pas encore écrite'}${r.niv ? ' · ' + esc(r.niv) : ''}</small></div>
       ${f ? `<button data-fx="open" title="Ouvrir">${icon('eye')}</button><button data-fx="edit" title="Modifier">${icon('edit')}</button><button data-fx="del" class="d" title="Supprimer">${icon('trash')}</button>` : `<button data-fx="edit" title="Remplir puis écrire">${icon('edit')}</button><button data-fx="gen" class="g">✍️ Écrire</button>`}</div>`; }).join('')}</div>
     <div class="fc-act"><button class="btn" data-fc="all">✍️ ${done ? (miss ? `Écrire les ${miss} manquante(s)…` : 'Réécrire toutes les fiches') : `Écrire toutes les fiches (${rows.length})`}</button>${done ? `<button class="btn ghost" data-fc="pdf">${icon('pdf')} Un seul PDF (${done})</button>` : ''}</div>`
-    : '<div class="fc-none">Ajoutez des ouvrages dans le tableau pour écrire leurs fiches</div>'}`;
-  $('[data-fc=model]', box).onclick = async () => { if (await fcModelMenu(p)) rerender(); };
+    : '<div class="fc-none">Ajoutez des ouvrages dans le tableau pour écrire leurs fiches</div>'}`}`;
+  $('[data-fc=tog]', box).onclick = () => { try { localStorage.setItem('fc.open', open ? '0' : '1'); } catch (e) {} rerender(); };
+  const mb = $('[data-fc=model]', box); if (mb) mb.onclick = async () => { if (await fcModelMenu(p)) rerender(); };
   $$('[data-fx]', box).forEach(b => b.onclick = async (e) => {
     e.stopPropagation(); const r = day.rows[+b.closest('[data-fi]').dataset.fi], k = b.dataset.fx;
     if (k === 'open') { const f = await DB.get('files', fcFile(r, id)); if (f) openFileRecord(f, f.name); else { await fcDel(r, id); await save(); rerender(); } return; }
@@ -216,7 +215,8 @@ async function fcBox(p, day, box, save, rerender) {
   });
   const ab = $('[data-fc=all]', box); if (ab) ab.onclick = async () => {
     let list = rows.map(x => x.r);
-    if (done && miss) { const w = await menu('Écrire les fiches', [{ label: `Seulement les manquantes (${miss})`, icon: 'pen', value: 'm' }, { label: `Toutes, en réécrivant (${rows.length})`, icon: 'undo', value: 'a' }]); if (!w) return; if (w === 'm') list = list.filter(r => !fcFile(r, id)); }
+    if (!open && miss) list = list.filter(r => !fcFile(r, id));
+    else if (done && miss) { const w = await menu('Écrire les fiches', [{ label: `Seulement les manquantes (${miss})`, icon: 'pen', value: 'm' }, { label: `Toutes, en réécrivant (${rows.length})`, icon: 'undo', value: 'a' }]); if (!w) return; if (w === 'm') list = list.filter(r => !fcFile(r, id)); }
     else if (done && !await confirmBox(`Réécrire les ${rows.length} fiches ? (vos modifications sont gardées)`, 'Réécrire')) return;
     if (!(await fcReady(p, id))) return;
     const ld = loading(`Écriture des fiches… 0/${list.length}`); let n = 0;

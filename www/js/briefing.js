@@ -110,7 +110,7 @@ function briefAction(card) {
     if (card.k === 'lvs') { let it = card.items[0]; if (card.items.length > 1) { const v = await menu('Quelle paire ?', card.items.map((x, i) => ({ label: `${x.label} · ${x.sub}`, icon: 'layers', value: String(i) }))); it = v == null ? null : card.items[+v]; } if (!it) return; return briefGo(it.pid, () => lvsOpenPair(it.lowId, it.upId)); }
     const pid = await briefPick(card.items); if (!pid) { if (App.fromBrief) briefReopen(); return; }
     const go = (sec, extra) => briefGo(pid, async () => { App.section = sec; App.search = ''; if (extra) extra(); await renderSection(); });
-    if (card.k === 'rap') { App.fromBrief = null; App.homeFocus = pid; App.homeRap = App.homeRap || {}; App.homeRap[pid] = true; return renderHome(); }
+    if (card.k === 'rap') { App.fromBrief = null; App.homeOpen = App.homeOpen || {}; App.homeOpen[pid] = true; App.homeRap = App.homeRap || {}; App.homeRap[pid] = true; return renderHome(); }
     if (card.k === 'tasks') return go('tasks', () => { App.taskFilter = 'open'; });
     if (card.k === 'rec') return briefGo(pid, async () => { const d = card.days.find(x => x.projectId === pid); App.section = 'reception'; await renderSection(); if (d) openReceptionDay(d); });
     if (card.k === 'due') return go('dashboard');

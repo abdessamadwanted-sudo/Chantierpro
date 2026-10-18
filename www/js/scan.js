@@ -1,12 +1,18 @@
 // ================= Scanner de documents (façon CamScanner) : détection de la feuille, recadrage en perspective, filtre =================
 // scanDocuments(files) → Promise<File[]|null> : chaque photo est détectée automatiquement, ajustable aux 4 coins, redressée et nettoyée.
 async function scanLoad(file) {
-  const { blob } = await compressImage(file, 2600, 0.92);           // gère l'orientation EXIF
-  return createImageBitmap(blob);
+  // décodage natif (orientation EXIF comprise) puis réduction directe à 2400 px : pas de réencodage JPEG intermédiaire
+  try {
+    const full = await createImageBitmap(file, { imageOrientation: 'from-image' }), M = 2400, k = Math.min(1, M / Math.max(full.width, full.height));
+    if (k >= 1) return full;
+    const c = document.createElement('canvas'); c.width = Math.round(full.width * k); c.height = Math.round(full.height * k);
+    const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(full, 0, 0, c.width, c.height); full.close && full.close();
+    return createImageBitmap(c);
+  } catch (e) { const { blob } = await compressImage(file, 2400, 0.92); return createImageBitmap(blob); }
 }
 // détection de la feuille : seuil d'Otsu sur une image réduite, plus grande zone claire, puis 4 coins extrêmes
 function scanDetect(bmp) {
-  const S = 360 / Math.max(bmp.width, bmp.height), w = Math.max(8, Math.round(bmp.width * S)), h = Math.max(8, Math.round(bmp.height * S));
+  const S = 420 / Math.max(bmp.width, bmp.height), w = Math.max(8, Math.round(bmp.width * S)), h = Math.max(8, Math.round(bmp.height * S));
   const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d', { willReadFrequently: true });
   g.filter = 'blur(2px)'; g.drawImage(bmp, 0, 0, w, h);
   const d = g.getImageData(0, 0, w, h).data, L = new Uint8Array(w * h), hist = new Array(256).fill(0);
@@ -29,13 +35,35 @@ function scanDetect(bmp) {
   }
   const fallback = [[0.03, 0.03], [0.97, 0.03], [0.97, 0.97], [0.03, 0.97]].map(([x, y]) => [x * bmp.width, y * bmp.height]);
   if (bestN < N * 0.15 || bestN > N * 0.985) return fallback;
-  let tl = [0, 0, Infinity], tr = [0, 0, -Infinity], br = [0, 0, -Infinity], bl = [0, 0, -Infinity];
-  for (let i = 0; i < N; i++) { if (lab[i] !== bestC) continue; const x = i % w, y = (i / w) | 0;
-    if (x + y < tl[2]) tl = [x, y, x + y]; if (x - y > tr[2]) tr = [x, y, x - y]; if (x + y > br[2]) br = [x, y, x + y]; if (y - x > bl[2]) bl = [x, y, y - x]; }
-  const q = [tl, tr, br, bl].map(([x, y]) => [x / S, y / S]);
+  // bord de la feuille : premier et dernier pixel de chaque ligne et colonne → enveloppe convexe → 4 coins
+  const pts = [];
+  for (let y = 0; y < h; y++) { let a = -1, b = -1; for (let x = 0; x < w; x++) if (lab[y * w + x] === bestC) { if (a < 0) a = x; b = x; } if (a >= 0) { pts.push([a, y], [b + 1, y]); } }
+  for (let x = 0; x < w; x++) { let a = -1, b = -1; for (let y = 0; y < h; y++) if (lab[y * w + x] === bestC) { if (a < 0) a = y; b = y; } if (a >= 0) { pts.push([x, a], [x, b + 1]); } }
+  const q = scanQuad(pts).map(([x, y]) => [x / S, y / S]);
   // quadrilatère trop petit ou dégénéré → image entière
   const area = Math.abs(q.reduce((a, p, i) => { const r = q[(i + 1) % 4]; return a + p[0] * r[1] - r[0] * p[1]; }, 0)) / 2;
   return area < bmp.width * bmp.height * 0.12 ? fallback : q;
+}
+// quadrilatère d'aire maximale inscrit dans l'enveloppe convexe des points, rangé haut-gauche → haut-droit → bas-droit → bas-gauche
+function scanQuad(pts) {
+  pts = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]), lo = [], up = [];
+  for (const p of pts) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+  for (let i = pts.length - 1; i >= 0; i--) { const p = pts[i]; while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+  let H = lo.slice(0, -1).concat(up.slice(0, -1));
+  if (H.length > 60) { const st = H.length / 60; H = Array.from({ length: 60 }, (_, i) => H[Math.floor(i * st)]); }
+  const n = H.length; if (n < 4) return [[0, 0], [1, 0], [1, 1], [0, 1]];
+  const ar = (a, b, c) => Math.abs(cr(a, b, c)) / 2; let best = -1, Q = null;
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {        // diagonale i-j, meilleur point de chaque côté
+    let m1 = -1, a1 = -1, m2 = -1, a2 = -1;
+    for (let k = i + 1; k < j; k++) { const v = ar(H[i], H[j], H[k]); if (v > a1) { a1 = v; m1 = k; } }
+    for (let k = j + 1; k < n + i; k++) { const v = ar(H[i], H[j], H[k % n]); if (v > a2) { a2 = v; m2 = k % n; } }
+    if (m1 >= 0 && m2 >= 0 && a1 + a2 > best) { best = a1 + a2; Q = [H[i], H[m1], H[j], H[m2]]; } }
+  if (!Q) return [[0, 0], [1, 0], [1, 1], [0, 1]];
+  const cx = Q.reduce((s, p) => s + p[0], 0) / 4, cy = Q.reduce((s, p) => s + p[1], 0) / 4;
+  Q.sort((a, b) => Math.atan2(a[1] - cy, a[0] - cx) - Math.atan2(b[1] - cy, b[0] - cx));     // sens horaire (y vers le bas)
+  let s0 = 0; Q.forEach((p, i) => { if (p[0] + p[1] < Q[s0][0] + Q[s0][1]) s0 = i; });
+  return [0, 1, 2, 3].map(i => Q[(s0 + i) % 4]);
 }
 // homographie (4 points → 4 points), résolue par élimination de Gauss
 function scanHomography(src, dst) {
@@ -50,7 +78,7 @@ function scanHomography(src, dst) {
 function scanWarp(bmp, quad, rot, filter) {
   const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
   let W = Math.max(dist(quad[0], quad[1]), dist(quad[3], quad[2])), H = Math.max(dist(quad[0], quad[3]), dist(quad[1], quad[2]));
-  const k = Math.min(1, 2200 / Math.max(W, H)); W = Math.round(W * k); H = Math.round(H * k);
+  const k = Math.min(1, 2000 / Math.max(W, H)); W = Math.round(W * k); H = Math.round(H * k);
   const sc = document.createElement('canvas'); sc.width = bmp.width; sc.height = bmp.height; const sg = sc.getContext('2d', { willReadFrequently: true }); sg.drawImage(bmp, 0, 0);
   const sd = sg.getImageData(0, 0, bmp.width, bmp.height).data, SW = bmp.width, SH = bmp.height;
   const Hm = scanHomography([[0, 0], [W, 0], [W, H], [0, H]], quad);         // sortie → source
@@ -144,7 +172,7 @@ function scanDocuments(files) {
       try {
         for (const [j, d] of docs.entries()) { ld2.set(`Traitement… ${j + 1}/${docs.length}`); await new Promise(r => setTimeout(r, 20));
           const c = scanWarp(d.bmp, d.quad, d.rot, filter); const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.86));
-          out.push(new File([blob], (d.f.name || 'scan').replace(/\.\w+$/, '') + '_scan.jpg', { type: 'image/jpeg' })); }
+          const nf = new File([blob], (d.f.name || 'scan').replace(/\.\w+$/, '') + '_scan.jpg', { type: 'image/jpeg' }); nf._w = c.width; nf._h = c.height; out.push(nf); c.width = c.height = 0; }
       } catch (e) { console.error(e); ld2.close(); alertBox('Traitement impossible : ' + (e.message || e)); return; }
       ld2.close(); unBack(); el.remove(); resolve(out);
     };

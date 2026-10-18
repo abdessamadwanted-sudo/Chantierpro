@@ -35,7 +35,7 @@ const Splash = (() => {
   }
   // mur qui se construit brique par brique (bas de l'écran), une grue pose la dernière brique
   function wallHTML() {
-    const rows = 4, per = 9, out = [];
+    const rows = 2, per = 9, out = [];
     for (let r = 0; r < rows; r++) {
       const off = r % 2 ? -0.5 : 0, n = per + (r % 2 ? 1 : 0);
       for (let i = 0; i < n; i++) { const d = 0.35 + r * 0.22 + i * 0.045 + (r % 2 ? 0.02 : 0); const tone = 0.86 + ((i * 7 + r * 3) % 5) * 0.035;

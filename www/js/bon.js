@@ -25,7 +25,8 @@ function bonCfg(p) {
 // petites variations stables (même bon = même écriture)
 function bonRand(seed) { let s = 7; for (const ch of String(seed)) s = (s * 31 + ch.charCodeAt(0)) | 0; return () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; }; }
 // écriture « stylo » : police manuscrite, encre bleue, légère pente et irrégularités
-function bonHand(g, text, x, y, maxW, size, seed) {
+function bonHand(g, text, x, y, maxW, size, seed, opt) {
+  const pen = opt && opt.pen;
   text = String(text || '').trim(); if (!text) return;
   let fs = size;
   const setF = () => { g.font = `600 ${fs}px BonHand, 'Segoe Script', cursive`; };
@@ -39,9 +40,11 @@ function bonHand(g, text, x, y, maxW, size, seed) {
   g.save(); g.translate(x, y); g.rotate((R() - 0.5) * 0.035 - 0.012); g.textBaseline = 'alphabetic';
   let cx = 0; const wave = R() * 6.28, amp = fs * (0.025 + R() * 0.02);
   for (const [k, ch] of [...text].entries()) {
-    const sc = 0.93 + R() * 0.13, rot = (R() - 0.5) * 0.09, dy = Math.sin(wave + k * 0.55) * amp + (R() - 0.5) * fs * 0.05;
+    const sc = 0.93 + R() * (pen ? 0.17 : 0.13), rot = (R() - 0.5) * (pen ? 0.13 : 0.09), dy = Math.sin(wave + k * 0.55) * amp * (pen ? 1.35 : 1) + (R() - 0.5) * fs * (pen ? 0.07 : 0.05);
     g.save(); g.translate(cx, dy); g.rotate(rot); g.scale(sc, sc); g.transform(1, 0, -0.08 - R() * 0.06, 1, 0, 0);
-    g.globalAlpha = 0.86 + R() * 0.14; g.fillStyle = BON_INK; g.fillText(ch, 0, 0); g.restore();
+    g.globalAlpha = 0.86 + R() * 0.14; g.fillStyle = BON_INK; g.fillText(ch, 0, 0);
+    if (pen) { g.strokeStyle = BON_INK; g.lineJoin = 'round'; g.lineWidth = fs * (0.012 + R() * 0.02); g.globalAlpha *= 0.55; g.strokeText(ch, fs * 0.006, fs * 0.004); }   // stylo bille : trait plus ou moins appuyé
+    g.restore();
     cx += g.measureText(ch).width * sc * (sp - 0.03 + R() * 0.05) + (ch === ' ' ? fs * (0.1 + R() * 0.06) : 0);
   }
   g.restore();
@@ -300,4 +303,28 @@ async function bonsPdf(p, bons, name = 'Bons de bétonnage') {
     ld.close();
     await shareBlob(blob, `${name}.pdf`.replace(/[\\/:*?"<>|]+/g, '-'), 'application/pdf');
   } catch (e) { ld.close(); alertBox('PDF impossible : ' + (e.message || e)); }
+}
+
+// ================= Bons de bétonnage sous le programme de bétonnage : ceux des lignes + bons libres remplis à la main =================
+async function bonBox(p, day, box, save, rerender) {
+  if (!box) return;
+  day.bons = day.bons || [];
+  if (p.bons && p.bons.some(b => b.date === day.date)) { day.bons.push(...p.bons.filter(b => b.date === day.date && !day.bons.some(x => x.id === b.id))); p.bons = p.bons.filter(b => b.date !== day.date); await DB.put('projects', p); await save(); }   // anciens bons libres rangés dans leur jour
+  const list = [...day.rows.map((r, i) => r.bon ? { b: r.bon, i, label: r.element || [r.bon.ouvrage, r.bon.partie].filter(Boolean).join(' ') } : null).filter(Boolean), ...day.bons.map(b => ({ b, i: -1, label: [b.ouvrage, b.partie].filter(Boolean).join(' ') || 'Bon libre' }))];
+  let open = false; try { open = localStorage.getItem('bn.open') === '1'; } catch (e) {}
+  box.classList.toggle('open', open);
+  box.innerHTML = `<button class="fc-h" data-bn="tog">📝 Bons de bétonnage <span>${list.length}</span><u>${icon('chevdown')}</u></button>
+    ${!open ? `<button class="fc-quick" data-bn="new">＋ Nouveau bon (à remplir)</button>` : `
+    ${list.length ? `<div class="fc-list">${list.map((x, k) => `<div class="fc-r ok" data-bk="${k}"><div class="grow"><b>${esc(x.label)}</b><small>${x.i < 0 ? 'bon libre' : 'depuis le tableau'}${x.b.date ? ' · ' + fmtDate(x.b.date) : ''}</small></div>
+      <button data-bx="open" title="Voir / modifier">${icon('edit')}</button><button data-bx="del" class="d" title="Supprimer">${icon('trash')}</button></div>`).join('')}</div>` : '<div class="fc-none">Aucun bon pour ce jour</div>'}
+    <div class="fc-act"><button class="btn" data-bn="new">＋ Nouveau bon (à remplir)</button>${list.length ? `<button class="btn ghost" data-bn="pdf">${icon('pdf')} PDF des bons (6 par page)</button>` : ''}</div>`}`;
+  $('[data-bn=tog]', box).onclick = () => { try { localStorage.setItem('bn.open', open ? '0' : '1'); } catch (e) {} rerender(); };
+  const onSaveOf = (x) => async (bb) => { if (x.i >= 0) day.rows[x.i].bon = bb; else { const j = day.bons.findIndex(b => b.id === bb.id); if (j >= 0) day.bons[j] = bb; else day.bons.push(bb); } await save(); };
+  const onDelOf = (x) => async (bb) => { if (x.i >= 0) day.rows[x.i].bon = null; else day.bons = day.bons.filter(b => b.id !== bb.id); await save(); };
+  $$('[data-bn=new]', box).forEach(b => b.onclick = async () => { const cfg = bonCfg(p), nb = { id: DB.uid(), date: day.date, area: '', zone: '', ouvrage: '', partie: '', type: '', sig: { ...(cfg.last || {}) } };
+    await openBon(p, nb, onSaveOf({ i: -1 }), onDelOf({ i: -1 })); rerender(); });
+  $$('[data-bx]', box).forEach(b => b.onclick = async () => { const x = list[+b.closest('[data-bk]').dataset.bk];
+    if (b.dataset.bx === 'del') { if (!await confirmBox(`Supprimer le bon « ${x.label} » (aussi dans Drive) ?`, 'Supprimer')) return; if (x.b.fileId) await DB.del('files', x.b.fileId).catch(() => {}); await onDelOf(x)(x.b); toast('Bon supprimé'); return rerender(); }
+    await openBon(p, { ...x.b, sig: { ...(x.b.sig || {}) } }, onSaveOf(x), onDelOf(x)); rerender(); });
+  const pb = $('[data-bn=pdf]', box); if (pb) pb.onclick = () => bonsPdf(p, list.map(x => x.b), `Bons de bétonnage ${fmtDate(day.date).replace(/\//g, '-')}`);
 }

@@ -61,6 +61,7 @@ async function fileURL(fileId) {
 }
 async function saveImageFile(projectId, file, role = 'photo', extra = {}) {
   const hq = extra.hq; delete extra.hq;
+  if (file._w && /jpe?g/i.test(file.type || '')) return DB.put('files', { projectId, blob: file, mime: 'image/jpeg', name: file.name, role, w: file._w, h: file._h, ...extra });   // déjà recadrée et compressée
   const { blob, w, h } = await compressImage(file, role === 'plan' ? 5000 : hq ? 2200 : 1600, role === 'plan' ? 0.93 : hq ? 0.86 : 0.82);
   return DB.put('files', { projectId, blob, mime: 'image/jpeg', name: file.name, role, w, h, ...extra });
 }
@@ -102,7 +103,7 @@ const rapLabel = (x) => { const d = rapDays(x); return d < 0 ? ` · en retard de
 async function renderHome() {
   App.fromBrief = null;
   const keepScroll = App.project ? 0 : (($('.h2-body') || {}).scrollTop || 0);
-  if (App.project && App.homeFocus !== false) App.homeFocus = App.project.id;   // retour d'un projet : on revient sur sa page
+  App.homeFocus = null;   // plus de page intermédiaire : la liste des chantiers, un toucher = on entre
   App.project = null;
   BackStack.length = 0;
   const projects = (await DB.all('projects')).sort((a, b) => b.updatedAt - a.updatedAt);
@@ -162,7 +163,7 @@ async function renderHome() {
       </div>
       <div class="h2-body">
         ${fp ? focusHTML() : `<div class="h2-sec"><span>Mes chantiers</span><small>${projects.length}</small></div>
-        ${projects.length ? projects.map(p => { const st = stats(p), [c1, c2] = hue(p.name), open = false;
+        ${projects.length ? projects.map(p => { const st = stats(p), [c1, c2] = hue(p.name), open = !!App.homeOpen[p.id];
           const due = (x) => x.at && x.at.slice(0, 10) <= today;
           const ropen = !!(App.homeRap || {})[p.id];
           if (!fRec) { st.today = 0; st.pv = 0; } if (!fTasks) { st.open = 0; st.late = 0; }
@@ -177,9 +178,8 @@ async function renderHome() {
                 ${st.av ? `<i class="${st.av.late ? 'c-r' : 'c-b'}">🏗️ ${st.av.pct}%${st.av.late ? ` · ${st.av.late} en retard` : ''}</i>` : ''}
                 ${!st.today && !st.pv && !st.open && !st.rap.length && !(st.av && st.av.late) ? '<i class="c-g">À jour ✓</i>' : ''}
               </span></span>
-            <span class="h2-chev">${icon('chevdown')}</span></button>
-            ${open ? `<button class="btn h2-openbtn" data-open="${p.id}">Ouvrir le projet ${icon('chevright')}</button>` : ''}</div>
-            ${open ? detHTML(p, st) : ''}</div>`; }).join('')
+            <span class="h2-chev" data-det="${p.id}" style="transform:rotate(${open ? 180 : 0}deg)">${icon('chevdown')}</span></button></div>
+            ${open ? `<div class="h2-detw"><button class="h2-bbrief" data-brief="${p.id}">☀️ Briefing du chantier</button>${detHTML(p, st)}</div>` : ''}</div>`; }).join('')
         : `<div class="h2-empty"><div class="ic">${icon('hard')}</div><b>Aucun chantier pour le moment</b><span>Créez votre premier projet avec le bouton <b>+</b>, ou récupérez vos données avec Google Drive.</span>
             <button class="btn ghost" data-a="restore2" style="flex:none">${icon('undo')} Restaurer une sauvegarde</button></div>`}`}
       </div>
@@ -192,9 +192,12 @@ async function renderHome() {
   // toucher un chantier : son briefing, puis « Entrer » → la page du chantier
   const focusOn = async (id) => { App.homeFocus = id; await renderHome(); $('#app .h2-body') && ($('#app .h2-body').scrollTop = 0);
     if (typeof briefingShow === 'function') { const act = await briefingShow({ pid: id }).catch(e => { console.warn(e); return null; }); if (act) act(); } };
-  $$('.h2-card[data-id]').forEach(r => r.onclick = async (e) => { const pv = e.target.closest('[data-pvgo]'); if (pv) { await openProject(await DB.get('projects', pv.dataset.pvgo)); return goMissingPv(); } focusOn(r.dataset.id); });
+  // un toucher sur le chantier = on entre (page Plans) ; la flèche ⌄ déplie les chiffres et le briefing
+  $$('.h2-card[data-id]').forEach(r => r.onclick = async (e) => { const pv = e.target.closest('[data-pvgo]'); if (pv) { await openProject(await DB.get('projects', pv.dataset.pvgo)); return goMissingPv(); }
+    const dt = e.target.closest('[data-det]'); if (dt) { e.stopPropagation(); App.homeOpen[dt.dataset.det] = !App.homeOpen[dt.dataset.det]; return renderHome(); }
+    openProject(await DB.get('projects', r.dataset.id)); });
   const unf = $('[data-a=unfocus]'); if (unf) { unf.onclick = () => { App.homeFocus = false; renderHome().then(() => { App.homeFocus = null; }); }; pushBack(() => unf.onclick()); }
-  const bb = $('[data-brief]'); if (bb) bb.onclick = async () => { const act = await briefingShow({ pid: bb.dataset.brief }); if (act) act(); };
+  $$('[data-brief]').forEach(bb => bb.onclick = async () => { const act = await briefingShow({ pid: bb.dataset.brief }); if (act) act(); });
   $$('[data-open]').forEach(b => b.onclick = async () => openProject(await DB.get('projects', b.dataset.open)));
   $$('[data-go]').forEach(b => b.onclick = async () => {
     const [pid, where] = b.dataset.go.split('|'); const p = await DB.get('projects', pid);
@@ -236,7 +239,8 @@ async function renderHome() {
         { label: 'Restaurer une sauvegarde', sub: 'fichier .zip ou .chantier', icon: 'undo', value: 'restore' },
         { label: 'Corbeille', sub: 'lignes et tableaux supprimés (30 jours)', icon: 'trash', value: 'trash' }] },
       { title: 'Outils', color: '#f59e0b', items: [
-        { label: 'Outils PDF', sub: 'fusionner · diviser · pages', icon: 'pdf', value: 'pdf' },
+        { label: 'Outils PDF', sub: 'fusionner · diviser · pages · compresser', icon: 'pdf', value: 'pdf' },
+        { label: 'Studio photo', sub: 'auto · document · lumière · netteté · recadrage', icon: 'camera', value: 'photo' },
         { label: 'Tableau de dessin', icon: 'brush', value: 'board' },
         { label: 'Fonctions affichées', sub: 'masquer ce qui ne sert pas', icon: 'grid', value: 'feat' }] },
       { title: 'Application', color: '#64748b', items: [
@@ -253,6 +257,7 @@ async function renderHome() {
     if (v === 'feat') chooseMyFeatures();
     if (v === 'upd') checkUpdate(true);
     if (v === 'pdf') openPdfTools();
+    if (v === 'photo') photoStudioTool();
     if (v === 'name') askName();
     if (v === 'board') openBoardTool();
     if (v === 'lic') openLicences();
@@ -312,6 +317,10 @@ async function renderSection() {
   BackStack.length = 0;
   if (!SECTIONS[App.section] || !sectionOn(App.section)) App.section = 'plans';
   pushBack(() => { if (App.fromBrief && typeof briefReopen === 'function') return briefReopen(); if (App.section !== 'plans') { App.section = 'plans'; App.search = ''; renderSection(); } else renderHome(); });
+  // retour intelligent : chaque page du chantier retrouve sa position quand on y revient
+  App.secScroll = App.secScroll || {};
+  const c0 = $('#content'); if (c0 && App.lastSecKey) App.secScroll[App.lastSecKey] = [c0.scrollTop, (document.scrollingElement || {}).scrollTop || 0];
+  const secKey = App.project.id + '|' + App.section; App.lastSecKey = secKey;
   const s = SECTIONS[App.section];
   $('#app').innerHTML = `
     <div class="topbar dark">
@@ -323,6 +332,7 @@ async function renderSection() {
   $('[data-a=drawer]').onclick = openDrawer;
   const hb = $('[data-a=home]'); if (hb) hb.onclick = renderHome;
   await s.render($('#content'));
+  const sv = App.secScroll[secKey]; if (sv && !App.scrollFolder) requestAnimationFrame(() => { const c1 = $('#content'); if (c1 && App.lastSecKey === secKey) { c1.scrollTop = sv[0]; if (document.scrollingElement) document.scrollingElement.scrollTop = sv[1]; } });
 }
 
 async function openDrawer(opts = {}) {
@@ -348,7 +358,8 @@ async function openDrawer(opts = {}) {
     <div class="drawer-head"><h3>${esc(App.project.name)}</h3><button class="iconbtn" data-home>${icon('home')}</button></div>
     <div class="dr-scroll">${drawerSections((k) => { const s = SECTIONS[k]; return `<button class="item ${App.section === k || (k === 'reception' && App.section === 'beton') ? 'active' : ''}" data-s="${k === 'reception' && App.section === 'beton' ? 'beton' : k}">${icon(s.icon)}<span>${s.label}</span>${k === 'reception' && nPv ? `<span class="count pvbadge">${nPv} PV</span>` : ''}${k === 'tasks' ? `<span class="count dr-rt" data-rtog>${tasks.filter(t => t.status === 'open').length || ''}<i style="display:inline-block;transform:rotate(${resOpen ? 180 : 0}deg)">${icon('chevdown', 'style="width:18px;height:18px"')}</i></span>` : ''}</button>${k === 'tasks' ? `<div class="dr-sub" style="${resOpen ? '' : 'display:none'}">${resRows}</div>` : ''}`; })}
     <div class="dr-g ${(() => { try { const v = localStorage.getItem('dr.g.tools'); return v === '1'; } catch (e) { return false; } })() ? 'open' : ''}" data-g="tools"><button class="group dr-gh" data-gt="tools"><span>🧰 Outils</span><i>5</i>${icon('chevdown', 'style="width:16px;height:16px"')}</button><div class="dr-gb">
-    <button class="item" data-tool="pdf">${icon('pdf')}<span>Outils PDF</span><span class="count" style="font-size:12px;opacity:.6">fusionner · diviser</span></button>
+    <button class="item" data-tool="pdf">${icon('pdf')}<span>Outils PDF</span><span class="count" style="font-size:12px;opacity:.6">fusionner · pages · compresser</span></button>
+    <button class="item" data-tool="photo">${icon('camera')}<span>Studio photo</span><span class="count" style="font-size:12px;opacity:.6">auto · document · netteté</span></button>
     <button class="item" data-tool="board">${icon('brush')}<span>Tableau de dessin</span><span class="count" style="font-size:12px;opacity:.6">${(App.project.boards || []).length || ''}</span></button>
     <button class="item" data-tool="bar">${icon('rows')}<span>Dessiner une barre</span><span class="count" style="font-size:12px;opacity:.6">façonnage</span></button>
     <button class="item" data-tool="lang">${icon('globe')}<span>Langue</span><span class="count" style="font-size:12px;opacity:.6">${(LANGS.find(l => l[0] === Lang.cur) || [])[1] || ''}</span></button>
@@ -388,7 +399,7 @@ async function openDrawer(opts = {}) {
     // appui long : monter / descendre / changer de groupe
     if (b.dataset.s !== 'settings') b.oncontextmenu = (e) => { e.preventDefault(); lp = true; setTimeout(() => { lp = false; }, 600); drMove(b.dataset.s === 'beton' ? 'reception' : b.dataset.s, () => { remove(); openDrawer(); }); }; });
   const dro = $('[data-a=drorg]', d); if (dro) dro.onclick = async () => { const k = await menu('Organiser le menu : quelle rubrique ?', [...$$('.dr-scroll [data-s]', d)].map(b => ({ label: b.querySelector('span').textContent, value: b.dataset.s === 'beton' ? 'reception' : b.dataset.s }))); if (k) drMove(k, () => { remove(); openDrawer(); }); };
-  $$('[data-tool]', d).forEach(b => b.onclick = () => { close(); const t = b.dataset.tool; if (t === 'pdf') openPdfTools(); else if (t === 'board') openBoardTool(); else if (t === 'bar') openBarTool(); else if (t === 'lang') chooseLang(); else addRappel(App.project.id); });
+  $$('[data-tool]', d).forEach(b => b.onclick = () => { close(); const t = b.dataset.tool; if (t === 'pdf') openPdfTools(); else if (t === 'photo') photoStudioTool(); else if (t === 'board') openBoardTool(); else if (t === 'bar') openBarTool(); else if (t === 'lang') chooseLang(); else addRappel(App.project.id); });
   $$('[data-q]', d).forEach(b => b.onclick = (e) => { close(); quickLink(b.dataset.q, !!e.target.closest('[data-qe]')); });
   $$('[data-f]', d).forEach(b => b.onclick = () => { close(); App.section = 'tasks'; App.taskFilter = b.dataset.f; App.companyFilter = 'all'; renderSection(); });
 }
@@ -458,7 +469,7 @@ async function renderPlans(root) {
     const add = document.createElement('div');
     add.className = App.planView === 'grid' ? 'ptile add' : 'prow';
     add.innerHTML = App.planView === 'grid' ? `${icon('plus')}<span>Ajouter un plan</span>` : `<span class="pic" style="color:var(--accent)">${icon('plus')}</span><div class="nm" style="color:var(--accent)">Ajouter un plan</div>`;
-    add.onclick = async () => { const t0 = Date.now(), sel = lotF ? lotSelOf(lotF.id) : ''; await addPlanTo(f.id === '_none' ? null : f.id, folders, root); if (sel && f.id !== '_none') { await tagNewPlans(pid, f.id, sel, t0); renderPlans(root); } };
+    add.onclick = async () => { const sel = lotF ? lotSelOf(lotF.id) : ''; App.newPlanLot = sel || null; try { await addPlanTo(f.id === '_none' ? null : f.id, folders, root); } finally { App.newPlanLot = null; } if (sel) renderPlans(root); };   // le plan reste dans le lot ouvert
     if (lotF && lotSelOf(lotF.id) && !list.length && ps.length) grid.insertAdjacentHTML('afterbegin', `<div class="lot-empty">Aucun plan de ce lot ici.</div>`);
     grid.appendChild(add);
   };
@@ -560,7 +571,7 @@ async function addPlanTo(folderId, folders, root) {
     { label: 'Depuis le téléphone (PDF / image)', icon: 'plans', value: 'phone' },
     { label: 'Depuis Google Drive (lien)', icon: 'drive', value: 'drive' },
   ]);
-  if (v) importPlans(folders, root, v === 'drive', folderId);
+  if (v) return importPlans(folders, root, v === 'drive', folderId);
 }
 
 const FOLDER_COLORS = [
@@ -633,7 +644,7 @@ async function importPlans(folders, root, fromDrive = false, presetFolder) {
     for (const file of files) {
       const base = file.name.replace(/\.[^.]+$/, '');
       if (/\.(dwg|dxf)$/i.test(file.name)) {   // AutoCAD : DXF affiché comme plan (le DWG est expliqué)
-        for (const im of await fileToPlanImages(file, pid, ld)) await DB.put('plans', { projectId: pid, folderId, fileId: im.fileId, dxfFileId: im.dxfFileId, dwgFileId: im.dwgFileId || null, w: im.w, h: im.h, name: im.name, annotations: [], indice: 'A' });
+        for (const im of await fileToPlanImages(file, pid, ld)) await DB.put('plans', { projectId: pid, folderId, lotId: App.newPlanLot || null, fileId: im.fileId, dxfFileId: im.dxfFileId, dwgFileId: im.dwgFileId || null, w: im.w, h: im.h, name: im.name, annotations: [], indice: 'A' });
         continue;
       }
       if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf' && !isRasterImage(file)) { await alertBox(`Format non pris en charge : ${file.name}`); continue; }
@@ -643,11 +654,11 @@ async function importPlans(folders, root, fromDrive = false, presetFolder) {
         const src = await DB.put('files', { projectId: pid, blob: file, mime: 'application/pdf', role: 'plansrc', name: file.name });
         for (const pg of pages) {
           const f = await DB.put('files', { projectId: pid, blob: pg.blob, mime: 'image/jpeg', role: 'plan', w: pg.w, h: pg.h, name: file.name });
-          await DB.put('plans', { projectId: pid, folderId, fileId: f.id, pdfFileId: src.id, pdfPage: pg.page, w: pg.w, h: pg.h, name: pages.length > 1 ? `${base} - p${pg.page}` : base, annotations: [] });
+          await DB.put('plans', { projectId: pid, folderId, lotId: App.newPlanLot || null, fileId: f.id, pdfFileId: src.id, pdfPage: pg.page, w: pg.w, h: pg.h, name: pages.length > 1 ? `${base} - p${pg.page}` : base, annotations: [] });
         }
       } else {
         const f = await saveImageFile(pid, file, 'plan');
-        await DB.put('plans', { projectId: pid, folderId, fileId: f.id, w: f.w, h: f.h, name: base, annotations: [] });
+        await DB.put('plans', { projectId: pid, folderId, lotId: App.newPlanLot || null, fileId: f.id, w: f.w, h: f.h, name: base, annotations: [] });
       }
     }
     if (folderId) { App.openFolders[folderId] = true; const fo = folders.find(x => x.id === folderId); if (fo && fo.parentId) App.openFolders[fo.parentId] = true; } else App.openFolders._none = true;
@@ -1558,7 +1569,7 @@ async function addRappel(pid, editId) {
   await DB.put('projects', p);
   await scheduleNotif(p, x);
   toast(r.time ? 'Rappel enregistré — sonnerie programmée 🔔' : 'Rappel enregistré ✓');
-  if (!App.project) { App.homeFocus = pid; renderHome(); }
+  if (!App.project) { App.homeOpen = App.homeOpen || {}; App.homeOpen[pid] = true; renderHome(); }
   else App.project = p;
 }
 

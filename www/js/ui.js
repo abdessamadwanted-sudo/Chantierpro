@@ -301,12 +301,14 @@ function showGallery(items, start = 0, opts = {}) {
   let i = Math.max(0, Math.min(start, items.length - 1)), dx = 0, zoom = 1, px = 0, py = 0;
   const el = document.createElement('div');
   el.className = 'lightbox gallery g2';
-  el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1 class="gl-cap"></h1><span class="gl-n"></span>${items.some(x => x.fileId) ? `<button class="iconbtn" data-a="rotl" title="Tourner à gauche"><svg class="i" viewBox="0 0 24 24"><path d="M3 4v5h5"/><path d="M3.5 9a9 9 0 1 1-.3 5"/></svg></button><button class="iconbtn" data-a="rot" title="Tourner à droite"><svg class="i" viewBox="0 0 24 24"><path d="M21 4v5h-5"/><path d="M20.5 9a9 9 0 1 0 .3 5"/></svg></button>` : ''}${opts.onDelete ? `<button class="iconbtn" data-a="gdel" title="Supprimer">${icon('trash')}</button>` : ''}</div>
+  el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1 class="gl-cap"></h1><span class="gl-n"></span>${items.some(x => x.fileId) ? `<button class="iconbtn" data-a="rotl" title="Tourner à gauche"><svg class="i" viewBox="0 0 24 24"><path d="M3 4v5h5"/><path d="M3.5 9a9 9 0 1 1-.3 5"/></svg></button><button class="iconbtn" data-a="rot" title="Tourner à droite"><svg class="i" viewBox="0 0 24 24"><path d="M21 4v5h-5"/><path d="M20.5 9a9 9 0 1 0 .3 5"/></svg></button>` : ''}${items.some(x => x.fileId) && typeof openPhotoStudio === 'function' ? '<button class="iconbtn" data-a="gfx" title="Améliorer la photo">✨</button>' : ''}${opts.onDelete ? `<button class="iconbtn" data-a="gdel" title="Supprimer">${icon('trash')}</button>` : ''}</div>
     <div class="g2-stage"><div class="g2-track"><div class="g2-s"><img draggable="false"></div><div class="g2-s"><img draggable="false"></div><div class="g2-s"><img draggable="false"></div></div></div>
     ${items.length > 1 ? `<div class="g2-strip">${items.map((it, k) => `<button data-k="${k}"><img data-k="${k}" alt=""></button>`).join('')}</div>` : ''}`;
   document.body.appendChild(el);
   const unBack = pushBack(() => el.remove());
   $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
+  const gfx = $('[data-a=gfx]', el); if (gfx) gfx.onclick = async () => { const it = items[i]; if (!it || !it.fileId) return toast('Photo non modifiable ici'); const f = await DB.get('files', it.fileId); if (!f || !f.blob) return toast('Photo seulement dans Drive : ouvrez-la d\'abord');
+    const b = await openPhotoStudio({ blob: f.blob, name: f.name, fileId: it.fileId }); if (b) { it.src = BlobURL.get(it.fileId, b); show(); } };
   const gd = $('[data-a=gdel]', el); if (gd) gd.onclick = async () => {
     if (!await confirmBox('Supprimer cette photo ?', 'Supprimer')) return;
     if (await opts.onDelete(items[i], i) === false) return;

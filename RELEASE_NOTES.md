@@ -1,5 +1,36 @@
-### Nouveautés
-- **Fiches de contrôle sous le programme de réception** : un bloc liste toutes les parties du jour. Pour chacune : ✍️ Écrire, 👁 Ouvrir, ✏️ Modifier, 🗑 Supprimer. Il y a aussi « Écrire toutes les fiches » (ou seulement les manquantes) et « Un seul PDF ».
-- **Choix du modèle** : la fiche intégrée ou vos modèles PDF. On peut donner un nouveau modèle et changer le PDF. Le PDF du modèle est gardé tel quel, l'écriture manuscrite est posée par-dessus.
-- **PV reçu / livré** : les deux boutons sont maintenant indépendants (tableau, fiche de la ligne, briefing).
-- **Correction** : la demande du PDF modèle n'est plus cachée derrière « Écriture de la fiche… ».
+### Nouveautés (21 corrections et ajouts)
+- **Tableau de réception** :
+  - plus compact : Reçu / Livré côte à côte ;
+  - zoom à deux doigts (bornes logiques, gardé) ;
+  - colonne PV juste après la partie d'ouvrage ;
+  - on revient toujours au même endroit.
+- **Fiche de la ligne** :
+  - photos, anomalies et réparations en volets repliables ;
+  - bouton direct vers le modèle de fiche choisi, et ⇄ pour en changer.
+- **Fiches de contrôle** :
+  - bloc repliable avec « Écrire toutes » ;
+  - écriture nette au zoom (haute définition) et plus manuscrite (stylo bille) ;
+  - nom et signature enregistrés copiés en contrôle interne et externe.
+- **PV photographiés** :
+  - ajout bien plus rapide ;
+  - recadrage automatique amélioré (feuille de travers comprise) avec réglage des 4 coins à la main ;
+  - suppression instantanée ;
+  - PDF du jour mis à jour en arrière-plan.
+- **Bons de bétonnage** : bloc sous le programme de bétonnage, avec nouveau bon à remplir à la main, modifier, supprimer et PDF.
+- **Plans** :
+  - un plan ajouté dans un lot reste dans ce lot ;
+  - écran épuré (👁 + ⋮), règle retirée ;
+  - icône Formes avec indicateur ouvert / fermé ;
+  - polyligne : loupe qui montre les traits, fermeture auto en touchant le 1er point, bouton Fermer, points déplaçables en direct.
+- **PDF annoté partagé** : les dessins sont écrits en vectoriel sur le plan PDF, nets sur WhatsApp.
+- **Lots** : « ＋ Rubrique », un tableau à soi (colonnes au choix) par niveau, avec export / import Excel.
+- **Accueil** :
+  - un toucher sur le chantier ouvre directement les Plans ;
+  - chiffres et briefing dans la flèche ⌄.
+- **Thème Net clair** : stable (sans mode sombre automatique d'Android).
+- **Écran d'ouverture** : mur réduit, grue plus petite.
+- **Studio photo** :
+  - réglages auto, document, noir & blanc, lumière, contraste, couleurs, chaleur, ombres et netteté ;
+  - recadrage et rotation ;
+  - aussi via ✨ dans la galerie.
+- **Outils PDF** : rotation des pages, compression (léger pour WhatsApp), numéros de page, ✨ pour améliorer les photos.

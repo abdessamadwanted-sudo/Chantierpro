@@ -321,26 +321,36 @@ function openReceptionDay(day, opts = {}) {
 
     const K = kindOf(day);
     if (isBeton(K)) el.classList.add('rec-compact');
+    { let RZ = 1; try { RZ = Math.max(.55, Math.min(1.6, +localStorage.getItem('rec.zoom') || 1)); } catch (e) {} el.style.setProperty('--rz', RZ); let pz = null;
+      const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+      el.addEventListener('touchstart', (e) => { const w = e.target.closest && e.target.closest('.rec-wrap'); if (e.touches.length === 2 && w) pz = { d: dist(e.touches), z: RZ, w }; }, { passive: true });
+      el.addEventListener('touchmove', (e) => { if (!pz || e.touches.length !== 2) return; e.preventDefault();
+        const nz = Math.max(.55, Math.min(1.6, pz.z * dist(e.touches) / pz.d)), k = nz / RZ; if (Math.abs(k - 1) < .004) return;
+        const R = pz.w.getBoundingClientRect(), mx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - R.left, my = (e.touches[0].clientY + e.touches[1].clientY) / 2 - R.top;
+        RZ = nz; el.style.setProperty('--rz', RZ.toFixed(3)); pz.w.scrollLeft = (pz.w.scrollLeft + mx) * k - mx; pz.w.scrollTop = (pz.w.scrollTop + my) * k - my; }, { passive: false });
+      el.addEventListener('touchend', (e) => { if (pz && e.touches.length < 2) { pz = null; try { localStorage.setItem('rec.zoom', RZ.toFixed(3)); } catch (er) {} } }); }
     const NC = isBeton(K) ? 10 : 12;
     let NAMES = [];
     DB.byProject('receptions', day.projectId).then(l => { NAMES = [...new Set(l.flatMap(d => d.rows.map(r => (r.avec || '').trim()).filter(Boolean)))]; });
     const [PH1, PH2] = photoLabels(K);
     // Fusionne les photos des PV du jour en un seul PDF (une page A4 par photo)
+    // PDF du jour : les photos (déjà en JPEG) sont copiées telles quelles dans le PDF → rapide, sans réencodage
     async function mergePv() {
-      const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: 'mm', format: 'a4' }); let first = true;
+      const PDFLib = await needPdfLib(), doc = await PDFLib.PDFDocument.create(); let n = 0;
       for (const id of day.pvIds || []) {
         const f = await DB.get('files', id); if (!f || !f.blob) continue;
-        const im = await blobToJpegURL(f.blob, 2000);
-        const land = im.w > im.h; if (!first) doc.addPage('a4', land ? 'l' : 'p'); else if (land) { doc.deletePage(1); doc.addPage('a4', 'l'); }
-        first = false;
-        const W = land ? 297 : 210, H = land ? 210 : 297, m = 6, k = Math.min((W - 2 * m) / im.w, (H - 2 * m) / im.h);
-        doc.addImage(im.url, 'JPEG', (W - im.w * k) / 2, (H - im.h * k) / 2, im.w * k, im.h * k);
+        let img; try { img = /png/i.test(f.mime || '') ? await doc.embedPng(await f.blob.arrayBuffer()) : await doc.embedJpg(await f.blob.arrayBuffer()); } catch (e) { const j = await blobToJpegURL(f.blob, 2000); img = await doc.embedJpg(await (await fetch(j.url)).arrayBuffer()); }
+        const land = img.width > img.height, W = land ? 841.89 : 595.28, H = land ? 595.28 : 841.89, m = 17, k = Math.min((W - 2 * m) / img.width, (H - 2 * m) / img.height);
+        doc.addPage([W, H]).drawImage(img, { x: (W - img.width * k) / 2, y: (H - img.height * k) / 2, width: img.width * k, height: img.height * k }); n++;
       }
-      if (first) return;
-      if (day.pvPdfId) await DB.del('files', day.pvPdfId);
-      const rec = await DB.put('files', { projectId: day.projectId, blob: doc.output('blob'), mime: 'application/pdf', role: 'pvpdf', name: `PV du ${day.date}.pdf` });
-      day.pvPdfId = rec.id;
+      const old = day.pvPdfId;
+      if (!n) { if (old) { await DB.del('files', old).catch(() => {}); day.pvPdfId = null; } return; }
+      const rec = await DB.put('files', { projectId: day.projectId, blob: new Blob([await doc.save()], { type: 'application/pdf' }), mime: 'application/pdf', role: 'pvpdf', name: `PV du ${day.date}.pdf` });
+      day.pvPdfId = rec.id; if (old && old !== rec.id) await DB.del('files', old).catch(() => {});
     }
+    // en arrière-plan, une seule à la fois (l'écran ne bloque plus)
+    let pvQ = Promise.resolve();
+    const mergeSoon = () => (pvQ = pvQ.then(() => mergePv()).then(() => save()).catch(e => console.warn('pdf PV', e)));
     let moveSel = -1;             // ligne sélectionnée pour la déplacer (appui long)
     let selId = hlId || null;      // ouvrage touché (surligné)
     // jours voisins (même type) pour passer d'un jour à l'autre
@@ -351,7 +361,7 @@ function openReceptionDay(day, opts = {}) {
     const sib = (dir) => { const i = SIBS.findIndex(d => d.id === day.id); return i < 0 ? null : SIBS[i + dir] || null; };
     async function goDay(dir) {
       const d2 = sib(dir); if (!d2) return toast(dir < 0 ? 'Premier jour' : 'Dernier jour');
-      await save(); day = (await DB.get('receptions', d2.id)) || d2; moveSel = -1;
+      await save(); day = (await DB.get('receptions', d2.id)) || d2; moveSel = -1; resetScroll = true;
       el.classList.remove('slide-l', 'slide-r'); void el.offsetWidth; el.classList.add(dir > 0 ? 'slide-l' : 'slide-r');
       render();
     }
@@ -364,8 +374,11 @@ function openReceptionDay(day, opts = {}) {
     const restore = async (j) => { const o = JSON.parse(j); day.rows = o.rows; day.pvIds = o.pvIds; await save(); render(); };
     const undo = async () => { if (hpos <= 0) return toast('Rien à annuler'); hpos--; await restore(hist[hpos]); toast('↶ Annulé'); };
     const redo = async () => { if (hpos >= hist.length - 1) return toast('Rien à rétablir'); hpos++; await restore(hist[hpos]); toast('↷ Rétabli'); };
+    let resetScroll = false;
     function render() {
       track();
+      const w0 = $('.rec-wrap', el), keep = w0 && !resetScroll ? [w0.scrollTop, w0.scrollLeft, el.scrollTop] : null; resetScroll = false;
+      requestAnimationFrame(() => { const w1 = $('.rec-wrap', el); if (keep && w1) { w1.scrollTop = keep[0]; w1.scrollLeft = keep[1]; el.scrollTop = keep[2]; } });
       const n = day.rows.filter(r => r.element).length, ok = day.rows.filter(r => r.status === 'ok').length, rs = day.rows.filter(r => r.status === (isBeton(K) ? 'progress' : 'reserve')).length;
       el.innerHTML = `
         <div class="topbar"><button class="iconbtn" data-a="back">${icon('back')}</button>
@@ -376,13 +389,13 @@ function openReceptionDay(day, opts = {}) {
         <div class="rec-wrap">
           <table class="rec">
             <thead>
-              <tr><th>Zone</th><th>NIV</th><th class="el">${recColHead(K)}</th>${isBeton(K) ? '<th>Classe béton</th>' : '<th class="ix">Ind. coff.</th><th class="ix">Ind. fer.</th>'}<th>Statut</th>${isBeton(K) ? '' : '<th>PV</th><th>Réceptionné avec</th>'}<th class="ob">Observation</th><th>${PH1}</th><th>${PH2}</th><th>Croquis</th>${isBeton(K) ? '<th>Décoffrage</th>' : ''}</tr>
+              <tr><th>Zone</th><th>NIV</th><th class="el">${recColHead(K)}</th>${isBeton(K) ? '<th>Classe béton</th>' : '<th class="pvh">PV</th><th class="ix">Ind. coff.</th><th class="ix">Ind. fer.</th>'}<th>Statut</th>${isBeton(K) ? '' : '<th>Réceptionné avec</th>'}<th class="ob">Observation</th><th>${PH1}</th><th>${PH2}</th><th>Croquis</th>${isBeton(K) ? '<th>Décoffrage</th>' : ''}</tr>
             </thead>
             <tbody>
               ${day.rows.map((r, i) => `<tr data-i="${i}" class="st-${r.status} ${moveSel === i ? 'moving' : ''} ${selId && r.id === selId ? 'sel' : ''} ${!isBeton(K) && r.element && r.status !== 'pending' && !r.pvLivre ? 'pv-nl' : ''}">
-                <td class="c">${esc(r.zone)}</td><td class="c">${esc(r.niv)}</td><td class="el">${esc(r.element)}</td>${isBeton(K) ? `<td class="c">${esc(r.classe || '')}</td>` : `<td class="c ix">${r.repFrom ? '<span class="rep-b">✗ Reporté</span>' : ''}${indCell(r.indCof, r.indCofD)}</td><td class="c ix">${indCell(r.indFer, r.indFerD)}</td>`}
+                <td class="c">${esc(r.zone)}</td><td class="c">${esc(r.niv)}</td><td class="el">${esc(r.element)}</td>${isBeton(K) ? `<td class="c">${esc(r.classe || '')}</td>` : `<td class="c pvc">${pvCell(r, i)}</td><td class="c ix">${r.repFrom ? '<span class="rep-b">✗ Reporté</span>' : ''}${indCell(r.indCof, r.indCofD)}</td><td class="c ix">${indCell(r.indFer, r.indFerD)}</td>`}
                 <td class="c">${r.status === 'ok' ? '' : `<span class="rs" style="background:${(REC_STATUS[r.status] || REC_STATUS.pending).color}">${r.status === 'reserve' ? resLabel(K) : r.status === 'progress' ? 'En cours' : 'Attente'}</span>`}${r.status === 'reserve' && r.liftedAt ? `<br><span class="rs" style="background:#16a34a;margin-top:4px">${liftLabel(K)} ${recDateLabel(r.liftedAt).slice(0, 5)}</span>` : ''}</td>
-${isBeton(K) ? '' : `<td class="c">${pvCell(r, i)}</td><td class="c">${esc(r.avec || '')}</td>`}
+${isBeton(K) ? '' : `<td class="c">${esc(r.avec || '')}</td>`}
                 <td class="ob">${esc(r.obs)}</td>
                 <td class="c ph">${(r.photoIds || []).length ? `📷 ${r.photoIds.length}` : ''}${(r.anomIds || []).length ? ` <span class="an">⚠ ${r.anomIds.length}</span>` : ''}</td>
                 <td class="c ph">${(r.retourIds || []).length ? `📷 ${r.retourIds.length}` : ''}</td>
@@ -394,12 +407,13 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r, i)}</td><td class="c">${esc(r.ave
             <div class="pv-h">${icon('report')} PV du jour <span>${(day.pvIds || []).length || ''}</span></div>
             <div class="thumbs" id="pvThumbs"></div>
           </div>
-          <div class="fc-box" id="fcBox"></div>`}
+          <div class="fc-box" id="fcBox"></div>`}${isBeton(K) ? '<div class="fc-box bn-box" id="bnBox"></div>' : ''}
         </div>
         ${moveSel >= 0 ? `<div class="movebar"><span>Déplacer la ligne ${moveSel + 1}</span>
           <button data-mv="top" title="Tout en haut">⤒</button><button data-mv="up">▲</button><button data-mv="down">▼</button><button data-mv="bottom" title="Tout en bas">⤓</button>
           <button data-mv="done" class="ok">${icon('check')}</button></div>` : ''}`;
       if (!isBeton(K) && typeof fcBox === 'function') fcBox(p, day, $('#fcBox', el), save, render).catch(e => console.warn('fiches', e));
+      if (isBeton(K) && typeof bonBox === 'function') bonBox(p, day, $('#bnBox', el), save, render).catch(e => console.warn('bons', e));
       // PV du jour
       (async () => {
         const pvs = await loadFiles(day.pvIds || []);
@@ -407,6 +421,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r, i)}</td><td class="c">${esc(r.ave
         const merged = !!day.pvPdfId && pvs.length;
         box.innerHTML = merged
           ? `<button class="pv-pdf" data-a="openpvpdf"><span class="pp-ic">${icon('pdf')}</span><span class="grow"><b>PV du ${fmtDate(day.date)}.pdf</b><small>${pvs.length} page(s) · un seul fichier</small></span></button>
+             ${pvs.map(f => `<div class="t" data-pv="${f.id}"><img src="${BlobURL.get(f.id, f.blob)}"><button class="x" data-pvdel="${f.id}">×</button></div>`).join('')}
              <button class="t add" data-a="addpv">${icon('camera')}</button>
              <div class="pv-acts"><button data-a="sharepvpdf">${icon('share')} Envoyer le PDF</button><button data-a="splitpv">${icon('layers')} Séparer</button></div>`
           : pvs.map(f => `<div class="t" data-pv="${f.id}"><img src="${BlobURL.get(f.id, f.blob)}"><button class="x" data-pvdel="${f.id}">×</button></div>`).join('') + `<button class="t add" data-a="addpv">${icon('camera')}</button>`
@@ -414,23 +429,25 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r, i)}</td><td class="c">${esc(r.ave
         const addPv = async () => {
           const src = await pickSource('Ajouter un PV'); if (!src) return;
           let files = await pickImages(src); if (!files.length) return;
-          const ld = loading('Recadrage automatique…'); let recs = [];
-          try { files = await scanAuto(files); for (const f of files) recs.push(await saveImageFile(day.projectId, f, 'photo', { source: `PV ${recTitle(K)} ${recDateLabel(day.date)}`, hq: true }));
-            day.pvIds = [...(day.pvIds || []), ...recs.map(x => x.id)]; await mergePv(); await save(); }   // un seul PDF du jour, mis à jour à chaque PV ajouté
+          // coins détectés automatiquement, à ajuster à la main si besoin (✓ pour valider)
+          const sc = await scanDocuments(files); if (!sc || !sc.length) return; files = sc;
+          const ld = loading('Enregistrement…'); let recs = [];
+          try { for (const f of files) recs.push(await saveImageFile(day.projectId, f, 'photo', { source: `PV ${recTitle(K)} ${recDateLabel(day.date)}`, hq: true }));
+            day.pvIds = [...(day.pvIds || []), ...recs.map(x => x.id)]; await save(); }
           finally { ld.close(); }
-          toast(`${recs.length} PV recadré(s) ✓`); render();
+          toast(`${recs.length} PV ajouté(s) ✓`); render(); mergeSoon();   // le PDF du jour se met à jour en arrière-plan
           if (typeof pvSmartCheck === 'function') pvSmartCheck(p, day, recs, () => { save(); render(); });
         };
         $('[data-a=addpv]', box).onclick = () => addPv();
-        const mb = $('[data-a=mergepv]', box); if (mb) mb.onclick = async () => { const ld = loading('Création du PDF…'); try { await mergePv(); await save(); toast('PV fusionnés en un PDF ✓'); } finally { ld.close(); } render(); };
+        const mb = $('[data-a=mergepv]', box); if (mb) mb.onclick = async () => { const ld = loading('Création du PDF…'); try { await pvQ; await mergePv(); await save(); toast('PV fusionnés en un PDF ✓'); } finally { ld.close(); } render(); };
         const sp = $('[data-a=splitpv]', box); if (sp) sp.onclick = async () => { if (!await confirmBox('Séparer le PDF ? Les photos des PV redeviennent séparées.', 'Séparer')) return; await DB.del('files', day.pvPdfId); day.pvPdfId = null; await save(); render(); };
-        const op = $('[data-a=openpvpdf]', box); if (op) op.onclick = async () => { const f = await DB.get('files', day.pvPdfId); if (f) showPdf(f.blob, `PV du ${fmtDate(day.date)}`); };
-        const sh = $('[data-a=sharepvpdf]', box); if (sh) sh.onclick = async () => { const f = await DB.get('files', day.pvPdfId); if (f) shareBlob(f.blob, `PV_${safeName(recTitle(K))}_${day.date}.pdf`); };
+        const op = $('[data-a=openpvpdf]', box); if (op) op.onclick = async () => { await pvQ; const f = await DB.get('files', day.pvPdfId); if (f) showPdf(f.blob, `PV du ${fmtDate(day.date)}`); };
+        const sh = $('[data-a=sharepvpdf]', box); if (sh) sh.onclick = async () => { await pvQ; const f = await DB.get('files', day.pvPdfId); if (f) shareBlob(f.blob, `PV_${safeName(recTitle(K))}_${day.date}.pdf`); };
         $$('[data-pv]', box).forEach(t => t.onclick = async (e) => {
           const id = t.dataset.pv;
-          if (e.target.closest('[data-pvdel]')) { if (await confirmBox('Retirer ce PV ?')) { day.pvIds = day.pvIds.filter(x => x !== id); await DB.del('files', id); await save(); render(); } return; }
+          if (e.target.closest('[data-pvdel]')) { if (await confirmBox('Retirer ce PV ?')) { day.pvIds = day.pvIds.filter(x => x !== id); await save(); render(); DB.del('files', id).catch(() => {}); if (day.pvPdfId) mergeSoon(); } return; }   // retiré tout de suite, le PDF suit en arrière-plan
           showGallery(pvs.map((f, k) => ({ src: BlobURL.get(f.id, f.blob), caption: `PV du ${fmtDate(day.date)} (${k + 1})`, fileId: f.id })), pvs.findIndex(x => x.id === id),
-            { onDelete: async (it) => { day.pvIds = (day.pvIds || []).filter(x => x !== it.fileId); await DB.del('files', it.fileId); if (day.pvPdfId) { if (day.pvIds.length) await mergePv(); else { await DB.del('files', day.pvPdfId); day.pvPdfId = null; } } await save(); return true; } });
+            { onDelete: async (it) => { day.pvIds = (day.pvIds || []).filter(x => x !== it.fileId); await save(); DB.del('files', it.fileId).catch(() => {}); if (day.pvPdfId) mergeSoon(); return true; } });
           const gl = document.querySelector('.gallery [data-a=x]'); if (gl) { const o = gl.onclick; gl.onclick = () => { o(); render(); }; }
         });
       })();
@@ -514,8 +531,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r, i)}</td><td class="c">${esc(r.ave
           ...(!isBeton(K) ? [{ label: '📝 Fiches de contrôle (PV) de tous les ouvrages du jour', icon: 'pdf', value: 'pvgday' }, { label: 'Modèles de fiches (mes PDF)…', icon: 'upload', value: 'pvgtpl' }] : []),
           { label: 'Changer la date', icon: 'calendar', value: 'date' },
           { label: 'Libérer les photos de ce jour (gardées dans Drive)', icon: 'drive', value: 'free' },
-          { label: `Bons de bétonnage du jour (PDF, 6 par page)${day.rows.some(x => x.bon) ? ' · ' + day.rows.filter(x => x.bon).length : ''}`, icon: 'pdf', value: 'bons' },
-          { label: 'Nouveau bon de bétonnage (libre)…', icon: 'edit', value: 'bonfree' },
+          ...(!isBeton(K) ? [{ label: `Bons de bétonnage du jour (PDF, 6 par page)${day.rows.some(x => x.bon) ? ' · ' + day.rows.filter(x => x.bon).length : ''}`, icon: 'pdf', value: 'bons' }] : []),
           ...(!isBeton(K) ? [{ label: 'Copier des ouvrages vers le bétonnage…', icon: 'calendar', value: 'cpb' }] : []),
           { label: 'Corbeille (restaurer une ligne / un tableau)', icon: 'undo', value: 'trash' },
           { label: 'Supprimer ce tableau', icon: 'trash', danger: true, value: 'del' },
@@ -541,11 +557,12 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r, i)}</td><td class="c">${esc(r.ave
       const last = day.rows[day.rows.length - 1] || {};
       const r = isNew ? { id: DB.uid(), zone: last.zone || '', niv: last.niv || '', element: '', classe: last.classe || '', avec: last.avec || '', pvRecu: false, status: isBeton(K) ? 'progress' : 'pending', obs: '', photoIds: [], retourIds: [] } : { ...day.rows[i], photoIds: [...(day.rows[i].photoIds || [])], anomIds: [...(day.rows[i].anomIds || [])], retourIds: [...(day.rows[i].retourIds || [])] };
       const s = sheet(`<div class="form" id="rowf"></div>`, { title: isNew ? 'Nouvelle ligne' : 'Modifier la ligne' });
-      const f = $('#rowf', s.el);
+      const f = $('#rowf', s.el), phOpen = new Set();
       async function draw() {
         const peekAll = async (ids) => { const o = []; for (const id of ids || []) { const x = await DB.peek('files', id); if (x) o.push(x); } return o; };
         r.anomIds = r.anomIds || [];
         const photos = await peekAll(r.photoIds), anoms = await peekAll(r.anomIds), retours = await peekAll(r.retourIds);
+        const fold = (sec, ttl, list, extra = '') => `<div class="ph3-b ${sec === 'anomIds' ? 'an' : sec === 'retourIds' ? 'ok' : ''} ${phOpen.has(sec) ? 'open' : ''}"><button type="button" class="ph3-h" data-fold="${sec}"><span>${ttl}</span>${list.length ? `<i>${list.length}</i>` : ''}<u>${icon('chevdown')}</u></button>${phOpen.has(sec) ? thumbs(list, sec) + extra : ''}</div>`;
         const thumbs = (list, sec) => `<div class="thumbs">${list.map(f => `<div class="t" data-id="${f.id}" data-sec="${sec}">${fileThumbHTML(f)}<button class="x" data-del="${f.id}">×</button></div>`).join('')}<button class="t add" data-add="${sec}">${icon('camera')}</button></div>`;
         f.innerHTML = `
           <div class="kv"><label>Zone<input name="zone" value="${esc(r.zone)}" inputmode="numeric" placeholder="11"></label>
@@ -562,10 +579,9 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r, i)}</td><td class="c">${esc(r.ave
           <label>Réceptionné avec<input name="avec" list="dl-avec" value="${esc(r.avec || '')}" placeholder="Nom (ex : M. Alaoui — BET)"></label><datalist id="dl-avec">${NAMES.map(n => `<option value="${esc(n)}">`).join('')}</datalist>`}
           <label>Observation ${r.status === 'reserve' ? '/ ' + resLabel(K).toLowerCase() : ''}<textarea name="obs" style="min-height:64px" placeholder="${r.status === 'reserve' ? (isBeton(K) ? 'Ex : ségrégation en pied de voile, nid de cailloux…' : 'Ex : cales manquantes côté axe D2') : 'Optionnel'}">${esc(r.obs)}</textarea></label>
           <div class="ph3">
-            <div class="ph3-b"><div class="fld">📷 Photos ${isBeton(K) ? 'du bétonnage' : 'de la partie d\u2019ouvrage'}</div>${thumbs(photos, 'photoIds')}</div>
-            <div class="ph3-b an"><div class="fld">⚠️ ${isBeton(K) ? 'Défauts (ségrégation, nid de cailloux…)' : 'Anomalies'}</div>${thumbs(anoms, 'anomIds')}</div>
-            <div class="ph3-b ok"><div class="fld">✅ ${isBeton(K) ? 'Réparation des défauts' : 'Réparation des anomalies'}</div>${thumbs(retours, 'retourIds')}
-              ${r.status === 'reserve' || anoms.length || r.liftedAt ? `<button type="button" class="btn ${r.liftedAt ? 'ghost' : ''} small" data-a="lift" style="align-self:flex-start;margin-top:8px">${icon('check')} ${r.liftedAt ? `${isBeton(K) ? 'Réparé' : 'Réserve levée'} le ${recDateLabel(r.liftedAt)} (annuler)` : (isBeton(K) ? 'Marquer comme réparé' : 'Marquer la réserve comme levée')}</button>` : ''}</div>
+            ${fold('photoIds', `📷 Photos ${isBeton(K) ? 'du bétonnage' : 'de la partie d\u2019ouvrage'}`, photos)}
+            ${fold('anomIds', `⚠️ ${isBeton(K) ? 'Défauts' : 'Anomalies'}`, anoms)}
+            ${fold('retourIds', `✅ ${isBeton(K) ? 'Réparation des défauts' : 'Réparation des anomalies'}`, retours, r.status === 'reserve' || anoms.length || r.liftedAt ? `<button type="button" class="btn ${r.liftedAt ? 'ghost' : ''} small" data-a="lift" style="align-self:flex-start;margin-top:8px">${icon('check')} ${r.liftedAt ? `${isBeton(K) ? 'Réparé' : 'Réserve levée'} le ${recDateLabel(r.liftedAt)} (annuler)` : (isBeton(K) ? 'Marquer comme réparé' : 'Marquer la réserve comme levée')}</button>` : '')}
           </div>
           ${!isNew ? `<button type="button" class="btn ghost small bon-btn" data-a="place">📍 ${r.pinId ? 'Voir sur le plan / déplacer' : 'Placer sur un plan'}</button>` : ''}
           ${!isNew ? `<button type="button" class="btn ghost small bon-btn" data-a="bon">📝 ${r.bon ? 'Bon de bétonnage (voir / modifier)' : 'Bon de bétonnage'}</button>` : ''}
@@ -575,8 +591,9 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r, i)}</td><td class="c">${esc(r.ave
           <div class="sk-row">${r.croquisId ? `<img class="sk-thumb" data-a="skview">` : ''}<button type="button" class="btn ghost small" data-a="sketch">${icon('pen')} ${r.croquisId ? 'Modifier le croquis' : 'Dessiner un croquis'}</button>${r.croquisId ? `<button type="button" class="btn ghost small" data-a="skdel" style="flex:none">${icon('trash')}</button>` : ''}</div>
           <div class="btnrow" style="padding:0">${!isNew ? `<button class="btn danger" data-a="del" style="flex:none;padding:14px 16px">${icon('trash')}</button>` : ''}
             <button class="btn ghost" data-a="cancel">Annuler</button><button class="btn" data-a="ok">${isNew ? 'Ajouter' : 'Enregistrer'}</button></div>
-          ${isNew ? `<button class="btn ghost" data-a="okmore" style="margin-top:-4px">Ajouter et ligne suivante</button>` : `${!isBeton(K) ? `<button class="btn pvg-b" data-a="pvgen" style="margin-top:-4px">📝 Fiches de contrôle (PV)${r.pvGenId || Object.keys(r.fiches || {}).length ? ' · ' + ((r.pvGenId ? 1 : 0) + Object.keys(r.fiches || {}).length) + ' ✓' : ' · remplir'}</button>` : ''}<button class="btn ghost" data-a="wa" style="margin-top:-4px">${icon('share')} Envoyer cet ouvrage (WhatsApp)</button>${(r.photoIds.length + r.retourIds.length) ? `<button class="btn ghost" data-a="waph" style="margin-top:-4px">${icon('camera')} Envoyer toutes ses photos (${r.photoIds.length + r.retourIds.length})</button>` : ''}`}`;
+          ${isNew ? `<button class="btn ghost" data-a="okmore" style="margin-top:-4px">Ajouter et ligne suivante</button>` : `${!isBeton(K) ? `<div class="pvg-row"><button class="btn pvg-b" data-a="pvgen">📝 ${esc(fcName(p, fcSel(p)).replace(/\s*\(.*\)/, ''))}${fcFile(r, fcSel(p)) ? ' ✓' : ' · remplir'}</button><button class="btn ghost pvg-m" data-a="pvgm" title="Changer de modèle">⇄</button></div>` : ''}<button class="btn ghost" data-a="wa" style="margin-top:-4px">${icon('share')} Envoyer cet ouvrage (WhatsApp)</button>${(r.photoIds.length + r.retourIds.length) ? `<button class="btn ghost" data-a="waph" style="margin-top:-4px">${icon('camera')} Envoyer toutes ses photos (${r.photoIds.length + r.retourIds.length})</button>` : ''}`}`;
         Thumbs.fill(f);
+        $$('[data-fold]', f).forEach(b => b.onclick = (e) => { e.preventDefault(); const k = b.dataset.fold; phOpen.has(k) ? phOpen.delete(k) : phOpen.add(k); draw(); });
         const plc = $('[data-a=place]', f); if (plc) plc.onclick = async (e) => {
           e.preventDefault(); if (!await commit()) return;
           const L = r.pinId ? await DB.get('links', r.pinId) : null;
@@ -646,6 +663,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r, i)}</td><td class="c">${esc(r.ave
         const om = $('[data-a=okmore]', f); if (om) om.onclick = async () => { if (await commit()) { s.close(); render(); editRow(null); } };
         const wa = $('[data-a=wa]', f); if (wa) wa.onclick = async () => { if (await commit()) shareRow(p, day, r); };
         const pvb = $('[data-a=pvgen]', f); if (pvb) pvb.onclick = async () => { if (await commit()) { await ficheMenu(p, day, r, save); draw(); } };
+        const pvm = $('[data-a=pvgm]', f); if (pvm) pvm.onclick = async () => { await ficheMenu(p, day, r, save, { change: true }); draw(); };
         const wph = $('[data-a=waph]', f); if (wph) wph.onclick = async () => { const ld = loading('Préparation des photos…'); try { await sharePhotos([...r.photoIds, ...(r.anomIds || []), ...r.retourIds], `${r.zone ? 'Zone ' + r.zone + ' · ' : ''}${r.niv ? r.niv + ' · ' : ''}${r.element} — ${fmtDate(day.date)}`, r.element || 'photo'); } finally { ld.close(); } };
         const del = $('[data-a=del]', f); if (del) del.onclick = async () => { if (await confirmBox('Supprimer cette ligne ?')) { const row = day.rows[i]; await trashPut(day.projectId, { kind: 'row', dayId: day.id, date: day.date, type: day.type, idx: i, row }); day.rows.splice(i, 1); await save(); s.close(); render();
           toast('Ligne supprimée', { action: 'Annuler', onAction: () => undo() }); } };

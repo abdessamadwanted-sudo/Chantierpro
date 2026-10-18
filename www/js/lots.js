@@ -76,6 +76,8 @@ function lotPanel(L, f, root) {
       ${av ? `<button data-go="av">📊 Avancement ${esc(L.name)}</button>` : ''}
       <button data-go="tasks">⚠️ Réserves${niv ? ' · ' + esc(niv) : ''}</button>
       ${LOT_GS.map(([k, l]) => `<button data-gs="${k}">${l}</button>`).join('')}
+      ${(L.rub || []).map(R => `<button data-rub="${R.id}">${esc(R.e)} ${esc(R.name)}${(((f.lotData || {})[L.id] || {})._rub || {})[R.id] && f.lotData[L.id]._rub[R.id].length ? ` <small>${f.lotData[L.id]._rub[R.id].length}</small>` : ''}</button>`).join('')}
+      <button data-a="rubnew" class="lp-rubnew">＋ Rubrique</button>
       ${sc.map((x, i) => `<button data-sc="${i}">${SC_EMO && SC_EMO[x.sec] ? SC_EMO[x.sec] + ' ' : '🔗 '}${esc(x.label)}</button>`).join('')}
     </div>
     ${docs.length ? `<div class="lp-docs">${docs.map((d, i) => `<div class="lp-doc"><button class="grow" data-doc="${i}">${icon(d.url && !d.fileId ? 'drive' : d.planId ? 'plans' : 'pdf')}<span>${esc(d.name)}</span></button><button class="iconbtn sm" data-docm="${i}">${icon('more')}</button></div>`).join('')}</div>` : ''}
@@ -104,6 +106,12 @@ function lotPanel(L, f, root) {
   $$('[data-gs]', el).forEach(b => b.onclick = () => { App.gsTab = b.dataset.gs; App.gsLot = b.dataset.gs === 'stock' ? '' : L.id; App.section = 'gestion'; renderSection(); });
   $$('[data-sc]', el).forEach(b => { const x = sc[+b.dataset.sc]; b.onclick = () => { if (!SECTIONS[x.sec]) return toast('Section introuvable'); App.section = x.sec; App.search = x.q || ''; renderSection(); };
     b.oncontextmenu = async (e) => { e.preventDefault(); if (await confirmBox(`Retirer le raccourci « ${x.label} » de ${L.name} ?`)) { sc.splice(+b.dataset.sc, 1); await DB.put('projects', p); redraw(); } }; });
+  $$('[data-rub]', el).forEach(b => { const R = (L.rub || []).find(x => x.id === b.dataset.rub); if (!R) return;
+    b.onclick = async () => { await rubOpen(p, L, f, R); redraw(); };
+    let t = null; b.addEventListener('touchstart', () => { t = setTimeout(() => { t = 'done'; rubMenu(p, L, R, redraw); }, 550); }, { passive: true });
+    b.addEventListener('touchend', (e) => { if (t === 'done') e.preventDefault(); clearTimeout(t); t = null; }); b.addEventListener('touchmove', () => { clearTimeout(t); t = null; }, { passive: true });
+    b.oncontextmenu = (e) => { e.preventDefault(); rubMenu(p, L, R, redraw); }; });
+  $('[data-a=rubnew]', el).onclick = async () => { const R = await rubNew(p, L); if (R) { await rubOpen(p, L, f, R); redraw(); } };
   $$('[data-doc]', el).forEach(b => b.onclick = () => pbOpenDoc(docs[+b.dataset.doc], { projectId: p.id }, planCtx(() => {})));
   $$('[data-docm]', el).forEach(b => b.onclick = async () => { const i = +b.dataset.docm, d = docs[i];
     const v = await menu(d.name, [{ label: 'Ouvrir', icon: 'pdf', value: 'open' }, { label: 'Renommer', icon: 'edit', value: 'ren' }, { label: 'Monter', icon: 'chevup', value: 'up' }, { label: 'Retirer', icon: 'trash', danger: true, value: 'del' }]);
@@ -114,8 +122,9 @@ function lotPanel(L, f, root) {
   // ＋ Ajouter : ce qu'il faut dans ce lot
   $('[data-a=plus]', el).onclick = async () => {
     const v = await menu(`Ajouter dans ${L.e} ${L.name}`, [{ label: '☑ Point de contrôle (tous les niveaux)', icon: 'check', value: 'pt' }, { label: '🛑 Point d\'arrêt', icon: 'close', value: 'pa' }, { label: '⚠️ Point critique', icon: 'ask', value: 'pc' },
-      { label: '🔗 Raccourci vers une section', icon: 'layers', value: 'sc' }, { label: `📄 Document / plan (${f.name})`, icon: 'pdf', value: 'doc' }, { label: '📝 Note', icon: 'edit', value: 'note' }]);
+      { label: '🗂 Nouvelle rubrique (tableau + Excel)', icon: 'grid', value: 'rub' }, { label: '🔗 Raccourci vers une section', icon: 'layers', value: 'sc' }, { label: `📄 Document / plan (${f.name})`, icon: 'pdf', value: 'doc' }, { label: '📝 Note', icon: 'edit', value: 'note' }]);
     if (v === 'pt') addPt();
+    if (v === 'rub') { const R = await rubNew(p, L); if (R) { await rubOpen(p, L, f, R); redraw(); } }
     if (v === 'pa' || v === 'pc') { const b = $(v === 'pa' ? '[data-a=addpa]' : '[data-a=addpc]', el); if (b) b.click(); }
     if (v === 'sc') { const secs = Object.entries(SECTIONS).filter(([k, S]) => !S.hidden && k !== 'settings' && (!SECTION_FEATURE[k] || featOn(SECTION_FEATURE[k])));
       const k = await menu('Raccourci vers…', secs.map(([k2, S]) => ({ label: `${(SC_EMO && SC_EMO[k2]) || '📁'} ${S.label}`, value: k2 }))); if (!k) return;
