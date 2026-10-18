@@ -25,20 +25,21 @@ const Splash = (() => {
       src.connect(f); f.connect(g); g.connect(ac.destination); src.start(t);
     } catch (e) {}
   }
+  // seulement l'accueil avec le prénom (plus de nom de chantier)
   async function lines() {
     const h = new Date().getHours(), hello = h < 5 ? 'Bonne nuit' : h < 12 ? 'Bonjour' : h < 18 ? 'Bon après-midi' : 'Bonsoir';
     const name = LS('userName') || '';
-    const out = [`> ${hello}${name ? ', ' + name : ''}`];
-    try {
-      const ps = (await DB.all('projects')).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-      if (ps[0]) {
-        out.push(`> Chargement du chantier : ${ps[0].name}…`);
-        const recs = await DB.byProject('receptions', ps[0].id), t = todayISO();
-        const n = recs.filter(d => d.date === t).reduce((a, d) => a + (d.rows || []).filter(r => r.element).length, 0);
-        out.push(n ? `✓ ${n} ouvrage(s) au programme aujourd'hui` : '✓ Prêt');
-      } else out.push('> Initialisation…', '✓ Prêt');
-    } catch (e) { out.push('✓ Prêt'); }
-    return out;
+    return [`> ${hello}${name ? ', ' + name : ''} 👷`];
+  }
+  // mur qui se construit brique par brique (bas de l'écran), une grue pose la dernière brique
+  function wallHTML() {
+    const rows = 7, per = 9, out = [];
+    for (let r = 0; r < rows; r++) {
+      const off = r % 2 ? -0.5 : 0, n = per + (r % 2 ? 1 : 0);
+      for (let i = 0; i < n; i++) { const d = 0.35 + r * 0.22 + i * 0.045 + (r % 2 ? 0.02 : 0); const tone = 0.86 + ((i * 7 + r * 3) % 5) * 0.035;
+        out.push(`<i style="left:${(i + off) * (100 / per)}%;bottom:${r * (100 / rows)}%;animation-delay:${d.toFixed(2)}s;--t:${tone.toFixed(3)}"></i>`); }
+    }
+    return `<div class="sp-wall" aria-hidden="true"><div class="sp-bricks">${out.join('')}</div><div class="sp-crane"><b class="jib"></b><b class="cable"></b><b class="hook"><i></i></b></div><div class="sp-ground"></div></div>`;
   }
   function show(force) {
     if ((!on() && !force) || document.querySelector('.splash')) return Promise.resolve();
@@ -53,7 +54,7 @@ const Splash = (() => {
           <div class="sp-glow"></div>
         </div>
         <div class="sp-name">${'CHANTIER'.split('').map((c, i) => `<span style="animation-delay:${0.9 + i * 0.06}s">${c}</span>`).join('')}</div>
-        <pre class="sp-term"></pre></div><small class="sp-skip">Touchez pour passer</small>`;
+        <pre class="sp-term"></pre></div>${wallHTML()}<small class="sp-skip">Touchez pour passer</small>`;
       document.body.appendChild(el);
       let done = false; chime();
       const finish = () => { if (done) return; done = true; el.classList.add('out'); setTimeout(() => { el.remove(); resolve(); }, 450); };
@@ -73,7 +74,7 @@ const Splash = (() => {
       if (done) return;
       // la devise apparaît sous le texte, puis on entre tout seul
       $('.sp-intro', el).insertAdjacentHTML('beforeend', `<div class="sp-motto"><b>QUALITÉ</b><i>◆</i><b>SÉCURITÉ</b><i>◆</i><b>DÉLAIS</b><u></u></div>`);
-      setTimeout(finish, 1900);
+      setTimeout(finish, 2500);
     });
   }
   const hello = () => { const h = new Date().getHours(); return h < 5 ? 'Bonne nuit' : h < 12 ? 'Bonjour' : h < 18 ? 'Bon après-midi' : 'Bonsoir'; };

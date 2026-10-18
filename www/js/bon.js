@@ -66,7 +66,7 @@ async function bonRender(b, cfg) {
   g.textAlign = 'left';
   // date
   g.font = '44px "Times New Roman", "Noto Serif", serif'; g.fillText('DATE :', 860, 462); bonDots(g, 1010, 1500, 468);
-  { const dt = b.date ? fmtDate(b.date).replace(/\/\d{4}$/, (m) => b.fullYear ? m : '') : ''; g.font = `600 78px BonHand, cursive`; const dw = Math.min(470, g.measureText(dt).width * 1.05); bonHand(g, dt, 1255 - dw / 2, 454, 470, 78, 'date' + b.id); }
+  { const dt = b.date ? fmtDate(b.date).replace(/\/\d{4}$/, (m) => b.fullYear ? m : '') : ''; const fz = 98; g.font = `600 ${fz}px BonHand, cursive`; const dw = Math.min(480, g.measureText(dt).width * 1.07 + (dt.split(' ').length - 1) * fz * 0.12); bonHand(g, dt, 1255 - dw / 2 - 6, 458, 480, fz, 'date' + b.id); }
   hits.push({ k: 'date', x: 840, y: 400, w: 700, h: 90 });
   // champs
   const ys = [545, 625, 705, 785, 865];
@@ -90,10 +90,10 @@ async function bonRender(b, cfg) {
     const pid = (b.sig || {})[k], per = (cfg.people[k] || []).find(q => q.id === pid);
     if (per) {
       const imgOf = async (id) => { const f = await DB.peek('files', id).catch(() => null) || await DB.get('files', id).catch(() => null); return f && f.blob ? loadImage(BlobURL.get(f.id, f.blob)).catch(() => null) : null; };
-      const bold = (im, dx, dy, w, h) => { const r = Math.max(1, Math.round(w / 260)); for (const [ox, oy] of [[0, 0], [r, 0], [0, r], [-r, 0], [0, -r]]) g.drawImage(im, dx + ox, dy + oy, w, h); };   // trait plus épais = signature bien visible
+      const bold = (im, dx, dy, w, h) => { const r = Math.max(2, Math.round(w / 150)); for (const [ox, oy] of [[0, 0], [r, 0], [0, r], [-r, 0], [0, -r], [r * .7, r * .7], [-r * .7, r * .7], [r * .7, -r * .7], [-r * .7, -r * .7]]) g.drawImage(im, dx + ox, dy + oy, w, h); };   // trait plus épais = signature bien visible
       const nim = per.nameImgId ? await imgOf(per.nameImgId) : null;
       if (nim) { const bw = cw - 112, bh = 58, k3 = Math.min(bw / nim.width, bh / nim.height); g.drawImage(nim, x + 96, top + hh + 8 + (bh - nim.height * k3) / 2, nim.width * k3, nim.height * k3); }
-      else if (!per.noName) bonHand(g, per.name, x + 96, top + hh + 48, cw - 112, 62, k + b.id);
+      else if (!per.noName) bonHand(g, per.name, x + 98, top + hh + 54, cw - 112, 84, k + b.id);
       if (per.sigId) { const im = await imgOf(per.sigId);
         if (im) { const bw = cw - 40, bh = bot - (top + hh + 66) - 8, k2 = Math.min(bw / im.width, bh / im.height, 2.4); bold(im, x + 20 + (bw - im.width * k2) / 2, top + hh + 66 + (bh - im.height * k2) / 2, im.width * k2, im.height * k2); } }
     }

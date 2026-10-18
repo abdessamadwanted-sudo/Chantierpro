@@ -2051,3 +2051,24 @@ body:has(.splash.brief) .sheet-bg { z-index: 10070; }
 .lvs-split b { display: none; }
 .lvs-sd { position: absolute; top: 10px; z-index: 6; max-width: 44%; padding: 8px 12px; border-radius: 14px; font-weight: 800; font-size: 13.5px; color: #fff; background: rgba(15,23,42,.88); border: 1.5px solid rgba(249,115,22,.7); box-shadow: 0 6px 16px rgba(0,0,0,.3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lvs-sd.l { left: 10px; } .lvs-sd.r { right: 10px; } .lvs-sd i { font-style: normal; opacity: .8; margin-left: 2px; }
+.pvg-b { background: linear-gradient(160deg,#2563eb,#1e40af); }
+/* ===== Ouverture : mur en briques qui se construit ===== */
+.sp-wall { position: absolute; left: 0; right: 0; bottom: 0; height: 34vh; max-height: 300px; pointer-events: none; overflow: hidden; }
+.sp-bricks { position: absolute; left: -2%; right: -2%; bottom: 14px; height: calc(100% - 70px); }
+.sp-bricks i { position: absolute; width: calc(100% / 9 - 4px); height: calc(100% / 7 - 4px); margin: 2px; border-radius: 3px; opacity: 0; transform: translateY(-70px) rotate(-6deg) scale(.9);
+  background: linear-gradient(180deg, hsl(16 62% calc(52% * var(--t))) 0%, hsl(14 60% calc(44% * var(--t))) 60%, hsl(12 58% calc(36% * var(--t))) 100%);
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.18), inset 0 -3px 0 rgba(0,0,0,.25), 0 2px 4px rgba(0,0,0,.35);
+  animation: spBrick .42s cubic-bezier(.3,1.5,.6,1) forwards; }
+.sp-bricks i::after { content: ''; position: absolute; inset: 22% 12%; border-radius: 2px; background: radial-gradient(circle at 30% 40%, rgba(255,255,255,.08), transparent 60%), repeating-linear-gradient(115deg, transparent 0 6px, rgba(0,0,0,.05) 6px 7px); }
+@keyframes spBrick { 0% { opacity: 0; transform: translateY(-70px) rotate(-6deg) scale(.9); } 60% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+.sp-ground { position: absolute; left: 0; right: 0; bottom: 0; height: 14px; background: linear-gradient(180deg, #57534e, #292524); box-shadow: 0 -2px 8px rgba(0,0,0,.4); }
+.sp-crane { position: absolute; top: 0; right: 8%; width: 46%; height: 100%; animation: spCrane 3.2s ease-in-out 1.6s both; }
+.sp-crane .jib { position: absolute; top: 6px; left: 0; right: 0; height: 6px; background: repeating-linear-gradient(90deg, #f59e0b 0 10px, #b45309 10px 12px); border-radius: 3px; box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+.sp-crane .cable { position: absolute; top: 12px; left: 22%; width: 2px; height: 0; background: #d6d3d1; animation: spCable 3.2s ease-in-out 1.6s both; }
+.sp-crane .hook { position: absolute; left: calc(22% - 11px); top: 12px; width: 24px; animation: spHook 3.2s ease-in-out 1.6s both; }
+.sp-crane .hook i { display: block; width: 24px; height: 14px; border-radius: 3px; background: linear-gradient(180deg, #c2410c, #7c2d12); box-shadow: inset 0 2px 0 rgba(255,255,255,.2); }
+@keyframes spCable { 0% { height: 0; } 45%, 70% { height: 46%; } 100% { height: 8%; } }
+@keyframes spHook { 0% { transform: translateY(0); } 45%, 70% { transform: translateY(calc(34vh * .46 - 6px)); } 100% { transform: translateY(14px); opacity: .0; } }
+@keyframes spCrane { 0% { transform: translateX(40%); opacity: 0; } 15% { opacity: 1; } 100% { transform: none; opacity: 1; } }
+.splash .sp-skip { z-index: 2; } .splash .sp-intro { position: relative; z-index: 2; margin-bottom: 18vh; }
+@media (prefers-reduced-motion: reduce) { .sp-bricks i { animation-duration: .01s; } .sp-crane { display: none; } }
