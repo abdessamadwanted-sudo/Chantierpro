@@ -1948,3 +1948,49 @@ body:has(.splash.brief) .sheet-bg { z-index: 10070; }
 .lvs-cw { position: absolute; top: 0; bottom: 0; right: 0; left: 0; overflow: hidden; pointer-events: none; }
 .lvs-su { position: absolute; top: 0; } .lvs-so { pointer-events: none; }
 .lvs-sl, .lvs-su, .lvs-so { will-change: transform; }
+.lvs-tip { font-size: 12px; color: var(--muted, #94a3b8); }
+/* ===== Page d'un chantier (accueil) : bande élégante + détail calme ===== */
+.h2-focus { animation: spIn .35s ease-out both; }
+.h2-band { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 6px; margin: 0 0 12px; border-radius: 18px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--c1) 55%, #111827), color-mix(in srgb, var(--c2) 70%, #0b1020)); border: 1px solid rgba(255,255,255,.12); box-shadow: 0 10px 26px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.12); }
+.h2-band b { font-size: 17px; color: #fff; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; letter-spacing: .2px; }
+.h2-bk { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; color: #fff; background: rgba(255,255,255,.1); flex: none; }
+.h2-bav { width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; font-weight: 800; font-size: 13px; color: #fff; background: rgba(255,255,255,.16); flex: none; }
+.h2-bopen { flex: none; display: inline-flex; align-items: center; gap: 2px; padding: 9px 12px 9px 14px; border-radius: 12px; font-weight: 800; font-size: 14px; color: #0b1020; background: #fff; }
+.h2-bopen svg.i { width: 16px; height: 16px; }
+.h2-bbrief { width: 100%; margin-bottom: 12px; padding: 11px; border-radius: 14px; font-weight: 700; font-size: 14px; color: #fde68a; background: rgba(250,204,21,.08); border: 1px solid rgba(250,204,21,.22); }
+.h2-focus .h2-det { background: transparent; color: #e2e8f0; padding: 0; }
+.h2-focus .h2-kpi > div, .h2-focus .h2-tab, .h2-focus .h2-rap { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); border-radius: 16px; }
+.h2-focus .h2-kpi > div { border-left: 3px solid #22c55e; padding: 12px 14px; } .h2-focus .h2-kpi > div.r { border-left-color: #f87171; } .h2-focus .h2-kpi > div.o { border-left-color: #fbbf24; }
+.h2-focus .h2-kpi b { color: #fff; font-size: 26px; } .h2-focus .h2-kpi span { color: #94a3b8; } .h2-focus .h2-kpi small { color: #fca5a5; }
+.h2-focus .h2-tab { border-collapse: separate; border-spacing: 0; overflow: hidden; margin-top: 2px; }
+.h2-focus .h2-tab th, .h2-focus .h2-tab th:first-child { background: rgba(255,255,255,.06); color: #94a3b8; font-weight: 600; padding: 9px 6px; }
+.h2-focus .h2-tab td { border-top: 1px solid rgba(255,255,255,.06); color: #e2e8f0; padding: 11px 6px; } .h2-focus .h2-tab td b { color: #fff; }
+.h2-focus .h2-tab tr[data-go]:active td { background: rgba(255,255,255,.06); }
+.h2-focus .h2-rh .h2-rt { color: #e2e8f0; } .h2-focus .h2-rt .n { background: rgba(255,255,255,.12); } .h2-focus .h2-rh button { color: #93c5fd; }
+.h2-focus .h2-rap { color: #e2e8f0; } .h2-focus .h2-rap small { color: #94a3b8; } .h2-focus .h2-rap .ck { background: transparent; border-color: #64748b; }
+.h2-focus .h2-rap.late { background: rgba(239,68,68,.1); border-color: rgba(239,68,68,.3); } .h2-focus .h2-rap.late span { color: #fecaca; } .h2-focus .h2-rap.late small { color: #fca5a5; }
+.h2-focus .h2-rap.soon { background: rgba(34,197,94,.08); border-color: rgba(34,197,94,.25); } .h2-focus .h2-rap.soon small { color: #86efac; }
+.h2-focus .h2-none { color: #64748b; }
+/* ===== PV des ouvrages (page du briefing) ===== */
+.pvp-x { background: none; color: #a5b4fc; font-weight: 700; font-size: 13px; padding: 0; }
+.pvp-f { display: flex; gap: 6px; padding: 0 14px 10px; overflow-x: auto; scrollbar-width: none; flex: none; }
+.pvp-f button { flex: none; padding: 8px 12px; border-radius: 16px; font-size: 13px; font-weight: 700; color: #cbd5e1; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); }
+.pvp-f button i { font-style: normal; margin-left: 4px; opacity: .8; }
+.pvp-f button.on { color: #fff; background: color-mix(in srgb, var(--c, #6366f1) 35%, transparent); border-color: color-mix(in srgb, var(--c, #6366f1) 70%, transparent); }
+.pvp-d { margin-bottom: 10px; border-radius: 18px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.09); overflow: hidden; }
+.pvp-d.old { border-color: rgba(239,68,68,.28); }
+.pvp-dh { width: 100%; display: flex; align-items: center; gap: 8px; padding: 13px 14px; color: #fff; text-align: left; background: none; }
+.pvp-dh b { font-size: 15px; } .pvp-dh small { margin-left: auto; color: #94a3b8; font-weight: 700; } .pvp-d.old .pvp-dh small { color: #fca5a5; }
+.pvp-dn { display: flex; gap: 4px; flex-wrap: wrap; } .pvp-dn i { font-style: normal; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 9px; }
+.pvp-dn i.a { color: #fde68a; background: rgba(245,158,11,.16); } .pvp-dn i.b { color: #fecaca; background: rgba(239,68,68,.16); }
+.pvp-dh u { display: grid; color: #94a3b8; transition: transform .2s; } .pvp-d.open .pvp-dh u { transform: rotate(180deg); } .pvp-dh u svg.i { width: 18px; height: 18px; }
+.pvp-t { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.pvp-t tr { border-top: 1px solid rgba(255,255,255,.07); } .pvp-t tr:active { background: rgba(255,255,255,.04); }
+.pvp-o { padding: 10px 8px 10px 14px; border-left: 3px solid #ef4444; } .pvp-t tr.rec .pvp-o { border-left-color: #f59e0b; }
+.pvp-o b { display: block; color: #f1f5f9; font-size: 14px; line-height: 1.3; word-break: break-word; } .pvp-o small { color: #94a3b8; font-size: 12px; }
+.pvp-a { width: 96px; padding: 8px 12px 8px 4px; text-align: right; vertical-align: middle; }
+.pvp-btn { width: 84px; height: 38px; border-radius: 12px; font-weight: 800; font-size: 13.5px; color: #fff; }
+.pvp-btn.l { background: linear-gradient(160deg, #22c55e, #15803d); } .pvp-btn.r { background: rgba(245,158,11,.2); color: #fde68a; border: 1px solid rgba(245,158,11,.45); }
+.pvp-t tr.done { opacity: .45; transition: opacity .3s; }
+.pvp-none { color: #94a3b8; text-align: center; padding: 30px 0; }

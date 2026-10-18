@@ -85,13 +85,13 @@ const lvsShort = (n) => { n = String(n || ''); if (n.length <= 16) return n; con
 const lvsKey = (q) => `${Math.round((q.x + q.w / 2) / 20)},${Math.round((q.y + q.h / 2) / 20)}`;
 async function openStackView(chain) {
   chain = [...chain];
-  let hdSeq = 0, hdLast = null, hdBusy = false, hdAgain = false, hdT = 0, k = 0, mode = 'curtain', marks = true, M = null, R = [], blinkT = 0, split = .5, op = .55, pz = null;
+  let hdSeq = 0, hdLast = null, hdBusy = false, hdAgain = false, hdT = 0, k = 0, mode = 'curtain', M = null, blinkT = 0, split = .5, op = .55, pz = null;
   const el = document.createElement('div'); el.className = 'fullpage av-page lvs';
   el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><div class="tb-title" style="flex:1"><b class="lvs-t"></b><span class="lvs-s"></span></div>
       <button class="iconbtn" data-a="cal" title="Refaire le calage de cette paire">${icon('ruler')}</button><button class="iconbtn" data-a="share">${icon('share')}</button></div>
-    <div class="av-chips lvs-modes"><button data-m="curtain">🎚️ Rideau</button><button data-m="blink">👁️ Clignoter</button><button data-m="fade">🔆 Transparence</button><button data-m="marks" class="on">◯ Repères</button></div>
+    <div class="av-chips lvs-modes"><button data-m="curtain">🎚️ Rideau</button><button data-m="blink">👁️ Clignoter</button><button data-m="fade">🔆 Transparence</button></div>
     <div class="lvs-wrap"><div class="lvs-v"></div><div class="lvs-split"><i></i><b class="l"></b><b class="r"></b></div><div class="lvs-pill"></div></div>
-    <div class="lvs-bar"><input type="range" min="0" max="100" class="lvs-op"><div class="lvs-nav"><button class="btn small ghost" data-a="chg">⇅ Changer les niveaux</button><button class="btn small" data-a="list">Changements</button></div></div>`;
+    <div class="lvs-bar"><input type="range" min="0" max="100" class="lvs-op"><div class="lvs-nav"><button class="btn small ghost" data-a="chg">⇅ Changer les niveaux</button><span class="lvs-tip">Touchez le plan : réserve / RFI</span></div></div>`;
   document.body.appendChild(el);
   const unBack = pushBack(() => close()); const close = () => { clearInterval(blinkT); clearTimeout(hdT); hdSeq++; el.remove(); };
   $('[data-a=x]', el).onclick = () => { unBack(); close(); };
@@ -101,14 +101,8 @@ async function openStackView(chain) {
   // rideau : on déplace seulement une « fenêtre » (pas de re-dessin du plan) → fluide, sans zones blanches
   const applySplit = () => { if (!imgUp) return; const r = wrap.getBoundingClientRect(), X = mode === 'curtain' ? split * r.width : 0; splitEl.style.left = split * r.width + 'px';
     imgUp.style.left = X + 'px'; imgUp.firstElementChild.style.left = -X + 'px'; };
-  const drawMarks = () => { if (!ov || !pz) return; const s = pz.st.s, [, up] = pair(), seen = ((up.lvSeen || {})[chain[k].p.id]) || [];
-    ov.innerHTML = !marks ? '' : R.map((q, i) => { const cx = q.x + q.w / 2, cy = q.y + q.h / 2, Rr = Math.max(q.w, q.h) / 2 * 1.25 + 8 / s, ok = seen.includes(lvsKey(q)), c = ok ? '#22c55e' : '#f97316';
-      const ax = cx - Rr * .707, ay = cy - Rr * .707, bx = ax - 44 / s, by = ay - 44 / s, h = 11 / s;
-      return `<g data-q="${i}"><circle cx="${cx}" cy="${cy}" r="${Rr}" fill="${c}" fill-opacity=".07" stroke="${c}" stroke-width="${2.6 / s}" ${ok ? `stroke-dasharray="${6 / s} ${4 / s}"` : ''}/>
-        ${ok ? `<text x="${cx}" y="${cy - Rr - 4 / s}" text-anchor="middle" font-size="${14 / s}" fill="${c}" font-weight="800">✓</text>` : `<line x1="${bx}" y1="${by}" x2="${ax - 3 / s}" y2="${ay - 3 / s}" stroke="${c}" stroke-width="${3 / s}" stroke-linecap="round"/><path d="M${ax} ${ay} l${-h} ${-h * .35} l${h * .65} ${-h * .65} z" fill="${c}"/>`}</g>`; }).join(''); };
   const setMode = (m) => {
-    if (m === 'marks') { marks = !marks; $('[data-m=marks]', el).classList.toggle('on', marks); return drawMarks(); }
-    mode = m; clearInterval(blinkT); $$('.lvs-modes [data-m]', el).forEach(b => b.dataset.m !== 'marks' && b.classList.toggle('on', b.dataset.m === m));
+    mode = m; clearInterval(blinkT); $$('.lvs-modes [data-m]', el).forEach(b => b.classList.toggle('on', b.dataset.m === m));
     splitEl.style.display = m === 'curtain' ? '' : 'none'; opEl.style.display = m === 'fade' ? '' : 'none'; pill.style.display = m === 'blink' ? '' : 'none';
     if (!imgUp) return; imgUp.style.opacity = m === 'fade' ? op : 1; imgUp.style.visibility = 'visible'; applySplit();
     if (m === 'blink') { let on = true; const tick = () => { on = !on; imgUp.style.visibility = on ? 'visible' : 'hidden'; pill.textContent = on ? `▲ ${nm(k + 1)}` : `▼ ${nm(k)}`; }; pill.textContent = `▲ ${nm(k + 1)}`; blinkT = setInterval(tick, 950);
@@ -121,7 +115,7 @@ async function openStackView(chain) {
     const mv = (ev) => { split = Math.max(.03, Math.min(.97, (ev.clientX - r.left) / r.width)); applySplit(); };
     const upf = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', upf); }; window.addEventListener('pointermove', mv); window.addEventListener('pointerup', upf); };
   const load = async () => {
-    const [low, up] = pair(); M = await lvsMap(low, up); R = [];
+    const [low, up] = pair(); M = await lvsMap(low, up);
     $('.lvs-t', el).textContent = `${nm(k)} → ${nm(k + 1)}`; $('.lvs-s', el).textContent = `base ${nm(k)} · supérieur ${nm(k + 1)}`;
     $('.lvs-split .l', el).textContent = `◀ ${nm(k)}`; $('.lvs-split .r', el).textContent = `${nm(k + 1)} ▶`;
     const [sl, su] = await Promise.all([lvsLiteURL(low.fileId), lvsLiteURL(up.fileId)]);
@@ -156,21 +150,16 @@ async function openStackView(chain) {
         hdLast = { x0, y0, x1, y1, s: st.s }; ca.width = ca.height = cb.width = cb.height = 0;
       } catch (e) { console.warn('hd', e); } finally { hdBusy = false; if (hdAgain) { hdAgain = false; clearTimeout(hdT); hdT = setTimeout(renderHD, 120); } }
     };
-    pz = panZoom(view, stageProxy, up.w, up.h, { onChange: (st) => { cancelAnimationFrame(drawMarks._r); drawMarks._r = requestAnimationFrame(drawMarks);
+    pz = panZoom(view, stageProxy, up.w, up.h, { onChange: (st) => {
       if (hdLast && Math.abs(Math.log(st.s / hdLast.s)) >= .25) { hdLo.style.display = hdHi.style.display = 'none'; hdLast = null; } clearTimeout(hdT); hdT = setTimeout(renderHD, 450); }, onTap: ([x, y]) => tapAt(x, y) });
-    requestAnimationFrame(() => { pz.fit(); setMode(mode); drawMarks(); });
+    requestAnimationFrame(() => { pz.fit(); setMode(mode); });
     pill.style.display = mode === 'blink' ? '' : 'none';
-    const busy = document.createElement('div'); busy.className = 'lvs-busy'; busy.textContent = 'Recherche des changements…'; wrap.appendChild(busy);
-    await new Promise(r => setTimeout(r, 700)); if (pair()[1] !== up || !el.isConnected) { busy.remove(); return; }   // les plans s'affichent d'abord
-    try { const r = await lvsChanges(low, up, M); if (pair()[1] === up) { R = r; drawMarks(); up.lvChk = up.lvChk || {}; const o = up.lvChk[low.id] || {}; if (o.n !== R.length || !o.lowName) { up.lvChk[low.id] = { n: R.length, at: Date.now(), lowName: nm(k), upName: nm(k + 1) }; DB.put('plans', up).catch(() => {}); } } } catch (e) { console.warn(e); } finally { busy.remove(); }
   };
   $('[data-a=chg]', el).onclick = async () => { const L = await lvsLevels(chain[0].p.projectId), pr = await lvsChoosePair(L, chain[0].p); if (!pr) return;
     const todo = pr.filter(x => !x.p.lvRef); if (todo.length && !(await openEquerreSteps(todo.map(x => x.p), todo.map(x => x.niv || x.p.name), pr[0].p))) return;
     chain = pr; k = 0; load(); };
   $('[data-a=cal]', el).onclick = async () => { const [low, up] = pair(); if (await openEquerreSteps([low, up], [nm(k), nm(k + 1)], low)) load(); };
-  // toucher un cercle : zoomer, vu, réserve, RFI
-  const setSeen = async (q, v) => { const [low, up] = pair(); up.lvSeen = up.lvSeen || {}; const L = new Set(up.lvSeen[low.id] || []); v ? L.add(lvsKey(q)) : L.delete(lvsKey(q)); up.lvSeen[low.id] = [...L];
-    up.lvChk = up.lvChk || {}; up.lvChk[low.id] = { n: R.length, at: Date.now(), lowName: nm(k), upName: nm(k + 1) }; await DB.put('plans', up); drawMarks(); };
+  // toucher le plan : réserve ou RFI à cet endroit
   const where = (q) => { const [, up] = pair(), cx = (q.x + q.w / 2) / up.w, cy = (q.y + q.h / 2) / up.h; return `${cy < .34 ? 'en haut' : cy > .66 ? 'en bas' : 'au milieu'}${cx < .34 ? ' à gauche' : cx > .66 ? ' à droite' : ''}`; };
   const crop = async (q) => {   // photo de la zone sur les deux niveaux, côte à côte
     const [low, up] = pair(), pad = Math.max(q.w, q.h) * .8 + 40, x0 = q.x - pad, y0 = q.y - pad, w = q.w + 2 * pad, h = q.h + 2 * pad, S = Math.min(1, 900 / w);
@@ -182,40 +171,30 @@ async function openStackView(chain) {
     g.strokeStyle = '#f97316'; g.lineWidth = 3; for (const ox of [0, W1 + 12]) { g.beginPath(); g.arc(ox + (q.x + q.w / 2 - x0) * S, 40 + (q.y + q.h / 2 - y0) * S, Math.max(q.w, q.h) / 2 * S * 1.25 + 8, 0, 7); g.stroke(); }
     return new Promise(r => cv.toBlob(r, 'image/jpeg', .9));
   };
-  const actOn = async (i) => {
-    const q = R[i], [low, up] = pair(), seen = ((up.lvSeen || {})[low.id] || []).includes(lvsKey(q));
-    const v = await menu(`Changement ${where(q)}`, [{ label: 'Zoomer dessus', icon: 'search', value: 'zoom' }, { label: seen ? 'Remettre « à vérifier »' : '✅ Marquer vu', icon: 'check', value: 'seen' },
-      { label: '📌 Créer une réserve ici', icon: 'tasks', value: 'task' }, { label: '❓ Demande (RFI) au BET avec photo', icon: 'ask', value: 'rfi' }]);
-    if (v === 'zoom') pz.zoomTo(q.x - q.w * 2.5, q.y - q.h * 2.5, q.w * 6, q.h * 6);
-    if (v === 'seen') setSeen(q, !seen);
-    if (v === 'task') { const t = await newTask({ planId: up.id, x: q.x + q.w / 2, y: q.y + q.h / 2, title: `Changement ${nm(k)} → ${nm(k + 1)} (${where(q)})` }); await openTaskDetail(t); setSeen(q, true); }
-    if (v === 'rfi') { const p = App.project, L2 = REG.rfi.store(p), b = await crop(q), f = await saveImageFile(p.id, new File([b], 'changement.jpg', { type: 'image/jpeg' }), 'photo', { hq: true });
-      const x = { id: DB.uid(), n: regNum(L2, REG.rfi.pre), date: todayISO(), obj: `Changement de structure ${nm(k)} → ${nm(k + 1)} (${where(q)})`, q: `Entre ${nm(k)} et ${nm(k + 1)}, la structure change ${where(q)} (voir photo). Merci de confirmer.`, dest: 'BET structure', loc: `${nm(k + 1)} · ${where(q)}`, st: 'env', ph: [f.id], at: Date.now(), by: myName() };
-      L2.push(x); await DB.put('projects', p); setSeen(q, true); regOpen(p, 'rfi', x, null); }
+  const tapAt = async (x, y) => {
+    const [low, up] = pair(), d = 70 / pz.st.s, q = { x: x - d / 2, y: y - d / 2, w: d, h: d };
+    if (x < 0 || y < 0 || x > up.w || y > up.h) return;
+    const v = await menu(`${nm(k)} → ${nm(k + 1)} · ${where(q)}`, [{ label: '📌 Créer une réserve ici', icon: 'tasks', value: 'task' }, { label: '❓ Demande (RFI) au BET avec photo', icon: 'ask', value: 'rfi' }]);
+    if (v === 'task') { const t = await newTask({ planId: up.id, x, y, title: `${nm(k)} → ${nm(k + 1)} (${where(q)})` }); await openTaskDetail(t); }
+    if (v === 'rfi') { const p = App.project, L2 = REG.rfi.store(p), b = await crop(q), f = await saveImageFile(p.id, new File([b], 'niveaux.jpg', { type: 'image/jpeg' }), 'photo', { hq: true });
+      const it = { id: DB.uid(), n: regNum(L2, REG.rfi.pre), date: todayISO(), obj: `Structure ${nm(k)} → ${nm(k + 1)} (${where(q)})`, q: `Entre ${nm(k)} et ${nm(k + 1)}, merci de confirmer la structure ${where(q)} (voir photo).`, dest: 'BET structure', loc: `${nm(k + 1)} · ${where(q)}`, st: 'env', ph: [f.id], at: Date.now(), by: myName() };
+      L2.push(it); await DB.put('projects', p); regOpen(p, 'rfi', it, null); }
   };
-  const tapAt = (x, y) => { if (!marks) return; for (let i = R.length - 1; i >= 0; i--) { const q = R[i], cx = q.x + q.w / 2, cy = q.y + q.h / 2, Rr = Math.max(q.w, q.h) / 2 * 1.25 + 30 / pz.st.s; if (Math.hypot(x - cx, y - cy) <= Rr) return actOn(i); } };
-  $('[data-a=list]', el).onclick = () => {
-    if (!R.length) return toast('Aucun changement de structure détecté ✓');
-    const [low, up] = pair(), seen = (up.lvSeen || {})[low.id] || [];
-    const s = sheet(`<div class="cmp-list">${R.map((q, i) => { const ok = seen.includes(lvsKey(q)); return `<button class="cmp-it" data-i="${i}"><span class="k" style="background:${ok ? '#22c55e' : '#f97316'}">${ok ? '✓' : '➜'}</span><span class="grow"><b>Changement ${where(q)}</b><small>${ok ? 'vu' : 'à vérifier'} · touchez pour agir</small></span></button>`; }).join('')}</div>`, { title: `${nm(k)} → ${nm(k + 1)}` });
-    $$('[data-i]', s.el).forEach(b => b.onclick = () => { s.close(); const q = R[+b.dataset.i]; pz.zoomTo(q.x - q.w * 2.5, q.y - q.h * 2.5, q.w * 6, q.h * 6); setTimeout(() => actOn(+b.dataset.i), 350); });
-  };
-  // PDF de toutes les paires : à gauche le niveau du dessous (calé), à droite celui du dessus, mêmes cercles
+  // PDF : à gauche le niveau du dessous (calé), à droite celui du dessus
   $('[data-a=share]', el).onclick = async () => {
     const ld = loading('Création du PDF…');
     try {
       const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a3', orientation: 'landscape' }), PW = doc.internal.pageSize.getWidth(), PH = doc.internal.pageSize.getHeight();
       for (let i = 0; i < chain.length - 1; i++) {
         ld.set(`Création du PDF… ${i + 1}/${chain.length - 1}`);
-        const low = chain[i].p, up = chain[i + 1].p, MM = await lvsMap(low, up), rr = await lvsChanges(low, up, MM), [il, iu] = await Promise.all([fileURL(low.fileId).then(loadImage), fileURL(up.fileId).then(loadImage)]);
+        const low = chain[i].p, up = chain[i + 1].p, MM = await lvsMap(low, up), [il, iu] = await Promise.all([fileURL(low.fileId).then(loadImage), fileURL(up.fileId).then(loadImage)]);
         const S = Math.min(1, 1500 / Math.max(up.w, up.h)), W = Math.round(up.w * S), H = Math.round(up.h * S), cv = document.createElement('canvas'); cv.width = W * 2 + 30; cv.height = H; const g = cv.getContext('2d');
         g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); const c = Math.cos(MM.rot), s = Math.sin(MM.rot);
         g.save(); g.beginPath(); g.rect(0, 0, W, H); g.clip(); g.scale(S, S); g.transform(MM.sx * c, MM.sx * s, -MM.sx * s, MM.sx * c, MM.ox, MM.oy); g.drawImage(il, 0, 0); g.restore();
         g.drawImage(iu, W + 30, 0, W, H);
-        g.strokeStyle = '#f97316'; g.lineWidth = 3; for (const q of rr) for (const ox of [0, W + 30]) { g.beginPath(); g.arc(ox + (q.x + q.w / 2) * S, (q.y + q.h / 2) * S, Math.max(q.w, q.h) / 2 * S * 1.25 + 8, 0, 7); g.stroke(); }
         if (i) doc.addPage('a3', 'landscape');
         doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(20); doc.text(pt(`${nm(i)}  ->  ${nm(i + 1)}`), 12, 14); doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(110);
-        doc.text(pt(`${App.project ? App.project.name + ' · ' : ''}gauche : ${nm(i)} (dessous) · droite : ${nm(i + 1)} (dessus) · cercles : changements de structure · ${fmtDate(todayISO())}`), 12, 20);
+        doc.text(pt(`${App.project ? App.project.name + ' · ' : ''}gauche : ${nm(i)} (dessous) · droite : ${nm(i + 1)} (dessus) · ${fmtDate(todayISO())}`), 12, 20);
         const kk = Math.min((PW - 24) / cv.width, (PH - 32) / cv.height); doc.addImage(cv.toDataURL('image/jpeg', .88), 'JPEG', 12, 26, cv.width * kk, cv.height * kk);
       }
       ld.close(); await sharePdf(doc, `Niveaux_${safeName(nm(0))}_${safeName(nm(chain.length - 1))}.pdf`);
@@ -229,4 +208,26 @@ async function lvsOpenPair(lowId, upId) {
   if (!low.lvRef || !up.lvRef) { if (!(await openEquerreSteps([low, up], [low.name, up.name], low))) return; }
   const L = await lvsLevels(up.projectId), f = (p) => L.find(x => x.p.id === p.id) || { p, niv: '', label: p.name };
   openStackView([f(low), f(up)]);
+}
+// ================= Bouton « Comparer » : deux niveaux ou deux indices =================
+async function compareMenu(plan) {
+  const v = await menu('Comparer', [{ label: '🏢 Comparer deux niveaux (R+3 ↔ R+4…)', icon: 'layers', value: 'niv' }, { label: '📑 Comparer deux indices (A ↔ B…)', icon: 'history', value: 'ind' }]);
+  if (v === 'niv') return openLevelStack(plan);
+  if (v === 'ind') return compareIndices(plan);
+}
+async function compareIndices(plan) {
+  if (!plan) {   // depuis la liste : choisir un plan qui a plusieurs indices
+    const all = await DB.byProject('plans', App.project.id), cur = all.filter(p => p.fileId && (typeof isCurrentPlan !== 'function' || isCurrentPlan(p)));
+    const multi = cur.filter(p => p.prevId);
+    if (!multi.length) return alertBox('Aucun plan n\'a encore plusieurs indices.\nOuvrez un plan › ⋮ › « Mettre à jour le plan (nouvel indice) ».');
+    const id = await menu('Quel plan ?', multi.map(p => ({ label: `${p.name} · indice ${planIndice(p)}`, icon: 'plans', value: p.id }))); if (!id) return;
+    plan = multi.find(p => p.id === id);
+  }
+  const hist = await planHistory(plan);
+  if (hist.length < 2) return alertBox(`« ${plan.name} » n'a qu'un indice.\nPour comparer, ajoutez d'abord le nouvel indice : ⋮ › « Mettre à jour le plan (nouvel indice) ».`);
+  if (hist.length === 2) return openPlanCompare(hist[0], hist[1]);
+  const opts = hist.map(p => ({ label: `Indice ${planIndice(p)}${p.indiceDate ? ' · ' + fmtDate(p.indiceDate) : ''}${p.indiceNote ? ' · ' + p.indiceNote : ''}`, value: p.id }));
+  const a = await menu('Ancien indice', opts); if (!a) return;
+  const b = await menu('Nouvel indice', opts.filter(o => o.value !== a)); if (!b) return;
+  openPlanCompare(hist.find(p => p.id === a), hist.find(p => p.id === b));
 }

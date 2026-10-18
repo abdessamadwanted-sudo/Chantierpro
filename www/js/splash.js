@@ -55,7 +55,7 @@ const Splash = (() => {
         <div class="sp-name">${'CHANTIER'.split('').map((c, i) => `<span style="animation-delay:${0.9 + i * 0.06}s">${c}</span>`).join('')}</div>
         <pre class="sp-term"></pre></div><small class="sp-skip">Touchez pour passer</small>`;
       document.body.appendChild(el);
-      let done = false;
+      let done = false; chime();
       const finish = () => { if (done) return; done = true; el.classList.add('out'); setTimeout(() => { el.remove(); resolve(); }, 450); };
       el.onclick = finish;
       const L = await lines(), term = $('.sp-term', el);
@@ -93,6 +93,13 @@ const Splash = (() => {
         setTimeout(() => { el.classList.add('out'); setTimeout(() => { el.remove(); resolve(); }, 420); }, 650); };
     });
   }
+  // petite mélodie quand le logo apparaît (trois notes douces)
+  function chime() {
+    if (!soundOn()) return;
+    try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === 'suspended') ac.resume(); const t0 = ac.currentTime + .15;
+      [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => { const o = ac.createOscillator(), g = ac.createGain(), t = t0 + i * .16; o.type = 'triangle'; o.frequency.value = f;
+        g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.12, t + .03); g.gain.exponentialRampToValueAtTime(.0001, t + .9); o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + 1); }); } catch (e) {}
+  }
   function powerSound() {
     if (!soundOn()) return;
     try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
@@ -102,13 +109,11 @@ const Splash = (() => {
   async function boot() {
     try { if (typeof AppLock !== 'undefined' && AppLock.get() && typeof lockScreen === 'function') await lockScreen(); } catch (e) { console.warn(e); }
     try { if (typeof orgOnboard === 'function') { Org.apply(); await orgOnboard(); } } catch (e) { console.warn(e); }
-    const S = sched(), anim = on();
-    if (!anim && !S.brief) return;
+    // ordre : bouton vert « Entrer » → logo + texte avec la musique → mes chantiers (le briefing s'ouvre en touchant un chantier)
+    const S = sched();
+    if (S.mode === 'off') return;
     await welcome();
-    let act = null;
-    if (S.brief && typeof briefingShow === 'function') { try { act = await briefingShow(); } catch (e) { console.warn('brief', e); } }
-    if (act) { setTimeout(() => { try { act(); } catch (e) { console.warn(e); } }, 250); return; }
-    if (anim) await show();
+    await show(true);
   }
   // au revoir léger : une ligne tapée, puis l'application se ferme
   function bye() {

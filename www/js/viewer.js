@@ -126,6 +126,7 @@ async function openPlanViewer(plan, ctx) {
       <button class="iconbtn" data-a="back">${icon('back')}</button>
       <h1>${esc(plan.name)}${plan.supersededBy ? ' <span class="ind-tag old">ancien</span>' : ''}</h1>
       <button class="iconbtn" data-a="ind" title="Indices / mise à jour du plan">${icon('history')}</button>
+      <button class="iconbtn" data-a="cmpb" title="Comparer (niveaux / indices)">${icon('layers')}</button>
       <button class="iconbtn" data-a="meas" title="Mesurer (distance · surface)">${icon('ruler')}</button>
       <button class="iconbtn" data-a="filters">${icon('eye')}</button>
       <button class="iconbtn" data-a="more">${icon('more')}</button>
@@ -963,11 +964,12 @@ async function openPlanViewer(plan, ctx) {
   };
   const openIndMenu = () => planIndicesMenu(plan, { onNew: (np) => { close(); openPlanViewer(np, ctx); }, onOpen: (p2) => { if (p2.id !== plan.id) { close(); openPlanViewer(p2, ctx); } } });
   $('[data-a=ind]', el).onclick = openIndMenu;
+  $('[data-a=cmpb]', el).onclick = () => compareMenu(plan);
   $('[data-a=more]', el).onclick = async () => {
     const v = await menu(plan.name, [
       { label: 'Mettre à jour le plan (nouvel indice)', icon: 'upload', value: 'indice' },
       { label: 'Indices : historique · comparer', icon: 'history', value: 'indmenu' },
-      { label: 'Comparer les niveaux (R+3 → R+4…)', icon: 'layers', value: 'lvl' },
+      { label: 'Comparer : deux niveaux · deux indices', icon: 'layers', value: 'lvl' },
       { label: 'Partager…', icon: 'share', value: 'share' },
       { label: 'Mesurer (distance · surface)', icon: 'ruler', value: 'meas' },
       ...(isCad ? [{ label: 'Calques (afficher / masquer)', icon: 'layers', value: 'layers' }, { label: 'Rechercher un texte dans le plan', icon: 'search', value: 'find' }] : []),
@@ -980,7 +982,7 @@ async function openPlanViewer(plan, ctx) {
     ]);
     if (v === 'fit') fit();
     if (v === 'meas') measToggle(true);
-    if (v === 'lvl') openLevelStack(plan);
+    if (v === 'lvl') compareMenu(plan);
     if (v === 'layers') cadLayers();
     if (v === 'find') cadFind();
     if (v === 'share') sharePlanMenu(plan, { tasks: st.tasks, links: st.links });

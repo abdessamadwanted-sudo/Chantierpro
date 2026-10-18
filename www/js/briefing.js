@@ -9,7 +9,7 @@ const BriefCfg = {
   get() { try { return { hide: [], sc: [], ...(JSON.parse(localStorage.getItem('brief.cfg') || '{}') || {}) }; } catch (e) { return { hide: [], sc: [] }; } },
   set(v) { try { localStorage.setItem('brief.cfg', JSON.stringify(v)); } catch (e) {} },
 };
-const BRIEF_KINDS = [['rap', '🔔 Rappels du jour'], ['pv', '📋 PV à livrer au BET'], ['rec', '🔩 Réception du jour'], ['tasks', '⚠️ Tâches / réserves'], ['pt', '👷 Pointage du jour'], ['plan', '📅 Planning en retard'], ['due', '⏳ Échéances des lots'], ['lab', '🧪 Labo : écrasements'], ['stock', '📦 Stock bas'], ['lvs', '🏢 Changements entre niveaux'],
+const BRIEF_KINDS = [['rap', '🔔 Rappels du jour'], ['pv', '📋 PV à livrer au BET'], ['rec', '🔩 Réception du jour'], ['tasks', '⚠️ Tâches / réserves'], ['pt', '👷 Pointage du jour'], ['plan', '📅 Planning en retard'], ['due', '⏳ Échéances des lots'], ['lab', '🧪 Labo : écrasements'], ['stock', '📦 Stock bas'],
   ['reg:reu', '🗓️ Actions des réunions'], ['reg:rfi', '❓ RFI sans réponse'], ['reg:visa', '🛂 Visas en attente'], ['reg:perm', '🦺 Permis expirés'], ['reg:ess', '🔬 Essais non conformes'], ['reg:st', '🤝 Sous-traitants'], ['valid', '✍️ À valider'], ['job', '💼 Candidatures à relancer']];
 const SC_EMO = { dashboard: '📊', plans: '🗺️', reception: '🔩', avancement: '🏗️', planning: '📅', reunions: '🗓️', tasks: '⚠️', reports: '📝', photos: '📷', pointage: '👷', labo: '🧪', forms: '📋', constat: '🚫', clauses: '📚', rfi: '❓', visa: '🛂', hse: '🦺', calc: '📐', models3d: '🧊', maquette: '🏢', finance: '💰', avenants: '📑', gestion: '📦', tce: '🏢', st: '🤝', org: '👥', team: '👷' };
 // ordre des cartes selon le service (les autres suivent)
@@ -60,11 +60,6 @@ async function briefingData() {
   if (due.length && see('avancement')) C.push({ k: 'due', e: '⏳', t: 'Échéances des lots', c: '#a855f7', n: due.length, items: due, alert: due.some(x => x.late) });
   if (lab.length && (see('labo') || see('gestion'))) C.push({ k: 'lab', e: '🧪', t: 'Labo : écrasements', c: '#06b6d4', n: lab.length, items: lab, alert: lab.some(x => x.late) });
   if (stk.length && see('gestion')) C.push({ k: 'stock', e: '📦', t: 'Stock bas', c: '#eab308', n: stk.length, items: stk });
-  // changements entre niveaux pas encore vus (comparaison des niveaux)
-  try { const pls = await DB.all('plans'), it = [];
-    for (const up of pls) for (const [lid, c] of Object.entries(up.lvChk || {})) { const left = (c.n || 0) - ((up.lvSeen || {})[lid] || []).length; if (left > 0) it.push({ pid: up.projectId, lowId: lid, upId: up.id, label: `${c.lowName || ''} → ${c.upName || up.name}`, sub: `${(P(up.projectId)).name || ''} · ${left} changement(s) à vérifier` }); }
-    if (it.length) C.push({ k: 'lvs', e: '🏢', t: 'Changements entre niveaux', c: '#f97316', n: it.reduce((a, x) => a + (+x.sub.match(/· (\d+) chang/)[1]), 0), items: it });
-  } catch (e) { console.warn('lvs brief', e); }
   try { C.push(...regBriefCards(ps)); } catch (e) { console.warn('reg brief', e); }
   try { const n = typeof careerBadge === 'function' && see('career') ? careerBadge() : 0; if (n) C.push({ k: 'job', e: '💼', t: 'Candidatures à relancer', c: '#22c55e', n, items: [{ label: `${n} candidature(s) envoyée(s) il y a plus de 7 jours` }] }); } catch (e) {}
   const me = Org.me(), O = BRIEF_ORDER[me && me.service] || [];
@@ -81,11 +76,11 @@ async function briefPick(items) { const ids = [...new Set(items.map(x => x.pid).
 function briefAction(card) {
   return async () => {
     if (card.k === 'job') return openCareer();
-    if (card.k === 'pv') return pvBetSheet(App.fromBrief);
+    if (card.k === 'pv') return pvBetPage(App.fromBrief);
     if (card.k === 'lvs') { let it = card.items[0]; if (card.items.length > 1) { const v = await menu('Quelle paire ?', card.items.map((x, i) => ({ label: `${x.label} · ${x.sub}`, icon: 'layers', value: String(i) }))); it = v == null ? null : card.items[+v]; } if (!it) return; return briefGo(it.pid, () => lvsOpenPair(it.lowId, it.upId)); }
     const pid = await briefPick(card.items); if (!pid) { if (App.fromBrief) briefReopen(); return; }
     const go = (sec, extra) => briefGo(pid, async () => { App.section = sec; App.search = ''; if (extra) extra(); await renderSection(); });
-    if (card.k === 'rap') { App.fromBrief = null; App.homeOpen = App.homeOpen || {}; App.homeOpen[pid] = true; App.homeRap = App.homeRap || {}; App.homeRap[pid] = true; return renderHome(); }
+    if (card.k === 'rap') { App.fromBrief = null; App.homeFocus = pid; App.homeRap = App.homeRap || {}; App.homeRap[pid] = true; return renderHome(); }
     if (card.k === 'tasks') return go('tasks', () => { App.taskFilter = 'open'; });
     if (card.k === 'rec') return briefGo(pid, async () => { const d = card.days.find(x => x.projectId === pid); App.section = 'reception'; await renderSection(); if (d) openReceptionDay(d); });
     if (card.k === 'due') return go('dashboard');
@@ -99,32 +94,62 @@ function briefAction(card) {
   };
 }
 // retour au briefing (bouton Retour depuis l'endroit ouvert)
-async function briefReopen(fb) { fb = fb || App.fromBrief || {}; App.fromBrief = null; const act = await briefingShow({ scroll: fb.scroll }); if (act) act(); }
-// liste interactive des PV à livrer : cocher « Livré » directement
-async function pvBetSheet(fromBrief) {
-  const { cards } = await briefingData(), C = cards.find(c => c.k === 'pv');
-  if (!C) { toast('Tous les PV sont livrés au BET ✓'); if (fromBrief) briefReopen(fromBrief); return; }
-  const byDate = {}; C.items.forEach(x => (byDate[x.date] = byDate[x.date] || []).push(x));
-  const s = sheet(`<button class="btn ghost small pvb-all" data-all>✓ Marquer livrés jusqu'au…</button><div class="pvb">${Object.keys(byDate).sort().map(d => `<div class="pvb-d"><b>${fmtDate(d)}</b><span>${daysSince(d)} j</span></div>${byDate[d].map(x => `<div class="pvb-r ${x.recu ? '' : 'nr'}" data-r="${x.did}|${x.rid}"><span class="grow"><b>${esc(x.label)}</b><small>${x.recu ? 'PV reçu · à livrer au BET' : 'PV pas encore reçu'}</small></span><button class="pvb-ok">Livré ✓</button></div>`).join('')}`).join('')}</div>`, { title: `📋 PV à livrer au BET · ${C.n}` });
-  const mark = async (pairs) => { const byD = {}; pairs.forEach(([did, rid]) => (byD[did] = byD[did] || []).push(rid));
-    for (const [did, rids] of Object.entries(byD)) { const d = await DB.get('receptions', did); if (!d) continue; for (const r of d.rows) if (rids.includes(r.id)) { r.pvLivre = true; if (!r.pvRecu && !r.pvExist) r.pvRecu = true; r.pvLivreAt = todayISO(); } await DB.put('receptions', d); } };
-  $$('.pvb-ok', s.el).forEach(b => b.onclick = async () => {
-    const row = b.closest('[data-r]'); await mark([row.dataset.r.split('|')]);
-    row.classList.add('done'); b.textContent = '✓'; b.disabled = true; try { navigator.vibrate && navigator.vibrate(10); } catch (e) {}
-  });
-  $('[data-all]', s.el).onclick = async () => {
-    const r = await formSheet('Marquer livrés au BET', [{ name: 'd', label: 'Tous les PV jusqu\'au (inclus)', type: 'date', value: Object.keys(byDate).sort()[0] }], { okLabel: 'Marquer livrés' });
-    if (!r || !r.d) return; const L = C.items.filter(x => x.date <= r.d); if (!L.length) return toast('Aucun PV avant cette date');
-    if (!await confirmBox(`Marquer ${L.length} PV comme livrés au BET (jusqu'au ${fmtDate(r.d)}) ?`, 'Marquer livrés')) return;
-    await mark(L.map(x => [x.did, x.rid])); toast(`${L.length} PV marqué(s) livré(s) ✓`);
-    L.forEach(x => { const row = $(`[data-r="${x.did}|${x.rid}"]`, s.el); if (row) { row.classList.add('done'); const b = $('.pvb-ok', row); b.textContent = '✓'; b.disabled = true; } });
+async function briefReopen(fb) { fb = fb || App.fromBrief || {}; App.fromBrief = null; const act = await briefingShow({ scroll: fb.scroll, pid: fb.pid }); if (act) act(); }
+// PV : page du briefing (même style) · une date = un volet qui s'ouvre · deux états : PV à récupérer / PV à livrer au BET
+async function pvBetPage(fromBrief) {
+  fromBrief = fromBrief || {};
+  const { cards } = await briefingData(), C0 = cards.find(c => c.k === 'pv');
+  let items = C0 ? C0.items.filter(x => !fromBrief.pid || x.pid === fromBrief.pid) : [];
+  if (!items.length) { toast('Tous les PV sont livrés au BET ✓'); if (fromBrief.scroll != null || fromBrief.pid) briefReopen(fromBrief); return; }
+  const PJ = fromBrief.pid ? await DB.get('projects', fromBrief.pid) : null;
+  let filt = 'all'; const open = new Set();
+  const el = document.createElement('div'); el.className = 'splash brief pvp';
+  document.body.appendChild(el);
+  const unBack = pushBack(() => leave(true));
+  const leave = (reopen) => { el.classList.add('out'); setTimeout(() => el.remove(), 300); if (reopen) briefReopen(fromBrief); };
+  const mark = async (pairs, kind) => { const byD = {}; pairs.forEach(([did, rid]) => (byD[did] = byD[did] || []).push(rid));
+    for (const [did, rids] of Object.entries(byD)) { const d = await DB.get('receptions', did); if (!d) continue; for (const r of d.rows) if (rids.includes(r.id)) { if (kind === 'recu') { r.pvRecu = true; r.pvRecuAt = todayISO(); } else { r.pvLivre = true; if (!r.pvRecu && !r.pvExist) r.pvRecu = true; r.pvLivreAt = todayISO(); } } await DB.put('receptions', d); } };
+  const draw = () => {
+    const L = items.filter(x => !x.gone && (filt === 'all' || (filt === 'rec' ? !x.recu : x.recu))), byDate = {};
+    L.forEach(x => (byDate[x.date] = byDate[x.date] || []).push(x));
+    const nR = items.filter(x => !x.gone && !x.recu).length, nL = items.filter(x => !x.gone && x.recu).length;
+    el.innerHTML = `<div class="bf-head"><small><button class="pvp-x" data-x>‹ Briefing</button>${PJ ? ' · ' + esc(PJ.name) : ''}</small><b>📋 PV des ouvrages</b><span>${nR} à récupérer · ${nL} à livrer au BET</span></div>
+      <div class="pvp-f"><button data-f="all" class="${filt === 'all' ? 'on' : ''}">Tous <i>${nR + nL}</i></button><button data-f="rec" class="${filt === 'rec' ? 'on' : ''}" style="--c:#f59e0b">PV à récupérer <i>${nR}</i></button><button data-f="liv" class="${filt === 'liv' ? 'on' : ''}" style="--c:#ef4444">À livrer au BET <i>${nL}</i></button></div>
+      <div class="bf-body pvp-b">${Object.keys(byDate).sort().map(d => { const xs = byDate[d], o = open.has(d), r = xs.filter(x => !x.recu).length, l = xs.length - r;
+        return `<div class="pvp-d ${o ? 'open' : ''} ${daysSince(d) >= 3 ? 'old' : ''}"><button class="pvp-dh" data-d="${d}"><b>${fmtDate(d)}</b><span class="pvp-dn">${r ? `<i class="a">${r} à récupérer</i>` : ''}${l ? `<i class="b">${l} à livrer</i>` : ''}</span><small>${daysSince(d)} j</small><u>${icon('chevdown')}</u></button>
+          ${o ? `<table class="pvp-t"><tbody>${xs.map(x => `<tr data-r="${x.did}|${x.rid}" class="${x.recu ? 'liv' : 'rec'}"><td class="pvp-o"><b>${esc(x.label)}</b><small>${x.recu ? 'PV reçu · à livrer au BET' : 'PV pas encore récupéré'}</small></td>
+            <td class="pvp-a"><button class="pvp-btn ${x.recu ? 'l' : 'r'}" data-k="${x.recu ? 'liv' : 'recu'}">${x.recu ? 'Livré ✓' : 'Reçu ✓'}</button></td></tr>`).join('')}</tbody></table>` : ''}</div>`; }).join('') || '<div class="pvp-none">Rien ici ✓</div>'}
+        <button class="bf-cust" data-all>✓ Marquer livrés au BET jusqu'au…</button></div>
+      <div class="bf-foot"><button class="bf-enter" data-x>‹ Retour au briefing</button></div>`;
+    $$('[data-x]', el).forEach(b => b.onclick = () => { unBack(); leave(true); });
+    $$('[data-f]', el).forEach(b => b.onclick = () => { filt = b.dataset.f; draw(); });
+    $$('[data-d]', el).forEach(b => b.onclick = () => { const d = b.dataset.d; open.has(d) ? open.delete(d) : open.add(d); const sc = $('.pvp-b', el).scrollTop; draw(); $('.pvp-b', el).scrollTop = sc; });
+    $$('.pvp-btn', el).forEach(b => b.onclick = async (e) => { e.stopPropagation(); const tr = b.closest('[data-r]'), [did, rid] = tr.dataset.r.split('|'), x = items.find(y => y.did === did && y.rid === rid);
+      await mark([[did, rid]], b.dataset.k); try { navigator.vibrate && navigator.vibrate(10); } catch (er) {}
+      tr.classList.add('done'); b.disabled = true; b.textContent = '✓';
+      setTimeout(() => { if (b.dataset.k === 'recu') x.recu = true; else x.gone = true; const sc = $('.pvp-b', el).scrollTop; draw(); $('.pvp-b', el).scrollTop = sc; }, 450); });
+    // toucher un ouvrage : ouvrir sa réception (le retour revient au briefing)
+    $$('tr[data-r]', el).forEach(tr => tr.onclick = () => { const [did] = tr.dataset.r.split('|'), x = items.find(y => y.did === did); unBack(); leave(false);
+      App.fromBrief = fromBrief; briefGo(x.pid, async () => { const d = await DB.get('receptions', did); App.section = 'reception'; await renderSection(); if (d) openReceptionDay(d); }); });
+    $('[data-all]', el).onclick = async () => {
+      const ds = [...new Set(items.filter(x => !x.gone).map(x => x.date))].sort(); const r = await formSheet('Marquer livrés au BET', [{ name: 'd', label: 'Tous les PV jusqu\'au (inclus)', type: 'date', value: ds[0] }], { okLabel: 'Marquer livrés' });
+      if (!r || !r.d) return; const L2 = items.filter(x => !x.gone && x.date <= r.d); if (!L2.length) return toast('Aucun PV avant cette date');
+      if (!await confirmBox(`Marquer ${L2.length} PV comme livrés au BET (jusqu'au ${fmtDate(r.d)}) ?`, 'Marquer livrés')) return;
+      await mark(L2.map(x => [x.did, x.rid]), 'liv'); L2.forEach(x => x.gone = true); toast(`${L2.length} PV marqué(s) livré(s) ✓`); draw(); };
   };
-  if (fromBrief) s.onClose = () => briefReopen(fromBrief);
+  // la date la plus ancienne est ouverte
+  const first = items.map(x => x.date).sort()[0]; if (first) open.add(first);
+  draw();
 }
+// ancien nom (ailleurs dans l'application)
+const pvBetSheet = (fb) => pvBetPage(fb || {});
 // écran du briefing : renvoie une action (carte touchée) ou null (entrer normalement)
 function briefingShow(opts = {}) {
   return new Promise(async (resolve) => {
-    const { cards } = await briefingData();
+    let { cards } = await briefingData();
+    const PJ = opts.pid ? await DB.get('projects', opts.pid) : null;
+    if (PJ) cards = cards.filter(c => c.k !== 'job').map(c => { if (c.sc) return { ...c, items: [{ pid: PJ.id, label: PJ.name }] }; const items = (c.items || []).filter(x => x.pid === PJ.id); if (!items.length) return null;
+      const r = { ...c, items, n: items.length }; if (c.k === 'pv') r.sub = `le plus ancien : ${daysSince(items[0].date)} j`; if (c.k === 'rec') r.sub = `${items.filter(x => x.done).length}/${items.length} réceptionné(s)`; r.alert = items.some(x => x.late); return r; }).filter(Boolean);
     const GS = await gameStrip().catch((e) => { console.warn('game', e); return null; });
     const notes = BriefNotes.get();
     const el = document.createElement('div'); el.className = 'splash brief';
@@ -132,14 +157,14 @@ function briefingShow(opts = {}) {
     const d = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
     const drawNotes = () => { const N = BriefNotes.get(); return `${N.map((x, i) => `<label class="bn-i ${x.done ? 'done' : ''}"><input type="checkbox" data-n="${i}" ${x.done ? 'checked' : ''}><span>${esc(x.t)}</span><button data-nd="${i}">✕</button></label>`).join('')}<div class="bn-add"><input placeholder="Ajouter une chose à faire aujourd'hui…"><button>＋</button></div>`; };
     const anim = !opts.scroll;
-    el.innerHTML = `<div class="bf-head"><small>${esc(d.charAt(0).toUpperCase() + d.slice(1))}${Org.label() ? ' · ' + esc(Org.label()) : ''}</small><b>Briefing du jour${name ? ', ' + esc(name) : ''}</b><span>${(() => { const n = cards.filter(c => !c.sc).reduce((a, c) => a + (+c.n || 0), 0); return n ? `${n} point(s) à voir` : 'Tout est à jour ✓'; })()}</span></div>
+    el.innerHTML = `<div class="bf-head"><small>${esc(d.charAt(0).toUpperCase() + d.slice(1))}${Org.label() ? ' · ' + esc(Org.label()) : ''}</small><b>${PJ ? `Briefing · ${esc(PJ.name)}` : `Briefing du jour${name ? ', ' + esc(name) : ''}`}</b><span>${(() => { const n = cards.filter(c => !c.sc).reduce((a, c) => a + (+c.n || 0), 0); return n ? `${n} point(s) à voir` : 'Tout est à jour ✓'; })()}</span></div>
       <div class="bf-body">
         ${GS ? `<div class="gm">${GS.html}</div>` : ''}
         <div class="bf-notes"><div class="bf-ch"><span>📝</span><b>Mes notes · à cocher</b><i>${notes.filter(x => !x.done).length || ''}</i></div><div class="bn">${drawNotes()}</div></div>
         <div class="bf-grid">${cards.map((c, i) => `<button class="bf-card ${anim ? '' : 'noanim'} ${c.alert ? 'bf-alert' : ''}" data-c="${i}" style="--c:${c.c};animation-delay:${.1 + i * .06}s"><div class="bf-ch"><span>${c.e}</span><b>${esc(c.t)}</b></div>${c.sc ? `<div class="bf-n bf-sc">${c.e}</div>` : `<div class="bf-n" data-n="${c.n}">${anim ? 0 : c.n}</div>`}${c.sub ? `<small class="bf-s">${esc(c.sub)}</small>` : ''}<div class="bf-l">${c.sc ? '<div>Raccourci</div>' : c.items.slice(0, 2).map(x => `<div>${x.late ? '🔴 ' : ''}${esc(x.label)}</div>`).join('')}</div><span class="bf-go">Ouvrir ›</span></button>`).join('')}</div>
         <button class="bf-cust">＋ Ajouter / masquer des cartes</button>
       </div>
-      <div class="bf-foot"><button class="bf-enter">Entrer au chantier ›</button></div>`;
+      <div class="bf-foot"><button class="bf-enter">${PJ ? 'Entrer ›' : 'Entrer au chantier ›'}</button></div>`;
     document.body.appendChild(el);
     const body = $('.bf-body', el); if (opts.scroll) body.scrollTop = opts.scroll;
     const gm = $('[data-gm]', el); if (gm) gm.onclick = () => gameSheet();
@@ -170,12 +195,12 @@ function briefingShow(opts = {}) {
     // ouverture douce : la carte s'enfonce légèrement puis s'ouvre
     $$('[data-c]', el).forEach(b => b.onclick = () => {
       if (el._going) return; el._going = true;
-      const card = cards[+b.dataset.c], fb = { scroll: body.scrollTop }, act = briefAction(card);
+      const card = cards[+b.dataset.c], fb = { scroll: body.scrollTop, pid: opts.pid }, act = briefAction(card);
       try { navigator.vibrate && navigator.vibrate(10); } catch (e) {}
       try { b.animate([{ transform: 'scale(1)', filter: 'brightness(1)' }, { transform: 'scale(.96)', filter: 'brightness(1.25)' }, { transform: 'scale(1.02)', filter: 'brightness(1.1)' }], { duration: 240, easing: 'ease-out', fill: 'forwards' }); } catch (e) {}
       setTimeout(() => done(async () => { App.fromBrief = fb; await act(); }), 230);
     });
-    $('.bf-cust', el).onclick = async () => { const ok = await briefCustomize(cards); if (ok) { done(async () => { const a = await briefingShow({ scroll: body.scrollTop }); if (a) a(); }); } };
+    $('.bf-cust', el).onclick = async () => { const ok = await briefCustomize(cards); if (ok) { done(async () => { const a = await briefingShow({ scroll: body.scrollTop, pid: opts.pid }); if (a) a(); }); } };
     $('.bf-enter', el).onclick = () => done(null);
   });
 }

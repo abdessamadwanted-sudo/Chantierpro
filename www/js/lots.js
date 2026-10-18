@@ -31,7 +31,7 @@ function planLots(p) {
   return p.planLots;
 }
 const lotSelOf = (fid) => (App.lotSel || {})[fid] || '';
-const nivOfFolder = (name) => { const m = String(name || '').match(/\b(R\s?\+\s?\d+|RDC|SSL|SS\s?\d?|Mezz\w*|Terrasse|Fondations?)\b/i); return m ? m[1].replace(/\s+/g, '').replace(/^mezz\w*/i, 'Mezz') : ''; };
+const nivOfFolder = (name) => { const m = String(name || '').replace(/_/g, ' ').replace(/niveau|niv\.?(?=\s*[rR\d])/gi, ' ').match(/\b(R\s?\+\s?\d+|RDC|SSL|SS\s?\d?|Mezz\w*|Terrasse|Fondations?)\b/i); return m ? m[1].replace(/\s+/g, '').replace(/^mezz\w*/i, 'Mezz') : ''; };
 const tint = (c, a) => c + Math.round(a * 255).toString(16).padStart(2, '0');
 
 // barre de lots + panneau du lot choisi, insérés dans la carte du dossier

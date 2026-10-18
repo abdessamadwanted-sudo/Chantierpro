@@ -99,6 +99,7 @@ const rapLabel = (x) => { const d = rapDays(x); return d < 0 ? ` · en retard de
 async function renderHome() {
   App.fromBrief = null;
   const keepScroll = App.project ? 0 : (($('.h2-body') || {}).scrollTop || 0);
+  if (App.project && App.homeFocus !== false) App.homeFocus = App.project.id;   // retour d'un projet : on revient sur sa page
   App.project = null;
   BackStack.length = 0;
   const projects = (await DB.all('projects')).sort((a, b) => b.updatedAt - a.updatedAt);
@@ -126,6 +127,21 @@ async function renderHome() {
     : ['Belle soirée, bon travail aujourd\'hui 👏', 'Le temps de faire le bilan du jour 📊', 'Pensez à envoyer les tableaux du jour 📤', 'Reposez-vous, demain on continue 🌙', 'Merci pour cette journée de chantier'];
   const phrase = PHR[(new Date().getDate() + h) % PHR.length];
   const dateL = new Date().toLocaleDateString({ ar: 'ar-MA', en: 'en-GB' }[Lang.cur] || 'fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const detHTML = (p, st) => { const due = (x) => x.at && x.at.slice(0, 10) <= today, ropen = !!(App.homeRap || {})[p.id]; return `<div class="h2-det">
+              ${st.av ? `<div class="h2-kpi" style="grid-template-columns:1fr;margin:0 0 10px"><div class="${st.av.late ? 'r' : 'g'}" data-go="${p.id}|avancement"><b>${st.av.pct}%</b><span>Avancement second œuvre · ${st.av.locs} locaux ›</span>${st.av.late ? `<small>${st.av.late} engagement(s) en retard</small>` : ''}</div></div>` : ''}
+              ${fRec ? `<table class="h2-tab"><tr><th></th><th>Aujourd'hui</th><th>7 jours</th><th>Total</th></tr>
+                <tr data-go="${p.id}|reception"><td>Réception ferraillage ›</td><td><b>${st.fT}</b></td><td>${st.fW}</td><td>${st.fA}</td></tr>
+                <tr data-go="${p.id}|beton"><td>Bétonnage ›</td><td><b>${st.bT}</b></td><td>${st.bW}</td><td>${st.bA}</td></tr></table>` : ''}
+              ${fRec || fTasks ? `<div class="h2-kpi" style="${fRec && fTasks ? '' : 'grid-template-columns:1fr'}">${fRec ? `<div class="${st.pv ? 'r' : 'g'}" data-go="${p.id}|pv"><b>${st.pv}</b><span>PV à récupérer ›</span>${st.pvOld ? `<small>dont ${st.pvOld} > 3 jours</small>` : ''}</div>` : ''}
+                ${fTasks ? `<div class="${st.open ? 'o' : 'g'}" data-go="${p.id}|tasks"><b>${st.open}</b><span>Réserves ouvertes ›</span>${st.late ? `<small>${st.late} en retard</small>` : ''}</div>` : ''}</div>` : ''}
+              <div class="h2-rh"><button class="h2-rt" data-raptog="${p.id}"><b>🔔 Rappels</b><span class="n">${st.rap.length}</span>${st.rap.some(due) ? '<span class="due">à faire</span>' : ''}<span class="chev" style="transform:rotate(${ropen ? 180 : 0}deg)">${icon('chevdown')}</span></button><button data-addrap="${p.id}">${icon('plus')} Ajouter</button></div>
+              ${!ropen ? '' : st.rap.length ? st.rap.map(x => `<div class="h2-rap ${rapState(x)}"><button class="ck" data-rapok="${p.id}|${x.id}"></button><div class="grow" data-rapedit="${p.id}|${x.id}"><span>${esc(x.text)}</span>${x.at ? `<small>${fmtDate(x.at.slice(0, 10))}${x.at.length > 10 ? ' · ' + x.at.slice(11, 16) : ''}${rapLabel(x)}</small>` : ''}</div><button class="iconbtn sm" data-rapdel="${p.id}|${x.id}">${icon('close')}</button></div>`).join('') : '<div class="h2-none">Aucun rappel</div>'}
+            </div>`; };
+  const fp = App.homeFocus && projects.find(x => x.id === App.homeFocus); if (!fp) App.homeFocus = null;
+  const focusHTML = () => { const st = stats(fp), [c1, c2] = hue(fp.name); if (!fRec) { st.today = 0; st.pv = 0; } if (!fTasks) { st.open = 0; st.late = 0; }
+    return `<div class="h2-focus"><div class="h2-band" style="--c1:${c1};--c2:${c2}"><button class="h2-bk" data-a="unfocus" aria-label="Mes chantiers">${icon('back')}</button>
+      <span class="h2-bav">${esc(initials(fp.name))}</span><b class="grow">${esc(fp.name)}</b><button class="h2-bopen" data-open="${fp.id}">Ouvrir ${icon('chevright')}</button></div>
+      <button class="h2-bbrief" data-brief="${fp.id}">☀️ Briefing du chantier</button>${detHTML(fp, st)}</div>`; };
   $('#app').innerHTML = `
     <div class="home2">
       <div class="h2-hero">
@@ -142,8 +158,8 @@ async function renderHome() {
         <div class="h2-date">${dateL.charAt(0).toUpperCase() + dateL.slice(1)}</div>
       </div>
       <div class="h2-body">
-        <div class="h2-sec"><span>Mes chantiers</span><small>${projects.length}</small></div>
-        ${projects.length ? projects.map(p => { const st = stats(p), [c1, c2] = hue(p.name), open = !!App.homeOpen[p.id];
+        ${fp ? focusHTML() : `<div class="h2-sec"><span>Mes chantiers</span><small>${projects.length}</small></div>
+        ${projects.length ? projects.map(p => { const st = stats(p), [c1, c2] = hue(p.name), open = false;
           const due = (x) => x.at && x.at.slice(0, 10) <= today;
           const ropen = !!(App.homeRap || {})[p.id];
           if (!fRec) { st.today = 0; st.pv = 0; } if (!fTasks) { st.open = 0; st.late = 0; }
@@ -160,29 +176,22 @@ async function renderHome() {
               </span></span>
             <span class="h2-chev">${icon('chevdown')}</span></button>
             ${open ? `<button class="btn h2-openbtn" data-open="${p.id}">Ouvrir le projet ${icon('chevright')}</button>` : ''}</div>
-            ${open ? `<div class="h2-det">
-              ${st.av ? `<div class="h2-kpi" style="grid-template-columns:1fr;margin:0 0 10px"><div class="${st.av.late ? 'r' : 'g'}" data-go="${p.id}|avancement"><b>${st.av.pct}%</b><span>Avancement second œuvre · ${st.av.locs} locaux ›</span>${st.av.late ? `<small>${st.av.late} engagement(s) en retard</small>` : ''}</div></div>` : ''}
-              ${fRec ? `<table class="h2-tab"><tr><th></th><th>Aujourd'hui</th><th>7 jours</th><th>Total</th></tr>
-                <tr data-go="${p.id}|reception"><td>Réception ferraillage ›</td><td><b>${st.fT}</b></td><td>${st.fW}</td><td>${st.fA}</td></tr>
-                <tr data-go="${p.id}|beton"><td>Bétonnage ›</td><td><b>${st.bT}</b></td><td>${st.bW}</td><td>${st.bA}</td></tr></table>` : ''}
-              ${fRec || fTasks ? `<div class="h2-kpi" style="${fRec && fTasks ? '' : 'grid-template-columns:1fr'}">${fRec ? `<div class="${st.pv ? 'r' : 'g'}" data-go="${p.id}|pv"><b>${st.pv}</b><span>PV à récupérer ›</span>${st.pvOld ? `<small>dont ${st.pvOld} > 3 jours</small>` : ''}</div>` : ''}
-                ${fTasks ? `<div class="${st.open ? 'o' : 'g'}" data-go="${p.id}|tasks"><b>${st.open}</b><span>Réserves ouvertes ›</span>${st.late ? `<small>${st.late} en retard</small>` : ''}</div>` : ''}</div>` : ''}
-              <div class="h2-rh"><button class="h2-rt" data-raptog="${p.id}"><b>🔔 Rappels</b><span class="n">${st.rap.length}</span>${st.rap.some(due) ? '<span class="due">à faire</span>' : ''}<span class="chev" style="transform:rotate(${ropen ? 180 : 0}deg)">${icon('chevdown')}</span></button><button data-addrap="${p.id}">${icon('plus')} Ajouter</button></div>
-              ${!ropen ? '' : st.rap.length ? st.rap.map(x => `<div class="h2-rap ${rapState(x)}"><button class="ck" data-rapok="${p.id}|${x.id}"></button><div class="grow" data-rapedit="${p.id}|${x.id}"><span>${esc(x.text)}</span>${x.at ? `<small>${fmtDate(x.at.slice(0, 10))}${x.at.length > 10 ? ' · ' + x.at.slice(11, 16) : ''}${rapLabel(x)}</small>` : ''}</div><button class="iconbtn sm" data-rapdel="${p.id}|${x.id}">${icon('close')}</button></div>`).join('') : '<div class="h2-none">Aucun rappel</div>'}
-            </div>` : ''}</div>`; }).join('')
+            ${open ? detHTML(p, st) : ''}</div>`; }).join('')
         : `<div class="h2-empty"><div class="ic">${icon('hard')}</div><b>Aucun chantier pour le moment</b><span>Créez votre premier projet avec le bouton <b>+</b>, ou récupérez vos données avec Google Drive.</span>
-            <button class="btn ghost" data-a="restore2" style="flex:none">${icon('undo')} Restaurer une sauvegarde</button></div>`}
+            <button class="btn ghost" data-a="restore2" style="flex:none">${icon('undo')} Restaurer une sauvegarde</button></div>`}`}
       </div>
     </div>
-    <button class="fab" data-a="new">${icon('plus')}</button>`;
+    ${fp ? '' : `<button class="fab" data-a="new">${icon('plus')}</button>`}`;
   const cb = $('[data-a=career]'); if (cb) cb.onclick = openCareer;
   const fpb = $('[data-a=freeph]'); fpb.onclick = () => openStorage();
   photoReminder().then(r => { if (!r || App.project || !fpb.isConnected) return; fpb.classList.remove('off'); fpb.title = `${r.n} photos déjà dans Drive · libérer ${r.mb.toFixed(0)} Mo`; fpb.insertAdjacentHTML('beforeend', `<i class="h2-badge y">${r.n > 99 ? '99+' : r.n}</i>`); }).catch(() => {});
   if (keepScroll) { const hb = $('.h2-body'); if (hb) hb.scrollTop = keepScroll; }
-  $$('.h2-card[data-id]').forEach(r => r.onclick = async (e) => { const pv = e.target.closest('[data-pvgo]'); if (pv) { await openProject(await DB.get('projects', pv.dataset.pvgo)); return goMissingPv(); } const id = r.dataset.id; App.homeOpen[id] = !App.homeOpen[id]; await renderHome();
-    // le projet ouvert monte en haut de l'écran (sous l'en-tête) pour voir tout son détail
-    if (App.homeOpen[id]) { const hb = $('.h2-body'), c = $(`.h2-card[data-id="${id}"]`); if (hb && c) { const top = c.getBoundingClientRect().top - hb.getBoundingClientRect().top + hb.scrollTop - 8;
-      const need = top + hb.clientHeight - hb.scrollHeight; if (need > 0) hb.style.setProperty("padding-bottom", `calc(150px + ${need}px)`, "important"); requestAnimationFrame(() => hb.scrollTo({ top, behavior: 'smooth' })); } } });
+  // toucher un chantier : son briefing, puis « Entrer » → la page du chantier
+  const focusOn = async (id) => { App.homeFocus = id; await renderHome(); $('#app .h2-body') && ($('#app .h2-body').scrollTop = 0);
+    if (typeof briefingShow === 'function') { const act = await briefingShow({ pid: id }).catch(e => { console.warn(e); return null; }); if (act) act(); } };
+  $$('.h2-card[data-id]').forEach(r => r.onclick = async (e) => { const pv = e.target.closest('[data-pvgo]'); if (pv) { await openProject(await DB.get('projects', pv.dataset.pvgo)); return goMissingPv(); } focusOn(r.dataset.id); });
+  const unf = $('[data-a=unfocus]'); if (unf) { unf.onclick = () => { App.homeFocus = false; renderHome().then(() => { App.homeFocus = null; }); }; pushBack(() => unf.onclick()); }
+  const bb = $('[data-brief]'); if (bb) bb.onclick = async () => { const act = await briefingShow({ pid: bb.dataset.brief }); if (act) act(); };
   $$('[data-open]').forEach(b => b.onclick = async () => openProject(await DB.get('projects', b.dataset.open)));
   $$('[data-go]').forEach(b => b.onclick = async () => {
     const [pid, where] = b.dataset.go.split('|'); const p = await DB.get('projects', pid);
@@ -251,9 +260,7 @@ async function renderHome() {
     if (v === 'fx') fxSettings();
   };
   const r2 = $('[data-a=restore2]'); if (r2) r2.onclick = restoreBackup;
-  $('[data-a=new]').onclick = async () => {
-    newProjectDialog();
-  };
+  const nb = $('[data-a=new]'); if (nb) nb.onclick = () => newProjectDialog();
 }
 
 async function openProject(p) {
@@ -509,9 +516,9 @@ async function renderPlans(root) {
       { label: 'Nouveau dossier (niveau)', icon: 'folder', value: 'folder' },
       ...(tops.length ? [{ label: 'Nouveau sous-dossier (dans un niveau)', icon: 'folder', value: 'subfolder' }] : []),
       { label: 'Outils : DWG → PDF / DXF, fusionner, diviser', icon: 'layers', value: 'tools' },
-      { label: 'Comparer les niveaux (R+3 → R+4 → R+5…)', icon: 'layers', value: 'lvl' },
+      { label: 'Comparer : deux niveaux · deux indices', icon: 'layers', value: 'lvl' },
     ]);
-    if (v === 'lvl') { openLevelStack(); return; }
+    if (v === 'lvl') { compareMenu(); return; }
     if (v === 'tools') return planToolsMenu(root);
     if (v === 'folder') newFolder(root, null);
     if (v === 'subfolder') {
@@ -1544,7 +1551,7 @@ async function addRappel(pid, editId) {
   await DB.put('projects', p);
   await scheduleNotif(p, x);
   toast(r.time ? 'Rappel enregistré — sonnerie programmée 🔔' : 'Rappel enregistré ✓');
-  if (!App.project) { App.homeOpen = App.homeOpen || {}; App.homeOpen[pid] = true; renderHome(); }
+  if (!App.project) { App.homeFocus = pid; renderHome(); }
   else App.project = p;
 }
 
