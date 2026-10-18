@@ -2048,3 +2048,6 @@ body:has(.splash.brief) .sheet-bg { z-index: 10070; }
 .lp-docs { display: grid; gap: 4px; }
 .lp-doc { display: flex; align-items: center; gap: 4px; } .lp-doc > button.grow { flex: 1; display: flex; align-items: center; gap: 8px; text-align: left; padding: 9px 10px; border-radius: 12px; background: rgba(255,255,255,.55); color: #0f172a; font-weight: 600; font-size: 13.5px; }
 .lp-doc svg.i { width: 18px; height: 18px; color: var(--c); flex: none; }
+.lvs-split b { display: none; }
+.lvs-sd { position: absolute; top: 10px; z-index: 6; max-width: 44%; padding: 8px 12px; border-radius: 14px; font-weight: 800; font-size: 13.5px; color: #fff; background: rgba(15,23,42,.88); border: 1.5px solid rgba(249,115,22,.7); box-shadow: 0 6px 16px rgba(0,0,0,.3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lvs-sd.l { left: 10px; } .lvs-sd.r { right: 10px; } .lvs-sd i { font-style: normal; opacity: .8; margin-left: 2px; }

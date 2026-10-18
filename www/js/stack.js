@@ -96,12 +96,12 @@ const lvsShort = (n) => { n = String(n || ''); if (n.length <= 16) return n; con
 const lvsKey = (q) => `${Math.round((q.x + q.w / 2) / 20)},${Math.round((q.y + q.h / 2) / 20)}`;
 async function openStackView(chain) {
   chain = [...chain];
-  let hdSeq = 0, hdLast = null, hdBusy = false, hdAgain = false, hdT = 0, k = 0, mode = 'curtain', M = null, show = 'up', split = .5, pz = null;
+  let hdSeq = 0, hdTick = 0, hdT = 0, k = 0, mode = 'curtain', M = null, show = 'up', split = .5, pz = null;
   const el = document.createElement('div'); el.className = 'fullpage av-page lvs';
   el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><div class="tb-title" style="flex:1"><b class="lvs-t"></b><span class="lvs-s"></span></div>
       <button class="iconbtn" data-a="cal" title="Refaire le calage de cette paire">${icon('ruler')}</button><button class="iconbtn" data-a="share">${icon('share')}</button></div>
     <div class="av-chips lvs-modes"><button data-m="curtain">🎚️ Rideau</button><button data-m="swap">👁️ Un niveau à la fois</button></div><div class="lvs-sw"><button data-s="low"></button><button data-s="up"></button></div>
-    <div class="lvs-wrap"><div class="lvs-v"></div><div class="lvs-split"><i></i><b class="l"></b><b class="r"></b></div><div class="lvs-pill"></div></div>
+    <div class="lvs-wrap"><div class="lvs-v"></div><div class="lvs-split"><i></i><b class="l"></b><b class="r"></b></div><div class="lvs-pill"></div><button class="lvs-sd l" data-side="0"></button><button class="lvs-sd r" data-side="1"></button></div>
     <div class="lvs-bar"><div class="lvs-nav"><button class="btn small ghost" data-a="chg">⇅ Changer les niveaux</button><span class="lvs-tip">Touchez le plan : réserve / RFI</span></div></div>`;
   document.body.appendChild(el);
   const unBack = pushBack(() => close()); const close = () => { clearTimeout(hdT); hdSeq++; el.remove(); };
@@ -128,7 +128,7 @@ async function openStackView(chain) {
   const load = async () => {
     const [low, up] = pair(); M = await lvsMap(low, up);
     $('.lvs-t', el).textContent = `${nm(k)} → ${nm(k + 1)}`; $('.lvs-s', el).textContent = `base ${nm(k)} · supérieur ${nm(k + 1)}`;
-    $('[data-s=low]', swEl).textContent = `▼ ${nm(k)}`; $('[data-s=up]', swEl).textContent = `▲ ${nm(k + 1)}`; $('.lvs-split .l', el).textContent = `◀ ${nm(k)}`; $('.lvs-split .r', el).textContent = `${nm(k + 1)} ▶`;
+    $('[data-s=low]', swEl).textContent = `▼ ${nm(k)}`; $('[data-s=up]', swEl).textContent = `▲ ${nm(k + 1)}`; $('[data-side="0"]', el).innerHTML = `▼ ${esc(nm(k))} <i>⌄</i>`; $('[data-side="1"]', el).innerHTML = `▲ ${esc(nm(k + 1))} <i>⌄</i>`; $('.lvs-split .l', el).textContent = `◀ ${nm(k)}`; $('.lvs-split .r', el).textContent = `${nm(k + 1)} ▶`;
     const [sl, su] = await Promise.all([lvsWarpURL(low, up, M), lvsLiteURL(up.fileId)]);
     if (view) view.remove(); view = document.createElement('div'); view.className = 'av-view lvs-vv'; $('.lvs-v', el).appendChild(view);
     const c = Math.cos(M.rot), s = Math.sin(M.rot);
@@ -139,32 +139,45 @@ async function openStackView(chain) {
     // les trois calques (dessous, dessus, repères) bougent ensemble, dans la même image
     const layers = [$('.lvs-sl', view), $('.lvs-su', view), $('.lvs-so', view)], stageProxy = { style: {} };
     Object.defineProperty(stageProxy.style, 'transform', { set(v) { for (const l of layers) l.style.transform = v; }, get() { return layers[0].style.transform; } });
-    const [hdLo, hdHi] = $$('.lvs-hd', view), seqL = ++hdSeq; hdLast = null;
+    const [hdLo, hdHi] = $$('.lvs-hd', view), seqL = ++hdSeq;
     const PP = Promise.all([planPdfPage(low), planPdfPage(up)]).catch(() => [null, null]);
     // rendu net (PDF / image) de la zone visible quand on zoome : les deux niveaux, au même endroit
+    // rendu net de l'écran visible, comme la page Plans : le PDF lui-même, à la résolution exacte de l'écran ; un rendu en cours est annulé dès qu'on bouge
+    let tasks = [];
     const renderHD = async () => {
-      if (hdBusy) { hdAgain = true; return; }
-      const st = pz.st, r = view.getBoundingClientRect(), [ax, ay] = pz.toImg([0, 0]), [bx, by] = pz.toImg([r.width, r.height]);
-      const v = { x0: Math.max(0, ax), y0: Math.max(0, ay), x1: Math.min(up.w, bx), y1: Math.min(up.h, by), s: st.s };
-      if (v.x1 - v.x0 < 4 || v.y1 - v.y0 < 4) return;
-      if (hdLast && v.x0 >= hdLast.x0 && v.y0 >= hdLast.y0 && v.x1 <= hdLast.x1 && v.y1 <= hdLast.y1 && Math.abs(Math.log(v.s / hdLast.s)) < .12) return;
-      hdBusy = true;
-      const mw = (v.x1 - v.x0) * .15, mh = (v.y1 - v.y0) * .15, x0 = Math.max(0, v.x0 - mw), y0 = Math.max(0, v.y0 - mh), x1 = Math.min(up.w, v.x1 + mw), y1 = Math.min(up.h, v.y1 + mh);
-      const dpr = Math.min(2.5, window.devicePixelRatio || 1); let oW = Math.round((x1 - x0) * st.s * dpr), oH = Math.round((y1 - y0) * st.s * dpr);
-      const cap = Math.min(1, 3200 / Math.max(oW, oH), Math.sqrt(5e6 / (oW * oH))); if (cap < 1) { oW = Math.round(oW * cap); oH = Math.round(oH * cap); }
+      tasks.forEach(t => { try { t.cancel(); } catch (e) {} }); tasks = [];
+      const st = pz.st, dpr = Math.min(3, window.devicePixelRatio || 1), vw = view.clientWidth, vh = view.clientHeight; if (!vw || !vh) return;
+      const x0 = -st.tx / st.s, y0 = -st.ty / st.s, S = st.s * dpr, W = Math.round(vw * dpr), H = Math.round(vh * dpr), my = ++hdTick;
+      const [PA, PB] = await PP;
+      const one = async (P, plan, MM) => {
+        const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+        const co = Math.cos(MM.rot || 0), si = Math.sin(MM.rot || 0);
+        if (P) { const t = P.page.render({ canvasContext: g, viewport: P.page.getViewport({ scale: P.k * MM.sx * S }), transform: [co, si, -si, co, S * (MM.ox - x0), S * (MM.oy - y0)], background: 'white' }); tasks.push(t); await t.promise; }
+        else { const img = await rprImg(plan.fileId); g.setTransform(S, 0, 0, S, -x0 * S, -y0 * S); g.transform(MM.sx * co, MM.sx * si, -MM.sx * si, MM.sx * co, MM.ox, MM.oy); g.imageSmoothingQuality = 'high'; g.drawImage(img, 0, 0, plan.w, plan.h); }
+        return c;
+      };
       try {
-        const [PA, PB] = await PP;
-        const [ca, cb] = await Promise.all([renderPlanRegion(low, PA, x0, y0, x1 - x0, y1 - y0, oW, oH, M, true), renderPlanRegion(up, PB, x0, y0, x1 - x0, y1 - y0, oW, oH, { sx: 1, sy: 1, ox: 0, oy: 0 }, true)]);
-        if (seqL === hdSeq && el.isConnected) for (const [cv, src] of [[hdLo, ca], [hdHi, cb]]) {
-          cv.width = src.width; cv.height = src.height; cv.getContext('2d').drawImage(src, 0, 0);
-          Object.assign(cv.style, { left: x0 + 'px', top: y0 + 'px', width: (x1 - x0) + 'px', height: (y1 - y0) + 'px', display: '' }); }
-        hdLast = { x0, y0, x1, y1, s: st.s }; ca.width = ca.height = cb.width = cb.height = 0;
-      } catch (e) { console.warn('hd', e); } finally { hdBusy = false; if (hdAgain) { hdAgain = false; clearTimeout(hdT); hdT = setTimeout(renderHD, 120); } }
+        const [ca, cb] = await Promise.all([one(PA, low, M), one(PB, up, { sx: 1, sy: 1, ox: 0, oy: 0, rot: 0 })]);
+        if (my !== hdTick || seqL !== hdSeq || !el.isConnected) return;
+        for (const [cv, src] of [[hdLo, ca], [hdHi, cb]]) { cv.width = W; cv.height = H; cv.getContext('2d').drawImage(src, 0, 0); src.width = src.height = 0;
+          Object.assign(cv.style, { left: x0 + 'px', top: y0 + 'px', width: (vw / st.s) + 'px', height: (vh / st.s) + 'px', display: 'block' }); }
+      } catch (e) { if (!/cancel/i.test(String(e && (e.name || e.message)))) console.warn('hd', e); }
     };
     pz = panZoom(view, stageProxy, up.w, up.h, { onChange: (st) => {
-      clearTimeout(hdT); hdT = setTimeout(renderHD, 160); }, onTap: ([x, y]) => tapAt(x, y) });
+      clearTimeout(hdT); tasks.forEach(t => { try { t.cancel(); } catch (e) {} }); hdT = setTimeout(renderHD, 140); }, onTap: ([x, y]) => tapAt(x, y) });
     requestAnimationFrame(() => { pz.fit(); setMode(mode); clearTimeout(hdT); hdT = setTimeout(renderHD, 60); });
   };
+  // toucher le niveau de gauche ou de droite : en choisir un autre (calé une fois à l'équerre, ensuite on change en un toucher)
+  $$('[data-side]', el).forEach(b => b.onclick = async (e) => { e.stopPropagation(); const i = +b.dataset.side, other = chain[1 - i], L = (await lvsLevels(other.p.projectId)).filter(x => x.p.id !== other.p.id);
+    const v = await menu(i ? 'Niveau supérieur (à droite)' : 'Niveau de base (à gauche)', [...L.map(x => ({ label: `${x.niv ? x.niv + ' · ' : ''}${x.p.name}${x.p.lvRef ? '  📏' : '  (à caler)'}`, icon: 'layers', value: x.p.id, checked: x.p.id === chain[i].p.id })),
+      { label: '📏 Caler plusieurs plans d\'avance…', icon: 'ruler', value: '__many' }]);
+    if (!v) return;
+    if (v === '__many') { const todo = L.filter(x => !x.p.lvRef); if (!todo.length) return toast('Tous les plans sont déjà calés ✓');
+      const sel = await lvsPick('Plans à caler', todo, [], { sub: `Calage à l'équerre sur les mêmes fils que ${esc(nm(1 - i))}. Ensuite vous changez de niveau en un toucher.`, okLabel: 'Caler ›' }); if (!sel) return;
+      if (await openEquerreSteps(sel.map(x => x.p), sel.map(x => x.niv || x.p.name), other.p)) toast(`${sel.length} plan(s) calé(s) ✓`); return; }
+    const x = L.find(y => y.p.id === v); if (!x) return;
+    if (!x.p.lvRef && !(await openEquerreSteps([x.p], [x.niv || x.p.name], other.p))) return;
+    chain[i] = x; load(); });
   $('[data-a=chg]', el).onclick = async () => { const L = await lvsLevels(chain[0].p.projectId), pr = await lvsChoosePair(L, chain[0].p); if (!pr) return;
     const todo = pr.filter(x => !x.p.lvRef); if (todo.length && !(await openEquerreSteps(todo.map(x => x.p), todo.map(x => x.niv || x.p.name), pr[0].p))) return;
     chain = pr; k = 0; load(); };

@@ -96,13 +96,13 @@ function briefAction(card) {
 // retour au briefing (bouton Retour depuis l'endroit ouvert)
 async function briefReopen(fb) { fb = fb || App.fromBrief || {}; App.fromBrief = null; const act = await briefingShow({ scroll: fb.scroll, pid: fb.pid }); if (act) act(); }
 // PV : page du briefing (même style) · une date = un volet qui s'ouvre · deux états : PV à récupérer / PV à livrer au BET
-async function pvBetPage(fromBrief) {
-  fromBrief = fromBrief || {};
+async function pvBetPage(fromBrief, keep) {
+  fromBrief = fromBrief || {}; keep = keep || {};
   const { cards } = await briefingData(), C0 = cards.find(c => c.k === 'pv');
   let items = C0 ? C0.items.filter(x => !fromBrief.pid || x.pid === fromBrief.pid) : [];
   if (!items.length) { toast('Tous les PV sont livrés au BET ✓'); if (fromBrief.scroll != null || fromBrief.pid) briefReopen(fromBrief); return; }
   const PJ = fromBrief.pid ? await DB.get('projects', fromBrief.pid) : null;
-  let filt = 'all'; const open = new Set();
+  let filt = keep.filt || 'all'; const open = new Set(keep.open || []);
   const el = document.createElement('div'); el.className = 'splash brief pvp';
   document.body.appendChild(el);
   const unBack = pushBack(() => leave(true));
@@ -129,8 +129,12 @@ async function pvBetPage(fromBrief) {
       tr.classList.add('done'); b.disabled = true; b.textContent = '✓';
       setTimeout(() => { if (b.dataset.k === 'recu') x.recu = true; else x.gone = true; const sc = $('.pvp-b', el).scrollTop; draw(); $('.pvp-b', el).scrollTop = sc; }, 450); });
     // toucher un ouvrage : ouvrir sa réception (le retour revient au briefing)
-    $$('tr[data-r]', el).forEach(tr => tr.onclick = () => { const [did] = tr.dataset.r.split('|'), x = items.find(y => y.did === did); unBack(); leave(false);
-      App.fromBrief = fromBrief; briefGo(x.pid, async () => { const d = await DB.get('receptions', did); App.section = 'reception'; await renderSection(); if (d) openReceptionDay(d); }); });
+    // toucher un ouvrage : sa réception s'ouvre, la ligne exacte surlignée ; le retour revient ici (même volets ouverts)
+    $$('tr[data-r]', el).forEach(tr => tr.onclick = async () => { const [did, rid] = tr.dataset.r.split('|'), x = items.find(y => y.did === did && y.rid === rid), sc = $('.pvp-b', el).scrollTop;
+      unBack(); el.remove();
+      if (!App.project || App.project.id !== x.pid) { const pj = await DB.get('projects', x.pid); if (pj) { App.project = pj; App.section = 'reception'; App.search = ''; await renderSection(); } }   // sans les rappels d'ouverture du projet
+      const d = await DB.get('receptions', did); if (d) await openReceptionDay(d, { focus: rid });
+      const again = await pvBetPage(fromBrief, { filt, open: [...open], scroll: sc }); });
     $('[data-all]', el).onclick = async () => {
       const ds = [...new Set(items.filter(x => !x.gone).map(x => x.date))].sort(); const r = await formSheet('Marquer livrés au BET', [{ name: 'd', label: 'Tous les PV jusqu\'au (inclus)', type: 'date', value: ds[0] }], { okLabel: 'Marquer livrés' });
       if (!r || !r.d) return; const L2 = items.filter(x => !x.gone && x.date <= r.d); if (!L2.length) return toast('Aucun PV avant cette date');
@@ -138,8 +142,8 @@ async function pvBetPage(fromBrief) {
       await mark(L2.map(x => [x.did, x.rid]), 'liv'); L2.forEach(x => x.gone = true); toast(`${L2.length} PV marqué(s) livré(s) ✓`); draw(); };
   };
   // la date la plus ancienne est ouverte
-  const first = items.map(x => x.date).sort()[0]; if (first) open.add(first);
-  draw();
+  const first = items.map(x => x.date).sort()[0]; if (first && !keep.open) open.add(first);
+  draw(); if (keep.scroll) $('.pvp-b', el).scrollTop = keep.scroll;
 }
 // ancien nom (ailleurs dans l'application)
 const pvBetSheet = (fb) => pvBetPage(fb || {});
