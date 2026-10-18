@@ -1994,3 +1994,16 @@ body:has(.splash.brief) .sheet-bg { z-index: 10070; }
 .pvp-btn.l { background: linear-gradient(160deg, #22c55e, #15803d); } .pvp-btn.r { background: rgba(245,158,11,.2); color: #fde68a; border: 1px solid rgba(245,158,11,.45); }
 .pvp-t tr.done { opacity: .45; transition: opacity .3s; }
 .pvp-none { color: #94a3b8; text-align: center; padding: 30px 0; }
+/* ===== Plans des ouvrages : une seule couleur (accent du thème) ===== */
+.pb2 { --pa: var(--accent, #3b82f6); }
+.pb-head { background: color-mix(in srgb, var(--pa) 16%, rgba(255,255,255,.04)) !important; border: 1px solid color-mix(in srgb, var(--pa) 35%, transparent); }
+.pb-head b, .pb-head .iconbtn { color: #fff; }
+.pb-rec { border-color: color-mix(in srgb, var(--pa) 40%, transparent) !important; background: color-mix(in srgb, var(--pa) 10%, transparent) !important; } .pb-rec small { color: color-mix(in srgb, var(--pa) 60%, #fff) !important; }
+.pb-z { background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.08); }
+.pb-zi { background: var(--pa) !important; }
+.pb-p { background: rgba(255,255,255,.035); border-left-color: var(--pa) !important; }
+.pb-dot { background: var(--pa) !important; }
+.pb-di { color: var(--pa) !important; }
+.pb-add { color: color-mix(in srgb, var(--pa) 65%, #fff) !important; border-color: color-mix(in srgb, var(--pa) 40%, transparent) !important; }
+.pb-prev { color: color-mix(in srgb, var(--pa) 65%, #fff) !important; }
+.pb-day .iconbtn { color: color-mix(in srgb, var(--pa) 65%, #fff); }

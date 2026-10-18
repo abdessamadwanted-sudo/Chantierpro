@@ -62,11 +62,11 @@ function openPlansBox(l, ctx = {}) {
             ${l.recSrc ? '' : `<button class="iconbtn sm" data-zm="${zi}">${icon('more')}</button>`}<span class="chev">${icon('chevdown')}</span></div>
           ${zo ? `<div class="pb-parts">${parts.map(({ p, pi }) => { const po = openP.has(p.id) || (!!q && (p.docs || []).some(d => match(d.name)));
             return `<div class="pb-p ${po ? 'open' : ''}"><div class="pb-ph" data-p="${zi}|${pi}"><span class="pb-dot"></span><div class="grow"><b>${esc(p.name)}</b><small>${(p.docs || []).length} plan(s)${p.prev && !(p.docs || []).length ? ' · ↺ plans d\'un jour précédent' : ''}</small></div>
-                ${l.recSrc ? '' : `<button class="iconbtn sm" data-pm="${zi}|${pi}">${icon('more')}</button>`}<span class="chev">${icon('chevdown')}</span></div>
+                ${l.recSrc ? (p.extra ? `<button class="iconbtn sm" data-px="${zi}|${pi}">${icon('more')}</button>` : '') : `<button class="iconbtn sm" data-pm="${zi}|${pi}">${icon('more')}</button>`}<span class="chev">${icon('chevdown')}</span></div>
               ${po ? `<div class="pb-docs">${(p.docs || []).filter(d => !q || match(d.name) || match(p.name) || zHit).map((d, di) => `<div class="pb-d"><button class="grow" data-d="${zi}|${pi}|${p.docs.indexOf(d)}"><span class="pb-di">${icon(d.url && !d.fileId ? 'drive' : d.planId ? 'plans' : 'pdf')}</span><span>${esc(d.name)}</span></button><button class="iconbtn sm" data-dm="${zi}|${pi}|${p.docs.indexOf(d)}">${icon('more')}</button></div>`).join('')}
                 ${p.prev && !(p.docs || []).length ? `<button class="pb-add pb-prev" data-prev="${zi}|${pi}">↺ Reprendre ${p.prev.docs.length} plan(s)${p.prev.date ? ' du ' + fmtDate(p.prev.date) : ''}</button>` : ''}
-                <button class="pb-add" data-adddoc="${zi}|${pi}">${icon('plus')} Ajouter un plan (PDF)</button></div>` : ''}</div>`; }).join('')}
-            ${l.recSrc ? '' : (z.parts || []).length < PB_MAX ? `<button class="pb-add" data-addp="${zi}">${icon('plus')} Partie d'ouvrage</button>` : '<div class="pb-max">10 parties maximum</div>'}</div>` : ''}</div>`;
+                <button class="pb-add" data-adddoc="${zi}|${pi}">${icon('plus')} ${(p.docs || []).length ? 'Ajouter d\'autres plans' : 'Ajouter des plans (PDF · plusieurs)'}</button></div>` : ''}</div>`; }).join('')}
+            ${l.recSrc ? `<button class="pb-add" data-addrp="${zi}">${icon('plus')} Partie d'ouvrage dans ${esc(z.name)}</button>` : (z.parts || []).length < PB_MAX ? `<button class="pb-add" data-addp="${zi}">${icon('plus')} Partie d'ouvrage</button>` : '<div class="pb-max">10 parties maximum</div>'}</div>` : ''}</div>`;
       }).join('');
       box.innerHTML = `<div class="pb-head" style="--c:${P.c}"><span class="pb-hic">${P.e}</span><div class="grow"><b>${esc(l.name)}</b><small>${l.zones.length} zone(s) · ${plansboxCount(l)} plan(s)</small></div><button class="iconbtn" data-a="more">${icon('more')}</button></div>
         ${l.recSrc ? `<div class="pb-day"><button class="iconbtn sm" data-day="-1">${icon('back')}</button><button class="pb-rec grow" data-a="recsrc">📅 <b>${l.curDate === todayISO() ? 'Aujourd\u2019hui' : fmtDate(l.curDate)}</b><small>${l.zones.reduce((a, z) => a + z.parts.length, 0)} ouvrage(s)${l.dayHasProg ? ' · programme de réception' : ' · pas de programme ce jour'} · changer</small></button><button class="iconbtn sm" data-day="1">${icon('chevright')}</button></div>
@@ -81,7 +81,6 @@ function openPlansBox(l, ctx = {}) {
       const si = $('.pb-search input', box); if (si) si.oninput = (e) => { q = e.target.value.trim(); clearTimeout(s._t); s._t = setTimeout(() => { draw().then(() => { const n = $('.pb-search input', box); if (n) { n.focus(); n.setSelectionRange(q.length, q.length); } }); }, 250); };
       $$('[data-z]', box).forEach(h => h.onclick = (e) => { if (e.target.closest('[data-zm]')) return; const z = l.zones[+h.dataset.z]; openZ.has(z.id) ? openZ.delete(z.id) : openZ.add(z.id); draw(); });
       $$('[data-p]', box).forEach(h => h.onclick = (e) => { if (e.target.closest('[data-pm]')) return; const [zi, pi] = h.dataset.p.split('|').map(Number), p = l.zones[zi].parts[pi];
-        if ((p.docs || []).length === 1 && !openP.has(p.id)) return pbOpenDoc(p.docs[0], l, ctx);
         openP.has(p.id) ? openP.delete(p.id) : openP.add(p.id); draw(); });
       $$('[data-d]', box).forEach(b => b.onclick = () => { const [zi, pi, di] = b.dataset.d.split('|').map(Number); pbOpenDoc(l.zones[zi].parts[pi].docs[di], l, ctx); });
       $$('[data-adddoc]', box).forEach(b => b.onclick = async () => { const [zi, pi] = b.dataset.adddoc.split('|').map(Number), p = l.zones[zi].parts[pi]; const docs = await pbPickDocs(l.projectId); if (!docs.length) return;
@@ -110,6 +109,11 @@ function openPlansBox(l, ctx = {}) {
         if (v === 'del' && await confirmBox('Retirer ce plan ?')) { if (d.fileId) await DB.del('files', d.fileId); p.docs.splice(di, 1); await save(); draw(); } });
       $$('[data-prev]', box).forEach(b => b.onclick = async () => { const [zi, pi] = b.dataset.prev.split('|').map(Number), p = l.zones[zi].parts[pi]; p.docs.push(...p.prev.docs.map(d => ({ ...d, id: DB.uid() }))); p.prev = null; await save(); toast('Plans repris ✓'); draw(); });
       $$('[data-day]', box).forEach(b => b.onclick = async () => { const d = new Date((l.curDate || todayISO()) + 'T12:00:00'); d.setDate(d.getDate() + +b.dataset.day); const iso = d.toISOString().slice(0, 10); l.recSrc = iso === todayISO() ? { mode: 'today' } : { mode: 'day', date: iso }; openZ.clear(); await pbFromRec(l); await save(); draw(); });
+      $$('[data-addrp]', box).forEach(b => b.onclick = async () => { const z = l.zones[+b.dataset.addrp]; if (await pbAddRecPart(l, z.zk || '')) { await pbFromRec(l); openZ.add('rz_' + (z.zk || '0')); await save(); draw(); } });
+      $$('[data-px]', box).forEach(b => b.onclick = async (e) => { e.stopPropagation(); const [zi, pi] = b.dataset.px.split('|').map(Number), p = l.zones[zi].parts[pi];
+        const v = await menu(p.name, [{ label: 'Ajouter des plans', icon: 'plus', value: 'add' }, { label: 'Retirer cette partie d\'ouvrage', icon: 'trash', danger: true, value: 'del' }]);
+        if (v === 'add') { const docs = await pbPickDocs(l.projectId); if (docs.length) { p.docs.push(...docs); openP.add(p.id); await save(); draw(); } }
+        if (v === 'del' && await confirmBox(`Retirer « ${p.name} » de ce jour ?`)) { const d = l.curDate || todayISO(); l.recExtra[d] = (l.recExtra[d] || []).filter(x => normQ(`${x.niv || ''}|${x.element}`) !== p.key); await pbFromRec(l); await save(); draw(); } });
       const arb = $('[data-a=addrec]', box); if (arb) arb.onclick = async () => { if (await pbAddRecPart(l)) { await pbFromRec(l); l.zones.forEach(z => openZ.add(z.id)); await save(); draw(); } };
       const rsb = $('[data-a=recsrc]', box); if (rsb) rsb.onclick = async () => { if (await pbChooseRec(l)) { await save(); await pbFromRec(l); draw(); } };
       $('[data-a=more]', box).onclick = async () => { const v = await menu(l.name, [{ label: l.recSrc ? 'Programme de réception lié…' : 'Remplir depuis le programme de réception…', icon: 'calendar', value: 'rec' }, { label: 'Renommer le pin', icon: 'edit', value: 'ren' }, { label: 'Icône et couleur du pin', icon: 'pin', value: 'look' }, { label: 'Supprimer le pin', icon: 'trash', danger: true, value: 'del' }]);
@@ -137,7 +141,7 @@ async function pbFromRec(l) {
   for (const r of rows) {
     if (!r.element) continue;
     const zk = String(r.zone || '').trim();
-    if (!zm.has(zk)) zm.set(zk, { id: 'rz_' + (zk || '0'), name: zk ? 'Zone ' + zk : 'Sans zone', parts: [] });
+    if (!zm.has(zk)) zm.set(zk, { id: 'rz_' + (zk || '0'), zk, name: zk ? 'Zone ' + zk : 'Sans zone', parts: [] });
     const key = normQ(`${r.niv || ''}|${r.element}`);
     const docs = D[key] = D[key] || [];
     l.recNames[key] = `${r.niv ? r.niv + ' · ' : ''}${r.element}`;
@@ -146,8 +150,8 @@ async function pbFromRec(l) {
   l.zones = [...zm.values()].sort((a, b) => (parseFloat(a.name.replace(/\D+/g, '')) || 0) - (parseFloat(b.name.replace(/\D+/g, '')) || 0));
   l.dayHasProg = days.some(d => d.rows.some(r => r.element));
 }
-async function pbAddRecPart(l) {
-  const r = await formSheet(`Ouvrage · ${fmtDate(l.curDate || todayISO())}`, [{ name: 'zone', label: 'Zone', placeholder: 'Ex : 12' }, { name: 'niv', label: 'Niveau', placeholder: 'Ex : R+2' }, { name: 'element', label: 'Élément / partie d\'ouvrage', placeholder: 'Ex : Voile CR 78' }], { okLabel: 'Ajouter' });
+async function pbAddRecPart(l, zone) {
+  const r = await formSheet(zone != null ? `Partie d'ouvrage · Zone ${zone}` : `Ouvrage · ${fmtDate(l.curDate || todayISO())}`, [{ name: 'zone', label: 'Zone', placeholder: 'Ex : 12', value: zone || '' }, { name: 'niv', label: 'Niveau', placeholder: 'Ex : R+2' }, { name: 'element', label: 'Élément / partie d\'ouvrage', placeholder: 'Ex : Voile CR 78' }], { okLabel: 'Ajouter' });
   if (!r || !r.element) return false;
   const d = l.curDate || todayISO(); l.recExtra = l.recExtra || {}; (l.recExtra[d] = l.recExtra[d] || []).push({ zone: r.zone || '', niv: r.niv || '', element: r.element });
   return true;
