@@ -9,14 +9,14 @@ const BriefCfg = {
   get() { try { return { hide: [], sc: [], ...(JSON.parse(localStorage.getItem('brief.cfg') || '{}') || {}) }; } catch (e) { return { hide: [], sc: [] }; } },
   set(v) { try { localStorage.setItem('brief.cfg', JSON.stringify(v)); } catch (e) {} },
 };
-const BRIEF_KINDS = [['rap', '🔔 Rappels du jour'], ['pv', '📋 PV à livrer au BET'], ['rec', '🔩 Réception du jour'], ['tasks', '⚠️ Tâches / réserves'], ['pt', '👷 Pointage du jour'], ['plan', '📅 Planning en retard'], ['due', '⏳ Échéances des lots'], ['lab', '🧪 Labo : écrasements'], ['stock', '📦 Stock bas'],
+const BRIEF_KINDS = [['rap', '🔔 Rappels du jour'], ['pvr', '📥 PV non reçus'], ['pv', '📋 PV non livrés au BET'], ['rec', '🔩 Réception du jour'], ['tasks', '⚠️ Tâches / réserves'], ['pt', '👷 Pointage du jour'], ['plan', '📅 Planning en retard'], ['due', '⏳ Échéances des lots'], ['lab', '🧪 Labo : écrasements'], ['stock', '📦 Stock bas'],
   ['reg:reu', '🗓️ Actions des réunions'], ['reg:rfi', '❓ RFI sans réponse'], ['reg:visa', '🛂 Visas en attente'], ['reg:perm', '🦺 Permis expirés'], ['reg:ess', '🔬 Essais non conformes'], ['reg:st', '🤝 Sous-traitants'], ['valid', '✍️ À valider'], ['job', '💼 Candidatures à relancer']];
 const SC_EMO = { dashboard: '📊', plans: '🗺️', reception: '🔩', avancement: '🏗️', planning: '📅', reunions: '🗓️', tasks: '⚠️', reports: '📝', photos: '📷', pointage: '👷', labo: '🧪', forms: '📋', constat: '🚫', clauses: '📚', rfi: '❓', visa: '🛂', hse: '🦺', calc: '📐', models3d: '🧊', maquette: '🏢', finance: '💰', avenants: '📑', gestion: '📦', tce: '🏢', st: '🤝', org: '👥', team: '👷' };
 // ordre des cartes selon le service (les autres suivent)
 const BRIEF_ORDER = {
-  trav: ['valid', 'pt', 'plan', 'rec', 'reg:reu', 'tasks', 'rap', 'due', 'reg:st', 'stock', 'pv'],
-  qual: ['pv', 'rec', 'lab', 'reg:ess', 'reg:visa', 'reg:rfi', 'tasks', 'rap', 'valid'],
-  labo: ['lab', 'reg:ess', 'rec', 'pv', 'rap'],
+  trav: ['valid', 'pt', 'plan', 'rec', 'reg:reu', 'tasks', 'rap', 'due', 'reg:st', 'stock', 'pvr', 'pv'],
+  qual: ['pvr', 'pv', 'rec', 'lab', 'reg:ess', 'reg:visa', 'reg:rfi', 'tasks', 'rap', 'valid'],
+  labo: ['lab', 'reg:ess', 'rec', 'pvr', 'pv', 'rap'],
   hse: ['reg:perm', 'tasks', 'reg:reu', 'rap'],
   etu: ['reg:rfi', 'reg:visa', 'plan', 'tasks', 'rap'],
   log: ['stock', 'pt', 'rap', 'valid'],
@@ -34,8 +34,11 @@ async function briefingData() {
   if (rap.length) C.push({ k: 'rap', e: '🔔', t: 'Rappels du jour', c: '#f59e0b', n: rap.length, items: rap, alert: rap.some(x => x.late) });
   // PV à livrer au BET : ouvrages réceptionnés dont le PV n'est pas encore livré (du plus ancien au plus récent)
   if (see('reception')) {
-    const pv = recs.filter(d => kindOf(d) === 'Ferraillage').flatMap(d => (d.rows || []).filter(r => r.element && (!r.status || r.status === 'ok' || r.status === 'reserve') && !r.pvLivre).map(r => ({ pid: d.projectId, did: d.id, rid: r.id, date: d.date, label: `${r.niv ? r.niv + ' · ' : ''}${r.element}`, sub: `${fmtDate(d.date)} · ${r.pvRecu || r.pvExist ? 'PV reçu, à livrer' : 'PV pas encore reçu'}`, recu: !!(r.pvRecu || r.pvExist) }))).sort((a, b) => a.date.localeCompare(b.date));
-    if (pv.length) C.push({ k: 'pv', e: '📋', t: 'PV à livrer au BET', c: '#ef4444', n: pv.length, items: pv, alert: pv.some(x => daysSince(x.date) >= 3), sub: `le plus ancien : ${daysSince(pv[0].date)} j` });
+    // deux marques par ouvrage : PV non reçu (à récupérer) et PV non livré (à remettre au BET)
+    const pvAll = recs.filter(d => kindOf(d) === 'Ferraillage').flatMap(d => (d.rows || []).filter(r => r.element && (!r.status || r.status === 'ok' || r.status === 'reserve') && (!r.pvLivre || !(r.pvRecu || r.pvExist))).map(r => ({ pid: d.projectId, did: d.id, rid: r.id, date: d.date, label: `${r.niv ? r.niv + ' · ' : ''}${r.element}`, recu: !!(r.pvRecu || r.pvExist), liv: !!r.pvLivre }))).sort((a, b) => a.date.localeCompare(b.date));
+    const pvr = pvAll.filter(x => !x.recu).map(x => ({ ...x, sub: `${fmtDate(x.date)} · PV non reçu` })), pv = pvAll.filter(x => !x.liv).map(x => ({ ...x, sub: `${fmtDate(x.date)} · ${x.recu ? 'reçu, non livré' : 'non reçu, non livré'}` }));
+    if (pvr.length) C.push({ k: 'pvr', e: '📥', t: 'PV non reçus', c: '#f59e0b', n: pvr.length, items: pvr, alert: pvr.some(x => daysSince(x.date) >= 3), sub: `le plus ancien : ${daysSince(pvr[0].date)} j` });
+    if (pv.length) C.push({ k: 'pv', e: '📋', t: 'PV non livrés au BET', c: '#ef4444', n: pv.length, items: pv, alert: pv.some(x => daysSince(x.date) >= 3), sub: `le plus ancien : ${daysSince(pv[0].date)} j` });
     const ds = recs.filter(d => d.date === today && kindOf(d) === 'Ferraillage' && (d.rows || []).some(r => r.element));
     if (ds.length) { const rows = ds.flatMap(d => d.rows.filter(r => r.element).map(r => ({ pid: d.projectId, did: d.id, label: `${r.niv ? r.niv + ' · ' : ''}${r.element}`, done: r.status === 'ok' })));
       C.push({ k: 'rec', e: '🔩', t: 'Réception du jour', c: '#3b82f6', n: rows.length, items: rows, sub: `${rows.filter(x => x.done).length}/${rows.length} réceptionné(s)`, days: ds }); }
@@ -71,7 +74,7 @@ async function briefingData() {
   return { cards: out, ps };
 }
 // catégories du briefing (repliables) et ordre choisi par l'utilisateur
-const BF_CATS = [['rec', '🔩 Réception & PV', ['pv', 'rec', 'lab', 'reg:ess']], ['suivi', '⚠️ Suivi du chantier', ['tasks', 'rap', 'plan', 'due', 'pt', 'reg:perm']], ['docs', '❓ Documents & validations', ['valid', 'reg:rfi', 'reg:visa', 'reg:reu']], ['gest', '📦 Gestion', ['stock', 'reg:st', 'job']], ['sc', '🔗 Raccourcis', []]];
+const BF_CATS = [['rec', '🔩 Réception & PV', ['pvr', 'pv', 'rec', 'lab', 'reg:ess']], ['suivi', '⚠️ Suivi du chantier', ['tasks', 'rap', 'plan', 'due', 'pt', 'reg:perm']], ['docs', '❓ Documents & validations', ['valid', 'reg:rfi', 'reg:visa', 'reg:reu']], ['gest', '📦 Gestion', ['stock', 'reg:st', 'job']], ['sc', '🔗 Raccourcis', []]];
 const bfOpen = (k, d) => { try { const v = localStorage.getItem('bf.open.' + k); return v == null ? d : v === '1'; } catch (e) { return d; } };
 const bfOpenSet = (k, v) => { try { localStorage.setItem('bf.open.' + k, v ? '1' : '0'); } catch (e) {} };
 const bfOrd = () => { try { return { cat: {}, ord: [], cats: [], ...(JSON.parse(localStorage.getItem('bf.ord') || '{}') || {}) }; } catch (e) { return { cat: {}, ord: [], cats: [] }; } };
@@ -103,7 +106,7 @@ async function briefPick(items) { const ids = [...new Set(items.map(x => x.pid).
 function briefAction(card) {
   return async () => {
     if (card.k === 'job') return openCareer();
-    if (card.k === 'pv') return pvBetPage(App.fromBrief);
+    if (card.k === 'pv' || card.k === 'pvr') return pvBetPage(App.fromBrief, { filt: card.k === 'pvr' ? 'rec' : 'liv' });
     if (card.k === 'lvs') { let it = card.items[0]; if (card.items.length > 1) { const v = await menu('Quelle paire ?', card.items.map((x, i) => ({ label: `${x.label} · ${x.sub}`, icon: 'layers', value: String(i) }))); it = v == null ? null : card.items[+v]; } if (!it) return; return briefGo(it.pid, () => lvsOpenPair(it.lowId, it.upId)); }
     const pid = await briefPick(card.items); if (!pid) { if (App.fromBrief) briefReopen(); return; }
     const go = (sec, extra) => briefGo(pid, async () => { App.section = sec; App.search = ''; if (extra) extra(); await renderSection(); });
@@ -125,9 +128,9 @@ async function briefReopen(fb) { fb = fb || App.fromBrief || {}; App.fromBrief =
 // PV : page du briefing (même style) · une date = un volet qui s'ouvre · deux états : PV à récupérer / PV à livrer au BET
 async function pvBetPage(fromBrief, keep) {
   fromBrief = fromBrief || {}; keep = keep || {};
-  const { cards } = await briefingData(), C0 = cards.find(c => c.k === 'pv');
-  let items = C0 ? C0.items.filter(x => !fromBrief.pid || x.pid === fromBrief.pid) : [];
-  if (!items.length) { toast('Tous les PV sont livrés au BET ✓'); if (fromBrief.scroll != null || fromBrief.pid) briefReopen(fromBrief); return; }
+  const { cards } = await briefingData(), seen = new Set();
+  let items = cards.filter(c => c.k === 'pv' || c.k === 'pvr').flatMap(c => c.items).filter(x => (!fromBrief.pid || x.pid === fromBrief.pid) && !seen.has(x.rid) && seen.add(x.rid)).map(x => ({ ...x })).sort((a, b) => a.date.localeCompare(b.date));
+  if (!items.length) { toast('Tous les PV sont reçus et livrés au BET ✓'); if (fromBrief.scroll != null || fromBrief.pid) briefReopen(fromBrief); return; }
   const PJ = fromBrief.pid ? await DB.get('projects', fromBrief.pid) : null;
   let filt = keep.filt || 'all'; const open = new Set(keep.open || []);
   const el = document.createElement('div'); el.className = 'splash brief pvp';
@@ -135,26 +138,27 @@ async function pvBetPage(fromBrief, keep) {
   const unBack = pushBack(() => leave(true));
   const leave = (reopen) => { el.classList.add('out'); setTimeout(() => el.remove(), 300); if (reopen) briefReopen(fromBrief); };
   const mark = async (pairs, kind) => { const byD = {}; pairs.forEach(([did, rid]) => (byD[did] = byD[did] || []).push(rid));
-    for (const [did, rids] of Object.entries(byD)) { const d = await DB.get('receptions', did); if (!d) continue; for (const r of d.rows) if (rids.includes(r.id)) { if (kind === 'recu') { r.pvRecu = true; r.pvRecuAt = todayISO(); } else { r.pvLivre = true; if (!r.pvRecu && !r.pvExist) r.pvRecu = true; r.pvLivreAt = todayISO(); } } await DB.put('receptions', d); } };
+    for (const [did, rids] of Object.entries(byD)) { const d = await DB.get('receptions', did); if (!d) continue; for (const r of d.rows) if (rids.includes(r.id)) { if (kind === 'recu') { r.pvRecu = true; r.pvRecuAt = todayISO(); } else if (kind === 'unrecu') { r.pvRecu = false; r.pvExist = false; r.pvRecuAt = null; r.pvLivre = false; r.pvLivreAt = null; } else if (kind === 'unliv') { r.pvLivre = false; r.pvLivreAt = null; } else { r.pvLivre = true; if (!r.pvRecu && !r.pvExist) r.pvRecu = true; r.pvLivreAt = todayISO(); } } await DB.put('receptions', d); } };
   const draw = () => {
-    const L = items.filter(x => !x.gone && (filt === 'all' || (filt === 'rec' ? !x.recu : x.recu))), byDate = {};
+    const act = items.filter(x => !(x.recu && x.liv)), L = act.filter(x => filt === 'all' || (filt === 'rec' ? !x.recu : !x.liv)), byDate = {};
     L.forEach(x => (byDate[x.date] = byDate[x.date] || []).push(x));
-    const nR = items.filter(x => !x.gone && !x.recu).length, nL = items.filter(x => !x.gone && x.recu).length;
-    el.innerHTML = `<div class="bf-head"><small><button class="pvp-x" data-x>‹ Briefing</button>${PJ ? ' · ' + esc(PJ.name) : ''}</small><b>📋 PV des ouvrages</b><span>${nR} à récupérer · ${nL} à livrer au BET</span></div>
-      <div class="pvp-f"><button data-f="all" class="${filt === 'all' ? 'on' : ''}">Tous <i>${nR + nL}</i></button><button data-f="rec" class="${filt === 'rec' ? 'on' : ''}" style="--c:#f59e0b">PV à récupérer <i>${nR}</i></button><button data-f="liv" class="${filt === 'liv' ? 'on' : ''}" style="--c:#ef4444">À livrer au BET <i>${nL}</i></button></div>
-      <div class="bf-body pvp-b">${Object.keys(byDate).sort().map(d => { const xs = byDate[d], o = open.has(d), r = xs.filter(x => !x.recu).length, l = xs.length - r;
-        return `<div class="pvp-d ${o ? 'open' : ''} ${daysSince(d) >= 3 ? 'old' : ''}"><button class="pvp-dh" data-d="${d}"><b>${fmtDate(d)}</b><span class="pvp-dn">${r ? `<i class="a">${r} à récupérer</i>` : ''}${l ? `<i class="b">${l} à livrer</i>` : ''}</span><small>${daysSince(d)} j</small><u>${icon('chevdown')}</u></button>
-          ${o ? `<table class="pvp-t"><tbody>${xs.map(x => `<tr data-r="${x.did}|${x.rid}" class="${x.recu ? 'liv' : 'rec'}"><td class="pvp-o"><b>${esc(x.label)}</b><small>${x.recu ? 'PV reçu · à livrer au BET' : 'PV pas encore récupéré'}</small></td>
-            <td class="pvp-a"><button class="pvp-btn ${x.recu ? 'l' : 'r'}" data-k="${x.recu ? 'liv' : 'recu'}">${x.recu ? 'Livré ✓' : 'Reçu ✓'}</button></td></tr>`).join('')}</tbody></table>` : ''}</div>`; }).join('') || '<div class="pvp-none">Rien ici ✓</div>'}
+    const nR = act.filter(x => !x.recu).length, nL = act.filter(x => !x.liv).length;
+    el.innerHTML = `<div class="bf-head"><small><button class="pvp-x" data-x>‹ Briefing</button>${PJ ? ' · ' + esc(PJ.name) : ''}</small><b>📋 PV des ouvrages</b><span>${nR} non reçu(s) · ${nL} non livré(s)</span></div>
+      <div class="pvp-f"><button data-f="all" class="${filt === 'all' ? 'on' : ''}">Tous <i>${act.length}</i></button><button data-f="rec" class="${filt === 'rec' ? 'on' : ''}" style="--c:#f59e0b">Non reçus <i>${nR}</i></button><button data-f="liv" class="${filt === 'liv' ? 'on' : ''}" style="--c:#ef4444">Non livrés <i>${nL}</i></button></div>
+      <div class="bf-body pvp-b">${Object.keys(byDate).sort().map(d => { const xs = byDate[d], o = open.has(d), r = xs.filter(x => !x.recu).length, l = xs.filter(x => !x.liv).length;
+        return `<div class="pvp-d ${o ? 'open' : ''} ${daysSince(d) >= 3 ? 'old' : ''}"><button class="pvp-dh" data-d="${d}"><b>${fmtDate(d)}</b><span class="pvp-dn">${r ? `<i class="a">${r} non reçu</i>` : ''}${l ? `<i class="b">${l} non livré</i>` : ''}</span><small>${daysSince(d)} j</small><u>${icon('chevdown')}</u></button>
+          ${o ? `<table class="pvp-t"><tbody>${xs.map(x => `<tr data-r="${x.did}|${x.rid}" class="${x.recu ? 'liv' : 'rec'}"><td class="pvp-o"><b>${esc(x.label)}</b><small>${x.recu ? 'reçu · à livrer au BET' : 'à récupérer puis livrer'}</small></td>
+            <td class="pvp-a"><button class="pvp-btn ${x.recu ? 'on' : 'r'}" data-k="${x.recu ? 'unrecu' : 'recu'}">${x.recu ? 'Reçu ✓' : 'Non reçu'}</button><button class="pvp-btn ${x.liv ? 'on' : 'l'}" data-k="${x.liv ? 'unliv' : 'liv'}">${x.liv ? 'Livré ✓' : 'Non livré'}</button></td></tr>`).join('')}</tbody></table>` : ''}</div>`; }).join('') || '<div class="pvp-none">Rien ici ✓</div>'}
         <button class="bf-cust" data-all>✓ Marquer livrés au BET jusqu'au…</button></div>
       <div class="bf-foot"><button class="bf-enter" data-x>‹ Retour au briefing</button></div>`;
     $$('[data-x]', el).forEach(b => b.onclick = () => { unBack(); leave(true); });
     $$('[data-f]', el).forEach(b => b.onclick = () => { filt = b.dataset.f; draw(); });
     $$('[data-d]', el).forEach(b => b.onclick = () => { const d = b.dataset.d; open.has(d) ? open.delete(d) : open.add(d); const sc = $('.pvp-b', el).scrollTop; draw(); $('.pvp-b', el).scrollTop = sc; });
     $$('.pvp-btn', el).forEach(b => b.onclick = async (e) => { e.stopPropagation(); const tr = b.closest('[data-r]'), [did, rid] = tr.dataset.r.split('|'), x = items.find(y => y.did === did && y.rid === rid);
-      await mark([[did, rid]], b.dataset.k); try { navigator.vibrate && navigator.vibrate(10); } catch (er) {}
-      tr.classList.add('done'); b.disabled = true; b.textContent = '✓';
-      setTimeout(() => { if (b.dataset.k === 'recu') x.recu = true; else x.gone = true; const sc = $('.pvp-b', el).scrollTop; draw(); $('.pvp-b', el).scrollTop = sc; }, 450); });
+      const k = b.dataset.k; await mark([[did, rid]], k); try { navigator.vibrate && navigator.vibrate(10); } catch (er) {}
+      if (k === 'recu') x.recu = true; else if (k === 'liv') { x.liv = true; x.recu = true; } else if (k === 'unrecu') { x.recu = false; x.liv = false; } else x.liv = false;
+      if (x.recu && x.liv) { tr.classList.add('done'); b.disabled = true; setTimeout(() => { const sc = $('.pvp-b', el).scrollTop; draw(); $('.pvp-b', el).scrollTop = sc; }, 450); }
+      else { const sc = $('.pvp-b', el).scrollTop; draw(); $('.pvp-b', el).scrollTop = sc; } });
     // toucher un ouvrage : ouvrir sa réception (le retour revient au briefing)
     // toucher un ouvrage : sa réception s'ouvre, la ligne exacte surlignée ; le retour revient ici (même volets ouverts)
     $$('tr[data-r]', el).forEach(tr => tr.onclick = async () => { const [did, rid] = tr.dataset.r.split('|'), x = items.find(y => y.did === did && y.rid === rid), sc = $('.pvp-b', el).scrollTop;
@@ -163,10 +167,10 @@ async function pvBetPage(fromBrief, keep) {
       const d = await DB.get('receptions', did); if (d) await openReceptionDay(d, { focus: rid });
       const again = await pvBetPage(fromBrief, { filt, open: [...open], scroll: sc }); });
     $('[data-all]', el).onclick = async () => {
-      const ds = [...new Set(items.filter(x => !x.gone).map(x => x.date))].sort(); const r = await formSheet('Marquer livrés au BET', [{ name: 'd', label: 'Tous les PV jusqu\'au (inclus)', type: 'date', value: ds[0] }], { okLabel: 'Marquer livrés' });
-      if (!r || !r.d) return; const L2 = items.filter(x => !x.gone && x.date <= r.d); if (!L2.length) return toast('Aucun PV avant cette date');
+      const ds = [...new Set(items.filter(x => !x.liv).map(x => x.date))].sort(); const r = await formSheet('Marquer livrés au BET', [{ name: 'd', label: 'Tous les PV jusqu\'au (inclus)', type: 'date', value: ds[0] }], { okLabel: 'Marquer livrés' });
+      if (!r || !r.d) return; const L2 = items.filter(x => !x.liv && x.date <= r.d); if (!L2.length) return toast('Aucun PV avant cette date');
       if (!await confirmBox(`Marquer ${L2.length} PV comme livrés au BET (jusqu'au ${fmtDate(r.d)}) ?`, 'Marquer livrés')) return;
-      await mark(L2.map(x => [x.did, x.rid]), 'liv'); L2.forEach(x => x.gone = true); toast(`${L2.length} PV marqué(s) livré(s) ✓`); draw(); };
+      await mark(L2.map(x => [x.did, x.rid]), 'liv'); L2.forEach(x => { x.liv = true; x.recu = true; }); toast(`${L2.length} PV marqué(s) livré(s) ✓`); draw(); };
   };
   // la date la plus ancienne est ouverte
   const first = items.map(x => x.date).sort()[0]; if (first && !keep.open) open.add(first);
@@ -180,7 +184,7 @@ function briefingShow(opts = {}) {
     let { cards } = await briefingData();
     const PJ = opts.pid ? await DB.get('projects', opts.pid) : null;
     if (PJ) cards = cards.filter(c => c.k !== 'job').map(c => { if (c.sc) return { ...c, items: [{ pid: PJ.id, label: PJ.name }] }; const items = (c.items || []).filter(x => x.pid === PJ.id); if (!items.length) return null;
-      const r = { ...c, items, n: items.length }; if (c.k === 'pv') r.sub = `le plus ancien : ${daysSince(items[0].date)} j`; if (c.k === 'rec') r.sub = `${items.filter(x => x.done).length}/${items.length} réceptionné(s)`; r.alert = items.some(x => x.late); return r; }).filter(Boolean);
+      const r = { ...c, items, n: items.length }; if (c.k === 'pv' || c.k === 'pvr') r.sub = `le plus ancien : ${daysSince(items[0].date)} j`; if (c.k === 'rec') r.sub = `${items.filter(x => x.done).length}/${items.length} réceptionné(s)`; r.alert = items.some(x => x.late); return r; }).filter(Boolean);
     const GS = await gameStrip().catch((e) => { console.warn('game', e); return null; });
     const notes = BriefNotes.get();
     const el = document.createElement('div'); el.className = 'splash brief';

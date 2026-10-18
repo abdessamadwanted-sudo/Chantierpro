@@ -23,7 +23,9 @@ const liftLabel = (kind) => isBeton(kind) ? 'Réparé' : 'Levée';
 const pvMissing = (r) => r.element && r.status !== 'pending' && !r.pvRecu && !r.pvExist;
 const pvToBet = (r) => (r.pvRecu || r.pvExist) && !r.pvLivre;
 const pvBet = (r) => (r.pvRecu || r.pvExist) ? (r.pvLivre ? '<br><small class="bet ok">BET ✓</small>' : '<br><small class="bet no">à livrer BET</small>') : '';
-const pvCell = (r) => r.pvRecu ? '<span class="rs" style="background:#16a34a">Reçu</span>' + pvBet(r) : r.pvExist ? '<span class="rs" style="background:#2563eb">Existe</span>' + pvBet(r) : r.status !== 'pending' && r.element ? '<span class="rs" style="background:#dc2626">Manquant</span>' : '';
+const pvRec = (r) => !!(r.pvRecu || r.pvExist);
+// PV : deux marques indépendantes — « Non reçu → Reçu » (récupéré) et « Non livré → Livré » (remis au BET) ; on touche pour basculer
+const pvCell = (r, i) => r.element && r.status !== 'pending' ? `<div class="pvq"><button class="pvq-b ${pvRec(r) ? 'ok' : 'no'}" data-pvq="${i}|r">${pvRec(r) ? 'Reçu ✓' : 'Non reçu'}</button><button class="pvq-b ${r.pvLivre ? 'ok' : 'nl'}" data-pvq="${i}|l">${r.pvLivre ? 'Livré ✓' : 'Non livré'}</button></div>` : '';
 const CLASSES = ['B20', 'B25', 'B30', 'B35', 'B40', 'C25/30', 'C30/37', 'C35/45', 'C40/50'];
 const MONTHS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 const monthLabel = (ym) => { const [y, m] = ym.split('-'); return `${MONTHS[+m - 1]} ${y}`; };
@@ -369,7 +371,7 @@ function openReceptionDay(day, opts = {}) {
         <div class="topbar"><button class="iconbtn" data-a="back">${icon('back')}</button>
           <div class="dnav"><button data-dn="-1" ${sib(-1) ? '' : 'disabled'}>‹</button><h1>${fmtDate(day.date)}</h1><button data-dn="1" ${sib(1) ? '' : 'disabled'}>›</button></div>
           ${isBeton(K) ? '' : `<button class="iconbtn" data-a="share">${icon('share')}</button>`}<button class="iconbtn" data-a="more">${icon('more')}</button></div>
-        <div class="rec-sum"><span><b>${n}</b> éléments</span><span style="color:#22c55e"><b>${ok}</b> ${isBeton(K) ? 'bétonnés' : 'réceptionnés'}</span><span style="color:${isBeton(K) ? '#60a5fa' : '#f59e0b'}"><b>${rs}</b> ${isBeton(K) ? 'en cours' : 'réserves'}</span>${n - ok - rs ? `<span style="color:var(--muted)"><b>${n - ok - rs}</b> ${isBeton(K) ? 'non bétonné(s)' : 'en attente'}</span>` : ''}${!isBeton(K) && day.rows.some(pvMissing) ? `<span style="color:#ef4444"><b>${day.rows.filter(pvMissing).length}</b> PV manquant(s)</span>` : ''}</div>
+        <div class="rec-sum"><span><b>${n}</b> éléments</span><span style="color:#22c55e"><b>${ok}</b> ${isBeton(K) ? 'bétonnés' : 'réceptionnés'}</span><span style="color:${isBeton(K) ? '#60a5fa' : '#f59e0b'}"><b>${rs}</b> ${isBeton(K) ? 'en cours' : 'réserves'}</span>${n - ok - rs ? `<span style="color:var(--muted)"><b>${n - ok - rs}</b> ${isBeton(K) ? 'non bétonné(s)' : 'en attente'}</span>` : ''}${!isBeton(K) && day.rows.some(pvMissing) ? `<span style="color:#ef4444"><b>${day.rows.filter(pvMissing).length}</b> PV non reçu(s)</span>` : ''}${!isBeton(K) && day.rows.some(x => x.element && x.status !== 'pending' && !x.pvLivre) ? `<span style="color:#f59e0b"><b>${day.rows.filter(x => x.element && x.status !== 'pending' && !x.pvLivre).length}</b> non livré(s)</span>` : ''}</div>
         <div class="rec-info"><b>${fmtDate(day.date)}</b><span class="rp">${esc(p.pdfTitle || p.name)}</span><span class="rt">${recTitle(K)} (post jour)</span>${day.date !== todayISO() ? `<button class="kswitch ktoday" data-a="today">📅 Aujourd'hui</button>` : ''}<button class="kswitch kur" data-a="undo" title="Annuler" ${hpos > 0 ? '' : 'disabled'}>↶</button><button class="kswitch kur" data-a="redo" title="Rétablir" ${hpos < hist.length - 1 ? '' : 'disabled'}>↷</button><button class="kswitch ksort" data-a="sort">⇅ Trier</button><button class="kswitch" data-ks>${icon(isBeton(K) ? 'layers' : 'calendar')} ${isBeton(K) ? 'Réception' : 'Bétonnage'} du ${fmtDate(day.date).slice(0, 5)}</button></div>
         <div class="rec-wrap">
           <table class="rec">
@@ -378,9 +380,9 @@ function openReceptionDay(day, opts = {}) {
             </thead>
             <tbody>
               ${day.rows.map((r, i) => `<tr data-i="${i}" class="st-${r.status} ${moveSel === i ? 'moving' : ''} ${selId && r.id === selId ? 'sel' : ''} ${!isBeton(K) && r.element && r.status !== 'pending' && !r.pvLivre ? 'pv-nl' : ''}">
-                <td class="c">${esc(r.zone)}</td><td class="c">${esc(r.niv)}</td><td class="el">${esc(r.element)}${!isBeton(K) && r.element && r.status !== 'pending' ? `<button class="bet-q ${r.pvLivre ? 'ok' : ''}" data-betq="${i}" title="PV livré au BET ?">${r.pvLivre ? 'BET ✓' : 'BET ✗'}</button>` : ''}</td>${isBeton(K) ? `<td class="c">${esc(r.classe || '')}</td>` : `<td class="c ix">${r.repFrom ? '<span class="rep-b">✗ Reporté</span>' : ''}${indCell(r.indCof, r.indCofD)}</td><td class="c ix">${indCell(r.indFer, r.indFerD)}</td>`}
-                <td class="c"><span class="rs" style="background:${(REC_STATUS[r.status] || REC_STATUS.pending).color}">${r.status === 'ok' ? 'OK' : r.status === 'reserve' ? resLabel(K) : r.status === 'progress' ? 'En cours' : 'Attente'}</span>${r.status === 'reserve' && r.liftedAt ? `<br><span class="rs" style="background:#16a34a;margin-top:4px">${liftLabel(K)} ${recDateLabel(r.liftedAt).slice(0, 5)}</span>` : ''}</td>
-${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec || '')}</td>`}
+                <td class="c">${esc(r.zone)}</td><td class="c">${esc(r.niv)}</td><td class="el">${esc(r.element)}</td>${isBeton(K) ? `<td class="c">${esc(r.classe || '')}</td>` : `<td class="c ix">${r.repFrom ? '<span class="rep-b">✗ Reporté</span>' : ''}${indCell(r.indCof, r.indCofD)}</td><td class="c ix">${indCell(r.indFer, r.indFerD)}</td>`}
+                <td class="c">${r.status === 'ok' ? '' : `<span class="rs" style="background:${(REC_STATUS[r.status] || REC_STATUS.pending).color}">${r.status === 'reserve' ? resLabel(K) : r.status === 'progress' ? 'En cours' : 'Attente'}</span>`}${r.status === 'reserve' && r.liftedAt ? `<br><span class="rs" style="background:#16a34a;margin-top:4px">${liftLabel(K)} ${recDateLabel(r.liftedAt).slice(0, 5)}</span>` : ''}</td>
+${isBeton(K) ? '' : `<td class="c">${pvCell(r, i)}</td><td class="c">${esc(r.avec || '')}</td>`}
                 <td class="ob">${esc(r.obs)}</td>
                 <td class="c ph">${(r.photoIds || []).length ? `📷 ${r.photoIds.length}` : ''}${(r.anomIds || []).length ? ` <span class="an">⚠ ${r.anomIds.length}</span>` : ''}</td>
                 <td class="c ph">${(r.retourIds || []).length ? `📷 ${r.retourIds.length}` : ''}</td>
@@ -489,7 +491,10 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => tr.addEventListener(ev, () => clearTimeout(t)));
         tr.addEventListener('pointermove', (e) => { if (Math.abs(e.movementY) + Math.abs(e.movementX) > 3) clearTimeout(t); });
         tr.onclick = async (e) => { if (lp) return;
-          const bq = e.target.closest('[data-betq]'); if (bq) { const r = day.rows[+bq.dataset.betq]; r.pvLivre = !r.pvLivre; if (r.pvLivre) { if (!r.pvRecu && !r.pvExist) r.pvRecu = true; r.pvLivreAt = todayISO(); } else r.pvLivreAt = null; try { navigator.vibrate && navigator.vibrate(12); } catch (x) {} await save(); toast(r.pvLivre ? `PV livré au BET ✓ · ${r.element}` : `PV pas encore livré · ${r.element}`); return render(); } if (moveSel >= 0) { moveSel = +tr.dataset.i; return render(); }
+          const pq = e.target.closest('[data-pvq]'); if (pq) { const [ix, w] = pq.dataset.pvq.split('|'), r = day.rows[+ix];
+            if (w === 'r') { const on = !pvRec(r); r.pvRecu = on; r.pvExist = false; r.pvRecuAt = on ? todayISO() : null; if (!on) { r.pvLivre = false; r.pvLivreAt = null; } }
+            else { r.pvLivre = !r.pvLivre; r.pvLivreAt = r.pvLivre ? todayISO() : null; if (r.pvLivre && !pvRec(r)) { r.pvRecu = true; r.pvRecuAt = todayISO(); } }
+            try { navigator.vibrate && navigator.vibrate(12); } catch (x) {} await save(); toast(w === 'r' ? (pvRec(r) ? `PV reçu ✓ · ${r.element}` : `PV non reçu · ${r.element}`) : (r.pvLivre ? `PV livré au BET ✓ · ${r.element}` : `PV non livré · ${r.element}`)); return render(); } if (moveSel >= 0) { moveSel = +tr.dataset.i; return render(); }
           $$('tbody tr.sel', el).forEach(x => x.classList.remove('sel')); tr.classList.add('sel'); selId = (day.rows[+tr.dataset.i] || {}).id || null;
           editRow(+tr.dataset.i); };
       });
@@ -514,7 +519,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
           { label: 'Supprimer ce tableau', icon: 'trash', danger: true, value: 'del' },
         ]);
         if (v === 'bons') { const list = day.rows.filter(x => x.bon).map(x => x.bon); if (!list.length) toast('Aucun bon : ouvrez un ouvrage › « Bon de bétonnage »'); else await bonsPdf(p, list, `Bons de bétonnage ${fmtDate(day.date).replace(/\//g, '-')}`); }
-        if (v === 'bonfree') { const cfg = bonCfg(p); const b = { id: DB.uid(), date: day.date, area: '', zone: '', ouvrage: '', partie: '', type: '', sig: { ...(cfg.last || {}) } }; await openBon(p, b, async (bb) => { p.bons = (p.bons || []).filter(x => x.id !== bb.id).concat(bb); await DB.put('projects', p); }); }
+        if (v === 'bonfree') { const cfg = bonCfg(p); const b = { id: DB.uid(), date: day.date, area: '', zone: '', ouvrage: '', partie: '', type: '', sig: { ...(cfg.last || {}) } }; await openBon(p, b, async (bb) => { p.bons = (p.bons || []).filter(x => x.id !== bb.id).concat(bb); await DB.put('projects', p); }, async (bb) => { p.bons = (p.bons || []).filter(x => x.id !== bb.id); await DB.put('projects', p); }); }
         if (v === 'cpb') { await save(); const pick = await pickRows(day.rows.filter(x => x.element), 'Copier vers le bétonnage'); if (pick && pick.length) await copyToBeton(day.projectId, pick); }
         if (v === 'free') { await save(); await freeFilesUI([...(day.pvIds || []), ...day.rows.flatMap(r => [...(r.photoIds || []), ...(r.anomIds || []), ...(r.retourIds || [])])], `${recTitle(K)} du ${fmtDate(day.date)}`); render(); }
         if (v === 'pvgday') return pvgDay(p, day, save);
@@ -551,9 +556,7 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
           <div class="fld">Suivi décoffrage<div class="seg"><button type="button" data-dcf="1" class="${decofOn(r) ? 'on' : ''}">Oui</button><button type="button" data-dcf="0" class="${!decofOn(r) ? 'on' : ''}">Non</button></div>
             ${decofOn(r) ? `<div class="dcf-row">${r.status === 'ok' ? decofCell(p, day, r) : '<small class="pv-help">Le suivi démarre quand l\u2019élément est « bétonné »</small>'}${r.status === 'ok' ? `<button type="button" class="btn ghost small" data-a="decofok">${r.decofAt ? 'Annuler « décoffré »' : 'Décoffré aujourd\u2019hui'}</button>` : ''}</div>` : ''}</div>` : ''}
           <div class="fld">Statut<div class="seg seg3">${statusesFor(K).map(k => [k, REC_STATUS[k]]).map(([k, v]) => `<button type="button" data-st="${k}" class="${r.status === k ? 'on' : ''}" style="${r.status === k ? `background:${v.color}` : ''}">${stLabel(K, k)}</button>`).join('')}</div></div>
-          ${isBeton(K) ? '' : `<div class="fld">PV<div class="seg seg3"><button type="button" data-pvr="1" class="${r.pvRecu ? 'on' : ''}" style="${r.pvRecu ? 'background:#16a34a' : ''}">PV reçu</button><button type="button" data-pvr="e" class="${r.pvExist ? 'on' : ''}" style="${r.pvExist ? 'background:#2563eb' : ''}">PV existe</button><button type="button" data-pvr="0" class="${!r.pvRecu && !r.pvExist ? 'on' : ''}" style="${!r.pvRecu && !r.pvExist ? 'background:#dc2626' : ''}">Pas encore</button></div>
-            ${r.pvExist ? '<small class="pv-help">PV déjà fait ailleurs : plus de rappel « manquant »</small>' : ''}</div>
-          ${r.pvRecu || r.pvExist ? `<div class="fld">PV livré au BET<div class="seg"><button type="button" data-bet="1" class="${r.pvLivre ? 'on' : ''}" style="${r.pvLivre ? 'background:#16a34a' : ''}">Livré${r.pvLivreAt ? ' le ' + recDateLabel(r.pvLivreAt) : ''}</button><button type="button" data-bet="0" class="${!r.pvLivre ? 'on' : ''}" style="${!r.pvLivre ? 'background:#f59e0b' : ''}">Pas encore</button></div></div>` : ''}
+          ${isBeton(K) ? '' : `<div class="fld">PV <small class="pv-help">touchez pour changer</small><div class="seg pvsw"><button type="button" data-pvt="r" class="${pvRec(r) ? 'ok' : 'no'}">${pvRec(r) ? `✓ Reçu${r.pvRecuAt ? ' le ' + recDateLabel(r.pvRecuAt) : ''}` : '✗ Non reçu'}</button><button type="button" data-pvt="l" class="${r.pvLivre ? 'ok' : 'nl'}">${r.pvLivre ? `✓ Livré${r.pvLivreAt ? ' le ' + recDateLabel(r.pvLivreAt) : ''}` : '✗ Non livré'}</button></div></div>
           <label>Réceptionné avec<input name="avec" list="dl-avec" value="${esc(r.avec || '')}" placeholder="Nom (ex : M. Alaoui — BET)"></label><datalist id="dl-avec">${NAMES.map(n => `<option value="${esc(n)}">`).join('')}</datalist>`}
           <label>Observation ${r.status === 'reserve' ? '/ ' + resLabel(K).toLowerCase() : ''}<textarea name="obs" style="min-height:64px" placeholder="${r.status === 'reserve' ? (isBeton(K) ? 'Ex : ségrégation en pied de voile, nid de cailloux…' : 'Ex : cales manquantes côté axe D2') : 'Optionnel'}">${esc(r.obs)}</textarea></label>
           <div class="ph3">
@@ -591,12 +594,13 @@ ${isBeton(K) ? '' : `<td class="c">${pvCell(r)}</td><td class="c">${esc(r.avec |
         };
         const bnb = $('[data-a=bon]', f); if (bnb) bnb.onclick = async (e) => { e.preventDefault(); if (!await commit()) return; const cfg = bonCfg(p); const b = r.bon ? { ...r.bon, sig: { ...(r.bon.sig || {}) } } : bonFromRow(r, day.date, cfg);
           const idx = day.rows.indexOf(r) >= 0 ? day.rows.indexOf(r) : i; s.close();   // la fiche se ferme pour laisser le bon s'afficher par-dessus
-          await openBon(p, b, async (bb) => { r.bon = bb; day.rows[idx] = r; await save(); }); render(); };
+          await openBon(p, b, async (bb) => { r.bon = bb; day.rows[idx] = r; await save(); }, async () => { r.bon = null; day.rows[idx] = r; await save(); }); render(); };
         const cpb = $('[data-a=cpb]', f); if (cpb) cpb.onclick = async (e) => { e.preventDefault(); if (!await commit()) return; await copyToBeton(day.projectId, [r]); };
         const frb = $('[data-a=free]', f); if (frb) frb.onclick = async (e) => { e.preventDefault(); if (!await commit()) return; await freeFilesUI([...r.photoIds, ...(r.anomIds || []), ...r.retourIds], r.element || 'ouvrage'); draw(); };
         $$('[name]', f).forEach(inp => inp.oninput = () => { r[inp.name] = inp.value; });
         $$('[data-st]', f).forEach(b => b.onclick = () => { r.status = b.dataset.st; draw(); });
-        $$('[data-pvr]', f).forEach(b => b.onclick = () => { r.pvRecu = b.dataset.pvr === '1'; r.pvExist = b.dataset.pvr === 'e'; draw(); });
+        $$('[data-pvt]', f).forEach(b => b.onclick = () => { if (b.dataset.pvt === 'r') { const on = !pvRec(r); r.pvRecu = on; r.pvExist = false; r.pvRecuAt = on ? todayISO() : null; if (!on) { r.pvLivre = false; r.pvLivreAt = null; } }
+          else { r.pvLivre = !r.pvLivre; r.pvLivreAt = r.pvLivre ? todayISO() : null; if (r.pvLivre && !pvRec(r)) { r.pvRecu = true; r.pvRecuAt = todayISO(); } } draw(); });
         $$('[data-dcf]', f).forEach(b => b.onclick = () => { r.decof = b.dataset.dcf === '1'; draw(); });
         const dco = $('[data-a=decofok]', f); if (dco) dco.onclick = () => { r.decofAt = r.decofAt ? null : todayISO(); draw(); };
         $$('[data-bet]', f).forEach(b => b.onclick = () => { r.pvLivre = b.dataset.bet === '1'; r.pvLivreAt = r.pvLivre ? todayISO() : null; draw(); });
@@ -699,8 +703,8 @@ async function receptionPdf(p, day) {
       el.forEach((l, j) => doc.text(l, M + cols[0].w + cols[1].w + 1.5, R.y + 5.5 + j * 4.4));
       if (!isBeton(K)) {
         const iPv = cols.findIndex(c => c.t === 'PV'), iAv = iPv + 1;
-        doc.setFont('helvetica', 'bold'); if (r.pvRecu) doc.setTextColor(22, 163, 74); else if (r.status !== 'pending') doc.setTextColor(220, 38, 38);
-        doc.text(r.pvRecu ? 'Reçu' : r.status !== 'pending' ? 'Manquant' : '', cx[iPv] + cols[iPv].w / 2, R.y + 5.5, { align: 'center' }); doc.setTextColor(20, 20, 20); doc.setFont('helvetica', 'normal');
+        doc.setFont('helvetica', 'bold'); if (pvRec(r)) doc.setTextColor(22, 163, 74); else if (r.status !== 'pending') doc.setTextColor(220, 38, 38);
+        doc.text(pvRec(r) ? (r.pvLivre ? 'Livré BET' : 'Reçu') : r.status !== 'pending' ? 'Non reçu' : '', cx[iPv] + cols[iPv].w / 2, R.y + 5.5, { align: 'center' }); doc.setTextColor(20, 20, 20); doc.setFont('helvetica', 'normal');
         doc.splitTextToSize(pt(r.avec || ''), cols[iAv].w - 3).forEach((l, j) => doc.text(l, cx[iAv] + 1.5, R.y + 5.5 + j * 4.4));
       }
       if (isBeton(K)) { doc.setFont('helvetica', 'bold'); doc.text(pt(r.classe || ''), cx[3] + cols[3].w / 2, R.y + 5.5, { align: 'center' }); }
@@ -759,7 +763,7 @@ async function receptionCsv(p, day) {
   const K = kindOf(day);
   const B = isBeton(K);
   const lines = [[p.pdfTitle || p.name], [recTitle(K), '', '', '', `Date ${recDateLabel(day.date)}`], ['Zone', 'NIV', recColHead(K), ...(B ? ['Classe béton'] : []), 'Statut', ...(B ? [] : ['PV', 'Réceptionné avec']), 'Observation'],
-    ...reportRows(K, day.rows).map(r => [r.zone, r.niv, r.element, ...(B ? [r.classe || ''] : []), stLabel(K, r.status) + (r.status === 'reserve' && r.liftedAt ? ` (${liftLabel(K).toLowerCase()} ${recDateLabel(r.liftedAt)})` : ''), ...(B ? [] : [r.pvRecu ? 'Reçu' : r.status !== 'pending' ? 'Manquant' : '', r.avec || '']), r.obs])];
+    ...reportRows(K, day.rows).map(r => [r.zone, r.niv, r.element, ...(B ? [r.classe || ''] : []), stLabel(K, r.status) + (r.status === 'reserve' && r.liftedAt ? ` (${liftLabel(K).toLowerCase()} ${recDateLabel(r.liftedAt)})` : ''), ...(B ? [] : [pvRec(r) ? (r.pvLivre ? 'Livré BET' : 'Reçu') : r.status !== 'pending' ? 'Non reçu' : '', r.avec || '']), r.obs])];
   const csv = '﻿' + lines.map(l => l.map(q).join(';')).join('\r\n');
   const fname = `${safeName(recTitle(K))}_${day.date}.csv`;
   const P = window.Capacitor?.Plugins || {};

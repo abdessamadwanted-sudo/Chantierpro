@@ -15,7 +15,7 @@ const PVG = {
   dates: [[[54.5, 739.5, 36.5, 22.5], [91, 739.5, 36, 22.5], [127, 739.5, 73, 22.5]], [[200, 739.5, 36, 22.5], [236, 739.5, 36, 22.5], [272, 739.5, 109, 22.5]], [[381, 739.5, 36, 22.5], [417, 739.5, 36, 22.5], [453, 739.5, 111, 22.5]]],
   names: [[54.5, 762, 145.5, 22.5], [200, 762, 181, 22.5], [381, 762, 183, 22.5]],
 };
-const PVG_K = 5;   // pixels par point pour l'écriture (net à l'impression)
+const PVG_K = 3.6;   // pixels par point pour l'écriture (≈ 260 dpi, net à l'impression)
 function pvgParse(r) {
   const el = String(r.element || '').trim(), grab = (re) => ((el.match(re) || [])[1] || '');
   const nice = (s) => s.replace(/\s*[*+]\s*/g, ' & ').replace(/\s*,\s*/g, ' & ').replace(/\s+et\s+/gi, ' & ').trim();
@@ -49,7 +49,9 @@ const pvgDate = (iso) => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(
 async function pvgPage(PDFLib, out, src, d) {
   const [pg] = await out.copyPages(src, [0]); out.addPage(pg);
   const { width: PW, height: PH } = pg.getSize(), sx = PW / PVG.W, sy = PH / PVG.H;
-  const put = async (cv, [x, y, w, h]) => { if (!cv) return; const png = await out.embedPng(await new Promise(r => cv.toBlob(b => b.arrayBuffer().then(r), 'image/png'))); pg.drawImage(png, { x: x * sx, y: PH - (y + h) * sy, width: w * sx, height: h * sy }); };
+  // toutes les écritures sont posées sur UNE image transparente de la page (une seule compression PNG au lieu d'une trentaine)
+  const big = document.createElement('canvas'); big.width = Math.ceil(PVG.W * PVG_K); big.height = Math.ceil(PVG.H * PVG_K); const G = big.getContext('2d');
+  const put = async (cv, [x, y, w, h]) => { if (cv) G.drawImage(cv, x * PVG_K, y * PVG_K, w * PVG_K, h * PVG_K); };
   const seed = d.seed || d.ouvrage;
   if (d.fiche) await put(await pvgInk(d.fiche, PVG.fiche[2], PVG.fiche[3], 12, seed + 'f'), PVG.fiche);
   const [dd, mm, yy] = pvgDate(d.date);
@@ -73,6 +75,8 @@ async function pvgPage(PDFLib, out, src, d) {
     const dt = (d.dates || [])[j]; if (dt) { const parts = pvgDate(dt); for (let i = 0; i < 3; i++) await put(await pvgInk(parts[i], PVG.dates[j][i][2], PVG.dates[j][i][3], 17.5, seed + 'dt' + j + i), PVG.dates[j][i]); }
     const nm = (d.names || [])[j]; if (nm) await put(await pvgInk(nm, PVG.names[j][2], PVG.names[j][3], 17.5, seed + 'n' + j), PVG.names[j]);
   }
+  const png = await out.embedPng(await new Promise(r => big.toBlob(b => b.arrayBuffer().then(r), 'image/png')));
+  pg.drawImage(png, { x: 0, y: 0, width: PW, height: PH }); big.width = big.height = 0;
 }
 async function pvgTemplate(p, replace) {
   if (p.pvTpl && !replace) { const f = await DB.get('files', p.pvTpl); if (f && f.blob) return f.blob; }

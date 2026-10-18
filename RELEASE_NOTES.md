@@ -1,7 +1,7 @@
-## Nouveautés
-- **Menu latéral** plus étroit et plus compact ; **Paramètres fixé en bas** ; appui long sur une rubrique (ou ✏️ en bas) : monter, descendre, changer de groupe, ordre des groupes
-- **Briefing rangé par catégories** (Réception & PV · Suivi · Documents & validations · Gestion · Raccourcis), chacune se replie ; le haut (niveau, objectifs, astuce, notes) se replie en une ligne ; appui long sur une carte : monter, descendre, autre catégorie, masquer
-- **Thèmes professionnels** : 💼 Pro sobre (foncé, gris, sans effets) et 📄 Net clair (blanc, tableaux nets) — ⋮ › Thèmes
-- **Mode simple** : ⋮ › Fonctions affichées › « Mode simple » n'affiche que l'essentiel de votre poste (le reste est caché, pas supprimé)
-- **Modèles de fiches (vos PDF)** : ⋮ du tableau de réception › « Modèles de fiches » ou bouton « Fiches de contrôle » d'un ouvrage → « Nouveau modèle » : choisissez le PDF vierge, placez les cases (date, ouvrage, axe, file, plans ferr/coff, coches, noms, texte libre…), puis l'application remplit la fiche de chaque ouvrage à la main en bleu. Plusieurs modèles par projet
-- **Drive** : réception rangée par mois → jour → « Programme de réception » · « Photos » (un dossier par ouvrage) · « PV » (un seul PDF du jour, refait quand on ajoute un PV + les fiches remplies). Dossiers en double fusionnés et plus créés (après mise à jour du script Google, une fois : Synchronisation › encadré orange). Contrôle automatique chaque semaine : les fichiers manquants dans Drive sont renvoyés
+### Nouveautés
+- **PV en deux marques** : chaque ouvrage a « Non reçu → Reçu » et « Non livré → Livré ». On touche directement dans le tableau ou dans la fiche de la ligne pour basculer.
+- **Briefing** : deux cartes séparées, « 📥 PV non reçus » et « 📋 PV non livrés au BET ». La page PV a deux boutons par ouvrage.
+- **Tableau de réception** : la pastille « OK » est retirée de la colonne Statut (seules les réserves restent visibles).
+- **Bon de bétonnage** : bouton « Supprimer ce bon » (aussi dans le menu ⋮).
+- **Fiches de contrôle (PV)** : écriture beaucoup plus rapide (une seule image par page).
+- **Écran d'ouverture** : mur plus bas, grue à tour en 3D qui tourne, textes modifiables (titre, message, devise) dans Paramètres › Écran d'ouverture.

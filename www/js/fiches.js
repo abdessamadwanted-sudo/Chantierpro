@@ -81,16 +81,19 @@ async function ftEditor(p, tpl) {
 async function ftMake(p, tpl, vals, seed) {
   const PDFLib = await needPdfLib(), src = await PDFLib.PDFDocument.load(await (await ftTemplateBlob(tpl)).arrayBuffer(), { ignoreEncryption: true });
   const out = await PDFLib.PDFDocument.create(), [pg] = await out.copyPages(src, [0]); out.addPage(pg);
-  const { height: PH } = pg.getSize();
+  const { width: PW, height: PH } = pg.getSize();
+  // une seule image transparente pour toute l'écriture (rapide sur téléphone)
+  const big = document.createElement('canvas'); big.width = Math.ceil(PW * PVG_K); big.height = Math.ceil(PH * PVG_K); const G = big.getContext('2d'); let any = false;
   for (const f of tpl.fields) {
     const key = f.k === 'coche' || f.k === 'libre' ? f.id : f.k, v = vals[key];
     let cv = null;
     if (f.k === 'coche') { if (v === true || v === 'o') cv = pvgTick(f.w, f.h, seed + f.id); }
     else if (v) cv = await pvgInk(String(v), f.w, f.h, f.size || Math.max(9, Math.min(22, f.h * .78)), seed + f.id, f.align === 'left' ? 'left' : 'center');
     if (!cv) continue;
-    const png = await out.embedPng(await new Promise(r => cv.toBlob(b => b.arrayBuffer().then(r), 'image/png')));
-    pg.drawImage(png, { x: f.x, y: PH - f.y - f.h, width: f.w, height: f.h });
+    G.drawImage(cv, f.x * PVG_K, f.y * PVG_K, f.w * PVG_K, f.h * PVG_K); any = true;
   }
+  if (any) { const png = await out.embedPng(await new Promise(r => big.toBlob(b => b.arrayBuffer().then(r), 'image/png'))); pg.drawImage(png, { x: 0, y: 0, width: PW, height: PH }); }
+  big.width = big.height = 0;
   return new Blob([await out.save()], { type: 'application/pdf' });
 }
 // remplir pour une ligne du programme

@@ -2,7 +2,7 @@
 const Splash = (() => {
   const LS = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } };
   // réglages : animation et son selon l'heure (matin / soir), le reste de la journée sans son ou désactivé
-  const SCHED_DEF = { mode: 'always', sound: true, m: { from: '06:00', to: '10:00', sound: true }, e: { from: '18:00', to: '23:30', sound: true }, rest: 'silent', brief: true };
+  const SCHED_DEF = { mode: 'always', sound: true, m: { from: '06:00', to: '10:00', sound: true }, e: { from: '18:00', to: '23:30', sound: true }, rest: 'silent', brief: true, title: 'CHANTIER', msg: '{salut}, {nom} 👷', motto: 'QUALITÉ ◆ SÉCURITÉ ◆ DÉLAIS' };
   const sched = () => { try { return { ...SCHED_DEF, ...JSON.parse(LS('splash.sched') || '{}') }; } catch (e) { return { ...SCHED_DEF }; } };
   const inWin = (w) => { const n = new Date(), m = n.getHours() * 60 + n.getMinutes(), t = (x) => { const [h, mm] = String(x || '0:0').split(':').map(Number); return h * 60 + (mm || 0); }; const a = t(w.from), b = t(w.to); return a <= b ? m >= a && m <= b : m >= a || m <= b; };
   const now = () => { const S = sched(); if (LS('splash.off') === '1' && !LS('splash.sched')) return { anim: false, sound: false };
@@ -26,20 +26,24 @@ const Splash = (() => {
     } catch (e) {}
   }
   // seulement l'accueil avec le prénom (plus de nom de chantier)
+  // textes modifiables dans Paramètres › Écran d'ouverture ({salut} = Bonjour / Bonsoir…, {nom} = votre prénom)
+  const fill = (t) => { const h = new Date().getHours(), hello = h < 5 ? 'Bonne nuit' : h < 12 ? 'Bonjour' : h < 18 ? 'Bon après-midi' : 'Bonsoir', name = LS('userName') || '';
+    return String(t || '').replace(/\{salut\}/gi, hello).replace(/,?\s*\{nom\}/gi, (m) => name ? m.replace(/\{nom\}/i, name) : '').trim(); };
+  const txt = () => { const S = sched(); return { title: (S.title || '').trim() || 'CHANTIER', msg: S.msg == null ? SCHED_DEF.msg : S.msg, motto: S.motto == null ? SCHED_DEF.motto : S.motto }; };
   async function lines() {
-    const h = new Date().getHours(), hello = h < 5 ? 'Bonne nuit' : h < 12 ? 'Bonjour' : h < 18 ? 'Bon après-midi' : 'Bonsoir';
-    const name = LS('userName') || '';
-    return [`> ${hello}${name ? ', ' + name : ''} 👷`];
+    const m = fill(txt().msg); return m ? m.split('\n').map(x => '> ' + x) : [];
   }
   // mur qui se construit brique par brique (bas de l'écran), une grue pose la dernière brique
   function wallHTML() {
-    const rows = 7, per = 9, out = [];
+    const rows = 4, per = 9, out = [];
     for (let r = 0; r < rows; r++) {
       const off = r % 2 ? -0.5 : 0, n = per + (r % 2 ? 1 : 0);
       for (let i = 0; i < n; i++) { const d = 0.35 + r * 0.22 + i * 0.045 + (r % 2 ? 0.02 : 0); const tone = 0.86 + ((i * 7 + r * 3) % 5) * 0.035;
         out.push(`<i style="left:${(i + off) * (100 / per)}%;bottom:${r * (100 / rows)}%;animation-delay:${d.toFixed(2)}s;--t:${tone.toFixed(3)}"></i>`); }
     }
-    return `<div class="sp-wall" aria-hidden="true"><div class="sp-bricks">${out.join('')}</div><div class="sp-crane"><b class="jib"></b><b class="cable"></b><b class="hook"><i></i></b></div><div class="sp-ground"></div></div>`;
+    return `<div class="sp-wall" aria-hidden="true"><div class="sp-bricks">${out.join('')}</div><div class="sp-ground"></div></div>
+      <div class="sp-tc" aria-hidden="true"><div class="tc-mast"></div><div class="tc-slew"><i class="tc-top"></i><i class="tc-cab"></i>
+        <div class="tc-jib"><b class="tc-trol"><i class="tc-cable"></i><i class="tc-hook"></i></b></div><div class="tc-cj"><i class="tc-cw"></i></div></div></div>`;
   }
   function show(force) {
     if ((!on() && !force) || document.querySelector('.splash')) return Promise.resolve();
@@ -53,7 +57,7 @@ const Splash = (() => {
           </svg>
           <div class="sp-glow"></div>
         </div>
-        <div class="sp-name">${'CHANTIER'.split('').map((c, i) => `<span style="animation-delay:${0.9 + i * 0.06}s">${c}</span>`).join('')}</div>
+        <div class="sp-name">${[...txt().title].map((c, i) => `<span style="animation-delay:${0.9 + i * 0.06}s">${c}</span>`).join('')}</div>
         <pre class="sp-term"></pre></div>${wallHTML()}<small class="sp-skip">Touchez pour passer</small>`;
       document.body.appendChild(el);
       let done = false; chime();
@@ -73,7 +77,7 @@ const Splash = (() => {
       }
       if (done) return;
       // la devise apparaît sous le texte, puis on entre tout seul
-      $('.sp-intro', el).insertAdjacentHTML('beforeend', `<div class="sp-motto"><b>QUALITÉ</b><i>◆</i><b>SÉCURITÉ</b><i>◆</i><b>DÉLAIS</b><u></u></div>`);
+      const mo = txt().motto.split(/\s*[◆•|·]\s*/).filter(Boolean); if (mo.length) $('.sp-intro', el).insertAdjacentHTML('beforeend', `<div class="sp-motto">${mo.map(x => `<b>${esc(x)}</b>`).join('<i>◆</i>')}<u></u></div>`);
       setTimeout(finish, 2500);
     });
   }
@@ -85,7 +89,7 @@ const Splash = (() => {
       const name = LS('userName') || '', d = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
       const el = document.createElement('div'); el.className = 'splash wel';
       el.innerHTML = `<div class="wl-blob a"></div><div class="wl-blob b"></div>
-        <div class="wl-top"><b>CHANTIER</b><span>${esc(hello())}${name ? ', ' + esc(name) : ''}</span><small>${esc(d.charAt(0).toUpperCase() + d.slice(1))}</small></div>
+        <div class="wl-top"><b>${esc(txt().title)}</b><span>${esc(hello())}${name ? ', ' + esc(name) : ''}</span><small>${esc(d.charAt(0).toUpperCase() + d.slice(1))}</small></div>
         <div class="wl-power"><span class="wl-ring r1"></span><span class="wl-ring r2"></span><button class="wl-pbtn" aria-label="Entrer">${icon('power')}</button></div>
         <small class="wl-hint">Touchez pour démarrer</small>`;
       document.body.appendChild(el);
@@ -143,6 +147,11 @@ const Splash = (() => {
         <div class="ss-w">🌙 <b>Soir</b><input type="time" data-k="e.from" value="${S.e.from}"> → <input type="time" data-k="e.to" value="${S.e.to}"><label class="ss-c"><input type="checkbox" data-k="e.sound" ${S.e.sound ? 'checked' : ''}> son</label></div>
         <div class="ss-r"><span>Le reste de la journée</span><div class="seg" data-g="rest"><button data-v="silent">Sans son</button><button data-v="off">Désactivée</button></div></div>
       </div>
+      <div class="ss-txt"><b>✏️ Textes affichés</b>
+        <label>Titre<input data-k="title" value="${esc(S.title || '')}" placeholder="CHANTIER" maxlength="18"></label>
+        <label>Message tapé<textarea data-k="msg" rows="2" placeholder="{salut}, {nom} 👷">${esc(S.msg == null ? SCHED_DEF.msg : S.msg)}</textarea></label>
+        <label>Devise (séparée par ◆)<input data-k="motto" value="${esc(S.motto == null ? SCHED_DEF.motto : S.motto)}" placeholder="QUALITÉ ◆ SÉCURITÉ ◆ DÉLAIS"></label>
+        <small>{salut} = Bonjour / Bonsoir… · {nom} = votre prénom · laisser vide pour ne rien afficher</small></div>
       <label class="ss-c big"><input type="checkbox" data-k="brief" ${S.brief ? 'checked' : ''}> Briefing du jour au démarrage (notes, rappels, PV, tâches…)</label>
       <div class="btnrow" style="padding:0;margin-top:10px"><button class="btn ghost" data-a="see">▶ Voir l'animation</button><button class="btn" data-a="ok">Enregistrer</button></div></div>`, { title: 'Écran d\'ouverture' });
     const st = { mode: S.mode, rest: S.rest };

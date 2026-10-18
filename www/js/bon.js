@@ -225,7 +225,7 @@ async function bonPickPerson(p, role, cur) {
 
 // ---------- Écran du bon ----------
 // onSave(bon) est appelé à chaque enregistrement (le bon contient fileId = image du bon)
-function openBon(p, bon, onSave) {
+function openBon(p, bon, onSave, onDelete) {
   return new Promise(async (resolve) => {
     const cfg = bonCfg(p); bon.sig = bon.sig || {};
     const el = document.createElement('div'); el.className = 'fullpage bon-page'; document.body.appendChild(el);
@@ -240,6 +240,7 @@ function openBon(p, bon, onSave) {
           ${BON_FIELDS.map(([k, , lab, ph]) => `<label>${lab}<input name="${k}" value="${esc(bon[k] || '')}" placeholder="${esc(ph)}"></label>`).join('')}
           <div class="bon-sigs"></div>
           <div class="btnrow" style="padding:0"><button class="btn" data-a="save">${icon('check')} Enregistrer</button><button class="btn ghost" data-a="wa">${icon('share')} WhatsApp</button></div>
+          ${onDelete && (bon.fileId || bon.at) ? `<button class="btn danger" data-a="delbon">${icon('trash')} Supprimer ce bon</button>` : ''}
         </div></div>`;
     const img = $('.bon-prev img', el);
     const sigs = () => { $('.bon-sigs', el).innerHTML = BON_ROLES.map(([k, , lab]) => { const q = cfg.people[k].find(x => x.id === bon.sig[k]); return `<button type="button" class="bon-sig ${q ? 'on' : ''}" data-r="${k}"><small>${lab}</small><b>${q ? esc(q.name) + (q.sigId ? ' ✍' : '') : 'Choisir…'}</b></button>`; }).join('');
@@ -267,8 +268,11 @@ function openBon(p, bon, onSave) {
     const share = async () => { await save(true); await sharePhotos([bon.fileId], `Demande de bétonnage — ${[bon.area, bon.zone ? 'Zone ' + bon.zone : '', bon.ouvrage, bon.partie].filter(Boolean).join(' · ')} — ${fmtDate(bon.date)}`, 'Bon de bétonnage'); };
     $('[data-a=wa]', el).onclick = share; $('[data-a=share]', el).onclick = share;
     $('[data-a=x]', el).onclick = async () => { if (dirty && await confirmBox('Enregistrer le bon ?', 'Enregistrer')) await save(); close(); };
+    const delBon = async () => { if (!await confirmBox('Supprimer ce bon de bétonnage (aussi dans Drive) ?', 'Supprimer')) return; if (bon.fileId) { await DB.del('files', bon.fileId).catch(() => {}); BlobURL.drop(bon.fileId); } await onDelete(bon); dirty = false; toast('Bon supprimé'); unBack(); el.remove(); resolve(null); };
+    const dbb = $('[data-a=delbon]', el); if (dbb) dbb.onclick = delBon;
     $('[data-a=more]', el).onclick = async () => {
-      const v = await menu('Bon', [{ label: 'PDF du bon', icon: 'pdf', value: 'pdf' }, { label: 'Nom du chantier sur le bon', icon: 'edit', value: 'title' }]);
+      const v = await menu('Bon', [{ label: 'PDF du bon', icon: 'pdf', value: 'pdf' }, { label: 'Nom du chantier sur le bon', icon: 'edit', value: 'title' }, ...(onDelete && (bon.fileId || bon.at) ? [{ label: 'Supprimer ce bon', icon: 'trash', danger: true, value: 'del' }] : [])]);
+      if (v === 'del') return delBon();
       if (v === 'title') { const r = await formSheet('Nom du chantier', [{ name: 't', label: 'Sous le titre du bon', value: cfg.title }]); if (r) { cfg.title = r.t || ''; await DB.put('projects', p); draw(); } }
       if (v === 'pdf') { await save(true); await bonsPdf(p, [bon], `Bon ${bon.ouvrage || ''}`); }
     };

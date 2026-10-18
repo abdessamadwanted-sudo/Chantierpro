@@ -2154,3 +2154,49 @@ html.th-net .gm-ring .bg { stroke: #e5e7eb !important; } html.th-net .gm-ring te
 .ft-box i { position: absolute; right: -1px; bottom: -3px; font-style: normal; font-size: 13px; color: #2563eb; padding: 2px; touch-action: none; }
 .ft-bar { flex: none; display: flex; gap: 8px; padding: 8px 10px calc(8px + var(--safe-bottom, 0px)); background: var(--bg); } .ft-bar .btn { flex: 1; }
 .ft-z { flex: none !important; width: 48px; font-size: 20px; } body:has(.ft-ed) #plansFab { display: none !important; }
+/* ===== PV : deux marques (reçu / livré) ===== */
+.pvq { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+.pvq-b { min-width: 76px; padding: 4px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; white-space: nowrap; border: 1px solid transparent; }
+.pvq-b.ok { color: #15803d; background: #dcfce7; border-color: #86efac; }
+.pvq-b.no { color: #fff; background: #dc2626; }
+.pvq-b.nl { color: #fff; background: #f59e0b; }
+.pvsw { gap: 8px; }
+.pvsw button { flex: 1; font-weight: 800; }
+.pvsw button.ok { background: #16a34a !important; color: #fff; }
+.pvsw button.no { background: #dc2626 !important; color: #fff; }
+.pvsw button.nl { background: #f59e0b !important; color: #fff; }
+.pvp-a { width: 104px; }
+.pvp-a .pvp-btn { display: block; width: 92px; height: 34px; margin: 3px 0 3px auto; font-size: 12.5px; }
+.pvp-btn.on { background: rgba(34,197,94,.16); color: #86efac; border: 1px solid rgba(34,197,94,.45); }
+.pvp-btn.l { background: rgba(239,68,68,.2); color: #fecaca; border: 1px solid rgba(239,68,68,.5); }
+/* ===== Ouverture : mur plus bas + grue à tour 3D qui tourne ===== */
+.sp-wall { height: 17vh; max-height: 150px; z-index: 1; }
+.sp-bricks { height: calc(100% - 22px); }
+.sp-bricks i { height: calc(100% / 4 - 4px); }
+.sp-tc { position: absolute; right: 30%; bottom: 14px; width: 0; height: 36vh; max-height: 320px; perspective: 700px; pointer-events: none; z-index: 0; animation: tcIn .9s ease-out .4s both; }
+.tc-mast { position: absolute; bottom: 0; left: -8px; width: 16px; height: 100%; border-left: 2px solid #f59e0b; border-right: 2px solid #f59e0b;
+  background: repeating-linear-gradient(45deg, transparent 0 9px, #d97706 9px 11px), repeating-linear-gradient(-45deg, transparent 0 9px, #b45309 9px 11px); box-shadow: 0 0 12px rgba(0,0,0,.35); }
+.tc-slew { position: absolute; top: 0; left: 0; width: 0; height: 0; transform-style: preserve-3d; animation: tcSpin 9s linear infinite; }
+.tc-top { position: absolute; left: -9px; top: -34px; width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 34px solid #f59e0b; }
+.tc-cab { position: absolute; left: 6px; top: 4px; width: 16px; height: 14px; border-radius: 3px; background: linear-gradient(160deg, #fbbf24, #b45309); box-shadow: inset 0 0 0 3px rgba(125,211,252,.0), inset 4px 3px 0 0 rgba(186,230,253,.55); }
+.tc-jib, .tc-cj { position: absolute; top: -3px; height: 9px; transform-style: preserve-3d; border-top: 2px solid #fbbf24; border-bottom: 2px solid #b45309;
+  background: repeating-linear-gradient(60deg, transparent 0 7px, #d97706 7px 9px), repeating-linear-gradient(-60deg, transparent 0 7px, #d97706 7px 9px); backface-visibility: visible; }
+.tc-jib { left: 0; width: 46vw; max-width: 330px; }
+.tc-cj { right: 0; width: 15vw; max-width: 110px; }
+.tc-jib::before, .tc-cj::before { content: ''; position: absolute; inset: 0; background: rgba(245,158,11,.35); transform: rotateX(90deg); transform-origin: top; }
+.tc-cw { position: absolute; left: 4px; top: 8px; width: 34px; height: 18px; border-radius: 2px; background: linear-gradient(180deg, #a8a29e, #57534e); }
+.tc-trol { position: absolute; left: 68%; top: 7px; width: 14px; height: 6px; border-radius: 2px; background: #78350f; animation: tcTrol 9s ease-in-out infinite; }
+.tc-cable { position: absolute; left: 6px; top: 6px; width: 1.5px; height: 11vh; background: #d6d3d1; animation: tcCab 4.5s ease-in-out infinite; transform-origin: top; }
+.tc-hook { position: absolute; left: -2px; top: calc(6px + 11vh); width: 18px; height: 11px; border-radius: 3px; background: linear-gradient(180deg, #c2410c, #7c2d12); animation: tcHook 4.5s ease-in-out infinite; }
+@keyframes tcSpin { from { transform: rotateY(0deg); } to { transform: rotateY(360deg); } }
+@keyframes tcTrol { 0%, 100% { left: 68%; } 50% { left: 42%; } }
+@keyframes tcCab { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(.55); } }
+@keyframes tcHook { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(calc(-11vh * .45)); } }
+@keyframes tcIn { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: none; } }
+.splash .sp-intro { margin-bottom: 22vh; }
+.ss-txt { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; padding: 12px; border-radius: 14px; background: rgba(148,163,184,.08); border: 1px solid var(--line, rgba(148,163,184,.2)); }
+.ss-txt label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+.ss-txt input, .ss-txt textarea { font-size: 15px; }
+.ss-txt small { color: var(--muted); font-size: 12px; line-height: 1.4; }
+@media (prefers-reduced-motion: reduce) { .tc-slew, .tc-trol, .tc-cable, .tc-hook { animation: none; } }
+.seg.pvsw { display: flex; width: 100%; } .seg.pvsw button { flex: 1 1 0; padding: 14px 6px; font-size: 14.5px; border-radius: 12px; }
