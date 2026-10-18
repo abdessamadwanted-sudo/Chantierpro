@@ -1945,3 +1945,6 @@ body:has(.splash.brief) .sheet-bg { z-index: 10070; }
 .lvs-op { width: 100%; accent-color: #f97316; }
 .lvs-nav { display: flex; align-items: center; gap: 8px; } .lvs-nav { justify-content: space-between; } .lvs-nav .iconbtn:disabled { opacity: .3; }
 .lvs-dots { display: flex; gap: 5px; } .lvs-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); } .lvs-dots i.on { background: #f97316; width: 20px; border-radius: 4px; }
+.lvs-cw { position: absolute; top: 0; bottom: 0; right: 0; left: 0; overflow: hidden; pointer-events: none; }
+.lvs-su { position: absolute; top: 0; } .lvs-so { pointer-events: none; }
+.lvs-sl, .lvs-su, .lvs-so { will-change: transform; }

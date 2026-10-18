@@ -81,6 +81,7 @@ async function lvsChanges(low, up, M) {
   if (!_lvsDiff.has(key)) _lvsDiff.set(key, planDiff(low, up, 1800, { map: M, struct: true }).then(D => { D.canvas.width = D.canvas.height = 0; return D.rects; }));
   return _lvsDiff.get(key);
 }
+const lvsShort = (n) => { n = String(n || ''); if (n.length <= 16) return n; const t = n.split(/[-_ ]+/).filter(Boolean); return '…' + t.slice(-2).join('-'); };
 const lvsKey = (q) => `${Math.round((q.x + q.w / 2) / 20)},${Math.round((q.y + q.h / 2) / 20)}`;
 async function openStackView(chain) {
   chain = [...chain];
@@ -96,9 +97,10 @@ async function openStackView(chain) {
   $('[data-a=x]', el).onclick = () => { unBack(); close(); };
   const wrap = $('.lvs-wrap', el), splitEl = $('.lvs-split', el), pill = $('.lvs-pill', el), opEl = $('.lvs-op', el);
   let imgLow, imgUp, ov, view;
-  const pair = () => [chain[k].p, chain[k + 1].p], nm = (i) => chain[i].niv || chain[i].p.name;
-  const applySplit = () => { if (!pz || !imgUp) return; const r = wrap.getBoundingClientRect(), X = split * r.width; splitEl.style.left = X + 'px';
-    imgUp.style.clipPath = mode === 'curtain' ? `inset(0 0 0 ${Math.max(0, (X - pz.st.tx) / pz.st.s)}px)` : 'none'; };
+  const pair = () => [chain[k].p, chain[k + 1].p], nm = (i) => chain[i].niv || lvsShort(chain[i].p.name);
+  // rideau : on déplace seulement une « fenêtre » (pas de re-dessin du plan) → fluide, sans zones blanches
+  const applySplit = () => { if (!imgUp) return; const r = wrap.getBoundingClientRect(), X = mode === 'curtain' ? split * r.width : 0; splitEl.style.left = split * r.width + 'px';
+    imgUp.style.left = X + 'px'; imgUp.firstElementChild.style.left = -X + 'px'; };
   const drawMarks = () => { if (!ov || !pz) return; const s = pz.st.s, [, up] = pair(), seen = ((up.lvSeen || {})[chain[k].p.id]) || [];
     ov.innerHTML = !marks ? '' : R.map((q, i) => { const cx = q.x + q.w / 2, cy = q.y + q.h / 2, Rr = Math.max(q.w, q.h) / 2 * 1.25 + 8 / s, ok = seen.includes(lvsKey(q)), c = ok ? '#22c55e' : '#f97316';
       const ax = cx - Rr * .707, ay = cy - Rr * .707, bx = ax - 44 / s, by = ay - 44 / s, h = 11 / s;
@@ -125,9 +127,13 @@ async function openStackView(chain) {
     const [sl, su] = await Promise.all([lvsLiteURL(low.fileId), lvsLiteURL(up.fileId)]);
     if (view) view.remove(); view = document.createElement('div'); view.className = 'av-view lvs-vv'; $('.lvs-v', el).appendChild(view);
     const c = Math.cos(M.rot), s = Math.sin(M.rot);
-    view.innerHTML = `<div class="av-stage"><div class="lvs-L lo"><img class="lo" width="${low.w}" height="${low.h}" src="${sl}" decoding="async" style="transform-origin:0 0;transform:matrix(${M.sx * c},${M.sx * s},${-M.sx * s},${M.sx * c},${M.ox},${M.oy})"><canvas class="lvs-hd"></canvas></div>
-      <div class="lvs-L hi" style="width:${up.w}px;height:${up.h}px"><img width="${up.w}" height="${up.h}" src="${su}" decoding="async"><canvas class="lvs-hd"></canvas></div><svg class="av-ov" width="${up.w}" height="${up.h}" viewBox="0 0 ${up.w} ${up.h}"></svg></div>`;
-    imgLow = $('img.lo', view); imgUp = $('.lvs-L.hi', view); ov = $('svg', view);
+    view.innerHTML = `<div class="av-stage lvs-sl"><div class="lvs-L lo"><img class="lo" width="${low.w}" height="${low.h}" src="${sl}" decoding="async" style="transform-origin:0 0;transform:matrix(${M.sx * c},${M.sx * s},${-M.sx * s},${M.sx * c},${M.ox},${M.oy})"><canvas class="lvs-hd"></canvas></div></div>
+      <div class="lvs-cw"><div class="av-stage lvs-su"><div class="lvs-L hi" style="width:${up.w}px;height:${up.h}px"><img width="${up.w}" height="${up.h}" src="${su}" decoding="async"><canvas class="lvs-hd"></canvas></div></div></div>
+      <div class="av-stage lvs-so"><svg class="av-ov" width="${up.w}" height="${up.h}" viewBox="0 0 ${up.w} ${up.h}"></svg></div>`;
+    imgLow = $('img.lo', view); imgUp = $('.lvs-cw', view); ov = $('svg', view);
+    // les trois calques (dessous, dessus, repères) bougent ensemble, dans la même image
+    const layers = [$('.lvs-sl', view), $('.lvs-su', view), $('.lvs-so', view)], stageProxy = { style: {} };
+    Object.defineProperty(stageProxy.style, 'transform', { set(v) { for (const l of layers) l.style.transform = v; }, get() { return layers[0].style.transform; } });
     const [hdLo, hdHi] = $$('.lvs-hd', view), seqL = ++hdSeq; hdLast = null;
     const PP = Promise.all([planPdfPage(low), planPdfPage(up)]).catch(() => [null, null]);
     // rendu net (PDF / image) de la zone visible quand on zoome : les deux niveaux, au même endroit
@@ -150,7 +156,7 @@ async function openStackView(chain) {
         hdLast = { x0, y0, x1, y1, s: st.s }; ca.width = ca.height = cb.width = cb.height = 0;
       } catch (e) { console.warn('hd', e); } finally { hdBusy = false; if (hdAgain) { hdAgain = false; clearTimeout(hdT); hdT = setTimeout(renderHD, 120); } }
     };
-    pz = panZoom(view, $('.av-stage', view), up.w, up.h, { onChange: (st) => { applySplit(); cancelAnimationFrame(drawMarks._r); drawMarks._r = requestAnimationFrame(drawMarks);
+    pz = panZoom(view, stageProxy, up.w, up.h, { onChange: (st) => { cancelAnimationFrame(drawMarks._r); drawMarks._r = requestAnimationFrame(drawMarks);
       if (hdLast && Math.abs(Math.log(st.s / hdLast.s)) >= .25) { hdLo.style.display = hdHi.style.display = 'none'; hdLast = null; } clearTimeout(hdT); hdT = setTimeout(renderHD, 450); }, onTap: ([x, y]) => tapAt(x, y) });
     requestAnimationFrame(() => { pz.fit(); setMode(mode); drawMarks(); });
     pill.style.display = mode === 'blink' ? '' : 'none';
