@@ -1,36 +1,12 @@
-### Nouveautés (21 corrections et ajouts)
-- **Tableau de réception** :
-  - plus compact : Reçu / Livré côte à côte ;
-  - zoom à deux doigts (bornes logiques, gardé) ;
-  - colonne PV juste après la partie d'ouvrage ;
-  - on revient toujours au même endroit.
-- **Fiche de la ligne** :
-  - photos, anomalies et réparations en volets repliables ;
-  - bouton direct vers le modèle de fiche choisi, et ⇄ pour en changer.
-- **Fiches de contrôle** :
-  - bloc repliable avec « Écrire toutes » ;
-  - écriture nette au zoom (haute définition) et plus manuscrite (stylo bille) ;
-  - nom et signature enregistrés copiés en contrôle interne et externe.
-- **PV photographiés** :
-  - ajout bien plus rapide ;
-  - recadrage automatique amélioré (feuille de travers comprise) avec réglage des 4 coins à la main ;
-  - suppression instantanée ;
-  - PDF du jour mis à jour en arrière-plan.
-- **Bons de bétonnage** : bloc sous le programme de bétonnage, avec nouveau bon à remplir à la main, modifier, supprimer et PDF.
-- **Plans** :
-  - un plan ajouté dans un lot reste dans ce lot ;
-  - écran épuré (👁 + ⋮), règle retirée ;
-  - icône Formes avec indicateur ouvert / fermé ;
-  - polyligne : loupe qui montre les traits, fermeture auto en touchant le 1er point, bouton Fermer, points déplaçables en direct.
-- **PDF annoté partagé** : les dessins sont écrits en vectoriel sur le plan PDF, nets sur WhatsApp.
-- **Lots** : « ＋ Rubrique », un tableau à soi (colonnes au choix) par niveau, avec export / import Excel.
-- **Accueil** :
-  - un toucher sur le chantier ouvre directement les Plans ;
-  - chiffres et briefing dans la flèche ⌄.
-- **Thème Net clair** : stable (sans mode sombre automatique d'Android).
-- **Écran d'ouverture** : mur réduit, grue plus petite.
-- **Studio photo** :
-  - réglages auto, document, noir & blanc, lumière, contraste, couleurs, chaleur, ombres et netteté ;
-  - recadrage et rotation ;
-  - aussi via ✨ dans la galerie.
-- **Outils PDF** : rotation des pages, compression (léger pour WhatsApp), numéros de page, ✨ pour améliorer les photos.
+### Nouveauté : Poutre 3D
+- **Lecture du plan de ferraillage (PDF Arche / Graitec)** : section, portée et appuis, enrobages, nomenclature (nombre, Ø, Lg, forme et retours), répartition des cadres « 5 + 12x12 + 5x30… », béton et acier du cartouche.
+- **Saisie à la main** possible, et tout se corrige : dimensions, positions, haut / bas, gauche / droite / centre, retours.
+- **Modèle 3D fidèle** :
+  - barres à leur place, retours vers l'intérieur ;
+  - cadres et épingles aux bonnes abscisses ;
+  - appuis, béton transparent ou plein.
+- **Vues** : 3D, élévation, bout et dessus. Coupe transversale à n'importe quelle abscisse.
+- **Contrôle** : béton (m³) et acier (kg) calculés, comparés au plan, et détail par diamètre.
+- **Positions** : chacune peut être affichée ou masquée.
+- **Export** : image 3D et fiche PDF (3D + coupe + nomenclature).
+- **Où la trouver** : menu ☰ › Poutre 3D, ou rubrique Modèles 3D › Poutres 3D.
