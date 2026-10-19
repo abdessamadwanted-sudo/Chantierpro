@@ -1,12 +1,4 @@
-### Nouveauté : Poutre 3D
-- **Lecture du plan de ferraillage (PDF Arche / Graitec)** : section, portée et appuis, enrobages, nomenclature (nombre, Ø, Lg, forme et retours), répartition des cadres « 5 + 12x12 + 5x30… », béton et acier du cartouche.
-- **Saisie à la main** possible, et tout se corrige : dimensions, positions, haut / bas, gauche / droite / centre, retours.
-- **Modèle 3D fidèle** :
-  - barres à leur place, retours vers l'intérieur ;
-  - cadres et épingles aux bonnes abscisses ;
-  - appuis, béton transparent ou plein.
-- **Vues** : 3D, élévation, bout et dessus. Coupe transversale à n'importe quelle abscisse.
-- **Contrôle** : béton (m³) et acier (kg) calculés, comparés au plan, et détail par diamètre.
-- **Positions** : chacune peut être affichée ou masquée.
-- **Export** : image 3D et fiche PDF (3D + coupe + nomenclature).
-- **Où la trouver** : menu ☰ › Poutre 3D, ou rubrique Modèles 3D › Poutres 3D.
+### Poutre 3D : lecture des vrais plans Arche
+- Les PDF « imprimés » et les pages tournées sont maintenant lus correctement (testé sur le dossier GSC : 37 poutres trouvées, acier calculé identique au cartouche à 0,6 kg près).
+- **Plusieurs poutres dans un PDF** : la liste s'affiche par repère (PT01, PT07, PT21-A…), on en choisit une ou on **importe toutes les poutres** d'un coup.
+- Retours (crochets), cadres, épingles et répartition « 5 + 17x8 + 5x30… » sont reconnus, et chaque poutre se corrige si besoin.

@@ -16,11 +16,25 @@ function ptEspPos(esp) {
 }
 
 // ---------- Lecture du PDF (texte du plan : section, nomenclature, formes, cotes, répartition) ----------
+// texte d'une page dans le sens de lecture (page tournée comprise), doublons retirés (PDF « imprimés » répètent le texte)
+async function ptPageItems(doc, n) {
+  const page = await doc.getPage(n), tc = await page.getTextContent(), vp = page.getViewport({ scale: 1 }), seen = new Set(), items = [];
+  for (const it of tc.items) { const s = String(it.str).trim(); if (!s) continue; const t = pdfjsLib.Util.transform(vp.transform, it.transform), x = t[4], y = t[5], k = s + '|' + Math.round(x) + '|' + Math.round(y);
+    if (seen.has(k)) continue; seen.add(k); const horiz = Math.abs(t[1]) < Math.abs(t[0]); items.push({ s, x, y, w: horiz ? (it.width || 0) * vp.scale : 0 }); }
+  return { items, vp };
+}
+const ptDocOf = async (file) => { if (!pdfReady()) throw new Error('Lecteur PDF indisponible'); return file._doc || (file._doc = await pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise); };
+// liste des poutres du PDF (une par page) : repère, niveau, section
+async function ptScanPdf(file) {
+  const doc = await ptDocOf(file), out = [];
+  for (let n = 1; n <= doc.numPages; n++) { const { items, vp } = await ptPageItems(doc, n), all = items.map(i => i.s).join(' '), sec = all.match(/Section\s*:?\s*(\d+(?:[.,]\d+)?)\s*[xX×]\s*(\d+(?:[.,]\d+)?)/);
+    if (!sec || !/Barre/i.test(all)) continue; const nm = items.find(i => /^P[A-Z]{0,3}\s?\d{1,4}(?:[-_ ]?[A-Z0-9]{1,3})?$/.test(i.s) && i.y < vp.height * .2);
+    out.push({ page: n, name: nm ? nm.s : `Page ${n}`, sec: `${sec[1]}×${sec[2]}` }); }
+  return out;
+}
 async function ptReadPdf(file, pageNo = 1) {
-  if (!pdfReady()) throw new Error('Lecteur PDF indisponible');
-  const doc = await pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
-  const page = await doc.getPage(Math.min(pageNo, doc.numPages)), tc = await page.getTextContent(), vp = page.getViewport({ scale: 1 });
-  const items = tc.items.map(it => ({ s: String(it.str).trim(), x: it.transform[4], y: vp.height - it.transform[5], w: it.width || 0 })).filter(it => it.s);
+  const doc = await ptDocOf(file);
+  const { items, vp } = await ptPageItems(doc, Math.min(pageNo, doc.numPages));
   const all = items.map(i => i.s).join(' ');
   const num = (s) => parseFloat(String(s).replace(',', '.'));
   const P = { id: DB.uid(), name: '', niv: '', b: 0, h: 0, L: 0, aL: 0, aR: 0, cb: 3, ch: 3, cl: 3, fck: '', vol: 0, kg: 0, esp: '', bars: [], pages: doc.numPages };
@@ -29,7 +43,7 @@ async function ptReadPdf(file, pageNo = 1) {
   P.vol = g(/B[ée]ton\s*=\s*(\d+(?:[.,]\d+)?)\s*m/i); P.kg = g(/Acier\s*=\s*(\d+(?:[.,]\d+)?)\s*kg/i);
   P.cb = g(/Eb\s*=\s*(\d+(?:[.,]\d+)?)/) || 3; P.ch = g(/Eh\s*=\s*(\d+(?:[.,]\d+)?)/) || P.cb; P.cl = g(/El\s*=\s*(\d+(?:[.,]\d+)?)/) || P.cb;
   const fk = all.match(/fck\s*=\s*(\d+)/i); if (fk) P.fck = 'C' + fk[1];
-  const nm = items.find(i => /^P[A-Z]{0,3}\s?\d{1,4}[A-Z]?$/.test(i.s) && i.y < vp.height * .2); if (nm) P.name = nm.s;
+  const nm = items.find(i => /^P[A-Z]{0,3}\s?\d{1,4}(?:[-_ ]?[A-Z0-9]{1,3})?$/.test(i.s) && i.y < vp.height * .2); if (nm) P.name = nm.s; else P.name = `Poutre p.${pageNo}`;
   const nv = all.match(/\b((?:PH|PB|Niv\.?)?\s*(?:R\s?\+\s?\d+|RDC|SS\s?\d?|Mezz\w*))\b/i); if (nv) P.niv = nv[1].replace(/\s+/g, ' ').trim();
   // tableau des barres
   const hB = items.find(i => /^Barre$/i.test(i.s) && i.y < vp.height * .3), hL = items.find(i => /^Lg$/i.test(i.s) && hB && Math.abs(i.y - hB.y) < 6), hF = items.find(i => /^Forme$/i.test(i.s) && hB && Math.abs(i.y - hB.y) < 6);
@@ -259,9 +273,14 @@ async function ptNew(p) {
   if (v === 'pdf') {
     const [file] = await pickFiles({ accept: 'application/pdf', multiple: false }); if (!file) return null;
     const ld = loading('Lecture du plan…');
-    try { P = await ptReadPdf(file, 1);
-      if (P.pages > 1) { ld.close(); const pg = await menu(`${P.pages} pages : quelle poutre ?`, Array.from({ length: P.pages }, (_, i) => ({ label: `Page ${i + 1}`, value: String(i + 1) }))); if (!pg) return null; if (pg !== '1') P = await ptReadPdf(file, +pg); }
-      const rec = await DB.put('files', { projectId: p.id, blob: file, mime: 'application/pdf', role: 'doc', name: file.name }); P.pdfFileId = rec.id;
+    try {
+      const L = await ptScanPdf(file); let pg = L.length ? String(L[0].page) : '1';
+      if (L.length > 1) { ld.close(); pg = await menu(`${L.length} poutres dans ce PDF`, [{ label: `⬇ Importer les ${L.length} poutres`, icon: 'layers', value: 'all' }, ...L.map(x => ({ label: `🧱 ${x.name} · ${x.sec} (p. ${x.page})`, value: String(x.page) }))]); if (!pg) return null; }
+      const rec = await DB.put('files', { projectId: p.id, blob: file, mime: 'application/pdf', role: 'doc', name: file.name });
+      if (pg === 'all') { const ld2 = loading('Lecture des poutres…'); let first = null;
+        for (const [k, x] of L.entries()) { ld2.set(`Lecture des poutres… ${k + 1}/${L.length}`); const Q = await ptReadPdf(file, x.page); Q.pdfFileId = rec.id; Q.page = x.page; ptList(p).push(Q); first = first || Q; }
+        ld2.close(); ld.close(); await DB.put('projects', p); toast(`${L.length} poutres importées ✓`); return first; }
+      P = await ptReadPdf(file, +pg); P.pdfFileId = rec.id; P.page = +pg;
     } catch (e) { ld.close(); alertBox('Lecture impossible : ' + (e.message || e) + '\nVous pouvez saisir la poutre à la main.'); return null; }
     ld.close();
     if (!P.b || !P.h || !P.bars.length) { toast('Plan lu en partie : complétez les dimensions'); if (!await ptEditMain(P)) return null; }
