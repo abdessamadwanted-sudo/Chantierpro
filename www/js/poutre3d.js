@@ -82,6 +82,11 @@ async function ptReadPdf(file, pageNo = 1) {
   if (big) { P.L = +big.s; const row = elev.filter(i => /^\d{1,3}$/.test(i.s) && Math.abs(i.y - big.y) < 4 && i !== big); const l = row.filter(i => i.x < big.x).sort((a, b) => b.x - a.x)[0], r = row.filter(i => i.x > big.x).sort((a, b) => a.x - b.x)[0]; if (l) P.aL = +l.s; if (r) P.aR = +r.s; }
   const sec2 = elev.filter(i => /Coupe|Elévation|Élévation/i.test(i.s));
   const coupeY = (sec2.find(i => /Coupe/i.test(i.s)) || {}).y || vp.height * .65;
+  // coupe : cotes verticales « a + b = h » d'un côté de la section → aile (dalle) de ce côté, épaisseur = partie haute
+  P.fl = { g: 0, d: 0, w: 50 };
+  const cz = elev.filter(i => i.y > coupeY + 5 && /^\d{1,3}$/.test(i.s)), wd = cz.filter(i => +i.s === P.b).sort((a, c) => c.y - a.y)[0];
+  if (wd && P.h) { const cx = wd.x + (wd.w || 8) / 2;
+    for (const a of cz) for (const c of cz) { if (a === c || Math.abs(a.x - c.x) > 8 || a.y >= c.y || +a.s + +c.s !== P.h) continue; const side = a.x < cx ? 'g' : 'd'; if (!P.fl[side]) P.fl[side] = +a.s; } }
   const labs = elev.filter(i => /^\d{1,2}$/.test(i.s) && i.y < coupeY - 10 && !(i.y >= bandA && i.y <= bandB) && !(big && Math.abs(i.y - big.y) < 4) && P.bars.some(b => b.pos === +i.s && (b.type === 'droite' || b.type === 'crochet')));
   if (labs.length >= 2) {
     const xs = elev.filter(i => /^\d{2,4}$/.test(i.s) && big && Math.abs(i.y - big.y) < 4), x0 = xs.length ? Math.min(...xs.map(i => i.x)) : 0, x1 = xs.length ? Math.max(...xs.map(i => i.x + i.w)) : vp.width;
@@ -105,6 +110,14 @@ function ptBuild(T, P, opt = {}) {
     const e2 = new T.LineSegments(new T.EdgesGeometry(m.geometry), new T.LineBasicMaterial({ color: '#94a3b8' })); e2.position.copy(m.position); grp.add(e2); };
   if (aL) sup(X0, 0); if (aR) sup(L, X1);
   const mats = {}; const mat = (c) => mats[c] || (mats[c] = new T.MeshStandardMaterial({ color: c, roughness: .45, metalness: .35 }));
+  // une barre = un seul tube lisse : segments droits + coudes arrondis (rayon de façonnage ≈ 2,5 Ø)
+  const tubeR = (pts, r, col, tag, bend) => { const path = new T.CurvePath(); let prev = pts[0];
+    for (let i = 1; i < pts.length; i++) { const A = pts[i - 1], B = pts[i], C = pts[i + 1];
+      if (!C) { path.add(new T.LineCurve3(prev, B)); break; }
+      const u = A.clone().sub(B), w = C.clone().sub(B), lu = u.length(), lw = w.length(), k = Math.min(bend, lu * .45, lw * .45);
+      const p1 = B.clone().add(u.normalize().multiplyScalar(k)), p2 = B.clone().add(w.normalize().multiplyScalar(k));
+      if (prev.distanceTo(p1) > 1e-5) path.add(new T.LineCurve3(prev, p1)); path.add(new T.QuadraticBezierCurve3(p1, B, p2)); prev = p2; }
+    const n = Math.max(8, path.curves.length * 6), m = new T.Mesh(new T.TubeGeometry(path, n, r, 8, false), mat(col)); m.userData.pos = tag; return m; };
   const tube = (pts, r, col, tag) => { const g2 = new T.Group(); g2.userData.pos = tag; for (let i = 0; i < pts.length - 1; i++) { const A = pts[i], B = pts[i + 1], len = A.distanceTo(B); if (len < 1e-6) continue;
       const cy = new T.Mesh(new T.CylinderGeometry(r, r, len, 10), mat(col)); cy.position.copy(A).add(B).multiplyScalar(.5); cy.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), B.clone().sub(A).normalize()); g2.add(cy);
       if (i) { const sp = new T.Mesh(new T.SphereGeometry(r, 10, 8), mat(col)); sp.position.copy(A); g2.add(sp); } } return g2; };
@@ -124,17 +137,25 @@ function ptBuild(T, P, opt = {}) {
       const z = n === 1 ? b / 2 : z0 + j * (z1 - z0) / (n - 1), up = f === 'inf' ? 1 : -1, leg = +bar.leg || 0;
       let pts = [V(xa, y, z), V(xb, y, z)];
       if (bar.type === 'crochet' && leg) { if (bar.side === 'g' || bar.side === '2') pts.unshift(V(xa, y + up * leg, z)); if (bar.side === 'd' || bar.side === '2') pts.push(V(xb, y + up * leg, z)); }
-      grp.add(tube(pts, cm(r), col(bar), +bar.pos));
+      grp.add(tubeR(pts, cm(r), col(bar), +bar.pos, cm(d / 10 * 2.5)));
     }
   }
+  // ailes (poutre en L / en T) : dalle en haut, sur toute la longueur
+  const fl = P.fl || {}; for (const side of ['g', 'd']) { const t = +fl[side] || 0; if (!t) continue; const w = +fl.w || 50;
+    const m = new T.Mesh(new T.BoxGeometry(cm(X1 - X0), cm(t), cm(w)), new T.MeshStandardMaterial({ color: '#94a3b8', transparent: true, opacity: opt.solid ? .45 : .1, depthWrite: false }));
+    m.position.set(cm((X0 + X1) / 2), cm(h - t / 2), side === 'g' ? cm(-w / 2) : cm(b + w / 2)); grp.add(m);
+    const e3 = new T.LineSegments(new T.EdgesGeometry(m.geometry), new T.LineBasicMaterial({ color: '#64748b' })); e3.position.copy(m.position); grp.add(e3); }
   // cadres et épingles aux abscisses de la répartition
   for (const bar of (P.bars || []).filter(x => x.type === 'cadre' || x.type === 'epingle')) {
     if (hidden.has(+bar.pos)) continue;
     const r = +bar.d / 20, pos = xs.length ? xs : Array.from({ length: Math.min(+bar.n || 0, 200) }, (_, i) => (i + 1) * L / ((+bar.n || 1) + 1));
     for (const x of pos.slice(0, 200)) {
       const zl = cl + r, zr = b - cl - r, yb = cb + r, yt = h - ch - r;
-      const pts = bar.type === 'cadre' ? [V(x, yb, zl), V(x, yb, zr), V(x, yt, zr), V(x, yt, zl), V(x, yb, zl), V(x, yb + 5, zl + 4)] : [V(x + r * 2, yb - 0.5, b / 2 - 3), V(x + r * 2, yb - 0.5, b / 2), V(x + r * 2, yt + 0.5, b / 2), V(x + r * 2, yt + 0.5, b / 2 + 3)];
-      grp.add(tube(pts, cm(r), col(bar), +bar.pos));
+      // cadre fermé : départ et arrivée au coin haut-gauche, deux crochets à 135° vers le cœur ; épingle : crochets autour des filantes
+      const q = Math.max(4, +bar.d * .7) * .7071, dx = r * 2.2;
+      const pts = bar.type === 'cadre' ? [V(x - dx, yt - q, zl + q), V(x - dx * .5, yt, zl), V(x, yt, zr), V(x, yb, zr), V(x, yb, zl), V(x + dx * .5, yt, zl), V(x + dx, yt - q, zl + q)]
+        : [V(x, yb + 4, b / 2 - 3), V(x, yb - .2, b / 2), V(x, yt + .2, b / 2), V(x, yt - 4, b / 2 + 3)];
+      grp.add(tubeR(pts, cm(r), col(bar), +bar.pos, cm(+bar.d / 10 * 2)));
     }
   }
   grp.userData = { X0, X1, b, h };
@@ -142,9 +163,12 @@ function ptBuild(T, P, opt = {}) {
 }
 // coupe transversale (SVG) à l'abscisse x
 function ptCoupeSVG(P, x) {
-  const b = +P.b, h = +P.h, cb = +P.cb || 3, ch = +P.ch || cb, cl = +P.cl || cb, K = 160 / Math.max(b, h), W = b * K + 40, H = h * K + 40;
+  const b = +P.b, h = +P.h, cb = +P.cb || 3, ch = +P.ch || cb, cl = +P.cl || cb, K = 160 / Math.max(b, h), padL = (P.fl || {}).g ? 15 * K : 0, padR = (P.fl || {}).d ? 15 * K : 0, W = b * K + 40 + padL + padR, H = h * K + 40;
   const st = (P.bars || []).find(q => q.type === 'cadre'), ds = st ? +st.d / 10 : .8; let out = '';
+  const fl = P.fl || {}, fg = +fl.g || 0, fd = +fl.d || 0, wa = 25;
   out += `<rect x="20" y="20" width="${b * K}" height="${h * K}" fill="#cbd5e1" fill-opacity=".35" stroke="#475569" stroke-width="1.5"/>`;
+  if (fg) out += `<path d="M20 20 h${-wa * K * .6} v${fg * K} h${wa * K * .6}" fill="#cbd5e1" fill-opacity=".25" stroke="#475569" stroke-width="1.2" stroke-dasharray="4 2"/>`;
+  if (fd) out += `<path d="M${20 + b * K} 20 h${wa * K * .6} v${fd * K} h${-wa * K * .6}" fill="#cbd5e1" fill-opacity=".25" stroke="#475569" stroke-width="1.2" stroke-dasharray="4 2"/>`;
   if (st) out += `<rect x="${20 + cl * K}" y="${20 + ch * K}" width="${(b - 2 * cl) * K}" height="${(h - cb - ch) * K}" rx="3" fill="none" stroke="${PT_COL[(st.pos - 1) % PT_COL.length]}" stroke-width="${Math.max(1.5, ds * K)}"/>`;
   const lit = { inf: 0, sup: 0 }, tot = +P.L + (+P.aL || 0) + (+P.aR || 0), X0 = -(+P.aL || 0), X1 = +P.L + (+P.aR || 0);
   for (const bar of (P.bars || []).filter(q => q.type === 'droite' || q.type === 'crochet')) {
@@ -154,7 +178,7 @@ function ptCoupeSVG(P, x) {
     if (x < xa || x > xa + len) continue;
     for (let j = 0; j < n; j++) { const z = n === 1 ? b / 2 : cl + ds + r + j * (b - 2 * (cl + ds + r)) / (n - 1); out += `<circle cx="${20 + z * K}" cy="${20 + (h - y) * K}" r="${Math.max(2.5, r * K)}" fill="${PT_COL[(bar.pos - 1) % PT_COL.length]}" stroke="#111" stroke-width=".6"/>`; }
   }
-  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${out}<text x="20" y="14" font-size="11" fill="currentColor">x = ${Math.round(x)} cm</text></svg>`;
+  return `<svg viewBox="${-padL} 0 ${W} ${H}" width="${W}" height="${H}">${out}<text x="20" y="14" font-size="11" fill="currentColor">x = ${Math.round(x)} cm</text></svg>`;
 }
 
 // ---------- Formulaires ----------
@@ -164,10 +188,12 @@ async function ptEditMain(P) {
     { name: 'b', label: 'Largeur b (cm)', type: 'number', value: P.b }, { name: 'h', label: 'Hauteur h (cm)', type: 'number', value: P.h },
     { name: 'L', label: 'Portée entre appuis (cm)', type: 'number', value: P.L }, { name: 'aL', label: 'Appui gauche (cm)', type: 'number', value: P.aL }, { name: 'aR', label: 'Appui droit (cm)', type: 'number', value: P.aR },
     { name: 'cb', label: 'Enrobage bas (cm)', type: 'number', value: P.cb }, { name: 'ch', label: 'Enrobage haut (cm)', type: 'number', value: P.ch }, { name: 'cl', label: 'Enrobage latéral (cm)', type: 'number', value: P.cl },
+    { name: 'flg', label: 'Poutre en L/T — aile gauche : épaisseur de dalle (cm, 0 = sans)', type: 'number', value: (P.fl || {}).g || 0 }, { name: 'fld', label: 'Aile droite : épaisseur de dalle (cm, 0 = sans)', type: 'number', value: (P.fl || {}).d || 0 },
+    { name: 'flw', label: 'Largeur d\'aile affichée (cm)', type: 'number', value: (P.fl || {}).w || 50 },
     { name: 'esp', label: 'Répartition des cadres (cm)', value: P.esp, placeholder: 'Ex : 5 + 12x12 + 5x30 + 3x21 + 5x30 + 13x11 + 5' },
     { name: 'fck', label: 'Béton', value: P.fck, placeholder: 'Ex : C30' }, { name: 'vol', label: 'Béton du plan (m³, pour contrôle)', type: 'number', value: P.vol || '' }, { name: 'kg', label: 'Acier du plan (kg, pour contrôle)', type: 'number', value: P.kg || '' }], { okLabel: 'Enregistrer' });
   if (!r) return false;
-  ['b', 'h', 'L', 'aL', 'aR', 'cb', 'ch', 'cl', 'vol', 'kg'].forEach(k => { P[k] = parseFloat(String(r[k]).replace(',', '.')) || 0; }); P.name = r.name; P.niv = r.niv; P.esp = r.esp; P.fck = r.fck; return true;
+  ['b', 'h', 'L', 'aL', 'aR', 'cb', 'ch', 'cl', 'vol', 'kg'].forEach(k => { P[k] = parseFloat(String(r[k]).replace(',', '.')) || 0; }); P.name = r.name; P.niv = r.niv; P.esp = r.esp; P.fck = r.fck; P.fl = { g: +r.flg || 0, d: +r.fld || 0, w: +r.flw || 50 }; return true;
 }
 async function ptEditBar(P, bar) {
   const isNew = !bar; bar = bar || { pos: (P.bars || []).reduce((a, x) => Math.max(a, +x.pos || 0), 0) + 1, n: 3, d: 12, lg: 0, type: 'droite', main: 0, leg: 0, side: 'g', face: 'inf', align: 'c', ca: 0, cb2: 0 };
@@ -198,7 +224,7 @@ async function ptOpen(p, P) {
     const save = async () => { const L = ptList(p), i = L.findIndex(x => x.id === P.id); if (i >= 0) L[i] = P; else L.push(P); await DB.put('projects', p); };
     el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><h1 style="flex:1;font-size:17px">${esc(P.name || 'Poutre')}${P.niv ? ` <small style="opacity:.7">${esc(P.niv)}</small>` : ''}</h1>
         <button class="iconbtn" data-a="snap" title="Image">${icon('camera')}</button><button class="iconbtn" data-a="more">${icon('more')}</button></div>
-      <div class="v3-stage"><div class="v3-views"><button data-v="3d">3D</button><button data-v="front">Élévation</button><button data-v="side">Bout</button><button data-v="top">Dessus</button><button data-v="solid">Béton</button></div></div>
+      <div class="v3-stage"><div class="v3-views"><button data-v="3d">3D</button><button data-v="front">Élévation</button><button data-v="side">Bout</button><button data-v="top">Dessus</button><button data-v="solid">Béton</button></div><button class="pt-full" data-a="full" title="Plein écran">⛶</button></div>
       <div class="v3-panel pt-panel"></div>`;
     const stage = $('.v3-stage', el), scene = new T.Scene(); scene.background = new T.Color(document.documentElement.classList.contains('th-net') ? '#f1f5f9' : '#e9edf2');
     const cam = new T.PerspectiveCamera(40, 1, 0.01, 500);
@@ -212,7 +238,7 @@ async function ptOpen(p, P) {
     const view = (v) => { const u = grp.userData, cx = (u.X0 + u.X1) / 200, len = (u.X1 - u.X0) / 100, H = u.h / 100, B = u.b / 100, f = Math.tan(cam.fov * Math.PI / 360);
       const dist = (w, h) => Math.max(h / 2 / f, w / 2 / f / Math.max(.2, cam.aspect)) * 1.08; ctl.target.set(cx, H / 2, B / 2);
       if (v === 'front') cam.position.set(cx, H / 2, B / 2 + dist(len, H * 3));
-      else if (v === 'side') cam.position.set(u.X1 / 100 + dist(B * 2.4, H * 2.4), H / 2, B / 2);
+      else if (v === 'side') cam.position.set(u.X1 / 100 + dist(B * 5, H * 4.5), H / 2, B / 2);
       else if (v === 'top') cam.position.set(cx, H + dist(len, B * 3), B / 2 + .001);
       else { const d = dist(len * .62, len * .3), n = new THREE.Vector3(.42, .38, .82).normalize(); cam.position.set(cx + n.x * d, H / 2 + n.y * d, B / 2 + n.z * d); }
       ctl.update(); };
@@ -240,6 +266,7 @@ async function ptOpen(p, P) {
     };
     $$('[data-v]', el).forEach(b2 => b2.onclick = () => { if (b2.dataset.v === 'solid') { solid = !solid; b2.classList.toggle('on', solid); return rebuild(); } view(b2.dataset.v); });
     $('[data-a=x]', el).onclick = () => { unBack(); close(); };
+    $('[data-a=full]', el).onclick = () => { el.classList.toggle('full'); $('[data-a=full]', el).textContent = el.classList.contains('full') ? '✕' : '⛶'; setTimeout(fitR, 60); };
     $('[data-a=snap]', el).onclick = () => { renderer.render(scene, cam); renderer.domElement.toBlob(bl => shareBlob(bl, `${safeName(P.name || 'poutre')}_3D.png`), 'image/png'); };
     $('[data-a=more]', el).onclick = async () => {
       const v = await menu(P.name || 'Poutre', [{ label: 'Dimensions et répartition', icon: 'edit', value: 'dims' }, { label: 'Ajouter une position', icon: 'plus', value: 'add' }, { label: 'Fiche PDF (3D + coupe + nomenclature)', icon: 'pdf', value: 'pdf' }, ...(P.pdfFileId ? [{ label: 'Voir le plan d\'origine', icon: 'plans', value: 'src' }] : []), { label: 'Supprimer la poutre', icon: 'trash', danger: true, value: 'del' }]);

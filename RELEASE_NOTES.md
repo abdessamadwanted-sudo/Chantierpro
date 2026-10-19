@@ -1,4 +1,7 @@
-### Poutre 3D : lecture des vrais plans Arche
-- Les PDF « imprimés » et les pages tournées sont maintenant lus correctement (testé sur le dossier GSC : 37 poutres trouvées, acier calculé identique au cartouche à 0,6 kg près).
-- **Plusieurs poutres dans un PDF** : la liste s'affiche par repère (PT01, PT07, PT21-A…), on en choisit une ou on **importe toutes les poutres** d'un coup.
-- Retours (crochets), cadres, épingles et répartition « 5 + 17x8 + 5x30… » sont reconnus, et chaque poutre se corrige si besoin.
+### Poutre 3D : formes réelles
+- **Cadres** : coins arrondis (façonnage) et fermeture au coin haut avec deux crochets à 135° vers le cœur, comme sur chantier.
+- **Barres à retour / chapeaux** : coudes arrondis, chaque barre dessinée en un seul tube lisse (plus léger et plus fluide).
+- **Épingles** : crochets autour des filantes.
+- **Poutre en L / en T** : l'aile (dalle) est lue dans la coupe du plan (ex. PT01 : aile gauche de 30 cm), dessinée en 3D et dans la coupe, et réglable dans Dimensions.
+- **Plein écran** : bouton ⛶ en bas de la 3D (✕ pour revenir).
+- Vue « Bout » mieux cadrée.
