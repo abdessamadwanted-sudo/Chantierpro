@@ -74,12 +74,15 @@ async function editLicFeatures(L) {
 }
 
 // ---------- Mises à jour (sans désinstaller : même signature, les données restent) ----------
+// Le build Play Store remplace cette valeur à la compilation. Les mises à jour y passent par Google Play.
+const PLAY_STORE_BUILD = false;
 const UPD_API = 'https://api.github.com/repos/abdessamadwanted-sudo/Chantierpro/releases/latest';
 const UPD_APK = 'https://github.com/abdessamadwanted-sudo/Chantierpro/releases/latest/download/Chantier.apk';
 const verNum = (v) => String(v || '').replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0);
 function verCmp(a, b) { const A = verNum(a), B = verNum(b); for (let i = 0; i < Math.max(A.length, B.length); i++) { const d = (A[i] || 0) - (B[i] || 0); if (d) return d; } return 0; }
 
 async function checkUpdate(manual = false) {
+  if (PLAY_STORE_BUILD) { if (manual) toast('Les mises à jour sont gérées par Google Play.'); return; }
   const cur = typeof APP_VERSION === 'string' ? APP_VERSION : '';
   if (!/^\d+\.\d+\.\d+$/.test(cur)) { if (manual) alertBox('Version de développement : la mise à jour se fait depuis le téléphone.'); return; }
   // licence avec une version figée par le titulaire : pas de proposition de mise à jour, on va sur SA version
@@ -101,6 +104,7 @@ async function checkUpdate(manual = false) {
 }
 
 async function pinnedUpdate(ver, cur, manual) {
+  if (PLAY_STORE_BUILD) { if (manual) toast('Les mises à jour sont gérées par Google Play.'); return; }
   if (ver === cur) { if (manual) toast(`Version fixée par le titulaire : v${ver} ✓`); return; }
   if (navigator.onLine === false) return;
   if (document.querySelector('.loading')) return;
@@ -130,6 +134,7 @@ const OTA_WV = () => window.Capacitor?.Plugins?.WebView;
 const b64ToBytes = (b64) => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; };
 const bytesToB64 = (u) => { let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
 async function otaInstall(rel, ld) {
+  if (PLAY_STORE_BUILD) return false;
   const P = window.Capacitor?.Plugins || {}, FS = P.Filesystem, WV = OTA_WV();
   if (!FS || !FS.downloadFile || !WV || !WV.setServerBasePath || /^__/.test(NATIVE_ID)) return false;
   try { if (localStorage.getItem('ota.off')) return false; } catch (e) {}
@@ -166,6 +171,7 @@ async function otaInstall(rel, ld) {
 }
 // au démarrage : rendre permanent le paquet qui vient de démarrer, nettoyer les anciens
 async function otaBoot() {
+  if (PLAY_STORE_BUILD) return;
   const P = window.Capacitor?.Plugins || {}, FS = P.Filesystem, WV = OTA_WV(); if (!FS || !WV || !WV.getServerBasePath) return;
   try {
     const { path } = await WV.getServerBasePath(), onOta = /\/ota\//.test(path || '');
@@ -182,6 +188,7 @@ async function otaBoot() {
 // - lien exact de la version (pas « latest », qui peut renvoyer une ancienne version en cache → « Application non installée »)
 // - nom de fichier unique, anciens APK effacés, taille vérifiée avant d'installer
 async function installUpdate() {
+  if (PLAY_STORE_BUILD) { toast('Les mises à jour sont gérées par Google Play.'); return; }
   const P = window.Capacitor?.Plugins || {}, rel = window._updRel || null;
   const asset = rel && (rel.assets || []).find(a => /\.apk$/i.test(a.name));
   const ver = rel ? rel.tag_name.replace(/^v/, '') : 'latest', url = asset ? asset.browser_download_url : UPD_APK;

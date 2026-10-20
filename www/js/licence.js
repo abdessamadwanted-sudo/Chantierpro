@@ -5,7 +5,9 @@ const LIC_FB = { apiKey: 'AIzaSyAgrScRnLf1Itfnqpg8Z9Hs0cmmJQ_6yC0', authDomain: 
 const LIC_GRACE = 7 * 864e5;
 const LIC_OWNERS = ['abdessamad.daga94@gmail.com'];   // seuls comptes autorisés comme « propriétaire »
 const LIC_APK = 'https://github.com/abdessamadwanted-sudo/Chantierpro/releases/latest/download/Chantier.apk';
-const licApk = (L) => L && L.ver ? `https://github.com/abdessamadwanted-sudo/Chantierpro/releases/download/v${L.ver}/Chantier.apk` : LIC_APK;
+const licApk = (L) => typeof PLAY_STORE_BUILD !== 'undefined' && PLAY_STORE_BUILD
+  ? 'https://play.google.com/store/apps/details?id=ma.chantier.app'
+  : L && L.ver ? `https://github.com/abdessamadwanted-sudo/Chantierpro/releases/download/v${L.ver}/Chantier.apk` : LIC_APK;
 const Lic = {
   get() { try { return JSON.parse(localStorage.getItem('lic') || 'null'); } catch (e) { return null; } },
   set(v) { try { localStorage.setItem('lic', JSON.stringify(v)); } catch (e) {} },
@@ -186,7 +188,7 @@ async function openLicences() {
   const shareCode = (L) => openUrl('https://wa.me/?text=' + encodeURIComponent(`Bonjour ${L.name || ''},\nVoici l'application *Chantier* pour le suivi de chantier :\n\n1️⃣ Téléchargez et installez : ${licApk(L)}\n2️⃣ Ouvrez l'application et entrez le code : *${L.code}*${L.email ? `\n3️⃣ Avec votre adresse Gmail : ${L.email}` : ''}`));
   const mailCode = (L) => {
     const sub = `Votre licence Chantier : ${L.code}`;
-    const body = `Bonjour ${L.name || ''},\n\nVoici votre accès à l'application Chantier (suivi de chantier).\n\n1) Téléchargez et installez l'application :\n${licApk(L)}\n(si Android le demande : autoriser l'installation)\n\n2) Ouvrez Chantier et entrez :\n   - Code de licence : ${L.code}\n   - Votre adresse Gmail : ${L.email || '(cette adresse)'}\n\n3) Les mises à jour se font ensuite depuis l'application (⋮ › Rechercher une mise à jour), sans désinstaller.\n\nCe code ne fonctionne que sur un seul téléphone.${L.expires ? `\nValable jusqu'au ${fmtDate(L.expires)}.` : ''}\n\n${L.ownerName || ''}`;
+    const body = `Bonjour ${L.name || ''},\n\nVoici votre accès à l'application Chantier (suivi de chantier).\n\n1) ${PLAY_STORE_BUILD ? 'Installez l’application depuis Google Play :' : 'Téléchargez et installez l’application :'}\n${licApk(L)}${PLAY_STORE_BUILD ? '' : '\n(si Android le demande : autoriser l’installation)'}\n\n2) Ouvrez Chantier et entrez :\n   - Code de licence : ${L.code}\n   - Votre adresse Gmail : ${L.email || '(cette adresse)'}\n\n3) ${PLAY_STORE_BUILD ? 'Les mises à jour sont distribuées par Google Play.' : 'Les mises à jour se font depuis l’application (⋮ › Rechercher une mise à jour), sans désinstaller.'}\n\nCe code ne fonctionne que sur un seul téléphone.${L.expires ? `\nValable jusqu'au ${fmtDate(L.expires)}.` : ''}\n\n${L.ownerName || ''}`;
     openUrl(`mailto:${encodeURIComponent(L.email || '')}?subject=${encodeURIComponent(sub)}&body=${encodeURIComponent(body)}`);
   };
   const DUR = [['0', 'Sans expiration'], ['30', '1 mois'], ['90', '3 mois'], ['180', '6 mois'], ['365', '1 an']];
