@@ -24,6 +24,18 @@ const PLAN_DEFAULT_COMPANY = 'entreprise';
 // contact à remplacer par l'adresse définitive (support@votredomaine) avant tout lancement public
 const SUPPORT_EMAIL = 'contact@chantierpro.ma';
 
+// ---------- Partage externe : donner à une entreprise/personne d'une AUTRE entreprise SiteTeam un accès limité à UN projet précis.
+// L'intervenant garde son propre compte et sa propre entreprise (son « espace ») : il ne devient pas membre de l'entreprise qui partage,
+// et ne voit que ce projet, selon les opérations cochées (consulter / répondre / télécharger). v1 : le périmètre exact (documents/lots) est
+// décrit en texte libre par l'administrateur qui partage et consulté par l'intervenant — pas encore de restriction automatique document par
+// document. Les échanges (réponses, avis, réserves) sont journalisés sur le partage lui-même.
+const SHARE_ENTITIES = [
+  ['mo', "Maître d'ouvrage"], ['mod', "Maître d'ouvrage délégué"], ['architecte', 'Architecte'], ['bet', "BET (bureau d'études)"],
+  ['bcontrole', 'Bureau de contrôle'], ['labo', 'Laboratoire'], ['topoext', 'Topographe externe'], ['soustraitant', 'Sous-traitant'],
+  ['entreprise', 'Entreprise (lot)'], ['autre', 'Autre'],
+];
+const shareEntityLabel = (k) => (SHARE_ENTITIES.find(x => x[0] === k) || [k, k])[1];
+
 // ---------- Services, rôles, permissions ----------
 const SERVICES = [
   { k: 'direction', l: 'Direction', c: '#334155' }, { k: 'travaux', l: 'Travaux', c: '#2563eb' }, { k: 'ferraillage', l: 'Ferraillage', c: '#dc2626' },
@@ -91,6 +103,21 @@ service cloud.firestore {
       allow update: if signed() && (isAdmin(resource.data.cid) || (resource.data.used == false
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used', 'usedBy', 'usedAt'])
         && request.resource.data.usedBy == request.auth.uid));
+      allow delete: if signed() && isAdmin(resource.data.cid);
+    }
+
+    // partage externe (projet précis, accès limité) : créé/géré par l'entreprise propriétaire du projet ; l'intervenant externe
+    // (compte d'une autre entreprise, ou sans entreprise) le récupère par code puis ne peut qu'ajouter des réponses, pas modifier le périmètre.
+    match /shares/{code} {
+      allow get: if signed();
+      allow list: if signed() && (isAdmin(resource.data.cid) || resource.data.usedBy == request.auth.uid);
+      allow create: if signed() && isAdmin(request.resource.data.cid);
+      allow update: if signed() && (isAdmin(resource.data.cid)
+        || (resource.data.used == false
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used', 'usedBy', 'usedByName', 'usedAt'])
+            && request.resource.data.usedBy == request.auth.uid)
+        || (resource.data.usedBy == request.auth.uid && resource.data.ops.comment == true
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['responses'])));
       allow delete: if signed() && isAdmin(resource.data.cid);
     }
 
@@ -385,6 +412,135 @@ const Team = (() => {
     openUrl('https://wa.me/?text=' + encodeURIComponent(txt));
   }
 
+  // ---------- partage externe (projet précis, accès limité) ----------
+  async function createShare(p, o) {
+    const code = newCode();
+    const sh = { cid: S.cid, companyName: S.company.name, pid: p.id, projectName: p.name, entity: o.entity, label: o.label || '', contact: o.contact || '',
+      scope: o.scope || '', ops: o.ops, dueDate: o.dueDate || '', used: false, createdBy: S.user.uid, createdByName: (S.me || {}).name || '', createdAt: ts(), responses: [] };
+    await withTimeout(fs.collection('shares').doc(code).set(sh));
+    return code;
+  }
+  function shareMsg(code, sh) {
+    const opsTxt = [sh.ops.view && 'consulter', sh.ops.comment && 'répondre', sh.ops.download && 'télécharger'].filter(Boolean).join(', ');
+    const txt = `Bonjour${sh.label ? ' ' + sh.label : ''},\n${S.company.name} vous donne un accès limité au projet *${sh.projectName}* sur SiteTeam (${shareEntityLabel(sh.entity)}).\n` +
+      `Accès autorisé : ${opsTxt || '—'}${sh.scope ? `\nContenu partagé : ${sh.scope}` : ''}${sh.dueDate ? `\nJusqu'au : ${sh.dueDate}` : ''}\n\n` +
+      `1️⃣ Installez l'application : ${apkLink()}\n2️⃣ Créez votre compte (ou connectez-vous avec le vôtre)\n3️⃣ Mon compte › « Accès externe reçu » → code *${code}*`;
+    openUrl('https://wa.me/?text=' + encodeURIComponent(txt));
+  }
+  function shareForm(o = {}) {
+    return new Promise((resolve) => {
+      const ops0 = { view: true, comment: true, download: false, ...(o.ops || {}) };
+      const s = sheet(`<div class="form tm-form">
+        <label>Type d'intervenant<select data-f="entity">${SHARE_ENTITIES.map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join('')}</select></label>
+        <label>Nom (entreprise / personne)<input data-f="label" value="${esc(o.label || '')}" placeholder="Ex : BET Structura"></label>
+        <label>Téléphone / e-mail (optionnel)<input data-f="contact" value="${esc(o.contact || '')}"></label>
+        <label>Contenu partagé (documents, lots…)<textarea data-f="scope" placeholder="Ex : Plans du lot gros œuvre, PV de réception du 3e étage">${esc(o.scope || '')}</textarea></label>
+        <label>Date limite (optionnel)<input data-f="dueDate" type="date" value="${esc(o.dueDate || '')}"></label>
+        <div class="fld">Opérations autorisées</div>
+        <label class="tm-ck"><input type="checkbox" data-op="view"> Consulter le projet</label>
+        <label class="tm-ck"><input type="checkbox" data-op="comment"> Répondre / commenter</label>
+        <label class="tm-ck"><input type="checkbox" data-op="download"> Télécharger les fichiers</label>
+        <p style="font-size:12.5px;color:var(--muted)">L'intervenant garde son propre compte SiteTeam : il ne devient pas membre de votre entreprise et ne voit que ce projet, selon ce qui est coché ici.</p>
+        <div class="btnrow" style="padding:0"><button class="btn ghost" data-a="c">Annuler</button><button class="btn" data-a="ok">Créer le partage</button></div></div>`,
+        { title: 'Partager avec un intervenant externe' });
+      s.onClose = () => resolve(null);
+      const E = s.el, f = (k) => $(`[data-f=${k}]`, E);
+      f('entity').value = o.entity || 'entreprise';
+      $$('[data-op]', E).forEach(c => c.checked = !!ops0[c.dataset.op]);
+      $('[data-a=c]', E).onclick = () => s.close();
+      $('[data-a=ok]', E).onclick = () => {
+        const out = { entity: f('entity').value, label: f('label').value.trim(), contact: f('contact').value.trim(), scope: f('scope').value.trim(), dueDate: f('dueDate').value,
+          ops: Object.fromEntries($$('[data-op]', E).map(c => [c.dataset.op, c.checked])) };
+        if (!out.label) return alertBox('Indiquez le nom de l\'entreprise ou de la personne.');
+        s.onClose = null; s.close(); resolve(out);
+      };
+    });
+  }
+  async function shareFlow(p) {
+    const o = await shareForm();
+    if (!o) return null;
+    const ld = loading('Création du partage…');
+    try {
+      const code = await createShare(p, o); ld.close();
+      const v = await menu(`Code : ${code}`, [{ label: 'Envoyer par WhatsApp', icon: 'share', value: 'wa' }, { label: 'Copier le code', icon: 'file', value: 'cp' }, { label: 'Fermer', icon: 'check', value: 'ok' }]);
+      if (v === 'wa') shareMsg(code, { ...o, projectName: p.name });
+      if (v === 'cp') copyText(code);
+      return code;
+    } catch (e) { ld.close(); alertBox(errMsg(e)); return null; }
+  }
+  async function projectShares(pid) {
+    try { const q = await fs.collection('shares').where('cid', '==', S.cid).where('pid', '==', pid).get(); return q.docs.map(d => ({ code: d.id, ...d.data() })); }
+    catch (e) { console.warn('shares', e); return []; }
+  }
+  async function revokeShare(code) {
+    if (!await confirmBox('Révoquer ce partage ? L\'intervenant externe perdra l\'accès.', 'Révoquer')) return false;
+    await fs.collection('shares').doc(code).delete(); toast('Partage révoqué ✓'); return true;
+  }
+  function viewShareLog(x) {
+    sheet(`<div class="tm-box"><b>${esc(x.label || shareEntityLabel(x.entity))}</b><small>${esc(shareEntityLabel(x.entity))}${x.contact ? ' · ' + esc(x.contact) : ''}</small></div>
+      ${x.scope ? `<div class="tm-box"><b>Contenu partagé</b><p>${esc(x.scope)}</p></div>` : ''}
+      <div class="tm-box"><b>Réponses / journal</b>${(x.responses || []).length ? (x.responses || []).map(r => `<p style="margin:6px 0"><b>${esc(r.byName || '?')}</b> — ${esc(r.text)}</p>`).join('') : '<p>Aucune réponse pour l\'instant.</p>'}</div>`,
+      { title: 'Journal du partage' });
+  }
+  async function openProjectShares(p) {
+    if (!isAdmin() && lvl('equipe') < 3) return alertBox('Droit insuffisant pour gérer le partage externe (niveau « Valider » sur Équipe du projet requis).');
+    const s = sheet('<div class="shr-wrap"></div>', { title: 'Intervenants externes' });
+    const wrap = $('.shr-wrap', s.el);
+    const draw = async () => {
+      const L = await projectShares(p.id);
+      wrap.innerHTML = `<p style="font-size:13px;color:var(--muted);margin:0 0 10px">Donnez un accès limité et journalisé à ce projet à une entreprise ou personne externe (maître d'ouvrage, BET, sous-traitant…), sans l'ajouter à votre entreprise.</p>
+        <button class="btn" data-a="add">${icon('plus')} Partager avec un intervenant</button>
+        <div class="list" style="margin-top:12px">${L.map(x => `<div class="tm-inv" data-code="${esc(x.code)}"><b class="tm-code">${esc(x.code)}</b><span class="grow">${esc(x.label || shareEntityLabel(x.entity))}
+          <small>${esc(shareEntityLabel(x.entity))}${x.dueDate ? ' · jusqu\'au ' + esc(x.dueDate) : ''}${x.used ? ' · utilisé par ' + esc(x.usedByName || '?') : ' · pas encore utilisé'}${(x.responses || []).length ? ' · ' + x.responses.length + ' réponse(s)' : ''}</small></span>
+          <button class="iconbtn sm" data-sh="${esc(x.code)}">${icon('share')}</button><button class="iconbtn sm" data-del="${esc(x.code)}">${icon('trash')}</button></div>`).join('') || '<div class="empty">Aucun partage externe pour ce projet.</div>'}</div>`;
+      $('[data-a=add]', wrap).onclick = async () => { if (await shareFlow(p)) draw(); };
+      $$('[data-sh]', wrap).forEach(b => b.onclick = () => { const x = L.find(i => i.code === b.dataset.sh); if (x) shareMsg(x.code, x); });
+      $$('[data-del]', wrap).forEach(b => b.onclick = async () => { if (await revokeShare(b.dataset.del)) draw(); });
+      $$('[data-code]', wrap).forEach(r => r.onclick = (e) => { if (e.target.closest('[data-sh],[data-del]')) return; const x = L.find(i => i.code === r.dataset.code); if (x) viewShareLog(x); });
+    };
+    await draw();
+  }
+
+  // ---------- accès externe reçu (soi-même intervenant sur le projet d'une autre entreprise) ----------
+  async function claimShare() {
+    const r = await formSheet('Accès externe reçu', [{ name: 'code', label: 'Code reçu (WhatsApp, e-mail…)', placeholder: 'Ex : AB3K9XYZ' }], { okLabel: 'Accéder' });
+    if (!r || !r.code) return;
+    const code = r.code.trim().toUpperCase();
+    const ld = loading('Vérification…');
+    let d; try { d = await withTimeout(fs.collection('shares').doc(code).get()); } catch (e) { ld.close(); return alertBox(errMsg(e)); }
+    if (!d.exists) { ld.close(); return alertBox('Code introuvable.'); }
+    const sh = d.data();
+    if (sh.used && sh.usedBy !== S.user.uid) { ld.close(); return alertBox('Ce code a déjà été utilisé par quelqu\'un d\'autre.'); }
+    try {
+      if (!sh.used) { await fs.collection('shares').doc(code).update({ used: true, usedBy: S.user.uid, usedByName: (S.me || {}).name || S.user.email || '', usedAt: ts() }); sh.used = true; sh.usedBy = S.user.uid; }
+      ld.close(); viewSharedAccess(code, sh);
+    } catch (e) { ld.close(); alertBox(errMsg(e)); }
+  }
+  async function myShares() {
+    try { const q = await fs.collection('shares').where('usedBy', '==', S.user.uid).get(); return q.docs.map(d => ({ code: d.id, ...d.data() })); }
+    catch (e) { console.warn('myShares', e); return []; }
+  }
+  function viewSharedAccess(code, sh) {
+    const opsTxt = [sh.ops.view && 'Consulter', sh.ops.comment && 'Répondre', sh.ops.download && 'Télécharger'].filter(Boolean).join(' · ');
+    const s = sheet('<div class="shr-wrap"></div>', { title: sh.projectName || 'Projet partagé' });
+    const wrap = $('.shr-wrap', s.el);
+    const draw = () => {
+      wrap.innerHTML = `<div class="tm-box"><b>${esc(sh.companyName || '')}</b><small>${esc(sh.projectName || '')} · ${esc(shareEntityLabel(sh.entity))}</small>
+          <small>Opérations autorisées : ${opsTxt || '—'}</small>${sh.dueDate ? `<small>Jusqu'au ${esc(sh.dueDate)}</small>` : ''}</div>
+        ${sh.scope ? `<div class="tm-box"><b>Contenu partagé</b><p>${esc(sh.scope)}</p></div>` : ''}
+        <div class="tm-box"><b>Échanges</b>${(sh.responses || []).length ? sh.responses.map(r => `<p style="margin:6px 0"><b>${esc(r.byName || '?')}</b> — ${esc(r.text)}</p>`).join('') : '<p>Aucun échange pour l\'instant.</p>'}</div>
+        ${sh.ops.comment ? `<div class="form"><label>Votre réponse<textarea data-reply placeholder="Écrire une réponse, un avis, une réserve…"></textarea></label><button class="btn" data-a="send">${icon('check')} Envoyer</button></div>`
+          : '<p style="font-size:12.5px;color:var(--muted)">Vous ne pouvez que consulter ce projet (réponse non autorisée).</p>'}`;
+      const send = $('[data-a=send]', wrap); if (send) send.onclick = async () => {
+        const t = $('[data-reply]', wrap).value.trim(); if (!t) return;
+        const entry = { byName: (S.me || {}).name || S.user.email || '', text: t, at: Date.now() };
+        try { await fs.collection('shares').doc(code).update({ responses: firebase.firestore.FieldValue.arrayUnion(entry) }); sh.responses = [...(sh.responses || []), entry]; draw(); toast('Envoyé ✓'); }
+        catch (e) { alertBox(errMsg(e)); }
+      };
+    };
+    draw();
+  }
+
   // ---------- page « Mon entreprise » ----------
   async function openCompany(tab = 'org') {
     if (!S.ready) return;
@@ -446,12 +602,17 @@ const Team = (() => {
         $('[data-a=planchange]', body).onclick = () => { const body2 = encodeURIComponent(`Bonjour, je souhaite changer la formule de « ${S.company.name} » (actuellement ${myPlan().l}).`); openUrl(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Changement de formule SiteTeam')}&body=${body2}`); };
       }
       if (tab === 'me') {
-        const R = roleOf(S.me.role);
+        const R = roleOf(S.me.role), mine = await myShares();
         body.innerHTML = `<div class="tm-box tm-mecard">${av(S.me)}<div><b>${esc(S.me.name || '')}</b><small>${esc(S.user.email || '')}</small><small>${esc(R.l)} · ${esc(serviceOf(S.me.service).l)}</small></div></div>
           <div class="tm-box"><b>Mes droits</b>${permTable(S.me.perms)}</div>
+          <div class="tm-box"><b>📨 Accès externe reçu</b><p>Un client, un BET ou une autre entreprise vous a envoyé un code pour accéder à un seul de leurs projets ? Entrez-le ici — cela ne touche pas à « ${esc(S.company.name)} ».</p>
+            <div class="btnrow" style="padding:0"><button class="btn ghost small" data-a="claim">Entrer un code</button></div>
+            ${mine.length ? `<div class="list" style="margin-top:4px">${mine.map(x => `<div class="tm-inv" data-shcode="${esc(x.code)}"><span class="grow">${esc(x.projectName || '?')}<small>${esc(x.companyName || '')} · ${esc(shareEntityLabel(x.entity))}</small></span></div>`).join('')}</div>` : ''}</div>
           <button class="btn ghost" data-a="name">${icon('edit')} Modifier mon nom</button>
           <button class="btn danger" data-a="out">Se déconnecter</button>`;
         $('[data-a=out]', body).onclick = logout;
+        $('[data-a=claim]', body).onclick = async () => { await claimShare(); draw(); };
+        $$('[data-shcode]', body).forEach(r => r.onclick = () => { const x = mine.find(i => i.code === r.dataset.shcode); if (x) viewSharedAccess(x.code, x); });
         $('[data-a=name]', body).onclick = async () => { const r = await formSheet('Mon nom', [{ name: 'n', label: 'Nom et prénom', value: S.me.name || '' }]); if (r && r.n) { try { await auth.currentUser.updateProfile({ displayName: r.n }); if (isAdmin()) await fs.collection('companies').doc(S.cid).collection('members').doc(S.user.uid).update({ name: r.n }); S.me.name = r.n; LS.set('me', S.me); toast('Enregistré ✓'); draw(); } catch (e) { alertBox(errMsg(e)); } } };
       }
       $$('[data-uid]', body).forEach(b => b.onclick = async () => {
@@ -588,6 +749,7 @@ const Team = (() => {
 
   return {
     boot, push, pull, resetPull, lvl, canSection, canProject, isAdmin, openCompany, inviteFlow, logout, decorateSection, removeMember, refreshMembers,
+    openProjectShares, claimShare,
     ready: () => S.ready, me: () => S.me, uid: () => S.user && S.user.uid, company: () => S.company, members: () => S.members, rules: FIRESTORE_RULES,
   };
 })();
