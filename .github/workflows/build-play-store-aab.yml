@@ -1,0 +1,125 @@
+name: Build Play Store AAB
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: App version in X.Y.Z format (for example 1.0.0)
+        required: true
+        type: string
+        default: 1.0.0
+
+permissions:
+  contents: read
+
+jobs:
+  build-aab:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 36
+        run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Install JavaScript dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Copy PDF reader libraries
+        run: npm run copy-libs
+
+      - name: Create the Android project
+        run: CI=true npx cap add android
+
+      - name: Generate app icon and splash screen
+        run: npx @capacitor/assets generate --android --iconBackgroundColor '#1b1e24' --iconBackgroundColorDark '#1b1e24' --splashBackgroundColor '#1b1e24' --splashBackgroundColorDark '#1b1e24'
+        continue-on-error: true
+
+      - name: Set app version and Android permissions
+        env:
+          VERSION_NAME: ${{ inputs.version_name }}
+          RUN_NUMBER: ${{ github.run_number }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          if [[ ! "$VERSION_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Version must use X.Y.Z format, for example 1.0.0" >&2
+            exit 2
+          fi
+          VERSION_CODE=$((RUN_NUMBER * 100 + RUN_ATTEMPT))
+          scripts/prepare-play-store-android.sh "$VERSION_NAME" "$VERSION_CODE"
+
+      - name: Configure Android share target
+        run: |
+          python3 - <<'PY'
+          p = 'android/app/src/main/AndroidManifest.xml'
+          s = open(p).read()
+          activity = '''
+          <activity android:name="de.mindlib.sendIntent.SendIntentActivity" android:label="@string/app_name" android:exported="true" android:theme="@style/AppTheme.NoActionBar">
+              <intent-filter>
+                  <action android:name="android.intent.action.SEND" />
+                  <category android:name="android.intent.category.DEFAULT" />
+                  <data android:mimeType="image/*" />
+              </intent-filter>
+              <intent-filter>
+                  <action android:name="android.intent.action.SEND_MULTIPLE" />
+                  <category android:name="android.intent.category.DEFAULT" />
+                  <data android:mimeType="image/*" />
+              </intent-filter>
+          </activity>
+          '''
+          if 'SendIntentActivity' not in s:
+              s = s.replace('</application>', activity + '</application>', 1)
+          open(p, 'w').write(s)
+          PY
+
+      - name: Sync web app into Android
+        run: npx cap sync android
+
+      - name: Check Play upload-key secrets and install the key temporarily
+        env:
+          PLAY_UPLOAD_KEYSTORE_BASE64: ${{ secrets.PLAY_UPLOAD_KEYSTORE_BASE64 }}
+          PLAY_UPLOAD_STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
+          PLAY_UPLOAD_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+          PLAY_UPLOAD_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+        run: |
+          for name in PLAY_UPLOAD_KEYSTORE_BASE64 PLAY_UPLOAD_STORE_PASSWORD PLAY_UPLOAD_KEY_ALIAS PLAY_UPLOAD_KEY_PASSWORD; do
+            if [[ -z "${!name}" ]]; then
+              echo "Missing GitHub Actions secret: $name" >&2
+              exit 1
+            fi
+          done
+          mkdir -p android/app
+          printf '%s' "$PLAY_UPLOAD_KEYSTORE_BASE64" | base64 --decode > android/app/play-upload-key.jks
+          test -s android/app/play-upload-key.jks
+          keytool -list -keystore android/app/play-upload-key.jks -storepass "$PLAY_UPLOAD_STORE_PASSWORD" -alias "$PLAY_UPLOAD_KEY_ALIAS" >/dev/null
+
+      - name: Build signed Android App Bundle
+        env:
+          PLAY_UPLOAD_KEYSTORE_PATH: ${{ github.workspace }}/android/app/play-upload-key.jks
+          PLAY_UPLOAD_STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
+          PLAY_UPLOAD_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+          PLAY_UPLOAD_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew bundleRelease --no-daemon
+          cp app/build/outputs/bundle/release/app-release.aab ../Chantier-play.aab
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Chantier-Play-Store-AAB
+          path: Chantier-play.aab
+          if-no-files-found: error
+          retention-days: 14
