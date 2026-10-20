@@ -1,0 +1,185 @@
+// ================= Pin « Plans de l'ouvrage » : Zones → Parties d'ouvrage → PDF des plans =================
+// Jusqu'à 10 zones par pin et 10 parties d'ouvrage par zone ; chaque niveau se renomme, se réordonne, se supprime.
+const PB_MAX = 10;
+async function pbPickDocs(projectId) {
+  const how = await menu('Ajouter un plan', [
+    { label: 'PDF / image du téléphone (plusieurs possibles)', icon: 'phone', value: 'file' },
+    { label: 'Plan déjà dans le projet', icon: 'plans', value: 'plan' },
+    { label: 'Lien Google Drive', icon: 'drive', value: 'url' },
+  ]);
+  if (how === 'file') {
+    const files = await pickFiles({ accept: 'application/pdf,image/*,*/*', multiple: true }); if (!files.length) return [];
+    const ld = loading('Enregistrement…'), out = [];
+    try { for (const f of files) { const rec = isRasterImage(f) ? await saveImageFile(projectId, f, 'doc', { name: f.name }) : await DB.put('files', { projectId, blob: f, mime: mimeFromName(f.name, f.type), name: f.name, role: 'doc' }); out.push({ id: DB.uid(), name: f.name.replace(/\.[^.]+$/, ''), fileId: rec.id }); } }
+    finally { ld.close(); }
+    return out;
+  }
+  if (how === 'plan') {
+    const plans = (await DB.byProject('plans', projectId)).sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true }));
+    const id = await menu('Choisir le plan', plans.map(p => ({ label: p.name, icon: 'plans', value: p.id }))); if (!id) return [];
+    const p = plans.find(x => x.id === id); return [{ id: DB.uid(), name: p.name, planId: p.id }];
+  }
+  if (how === 'url') {
+    const r = await formSheet('Lien Google Drive', [{ name: 'url', label: 'Lien du fichier', type: 'url', placeholder: 'https://drive.google.com/…' }, { name: 'name', label: 'Nom', placeholder: 'Ex : Plan coffrage indice C' }], { okLabel: 'Ajouter' });
+    if (!r || !r.url) return []; return [{ id: DB.uid(), name: r.name || 'Plan', url: r.url }];
+  }
+  return [];
+}
+async function pbOpenDoc(d, l, ctx) {
+  if (d.fileId) { const f = await DB.get('files', d.fileId); if (f && f.blob) return openFileRecord(f, d.name); }
+  if (d.planId) { const pl = await DB.get('plans', d.planId); if (pl) return openPlanViewer(pl, { ...ctx, onClose: () => {} }); return toast('Ce plan a été supprimé'); }
+  if (d.url) {
+    if (driveFileId(d.url) && isNative()) {
+      const ld = loading('Ouverture…');
+      try { const file = await downloadFromDrive(d.url); const rec = await DB.put('files', { projectId: l.projectId, blob: file, mime: mimeFromName(file.name, file.type), name: file.name, role: 'doc' }); d.fileId = rec.id; await DB.put('links', l); ld.close(); return openFileRecord(rec, d.name); }
+      catch (e) { ld.close(); toast(e.message); }
+    }
+    return openUrl(d.url);
+  }
+  toast('Fichier introuvable');
+}
+function openPlansBox(l, ctx = {}) {
+  return new Promise(async (resolve) => {
+    l.zones = l.zones || [];
+    if (l.recBox) l.recSrc = { mode: 'today' };   // « Plans des ouvrages » : seulement le programme d'aujourd'hui
+    if (l.recSrc) await pbFromRec(l);
+    const openZ = new Set(l.zones.length === 1 ? [l.zones[0].id] : []), openP = new Set();
+    let q = '';
+    const s = sheet('<div class="pb2"></div>', {});
+    s.onClose = () => resolve();
+    const save = () => DB.put('links', l);
+    const move = (arr, i, d) => { const j = i + d; if (j < 0 || j >= arr.length) return; [arr[i], arr[j]] = [arr[j], arr[i]]; };
+    const nDocs = (z) => (z.parts || []).reduce((a, p) => a + (p.docs || []).length, 0);
+    const match = (t) => !q || fuzzyHas(t, q);
+    l.notes = l.notes || [];
+    const partsAll = () => l.zones.flatMap(z => (z.parts || []).map(p => ({ id: p.id, name: `${z.name} · ${p.name}` })));
+    const draw = async () => {
+      const P = pinLook(l), box = $('.pb2', s.el);
+      const zones = l.zones.map((z, zi) => {
+        const zHit = match(z.name), parts = (z.parts || []).map((p, pi) => ({ p, pi, hit: zHit || match(p.name) || (p.docs || []).some(d => match(d.name)) })).filter(x => !q || x.hit);
+        if (q && !zHit && !parts.length) return '';
+        const zo = openZ.has(z.id) || !!q;
+        return `<div class="pb-z ${zo ? 'open' : ''}"><div class="pb-zh" data-z="${zi}"><span class="pb-zi">${zi + 1}</span><div class="grow"><b>${esc(z.name)}</b><small>${(z.parts || []).length} partie(s) · ${nDocs(z)} plan(s)</small></div>
+            ${l.recSrc ? '' : `<button class="iconbtn sm" data-zm="${zi}">${icon('more')}</button>`}<span class="chev">${icon('chevdown')}</span></div>
+          ${zo ? `<div class="pb-parts">${parts.map(({ p, pi }) => { const po = openP.has(p.id) || (!!q && (p.docs || []).some(d => match(d.name)));
+            return `<div class="pb-p ${po ? 'open' : ''}"><div class="pb-ph" data-p="${zi}|${pi}"><span class="pb-dot"></span><div class="grow"><b>${esc(p.name)}</b><small>${(p.docs || []).length} plan(s)</small></div>
+                ${l.recSrc ? (p.extra ? `<button class="iconbtn sm" data-px="${zi}|${pi}">${icon('more')}</button>` : '') : `<button class="iconbtn sm" data-pm="${zi}|${pi}">${icon('more')}</button>`}<span class="chev">${icon('chevdown')}</span></div>
+              ${po ? `<div class="pb-docs">${(p.docs || []).filter(d => !q || match(d.name) || match(p.name) || zHit).map((d, di) => `<div class="pb-d"><button class="grow" data-d="${zi}|${pi}|${p.docs.indexOf(d)}"><span class="pb-di">${icon(d.url && !d.fileId ? 'drive' : d.planId ? 'plans' : 'pdf')}</span><span>${esc(d.name)}</span></button><button class="iconbtn sm" data-dm="${zi}|${pi}|${p.docs.indexOf(d)}">${icon('more')}</button></div>`).join('')}
+                <button class="pb-add" data-adddoc="${zi}|${pi}">${icon('plus')} ${(p.docs || []).length ? 'Ajouter d\'autres plans' : 'Ajouter des plans (PDF · plusieurs)'}</button></div>` : ''}</div>`; }).join('')}
+            ${l.recSrc ? `<button class="pb-add" data-addrp="${zi}">${icon('plus')} Partie d'ouvrage dans ${esc(z.name)}</button>` : (z.parts || []).length < PB_MAX ? `<button class="pb-add" data-addp="${zi}">${icon('plus')} Partie d'ouvrage</button>` : '<div class="pb-max">10 parties maximum</div>'}</div>` : ''}</div>`;
+      }).join('');
+      box.innerHTML = `<div class="pb-head" style="--c:${P.c}"><span class="pb-hic">${P.e}</span><div class="grow"><b>${esc(l.name)}</b><small>${l.zones.length} zone(s) · ${plansboxCount(l)} plan(s)</small></div><button class="iconbtn" data-a="more">${icon('more')}</button></div>
+        ${l.recSrc ? `<div class="pb-day"><div class="pb-rec grow">📅 <b>Aujourd\u2019hui · ${fmtDate(todayISO())}</b><small>${l.zones.reduce((a, z) => a + z.parts.length, 0)} ouvrage(s)${l.dayHasProg ? ' · programme de réception du jour' : ' · pas de programme aujourd\u2019hui'}</small></div></div>
+          <button class="pb-add pb-addrec" data-a="addrec">${icon('plus')} Ajouter un ouvrage (zone · niveau · élément)</button>` : ''}
+        ${plansboxCount(l) + l.notes.length > 3 ? `<div class="search pb-search">${icon('search')}<input placeholder="Rechercher (ex : CR 78, coffrage…)" value="${esc(q)}"></div>` : ''}
+        <div class="pb-zones">${zones || (q ? '<div class="pb-empty">Aucun résultat</div>' : (l.recSrc ? '<div class="pb-empty">Aucun ouvrage dans ce programme de réception.</div>' : '<div class="pb-empty">Ajoutez une zone, puis ses parties d\'ouvrage et leurs plans PDF.</div>'))}</div>
+        ${l.recSrc ? '' : l.zones.length < PB_MAX ? `<button class="btn ghost small pb-addz" data-a="addz">${icon('plus')} Zone</button>` : '<div class="pb-max">10 zones maximum</div>'}
+        <div class="nt-sec"><span>📝 Notes${l.notes.length ? ` (${l.notes.length})` : ''}</span><button class="btn small ghost" data-a="addnote">${icon('plus')} Note</button></div>
+        <div class="nt-list">${await notesHTML(q ? l.notes.filter(n => fuzzyHas(`${n.text} ${(n.check || []).map(c => c.t).join(' ')}`, q)) : l.notes, { parts: partsAll() })}</div>`;
+      $('[data-a=addnote]', box).onclick = async () => { const n = await editNote(null, l.projectId, { parts: partsAll() }); if (n) { l.notes.push(n); await save(); draw(); } };
+      await bindNotes(box, l.notes, l.projectId, save, draw, { parts: partsAll(), title: l.name });
+      const si = $('.pb-search input', box); if (si) si.oninput = (e) => { q = e.target.value.trim(); clearTimeout(s._t); s._t = setTimeout(() => { draw().then(() => { const n = $('.pb-search input', box); if (n) { n.focus(); n.setSelectionRange(q.length, q.length); } }); }, 250); };
+      $$('[data-z]', box).forEach(h => h.onclick = (e) => { if (e.target.closest('[data-zm]')) return; const z = l.zones[+h.dataset.z]; openZ.has(z.id) ? openZ.delete(z.id) : openZ.add(z.id); draw(); });
+      $$('[data-p]', box).forEach(h => h.onclick = (e) => { if (e.target.closest('[data-pm]')) return; const [zi, pi] = h.dataset.p.split('|').map(Number), p = l.zones[zi].parts[pi];
+        openP.has(p.id) ? openP.delete(p.id) : openP.add(p.id); draw(); });
+      $$('[data-d]', box).forEach(b => b.onclick = () => { const [zi, pi, di] = b.dataset.d.split('|').map(Number); pbOpenDoc(l.zones[zi].parts[pi].docs[di], l, ctx); });
+      $$('[data-adddoc]', box).forEach(b => b.onclick = async () => { const [zi, pi] = b.dataset.adddoc.split('|').map(Number), p = l.zones[zi].parts[pi]; const docs = await pbPickDocs(l.projectId); if (!docs.length) return;
+        if (docs.length === 1) { const r = await formSheet('Nom du plan', [{ name: 'n', label: 'Nom', value: docs[0].name }], { okLabel: 'OK' }); if (r && r.n) docs[0].name = r.n; }
+        p.docs = p.docs || []; p.docs.push(...docs); openP.add(p.id); await save(); draw(); });
+      $$('[data-addp]', box).forEach(b => b.onclick = async () => { const z = l.zones[+b.dataset.addp]; const r = await formSheet('Partie d\'ouvrage', [{ name: 'n', label: 'Nom', placeholder: 'Ex : Voile CR 78, Plancher cage d\'asc., Poutre D13-D14' }], { okLabel: 'Ajouter' });
+        if (!r || !r.n) return; const p = { id: DB.uid(), name: r.n, docs: [] }; z.parts = [...(z.parts || []), p]; openP.add(p.id); await save(); draw(); });
+      const az = $('[data-a=addz]', box); if (az) az.onclick = async () => { const r = await formSheet('Zone', [{ name: 'n', label: 'Nom de la zone', placeholder: 'Ex : Zone 1, Zone 12, Bloc B…' }], { okLabel: 'Ajouter' });
+        if (!r || !r.n) return; const z = { id: DB.uid(), name: r.n, parts: [] }; l.zones.push(z); openZ.add(z.id); await save(); draw(); };
+      const rename = async (o, lbl) => { const r = await formSheet('Renommer', [{ name: 'n', label: lbl, value: o.name }]); if (r && r.n) { o.name = r.n; await save(); draw(); } };
+      $$('[data-zm]', box).forEach(b => b.onclick = async (e) => { e.stopPropagation(); const zi = +b.dataset.zm, z = l.zones[zi];
+        const v = await menu(z.name, [{ label: 'Renommer', icon: 'edit', value: 'ren' }, { label: 'Monter', icon: 'chevup', value: 'up' }, { label: 'Descendre', icon: 'chevdown', value: 'down' }, { label: 'Supprimer la zone', icon: 'trash', danger: true, value: 'del' }]);
+        if (v === 'ren') rename(z, 'Nom de la zone'); if (v === 'up' || v === 'down') { move(l.zones, zi, v === 'up' ? -1 : 1); await save(); draw(); }
+        if (v === 'del' && await confirmBox(`Supprimer « ${z.name} » et ses ${nDocs(z)} plan(s) ?`)) { for (const p of z.parts || []) for (const d of p.docs || []) if (d.fileId) await DB.del('files', d.fileId); l.zones.splice(zi, 1); await save(); draw(); } });
+      $$('[data-pm]', box).forEach(b => b.onclick = async (e) => { e.stopPropagation(); const [zi, pi] = b.dataset.pm.split('|').map(Number), z = l.zones[zi], p = z.parts[pi];
+        const v = await menu(p.name, [{ label: 'Ajouter un plan', icon: 'plus', value: 'add' }, { label: 'Renommer', icon: 'edit', value: 'ren' }, { label: 'Monter', icon: 'chevup', value: 'up' }, { label: 'Descendre', icon: 'chevdown', value: 'down' },
+          ...(l.zones.length > 1 ? [{ label: 'Déplacer vers une autre zone', icon: 'layers', value: 'mv' }] : []), { label: 'Supprimer', icon: 'trash', danger: true, value: 'del' }]);
+        if (v === 'add') { const docs = await pbPickDocs(l.projectId); if (docs.length) { p.docs = p.docs || []; p.docs.push(...docs); openP.add(p.id); await save(); draw(); } }
+        if (v === 'ren') rename(p, 'Nom de la partie d\'ouvrage'); if (v === 'up' || v === 'down') { move(z.parts, pi, v === 'up' ? -1 : 1); await save(); draw(); }
+        if (v === 'mv') { const to = await menu('Vers quelle zone ?', l.zones.filter(x => x !== z).map(x => ({ label: x.name, icon: 'layers', value: x.id }))); const tz = l.zones.find(x => x.id === to); if (tz) { if ((tz.parts || []).length >= PB_MAX) return toast('10 parties maximum'); z.parts.splice(pi, 1); tz.parts = [...(tz.parts || []), p]; openZ.add(tz.id); await save(); draw(); } }
+        if (v === 'del' && await confirmBox(`Supprimer « ${p.name} » ?`)) { for (const d of p.docs || []) if (d.fileId) await DB.del('files', d.fileId); z.parts.splice(pi, 1); await save(); draw(); } });
+      $$('[data-dm]', box).forEach(b => b.onclick = async () => { const [zi, pi, di] = b.dataset.dm.split('|').map(Number), p = l.zones[zi].parts[pi], d = p.docs[di];
+        const v = await menu(d.name, [{ label: 'Ouvrir', icon: 'pdf', value: 'open' }, { label: 'Renommer', icon: 'edit', value: 'ren' }, { label: 'Remplacer le fichier (nouvel indice)', icon: 'undo', value: 'rep' }, { label: 'Monter', icon: 'chevup', value: 'up' }, { label: 'Retirer', icon: 'trash', danger: true, value: 'del' }]);
+        if (v === 'open') pbOpenDoc(d, l, ctx); if (v === 'ren') rename(d, 'Nom du plan'); if (v === 'up') { move(p.docs, di, -1); await save(); draw(); }
+        if (v === 'rep') { const [nd] = await pbPickDocs(l.projectId); if (nd) { if (d.fileId && d.fileId !== nd.fileId) await DB.del('files', d.fileId); Object.assign(d, { fileId: nd.fileId || null, planId: nd.planId || null, url: nd.url || null }); await save(); toast('Remplacé ✓'); draw(); } }
+        if (v === 'del' && await confirmBox('Retirer ce plan ?')) { if (d.fileId) await DB.del('files', d.fileId); p.docs.splice(di, 1); await save(); draw(); } });
+      $$('[data-prev]', box).forEach(b => b.onclick = async () => { const [zi, pi] = b.dataset.prev.split('|').map(Number), p = l.zones[zi].parts[pi]; p.docs.push(...p.prev.docs.map(d => ({ ...d, id: DB.uid() }))); p.prev = null; await save(); toast('Plans repris ✓'); draw(); });
+      $$('[data-day]', box).forEach(b => b.onclick = async () => { const d = new Date((l.curDate || todayISO()) + 'T12:00:00'); d.setDate(d.getDate() + +b.dataset.day); const iso = d.toISOString().slice(0, 10); l.recSrc = iso === todayISO() ? { mode: 'today' } : { mode: 'day', date: iso }; openZ.clear(); await pbFromRec(l); await save(); draw(); });
+      $$('[data-addrp]', box).forEach(b => b.onclick = async () => { const z = l.zones[+b.dataset.addrp]; if (await pbAddRecPart(l, z.zk || '')) { await pbFromRec(l); openZ.add('rz_' + (z.zk || '0')); await save(); draw(); } });
+      $$('[data-px]', box).forEach(b => b.onclick = async (e) => { e.stopPropagation(); const [zi, pi] = b.dataset.px.split('|').map(Number), p = l.zones[zi].parts[pi];
+        const v = await menu(p.name, [{ label: 'Ajouter des plans', icon: 'plus', value: 'add' }, { label: 'Retirer cette partie d\'ouvrage', icon: 'trash', danger: true, value: 'del' }]);
+        if (v === 'add') { const docs = await pbPickDocs(l.projectId); if (docs.length) { p.docs.push(...docs); openP.add(p.id); await save(); draw(); } }
+        if (v === 'del' && await confirmBox(`Retirer « ${p.name} » de ce jour ?`)) { const d = l.curDate || todayISO(); l.recExtra[d] = (l.recExtra[d] || []).filter(x => normQ(`${x.niv || ''}|${x.element}`) !== p.key); await pbFromRec(l); await save(); draw(); } });
+      const arb = $('[data-a=addrec]', box); if (arb) arb.onclick = async () => { if (await pbAddRecPart(l)) { await pbFromRec(l); l.zones.forEach(z => openZ.add(z.id)); await save(); draw(); } };
+      const rsb = $('[data-a=recsrc]', box); if (rsb) rsb.onclick = async () => { if (await pbChooseRec(l)) { await save(); await pbFromRec(l); draw(); } };
+      $('[data-a=more]', box).onclick = async () => { const v = await menu(l.name, [{ label: l.recSrc ? 'Programme de réception lié…' : 'Remplir depuis le programme de réception…', icon: 'calendar', value: 'rec' }, { label: 'Renommer le pin', icon: 'edit', value: 'ren' }, { label: 'Icône et couleur du pin', icon: 'pin', value: 'look' }, { label: 'Supprimer le pin', icon: 'trash', danger: true, value: 'del' }]);
+        if (v === 'rec') { if (await pbChooseRec(l)) { await save(); if (l.recSrc) await pbFromRec(l); draw(); } }
+        if (v === 'ren') rename(l, 'Nom du pin'); if (v === 'look') { await choosePinLook(l); draw(); }
+        if (v === 'del' && await confirmBox(`Supprimer le pin « ${l.name} » et ses ${plansboxCount(l)} plan(s) ?`)) { for (const z of l.zones) for (const p of z.parts || []) for (const d of p.docs || []) if (d.fileId) await DB.del('files', d.fileId); await DB.del('links', l.id); s.close(); } };
+    };
+    draw();
+  });
+}
+
+// ---------- Pin « Plans » rempli depuis le programme de réception ----------
+// zones et parties d'ouvrage = lignes du tableau de réception (un jour fixe, ou « aujourd'hui » qui change chaque jour) ;
+// les plans ajoutés restent attachés à l'ouvrage (niveau + élément), même s'il revient un autre jour.
+async function pbFromRec(l) {
+  const S = l.recSrc; if (!S) return;
+  const date = S.mode === 'today' ? todayISO() : S.date; l.curDate = date;
+  const days = (await DB.byProject('receptions', l.projectId)).filter(d => kindOf(d) === 'Ferraillage' && d.date === date);
+  // un dossier par jour : chaque nouveau jour commence vide (les plans des jours passés restent consultables)
+  l.recDocsD = l.recDocsD || {}; const D = l.recDocsD[date] = l.recDocsD[date] || {};
+  const prevOf = (key) => { const ds = Object.keys(l.recDocsD).filter(x => x < date && (l.recDocsD[x][key] || []).length).sort(); const d = ds.pop(); if (d) return { date: d, docs: l.recDocsD[d][key] }; if (l.recDocs && (l.recDocs[key] || []).length) return { date: '', docs: l.recDocs[key] }; return null; };
+  const rows = [...days.flatMap(d => d.rows), ...(((l.recExtra || {})[date]) || []).map(x => ({ ...x, _extra: true }))];
+  const zm = new Map();
+  l.recNames = l.recNames || {};
+  for (const r of rows) {
+    if (!r.element) continue;
+    const zk = String(r.zone || '').trim();
+    if (!zm.has(zk)) zm.set(zk, { id: 'rz_' + (zk || '0'), zk, name: zk ? 'Zone ' + zk : 'Sans zone', parts: [] });
+    const key = normQ(`${r.niv || ''}|${r.element}`);
+    const docs = D[key] = D[key] || [];
+    l.recNames[key] = `${r.niv ? r.niv + ' · ' : ''}${r.element}`;
+    if (!zm.get(zk).parts.some(p => p.id === 'rp_' + key)) zm.get(zk).parts.push({ id: 'rp_' + key, key, name: `${r.niv ? r.niv + ' · ' : ''}${r.element}`, docs, prev: docs.length ? null : prevOf(key), extra: !!r._extra });
+  }
+  l.zones = [...zm.values()].sort((a, b) => (parseFloat(a.name.replace(/\D+/g, '')) || 0) - (parseFloat(b.name.replace(/\D+/g, '')) || 0));
+  l.dayHasProg = days.some(d => d.rows.some(r => r.element));
+}
+async function pbAddRecPart(l, zone) {
+  const r = await formSheet(zone != null ? `Partie d'ouvrage · Zone ${zone}` : `Ouvrage · ${fmtDate(l.curDate || todayISO())}`, [{ name: 'zone', label: 'Zone', placeholder: 'Ex : 12', value: zone || '' }, { name: 'niv', label: 'Niveau', placeholder: 'Ex : R+2' }, { name: 'element', label: 'Élément / partie d\'ouvrage', placeholder: 'Ex : Voile CR 78' }], { okLabel: 'Ajouter' });
+  if (!r || !r.element) return false;
+  const d = l.curDate || todayISO(); l.recExtra = l.recExtra || {}; (l.recExtra[d] = l.recExtra[d] || []).push({ zone: r.zone || '', niv: r.niv || '', element: r.element });
+  return true;
+}
+async function pbChooseRec(l) {
+  const days = (await DB.byProject('receptions', l.projectId)).filter(d => kindOf(d) === 'Ferraillage').sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const v = await menu('Remplir depuis le programme de réception', [
+    { label: 'Aujourd\u2019hui — nouveau dossier chaque jour', icon: 'calendar', value: 'today' },
+    { label: 'Choisir une date…', icon: 'edit', value: 'pick' },
+    ...days.slice(0, 20).map(d => ({ label: `Le ${fmtDate(d.date)} · ${d.rows.filter(r => r.element).length} ouvrage(s)`, icon: 'layers', value: 'd:' + d.date })),
+    ...(l.recSrc ? [{ label: 'Ne plus lier (garder la liste actuelle)', icon: 'close', value: 'off' }] : []),
+  ]);
+  if (!v) return false;
+  if (v === 'pick') { const r = await formSheet('Plans des ouvrages du…', [{ name: 'd', label: 'Date', type: 'date', value: (l.recSrc && l.recSrc.date) || todayISO() }], { okLabel: 'Ouvrir' }); if (!r || !r.d) return false; l.recSrc = r.d === todayISO() ? { mode: 'today' } : { mode: 'day', date: r.d }; return true; }
+  if (v === 'off') { delete l.recSrc; return true; }
+  if (!l.recSrc && plansboxCount(l) && !await confirmBox('Les zones / parties seront remplacées par celles du programme de réception. Les plans déjà ajoutés restent dans Drive. Continuer ?', 'Continuer')) return false;
+  l.recSrc = v === 'today' ? { mode: 'today' } : { mode: 'day', date: v.slice(2) };
+  return true;
+}
+
+// ---------- Dossier « Plans des ouvrages » du programme de réception (sans plan : dans la liste des Plans et dans le tableau) ----------
+async function recBoxOf(projectId) {
+  const l = (await DB.byProject('links', projectId)).find(x => x.kind === 'plansbox' && x.recBox);
+  return l || DB.put('links', { projectId, planId: null, kind: 'plansbox', recBox: true, shape: 'point', x: 0, y: 0, name: 'Plans des ouvrages', emoji: '📚', zones: [], items: [], recSrc: { mode: 'today' } });
+}
+async function openRecBox(projectId, date) {
+  const l = await recBoxOf(projectId);
+  l.recSrc = { mode: 'today' };
+  await DB.put('links', l);
+  await openPlansBox(l, planCtx(() => {}));
+}
