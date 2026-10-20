@@ -45,7 +45,7 @@ jobs:
         run: npx @capacitor/assets generate --android --iconBackgroundColor '#0f172a' --iconBackgroundColorDark '#0f172a' --splashBackgroundColor '#0f172a' --splashBackgroundColorDark '#0f172a'
         continue-on-error: true
 
-      - name: Android versionCode / versionName (alignés sur la dernière release : siteteam-v1.0.6)
+      - name: Android versionCode / versionName (alignés sur la dernière release siteteam-v1.0.6)
         run: |
           sed -i -E "s/versionCode [0-9]+/versionCode 6/; s/versionName \"[^\"]*\"/versionName \"1.0.6\"/" android/app/build.gradle
 
