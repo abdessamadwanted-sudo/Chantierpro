@@ -10,6 +10,20 @@ const FB_CONFIG = {
   appId: '1:1060672691635:web:bfded73f3a1d10481a7fc6',
 };
 
+// ---------- Formules commerciales (séparées des rôles/permissions : la formule limite l'accès aux fonctionnalités et au nombre de comptes,
+// le rôle/les droits limitent ce que chacun voit et peut faire une fois dans l'entreprise). Prix et quotas provisoires, à ajuster avant lancement.
+const PLANS = {
+  basic:      { k: 'basic', l: 'Basic', price: 0, period: 'mois', users: 1, storageGb: 1, ads: true, modules: ['projet', 'plans', 'reserves', 'photos'] },
+  personnel:  { k: 'personnel', l: 'Personnel', price: 39, period: 'mois', users: 1, storageGb: 10, ads: false, modules: '*' },
+  pro:        { k: 'pro', l: 'Pro', price: 99, period: 'mois', users: 1, storageGb: 30, ads: false, modules: '*' },
+  entreprise: { k: 'entreprise', l: 'Entreprise', price: 990, period: 'mois', users: 15, extraUserPrice: 49, storageGb: 200, ads: false, modules: '*' },
+};
+const planOf = (k) => PLANS[k] || PLANS.basic;
+// une entreprise (branche SiteTeam) démarre sur la formule Entreprise, en essai — à brancher sur une vraie facturation avant tout lancement public
+const PLAN_DEFAULT_COMPANY = 'entreprise';
+// contact à remplacer par l'adresse définitive (support@votredomaine) avant tout lancement public
+const SUPPORT_EMAIL = 'contact@chantierpro.ma';
+
 // ---------- Services, rôles, permissions ----------
 const SERVICES = [
   { k: 'direction', l: 'Direction', c: '#334155' }, { k: 'travaux', l: 'Travaux', c: '#2563eb' }, { k: 'ferraillage', l: 'Ferraillage', c: '#dc2626' },
@@ -151,6 +165,7 @@ const Team = (() => {
   const lvl = (mod) => { if (!S.ready) return 4; if (!S.me) return 0; return (S.me.perms || {})[mod] ?? 0; };
   const canSection = (k) => lvl(SECTION_MOD[k] || 'projet') >= 1;
   const isAdmin = () => !S.ready || !!(S.me && S.me.admin);
+  const myPlan = () => planOf((S.company || {}).plan || PLAN_DEFAULT_COMPANY);
   const canProject = (pid) => !S.ready || !!(S.me && (S.me.allProjects || (S.me.projects || []).includes(pid)));
 
   // ---------- démarrage : connexion obligatoire ----------
@@ -179,6 +194,7 @@ const Team = (() => {
     try { if (!localStorage.getItem('userName') && S.me.name) localStorage.setItem('userName', S.me.name.split(' ')[0]); localStorage.setItem('askedName', '1'); } catch (e) {}
     await refreshMembers();
     migratePerms();
+    migrateCompanyPlan();
     syncDriveCfg();
   }
   async function refreshMembers() {
@@ -196,6 +212,11 @@ const Team = (() => {
       try { await fs.collection('companies').doc(S.cid).collection('members').doc(m.uid).update({ perms: np }); m.perms = np; if (m.uid === S.user.uid) { S.me.perms = np; LS.set('me', S.me); } } catch (e) { console.warn('migrate', e); }
     }
     LS.set('members', S.members);
+  }
+  // entreprises créées avant l'ajout des formules : leur donner une formule par défaut (une seule fois, par l'administrateur)
+  async function migrateCompanyPlan() {
+    if (!isAdmin() || S.company.plan) return;
+    try { await fs.collection('companies').doc(S.cid).update({ plan: PLAN_DEFAULT_COMPANY, planStatus: 'essai' }); S.company.plan = PLAN_DEFAULT_COMPANY; S.company.planStatus = 'essai'; LS.set('company', S.company); } catch (e) { console.warn('plan migrate', e); }
   }
   // Drive de l'entreprise : l'administrateur connecte son script, les membres le reçoivent automatiquement
   async function syncDriveCfg() {
@@ -278,7 +299,7 @@ const Team = (() => {
         const ld = loading('Création de l\'entreprise…');
         try {
           const uid = auth.currentUser.uid, ref = fs.collection('companies').doc();
-          await withTimeout(ref.set({ name: r.name, ownerUid: uid, createdAt: ts() }));
+          await withTimeout(ref.set({ name: r.name, ownerUid: uid, plan: PLAN_DEFAULT_COMPANY, planStatus: 'essai', createdAt: ts() }));
           const R = roleOf(r.role);
           await withTimeout(ref.collection('members').doc(uid).set({ name: r.me || auth.currentUser.displayName || '', email: auth.currentUser.email, role: R.k, service: R.s, perms: R.perms, admin: true, allProjects: true, projects: [], managerUid: null, zone: '', createdAt: ts() }));
           await withTimeout(fs.collection('users').doc(uid).set({ companyId: ref.id, name: r.me || '' }, { merge: true }));
@@ -402,8 +423,13 @@ const Team = (() => {
         $$('[data-del]', body).forEach(b => b.onclick = async () => { if (await confirmBox('Annuler cette invitation ?', 'Annuler l\'invitation')) { await fs.collection('invites').doc(b.dataset.del).delete(); draw(); } });
       }
       if (tab === 'set') {
-        const c = Sync.cfg();
+        const c = Sync.cfg(), P = myPlan(), nUsers = S.members.length, over = nUsers > P.users;
         body.innerHTML = `<div class="form">
+          <div class="tm-box"><b>📦 Abonnement</b>
+            <p>Formule <b>${esc(P.l)}</b>${P.price ? ` · ${P.price} MAD/${P.period}` : ' · gratuite'} · ${P.users} compte(s) inclus${P.extraUserPrice ? ` (puis ${P.extraUserPrice} MAD/mois par compte supplémentaire)` : ''} · ${P.storageGb} Go de stockage.</p>
+            <div style="color:${over ? '#ef4444' : 'var(--muted)'}">${nUsers} / ${P.users} compte(s) utilisé(s)${over ? ' — au-delà du quota inclus' : ''}</div>
+            <p style="font-size:12.5px;color:var(--muted)">La facturation en ligne n'est pas encore activée — ceci affiche la formule prévue. Un membre invité par l'entreprise n'a pas besoin d'un abonnement personnel : seule l'entreprise est facturée.</p>
+            <div class="btnrow" style="padding:0"><button class="btn ghost small" data-a="planchange">Demander un changement de formule</button></div></div>
           <div class="tm-box"><b>☁ Google Drive de l'entreprise</b><p>Les plans, photos et PDF de toute l'équipe sont rangés dans ce Drive. Les membres le reçoivent automatiquement.</p>
             <div>${c && c.url ? '<span style="color:#22c55e">✓ Connecté</span>' : '<span style="color:#f59e0b">Non connecté — les fichiers restent sur chaque téléphone</span>'}</div>
             <div class="btnrow" style="padding:0"><button class="btn ghost small" data-a="drive">${c && c.url ? 'Réglages Drive' : 'Connecter Google Drive'}</button>${c && c.url ? '<button class="btn ghost small" data-a="share">Partager avec l\'équipe</button>' : ''}</div></div>
@@ -417,6 +443,7 @@ const Team = (() => {
         $('[data-a=import]', body).onclick = () => importChantier();
         $('[data-a=rules]', body).onclick = () => copyText(FIRESTORE_RULES);
         $('[data-a=ren]', body).onclick = async () => { const r = await formSheet('Entreprise', [{ name: 'n', label: 'Nom', value: S.company.name }]); if (r && r.n) { await fs.collection('companies').doc(S.cid).update({ name: r.n }); S.company.name = r.n; LS.set('company', S.company); draw(); } };
+        $('[data-a=planchange]', body).onclick = () => { const body2 = encodeURIComponent(`Bonjour, je souhaite changer la formule de « ${S.company.name} » (actuellement ${myPlan().l}).`); openUrl(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Changement de formule SiteTeam')}&body=${body2}`); };
       }
       if (tab === 'me') {
         const R = roleOf(S.me.role);
