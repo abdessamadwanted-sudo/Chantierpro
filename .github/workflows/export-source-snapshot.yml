@@ -1,0 +1,105 @@
+name: Export source snapshot (manual, pour sauvegarde/reprise)
+
+# Déclenché à la main uniquement (workflow_dispatch) : construit un instantané complet et réel du
+# projet SiteTeam — projet Android généré (comme en production), package-lock.json réel, et un
+# fichier .aab (bundle Android) de contrôle — pour sauvegarde et reprise par un autre développeur.
+# Ne modifie rien sur la branche, ne publie aucune release : uniquement des artefacts de build à
+# télécharger manuellement (onglet Actions → cette exécution → Artifacts).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install dependencies (génère package-lock.json réel)
+        run: npm install
+
+      - name: Copy PDF reader (pdf.js)
+        run: npm run copy-libs
+
+      - name: Set app version (identique à la dernière release publiée)
+        run: |
+          V=1.0.6
+          sed -i "s/__APP_VERSION__/$V/" www/js/app.js
+
+      - name: Create Android project (étape identique au build de production)
+        run: npx cap add android
+
+      - name: App icon & splash
+        run: npx @capacitor/assets generate --android --iconBackgroundColor '#0f172a' --iconBackgroundColorDark '#0f172a' --splashBackgroundColor '#0f172a' --splashBackgroundColorDark '#0f172a'
+        continue-on-error: true
+
+      - name: Android versionCode / versionName (alignés sur la dernière release : siteteam-v1.0.6)
+        run: |
+          sed -i -E "s/versionCode [0-9]+/versionCode 6/; s/versionName \"[^\"]*\"/versionName \"1.0.6\"/" android/app/build.gradle
+
+      - name: Camera permission (identique au build de production)
+        run: |
+          sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#&\n    <uses-permission android:name="android.permission.CAMERA" />#' android/app/src/main/AndroidManifest.xml
+
+      - name: Sync web code into the native project
+        run: npx cap sync android
+
+      - name: Use fixed signing key (same cert as all installs so far)
+        run: |
+          mkdir -p ~/.android
+          cp keystore/debug.keystore ~/.android/debug.keystore
+
+      - name: Build debug-signed .aab (bundle) — contrôle du format, PAS valable pour Google Play
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew bundleDebug --no-daemon
+          cp app/build/outputs/bundle/debug/app-debug.aab ../SiteTeam-debug-signed.aab
+
+      - name: Package full source snapshot (sans node_modules ni caches de build)
+        run: |
+          mkdir -p /tmp/snap
+          rsync -a \
+            --exclude '.git' \
+            --exclude 'node_modules' \
+            --exclude 'android/build' \
+            --exclude 'android/app/build' \
+            --exclude 'android/.gradle' \
+            --exclude 'android/local.properties' \
+            --exclude 'android/.idea' \
+            . /tmp/snap/
+          cd /tmp/snap && zip -qr /tmp/siteteam-source-snapshot.zip .
+          ls -la /tmp/siteteam-source-snapshot.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: siteteam-source-snapshot
+          path: /tmp/siteteam-source-snapshot.zip
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: siteteam-debug-signed-aab
+          path: SiteTeam-debug-signed.aab
+          retention-days: 14
+
+      - name: package-lock.json seul (pour relecture rapide / commit)
+        run: cp package-lock.json /tmp/package-lock.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-lock
+          path: /tmp/package-lock.json
+          retention-days: 14
