@@ -54,10 +54,12 @@ async function projectFeaturesDialog(p) {
   for (;;) {
     const v = await menu(`Fonctions du projet${T ? ' · ' + T.e + ' ' + T.n : ''}`, [
       { label: 'Changer le type de projet…', icon: 'hard', value: '__type' },
+      { label: `Organisation technique (lots)…${(p.catLots || []).length ? ' · ' + p.catLots.length : ''}`, icon: 'grid', value: '__cat' },
       ...FEATURES.filter(([k]) => k !== 'career' && featOn(k)).map(([k, l]) => ({ label: l, value: k, checked: !(p.featOff || {})[k] })),
       { label: 'Terminé', icon: 'check', value: '__ok' }]);
     if (!v || v === '__ok') break;
     if (v === '__type') { const t = await pickProjType(p.type); if (t) { p.type = t; p.featOff = Object.fromEntries(projTypeOf(t).off.map(k => [k, true])); } }
+    else if (v === '__cat') { if (typeof openProjectCatalogue === 'function') await openProjectCatalogue(p); }
     else { p.featOff = p.featOff || {}; p.featOff[v] = !p.featOff[v]; }
     await DB.put('projects', p);
   }

@@ -2308,3 +2308,11 @@ body:has(.pst-page) #plansFab, body:has(.rub-page) #plansFab, body:has(.scanpage
 .pt-acts { display: flex; gap: 8px; } .pt-acts .btn { flex: 1; }
 .pt-full { position: absolute; right: 10px; bottom: 10px; z-index: 3; width: 44px; height: 44px; border-radius: 12px; font-size: 20px; color: #fff; background: rgba(15,23,42,.75); }
 .pt3.full .topbar, .pt3.full .pt-panel { display: none !important; } .pt3.full .v3-stage { flex: 1 1 100% !important; height: 100% !important; }
+
+/* ---- Organisation technique (catalogue.js) ---- */
+.cat-fam { border: 1px solid var(--line); border-radius: 12px; margin-bottom: 8px; padding: 2px 12px; background: var(--card); }
+.cat-fam summary { padding: 10px 2px; font-weight: 600; cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px; }
+.cat-fam summary::-webkit-details-marker { display: none; }
+.cat-fam summary b { color: var(--accent); font-weight: 700; }
+.cat-lots { display: flex; flex-direction: column; gap: 2px; padding: 0 0 10px; }
+.cat-ck { display: flex; align-items: center; gap: 10px; padding: 7px 4px; font-size: 14.5px; color: var(--text); }

@@ -1,8 +1,9 @@
 // ================= Catalogue technique BTP (familles → lots techniques) =================
 // Référentiel interne proposé pour organiser un projet (familles techniques, lots, modèles par type de projet).
 // Codes INTERNES à l'application (pas une nomenclature officielle). Catalogue non exhaustif, pensé pour être complété.
-// Statut : données + fonctions pures ci-dessous, PAS ENCORE reliées à un écran (pas d'assistant de création, pas de
-// fiche de lot, pas de moteur de suggestion automatique) — voir la synthèse livrée séparément pour le détail.
+// Statut : données + écran de sélection simple (openProjectCatalogue, via « Fonctions du projet » › Organisation
+// technique). PAS d'assistant de création dédié (secteur/envergure…), PAS de moteur de suggestion automatique selon
+// les caractéristiques du projet, PAS de fiche de lot détaillée (section 8) — voir la synthèse livrée séparément.
 
 const CAT_FAMILIES = [
   { id: 'PRE', l: 'Préparation et travaux préalables', lots: ['Installation de chantier', 'Démolition / déconstruction', 'Curage', 'Défrichage', 'Protection et déviation des réseaux existants'] },
@@ -39,6 +40,7 @@ function catMergeModels(models) {
 // ---------- Modèles par type de projet (liste de [familleId, lot] proposés par défaut) ----------
 // Démarré avec un seul modèle complet (Stade), demandé comme exemple de validation ; les autres types
 // (villa, immeuble, route…) sont à construire sur le même principe avant d'être branchés à un écran.
+const CAT_MODEL_LABELS = { stade: '🏟️ Stade / complexe sportif' };
 const CAT_MODELS = {
   stade: [
     ['PRE', 'Installation de chantier'], ['TER', 'Terrassements généraux'], ['TER', 'Soutènements'],
@@ -56,3 +58,27 @@ const CAT_MODELS = {
     ['EXT', 'Espaces verts'], ['EXT', 'Clôtures et portails'],
   ],
 };
+
+// ---------- écran : organisation technique (lots) d'un projet ----------
+// Stocke le choix sur le projet (p.catLots = [[familleId, lot], …]) ; indépendant de LOTS_DEF (écran des plans par lot).
+function openProjectCatalogue(p) {
+  return new Promise((resolve) => {
+    const sel = new Set((p.catLots || []).map(([f, l]) => f + '|' + l));
+    const s = sheet('<div class="cat-wrap"></div>', { title: 'Organisation technique du projet' });
+    const wrap = $('.cat-wrap', s.el);
+    const draw = () => {
+      wrap.innerHTML = `
+        <div class="muted steps" style="margin-bottom:10px">Cochez les lots qui concernent ce projet. Vous pouvez partir d'un modèle puis ajuster.</div>
+        <div class="btnrow" style="padding:0 0 10px;flex-wrap:wrap">${Object.keys(CAT_MODELS).map(k => `<button class="btn ghost small" data-model="${k}">${esc(CAT_MODEL_LABELS[k] || k)}</button>`).join('')}</div>
+        ${CAT_FAMILIES.map(f => { const n = f.lots.filter(l => sel.has(f.id + '|' + l)).length;
+          return `<details class="cat-fam"${n ? ' open' : ''}><summary>${esc(f.l)}${n ? ` <b>(${n})</b>` : ''}</summary>
+            <div class="cat-lots">${f.lots.map(l => `<label class="cat-ck"><input type="checkbox" data-f="${f.id}" data-l="${esc(l)}"${sel.has(f.id + '|' + l) ? ' checked' : ''}> ${esc(l)}</label>`).join('')}</div></details>`; }).join('')}
+        <button class="btn" data-a="save" style="margin-top:14px">${icon('check')} Enregistrer (${sel.size} lot(s))</button>`;
+      $$('[data-model]', wrap).forEach(b => b.onclick = () => { for (const [f, l] of CAT_MODELS[b.dataset.model]) sel.add(f + '|' + l); draw(); });
+      $$('input[data-f]', wrap).forEach(c => c.onchange = () => { const k = c.dataset.f + '|' + c.dataset.l; c.checked ? sel.add(k) : sel.delete(k); const btn = $('[data-a=save]', wrap); if (btn) btn.textContent = `Enregistrer (${sel.size} lot(s))`; });
+      $('[data-a=save]', wrap).onclick = () => { p.catLots = [...sel].map(k => k.split('|')); s.close(); };
+    };
+    draw();
+    s.onClose = () => resolve(p.catLots || []);
+  });
+}
