@@ -59,7 +59,7 @@ p.write_text(s)
 
 p = Path(root_gradle)
 s = p.read_text()
-s, n = re.subn(r"com\.android\.tools\.build:gradle:[0-9.]+", "com.android.tools.build:gradle:8.9.1", s, count=1)
+s, n = re.subn(r"com\.android\.tools\.build:gradle:[0-9.]+", "com.android.tools.build:gradle:8.10.1", s, count=1)
 if n != 1:
     raise SystemExit('Could not upgrade Android Gradle Plugin for API 36')
 p.write_text(s)
