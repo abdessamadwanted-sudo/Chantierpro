@@ -67,7 +67,8 @@ await t('autre compte : REFUS de lire le suivi', () => assertFails(other.collect
 
 // --- SiteTeam reste protégé
 await t('sans compte : REFUS de lire une entreprise SiteTeam', () => assertFails(anon.collection('companies').doc('c1').get()));
-await t('propriétaire Chantier : REFUS de lire une entreprise SiteTeam dont il n\'est pas membre', () => assertFails(owner.collection('companies').doc('c1').get()));
+await t('autre compte : REFUS de lire une entreprise SiteTeam dont il n\'est pas membre', () => assertFails(other.collection('companies').doc('c1').get()));
+await t('Super Admin (propriétaire) : lecture d\'une organisation', () => assertSucceeds(owner.collection('companies').doc('c1').get()));
 
 // --- suppression de compte : un membre peut retirer sa propre appartenance, pas celle d'un autre
 const m1 = env.authenticatedContext('m1', { email: 'm1@test.ma' }).firestore();
@@ -82,6 +83,54 @@ await t('partage : REFUS d\'effacer l\'historique des réponses', () => assertFa
 await t('partage : REFUS de modifier une réponse existante', () => assertFails(ext.collection('shares').doc('SHARE001').update({ responses: [{ byName: 'Admin', text: 'modifié', at: 1 }, { byName: 'BET', text: 'Vu', at: 2 }, { byName: 'BET', text: 'x', at: 4 }] })));
 await t('partage : REFUS de répondre si « répondre » n\'est pas autorisé', () => assertFails(ext.collection('shares').doc('SHARE002').update({ responses: [{ byName: 'BET', text: 'x', at: 2 }] })));
 await t('partage : REFUS de changer le périmètre', () => assertFails(ext.collection('shares').doc('SHARE001').update({ scope: 'tout le projet' })));
+
+// --- v1.0.14 : codes d'accès par une personne autorisée, expiration, pack verrouillé, config Super Admin
+const ALL4 = { projet: 4, plans: 4, reserves: 4, reception: 4, photos: 4, forms: 4, rapports: 4, constats: 4, calc: 4, equipe: 4, files: 4, topo: 4, centrale: 4, materiel: 4, pointage: 4, hse: 4, finance: 4 };
+const CHEF = { projet: 2, plans: 2, reserves: 3, reception: 2, photos: 2, forms: 2, rapports: 2, constats: 2, calc: 1, equipe: 3, files: 2, topo: 0, centrale: 0, materiel: 0, pointage: 2, hse: 1, finance: 0 };
+await env.withSecurityRulesDisabled(async (c) => {
+  const db = c.firestore(), co = db.collection('companies').doc('c2');
+  await co.set({ name: 'Business SARL', ownerUid: 'adm2', plan: 'business', planStatus: 'essai' });
+  await co.collection('members').doc('adm2').set({ name: 'Admin', admin: true, perms: ALL4, allProjects: true, projects: [] });
+  await co.collection('members').doc('chef2').set({ name: 'Chef', admin: false, perms: CHEF, allProjects: false, projects: ['p1'] });
+  await co.collection('members').doc('low2').set({ name: 'Ouvrier', admin: false, perms: { ...CHEF, equipe: 2 }, allProjects: false, projects: ['p1'] });
+  const base = { cid: 'c2', role: 'chefequipe', service: 'travaux', perms: { projet: 1 }, admin: false, allProjects: false, projects: [], used: false };
+  await db.collection('invites').doc('EXPIRED1').set({ ...base, expiresAt: new Date(Date.now() - 864e5) });
+  await db.collection('invites').doc('LIVE0001').set({ ...base, expiresAt: new Date(Date.now() + 864e5) });
+  await db.collection('invites').doc('OLDNOEXP').set({ ...base });
+});
+const adm2 = env.authenticatedContext('adm2', { email: 'adm2@test.ma' }).firestore();
+const chef2 = env.authenticatedContext('chef2', { email: 'chef2@test.ma' }).firestore();
+const low2 = env.authenticatedContext('low2', { email: 'low2@test.ma' }).firestore();
+const inv = (who, extra) => ({ cid: 'c2', companyName: 'Business SARL', name: 'X', role: 'chefequipe', service: 'travaux', perms: { projet: 1, reserves: 2, equipe: 1 }, admin: false, allProjects: false, projects: ['p1'], used: false, createdBy: who, ...extra });
+await t('code : personne autorisée (Équipe = Valider) crée un code dans ses droits', () => assertSucceeds(chef2.collection('invites').doc('CHEFOK01').set(inv('chef2'))));
+await t('code : REFUS de donner plus de droits que les siens', () => assertFails(chef2.collection('invites').doc('CHEFKO01').set(inv('chef2', { perms: { projet: 4 } }))));
+await t('code : REFUS de créer un administrateur', () => assertFails(chef2.collection('invites').doc('CHEFKO02').set(inv('chef2', { admin: true }))));
+await t('code : REFUS de donner un projet qu\'on n\'a pas', () => assertFails(chef2.collection('invites').doc('CHEFKO03').set(inv('chef2', { projects: ['p9'] }))));
+await t('code : REFUS de donner « tous les projets » sans les avoir', () => assertFails(chef2.collection('invites').doc('CHEFKO04').set(inv('chef2', { allProjects: true, projects: [] }))));
+await t('code : REFUS de clés de droits inconnues', () => assertFails(chef2.collection('invites').doc('CHEFKO05').set(inv('chef2', { perms: { projet: 1, superpouvoir: 1 } }))));
+await t('code : REFUS si « Équipe » < Valider', () => assertFails(low2.collection('invites').doc('LOWKO001').set(inv('low2'))));
+await t('code : REFUS de signer au nom d\'un autre (createdBy)', () => assertFails(chef2.collection('invites').doc('CHEFKO06').set(inv('adm2'))));
+await t('code : l\'administrateur donne tous les droits', () => assertSucceeds(adm2.collection('invites').doc('ADMOK001').set(inv('adm2', { perms: ALL4, admin: true, allProjects: true, projects: [] }))));
+await t('code : la personne autorisée liste ses propres codes', () => assertSucceeds(chef2.collection('invites').where('cid', '==', 'c2').where('createdBy', '==', 'chef2').get()));
+await t('code : REFUS de lister les codes des autres', () => assertFails(chef2.collection('invites').where('cid', '==', 'c2').get()));
+await t('code : supprimer son propre code', () => assertSucceeds(chef2.collection('invites').doc('CHEFOK01').delete()));
+const nu = (uid) => env.authenticatedContext(uid, { email: uid + '@test.ma' }).firestore();
+const join = (uid, code) => nu(uid).collection('companies').doc('c2').collection('members').doc(uid).set({ name: uid, role: 'chefequipe', perms: { projet: 1 }, admin: false, allProjects: false, projects: [], invite: code });
+await t('rejoindre : REFUS avec un code expiré', () => assertFails(join('newA', 'EXPIRED1')));
+await t('rejoindre : code valide', () => assertSucceeds(join('newB', 'LIVE0001')));
+await t('rejoindre : ancien code sans date d\'expiration accepté', () => assertSucceeds(join('newC', 'OLDNOEXP')));
+await t('code expiré : REFUS de le marquer utilisé', () => assertFails(nu('newA').collection('invites').doc('EXPIRED1').update({ used: true, usedBy: 'newA', usedAt: 1 })));
+await t('pack : REFUS que l\'admin change son pack', () => assertFails(adm2.collection('companies').doc('c2').update({ plan: 'enterprise' })));
+await t('pack : REFUS que l\'admin change le statut du pack', () => assertFails(adm2.collection('companies').doc('c2').update({ planStatus: 'actif' })));
+await t('pack : l\'admin change le nom / type / services', () => assertSucceeds(adm2.collection('companies').doc('c2').update({ name: 'Business SA', orgType: 'bet', services: ['direction'] })));
+await t('Super Admin : changer le pack d\'une organisation', () => assertSucceeds(owner.collection('companies').doc('c2').update({ plan: 'enterprise', planStatus: 'actif' })));
+await t('Super Admin : lister les organisations', () => assertSucceeds(owner.collection('companies').get()));
+await t('autre compte : REFUS de lister les organisations', () => assertFails(other.collection('companies').get()));
+await t('config : tout compte connecté lit les packs', () => assertSucceeds(other.collection('config').doc('plans').get()));
+await t('config : REFUS d\'écriture (non Super Admin)', () => assertFails(adm2.collection('config').doc('plans').set({ basic: { users: 999 } })));
+await t('config : le Super Admin modifie les packs', () => assertSucceeds(owner.collection('config').doc('plans').set({ basic: { users: 5 } }, { merge: true })));
+await t('config : REFUS de lecture sans compte', () => assertFails(anon.collection('config').doc('plans').get()));
+await t('création : une organisation avec type et services', () => assertSucceeds(nu('newD').collection('companies').doc('c3').set({ name: 'Labo', ownerUid: 'newD', plan: 'basic', planStatus: 'essai', kind: 'org', orgType: 'labo', services: ['direction', 'labo'] })));
 
 log(`\n${fails ? fails + ' ÉCHEC(S)' : 'TOUT OK'} — ${out.length} vérifications`);
 fs.writeFileSync(O + '/rules-test.txt', out.join('\n') + '\n');

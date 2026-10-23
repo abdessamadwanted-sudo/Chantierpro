@@ -1,4 +1,11 @@
-## SiteTeam : tous les outils de Chantier
-- Reprise de l'ensemble des outils de l'application Chantier : avancement, planning, registres (réunions, RFI, visas, HSE, labo, avenants, sous-traitants), financier & TCE, gestion de chantier, bons de bétonnage, fiches PDF, poutre 3D, plans AutoCAD (DWG/DXF), indices et comparaison de plans, scanner de documents, studio photo, notes vocales, clauses techniques (CPS/CCTP), briefing du jour, thèmes, code PIN / empreinte, stockage & sauvegarde.
-- Mise à jour depuis l'application (menu › Application › Rechercher une mise à jour), sans désinstaller ; mise à jour rapide sans réinstallation quand seule la partie web change.
-- Les droits restent ceux de votre poste SiteTeam (entreprise, modules) ; nouveau module « Financier, TCE, avenants & sous-traitants ».
+## SiteTeam : packs, parcours d'entrée et interface par organisation
+- Nouveau parcours d'entrée : Espace personnel, Créer une organisation ou Rejoindre avec un code. Ensuite : Pack, Type d'organisation et Services.
+- 4 packs : Basic, Pro, Business et Enterprise. Les organisations existantes passent en Enterprise : aucun outil n'est retiré.
+- Une interface par type d'organisation : Entreprise BTP, Sous-traitant, BET, Architecte, Maître d'ouvrage, Bureau de contrôle, Laboratoire et Topographe.
+- Nouveau projet : choix du type par cartes (Routes, Bâtiment, VRD, Ouvrages d'art…), puis une fiche projet légère.
+- Codes d'accès :
+  - créés par l'administrateur ou par une personne autorisée, sans dépasser ses propres droits ;
+  - valables 7 jours ;
+  - avec une confirmation avant de rejoindre.
+- Nouveaux services : Laboratoire et Administration & finance.
+- Console Super Admin : packs, limites et pack de chaque organisation.
