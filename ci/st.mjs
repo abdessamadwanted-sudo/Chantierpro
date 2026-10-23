@@ -27,12 +27,19 @@ try {
   await shot(A.pg, '01_login');
   await signup(A.pg, 'Abdessamad Patron', 'patron@test.ma');
   await shot(A.pg, '02_onboard');
-  await A.pg.click('[data-a=create]'); await A.pg.fill('[name=name]', 'BTP Test SARL'); await A.pg.click('.sheet [data-a=ok]');
+  await A.pg.click('[data-a=create]'); await A.pg.waitForSelector('.st-packs'); await shot(A.pg, '02b_packs');
+  await A.pg.click('[data-p=business]'); await A.pg.waitForSelector('.st-orgs'); await shot(A.pg, '02c_orgs');
+  await A.pg.click('[data-o=entreprise]'); await A.pg.waitForSelector('.st-svcs'); await shot(A.pg, '02d_services');
+  await A.pg.fill('[name=cname]', 'BTP Test SARL'); await A.pg.click('[data-a=go]');
   await A.pg.waitForSelector('.home2', { timeout: 20000 }); await A.pg.waitForTimeout(800);
   await A.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove()));
   await shot(A.pg, '03_home_patron');
   // créer un projet
-  await A.pg.click('.fab'); await A.pg.fill('[name=name]', 'Grand stade Benslimane'); await A.pg.click('.sheet [data-a=ok]'); await A.pg.waitForTimeout(1500);
+  log('A pack/type', await A.pg.evaluate(() => [Team.plan().k, Team.orgType().k, Team.company().services.length, Team.canInvite()]));
+  await A.pg.click('.fab'); await A.pg.waitForSelector('.st-types'); await shot(A.pg, '03b_types');
+  await A.pg.click('.st-types [data-f=bat]'); await A.pg.waitForTimeout(400); await A.pg.click('.opt:has-text("Équipement")'); await A.pg.waitForTimeout(400);
+  await A.pg.fill('[name=name]', 'Grand stade Benslimane'); await A.pg.fill('[name=moa]', 'Ministère'); await shot(A.pg, '03c_fiche'); await A.pg.click('.sheet [data-a=ok]'); await A.pg.waitForTimeout(1500);
+  log('A projet', await A.pg.evaluate(async () => (await DB.all('projects')).map(p => [p.name, p.type, p.moa])));
   await A.pg.evaluate(() => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); renderHome(); });
   await A.pg.evaluate(() => Sync.run({ force: true })); await A.pg.waitForTimeout(2000);
   log('A sync state', await A.pg.evaluate(() => Sync.statusLine()));
@@ -62,6 +69,7 @@ try {
   B = await newUser('B');
   await signup(B.pg, 'Youssef Conducteur', 'youssef@test.ma');
   await B.pg.click('[data-a=join]'); await B.pg.fill('[name=code]', code1); await B.pg.click('.sheet [data-a=ok]');
+  await B.pg.waitForSelector('.opt:has-text("Rejoindre")', { timeout: 15000 }); await shot(B.pg, 'B_confirm_code'); await B.pg.click('.opt:has-text("Rejoindre")');
   await B.pg.waitForSelector('.home2', { timeout: 20000 });
   await B.pg.evaluate(() => Sync.run({ force: true })); await B.pg.waitForTimeout(2500);
   await B.pg.evaluate(() => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); renderHome(); }); await B.pg.waitForTimeout(600);
@@ -86,6 +94,7 @@ try {
   C = await newUser('C');
   await signup(C.pg, 'Client MO', 'mo@test.ma');
   await C.pg.click('[data-a=join]'); await C.pg.fill('[name=code]', code2); await C.pg.click('.sheet [data-a=ok]');
+  await C.pg.waitForSelector('.opt:has-text("Rejoindre")', { timeout: 15000 }); await shot(C.pg, 'C_confirm_code'); await C.pg.click('.opt:has-text("Rejoindre")');
   await C.pg.waitForSelector('.home2', { timeout: 20000 });
   await C.pg.evaluate(() => Sync.run({ force: true })); await C.pg.waitForTimeout(2500);
   await C.pg.evaluate(() => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); renderHome(); }); await C.pg.waitForTimeout(600);
@@ -111,7 +120,8 @@ try {
   await A.pg.click('.tm-form [data-a=ok]'); await A.pg.waitForSelector('.sheet h3', { timeout: 15000 }); await A.pg.waitForTimeout(400);
   const code3 = (await A.pg.textContent('.sheet h3')).split(':').pop().trim(); await A.pg.click('.opt:has-text("Fermer")');
   D = await newUser('D'); await signup(D.pg, 'Karim Topo', 'topo@test.ma');
-  await D.pg.click('[data-a=join]'); await D.pg.fill('[name=code]', code3); await D.pg.click('.sheet [data-a=ok]'); await D.pg.waitForSelector('.home2', { timeout: 20000 });
+  await D.pg.click('[data-a=join]'); await D.pg.fill('[name=code]', code3); await D.pg.click('.sheet [data-a=ok]');
+  await D.pg.waitForSelector('.opt:has-text("Rejoindre")', { timeout: 15000 }); await D.pg.click('.opt:has-text("Rejoindre")'); await D.pg.waitForSelector('.home2', { timeout: 20000 });
   // conducteur B : demande d'implantation + commande béton + rendement + pointage (via l'interface pour la 1re)
   await B.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); renderHome(); }); await B.pg.waitForTimeout(800);
   await shot(B.pg, '17_home_conducteur_espace');
@@ -159,6 +169,30 @@ try {
   await shot(A.pg, '27_apercu_basic_tiroir');
   await A.pg.evaluate(() => { sessionStorage.removeItem('st.preview'); document.querySelectorAll('.drawer,.drawer-bg').forEach(x => x.remove()); });
   log('A sans aperçu', await A.pg.evaluate(() => [Team.canSection('reception'), sectionOn('finance')]));
+  log('B peut créer un code', await B.pg.evaluate(() => Team.canInvite()));
+  // ---- v1.0.14 : espace personnel (pack Basic, métier) + limites ; organisation BET (interface de la jiha)
+  let E, F;
+  E = await newUser('E'); await signup(E.pg, 'Hamid Indep', 'hamid@test.ma');
+  await E.pg.click('[data-a=perso]'); await E.pg.waitForSelector('.st-packs'); log('E packs proposés', await E.pg.evaluate(() => [...document.querySelectorAll('.st-packs [data-p]')].map(b => b.dataset.p)));
+  await E.pg.click('[data-p=basic]'); await E.pg.waitForSelector('[name=role]'); await E.pg.selectOption('[name=role]', 'techqualite'); await shot(E.pg, '30_perso_metier');
+  await E.pg.click('[data-a=go]'); await E.pg.waitForSelector('.home2', { timeout: 20000 }); await E.pg.waitForTimeout(800);
+  await E.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove())); await shot(E.pg, '31_perso_home');
+  log('E espace', await E.pg.evaluate(() => [Team.isPerso(), Team.plan().k, Team.company().name, Team.me().role, Team.isAdmin(), Org.me() && Org.me().poste]));
+  log('E outils basic', await E.pg.evaluate(() => [Team.canSection('tasks'), Team.canSection('reception'), featAllowed('reception')]));
+  await E.pg.evaluate(async () => { await DB.put('projects', { name: 'Villa Hamid', type: 'villa', team: [] }); });
+  await E.pg.evaluate(() => { window.__lim = Team.checkLimit('projects'); }); await E.pg.waitForTimeout(600);
+  log('E limite projets', await E.pg.evaluate(() => (document.querySelector('.sheet h3') || {}).textContent || 'pas de message')); await shot(E.pg, '32_limite_basic');
+  await E.pg.click('.opt:has-text("Fermer")'); log('E limite résultat', await E.pg.evaluate(() => window.__lim));
+  F = await newUser('F'); await signup(F.pg, 'Sara BET', 'sara@test.ma');
+  await F.pg.click('[data-a=create]'); await F.pg.waitForSelector('.st-packs'); await F.pg.click('[data-p=business]'); await F.pg.waitForSelector('.st-orgs');
+  await F.pg.click('[data-o=bet]'); await F.pg.waitForSelector('.st-svcs'); log('F services proposés', await F.pg.evaluate(() => [...document.querySelectorAll('.st-svcs .on')].map(b => b.dataset.s)));
+  await F.pg.fill('[name=cname]', 'BET Structures'); await F.pg.click('[data-a=go]'); await F.pg.waitForSelector('.home2', { timeout: 20000 }); await F.pg.waitForTimeout(800);
+  await F.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove())); await shot(F.pg, '33_bet_home');
+  log('F interface BET', await F.pg.evaluate(() => [Team.orgType().k, Team.me().role, Org.me() && Org.me().service, Team.canSection('plans'), Team.canSection('calc'), Team.canSection('pointage'), Team.canSection('beton'), Org.can('pointage', 'see')]));
+  await F.pg.evaluate(() => Team.openCompany('org')); await F.pg.waitForTimeout(1000); await F.pg.click('.tm-page [data-a=invite]'); await F.pg.waitForTimeout(500);
+  log('F postes proposés (services)', await F.pg.evaluate(() => [...document.querySelectorAll('[data-f=role] optgroup')].map(g => g.label)));
+  await shot(F.pg, '34_bet_invite'); await F.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove()));
+  log('errors v1.0.14', [...E.errs, ...F.errs]);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
