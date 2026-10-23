@@ -233,7 +233,6 @@ async function renderHome() {
         ...(Team.ready() ? [{ label: 'Se déconnecter', icon: 'power', value: 'logout' }] : [])] },
       { title: 'Apparence', color: '#a855f7', items: [
         { label: 'Thèmes', sub: 'Sakura, Océan, Noir & Or… · net ou verre', icon: 'brush', value: 'theme' },
-        { label: 'Écran d\'ouverture', sub: Splash.label(), icon: 'eye', value: 'splash' },
         { label: 'Sons et effets', sub: `${Fx.on('sound') ? '💧 bulle' : 'sans son'} · ${Fx.on('wave') ? '🌊 vague' : 'sans vague'}`, icon: 'disc', value: 'fx' },
         { label: 'Langue', sub: 'Français · العربية · English', icon: 'globe', value: 'lang' }] },
       { title: 'Sécurité', color: '#ef4444', items: [{ label: 'Code PIN et empreinte', sub: 'verrouillage de l\'application', icon: 'settings', value: 'pin' }] },

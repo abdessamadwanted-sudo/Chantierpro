@@ -16,6 +16,14 @@
     window.orgOnboard = (force) => (force ? ob(force) : Promise.resolve());
   }
 
+  // identité : SiteTeam garde sa propre ouverture (pas l'écran d'accueil animé de Chantier) ;
+  // seul le verrouillage par code PIN / empreinte est conservé au démarrage, et « Fermer » quitte directement
+  if (typeof Splash !== 'undefined') {
+    Splash.boot = async () => { try { if (typeof AppLock !== 'undefined' && AppLock.get() && typeof lockScreen === 'function') await lockScreen(); } catch (e) { console.warn(e); } };
+    Splash.bye = () => { try { if (typeof Sync !== 'undefined' && Sync.enabled()) Sync.run({ quiet: true }).catch(() => {}); } catch (e) {}
+      const A = window.Capacitor?.Plugins?.App; if (A && A.exitApp) A.exitApp(); };
+  }
+
   // rubriques : droits SiteTeam en plus des réglages de Chantier
   if (typeof sectionOn === 'function') {
     const so = sectionOn;
