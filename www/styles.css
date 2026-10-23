@@ -2436,3 +2436,45 @@ body:has(.pst-page) #plansFab, body:has(.rub-page) #plansFab, body:has(.scanpage
 .st-types .e { font-size: 30px; line-height: 1; margin-bottom: auto; }
 .st-types b { font-size: 15px; } .st-types small { font-size: 12px; opacity: .85; line-height: 1.25; }
 .st-super { border-color: #f5b82e !important; }
+
+/* ---------- v1.0.15 : contexte du Dashboard, Workspace Switcher, confirmation de code, catalogue ---------- */
+.st-ctx { margin: 0 4px 12px; display: grid; gap: 8px; }
+.st-wsc { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 999px; border: 1.5px solid #3b82f6; background: rgba(59,130,246,.12); color: inherit; text-align: left; }
+.st-wsc .e { font-size: 18px; } .st-wsc b { flex: 1; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .st-wsc i { font-style: normal; font-size: 12.5px; color: #93c5fd; }
+.st-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.st-chips span, .st-chips button { padding: 5px 12px; border-radius: 999px; font-size: 12.5px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12); color: inherit; }
+.st-chips button { font-weight: 600; border-color: rgba(255,255,255,.3); background: transparent; margin-left: auto; }
+.st-team { display: grid; gap: 2px; width: calc(100% - 8px); margin: 0 4px 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--card, #1e2430); color: inherit; text-align: left; }
+.st-team small { color: var(--muted); font-size: 12.5px; }
+.st-wsl { display: grid; gap: 8px; padding: 0 16px 8px; }
+.st-ws { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: transparent; color: var(--text); text-align: left; }
+.st-ws.on { border: 2px solid #3b82f6; background: rgba(59,130,246,.12); }
+.st-ws .e { font-size: 22px; } .st-ws b { display: block; font-size: 15px; } .st-ws small { color: var(--muted); font-size: 12.5px; }
+.st-wsa { display: grid; gap: 4px; padding: 4px 16px 8px; } .st-wsa .linkbtn { text-align: left; font-size: 15px; padding: 8px 0; }
+.st-join { display: grid; gap: 10px; padding: 0 16px 16px; }
+.st-join-h { display: flex; gap: 12px; align-items: center; padding: 12px; border-radius: 14px; background: rgba(59,130,246,.12); border: 1px solid rgba(59,130,246,.4); }
+.st-join-h .e { font-size: 30px; } .st-join-h b { display: block; font-size: 17px; } .st-join-h small { color: var(--muted); }
+.st-join-r { display: flex; justify-content: space-between; gap: 12px; padding: 8px 2px; border-bottom: 1px solid var(--line); font-size: 14.5px; } .st-join-r span { color: var(--muted); }
+.st-join-l { display: flex; flex-wrap: wrap; gap: 6px; } .st-join-l i { font-style: normal; font-size: 12px; padding: 3px 9px; border-radius: 999px; background: rgba(255,255,255,.07); }
+.st-catl { padding: 0 16px 16px; display: grid; gap: 6px; }
+.st-cat { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); opacity: .7; }
+.st-cat.on { opacity: 1; } .st-cat b { display: block; font-size: 14px; } .st-cat small { color: var(--muted); font-size: 12px; } .st-cat i { font-style: normal; font-size: 16px; }
+
+/* ---------- v1.0.15 : tablette et ordinateur (même application, mise en page élargie) ---------- */
+@media (min-width: 600px) {
+  .home2 .h2-body, .home2 .h2-hero > * { max-width: 980px; margin-left: auto; margin-right: auto; width: 100%; }
+  .st-tiles { grid-template-columns: repeat(6, 1fr); }
+  .es-grid { grid-template-columns: repeat(4, 1fr); }
+  .st-types { grid-template-columns: repeat(4, 1fr); }
+  .st-ctx { grid-template-columns: minmax(260px, 360px) 1fr; align-items: center; }
+  .st-chips { justify-content: flex-end; } .st-chips button { margin-left: 0; }
+  .sheet { max-width: 640px; margin-left: auto; margin-right: auto; border-radius: 14px; }
+  .tm-page .tm-body, .tm-page .tm-tabs { max-width: 860px; margin-left: auto; margin-right: auto; width: 100%; }
+}
+@media (min-width: 1024px) {
+  .home2 .h2-body, .home2 .h2-hero > * { max-width: 1200px; }
+  .es-grid { grid-template-columns: repeat(6, 1fr); }
+  .st-orgs { grid-template-columns: repeat(4, 1fr); } .st-onb .tm-lg-in { max-width: 860px; }
+  .st-packs { grid-template-columns: repeat(4, 1fr); }
+  .content { max-width: 1200px; margin-left: auto; margin-right: auto; width: 100%; }
+}

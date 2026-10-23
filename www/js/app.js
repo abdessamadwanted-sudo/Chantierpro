@@ -230,7 +230,7 @@ async function renderHome() {
         const v = await groupMenu('SiteTeam', [
       { title: 'Aujourd\'hui', color: '#22c55e', items: [{ label: 'Briefing du jour', sub: 'notes, rappels, PV à livrer, tâches', icon: 'calendar', value: 'brief' }] },
       { title: 'Mon entreprise', color: '#3b82f6', items: [
-        ...(Team.ready() ? [{ label: 'Mon entreprise', sub: 'équipe · organigramme · mon compte', icon: 'team', value: 'company' }, ...(Team.isAdmin() ? [{ label: 'Inviter un membre', icon: 'plus', value: 'invite' }, ST.preview() ? { label: 'Quitter l\'aperçu', sub: 'revenir à mon interface', icon: 'eye', value: 'preview-off' } : { label: 'Tester une interface', sub: 'aperçu par poste et formule', icon: 'eye', value: 'preview' }] : [])] : []),
+        ...(Team.ready() ? [{ label: 'Changer d\'espace', sub: 'espace personnel · organisations · rejoindre avec un code', icon: 'swap', value: 'ws' }, { label: 'Mon organisation', sub: 'équipe · organigramme · mon compte', icon: 'team', value: 'company' }, ...(Team.canInvite() ? [{ label: 'Inviter un membre', sub: 'code d\'accès lié à un poste', icon: 'plus', value: 'invite' }] : []), ...(Team.isAdmin() ? [ST.preview() ? { label: 'Quitter l\'aperçu', sub: 'revenir à mon interface', icon: 'eye', value: 'preview-off' } : { label: 'Tester une interface', sub: 'aperçu par poste et formule', icon: 'eye', value: 'preview' }] : [])] : []),
         { label: 'Mon prénom', sub: uname || 'pour les messages d\'accueil', icon: 'edit', value: 'name' },
         ...(Team.ready() ? [{ label: 'Se déconnecter', icon: 'power', value: 'logout' }] : [])] },
       { title: 'Apparence', color: '#a855f7', items: [
@@ -265,6 +265,7 @@ async function renderHome() {
     if (v === 'name') askName();
     if (v === 'board') openBoardTool();
     if (v === 'company') Team.openCompany();
+    if (v === 'ws') Team.openSwitcher();
     if (v === 'preview') ST.startPreview();
     if (v === 'preview-off') ST.stopPreview();
     if (v === 'invite') Team.inviteFlow();
@@ -1355,6 +1356,7 @@ async function renderSettings(root) {
         <div style="font-weight:600;margin-bottom:6px">Sauvegarde manuelle (fichier)</div>
         <div style="color:var(--muted);font-size:14px;line-height:1.5;margin-bottom:12px">Crée un fichier <b>.chantier</b> avec tout le projet (plans, pins, tâches, photos, formulaires, rapports). Enregistrez-le dans Google Drive ou envoyez-le sur WhatsApp. Pour le récupérer : accueil → ⋮ → Restaurer une sauvegarde.</div>
         <button class="btn" data-a="backup" style="width:100%">${icon('share')} Sauvegarder ce projet</button>
+        <button class="btn ghost" data-a="pfiche" style="width:100%;margin-top:8px">${icon('file')} Fiche projet (essentiel + avancé)</button>
         <button class="btn ghost" data-a="pfeat" style="width:100%;margin-top:8px">${icon('grid')} Type de projet & fonctions du projet${p.type && projTypeOf(p.type) ? ' · ' + projTypeOf(p.type).e : ''}</button>
         <button class="btn ghost" data-a="stock" style="width:100%;margin-top:8px">${icon('cloud')} Stockage du téléphone · libérer de l'espace</button>
       </div>
@@ -1365,6 +1367,7 @@ async function renderSettings(root) {
   $('[data-a=sync]', root).onclick = () => Sync.openSyncSettings();
   $('[data-a=stock]', root).onclick = () => openStorage();
   $('[data-a=pfeat]', root).onclick = () => projectFeaturesDialog(p);
+  $('[data-a=pfiche]', root).onclick = () => ST.projectFiche(p);
   const wb = $('[data-a=welcome]', root); if (wb) wb.onclick = () => orgOnboard(true);
   fxPanel($('[data-fxbox]', root));
   $('[data-a=save]', root).onclick = async () => { p.name = $('[name=name]', root).value.trim() || p.name; p.address = $('[name=address]', root).value.trim(); p.pdfTitle = $('[name=pdfTitle]', root).value.trim(); p.mo = $('[name=mo]', root).value.trim(); await DB.put('projects', p); toast('Enregistré ✓'); renderSection(); };

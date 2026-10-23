@@ -82,10 +82,25 @@ const ST = (() => {
   // ---------- tableau de bord du poste (accueil) : les cartes du briefing, dans l'ordre du service ----------
   function dashHTML() {
     if (!ready()) return '';
-    const R = tmRoleOf(roleKey()), T = org();
-    return `<div class="st-dash" data-stdash><div class="h2-sec"><span>Mon tableau de bord</span><small>${esc(T.e)} ${esc(R.l)}</small></div><div class="st-tiles"><div class="st-load">…</div></div></div>`;
+    const R = tmRoleOf(roleKey()), T = org(), C = Team.company() || {}, me = Team.me() || {};
+    const team = (Team.members() || []).filter(m => m.managerUid && m.managerUid === me.uid).length, multi = Team.workspaces().length > 1;
+    // contexte : où l'on travaille (espace · service · poste · projet) — le Dashboard se lit à partir de là
+    return `<div class="st-ctx"><button class="st-wsc" data-a="st-ws"><span class="e">${esc(T.e)}</span><b>${esc(C.name || '')}</b><i>${multi ? '▾ changer' : '＋ espaces'}</i></button>
+        <div class="st-chips"><span>${esc(serviceOf(R.s === 'direction' && me.service ? me.service : R.s).l)}</span><span>${esc(R.l)}</span><button data-a="st-proj">Projet ▾</button></div></div>
+      ${team ? `<button class="st-team" data-a="st-team"><b>Mon équipe : ${team} personne(s)</b><small>sous ma responsabilité</small></button>` : ''}
+      <div class="st-dash" data-stdash><div class="h2-sec"><span>Mon tableau de bord</span><small>${esc(T.e)} ${esc(R.l)}</small></div><div class="st-tiles"><div class="st-load">…</div></div></div>`;
   }
   async function dashBind(root) {
+    if (root) {
+      const ws = root.querySelector('[data-a=st-ws]'); if (ws) ws.onclick = () => Team.openSwitcher();
+      const tm = root.querySelector('[data-a=st-team]'); if (tm) tm.onclick = () => Team.openCompany('org');
+      const pj = root.querySelector('[data-a=st-proj]'); if (pj) pj.onclick = async () => {
+        const L = (await DB.all('projects')).filter(p => !p.deleted && Team.canProject(p.id)).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        if (!L.length) return toast('Aucun projet pour le moment');
+        const id = await menu('Ouvrir un projet', L.map(p => ({ label: `${(projTypeOf(p.type) || {}).e || '🏗️'} ${p.name}`, value: p.id })));
+        const p = L.find(x => x.id === id); if (p) openProject(p);
+      };
+    }
     const box = root && root.querySelector('[data-stdash] .st-tiles'); if (!box || typeof briefingData !== 'function') return;
     let cards = [];
     try { cards = (await briefingData()).cards.filter(c => !c.sc); } catch (e) { console.warn('dash', e); }
@@ -104,7 +119,8 @@ const ST = (() => {
       if (!f) return true; if (!ready()) return true;
       if (!(f in FEAT_MOD)) return lvl('projet') >= (ST_LEVELS[lv] || 2);
       const m = FEAT_MOD[f]; if (!m) return false;
-      return orgHas(m) && lvl(m) >= (ST_LEVELS[lv] || 2);
+      // menu de tous les jours : seulement les outils réellement autorisés (organisation + pack + poste) ; pas de 🔒 ici, le catalogue est à part
+      return orgHas(m) && planHas(m) && lvl(m) >= (ST_LEVELS[lv] || 2);
     };
   }
   // formule : une fonction hors formule apparaît avec 🔒 (si le poste y a droit), sinon elle est masquée
@@ -164,18 +180,41 @@ const ST = (() => {
     if (ready() && !(await Team.checkLimit('projects'))) return;
     const t = await pickType(); if (!t) return;
     const T = projTypeOf(t) || PROJ_TYPES[0];
-    const r = await formSheet(`${T.e} Fiche projet`, [
-      { name: 'name', label: 'Nom du projet', placeholder: 'Ex : Grand stade Hassan II Benslimane' },
+    const r = await formSheet(`${T.e} Fiche projet · essentiel`, [
+      { name: 'name', label: 'Nom du projet *', placeholder: 'Ex : Grand stade Hassan II Benslimane' },
       { name: 'address', label: 'Lieu / ville' },
       { name: 'moa', label: "Maître d'ouvrage (MOA)" },
-      { name: 'moe', label: "Maître d'œuvre (MOE)" },
+      { name: 'debut', label: 'Date de début', type: 'date' },
       { name: 'duree', label: 'Durée (mois)', type: 'number' },
+      { name: 'i', label: 'La suite', type: 'info', value: 'Intervenants, marché, lots et localisation : Paramètres du projet › Fiche projet (avancé), quand vous voulez.' },
     ], { okLabel: 'Créer le projet' });
-    if (!r || !r.name) return;
-    const p = await DB.put('projects', { name: r.name, address: r.address || '', moa: r.moa || '', moe: r.moe || '', dureeMois: +r.duree || null, type: T.k, featOff: Object.fromEntries(T.off.map(k => [k, true])), team: [] });
+    if (!r) return;
+    if (!r.name) return toast('Le nom du projet est obligatoire');
+    const p = await DB.put('projects', { name: r.name, address: r.address || '', moa: r.moa || '', dateDebut: r.debut || '', dureeMois: +r.duree || null, type: T.k, featOff: Object.fromEntries(T.off.map(k => [k, true])), team: [] });
     openProject(p);
   }
   window.newProjectDialog = newProject;
+  // fiche projet complète : essentiel + sections avancées (le marché seulement pour qui a accès au financier)
+  const FICHE = [
+    ['Essentiel', 'projet', [['name', 'Nom du projet'], ['address', 'Lieu / ville'], ['moa', "Maître d'ouvrage"], ['dateDebut', 'Date de début', 'date'], ['dureeMois', 'Durée (mois)', 'number']]],
+    ['Intervenants', 'projet', [['moe', "Maître d'œuvre / architecte"], ['bet', 'BET'], ['bc', 'Bureau de contrôle'], ['labo', 'Laboratoire'], ['sousTraitants', 'Sous-traitants', 'textarea']]],
+    ['Marché', 'finance', [['numMarche', 'N° de marché'], ['montantHT', 'Montant HT (MAD)', 'number'], ['avance', 'Avance (%)', 'number'], ['retenue', 'Retenue de garantie (%)', 'number'], ['delaiContractuel', 'Délai contractuel (mois)', 'number'], ['dateOS', "Date de l'ordre de service", 'date']]],
+    ['Organisation', 'projet', [['lots', 'Lots (un par ligne)', 'textarea'], ['zones', 'Zones / blocs / niveaux', 'textarea'], ['responsable', 'Responsable du projet']]],
+    ['Localisation', 'projet', [['gps', 'Coordonnées GPS (lat, long)']]],
+  ];
+  async function projectFiche(p) {
+    const secs = FICHE.filter(([, mod]) => lvl(mod) >= 1), ro = (mod) => lvl(mod) < 2;
+    const filled = secs.flatMap(([, , F]) => F).filter(([k]) => p[k] != null && p[k] !== '').length, total = secs.flatMap(([, , F]) => F).length;
+    const v = await menu(`Fiche projet · ${filled}/${total} renseignés`, secs.map(([t, mod, F]) => ({ label: t, sub: `${F.filter(([k]) => p[k] != null && p[k] !== '').length}/${F.length}${ro(mod) ? ' · lecture seule' : ''}`, icon: 'edit', value: t })));
+    if (!v) return;
+    const [t, mod, F] = secs.find(x => x[0] === v);
+    if (ro(mod)) return alertBox(F.map(([k, l]) => `${l} : ${p[k] ?? '—'}`).join('\n'));
+    const r = await formSheet(`${t} · ${p.name}`, F.map(([k, l, type]) => ({ name: k, label: l, type: type || 'text', value: p[k] ?? '' })));
+    if (!r) return;
+    F.forEach(([k, , type]) => { p[k] = type === 'number' ? (r[k] === '' ? null : +r[k]) : r[k]; });
+    if (!p.name) p.name = 'Projet';
+    await DB.put('projects', p); toast('Fiche projet enregistrée ✓'); return projectFiche(p);
+  }
 
-  return { dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject };
+  return { dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche };
 })();

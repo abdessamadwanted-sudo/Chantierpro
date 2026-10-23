@@ -15,7 +15,8 @@ const FB_CONFIG = {
 const PLANS = {
   // modules inclus (voir MODS) : la formule limite les outils disponibles, le poste limite ce que chacun voit et fait
   // users / projects : quotas (0 = illimité) · storageGb : indicatif (pas encore mesuré) · hier : hiérarchie avancée · shares : groupements / partage externe
-  basic:      { k: 'basic', l: 'Basic', e: '🌱', price: 0, period: 'mois', users: 3, projects: 1, storageGb: 1, perso: true, for: 'Particulier ou petit entrepreneur — fonctions essentielles',
+  // org : limites quand le pack sert à une organisation (petite entreprise) plutôt qu'à un espace personnel
+  basic:      { k: 'basic', l: 'Basic', e: '🌱', price: 0, period: 'mois', users: 1, projects: 1, storageGb: 1, perso: true, org: { users: 5, projects: 2, services: 3 }, for: 'Particulier, petit entrepreneur ou petite entreprise — fonctions essentielles',
                 modules: ['projet', 'plans', 'reserves', 'photos', 'rapports', 'equipe'] },
   pro:        { k: 'pro', l: 'Pro', e: '⭐', price: 99, period: 'mois', users: 1, projects: 0, storageGb: 30, perso: true, for: 'Professionnel indépendant — outils avancés',
                 modules: ['projet', 'plans', 'reserves', 'photos', 'rapports', 'equipe', 'reception', 'forms', 'constats', 'calc', 'files', 'topo', 'centrale', 'materiel', 'pointage', 'hse', 'finance'] },
@@ -27,6 +28,8 @@ const PLAN_ALIAS = { personnel: 'pro', entreprise: 'enterprise' };
 const planOf = (k) => PLANS[PLAN_ALIAS[k] || k] || PLANS.basic;
 const planPrice = (P) => P.price == null ? 'sur devis' : P.price ? `${P.price} MAD/${P.period}` : 'gratuite';
 const planUsers = (P) => P.users ? `${P.users} compte(s)` : 'comptes illimités';
+// limites effectives selon l'espace : personnel (valeurs de base) ou organisation (valeurs « org » si le pack en a)
+const planFor = (P, perso) => (!perso && P.org ? { ...P, ...P.org } : P);
 // entreprises existantes sans formule : Enterprise (rien ne change pour elles) — facturation réelle à brancher avant tout lancement public
 const PLAN_DEFAULT_COMPANY = 'enterprise';
 
@@ -285,7 +288,7 @@ const Team = (() => {
   const lvl = (mod) => { if (!S.ready) return 4; if (!S.me) return 0; return (S.me.perms || {})[mod] ?? 0; };
   const canSection = (k) => lvl(SECTION_MOD[k] || 'projet') >= 1;
   const isAdmin = () => !S.ready || !!(S.me && S.me.admin);
-  const myPlan = () => planOf((S.company || {}).plan || PLAN_DEFAULT_COMPANY);
+  const myPlan = () => planFor(planOf((S.company || {}).plan || PLAN_DEFAULT_COMPANY), (S.company || {}).kind === 'perso');
   // Super Admin SiteTeam (le même compte que le propriétaire des licences Chantier dans les règles)
   const SUPER_EMAIL = 'abdessamad.daga94@gmail.com';
   const isSuper = () => !!(S.user && (S.user.email || '').toLowerCase() === SUPER_EMAIL);
@@ -335,16 +338,77 @@ const Team = (() => {
     await loadMembership();
     auth.onAuthStateChanged(u => { if (!u && S.ready) { S.ready = false; location.reload(); } });
   }
+  // ---------- Workspace Switcher : un compte, plusieurs espaces (espace personnel, organisations) ----------
+  // Sur le téléphone, chaque espace a sa propre base IndexedDB et ses propres repères de synchronisation (Drive, envoi, réception),
+  // rangés à part quand on change d'espace : rien n'est déplacé, rien n'est mélangé.
+  const WS = {
+    get: (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    put: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} },
+    dbFor(cid) { const leg = WS.get('st.wsLegacy'); return !leg || leg === cid ? 'chantier' : 'chantier_' + cid; },
+    keys() { try { return Object.keys(localStorage).filter(k => k.startsWith('sync.') || k === 'team.pullAt'); } catch (e) { return []; } },
+    save(cid) { if (!cid) return; const o = {}; WS.keys().forEach(k => { o[k] = WS.get(k); }); WS.put('ws.' + cid, JSON.stringify(o)); WS.keys().forEach(k => WS.put(k, null)); },
+    restore(cid) { let o = {}; try { o = JSON.parse(WS.get('ws.' + cid) || '{}'); } catch (e) {} for (const [k, v] of Object.entries(o)) WS.put(k, v); },
+    // vrai = on recharge l'application pour ouvrir la base de cet espace
+    bind(cid) {
+      if (!WS.get('st.wsLegacy')) { WS.put('st.wsLegacy', cid); WS.put('st.wsCid', cid); }   // 1re ouverture : les données déjà présentes appartiennent à cet espace
+      const cur = WS.get('st.wsCid');
+      if (cur !== cid) { WS.save(cur); WS.restore(cid); WS.put('st.wsCid', cid); ['company', 'me', 'members'].forEach(LS.del); }
+      const want = WS.dbFor(cid);
+      if ((WS.get('st.db') || 'chantier') !== want || (typeof DB !== 'undefined' && DB.name && DB.name() !== want)) {
+        WS.put('st.db', want === 'chantier' ? null : want);
+        if (typeof DB !== 'undefined' && DB.name && DB.name() === want) return false;
+        location.reload(); return true;
+      }
+      return false;
+    },
+  };
+  // la liste des espaces du compte (users/{uid}.workspaces) est tenue à jour à chaque ouverture
+  async function saveWorkspace() {
+    const T = orgType(), w = { cid: S.cid, name: S.company.name || '', kind: S.company.kind || 'org', org: T.k, role: S.me.role || '', plan: myPlan().k };
+    const L = (S.workspaces || []).filter(x => x.cid !== S.cid), cur = (S.workspaces || []).find(x => x.cid === S.cid);
+    const next = [w, ...L];
+    if (cur && JSON.stringify(cur) === JSON.stringify(w) && (S.workspaces || [])[0] && S.workspaces[0].cid === S.cid) return;
+    try { await fs.collection('users').doc(S.user.uid).set({ workspaces: next }, { merge: true }); S.workspaces = next; } catch (e) { console.warn('ws', e); }
+  }
+  async function switchTo(cid) {
+    if (cid === S.cid) return;
+    const ld = loading('Changement d\'espace…');
+    try { if (typeof Sync !== 'undefined' && Sync.enabled && Sync.enabled()) await Sync.run({ quiet: true }); } catch (e) { console.warn('sync avant changement', e); }
+    try { await withTimeout(fs.collection('users').doc(S.user.uid).set({ companyId: cid }, { merge: true })); } catch (e) { ld.close(); return alertBox(errMsg(e)); }
+    try { sessionStorage.removeItem('st.preview'); } catch (e) {}
+    location.reload();
+  }
+  function openSwitcher() {
+    if (!S.ready) return;
+    const L = (S.workspaces || []).length ? S.workspaces : [{ cid: S.cid, name: S.company.name, kind: S.company.kind, org: orgType().k, role: S.me.role, plan: myPlan().k }];
+    const row = (w) => { const T = orgTypeOf(w.org || (w.kind === 'perso' ? 'independant' : 'entreprise')), on = w.cid === S.cid;
+      return `<button class="st-ws ${on ? 'on' : ''}" data-ws="${esc(w.cid)}"><span class="e">${T.e}</span><span class="grow"><b>${esc(w.name || '?')}${on ? ' ✓' : ''}</b><small>${w.kind === 'perso' ? 'Espace personnel' : esc(T.l)} · ${esc(tmRoleOf(w.role).l)} · ${esc(planOf(w.plan).l)}</small></span></button>`; };
+    const sh = sheet(`<div class="st-wsl">${L.map(row).join('')}</div>
+      <div class="st-wsa"><button class="linkbtn" data-a="join">＋ Rejoindre avec un code</button><button class="linkbtn" data-a="new">＋ Créer un espace personnel ou une organisation</button></div>
+      <p class="muted" style="padding:0 16px 14px;font-size:12.5px">Chaque espace garde ses données à part sur ce téléphone. Pas besoin de se reconnecter.</p>`, { title: 'Changer d\'espace' });
+    $$('[data-ws]', sh.el).forEach(b => b.onclick = () => { sh.close(); switchTo(b.dataset.ws); });
+    $('[data-a=join]', sh.el).onclick = async () => { sh.close(); const cid = await joinWithCode(); if (cid) switchTo(cid); };
+    $('[data-a=new]', sh.el).onclick = async () => { sh.close(); const ok = await onboardScreen({ add: true }); if (ok) { try { if (typeof Sync !== 'undefined' && Sync.enabled && Sync.enabled()) await Sync.run({ quiet: true }); } catch (e) {} location.reload(); } };
+  }
+
   async function loadMembership() {
     // profil + entreprise (cache local si hors connexion)
     let prof = null;
     try { const d = await withTimeout(fs.collection('users').doc(S.user.uid).get(), 15000); prof = d.exists ? d.data() : {}; LS.set('profile', prof); }
     catch (e) { prof = LS.get('profile'); if (!prof) { await alertBox('Connexion internet nécessaire pour la première ouverture.'); return loadMembership(); } }
     if (!prof.companyId) { await loadPlanCfg(); await onboardScreen(); return loadMembership(); }
+    S.workspaces = Array.isArray(prof.workspaces) ? prof.workspaces : [];
+    // espace de travail : chaque organisation a sa base locale ; si l'espace a changé (ici ou sur un autre téléphone), on bascule puis on recharge
+    if (WS.bind(prof.companyId)) return new Promise(() => {});
     S.cid = prof.companyId; LS.set('cid', S.cid);
     try {
       const [c, m] = await withTimeout(Promise.all([fs.collection('companies').doc(S.cid).get(), fs.collection('companies').doc(S.cid).collection('members').doc(S.user.uid).get()]), 15000);
-      if (!m.exists) { await fs.collection('users').doc(S.user.uid).set({ companyId: null }, { merge: true }); await alertBox('Vous ne faites plus partie de cette entreprise.'); return loadMembership(); }
+      if (!m.exists) {
+        const rest = S.workspaces.filter(w => w.cid !== S.cid);
+        await fs.collection('users').doc(S.user.uid).set({ companyId: rest.length ? rest[0].cid : null, workspaces: rest }, { merge: true });
+        await alertBox('Vous ne faites plus partie de « ' + ((c.exists && c.data().name) || 'cette organisation') + ' ».' + (rest.length ? '\nOuverture de « ' + rest[0].name + ' ».' : ''));
+        return loadMembership();
+      }
       S.company = { id: c.id, ...c.data() }; S.me = { uid: S.user.uid, ...m.data() };
       LS.set('company', S.company); LS.set('me', S.me);
     } catch (e) { if (!S.me || S.me.uid !== S.user.uid) { await alertBox('Connexion impossible : ' + errMsg(e)); return loadMembership(); } }
@@ -352,6 +416,7 @@ const Team = (() => {
     await loadPlanCfg();
     try { if (!localStorage.getItem('userName') && S.me.name) localStorage.setItem('userName', S.me.name.split(' ')[0]); localStorage.setItem('askedName', '1'); } catch (e) {}
     await refreshMembers();
+    saveWorkspace();
     migratePerms();
     migrateCompanyPlan();
     syncDriveCfg();
@@ -437,14 +502,54 @@ const Team = (() => {
     });
   }
 
+  // ---------- rejoindre une organisation avec un code d'accès (parcours court : ni pack, ni création) ----------
+  // l'écran de confirmation montre exactement où la personne entre ; retourne l'id de l'organisation, ou null
+  function confirmJoin(I) {
+    return new Promise((resolve) => {
+      const T = orgTypeOf(I.orgType || 'entreprise'), P = I.perms || {}, lv = MODS.filter(([m]) => (P[m] || 0) > 0);
+      const days = I.expiresAt && I.expiresAt.toMillis ? Math.max(0, Math.ceil((I.expiresAt.toMillis() - Date.now()) / 864e5)) : null;
+      const sh = sheet(`<div class="st-join">
+          <div class="st-join-h"><span class="e">${T.e}</span><div><b>${esc(I.companyName || 'Organisation')}</b><small>vous invite à rejoindre son espace</small></div></div>
+          <div class="st-join-r"><span>Service</span><b>${esc(serviceOf(I.service).l)}</b></div>
+          <div class="st-join-r"><span>Poste</span><b>${esc(tmRoleOf(I.role).l)}</b></div>
+          <div class="st-join-r"><span>Projets</span><b>${I.allProjects ? 'Tous les projets' : (I.projects || []).length + ' projet(s)'}</b></div>
+          <div class="st-join-r"><span>Outils</span><b>${lv.length} outil(s)${I.admin ? ' · administrateur' : ''}</b></div>
+          <div class="st-join-l">${lv.map(([m, l]) => `<i>${esc(l.split(' (')[0])} · ${LEVELS[P[m]]}</i>`).join('')}</div>
+          ${days != null ? `<small class="muted">Code valable encore ${days} jour(s), une seule fois.</small>` : ''}
+          <div class="btnrow" style="padding:0"><button class="btn ghost" data-a="no">Annuler</button><button class="btn" data-a="join-ok">Rejoindre</button></div></div>`, { title: 'Confirmer le code' });
+      sh.onClose = () => resolve(false);
+      $('[data-a=no]', sh.el).onclick = () => sh.close();
+      $('[data-a=join-ok]', sh.el).onclick = () => { sh.onClose = null; sh.close(); resolve(true); };
+    });
+  }
+  async function joinWithCode() {
+    const r = await formSheet('Rejoindre avec un code', [{ name: 'code', label: 'Code d\'accès', placeholder: 'Ex : K7M2QX9P' }], { okLabel: 'Continuer' });
+    if (!r || !r.code) return null;
+    const code = r.code.toUpperCase().replace(/[^A-Z0-9]/g, ''); let ld = loading('Vérification du code…');
+    try {
+      const iv = await withTimeout(fs.collection('invites').doc(code).get());
+      if (!iv.exists) throw new Error('Code introuvable');
+      const I = iv.data(); if (I.used) throw new Error('Ce code a déjà été utilisé — demandez un nouveau code');
+      if (I.expiresAt && I.expiresAt.toMillis && I.expiresAt.toMillis() < Date.now()) throw new Error('Ce code a expiré — demandez un nouveau code');
+      ld.close();
+      if (!(await confirmJoin(I))) return null;
+      ld = loading('Connexion à l\'organisation…');
+      const uid = auth.currentUser.uid;
+      await withTimeout(fs.collection('companies').doc(I.cid).collection('members').doc(uid).set({ name: auth.currentUser.displayName || I.name || '', email: auth.currentUser.email, role: I.role, service: I.service, perms: I.perms, admin: I.admin, allProjects: I.allProjects, projects: I.projects, managerUid: I.managerUid || null, zone: I.zone || '', invite: code, createdAt: ts() }));
+      await withTimeout(fs.collection('invites').doc(code).update({ used: true, usedBy: uid, usedAt: ts() }));
+      await withTimeout(fs.collection('users').doc(uid).set({ companyId: I.cid }, { merge: true }));
+      ld.close(); toast(`Bienvenue chez ${I.companyName || 'votre organisation'} ✓`); return I.cid;
+    } catch (e) { ld.close(); alertBox(errMsg(e)); return null; }
+  }
+
   // ---------- parcours d'entrée : espace → formule → type d'organisation → services → (projet → tableau de bord) ----------
-  function onboardScreen() {
+  function onboardScreen(opt = {}) {
     return new Promise((resolve) => {
       const el = document.createElement('div'); el.className = 'fullpage tm-login st-onb';
       const nm = (auth.currentUser.displayName || '').split(' ')[0];
       const W = { espace: null, plan: null, org: null, svcs: [] };
       document.body.appendChild(el);
-      const done = () => { el.remove(); resolve(); };
+      const done = () => { el.remove(); resolve(true); };
       const steps = (n, tot) => `<div class="st-steps">${Array.from({ length: tot }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</div>`;
       const back = (fn) => { const b = $('[data-a=back]', el); if (b) b.onclick = fn; };
       const tot = () => W.espace === 'perso' ? 4 : 6;
@@ -455,18 +560,19 @@ const Team = (() => {
             <button data-a="perso"><b>👷 Espace personnel</b><span>Professionnel indépendant : vos outils et vos projets</span></button>
             <button data-a="create"><b>🏢 Créer une organisation</b><span>Entreprise, BET, architecte, labo, MOA… vous invitez ensuite l'équipe</span></button>
             <button data-a="join"><b>🔑 Rejoindre avec un code</b><span>Code d'accès donné par votre responsable</span></button></div>
-          <button class="linkbtn" data-a="out">Se déconnecter (${esc(auth.currentUser.email || '')})</button></div>`;
-        $('[data-a=out]', el).onclick = async () => { await auth.signOut(); LS.del('me'); LS.del('cid'); location.reload(); };
+          ${opt.add ? '<button class="linkbtn" data-a="cancel">← Retour à mon espace</button>' : `<button class="linkbtn" data-a="out">Se déconnecter (${esc(auth.currentUser.email || '')})</button>`}</div>`;
+        const out = $('[data-a=out]', el); if (out) out.onclick = async () => { await auth.signOut(); LS.del('me'); LS.del('cid'); location.reload(); };
+        const cc = $('[data-a=cancel]', el); if (cc) cc.onclick = () => { el.remove(); resolve(false); };
         $('[data-a=perso]', el).onclick = () => { W.espace = 'perso'; W.org = 'independant'; stepPlan(); };
         $('[data-a=create]', el).onclick = () => { W.espace = 'org'; stepPlan(); };
         $('[data-a=join]', el).onclick = join;
       }
       // 2 · formule
       function stepPlan() {
-        const L = Object.values(PLANS).filter(P => W.espace !== 'perso' || P.perso);
+        const L = Object.values(PLANS).filter(P => W.espace !== 'perso' || P.perso).map(P => planFor(P, W.espace === 'perso'));
         el.innerHTML = `<div class="tm-lg-in">${steps(2, tot())}<h1>Choisir un pack</h1><p>Vous pourrez changer plus tard. Essai gratuit — la facturation n'est pas encore activée.</p>
           <div class="st-packs">${L.map(P => `<button data-p="${P.k}"><span class="e">${P.e}</span><b>${esc(P.l)}</b><em>${esc(planPrice(P))}</em><small>${esc(P.for)}</small>
-            <small class="q">${P.projects ? `${P.projects} projet` : 'Projets illimités'} · ${esc(planUsers(P))} · ${P.storageGb >= 1000 ? (P.storageGb / 1000) + ' To' : P.storageGb + ' Go'}${P.modules === '*' ? ' · tous les outils' : ` · ${P.modules.length} outils`}${P.hier ? ' · hiérarchie avancée' : ''}</small></button>`).join('')}</div>
+            <small class="q">${P.projects ? `${P.projects} projet(s)` : 'Projets illimités'}${P.services ? ` · ${P.services} services` : ''} · ${esc(planUsers(P))} · ${P.storageGb >= 1000 ? (P.storageGb / 1000) + ' To' : P.storageGb + ' Go'}${P.modules === '*' ? ' · tous les outils' : ` · ${P.modules.length} outils`}${P.hier ? ' · hiérarchie avancée' : ''}</small></button>`).join('')}</div>
           <button class="linkbtn" data-a="back">← Retour</button></div>`;
         $$('[data-p]', el).forEach(b => b.onclick = () => { W.plan = b.dataset.p; W.espace === 'perso' ? stepMetier() : stepOrg(); });
         back(stepEspace);
@@ -489,7 +595,11 @@ const Team = (() => {
           ${T.k === 'entreprise' ? `<label>Votre poste<select name="role">${TM_ROLES.filter(x => x.admin).map(x => `<option value="${x.k}">${esc(x.l)}</option>`).join('')}</select></label>` : ''}
           <button class="btn" data-a="go">Créer l'organisation</button></div>
           <button class="linkbtn" data-a="back">← Retour</button></div>`;
-        $$('[data-s]', el).forEach(b => b.onclick = () => { const k = b.dataset.s; W.svcs = W.svcs.includes(k) ? W.svcs.filter(x => x !== k) : [...W.svcs, k]; b.classList.toggle('on'); });
+        const maxS = planFor(planOf(W.plan), false).services || 0;
+        if (maxS && W.svcs.length > maxS) W.svcs = W.svcs.slice(0, maxS);
+        $$('[data-s]', el).forEach(b => { b.classList.toggle('on', W.svcs.includes(b.dataset.s)); b.onclick = () => { const k = b.dataset.s;
+          if (!W.svcs.includes(k) && maxS && W.svcs.length >= maxS) return toast(`Pack ${planOf(W.plan).l} : ${maxS} services au maximum`);
+          W.svcs = W.svcs.includes(k) ? W.svcs.filter(x => x !== k) : [...W.svcs, k]; b.classList.toggle('on'); }; });
         back(stepOrg);
         $('[data-a=go]', el).onclick = () => { const cn = $('[name=cname]', el).value.trim(); if (!cn) return toast('Tapez le nom de l\'organisation');
           const rs = $('[name=role]', el); create({ name: cn, me: $('[name=me]', el).value.trim(), role: rs ? rs.value : T.owner }); };
@@ -516,27 +626,7 @@ const Team = (() => {
           ld.close(); toast(W.espace === 'perso' ? 'Espace créé ✓' : 'Organisation créée ✓'); done();
         } catch (e) { ld.close(); alertBox(errMsg(e) + (e.code === 'permission-denied' ? '\n\nLes règles de sécurité Firestore sont-elles installées ?' : '')); }
       }
-      async function join() {
-        const r = await formSheet('Rejoindre avec un code', [{ name: 'code', label: 'Code d\'accès', placeholder: 'Ex : K7M2QX9P' }], { okLabel: 'Continuer' });
-        if (!r || !r.code) return;
-        const code = r.code.toUpperCase().replace(/[^A-Z0-9]/g, ''); let ld = loading('Vérification du code…');
-        try {
-          const iv = await withTimeout(fs.collection('invites').doc(code).get());
-          if (!iv.exists) throw new Error('Code introuvable');
-          const I = iv.data(); if (I.used) throw new Error('Ce code a déjà été utilisé — demandez un nouveau code');
-          if (I.expiresAt && I.expiresAt.toMillis && I.expiresAt.toMillis() < Date.now()) throw new Error('Ce code a expiré — demandez un nouveau code');
-          ld.close();
-          // confirmation : l'invité voit où il entre (organisation, service, poste, projets) — ni pack ni création d'entreprise
-          const ok = await confirmBox(`Organisation : ${I.companyName || '—'}\nService : ${serviceOf(I.service).l}\nPoste : ${tmRoleOf(I.role).l}\nProjets : ${I.allProjects ? 'tous' : (I.projects || []).length + ' projet(s)'}`, 'Rejoindre');
-          if (!ok) return;
-          ld = loading('Connexion à l\'organisation…');
-          const uid = auth.currentUser.uid;
-          await withTimeout(fs.collection('companies').doc(I.cid).collection('members').doc(uid).set({ name: auth.currentUser.displayName || I.name || '', email: auth.currentUser.email, role: I.role, service: I.service, perms: I.perms, admin: I.admin, allProjects: I.allProjects, projects: I.projects, managerUid: I.managerUid || null, zone: I.zone || '', invite: code, createdAt: ts() }));
-          await withTimeout(fs.collection('invites').doc(code).update({ used: true, usedBy: uid, usedAt: ts() }));
-          await withTimeout(fs.collection('users').doc(uid).set({ companyId: I.cid }, { merge: true }));
-          ld.close(); toast(`Bienvenue chez ${I.companyName || 'votre entreprise'} ✓`); done();
-        } catch (e) { ld.close(); alertBox(errMsg(e)); }
-      }
+      async function join() { const cid = await joinWithCode(); if (cid) done(); }
       stepEspace();
     });
   }
@@ -593,7 +683,7 @@ const Team = (() => {
   async function createInvite(o) {
     const R = tmRoleOf(o.role), code = newCode();
     const inv = { cid: S.cid, companyName: S.company.name, name: o.name || '', role: R.k, service: R.s, perms: o.perms || R.perms, admin: !!o.admin, allProjects: !!o.allProjects, projects: o.allProjects ? [] : (o.projects || []),
-      managerUid: o.managerUid || null, zone: o.zone || '', used: false, createdBy: S.user.uid, createdAt: ts(),
+      managerUid: o.managerUid || null, zone: o.zone || '', orgType: orgType().k, used: false, createdBy: S.user.uid, createdAt: ts(),
       expiresAt: firebase.firestore.Timestamp.fromMillis(Date.now() + 7 * 864e5) };
     await withTimeout(fs.collection('invites').doc(code).set(inv));
     return code;
@@ -765,7 +855,7 @@ const Team = (() => {
       if (tab === 'mem') body.innerHTML = `<div class="list">${M.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(m => `<div class="tm-row">${card(m)}<div class="tm-sub">${m.allProjects ? 'Tous les projets' : (m.projects || []).map(pname).join(', ') || 'Aucun projet'}${m.managerUid && byUid[m.managerUid] ? ' · sous ' + esc(byUid[m.managerUid].name) : ''}</div></div>`).join('')}</div>`;
       if (tab === 'inv') {
         let L = []; try { const q = await (isAdmin() ? fs.collection('invites').where('cid', '==', S.cid) : fs.collection('invites').where('cid', '==', S.cid).where('createdBy', '==', S.user.uid)).get(); L = q.docs.map(d => ({ code: d.id, ...d.data() })).filter(x => !x.used); } catch (e) { body.innerHTML = `<div class="empty">${esc(errMsg(e))}</div>`; return; }
-        body.innerHTML = L.length ? `<div class="list">${L.map(x => `<div class="tm-inv"><b class="tm-code">${x.code}</b><span class="grow">${esc(x.name || '—')}<small>${esc(tmRoleOf(x.role).l)} · ${x.allProjects ? 'tous les projets' : (x.projects || []).map(pname).join(', ')}</small></span>
+        body.innerHTML = L.length ? `<div class="list">${L.map(x => `<div class="tm-inv"><b class="tm-code">${x.code}</b><span class="grow">${esc(x.name || '—')}<small>${esc(tmRoleOf(x.role).l)} · ${x.allProjects ? 'tous les projets' : (x.projects || []).map(pname).join(', ')}${x.expiresAt && x.expiresAt.toMillis ? (x.expiresAt.toMillis() < Date.now() ? ' · <b style="color:#ef4444">expiré</b>' : ` · expire dans ${Math.ceil((x.expiresAt.toMillis() - Date.now()) / 864e5)} j`) : ''}</small></span>
           <button class="iconbtn sm" data-sh="${x.code}">${icon('share')}</button><button class="iconbtn sm" data-del="${x.code}">${icon('trash')}</button></div>`).join('')}</div>`
           : '<div class="empty">Aucune invitation en attente.<br>Touchez <b>Inviter</b> pour ajouter un membre.</div>';
         $$('[data-sh]', body).forEach(b => b.onclick = () => { const x = L.find(i => i.code === b.dataset.sh); shareInvite(x.code, x); });
@@ -780,7 +870,7 @@ const Team = (() => {
             <p>${esc(planPrice(P))} · ${esc(planUsers(P))}${P.extraUserPrice ? ` (puis ${P.extraUserPrice} MAD/mois par compte)` : ''} · ${P.projects ? P.projects + ' projet(s)' : 'projets illimités'} · ${P.storageGb} Go${P.modules === '*' ? ' · tous les outils' : ` · ${P.modules.length} outils`}${P.hier ? ' · hiérarchie' : ''}${P.shares ? ' · groupements' : ''}</p>
             <div style="color:${over ? '#ef4444' : 'var(--muted)'}">${nUsers}${P.users ? ' / ' + P.users : ''} compte(s) · ${nProj}${P.projects ? ' / ' + P.projects : ''} projet(s)${over ? ' — au-delà du pack' : ''}</div>
             <p style="font-size:12.5px;color:var(--muted)">Essai — la facturation n'est pas encore activée. Un membre invité par code n'a pas besoin de pack : seule l'organisation est facturée.</p>
-            <div class="btnrow" style="padding:0"><button class="btn ghost small" data-a="planchange">Demander un changement de pack</button></div></div>
+            <div class="btnrow" style="padding:0"><button class="btn ghost small" data-a="catalog">Catalogue des outils</button><button class="btn ghost small" data-a="planchange">Demander un changement de pack</button></div></div>
           ${isPerso() ? '' : `<div class="tm-box"><b>${T.e} Type d'organisation : ${esc(T.l)}</b><p>Le type choisit l'interface (outils mis en avant). Services actifs : ${companyServices().filter(x => x.k !== 'externe').map(x => esc(x.l)).join(', ')}.</p>
             <div class="btnrow" style="padding:0"><button class="btn ghost small" data-a="otype">Changer le type</button><button class="btn ghost small" data-a="svcs">Services…</button></div></div>`}
           <div class="tm-box"><b>☁ Google Drive de l'entreprise</b><p>Les plans, photos et PDF de toute l'équipe sont rangés dans ce Drive. Les membres le reçoivent automatiquement.</p>
@@ -793,6 +883,7 @@ const Team = (() => {
           <div class="tm-box"><b>🏢 Entreprise</b><button class="btn ghost small" data-a="ren">Renommer l'entreprise</button></div></div>`;
         $('[data-a=drive]', body).onclick = () => Sync.openSyncSettings();
         const sup = $('[data-a=super]', body); if (sup) sup.onclick = () => superConsole();
+        $('[data-a=catalog]', body).onclick = () => openCatalogue();
         const ot = $('[data-a=otype]', body); if (ot) ot.onclick = async () => {
           const k = await menu('Type d\'organisation', ORG_TYPES.map(t => ({ label: `${t.e} ${t.l}`, value: t.k, checked: t.k === T.k })));
           if (!k || k === T.k) return; try { await fs.collection('companies').doc(S.cid).update({ orgType: k }); S.company.orgType = k; LS.set('company', S.company); toast('Interface mise à jour ✓'); draw(); } catch (e) { alertBox(errMsg(e)); } };
@@ -841,9 +932,11 @@ const Team = (() => {
       const cap = (pp) => lim ? Object.fromEntries(MODS.map(([m]) => [m, Math.min(+pp[m] || 0, (mine.perms || {})[m] || 0)])) : pp;
       if (lim && !mine.allProjects) { projects = projects.filter(p => (mine.projects || []).includes(p.id)); if (o.allProjects) { o = { ...o, allProjects: false }; } }
       const roles = TM_ROLES.filter(r => !(lim && r.admin));
+      // le poste PROPOSE des droits, plafonnés à « Valider » : « Administrer » et le statut d'administrateur se donnent à part, avec confirmation
+      const tpl = (k) => cap(Object.fromEntries(MODS.map(([m]) => [m, Math.min(tmRoleOf(k).perms[m] || 0, 3)])));
       if (!o.role) o = { ...o, role: (roles.find(r => svcs.some(x => x.k === r.s) && r.k === 'conducteur') || roles.find(r => svcs.some(x => x.k === r.s)) || roles[0]).k };
       if (lim && o.managerUid == null) o = { ...o, managerUid: mine.uid };
-      const st = { role: o.role || 'conducteur', managerUid: o.managerUid || '', allProjects: o.allProjects !== false && !(o.projects || []).length, projects: [...(o.projects || [])], zone: o.zone || '', name: o.name || '', admin: !lim && !!o.admin, perms: cap({ ...(o.perms || tmRoleOf(o.role || 'conducteur').perms) }), custom: false };
+      const st = { role: o.role || 'conducteur', managerUid: o.managerUid || '', allProjects: o.allProjects !== false && !(o.projects || []).length, projects: [...(o.projects || [])], zone: o.zone || '', name: o.name || '', admin: !lim && !!o.admin, perms: o.perms ? cap({ ...o.perms }) : tpl(o.role || 'conducteur'), custom: false };
       const s = sheet(`<div class="form tm-form">
         ${o.withName ? '<label>Nom (optionnel)<input data-f="name" placeholder="Ex : Youssef (chef de chantier zone 11)"></label>' : ''}
         <label>Poste<select data-f="role">${svcs.map(sv => `<optgroup label="${esc(sv.l)}">${roles.filter(r => r.s === sv.k).map(r => `<option value="${r.k}">${esc(r.l)}</option>`).join('')}</optgroup>`).join('')}</select></label>
@@ -865,8 +958,11 @@ const Team = (() => {
       $('[data-all]', E).onchange = (e) => { st.allProjects = e.target.checked; syncP(); };
       $$('[data-p]', E).forEach(c => c.onchange = () => { st.projects = $$('[data-p]', E).filter(x => x.checked).map(x => x.dataset.p); });
       const pedit = () => { const pe = $('.tm-pedit', E); pe.innerHTML = MODS.map(([m, l]) => `<label class="tm-pl"><span>${l}</span><select data-pm="${m}">${LEVELS.map((x, i) => `<option value="${i}" ${+st.perms[m] === i ? 'selected' : ''}>${x}</option>`).join('')}</select></label>`).join('');
-        $$('[data-pm]', pe).forEach(sel => sel.onchange = () => { st.perms[sel.dataset.pm] = +sel.value; st.perms = cap(st.perms); sel.value = st.perms[sel.dataset.pm]; st.custom = true; }); };
-      f('role').onchange = () => { st.role = f('role').value; st.perms = cap({ ...tmRoleOf(st.role).perms }); st.admin = !lim && tmRoleOf(st.role).admin; $('[data-admin]', E).checked = st.admin; pedit(); };
+        $$('[data-pm]', pe).forEach(sel => sel.onchange = async () => { const m = sel.dataset.pm, v = +sel.value, was = +st.perms[m] || 0;
+          if (v === 4 && was < 4 && !(await confirmBox(`Donner « Administrer » sur « ${(MODS.find(x => x[0] === m) || [m, m])[1]} » ?\nLa personne pourra tout modifier et supprimer dans cet outil.`, 'Donner Administrer'))) { sel.value = was; return; }
+          st.perms[m] = v; st.perms = cap(st.perms); sel.value = st.perms[m]; st.custom = true; }); };
+      f('role').onchange = () => { st.role = f('role').value; st.perms = tpl(st.role); pedit(); };
+      $('[data-admin]', E).onchange = async (e) => { if (e.target.checked && !st.admin) { const ok = await confirmBox('Donner le statut Administrateur ?\nLa personne pourra gérer les membres, les codes d\'accès, les droits et les réglages de l\'organisation.', 'Donner le statut'); e.target.checked = ok; } st.admin = e.target.checked; };
       $('[data-a=perms]', E).onclick = () => { const pe = $('.tm-pedit', E); pe.hidden = !pe.hidden; pedit(); };
       $('[data-a=c]', E).onclick = () => s.close();
       $('[data-a=ok]', E).onclick = () => {
@@ -880,8 +976,12 @@ const Team = (() => {
     if (!canInvite()) return null;
     if (!(await checkLimit('users'))) return null;
     const projects = (await DB.all('projects')).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    const o = await memberForm('Inviter un membre', { withName: true, allProjects: true }, projects, 'Créer l\'invitation');
+    const o = await memberForm('Inviter un membre', { withName: true, allProjects: true }, projects, 'Continuer');
     if (!o) return null;
+    // récapitulatif : ce que la personne pourra voir et faire, avant de créer le code
+    const R = tmRoleOf(o.role), on = MODS.filter(([m]) => (o.perms[m] || 0) > 0), pn = (id) => (projects.find(p => p.id === id) || {}).name || '?';
+    const recap = `${o.name ? o.name + ' — ' : ''}${R.l} (${serviceOf(R.s).l})\nProjets : ${o.allProjects ? 'tous' : o.projects.map(pn).join(', ') || 'aucun'}\n${o.admin ? '⚠ Administrateur de l\'organisation\n' : ''}Outils (${on.length}) : ${on.map(([m, l]) => `${l.split(' (')[0]} ${['', 'voir', 'modifier', 'valider', 'ADMINISTRER'][o.perms[m]]}`).join(' · ') || 'aucun'}\nCode valable 7 jours, une seule fois.`;
+    if (!(await confirmBox(recap, 'Créer le code'))) return null;
     const ld = loading('Création de l\'invitation…');
     try { const code = await createInvite(o); ld.close();
       const v = await menu(`Code : ${code}`, [{ label: 'Envoyer par WhatsApp', icon: 'share', value: 'wa' }, { label: 'Copier le code', icon: 'file', value: 'cp' }, { label: 'Fermer', icon: 'check', value: 'ok' }]);
@@ -965,12 +1065,24 @@ const Team = (() => {
       await withTimeout(u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email, r.pw)));
       if (!others.length) { try { await fs.collection('companies').doc(S.cid).update({ deleted: true, deletedAt: ts() }); } catch (e) { console.warn('company', e); } }
       await withTimeout(fs.collection('companies').doc(S.cid).collection('members').doc(u.uid).delete());
+      // les autres espaces du compte (organisations rejointes) : on retire aussi sa place
+      for (const w of (S.workspaces || []).filter(x => x.cid !== S.cid)) { try { await withTimeout(fs.collection('companies').doc(w.cid).collection('members').doc(u.uid).delete()); } catch (e) { console.warn('ws delete', e); } }
       await withTimeout(fs.collection('users').doc(u.uid).delete());
       S.ready = false;   // évite le rechargement automatique à la déconnexion, pour afficher la confirmation
       await withTimeout(u.delete());
       ['me', 'cid', 'company', 'members', 'profile', 'pullAt'].forEach(LS.del);
       ld.close(); await alertBox('Votre compte a été supprimé.'); location.reload();
     } catch (e) { ld.close(); alertBox('Suppression impossible : ' + errMsg(e)); }
+  }
+
+  // ---------- catalogue des outils (administrateurs) : ce qui est inclus, ce qui est disponible dans d'autres packs ----------
+  // le menu de tous les jours ne montre que les outils autorisés ; les outils « disponibles ailleurs » ne se voient qu'ici
+  function openCatalogue() {
+    const P = myPlan(), T = orgType(), has = (Q, m) => Q.modules === '*' || Q.modules.includes(m), perso = isPerso();
+    const rows = MODS.map(([m, l]) => { const inP = has(P, m), inT = T.mods === '*' || T.mods.includes(m);
+      const where = Object.values(PLANS).filter(Q => has(Q, m)).map(Q => Q.l).join(', ');
+      return `<div class="st-cat ${inP && inT ? 'on' : ''}"><span class="grow"><b>${esc(l)}</b><small>${inP ? (inT ? 'Inclus — visible selon le poste de chacun' : `Inclus, masqué pour « ${esc(T.l)} »`) : 'Disponible avec : ' + esc(where)}</small></span><i>${inP && inT ? '✓' : inP ? '–' : '🔒'}</i></div>`; }).join('');
+    sheet(`<div class="st-catl"><p class="muted" style="margin:0 0 8px;font-size:12.5px">Pack ${esc(P.l)} · ${perso ? 'espace personnel' : esc(T.l)}. Les membres ne voient jamais les outils verrouillés : seulement ceux de leur poste.</p>${rows}</div>`, { title: 'Catalogue des outils' });
   }
 
   // ---------- services de l'organisation (cases à cocher) ----------
@@ -981,7 +1093,10 @@ const Team = (() => {
         <small class="muted">Un service retiré reste visible tant qu'un membre y est rattaché.</small>
         <div class="btnrow" style="padding:0"><button class="btn ghost" data-a="c">Annuler</button><button class="btn" data-a="ok">Enregistrer</button></div></div>`, { title: 'Services de l\'organisation' });
       sh.onClose = () => resolve(null);
-      $$('[data-s]', sh.el).forEach(b => b.onclick = () => { const k = b.dataset.s; L = L.includes(k) ? L.filter(x => x !== k) : [...L, k]; b.classList.toggle('on'); });
+      const maxS = myPlan().services || 0;
+      $$('[data-s]', sh.el).forEach(b => b.onclick = () => { const k = b.dataset.s;
+        if (!L.includes(k) && maxS && L.filter(x => x !== 'externe').length >= maxS) return toast(`Pack ${myPlan().l} : ${maxS} services au maximum`);
+        L = L.includes(k) ? L.filter(x => x !== k) : [...L, k]; b.classList.toggle('on'); });
       $('[data-a=c]', sh.el).onclick = () => sh.close();
       $('[data-a=ok]', sh.el).onclick = () => { sh.onClose = null; sh.close(); resolve(L); };
     });
@@ -1027,6 +1142,8 @@ const Team = (() => {
         ${num('price', 'Prix (MAD/mois) — vide = sur devis', P.price, 'sur devis')}
         ${num('users', 'Comptes inclus (0 = illimité)', P.users)}${num('extraUserPrice', 'Prix par compte supplémentaire (vide = bloqué)', P.extraUserPrice)}
         ${num('projects', 'Projets (0 = illimité)', P.projects)}${num('storageGb', 'Stockage (Go)', P.storageGb)}
+        <div class="fld">Si utilisé par une organisation (vide = mêmes valeurs)</div>
+        ${num('orgUsers', 'Comptes (organisation)', (P.org || {}).users)}${num('orgProjects', 'Projets (organisation)', (P.org || {}).projects)}${num('orgServices', 'Services max (organisation, 0 = illimité)', (P.org || {}).services)}
         <label class="tm-ck"><input type="checkbox" data-b="perso" ${P.perso ? 'checked' : ''}> Proposé pour l'espace personnel</label>
         <label class="tm-ck"><input type="checkbox" data-b="hier" ${P.hier ? 'checked' : ''}> Hiérarchie (responsable direct, zones)</label>
         <label class="tm-ck"><input type="checkbox" data-b="shares" ${P.shares ? 'checked' : ''}> Groupements / partage avec d'autres organisations</label>
@@ -1044,6 +1161,8 @@ const Team = (() => {
           perso: $('[data-b=perso]', E).checked, hier: $('[data-b=hier]', E).checked, shares: $('[data-b=shares]', E).checked,
           modules: $('[data-all]', E).checked ? '*' : $$('[data-m]', E).filter(c => c.checked).map(c => c.dataset.m) };
         if (v.extraUserPrice == null) delete v.extraUserPrice;
+        const og = { users: n('orgUsers'), projects: n('orgProjects'), services: n('orgServices') }; Object.keys(og).forEach(k => og[k] == null && delete og[k]);
+        v.org = Object.keys(og).length ? og : null;
         try { await withTimeout(fs.collection('config').doc('plans').set({ [P.k]: v }, { merge: true })); applyPlanCfg({ [P.k]: v }); LS.set('plansCfg', { ...(LS.get('plansCfg') || {}), [P.k]: v });
           toast('Pack enregistré ✓'); sh.onClose = null; sh.close(); resolve(true); } catch (e) { alertBox(errMsg(e) + (e.code === 'permission-denied' ? '\n\nPubliez d\'abord les règles Firestore v1.0.14.' : '')); }
       };
@@ -1064,7 +1183,7 @@ const Team = (() => {
 
   return {
     boot, push, pull, resetPull, lvl, canSection, canProject, isAdmin, openCompany, inviteFlow, logout, decorateSection, removeMember, refreshMembers,
-    isSuper, superConsole, orgType, isPerso, companyServices, canInvite, checkLimit, plan: myPlan,
+    isSuper, superConsole, orgType, isPerso, companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, workspaces: () => S.workspaces || [],
     openProjectShares, claimShare,
     ready: () => S.ready, me: () => S.me, uid: () => S.user && S.user.uid, company: () => S.company, members: () => S.members, rules: FIRESTORE_RULES,
   };

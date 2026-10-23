@@ -1,11 +1,12 @@
-## SiteTeam : packs, parcours d'entrée et interface par organisation
-- Nouveau parcours d'entrée : Espace personnel, Créer une organisation ou Rejoindre avec un code. Ensuite : Pack, Type d'organisation et Services.
-- 4 packs : Basic, Pro, Business et Enterprise. Les organisations existantes passent en Enterprise : aucun outil n'est retiré.
-- Une interface par type d'organisation : Entreprise BTP, Sous-traitant, BET, Architecte, Maître d'ouvrage, Bureau de contrôle, Laboratoire et Topographe.
-- Nouveau projet : choix du type par cartes (Routes, Bâtiment, VRD, Ouvrages d'art…), puis une fiche projet légère.
-- Codes d'accès :
-  - créés par l'administrateur ou par une personne autorisée, sans dépasser ses propres droits ;
-  - valables 7 jours ;
-  - avec une confirmation avant de rejoindre.
-- Nouveaux services : Laboratoire et Administration & finance.
-- Console Super Admin : packs, limites et pack de chaque organisation.
+## SiteTeam : changer d'espace, droits plus sûrs, fiche projet
+- Workspace Switcher : un seul compte pour l'espace personnel et plusieurs organisations. On change d'espace sans se reconnecter, et chaque espace garde ses données à part sur le téléphone.
+- Dashboard avec contexte : espace, service, poste et projet en haut, plus « Mon équipe » pour les responsables.
+- Le menu ne montre que vos outils autorisés. Les administrateurs voient le catalogue des outils à part (Réglages › Pack).
+- Droits plus sûrs :
+  - un poste propose des droits jusqu'à « Valider » ;
+  - « Administrer » et « Administrateur » demandent une confirmation ;
+  - un récapitulatif s'affiche avant de créer le code.
+- Rejoindre avec un code : écran de confirmation (organisation, service, poste, projets, outils) et durée de validité affichée.
+- Fiche projet en deux temps : l'essentiel à la création, puis Intervenants, Marché (accès financier), Organisation et Localisation.
+- Pack Basic pour une petite entreprise : 5 comptes, 2 projets, 3 services (modifiables par le Super Admin).
+- Mise en page élargie sur tablette et ordinateur.
