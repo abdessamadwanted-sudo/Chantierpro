@@ -121,7 +121,8 @@ const ST = (() => {
     const so = sectionOn;
     window.sectionOn = (k) => so(k) && Team.canSection(k);
   }
-  Team.lvl = (mod) => lvl(mod);
+  // espaces (topo, centrale, pointage…) et boutons : un outil hors du métier de l'organisation ou hors pack n'apparaît pas
+  Team.lvl = (mod) => (orgHas(mod) && planHas(mod)) ? lvl(mod) : 0;
   Team.canSection = (k) => (PV.get() ? lvl(SECTION_MOD[k] || 'projet') >= 1 : _canSection(k)) && orgHas(SECTION_MOD[k]) && planHas(SECTION_FEATURE[k] ? FEAT_MOD[SECTION_FEATURE[k]] : null);
   // le poste est appliqué après la connexion (et à chaque démarrage)
   const _boot = Team.boot;
