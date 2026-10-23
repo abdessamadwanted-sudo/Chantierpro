@@ -37,7 +37,7 @@ const SHARE_ENTITIES = [
 const shareEntityLabel = (k) => (SHARE_ENTITIES.find(x => x[0] === k) || [k, k])[1];
 
 // ---------- Services, rôles, permissions ----------
-const SERVICES = [
+const TM_SERVICES = [
   { k: 'direction', l: 'Direction', c: '#334155' }, { k: 'travaux', l: 'Travaux', c: '#2563eb' }, { k: 'ferraillage', l: 'Ferraillage', c: '#dc2626' },
   { k: 'centrale', l: 'Centrale à béton', c: '#64748b' }, { k: 'materiel', l: 'Matériel', c: '#ca8a04' }, { k: 'topo', l: 'Topographie', c: '#0d9488' },
   { k: 'qualite', l: 'Qualité', c: '#16a34a' }, { k: 'hse', l: 'HSE', c: '#ea580c' }, { k: 'metre', l: 'Métré', c: '#7c3aed' },
@@ -50,7 +50,7 @@ const MODS = [['projet', 'Projet (infos, rappels, 3D)'], ['plans', 'Plans & maqu
   ['finance', 'Financier, TCE, avenants & sous-traitants']];
 const LEVELS = ['Aucun accès', 'Voir', 'Modifier', 'Valider', 'Administrer'];
 // droits par rôle : chiffres dans l'ordre de MODS (0 aucun · 1 voir · 2 modifier · 3 valider · 4 administrer)
-const ROLES = [
+const TM_ROLES = [
   ['patron', 'Patron / Gérant', 'direction', '4444444444444444', 1], ['dirprojet', 'Directeur de projet', 'direction', '4444444444444444', 1],
   ['dirtravaux', 'Directeur travaux', 'travaux', '3333333333333333'], ['conducteur', 'Conducteur de travaux', 'travaux', '2233223222222232'],
   ['techtravaux', 'Technicien travaux', 'travaux', '2122222221222222'], ['chefchantier', 'Chef de chantier', 'travaux', '2122212221222222'],
@@ -74,9 +74,9 @@ const ROLES = [
 ].map(([k, l, s, p, adm]) => ({ k, l, s, perms: Object.fromEntries(MODS.map(([m], i) => [m, +p[i] || 0])), admin: !!adm }));
 // module « finance » (ajouté avec les outils de Chantier) : accès par défaut selon le poste (les administrateurs ont tout)
 { const FIN = { dirtravaux: 3, conducteur: 1, condferraillage: 1, metreur: 3, respmateriel: 1, resppointage: 1, mo: 1, mod: 1, bet: 1 };
-  ROLES.forEach(r => { r.perms.finance = r.admin ? 4 : (FIN[r.k] || 0); }); }
-const roleOf = (k) => ROLES.find(r => r.k === k) || { k, l: k, s: 'externe', perms: {}, admin: false };
-const serviceOf = (k) => SERVICES.find(s => s.k === k) || SERVICES[SERVICES.length - 1];
+  TM_ROLES.forEach(r => { r.perms.finance = r.admin ? 4 : (FIN[r.k] || 0); }); }
+const tmRoleOf = (k) => TM_ROLES.find(r => r.k === k) || { k, l: k, s: 'externe', perms: {}, admin: false };
+const serviceOf = (k) => TM_SERVICES.find(s => s.k === k) || TM_SERVICES[TM_SERVICES.length - 1];
 // magasin local → module (sous-collection Firestore)
 const STORE_MOD = { projects: 'projet', folders: 'plans', plans: 'plans', links: 'plans', tasks: 'reserves', receptions: 'reception', forms: 'forms', reports: 'rapports', files: 'files', items: '*' };
 // éléments des espaces (store « items ») : module selon le type
@@ -265,7 +265,7 @@ const Team = (() => {
     if (!isAdmin()) return;
     for (const m of S.members) {
       const P = m.perms || {}, miss = MODS.filter(([k]) => !(k in P)).map(([k]) => k); if (!miss.length) continue;
-      const R = roleOf(m.role), np = { ...P }; miss.forEach(k => { np[k] = m.admin ? 4 : (R.perms[k] || 0); });
+      const R = tmRoleOf(m.role), np = { ...P }; miss.forEach(k => { np[k] = m.admin ? 4 : (R.perms[k] || 0); });
       try { await fs.collection('companies').doc(S.cid).collection('members').doc(m.uid).update({ perms: np }); m.perms = np; if (m.uid === S.user.uid) { S.me.perms = np; LS.set('me', S.me); } } catch (e) { console.warn('migrate', e); }
     }
     LS.set('members', S.members);
@@ -351,13 +351,13 @@ const Team = (() => {
       $('[data-a=create]', el).onclick = async () => {
         const r = await formSheet('Créer mon entreprise', [{ name: 'name', label: 'Nom de l\'entreprise', placeholder: 'Ex : Entreprise BTP …' },
           { name: 'me', label: 'Votre nom', value: auth.currentUser.displayName || '' },
-          { name: 'role', label: 'Votre poste', type: 'select', value: 'patron', options: ROLES.filter(x => x.admin).map(x => ({ value: x.k, label: x.l })) }], { okLabel: 'Créer' });
+          { name: 'role', label: 'Votre poste', type: 'select', value: 'patron', options: TM_ROLES.filter(x => x.admin).map(x => ({ value: x.k, label: x.l })) }], { okLabel: 'Créer' });
         if (!r || !r.name) return;
         const ld = loading('Création de l\'entreprise…');
         try {
           const uid = auth.currentUser.uid, ref = fs.collection('companies').doc();
           await withTimeout(ref.set({ name: r.name, ownerUid: uid, plan: PLAN_DEFAULT_COMPANY, planStatus: 'essai', createdAt: ts() }));
-          const R = roleOf(r.role);
+          const R = tmRoleOf(r.role);
           await withTimeout(ref.collection('members').doc(uid).set({ name: r.me || auth.currentUser.displayName || '', email: auth.currentUser.email, role: R.k, service: R.s, perms: R.perms, admin: true, allProjects: true, projects: [], managerUid: null, zone: '', createdAt: ts() }));
           await withTimeout(fs.collection('users').doc(uid).set({ companyId: ref.id, name: r.me || '' }, { merge: true }));
           ld.close(); toast('Entreprise créée ✓'); done();
@@ -431,14 +431,14 @@ const Team = (() => {
   const newCode = () => { const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; return Array.from(crypto.getRandomValues(new Uint8Array(8)), b => A[b % A.length]).join(''); };
   const apkLink = () => `https://github.com/abdessamadwanted-sudo/Chantierpro/releases/download/siteteam-v${APP_VERSION.startsWith('__') ? '1.0.1' : APP_VERSION}/SiteTeam.apk`;
   async function createInvite(o) {
-    const R = roleOf(o.role), code = newCode();
+    const R = tmRoleOf(o.role), code = newCode();
     const inv = { cid: S.cid, companyName: S.company.name, name: o.name || '', role: R.k, service: R.s, perms: o.perms || R.perms, admin: !!o.admin, allProjects: !!o.allProjects, projects: o.allProjects ? [] : (o.projects || []),
       managerUid: o.managerUid || null, zone: o.zone || '', used: false, createdBy: S.user.uid, createdAt: ts() };
     await withTimeout(fs.collection('invites').doc(code).set(inv));
     return code;
   }
   function shareInvite(code, o) {
-    const R = roleOf(o.role);
+    const R = tmRoleOf(o.role);
     const txt = `Bonjour${o.name ? ' ' + o.name : ''},\nRejoignez l'équipe *${S.company.name}* sur SiteTeam (${R.l}).\n\n1️⃣ Installez l'application : ${apkLink()}\n2️⃣ Créez votre compte\n3️⃣ « J'ai un code d'invitation » → *${code}*`;
     openUrl('https://wa.me/?text=' + encodeURIComponent(txt));
   }
@@ -592,18 +592,18 @@ const Team = (() => {
       const inv = $('[data-a=invite]', el); if (inv) inv.onclick = () => inviteFlow().then(c => { if (c) { tab = 'inv'; draw(); } });
       const body = $('.tm-body', el);
       const av = (m) => `<span class="tm-av" style="background:${serviceOf(m.service).c}">${esc(String(m.name || m.email || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase())}</span>`;
-      const card = (m) => `<button class="tm-mem" data-uid="${m.uid}">${av(m)}<span class="grow"><b>${esc(m.name || m.email)}</b><small>${esc(roleOf(m.role).l)}${m.zone ? ' · ' + esc(m.zone) : ''}${m.admin ? ' · admin' : ''}</small></span>${m.uid === S.user.uid ? '<i class="tm-me">moi</i>' : ''}</button>`;
+      const card = (m) => `<button class="tm-mem" data-uid="${m.uid}">${av(m)}<span class="grow"><b>${esc(m.name || m.email)}</b><small>${esc(tmRoleOf(m.role).l)}${m.zone ? ' · ' + esc(m.zone) : ''}${m.admin ? ' · admin' : ''}</small></span>${m.uid === S.user.uid ? '<i class="tm-me">moi</i>' : ''}</button>`;
       if (tab === 'org') {
-        const rIdx = (m) => ROLES.findIndex(r => r.k === m.role);
+        const rIdx = (m) => TM_ROLES.findIndex(r => r.k === m.role);
         const tree = (list, parent, depth) => list.filter(m => (m.managerUid || null) === parent || (depth === 0 && m.managerUid && !list.some(x => x.uid === m.managerUid)))
           .sort((a, b) => rIdx(a) - rIdx(b)).map(m => `<div class="tm-node" style="--d:${depth}">${card(m)}</div>${tree(list, m.uid, depth + 1)}`).join('');
-        body.innerHTML = SERVICES.map(s => { const L = M.filter(m => (m.service || roleOf(m.role).s) === s.k); if (!L.length) return '';
+        body.innerHTML = TM_SERVICES.map(s => { const L = M.filter(m => (m.service || tmRoleOf(m.role).s) === s.k); if (!L.length) return '';
           return `<div class="tm-svc"><div class="tm-svc-h" style="--c:${s.c}"><i></i>${s.l}<span>${L.length}</span></div>${tree(L, null, 0)}</div>`; }).join('') || '<div class="empty">Aucun membre.</div>';
       }
       if (tab === 'mem') body.innerHTML = `<div class="list">${M.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(m => `<div class="tm-row">${card(m)}<div class="tm-sub">${m.allProjects ? 'Tous les projets' : (m.projects || []).map(pname).join(', ') || 'Aucun projet'}${m.managerUid && byUid[m.managerUid] ? ' · sous ' + esc(byUid[m.managerUid].name) : ''}</div></div>`).join('')}</div>`;
       if (tab === 'inv') {
         let L = []; try { const q = await fs.collection('invites').where('cid', '==', S.cid).get(); L = q.docs.map(d => ({ code: d.id, ...d.data() })).filter(x => !x.used); } catch (e) { body.innerHTML = `<div class="empty">${esc(errMsg(e))}</div>`; return; }
-        body.innerHTML = L.length ? `<div class="list">${L.map(x => `<div class="tm-inv"><b class="tm-code">${x.code}</b><span class="grow">${esc(x.name || '—')}<small>${esc(roleOf(x.role).l)} · ${x.allProjects ? 'tous les projets' : (x.projects || []).map(pname).join(', ')}</small></span>
+        body.innerHTML = L.length ? `<div class="list">${L.map(x => `<div class="tm-inv"><b class="tm-code">${x.code}</b><span class="grow">${esc(x.name || '—')}<small>${esc(tmRoleOf(x.role).l)} · ${x.allProjects ? 'tous les projets' : (x.projects || []).map(pname).join(', ')}</small></span>
           <button class="iconbtn sm" data-sh="${x.code}">${icon('share')}</button><button class="iconbtn sm" data-del="${x.code}">${icon('trash')}</button></div>`).join('')}</div>`
           : '<div class="empty">Aucune invitation en attente.<br>Touchez <b>Inviter</b> pour ajouter un membre.</div>';
         $$('[data-sh]', body).forEach(b => b.onclick = () => { const x = L.find(i => i.code === b.dataset.sh); shareInvite(x.code, x); });
@@ -633,7 +633,7 @@ const Team = (() => {
         $('[data-a=planchange]', body).onclick = () => { const body2 = encodeURIComponent(`Bonjour, je souhaite changer la formule de « ${S.company.name} » (actuellement ${myPlan().l}).`); openUrl(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Changement de formule SiteTeam')}&body=${body2}`); };
       }
       if (tab === 'me') {
-        const R = roleOf(S.me.role), mine = await myShares();
+        const R = tmRoleOf(S.me.role), mine = await myShares();
         body.innerHTML = `<div class="tm-box tm-mecard">${av(S.me)}<div><b>${esc(S.me.name || '')}</b><small>${esc(S.user.email || '')}</small><small>${esc(R.l)} · ${esc(serviceOf(S.me.service).l)}</small></div></div>
           <div class="tm-box"><b>Mes droits</b>${permTable(S.me.perms)}</div>
           <div class="tm-box"><b>📨 Accès externe reçu</b><p>Un client, un BET ou une autre entreprise vous a envoyé un code pour accéder à un seul de leurs projets ? Entrez-le ici — cela ne touche pas à « ${esc(S.company.name)} ».</p>
@@ -659,17 +659,17 @@ const Team = (() => {
     await refreshMembers(); draw();
   }
   const permTable = (P = {}) => `<div class="tm-perms">${MODS.filter(([m]) => m !== 'files').map(([m, l]) => `<div><span>${l}</span><b class="lv${P[m] || 0}">${LEVELS[P[m] || 0]}</b></div>`).join('')}</div>`;
-  function showMember(m) { const R = roleOf(m.role); sheet(`<div class="tm-box tm-mecard"><div><b>${esc(m.name || '')}</b><small>${esc(m.email || '')}</small><small>${esc(R.l)} · ${esc(serviceOf(m.service).l)}${m.zone ? ' · ' + esc(m.zone) : ''}</small></div></div>${permTable(m.perms)}`, { title: m.name || 'Membre' }); }
+  function showMember(m) { const R = tmRoleOf(m.role); sheet(`<div class="tm-box tm-mecard"><div><b>${esc(m.name || '')}</b><small>${esc(m.email || '')}</small><small>${esc(R.l)} · ${esc(serviceOf(m.service).l)}${m.zone ? ' · ' + esc(m.zone) : ''}</small></div></div>${permTable(m.perms)}`, { title: m.name || 'Membre' }); }
   function copyText(t) { navigator.clipboard.writeText(t).then(() => toast('Copié ✓'), () => alertBox(t)); }
 
   // formulaire commun : rôle, responsable, projets, zone, droits
   function memberForm(title, o, projects, okLabel) {
     return new Promise((resolve) => {
-      const st = { role: o.role || 'conducteur', managerUid: o.managerUid || '', allProjects: o.allProjects !== false && !(o.projects || []).length, projects: [...(o.projects || [])], zone: o.zone || '', name: o.name || '', admin: !!o.admin, perms: { ...(o.perms || roleOf(o.role || 'conducteur').perms) }, custom: false };
+      const st = { role: o.role || 'conducteur', managerUid: o.managerUid || '', allProjects: o.allProjects !== false && !(o.projects || []).length, projects: [...(o.projects || [])], zone: o.zone || '', name: o.name || '', admin: !!o.admin, perms: { ...(o.perms || tmRoleOf(o.role || 'conducteur').perms) }, custom: false };
       const s = sheet(`<div class="form tm-form">
         ${o.withName ? '<label>Nom (optionnel)<input data-f="name" placeholder="Ex : Youssef (chef de chantier zone 11)"></label>' : ''}
-        <label>Poste<select data-f="role">${SERVICES.map(sv => `<optgroup label="${esc(sv.l)}">${ROLES.filter(r => r.s === sv.k).map(r => `<option value="${r.k}">${esc(r.l)}</option>`).join('')}</optgroup>`).join('')}</select></label>
-        <label>Responsable direct<select data-f="managerUid"><option value="">— aucun —</option>${S.members.filter(m => m.uid !== o.uid).map(m => `<option value="${m.uid}">${esc(m.name || m.email)} · ${esc(roleOf(m.role).l)}</option>`).join('')}</select></label>
+        <label>Poste<select data-f="role">${TM_SERVICES.map(sv => `<optgroup label="${esc(sv.l)}">${TM_ROLES.filter(r => r.s === sv.k).map(r => `<option value="${r.k}">${esc(r.l)}</option>`).join('')}</optgroup>`).join('')}</select></label>
+        <label>Responsable direct<select data-f="managerUid"><option value="">— aucun —</option>${S.members.filter(m => m.uid !== o.uid).map(m => `<option value="${m.uid}">${esc(m.name || m.email)} · ${esc(tmRoleOf(m.role).l)}</option>`).join('')}</select></label>
         <label>Zone / lot / niveau (périmètre)<input data-f="zone" placeholder="Ex : Zone 11, Lot gros œuvre…"></label>
         <div class="fld">Projets</div><label class="tm-ck"><input type="checkbox" data-all> Tous les projets (actuels et futurs)</label>
         <div class="tm-projs">${projects.map(p => `<label class="tm-ck"><input type="checkbox" data-p="${p.id}"> ${esc(p.name)}</label>`).join('') || '<small class="muted">Aucun projet pour le moment</small>'}</div>
@@ -687,7 +687,7 @@ const Team = (() => {
       $$('[data-p]', E).forEach(c => c.onchange = () => { st.projects = $$('[data-p]', E).filter(x => x.checked).map(x => x.dataset.p); });
       const pedit = () => { const pe = $('.tm-pedit', E); pe.innerHTML = MODS.map(([m, l]) => `<label class="tm-pl"><span>${l}</span><select data-pm="${m}">${LEVELS.map((x, i) => `<option value="${i}" ${+st.perms[m] === i ? 'selected' : ''}>${x}</option>`).join('')}</select></label>`).join('');
         $$('[data-pm]', pe).forEach(sel => sel.onchange = () => { st.perms[sel.dataset.pm] = +sel.value; st.custom = true; }); };
-      f('role').onchange = () => { st.role = f('role').value; st.perms = { ...roleOf(st.role).perms }; st.admin = roleOf(st.role).admin; $('[data-admin]', E).checked = st.admin; pedit(); };
+      f('role').onchange = () => { st.role = f('role').value; st.perms = { ...tmRoleOf(st.role).perms }; st.admin = tmRoleOf(st.role).admin; $('[data-admin]', E).checked = st.admin; pedit(); };
       $('[data-a=perms]', E).onclick = () => { const pe = $('.tm-pedit', E); pe.hidden = !pe.hidden; pedit(); };
       $('[data-a=c]', E).onclick = () => s.close();
       $('[data-a=ok]', E).onclick = () => {
@@ -713,7 +713,7 @@ const Team = (() => {
     if (!o) return false;
     const ref = fs.collection('companies').doc(S.cid).collection('members').doc(m.uid);
     if (m.uid === S.user.uid && !o.admin && !S.members.some(x => x.uid !== m.uid && x.admin)) { alertBox('Il faut au moins un administrateur.'); return false; }
-    const R = roleOf(o.role);
+    const R = tmRoleOf(o.role);
     try {
       await withTimeout(ref.update({ role: R.k, service: R.s, managerUid: o.managerUid, zone: o.zone, allProjects: o.allProjects, projects: o.projects, admin: o.admin, perms: o.perms }));
       toast('Enregistré ✓');
