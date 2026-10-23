@@ -38,11 +38,12 @@ Modifications appliquées au projet Android généré (dans cet ordre) :
 
 | Outil | Version utilisée par le build officiel |
 |---|---|
-| Node.js | 20 (`actions/setup-node`, `node-version: 20`) |
-| npm | celle livrée avec Node 20 |
-| Java (JDK) | 17, distribution Temurin |
-| Capacitor | 6.x (`@capacitor/core`, `@capacitor/android`, `@capacitor/cli` ^6.1.2 — version exacte dans `package-lock.json`) |
-| Android SDK / Gradle / AGP | ceux du modèle Capacitor 6 : voir `android/variables.gradle` et `android/gradle/wrapper/gradle-wrapper.properties` dans le ZIP |
+| Node.js | 20 (constaté : 20.20.2) |
+| npm | 10.8.2 |
+| Java (JDK) | 17, distribution Temurin (constaté : 17.0.20.1) |
+| Capacitor | 6.2.2 (`core`, `android`, `cli`) — plugins : app 6.0.3, filesystem 6.0.4, share 6.0.4, local-notifications 6.1.3, community/file-opener 6.0.1, assets 3.0.5 |
+| Android SDK | minSdk 22 · compileSdk 34 · targetSdk 34 (`android/variables.gradle`) |
+| Gradle | 8.2.1 (wrapper, `android/gradle/wrapper/gradle-wrapper.properties`) |
 
 Les valeurs exactes constatées lors de l'export (`minSdk`, `compileSdk`, `targetSdk`, Gradle, versions des
 plugins) sont dans **`BUILD-INFO.txt`**, généré par le même build que le ZIP.
@@ -168,7 +169,7 @@ Google Play refuse les builds signés avec une clé debug ou marqués *debuggabl
 2. Activer **Play App Signing** dans la Play Console.
 3. Ajouter un `signingConfigs.release` lu depuis des **secrets GitHub Actions** et construire avec
    `./gradlew bundleRelease`.
-4. Vérifier le `targetSdk` exigé par Google Play au moment de la publication (valeur actuelle dans `BUILD-INFO.txt`).
+4. **Monter le `targetSdk`** : le build actuel (Capacitor 6) cible **API 34** ; Google Play exige **API 36 (Android 16)** pour les nouvelles apps et mises à jour à partir du 31 août 2026 (prolongation possible jusqu'au 1er novembre 2026 — source : support.google.com/googleplay/android-developer/answer/11926878). Cela suppose de migrer Capacitor vers une version qui cible l'API 36 et de retester toute l'app.
 5. Préparer : politique de confidentialité (URL), formulaire « Sécurité des données », et une
    **suppression de compte** depuis l'app et par lien web (obligatoire pour une app avec création de compte —
    **absente aujourd'hui**).

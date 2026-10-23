@@ -74,6 +74,8 @@ jobs:
           ./gradlew assembleDebug bundleDebug --no-daemon
           cp app/build/outputs/apk/debug/app-debug.apk ../SiteTeam-1.0.$VC.apk
           cp app/build/outputs/bundle/debug/app-debug.aab ../SiteTeam-1.0.$VC-debug-signed.aab
+          # Gradle ne signe pas le bundle debug : signature explicite avec la même clé fixe
+          cd .. && jarsigner -keystore keystore/debug.keystore -storepass "$ST_KS_PASS" -keypass "$ST_KEY_PASS" SiteTeam-1.0.$VC-debug-signed.aab "$ST_KEY_ALIAS"
 
       - name: Verify signatures + versions (écrit build-info.txt)
         run: |
