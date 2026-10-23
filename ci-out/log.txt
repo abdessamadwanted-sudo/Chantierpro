@@ -94,3 +94,12 @@ D after delete: login screen 1
 A members after D delete ["Client MO","Abdessamad Patron","Youssef Conducteur"]
 D relogin Compte introuvable
 errors ["D console: Failed to load resource: the server responded with a status of 400 (Bad Request)"]
+FAIL page.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator('[data-m=up]')
+  -   locator resolved to <button class="" data-m="up">Créer un compte</button>
+  - attempting click action
+  -   waiting for element to be visible, enabled and stable
+  -   element is visible, enabled and stable
+
+ERRS ["A pageerror: Identifier 'ROLES' has already been declared","A pageerror: Identifier 'SERVICES' has already been declared"]
