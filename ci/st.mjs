@@ -11,7 +11,7 @@ async function newUser(tag) {
   pg.on('pageerror', e => errs.push(tag + ' pageerror: ' + e.message));
   pg.on('console', m => { if (m.type() === 'error' && !/404|favicon/.test(m.text())) errs.push(tag + ' console: ' + m.text().slice(0, 300)); });
   pg.on('dialog', d => d.accept());
-  await pg.addInitScript(() => localStorage.setItem('askedName', '1'));
+  await pg.addInitScript(() => { localStorage.setItem('askedName', '1'); localStorage.setItem('splash.sched', JSON.stringify({ mode: 'off' })); });
   await pg.goto(URL); await pg.waitForSelector('.tm-login', { timeout: 20000 });
   return { pg, errs, ctx };
 }
