@@ -96,6 +96,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: siteteam-v1.0.${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
           name: SiteTeam v1.0.${{ github.run_number }}
           body: "Téléchargez **SiteTeam.apk** ci-dessous et installez-le sur Android."
           files: SiteTeam.apk

@@ -33,8 +33,30 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used', 'usedBy', 'usedByName', 'usedAt'])
             && request.resource.data.usedBy == request.auth.uid)
         || (resource.data.usedBy == request.auth.uid && resource.data.ops.comment == true
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['responses'])));
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['responses'])
+            && request.resource.data.responses.size() == resource.data.responses.size() + 1
+            && request.resource.data.responses[0:resource.data.responses.size()] == resource.data.responses));
       allow delete: if signed() && isAdmin(resource.data.cid);
+    }
+
+    // ---- Application Chantier (ma.chantier.app) : licences « CH- » et suivi, dans le MÊME projet Firebase.
+    // Ces règles reproduisent exactement ce que fait www/js/licence.js (branche main) : les téléphones activés
+    // par code n'ont pas de compte Firebase (le code sert de secret) ; seul le propriétaire crée et gère les licences.
+    function licOwner() { return signed() && request.auth.token.get('email', '').lower() == 'abdessamad.daga94@gmail.com'; }
+    function licOf(code) { return get(/databases/$(db)/documents/licences/$(code)).data; }
+    match /licences/{code} {
+      allow get: if true;
+      allow list: if signed() && resource.data.ownerUid == request.auth.uid;
+      allow create: if licOwner() && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if (signed() && resource.data.ownerUid == request.auth.uid)
+        || (resource.data.status == 'active'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['device', 'accepted', 'lastSeen', 'version'])
+            && (resource.data.get('device', null) == null || resource.data.device.id == request.resource.data.device.id));
+      allow delete: if signed() && resource.data.ownerUid == request.auth.uid;
+      match /suivi/{id} {
+        allow read: if signed() && licOf(code).ownerUid == request.auth.uid;
+        allow write: if (signed() && licOf(code).ownerUid == request.auth.uid) || licOf(code).status == 'active';
+      }
     }
 
     match /companies/{cid} {
@@ -54,7 +76,8 @@ service cloud.firestore {
               && request.resource.data.admin == inv(request.resource.data.invite).admin
               && request.resource.data.allProjects == inv(request.resource.data.invite).allProjects
               && request.resource.data.projects == inv(request.resource.data.invite).projects))));
-        allow update, delete: if isAdmin(cid);
+        allow update: if isAdmin(cid);
+        allow delete: if isAdmin(cid) || (signed() && uid == request.auth.uid);
       }
       match /private/{doc} {
         allow read: if isMem(cid);

@@ -117,8 +117,30 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used', 'usedBy', 'usedByName', 'usedAt'])
             && request.resource.data.usedBy == request.auth.uid)
         || (resource.data.usedBy == request.auth.uid && resource.data.ops.comment == true
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['responses'])));
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['responses'])
+            && request.resource.data.responses.size() == resource.data.responses.size() + 1
+            && request.resource.data.responses[0:resource.data.responses.size()] == resource.data.responses));
       allow delete: if signed() && isAdmin(resource.data.cid);
+    }
+
+    // ---- Application Chantier (ma.chantier.app) : licences « CH- » et suivi, dans le MÊME projet Firebase.
+    // Ces règles reproduisent exactement ce que fait www/js/licence.js (branche main) : les téléphones activés
+    // par code n'ont pas de compte Firebase (le code sert de secret) ; seul le propriétaire crée et gère les licences.
+    function licOwner() { return signed() && request.auth.token.get('email', '').lower() == 'abdessamad.daga94@gmail.com'; }
+    function licOf(code) { return get(/databases/$(db)/documents/licences/$(code)).data; }
+    match /licences/{code} {
+      allow get: if true;
+      allow list: if signed() && resource.data.ownerUid == request.auth.uid;
+      allow create: if licOwner() && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if (signed() && resource.data.ownerUid == request.auth.uid)
+        || (resource.data.status == 'active'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['device', 'accepted', 'lastSeen', 'version'])
+            && (resource.data.get('device', null) == null || resource.data.device.id == request.resource.data.device.id));
+      allow delete: if signed() && resource.data.ownerUid == request.auth.uid;
+      match /suivi/{id} {
+        allow read: if signed() && licOf(code).ownerUid == request.auth.uid;
+        allow write: if (signed() && licOf(code).ownerUid == request.auth.uid) || licOf(code).status == 'active';
+      }
     }
 
     match /companies/{cid} {
@@ -138,7 +160,8 @@ service cloud.firestore {
               && request.resource.data.admin == inv(request.resource.data.invite).admin
               && request.resource.data.allProjects == inv(request.resource.data.invite).allProjects
               && request.resource.data.projects == inv(request.resource.data.invite).projects))));
-        allow update, delete: if isAdmin(cid);
+        allow update: if isAdmin(cid);
+        allow delete: if isAdmin(cid) || (signed() && uid == request.auth.uid);
       }
       match /private/{doc} {
         allow read: if isMem(cid);
@@ -391,8 +414,9 @@ const Team = (() => {
         else { try { out.push({ ...JSON.parse(x.data), _store: x.store }); } catch (e) {} } });
       since[key] = mx;
     }
-    LS.set('pullAt', since);
-    return { records: out, now: Date.now() };
+    // le repère n'est enregistré qu'après l'écriture réussie des données dans le téléphone (commitPull),
+    // sinon des enregistrements reçus mais non sauvegardés seraient sautés à la synchro suivante
+    return { records: out, now: Date.now(), commit: () => LS.set('pullAt', since) };
   }
   function resetPull() { LS.del('pullAt'); }
 
@@ -609,8 +633,10 @@ const Team = (() => {
             <div class="btnrow" style="padding:0"><button class="btn ghost small" data-a="claim">Entrer un code</button></div>
             ${mine.length ? `<div class="list" style="margin-top:4px">${mine.map(x => `<div class="tm-inv" data-shcode="${esc(x.code)}"><span class="grow">${esc(x.projectName || '?')}<small>${esc(x.companyName || '')} · ${esc(shareEntityLabel(x.entity))}</small></span></div>`).join('')}</div>` : ''}</div>
           <button class="btn ghost" data-a="name">${icon('edit')} Modifier mon nom</button>
-          <button class="btn danger" data-a="out">Se déconnecter</button>`;
+          <button class="btn danger" data-a="out">Se déconnecter</button>
+          <button class="linkbtn tm-delacc" data-a="delacc">Supprimer mon compte…</button>`;
         $('[data-a=out]', body).onclick = logout;
+        $('[data-a=delacc]', body).onclick = deleteAccount;
         $('[data-a=claim]', body).onclick = async () => { await claimShare(); draw(); };
         $$('[data-shcode]', body).forEach(r => r.onclick = () => { const x = mine.find(i => i.code === r.dataset.shcode); if (x) viewSharedAccess(x.code, x); });
         $('[data-a=name]', body).onclick = async () => { const r = await formSheet('Mon nom', [{ name: 'n', label: 'Nom et prénom', value: S.me.name || '' }]); if (r && r.n) { try { await auth.currentUser.updateProfile({ displayName: r.n }); if (isAdmin()) await fs.collection('companies').doc(S.cid).collection('members').doc(S.user.uid).update({ name: r.n }); S.me.name = r.n; LS.set('me', S.me); toast('Enregistré ✓'); draw(); } catch (e) { alertBox(errMsg(e)); } } };
@@ -733,6 +759,30 @@ const Team = (() => {
       ld2.close(); toast(`${n} élément(s) importé(s)${nf ? ` · ${nf} fichier(s)` : ''} ✓`);
       Sync.schedule(500); renderHome();
     } catch (e) { ld2.close(); alertBox('Import interrompu : ' + (e.message || e)); }
+  }
+
+  // ---------- suppression du compte (exigée par Google Play pour une app avec création de compte) ----------
+  // Supprime : l'accès (compte Firebase), le profil users/{uid}, l'appartenance à l'entreprise (nom, e-mail, droits).
+  // Conserve : les données de chantier déjà partagées avec l'entreprise (elles appartiennent à l'entreprise).
+  async function deleteAccount() {
+    const others = S.members.filter(m => m.uid !== S.user.uid), otherAdmins = others.filter(m => m.admin);
+    if (isAdmin() && others.length && !otherAdmins.length) return alertBox('Vous êtes le seul administrateur de « ' + S.company.name + ' ». Nommez d\'abord un autre administrateur (Membres › poste et droits), puis supprimez votre compte.');
+    const ok = await confirmBox('Supprimer définitivement votre compte SiteTeam ?\n\n• Vous ne pourrez plus vous connecter avec ' + (S.user.email || 'cet e-mail') + '.\n• Votre profil et votre place dans « ' + S.company.name + ' » sont effacés.\n• Les réserves, PV, photos… déjà partagés restent à l\'entreprise.\n\nPensez à sauvegarder vos projets (Paramètres › Sauvegarder ce projet) avant.', 'Supprimer mon compte');
+    if (!ok) return;
+    const r = await formSheet('Confirmez avec votre mot de passe', [{ name: 'pw', label: 'Mot de passe', type: 'password' }], { okLabel: 'Supprimer définitivement' });
+    if (!r || !r.pw) return;
+    const ld = loading('Suppression du compte…');
+    try {
+      const u = auth.currentUser;
+      await withTimeout(u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email, r.pw)));
+      if (!others.length) { try { await fs.collection('companies').doc(S.cid).update({ deleted: true, deletedAt: ts() }); } catch (e) { console.warn('company', e); } }
+      await withTimeout(fs.collection('companies').doc(S.cid).collection('members').doc(u.uid).delete());
+      await withTimeout(fs.collection('users').doc(u.uid).delete());
+      S.ready = false;   // évite le rechargement automatique à la déconnexion, pour afficher la confirmation
+      await withTimeout(u.delete());
+      ['me', 'cid', 'company', 'members', 'profile', 'pullAt'].forEach(LS.del);
+      ld.close(); await alertBox('Votre compte a été supprimé.'); location.reload();
+    } catch (e) { ld.close(); alertBox('Suppression impossible : ' + errMsg(e)); }
   }
 
   async function logout() {

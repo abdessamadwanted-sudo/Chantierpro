@@ -14,13 +14,15 @@ jobs:
         with: { node-version: 20 }
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
-      - run: npm i -g firebase-tools@13 && npm i --no-save playwright@1.47.2 && npx playwright install --with-deps chromium
+      - run: npm i -g firebase-tools@13 && npm i --no-save playwright@1.47.2 @firebase/rules-unit-testing@3 firebase@10 && npx playwright install --with-deps chromium
       - run: node ci/rules.mjs && cat ci/firestore.rules | head -5
       - run: |
           cd ci && (firebase emulators:start --only auth,firestore --project siteteam > ../emu.log 2>&1 &) && cd ..
           for i in $(seq 1 60); do curl -s 127.0.0.1:8080 >/dev/null && curl -s 127.0.0.1:9099 >/dev/null && break; sleep 2; done
           (cd www && python3 -m http.server 8765 > /dev/null 2>&1 &)
           sleep 2
+          node ci/rules-test.mjs || true
+          node ci/db-test.mjs || true
           node ci/st.mjs || true
           tail -30 emu.log > ci-out/emu.txt || true
       - run: |

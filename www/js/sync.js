@@ -191,16 +191,24 @@ const Sync = (() => {
       // 3) recevoir les changements des autres appareils
       setStatus('sync', 'Réception…');
       const pull = teamOn() ? await Team.pull() : await call('pull', { since: LS.get('pullAt', 0) });
+      let pullFails = 0;
       for (const r of pull.records || []) {
         const store = r._store; if (!DATA.includes(store)) continue;
         const { _store, _srv, _deleted, ...rec } = r;
-        const local = await _get(store, rec.id);   // sans téléchargement automatique
-        if (_deleted) { if (local && (local.updatedAt || 0) <= (r.updatedAt || 0)) { await DB.delRaw(store, rec.id); BlobURL.drop(rec.id); pulledCount++; } continue; }
-        if (local && (local.updatedAt || 0) >= (rec.updatedAt || 0)) continue;
-        if (store === 'files' && local && local.blob && local.driveId === rec.driveId) rec.blob = local.blob;
-        await DB.putRaw(store, rec); pulledCount++;
+        try {
+          const local = await _get(store, rec.id);   // sans téléchargement automatique
+          if (_deleted) { if (local && (local.updatedAt || 0) <= (r.updatedAt || 0)) { await DB.delRaw(store, rec.id); BlobURL.drop(rec.id); pulledCount++; } continue; }
+          if (local && (local.updatedAt || 0) >= (rec.updatedAt || 0)) continue;
+          if (store === 'files' && local && local.blob && local.driveId === rec.driveId) rec.blob = local.blob;
+          await DB.putRaw(store, rec); pulledCount++;
+        } catch (e) {
+          // un enregistrement non sauvegardé ne bloque pas les autres ; le repère de réception n'avance pas → il sera repris
+          pullFails++; console.warn('pull', store, rec.id, e);
+          if (e && e.name === 'QuotaExceededError') { fails.push('Mémoire du téléphone pleine : données reçues non enregistrées'); break; }
+        }
       }
-      LS.set('pullAt', pull.now);
+      if (pullFails) fails.push(`${pullFails} élément(s) reçu(s) non enregistré(s) — nouvel essai à la prochaine synchro`);
+      else if (pull.commit) pull.commit(); else LS.set('pullAt', pull.now);
       // 4) télécharger les fichiers manquants (plans d'abord)
       const missing = !hasDrive() ? [] : (await DB.all('files')).filter(f => f.driveId && !f.blob && wantLocal(f)).sort((a, b) => (b.role === 'plan') - (a.role === 'plan'));
       let j = 0;
@@ -215,7 +223,7 @@ const Sync = (() => {
       if (hasDrive() && (force || Date.now() - LS.get('docsAt', 0) > 600000)) { await syncDocs(); LS.set('docsAt', Date.now()); }
       st.last = Date.now(); LS.set('last', st.last);
       LS.set('fails', fails.slice(0, 20));
-      if (fails.length) setStatus('error', `${fails.length} fichier(s) non envoyé(s) — touchez pour voir`); else setStatus('ok');
+      if (fails.length) setStatus('error', `${fails.length} problème(s) de synchro — touchez pour voir`); else setStatus('ok');
       if (pulledCount) {
         if (!quiet) toast(`☁ ${pulledCount} mise(s) à jour reçue(s)`);
         // rafraîchir l'écran si aucune fenêtre n'est ouverte
