@@ -20,5 +20,12 @@ OK   autre compte : REFUS de modifier une licence
 OK   autre compte : REFUS de lire le suivi
 OK   sans compte : REFUS de lire une entreprise SiteTeam
 OK   propriétaire Chantier : REFUS de lire une entreprise SiteTeam dont il n'est pas membre
+OK   membre : REFUS de supprimer un autre membre
+OK   membre : supprimer sa propre appartenance (suppression de compte)
+OK   partage : ajouter une réponse
+OK   partage : REFUS d'effacer l'historique des réponses
+OK   partage : REFUS de modifier une réponse existante
+OK   partage : REFUS de répondre si « répondre » n'est pas autorisé
+OK   partage : REFUS de changer le périmètre
 
-TOUT OK — 22 vérifications
+TOUT OK — 29 vérifications
