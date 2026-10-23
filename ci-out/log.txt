@@ -28,3 +28,28 @@ D items ["impl:demandee","cmd:demandee","rdt:","pt:"]
 D topo write cmd denied OK: permission-denied
 A items ["impl:implantee","cmd:demandee","rdt:","pt:","mat:","stock:"]
 errors []
+A sync state <span style="color:#60a5fa">⟳ Réception…</span>
+code conducteur K5KR89KT
+code MO 95WJPEBK
+B projects ["Grand stade Benslimane"]
+B tasks ["Enrobage insuffisant voile V12"]
+B receptions 1
+A sees task ["Enrobage insuffisant voile V12 (repris) / progress"]
+B self-admin denied OK: permission-denied
+B invite create denied OK: permission-denied
+C fab 0 projects ["Grand stade Benslimane"]
+C write task denied OK: permission-denied
+D items ["impl:demandee","cmd:demandee","rdt:","pt:"]
+D topo write cmd denied OK: permission-denied
+A items ["impl:implantee","cmd:demandee","rdt:","pt:","mat:","stock:"]
+FAIL page.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator('[data-a=delacc]')
+  -   locator resolved to <button data-a="delacc" class="linkbtn tm-delacc">Supprimer mon compte…</button>
+  - attempting click action
+  -   waiting for element to be visible, enabled and stable
+  -   element 
+ERRS []
+ERRS []
+ERRS []
+ERRS []

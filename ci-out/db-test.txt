@@ -1,0 +1,9 @@
+OK   écriture / lecture / suppression
+OK   connexion fermée une fois → réouverture automatique
+OK   connexion fermée deux fois de suite → 3e essai réussi
+OK   fermeture permanente → erreur claire après 3 essais (pas de boucle infinie)
+OK   mémoire pleine → pas de nouvel essai
+OK   autre onglet/version qui supprime la base → la connexion se libère et se rouvre
+OK   fichier (Blob) enregistré puis relu
+
+TOUT OK — 7 vérifications
