@@ -60,7 +60,7 @@ const Backup = (() => {
       const { uri } = await fs.getUri({ path: fname, directory: 'CACHE' });
       const share = SHARE();
       if (share) {
-        try { await share.share({ title: `Sauvegarde ${project.name}`, text: `Sauvegarde du projet ${project.name} (application Chantier)`, files: [uri], dialogTitle: 'Envoyer / enregistrer la sauvegarde' }); }
+        try { await share.share({ title: `Sauvegarde ${project.name}`, text: `Sauvegarde du projet ${project.name} (application SiteTeam)`, files: [uri], dialogTitle: 'Envoyer / enregistrer la sauvegarde' }); }
         catch (e) { if (!/cancel/i.test(String(e && e.message))) throw e; }
       } else toast('Fichier créé : ' + fname);
       return fname;
@@ -93,7 +93,7 @@ const Backup = (() => {
   // archive .zip (v2) : lignes JSON + fichiers à part
   async function* zipLines(u8, ctx) {
     const d = fflate.unzipSync(u8, { filter: (f) => f.name === 'donnees.jsonl' })['donnees.jsonl'];
-    if (!d) throw new Error('Ce fichier n\'est pas une sauvegarde Chantier');
+    if (!d) throw new Error('Ce fichier n\'est pas une sauvegarde SiteTeam / Chantier');
     ctx.blob = (n, type) => { const r = fflate.unzipSync(u8, { filter: (f) => f.name === n })[n]; return r ? new Blob([r], { type }) : null; };
     for (const l of new TextDecoder().decode(d).split('\n')) if (l.trim()) yield l;
   }
@@ -106,7 +106,7 @@ const Backup = (() => {
     for await (const line of src) {
       const obj = JSON.parse(line);
       if (!header) {
-        if (obj.app !== 'chantier') throw new Error('Ce fichier n\'est pas une sauvegarde Chantier');
+        if (obj.app !== 'chantier') throw new Error('Ce fichier n\'est pas une sauvegarde SiteTeam / Chantier');
         header = obj; continue;
       }
       if (obj.s === 'projects') {

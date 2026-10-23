@@ -100,7 +100,7 @@ const AppLock = {
 const Bio = {
   P: () => window.Capacitor?.Plugins?.NativeBiometric,
   async available() { try { const P = Bio.P(); if (!P) return false; const r = await P.isAvailable(); return !!(r && r.isAvailable); } catch (e) { return false; } },
-  async verify() { try { await Bio.P().verifyIdentity({ reason: 'Déverrouiller Chantier', title: 'Chantier', subtitle: 'Empreinte ou visage', description: '' }); return true; } catch (e) { return false; } },
+  async verify() { try { await Bio.P().verifyIdentity({ reason: 'Déverrouiller SiteTeam', title: 'SiteTeam', subtitle: 'Empreinte ou visage', description: '' }); return true; } catch (e) { return false; } },
 };
 let _lockHiddenAt = 0;
 function lockScreen() {
@@ -111,7 +111,7 @@ function lockScreen() {
     const name = (() => { try { return localStorage.getItem('userName') || ''; } catch (e) { return ''; } })();
     let pin = '', tries = 0;
     const draw = (msg = '') => {
-      el.innerHTML = `<div class="lk-in"><div class="lk-logo">${icon('hard')}</div><b>${esc(name ? 'Bonjour ' + name : 'Chantier')}</b><span>${esc(msg || 'Entrez votre code PIN')}</span>
+      el.innerHTML = `<div class="lk-in"><div class="lk-logo">${icon('hard')}</div><b>${esc(name ? 'Bonjour ' + name : 'SiteTeam')}</b><span>${esc(msg || 'Entrez votre code PIN')}</span>
         <div class="lk-dots">${Array.from({ length: L.len || 4 }, (_, i) => `<i class="${i < pin.length ? 'on' : ''}"></i>`).join('')}</div>
         <div class="lk-pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9, '', 0, '⌫'].map(k => `<button data-k="${k}" ${k === '' ? 'disabled' : ''}>${k}</button>`).join('')}</div>
         ${L.bio ? '<button class="lk-bio" data-a="bio">👆 Empreinte / visage</button>' : ''}<button class="linkbtn" data-a="forgot">Code oublié ?</button></div>`;
@@ -165,7 +165,7 @@ async function setPinDialog() {
 }
 async function powerMenu() {
   const L = AppLock.get();
-  const v = await menu('Chantier', [
+  const v = await menu('SiteTeam', [
     ...(L ? [{ label: '🔒 Verrouiller maintenant', value: 'lock' }] : []),
     { label: L ? 'Code PIN (changer / retirer)' : 'Protéger par un code PIN', icon: 'settings', value: 'pin' },
     { label: 'Fermer l\'application', icon: 'power', value: 'quit' }]);

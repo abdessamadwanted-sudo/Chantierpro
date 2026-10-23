@@ -35,7 +35,7 @@ function editNote(n, projectId, opts = {}) {
           rec = new MediaRecorder(stream); rec.ondataavailable = (e) => chunks.push(e.data);
           rec.onstop = async () => { stream.getTracks().forEach(t => t.stop()); const blob = new Blob(chunks, { type: rec.mimeType || 'audio/webm' }); const f = await DB.put('files', { projectId, blob, mime: blob.type, name: `note vocale ${fmtDateTime(Date.now())}.webm`, role: 'doc' }); x.audio = f.id; draw(); };
           rec.start(); draw(); toast('🎤 Enregistrement… touchez « Arrêter »');
-        } catch (e) { alertBox('Micro indisponible : autorisez le micro pour l\'application (Paramètres du téléphone › Applications › Chantier › Autorisations).'); }
+        } catch (e) { alertBox('Micro indisponible : autorisez le micro pour l\'application (Paramètres du téléphone › Applications › SiteTeam › Autorisations).'); }
       };
       $('[data-a=c]', E).onclick = () => s.close();
       $('[data-a=ok]', E).onclick = () => { keep(); if (!x.text.trim() && !x.photos.length && !x.check.length && !x.audio) return toast('Note vide'); x.editedAt = Date.now(); s.onClose = null; s.close(); resolve(x); };
