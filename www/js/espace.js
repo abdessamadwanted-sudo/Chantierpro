@@ -27,7 +27,7 @@ const ES_KINDS = {
       ['depart', 'Départ centrale', 'time'], ['arrivee', 'Arrivée chantier', 'time'], ['fin', 'Fin déchargement', 'time'], ['slump', 'Slump (cm)', 'num'], ['eprouv', 'Éprouvettes', 'num'], ['note', 'Remarque', 'textarea']],
     st: [['route', 'En route', '#3b82f6'], ['decharge', 'Déchargée', '#22c55e'], ['refusee', 'Refusée', '#ef4444']],
     t: r => `BL ${r.num || ''} · ${r.vol || '?'} m³`, s: r => [r.toupie, r.depart && 'départ ' + r.depart, r.slump && 'slump ' + r.slump].filter(Boolean).join(' · ') },
-  mat: { mod: 'materiel', l: 'Matériel (parc et affectations)', one: 'Matériel', ic: 'box',
+  mat: { mod: 'materiel', l: 'Matériel (parc et affectations)', one: 'Matériel', ic: 'cube',
     f: [['nom', 'Désignation', 'text', 'Ex : Banche 2,70 m / Étai 3 m / Grue GT…'], ['cat', 'Catégorie', 'select', MAT_CATS], ['qte', 'Quantité totale', 'num'], ['unite', 'Unité', 'text', 'u, m², ml…'], ['etat', 'État', 'select', ['Bon', 'À réparer', 'Hors service']], ['note', 'Remarque', 'textarea']],
     st: [], t: r => `${r.nom || 'Matériel'}`, s: r => { const a = matAlloc(r); return `${r.cat || ''} · ${r.qte || 0} ${r.unite || 'u'} · au parc ${a.parc}${a.out ? ` · affecté ${a.out}` : ''}`; } },
   stock: { mod: 'materiel', l: 'Stock consommables', one: 'Article', ic: 'layers',

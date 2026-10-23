@@ -1083,7 +1083,9 @@ async function renderTeam(root) {
     ${p.team.length ? `<div class="list">${p.team.map((m, i) => `
       <div class="row" data-i="${i}"><span class="tasknum" style="background:var(--accent)">${esc((m.name || '?')[0].toUpperCase())}</span>
         <div class="grow"><div class="title">${esc(m.name)}</div><div class="sub">${[m.role, m.phone].filter(Boolean).map(esc).join(' · ')}</div></div></div>`).join('')}</div>`
-    : `<div class="empty" style="padding:20px 24px">Ajoutez les personnes (chef de chantier, contrôleur…) pour les nommer responsables.</div>`}`;
+    : `<div class="empty" style="padding:20px 24px">Ajoutez les personnes (chef de chantier, contrôleur…) pour les nommer responsables.</div>`}
+    ${Team.ready() ? `<div class="section-label" style="display:flex;align-items:center">Intervenants externes<button class="btn small ghost" data-a="extshare" style="margin-left:auto">${icon('share')} Partager</button></div>
+    <div class="empty" style="padding:20px 24px">Donnez à un maître d'ouvrage, un BET, un sous-traitant… un accès limité à ce projet, sans l'ajouter à votre entreprise.</div>` : ''}`;
   const edit = async (m, i) => {
     const r = await formSheet(m ? 'Modifier' : 'Nouvel intervenant', [
       { name: 'name', label: 'Nom', value: m?.name }, { name: 'role', label: 'Fonction / entreprise', value: m?.role }, { name: 'phone', label: 'Téléphone', type: 'tel', value: m?.phone },
@@ -1103,6 +1105,7 @@ async function renderTeam(root) {
   });
   $('[data-a=addco]', root).onclick = async () => { await editCompany(p); renderTeam(root); };
   $('[data-a=addm]', root).onclick = () => edit(null);
+  const extsh = $('[data-a=extshare]', root); if (extsh) extsh.onclick = () => Team.openProjectShares(p);
   fab(root, async () => {
     const v = await menu('Ajouter', [{ label: 'Entreprise / lot', icon: 'hard', value: 'co' }, { label: 'Intervenant', icon: 'team', value: 'm' }]);
     if (v === 'co') { await editCompany(p); renderTeam(root); } if (v === 'm') edit(null);

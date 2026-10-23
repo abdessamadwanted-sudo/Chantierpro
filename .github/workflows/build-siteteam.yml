@@ -3,6 +3,11 @@ name: Build SiteTeam
 on:
   push:
     branches: [siteteam]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - '.env.example'
+      - '.github/workflows/export-source-snapshot.yml'
   workflow_dispatch:
 
 permissions:
@@ -56,17 +61,31 @@ jobs:
       - name: Sync web code
         run: npx cap sync android
 
-      - name: Use fixed signing key (updates keep your data)
-        run: |
-          mkdir -p ~/.android
-          cp keystore/debug.keystore ~/.android/debug.keystore
+      # Avant ce correctif, la copie vers ~/.android n'était pas prise en compte par Gradle : chaque build
+      # SiteTeam était signé par une clé debug aléatoire différente (mise à jour impossible sans désinstaller).
+      # La clé est maintenant déclarée directement dans Gradle, puis l'empreinte est vérifiée.
+      - name: Use fixed signing key (déclarée dans Gradle)
+        run: bash ci/signing.sh
 
       - name: Build SiteTeam
+        env:
+          # mots de passe PUBLICS par défaut de toute clé « debug » Android (pas des secrets) ;
+          # une future clé de publication Google Play devra passer par des secrets GitHub, jamais ici
+          ST_KS_PASS: android
+          ST_KEY_ALIAS: androiddebugkey
+          ST_KEY_PASS: android
         run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
           cp app/build/outputs/apk/debug/app-debug.apk ../SiteTeam.apk
+
+      - name: Verify signature (doit être la clé fixe E3:EC:F4:31…)
+        run: |
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          $BT/apksigner verify --print-certs SiteTeam.apk | tee certs.txt
+          grep -qi "e3ecf43100a66eb4e55ef18aa18236a4374f56d0e3651ef30b62d9d058bee024" certs.txt || (echo "WRONG SIGNING KEY" && exit 1)
+          grep -n -E "minSdkVersion|compileSdkVersion|targetSdkVersion" android/variables.gradle || true
 
       - uses: actions/upload-artifact@v4
         with:

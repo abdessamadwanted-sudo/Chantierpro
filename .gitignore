@@ -2,3 +2,15 @@ node_modules/
 android/
 www/lib/
 *.apk
+# fichiers locaux / secrets (jamais dans Git)
+.env
+.env.*
+!.env.example
+*.jks
+release*.keystore
+upload*.keystore
+# sorties de build et de test reconstruisibles
+*.aab
+ci-out/
+ci/firestore.rules
+.DS_Store
