@@ -22,6 +22,9 @@ Constatés en lisant le code et les builds (octobre 2026). « Non vérifié » =
 | 16 | Le repère de réception Firestore avançait même si l'enregistrement local échouait | team.js `pull`, sync.js | Données reçues perdues | **Corrigé** v1.0.11 |
 | 17 | Les tags `siteteam-v*` pointaient vers un commit de `main` | build-siteteam.yml | Traçabilité | **Corrigé** (`target_commitish`) |
 | 18 | Réserve sans priorité affichée « Pundefined » | app.js (liste des réserves) | Cosmétique | Non traité |
+| 19 | Outils repris de Chantier (v1.0.12) : beaucoup de données (avancement, finance, registres, rubriques…) sont dans la fiche projet ; Firestore limite un document à 1 Mo | sync Firestore (`projects`) | Un très gros projet pourrait ne plus se synchroniser | À surveiller — découpage prévu |
+| 20 | Rubriques Financier / TCE / avenants / sous-traitants : masquées selon le module « finance », mais leurs données sont dans la fiche projet (lisible par tout membre du projet côté serveur) | team.js, règles | Protection d'affichage seulement | À traiter avec les interfaces par service |
+| 21 | Mise à jour depuis l'app : nécessite que le dépôt GitHub reste public (téléchargement des releases) | modules.js | — | Connu |
 
 ## Plateformes réellement testées
 - **Chromium (Playwright), viewport téléphone 390×800**, contre émulateurs Firebase — dernier résultat enregistré
