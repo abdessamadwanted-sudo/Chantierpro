@@ -187,3 +187,41 @@ Call log:
   -   waiting for element to be visible, enabled and editable
   -   el
 ERRS []
+A pack/type ["business","entreprise",10,true]
+A projet [["Grand stade Benslimane","equip","Ministère"]]
+A sync state <span style="color:#22c55e">✓ Synchronisé</span> <span style="color:var(--muted)">· 23/10 23:06</span>
+code conducteur QGC2HCGQ
+code MO SSHHYW2X
+B projects ["Grand stade Benslimane"]
+B tasks ["Enrobage insuffisant voile V12"]
+B receptions 1
+A sees task ["Enrobage insuffisant voile V12 (repris) / progress"]
+B self-admin denied OK: permission-denied
+B invite create denied OK: permission-denied
+C fab 0 projects ["Grand stade Benslimane"]
+C write task denied OK: permission-denied
+D items ["impl:demandee","rdt:","cmd:demandee","pt:"]
+D topo write cmd denied OK: permission-denied
+A items ["impl:implantee","rdt:","cmd:demandee","pt:","mat:","stock:"]
+B poste {"service":"trav","poste":"conduct","at":"2026-10-23","st":"conducteur"} C poste {"service":"mo","poste":"mo","at":"2026-10-23","st":"mo"} D poste {"service":"etu","poste":"topo","at":"2026-10-23","st":"cheftopo"}
+B tableau de bord ["Tâches / réserves","PV non reçus","PV non livrés au BET"]
+C sections finance/reception [true,true,false,true]
+A aperçu basic [false,false,false,true,true,false]
+A aperçu tiroir {"lock":12,"items":["dashboard","plans","avancement","planning","tasks","reports","photos","models3d","maquette","settings"]}
+A sans aperçu [true,true]
+B peut créer un code false
+E packs proposés ["basic","pro"]
+E espace [true,"basic","Espace de Hamid Indep","techqualite",true,"tsq"]
+E outils basic [true,false,false]
+E limite projets 🔒 Le pack Basic est limité à 1 projet(s).
+Pour aller plus loin : Pro, Business, Enterprise.
+E limite résultat false
+F services proposés ["direction","metre","bim","doc","admin"]
+F interface BET ["bet","bet","bet",true,true,false,false,false]
+F postes proposés (services) ["Direction","Métré","Méthodes / Planning / BIM","Documentation","Administration & finance","Intervenants externes"]
+errors v1.0.14 []
+D delete message Votre compte a été supprimé.
+D after delete: login screen 1
+A members after D delete ["Client MO","Youssef Conducteur","Abdessamad Patron"]
+D relogin Compte introuvable
+errors ["D console: Failed to load resource: the server responded with a status of 400 (Bad Request)"]
