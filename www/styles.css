@@ -2397,3 +2397,16 @@ body:has(.pst-page) #plansFab, body:has(.rub-page) #plansFab, body:has(.scanpage
 .h2-top .logo { background: #f5b82e !important; color: #1b1e24; }
 .h2-top .brand .bt { display: inline !important; font-weight: 800; letter-spacing: 1px; }
 .h2-top [data-a=career], .h2-top [data-a=freeph] { display: none !important; }   /* emploi : hors SiteTeam · stockage : menu › Données */
+
+/* ---- SiteTeam : tableau de bord du poste + aperçu des interfaces ---- */
+.st-dash { margin-bottom: 4px; }
+.st-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 0 16px 6px; }
+.st-tile { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); background: color-mix(in srgb, var(--c) 14%, var(--card, #1e2430)); color: var(--text); min-height: 82px; }
+.st-tile .e { font-size: 20px; line-height: 1; }
+.st-tile b { font-size: 18px; }
+.st-tile small { font-size: 11px; line-height: 1.2; text-align: center; color: var(--muted); }
+.st-tile.al { border-color: #ef4444; box-shadow: 0 0 0 1px #ef444455 inset; }
+.st-ok, .st-load { grid-column: 1 / -1; padding: 10px 2px; color: var(--muted); font-size: 13.5px; }
+#stPreview { position: fixed; z-index: 9000; left: 8px; right: 8px; bottom: calc(10px + var(--safe-bottom, 0px)); display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 12px; background: #7c3aed; color: #fff; font-size: 13px; box-shadow: 0 6px 20px rgba(0,0,0,.35); }
+#stPreview span { flex: 1; }
+#stPreview button { background: #fff; color: #7c3aed; border: 0; border-radius: 8px; padding: 6px 10px; font-weight: 700; }

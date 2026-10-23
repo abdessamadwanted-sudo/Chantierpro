@@ -163,6 +163,7 @@ async function renderHome() {
         <div class="h2-date">${dateL.charAt(0).toUpperCase() + dateL.slice(1)}</div>
       </div>
       <div class="h2-body">
+        ${ST.dashHTML()}
         ${espaceHome()}
         ${fp ? focusHTML() : `<div class="h2-sec"><span>Mes chantiers</span><small>${projects.length}</small></div>
         ${projects.length ? projects.map(p => { const st = stats(p), [c1, c2] = hue(p.name), open = !!App.homeOpen[p.id];
@@ -192,6 +193,7 @@ async function renderHome() {
   photoReminder().then(r => { if (!r || App.project || !fpb.isConnected) return; fpb.classList.remove('off'); fpb.title = `${r.n} photos déjà dans Drive · libérer ${r.mb.toFixed(0)} Mo`; fpb.insertAdjacentHTML('beforeend', `<i class="h2-badge y">${r.n > 99 ? '99+' : r.n}</i>`); }).catch(() => {});
   const cmp = $('[data-a=company]'); if (cmp) cmp.onclick = () => Team.openCompany();
   espaceBind($('#app'));
+  ST.dashBind($('#app'));
   if (keepScroll) { const hb = $('.h2-body'); if (hb) hb.scrollTop = keepScroll; }
   // toucher un chantier : son briefing, puis « Entrer » → la page du chantier
   const focusOn = async (id) => { App.homeFocus = id; await renderHome(); $('#app .h2-body') && ($('#app .h2-body').scrollTop = 0);
@@ -228,7 +230,7 @@ async function renderHome() {
         const v = await groupMenu('SiteTeam', [
       { title: 'Aujourd\'hui', color: '#22c55e', items: [{ label: 'Briefing du jour', sub: 'notes, rappels, PV à livrer, tâches', icon: 'calendar', value: 'brief' }] },
       { title: 'Mon entreprise', color: '#3b82f6', items: [
-        ...(Team.ready() ? [{ label: 'Mon entreprise', sub: 'équipe · organigramme · mon compte', icon: 'team', value: 'company' }, ...(Team.isAdmin() ? [{ label: 'Inviter un membre', icon: 'plus', value: 'invite' }] : [])] : []),
+        ...(Team.ready() ? [{ label: 'Mon entreprise', sub: 'équipe · organigramme · mon compte', icon: 'team', value: 'company' }, ...(Team.isAdmin() ? [{ label: 'Inviter un membre', icon: 'plus', value: 'invite' }, ST.preview() ? { label: 'Quitter l\'aperçu', sub: 'revenir à mon interface', icon: 'eye', value: 'preview-off' } : { label: 'Tester une interface', sub: 'aperçu par poste et formule', icon: 'eye', value: 'preview' }] : [])] : []),
         { label: 'Mon prénom', sub: uname || 'pour les messages d\'accueil', icon: 'edit', value: 'name' },
         ...(Team.ready() ? [{ label: 'Se déconnecter', icon: 'power', value: 'logout' }] : [])] },
       { title: 'Apparence', color: '#a855f7', items: [
@@ -263,6 +265,8 @@ async function renderHome() {
     if (v === 'name') askName();
     if (v === 'board') openBoardTool();
     if (v === 'company') Team.openCompany();
+    if (v === 'preview') ST.startPreview();
+    if (v === 'preview-off') ST.stopPreview();
     if (v === 'invite') Team.inviteFlow();
     if (v === 'logout') Team.logout();
     if (v === 'lang') chooseLang();
