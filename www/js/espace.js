@@ -58,7 +58,7 @@ const SERVICE_TOOLS = {
 };
 const TOOL_LBL = { board: ['Tableau de bord des équipes', 'layers', 'Effectifs, rendement, matériel par conducteur'] };
 const esLvl = (k) => k === 'board' ? Math.max(Team.lvl('pointage'), Team.lvl('rapports')) : Team.lvl(ES_KINDS[k].mod);
-const myService = () => (Team.me() || {}).service || roleOf((Team.me() || {}).role).s;
+const myService = () => (Team.me() || {}).service || tmRoleOf((Team.me() || {}).role).s;
 
 // ---------- bloc « Mon espace » sur l'accueil ----------
 function espaceHome() {
@@ -67,7 +67,7 @@ function espaceHome() {
   const others = Object.keys(ES_KINDS).filter(k => !main.includes(k) && esLvl(k) >= 1);
   if (!main.length && !others.length) return '';
   const tile = (k) => { const [l, ic] = k === 'board' ? TOOL_LBL.board : [ES_KINDS[k].l, ES_KINDS[k].ic]; return `<button class="es-tile" data-es="${k}" style="--c:${serviceOf(svc).c}">${icon(ic)}<span>${esc(l)}</span><i data-esn="${k}"></i></button>`; };
-  return `<div class="es-wrap"><div class="h2-sec"><span>Espace ${esc(serviceOf(svc).l)}</span><small>${esc(roleOf((Team.me() || {}).role).l)}</small></div>
+  return `<div class="es-wrap"><div class="h2-sec"><span>Espace ${esc(serviceOf(svc).l)}</span><small>${esc(tmRoleOf((Team.me() || {}).role).l)}</small></div>
     <div class="es-grid">${main.map(tile).join('')}</div>
     ${others.length ? `<details class="es-more"><summary>Autres outils (${others.length})</summary><div class="es-grid">${others.map(tile).join('')}</div></details>` : ''}</div>`;
 }
@@ -124,7 +124,7 @@ async function editItem(kind, base) {
   const cmds = K.f.some(f => f[2] === 'cmd') ? (await DB.byProject('items', base.projectId)).filter(x => x.kind === 'cmd' && x.status !== 'annulee') : [];
   const def = { date: todayISO(), heure: nowHM(), resp: me, h: 8, ...base };
   const fields = K.f.map(([n, l, t, opt]) => {
-    if (t === 'member') return { name: n, label: l, type: 'select', value: def[n] || '', options: [{ value: '', label: '—' }, ...(Team.members() || []).map(m => ({ value: m.uid, label: `${m.name || m.email} · ${roleOf(m.role).l}` }))] };
+    if (t === 'member') return { name: n, label: l, type: 'select', value: def[n] || '', options: [{ value: '', label: '—' }, ...(Team.members() || []).map(m => ({ value: m.uid, label: `${m.name || m.email} · ${tmRoleOf(m.role).l}` }))] };
     if (t === 'select') return { name: n, label: l, type: 'select', value: def[n] || opt[0], options: opt };
     if (t === 'cmd') return { name: n, label: l, type: 'select', value: def[n] || '', options: [{ value: '', label: '—' }, ...cmds.map(c => ({ value: c.id, label: ES_KINDS.cmd.t(c) + ' · ' + fmtDate(c.date) }))] };
     return { name: n, label: l, type: t === 'num' ? 'number' : t, value: def[n] ?? '', placeholder: opt || '' };
@@ -182,7 +182,7 @@ async function openItem(x) {
       const logm = (txt) => { x.log = [...(x.log || []), { at: Date.now(), by: Team.uid(), txt }]; };
       on('give', async () => { const a = matAlloc(x), holders = Object.entries(x.alloc || {}).filter(([, q]) => +q);
         const r = await formSheet('Affecter / transférer', [{ name: 'from', label: 'De', type: 'select', value: '', options: [{ value: '', label: `Parc (${a.parc} dispo)` }, ...holders.map(([u, q]) => ({ value: u, label: `${memberName(u)} (${q})` }))] },
-          { name: 'to', label: 'Vers', type: 'select', value: '', options: (Team.members() || []).map(m => ({ value: m.uid, label: `${m.name || m.email} · ${roleOf(m.role).l}` })) }, { name: 'q', label: 'Quantité', type: 'number' }], { okLabel: 'Valider' });
+          { name: 'to', label: 'Vers', type: 'select', value: '', options: (Team.members() || []).map(m => ({ value: m.uid, label: `${m.name || m.email} · ${tmRoleOf(m.role).l}` })) }, { name: 'q', label: 'Quantité', type: 'number' }], { okLabel: 'Valider' });
         if (!r || !r.to || !num(r.q)) return; const qn = num(r.q), avail = r.from ? +(x.alloc || {})[r.from] || 0 : a.parc; if (qn > avail) return alertBox(`Quantité disponible : ${avail}`);
         x.alloc = { ...(x.alloc || {}) }; if (r.from) x.alloc[r.from] = (+x.alloc[r.from] || 0) - qn; x.alloc[r.to] = (+x.alloc[r.to] || 0) + qn;
         logm(`${qn} ${x.unite || 'u'} : ${r.from ? memberName(r.from) : 'Parc'} → ${memberName(r.to)}`); await DB.put('items', x); draw(); });
@@ -228,7 +228,7 @@ async function openBoardEquipes() {
     return { eff, effT, byTask, mats, m3: cm.filter(x => x.status !== 'annulee').reduce((a, x) => a + (+x.vol || 0), 0), imp: imp.length };
   };
   const card = (m) => { const s = stat(tree(m.uid));
-    return `<div class="eb-card"><div class="eb-h"><b>${esc(m.name || m.email)}</b><small>${esc(roleOf(m.role).l)}${m.zone ? ' · ' + esc(m.zone) : ''}</small></div>
+    return `<div class="eb-card"><div class="eb-h"><b>${esc(m.name || m.email)}</b><small>${esc(tmRoleOf(m.role).l)}${m.zone ? ' · ' + esc(m.zone) : ''}</small></div>
       <div class="eb-kpi"><div><b>${s.eff}</b><span>présents aujourd'hui${s.effT ? ` / ${s.effT}` : ''}</span></div><div><b>${nf(s.m3, 0)}</b><span>m³ commandés (7 j)</span></div><div><b>${s.imp}</b><span>implantations en cours</span></div></div>
       ${Object.keys(s.byTask).length ? `<div class="es-sub">Rendement (7 jours)</div>${Object.entries(s.byTask).map(([t, v]) => `<div class="es-kv"><span>${esc(t)} · ${nf(v.q, 0)} ${v.u}</span><b>${nf(v.q / Math.max(1, v.hh), 2)} ${v.u}/h·h</b></div>`).join('')}` : ''}
       ${s.mats.length ? `<div class="es-sub">Matériel affecté</div>${s.mats.map(([x, q]) => `<div class="es-kv"><span>${esc(x.nom)}</span><b>${q} ${esc(x.unite || 'u')}</b></div>`).join('')}` : ''}</div>`; };
