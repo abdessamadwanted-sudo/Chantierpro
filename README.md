@@ -1,23 +1,19 @@
-# Chantier — suivi de chantier (type Fieldwire)
+# SiteTeam
 
-Application Android pour le suivi de chantier, qui fonctionne **sans internet** (données stockées sur le téléphone).
+Application Android (Capacitor 6) de gestion de chantier en équipe : entreprise, rôles et droits,
+projets, plans, réserves, PV, rapports, synchronisation Firebase + Google Drive.
 
-## Fonctionnalités
-- **Projets** : plusieurs chantiers sur le même téléphone
-- **Plans** : import PDF / image, classés par dossiers (ex : 1-Poteaux+voiles, 2-Plancher)
-- **Visionneuse de plan** : zoom, déplacement, et outils :
-  - 📍 Pin de **tâche** (numérotée, couleur selon le statut)
-  - 🔗 **Pin élément** (pin ou zone) posé sur la vue en plan : en le touchant, une liste s'ouvre avec
-    **Plan coffrage · Plan ferraillage · Coupe · PV · Photos · Notes · Autre** — chaque rubrique se lie à un **plan du projet**, une image/PDF ou un **lien Google Drive**
-  - ✏️ Crayon, formes (nuage, rectangle, cercle, flèche, ligne), texte, couleurs, gomme, annuler
-  - 👁 Filtres (tâches / éléments / annotations)
-- **Tâches** : statut (Ouvert, En cours, Terminé, Vérifié), priorité, responsable, échéance, photos, commentaires
-- **Photos** : galerie de toutes les photos du chantier
-- **Formulaires QC** : réception ferraillage, coffrage, bétonnage, maçonnerie, étanchéité
-- **Rapports journaliers** : météo, effectif, travaux, livraisons, problèmes, photos
-- Partage **WhatsApp** des tâches, formulaires et rapports
+- Identifiant Android : `com.siteteam.app`
+- Branche de travail : `siteteam` (la branche `main` est l'application *Chantier*)
+- **Guide complet de reprise, build, signature et sauvegarde des données : [`docs/REPRISE.md`](docs/REPRISE.md)**
+- Règles Firestore : `docs/firebase/firestore.rules` · Script Google Drive : `docs/apps-script/Code.gs`
+- Variables de build : `.env.example`
 
-## Télécharger l'APK
-Onglet **Releases** → dernière version → `Chantier.apk`.
+Démarrage rapide :
 
-Chaque `push` sur `main` reconstruit l'APK automatiquement (GitHub Actions).
+```bash
+npm ci && npm run copy-libs
+cd www && python3 -m http.server 8765   # test navigateur
+```
+
+APK : onglet **Releases** → `siteteam-v1.0.<n>` → `SiteTeam.apk`.
