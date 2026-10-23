@@ -19,7 +19,7 @@ const PLANS = {
                 modules: ['projet', 'plans', 'reserves', 'photos', 'rapports', 'equipe'] },
   pro:        { k: 'pro', l: 'Pro', e: '⭐', price: 99, period: 'mois', users: 1, projects: 0, storageGb: 30, perso: true, for: 'Professionnel indépendant — outils avancés',
                 modules: ['projet', 'plans', 'reserves', 'photos', 'rapports', 'equipe', 'reception', 'forms', 'constats', 'calc', 'files', 'topo', 'centrale', 'materiel', 'pointage', 'hse', 'finance'] },
-  business:   { k: 'business', l: 'Business', e: '🏢', price: 990, period: 'mois', users: 15, extraUserPrice: 49, projects: 0, storageGb: 200, for: 'Entreprise — plusieurs utilisateurs, services et projets', modules: '*' },
+  business:   { k: 'business', l: 'Business', e: '🏢', price: 990, period: 'mois', users: 15, extraUserPrice: 49, projects: 0, storageGb: 200, hier: true, for: 'Entreprise — plusieurs utilisateurs, services et projets', modules: '*' },
   enterprise: { k: 'enterprise', l: 'Enterprise', e: '🏛️', price: null, period: 'mois', users: 0, projects: 0, storageGb: 1000, hier: true, shares: true, for: 'Grandes entreprises — hiérarchie et groupements avancés', modules: '*' },
 };
 // anciennes formules (avant v1.0.14) : « personnel » → Pro, « entreprise » → Enterprise (aucun outil perdu)
