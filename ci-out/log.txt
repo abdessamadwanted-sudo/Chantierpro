@@ -53,3 +53,25 @@ ERRS []
 ERRS []
 ERRS []
 ERRS []
+A sync state <span style="color:#22c55e">✓ Synchronisé</span> <span style="color:var(--muted)">· 23/10 21:26</span>
+code conducteur V4VKVS7G
+code MO MHKD6JH2
+B projects ["Grand stade Benslimane"]
+B tasks ["Enrobage insuffisant voile V12"]
+B receptions 1
+A sees task ["Enrobage insuffisant voile V12 (repris) / progress"]
+B self-admin denied OK: permission-denied
+B invite create denied OK: permission-denied
+C fab 0 projects ["Grand stade Benslimane"]
+C write task denied OK: permission-denied
+D items ["impl:demandee","rdt:","cmd:demandee","pt:"]
+D topo write cmd denied OK: permission-denied
+A items ["impl:implantee","rdt:","cmd:demandee","pt:","mat:","stock:"]
+FAIL page.waitForSelector: Timeout 20000ms exceeded.
+Call log:
+  - waiting for locator('.opt:has-text("OK")') to be visible
+
+ERRS []
+ERRS []
+ERRS []
+ERRS []
