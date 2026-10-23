@@ -13,9 +13,10 @@ const FB_CONFIG = {
 // ---------- Formules commerciales (séparées des rôles/permissions : la formule limite l'accès aux fonctionnalités et au nombre de comptes,
 // le rôle/les droits limitent ce que chacun voit et peut faire une fois dans l'entreprise). Prix et quotas provisoires, à ajuster avant lancement.
 const PLANS = {
-  basic:      { k: 'basic', l: 'Basic', price: 0, period: 'mois', users: 1, storageGb: 1, ads: true, modules: ['projet', 'plans', 'reserves', 'photos'] },
-  personnel:  { k: 'personnel', l: 'Personnel', price: 39, period: 'mois', users: 1, storageGb: 10, ads: false, modules: '*' },
-  pro:        { k: 'pro', l: 'Pro', price: 99, period: 'mois', users: 1, storageGb: 30, ads: false, modules: '*' },
+  // modules inclus (voir MODS) : la formule limite les outils disponibles, le poste limite ce que chacun voit et fait
+  basic:      { k: 'basic', l: 'Basic', price: 0, period: 'mois', users: 1, storageGb: 1, ads: true, modules: ['projet', 'plans', 'reserves', 'photos', 'rapports'] },
+  personnel:  { k: 'personnel', l: 'Personnel', price: 39, period: 'mois', users: 1, storageGb: 10, ads: false, modules: ['projet', 'plans', 'reserves', 'photos', 'rapports', 'reception', 'forms', 'constats', 'calc', 'files'] },
+  pro:        { k: 'pro', l: 'Pro', price: 99, period: 'mois', users: 1, storageGb: 30, ads: false, modules: ['projet', 'plans', 'reserves', 'photos', 'rapports', 'reception', 'forms', 'constats', 'calc', 'files', 'topo', 'centrale', 'materiel', 'pointage', 'hse', 'finance'] },
   entreprise: { k: 'entreprise', l: 'Entreprise', price: 990, period: 'mois', users: 15, extraUserPrice: 49, storageGb: 200, ads: false, modules: '*' },
 };
 const planOf = (k) => PLANS[k] || PLANS.basic;
@@ -41,7 +42,8 @@ const TM_SERVICES = [
   { k: 'direction', l: 'Direction', c: '#334155' }, { k: 'travaux', l: 'Travaux', c: '#2563eb' }, { k: 'ferraillage', l: 'Ferraillage', c: '#dc2626' },
   { k: 'centrale', l: 'Centrale à béton', c: '#64748b' }, { k: 'materiel', l: 'Matériel', c: '#ca8a04' }, { k: 'topo', l: 'Topographie', c: '#0d9488' },
   { k: 'qualite', l: 'Qualité', c: '#16a34a' }, { k: 'hse', l: 'HSE', c: '#ea580c' }, { k: 'metre', l: 'Métré', c: '#7c3aed' },
-  { k: 'bim', l: 'Méthodes / BIM', c: '#0891b2' }, { k: 'logistique', l: 'Logistique', c: '#a16207' }, { k: 'externe', l: 'Intervenants externes', c: '#db2777' },
+  { k: 'bim', l: 'Méthodes / BIM', c: '#0891b2' }, { k: 'logistique', l: 'Logistique', c: '#a16207' }, { k: 'doc', l: 'Documentation', c: '#0ea5e9' },
+  { k: 'externe', l: 'Intervenants externes', c: '#db2777' },
 ];
 // modules (= droits) : projet (infos, rappels, constats, 3D…), plans, réserves, réception & bétonnage, photos, formulaires, rapports, constats, calculs, équipe, fichiers
 const MODS = [['projet', 'Projet (infos, rappels, 3D)'], ['plans', 'Plans & maquettes'], ['reserves', 'Réserves / tâches'], ['reception', 'Réception & bétonnage'], ['photos', 'Photos'],
@@ -71,6 +73,7 @@ const TM_ROLES = [
   ['mo', "Maître d'ouvrage", 'externe', '1111111101111001'], ['mod', "Maître d'ouvrage délégué", 'externe', '1111111101111001'], ['architecte', 'Architecte', 'externe', '1221101101110000'],
   ['bet', "BET (bureau d'études)", 'externe', '1221111211111001'], ['bcontrole', 'Bureau de contrôle', 'externe', '1121111201111001'], ['labo', 'Laboratoire', 'externe', '1001220000102000'],
   ['soustraitant', 'Sous-traitant', 'externe', '1120201001211011'],
+  ['respdoc', 'Responsable documentation', 'doc', '2311131101300000'], ['agentdoc', 'Agent documentation', 'doc', '1211121101200000'],
 ].map(([k, l, s, p, adm]) => ({ k, l, s, perms: Object.fromEntries(MODS.map(([m], i) => [m, +p[i] || 0])), admin: !!adm }));
 // module « finance » (ajouté avec les outils de Chantier) : accès par défaut selon le poste (les administrateurs ont tout)
 { const FIN = { dirtravaux: 3, conducteur: 1, condferraillage: 1, metreur: 3, respmateriel: 1, resppointage: 1, mo: 1, mod: 1, bet: 1 };

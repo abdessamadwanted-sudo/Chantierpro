@@ -1,5 +1,7 @@
 # FEATURES_INVENTORY — inventaire fonctionnel réel de SiteTeam
 
+> **v1.0.12** : SiteTeam reprend tous les outils et corrections de l'application Chantier (avancement, planning, registres, financier & TCE, gestion, bons de bétonnage, fiches PDF, poutre 3D, DWG/DXF, indices de plans, scanner, studio photo, notes vocales, clauses CPS/CCTP, briefing, thèmes, PIN, stockage) et la mise à jour depuis l'application. Ces outils fonctionnent comme dans Chantier ; ils ne sont pas encore couverts par le test E2E SiteTeam. Les interfaces par service / pack viendront ensuite.
+
 Légende de l'**état réel** :
 - **Fonctionnel (testé)** : couvert par le test E2E `ci/st.mjs` (dernière exécution enregistrée : 14/10/2026, branche `siteteam-ci`, « errors [] »).
 - **Fonctionnel (non testé auto)** : code présent et relié à l'interface ; utilisé, mais sans test automatique.
