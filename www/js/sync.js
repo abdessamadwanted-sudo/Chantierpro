@@ -59,42 +59,67 @@ const Sync = (() => {
   // ---------- rangement dans Drive ----------
   const clean = (s, d = 'Sans nom') => (String(s || '').replace(/[\\/:*?"<>|#\n\r\t]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 90)) || d;
   const extOf = (f) => { const t = f.mime || (f.blob && f.blob.type) || ''; if (t === 'image/png') return '.png'; if (/^image\/(jpe?g|webp|heic)/.test(t)) return '.jpg'; if (t === 'application/pdf') return '.pdf'; const m = String(f.name || '').match(/\.(\w{2,5})$/); return m ? '.' + m[1].toLowerCase() : ''; };
+  // Rangement Drive « pro » : un dossier par projet, sous-dossiers numérotés, un dossier par jour et par ouvrage.
+  // Changer un chemin DÉPLACE le fichier dans Drive (jamais de doublon).
+  const D = { plans: '01 - Plans', rec: '02 - Réception ferraillage', bet: '03 - Bétonnage', res: '04 - Réserves', rap: '05 - Rapports journaliers', form: '06 - Formulaires', cons: '07 - Constats', cl: '08 - Clauses techniques', doc: '09 - Documents', ph: '10 - Photos' };
+  const MOIS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+  const moisDe = (iso) => { const m = String(iso || '').match(/^(\d{4})-(\d{2})/); return m ? `${m[1]}-${m[2]} ${MOIS[+m[2] - 1]}` : 'Sans date'; };
   async function buildPaths() {
     const [projects, folders, plans, links, recs, tasks, forms, reports] = await Promise.all(['projects', 'folders', 'plans', 'links', 'receptions', 'tasks', 'forms', 'reports'].map(s => DB.all(s)));
     const P = Object.fromEntries(projects.map(p => [p.id, clean(p.name, 'Projet')]));
-    const F = Object.fromEntries(folders.map(f => [f.id, clean(f.name)]));
+    const F = Object.fromEntries(folders.map(f => [f.id, clean(folderPath(f, folders, ' - '))]));
     const PL = Object.fromEntries(plans.map(p => [p.id, p]));
+    const PR = Object.fromEntries(projects.map(p => [p.id, p]));
     const map = {};
     const put = (id, segs, name) => { if (id && !map[id]) map[id] = { segs: segs.map(s => clean(s)), name }; };
+    const pj = (pid) => P[pid] || 'Projet';
     for (const pl of plans) {
-      const base = [P[pl.projectId] || 'Projet', 'Plans', F[pl.folderId] || 'Sans dossier'];
-      put(pl.pdfFileId, base, clean(pl.name.replace(/ - p\d+$/, '')));
-      put(pl.fileId, pl.pdfFileId ? [...base, 'Aperçus'] : base, clean(pl.name));
+      // plan actuel dans le dossier du niveau ; anciens indices rangés à part (jamais écrasés)
+      const old = !!pl.supersededBy, ind = pl.indice ? ` (ind ${pl.indice})` : '';
+      const base = old ? [pj(pl.projectId), D.plans, F[pl.folderId] || 'Sans dossier', 'Anciens indices'] : [pj(pl.projectId), D.plans, F[pl.folderId] || 'Sans dossier'];
+      put(pl.pdfFileId, base, clean(pl.name.replace(/ - p\d+$/, '') + ind));
+      put(pl.dxfFileId, base, clean(pl.name + ind));
+      put(pl.dwgFileId, base, clean(pl.name + ind));
+      put(pl.fileId, [...base, 'Aperçus'], clean(pl.name + ind));
     }
     for (const l of links) {
       const pl = PL[l.planId]; if (!pl) continue;
-      const base = [P[l.projectId] || 'Projet', 'Plans', F[pl.folderId] || 'Sans dossier', `${pl.name} - éléments`, l.name || 'Élément'];
-      put(l.fileId, base.slice(0, -1), clean(l.name));
-      for (const it of l.items || []) if (it.fileId) put(it.fileId, [...base, it.cat || 'Documents'], clean(it.name || it.cat));
+      const base = [pj(l.projectId), D.plans, F[pl.folderId] || 'Sans dossier', `${pl.name} - éléments`];
+      const el = [...base, l.name || 'Élément'];
+      put(l.fileId, base, clean(l.name));
+      for (const it of l.items || []) if (it.fileId) put(it.fileId, [...el, it.cat || 'Documents'], clean(it.name || it.cat));
+      for (const z of l.zones || []) for (const pt of z.parts || []) for (const dd of pt.docs || []) if (dd.fileId) put(dd.fileId, [...base, 'Plans par ouvrage', z.name, pt.name], clean(dd.name));
+      for (const [k, docs] of Object.entries(l.recDocs || {})) for (const dd of docs) if (dd.fileId) put(dd.fileId, [...base, 'Plans par ouvrage', (l.recNames || {})[k] || 'Ouvrage'], clean(dd.name));
+      (l.photos || []).forEach((id, i) => put(id, [...base, 'Photos et notes', l.name || 'Pin'], `${clean(l.name || 'Photo')} - ${i + 1}`));
+      if (l.kind === 'local' && l.lots) { const pr = PR[l.projectId] || {}; for (const [lid, rr] of Object.entries(l.lots)) { const lot = (pr.lots || []).find(x => x.id === lid); (rr.photos || []).forEach((id, i) => put(id, [pj(l.projectId), '11 - Avancement', F[pl.folderId] || 'Sans dossier', lot ? lot.name : 'Lot', l.name || 'Local'], `${clean(l.name || 'Local')} - ${i + 1}`)); } }
+      for (const n of l.notes || []) { const d = new Date(n.at).toISOString().slice(0, 10); (n.photos || []).forEach((id, i) => put(id, [...base, 'Photos et notes', l.name || 'Pin', 'Notes'], `Note ${d} - ${i + 1}`)); if (n.audio) put(n.audio, [...base, 'Photos et notes', l.name || 'Pin', 'Notes'], `Note vocale ${d}`); }
     }
     for (const d of recs) {
       const bet = d.type === 'Bétonnage';
-      const base = [P[d.projectId] || 'Projet', bet ? 'Programme de bétonnage' : 'Réception ferraillage', (d.date || '').slice(0, 7), d.date || 'date'];
-      (d.pvIds || []).forEach((id, i) => put(id, [...base, 'PV du jour'], `PV ${d.date} - ${i + 1}`));
-      if (d.pvPdfId) put(d.pvPdfId, [...base, 'PV du jour'], `PV du ${d.date} (fusionné)`);
+      const base = [pj(d.projectId), bet ? D.bet : D.rec, moisDe(d.date), d.date || 'Sans date'];
+      (d.pvIds || []).forEach((id, i) => put(id, [...base, 'PV', 'Pages photographiées'], `PV ${d.date} - page ${i + 1}`));
+      if (d.pvPdfId) put(d.pvPdfId, [...base, 'PV'], `PV du ${d.date}`);   // un seul PDF par jour, remplacé quand on ajoute un PV
       for (const r of d.rows || []) {
-        // Photos / <ouvrage> / Réserve 1.jpg, Retour 1.jpg, Croquis.jpg
+        // <jour> / Ouvrages / <Zone · Niveau · Élément> / Photos | Anomalies | Réparations
         const nm = clean(`${r.zone ? 'Zone ' + r.zone + ' · ' : ''}${r.niv ? r.niv + ' · ' : ''}${r.element || 'Ouvrage'}`);
         const dir = [...base, 'Photos', nm];
-        (r.photoIds || []).forEach((id, i) => put(id, dir, `${r.status === 'reserve' ? (bet ? 'Défaut' : 'Réserve') : (bet ? 'Défaut' : 'Photo')} ${i + 1}`));
-        (r.retourIds || []).forEach((id, i) => put(id, dir, `${bet ? 'Réparation' : 'Retour'} ${i + 1}`));
-        if (r.croquisId) put(r.croquisId, dir, 'Croquis');
+        (r.photoIds || []).forEach((id, i) => put(id, dir, `${nm} - Photo ${i + 1}`));
+        (r.anomIds || []).forEach((id, i) => put(id, [...dir, 'Anomalies'], `${nm} - ${bet ? 'Défaut' : 'Anomalie'} ${i + 1}`));
+        (r.retourIds || []).forEach((id, i) => put(id, [...dir, 'Réparations'], `${nm} - Réparation ${i + 1}`));
+        if (r.croquisId) put(r.croquisId, dir, `${nm} - Croquis`);
+        if (r.pvGenId) put(r.pvGenId, [...base, 'PV', 'Fiches remplies (à signer)'], `Fiche - ${nm}`);
+        for (const [tid, fid] of Object.entries(r.fiches || {})) { const t = ((PR[d.projectId] || {}).ficheTpls || []).find(x => x.id === tid); put(fid, [...base, 'PV', 'Fiches remplies (à signer)'], `${t ? t.name : 'Fiche'} - ${nm}`); }
+        if (r.bon && r.bon.fileId) put(r.bon.fileId, [...base, 'Bons de bétonnage'], `Bon - ${nm}`);
       }
     }
-    for (const pr of projects) for (const c of pr.constats || []) (c.items || []).forEach((it, k) => (it.photoIds || []).forEach((id, i) => put(id, [P[pr.id] || 'Projet', 'Constats', `${c.date || ''} ${c.title || 'Constat'}`], `${k + 1}-${i + 1} ${it.probleme || 'photo'}`.slice(0, 80))));
-    for (const t of tasks) (t.photoIds || []).forEach((id, i) => put(id, [P[t.projectId] || 'Projet', 'Réserves', `#${t.num || ''} ${t.title || ''}`], `#${t.num || ''} - ${i + 1}`));
-    for (const f of forms) (f.photoIds || []).forEach((id, i) => put(id, [P[f.projectId] || 'Projet', 'Formulaires', `${(f.date || '').slice(0, 10)} ${f.title || ''}`], `photo ${i + 1}`));
-    for (const r of reports) (r.photoIds || []).forEach((id, i) => put(id, [P[r.projectId] || 'Projet', 'Rapports journaliers', r.date || ''], `photo ${i + 1}`));
+    for (const pr of projects) { for (const b of pr.bons || []) if (b.fileId) put(b.fileId, [pj(pr.id), D.bet, 'Bons libres', b.date || ''], clean(`Bon - ${b.ouvrage || ''} ${b.partie || ''}`)); const bc = pr.bon || {}; for (const L of Object.values(bc.people || {})) for (const q of L) if (q.sigId) put(q.sigId, [pj(pr.id), D.bet, 'Signatures'], clean(`Signature ${q.name}`)); }
+    for (const pr of projects) if (pr.pvTpl) put(pr.pvTpl, [pj(pr.id), D.doc, 'Modèles'], 'Modèle fiche de contrôle');
+    for (const pr of projects) for (const t of pr.ficheTpls || []) put(t.fileId, [pj(pr.id), D.doc, 'Modèles'], `Modèle ${t.name}`);
+    for (const pr of projects) for (const c of pr.clauses || []) put(c.fileId, [pj(pr.id), D.cl, c.type || 'Autre'], clean(c.name));
+    for (const pr of projects) for (const c of pr.constats || []) (c.items || []).forEach((it, k) => (it.photoIds || []).forEach((id, i) => put(id, [pj(pr.id), D.cons, `${c.date || ''} ${c.title || 'Constat'}`], `${k + 1}-${i + 1} ${it.probleme || 'photo'}`.slice(0, 80))));
+    for (const t of tasks) (t.photoIds || []).forEach((id, i) => put(id, [pj(t.projectId), D.res, `#${t.num || ''} ${t.title || ''}`], `#${t.num || ''} - ${i + 1}`));
+    for (const f of forms) (f.photoIds || []).forEach((id, i) => put(id, [pj(f.projectId), D.form, `${(f.date || '').slice(0, 10)} ${f.title || ''}`], `photo ${i + 1}`));
+    for (const r of reports) (r.photoIds || []).forEach((id, i) => put(id, [pj(r.projectId), D.rap, moisDe(r.date), r.date || ''], `photo ${i + 1}`));
     return { map, P };
   }
   function pathFor(f, paths) {
@@ -102,9 +127,9 @@ const Sync = (() => {
     const m = paths.map[f.id];
     const ext = extOf(f);
     if (m) return { segs: m.segs, name: m.name + ext };
-    const month = new Date(f.createdAt || Date.now()).toISOString().slice(0, 7);
+    const day = new Date(f.createdAt || Date.now()).toISOString().slice(0, 10);
     const base = (f.name || f.id).replace(/\.\w{2,5}$/, '');
-    return { segs: [paths.P[f.projectId] || 'Projet', f.role === 'doc' ? 'Documents' : 'Photos', month], name: clean(base) + ext };
+    return { segs: [paths.P[f.projectId] || 'Projet', f.role === 'doc' ? D.doc : D.ph, moisDe(day)], name: clean(base) + ext };
   }
   const b64 = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
   const fromB64 = (s, type) => { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type }); };
@@ -117,6 +142,8 @@ const Sync = (() => {
   const keepMode = () => LS.get('keep', 'plans');
   const isPlan = (f) => f.role === 'plan' || f.role === 'plansrc';
   function wantLocal(f, mode = keepMode()) {
+    if (f.role === 'sig') return true;
+    if (f.freed) return !!(f.lastUsed && Date.now() - f.lastUsed < 2 * 864e5);   // libérée volontairement : reste dans Drive
     if (mode === 'all') return true;
     if (f.role === 'croquis') return true;                                   // petits
     if (f.lastUsed && Date.now() - f.lastUsed < 2 * 864e5) return true;      // ouvert récemment
@@ -146,7 +173,8 @@ const Sync = (() => {
   // DB.get / DB.byProject sur « files » : si le fichier n'est plus sur le téléphone, on le reprend dans Drive
   const _get = DB.get.bind(DB), _byP = DB.byProject.bind(DB);
   DB.get = async (store, id) => { const r = await _get(store, id); if (store === 'files' && r && !r.blob && r.driveId) { await fetchBlob(r); } return r; };
-  DB.byProject = async (store, pid) => { const l = await _byP(store, pid); if (store === 'files') await pool(l.filter(f => !f.blob && f.driveId).slice(0, 40), 4, fetchBlob); return l; };
+  DB.byProject = async (store, pid) => { const l = await _byP(store, pid); if (store === 'files') await pool(l.filter(f => !f.blob && f.driveId && !f.freed).slice(0, 40), 4, fetchBlob); return l; };
+  DB.peek = (store, id) => _get(store, id);   // lecture sans téléchargement depuis Drive
   async function usage() { let local = 0, n = 0, cloud = 0; for (const f of await DB.all('files')) { if (f.blob) { local += f.blob.size || 0; n++; } else if (f.driveId) cloud++; } return { local, n, cloud }; }
 
   // ---------- synchronisation ----------
@@ -222,6 +250,7 @@ const Sync = (() => {
       // 5) documents lisibles dans Drive (PDF des tableaux, réserves, rapports)
       if (hasDrive() && (force || Date.now() - LS.get('docsAt', 0) > 600000)) { await syncDocs(); LS.set('docsAt', Date.now()); }
       st.last = Date.now(); LS.set('last', st.last);
+      if (Date.now() - LS.get('chkAt', 0) > 7 * 864e5) weeklyCheck().catch(e => console.warn('check', e));
       LS.set('fails', fails.slice(0, 20));
       if (fails.length) setStatus('error', `${fails.length} problème(s) de synchro — touchez pour voir`); else setStatus('ok');
       if (pulledCount) {
@@ -235,6 +264,20 @@ const Sync = (() => {
       running = false;
       if (again) schedule(1500);
     }
+  }
+  // ---------- contrôle hebdomadaire : tout est-il bien dans Drive ? ----------
+  const SCRIPT_VER = 3;
+  async function scriptVer() { const c = cfg(); if (!c) return 0; try { const r = await call('ping', {}); c.ver = r.ver || 1; LS.set('cfg', c); return c.ver; } catch (e) { return c.ver || 0; } }
+  async function weeklyCheck(manual) {
+    if ((await scriptVer()) < SCRIPT_VER) { LS.set('chkAt', Date.now()); if (manual) alertBox('Mettez d\'abord à jour le script Google (Synchronisation › « Mettre à jour le script »).'); return null; }
+    const files = (await DB.all('files')).filter(f => f.driveId), miss = [];
+    for (let i = 0; i < files.length; i += 150) { const r = await call('check', { ids: files.slice(i, i + 150).map(f => f.driveId) }); miss.push(...(r.missing || [])); }
+    let fixed = 0, lost = 0;
+    for (const f of files) if (miss.includes(f.driveId)) { if (f.blob) { f.driveId = null; f.drivePath = null; await DB.putRaw('files', f); fixed++; } else lost++; }
+    const res = { at: Date.now(), n: files.length, fixed, lost }; LS.set('chk', res); LS.set('chkAt', Date.now());
+    if (fixed) schedule(1000);
+    if (manual || fixed || lost) toast(fixed || lost ? `☁ Contrôle Drive : ${fixed} fichier(s) renvoyé(s)${lost ? ` · ${lost} introuvable(s)` : ''}` : `☁ Contrôle Drive ✓ : ${files.length} fichiers bien rangés`, { ms: 4000 });
+    return res;
   }
   // ---------- PDF automatiques rangés par date ----------
   const hash = (o) => { const s = JSON.stringify(o, (k, v) => (k === 'updatedAt' || k === 'lastOpened' || k === 'driveDocs' || k === 'syncedAt' || k === 'blob') ? undefined : v); let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return String(h); };
@@ -255,7 +298,7 @@ const Sync = (() => {
         if (!(d.rows || []).some(r => r.element)) continue;
         const bet = d.type === 'Bétonnage', title = bet ? 'Programme de bétonnage' : 'Réception ferraillage';
         const files = []; for (const r of d.rows) files.push(...(r.photoIds || []), ...(r.retourIds || []), r.croquisId || ''); files.push(...(d.pvIds || []));
-        jobs.push({ key: 'rec:' + d.id, sig: hash([d, p.pdfTitle, files.length]), segs: [pn, title, (d.date || '').slice(0, 7), d.date], name: `${title} ${d.date}.pdf`, make: () => receptionPdf(p, d) });
+        jobs.push({ key: 'rec:' + d.id, sig: 'v2|' + hash([d, p.pdfTitle, files.length]), segs: [pn, bet ? D.bet : D.rec, moisDe(d.date), d.date || 'Sans date', 'Programme de réception'], name: `${bet ? 'Programme de bétonnage' : 'Programme de réception'} ${d.date}.pdf`, make: () => receptionPdf(p, d) });
       }
       const tasks = await DB.byProject('tasks', p.id);
       if (tasks.length) jobs.push({ key: 'res', sig: hash(tasks), segs: [pn, 'Réserves'], name: 'Liste des réserves (à jour).pdf', make: () => buildReservesPdf(p, { company: 'all', status: 'all', period: 'all', photos: 'yes' }, () => {}) });
@@ -284,7 +327,7 @@ const Sync = (() => {
   function schedule(ms = 4000) { if (!enabled()) return; clearTimeout(timer); timer = setTimeout(() => run(), ms); }
 
   function start() {
-    DB.onChange = () => schedule();
+    DB.onChange = (s) => { schedule(); if (typeof licOnChange === 'function') licOnChange(s); };
     if (!enabled()) return;
     setStatus('ok');
     setTimeout(() => (window.requestIdleCallback || setTimeout)(() => run({ quiet: true }), { timeout: 3000 }), 2500);
@@ -304,8 +347,9 @@ const Sync = (() => {
   async function connect(code, pendingKey) {
     const c = parseCode(code); if (!c) throw new Error('Collez l\'URL de l\'application Web (https://script.google.com/macros/s/…/exec)');
     if (!c.key) c.key = pendingKey; if (!c.key) throw new Error('Code incomplet');
+    if (typeof licIsOwnerScript === 'function' && await licIsOwnerScript(c.url)) throw new Error('Ce Google Drive appartient au titulaire de la licence. Connectez VOTRE propre compte Google (onglet « Première fois »).');
     LS.set('cfg', c);
-    try { const r = await call('ping', { code: codeOf(c) }); if (r.app !== 'siteteam') throw new Error('Ce code est celui de l\'application Chantier. Pour ne pas mélanger les données, SiteTeam utilise son propre script : onglet « Première fois ». (Pour récupérer les projets de Chantier : Mon entreprise › Réglages › Importer.)'); c.folder = r.folder; LS.set('cfg', c); }
+    try { const r = await call('ping', { code: codeOf(c) }); if (r.app !== 'siteteam') throw new Error('Ce code est celui de l\'application Chantier. Pour ne pas mélanger les données, SiteTeam utilise son propre script : onglet « Première fois ». (Pour récupérer les projets de Chantier : Mon entreprise › Réglages › Importer.)'); c.folder = r.folder; c.ver = r.ver || 1; LS.set('cfg', c); }
     catch (e) { LS.del('cfg'); throw e; }
     // première synchro complète
     LS.set('pushAt', 0); LS.set('pullAt', 0);
@@ -320,6 +364,7 @@ const Sync = (() => {
 // Exécuter en tant que : Moi · Accès : Tout le monde
 const KEY = '${key}';
 const ROOT_NAME = 'SiteTeam';
+const VER = 3;
 
 function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 function doGet() { return out({ ok: true, app: 'siteteam' }); }
@@ -329,7 +374,19 @@ function root_() {
   const it = DriveApp.getFoldersByName(ROOT_NAME); const f = it.hasNext() ? it.next() : DriveApp.createFolder(ROOT_NAME);
   pr.setProperty('ROOT', f.getId()); return f;
 }
-function sub_(parent, name) { const it = parent.getFoldersByName(name); return it.hasNext() ? it.next() : parent.createFolder(name); }
+// un seul dossier par nom : les doublons sont fusionnés dans le premier (fichiers et sous-dossiers déplacés)
+function merge_(keep, dup) {
+  const fi = dup.getFiles(); while (fi.hasNext()) { const x = fi.next(); if (x.getName() === 'db.json' && keep.getFilesByName('db.json').hasNext()) x.setTrashed(true); else x.moveTo(keep); }   // la base utilisée reste celle du premier dossier
+  const fo = dup.getFolders(); while (fo.hasNext()) { const c = fo.next(), same = keep.getFoldersByName(c.getName()); if (same.hasNext()) merge_(same.next(), c); else c.moveTo(keep); }
+  dup.setTrashed(true);
+}
+function sub_(parent, name) {
+  const it = parent.getFoldersByName(name); if (!it.hasNext()) return parent.createFolder(name);
+  const f = it.next(); while (it.hasNext()) merge_(f, it.next()); return f;
+}
+function dedupe_(f, n) { const seen = {}, it = f.getFolders(), list = []; while (it.hasNext()) list.push(it.next());
+  list.forEach(function (c) { const k = c.getName(); if (seen[k]) { merge_(seen[k], c); n.n++; } else seen[k] = c; });
+  for (const k in seen) dedupe_(seen[k], n); return n; }
 function path_(segs) { let f = root_(); segs.forEach(function (s) { f = sub_(f, s); }); return f; }
 function dbFile_() {
   const sys = sub_(root_(), '_sync (ne pas toucher)'); const it = sys.getFilesByName('db.json');
@@ -346,7 +403,7 @@ function doPost(e) {
     if (d.action === 'ping') {
       const r = root_();
       if (d.code && !r.getFilesByName('Code de connexion.txt').hasNext()) r.createFile('Code de connexion.txt', d.code);
-      return out({ ok: true, app: 'siteteam', folder: r.getUrl(), now: Date.now() });
+      return out({ ok: true, app: 'siteteam', folder: r.getUrl(), now: Date.now(), ver: VER });
     }
     if (d.action === 'pull') {
       const db = load_(), s = d.since || 0, recs = [];
@@ -368,13 +425,26 @@ function doPost(e) {
       save_(db);
       return out({ ok: true, now: now });
     }
+    if (d.action === 'dedupe') { lock.waitLock(30000); const n = dedupe_(root_(), { n: 0 }); return out({ ok: true, merged: n.n }); }
+    if (d.action === 'check') { const miss = []; (d.ids || []).forEach(function (id) { try { if (DriveApp.getFileById(id).isTrashed()) miss.push(id); } catch (e) { miss.push(id); } }); return out({ ok: true, missing: miss }); }
     if (d.action === 'upload') {
+      lock.waitLock(30000);
       const folder = path_(d.path); let f = null;
       if (d.driveId) { try { f = DriveApp.getFileById(d.driveId); if (f.isTrashed()) f = null; } catch (e) { f = null; } }
       if (f && !d.b64) { f.moveTo(folder); f.setName(d.name); return out({ ok: true, id: f.getId() }); }
       if (!d.b64) return out({ ok: false, error: 'missing' });
       const nf = folder.createFile(Utilities.newBlob(Utilities.base64Decode(d.b64), d.mime || 'application/octet-stream', d.name));
       return out({ ok: true, id: nf.getId() });
+    }
+    if (d.action === 'ocr') {   // lecture d'une photo (OCR de Google Drive) → texte
+      const blob = Utilities.newBlob(Utilities.base64Decode(d.b64), d.mime || 'image/jpeg', 'pv.jpg'), tok = ScriptApp.getOAuthToken(), bd = 'chantierOcr' + Date.now();
+      const head = Utilities.newBlob('--' + bd + '\\r\\nContent-Type: application/json; charset=UTF-8\\r\\n\\r\\n' + JSON.stringify({ title: 'ocr-tmp', mimeType: 'application/vnd.google-apps.document' }) + '\\r\\n--' + bd + '\\r\\nContent-Type: ' + blob.getContentType() + '\\r\\n\\r\\n').getBytes();
+      const tail = Utilities.newBlob('\\r\\n--' + bd + '--').getBytes();
+      const r = UrlFetchApp.fetch('https://www.googleapis.com/upload/drive/v2/files?uploadType=multipart&ocr=true&ocrLanguage=fr', { method: 'post', contentType: 'multipart/related; boundary=' + bd, payload: head.concat(blob.getBytes()).concat(tail), headers: { Authorization: 'Bearer ' + tok }, muteHttpExceptions: true });
+      const id = JSON.parse(r.getContentText()).id; if (!id) return out({ ok: false, error: r.getContentText().slice(0, 200) });
+      const t = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + id + '/export?mimeType=text/plain', { headers: { Authorization: 'Bearer ' + tok }, muteHttpExceptions: true }).getContentText();
+      try { DriveApp.getFileById(id).setTrashed(true); } catch (e) {}
+      return out({ ok: true, text: t });
     }
     if (d.action === 'download') {
       const b = DriveApp.getFileById(d.id).getBlob();
@@ -412,6 +482,9 @@ function doPost(e) {
         <button class="btn" data-a="now">${icon('undo')} Synchroniser maintenant</button>
         ${c.folder ? `<button class="btn ghost" data-a="open">${icon('drive')} Ouvrir le dossier dans Drive</button>` : ''}
         <button class="btn ghost" data-a="code">${icon('phone')} Copier le code de connexion (PC / autre téléphone)</button>
+        <div class="sync-upd" data-upd></div>
+        <button class="btn ghost" data-a="dedupe">🧹 Fusionner les dossiers en double dans Drive</button>
+        <button class="btn ghost" data-a="check">🔎 Vérifier que tout est dans Drive${LS.get('chk') ? ` <small style="opacity:.7">· ${new Date(LS.get('chk').at).toLocaleDateString('fr-FR')}</small>` : ''}</button>
         <button class="btn ghost" data-a="script">${icon('file')} Copier le code du script</button>
         <button class="btn danger" data-a="off">Déconnecter cet appareil</button>
       </div>`, { title: 'Synchronisation Google Drive' });
@@ -437,6 +510,11 @@ function doPost(e) {
       const o = $('[data-a=open]', s.el); if (o) o.onclick = () => openUrl(c.folder);
       $('[data-a=code]', s.el).onclick = () => copy(codeOf(c));
       $('[data-a=script]', s.el).onclick = () => copy(script(c.key));
+      scriptVer().then(v => { const u = $('[data-upd]', s.el); if (!u || v >= SCRIPT_VER) return;
+        u.innerHTML = `<div class="sync-warn"><b>⚠️ Mettre à jour le script Google (une fois)</b><br>Nécessaire pour fusionner les dossiers en double et ne plus en créer.<br><b>1.</b> Copiez le nouveau code ci-dessous.<br><b>2.</b> Sur script.google.com, ouvrez votre projet « Chantier », effacez tout et collez.<br><b>3.</b> <b>Déployer → Gérer les déploiements → ✏️ Modifier → Version : Nouvelle version → Déployer</b> (le lien reste le même).</div><button class="btn small" data-a="copy3">${icon('file')} Copier le nouveau code</button>`;
+        $('[data-a=copy3]', u).onclick = () => copy(script(c.key)); });
+      $('[data-a=dedupe]', s.el).onclick = async () => { if ((await scriptVer()) < SCRIPT_VER) return alertBox('Mettez d\'abord à jour le script Google (encadré ci-dessus).'); const ld = loading('Fusion des dossiers en double…'); try { const r = await call('dedupe', {}); toast(r.merged ? `${r.merged} dossier(s) en double fusionné(s) ✓` : 'Aucun dossier en double ✓'); } catch (e) { alertBox(String(e.message || e)); } finally { ld.close(); } };
+      $('[data-a=check]', s.el).onclick = async () => { const ld = loading('Vérification dans Drive…'); try { await weeklyCheck(true); } catch (e) { alertBox(String(e.message || e)); } finally { ld.close(); } };
       $('[data-a=off]', s.el).onclick = async () => { if (await confirmBox('Déconnecter Google Drive sur cet appareil ? (les données restent sur l\'appareil et dans Drive)')) { disconnect(); s.close(); toast('Déconnecté'); } };
       return;
     }
@@ -470,5 +548,5 @@ function doPost(e) {
     };
   }
 
-  return { start, run, schedule, enabled, hasDrive, openSyncSettings, statusLine, cfg, buildPaths, pathFor, _call: call, _parse: parseCode, _script: script };
+  return { start, run, schedule, enabled, hasDrive, disconnect, openSyncSettings, statusLine, cfg, buildPaths, pathFor, _call: call, _parse: parseCode, _script: script };
 })();

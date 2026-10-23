@@ -38,6 +38,10 @@ jobs:
         run: |
           V=1.0.${{ github.run_number }}
           sed -i "s/__APP_VERSION__/$V/" www/js/app.js
+          # empreinte de la partie native : si elle ne change pas, la mise à jour se fait sans réinstaller (paquet web)
+          NID=$(cat package.json capacitor.config.json keystore/debug.keystore ci/signing.sh .github/workflows/build-siteteam.yml assets/* 2>/dev/null | sha1sum | cut -c1-16)
+          sed -i "s/__NATIVE_ID__/$NID/" www/js/modules.js
+          echo "{\"version\":\"$V\",\"native\":\"$NID\"}" > ota.json; cat ota.json
           sed -i -E "s#(src|href)=\"(js|lib|vendor)/([^\"?]+)\"#\1=\"\2/\3?v=$V\"#g; s#href=\"styles.css\"#href=\"styles.css?v=$V\"#" www/index.html
           grep -n "v=$V" www/index.html
 
@@ -53,9 +57,38 @@ jobs:
           sed -i -E "s/versionCode [0-9]+/versionCode ${{ github.run_number }}/; s/versionName \"[^\"]*\"/versionName \"1.0.${{ github.run_number }}\"/" android/app/build.gradle
           grep -n "version" android/app/build.gradle
 
-      - name: Camera permission
+      - name: Keep the chosen theme (no Android auto dark mode)
         run: |
-          sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#&\n    <uses-permission android:name="android.permission.CAMERA" />#' android/app/src/main/AndroidManifest.xml
+          for f in android/app/src/main/res/values*/styles.xml; do sed -i 's#<style name="AppTheme\([^"]*\)" parent="\([^"]*\)">#&\n        <item name="android:forceDarkAllowed">false</item>#' "$f"; done
+
+      - name: Share target (Partager → SiteTeam)
+        run: |
+          python3 - <<'PY'
+          p = 'android/app/src/main/AndroidManifest.xml'
+          s = open(p).read()
+          act = '''
+          <activity android:name="de.mindlib.sendIntent.SendIntentActivity" android:label="@string/app_name" android:exported="true" android:theme="@style/AppTheme.NoActionBar">
+              <intent-filter>
+                  <action android:name="android.intent.action.SEND" />
+                  <category android:name="android.intent.category.DEFAULT" />
+                  <data android:mimeType="image/*" />
+              </intent-filter>
+              <intent-filter>
+                  <action android:name="android.intent.action.SEND_MULTIPLE" />
+                  <category android:name="android.intent.category.DEFAULT" />
+                  <data android:mimeType="image/*" />
+              </intent-filter>
+          </activity>
+          '''
+          if 'SendIntentActivity' not in s:
+              s = s.replace('</application>', act + '</application>', 1)
+          open(p, 'w').write(s)
+          PY
+          grep -n "SendIntent" android/app/src/main/AndroidManifest.xml
+
+      - name: Permissions (caméra, micro pour les notes vocales, installation des mises à jour)
+        run: |
+          sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#&\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />#' android/app/src/main/AndroidManifest.xml
           grep -n "permission" android/app/src/main/AndroidManifest.xml
 
       - name: Sync web code
@@ -87,6 +120,11 @@ jobs:
           grep -qi "e3ecf43100a66eb4e55ef18aa18236a4374f56d0e3651ef30b62d9d058bee024" certs.txt || (echo "WRONG SIGNING KEY" && exit 1)
           grep -n -E "minSdkVersion|compileSdkVersion|targetSdkVersion" android/variables.gradle || true
 
+      - name: Web bundle for fast updates (no reinstall)
+        run: |
+          cd www && zip -q -r -9 ../www.zip . && cd .. && ls -la www.zip
+          python3 -c "import zipfile,json; z=zipfile.ZipFile('www.zip'); m=json.load(open('ota.json')); m['files']=sum(1 for i in z.infolist() if not i.is_dir()); m['size']=sum(i.file_size for i in z.infolist()); json.dump(m,open('ota.json','w')); print(m)"
+
       - uses: actions/upload-artifact@v4
         with:
           name: SiteTeam-apk
@@ -98,6 +136,9 @@ jobs:
           tag_name: siteteam-v1.0.${{ github.run_number }}
           target_commitish: ${{ github.sha }}
           name: SiteTeam v1.0.${{ github.run_number }}
-          body: "Téléchargez **SiteTeam.apk** ci-dessous et installez-le sur Android."
-          files: SiteTeam.apk
+          body_path: RELEASE_NOTES_SITETEAM.md
+          files: |
+            SiteTeam.apk
+            www.zip
+            ota.json
           make_latest: false

@@ -1,3 +1,34 @@
+// ---------- Thèmes ----------
+const THEMES = [
+  ['dark', 'Classique', 'linear-gradient(160deg,#2c313a,#1b1e24)', '#5b8def'],
+  ['glass', 'Verre', 'radial-gradient(60% 40% at 0 0,#3b82f6aa,transparent),radial-gradient(50% 40% at 100% 40%,#a855f7aa,transparent),#0e1430', 'linear-gradient(135deg,#4f8cff,#a855f7)'],
+  ['sakura', '🌸 Sakura', 'radial-gradient(60% 40% at 0 0,#ff6faecc,transparent),radial-gradient(50% 40% at 100% 40%,#ffb6d5aa,transparent),#2a0f22', 'linear-gradient(135deg,#ff6fae,#c084fc)'],
+  ['lavande', '💜 Lavande', 'radial-gradient(60% 40% at 0 0,#a78bfacc,transparent),radial-gradient(50% 40% at 100% 40%,#f0abfc88,transparent),#1b1533', 'linear-gradient(135deg,#a78bfa,#f0abfc)'],
+  ['peche', '🍑 Pêche', 'radial-gradient(60% 40% at 0 0,#fb923ccc,transparent),radial-gradient(50% 40% at 100% 40%,#fda4afaa,transparent),#2a1514', 'linear-gradient(135deg,#fb923c,#f472b6)'],
+  ['ocean', '🌊 Océan', 'radial-gradient(60% 40% at 0 0,#06b6d4cc,transparent),radial-gradient(50% 40% at 100% 40%,#3b82f6aa,transparent),#061a26', 'linear-gradient(135deg,#06b6d4,#3b82f6)'],
+  ['foret', '🌿 Forêt', 'radial-gradient(60% 40% at 0 0,#22c55ebb,transparent),radial-gradient(50% 40% at 100% 40%,#14b8a688,transparent),#0b1a12', 'linear-gradient(135deg,#22c55e,#14b8a6)'],
+  ['sunset', '🌅 Sunset', 'radial-gradient(60% 40% at 0 0,#f97316cc,transparent),radial-gradient(50% 40% at 100% 40%,#ec4899bb,transparent),#1f0f24', 'linear-gradient(135deg,#f97316,#8b5cf6)'],
+  ['pro', '💼 Pro sobre', 'linear-gradient(160deg,#20242a,#15171b)', '#4b6584'],
+  ['net', '📄 Net clair', 'linear-gradient(160deg,#ffffff,#eef1f5)', '#334155'],
+  ['noir-or', '🖤 Noir & Or', 'radial-gradient(60% 40% at 0 0,#d4a53766,transparent),#0a0a0a', 'linear-gradient(135deg,#d4a537,#f5d77a)'],
+];
+const themeInt = () => { try { return localStorage.getItem('theme.int') || 'compact'; } catch (e) { return 'compact'; } };
+function applyTheme(t) {
+  const h = document.documentElement;
+  h.className = h.className.split(' ').filter(c => c && c !== 'glass' && c !== 'sober' && !c.startsWith('th-') && !c.startsWith('gi-')).join(' ');
+  if (t === 'pro' || t === 'net') h.classList.add('sober', 'th-' + t);   // thèmes professionnels : sobres, sans effets
+  else if (t && t !== 'dark') { h.classList.add('glass'); if (t !== 'glass') h.classList.add('th-' + t); h.classList.add('gi-' + themeInt()); }
+  const meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.content = ({ dark: '#1b1e24', glass: '#0e1430', pro: '#15171b', net: '#ffffff' })[t] || getComputedStyle(h).getPropertyValue('--base').trim() || '#1b1e24';
+}
+const curTheme = () => { try { return localStorage.getItem('theme') || 'dark'; } catch (e) { return 'dark'; } };
+try { applyTheme(curTheme()); } catch (e) {}
+function chooseTheme(after) {
+  const s = sheet(`<div style="padding:0 16px 14px"><h3 style="margin:0 0 10px">Apparence</h3><div class="thm-grid">${THEMES.map(([k, l, bg, fab]) => `<button class="thm ${curTheme() === k ? 'on' : ''}" data-t="${k}"><i style="background:${bg};--fab:${fab}"><u></u></i>${l}</button>`).join('')}</div>
+    <div class="thm-int"><span>Rendu</span><button data-int="compact" class="${themeInt() === 'compact' ? 'on' : ''}">Net (compact)</button><button data-int="verre" class="${themeInt() === 'verre' ? 'on' : ''}">Verre (transparent)</button></div>
+    <small style="color:var(--muted)">Le thème s'applique tout de suite, sur tous les écrans.</small></div>`, {});
+  $$('[data-int]', s.el).forEach(b => b.onclick = () => { try { localStorage.setItem('theme.int', b.dataset.int); } catch (e) {} applyTheme(curTheme()); $$('[data-int]', s.el).forEach(x => x.classList.toggle('on', x === b)); after && after(); });
+  $$('[data-t]', s.el).forEach(b => b.onclick = () => { const t = b.dataset.t; try { localStorage.setItem('theme', t); } catch (e) {} applyTheme(t); $$('.thm', s.el).forEach(x => x.classList.toggle('on', x === b)); after && after(); });
+}
 // Application principale : écrans et navigation
 const CATEGORIES = ['Gros œuvre', 'Coffrage', 'Ferraillage', 'Béton', 'Maçonnerie', 'Étanchéité', 'Électricité', 'Plomberie', 'Menuiserie', 'Finitions', 'Sécurité', 'Qualité'];
 const LINK_CATS = [
@@ -29,21 +60,22 @@ async function fileURL(fileId) {
   return f ? BlobURL.get(f.id, f.blob) : '';
 }
 async function saveImageFile(projectId, file, role = 'photo', extra = {}) {
-  const { blob, w, h } = await compressImage(file, role === 'plan' ? 5000 : 1600, role === 'plan' ? 0.93 : 0.82);
+  const hq = extra.hq; delete extra.hq;
+  if (file._w && /jpe?g/i.test(file.type || '')) return DB.put('files', { projectId, blob: file, mime: 'image/jpeg', name: file.name, role, w: file._w, h: file._h, ...extra });   // déjà recadrée et compressée
+  const { blob, w, h } = await compressImage(file, role === 'plan' ? 5000 : hq ? 2200 : 1600, role === 'plan' ? 0.93 : hq ? 0.86 : 0.82);
   return DB.put('files', { projectId, blob, mime: 'image/jpeg', name: file.name, role, w, h, ...extra });
 }
 async function addPhotos(projectId, extra = {}) {
-  const src = await menu('Ajouter des photos', [
-    { label: 'Prendre une photo', icon: 'camera', value: 'cam' },
-    { label: 'Choisir dans la galerie', icon: 'image', value: 'gal' },
-  ]);
+  const src = await pickSource(extra.scan ? 'Ajouter un PV' : 'Ajouter des photos');
   if (!src) return [];
-  const files = await pickFiles({ accept: 'image/*', multiple: src === 'gal', capture: src === 'cam' });
+  let files = await pickImages(src);
   if (!files.length) return [];
+  const scan = extra.scan; delete extra.scan;
+  if (scan) { const sc = await scanDocuments(files); if (!sc || !sc.length) return []; files = sc; extra.hq = true; }
   const ld = loading('Enregistrement…');
   try {
     const out = [];
-    for (const f of files) out.push(await saveImageFile(projectId, f, 'photo', extra));
+    for (const f of files) out.push(await saveImageFile(projectId, f, 'photo', { ...extra }));
     return out;
   } finally { ld.close(); }
 }
@@ -60,13 +92,23 @@ function shareWhatsApp(text) {
   openUrl('https://wa.me/?text=' + encodeURIComponent(text));
 }
 
+// ---------- Rappels : couleur selon l'échéance ----------
+// late = aujourd'hui ou dépassé (rouge, reste jusqu'au ✓) · soon = demain (vert) · '' = plus tard
+const rapDays = (x) => { if (!x.at) return 99; const d = new Date(x.at.slice(0, 10) + 'T00:00:00'), t = new Date(todayISO() + 'T00:00:00'); return Math.round((d - t) / 864e5); };
+const rapState = (x) => { const d = rapDays(x); return d <= 0 ? 'late' : d === 1 ? 'soon' : ''; };
+const rapRank = (x) => ({ late: 0, soon: 1 })[rapState(x)] ?? 2;
+const rapLabel = (x) => { const d = rapDays(x); return d < 0 ? ` · en retard de ${-d} j` : d === 0 ? " · aujourd'hui" : d === 1 ? ' · demain' : ''; };
+
 // ---------- Accueil : projets ----------
 async function renderHome() {
+  App.fromBrief = null;
   const keepScroll = App.project ? 0 : (($('.h2-body') || {}).scrollTop || 0);
+  App.homeFocus = null;   // plus de page intermédiaire : la liste des chantiers, un toucher = on entre
   App.project = null;
   BackStack.length = 0;
   const projects = (await DB.all('projects')).filter(p => Team.canProject(p.id)).sort((a, b) => b.updatedAt - a.updatedAt);
-  const [allTasks, allRecs] = await Promise.all([DB.all('tasks'), DB.all('receptions')]);
+  const [allTasks, allRecs, allLinks] = await Promise.all([DB.all('tasks'), DB.all('receptions'), DB.all('links')]);
+  const fRec = featOn('reception'), fTasks = featOn('tasks'), fAv = featOn('avancement');
   const today = todayISO();
   const wk = new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10);
   const stats = (p) => {
@@ -75,7 +117,8 @@ async function renderHome() {
     const pvl = r.filter(d => d.type !== 'Bétonnage').flatMap(d => (d.rows || []).filter(pvMissing).map(x => d.date));
     return { open: t.filter(x => !isLifted(x)).length, late: t.filter(isLate).length, pv: pvl.length, pvOld: pvl.filter(dt => daysSince(dt) >= 3).length,
       today: cnt('F', today) + cnt('B', today), fT: cnt('F', today), fW: cnt('F', wk), fA: cnt('F'), bT: cnt('B', today), bW: cnt('B', wk), bA: cnt('B'),
-      rap: (p.rappels || []).filter(x => !x.done).sort((a, b) => (a.at || '9').localeCompare(b.at || '9')) };
+      rap: (p.rappels || []).filter(x => !x.done).sort((a, b) => rapRank(a) - rapRank(b) || (a.at || '9').localeCompare(b.at || '9')),
+      av: fAv ? avHomeStats(p, allLinks) : null };
   };
   App.homeOpen = App.homeOpen || {};
   const HUES = [['#2563eb', '#1e3a8a'], ['#0d9488', '#134e4a'], ['#7c3aed', '#4c1d95'], ['#ea580c', '#7c2d12'], ['#db2777', '#831843'], ['#0891b2', '#164e63']];
@@ -88,55 +131,77 @@ async function renderHome() {
     : ['Belle soirée, bon travail aujourd\'hui 👏', 'Le temps de faire le bilan du jour 📊', 'Pensez à envoyer les tableaux du jour 📤', 'Reposez-vous, demain on continue 🌙', 'Merci pour cette journée de chantier'];
   const phrase = PHR[(new Date().getDate() + h) % PHR.length];
   const dateL = new Date().toLocaleDateString({ ar: 'ar-MA', en: 'en-GB' }[Lang.cur] || 'fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const detHTML = (p, st) => { const due = (x) => x.at && x.at.slice(0, 10) <= today, ropen = !!(App.homeRap || {})[p.id]; return `<div class="h2-det">
+              ${st.av ? `<div class="h2-kpi" style="grid-template-columns:1fr;margin:0 0 10px"><div class="${st.av.late ? 'r' : 'g'}" data-go="${p.id}|avancement"><b>${st.av.pct}%</b><span>Avancement second œuvre · ${st.av.locs} locaux ›</span>${st.av.late ? `<small>${st.av.late} engagement(s) en retard</small>` : ''}</div></div>` : ''}
+              ${fRec ? `<table class="h2-tab"><tr><th></th><th>Aujourd'hui</th><th>7 jours</th><th>Total</th></tr>
+                <tr data-go="${p.id}|reception"><td>Réception ferraillage ›</td><td><b>${st.fT}</b></td><td>${st.fW}</td><td>${st.fA}</td></tr>
+                <tr data-go="${p.id}|beton"><td>Bétonnage ›</td><td><b>${st.bT}</b></td><td>${st.bW}</td><td>${st.bA}</td></tr></table>` : ''}
+              ${fRec || fTasks ? `<div class="h2-kpi" style="${fRec && fTasks ? '' : 'grid-template-columns:1fr'}">${fRec ? `<div class="${st.pv ? 'r' : 'g'}" data-go="${p.id}|pv"><b>${st.pv}</b><span>PV à récupérer ›</span>${st.pvOld ? `<small>dont ${st.pvOld} > 3 jours</small>` : ''}</div>` : ''}
+                ${fTasks ? `<div class="${st.open ? 'o' : 'g'}" data-go="${p.id}|tasks"><b>${st.open}</b><span>Réserves ouvertes ›</span>${st.late ? `<small>${st.late} en retard</small>` : ''}</div>` : ''}</div>` : ''}
+              <div class="h2-rh"><button class="h2-rt" data-raptog="${p.id}"><b>🔔 Rappels</b><span class="n">${st.rap.length}</span>${st.rap.some(due) ? '<span class="due">à faire</span>' : ''}<span class="chev" style="transform:rotate(${ropen ? 180 : 0}deg)">${icon('chevdown')}</span></button><button data-addrap="${p.id}">${icon('plus')} Ajouter</button></div>
+              ${!ropen ? '' : st.rap.length ? st.rap.map(x => `<div class="h2-rap ${rapState(x)}"><button class="ck" data-rapok="${p.id}|${x.id}"></button><div class="grow" data-rapedit="${p.id}|${x.id}"><span>${esc(x.text)}</span>${x.at ? `<small>${fmtDate(x.at.slice(0, 10))}${x.at.length > 10 ? ' · ' + x.at.slice(11, 16) : ''}${rapLabel(x)}</small>` : ''}</div><button class="iconbtn sm" data-rapdel="${p.id}|${x.id}">${icon('close')}</button></div>`).join('') : '<div class="h2-none">Aucun rappel</div>'}
+            </div>`; };
+  const fp = App.homeFocus && projects.find(x => x.id === App.homeFocus); if (!fp) App.homeFocus = null;
+  const focusHTML = () => { const st = stats(fp), [c1, c2] = hue(fp.name); if (!fRec) { st.today = 0; st.pv = 0; } if (!fTasks) { st.open = 0; st.late = 0; }
+    return `<div class="h2-focus"><div class="h2-band" style="--c1:${c1};--c2:${c2}"><button class="h2-bk" data-a="unfocus" aria-label="Mes chantiers">${icon('back')}</button>
+      <span class="h2-bav">${esc(initials(fp.name))}</span><b class="grow">${esc(fp.name)}</b><button class="h2-bopen" data-open="${fp.id}">Ouvrir ${icon('chevright')}</button></div>
+      <button class="h2-bbrief" data-brief="${fp.id}">☀️ Briefing du chantier</button>${detHTML(fp, st)}</div>`; };
   $('#app').innerHTML = `
     <div class="home2">
       <div class="h2-hero">
-        <div class="h2-top"><div class="brand notr"><span class="logo">${icon('hard')}</span>SITETEAM</div>
+        <div class="h2-top"><div class="brand notr"><span class="logo">${icon('hard')}</span><b class="bt">SITETEAM</b></div>
           <div class="h2-acts"><button class="h2-cloud ${Sync.enabled() ? 'on' : 'off'}" data-a="sync" title="Google Drive">${icon('drive')}<i data-syncdot></i></button>
           ${Sync.enabled() ? `<button class="iconbtn" data-a="syncnow" title="Synchroniser">${icon('undo')}</button>` : ''}
+          ${featOn('career') ? `<button class="iconbtn h2-emo" data-a="career" title="Emploi & carrière">💼${(() => { try { return +localStorage.getItem('job.new') > 0 ? `<i class="h2-badge">${localStorage.getItem('job.new')}</i>` : ''; } catch (e) { return ''; } })()}</button>` : ''}
           ${Team.ready() ? `<button class="iconbtn" data-a="company" title="Mon entreprise">${icon('team')}</button>` : ''}
-          <button class="iconbtn" data-a="quit" title="Fermer l'application">${icon('power')}</button>
+          <button class="iconbtn h2-emo off" data-a="freeph" title="Stockage">🧹</button>
+          <button class="iconbtn h2-quit" data-a="quit" title="Fermer (appui long : verrouiller)">${icon('power')}</button>
           <button class="iconbtn" data-a="homemore">${icon('more')}</button></div></div>
+        ${(() => { const P = Org.poste(); if (P) { Org.apply(); return `<span class="h2-role" title="Vous êtes connecté comme">${P.svc.e} ${esc(P.n)}</span>`; } const r = applyRoleColor(), R = r && roleOf(r); return R ? `<button class="h2-role" data-a="role">${R.e} ${esc(R.n.split(' / ')[0])}</button>` : ''; })()}
         <div class="h2-hello" data-a="uname">${tr(hello)}${uname ? (Lang.cur === 'ar' ? '، ' : ', ') + esc(uname) : ''} 👷</div>
         <div class="h2-phrase">${phrase}</div>
         <div class="h2-date">${dateL.charAt(0).toUpperCase() + dateL.slice(1)}</div>
       </div>
       <div class="h2-body">
         ${espaceHome()}
-        <div class="h2-sec"><span>Mes chantiers</span><small>${projects.length}</small></div>
+        ${fp ? focusHTML() : `<div class="h2-sec"><span>Mes chantiers</span><small>${projects.length}</small></div>
         ${projects.length ? projects.map(p => { const st = stats(p), [c1, c2] = hue(p.name), open = !!App.homeOpen[p.id];
           const due = (x) => x.at && x.at.slice(0, 10) <= today;
           const ropen = !!(App.homeRap || {})[p.id];
+          if (!fRec) { st.today = 0; st.pv = 0; } if (!fTasks) { st.open = 0; st.late = 0; }
           return `<div class="h2-proj ${open ? 'open' : ''}"><div class="h2-stick"><button class="h2-card" data-id="${p.id}">
             <span class="h2-av" style="background:linear-gradient(135deg,${c1},${c2})">${esc(initials(p.name))}</span>
             <span class="grow"><b>${esc(p.name)}</b>${p.address ? `<small>${icon('pin')} ${esc(p.address)}</small>` : ''}
               <span class="h2-chips">
                 ${st.today ? `<i class="c-b">${st.today} réception(s) aujourd'hui</i>` : ''}
-                ${st.pv ? `<i class="c-r">${st.pv} PV à récupérer</i>` : ''}
-                ${st.rap.length ? `<i class="c-y">🔔 ${st.rap.length} rappel(s)</i>` : ''}
+                ${st.pv ? `<i class="c-r c-go" data-pvgo="${p.id}">${st.pv} PV à récupérer ›</i>` : ''}
+                ${st.rap.length ? `<i class="${st.rap.some(x => rapState(x) === 'late') ? 'c-r' : st.rap.some(x => rapState(x) === 'soon') ? 'c-g2' : 'c-y'}">🔔 ${st.rap.length} rappel(s)</i>` : ''}
                 ${st.open ? `<i class="c-o">${st.open} réserve(s)</i>` : ''}
-                ${!st.today && !st.pv && !st.open && !st.rap.length ? '<i class="c-g">À jour ✓</i>' : ''}
+                ${st.av ? `<i class="${st.av.late ? 'c-r' : 'c-b'}">🏗️ ${st.av.pct}%${st.av.late ? ` · ${st.av.late} en retard` : ''}</i>` : ''}
+                ${!st.today && !st.pv && !st.open && !st.rap.length && !(st.av && st.av.late) ? '<i class="c-g">À jour ✓</i>' : ''}
               </span></span>
-            <span class="h2-chev">${icon('chevdown')}</span></button>
-            ${open ? `<button class="btn h2-openbtn" data-open="${p.id}">Ouvrir le projet ${icon('chevright')}</button>` : ''}</div>
-            ${open ? `<div class="h2-det">
-              <table class="h2-tab"><tr><th></th><th>Aujourd'hui</th><th>7 jours</th><th>Total</th></tr>
-                <tr data-go="${p.id}|reception"><td>Réception ferraillage ›</td><td><b>${st.fT}</b></td><td>${st.fW}</td><td>${st.fA}</td></tr>
-                <tr data-go="${p.id}|beton"><td>Bétonnage ›</td><td><b>${st.bT}</b></td><td>${st.bW}</td><td>${st.bA}</td></tr></table>
-              <div class="h2-kpi"><div class="${st.pv ? 'r' : 'g'}" data-go="${p.id}|pv"><b>${st.pv}</b><span>PV à récupérer ›</span>${st.pvOld ? `<small>dont ${st.pvOld} > 3 jours</small>` : ''}</div>
-                <div class="${st.open ? 'o' : 'g'}" data-go="${p.id}|tasks"><b>${st.open}</b><span>Réserves ouvertes ›</span>${st.late ? `<small>${st.late} en retard</small>` : ''}</div></div>
-              <div class="h2-rh"><button class="h2-rt" data-raptog="${p.id}"><b>🔔 Rappels</b><span class="n">${st.rap.length}</span>${st.rap.some(due) ? '<span class="due">à faire</span>' : ''}<span class="chev" style="transform:rotate(${ropen ? 180 : 0}deg)">${icon('chevdown')}</span></button><button data-addrap="${p.id}">${icon('plus')} Ajouter</button></div>
-              ${!ropen ? '' : st.rap.length ? st.rap.map(x => `<div class="h2-rap ${due(x) ? 'due' : ''}"><button class="ck" data-rapok="${p.id}|${x.id}"></button><div class="grow" data-rapedit="${p.id}|${x.id}"><span>${esc(x.text)}</span>${x.at ? `<small>${fmtDate(x.at.slice(0, 10))}${x.at.length > 10 ? ' · ' + x.at.slice(11, 16) : ''}</small>` : ''}</div><button class="iconbtn sm" data-rapdel="${p.id}|${x.id}">${icon('close')}</button></div>`).join('') : '<div class="h2-none">Aucun rappel</div>'}
-            </div>` : ''}</div>`; }).join('')
+            <span class="h2-chev" data-det="${p.id}" style="transform:rotate(${open ? 180 : 0}deg)">${icon('chevdown')}</span></button></div>
+            ${open ? `<div class="h2-detw"><button class="h2-bbrief" data-brief="${p.id}">☀️ Briefing du chantier</button>${detHTML(p, st)}</div>` : ''}</div>`; }).join('')
         : `<div class="h2-empty"><div class="ic">${icon('hard')}</div><b>Aucun chantier pour le moment</b><span>Créez votre premier projet avec le bouton <b>+</b>, ou récupérez vos données avec Google Drive.</span>
-            <button class="btn ghost" data-a="restore2" style="flex:none">${icon('undo')} Restaurer une sauvegarde</button></div>`}
+            <button class="btn ghost" data-a="restore2" style="flex:none">${icon('undo')} Restaurer une sauvegarde</button></div>`}`}
       </div>
     </div>
-    ${Team.lvl('projet') >= 3 ? `<button class="fab" data-a="new">${icon('plus')}</button>` : ''}`;
-  const cb = $('[data-a=company]'); if (cb) cb.onclick = () => Team.openCompany();
+    ${fp || Team.lvl('projet') < 3 ? '' : `<button class="fab" data-a="new">${icon('plus')}</button>`}`;
+  const cb = $('[data-a=career]'); if (cb) cb.onclick = openCareer;
+  const fpb = $('[data-a=freeph]'); fpb.onclick = () => openStorage();
+  photoReminder().then(r => { if (!r || App.project || !fpb.isConnected) return; fpb.classList.remove('off'); fpb.title = `${r.n} photos déjà dans Drive · libérer ${r.mb.toFixed(0)} Mo`; fpb.insertAdjacentHTML('beforeend', `<i class="h2-badge y">${r.n > 99 ? '99+' : r.n}</i>`); }).catch(() => {});
+  const cmp = $('[data-a=company]'); if (cmp) cmp.onclick = () => Team.openCompany();
   espaceBind($('#app'));
   if (keepScroll) { const hb = $('.h2-body'); if (hb) hb.scrollTop = keepScroll; }
-  $$('.h2-card[data-id]').forEach(r => r.onclick = () => { App.homeOpen[r.dataset.id] = !App.homeOpen[r.dataset.id]; renderHome(); });
+  // toucher un chantier : son briefing, puis « Entrer » → la page du chantier
+  const focusOn = async (id) => { App.homeFocus = id; await renderHome(); $('#app .h2-body') && ($('#app .h2-body').scrollTop = 0);
+    if (typeof briefingShow === 'function') { const act = await briefingShow({ pid: id }).catch(e => { console.warn(e); return null; }); if (act) act(); } };
+  // un toucher sur le chantier = on entre (page Plans) ; la flèche ⌄ déplie les chiffres et le briefing
+  $$('.h2-card[data-id]').forEach(r => r.onclick = async (e) => { const pv = e.target.closest('[data-pvgo]'); if (pv) { await openProject(await DB.get('projects', pv.dataset.pvgo)); return goMissingPv(); }
+    const dt = e.target.closest('[data-det]'); if (dt) { e.stopPropagation(); App.homeOpen[dt.dataset.det] = !App.homeOpen[dt.dataset.det]; return renderHome(); }
+    openProject(await DB.get('projects', r.dataset.id)); });
+  const unf = $('[data-a=unfocus]'); if (unf) { unf.onclick = () => { App.homeFocus = false; renderHome().then(() => { App.homeFocus = null; }); }; pushBack(() => unf.onclick()); }
+  $$('[data-brief]').forEach(bb => bb.onclick = async () => { const act = await briefingShow({ pid: bb.dataset.brief }); if (act) act(); });
   $$('[data-open]').forEach(b => b.onclick = async () => openProject(await DB.get('projects', b.dataset.open)));
   $$('[data-go]').forEach(b => b.onclick = async () => {
     const [pid, where] = b.dataset.go.split('|'); const p = await DB.get('projects', pid);
@@ -146,7 +211,10 @@ async function renderHome() {
   });
   $$('[data-raptog]').forEach(b => b.onclick = () => { App.homeRap = App.homeRap || {}; App.homeRap[b.dataset.raptog] = !App.homeRap[b.dataset.raptog]; renderHome(); });
   $$('[data-rapedit]').forEach(b => b.onclick = () => { const [pid, id] = b.dataset.rapedit.split('|'); addRappel(pid, id); });
-  const q = $('[data-a=quit]'); q.onclick = async () => { const A = window.Capacitor?.Plugins?.App; if (A && A.exitApp) A.exitApp(); else toast('Fermez l\'onglet du navigateur'); };
+  const q = $('[data-a=quit]'); { let t = null, lp = false;   // toucher = au revoir et fermer ; appui long = verrouiller / code PIN
+    q.addEventListener('pointerdown', () => { lp = false; t = setTimeout(() => { lp = true; powerMenu(); }, 550); });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => q.addEventListener(ev, () => clearTimeout(t)));
+    q.onclick = () => { if (!lp) Splash.bye(); }; }
   const sn = $('[data-a=syncnow]'); if (sn) sn.onclick = () => { sn.classList.add('spinning'); Sync.run({ force: true }).finally(() => sn.classList.remove('spinning')); };
   $$('[data-addrap]').forEach(b => b.onclick = () => addRappel(b.dataset.addrap));
   $$('[data-rapok]').forEach(b => b.onclick = async () => { const [pid, id] = b.dataset.rapok.split('|'); const p = await DB.get('projects', pid); const x = (p.rappels || []).find(r => r.id === id); if (x) { x.done = true; cancelNotif(x); await DB.put('projects', p); toast('Rappel terminé ✓'); renderHome(); } });
@@ -154,35 +222,57 @@ async function renderHome() {
   $('[data-a=sync]').onclick = () => Sync.openSyncSettings();
   const askName = async () => { const r = await formSheet('Votre prénom', [{ name: 'n', label: 'Comment vous appeler ?', value: uname, placeholder: 'Ex : Abdessamad' }], { okLabel: 'Enregistrer' }); if (r) { try { localStorage.setItem('userName', (r.n || '').trim()); localStorage.setItem('askedName', '1'); } catch (e) {} renderHome(); } };
   $('[data-a=uname]').onclick = askName;
+  const rb = $('[data-a=role]'); if (rb) rb.onclick = async () => { const v = await menu('Mon profil (couleur et titre)', ROLES.map(x => ({ label: `${x.e} ${x.n}`, value: x.k, swatch: ROLE_COLORS[x.k], checked: x.k === myRole() }))); if (v) { try { localStorage.setItem('myRole', v); } catch (e) {} renderHome(); } };
   try { if (!uname && !localStorage.getItem('askedName')) { localStorage.setItem('askedName', '1'); setTimeout(askName, 600); } } catch (e) {}
   $('[data-a=homemore]').onclick = async () => {
-    const v = await menu('SiteTeam', [
-      { label: 'Outils PDF (fusionner, diviser, pages)', icon: 'pdf', value: 'pdf' },
-      ...(Team.ready() ? [{ label: 'Mon entreprise (équipe, organigramme)', icon: 'team', value: 'company' }, ...(Team.isAdmin() ? [{ label: 'Inviter un membre', icon: 'plus', value: 'invite' }] : [])] : []),
-      { label: 'Tableau de dessin', icon: 'brush', value: 'board' },
-      { label: 'Langue · اللغة · Language', icon: 'globe', value: 'lang' },
-      { label: 'Mon prénom', icon: 'edit', value: 'name' },
-      { label: 'Restaurer une sauvegarde', icon: 'undo', value: 'restore' },
-      ...(Team.ready() ? [{ label: 'Se déconnecter', icon: 'power', value: 'logout' }] : []),
-      { label: `Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}`, icon: 'settings', value: null },
+        const v = await groupMenu('SiteTeam', [
+      { title: 'Aujourd\'hui', color: '#22c55e', items: [{ label: 'Briefing du jour', sub: 'notes, rappels, PV à livrer, tâches', icon: 'calendar', value: 'brief' }] },
+      { title: 'Mon entreprise', color: '#3b82f6', items: [
+        ...(Team.ready() ? [{ label: 'Mon entreprise', sub: 'équipe · organigramme · mon compte', icon: 'team', value: 'company' }, ...(Team.isAdmin() ? [{ label: 'Inviter un membre', icon: 'plus', value: 'invite' }] : [])] : []),
+        { label: 'Mon prénom', sub: uname || 'pour les messages d\'accueil', icon: 'edit', value: 'name' },
+        ...(Team.ready() ? [{ label: 'Se déconnecter', icon: 'power', value: 'logout' }] : [])] },
+      { title: 'Apparence', color: '#a855f7', items: [
+        { label: 'Thèmes', sub: 'Sakura, Océan, Noir & Or… · net ou verre', icon: 'brush', value: 'theme' },
+        { label: 'Écran d\'ouverture', sub: Splash.label(), icon: 'eye', value: 'splash' },
+        { label: 'Sons et effets', sub: `${Fx.on('sound') ? '💧 bulle' : 'sans son'} · ${Fx.on('wave') ? '🌊 vague' : 'sans vague'}`, icon: 'disc', value: 'fx' },
+        { label: 'Langue', sub: 'Français · العربية · English', icon: 'globe', value: 'lang' }] },
+      { title: 'Sécurité', color: '#ef4444', items: [{ label: 'Code PIN et empreinte', sub: 'verrouillage de l\'application', icon: 'settings', value: 'pin' }] },
+      { title: 'Données', color: '#0ea5e9', items: [
+        { label: 'Stockage & sauvegarde', sub: 'libérer · Google Drive · .zip', icon: 'cloud', value: 'stock' },
+        { label: 'Restaurer une sauvegarde', sub: 'fichier .zip ou .chantier', icon: 'undo', value: 'restore' },
+        { label: 'Corbeille', sub: 'lignes et tableaux supprimés (30 jours)', icon: 'trash', value: 'trash' }] },
+      { title: 'Outils', color: '#f59e0b', items: [
+        { label: 'Outils PDF', sub: 'fusionner · diviser · pages · compresser', icon: 'pdf', value: 'pdf' },
+        { label: 'Studio photo', sub: 'auto · document · lumière · netteté · recadrage', icon: 'camera', value: 'photo' },
+        { label: 'Tableau de dessin', icon: 'brush', value: 'board' },
+        { label: 'Fonctions affichées', sub: 'masquer ce qui ne sert pas', icon: 'grid', value: 'feat' }] },
+      { title: 'Application', color: '#64748b', items: [
+        { label: 'Rechercher une mise à jour', icon: 'upload', value: 'upd' },
+        { label: `Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}`, icon: 'settings', value: null }] },
     ]);
+    if (v === 'brief') { const act = await briefingShow(); if (act) act(); }
+    if (v === 'trash') { const ps = (await DB.all('projects')).filter(p => (p.trash || []).length); if (!ps.length) toast('La corbeille est vide'); else { const id = ps.length === 1 ? ps[0].id : await menu('Corbeille de quel chantier ?', ps.map(p => ({ label: `${p.name} · ${p.trash.length}`, icon: 'trash', value: p.id }))); if (id) openTrash(id); } }
+    if (v === 'packs') openPacks();
     if (v === 'restore') restoreBackup();
+    if (v === 'stock') openStorage();
+    if (v === 'team') openMyTeam();
+    if (v === 'pin') setPinDialog();
+    if (v === 'feat') chooseMyFeatures();
+    if (v === 'upd') checkUpdate(true);
     if (v === 'pdf') openPdfTools();
+    if (v === 'photo') photoStudioTool();
     if (v === 'name') askName();
     if (v === 'board') openBoardTool();
     if (v === 'company') Team.openCompany();
     if (v === 'invite') Team.inviteFlow();
     if (v === 'logout') Team.logout();
     if (v === 'lang') chooseLang();
+    if (v === 'theme') chooseTheme(() => {});
+    if (v === 'splash') Splash.settings();
+    if (v === 'fx') fxSettings();
   };
   const r2 = $('[data-a=restore2]'); if (r2) r2.onclick = restoreBackup;
-  const nb = $('[data-a=new]'); if (nb) nb.onclick = async () => {
-    const r = await formSheet('Nouveau projet', [
-      { name: 'name', label: 'Nom du projet', placeholder: 'Ex : Grand stade Hassan II Benslimane' },
-      { name: 'address', label: 'Adresse / ville (optionnel)' },
-    ], { okLabel: 'Créer' });
-    if (r && r.name) { const p = await DB.put('projects', { name: r.name, address: r.address, team: [] }); openProject(p); }
-  };
+  const nb = $('[data-a=new]'); if (nb) nb.onclick = () => newProjectDialog();
 }
 
 async function openProject(p) {
@@ -191,13 +281,15 @@ async function openProject(p) {
   renderSection();
   const late = (await DB.byProject('tasks', p.id)).filter(isLate).length;
   if (late) setTimeout(() => toast(`⚠ ${late} réserve(s) en retard`), 400);
-  setTimeout(() => pvReminder(p), 700);
+  if (featOn('reception')) setTimeout(() => pvReminder(p), 700);
 }
 
 // ---------- Structure d'un projet ----------
 const SECTIONS = {
   dashboard: { label: 'Tableau de bord', icon: 'layers', render: (r) => renderDashboard(r) },
+  avancement: { label: 'Avancement (lots · locaux)', icon: 'grid', render: (r) => renderAvancement(r), title: 'Avancement', subtitle: 'Lots · niveaux · locaux · engagements' },
   plans: { label: 'Plans', icon: 'plans', render: renderPlans, title: 'Plans', subtitle: 'Toutes les tâches sur les plans' },
+  clauses: { label: 'Clauses techniques', icon: 'book', render: (r) => renderClauses(r) },
   tasks: { label: 'Réserves / Tâches', icon: 'tasks', render: renderTasks },
   reception: { label: 'Réception & Bétonnage', icon: 'layers', render: (r) => renderReceptions(r, 'Ferraillage'), title: 'Réception & Bétonnage', subtitle: 'Tableaux par jour' },
   beton: { label: 'Programme de bétonnage', hidden: true, icon: 'calendar', render: (r) => renderReceptions(r, 'Bétonnage'), title: 'Réception & Bétonnage', subtitle: 'Tableaux par jour' },
@@ -208,51 +300,81 @@ const SECTIONS = {
   models3d: { label: 'Modèles 3D', icon: 'cube', render: (r) => renderModels3D(r) },
   maquette: { label: 'Maquette 3D', icon: 'cube', render: (r) => renderMaquettes(r) },
   calc: { label: 'Calculs & Topo', icon: 'ruler', render: (r) => renderCalcs(r) },
+  gestion: { label: 'Gestion (stock · rendement · situations · labo)', icon: 'grid', render: (r) => renderGestion(r), title: 'Gestion du chantier', subtitle: 'Stock · rendement · attachements · labo' },
+  finance: { label: 'Financier (marché · dépenses · factures · marge)', icon: 'grid', render: (r) => renderFinance(r), title: 'Financier', subtitle: 'Marché · dépenses · factures · marge' },
+  tce: { label: 'TCE (tous corps d\'état)', icon: 'layers', render: (r) => renderTce(r), title: 'TCE', subtitle: 'Lots · entreprises · avancement' },
+  planning: { label: 'Planning (Gantt)', icon: 'gantt', render: (r) => renderPlanning(r), title: 'Planning', subtitle: 'Prévu · réel · retards' },
+  reunions: { label: 'Réunions de chantier', icon: 'meet', render: (r) => renderReunions(r), title: 'Réunions', subtitle: 'Comptes rendus · actions' },
+  pointage: { label: 'Pointage main d\'œuvre', icon: 'clock', render: (r) => renderPointage(r), title: 'Pointage', subtitle: 'Présences · coût' },
+  rfi: { label: 'RFI · demandes au BET', icon: 'ask', render: (r) => renderRfi(r), title: 'RFI', subtitle: 'Demandes d\'information' },
+  visa: { label: 'Visas & bordereaux', icon: 'stamp', render: (r) => renderVisa(r), title: 'Visas', subtitle: 'Documents · bordereaux d\'envoi' },
+  labo: { label: 'Laboratoire', icon: 'flask', render: (r) => renderLabo(r), title: 'Laboratoire', subtitle: 'Béton · slump · essais' },
+  hse: { label: 'HSE · sécurité', icon: 'shield', render: (r) => renderHse(r), title: 'HSE', subtitle: 'Causeries · EPI · accidents · permis' },
+  avenants: { label: 'Avenants & OS', icon: 'sign', render: (r) => renderAvenants(r), title: 'Avenants & OS', subtitle: 'Montants · délais' },
+  st: { label: 'Sous-traitants', icon: 'hands', render: (r) => renderSt(r), title: 'Sous-traitants', subtitle: 'Contrats · situations · paiements' },
+  org: { label: 'Organigramme', icon: 'org', render: (r) => renderOrg(r), title: 'Organigramme', subtitle: 'Hiérarchie du chantier' },
   team: { label: 'Équipe', icon: 'team', render: renderTeam },
   settings: { label: 'Paramètres', icon: 'settings', render: renderSettings },
 };
 
 async function renderSection() {
   BackStack.length = 0;
-  pushBack(() => { if (App.section !== 'plans') { App.section = 'plans'; App.search = ''; renderSection(); } else renderHome(); });
-  if (!Team.canSection(App.section)) App.section = Object.keys(SECTIONS).find(k => !SECTIONS[k].hidden && Team.canSection(k)) || 'plans';
+  if (!SECTIONS[App.section] || !sectionOn(App.section) || !Team.canSection(App.section)) App.section = Object.keys(SECTIONS).find(k => !SECTIONS[k].hidden && sectionOn(k) && Team.canSection(k)) || 'plans';
+  pushBack(() => { if (App.fromBrief && typeof briefReopen === 'function') return briefReopen(); if (App.section !== 'plans') { App.section = 'plans'; App.search = ''; renderSection(); } else renderHome(); });
+  // retour intelligent : chaque page du chantier retrouve sa position quand on y revient
+  App.secScroll = App.secScroll || {};
+  const c0 = $('#content'); if (c0 && App.lastSecKey) App.secScroll[App.lastSecKey] = [c0.scrollTop, (document.scrollingElement || {}).scrollTop || 0];
+  const secKey = App.project.id + '|' + App.section; App.lastSecKey = secKey;
   const s = SECTIONS[App.section];
   $('#app').innerHTML = `
     <div class="topbar dark">
       <button class="iconbtn" data-a="drawer">${icon('menu')}</button>
-      ${s.title ? `<div class="tb-title"><b>${esc(s.title)}</b><span>${esc(s.subtitle || '')}</span></div><div class="tb-actions" id="tbActions"></div>`
+      ${s.title ? `<div class="tb-title"><b>${esc(s.title)}</b><span>${esc(App.project.name)}</span></div><div class="tb-actions" id="tbActions"></div>`
         : `<h1>${esc(App.project.name)}</h1><button class="iconbtn" data-a="home">${icon('home')}</button>`}
     </div>
     <div class="content" id="content"></div>`;
   $('[data-a=drawer]').onclick = openDrawer;
   const hb = $('[data-a=home]'); if (hb) hb.onclick = renderHome;
   await s.render($('#content'));
+  const sv = App.secScroll[secKey]; if (sv && !App.scrollFolder) requestAnimationFrame(() => { const c1 = $('#content'); if (c1 && App.lastSecKey === secKey) { c1.scrollTop = sv[0]; if (document.scrollingElement) document.scrollingElement.scrollTop = sv[1]; } });
   Team.decorateSection(App.section);
 }
 
 async function openDrawer(opts = {}) {
-  const tasks = await DB.byProject('tasks', App.project.id);
-  const nPv = (await missingPvs(App.project.id)).length;
+  // le menu s'affiche tout de suite (compteurs du dernier passage), les chiffres se mettent à jour juste après
+  App.drawerCache = App.drawerCache || {};
+  const dc = App.drawerCache[App.project.id] || { tasks: [], nPv: 0 };
+  const tasks = dc.tasks, nPv = dc.nPv;
+  Promise.all([DB.byProject('tasks', App.project.id), missingPvs(App.project.id)]).then(([t, pv]) => {
+    const changed = t.length !== tasks.length || pv.length !== nPv || JSON.stringify(t.map(x => x.status)) !== JSON.stringify(tasks.map(x => x.status));
+    App.drawerCache[App.project.id] = { tasks: t, nPv: pv.length };
+    if (!changed || !d.isConnected) return;
+    const b = d.querySelector('.pvbadge'); if (b) b.textContent = pv.length + ' PV'; else if (pv.length) { const r = d.querySelector('[data-s=reception],[data-s=beton]'); if (r) r.insertAdjacentHTML('beforeend', `<span class="count pvbadge">${pv.length} PV</span>`); }
+    if (b && !pv.length) b.remove();
+    $$('[data-f]', d).forEach(x => { const k = x.dataset.f, c = x.querySelector('.count'); if (c) c.textContent = k === 'late' ? t.filter(isLate).length : t.filter(y => k === 'all' || y.status === k).length; });
+  });
   const cnt = (st) => tasks.filter(t => st === 'all' || t.status === st).length;
+  let resOpen = false; try { resOpen = localStorage.getItem('dr.res') === '1'; } catch (e) {}
+  const resRows = [['all', 'Toutes'], ['late', 'En retard'], ['open', 'Ouvertes'], ['progress', 'En cours'], ['done', 'Levées (terminées)'], ['verified', 'Vérifiées']].map(([k, l]) =>
+      `<button class="item sub" data-f="${k}">${k === 'all' ? icon('tasks') : k === 'late' ? icon('calendar') : `<span class="dot" style="background:${STATUS[k].color};margin:0 5px"></span>`}<span>${l}</span><span class="count">${k === 'late' ? tasks.filter(isLate).length : cnt(k)}</span></button>`).join('');
   const bg = document.createElement('div'); bg.className = 'drawer-bg';
   const d = document.createElement('div'); d.className = 'drawer';
   d.innerHTML = `
     <div class="drawer-head"><h3>${esc(App.project.name)}</h3><button class="iconbtn" data-home>${icon('home')}</button></div>
     ${Team.ready() ? `<button class="item tm-dr" data-company>${icon('team')}<span>${esc((Team.me() || {}).name || 'Mon entreprise')}</span><span class="count" style="font-size:11.5px;opacity:.7">${esc(roleOf((Team.me() || {}).role).l)}</span></button>` : ''}
-    ${Object.entries(SECTIONS).filter(([k, s]) => !s.hidden && k !== 'settings' && Team.canSection(k)).map(([k, s]) => `<button class="item ${App.section === k || (k === 'reception' && App.section === 'beton') ? 'active' : ''}" data-s="${k === 'reception' && App.section === 'beton' ? 'beton' : k}">${icon(s.icon)}<span>${s.label}</span>${k === 'reception' && nPv ? `<span class="count pvbadge">${nPv} PV</span>` : ''}</button>`).join('')}
-    <div class="group">Outils</div>
-    <button class="item" data-tool="pdf">${icon('pdf')}<span>Outils PDF</span><span class="count" style="font-size:12px;opacity:.6">fusionner · diviser</span></button>
+    <div class="dr-scroll">${drawerSections((k) => { const s = SECTIONS[k]; return `<button class="item ${App.section === k || (k === 'reception' && App.section === 'beton') ? 'active' : ''}" data-s="${k === 'reception' && App.section === 'beton' ? 'beton' : k}">${icon(s.icon)}<span>${s.label}</span>${k === 'reception' && nPv ? `<span class="count pvbadge">${nPv} PV</span>` : ''}${k === 'tasks' ? `<span class="count dr-rt" data-rtog>${tasks.filter(t => t.status === 'open').length || ''}<i style="display:inline-block;transform:rotate(${resOpen ? 180 : 0}deg)">${icon('chevdown', 'style="width:18px;height:18px"')}</i></span>` : ''}</button>${k === 'tasks' ? `<div class="dr-sub" style="${resOpen ? '' : 'display:none'}">${resRows}</div>` : ''}`; })}
+    <div class="dr-g ${(() => { try { const v = localStorage.getItem('dr.g.tools'); return v === '1'; } catch (e) { return false; } })() ? 'open' : ''}" data-g="tools"><button class="group dr-gh" data-gt="tools"><span>🧰 Outils</span><i>5</i>${icon('chevdown', 'style="width:16px;height:16px"')}</button><div class="dr-gb">
+    <button class="item" data-tool="pdf">${icon('pdf')}<span>Outils PDF</span><span class="count" style="font-size:12px;opacity:.6">fusionner · pages · compresser</span></button>
+    <button class="item" data-tool="poutre">🧱<span>Poutre 3D</span><span class="count" style="font-size:12px;opacity:.6">plan Arche → 3D</span></button>
+    <button class="item" data-tool="photo">${icon('camera')}<span>Studio photo</span><span class="count" style="font-size:12px;opacity:.6">auto · document · netteté</span></button>
     <button class="item" data-tool="board">${icon('brush')}<span>Tableau de dessin</span><span class="count" style="font-size:12px;opacity:.6">${(App.project.boards || []).length || ''}</span></button>
     <button class="item" data-tool="bar">${icon('rows')}<span>Dessiner une barre</span><span class="count" style="font-size:12px;opacity:.6">façonnage</span></button>
     <button class="item" data-tool="lang">${icon('globe')}<span>Langue</span><span class="count" style="font-size:12px;opacity:.6">${(LANGS.find(l => l[0] === Lang.cur) || [])[1] || ''}</span></button>
-    <button class="item" data-tool="rap">${icon('calendar')}<span>Rappels</span>${(App.project.rappels || []).filter(x => !x.done).length ? `<span class="count">${(App.project.rappels || []).filter(x => !x.done).length}</span>` : ''}</button>
-    <div class="group">Liens rapides (Drive)</div>
+    <button class="item" data-tool="rap">${icon('calendar')}<span>Rappels</span>${(App.project.rappels || []).filter(x => !x.done).length ? `<span class="count">${(App.project.rappels || []).filter(x => !x.done).length}</span>` : ''}</button></div></div>
+    <div class="dr-g ${(() => { try { const v = localStorage.getItem('dr.g.links'); return v === '1'; } catch (e) { return false; } })() ? 'open' : ''}" data-g="links"><button class="group dr-gh" data-gt="links"><span>🔗 Liens rapides (Drive)</span><i>${(App.project.quickLinks || [1]).length}</i>${icon('chevdown', 'style="width:16px;height:16px"')}</button><div class="dr-gb">
     ${(App.project.quickLinks || [{ id: 'reception', name: 'Tableau de réception (Drive)', url: '' }]).map(q => `<button class="item" data-q="${q.id}">${icon('grid')}<span>${esc(q.name)}</span>${q.url ? `<span class="count qe" data-qe="${q.id}">${icon('edit', 'style="width:18px;height:18px;opacity:.55"')}</span>` : '<span class="count" style="font-size:12px;opacity:.6">à lier</span>'}</button>`).join('')}
-    <button class="item" data-q="__add" style="color:var(--muted)">${icon('plus')}<span>Ajouter un lien</span></button>
-    <div class="group">Réserves</div>
-    ${[['all', 'Toutes'], ['late', 'En retard'], ['open', 'Ouvertes'], ['progress', 'En cours'], ['done', 'Levées (terminées)'], ['verified', 'Vérifiées']].map(([k, l]) =>
-      `<button class="item" data-f="${k}">${k === 'all' ? icon('tasks') : k === 'late' ? icon('calendar') : `<span class="dot" style="background:${STATUS[k].color};margin:0 5px"></span>`}<span>${l}</span><span class="count">${k === 'late' ? tasks.filter(isLate).length : cnt(k)}</span></button>`).join('')}
-    <div class="dr-foot"><button class="item ${App.section === 'settings' ? 'active' : ''}" data-s="settings">${icon('settings')}<span>Paramètres</span></button></div>`;
+    <button class="item" data-q="__add" style="color:var(--muted)">${icon('plus')}<span>Ajouter un lien</span></button></div></div>
+    </div><div class="dr-foot"><button class="item ${App.section === 'settings' ? 'active' : ''}" data-s="settings">${icon('settings')}<span>Paramètres</span></button><button class="dr-org" data-a="drorg" title="Organiser le menu">${icon('edit', 'style="width:18px;height:18px"')}</button></div>`;
   document.body.append(bg, d);
   // style TikTok : le menu suit le doigt et pousse la page
   const appEl = $('#app'), W = () => d.offsetWidth || 300;
@@ -262,19 +384,30 @@ async function openDrawer(opts = {}) {
   const close = () => { unBack(); setP(0, true); setTimeout(remove, 230); };
   const unBack = pushBack(() => { setP(0, true); setTimeout(remove, 230); });
   d.style.animation = 'none'; bg.style.animation = 'none';
-  if (opts.drag) { setP(0); opts.drag.ctl = { move: (dx) => setP(dx), end: (dx, v) => { if (dx > W() * 0.35 || v > 0.4) setP(W(), true); else close(); } }; }
+  if (opts.drag) { setP(0); opts.drag.ctl = { move: (dx) => setP(dx), end: (dx, v) => { if (dx > W() * 0.3 || v > 0.3) setP(W(), true); else close(); } }; }
   else { setP(0); requestAnimationFrame(() => setP(W(), true)); }
   bg.onclick = close;
   // glisser vers la gauche pour fermer (le menu suit le doigt)
-  let dsx = 0, dst = 0, dmov = false;
-  const ts = e => { dsx = e.touches[0].clientX; dst = Date.now(); dmov = false; };
-  const tm = e => { const dx = e.touches[0].clientX - dsx; if (dx < -8) { dmov = true; setP(W() + dx); } };
-  const te = e => { if (!dmov) return; const dx = e.changedTouches[0].clientX - dsx, v = -dx / Math.max(1, Date.now() - dst); if (-dx > W() * 0.3 || v > 0.4) close(); else setP(W(), true); };
-  [d, bg].forEach(x => { x.addEventListener('touchstart', ts, { passive: true }); x.addEventListener('touchmove', tm, { passive: true }); x.addEventListener('touchend', te, { passive: true }); });
+  // glisser : on verrouille la direction (horizontal = fermer, vertical = défiler la liste), jamais les deux
+  let dsx = 0, dsy = 0, dst = 0, dir = null;
+  const ts = e => { dsx = e.touches[0].clientX; dsy = e.touches[0].clientY; dst = Date.now(); dir = null; };
+  const tm = e => {
+    const dx = e.touches[0].clientX - dsx, dy = e.touches[0].clientY - dsy;
+    if (!dir && Math.hypot(dx, dy) > 8) dir = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
+    if (dir === 'h') { e.preventDefault(); d.style.overflowY = 'hidden'; setP(W() + Math.min(0, dx)); }
+  };
+  const te = e => { d.style.overflowY = ''; if (dir !== 'h') return; const dx = e.changedTouches[0].clientX - dsx, v = -dx / Math.max(1, Date.now() - dst); if (-dx > W() * 0.25 || v > 0.3) close(); else setP(W(), true); };
+  [d, bg].forEach(x => { x.addEventListener('touchstart', ts, { passive: true }); x.addEventListener('touchmove', tm, { passive: false }); x.addEventListener('touchend', te, { passive: true }); x.addEventListener('touchcancel', te, { passive: true }); });
   $('[data-home]', d).onclick = () => { close(); renderHome(); };
-  const dc = $('[data-company]', d); if (dc) dc.onclick = () => { close(); Team.openCompany(); };
-  $$('[data-s]', d).forEach(b => b.onclick = () => { close(); App.section = b.dataset.s; App.search = ''; renderSection(); });
-  $$('[data-tool]', d).forEach(b => b.onclick = () => { close(); const t = b.dataset.tool; if (t === 'pdf') openPdfTools(); else if (t === 'board') openBoardTool(); else if (t === 'bar') openBarTool(); else if (t === 'lang') chooseLang(); else addRappel(App.project.id); });
+  const dcb = $('[data-company]', d); if (dcb) dcb.onclick = () => { close(); Team.openCompany(); };
+  drawerGroupsBind(d, close);
+  const rt = $('[data-rtog]', d); if (rt) rt.onclick = (e) => { e.stopPropagation(); resOpen = !resOpen; try { localStorage.setItem('dr.res', resOpen ? '1' : '0'); } catch (x) {} $('.dr-sub', d).style.display = resOpen ? '' : 'none'; rt.querySelector('i').style.transform = `rotate(${resOpen ? 180 : 0}deg)`; };
+  let lp = false;
+  $$('[data-s]', d).forEach(b => { b.onclick = () => { if (lp) { lp = false; return; } close(); App.section = b.dataset.s; App.search = ''; renderSection(); };
+    // appui long : monter / descendre / changer de groupe
+    if (b.dataset.s !== 'settings') b.oncontextmenu = (e) => { e.preventDefault(); lp = true; setTimeout(() => { lp = false; }, 600); drMove(b.dataset.s === 'beton' ? 'reception' : b.dataset.s, () => { remove(); openDrawer(); }); }; });
+  const dro = $('[data-a=drorg]', d); if (dro) dro.onclick = async () => { const k = await menu('Organiser le menu : quelle rubrique ?', [...$$('.dr-scroll [data-s]', d)].map(b => ({ label: b.querySelector('span').textContent, value: b.dataset.s === 'beton' ? 'reception' : b.dataset.s }))); if (k) drMove(k, () => { remove(); openDrawer(); }); };
+  $$('[data-tool]', d).forEach(b => b.onclick = () => { close(); const t = b.dataset.tool; if (t === 'pdf') openPdfTools(); else if (t === 'photo') photoStudioTool(); else if (t === 'poutre') ptListPage(App.project); else if (t === 'board') openBoardTool(); else if (t === 'bar') openBarTool(); else if (t === 'lang') chooseLang(); else addRappel(App.project.id); });
   $$('[data-q]', d).forEach(b => b.onclick = (e) => { close(); quickLink(b.dataset.q, !!e.target.closest('[data-qe]')); });
   $$('[data-f]', d).forEach(b => b.onclick = () => { close(); App.section = 'tasks'; App.taskFilter = b.dataset.f; App.companyFilter = 'all'; renderSection(); });
 }
@@ -291,14 +424,22 @@ async function renderPlans(root) {
   const [folders, plans, tasks] = await Promise.all([DB.byProject('folders', pid), DB.byProject('plans', pid), DB.byProject('tasks', pid)]);
   folders.sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true }));
   plans.sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true }));
+  const allPlans = plans.slice(); plans.length = 0; plans.push(...allPlans.filter(isCurrentPlan));   // seulement le dernier indice de chaque plan
+  const indTag = (p) => p.indice && p.indice !== 'A' || p.prevId ? ` <span class="ind-tag">Ind. ${esc(planIndice(p))}</span>` : '';
   const q = App.search.toLowerCase();
   const shown = plans.filter(p => !q || fuzzyHas(p.name, q));
   const openCount = (planId) => tasks.filter(t => t.planId === planId && t.status !== 'verified').length;
   App.openFolders = App.openFolders || {};
 
-  const groups = [...folders.map(f => ({ f, plans: shown.filter(p => p.folderId === f.id) }))];
+  // dossiers principaux (niveaux) + sous-dossiers (parentId)
+  const tops = folders.filter(f => !f.parentId || !folders.find(x => x.id === f.parentId));
+  const subsOf = (fid) => folders.filter(x => x.parentId === fid);
+  const fMatch = (f) => q && fuzzyHas(f.name, q);
+  const plansIn = (f) => (q && fMatch(f) ? plans : shown).filter(p => p.folderId === f.id);
+  const groups = tops.map(f => ({ f, plans: plansIn(f), subs: subsOf(f.id).map(sf => ({ f: sf, plans: q && fMatch(f) ? plans.filter(p => p.folderId === sf.id) : plansIn(sf) })).filter(g => !q || fMatch(f) || fMatch(g.f) || g.plans.length) }))
+    .filter(g => !q || fMatch(g.f) || g.plans.length || g.subs.length);
   const loose = shown.filter(p => !p.folderId || !folders.find(f => f.id === p.folderId));
-  if (loose.length) groups.push({ f: { id: '_none', name: 'Sans dossier' }, plans: loose });
+  if (loose.length) groups.push({ f: { id: '_none', name: 'Sans dossier' }, plans: loose, subs: [] });
 
   App.planView = App.planView || (() => { try { return localStorage.getItem('planView') || 'grid'; } catch (e) { return 'grid'; } })();
   const anyOpen = groups.some(g => App.openFolders[g.f.id]);
@@ -311,18 +452,47 @@ async function renderPlans(root) {
     <div style="height:8px"></div>
     <div class="search">${icon('search')}<input placeholder="Rechercher des plans" value="${esc(App.search)}"></div>
     ${groups.length ? '' : `<div class="empty">Aucun plan.<br>Appuyez sur <b>+</b> pour importer un plan (PDF ou image).</div>`}
+    ${typeof featOn === 'function' && featOn('reception') && sectionOn('reception') && !q ? `<button class="rb-card" data-a="recbox"><span class="rb-ic">📚</span><span class="grow"><b>Plans des ouvrages du jour</b><small>Programme de réception d'aujourd'hui · <span class="rb-n">…</span></small></span>${icon('chevright')}</button>` : ''}
     <div id="folders"></div>`;
+  const rbc = $('[data-a=recbox]', root);
+  if (rbc) {
+    rbc.onclick = () => openRecBox(pid);
+    DB.byProject('receptions', pid).then(ds => { const n = ds.filter(d => d.date === todayISO() && kindOf(d) === 'Ferraillage').reduce((a, d) => a + d.rows.filter(r => r.element).length, 0); const x = $('.rb-n', rbc); if (x) x.textContent = n ? `${n} ouvrage(s) — touchez pour ajouter / ouvrir les plans` : 'aucun ouvrage aujourd\'hui'; }).catch(() => {});
+  }
   const box = $('#folders', root);
-  for (const { f, plans: ps } of groups) {
+  const lotOf = (p) => { const L = p.lotId && planLots(App.project).find(l => l.id === p.lotId); return L ? `<span class="lot-dot" style="background:${L.c}" title="${esc(L.name)}">${L.e}</span>` : ''; };
+  // remplit une grille / liste de plans + la tuile « Ajouter un plan »
+  const fillPlans = (grid, ps, f, lotF) => {
+    const list = typeof lotFilter === 'function' && !q && lotF ? lotFilter(ps, lotF) : ps;
+    for (const p of list) {
+      const t = document.createElement('div');
+      const n = openCount(p.id);
+      if (App.planView === 'grid') { t.className = 'ptile'; t.innerHTML = `<div class="im"><img data-thumb="${p.fileId}" alt=""></div><div class="nm">${esc(p.name)}${indTag(p)}</div>${n ? `<span class="badge">${n}</span>` : ''}`; }
+      else { t.className = 'prow'; t.innerHTML = `<span class="im"><img data-thumb="${p.fileId}" alt=""></span><div class="nm">${esc(p.name)}${indTag(p)}</div>${n ? `<span class="badge">${n}</span>` : ''}${icon('chevright')}`; }
+      t.onclick = () => openPlanViewer(p, planCtx(() => renderPlans(root)));
+      if (typeof planLotMenu === 'function') { t.oncontextmenu = (e) => { e.preventDefault(); planLotMenu(p, root); }; t.insertAdjacentHTML('beforeend', lotOf(p)); }
+      grid.appendChild(t);
+    }
+    Thumbs.fill(grid);
+    const add = document.createElement('div');
+    add.className = App.planView === 'grid' ? 'ptile add' : 'prow';
+    add.innerHTML = App.planView === 'grid' ? `${icon('plus')}<span>Ajouter un plan</span>` : `<span class="pic" style="color:var(--accent)">${icon('plus')}</span><div class="nm" style="color:var(--accent)">Ajouter un plan</div>`;
+    add.onclick = async () => { const sel = lotF ? lotSelOf(lotF.id) : ''; App.newPlanLot = sel || null; try { await addPlanTo(f.id === '_none' ? null : f.id, folders, root); } finally { App.newPlanLot = null; } if (sel) renderPlans(root); };   // le plan reste dans le lot ouvert
+    if (lotF && lotSelOf(lotF.id) && !list.length && ps.length) grid.insertAdjacentHTML('afterbegin', `<div class="lot-empty">Aucun plan de ce lot ici.</div>`);
+    grid.appendChild(add);
+  };
+  const gridHTML = () => App.planView === 'grid' ? `<div class="plan-grid fw"></div>` : `<div class="plan-rows"></div>`;
+  for (const { f, plans: ps, subs } of groups) {
     const open = q ? true : App.openFolders[f.id];
     const card = document.createElement('div');
     const fc = FOLDER_COLORS.find(x => x.k === f.color) || FOLDER_COLORS[0];
-    card.className = 'card fcard' + (open ? ' open' : '');
-    card.innerHTML = `<div class="folder-head" style="background:${fc.c}"><span class="fh-ic">📁</span>
-      <div class="grow"><div class="title">${esc(f.name)}</div><div class="sub">${ps.length} plan${ps.length > 1 ? 's' : ''}</div></div>
+    const nAll = ps.length + subs.reduce((a, s) => a + s.plans.length, 0);
+    card.className = 'card fcard' + (open ? ' open' : ''); card.dataset.fid = f.id; card.style.setProperty('--fc', fc.c);
+    card.innerHTML = `<div class="folder-head ${f.color ? '' : 'th-fold'}" style="${f.color || !document.documentElement.classList.contains('glass') ? `background:${fc.c}` : ''}"><span class="fh-ic">📁</span>
+      <div class="grow"><div class="title">${esc(f.name)}</div><div class="sub">${subs.length ? `${subs.length} dossier${subs.length > 1 ? 's' : ''} · ` : ''}${nAll} plan${nAll > 1 ? 's' : ''}</div></div>
       ${f.id !== '_none' ? `<button class="iconbtn" data-more>${icon('more')}</button>` : ''}
       <span class="fh-chev" style="transform:rotate(${open ? 180 : 0}deg)">${icon('chevdown')}</span></div>
-      ${open ? (App.planView === 'grid' ? `<div class="plan-grid fw"></div>` : `<div class="plan-rows"></div>`) : ''}`;
+      ${open ? `<div class="fbody">${subs.length ? '<div class="subfs"></div>' : ''}${ps.length || !subs.length ? gridHTML() : ''}${f.id !== '_none' && !q ? `<div class="fb-actions">${subs.length ? `<button class="fb-btn" data-a="addplan">${icon('plus')} Plan ici</button>` : ''}<button class="fb-btn" data-a="addsub">${icon('folder')} Sous-dossier</button></div>` : ''}</div>` : ''}`;
     box.appendChild(card);
     $('.folder-head', card).onclick = (e) => {
       if (e.target.closest('[data-more]')) return;
@@ -330,25 +500,31 @@ async function renderPlans(root) {
     };
     const more = $('[data-more]', card);
     if (more) more.onclick = () => folderMenu(f, root);
-    if (open) {
-      const grid = $('.plan-grid, .plan-rows', card);
-      for (const p of ps) {
-        const t = document.createElement('div');
-        const n = openCount(p.id);
-        if (App.planView === 'grid') { t.className = 'ptile'; t.innerHTML = `<div class="im"><img data-thumb="${p.fileId}" alt=""></div><div class="nm">${esc(p.name)}</div>${n ? `<span class="badge">${n}</span>` : ''}`; }
-        else { t.className = 'prow'; t.innerHTML = `<span class="im"><img data-thumb="${p.fileId}" alt=""></span><div class="nm">${esc(p.name)}</div>${n ? `<span class="badge">${n}</span>` : ''}${icon('chevright')}`; }
-        t.onclick = () => openPlanViewer(p, planCtx(() => renderPlans(root)));
-        grid.appendChild(t);
-      }
-      Thumbs.fill(grid);
-      const add = document.createElement('div');
-      add.className = App.planView === 'grid' ? 'ptile add' : 'prow';
-      add.innerHTML = App.planView === 'grid' ? `${icon('plus')}<span>Ajouter un plan</span>` : `<span class="pic" style="color:var(--accent)">${icon('plus')}</span><div class="nm" style="color:var(--accent)">Ajouter un plan</div>`;
-      add.onclick = () => addPlanTo(f.id === '_none' ? null : f.id, folders, root);
-      grid.appendChild(add);
+    if (!open) continue;
+    if (f.id !== '_none' && !q && typeof lotBarInto === 'function') lotBarInto(card, f, ps.concat(...subs.map(s => s.plans)), root);
+    const lotF = f.id !== '_none' ? f : null;
+    const grid = $('.fbody > .plan-grid, .fbody > .plan-rows', card);
+    if (grid) fillPlans(grid, ps, f, lotF);
+    const sb = $('[data-a=addsub]', card); if (sb) sb.onclick = () => newFolder(root, f);
+    const ap = $('[data-a=addplan]', card); if (ap) ap.onclick = () => addPlanTo(f.id, folders, root);
+    const sbox = $('.subfs', card);
+    for (const { f: sf, plans: sps } of subs) {
+      const sopen = q ? true : App.openFolders[sf.id];
+      const el = document.createElement('div');
+      el.className = 'subf' + (sopen ? ' open' : ''); el.dataset.fid = sf.id;
+      el.innerHTML = `<div class="subf-head"><span class="sf-ic">${icon('folder')}</span>
+        <div class="grow"><div class="title">${esc(sf.name)}</div><div class="sub">${sps.length} plan${sps.length > 1 ? 's' : ''}</div></div>
+        <button class="iconbtn sm" data-more>${icon('more')}</button>
+        <span class="sf-chev" style="transform:rotate(${sopen ? 180 : 0}deg)">${icon('chevdown')}</span></div>
+        ${sopen ? gridHTML() : ''}`;
+      sbox.appendChild(el);
+      $('.subf-head', el).onclick = (e) => { if (e.target.closest('[data-more]')) return; App.openFolders[sf.id] = !sopen; renderPlans(root); };
+      $('[data-more]', el).onclick = () => folderMenu(sf, root);
+      if (sopen) fillPlans($('.plan-grid, .plan-rows', el), sps, sf, lotF);
     }
   }
-  $('[data-a=fold]').onclick = () => { groups.forEach(g => App.openFolders[g.f.id] = !anyOpen); renderPlans(root); };
+  if (App.scrollFolder) { const fid = App.scrollFolder; App.scrollFolder = null; const c = box.querySelector(`[data-fid="${fid}"]`); if (c) requestAnimationFrame(() => c.scrollIntoView({ block: 'start', behavior: 'smooth' })); }
+  $('[data-a=fold]').onclick = () => { groups.forEach(g => { App.openFolders[g.f.id] = !anyOpen; g.subs.forEach(sg => App.openFolders[sg.f.id] = !anyOpen); }); renderPlans(root); };
   $('[data-a=view]').onclick = () => { App.planView = App.planView === 'grid' ? 'list' : 'grid'; try { localStorage.setItem('planView', App.planView); } catch (e) {} renderPlans(root); };
   $('[data-a=recent]').onclick = async () => {
     const rec = plans.filter(p => p.lastOpened).sort((a, b) => b.lastOpened - a.lastOpened).slice(0, 8);
@@ -361,19 +537,41 @@ async function renderPlans(root) {
 
   fab(root, async () => {
     const v = await menu('Ajouter', [
-      { label: 'Importer un plan (PDF / image)', icon: 'plans', value: 'plan' },
+      { label: 'Importer un plan (PDF / image / DWG / DXF)', icon: 'plans', value: 'plan' },
       { label: 'Importer depuis Google Drive (lien)', icon: 'drive', value: 'drive' },
       { label: 'Nouveau dossier (niveau)', icon: 'folder', value: 'folder' },
+      ...(tops.length ? [{ label: 'Nouveau sous-dossier (dans un niveau)', icon: 'folder', value: 'subfolder' }] : []),
+      { label: 'Outils : DWG → PDF / DXF, fusionner, diviser', icon: 'layers', value: 'tools' },
+      { label: 'Comparer : deux niveaux · deux indices', icon: 'layers', value: 'lvl' },
     ]);
-    if (v === 'folder') {
-      const r = await formSheet('Nouveau dossier', [{ name: 'name', label: 'Nom du dossier / niveau', placeholder: 'Ex : Plancher R+2, Sous-sol, Fondations…' }], { okLabel: 'Créer' });
-      if (r && r.name) {
-        const f = await DB.put('folders', { projectId: pid, name: r.name }); App.openFolders[f.id] = true; await renderPlans(root);
-        addPlanTo(f.id, [...folders, f], root);
-      }
+    if (v === 'lvl') { compareMenu(); return; }
+    if (v === 'tools') return planToolsMenu(root);
+    if (v === 'folder') newFolder(root, null);
+    if (v === 'subfolder') {
+      const pidF = await menu('Dans quel niveau ?', tops.map(f => ({ label: f.name, icon: 'folder', value: f.id })));
+      if (pidF) newFolder(root, tops.find(f => f.id === pidF));
     }
     if (v === 'plan' || v === 'drive') importPlans(folders, root, v === 'drive');
   });
+}
+
+// chemin lisible d'un dossier : « R+3 › Plancher »
+function folderPath(f, folders, sep = ' › ') {
+  if (!f) return '';
+  const par = f.parentId && (folders || []).find(x => x.id === f.parentId);
+  return par ? `${par.name}${sep}${f.name}` : f.name;
+}
+async function newFolder(root, parent) {
+  const pid = App.project.id;
+  const r = await formSheet(parent ? `Sous-dossier dans « ${parent.name} »` : 'Nouveau dossier (niveau)', [{ name: 'name', label: parent ? 'Nom du sous-dossier' : 'Nom du dossier / niveau', placeholder: parent ? 'Ex : Plancher, Poteaux + voiles, Coffrage…' : 'Ex : NIV R+3, Sous-sol, Fondations…' }], { okLabel: 'Créer' });
+  if (!r || !r.name) return;
+  const f = await DB.put('folders', { projectId: pid, name: r.name.trim(), parentId: parent ? parent.id : null, color: parent ? parent.color : undefined });
+  App.openFolders = App.openFolders || {}; App.openFolders[f.id] = true; if (parent) App.openFolders[parent.id] = true;
+  App.scrollFolder = f.id;
+  await renderPlans(root);
+  const v = await menu(`« ${r.name.trim()} » créé ✓`, [{ label: 'Ajouter un plan maintenant', icon: 'plus', value: 'add' }, ...(parent ? [] : [{ label: 'Créer un sous-dossier dedans', icon: 'folder', value: 'sub' }]), { label: 'Plus tard', icon: 'close', value: 'no' }]);
+  if (v === 'add') addPlanTo(f.id, await DB.byProject('folders', pid), root);
+  if (v === 'sub') newFolder(root, f);
 }
 
 async function addPlanTo(folderId, folders, root) {
@@ -381,7 +579,7 @@ async function addPlanTo(folderId, folders, root) {
     { label: 'Depuis le téléphone (PDF / image)', icon: 'plans', value: 'phone' },
     { label: 'Depuis Google Drive (lien)', icon: 'drive', value: 'drive' },
   ]);
-  if (v) importPlans(folders, root, v === 'drive', folderId);
+  if (v) return importPlans(folders, root, v === 'drive', folderId);
 }
 
 const FOLDER_COLORS = [
@@ -390,8 +588,24 @@ const FOLDER_COLORS = [
   { k: 'brun', l: 'Brun', c: '#4f3b2b' }, { k: 'olive', l: 'Olive', c: '#434a2c' },
 ];
 async function folderMenu(f, root) {
-  const v = await menu(f.name, [{ label: 'Ajouter un plan ici', icon: 'plus', value: 'add' }, { label: 'Renommer', icon: 'edit', value: 'rename' }, { label: 'Couleur', icon: 'fill', value: 'color' }, { label: 'Supprimer le dossier', icon: 'trash', danger: true, value: 'del' }]);
-  if (v === 'add') { App.openFolders[f.id] = true; return addPlanTo(f.id, await DB.byProject('folders', App.project.id), root); }
+  const all = await DB.byProject('folders', App.project.id);
+  const isSub = !!(f.parentId && all.find(x => x.id === f.parentId)), hasSubs = all.some(x => x.parentId === f.id);
+  const tops = all.filter(x => x.id !== f.id && (!x.parentId || !all.find(y => y.id === x.parentId)));
+  const v = await menu(folderPath(f, all), [{ label: 'Ajouter un plan ici', icon: 'plus', value: 'add' },
+    ...(isSub ? [] : [{ label: 'Nouveau sous-dossier', icon: 'folder', value: 'sub' }]),
+    { label: 'Renommer', icon: 'edit', value: 'rename' },
+    ...(hasSubs ? [] : [{ label: isSub ? 'Déplacer vers un autre niveau…' : 'Mettre dans un niveau…', icon: 'layers', value: 'move' }]),
+    ...(isSub ? [] : [{ label: 'Couleur', icon: 'fill', value: 'color' }]),
+    { label: 'Supprimer le dossier', icon: 'trash', danger: true, value: 'del' }]);
+  if (v === 'add') { App.openFolders[f.id] = true; if (f.parentId) App.openFolders[f.parentId] = true; return addPlanTo(f.id, all, root); }
+  if (v === 'sub') return newFolder(root, f);
+  if (v === 'move') {
+    const to = await menu('Déplacer vers', [...(isSub ? [{ label: 'Dossier principal (niveau)', icon: 'folder', value: '_top' }] : []), ...tops.filter(x => x.id !== f.parentId).map(x => ({ label: x.name, icon: 'folder', value: x.id }))]);
+    if (!to) return;
+    f.parentId = to === '_top' ? null : to; await DB.put('folders', f);
+    if (f.parentId) App.openFolders[f.parentId] = true; App.openFolders[f.id] = true;
+    return renderPlans(root);
+  }
   if (v === 'color') {
     const c = await menu('Couleur du dossier', FOLDER_COLORS.map(x => ({ label: x.l, value: x.k, swatch: x.c, checked: (f.color || 'nuit') === x.k })));
     if (c) { f.color = c; await DB.put('folders', f); renderPlans(root); }
@@ -400,9 +614,10 @@ async function folderMenu(f, root) {
     const r = await formSheet('Renommer', [{ name: 'name', label: 'Nom du dossier', value: f.name }]);
     if (r && r.name) { f.name = r.name; await DB.put('folders', f); renderPlans(root); }
   }
-  if (v === 'del' && await confirmBox('Supprimer le dossier ? (les plans iront dans « Sans dossier »)')) {
+  if (v === 'del' && await confirmBox(isSub ? `Supprimer le sous-dossier ? (ses plans iront dans « ${all.find(x => x.id === f.parentId).name} »)` : hasSubs ? 'Supprimer le dossier ? (les sous-dossiers deviennent des dossiers principaux, les plans vont dans « Sans dossier »)' : 'Supprimer le dossier ? (les plans iront dans « Sans dossier »)')) {
     const plans = await DB.byProject('plans', App.project.id);
-    for (const p of plans.filter(p => p.folderId === f.id)) { p.folderId = null; await DB.put('plans', p); }
+    for (const p of plans.filter(p => p.folderId === f.id)) { p.folderId = isSub ? f.parentId : null; await DB.put('plans', p); }
+    for (const x of all.filter(x => x.parentId === f.id)) { x.parentId = null; await DB.put('folders', x); }
     await DB.del('folders', f.id); renderPlans(root);
   }
 }
@@ -411,7 +626,8 @@ async function importPlans(folders, root, fromDrive = false, presetFolder) {
   const pid = App.project.id;
   let folderId = presetFolder === undefined ? null : presetFolder;
   if (presetFolder === undefined && folders.length) {
-    folderId = await menu('Dans quel dossier ?', [...folders.map(f => ({ label: f.name, icon: 'folder', value: f.id })), { label: 'Sans dossier', icon: 'plans', value: '_none' }]);
+    const fl = folders.map(f => ({ f, l: folderPath(f, folders) })).sort((a, b) => a.l.localeCompare(b.l, 'fr', { numeric: true }));
+    folderId = await menu('Dans quel dossier ?', [...fl.map(({ f, l }) => ({ label: l, icon: 'folder', value: f.id })), { label: 'Sans dossier', icon: 'plans', value: '_none' }]);
     if (!folderId) return;
     if (folderId === '_none') folderId = null;
   }
@@ -426,14 +642,19 @@ async function importPlans(folders, root, fromDrive = false, presetFolder) {
     catch (e) { ld0.close(); return alertBox(e.message); }
     ld0.close();
   } else {
-    files = await pickFiles({ accept: 'image/*,application/pdf', multiple: true });
+    files = await pickFiles({ accept: '*/*', multiple: true });   // tout accepter : sinon Android grise les .dwg / .dxf
+    const bad = files.filter(f => !/\.(pdf|dwg|dxf|jpe?g|png|webp|heic|heif|gif|bmp)$/i.test(f.name) && !/^image\/|pdf/.test(f.type || ''));
+    if (bad.length) { toast(`Ignoré : ${bad.map(f => f.name).join(', ')} (PDF, image, DWG ou DXF)`); files = files.filter(f => !bad.includes(f)); }
   }
   if (!files.length) return;
   const ld = loading('Import du plan…');
   try {
     for (const file of files) {
       const base = file.name.replace(/\.[^.]+$/, '');
-      if (/\.(dwg|dxf)$/i.test(file.name)) { await alertBox('Les fichiers AutoCAD (DWG/DXF) ne s\'affichent pas comme plan. Exportez le plan en PDF, ou ajoutez le DWG dans un pin (Plan coffrage / ferraillage / coupe).'); continue; }
+      if (/\.(dwg|dxf)$/i.test(file.name)) {   // AutoCAD : DXF affiché comme plan (le DWG est expliqué)
+        for (const im of await fileToPlanImages(file, pid, ld)) await DB.put('plans', { projectId: pid, folderId, lotId: App.newPlanLot || null, fileId: im.fileId, dxfFileId: im.dxfFileId, dwgFileId: im.dwgFileId || null, w: im.w, h: im.h, name: im.name, annotations: [], indice: 'A' });
+        continue;
+      }
       if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf' && !isRasterImage(file)) { await alertBox(`Format non pris en charge : ${file.name}`); continue; }
       if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
         const pages = await pdfToImages(file, 5000, (p, n) => ld.set(`Conversion PDF… page ${p}/${n}`));
@@ -441,14 +662,14 @@ async function importPlans(folders, root, fromDrive = false, presetFolder) {
         const src = await DB.put('files', { projectId: pid, blob: file, mime: 'application/pdf', role: 'plansrc', name: file.name });
         for (const pg of pages) {
           const f = await DB.put('files', { projectId: pid, blob: pg.blob, mime: 'image/jpeg', role: 'plan', w: pg.w, h: pg.h, name: file.name });
-          await DB.put('plans', { projectId: pid, folderId, fileId: f.id, pdfFileId: src.id, pdfPage: pg.page, w: pg.w, h: pg.h, name: pages.length > 1 ? `${base} - p${pg.page}` : base, annotations: [] });
+          await DB.put('plans', { projectId: pid, folderId, lotId: App.newPlanLot || null, fileId: f.id, pdfFileId: src.id, pdfPage: pg.page, w: pg.w, h: pg.h, name: pages.length > 1 ? `${base} - p${pg.page}` : base, annotations: [] });
         }
       } else {
         const f = await saveImageFile(pid, file, 'plan');
-        await DB.put('plans', { projectId: pid, folderId, fileId: f.id, w: f.w, h: f.h, name: base, annotations: [] });
+        await DB.put('plans', { projectId: pid, folderId, lotId: App.newPlanLot || null, fileId: f.id, w: f.w, h: f.h, name: base, annotations: [] });
       }
     }
-    if (folderId) App.openFolders[folderId] = true; else App.openFolders._none = true;
+    if (folderId) { App.openFolders[folderId] = true; const fo = folders.find(x => x.id === folderId); if (fo && fo.parentId) App.openFolders[fo.parentId] = true; } else App.openFolders._none = true;
     toast('Plan importé ✓');
   } catch (e) {
     console.error(e); toast('Erreur d\'import : ' + e.message);
@@ -551,7 +772,7 @@ function openLinkDetail(link) {
       };
       box.innerHTML = `
         <div class="lk2-band" style="--c:${link.color}">
-          <span class="lk2-ic">${icon('link')}</span>
+          <span class="lk2-ic">${pinLook(link).e ? `<span style="font-size:22px">${pinLook(link).e}</span>` : icon('link')}</span>
           <div class="grow"><div class="lk2-name">${esc(link.name)}</div><div class="lk2-sub">${link.items.length ? link.items.length + ' document(s)' : 'Aucun document'}</div></div>
           <button class="iconbtn" data-a="more">${icon('more')}</button>
         </div>
@@ -633,13 +854,14 @@ function openLinkDetail(link) {
       $('[data-a=more]', box).onclick = async () => {
         const v = await menu(link.name, [
           { label: 'Renommer', icon: 'edit', value: 'rename' },
-          { label: 'Changer la couleur', icon: 'layers', value: 'color' },
+          { label: 'Icône et couleur du pin', icon: 'pin', value: 'look' },
           { label: 'Supprimer l\'élément', icon: 'trash', danger: true, value: 'del' },
         ]);
         if (v === 'rename') {
           const r = await formSheet('Renommer', [{ name: 'name', label: 'Nom', value: link.name }]);
           if (r && r.name) { link.name = r.name; await save(); render(); }
         }
+        if (v === 'look') { if (await choosePinLook(link)) render(); }
         if (v === 'color') {
           const c = await menu('Couleur', PALETTE.filter(c => c !== '#ffffff').map(c => ({ label: c, value: c, checked: c === link.color })));
           if (c) { link.color = c; await save(); render(); }
@@ -699,7 +921,7 @@ function openLinkDetail(link) {
         const [plans, folders] = await Promise.all([DB.byProject('plans', pid), DB.byProject('folders', pid)]);
         const others = plans.filter(p => p.id !== link.planId);
         if (!others.length) { toast('Importez d\'abord ce plan dans « Plans »'); return render(); }
-        const fname = (id) => (folders.find(f => f.id === id) || {}).name;
+        const fname = (id) => folderPath(folders.find(f => f.id === id), folders);
         others.sort((a, b) => `${fname(a.folderId) || ''} ${a.name}`.localeCompare(`${fname(b.folderId) || ''} ${b.name}`, 'fr', { numeric: true }));
         const planId = await menu('Choisir le plan', others.map(p => ({ label: (fname(p.folderId) ? fname(p.folderId) + ' / ' : '') + p.name, icon: 'plans', value: p.id })));
         if (!planId) return render();
@@ -1120,20 +1342,29 @@ async function renderSettings(root) {
       <label>Nom du projet<input name="name" value="${esc(p.name)}"></label>
       <label>Adresse / ville<input name="address" value="${esc(p.address)}"></label>
       <label>Titre complet sur les tableaux / PDF (optionnel)<input name="pdfTitle" value="${esc(p.pdfTitle || '')}" placeholder="Ex : Projet de construction du Grand stade Benslimane"></label>
+      <label>Maître d'ouvrage<input name="mo" value="${esc(p.mo || '')}" placeholder="Ex : SONARGES, ONEE, Commune…"></label>
       <button class="btn" data-a="save">Enregistrer</button>
       <div style="height:12px"></div>
+      <div class="card" style="margin:0 0 12px;padding:14px" data-fxbox></div>
+      ${Org.owner() ? `<button class="btn ghost" data-a="welcome" style="margin-bottom:12px">👋 Revoir l'écran de bienvenue (service et poste)</button>` : ''}
       <div class="sync-card" data-a="sync" style="margin:0 0 12px"><div class="cl">☁</div><div class="grow"><b>Synchronisation Google Drive</b><div data-syncstate>${Sync.statusLine()}</div></div>${icon('chevright')}</div>
       <div class="card" style="margin:0;padding:16px">
         <div style="font-weight:600;margin-bottom:6px">Sauvegarde manuelle (fichier)</div>
         <div style="color:var(--muted);font-size:14px;line-height:1.5;margin-bottom:12px">Crée un fichier <b>.chantier</b> avec tout le projet (plans, pins, tâches, photos, formulaires, rapports). Enregistrez-le dans Google Drive ou envoyez-le sur WhatsApp. Pour le récupérer : accueil → ⋮ → Restaurer une sauvegarde.</div>
         <button class="btn" data-a="backup" style="width:100%">${icon('share')} Sauvegarder ce projet</button>
+        <button class="btn ghost" data-a="pfeat" style="width:100%;margin-top:8px">${icon('grid')} Type de projet & fonctions du projet${p.type && projTypeOf(p.type) ? ' · ' + projTypeOf(p.type).e : ''}</button>
+        <button class="btn ghost" data-a="stock" style="width:100%;margin-top:8px">${icon('cloud')} Stockage du téléphone · libérer de l'espace</button>
       </div>
       <div style="height:20px"></div>
       <button class="btn danger" data-a="del">${icon('trash')} Supprimer le projet</button>
       <p style="color:var(--muted);font-size:13px;line-height:1.5">Les données sont enregistrées sur l'appareil (fonctionne sans internet). Avec Google Drive connecté, tout est aussi copié dans votre Drive et partagé entre téléphone et PC : après une réinstallation, reconnectez Drive avec votre code de connexion pour tout récupérer.<br>Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}</p>
     </div>`;
   $('[data-a=sync]', root).onclick = () => Sync.openSyncSettings();
-  $('[data-a=save]', root).onclick = async () => { p.name = $('[name=name]', root).value.trim() || p.name; p.address = $('[name=address]', root).value.trim(); p.pdfTitle = $('[name=pdfTitle]', root).value.trim(); await DB.put('projects', p); toast('Enregistré ✓'); renderSection(); };
+  $('[data-a=stock]', root).onclick = () => openStorage();
+  $('[data-a=pfeat]', root).onclick = () => projectFeaturesDialog(p);
+  const wb = $('[data-a=welcome]', root); if (wb) wb.onclick = () => orgOnboard(true);
+  fxPanel($('[data-fxbox]', root));
+  $('[data-a=save]', root).onclick = async () => { p.name = $('[name=name]', root).value.trim() || p.name; p.address = $('[name=address]', root).value.trim(); p.pdfTitle = $('[name=pdfTitle]', root).value.trim(); p.mo = $('[name=mo]', root).value.trim(); await DB.put('projects', p); toast('Enregistré ✓'); renderSection(); };
   $('[data-a=backup]', root).onclick = async () => {
     const ld = loading('Préparation de la sauvegarde…');
     try {
@@ -1228,9 +1459,15 @@ function initSwipeBack() {
 function initPlansButton() {
   const b = document.createElement('button'); b.id = 'plansFab'; b.title = 'Plans'; b.innerHTML = icon('plans');
   document.body.appendChild(b);
-  b.onclick = () => openPlansQuick();
-  const upd = () => { b.style.display = App.project ? '' : 'none'; };
-  setInterval(upd, 600); upd();
+  b.onclick = () => {
+    if (document.body.classList.contains('pq-on')) { for (let i = 0; i < 12 && document.querySelector('.plansq'); i++) if (!navBack()) break; return; }
+    openPlansQuick();
+  };
+  let was = null;
+  const upd = () => { b.style.display = App.project && !document.querySelector('.av-page') ? '' : 'none';
+    const on = !!document.querySelector('.plansq'); document.body.classList.toggle('pq-on', on);
+    if (on !== was) { was = on; b.innerHTML = icon(on ? 'close' : 'plans'); b.classList.toggle('on', on); } };
+  setInterval(upd, 300); upd();
 }
 async function openPlansQuick() {
   if (!App.project || document.querySelector('.plansq')) return;
@@ -1240,17 +1477,19 @@ async function openPlansQuick() {
   const close = () => { unBack(); el.remove(); };
   const unBack = pushBack(() => el.remove());
   let q = '';
-  const groups = [...folders.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'fr', { numeric: true })).map(f => ({ id: f.id, name: f.name })), { id: null, name: 'Sans dossier' }];
+  const groups = [...folders.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'fr', { numeric: true })).map(f => ({ id: f.id, name: folderPath(f, folders) })).sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true })), { id: null, name: 'Sans dossier' }];
   async function render() {
     const match = (p) => !q || fuzzyHas(p.name, q);
     const html = [];
     for (const g of groups) {
       const ps = plans.filter(p => (p.folderId || null) === g.id && match(p)).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'fr', { numeric: true }));
       if (!ps.length) continue;
-      html.push(`<div class="pq-h">${icon('folder')} ${esc(g.name)} <span>${ps.length}</span></div><div class="pq-grid">${ps.map(p => `<button class="pq-t" data-p="${p.id}"><span class="pq-img"><img data-thumb="${p.fileId}" alt=""></span><span class="pq-n">${esc(p.name)}</span></button>`).join('')}</div>`);
+      const shut = !q && (App.pqShut || {})[g.id || '_'];
+      html.push(`<button class="pq-h ${shut ? 'shut' : ''}" data-g="${g.id || '_'}">${icon('folder')} ${esc(g.name)} <span>${ps.length}</span><i class="grow"></i>${icon('chevdown')}</button><div class="pq-grid" style="${shut ? 'display:none' : ''}">${ps.map(p => `<button class="pq-t" data-p="${p.id}"><span class="pq-img"><img data-thumb="${p.fileId}" alt=""></span><span class="pq-n">${esc(p.name)}</span></button>`).join('')}</div>`);
     }
     $('.pq-body', el).innerHTML = html.join('') || `<div class="empty">${plans.length ? 'Aucun plan trouvé' : 'Aucun plan dans ce projet.<br>Ajoutez-les dans « Plans ».'}</div>`;
     Thumbs.fill(el);
+    $$('[data-g]', el).forEach(h => h.onclick = () => { App.pqShut = App.pqShut || {}; const k = h.dataset.g, sh = !App.pqShut[k]; App.pqShut[k] = sh; h.classList.toggle('shut', sh); h.nextElementSibling.style.display = sh ? 'none' : ''; });
     $$('[data-p]', el).forEach(t => t.onclick = () => { const pl = plans.find(p => p.id === t.dataset.p); openPlanViewer(pl, planCtx(() => {})); });
   }
   el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1 style="flex:1">Plans</h1></div>
@@ -1272,12 +1511,37 @@ async function openPlansQuick() {
   const de = document.createElement('div'); de.id = 'drawerEdge'; document.body.appendChild(de);
   let esx = 0, esy = 0, est = 0, eon = false, drag = null;
   de.addEventListener('touchstart', e => { const t = e.touches[0]; esx = t.clientX; esy = t.clientY; est = Date.now(); drag = null; eon = !!App.project && !document.querySelector('.fullpage, .viewer, .sheet-bg, .drawer, .lightbox'); }, { passive: true });
-  de.addEventListener('touchmove', e => { if (!eon) return; const t = e.touches[0], dx = t.clientX - esx;
-    if (!drag && dx > 10 && Math.abs(t.clientY - esy) < 40) { drag = {}; openDrawer({ drag }); }
-    if (drag && drag.ctl) drag.ctl.move(dx); }, { passive: true });
+  de.addEventListener('touchmove', e => { if (!eon) return; const t = e.touches[0], dx = t.clientX - esx, dy = t.clientY - esy;
+    if (!drag && dx > 6 && Math.abs(dx) > Math.abs(dy)) { drag = {}; openDrawer({ drag }); }
+    if (drag) { e.preventDefault(); if (drag.ctl) drag.ctl.move(dx); } }, { passive: false });
   de.addEventListener('touchend', e => { if (drag && drag.ctl) { const dx = e.changedTouches[0].clientX - esx; drag.ctl.end(dx, dx / Math.max(1, Date.now() - est)); } eon = false; drag = null; }, { passive: true });
+  // glisser vers la droite n'importe où sur la page (sauf zones qui défilent horizontalement) = ouvrir le menu
+  const hScroll = (el) => { for (let x = el; x && x !== document.body; x = x.parentElement) { if (/^(INPUT|TEXTAREA|SELECT|CANVAS)$/.test(x.tagName)) return true; const cs = getComputedStyle(x); if (/(auto|scroll)/.test(cs.overflowX) && x.scrollWidth > x.clientWidth + 2) return true; } return false; };
+  let gx = 0, gy = 0, gt = 0, gon = false, gdrag = null;
+  document.addEventListener('touchstart', e => { gon = false; gdrag = null; if (e.target === de || e.touches.length > 1) return; const t = e.touches[0]; gx = t.clientX; gy = t.clientY; gt = Date.now();
+    gon = !!App.project && gx < innerWidth * 0.6 && !document.querySelector('.fullpage, .viewer, .sheet-bg, .drawer, .lightbox, .sketch, .lock') && !!e.target.closest('#app') && !hScroll(e.target); }, { passive: true });
+  document.addEventListener('touchmove', e => { if (!gon) return; const t = e.touches[0], dx = t.clientX - gx, dy = t.clientY - gy;
+    if (!gdrag) { if (Math.abs(dy) > 14 && Math.abs(dy) > Math.abs(dx)) { gon = false; return; } if (dx > 22 && dx > Math.abs(dy) * 1.8) { gdrag = { off: dx }; openDrawer({ drag: gdrag }); } else return; }
+    e.preventDefault(); if (gdrag.ctl) gdrag.ctl.move(dx - gdrag.off + 20); }, { passive: false });
+  const gend = e => { if (gdrag && gdrag.ctl) { const dx = e.changedTouches[0].clientX - gx; gdrag.ctl.end(dx, dx / Math.max(1, Date.now() - gt)); } gon = false; gdrag = null; };
+  document.addEventListener('touchend', gend, { passive: true }); document.addEventListener('touchcancel', gend, { passive: true });
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-  Team.boot().catch(e => console.error('team', e)).finally(() => { renderHome(); Sync.start(); });
+  try { Splash.boot(); } catch (e) {}
+  Team.boot().catch(e => console.error('team', e)).finally(() => { renderHome(); Sync.start(); setTimeout(() => checkUpdate(false).catch(() => {}), 2500); try { dwgCrashCheck(); } catch (e) {} setTimeout(showWhatsNew, 1800); setTimeout(() => otaBoot().catch(() => {}), 1200); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(false).catch(() => {}); });
+  // hors ligne : petite pastille en haut
+  const net = () => { let b = document.getElementById('offBadge'); if (navigator.onLine) { if (b) b.remove(); return; } if (!b) { b = document.createElement('div'); b.id = 'offBadge'; b.textContent = '⚡ Hors ligne'; b.onclick = () => toast('Pas d\'internet : les photos et fichiers de Drive se chargeront au retour du réseau'); document.body.appendChild(b); } };
+  window.addEventListener('online', () => { net(); toast('✓ Connexion rétablie'); try { Sync.schedule(1500); } catch (e) {} }); window.addEventListener('offline', net); net();
+  // sauvegarde : rappel chaque semaine (fichier .zip) ; la synchro Drive tourne en continu
+  setTimeout(async () => { try {
+    const ps = await DB.all('projects'), old = ps.filter(p => !p.lastBackup || Date.now() - p.lastBackup > 7 * 864e5);
+    const k = 'bkRemind', last = +(localStorage.getItem(k) || 0);
+    if (old.length && Date.now() - last > 3 * 864e5) { localStorage.setItem(k, Date.now()); toast(`💾 ${old.length} projet(s) sans sauvegarde depuis 7 jours`, { action: 'Sauvegarder', onAction: () => openStorage() }); }
+  } catch (e) {} }, 9000);
+  // photos partagées depuis la galerie (Partager → Chantier)
+  setTimeout(() => checkSharedIntent().catch(e => console.warn('share', e)), 300);
+  // toucher la notification « photos sauvegardées » → proposer de libérer l'espace
+  try { const LN = window.Capacitor?.Plugins?.LocalNotifications; if (LN) LN.addListener('localNotificationActionPerformed', (a) => { if (a?.notification?.extra?.action === 'freephotos') setTimeout(freeOldPhotos, 600); if (a?.notification?.extra?.action === 'jobrobot') setTimeout(() => openCareer({ robot: true }), 600); }); } catch (e) {}
   // message après une mise à jour
   try {
     const prev = localStorage.getItem('appVersion');

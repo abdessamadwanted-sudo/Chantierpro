@@ -12,11 +12,13 @@ const ICONS = {
   camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
   image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>',
   form: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v2h6V3M9 10h6M9 14h6M9 18h3"/>',
+  book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/><path d="M9 7h7M9 11h5"/>',
   report: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>',
   team: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" fill="currentColor" stroke="none"/>',
   chevdown: '<path d="M6 9l6 6 6-6"/>',
+  chevup: '<path d="M6 15l6-6 6 6"/>',
   power: '<path d="M12 3v9"/><path d="M6.4 6.6a8 8 0 1 0 11.2 0"/>',
   expand: '<path d="M4 9V4h5"/><path d="M20 9V4h-5"/><path d="M4 15v5h5"/><path d="M20 15v5h-5"/>',
   shrink: '<path d="M9 4v5H4"/><path d="M15 4v5h5"/><path d="M9 20v-5H4"/><path d="M15 20v-5h5"/>',
@@ -77,10 +79,11 @@ const fmtDateTime = (t) => t ? new Date(t).toLocaleString('fr-FR', { day: '2-dig
 const todayISO = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 const isNative = () => !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 
-function toast(msg) {
+function toast(msg, opts = {}) {
   const t = $('#toast');
-  t.textContent = msg; t.classList.add('show');
-  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2200);
+  t.textContent = msg; t.classList.add('show'); t.classList.toggle('act', !!opts.action);
+  if (opts.action) { const b = document.createElement('button'); b.className = 'toast-act'; b.textContent = opts.action; b.onclick = (e) => { e.stopPropagation(); t.classList.remove('show'); clearTimeout(t._h); opts.onAction && opts.onAction(); }; t.appendChild(b); }
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), opts.ms || (opts.action ? 6000 : 2200));
 }
 
 function loading(msg = 'Chargement…') {
@@ -109,7 +112,9 @@ function sheet(html, { onMount, title } = {}) {
     if (api.onClose) api.onClose();
   }
   const api = { el: bg.firstElementChild, close: () => close(false), onClose: null };
-  bg.addEventListener('click', (e) => { if (e.target === bg) api.close(); });
+  // « clic fantôme » : le doigt qui vient d'ouvrir la feuille (appui court sur un pin…) ne doit pas la refermer aussitôt
+  const born = Date.now();
+  bg.addEventListener('click', (e) => { if (e.target === bg && Date.now() - born > 450) api.close(); });
   $('#sheet-root').appendChild(bg);
   if (onMount) onMount(api.el, api);
   return api;
@@ -133,6 +138,7 @@ function formSheet(title, fields, { okLabel = 'Enregistrer', danger } = {}) {
     let result = null;
     const body = `<div class="form">${fields.map(f => {
       const v = esc(f.value ?? '');
+      if (f.type === 'info') return `<div class="fs-info"><b>${esc(f.label)}</b><div>${v.replace(/\n/g, '<br>')}</div></div>`;
       let input;
       if (f.type === 'textarea') input = `<textarea name="${f.name}" placeholder="${esc(f.placeholder || '')}">${v}</textarea>`;
       else if (f.type === 'select') input = `<select name="${f.name}">${f.options.map(o => `<option value="${esc(o.value ?? o)}" ${(o.value ?? o) == f.value ? 'selected' : ''}>${esc(o.label ?? o)}</option>`).join('')}</select>`;
@@ -177,6 +183,39 @@ function pickFiles({ accept = 'image/*', multiple = true, capture = false } = {}
     document.body.appendChild(inp);
     inp.click();
   });
+}
+
+// menu en groupes (titre de groupe, icône dans une pastille colorée, libellé + détail)
+function groupMenu(title, groups) {
+  return new Promise((resolve) => {
+    let v = null;
+    const s = sheet(`<div class="gm">${groups.filter(g => g.items.length).map(g => `<div class="gm-g">${esc(g.title)}</div><div class="gm-box">${g.items.map(it => `<button class="gm-i" ${it.value != null ? `data-v="${esc(it.value)}"` : 'disabled'}><span class="gm-ic" style="--c:${g.color}">${icon(it.icon)}</span><span class="grow"><b>${esc(it.label)}</b>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span>${it.value != null ? icon('chevright') : ''}</button>`).join('')}</div>`).join('')}</div>`, { title });
+    $$('[data-v]', s.el).forEach(b => b.onclick = () => { v = b.dataset.v; s.close(); });
+    s.onClose = () => resolve(v);
+  });
+}
+// choix de la source (Appareil photo · Photos · Fichiers) en cartes, comme les applis modernes
+function pickSource(title = 'Ajouter') {
+  return new Promise((resolve) => {
+    let v = null;
+    const s = sheet(`<div class="src-h"><b>${esc(title)}</b></div><div class="src-grid">
+      <button data-v="cam"><span class="src-ic">${icon('camera')}</span><span>Appareil photo</span></button>
+      <button data-v="gal"><span class="src-ic">${icon('image')}</span><span>Photos</span></button>
+      <button data-v="file"><span class="src-ic"><svg class="i" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 17v-6M9.5 13.5 12 11l2.5 2.5"/></svg></span><span>Fichiers</span></button></div>`, {});
+    s.el.classList.add('src-sheet');
+    $$('[data-v]', s.el).forEach(b => b.onclick = () => { v = b.dataset.v; s.close(); });
+    s.onClose = () => resolve(v);
+  });
+}
+// fichiers choisis → images (les PDF deviennent une image par page)
+async function pickImages(src) {
+  let files = await pickFiles({ accept: src === 'file' ? 'image/*,application/pdf' : 'image/*', multiple: src !== 'cam', capture: src === 'cam' });
+  const out = [];
+  for (const f of files) {
+    if (/pdf/i.test(f.type) || /\.pdf$/i.test(f.name)) { try { for (const pg of await pdfToImages(f, 2400)) out.push(new File([pg.blob], f.name.replace(/\.pdf$/i, '') + `_p${pg.page}.jpg`, { type: 'image/jpeg' })); } catch (e) { toast('PDF illisible'); } }
+    else out.push(f);
+  }
+  return out;
 }
 
 function loadImage(src) {
@@ -256,18 +295,27 @@ async function pdfToImages(file, maxSide = 3000, onPage) {
 // Visionneuse photo plein écran
 function showImage(src, caption = '') { return showGallery([{ src, caption }], 0); }
 // Galerie plein écran façon téléphone : la photo suit le doigt, zoom à deux doigts / double appui, miniatures
-function showGallery(items, start = 0) {
+function showGallery(items, start = 0, opts = {}) {
   items = items.filter(x => x && x.src);
   if (!items.length) return;
   let i = Math.max(0, Math.min(start, items.length - 1)), dx = 0, zoom = 1, px = 0, py = 0;
   const el = document.createElement('div');
   el.className = 'lightbox gallery g2';
-  el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1 class="gl-cap"></h1><span class="gl-n"></span>${items.some(x => x.fileId) ? `<button class="iconbtn" data-a="rot" title="Tourner">↻</button>` : ''}</div>
+  el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1 class="gl-cap"></h1><span class="gl-n"></span>${items.some(x => x.fileId) ? `<button class="iconbtn" data-a="rotl" title="Tourner à gauche"><svg class="i" viewBox="0 0 24 24"><path d="M3 4v5h5"/><path d="M3.5 9a9 9 0 1 1-.3 5"/></svg></button><button class="iconbtn" data-a="rot" title="Tourner à droite"><svg class="i" viewBox="0 0 24 24"><path d="M21 4v5h-5"/><path d="M20.5 9a9 9 0 1 0 .3 5"/></svg></button>` : ''}${items.some(x => x.fileId) && typeof openPhotoStudio === 'function' ? '<button class="iconbtn" data-a="gfx" title="Améliorer la photo">✨</button>' : ''}${opts.onDelete ? `<button class="iconbtn" data-a="gdel" title="Supprimer">${icon('trash')}</button>` : ''}</div>
     <div class="g2-stage"><div class="g2-track"><div class="g2-s"><img draggable="false"></div><div class="g2-s"><img draggable="false"></div><div class="g2-s"><img draggable="false"></div></div></div>
     ${items.length > 1 ? `<div class="g2-strip">${items.map((it, k) => `<button data-k="${k}"><img data-k="${k}" alt=""></button>`).join('')}</div>` : ''}`;
   document.body.appendChild(el);
   const unBack = pushBack(() => el.remove());
   $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
+  const gfx = $('[data-a=gfx]', el); if (gfx) gfx.onclick = async () => { const it = items[i]; if (!it || !it.fileId) return toast('Photo non modifiable ici'); const f = await DB.get('files', it.fileId); if (!f || !f.blob) return toast('Photo seulement dans Drive : ouvrez-la d\'abord');
+    const b = await openPhotoStudio({ blob: f.blob, name: f.name, fileId: it.fileId }); if (b) { it.src = BlobURL.get(it.fileId, b); show(); } };
+  const gd = $('[data-a=gdel]', el); if (gd) gd.onclick = async () => {
+    if (!await confirmBox('Supprimer cette photo ?', 'Supprimer')) return;
+    if (await opts.onDelete(items[i], i) === false) return;
+    items.splice(i, 1); const sb = $(`.g2-strip button[data-k="${i}"]`, el); if (sb) sb.remove();
+    $$('.g2-strip button', el).forEach((b, k) => { b.dataset.k = k; const im = $('img', b); if (im) im.dataset.k = k; });
+    if (!items.length) { unBack(); el.remove(); return; } i = Math.min(i, items.length - 1); show(); toast('Photo supprimée');
+  };
   const stage = $('.g2-stage', el), track = $('.g2-track', el), slides = $$('.g2-s', el), W = () => stage.clientWidth;
   const imgs = slides.map(sl => $('img', sl));
   const setT = (anim) => { track.style.transition = anim ? 'transform .22s ease-out' : 'none'; track.style.transform = `translate3d(${-W() + dx}px,0,0)`; };
@@ -313,41 +361,101 @@ function showGallery(items, start = 0) {
   stage.addEventListener('pointerup', up); stage.addEventListener('pointercancel', up);
   $$('.g2-strip button', el).forEach(b => b.onclick = () => { i = +b.dataset.k; show(); });
   $$('.g2-strip img', el).forEach(im => { const it = items[+im.dataset.k]; if (it.fileId && window.Thumbs) Thumbs.get(it.fileId).then(u => { im.src = u || it.src; }); else im.src = it.src; });
-  const rb = $('[data-a=rot]', el); if (rb) rb.onclick = async () => {
+  // rotation instantanée à l'écran, enregistrée en arrière-plan (plusieurs appuis = une seule opération)
+  const rotPend = new Map();
+  const rot = (d) => {
     const it = items[i]; if (!it || !it.fileId) return;
-    const url = await rotateFile(it.fileId); if (url) { it.src = url; imgs[1].src = url; const t = $(`.g2-strip img[data-k="${i}"]`, el); if (t) t.src = url; }
+    const n = (rotPend.get(it) || { q: 0, t: 0 }); n.q += d; rotPend.set(it, n);
+    imgs[1].style.transition = 'transform .25s ease'; imgs[1].style.transform = `rotate(${n.q * 90}deg)`;
+    const th = $(`.g2-strip img[data-k="${i}"]`, el); if (th) { th.style.transition = 'transform .25s'; th.style.transform = `rotate(${n.q * 90}deg)`; }
+    clearTimeout(n.t); n.t = setTimeout(async () => { const q = n.q; rotPend.delete(it); const url = await rotateFile(it.fileId, q); if (!url) return; it.src = url;
+      const k = items.indexOf(it); if (k === i) { imgs[1].style.transition = 'none'; imgs[1].style.transform = ''; imgs[1].src = url; }
+      const t2 = $(`.g2-strip img[data-k="${k}"]`, el); if (t2) { t2.style.transition = 'none'; t2.style.transform = ''; t2.src = url; } }, 700);
   };
+  const rb = $('[data-a=rot]', el); if (rb) rb.onclick = () => rot(1);
+  const rl = $('[data-a=rotl]', el); if (rl) rl.onclick = () => rot(-1);
   window.addEventListener('resize', () => setT(false));
   show();
 }
 
 // Visionneuse PDF (pages rendues avec pdf.js)
-async function showPdf(blob, caption = 'PDF') {
+// Texte d'un PDF (normalisé sans accents) : recherche dans les cahiers et dans le lecteur
+const normTxt = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+async function pdfPagesText(pdf, onProg) {
+  const out = [];
+  for (let p = 1; p <= pdf.numPages; p++) { try { const tc = await (await pdf.getPage(p)).getTextContent(); out.push(tc.items.map(i => i.str + (i.hasEOL ? '\n' : ' ')).join('').replace(/[ \t]+/g, ' ')); } catch (e) { out.push(''); } if (onProg) onProg(p, pdf.numPages); }
+  return out;
+}
+// opts : { page: n (ouvrir à cette page), q: 'mot' (surligner + recherche) }
+async function showPdf(blob, caption = 'PDF', opts = {}) {
   if (!pdfReady()) { toast('Lecteur PDF non disponible'); return; }
   const el = document.createElement('div');
   el.className = 'lightbox';
-  el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1>${esc(caption)}</h1></div><div class="pdf-pages"></div>`;
+  el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1>${esc(caption)}</h1><button class="iconbtn" data-a="find">${icon('search')}</button></div>
+    <div class="pdf-find" style="display:none"><input placeholder="Rechercher dans le document…"><span data-fc></span><button data-a="prev">‹</button><button data-a="next">›</button></div>
+    <div class="pdf-pages"><div class="pdf-zoom"></div></div><div class="pdf-ind"><span data-pg></span><button data-a="fit">⤢</button></div>`;
   document.body.appendChild(el);
   const unBack = pushBack(() => el.remove());
   $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
-  const box = $('.pdf-pages', el);
+  const scroller = $('.pdf-pages', el), box = $('.pdf-zoom', el);
+  let zk = 1, pinch = null, lastTap = 0, nPages = 0;
+  const setZoom = (nk, mx, my) => {
+    nk = Math.max(1, Math.min(5, nk)); const r = scroller.getBoundingClientRect(); mx = mx ?? r.width / 2; my = my ?? r.height / 2;
+    const cx = (scroller.scrollLeft + mx) / zk, cy = (scroller.scrollTop + my) / zk; zk = nk; box.style.width = (zk * 100) + '%';
+    scroller.scrollLeft = cx * zk - mx; scroller.scrollTop = cy * zk - my; $('[data-a=fit]', el).style.display = zk > 1.02 ? '' : 'none';
+  };
+  scroller.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) { const [a, b] = e.touches, r = scroller.getBoundingClientRect(); pinch = { d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), k: zk, mx: (a.clientX + b.clientX) / 2 - r.left, my: (a.clientY + b.clientY) / 2 - r.top }; }
+    else if (e.touches.length === 1) { const now = Date.now(); if (now - lastTap < 280) { const r = scroller.getBoundingClientRect(), t = e.touches[0]; setZoom(zk > 1.3 ? 1 : 2.5, t.clientX - r.left, t.clientY - r.top); lastTap = 0; } else lastTap = now; }
+  }, { passive: true });
+  scroller.addEventListener('touchmove', (e) => { if (!pinch || e.touches.length !== 2) return; e.preventDefault(); const [a, b] = e.touches; setZoom(pinch.k * Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) / pinch.d, pinch.mx, pinch.my); }, { passive: false });
+  scroller.addEventListener('touchend', (e) => { if (e.touches.length < 2) pinch = null; }, { passive: true });
+  scroller.addEventListener('wheel', (e) => { if (!e.ctrlKey) return; e.preventDefault(); const r = scroller.getBoundingClientRect(); setZoom(zk * (e.deltaY < 0 ? 1.15 : 0.87), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+  $('[data-a=fit]', el).onclick = () => setZoom(1); $('[data-a=fit]', el).style.display = 'none';
+  const cs = () => [...box.querySelectorAll('canvas')];
+  const pgInd = () => { const c = cs(); if (!c.length) return; const mid = scroller.scrollTop + scroller.clientHeight / 3; let n = 1; c.forEach((x, j) => { if (x.offsetTop <= mid) n = j + 1; }); $('[data-pg]', el).textContent = `Page ${n} / ${nPages}`; };
+  scroller.addEventListener('scroll', pgInd, { passive: true });
+  let pdf, q = normTxt(opts.q || ''), texts = null;
+  const goPage = (n) => { const c = cs()[n - 1]; if (c) scroller.scrollTop = c.offsetTop - 6; pgInd(); };
+  // rendu à la demande (les pages visibles d'abord) → on peut sauter direct à la page 150
+  const render = async (c, force) => {
+    if (c._r && !force) return; c._r = true; const n = +c.dataset.p;
+    const page = await pdf.getPage(n), vp1 = page.getViewport({ scale: 1 });
+    const vp = page.getViewport({ scale: Math.min(3, (window.innerWidth * 2) / vp1.width) });
+    c.width = vp.width; c.height = vp.height; const g = c.getContext('2d');
+    await page.render({ canvasContext: g, viewport: vp }).promise;
+    if (q) { try { const tc = await page.getTextContent(); g.save(); g.globalCompositeOperation = 'multiply'; g.fillStyle = 'rgba(255,214,0,.55)';
+      for (const it of tc.items) { if (!normTxt(it.str).includes(q)) continue; const t = pdfjsLib.Util.transform(vp.transform, it.transform), h = Math.hypot(t[2], t[3]); g.fillRect(t[4], t[5] - h, it.width * vp.scale, h * 1.15); }
+      g.restore(); } catch (e) {} }
+  };
+  const io = new IntersectionObserver((en) => en.forEach(e => { if (e.isIntersecting) render(e.target); }), { root: scroller, rootMargin: '600px 0px' });
   try {
-    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
-    for (let p = 1; p <= pdf.numPages; p++) {
-      if (!el.isConnected) break;
-      const page = await pdf.getPage(p);
-      const vp1 = page.getViewport({ scale: 1 });
-      const vp = page.getViewport({ scale: Math.min(3, (window.innerWidth * 2) / vp1.width) });
-      const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
-      box.appendChild(c);
-      await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
-    }
-  } catch (e) { box.innerHTML = `<div class="empty">Impossible d'ouvrir ce PDF</div>`; }
+    pdf = await pdfjsLib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+    nPages = pdf.numPages; const v1 = (await pdf.getPage(1)).getViewport({ scale: 1 });
+    for (let p = 1; p <= nPages; p++) { const c = document.createElement('canvas'); c.dataset.p = p; c.width = 600; c.height = Math.round(600 * v1.height / v1.width); box.appendChild(c); io.observe(c); }
+    if (opts.page > 1) { await render(cs()[opts.page - 1]); requestAnimationFrame(() => goPage(opts.page)); }
+    pgInd();
+  } catch (e) { box.innerHTML = `<div class="empty">Impossible d'ouvrir ce PDF</div>`; return; }
+  // recherche dans le document
+  const fb = $('.pdf-find', el), fi = $('input', fb); let hits = [], hi = 0;
+  const show = () => { $('[data-fc]', fb).textContent = q ? (hits.length ? `${hi + 1}/${hits.length}` : '0') : ''; if (hits.length) goPage(hits[hi]); };
+  const find = async () => {
+    q = normTxt(fi.value.trim()); hits = []; hi = 0;
+    cs().forEach(c => { if (c._r) { c._r = false; } }); cs().forEach(c => { const r = c.getBoundingClientRect(); if (r.bottom > -600 && r.top < innerHeight + 600) render(c); });
+    if (!q) return show();
+    if (!texts) { $('[data-fc]', fb).textContent = '…'; texts = (await pdfPagesText(pdf)).map(normTxt); }
+    hits = texts.map((t, i) => t.includes(q) ? i + 1 : 0).filter(Boolean); show();
+  };
+  $('[data-a=find]', el).onclick = () => { fb.style.display = fb.style.display === 'none' ? '' : 'none'; if (fb.style.display === '') fi.focus(); };
+  fi.onkeydown = (e) => { if (e.key === 'Enter') find(); }; let ft; fi.oninput = () => { clearTimeout(ft); ft = setTimeout(find, 500); };
+  $('[data-a=next]', fb).onclick = () => { if (hits.length) { hi = (hi + 1) % hits.length; show(); } };
+  $('[data-a=prev]', fb).onclick = () => { if (hits.length) { hi = (hi - 1 + hits.length) % hits.length; show(); } };
+  if (opts.q) { fb.style.display = ''; fi.value = opts.q; find().then(() => { if (opts.page) { const k = hits.indexOf(opts.page); if (k >= 0) { hi = k; show(); } } }); }
 }
 
 // Ouvre un lien (Google Drive, etc.) dans le navigateur du téléphone
 function openUrl(url) {
-  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  if (!/^(https?|mailto|tel|sms|whatsapp|intent|geo):/i.test(url)) url = 'https://' + url;
   if (isNative()) window.location.href = url; // Capacitor l'ouvre dans le navigateur externe
   else window.open(url, '_blank');
 }
@@ -432,14 +540,32 @@ const normQ = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').to
 const fuzzyHas = (text, q) => { const n = normQ(q); return !n || normQ(text).includes(n); };
 
 // Tourne une photo de 90° (sens horaire) et l'enregistre (renvoyée vers Drive à la prochaine synchro)
-async function rotateFile(id) {
+async function rotateFile(id, quarter = 1) {   // quarter : +1 = droite, -1 = gauche (cumulable)
+  const q = ((quarter % 4) + 4) % 4; if (!q) return '';
   const f = await DB.get('files', id); if (!f || !f.blob) return '';
-  const bmp = await createImageBitmap(f.blob);
-  const c = document.createElement('canvas'); c.width = bmp.height; c.height = bmp.width;
-  const g = c.getContext('2d'); g.translate(c.width / 2, c.height / 2); g.rotate(Math.PI / 2); g.drawImage(bmp, -bmp.width / 2, -bmp.height / 2);
-  f.blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.88)); f.mime = 'image/jpeg'; f.w = c.width; f.h = c.height;
+  const bmp = await createImageBitmap(f.blob), sw = q % 2 === 1;
+  const c = document.createElement('canvas'); c.width = sw ? bmp.height : bmp.width; c.height = sw ? bmp.width : bmp.height;
+  const g = c.getContext('2d'); g.translate(c.width / 2, c.height / 2); g.rotate(q * Math.PI / 2); g.drawImage(bmp, -bmp.width / 2, -bmp.height / 2); bmp.close && bmp.close();
+  f.blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9)); f.mime = 'image/jpeg'; f.w = c.width; f.h = c.height; c.width = c.height = 0;
   f.driveId = null; f.drivePath = null;
   BlobURL.drop(id); if (window.Thumbs) Thumbs.drop(id);
   await DB.put('files', f);
   return BlobURL.get(f.id, f.blob);
 }
+
+// ✕ dans toutes les barres de recherche (efface tout le texte d'un appui)
+(function searchClear() {
+  const add = (root) => {
+    if (!root || !root.querySelectorAll) return;
+    const list = root.matches && root.matches('.search') ? [root] : root.querySelectorAll('.search');
+    list.forEach(s => {
+      const i = s.querySelector('input'); if (!i || s.querySelector('.sx')) return;
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'sx'; b.setAttribute('aria-label', 'Effacer'); b.innerHTML = icon('close');
+      const upd = () => s.classList.toggle('has-v', !!i.value);
+      b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); i.value = ''; i.dispatchEvent(new Event('input', { bubbles: true })); upd(); const n = s.querySelector('input'); if (n) n.focus(); };
+      i.addEventListener('input', upd); s.appendChild(b); upd();
+    });
+  };
+  const start = () => { add(document.body); new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) add(n); }))).observe(document.body, { childList: true, subtree: true }); };
+  if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+})();

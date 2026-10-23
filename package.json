@@ -15,7 +15,9 @@
     "@capacitor/share": "^6.0.2",
     "pdfjs-dist": "3.11.174",
     "pdf-lib": "1.17.1",
-    "@capacitor/local-notifications": "^6.1.0"
+    "@capacitor/local-notifications": "^6.1.0",
+    "send-intent": "6.0.3",
+    "@capgo/capacitor-native-biometric": "6.0.4"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",

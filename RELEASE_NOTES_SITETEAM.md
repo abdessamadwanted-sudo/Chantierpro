@@ -1,0 +1,4 @@
+## SiteTeam : tous les outils de Chantier
+- Reprise de l'ensemble des outils de l'application Chantier : avancement, planning, registres (réunions, RFI, visas, HSE, labo, avenants, sous-traitants), financier & TCE, gestion de chantier, bons de bétonnage, fiches PDF, poutre 3D, plans AutoCAD (DWG/DXF), indices et comparaison de plans, scanner de documents, studio photo, notes vocales, clauses techniques (CPS/CCTP), briefing du jour, thèmes, code PIN / empreinte, stockage & sauvegarde.
+- Mise à jour depuis l'application (menu › Application › Rechercher une mise à jour), sans désinstaller ; mise à jour rapide sans réinstallation quand seule la partie web change.
+- Les droits restent ceux de votre poste SiteTeam (entreprise, modules) ; nouveau module « Financier, TCE, avenants & sous-traitants ».
