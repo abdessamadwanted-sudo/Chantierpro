@@ -175,3 +175,15 @@ D after delete: login screen 1
 A members after D delete ["Abdessamad Patron","Youssef Conducteur","Client MO"]
 D relogin Compte introuvable
 errors ["D console: Failed to load resource: the server responded with a status of 400 (Bad Request)"]
+A pack/type ["business","entreprise",10,true]
+A projet [["Grand stade Benslimane","equip","Ministère"]]
+A sync state <span style="color:#22c55e">✓ Synchronisé</span> <span style="color:var(--muted)">· 23/10 23:02</span>
+FAIL page.fill: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator('[data-f=zone]')
+  -   locator resolved to <input data-f="zone" placeholder="Ex : Zone 11, Lot gros œuvre…"/>
+  -   fill("Zone 11")
+  - attempting fill action
+  -   waiting for element to be visible, enabled and editable
+  -   el
+ERRS []

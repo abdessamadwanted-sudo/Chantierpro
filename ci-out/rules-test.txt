@@ -19,7 +19,8 @@ OK   autre compte : REFUS de lister les licences du propriétaire
 OK   autre compte : REFUS de modifier une licence
 OK   autre compte : REFUS de lire le suivi
 OK   sans compte : REFUS de lire une entreprise SiteTeam
-OK   propriétaire Chantier : REFUS de lire une entreprise SiteTeam dont il n'est pas membre
+OK   autre compte : REFUS de lire une entreprise SiteTeam dont il n'est pas membre
+OK   Super Admin (propriétaire) : lecture d'une organisation
 OK   membre : REFUS de supprimer un autre membre
 OK   membre : supprimer sa propre appartenance (suppression de compte)
 OK   partage : ajouter une réponse
@@ -27,5 +28,32 @@ OK   partage : REFUS d'effacer l'historique des réponses
 OK   partage : REFUS de modifier une réponse existante
 OK   partage : REFUS de répondre si « répondre » n'est pas autorisé
 OK   partage : REFUS de changer le périmètre
+OK   code : personne autorisée (Équipe = Valider) crée un code dans ses droits
+OK   code : REFUS de donner plus de droits que les siens
+OK   code : REFUS de créer un administrateur
+OK   code : REFUS de donner un projet qu'on n'a pas
+OK   code : REFUS de donner « tous les projets » sans les avoir
+OK   code : REFUS de clés de droits inconnues
+OK   code : REFUS si « Équipe » < Valider
+OK   code : REFUS de signer au nom d'un autre (createdBy)
+OK   code : l'administrateur donne tous les droits
+OK   code : la personne autorisée liste ses propres codes
+OK   code : REFUS de lister les codes des autres
+OK   code : supprimer son propre code
+OK   rejoindre : REFUS avec un code expiré
+OK   rejoindre : code valide
+OK   rejoindre : ancien code sans date d'expiration accepté
+OK   code expiré : REFUS de le marquer utilisé
+OK   pack : REFUS que l'admin change son pack
+OK   pack : REFUS que l'admin change le statut du pack
+OK   pack : l'admin change le nom / type / services
+OK   Super Admin : changer le pack d'une organisation
+OK   Super Admin : lister les organisations
+OK   autre compte : REFUS de lister les organisations
+OK   config : tout compte connecté lit les packs
+OK   config : REFUS d'écriture (non Super Admin)
+OK   config : le Super Admin modifie les packs
+OK   config : REFUS de lecture sans compte
+OK   création : une organisation avec type et services
 
-TOUT OK — 29 vérifications
+TOUT OK — 57 vérifications
