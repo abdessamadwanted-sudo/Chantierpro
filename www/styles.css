@@ -2392,3 +2392,8 @@ body:has(.pst-page) #plansFab, body:has(.rub-page) #plansFab, body:has(.scanpage
 .cat-fam summary b { color: var(--accent); font-weight: 700; }
 .cat-lots { display: flex; flex-direction: column; gap: 2px; padding: 0 0 10px; }
 .cat-ck { display: flex; align-items: center; gap: 10px; padding: 7px 4px; font-size: 14.5px; color: var(--text); }
+
+/* ---- SiteTeam : en-tête d'origine (logo jaune fixe + nom « SITETEAM » toujours visible) ---- */
+.h2-top .logo { background: #f5b82e !important; color: #1b1e24; }
+.h2-top .brand .bt { display: inline !important; font-weight: 800; letter-spacing: 1px; }
+.h2-top [data-a=career], .h2-top [data-a=freeph] { display: none !important; }   /* emploi : hors SiteTeam · stockage : menu › Données */
