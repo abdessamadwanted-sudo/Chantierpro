@@ -121,6 +121,26 @@ service cloud.firestore {
       allow delete: if signed() && isAdmin(resource.data.cid);
     }
 
+    // ---- Application Chantier (ma.chantier.app) : licences « CH- » et suivi, dans le MÊME projet Firebase.
+    // Ces règles reproduisent exactement ce que fait www/js/licence.js (branche main) : les téléphones activés
+    // par code n'ont pas de compte Firebase (le code sert de secret) ; seul le propriétaire crée et gère les licences.
+    function licOwner() { return signed() && request.auth.token.get('email', '').lower() == 'abdessamad.daga94@gmail.com'; }
+    function licOf(code) { return get(/databases/$(db)/documents/licences/$(code)).data; }
+    match /licences/{code} {
+      allow get: if true;
+      allow list: if signed() && resource.data.ownerUid == request.auth.uid;
+      allow create: if licOwner() && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if (signed() && resource.data.ownerUid == request.auth.uid)
+        || (resource.data.status == 'active'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['device', 'accepted', 'lastSeen', 'version'])
+            && (resource.data.get('device', null) == null || resource.data.device.id == request.resource.data.device.id));
+      allow delete: if signed() && resource.data.ownerUid == request.auth.uid;
+      match /suivi/{id} {
+        allow read: if signed() && licOf(code).ownerUid == request.auth.uid;
+        allow write: if (signed() && licOf(code).ownerUid == request.auth.uid) || licOf(code).status == 'active';
+      }
+    }
+
     match /companies/{cid} {
       allow create: if signed() && request.resource.data.ownerUid == request.auth.uid;
       allow read: if isMem(cid);
