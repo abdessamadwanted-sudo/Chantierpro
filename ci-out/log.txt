@@ -131,3 +131,22 @@ D after delete: login screen 1
 A members after D delete ["Youssef Conducteur","Client MO","Abdessamad Patron"]
 D relogin Compte introuvable
 errors ["D console: Failed to load resource: the server responded with a status of 400 (Bad Request)"]
+A sync state <span style="color:#22c55e">✓ Synchronisé</span> <span style="color:var(--muted)">· 23/10 21:58</span>
+code conducteur HMEMFSE5
+code MO NAJ7X3HQ
+B projects ["Grand stade Benslimane"]
+B tasks ["Enrobage insuffisant voile V12"]
+B receptions 1
+A sees task ["Enrobage insuffisant voile V12 (repris) / progress"]
+B self-admin denied OK: permission-denied
+B invite create denied OK: permission-denied
+C fab 0 projects ["Grand stade Benslimane"]
+C write task denied OK: permission-denied
+D items ["impl:demandee","cmd:demandee","rdt:","pt:"]
+D topo write cmd denied OK: permission-denied
+A items ["impl:implantee","cmd:demandee","rdt:","pt:","mat:","stock:"]
+D delete message Votre compte a été supprimé.
+D after delete: login screen 1
+A members after D delete ["Youssef Conducteur","Client MO","Abdessamad Patron"]
+D relogin Compte introuvable
+errors ["D console: Failed to load resource: the server responded with a status of 400 (Bad Request)"]
