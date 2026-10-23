@@ -99,11 +99,23 @@ const DB = (() => {
 
 // Cache des URLs d'images (Blob -> objectURL)
 const BlobURL = (() => {
-  const cache = new Map();
+  const cache = new Map(), holders = new Set();
   return {
     get(id, blob) {
-      if (!blob) return '';
-      if (!cache.has(id)) cache.set(id, URL.createObjectURL(blob));
+      if (!blob) {
+        // fichier libéré du téléphone (seulement dans Drive) : image d'attente, puis on le reprend et on remplace partout
+        if (!id) return '';
+        if (cache.has(id)) return cache.get(id);
+        const ph = URL.createObjectURL(new Blob([`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90"><rect width="120" height="90" fill="#e5e7eb"/><text x="60" y="52" font-size="26" text-anchor="middle" fill="#94a3b8">☁</text></svg>`], { type: 'image/svg+xml' }));
+        cache.set(id, ph); holders.add(ph);
+        Promise.resolve().then(() => DB.get('files', id)).then(f => {
+          if (cache.get(id) !== ph) return; if (!f || !f.blob) { cache.delete(id); return; }
+          const u = URL.createObjectURL(f.blob); cache.set(id, u);
+          document.querySelectorAll('img').forEach(im => { if (im.src === ph) im.src = u; });
+        }).catch(() => { if (cache.get(id) === ph) cache.delete(id); });
+        return ph;
+      }
+      if (!cache.has(id) || holders.has(cache.get(id))) { const old = cache.get(id); cache.set(id, URL.createObjectURL(blob)); if (old) document.querySelectorAll('img').forEach(im => { if (im.src === old) im.src = cache.get(id); }); }
       return cache.get(id);
     },
     drop(id) { if (cache.has(id)) { URL.revokeObjectURL(cache.get(id)); cache.delete(id); } },

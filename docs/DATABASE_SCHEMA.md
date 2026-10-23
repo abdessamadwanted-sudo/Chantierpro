@@ -64,6 +64,8 @@ invites/{code}                                  code 8 caractères
   cid, companyName, name, role, service, perms, admin, allProjects, projects, managerUid, zone,
   used, usedBy, usedAt, createdBy, createdAt
 
+licences/{code}                                 APPLICATION CHANTIER (ma.chantier.app) : licences « CH- »
+  ownerUid, status, name, email, features, device{id,model}, expires, team, chef, … (+ sous-collection suivi/{store__id})
 shares/{code}                                   partage externe d'un projet
   cid, companyName, pid, projectName, entity, label, contact, scope, ops{view,comment,download},
   dueDate, used, usedBy, usedByName, usedAt, createdBy, createdByName, createdAt, responses[{byName,text,at}]

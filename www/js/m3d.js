@@ -26,11 +26,16 @@ async function renderModels3D(root, filter) {
   const p = await DB.get('projects', App.project.id);
   const C = m3colors(p);
   const list = (p.models3d || []).filter(m => !filter || m.linkId === filter).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const PT = (p.poutres || []);
   root.innerHTML = `<div class="pagehead"><h2>Modèles 3D</h2><p>Coffrage tracé sur plan · ferraillage depuis la nomenclature</p></div>
+    <button class="pt-entry" data-a="pt3"><span>🧱</span><div class="grow"><b>Poutres 3D</b><small>${PT.length ? `${PT.length} poutre(s) · ` : ''}depuis le plan de ferraillage (Arche / Graitec) ou saisie</small></div>${icon('chevright')}</button>
+    ${PT.length ? `<div class="list">${PT.map(P => `<div class="row" data-pt="${P.id}"><span class="m3-ic" style="background:linear-gradient(135deg,#a855f7,#4c1d95)">🧱</span><div class="grow"><div class="title">${esc(P.name || 'Poutre')}${P.niv ? ' · ' + esc(P.niv) : ''}</div><div class="sub">${P.b}×${P.h} · portée ${P.L} cm · ${(P.bars || []).length} positions · ${nfx(ptTotKg(P), 1)} kg</div></div></div>`).join('')}</div>` : ''}
     ${list.length ? `<div class="list">${list.map(m => `<div class="row" data-id="${m.id}"><span class="m3-ic" style="background:${m.type === 'ferraillage' ? 'linear-gradient(135deg,#ef4444,#7f1d1d)' : m.type === 'dxf' ? 'linear-gradient(135deg,#22c55e,#14532d)' : 'linear-gradient(135deg,#60a5fa,#1e40af)'}">${icon(m.type === 'ferraillage' ? 'rows' : m.type === 'dxf' ? 'layers' : 'cube')}</span>
       <div class="grow"><div class="title">${esc(m.name)}</div><div class="sub">${m.type === 'dxf' ? `Plan AutoCAD · ${(m.zones || []).length} partie(s) d'ouvrage` : m.type === 'ferraillage' ? `Ferraillage${m.mode === 'elem' ? ' ' + FER_ELEMS[m.elem.kind].l.toLowerCase() : ''} · ${(m.bars || []).length} repère(s) · ${nfx(ferTotalKg(m), 0)} kg` : `Coffrage · ${nfx(cofCalc(m).vol)} m³`} · <span style="color:${C[m.status || 'todo']}">● ${(M3D_STATUS.find(s => s.k === (m.status || 'todo')) || {}).l}</span></div></div>${icon('chevright')}</div>`).join('')}</div>`
     : `<div class="empty">Aucun modèle 3D.<br>Appuyez sur <b>+</b> : coffrage tracé sur un plan, ou ferraillage lu depuis le plan PDF.</div>`}`;
   $$('.row[data-id]', root).forEach(r => r.onclick = async () => { await openAnyModel(list.find(m => m.id === r.dataset.id)); renderModels3D(root, filter); });
+  $$('.row[data-pt]', root).forEach(r => r.onclick = async () => { const P = PT.find(x => x.id === r.dataset.pt); if (P) await ptOpen(p, P); renderModels3D(root, filter); });
+  $('[data-a=pt3]', root).onclick = async () => { const P = await ptNew(p); if (P) await ptOpen(p, P); renderModels3D(root, filter); };
   fab(root, async () => { const m = await newModelFlow(); if (m) { await openAnyModel(m); renderModels3D(root, filter); } });
 }
 

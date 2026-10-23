@@ -3,6 +3,8 @@
   "appName": "SiteTeam",
   "webDir": "www",
   "android": {
-    "backgroundColor": "#0f172a"
+    "backgroundColor": "#0f172a",
+    "webContentsDebuggingEnabled": false,
+    "allowMixedContent": false
   }
 }

@@ -29,7 +29,7 @@ Firestore/Drive, hors du dépôt).
    Points d'attention :
    - `invites/{code}` et `shares/{code}` : lecture (`get`) par tout utilisateur connecté qui connaît le code
      (8 caractères parmi 31 → ~8,5×10¹¹ combinaisons) ; pas d'expiration ;
-   - `shares` : le destinataire peut réécrire tout le tableau `responses` (pas seulement ajouter) ;
+   - `shares` : réponses en ajout seulement depuis la v1.0.11 (une fois les règles publiées) ;
    - pas de validation de schéma (types, tailles) sur les enregistrements `m/{mod}/r/*` ;
    - un admin peut tout modifier dans son entreprise (attendu).
 
@@ -42,10 +42,16 @@ Firestore/Drive, hors du dépôt).
 6. **Droits côté client** : l'interface masque des écrans selon `Team.lvl()` ; seul le serveur (règles)
    protège réellement les données Firestore. Les fichiers Drive ne sont protégés que par la clé (point 5).
 
-7. **Données personnelles** : e-mails, noms, photos de chantier. Aucune politique de confidentialité ni procédure
-   de suppression de compte n'existe dans l'app (requises par Google Play).
+7. **Données personnelles** : e-mails, noms, photos de chantier. Suppression de compte dans l'app depuis la v1.0.11 ;
+   politique de confidentialité et page web de suppression encore absentes (requises par Google Play).
 
 8. **`android:allowBackup="true"`** : la sauvegarde Android peut copier les données locales de l'app (modèle par défaut).
+
+## Projet Firebase partagé avec l'application Chantier
+Le projet `siteteam` sert aussi à l'app *Chantier* (`ma.chantier.app`) : collections `licences` et `suivi`
+(codes CH, sans compte Firebase côté téléphone). Les règles de `team.js` couvrent les deux applications depuis
+la v1.0.11. **Ne jamais publier des règles qui ne contiennent pas le bloc `licences`.** Point faible connu :
+un code CH sert de secret (lecture de la licence sans compte).
 
 ## À ne jamais faire
 - Commiter une clé de publication, un mot de passe, un `google-services.json` lié à une clé admin, un compte de service.

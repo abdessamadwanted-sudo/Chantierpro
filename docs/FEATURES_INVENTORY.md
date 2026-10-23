@@ -14,7 +14,7 @@ création d'invitation par un non-admin, écriture de tâche par un rôle en lec
 
 | Module | Objectif | Fichiers | Écrans | Données | État | Problèmes / améliorations |
 |---|---|---|---|---|---|---|
-| Comptes / authentification | Connexion obligatoire, création de compte, mot de passe oublié | team.js (`loginScreen`) | Écran de connexion | Firebase Auth, `users/{uid}` | Fonctionnel (testé) | Pas de suppression de compte (exigée par Google Play) ; e-mail/mot de passe seulement |
+| Comptes / authentification | Connexion obligatoire, création de compte, mot de passe oublié | team.js (`loginScreen`) | Écran de connexion | Firebase Auth, `users/{uid}` | Fonctionnel (testé, y compris suppression de compte) | E-mail/mot de passe seulement ; page web de suppression à faire |
 | Entreprise / organisation | Créer ou rejoindre une entreprise | team.js (`onboardScreen`, `openCompany`) | Onboarding, « Mon entreprise » (onglets Organigramme, Membres, Invitations, Réglages, Mon compte) | `companies/{cid}` | Fonctionnel (testé) | Un utilisateur = une entreprise à la fois |
 | Services, postes, hiérarchie | 12 services, 43 postes, responsable direct, zone | team.js (`SERVICES`, `ROLES`, `memberForm`) | Organigramme, fiche membre | `members/{uid}` (`role`, `service`, `managerUid`, `zone`) | Fonctionnel (testé) | — |
 | Permissions | 16 modules × 5 niveaux, projets autorisés, admin | team.js (`lvl`, `canSection`, règles) | Droits détaillés, bandeau lecture seule | `members.perms`, règles Firestore | Fonctionnel (testé, refus serveur vérifiés) | Côté client `lvl()` retourne 4 avant connexion (sans effet serveur) |
