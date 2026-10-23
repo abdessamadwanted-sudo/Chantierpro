@@ -150,3 +150,28 @@ D after delete: login screen 1
 A members after D delete ["Youssef Conducteur","Client MO","Abdessamad Patron"]
 D relogin Compte introuvable
 errors ["D console: Failed to load resource: the server responded with a status of 400 (Bad Request)"]
+A sync state <span style="color:#60a5fa">⟳ Réception…</span>
+code conducteur VBQXCJQA
+code MO E4MGUD2B
+B projects ["Grand stade Benslimane"]
+B tasks ["Enrobage insuffisant voile V12"]
+B receptions 1
+A sees task ["Enrobage insuffisant voile V12 (repris) / progress"]
+B self-admin denied OK: permission-denied
+B invite create denied OK: permission-denied
+C fab 0 projects ["Grand stade Benslimane"]
+C write task denied OK: permission-denied
+D items ["impl:demandee","cmd:demandee","pt:","rdt:"]
+D topo write cmd denied OK: permission-denied
+A items ["impl:implantee","cmd:demandee","pt:","rdt:","mat:","stock:"]
+B poste {"service":"trav","poste":"conduct","at":"2026-10-23","st":"conducteur"} C poste {"service":"mo","poste":"mo","at":"2026-10-23","st":"mo"} D poste {"service":"etu","poste":"topo","at":"2026-10-23","st":"cheftopo"}
+B tableau de bord ["Tâches / réserves","PV non reçus","PV non livrés au BET"]
+C sections finance/reception [true,true,false,true]
+A aperçu basic [false,false,false,true,true,false]
+A aperçu tiroir {"lock":12,"items":["dashboard","plans","avancement","planning","tasks","reports","photos","models3d","maquette","settings"]}
+A sans aperçu [true,true]
+D delete message Votre compte a été supprimé.
+D after delete: login screen 1
+A members after D delete ["Abdessamad Patron","Youssef Conducteur","Client MO"]
+D relogin Compte introuvable
+errors ["D console: Failed to load resource: the server responded with a status of 400 (Bad Request)"]
