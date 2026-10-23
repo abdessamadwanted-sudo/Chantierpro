@@ -256,7 +256,7 @@ remplacer `FB_CONFIG`.
 ## 7. État fonctionnel
 
 Terminé et en service :
-- comptes Firebase, création/rejoindre une entreprise, organigramme, 37 rôles, droits par module (0–4), invitations par code ;
+- comptes Firebase, création/rejoindre une entreprise, organigramme, rôles par service (direction, travaux, ferraillage, centrale, topo, qualité, HSE, intervenants externes…), droits par module (0–4), invitations par code ;
 - synchronisation des données par Firestore, fichiers par le Drive de l'entreprise ;
 - projets, plans, réserves/tâches, photos, formulaires/PV, rapports journaliers, réception & bétonnage, constats, calculs/topo, espaces ;
 - import des projets de l'application Chantier ;
