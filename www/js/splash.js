@@ -2,7 +2,7 @@
 const Splash = (() => {
   const LS = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } };
   // réglages : animation et son selon l'heure (matin / soir), le reste de la journée sans son ou désactivé
-  const SCHED_DEF = { mode: 'always', sound: true, m: { from: '06:00', to: '10:00', sound: true }, e: { from: '18:00', to: '23:30', sound: true }, rest: 'silent', brief: true, title: 'CHANTIER', msg: '{salut}, {nom} 👷', motto: 'QUALITÉ ◆ SÉCURITÉ ◆ DÉLAIS' };
+  const SCHED_DEF = { mode: 'always', sound: true, m: { from: '06:00', to: '10:00', sound: true }, e: { from: '18:00', to: '23:30', sound: true }, rest: 'silent', brief: true, title: 'SITETEAM', msg: '{salut}, {nom} 👷', motto: 'QUALITÉ ◆ SÉCURITÉ ◆ DÉLAIS' };
   const sched = () => { try { return { ...SCHED_DEF, ...JSON.parse(LS('splash.sched') || '{}') }; } catch (e) { return { ...SCHED_DEF }; } };
   const inWin = (w) => { const n = new Date(), m = n.getHours() * 60 + n.getMinutes(), t = (x) => { const [h, mm] = String(x || '0:0').split(':').map(Number); return h * 60 + (mm || 0); }; const a = t(w.from), b = t(w.to); return a <= b ? m >= a && m <= b : m >= a || m <= b; };
   const now = () => { const S = sched(); if (LS('splash.off') === '1' && !LS('splash.sched')) return { anim: false, sound: false };
@@ -29,7 +29,7 @@ const Splash = (() => {
   // textes modifiables dans Paramètres › Écran d'ouverture ({salut} = Bonjour / Bonsoir…, {nom} = votre prénom)
   const fill = (t) => { const h = new Date().getHours(), hello = h < 5 ? 'Bonne nuit' : h < 12 ? 'Bonjour' : h < 18 ? 'Bon après-midi' : 'Bonsoir', name = LS('userName') || '';
     return String(t || '').replace(/\{salut\}/gi, hello).replace(/,?\s*\{nom\}/gi, (m) => name ? m.replace(/\{nom\}/i, name) : '').trim(); };
-  const txt = () => { const S = sched(); return { title: (S.title || '').trim() || 'CHANTIER', msg: S.msg == null ? SCHED_DEF.msg : S.msg, motto: S.motto == null ? SCHED_DEF.motto : S.motto }; };
+  const txt = () => { const S = sched(); return { title: (S.title || '').trim() || 'SITETEAM', msg: S.msg == null ? SCHED_DEF.msg : S.msg, motto: S.motto == null ? SCHED_DEF.motto : S.motto }; };
   async function lines() {
     const m = fill(txt().msg); return m ? m.split('\n').map(x => '> ' + x) : [];
   }
@@ -148,7 +148,7 @@ const Splash = (() => {
         <div class="ss-r"><span>Le reste de la journée</span><div class="seg" data-g="rest"><button data-v="silent">Sans son</button><button data-v="off">Désactivée</button></div></div>
       </div>
       <div class="ss-txt"><b>✏️ Textes affichés</b>
-        <label>Titre<input data-k="title" value="${esc(S.title || '')}" placeholder="CHANTIER" maxlength="18"></label>
+        <label>Titre<input data-k="title" value="${esc(S.title || '')}" placeholder="SITETEAM" maxlength="18"></label>
         <label>Message tapé<textarea data-k="msg" rows="2" placeholder="{salut}, {nom} 👷">${esc(S.msg == null ? SCHED_DEF.msg : S.msg)}</textarea></label>
         <label>Devise (séparée par ◆)<input data-k="motto" value="${esc(S.motto == null ? SCHED_DEF.motto : S.motto)}" placeholder="QUALITÉ ◆ SÉCURITÉ ◆ DÉLAIS"></label>
         <small>{salut} = Bonjour / Bonsoir… · {nom} = votre prénom · laisser vide pour ne rien afficher</small></div>
