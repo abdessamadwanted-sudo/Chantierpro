@@ -1,0 +1,24 @@
+OK   code : lecture de la licence sans compte
+OK   code : activation (device, accepted, lastSeen, version)
+OK   code : vérification périodique (même téléphone)
+OK   code : REFUS de prendre une licence déjà liée à un autre téléphone
+OK   code : REFUS de se réactiver soi-même (status)
+OK   code : REFUS de changer ses fonctions
+OK   code : envoi du suivi (licence active)
+OK   code : REFUS d'envoi du suivi (licence suspendue)
+OK   code : REFUS de lire le suivi
+OK   sans compte : REFUS de lister toutes les licences
+OK   sans compte : REFUS de créer une licence
+OK   propriétaire : créer une licence
+OK   propriétaire : lister ses licences
+OK   propriétaire : suspendre / modifier
+OK   propriétaire : lire le suivi
+OK   propriétaire : supprimer le suivi puis la licence
+OK   autre compte : REFUS de créer une licence
+OK   autre compte : REFUS de lister les licences du propriétaire
+OK   autre compte : REFUS de modifier une licence
+OK   autre compte : REFUS de lire le suivi
+OK   sans compte : REFUS de lire une entreprise SiteTeam
+OK   propriétaire Chantier : REFUS de lire une entreprise SiteTeam dont il n'est pas membre
+
+TOUT OK — 22 vérifications
