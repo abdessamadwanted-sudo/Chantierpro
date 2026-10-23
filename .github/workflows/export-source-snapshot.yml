@@ -1,20 +1,32 @@
 name: Export source snapshot (manual, pour sauvegarde/reprise)
 
-# Déclenché à la main uniquement (workflow_dispatch) : construit un instantané complet et réel du
-# projet SiteTeam — projet Android généré (comme en production), package-lock.json réel, et un
-# fichier .aab (bundle Android) de contrôle — pour sauvegarde et reprise par un autre développeur.
-# Ne modifie rien sur la branche, ne publie aucune release : uniquement des artefacts de build à
-# télécharger manuellement (onglet Actions → cette exécution → Artifacts).
+# Déclenché à la main uniquement. Construit, à partir de la branche siteteam :
+#  - un ZIP source complet (code web, projet Android généré, Gradle + wrapper, package.json + package-lock.json,
+#    capacitor.config.json, scripts CI, documentation) SANS node_modules, SANS caches de build, SANS clé privée ;
+#  - l'APK signé avec la clé fixe et un .aab (bundle) signé avec la même clé « debug » —
+#    ce .aab N'EST PAS acceptable par Google Play (clé debug, build debuggable) : il prouve seulement que le format se construit.
+# Publie le tout dans une pré-release « siteteam-backup-N » (pas « latest »), téléchargeable sans compte GitHub.
 
 on:
   workflow_dispatch:
+    inputs:
+      version_code:
+        description: "versionCode à utiliser (aligner sur la dernière release siteteam-v1.0.N → N)"
+        required: true
+        default: "7"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   export:
     runs-on: ubuntu-latest
+    env:
+      VC: ${{ inputs.version_code }}
+      # mots de passe PUBLICS par défaut de toute clé « debug » Android (pas des secrets)
+      ST_KS_PASS: android
+      ST_KEY_ALIAS: androiddebugkey
+      ST_KEY_PASS: android
     steps:
       - uses: actions/checkout@v4
 
@@ -33,10 +45,8 @@ jobs:
       - name: Copy PDF reader (pdf.js)
         run: npm run copy-libs
 
-      - name: Set app version (identique à la dernière release publiée)
-        run: |
-          V=1.0.6
-          sed -i "s/__APP_VERSION__/$V/" www/js/app.js
+      - name: Set app version
+        run: sed -i "s/__APP_VERSION__/1.0.$VC/" www/js/app.js
 
       - name: Create Android project (étape identique au build de production)
         run: npx cap add android
@@ -45,61 +55,72 @@ jobs:
         run: npx @capacitor/assets generate --android --iconBackgroundColor '#0f172a' --iconBackgroundColorDark '#0f172a' --splashBackgroundColor '#0f172a' --splashBackgroundColorDark '#0f172a'
         continue-on-error: true
 
-      - name: Android versionCode / versionName (alignés sur la dernière release siteteam-v1.0.6)
-        run: |
-          sed -i -E "s/versionCode [0-9]+/versionCode 6/; s/versionName \"[^\"]*\"/versionName \"1.0.6\"/" android/app/build.gradle
+      - name: Android versionCode / versionName
+        run: sed -i -E "s/versionCode [0-9]+/versionCode $VC/; s/versionName \"[^\"]*\"/versionName \"1.0.$VC\"/" android/app/build.gradle
 
       - name: Camera permission (identique au build de production)
-        run: |
-          sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#&\n    <uses-permission android:name="android.permission.CAMERA" />#' android/app/src/main/AndroidManifest.xml
+        run: sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#&\n    <uses-permission android:name="android.permission.CAMERA" />#' android/app/src/main/AndroidManifest.xml
 
       - name: Sync web code into the native project
         run: npx cap sync android
 
-      - name: Use fixed signing key (same cert as all installs so far)
-        run: |
-          mkdir -p ~/.android
-          cp keystore/debug.keystore ~/.android/debug.keystore
+      - name: Fixed signing key (déclarée dans Gradle)
+        run: bash ci/signing.sh
 
-      - name: Build debug-signed .aab (bundle) — contrôle du format, PAS valable pour Google Play
+      - name: Build APK + AAB
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew bundleDebug --no-daemon
-          cp app/build/outputs/bundle/debug/app-debug.aab ../SiteTeam-debug-signed.aab
+          ./gradlew assembleDebug bundleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ../SiteTeam-1.0.$VC.apk
+          cp app/build/outputs/bundle/debug/app-debug.aab ../SiteTeam-1.0.$VC-debug-signed.aab
 
-      - name: Package full source snapshot (sans node_modules ni caches de build)
+      - name: Verify signatures + versions (écrit build-info.txt)
         run: |
-          mkdir -p /tmp/snap
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          {
+            echo "== APK SiteTeam-1.0.$VC.apk"; $BT/apksigner verify --print-certs SiteTeam-1.0.$VC.apk
+            echo "== AAB SiteTeam-1.0.$VC-debug-signed.aab"; keytool -printcert -jarfile SiteTeam-1.0.$VC-debug-signed.aab
+            echo "== badging"; $BT/aapt2 dump badging SiteTeam-1.0.$VC.apk | grep -E "^package:|sdkVersion|targetSdkVersion" || true
+            echo "== android/variables.gradle"; cat android/variables.gradle
+            echo "== plugins Capacitor installés"; npm ls --depth=0 || true
+            echo "== outils"; node -v; npm -v; java -version 2>&1; (cd android && ./gradlew -v --no-daemon | grep -E "Gradle|Kotlin|JVM") || true
+          } > build-info.txt 2>&1
+          cat build-info.txt
+          grep -qi "e3ecf43100a66eb4e55ef18aa18236a4374f56d0e3651ef30b62d9d058bee024" build-info.txt || (echo "WRONG SIGNING KEY" && exit 1)
+
+      - name: Package source ZIP (sans node_modules, caches, ni clé privée)
+        run: |
+          mkdir -p /tmp/snap/SiteTeam-source
           rsync -a \
-            --exclude '.git' \
-            --exclude 'node_modules' \
-            --exclude 'android/build' \
-            --exclude 'android/app/build' \
-            --exclude 'android/.gradle' \
-            --exclude 'android/local.properties' \
-            --exclude 'android/.idea' \
-            . /tmp/snap/
-          cd /tmp/snap && zip -qr /tmp/siteteam-source-snapshot.zip .
-          ls -la /tmp/siteteam-source-snapshot.zip
+            --exclude '.git' --exclude 'node_modules' --exclude 'keystore' \
+            --exclude 'android/build' --exclude 'android/app/build' --exclude 'android/.gradle' \
+            --exclude 'android/capacitor-cordova-android-plugins/build' \
+            --exclude 'android/local.properties' --exclude 'android/.idea' \
+            --exclude 'ci-out' --exclude '*.apk' --exclude '*.aab' \
+            . /tmp/snap/SiteTeam-source/
+          cp build-info.txt /tmp/snap/SiteTeam-source/BUILD-INFO.txt
+          # garde-fou : aucune clé privée dans le ZIP
+          if find /tmp/snap -iname '*.keystore' -o -iname '*.jks' | grep -q .; then echo "KEYSTORE FOUND IN ZIP" && exit 1; fi
+          cd /tmp/snap && zip -qr ../SiteTeam-source-1.0.$VC.zip SiteTeam-source && ls -la /tmp/SiteTeam-source-1.0.$VC.zip
+          cp /tmp/SiteTeam-source-1.0.$VC.zip "$GITHUB_WORKSPACE/"
 
-      - uses: actions/upload-artifact@v4
+      - name: Publish backup pre-release
+        uses: softprops/action-gh-release@v2
         with:
-          name: siteteam-source-snapshot
-          path: /tmp/siteteam-source-snapshot.zip
-          retention-days: 14
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: siteteam-debug-signed-aab
-          path: SiteTeam-debug-signed.aab
-          retention-days: 14
-
-      - name: package-lock.json seul (pour relecture rapide / commit)
-        run: cp package-lock.json /tmp/package-lock.json
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: package-lock
-          path: /tmp/package-lock.json
-          retention-days: 14
+          tag_name: siteteam-backup-${{ github.run_number }}
+          name: SiteTeam — sauvegarde source 1.0.${{ inputs.version_code }}
+          prerelease: true
+          make_latest: false
+          body: |
+            Sauvegarde complète du projet SiteTeam (voir docs/REPRISE.md dans le ZIP).
+            - `SiteTeam-source-*.zip` : code source complet sans node_modules, sans caches de build, sans clé privée.
+            - `SiteTeam-*.apk` : application installable (signature fixe « debug », empreinte SHA-256 E3:EC:F4:31…).
+            - `SiteTeam-*-debug-signed.aab` : bundle de contrôle — **non accepté par Google Play** (clé debug).
+            - `package-lock.json` et `BUILD-INFO.txt` : versions exactes des dépendances et des outils.
+          files: |
+            SiteTeam-source-1.0.${{ inputs.version_code }}.zip
+            SiteTeam-1.0.${{ inputs.version_code }}.apk
+            SiteTeam-1.0.${{ inputs.version_code }}-debug-signed.aab
+            package-lock.json
+            build-info.txt
