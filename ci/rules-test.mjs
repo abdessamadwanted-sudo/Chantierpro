@@ -30,6 +30,10 @@ await env.withSecurityRulesDisabled(async (c) => {
   await db.collection('licences').doc('CH-OFF00001').set({ ownerUid: OWNER.uid, status: 'disabled', name: 'Ami 3' });
   await db.collection('licences').doc('CH-ACTIVE01').collection('suivi').doc('projects__p1').set({ store: 'projects', updatedAt: 1 });
   await db.collection('companies').doc('c1').set({ name: 'BTP', ownerUid: 'x' });
+  await db.collection('companies').doc('c1').collection('members').doc('m1').set({ name: 'Membre 1', admin: false, perms: {}, allProjects: false, projects: [] });
+  await db.collection('companies').doc('c1').collection('members').doc('m2').set({ name: 'Membre 2', admin: false, perms: {}, allProjects: false, projects: [] });
+  await db.collection('shares').doc('SHARE001').set({ cid: 'c1', pid: 'p1', used: true, usedBy: 'ext1', ops: { view: true, comment: true }, responses: [{ byName: 'Admin', text: 'Bonjour', at: 1 }] });
+  await db.collection('shares').doc('SHARE002').set({ cid: 'c1', pid: 'p1', used: true, usedBy: 'ext1', ops: { view: true, comment: false }, responses: [] });
 });
 
 // --- téléphone activé par code (sans compte Firebase)
@@ -64,6 +68,20 @@ await t('autre compte : REFUS de lire le suivi', () => assertFails(other.collect
 // --- SiteTeam reste protégé
 await t('sans compte : REFUS de lire une entreprise SiteTeam', () => assertFails(anon.collection('companies').doc('c1').get()));
 await t('propriétaire Chantier : REFUS de lire une entreprise SiteTeam dont il n\'est pas membre', () => assertFails(owner.collection('companies').doc('c1').get()));
+
+// --- suppression de compte : un membre peut retirer sa propre appartenance, pas celle d'un autre
+const m1 = env.authenticatedContext('m1', { email: 'm1@test.ma' }).firestore();
+await t('membre : REFUS de supprimer un autre membre', () => assertFails(m1.collection('companies').doc('c1').collection('members').doc('m2').delete()));
+await t('membre : supprimer sa propre appartenance (suppression de compte)', () => assertSucceeds(m1.collection('companies').doc('c1').collection('members').doc('m1').delete()));
+
+// --- partage externe : le destinataire ajoute une réponse, sans effacer les précédentes
+const ext = env.authenticatedContext('ext1', { email: 'ext@test.ma' }).firestore();
+const R0 = { byName: 'Admin', text: 'Bonjour', at: 1 };
+await t('partage : ajouter une réponse', () => assertSucceeds(ext.collection('shares').doc('SHARE001').update({ responses: [R0, { byName: 'BET', text: 'Vu', at: 2 }] })));
+await t('partage : REFUS d\'effacer l\'historique des réponses', () => assertFails(ext.collection('shares').doc('SHARE001').update({ responses: [{ byName: 'BET', text: 'remplacé', at: 3 }] })));
+await t('partage : REFUS de modifier une réponse existante', () => assertFails(ext.collection('shares').doc('SHARE001').update({ responses: [{ byName: 'Admin', text: 'modifié', at: 1 }, { byName: 'BET', text: 'Vu', at: 2 }, { byName: 'BET', text: 'x', at: 4 }] })));
+await t('partage : REFUS de répondre si « répondre » n\'est pas autorisé', () => assertFails(ext.collection('shares').doc('SHARE002').update({ responses: [{ byName: 'BET', text: 'x', at: 2 }] })));
+await t('partage : REFUS de changer le périmètre', () => assertFails(ext.collection('shares').doc('SHARE001').update({ scope: 'tout le projet' })));
 
 log(`\n${fails ? fails + ' ÉCHEC(S)' : 'TOUT OK'} — ${out.length} vérifications`);
 fs.writeFileSync(O + '/rules-test.txt', out.join('\n') + '\n');

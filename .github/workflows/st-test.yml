@@ -22,6 +22,7 @@ jobs:
           (cd www && python3 -m http.server 8765 > /dev/null 2>&1 &)
           sleep 2
           node ci/rules-test.mjs || true
+          node ci/db-test.mjs || true
           node ci/st.mjs || true
           tail -30 emu.log > ci-out/emu.txt || true
       - run: |
