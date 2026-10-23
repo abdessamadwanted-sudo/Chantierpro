@@ -14,14 +14,46 @@ const FB_CONFIG = {
 // le rôle/les droits limitent ce que chacun voit et peut faire une fois dans l'entreprise). Prix et quotas provisoires, à ajuster avant lancement.
 const PLANS = {
   // modules inclus (voir MODS) : la formule limite les outils disponibles, le poste limite ce que chacun voit et fait
-  basic:      { k: 'basic', l: 'Basic', price: 0, period: 'mois', users: 1, storageGb: 1, ads: true, modules: ['projet', 'plans', 'reserves', 'photos', 'rapports'] },
-  personnel:  { k: 'personnel', l: 'Personnel', price: 39, period: 'mois', users: 1, storageGb: 10, ads: false, modules: ['projet', 'plans', 'reserves', 'photos', 'rapports', 'reception', 'forms', 'constats', 'calc', 'files'] },
-  pro:        { k: 'pro', l: 'Pro', price: 99, period: 'mois', users: 1, storageGb: 30, ads: false, modules: ['projet', 'plans', 'reserves', 'photos', 'rapports', 'reception', 'forms', 'constats', 'calc', 'files', 'topo', 'centrale', 'materiel', 'pointage', 'hse', 'finance'] },
-  entreprise: { k: 'entreprise', l: 'Entreprise', price: 990, period: 'mois', users: 15, extraUserPrice: 49, storageGb: 200, ads: false, modules: '*' },
+  // users / projects : quotas (0 = illimité) · storageGb : indicatif (pas encore mesuré) · hier : hiérarchie avancée · shares : groupements / partage externe
+  basic:      { k: 'basic', l: 'Basic', e: '🌱', price: 0, period: 'mois', users: 3, projects: 1, storageGb: 1, perso: true, for: 'Particulier ou petit entrepreneur — fonctions essentielles',
+                modules: ['projet', 'plans', 'reserves', 'photos', 'rapports', 'equipe'] },
+  pro:        { k: 'pro', l: 'Pro', e: '⭐', price: 99, period: 'mois', users: 1, projects: 0, storageGb: 30, perso: true, for: 'Professionnel indépendant — outils avancés',
+                modules: ['projet', 'plans', 'reserves', 'photos', 'rapports', 'equipe', 'reception', 'forms', 'constats', 'calc', 'files', 'topo', 'centrale', 'materiel', 'pointage', 'hse', 'finance'] },
+  business:   { k: 'business', l: 'Business', e: '🏢', price: 990, period: 'mois', users: 15, extraUserPrice: 49, projects: 0, storageGb: 200, for: 'Entreprise — plusieurs utilisateurs, services et projets', modules: '*' },
+  enterprise: { k: 'enterprise', l: 'Enterprise', e: '🏛️', price: null, period: 'mois', users: 0, projects: 0, storageGb: 1000, hier: true, shares: true, for: 'Grandes entreprises — hiérarchie et groupements avancés', modules: '*' },
 };
-const planOf = (k) => PLANS[k] || PLANS.basic;
-// une entreprise (branche SiteTeam) démarre sur la formule Entreprise, en essai — à brancher sur une vraie facturation avant tout lancement public
-const PLAN_DEFAULT_COMPANY = 'entreprise';
+// anciennes formules (avant v1.0.14) : « personnel » → Pro, « entreprise » → Enterprise (aucun outil perdu)
+const PLAN_ALIAS = { personnel: 'pro', entreprise: 'enterprise' };
+const planOf = (k) => PLANS[PLAN_ALIAS[k] || k] || PLANS.basic;
+const planPrice = (P) => P.price == null ? 'sur devis' : P.price ? `${P.price} MAD/${P.period}` : 'gratuite';
+const planUsers = (P) => P.users ? `${P.users} compte(s)` : 'comptes illimités';
+// entreprises existantes sans formule : Enterprise (rien ne change pour elles) — facturation réelle à brancher avant tout lancement public
+const PLAN_DEFAULT_COMPANY = 'enterprise';
+
+// ---------- Type d'organisation (« jiha ») : choisit l'interface (outils mis en avant) et le modèle de services proposé ----------
+// mods : modules affichés pour ce type d'organisation ('*' = tous) · svcs : services proposés à la création · owner : poste du créateur
+const ORG_TYPES = [
+  { k: 'entreprise', e: '🏗️', l: 'Entreprise BTP', d: 'Entreprise générale, gros œuvre, travaux', owner: 'patron', mods: '*',
+    svcs: ['direction', 'travaux', 'hse', 'qualite', 'labo', 'topo', 'bim', 'logistique', 'materiel', 'admin'] },
+  { k: 'soustraitant', e: '🤝', l: 'Sous-traitant / tâcheron', d: 'Un lot : ferraillage, coffrage, finitions…', owner: 'soustraitant',
+    mods: ['projet', 'plans', 'reserves', 'reception', 'photos', 'forms', 'rapports', 'constats', 'calc', 'equipe', 'files', 'materiel', 'pointage', 'hse', 'finance'],
+    svcs: ['direction', 'travaux', 'ferraillage', 'materiel', 'hse'] },
+  { k: 'bet', e: '🧮', l: "Bureau d'études (BET)", d: 'Structure, fluides, notes de calcul, visas', owner: 'bet',
+    mods: ['projet', 'plans', 'reserves', 'photos', 'forms', 'rapports', 'constats', 'calc', 'equipe', 'files', 'finance'], svcs: ['direction', 'bim', 'metre', 'doc', 'admin'] },
+  { k: 'archi', e: '🏛️', l: 'Architecte / MOE', d: 'Conception, plans, visas, suivi architectural', owner: 'architecte',
+    mods: ['projet', 'plans', 'reserves', 'photos', 'forms', 'rapports', 'constats', 'calc', 'equipe', 'files'], svcs: ['direction', 'bim', 'doc', 'admin'] },
+  { k: 'moa', e: '🏢', l: "Maître d'ouvrage", d: 'Client, AMO : suivi, validations, budget', owner: 'mo',
+    mods: ['projet', 'plans', 'reserves', 'photos', 'forms', 'rapports', 'constats', 'equipe', 'files', 'finance'], svcs: ['direction', 'qualite', 'doc', 'admin'] },
+  { k: 'bc', e: '🔍', l: 'Bureau de contrôle', d: 'Contrôle technique, visites, avis, PV', owner: 'bcontrole',
+    mods: ['projet', 'plans', 'reserves', 'reception', 'photos', 'forms', 'rapports', 'constats', 'equipe', 'files'], svcs: ['direction', 'qualite', 'doc'] },
+  { k: 'labo', e: '🧪', l: 'Laboratoire', d: 'Essais béton, sols, granulats, aciers', owner: 'labo',
+    mods: ['projet', 'plans', 'reception', 'photos', 'forms', 'rapports', 'constats', 'calc', 'equipe', 'files'], svcs: ['direction', 'labo', 'doc'] },
+  { k: 'topo', e: '📍', l: 'Cabinet de topographie', d: 'Implantations, levés, récolements', owner: 'cheftopo',
+    mods: ['projet', 'plans', 'photos', 'forms', 'rapports', 'calc', 'equipe', 'files', 'topo', 'materiel'], svcs: ['direction', 'topo', 'materiel'] },
+];
+// espace personnel (professionnel indépendant) : tous les outils de sa formule, interface de son métier
+const ORG_PERSO = { k: 'independant', e: '👷', l: 'Espace personnel', d: 'Professionnel indépendant', owner: null, mods: '*', svcs: [] };
+const orgTypeOf = (k) => ORG_TYPES.find(t => t.k === k) || (k === 'independant' ? ORG_PERSO : ORG_TYPES[0]);
 // contact à remplacer par l'adresse définitive (support@votredomaine) avant tout lancement public
 const SUPPORT_EMAIL = 'contact@chantierpro.ma';
 
@@ -42,7 +74,8 @@ const TM_SERVICES = [
   { k: 'direction', l: 'Direction', c: '#334155' }, { k: 'travaux', l: 'Travaux', c: '#2563eb' }, { k: 'ferraillage', l: 'Ferraillage', c: '#dc2626' },
   { k: 'centrale', l: 'Centrale à béton', c: '#64748b' }, { k: 'materiel', l: 'Matériel', c: '#ca8a04' }, { k: 'topo', l: 'Topographie', c: '#0d9488' },
   { k: 'qualite', l: 'Qualité', c: '#16a34a' }, { k: 'hse', l: 'HSE', c: '#ea580c' }, { k: 'metre', l: 'Métré', c: '#7c3aed' },
-  { k: 'bim', l: 'Méthodes / BIM', c: '#0891b2' }, { k: 'logistique', l: 'Logistique', c: '#a16207' }, { k: 'doc', l: 'Documentation', c: '#0ea5e9' },
+  { k: 'bim', l: 'Méthodes / Planning / BIM', c: '#0891b2' }, { k: 'logistique', l: 'Logistique', c: '#a16207' }, { k: 'doc', l: 'Documentation', c: '#0ea5e9' },
+  { k: 'labo', l: 'Laboratoire', c: '#8b5cf6' }, { k: 'admin', l: 'Administration & finance', c: '#a855f7' },
   { k: 'externe', l: 'Intervenants externes', c: '#db2777' },
 ];
 // modules (= droits) : projet (infos, rappels, constats, 3D…), plans, réserves, réception & bétonnage, photos, formulaires, rapports, constats, calculs, équipe, fichiers
@@ -74,9 +107,11 @@ const TM_ROLES = [
   ['bet', "BET (bureau d'études)", 'externe', '1221111211111001'], ['bcontrole', 'Bureau de contrôle', 'externe', '1121111201111001'], ['labo', 'Laboratoire', 'externe', '1001220000102000'],
   ['soustraitant', 'Sous-traitant', 'externe', '1120201001211011'],
   ['respdoc', 'Responsable documentation', 'doc', '2311131101300000'], ['agentdoc', 'Agent documentation', 'doc', '1211121101200000'],
+  ['resplabo', 'Responsable laboratoire', 'labo', '2113232221202001'], ['techlabo', 'Technicien laboratoire', 'labo', '1112221121201001'],
+  ['respadmin', 'Responsable administratif & financier', 'admin', '2110111012200131'], ['comptable', 'Comptable / RH', 'admin', '1000011011200120'],
 ].map(([k, l, s, p, adm]) => ({ k, l, s, perms: Object.fromEntries(MODS.map(([m], i) => [m, +p[i] || 0])), admin: !!adm }));
 // module « finance » (ajouté avec les outils de Chantier) : accès par défaut selon le poste (les administrateurs ont tout)
-{ const FIN = { dirtravaux: 3, conducteur: 1, condferraillage: 1, metreur: 3, respmateriel: 1, resppointage: 1, mo: 1, mod: 1, bet: 1 };
+{ const FIN = { respadmin: 3, comptable: 2, dirtravaux: 3, conducteur: 1, condferraillage: 1, metreur: 3, respmateriel: 1, resppointage: 1, mo: 1, mod: 1, bet: 1 };
   TM_ROLES.forEach(r => { r.perms.finance = r.admin ? 4 : (FIN[r.k] || 0); }); }
 const tmRoleOf = (k) => TM_ROLES.find(r => r.k === k) || { k, l: k, s: 'externe', perms: {}, admin: false };
 const serviceOf = (k) => TM_SERVICES.find(s => s.k === k) || TM_SERVICES[TM_SERVICES.length - 1];
@@ -339,34 +374,87 @@ const Team = (() => {
     });
   }
 
-  // ---------- créer ou rejoindre une entreprise ----------
+  // ---------- parcours d'entrée : espace → formule → type d'organisation → services → (projet → tableau de bord) ----------
   function onboardScreen() {
     return new Promise((resolve) => {
-      const el = document.createElement('div'); el.className = 'fullpage tm-login';
+      const el = document.createElement('div'); el.className = 'fullpage tm-login st-onb';
       const nm = (auth.currentUser.displayName || '').split(' ')[0];
-      el.innerHTML = `<div class="tm-lg-in"><div class="tm-logo">${icon('team')}</div><h1>Bienvenue${nm ? ' ' + esc(nm) : ''}</h1><p>Rejoignez l'équipe de votre entreprise, ou créez-la si vous êtes le responsable.</p>
-        <div class="tm-choice"><button data-a="join"><b>🔑 J'ai un code d'invitation</b><span>Donné par votre responsable</span></button>
-        <button data-a="create"><b>🏢 Créer mon entreprise</b><span>Patron, directeur de projet… vous invitez ensuite l'équipe</span></button></div>
-        <button class="linkbtn" data-a="out">Se déconnecter (${esc(auth.currentUser.email || '')})</button></div>`;
+      const W = { espace: null, plan: null, org: null, svcs: [] };
       document.body.appendChild(el);
       const done = () => { el.remove(); resolve(); };
-      $('[data-a=out]', el).onclick = async () => { await auth.signOut(); LS.del('me'); LS.del('cid'); location.reload(); };
-      $('[data-a=create]', el).onclick = async () => {
-        const r = await formSheet('Créer mon entreprise', [{ name: 'name', label: 'Nom de l\'entreprise', placeholder: 'Ex : Entreprise BTP …' },
-          { name: 'me', label: 'Votre nom', value: auth.currentUser.displayName || '' },
-          { name: 'role', label: 'Votre poste', type: 'select', value: 'patron', options: TM_ROLES.filter(x => x.admin).map(x => ({ value: x.k, label: x.l })) }], { okLabel: 'Créer' });
-        if (!r || !r.name) return;
-        const ld = loading('Création de l\'entreprise…');
+      const steps = (n, tot) => `<div class="st-steps">${Array.from({ length: tot }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</div>`;
+      const back = (fn) => { const b = $('[data-a=back]', el); if (b) b.onclick = fn; };
+      const tot = () => W.espace === 'perso' ? 4 : 6;
+      // 1 · choix de l'espace
+      function stepEspace() {
+        el.innerHTML = `<div class="tm-lg-in"><div class="tm-logo">${icon('team')}</div><h1>Bienvenue${nm ? ' ' + esc(nm) : ''}</h1><p>Comment voulez-vous utiliser SiteTeam ?</p>
+          <div class="tm-choice">
+            <button data-a="perso"><b>👷 Espace personnel</b><span>Professionnel indépendant : vos outils et vos projets</span></button>
+            <button data-a="create"><b>🏢 Créer une organisation</b><span>Entreprise, BET, architecte, labo, MOA… vous invitez ensuite l'équipe</span></button>
+            <button data-a="join"><b>🔑 Rejoindre avec un code</b><span>Code d'accès donné par votre responsable</span></button></div>
+          <button class="linkbtn" data-a="out">Se déconnecter (${esc(auth.currentUser.email || '')})</button></div>`;
+        $('[data-a=out]', el).onclick = async () => { await auth.signOut(); LS.del('me'); LS.del('cid'); location.reload(); };
+        $('[data-a=perso]', el).onclick = () => { W.espace = 'perso'; W.org = 'independant'; stepPlan(); };
+        $('[data-a=create]', el).onclick = () => { W.espace = 'org'; stepPlan(); };
+        $('[data-a=join]', el).onclick = join;
+      }
+      // 2 · formule
+      function stepPlan() {
+        const L = Object.values(PLANS).filter(P => W.espace !== 'perso' || P.perso);
+        el.innerHTML = `<div class="tm-lg-in">${steps(2, tot())}<h1>Choisir un pack</h1><p>Vous pourrez changer plus tard. Essai gratuit — la facturation n'est pas encore activée.</p>
+          <div class="st-packs">${L.map(P => `<button data-p="${P.k}"><span class="e">${P.e}</span><b>${esc(P.l)}</b><em>${esc(planPrice(P))}</em><small>${esc(P.for)}</small>
+            <small class="q">${P.projects ? `${P.projects} projet` : 'Projets illimités'} · ${esc(planUsers(P))} · ${P.storageGb >= 1000 ? (P.storageGb / 1000) + ' To' : P.storageGb + ' Go'}${P.modules === '*' ? ' · tous les outils' : ` · ${P.modules.length} outils`}${P.hier ? ' · hiérarchie avancée' : ''}</small></button>`).join('')}</div>
+          <button class="linkbtn" data-a="back">← Retour</button></div>`;
+        $$('[data-p]', el).forEach(b => b.onclick = () => { W.plan = b.dataset.p; W.espace === 'perso' ? stepMetier() : stepOrg(); });
+        back(stepEspace);
+      }
+      // 3 · type d'organisation (= interface)
+      function stepOrg() {
+        el.innerHTML = `<div class="tm-lg-in">${steps(3, tot())}<h1>Type d'organisation</h1><p>Chaque type a son interface : les outils de votre métier passent en premier.</p>
+          <div class="st-orgs">${ORG_TYPES.map(t => `<button data-o="${t.k}"><span class="e">${t.e}</span><b>${esc(t.l)}</b><small>${esc(t.d)}</small></button>`).join('')}</div>
+          <button class="linkbtn" data-a="back">← Retour</button></div>`;
+        $$('[data-o]', el).forEach(b => b.onclick = () => { W.org = b.dataset.o; W.svcs = [...orgTypeOf(W.org).svcs]; stepSvcs(); });
+        back(stepPlan);
+      }
+      // 4 · services (modèle modifiable : on ne force pas 12 services à un petit entrepreneur)
+      function stepSvcs() {
+        const T = orgTypeOf(W.org), L = TM_SERVICES.filter(s => s.k !== 'externe');
+        el.innerHTML = `<div class="tm-lg-in">${steps(4, tot())}<h1>${T.e} ${esc(T.l)}</h1><p>Vos services : gardez seulement ceux que vous avez (modifiable plus tard dans Réglages).</p>
+          <div class="st-svcs">${L.map(s => `<button data-s="${s.k}" class="${W.svcs.includes(s.k) ? 'on' : ''}" style="--c:${s.c}">${esc(s.l)}</button>`).join('')}</div>
+          <div class="form"><label>Nom de l'organisation<input name="cname" placeholder="Ex : ${T.k === 'entreprise' ? 'Entreprise BTP …' : esc(T.l) + ' …'}"></label>
+          <label>Votre nom<input name="me" value="${esc(auth.currentUser.displayName || '')}"></label>
+          ${T.k === 'entreprise' ? `<label>Votre poste<select name="role">${TM_ROLES.filter(x => x.admin).map(x => `<option value="${x.k}">${esc(x.l)}</option>`).join('')}</select></label>` : ''}
+          <button class="btn" data-a="go">Créer l'organisation</button></div>
+          <button class="linkbtn" data-a="back">← Retour</button></div>`;
+        $$('[data-s]', el).forEach(b => b.onclick = () => { const k = b.dataset.s; W.svcs = W.svcs.includes(k) ? W.svcs.filter(x => x !== k) : [...W.svcs, k]; b.classList.toggle('on'); });
+        back(stepOrg);
+        $('[data-a=go]', el).onclick = () => { const cn = $('[name=cname]', el).value.trim(); if (!cn) return toast('Tapez le nom de l\'organisation');
+          const rs = $('[name=role]', el); create({ name: cn, me: $('[name=me]', el).value.trim(), role: rs ? rs.value : T.owner }); };
+      }
+      // espace personnel : le métier choisit l'interface
+      function stepMetier() {
+        el.innerHTML = `<div class="tm-lg-in">${steps(3, tot())}<h1>Votre métier</h1><p>Votre interface et votre tableau de bord s'adaptent à votre métier.</p>
+          <div class="form"><label>Métier<select name="role">${TM_SERVICES.filter(s => s.k !== 'direction').map(sv => `<optgroup label="${esc(sv.l)}">${TM_ROLES.filter(r => r.s === sv.k).map(r => `<option value="${r.k}" ${r.k === 'conducteur' ? 'selected' : ''}>${esc(r.l)}</option>`).join('')}</optgroup>`).join('')}</select></label>
+          <label>Votre nom<input name="me" value="${esc(auth.currentUser.displayName || '')}"></label>
+          <button class="btn" data-a="go">Créer mon espace</button></div>
+          <button class="linkbtn" data-a="back">← Retour</button></div>`;
+        back(stepPlan);
+        $('[data-a=go]', el).onclick = () => { const me = $('[name=me]', el).value.trim() || auth.currentUser.displayName || ''; create({ name: `Espace de ${me || 'moi'}`, me, role: $('[name=role]', el).value }); };
+      }
+      async function create(r) {
+        const ld = loading(W.espace === 'perso' ? 'Création de votre espace…' : 'Création de l\'organisation…');
         try {
-          const uid = auth.currentUser.uid, ref = fs.collection('companies').doc();
-          await withTimeout(ref.set({ name: r.name, ownerUid: uid, plan: PLAN_DEFAULT_COMPANY, planStatus: 'essai', createdAt: ts() }));
-          const R = tmRoleOf(r.role);
-          await withTimeout(ref.collection('members').doc(uid).set({ name: r.me || auth.currentUser.displayName || '', email: auth.currentUser.email, role: R.k, service: R.s, perms: R.perms, admin: true, allProjects: true, projects: [], managerUid: null, zone: '', createdAt: ts() }));
+          const uid = auth.currentUser.uid, ref = fs.collection('companies').doc(), R = tmRoleOf(r.role);
+          await withTimeout(ref.set({ name: r.name, ownerUid: uid, plan: W.plan, planStatus: 'essai', kind: W.espace, orgType: W.org, services: W.svcs, createdAt: ts() }));
+          // le créateur administre tout ; son poste ne sert qu'à choisir son interface
+          const all = Object.fromEntries(MODS.map(([m]) => [m, 4]));
+          await withTimeout(ref.collection('members').doc(uid).set({ name: r.me || auth.currentUser.displayName || '', email: auth.currentUser.email, role: R.k, service: R.admin ? R.s : 'direction', perms: all, admin: true, allProjects: true, projects: [], managerUid: null, zone: '', createdAt: ts() }));
           await withTimeout(fs.collection('users').doc(uid).set({ companyId: ref.id, name: r.me || '' }, { merge: true }));
-          ld.close(); toast('Entreprise créée ✓'); done();
+          try { localStorage.setItem('st.firstProject', '1'); } catch (e) {}
+          ld.close(); toast(W.espace === 'perso' ? 'Espace créé ✓' : 'Organisation créée ✓'); done();
         } catch (e) { ld.close(); alertBox(errMsg(e) + (e.code === 'permission-denied' ? '\n\nLes règles de sécurité Firestore sont-elles installées ?' : '')); }
-      };
-      $('[data-a=join]', el).onclick = async () => {
+      }
+      async function join() {
         const r = await formSheet('Rejoindre l\'entreprise', [{ name: 'code', label: 'Code d\'invitation', placeholder: 'Ex : K7M2QX9P' }], { okLabel: 'Rejoindre' });
         if (!r || !r.code) return;
         const code = r.code.toUpperCase().replace(/[^A-Z0-9]/g, ''), ld = loading('Vérification du code…');
@@ -380,7 +468,8 @@ const Team = (() => {
           await withTimeout(fs.collection('users').doc(uid).set({ companyId: I.cid }, { merge: true }));
           ld.close(); toast(`Bienvenue chez ${I.companyName || 'votre entreprise'} ✓`); done();
         } catch (e) { ld.close(); alertBox(errMsg(e)); }
-      };
+      }
+      stepEspace();
     });
   }
 
