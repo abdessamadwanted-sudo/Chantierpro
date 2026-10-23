@@ -103,3 +103,12 @@ Call log:
   -   element is visible, enabled and stable
 
 ERRS ["A pageerror: Identifier 'ROLES' has already been declared","A pageerror: Identifier 'SERVICES' has already been declared"]
+FAIL page.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator('[data-m=up]')
+  -   locator resolved to <button class="" data-m="up">Créer un compte</button>
+  - attempting click action
+  -   waiting for element to be visible, enabled and stable
+  -   element is visible, enabled and stable
+
+ERRS []
