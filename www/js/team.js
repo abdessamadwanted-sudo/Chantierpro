@@ -778,6 +778,7 @@ const Team = (() => {
       if (!others.length) { try { await fs.collection('companies').doc(S.cid).update({ deleted: true, deletedAt: ts() }); } catch (e) { console.warn('company', e); } }
       await withTimeout(fs.collection('companies').doc(S.cid).collection('members').doc(u.uid).delete());
       await withTimeout(fs.collection('users').doc(u.uid).delete());
+      S.ready = false;   // évite le rechargement automatique à la déconnexion, pour afficher la confirmation
       await withTimeout(u.delete());
       ['me', 'cid', 'company', 'members', 'profile', 'pullAt'].forEach(LS.del);
       ld.close(); await alertBox('Votre compte a été supprimé.'); location.reload();
