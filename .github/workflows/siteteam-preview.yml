@@ -31,12 +31,15 @@ jobs:
         run: node --check www/js/siteteam-workspace.js
       - name: Copy PDF libraries
         run: npm run copy-libs
+      - name: Set visible SiteTeam preview version
+        run: sed -i 's/__APP_VERSION__/ST-002-preview/g' www/js/app.js
       - name: Set separate SiteTeam Preview Android identity
         run: sed -i 's/ma.chantier.app/ma.chantier.siteteam.preview/' capacitor.config.json
       - name: Build Android project
         run: |
           npx cap add android
           npx cap sync android
+          sed -i -E 's/versionCode [0-9]+/versionCode 200002/; s/versionName "[^"]*"/versionName "2.0.2-preview"/' android/app/build.gradle
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
