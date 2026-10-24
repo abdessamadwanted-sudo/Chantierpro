@@ -230,7 +230,8 @@ try {
   log('F retour espace 1', await F.pg.evaluate(async () => [Team.company().name, DB.name(), (await DB.all('projects')).map(p => p.name)]));
   log('errors v1.0.15', [...F.errs]);
   // ---- v1.0.17 : logo d'origine, collaborateur sur un projet personnel Pro, révocation de code
-  log('logo', await A.pg.evaluate(() => [!!document.querySelector('.h2-top .st-logo'), getComputedStyle(document.querySelector('.st-logo circle')).fill]));
+  await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(800);
+  log('logo', await A.pg.evaluate(() => { const c = document.querySelector('.h2-top .st-logo circle'); return [!!c, c ? c.getAttribute('fill') : null]; })); await shot(A.pg, '49_logo_header');
   let G = await newUser('G'); log('logo connexion', await G.pg.evaluate(() => !!document.querySelector('.tm-logo .st-logo'))); await shot(G.pg, '50_logo_connexion');
   await signup(G.pg, 'Nadia Pro', 'nadia@test.ma');
   await G.pg.click('[data-a=perso]'); await G.pg.waitForSelector('.st-offers'); await G.pg.click('[data-p=pro]'); await G.pg.waitForSelector('[name=role]'); await G.pg.selectOption('[name=role]', 'cheftopo');
