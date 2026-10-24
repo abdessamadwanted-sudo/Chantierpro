@@ -1,12 +1,10 @@
-## SiteTeam : changer d'espace, droits plus sûrs, fiche projet
-- Workspace Switcher : un seul compte pour l'espace personnel et plusieurs organisations. On change d'espace sans se reconnecter, et chaque espace garde ses données à part sur le téléphone.
-- Dashboard avec contexte : espace, service, poste et projet en haut, plus « Mon équipe » pour les responsables.
-- Le menu ne montre que vos outils autorisés. Les administrateurs voient le catalogue des outils à part (Réglages › Pack).
-- Droits plus sûrs :
-  - un poste propose des droits jusqu'à « Valider » ;
-  - « Administrer » et « Administrateur » demandent une confirmation ;
-  - un récapitulatif s'affiche avant de créer le code.
-- Rejoindre avec un code : écran de confirmation (organisation, service, poste, projets, outils) et durée de validité affichée.
-- Fiche projet en deux temps : l'essentiel à la création, puis Intervenants, Marché (accès financier), Organisation et Localisation.
-- Pack Basic pour une petite entreprise : 5 comptes, 2 projets, 3 services (modifiables par le Super Admin).
-- Mise en page élargie sur tablette et ordinateur.
+## SiteTeam : espace personnel séparé, packs plus clairs
+- Espace personnel :
+  - un tableau de bord professionnel : Mes outils professionnels selon votre métier, tâches, projets, documents, échéances et activité récente ;
+  - pas de Direction, de service, de poste ni d'organigramme.
+- Métier ≠ poste : le métier est rangé dans votre profil. Il choisit vos outils et ne donne aucun droit dans une organisation.
+- Mon espace personnel : Mon profil (métier, spécialités, expérience, compétences, diplômes, langues, confidentialité), Mon abonnement, Paramètres, Mon compte.
+- Choisir un pack :
+  - deux listes séparées : personnel (Basic, Pro) et organisation (Basic Organisation, Business, Enterprise) ;
+  - une terminologie claire : utilisateurs inclus, projets actifs, services, stockage, outils inclus (liste détaillée).
+- État de l'abonnement : Gratuit, Essai (14 jours), Paiement requis, Essai terminé, Actif. L'activation est faite par SiteTeam, car la facturation en ligne n'existe pas encore.

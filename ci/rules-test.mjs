@@ -130,6 +130,8 @@ await t('config : tout compte connecté lit les packs', () => assertSucceeds(oth
 await t('config : REFUS d\'écriture (non Super Admin)', () => assertFails(adm2.collection('config').doc('plans').set({ basic: { users: 999 } })));
 await t('config : le Super Admin modifie les packs', () => assertSucceeds(owner.collection('config').doc('plans').set({ basic: { users: 5 } }, { merge: true })));
 await t('config : REFUS de lecture sans compte', () => assertFails(anon.collection('config').doc('plans').get()));
+await t('création : REFUS de créer une organisation déjà « actif » (payé)', () => assertFails(nu('newE').collection('companies').doc('c4').set({ name: 'X', ownerUid: 'newE', plan: 'enterprise', planStatus: 'actif' })));
+await t('pack : REFUS que l\'admin prolonge son essai', () => assertFails(adm2.collection('companies').doc('c2').update({ trialEndsAt: new Date(Date.now() + 99 * 864e5) })));
 await t('création : une organisation avec type et services', () => assertSucceeds(nu('newD').collection('companies').doc('c3').set({ name: 'Labo', ownerUid: 'newD', plan: 'basic', planStatus: 'essai', kind: 'org', orgType: 'labo', services: ['direction', 'labo'] })));
 
 log(`\n${fails ? fails + ' ÉCHEC(S)' : 'TOUT OK'} — ${out.length} vérifications`);
