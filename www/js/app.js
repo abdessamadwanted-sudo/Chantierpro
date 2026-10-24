@@ -153,18 +153,18 @@ async function renderHome() {
           <div class="h2-acts"><button class="h2-cloud ${Sync.enabled() ? 'on' : 'off'}" data-a="sync" title="Google Drive">${icon('drive')}<i data-syncdot></i></button>
           ${Sync.enabled() ? `<button class="iconbtn" data-a="syncnow" title="Synchroniser">${icon('undo')}</button>` : ''}
           ${featOn('career') ? `<button class="iconbtn h2-emo" data-a="career" title="Emploi & carrière">💼${(() => { try { return +localStorage.getItem('job.new') > 0 ? `<i class="h2-badge">${localStorage.getItem('job.new')}</i>` : ''; } catch (e) { return ''; } })()}</button>` : ''}
-          ${Team.ready() ? `<button class="iconbtn" data-a="company" title="Mon entreprise">${icon('team')}</button>` : ''}
+          ${Team.ready() ? `<button class="iconbtn" data-a="company" title="${Team.isPerso() ? 'Mon espace' : 'Mon organisation'}">${icon(Team.isPerso() ? 'user' : 'team')}</button>` : ''}
           <button class="iconbtn h2-emo off" data-a="freeph" title="Stockage">🧹</button>
           <button class="iconbtn h2-quit" data-a="quit" title="Fermer (appui long : verrouiller)">${icon('power')}</button>
           <button class="iconbtn" data-a="homemore">${icon('more')}</button></div></div>
-        ${(() => { const P = Org.poste(); if (P) { Org.apply(); return `<span class="h2-role" title="Vous êtes connecté comme">${P.svc.e} ${esc(P.n)}</span>`; } const r = applyRoleColor(), R = r && roleOf(r); return R ? `<button class="h2-role" data-a="role">${R.e} ${esc(R.n.split(' / ')[0])}</button>` : ''; })()}
+        ${(() => { if (ST.isPerso()) { const M = metierOf(Team.profil().metier); Org.apply && Org.poste() && Org.apply(); return `<span class="h2-role" title="Votre métier (profil)">👷 ${esc(M ? M.l : 'Espace personnel')}</span>`; } const P = Org.poste(); if (P) { Org.apply(); return `<span class="h2-role" title="Vous êtes connecté comme">${P.svc.e} ${esc(P.n)}</span>`; } const r = applyRoleColor(), R = r && roleOf(r); return R ? `<button class="h2-role" data-a="role">${R.e} ${esc(R.n.split(' / ')[0])}</button>` : ''; })()}
         <div class="h2-hello" data-a="uname">${tr(hello)}${uname ? (Lang.cur === 'ar' ? '، ' : ', ') + esc(uname) : ''} 👷</div>
         <div class="h2-phrase">${phrase}</div>
         <div class="h2-date">${dateL.charAt(0).toUpperCase() + dateL.slice(1)}</div>
       </div>
       <div class="h2-body">
         ${ST.dashHTML()}
-        ${espaceHome()}
+        ${ST.isPerso() ? '' : espaceHome()}
         ${fp ? focusHTML() : `<div class="h2-sec"><span>Mes chantiers</span><small>${projects.length}</small></div>
         ${projects.length ? projects.map(p => { const st = stats(p), [c1, c2] = hue(p.name), open = !!App.homeOpen[p.id];
           const due = (x) => x.at && x.at.slice(0, 10) <= today;
@@ -230,7 +230,7 @@ async function renderHome() {
         const v = await groupMenu('SiteTeam', [
       { title: 'Aujourd\'hui', color: '#22c55e', items: [{ label: 'Briefing du jour', sub: 'notes, rappels, PV à livrer, tâches', icon: 'calendar', value: 'brief' }] },
       { title: 'Mon entreprise', color: '#3b82f6', items: [
-        ...(Team.ready() ? [{ label: 'Changer d\'espace', sub: 'espace personnel · organisations · rejoindre avec un code', icon: 'swap', value: 'ws' }, { label: 'Mon organisation', sub: 'équipe · organigramme · mon compte', icon: 'team', value: 'company' }, ...(Team.canInvite() ? [{ label: 'Inviter un membre', sub: 'code d\'accès lié à un poste', icon: 'plus', value: 'invite' }] : []), ...(Team.isAdmin() ? [ST.preview() ? { label: 'Quitter l\'aperçu', sub: 'revenir à mon interface', icon: 'eye', value: 'preview-off' } : { label: 'Tester une interface', sub: 'aperçu par poste et formule', icon: 'eye', value: 'preview' }] : [])] : []),
+        ...(Team.ready() ? [{ label: 'Changer d\'espace', sub: 'espace personnel · organisations · rejoindre avec un code', icon: 'swap', value: 'ws' }, (Team.isPerso() ? { label: 'Mon espace personnel', sub: 'profil · abonnement · paramètres · compte', icon: 'user', value: 'company' } : { label: 'Mon organisation', sub: 'équipe · organigramme · mon compte', icon: 'team', value: 'company' }), ...(Team.canInvite() ? [{ label: 'Inviter un membre', sub: 'code d\'accès lié à un poste', icon: 'plus', value: 'invite' }] : []), ...(Team.isAdmin() && !Team.isPerso() ? [ST.preview() ? { label: 'Quitter l\'aperçu', sub: 'revenir à mon interface', icon: 'eye', value: 'preview-off' } : { label: 'Tester une interface', sub: 'aperçu par poste et formule', icon: 'eye', value: 'preview' }] : [])] : []),
         { label: 'Mon prénom', sub: uname || 'pour les messages d\'accueil', icon: 'edit', value: 'name' },
         ...(Team.ready() ? [{ label: 'Se déconnecter', icon: 'power', value: 'logout' }] : [])] },
       { title: 'Apparence', color: '#a855f7', items: [

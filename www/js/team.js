@@ -16,12 +16,12 @@ const PLANS = {
   // modules inclus (voir MODS) : la formule limite les outils disponibles, le poste limite ce que chacun voit et fait
   // users / projects : quotas (0 = illimité) · storageGb : indicatif (pas encore mesuré) · hier : hiérarchie avancée · shares : groupements / partage externe
   // org : limites quand le pack sert à une organisation (petite entreprise) plutôt qu'à un espace personnel
-  basic:      { k: 'basic', l: 'Basic', e: '🌱', price: 0, period: 'mois', users: 1, projects: 1, storageGb: 1, perso: true, org: { users: 5, projects: 2, services: 3 }, for: 'Particulier, petit entrepreneur ou petite entreprise — fonctions essentielles',
+  basic:      { k: 'basic', l: 'Basic', orgLabel: 'Basic Organisation', e: '🌱', price: 0, period: 'mois', users: 1, projects: 1, storageGb: 1, perso: true, org: { users: 5, projects: 2, services: 3, storageGb: 2 }, for: 'Fonctions essentielles, pour démarrer', orgFor: 'Petite entreprise : quelques utilisateurs, fonctions essentielles',
                 modules: ['projet', 'plans', 'reserves', 'photos', 'rapports', 'equipe'] },
-  pro:        { k: 'pro', l: 'Pro', e: '⭐', price: 99, period: 'mois', users: 1, projects: 0, storageGb: 30, perso: true, for: 'Professionnel indépendant — outils avancés',
+  pro:        { k: 'pro', l: 'Pro', e: '⭐', price: 99, period: 'mois', trialDays: 14, users: 1, projects: 0, storageGb: 30, perso: true, orgOffer: false, highlight: true, for: 'Professionnel indépendant — outils avancés',
                 modules: ['projet', 'plans', 'reserves', 'photos', 'rapports', 'equipe', 'reception', 'forms', 'constats', 'calc', 'files', 'topo', 'centrale', 'materiel', 'pointage', 'hse', 'finance'] },
-  business:   { k: 'business', l: 'Business', e: '🏢', price: 990, period: 'mois', users: 15, extraUserPrice: 49, projects: 0, storageGb: 200, hier: true, for: 'Entreprise — plusieurs utilisateurs, services et projets', modules: '*' },
-  enterprise: { k: 'enterprise', l: 'Enterprise', e: '🏛️', price: null, period: 'mois', users: 0, projects: 0, storageGb: 1000, hier: true, shares: true, for: 'Grandes entreprises — hiérarchie et groupements avancés', modules: '*' },
+  business:   { k: 'business', l: 'Business', e: '🏢', price: 990, period: 'mois', trialDays: 14, highlight: true, users: 15, extraUserPrice: 49, projects: 0, storageGb: 200, hier: true, for: 'Entreprise — plusieurs utilisateurs, services et projets', modules: '*' },
+  enterprise: { k: 'enterprise', l: 'Enterprise', e: '🏛️', price: null, period: 'mois', trialDays: 14, users: 0, projects: 0, storageGb: 1000, hier: true, shares: true, for: 'Grandes entreprises — hiérarchie et groupements avancés', modules: '*' },
 };
 // anciennes formules (avant v1.0.14) : « personnel » → Pro, « entreprise » → Enterprise (aucun outil perdu)
 const PLAN_ALIAS = { personnel: 'pro', entreprise: 'enterprise' };
@@ -29,7 +29,37 @@ const planOf = (k) => PLANS[PLAN_ALIAS[k] || k] || PLANS.basic;
 const planPrice = (P) => P.price == null ? 'sur devis' : P.price ? `${P.price} MAD/${P.period}` : 'gratuite';
 const planUsers = (P) => P.users ? `${P.users} compte(s)` : 'comptes illimités';
 // limites effectives selon l'espace : personnel (valeurs de base) ou organisation (valeurs « org » si le pack en a)
-const planFor = (P, perso) => (!perso && P.org ? { ...P, ...P.org } : P);
+const planFor = (P, perso) => (!perso ? { ...P, ...(P.org || {}), l: P.orgLabel || P.l, for: P.orgFor || P.for } : P);
+// listes séparées : l'abonnement personnel (Basic, Pro) et l'abonnement d'une organisation (Basic Organisation, Business, Enterprise)
+const offersFor = (perso) => Object.values(PLANS).filter(P => P.visible !== false && (perso ? P.perso : P.orgOffer !== false)).map(P => planFor(P, perso));
+const MOD_LABEL = (m) => ((MODS.find(x => x[0] === m) || [m, m])[1]).split(' (')[0];
+const qty = (n, unit) => n ? `${n}${unit ? ' ' + unit : ''}` : 'Illimités';
+const storageL = (g) => (g >= 1000 ? g / 1000 + ' To' : g + ' Go') + ' (indicatif)';
+// carte d'offre : utilisateurs inclus, projets actifs, services, stockage, outils (liste détaillée), prix et essai
+function offerCard(P, perso, btn = true) {
+  const mods = P.modules === '*' ? MODS.map(([m]) => m) : P.modules, price = P.price == null ? 'Sur devis' : P.price ? `${P.price} MAD / ${P.period}` : 'Gratuit';
+  const act = P.price == null ? 'Demander un devis · essai' : P.price ? `Démarrer l'essai ${P.trialDays || 14} jours` : 'Commencer gratuitement';
+  return `<div class="st-offer ${P.highlight ? 'hl' : ''}" data-offer="${P.k}"><div class="st-of-h"><b>${esc(P.e || '')} ${esc(P.l)}</b>${P.highlight ? '<i>Recommandé</i>' : ''}<em class="${P.price === 0 ? 'free' : ''}">${esc(price)}</em></div>
+    ${P.price && P.trialDays ? `<small class="st-of-t">Essai gratuit ${P.trialDays} jours, sans paiement</small>` : ''}<small class="st-of-f">${esc(P.for || '')}</small>
+    <div class="st-of-r"><span>Utilisateurs inclus</span><b>${P.users ? (perso && P.users === 1 ? '1 (vous)' : P.users) + (P.extraUserPrice ? ` (+${P.extraUserPrice} MAD / pers.)` : '') : 'Selon contrat'}</b></div>
+    <div class="st-of-r"><span>Projets actifs</span><b>${qty(P.projects)}</b></div>
+    ${perso ? '' : `<div class="st-of-r"><span>Services</span><b>${qty(P.services)}</b></div>`}
+    <div class="st-of-r"><span>Stockage</span><b>${storageL(P.storageGb)}</b></div>
+    <details class="st-of-d"><summary><span>Outils inclus</span><b>${mods.length} sur ${MODS.length}${P.hier ? ' + hiérarchie' : ''}${P.shares ? ' + groupements' : ''}</b></summary>
+      <div>${MODS.map(([m]) => `<i class="${mods.includes(m) ? 'on' : ''}">${mods.includes(m) ? '✓' : '—'} ${esc(MOD_LABEL(m))}</i>`).join('')}</div></details>
+    ${btn ? `<button class="btn ${P.highlight ? '' : 'ghost'}" data-p="${P.k}">${act}</button>` : ''}</div>`;
+}
+// état de l'abonnement (la facturation n'existe pas encore : l'activation est faite par le Super Admin)
+function planStateOf(c) {
+  const st = (c || {}).planStatus, P = planOf((c || {}).plan || PLAN_DEFAULT_COMPANY), end = c && c.trialEndsAt && c.trialEndsAt.toMillis ? c.trialEndsAt.toMillis() : null;
+  const days = end ? Math.ceil((end - Date.now()) / 864e5) : null;
+  if (st === 'actif') return { k: 'actif', l: 'Actif', c: '#22c55e' };
+  if (st === 'suspendu') return { k: 'expire', l: 'Suspendu', c: '#ef4444' };
+  if (st === 'gratuit' || P.price === 0) return { k: 'gratuit', l: 'Gratuit', c: '#22c55e' };
+  if (end && days <= 0) return { k: 'expire', l: 'Essai terminé', c: '#ef4444', days };
+  if (end && days <= 7) return { k: 'paiement', l: `Paiement requis · ${days} j`, c: '#f59e0b', days };
+  return { k: 'essai', l: end ? `Essai · ${days} j` : 'Essai', c: '#3b82f6', days };
+}
 // entreprises existantes sans formule : Enterprise (rien ne change pour elles) — facturation réelle à brancher avant tout lancement public
 const PLAN_DEFAULT_COMPANY = 'enterprise';
 
@@ -116,7 +146,9 @@ const TM_ROLES = [
 // module « finance » (ajouté avec les outils de Chantier) : accès par défaut selon le poste (les administrateurs ont tout)
 { const FIN = { respadmin: 3, comptable: 2, dirtravaux: 3, conducteur: 1, condferraillage: 1, metreur: 3, respmateriel: 1, resppointage: 1, mo: 1, mod: 1, bet: 1 };
   TM_ROLES.forEach(r => { r.perms.finance = r.admin ? 4 : (FIN[r.k] || 0); }); }
-const tmRoleOf = (k) => TM_ROLES.find(r => r.k === k) || { k, l: k, s: 'externe', perms: {}, admin: false };
+const ROLE_PROPRIO = { k: 'proprietaire', l: 'Propriétaire de l\'espace', s: 'perso', perms: {}, admin: true };
+const tmRoleOf = (k) => (k === 'proprietaire' ? ROLE_PROPRIO : TM_ROLES.find(r => r.k === k) || { k, l: k, s: 'externe', perms: {}, admin: false });
+const metierOf = (k) => TM_ROLES.find(r => r.k === k) || null;
 const serviceOf = (k) => TM_SERVICES.find(s => s.k === k) || TM_SERVICES[TM_SERVICES.length - 1];
 // magasin local → module (sous-collection Firestore)
 const STORE_MOD = { projects: 'projet', folders: 'plans', plans: 'plans', links: 'plans', tasks: 'reserves', receptions: 'reception', forms: 'forms', reports: 'rapports', files: 'files', items: '*' };
@@ -215,11 +247,13 @@ service cloud.firestore {
     }
 
     match /companies/{cid} {
-      allow create: if signed() && request.resource.data.ownerUid == request.auth.uid;
+      allow create: if signed() && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.get('planStatus', 'essai') in ['essai', 'gratuit'];
       allow read: if isMem(cid) || licOwner();
       // la formule (pack) ne change que par le Super Admin SiteTeam (plus tard : la facturation)
       allow update: if (isAdmin(cid) && request.resource.data.get('plan', null) == resource.data.get('plan', null)
-          && request.resource.data.get('planStatus', null) == resource.data.get('planStatus', null)) || licOwner();
+          && request.resource.data.get('planStatus', null) == resource.data.get('planStatus', null)
+          && request.resource.data.get('trialEndsAt', null) == resource.data.get('trialEndsAt', null)) || licOwner();
 
       match /members/{uid} {
         allow read: if isMem(cid) || licOwner();
@@ -298,7 +332,7 @@ const Team = (() => {
   const companyServices = () => { const c = S.company || {}; if (!Array.isArray(c.services)) return TM_SERVICES;
     const keep = new Set([...c.services, 'externe', ...(S.members || []).map(m => m.service)]); return TM_SERVICES.filter(x => keep.has(x.k)); };
   // créer un code d'accès : administrateur, ou poste avec « Équipe » au niveau Valider
-  const canInvite = () => S.ready && !!S.me && (S.me.admin || lvl('equipe') >= 3);
+  const canInvite = () => S.ready && !!S.me && !isPerso() && (S.me.admin || lvl('equipe') >= 3);
   // packs modifiables par le Super Admin : config/plans (Firestore) remplace les valeurs par défaut du code
   function applyPlanCfg(cfg) { if (!cfg) return; for (const [k, v] of Object.entries(cfg)) { if (!v || typeof v !== 'object') continue; PLANS[k] = { ...(PLANS[k] || {}), ...v, k }; } }
   async function loadPlanCfg() {
@@ -398,6 +432,7 @@ const Team = (() => {
     catch (e) { prof = LS.get('profile'); if (!prof) { await alertBox('Connexion internet nécessaire pour la première ouverture.'); return loadMembership(); } }
     if (!prof.companyId) { await loadPlanCfg(); await onboardScreen(); return loadMembership(); }
     S.workspaces = Array.isArray(prof.workspaces) ? prof.workspaces : [];
+    S.profil = prof.profil || {};
     // espace de travail : chaque organisation a sa base locale ; si l'espace a changé (ici ou sur un autre téléphone), on bascule puis on recharge
     if (WS.bind(prof.companyId)) return new Promise(() => {});
     S.cid = prof.companyId; LS.set('cid', S.cid);
@@ -417,6 +452,8 @@ const Team = (() => {
     try { if (!localStorage.getItem('userName') && S.me.name) localStorage.setItem('userName', S.me.name.split(' ')[0]); localStorage.setItem('askedName', '1'); } catch (e) {}
     await refreshMembers();
     saveWorkspace();
+    // espaces personnels créés avant v1.0.16 : le métier était rangé comme « poste » ; on le recopie dans le profil (rien n'est effacé)
+    if (isPerso() && !S.profil.metier && metierOf(S.me.role)) { S.profil = { ...S.profil, metier: S.me.role }; fs.collection('users').doc(S.user.uid).set({ profil: S.profil }, { merge: true }).catch(e => console.warn('profil', e)); }
     migratePerms();
     migrateCompanyPlan();
     syncDriveCfg();
@@ -569,10 +606,11 @@ const Team = (() => {
       }
       // 2 · formule
       function stepPlan() {
-        const L = Object.values(PLANS).filter(P => W.espace !== 'perso' || P.perso).map(P => planFor(P, W.espace === 'perso'));
-        el.innerHTML = `<div class="tm-lg-in">${steps(2, tot())}<h1>Choisir un pack</h1><p>Vous pourrez changer plus tard. Essai gratuit — la facturation n'est pas encore activée.</p>
-          <div class="st-packs">${L.map(P => `<button data-p="${P.k}"><span class="e">${P.e}</span><b>${esc(P.l)}</b><em>${esc(planPrice(P))}</em><small>${esc(P.for)}</small>
-            <small class="q">${P.projects ? `${P.projects} projet(s)` : 'Projets illimités'}${P.services ? ` · ${P.services} services` : ''} · ${esc(planUsers(P))} · ${P.storageGb >= 1000 ? (P.storageGb / 1000) + ' To' : P.storageGb + ' Go'}${P.modules === '*' ? ' · tous les outils' : ` · ${P.modules.length} outils`}${P.hier ? ' · hiérarchie avancée' : ''}</small></button>`).join('')}</div>
+        const perso = W.espace === 'perso', L = offersFor(perso);
+        el.innerHTML = `<div class="tm-lg-in">${steps(2, tot())}<h1>Choisir un pack · ${perso ? 'Espace personnel' : 'Organisation'}</h1>
+          <p>${perso ? 'Pour vous seul. Une organisation a son propre pack, payé par elle.' : 'Payé par l\'organisation, il couvre tous ses membres.'} La facturation n'est pas encore activée : rien n'est payé aujourd'hui.</p>
+          <div class="st-offers">${L.map(P => offerCard(P, perso)).join('')}</div>
+          ${perso ? '<p class="st-of-n">Invité par une organisation ? Pas de pack : c\'est elle qui paie pour vous.</p>' : ''}
           <button class="linkbtn" data-a="back">← Retour</button></div>`;
         $$('[data-p]', el).forEach(b => b.onclick = () => { W.plan = b.dataset.p; W.espace === 'perso' ? stepMetier() : stepOrg(); });
         back(stepEspace);
@@ -606,23 +644,26 @@ const Team = (() => {
       }
       // espace personnel : le métier choisit l'interface
       function stepMetier() {
-        el.innerHTML = `<div class="tm-lg-in">${steps(3, tot())}<h1>Votre métier</h1><p>Votre interface et votre tableau de bord s'adaptent à votre métier.</p>
-          <div class="form"><label>Métier<select name="role">${TM_SERVICES.filter(s => s.k !== 'direction').map(sv => `<optgroup label="${esc(sv.l)}">${TM_ROLES.filter(r => r.s === sv.k).map(r => `<option value="${r.k}" ${r.k === 'conducteur' ? 'selected' : ''}>${esc(r.l)}</option>`).join('')}</optgroup>`).join('')}</select></label>
+        el.innerHTML = `<div class="tm-lg-in">${steps(3, tot())}<h1>Votre métier</h1><p>Il sert à choisir vos outils et vos recommandations. Ce n'est pas un poste et il ne donne aucun droit dans une organisation.</p>
+          <div class="form"><label>Métier principal<select name="role">${TM_SERVICES.filter(s => s.k !== 'direction').map(sv => `<optgroup label="${esc(sv.l)}">${TM_ROLES.filter(r => r.s === sv.k).map(r => `<option value="${r.k}" ${r.k === 'conducteur' ? 'selected' : ''}>${esc(r.l)}</option>`).join('')}</optgroup>`).join('')}</select></label>
+          <label>Spécialités (facultatif)<input name="spec" placeholder="Ex : ferraillage, gros œuvre"></label>
           <label>Votre nom<input name="me" value="${esc(auth.currentUser.displayName || '')}"></label>
           <button class="btn" data-a="go">Créer mon espace</button></div>
           <button class="linkbtn" data-a="back">← Retour</button></div>`;
         back(stepPlan);
-        $('[data-a=go]', el).onclick = () => { const me = $('[name=me]', el).value.trim() || auth.currentUser.displayName || ''; create({ name: `Espace de ${me || 'moi'}`, me, role: $('[name=role]', el).value }); };
+        $('[data-a=go]', el).onclick = () => { const me = $('[name=me]', el).value.trim() || auth.currentUser.displayName || ''; create({ name: `Espace de ${me || 'moi'}`, me, metier: $('[name=role]', el).value, spec: $('[name=spec]', el).value.trim() }); };
       }
       async function create(r) {
         const ld = loading(W.espace === 'perso' ? 'Création de votre espace…' : 'Création de l\'organisation…');
         try {
-          const uid = auth.currentUser.uid, ref = fs.collection('companies').doc(), R = tmRoleOf(r.role);
-          await withTimeout(ref.set({ name: r.name, ownerUid: uid, plan: W.plan, planStatus: 'essai', kind: W.espace, orgType: W.org, services: W.svcs, createdAt: ts() }));
-          // le créateur administre tout ; son poste ne sert qu'à choisir son interface
+          const uid = auth.currentUser.uid, ref = fs.collection('companies').doc(), perso = W.espace === 'perso', R = perso ? ROLE_PROPRIO : tmRoleOf(r.role), P = planOf(W.plan);
+          // nouvel espace : « gratuit » ou « essai » (avec date de fin) ; « actif » ne se donne que par le Super Admin
+          const sub = P.price === 0 ? { planStatus: 'gratuit' } : { planStatus: 'essai', trialEndsAt: firebase.firestore.Timestamp.fromMillis(Date.now() + (P.trialDays || 14) * 864e5) };
+          await withTimeout(ref.set({ name: r.name, ownerUid: uid, plan: W.plan, ...sub, kind: W.espace, orgType: W.org, services: W.svcs, createdAt: ts() }));
+          // espace personnel : « propriétaire » (pas un poste, pas de service) ; organisation : le créateur est l'administrateur initial, de CETTE organisation seulement
           const all = Object.fromEntries(MODS.map(([m]) => [m, 4]));
-          await withTimeout(ref.collection('members').doc(uid).set({ name: r.me || auth.currentUser.displayName || '', email: auth.currentUser.email, role: R.k, service: R.admin ? R.s : 'direction', perms: all, admin: true, allProjects: true, projects: [], managerUid: null, zone: '', createdAt: ts() }));
-          await withTimeout(fs.collection('users').doc(uid).set({ companyId: ref.id, name: r.me || '' }, { merge: true }));
+          await withTimeout(ref.collection('members').doc(uid).set({ name: r.me || auth.currentUser.displayName || '', email: auth.currentUser.email, role: R.k, service: perso ? 'perso' : (R.admin ? R.s : 'direction'), perms: all, admin: true, allProjects: true, projects: [], managerUid: null, zone: '', createdAt: ts() }));
+          await withTimeout(fs.collection('users').doc(uid).set({ companyId: ref.id, name: r.me || '', ...(perso ? { profil: { metier: r.metier, specialites: r.spec || '' } } : {}) }, { merge: true }));
           ld.close(); toast(W.espace === 'perso' ? 'Espace créé ✓' : 'Organisation créée ✓'); done();
         } catch (e) { ld.close(); alertBox(errMsg(e) + (e.code === 'permission-denied' ? '\n\nLes règles de sécurité Firestore sont-elles installées ?' : '')); }
       }
@@ -832,10 +873,14 @@ const Team = (() => {
     const unBack = pushBack(() => el.remove());
     const projects = (await DB.all('projects')).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     const pname = (id) => (projects.find(p => p.id === id) || {}).name || '?';
+    // espace personnel : ni organigramme, ni membres, ni codes — profil professionnel, abonnement, paramètres, compte
+    const perso = isPerso();
+    if (perso && ['org', 'mem', 'inv'].includes(tab)) tab = 'prof';
     const draw = async () => {
       const M = S.members, byUid = Object.fromEntries(M.map(m => [m.uid, m]));
-      const tabs = [['org', 'Organigramme'], ['mem', 'Membres'], ...(canInvite() ? [['inv', 'Codes d\'accès']] : []), ...(isAdmin() ? [['set', 'Réglages']] : []), ['me', 'Mon compte']];
-      el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><h1 style="flex:1;font-size:17px">${esc(S.company.name)}</h1>
+      const tabs = perso ? [['prof', 'Mon profil'], ['abo', 'Mon abonnement'], ['set', 'Paramètres'], ['me', 'Mon compte']]
+        : [['org', 'Organigramme'], ['mem', 'Membres'], ...(canInvite() ? [['inv', 'Codes d\'accès']] : []), ...(isAdmin() ? [['set', 'Réglages']] : []), ['me', 'Mon compte']];
+      el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><h1 style="flex:1;font-size:17px">${perso ? 'Mon espace personnel' : esc(S.company.name)}</h1>
           ${canInvite() ? `<button class="btn small" data-a="invite" style="flex:none">${icon('plus')} Inviter</button>` : ''}</div>
         <div class="tm-tabs">${tabs.map(([k, l]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
         <div class="tm-body"></div>`;
@@ -895,10 +940,38 @@ const Team = (() => {
         $('[data-a=ren]', body).onclick = async () => { const r = await formSheet('Entreprise', [{ name: 'n', label: 'Nom', value: S.company.name }]); if (r && r.n) { await fs.collection('companies').doc(S.cid).update({ name: r.n }); S.company.name = r.n; LS.set('company', S.company); draw(); } };
         $('[data-a=planchange]', body).onclick = () => { const body2 = encodeURIComponent(`Bonjour, je souhaite changer le pack de « ${S.company.name} » (actuellement ${myPlan().l}).`); openUrl(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Changement de pack SiteTeam')}&body=${body2}`); };
       }
+      if (tab === 'prof') {
+        const F = S.profil || {}, M2 = metierOf(F.metier);
+        body.innerHTML = `<div class="form st-prof">
+          <p class="muted" style="margin:0;font-size:12.5px">Votre métier personnalise vos outils et vos recommandations. Ce n'est pas un poste : il ne donne aucun droit dans une organisation.</p>
+          <label>Métier principal<select data-f="metier">${TM_SERVICES.filter(x => x.k !== 'direction').map(sv => `<optgroup label="${esc(sv.l)}">${TM_ROLES.filter(r => r.s === sv.k).map(r => `<option value="${r.k}" ${r.k === F.metier ? 'selected' : ''}>${esc(r.l)}</option>`).join('')}</optgroup>`).join('')}</select></label>
+          <label>Spécialités<input data-f="specialites" value="${esc(F.specialites || '')}" placeholder="Ex : ferraillage, gros œuvre"></label>
+          <label>Expérience (années)<input data-f="experience" type="number" min="0" value="${esc(F.experience ?? '')}"></label>
+          <label>Compétences<textarea data-f="competences" placeholder="Une par ligne">${esc(F.competences || '')}</textarea></label>
+          <label>Diplômes et certifications<textarea data-f="diplomes" placeholder="Une par ligne">${esc(F.diplomes || '')}</textarea></label>
+          <label>Langues<input data-f="langues" value="${esc(F.langues || '')}" placeholder="Ex : arabe, français"></label>
+          <label>Téléphone (facultatif)<input data-f="telephone" type="tel" value="${esc(F.telephone || '')}"></label>
+          <label>Confidentialité<select data-f="visibilite"><option value="prive" ${F.visibilite !== 'orgs' ? 'selected' : ''}>Privé : visible par moi seulement</option><option value="orgs" ${F.visibilite === 'orgs' ? 'selected' : ''}>Visible par les organisations dont je suis membre</option></select></label>
+          <button class="btn" data-a="psave">Enregistrer mon profil</button></div>`;
+        $('[data-a=psave]', body).onclick = async () => {
+          const v = {}; $$('[data-f]', body).forEach(x => { v[x.dataset.f] = x.value.trim(); }); v.experience = v.experience === '' ? null : +v.experience;
+          try { await withTimeout(fs.collection('users').doc(S.user.uid).set({ profil: v }, { merge: true })); S.profil = { ...S.profil, ...v }; LS.set('profile', { ...(LS.get('profile') || {}), profil: S.profil }); toast('Profil enregistré ✓'); try { if (typeof ST !== 'undefined') ST.refreshRole(); } catch (e) {} } catch (e) { alertBox(errMsg(e)); }
+        };
+      }
+      if (tab === 'abo') {
+        const P = myPlan(), stt = planStateOf(S.company), nProj = projects.filter(p => !p.deleted).length, up = offersFor(true).filter(x => x.k !== P.k);
+        body.innerHTML = `<div class="form">
+          <div class="tm-box"><b>Mon abonnement <span class="st-state" style="--c:${stt.c}">${esc(stt.l)}</span></b>
+            <div class="st-of-r"><span>Projets actifs</span><b>${nProj}${P.projects ? ' / ' + P.projects : ''}</b></div></div>
+          ${offerCard(P, true, false)}
+          ${up.length ? `<div class="tm-box"><b>Passer à un autre pack</b>${up.map(x => offerCard(x, true, false)).join('')}<button class="btn" data-a="askup">Demander ${esc(up[0].l)}</button>
+            <small class="muted">La facturation n'est pas encore en ligne : la demande part à SiteTeam, qui active le pack.</small></div>` : ''}</div>`;
+        const a = $('[data-a=askup]', body); if (a) a.onclick = () => openUrl(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Pack ' + up[0].l + ' — espace personnel')}&body=${encodeURIComponent(`Bonjour, je souhaite passer au pack ${up[0].l} (compte ${S.user.email}).`)}`);
+      }
       if (tab === 'me') {
         const R = tmRoleOf(S.me.role), mine = await myShares();
-        body.innerHTML = `<div class="tm-box tm-mecard">${av(S.me)}<div><b>${esc(S.me.name || '')}</b><small>${esc(S.user.email || '')}</small><small>${esc(R.l)} · ${esc(serviceOf(S.me.service).l)}</small></div></div>
-          <div class="tm-box"><b>Mes droits</b>${permTable(S.me.perms)}</div>
+        body.innerHTML = `<div class="tm-box tm-mecard">${av(S.me)}<div><b>${esc(S.me.name || '')}</b><small>${esc(S.user.email || '')}</small><small>${perso ? 'Propriétaire de cet espace personnel' + (metierOf((S.profil || {}).metier) ? ' · ' + esc(metierOf(S.profil.metier).l) + ' (métier)' : '') : esc(R.l) + ' · ' + esc(serviceOf(S.me.service).l)}</small></div></div>
+          ${perso ? `<div class="tm-box"><b>Mes outils</b><p>Tous les outils de votre pack ${esc(myPlan().l)}, dans vos projets personnels. Dans une organisation, vos droits viennent de votre poste.</p></div>` : `<div class="tm-box"><b>Mes droits</b>${permTable(S.me.perms)}</div>`}
           <div class="tm-box"><b>📨 Accès externe reçu</b><p>Un client, un BET ou une autre entreprise vous a envoyé un code pour accéder à un seul de leurs projets ? Entrez-le ici — cela ne touche pas à « ${esc(S.company.name)} ».</p>
             <div class="btnrow" style="padding:0"><button class="btn ghost small" data-a="claim">Entrer un code</button></div>
             ${mine.length ? `<div class="list" style="margin-top:4px">${mine.map(x => `<div class="tm-inv" data-shcode="${esc(x.code)}"><span class="grow">${esc(x.projectName || '?')}<small>${esc(x.companyName || '')} · ${esc(shareEntityLabel(x.entity))}</small></span></div>`).join('')}</div>` : ''}</div>
@@ -1121,12 +1194,12 @@ const Team = (() => {
       }
       if (tab === 'orgs') {
         if (!orgs) { body.innerHTML = '<div class="empty">Chargement…</div>'; try { const q = await withTimeout(fs.collection('companies').limit(300).get(), 20000); orgs = q.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.name || '').localeCompare(b.name || '')); } catch (e) { body.innerHTML = `<div class="empty">${esc(errMsg(e))}<br>Les règles Firestore v1.0.14 sont-elles publiées ?</div>`; return; } }
-        body.innerHTML = orgs.length ? `<div class="list">${orgs.map(o => { const T = orgTypeOf(o.orgType || (o.kind === 'perso' ? 'independant' : 'entreprise')); return `<button class="tm-mem" data-o="${o.id}"><span class="grow"><b>${esc(o.name || '?')}</b><small>${T.e} ${esc(T.l)} · pack ${esc(planOf(o.plan || PLAN_DEFAULT_COMPANY).l)}${o.planStatus ? ' (' + esc(o.planStatus) + ')' : ''}</small></span>${icon('edit')}</button>`; }).join('')}</div>` : '<div class="empty">Aucune organisation.</div>';
+        body.innerHTML = orgs.length ? `<div class="list">${orgs.map(o => { const T = orgTypeOf(o.orgType || (o.kind === 'perso' ? 'independant' : 'entreprise')); return `<button class="tm-mem" data-o="${o.id}"><span class="grow"><b>${esc(o.name || '?')}</b><small>${o.kind === 'perso' ? 'Espace personnel' : T.e + ' ' + esc(T.l)} · pack ${esc(planOf(o.plan || PLAN_DEFAULT_COMPANY).l)} · ${esc(planStateOf(o).l)}</small></span>${icon('edit')}</button>`; }).join('')}</div>` : '<div class="empty">Aucune organisation.</div>';
         $$('[data-o]', body).forEach(b => b.onclick = async () => {
           const o = orgs.find(x => x.id === b.dataset.o), cur = planOf(o.plan || PLAN_DEFAULT_COMPANY).k;
           const k = await menu(`${o.name} : pack`, Object.values(PLANS).map(P => ({ label: `${P.e || ''} ${P.l} · ${planPrice(P)}`, value: P.k, checked: P.k === cur })));
-          if (!k) return; const stt = await menu('Statut', [{ label: 'Essai', value: 'essai' }, { label: 'Actif (payé)', value: 'actif' }, { label: 'Suspendu', value: 'suspendu' }]); if (!stt) return;
-          try { await fs.collection('companies').doc(o.id).update({ plan: k, planStatus: stt }); o.plan = k; o.planStatus = stt; if (o.id === S.cid) { S.company.plan = k; S.company.planStatus = stt; LS.set('company', S.company); } toast('Pack mis à jour ✓'); draw(); } catch (e) { alertBox(errMsg(e)); }
+          if (!k) return; const stt = await menu('Statut', [{ label: 'Gratuit', value: 'gratuit' }, { label: 'Essai (14 jours de plus)', value: 'essai' }, { label: 'Actif (payé)', value: 'actif' }, { label: 'Suspendu', value: 'suspendu' }]); if (!stt) return;
+          try { const extra = stt === 'essai' ? { trialEndsAt: firebase.firestore.Timestamp.fromMillis(Date.now() + 14 * 864e5) } : {}; Object.assign(o, extra); await fs.collection('companies').doc(o.id).update({ plan: k, planStatus: stt, ...extra }); o.plan = k; o.planStatus = stt; if (o.id === S.cid) { S.company.plan = k; S.company.planStatus = stt; LS.set('company', S.company); } toast('Pack mis à jour ✓'); draw(); } catch (e) { alertBox(errMsg(e)); }
         });
       }
     };
@@ -1184,6 +1257,7 @@ const Team = (() => {
   return {
     boot, push, pull, resetPull, lvl, canSection, canProject, isAdmin, openCompany, inviteFlow, logout, decorateSection, removeMember, refreshMembers,
     isSuper, superConsole, orgType, isPerso, companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, workspaces: () => S.workspaces || [],
+    profil: () => S.profil || {}, planState: () => planStateOf(S.company),
     openProjectShares, claimShare,
     ready: () => S.ready, me: () => S.me, uid: () => S.user && S.user.uid, company: () => S.company, members: () => S.members, rules: FIRESTORE_RULES,
   };

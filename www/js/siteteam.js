@@ -31,7 +31,9 @@ const ST = (() => {
     set(v) { try { v ? sessionStorage.setItem('st.preview', JSON.stringify(v)) : sessionStorage.removeItem('st.preview'); } catch (e) {} },
   };
   const ready = () => typeof Team !== 'undefined' && Team.ready();
-  const roleKey = () => { const p = PV.get(); return p ? p.role : ((ready() && Team.me()) || {}).role; };
+  // espace personnel : c'est le MÉTIER (profil du compte) qui choisit l'interface — jamais un poste ni des droits
+  const perso = () => !PV.get() && ready() && Team.isPerso();
+  const roleKey = () => { const p = PV.get(); if (p) return p.role; if (perso()) return Team.profil().metier || 'conducteur'; return ((ready() && Team.me()) || {}).role; };
   const planKey = () => { const p = PV.get(); return p ? p.plan : ((ready() && Team.company()) || {}).plan || PLAN_DEFAULT_COMPANY; };
   const plan = () => planOf(planKey());
   const org = () => { const p = PV.get(); return p && p.org ? orgTypeOf(p.org) : (ready() ? Team.orgType() : orgTypeOf('entreprise')); };
@@ -80,8 +82,60 @@ const ST = (() => {
   function stopPreview() { PV.set(null); applyRole(); refresh(); }
 
   // ---------- tableau de bord du poste (accueil) : les cartes du briefing, dans l'ordre du service ----------
+  // ---------- tableau de bord de l'espace personnel : métier + pack, sans direction, service ni poste ----------
+  const METIER_TOOLS = {
+    travaux: ['reports', 'tasks', 'reception', 'calc', 'photos', 'planning'], ferraillage: ['reports', 'tasks', 'reception', 'calc', 'photos', 'planning'],
+    topo: ['calc', 'plans', 'photos', 'reports', 'tasks', 'models3d'], qualite: ['forms', 'tasks', 'reception', 'constat', 'photos', 'reports'],
+    hse: ['hse', 'tasks', 'photos', 'reports', 'forms', 'constat'], metre: ['calc', 'plans', 'finance', 'reports', 'photos', 'tasks'],
+    bim: ['plans', 'models3d', 'maquette', 'calc', 'reports', 'photos'], centrale: ['reception', 'gestion', 'reports', 'photos', 'tasks', 'pointage'],
+    materiel: ['gestion', 'reports', 'photos', 'tasks', 'pointage', 'plans'], logistique: ['gestion', 'pointage', 'reports', 'photos', 'tasks', 'plans'],
+    doc: ['plans', 'reports', 'forms', 'photos', 'tasks', 'constat'], labo: ['labo', 'reception', 'forms', 'photos', 'reports', 'tasks'],
+    admin: ['finance', 'pointage', 'reports', 'tasks', 'photos', 'plans'],
+  };
+  const DEF_TOOLS = ['reports', 'tasks', 'plans', 'photos', 'calc', 'forms'];
+  function persoTools() {
+    const M = metierOf(Team.profil().metier), L = [...(METIER_TOOLS[M ? M.s : ''] || DEF_TOOLS)];
+    for (const k of ['plans', 'tasks', 'reports', 'photos']) if (!L.includes(k)) L.push(k);
+    return L.filter(k => SECTIONS[k]).map(k => ({ k, on: Team.canSection(k), label: SECTIONS[k].label.split(' (')[0], icon: SECTIONS[k].icon }));
+  }
+  function persoHTML() {
+    const M = metierOf(Team.profil().metier), P = Team.plan(), stt = Team.planState(), multi = Team.workspaces().length > 1;
+    const T = persoTools().slice(0, 8);
+    return `<div class="st-ctx"><button class="st-wsc" data-a="st-ws"><span class="e">👷</span><b>Espace personnel</b><i>${multi ? '▾ changer' : '＋ espaces'}</i></button>
+        <div class="st-chips"><span>${esc(M ? M.l : 'Métier à choisir')}</span><span class="st-state" style="--c:${stt.c}">${esc(P.l)} · ${esc(stt.l)}</span></div></div>
+      <div class="st-pstats" data-pstats>${['Tâches à faire', 'Projets', 'Documents', 'Échéances 7 jours'].map(l => `<div class="st-ps"><b>…</b><small>${l}</small></div>`).join('')}</div>
+      <div class="h2-sec"><span>Mes outils professionnels</span><small>${esc(M ? M.l : '')}</small></div>
+      <div class="st-ptools">${T.map(t => `<button class="st-pt ${t.on ? '' : 'off'}" data-pt="${t.k}" ${t.on ? '' : 'data-locked="1"'}>${icon(t.icon)}<span>${esc(t.label)}</span>${t.on ? '' : '<small>avec Pro</small>'}</button>`).join('')}</div>
+      <div class="h2-sec"><span>Activité récente</span></div><div class="st-pact" data-pact><div class="st-ok">…</div></div>`;
+  }
+  async function pickPersoProject() {
+    const L = (await DB.all('projects')).filter(p => !p.deleted).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    if (!L.length) { toast('Créez d\'abord un projet personnel'); newProject(); return null; }
+    if (L.length === 1) return L[0];
+    const id = await menu('Dans quel projet ?', L.map(p => ({ label: `${(projTypeOf(p.type) || {}).e || '🏗️'} ${p.name}`, value: p.id })));
+    return L.find(p => p.id === id) || null;
+  }
+  async function persoBind(root) {
+    $$('[data-pt]', root).forEach(b => b.onclick = async () => {
+      if (b.dataset.locked) { const v = await menu(`« ${b.querySelector('span').textContent} » est inclus dans le pack Pro.`, [{ label: 'Voir mon abonnement', icon: 'settings', value: 'abo' }, { label: 'Fermer', icon: 'check', value: 'x' }]); if (v === 'abo') Team.openCompany('abo'); return; }
+      const p = await pickPersoProject(); if (!p) return; await openProject(p); App.section = b.dataset.pt; App.search = ''; renderSection();
+    });
+    const [projects, tasks, files, reports, forms] = await Promise.all(['projects', 'tasks', 'files', 'reports', 'forms'].map(st => DB.all(st).catch(() => [])));
+    const live = projects.filter(p => !p.deleted), pids = new Set(live.map(p => p.id)), P = Team.plan(), soon = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+    const open = tasks.filter(t => pids.has(t.projectId) && t.status !== 'done' && t.status !== 'closed');
+    const vals = [open.length, `${live.length}${P.projects ? ' / ' + P.projects : ''}`, files.filter(f => pids.has(f.projectId)).length, open.filter(t => t.due && t.due <= soon).length];
+    const box = root.querySelector('[data-pstats]'); if (box) $$('.st-ps b', box).forEach((b, i) => { b.textContent = vals[i]; });
+    const pn = (id) => (live.find(p => p.id === id) || {}).name || '';
+    const ev = [...reports.map(r => ({ t: r.updatedAt, l: `Rapport${r.date ? ' du ' + r.date : ''}`, p: r.projectId })), ...tasks.map(r => ({ t: r.updatedAt, l: r.title || 'Tâche', p: r.projectId })),
+      ...files.map(r => ({ t: r.updatedAt, l: r.name || 'Fichier', p: r.projectId })), ...forms.map(r => ({ t: r.updatedAt, l: r.title || r.type || 'Formulaire', p: r.projectId }))]
+      .filter(x => x.t && pids.has(x.p)).sort((a, b) => b.t - a.t).slice(0, 5);
+    const ab = root.querySelector('[data-pact]'); if (ab && ab.isConnected) ab.innerHTML = ev.length ? ev.map(x => `<div class="st-pa"><span>${esc(x.l)}</span><small>${esc(pn(x.p))} · ${new Date(x.t).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}</small></div>`).join('')
+      : '<div class="st-ok">Aucune activité pour le moment. Créez un projet avec le bouton +.</div>';
+  }
+
   function dashHTML() {
     if (!ready()) return '';
+    if (perso()) return persoHTML();
     const R = tmRoleOf(roleKey()), T = org(), C = Team.company() || {}, me = Team.me() || {};
     const team = (Team.members() || []).filter(m => m.managerUid && m.managerUid === me.uid).length, multi = Team.workspaces().length > 1;
     // contexte : où l'on travaille (espace · service · poste · projet) — le Dashboard se lit à partir de là
@@ -91,6 +145,7 @@ const ST = (() => {
       <div class="st-dash" data-stdash><div class="h2-sec"><span>Mon tableau de bord</span><small>${esc(T.e)} ${esc(R.l)}</small></div><div class="st-tiles"><div class="st-load">…</div></div></div>`;
   }
   async function dashBind(root) {
+    if (root && perso()) { const ws = root.querySelector('[data-a=st-ws]'); if (ws) ws.onclick = () => Team.openSwitcher(); return persoBind(root); }
     if (root) {
       const ws = root.querySelector('[data-a=st-ws]'); if (ws) ws.onclick = () => Team.openSwitcher();
       const tm = root.querySelector('[data-a=st-team]'); if (tm) tm.onclick = () => Team.openCompany('org');
@@ -139,7 +194,8 @@ const ST = (() => {
   }
   // espaces (topo, centrale, pointage…) et boutons : un outil hors du métier de l'organisation ou hors pack n'apparaît pas
   Team.lvl = (mod) => (orgHas(mod) && planHas(mod)) ? lvl(mod) : 0;
-  Team.canSection = (k) => (PV.get() ? lvl(SECTION_MOD[k] || 'projet') >= 1 : _canSection(k)) && orgHas(SECTION_MOD[k]) && planHas(SECTION_FEATURE[k] ? FEAT_MOD[SECTION_FEATURE[k]] : null);
+  // espace personnel : pas d'organigramme d'entreprise
+  Team.canSection = (k) => !(k === 'org' && perso()) && (PV.get() ? lvl(SECTION_MOD[k] || 'projet') >= 1 : _canSection(k)) && orgHas(SECTION_MOD[k]) && planHas(SECTION_FEATURE[k] ? FEAT_MOD[SECTION_FEATURE[k]] : null);
   // le poste est appliqué après la connexion (et à chaque démarrage)
   const _boot = Team.boot;
   Team.boot = async () => { await _boot(); applyRole(); banner(); };
@@ -216,5 +272,6 @@ const ST = (() => {
     await DB.put('projects', p); toast('Fiche projet enregistrée ✓'); return projectFiche(p);
   }
 
-  return { dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche };
+  function refreshRole() { applyRole(); try { App.project ? renderSection() : renderHome(); } catch (e) {} }
+  return { dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso };
 })();

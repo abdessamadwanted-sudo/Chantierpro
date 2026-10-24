@@ -2480,3 +2480,29 @@ body:has(.pst-page) #plansFab, body:has(.rub-page) #plansFab, body:has(.scanpage
   .st-packs { grid-template-columns: repeat(4, 1fr); }
   .content { max-width: 1200px; margin-left: auto; margin-right: auto; width: 100%; }
 }
+
+/* ---------- v1.0.16 : offres (packs personnels / organisation), état d'abonnement, tableau de bord personnel ---------- */
+.st-offers { display: grid; gap: 12px; margin: 8px 0 12px; text-align: left; }
+.st-offer { display: grid; gap: 6px; padding: 14px; border-radius: 16px; border: 1px solid rgba(148,163,184,.35); background: rgba(255,255,255,.04); color: inherit; }
+.st-offer.hl { border: 2px solid #3b82f6; background: rgba(59,130,246,.1); }
+.st-of-h { display: flex; align-items: baseline; gap: 8px; } .st-of-h b { font-size: 16.5px; } .st-of-h i { font-style: normal; font-size: 12px; color: #60a5fa; }
+.st-of-h em { margin-left: auto; font-style: normal; font-weight: 700; font-size: 15px; } .st-of-h em.free { color: #22c55e; }
+.st-of-t { color: #93c5fd; font-size: 12.5px; text-align: right; } .st-of-f { color: #94a3b8; font-size: 12.5px; }
+.st-of-r, .st-of-d summary { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; padding: 4px 0; border-top: 1px solid rgba(148,163,184,.18); }
+.st-of-r span, .st-of-d summary span { color: #94a3b8; } .st-of-d summary { cursor: pointer; list-style: none; } .st-of-d summary b::after { content: ' ▾'; color: #60a5fa; }
+.st-of-d > div { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; padding: 6px 0; } .st-of-d i { font-style: normal; font-size: 12px; color: #64748b; } .st-of-d i.on { color: inherit; }
+.st-offer .btn { margin-top: 4px; width: 100%; }
+.st-of-n { color: #94a3b8; font-size: 12.5px; text-align: left; }
+.st-state { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--c); border: 1px solid var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); margin-left: 6px; }
+.st-pstats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 4px 14px; }
+.st-ps { padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--card, #1e2430); display: grid; gap: 2px; }
+.st-ps b { font-size: 20px; } .st-ps small { color: var(--muted); font-size: 12.5px; }
+.st-ptools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0 4px 14px; }
+.st-pt { display: grid; justify-items: center; gap: 4px; padding: 12px 6px; border-radius: 14px; border: 1px solid var(--line); background: var(--card, #1e2430); color: inherit; min-height: 78px; text-align: center; }
+.st-pt svg { width: 22px; height: 22px; } .st-pt span { font-size: 12.5px; font-weight: 600; line-height: 1.2; }
+.st-pt.off { opacity: .55; border-style: dashed; } .st-pt small { font-size: 11px; color: #60a5fa; }
+.st-pact { margin: 0 4px 14px; display: grid; gap: 2px; }
+.st-pa { display: flex; justify-content: space-between; gap: 10px; padding: 10px 2px; border-bottom: 1px solid var(--line); font-size: 13.5px; } .st-pa small { color: var(--muted); white-space: nowrap; }
+.st-prof textarea { min-height: 70px; }
+@media (min-width: 600px) { .st-pstats { grid-template-columns: repeat(4, 1fr); } .st-ptools { grid-template-columns: repeat(4, 1fr); } .st-offers { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .st-ptools { grid-template-columns: repeat(6, 1fr); } .st-offers { grid-template-columns: repeat(3, 1fr); } }
