@@ -54,6 +54,8 @@ OK   config : tout compte connecté lit les packs
 OK   config : REFUS d'écriture (non Super Admin)
 OK   config : le Super Admin modifie les packs
 OK   config : REFUS de lecture sans compte
+OK   création : REFUS de créer une organisation déjà « actif » (payé)
+OK   pack : REFUS que l'admin prolonge son essai
 OK   création : une organisation avec type et services
 
-TOUT OK — 57 vérifications
+TOUT OK — 59 vérifications
