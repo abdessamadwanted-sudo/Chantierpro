@@ -174,6 +174,7 @@ async function renderHome() {
             <span class="h2-av" style="background:linear-gradient(135deg,${c1},${c2})">${esc(initials(p.name))}</span>
             <span class="grow"><b>${esc(p.name)}</b>${p.address ? `<small>${icon('pin')} ${esc(p.address)}</small>` : ''}
               <span class="h2-chips">
+                ${Team.ready() && Team.sharedOf(p.id) ? `<i class="c-b">🤝 ${esc(Team.sharedOf(p.id).ownerName || 'Projet partenaire')}</i>` : ''}
                 ${st.today ? `<i class="c-b">${st.today} réception(s) aujourd'hui</i>` : ''}
                 ${st.pv ? `<i class="c-r c-go" data-pvgo="${p.id}">${st.pv} PV à récupérer ›</i>` : ''}
                 ${st.rap.length ? `<i class="${st.rap.some(x => rapState(x) === 'late') ? 'c-r' : st.rap.some(x => rapState(x) === 'soon') ? 'c-g2' : 'c-y'}">🔔 ${st.rap.length} rappel(s)</i>` : ''}
@@ -318,6 +319,8 @@ const SECTIONS = {
   st: { label: 'Sous-traitants', icon: 'hands', render: (r) => renderSt(r), title: 'Sous-traitants', subtitle: 'Contrats · situations · paiements' },
   org: { label: 'Organigramme', icon: 'org', render: (r) => renderOrg(r), title: 'Organigramme', subtitle: 'Hiérarchie du chantier' },
   team: { label: 'Équipe', icon: 'team', render: renderTeam },
+  orgs: { label: 'Organisations du projet', icon: 'team', render: (r) => Team.openPartners(App.project, r), title: 'Organisations', subtitle: 'MOA · BET · architecte · groupement' },
+  histo: { label: 'Historique', icon: 'history', render: (r) => Team.renderHistory(r), title: 'Historique', subtitle: 'qui a fait quoi, et quand' },
   docq: { label: 'Documentation & archives', icon: 'file', render: (r) => ST.renderDocs(r), title: 'Documentation', subtitle: 'PAQ · procédures · PV · essais · archives' },
   settings: { label: 'Paramètres', icon: 'settings', render: renderSettings },
 };
@@ -1313,7 +1316,9 @@ async function renderTeam(root) {
       <div class="row" data-i="${i}"><span class="tasknum" style="background:var(--accent)">${esc((m.name || '?')[0].toUpperCase())}</span>
         <div class="grow"><div class="title">${esc(m.name)}</div><div class="sub">${[m.role, m.phone].filter(Boolean).map(esc).join(' · ')}</div></div></div>`).join('')}</div>`
     : `<div class="empty" style="padding:20px 24px">Ajoutez les personnes (chef de chantier, contrôleur…) pour les nommer responsables.</div>`}
-    ${Team.ready() ? `<div class="section-label" style="display:flex;align-items:center">Intervenants externes<button class="btn small ghost" data-a="extshare" style="margin-left:auto">${icon('share')} Partager</button></div>
+    ${Team.ready() ? `<div class="section-label" style="display:flex;align-items:center">Organisations du projet<button class="btn small ghost" data-a="partners" style="margin-left:auto">${icon('team')} Gérer</button></div>
+    <div class="empty" style="padding:20px 24px">Maître d'ouvrage, BET, architecte, laboratoire, membres du groupement… Chaque organisation travaille dans ce projet avec ses propres comptes et ne voit que les modules accordés.</div>` : ''}
+    ${Team.ready() && !Team.sharedOf(p.id) ? `<div class="section-label" style="display:flex;align-items:center">Partage simple (sans compte)<button class="btn small ghost" data-a="extshare" style="margin-left:auto">${icon('share')} Partager</button></div>
     <div class="empty" style="padding:20px 24px">Donnez à un maître d'ouvrage, un BET, un sous-traitant… un accès limité à ce projet, sans l'ajouter à votre entreprise.</div>` : ''}`;
   const edit = async (m, i) => {
     const r = await formSheet(m ? 'Modifier' : 'Nouvel intervenant', [
@@ -1335,6 +1340,7 @@ async function renderTeam(root) {
   $('[data-a=addco]', root).onclick = async () => { await editCompany(p); renderTeam(root); };
   $('[data-a=addm]', root).onclick = () => edit(null);
   const extsh = $('[data-a=extshare]', root); if (extsh) extsh.onclick = () => Team.openProjectShares(p);
+  const ptn = $('[data-a=partners]', root); if (ptn) ptn.onclick = () => Team.openPartners(p);
   fab(root, async () => {
     const v = await menu('Ajouter', [{ label: 'Entreprise / lot', icon: 'hard', value: 'co' }, { label: 'Intervenant', icon: 'team', value: 'm' }]);
     if (v === 'co') { await editCompany(p); renderTeam(root); } if (v === 'm') edit(null);

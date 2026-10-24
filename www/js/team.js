@@ -85,6 +85,18 @@ const ORG_TYPES = [
     mods: ['projet', 'plans', 'photos', 'forms', 'rapports', 'calc', 'equipe', 'files', 'topo', 'materiel'], svcs: ['direction', 'topo', 'materiel'] },
 ];
 // espace personnel (professionnel indépendant) : tous les outils de sa formule, interface de son métier
+ORG_TYPES.push(
+  { k: 'artisan', e: '🧰', l: 'Artisan', d: 'Maçon, électricien, plombier, peintre…', owner: 'patron',
+    mods: ['projet', 'plans', 'reserves', 'photos', 'rapports', 'calc', 'equipe', 'files', 'pointage', 'finance'], svcs: ['direction', 'travaux'] },
+  { k: 'fournisseur', e: '🧱', l: 'Fournisseur / commerçant', d: 'Matériaux, outillage, équipements', owner: 'patron',
+    mods: ['projet', 'plans', 'photos', 'rapports', 'equipe', 'files', 'materiel', 'finance'], svcs: ['direction', 'logistique', 'admin'] },
+  { k: 'loueur', e: '🏗', l: 'Loueur de matériel', d: 'Grues, engins, nacelles, coffrages', owner: 'patron',
+    mods: ['projet', 'plans', 'photos', 'rapports', 'equipe', 'files', 'materiel', 'pointage', 'finance'], svcs: ['direction', 'materiel', 'logistique', 'admin'] },
+  { k: 'promoteur', e: '🏘️', l: 'Promoteur immobilier', d: 'Programmes immobiliers et commerciaux', owner: 'mo',
+    mods: ['projet', 'plans', 'reserves', 'reception', 'photos', 'forms', 'rapports', 'constats', 'equipe', 'files', 'finance'], svcs: ['direction', 'qualite', 'doc', 'admin'] },
+  { k: 'formation', e: '🎓', l: 'Établissement de formation', d: 'Écoles, centres de formation BTP', owner: 'patron',
+    mods: ['projet', 'plans', 'photos', 'rapports', 'calc', 'equipe', 'files'], svcs: ['direction', 'doc', 'admin'] },
+);
 const ORG_PERSO = { k: 'independant', e: '👷', l: 'Espace personnel', d: 'Professionnel indépendant', owner: null, mods: '*', svcs: [] };
 const orgTypeOf = (k) => ORG_TYPES.find(t => t.k === k) || (k === 'independant' ? ORG_PERSO : ORG_TYPES[0]);
 // contact à remplacer par l'adresse définitive (support@votredomaine) avant tout lancement public
@@ -101,6 +113,17 @@ const SHARE_ENTITIES = [
   ['entreprise', 'Entreprise (lot)'], ['autre', 'Autre'],
 ];
 const shareEntityLabel = (k) => (SHARE_ENTITIES.find(x => x[0] === k) || [k, k])[1];
+// projet multi-organisations (v1.0.19) : rôle d'une organisation partenaire dans le projet
+const PARTNER_ROLES = [['jv', 'Membre du groupement (JV)'], ...SHARE_ENTITIES.filter(x => x[0] !== 'autre'), ['fournisseur', 'Fournisseur'], ['loueur', 'Loueur de matériel'], ['autre', 'Autre']];
+const partnerRoleLabel = (k) => (PARTNER_ROLES.find(x => x[0] === k) || [k, k || '—'])[1];
+// accès proposés par défaut selon le rôle (le titulaire ajuste ; au plus « Modifier »)
+const PARTNER_DEF = {
+  jv: { plans: 2, reserves: 2, reception: 2, photos: 2, forms: 2, rapports: 2, constats: 2, calc: 1, files: 2, topo: 1, hse: 1 },
+  mo: { plans: 1, reserves: 1, reception: 1, photos: 1, forms: 1, rapports: 1, files: 1 }, mod: { plans: 1, reserves: 2, reception: 1, photos: 1, forms: 1, rapports: 1, files: 1 },
+  architecte: { plans: 2, reserves: 2, photos: 1, rapports: 1, files: 2 }, bet: { plans: 2, reserves: 2, photos: 1, forms: 1, rapports: 1, calc: 1, files: 2 },
+  bcontrole: { plans: 1, reserves: 2, reception: 1, photos: 1, forms: 1, rapports: 1, constats: 2, files: 1 }, labo: { plans: 1, reception: 1, photos: 1, forms: 2, rapports: 1, files: 2 },
+  topoext: { plans: 2, photos: 1, topo: 2, files: 1 }, soustraitant: { plans: 1, reserves: 2, photos: 2, rapports: 1, files: 1 }, entreprise: { plans: 1, reserves: 2, photos: 2, rapports: 1, files: 1 },
+};
 
 // ---------- Services, rôles, permissions ----------
 const TM_SERVICES = [
@@ -175,7 +198,7 @@ const modOf = (store, rec) => store === 'items' ? KIND_MOD[(rec || {}).kind] : S
 const SECTION_MOD = { avancement: 'projet', clauses: 'forms', gestion: 'materiel', finance: 'finance', tce: 'finance', avenants: 'finance', st: 'finance',
   planning: 'projet', reunions: 'forms', pointage: 'pointage', rfi: 'forms', visa: 'forms', labo: 'reception', hse: 'hse', org: 'equipe',
   dashboard: 'projet', plans: 'plans', tasks: 'reserves', reception: 'reception', beton: 'reception', photos: 'photos', forms: 'forms', reports: 'rapports',
-  constat: 'constats', models3d: 'plans', maquette: 'plans', calc: 'calc', team: 'equipe', settings: 'projet', docq: 'files' };
+  constat: 'constats', models3d: 'plans', maquette: 'plans', calc: 'calc', team: 'equipe', settings: 'projet', docq: 'files', histo: 'projet', orgs: 'projet' };
 
 const FIRESTORE_RULES = `rules_version = '2';
 service cloud.firestore {
@@ -224,6 +247,26 @@ service cloud.firestore {
         && p.get('hse', 0) <= m.get('hse', 0) && p.get('finance', 0) <= m.get('finance', 0);
     }
     function projWithin(cid, d) { return mem(cid).allProjects == true || (d.allProjects == false && d.projects.hasOnly(mem(cid).projects)); }
+    // projet multi-organisations : une organisation partenaire (BET, MOA, architecte, labo, membre du groupement…) accède au projet
+    // d'une autre organisation, seulement aux modules accordés (au plus « Modifier ») et seulement depuis son espace actif ;
+    // chaque membre du partenaire garde en plus ses propres droits dans sa propre organisation (le plus petit des deux s'applique)
+    function wsOf() { return get(/databases/$(db)/documents/users/$(request.auth.uid)).data.get('companyId', ''); }
+    function partOf(cid, pid, o) { return get(/databases/$(db)/documents/companies/$(cid)/projects/$(pid)/partners/$(o)).data; }
+    function pOk(cid, pid, mod, n) {
+      let o = wsOf();
+      return signed() && o != '' && o != cid && exists(/databases/$(db)/documents/companies/$(o)/members/$(request.auth.uid))
+        && exists(/databases/$(db)/documents/companies/$(cid)/projects/$(pid)/partners/$(o))
+        && partOf(cid, pid, o).get('status', '') == 'actif' && partOf(cid, pid, o).mods.get(mod, 0) >= n
+        && memOf(o, request.auth.uid).perms.get(mod, 0) >= n
+        && (memOf(o, request.auth.uid).allProjects == true || pid in memOf(o, request.auth.uid).projects);
+    }
+    // groupement (JV) : l'administrateur de l'organisation « mandataire » gère aussi les partenaires du projet
+    function mandAdmin(cid, pid) {
+      let o = wsOf();
+      return signed() && o != '' && o != cid && get(/databases/$(db)/documents/companies/$(cid)/projects/$(pid)).data.get('jv', {}).get('mand', '') == o
+        && isAdmin(o) && exists(/databases/$(db)/documents/companies/$(cid)/projects/$(pid)/partners/$(o));
+    }
+    function projAcc(cid, pid) { return (isMem(cid) && canProj(cid, pid)) || pOk(cid, pid, 'projet', 1); }
 
     match /users/{uid} { allow read, write: if signed() && request.auth.uid == uid; }
 
@@ -231,7 +274,11 @@ service cloud.firestore {
       allow get: if signed();
       allow list: if signed() && (isAdmin(resource.data.cid) || resource.data.createdBy == request.auth.uid);
       // un code créé par une personne autorisée (non administrateur) passe toujours par l'approbation d'un administrateur
-      allow create: if signed() && request.resource.data.createdBy == request.auth.uid && persoOK(request.resource.data) && (isAdmin(request.resource.data.cid)
+      allow create: if signed() && request.resource.data.createdBy == request.auth.uid
+        && (request.resource.data.get('kind', '') != 'partner' || (request.resource.data.pid is string && request.resource.data.used == false
+            && maxLvl2(request.resource.data.mods) && request.resource.data.mods.get('projet', 0) == 1
+            && (isAdmin(request.resource.data.cid) || mandAdmin(request.resource.data.cid, request.resource.data.pid))))
+        && (request.resource.data.get('kind', '') == 'partner' || persoOK(request.resource.data)) && (request.resource.data.get('kind', '') == 'partner' || isAdmin(request.resource.data.cid)
         || (canInvite(request.resource.data.cid) && request.resource.data.admin == false && request.resource.data.get('needsApproval', false) == true
             && permsWithin(request.resource.data.cid, request.resource.data.perms) && projWithin(request.resource.data.cid, request.resource.data)));
       allow update: if signed() && (isAdmin(resource.data.cid)
@@ -300,6 +347,7 @@ service cloud.firestore {
         allow create: if signed() && (isAdmin(cid) || (uid == request.auth.uid && (
           (get(/databases/$(db)/documents/companies/$(cid)).data.ownerUid == request.auth.uid)
           || (request.resource.data.invite is string
+              && inv(request.resource.data.invite).get('kind', '') != 'partner'
               && inv(request.resource.data.invite).cid == cid
               && invLive(request.resource.data.invite)
               && inv(request.resource.data.invite).get('needsApproval', false) == false
@@ -331,15 +379,38 @@ service cloud.firestore {
         allow read: if isMem(cid);
         allow write: if isAdmin(cid);
       }
+      // projets d'autres organisations auxquels cette organisation participe (liste locale, gérée par son administrateur)
+      match /shared/{pid} {
+        allow read: if isMem(cid);
+        allow write: if isAdmin(cid);
+      }
       match /projects/{pid} {
-        allow read: if isMem(cid) && canProj(cid, pid);
+        allow read: if projAcc(cid, pid);
         allow create: if isMem(cid) && lvl(cid, 'projet') >= 3;
-        allow update: if isMem(cid) && canProj(cid, pid) && lvl(cid, 'projet') >= 2;
+        // le groupement (jv : nom, mandataire) ne change que par l'administrateur de l'organisation titulaire du projet
+        allow update: if isMem(cid) && canProj(cid, pid) && lvl(cid, 'projet') >= 2
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['jv']) || isAdmin(cid));
         allow delete: if isAdmin(cid);
         match /m/{mod}/r/{rid} {
-          allow read: if isMem(cid) && canProj(cid, pid) && lvl(cid, mod) >= 1;
-          allow create, update: if isMem(cid) && canProj(cid, pid) && lvl(cid, mod) >= 2 && (mod != 'forms' || vOk(cid));
-          allow delete: if isMem(cid) && canProj(cid, pid) && lvl(cid, mod) >= 2;
+          allow read: if (isMem(cid) && canProj(cid, pid) && lvl(cid, mod) >= 1) || pOk(cid, pid, mod, 1);
+          allow create, update: if ((isMem(cid) && canProj(cid, pid) && lvl(cid, mod) >= 2) || pOk(cid, pid, mod, 2)) && (mod != 'forms' || vOk(cid));
+          allow delete: if (isMem(cid) && canProj(cid, pid) && lvl(cid, mod) >= 2) || pOk(cid, pid, mod, 2);
+        }
+        // organisations partenaires du projet : entrée par code « partenaire » (administrateur du partenaire), gérées par le titulaire ou le mandataire
+        match /partners/{o} {
+          allow read: if projAcc(cid, pid) || isMem(o);
+          allow create: if isAdmin(o) && o != cid && request.resource.data.code is string
+            && inv(request.resource.data.code).get('kind', '') == 'partner' && inv(request.resource.data.code).cid == cid
+            && inv(request.resource.data.code).pid == pid && invLive(request.resource.data.code)
+            && request.resource.data.mods == inv(request.resource.data.code).mods && request.resource.data.role == inv(request.resource.data.code).prole
+            && request.resource.data.status == 'actif';
+          allow update: if (isAdmin(cid) || mandAdmin(cid, pid)) && maxLvl2(request.resource.data.mods) && request.resource.data.mods.get('projet', 0) == 1;
+          allow delete: if isAdmin(cid) || mandAdmin(cid, pid) || isAdmin(o);
+        }
+        // historique du projet : on ajoute (qui, quoi, quand — heure du serveur), personne ne modifie ni n'efface
+        match /audit/{aid} {
+          allow read: if projAcc(cid, pid);
+          allow create: if projAcc(cid, pid) && request.resource.data.by == request.auth.uid && request.resource.data.srv == request.time;
         }
       }
     }
@@ -377,7 +448,12 @@ const Team = (() => {
   };
 
   // ---------- état ----------
-  const lvl = (mod) => { if (!S.ready) return 4; if (!S.me) return 0; return (S.me.perms || {})[mod] ?? 0; };
+  const lvl0 = (mod) => { if (!S.ready) return 4; if (!S.me) return 0; return (S.me.perms || {})[mod] ?? 0; };
+  // projet d'une organisation partenaire : droits = le plus petit entre ce que le titulaire accorde et le poste de la personne
+  const sharedOf = (pid) => pid ? (S.shared || []).find(x => x.pid === pid) || null : null;
+  const lvlFor = (mod, pid) => { const sh = sharedOf(pid); return sh ? (sh.status && sh.status !== 'actif' ? 0 : Math.min(+((sh.mods || {})[mod]) || 0, lvl0(mod))) : lvl0(mod); };
+  const curPid = () => { try { return (typeof App !== 'undefined' && App.project && App.project.id) || null; } catch (e) { return null; } };
+  const lvl = (mod) => lvlFor(mod, curPid());
   const canSection = (k) => lvl(SECTION_MOD[k] || 'projet') >= 1;
   const isAdmin = () => !S.ready || !!(S.me && S.me.admin);
   const myPlan = () => planFor(planOf((S.company || {}).plan || PLAN_DEFAULT_COMPANY), (S.company || {}).kind === 'perso');
@@ -432,6 +508,18 @@ const Team = (() => {
     if (v === 'plans') openCompany('set');
   }
   const canProject = (pid) => !S.ready || !!(S.me && (S.me.allProjects || (S.me.projects || []).includes(pid)));
+  // projets partagés par d'autres organisations (companies/{moi}/shared)
+  async function loadShared() {
+    S.shared = LS.get('shared') || [];
+    try {
+      const q = await withTimeout(fs.collection('companies').doc(S.cid).collection('shared').get(), 10000); const L = q.docs.map(d => ({ pid: d.id, ...d.data() }));
+      // accès à jour (le titulaire peut changer les modules, suspendre ou retirer l'organisation)
+      await Promise.all(L.map(async (x) => { try { const d = await fs.collection('companies').doc(x.cid).collection('projects').doc(x.pid).collection('partners').doc(S.cid).get();
+        if (d.exists) { x.mods = d.data().mods || {}; x.status = d.data().status || 'actif'; x.role = d.data().role || x.role; } else { x.mods = {}; x.status = 'retire'; } } catch (e) {} }));
+      S.shared = L; LS.set('shared', S.shared);
+    } catch (e) { console.warn('shared', e); }
+    return S.shared;
+  }
 
   // ---------- démarrage : connexion obligatoire ----------
   async function boot() {
@@ -444,7 +532,7 @@ const Team = (() => {
   }
   // ---------- validation des PV ----------
   function canValidateForm(f) {
-    if (!S.ready || !S.me || !f || f.aut === S.user.uid) return false;
+    if (!S.ready || !S.me || !f || f.aut === S.user.uid || sharedOf(f.projectId)) return false;
     if (S.me.admin || lvl('forms') >= 4) return true;
     const a = (S.members || []).find(m => m.uid === f.aut);
     return lvl('forms') >= 3 && !!a && a.managerUid === S.user.uid;
@@ -463,7 +551,7 @@ const Team = (() => {
     bind(cid) {
       if (!WS.get('st.wsLegacy')) { WS.put('st.wsLegacy', cid); WS.put('st.wsCid', cid); }   // 1re ouverture : les données déjà présentes appartiennent à cet espace
       const cur = WS.get('st.wsCid');
-      if (cur !== cid) { WS.save(cur); WS.restore(cid); WS.put('st.wsCid', cid); ['company', 'me', 'members', 'postes'].forEach(LS.del); }
+      if (cur !== cid) { WS.save(cur); WS.restore(cid); WS.put('st.wsCid', cid); ['company', 'me', 'members', 'postes', 'shared'].forEach(LS.del); }
       const want = WS.dbFor(cid);
       if ((WS.get('st.db') || 'chantier') !== want || (typeof DB !== 'undefined' && DB.name && DB.name() !== want)) {
         WS.put('st.db', want === 'chantier' ? null : want);
@@ -534,6 +622,7 @@ const Team = (() => {
     S.ready = true;
     await loadPlanCfg();
     await loadPostes();
+    await loadShared();
     try { if (!localStorage.getItem('userName') && S.me.name) localStorage.setItem('userName', S.me.name.split(' ')[0]); localStorage.setItem('askedName', '1'); } catch (e) {}
     await refreshMembers();
     saveWorkspace();
@@ -654,7 +743,9 @@ const Team = (() => {
       if (!iv.exists) throw new Error('Code introuvable');
       const I = iv.data(); if (I.used) throw new Error('Ce code a déjà été utilisé — demandez un nouveau code');
       if (I.expiresAt && I.expiresAt.toMillis && I.expiresAt.toMillis() < Date.now()) throw new Error('Ce code a expiré — demandez un nouveau code');
+      if (I.status && I.status !== 'valide') throw new Error('Ce code a été révoqué — demandez un nouveau code');
       ld.close();
+      if (I.kind === 'partner') { await joinPartner(code, I); return null; }
       if (!(await confirmJoin(I))) return null;
       const uid = auth.currentUser.uid;
       if (I.needsApproval) {
@@ -775,22 +866,32 @@ const Team = (() => {
   }
 
   // ---------- synchronisation des données (remplace db.json de Drive) ----------
-  const projRef = (pid) => fs.collection('companies').doc(S.cid).collection('projects').doc(pid);
+  const projRef = (pid) => fs.collection('companies').doc((sharedOf(pid) || {}).cid || S.cid).collection('projects').doc(pid);
+  // historique : une ligne par enregistrement envoyé (qui, quelle organisation, quoi, heure du serveur)
+  const AUD_STORE = { projects: 'Projet', folders: 'Dossier', plans: 'Plan', links: 'Lien', tasks: 'Réserve / tâche', receptions: 'Réception', forms: 'Formulaire / PV', reports: 'Rapport', files: 'Document', items: 'Fiche' };
+  function auditOf(r, pid) {
+    const { _store, _deleted, ...rec } = r, t = rec.title || rec.name || rec.type || rec.ouvrage || rec.tache || rec.equipe || rec.label || '';
+    const act = _deleted ? 'suppr' : (rec.createdAt && rec.updatedAt && rec.updatedAt - rec.createdAt < 3000 ? 'ajout' : (_store === 'forms' && rec.vst && rec.vst !== 'brouillon' ? 'pv_' + rec.vst : 'modif'));
+    return { pid, store: _store, kind: rec.kind || null, rid: rec.id, t: String(t).slice(0, 120), act, by: S.user.uid, byName: (S.me || {}).name || S.user.email || '', org: S.cid, orgName: (S.company || {}).name || '', srv: ts() };
+  }
   async function push(records) {
     if (!S.ready) return;
     // un PV validé ne se renvoie que par un responsable (sinon le serveur refuserait tout le lot)
-    const ok = records.filter(r => { const m = modOf(r._store, r); return m && lvl(m) >= 2 && (r._store === 'projects' ? (canProject(r.id) || lvl('projet') >= 3) : canProject(r.projectId))
+    const ok = records.filter(r => { const m = modOf(r._store, r), pid = r._store === 'projects' ? r.id : r.projectId;
+      if (r._store === 'projects' && sharedOf(pid)) return false;   // la fiche du projet appartient au titulaire
+      return m && lvlFor(m, pid) >= 2 && (r._store === 'projects' ? (canProject(r.id) || lvl0('projet') >= 3) : canProject(r.projectId))
       && !(r._store === 'forms' && (r.vst === 'valide' || r.vst === 'refuse') && r.vby !== S.user.uid && !canValidateForm(r)); });
     const skipped = records.length - ok.length;
-    for (let i = 0; i < ok.length; i += 400) {
+    for (let i = 0; i < ok.length; i += 150) {
       const b = fs.batch();
-      for (const r of ok.slice(i, i + 400)) {
+      for (const r of ok.slice(i, i + 150)) {
         const { _store, _deleted, ...rec } = r, mod = modOf(_store, r), pid = _store === 'projects' ? rec.id : rec.projectId;
         if (!pid) continue;
         const doc = projRef(pid).collection('m').doc(mod).collection('r').doc(`${_store}__${rec.id}`);
         b.set(doc, { store: _store, id: rec.id, projectId: pid, kind: rec.kind || null, updatedAt: rec.updatedAt || Date.now(), deleted: !!_deleted, data: _deleted ? '' : JSON.stringify(rec), by: S.user.uid, srv: ts(),
           ...(_store === 'forms' ? { vst: rec.vst || 'brouillon', vby: rec.vby || '', aut: rec.aut || '' } : {}) });
         if (_store === 'projects') b.set(projRef(pid), { name: rec.name || '', address: rec.address || '', deleted: !!_deleted, updatedAt: rec.updatedAt || Date.now(), by: S.user.uid }, { merge: true });
+        else b.set(projRef(pid).collection('audit').doc(), auditOf(r, pid));
       }
       await withTimeout(b.commit(), 45000);
     }
@@ -804,13 +905,16 @@ const Team = (() => {
     if (!S.ready) return { records: [], now: Date.now() };
     await refreshMembers();
     const since = LS.get('pullAt', {}), out = [];
-    const pids = await withTimeout(projectIds(), 30000);
-    const mods = [...new Set([...Object.values(STORE_MOD), ...Object.values(KIND_MOD)])].filter(m => m !== '*' && lvl(m) >= 1);
-    for (const pid of pids) for (const mod of mods) {
+    await loadShared();
+    const own = await withTimeout(projectIds(), 30000), shp = (S.shared || []).filter(x => x.status === 'actif' && canProject(x.pid)).map(x => x.pid);
+    const pids = [...own, ...shp.filter(x => !own.includes(x))];
+    const allMods = [...new Set([...Object.values(STORE_MOD), ...Object.values(KIND_MOD)])].filter(m => m !== '*');
+    for (const pid of pids) for (const mod of allMods.filter(m => lvlFor(m, pid) >= 1)) {
       const key = pid + '/' + mod, t = since[key] || 0;
       let q = projRef(pid).collection('m').doc(mod).collection('r');
       if (t) q = q.where('srv', '>', firebase.firestore.Timestamp.fromMillis(t));
-      const snap = await withTimeout(q.get(), 45000);
+      let snap; try { snap = await withTimeout(q.get(), 45000); }
+      catch (e) { if (sharedOf(pid) && e.code === 'permission-denied') { console.warn('projet partagé retiré', pid); continue; } throw e; }
       let mx = t;
       snap.forEach(d => { const x = d.data(); const s = x.srv ? x.srv.toMillis() : 0; if (s > mx) mx = s;
         if (x.deleted) out.push({ _store: x.store, id: x.id, projectId: x.projectId, kind: x.kind, _deleted: true, updatedAt: x.updatedAt });
@@ -993,6 +1097,150 @@ const Team = (() => {
         try { await fs.collection('shares').doc(code).update({ responses: firebase.firestore.FieldValue.arrayUnion(entry) }); sh.responses = [...(sh.responses || []), entry]; draw(); toast('Envoyé ✓'); }
         catch (e) { alertBox(errMsg(e)); }
       };
+    };
+    draw();
+  }
+
+  // ---------- projet multi-organisations : partenaires, groupement (JV), historique ----------
+  const PMODS = () => MODS.filter(([k]) => k !== 'projet' && k !== 'equipe');
+  const modsTxt = (m) => { const L = PMODS().filter(([k]) => (m || {})[k] > 0).map(([k, l]) => `${l.split(' (')[0].split(' / ')[0]} : ${m[k] >= 2 ? 'modifier' : 'voir'}`); return L.length ? L.join(' · ') : 'aucun module'; };
+  function partnerForm(o = {}) {
+    return new Promise((resolve) => {
+      const M = { ...(o.mods || PARTNER_DEF[o.role || 'bet'] || {}) };
+      const s = sheet(`<div class="form tm-form st-pform">
+        <label>Rôle de l'organisation dans le projet<select data-f="role">${PARTNER_ROLES.map(([k, l]) => `<option value="${k}" ${k === (o.role || 'bet') ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+        ${o.edit ? '' : `<label>Nom de l'organisation (pour vous retrouver)<input data-f="label" value="${esc(o.label || '')}" placeholder="Ex : BET Structures Atlas"></label>`}
+        <div class="fld">Ce qu'elle voit dans ce projet <small class="muted">(au plus « Modifier » ; elle ne voit jamais votre équipe ni vos autres projets)</small></div>
+        <div class="st-pmods">${PMODS().map(([k, l]) => `<label class="tm-pl"><span>${esc(l)}</span><select data-pm="${k}">${['Aucun accès', 'Voir', 'Modifier'].map((x, i) => `<option value="${i}" ${(+M[k] || 0) === i ? 'selected' : ''}>${x}</option>`).join('')}</select></label>`).join('')}</div>
+        <div class="btnrow" style="padding:0"><button class="btn ghost" data-a="c">Annuler</button><button class="btn" data-a="ok">${o.edit ? 'Enregistrer' : 'Créer le code'}</button></div></div>`, { title: o.edit ? `Accès · ${o.orgName || ''}` : 'Inviter une organisation' });
+      s.onClose = () => resolve(null);
+      const role = $('[data-f=role]', s.el);
+      role.onchange = () => { const D = PARTNER_DEF[role.value] || {}; $$('[data-pm]', s.el).forEach(x => { x.value = String(D[x.dataset.pm] || 0); }); };
+      $('[data-a=c]', s.el).onclick = () => s.close();
+      $('[data-a=ok]', s.el).onclick = () => {
+        const mods = { projet: 1 }; $$('[data-pm]', s.el).forEach(x => { const v = Math.min(2, +x.value || 0); if (v) mods[x.dataset.pm] = v; });
+        if (Object.keys(mods).length < 2) return alertBox('Choisissez au moins un module à partager.');
+        const lb = $('[data-f=label]', s.el); s.onClose = null; s.close(); resolve({ role: role.value, label: lb ? lb.value.trim() : '', mods });
+      };
+    });
+  }
+  async function partnerInvite(p, jv) {
+    const sh = sharedOf(p.id), mand = !!(sh && jv && jv.mand === S.cid && isAdmin());
+    if (!sh && !myPlan().shares) { await limitBox('Inviter d\'autres organisations dans un projet (BET, maître d\'ouvrage, groupement…) est inclus dans le pack Enterprise.'); return null; }
+    const o = await partnerForm(); if (!o) return null;
+    const code = newCode(), ld = loading('Création du code…');
+    try {
+      await withTimeout(fs.collection('invites').doc(code).set({ kind: 'partner', cid: sh ? sh.cid : S.cid, pid: p.id, pname: p.name || '', ownerName: sh ? (sh.ownerName || '') : (S.company.name || ''),
+        prole: o.role, label: o.label, mods: o.mods, used: false, status: 'valide', needsApproval: false, createdBy: S.user.uid, createdByName: (S.me || {}).name || '', viaMand: mand,
+        createdAt: ts(), expiresAt: firebase.firestore.Timestamp.fromMillis(Date.now() + 14 * 864e5) }));
+      ld.close();
+      const txt = `Bonjour${o.label ? ' ' + o.label : ''},\nVotre organisation est invitée sur le projet *${p.name || ''}* (${partnerRoleLabel(o.role)}) dans SiteTeam.\n\n1️⃣ Ouvrez SiteTeam dans l'espace de votre organisation (administrateur)\n2️⃣ Changer d'espace › Rejoindre avec un code : *${code}*\n\nAccès : ${modsTxt(o.mods)}. Code valable 14 jours, une seule fois.`;
+      const v = await menu(`Code partenaire : ${code}`, [{ label: 'Envoyer par WhatsApp', icon: 'share', value: 'wa' }, { label: 'Copier le code', icon: 'file', value: 'cp' }, { label: 'Fermer', icon: 'check', value: 'ok' }]);
+      if (v === 'wa') openUrl('https://wa.me/?text=' + encodeURIComponent(txt)); if (v === 'cp') copyText(code);
+      return code;
+    } catch (e) { ld.close(); alertBox(errMsg(e)); return null; }
+  }
+  // l'administrateur d'une organisation accepte l'invitation : son organisation devient partenaire du projet (ses données restent chez elle)
+  async function joinPartner(code, I) {
+    if (!S.ready || !S.cid || !S.company) return alertBox('Ce code invite une organisation sur un projet.\nCréez ou ouvrez d\'abord l\'espace de votre organisation, puis entrez le code.');
+    if (I.cid === S.cid) return alertBox('Ce projet appartient déjà à « ' + S.company.name + ' ».');
+    if (!isAdmin()) return alertBox(`Seul un administrateur de « ${S.company.name} » peut accepter cette invitation.`);
+    if (sharedOf(I.pid)) return alertBox('Votre organisation participe déjà à ce projet.');
+    const ok = await new Promise((resolve) => {
+      const sh = sheet(`<div class="tm-box"><b>${esc(I.pname || 'Projet')}</b><small>Projet de « ${esc(I.ownerName || '')} »</small><small>Rôle de « ${esc(S.company.name)} » : <b>${esc(partnerRoleLabel(I.prole))}</b></small></div>
+        <div class="tm-box"><b>Accès accordé</b><p>${esc(modsTxt(I.mods))}</p></div>
+        <p class="muted" style="font-size:12.5px">Vos membres verront ce projet dans « ${esc(S.company.name)} », selon leurs propres droits. Votre équipe, votre organigramme et vos autres projets restent privés.</p>
+        <div class="btnrow" style="padding:0"><button class="btn ghost" data-a="no">Annuler</button><button class="btn" data-a="pj-ok">Rejoindre le projet</button></div>`, { title: 'Projet partenaire' });
+      sh.onClose = () => resolve(false);
+      $('[data-a=no]', sh.el).onclick = () => sh.close();
+      $('[data-a=pj-ok]', sh.el).onclick = () => { sh.onClose = null; sh.close(); resolve(true); };
+    });
+    if (!ok) return null;
+    const ld = loading('Connexion au projet…');
+    try {
+      const b = fs.batch(), uid = S.user.uid;
+      b.set(fs.collection('companies').doc(I.cid).collection('projects').doc(I.pid).collection('partners').doc(S.cid), { orgName: S.company.name || '', orgType: orgType().k, role: I.prole, mods: I.mods, status: 'actif', code, by: uid, byName: (S.me || {}).name || '', at: ts() });
+      b.set(fs.collection('companies').doc(S.cid).collection('shared').doc(I.pid), { cid: I.cid, ownerName: I.ownerName || '', name: I.pname || '', role: I.prole, mods: I.mods, status: 'actif', at: ts() });
+      b.update(fs.collection('invites').doc(code), { used: true, usedBy: uid, usedAt: ts() });
+      await withTimeout(b.commit());
+      await loadShared(); ld.close(); toast(`Projet « ${I.pname || ''} » ajouté ✓`);
+      try { if (typeof Sync !== 'undefined' && Sync.enabled && Sync.enabled()) { resetPullFor(I.pid); await Sync.run({ quiet: true }); } } catch (e) {}
+      try { App.project = null; renderHome(); } catch (e) {}
+      return I.pid;
+    } catch (e) { ld.close(); alertBox(errMsg(e)); return null; }
+  }
+  function resetPullFor(pid) { const since = LS.get('pullAt', {}); Object.keys(since).filter(k => k.startsWith(pid + '/')).forEach(k => delete since[k]); LS.set('pullAt', since); }
+  async function openPartners(p, root) {
+    if (!S.ready && root) { root.innerHTML = '<div class="empty">Les organisations partenaires sont disponibles avec un compte SiteTeam.</div>'; return; }
+    if (!S.ready) return alertBox('Connectez-vous à SiteTeam pour partager un projet avec d\'autres organisations.');
+    const sh0 = sharedOf(p.id), ownerCid = sh0 ? sh0.cid : S.cid, ref = projRef(p.id);
+    let s = null, wrap;
+    if (root) { root.innerHTML = `<div class="pagehead"><h2>Organisations du projet</h2><p>Titulaire, partenaires et groupement</p></div><div class="st-pt" style="padding:0 16px 24px"><div class="empty">Chargement…</div></div>`; wrap = $('.st-pt', root); }
+    else { s = sheet('<div class="st-pt"><div class="empty">Chargement…</div></div>', { title: 'Organisations du projet' }); wrap = $('.st-pt', s.el); }
+    const draw = async () => {
+      let L = [], jv = null;
+      try { const [q, d] = await withTimeout(Promise.all([ref.collection('partners').get(), ref.get().catch(() => null)]), 15000); L = q.docs.map(x => ({ o: x.id, ...x.data() })); jv = (d && d.exists && d.data().jv) || null; }
+      catch (e) { wrap.innerHTML = `<div class="empty">${esc(errMsg(e))}<br>Connexion internet nécessaire.</div>`; return; }
+      const owner = !sh0 && isAdmin(), mand = !!(sh0 && jv && jv.mand === S.cid && isAdmin()), canManage = owner || mand;
+      const ownerName = sh0 ? (sh0.ownerName || 'Titulaire') : (S.company.name || '');
+      const nameOf = (cid) => cid === ownerCid ? ownerName : ((L.find(x => x.o === cid) || {}).orgName || '?');
+      wrap.innerHTML = `<p class="muted" style="font-size:12.5px;margin:0 0 10px">Chaque organisation garde ses données privées (équipe, organigramme, autres projets). Ici, elle voit seulement les modules accordés sur ce projet.</p>
+        <div class="tm-box st-jv"><b>🤝 Groupement d'entreprises (JV)</b>${jv && jv.name ? `<p><b>${esc(jv.name)}</b><br>Mandataire : ${esc(nameOf(jv.mand))}</p>` : '<p>Aucun groupement déclaré pour ce projet.</p>'}
+          ${owner ? `<div class="btnrow" style="padding:0"><button class="btn ghost small" data-a="jv">${jv && jv.name ? 'Modifier le groupement' : 'Déclarer un groupement'}</button></div>` : ''}</div>
+        <div class="section-label">Organisations (${L.length + 1})</div>
+        <div class="list">
+          <div class="tm-inv"><span class="grow"><b>${esc(ownerName)}${!sh0 ? ' (vous)' : ''}</b><small>👑 Titulaire du projet${jv && jv.mand === ownerCid ? ' · Mandataire' : ''}</small></span></div>
+          ${L.map(x => `<div class="tm-inv" data-o="${esc(x.o)}"><span class="grow"><b>${esc(x.orgName || '?')}${x.o === S.cid ? ' (vous)' : ''}</b><small>${esc(partnerRoleLabel(x.role))}${jv && jv.mand === x.o ? ' · Mandataire' : ''}${x.status !== 'actif' ? ' · suspendu' : ''}</small><small>${esc(modsTxt(x.mods))}</small></span>${canManage ? icon('more') : ''}</div>`).join('')}
+        </div>
+        ${canManage ? `<button class="btn" data-a="inv" style="margin-top:12px">${icon('plus')} Inviter une organisation</button>` : ''}
+        ${sh0 && isAdmin() ? `<button class="btn ghost danger" data-a="leave" style="margin-top:12px">Quitter ce projet</button>` : ''}
+        ${!canManage && !isAdmin() ? '<small class="muted">Seul un administrateur gère les organisations du projet.</small>' : ''}`;
+      const inv = $('[data-a=inv]', wrap); if (inv) inv.onclick = async () => { if (await partnerInvite(p, jv)) draw(); };
+      const jb = $('[data-a=jv]', wrap); if (jb) jb.onclick = async () => {
+        const opts = [{ value: ownerCid, label: ownerName + ' (titulaire)' }, ...L.map(x => ({ value: x.o, label: `${x.orgName || '?'} · ${partnerRoleLabel(x.role)}` }))];
+        const r = await formSheet('Groupement d\'entreprises (JV)', [{ name: 'name', label: 'Nom du groupement', value: (jv && jv.name) || '', placeholder: 'Ex : Groupement Atlas – Sahara' },
+          { name: 'mand', label: 'Mandataire (entreprise chef de file)', type: 'select', options: opts, value: (jv && jv.mand) || ownerCid }], { danger: jv && jv.name ? 'Supprimer le groupement' : null });
+        if (!r) return;
+        try { await withTimeout(ref.set({ jv: r.__danger ? { name: '', mand: '' } : { name: r.name || 'Groupement', mand: r.mand || ownerCid } }, { merge: true })); toast('Groupement enregistré ✓'); draw(); } catch (e) { alertBox(errMsg(e)); }
+      };
+      $$('[data-o]', wrap).forEach(row => row.onclick = async () => {
+        if (!canManage) return; const x = L.find(i => i.o === row.dataset.o); if (!x || x.o === S.cid) return;
+        const v = await menu(x.orgName || 'Organisation', [{ label: 'Modifier les accès', icon: 'edit', value: 'ed' }, { label: x.status === 'actif' ? 'Suspendre l\'accès' : 'Rétablir l\'accès', icon: 'close', value: 'st' }, { label: 'Retirer du projet', icon: 'trash', danger: true, value: 'rm' }]);
+        try {
+          if (v === 'ed') { const o = await partnerForm({ ...x, edit: true }); if (o) { await withTimeout(ref.collection('partners').doc(x.o).update({ role: o.role, mods: o.mods })); toast('Accès mis à jour ✓'); } }
+          if (v === 'st') { await withTimeout(ref.collection('partners').doc(x.o).update({ status: x.status === 'actif' ? 'suspendu' : 'actif' })); }
+          if (v === 'rm' && await confirmBox(`Retirer « ${x.orgName} » du projet ? Elle perd l'accès tout de suite. L'historique reste.`, 'Retirer')) await withTimeout(ref.collection('partners').doc(x.o).delete());
+          if (v) draw();
+        } catch (e) { alertBox(errMsg(e)); }
+      });
+      const lv = $('[data-a=leave]', wrap); if (lv) lv.onclick = async () => {
+        if (!await confirmBox(`« ${S.company.name} » quitte le projet « ${p.name || ''} » ? Vos membres n'y auront plus accès.`, 'Quitter')) return;
+        try { await withTimeout(ref.collection('partners').doc(S.cid).delete()); await withTimeout(fs.collection('companies').doc(S.cid).collection('shared').doc(p.id).delete()); await loadShared(); if (s) s.close(); toast('Projet quitté'); try { App.project = null; renderHome(); } catch (e) {} }
+        catch (e) { alertBox(errMsg(e)); }
+      };
+    };
+    await draw();
+  }
+  // ---------- historique du projet (qui a fait quoi, quand, dans quelle organisation) ----------
+  const ACT = { ajout: ['Ajout', '#22c55e'], modif: ['Modification', '#3b82f6'], suppr: ['Suppression', '#ef4444'], pv_soumis: ['PV soumis', '#f59e0b'], pv_valide: ['PV validé', '#22c55e'], pv_refuse: ['PV refusé', '#ef4444'] };
+  async function renderHistory(root) {
+    const p = App.project;
+    root.innerHTML = `<div class="pagehead"><h2>Historique</h2><p>Qui a ajouté, modifié ou supprimé — et quand</p></div><div class="st-hist"><div class="empty">Chargement…</div></div>`;
+    const box = $('.st-hist', root);
+    if (!S.ready) { box.innerHTML = '<div class="empty">L\'historique partagé est disponible avec un compte SiteTeam.</div>'; return; }
+    let L = [];
+    try { const q = await withTimeout(projRef(p.id).collection('audit').orderBy('srv', 'desc').limit(200).get(), 15000); L = q.docs.map(d => d.data()); }
+    catch (e) { box.innerHTML = `<div class="empty">${esc(errMsg(e))}<br>Connexion internet nécessaire pour l'historique.</div>`; return; }
+    let f = 'all';
+    const draw = () => {
+      const R = L.filter(x => f === 'all' || (f === 'me' ? x.org === S.cid : x.org !== S.cid));
+      let day = '';
+      box.innerHTML = `<div class="st-hf">${[['all', 'Tout'], ['me', 'Mon organisation'], ['ext', 'Autres organisations']].map(([k, l]) => `<button data-hf="${k}" class="${f === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+        ${R.length ? R.map(x => { const d = x.srv && x.srv.toDate ? x.srv.toDate() : new Date(), dl = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }), a = ACT[x.act] || ACT.modif;
+          const head = dl !== day ? `<div class="section-label">${esc(dl)}</div>` : ''; day = dl;
+          return `${head}<div class="st-hrow"><span class="st-state" style="--c:${a[1]}">${a[0]}</span><div class="grow"><b>${esc(AUD_STORE[x.store] || x.store || '')}${x.t ? ' · ' + esc(x.t) : ''}</b><small>${esc(x.byName || '?')} · ${esc(x.orgName || '')} · ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</small></div></div>`; }).join('')
+        : '<div class="empty">Aucune opération enregistrée pour l\'instant.<br>Les ajouts et modifications apparaissent ici après la synchronisation.</div>'}`;
+      $$('[data-hf]', box).forEach(b => b.onclick = () => { f = b.dataset.hf; draw(); });
     };
     draw();
   }
@@ -1466,7 +1714,7 @@ const Team = (() => {
     boot, push, pull, resetPull, lvl, canSection, canProject, isAdmin, openCompany, inviteFlow, logout, decorateSection, removeMember, refreshMembers,
     isSuper, superConsole, orgType, isPerso, companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, workspaces: () => S.workspaces || [],
     profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
-    openProjectShares, claimShare,
+    openProjectShares, claimShare, openPartners, renderHistory, sharedOf, joinWithCode,
     ready: () => S.ready, me: () => S.me, uid: () => S.user && S.user.uid, company: () => S.company, members: () => S.members, rules: FIRESTORE_RULES,
   };
 })();
