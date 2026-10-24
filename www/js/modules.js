@@ -88,7 +88,7 @@ async function checkUpdate(manual = false) {
   // licence avec une version figée par le titulaire : pas de proposition de mise à jour, on va sur SA version
   const LI = (typeof Lic !== 'undefined' && Lic.get()) || {}; if (LI.mode === 'user' && LI.ver) return pinnedUpdate(LI.ver, cur, manual);
   if (!manual) { let last = 0; try { last = +localStorage.getItem('upd.at') || 0; } catch (e) {} if (Date.now() - last < 15 * 60e3) return; }
-  if (navigator.onLine === false) { if (manual) toast('Pas de connexion internet'); return; }
+  if (navigator.onLine === false) { updState({ state: 'horsligne' }); if (manual) toast('Pas de connexion internet'); return; }
   const ld = manual ? loading('Recherche d\'une mise à jour…') : null;
   let rel = null;
   try {
@@ -97,12 +97,38 @@ async function checkUpdate(manual = false) {
   } catch (e) { console.warn('maj', e); }
   finally { if (ld) ld.close(); }
   try { localStorage.setItem('upd.at', String(Date.now())); } catch (e) {}
-  if (!rel || !rel.tag_name) { if (manual) toast('Impossible de vérifier (internet ?)'); return; }
+  if (!rel || !rel.tag_name) { updState({ state: 'echec' }); if (manual) toast('Impossible de vérifier (internet ?)'); return; }
   const latest = relVer(rel);
+  updState({ state: verCmp(latest, cur) > 0 ? 'nouvelle' : 'ajour', latest });
   if (verCmp(latest, cur) > 0) { window._updRel = rel; try { localStorage.setItem('updNotes', JSON.stringify({ v: latest, notes: rel.body || '' })); } catch (e) {} return showUpdate(latest, rel.body || ''); }
   if (manual) toast(`Application à jour ✓ (${cur})`);
 }
 
+// état de la dernière vérification (affiché dans « Version ») : à jour / nouvelle version / hors ligne / échec
+function updState(o) { try { localStorage.setItem('upd.state', JSON.stringify({ ...o, at: Date.now() })); } catch (e) {} }
+const UPD_LABEL = { ajour: ['À jour', '#22c55e'], nouvelle: ['Nouvelle version disponible', '#f59e0b'], horsligne: ['Hors ligne', '#94a3b8'], echec: ['Vérification impossible', '#ef4444'] };
+// version installée : paquet web (APP_VERSION) + application Android (versionName / versionCode) + source (APK ou mise à jour rapide)
+async function versionInfo() {
+  const P = window.Capacitor?.Plugins || {}, o = { web: APP_VERSION, android: null, build: null, ota: false };
+  try { if (P.App && P.App.getInfo) { const i = await P.App.getInfo(); o.android = i.version || null; o.build = i.build || null; } } catch (e) {}
+  try { const W = OTA_WV(); if (W && W.getServerBasePath) { const r = await W.getServerBasePath(); o.ota = /\/ota\//.test((r && r.path) || ''); } } catch (e) {}
+  let st = null; try { st = JSON.parse(localStorage.getItem('upd.state') || 'null'); } catch (e) {}
+  return { ...o, last: st };
+}
+async function showVersion() {
+  const draw = async (s) => {
+    const V = await versionInfo(), L = V.last, lab = L && UPD_LABEL[L.state];
+    s.el.querySelector('.ver-box').innerHTML = `<div class="tm-box"><b>Version de l'application</b>
+        <p>Version : <b>${esc(V.web.startsWith('__') ? 'développement' : V.web)}</b>${V.ota ? ' (mise à jour rapide)' : ''}</p>
+        ${V.android ? `<p>Application Android : ${esc(V.android)} · build ${esc(V.build || '—')}</p>` : ''}
+        <p>Dernière version publiée : ${L && L.latest ? '<b>' + esc(L.latest) + '</b>' : '—'}</p>
+        <p>État : ${lab ? `<span class="st-state" style="--c:${lab[1]}">${lab[0]}</span>` : 'pas encore vérifié'}${L ? ` <small class="muted">· ${new Date(L.at).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small>` : ''}</p></div>
+      <div class="btnrow" style="padding:0"><button class="btn" data-a="chk">${icon('upload')} Vérifier maintenant</button></div>`;
+    s.el.querySelector('[data-a=chk]').onclick = async () => { await checkUpdate(true); draw(s); };
+  };
+  const s = sheet('<div class="ver-box"><div class="empty">…</div></div>', { title: 'Version' });
+  await draw(s);
+}
 async function pinnedUpdate(ver, cur, manual) {
   if (ver === cur) { if (manual) toast(`Version fixée par le titulaire : v${ver} ✓`); return; }
   if (navigator.onLine === false) return;

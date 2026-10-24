@@ -250,7 +250,7 @@ async function renderHome() {
         { label: 'Fonctions affichées', sub: 'masquer ce qui ne sert pas', icon: 'grid', value: 'feat' }] },
       { title: 'Application', color: '#64748b', items: [
         { label: 'Rechercher une mise à jour', icon: 'upload', value: 'upd' },
-        { label: `Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}`, icon: 'settings', value: null }] },
+        { label: `Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}`, sub: 'état de la mise à jour', icon: 'settings', value: 'ver' }] },
     ]);
     if (v === 'brief') { const act = await briefingShow(); if (act) act(); }
     if (v === 'trash') { const ps = (await DB.all('projects')).filter(p => (p.trash || []).length); if (!ps.length) toast('La corbeille est vide'); else { const id = ps.length === 1 ? ps[0].id : await menu('Corbeille de quel chantier ?', ps.map(p => ({ label: `${p.name} · ${p.trash.length}`, icon: 'trash', value: p.id }))); if (id) openTrash(id); } }
@@ -261,6 +261,7 @@ async function renderHome() {
     if (v === 'pin') setPinDialog();
     if (v === 'feat') chooseMyFeatures();
     if (v === 'upd') checkUpdate(true);
+    if (v === 'ver') showVersion();
     if (v === 'pdf') openPdfTools();
     if (v === 'photo') photoStudioTool();
     if (v === 'name') askName();

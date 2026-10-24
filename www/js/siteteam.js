@@ -78,9 +78,9 @@ const ST = (() => {
 
   async function startPreview() {
     if (!ready() || !Team.isAdmin()) return toast('Réservé aux administrateurs');
-    const svc = await menu('Tester une interface : quel service ?', TM_SERVICES.map(s => ({ label: s.l, swatch: s.c, value: s.k })));
+    const svc = await menu('Tester une interface : quel service ?', TM_SERVICES.filter(s => !SERVICES_LEGACY.includes(s.k)).map(s => ({ label: s.l, swatch: s.c, value: s.k })));
     if (!svc) return;
-    const role = await menu(`${(TM_SERVICES.find(s => s.k === svc) || {}).l} : quel poste ?`, TM_ROLES.filter(r => r.s === svc).map(r => ({ label: r.l, value: r.k })));
+    const role = await menu(`${(TM_SERVICES.find(s => s.k === svc) || {}).l} : quel poste ?`, TM_ROLES.filter(r => r.s === svc && !ROLE_LEGACY[r.k]).map(r => ({ label: r.l, value: r.k })));
     if (!role) return;
     const pl = await menu('Avec quel pack ?', Object.values(PLANS).map(P => ({ label: `${P.e || ''} ${P.l} · ${planPrice(P)}`, value: P.k, checked: P.k === planOf((Team.company() || {}).plan || PLAN_DEFAULT_COMPANY).k })));
     if (!pl) return;
