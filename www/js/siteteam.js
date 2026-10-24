@@ -86,7 +86,7 @@ const ST = (() => {
     const team = (Team.members() || []).filter(m => m.managerUid && m.managerUid === me.uid).length, multi = Team.workspaces().length > 1;
     // contexte : où l'on travaille (espace · service · poste · projet) — le Dashboard se lit à partir de là
     return `<div class="st-ctx"><button class="st-wsc" data-a="st-ws"><span class="e">${esc(T.e)}</span><b>${esc(C.name || '')}</b><i>${multi ? '▾ changer' : '＋ espaces'}</i></button>
-        <div class="st-chips"><span>${esc(serviceOf(R.s === 'direction' && me.service ? me.service : R.s).l)}</span><span>${esc(R.l)}</span><button data-a="st-proj">Projet ▾</button></div></div>
+        <div class="st-chips"><span>${esc(serviceOf(PV.get() ? R.s : (me.service || R.s)).l)}</span><span>${esc(R.l)}</span><button data-a="st-proj">Projet ▾</button></div></div>
       ${team ? `<button class="st-team" data-a="st-team"><b>Mon équipe : ${team} personne(s)</b><small>sous ma responsabilité</small></button>` : ''}
       <div class="st-dash" data-stdash><div class="h2-sec"><span>Mon tableau de bord</span><small>${esc(T.e)} ${esc(R.l)}</small></div><div class="st-tiles"><div class="st-load">…</div></div></div>`;
   }

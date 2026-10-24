@@ -2462,7 +2462,8 @@ body:has(.pst-page) #plansFab, body:has(.rub-page) #plansFab, body:has(.scanpage
 
 /* ---------- v1.0.15 : tablette et ordinateur (même application, mise en page élargie) ---------- */
 @media (min-width: 600px) {
-  .home2 .h2-body, .home2 .h2-hero > * { max-width: 980px; margin-left: auto; margin-right: auto; width: 100%; }
+  .home2 .h2-body { max-width: 980px; margin-left: auto; margin-right: auto; width: 100%; }
+  .home2 .h2-hero { padding-left: max(16px, calc((100% - 980px) / 2)) !important; padding-right: max(16px, calc((100% - 980px) / 2)) !important; }
   .st-tiles { grid-template-columns: repeat(6, 1fr); }
   .es-grid { grid-template-columns: repeat(4, 1fr); }
   .st-types { grid-template-columns: repeat(4, 1fr); }
@@ -2472,7 +2473,8 @@ body:has(.pst-page) #plansFab, body:has(.rub-page) #plansFab, body:has(.scanpage
   .tm-page .tm-body, .tm-page .tm-tabs { max-width: 860px; margin-left: auto; margin-right: auto; width: 100%; }
 }
 @media (min-width: 1024px) {
-  .home2 .h2-body, .home2 .h2-hero > * { max-width: 1200px; }
+  .home2 .h2-body { max-width: 1200px; }
+  .home2 .h2-hero { padding-left: max(16px, calc((100% - 1200px) / 2)) !important; padding-right: max(16px, calc((100% - 1200px) / 2)) !important; }
   .es-grid { grid-template-columns: repeat(6, 1fr); }
   .st-orgs { grid-template-columns: repeat(4, 1fr); } .st-onb .tm-lg-in { max-width: 860px; }
   .st-packs { grid-template-columns: repeat(4, 1fr); }
