@@ -14,7 +14,12 @@ permissions:
   contents: write
 
 jobs:
+  # aucun APK ni mise à jour tant que les tests ne sont pas tous verts
+  tests:
+    uses: ./.github/workflows/siteteam-tests.yml
+
   build:
+    needs: tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
