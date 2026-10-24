@@ -39,9 +39,18 @@
       ];
       body.innerHTML = '<h1>Tableau de bord SiteTeam</h1><p>Référence ST-001 · Vue de transition reliée aux données locales du téléphone.</p>' +
         '<div class="st-v1-grid">'+cards.map(([name,val])=>'<div class="st-v1-card"><strong>'+escapeHtml(val)+'</strong><small>'+escapeHtml(name)+'</small></div>').join('')+'</div>'+
-        '<h2>Mes projets</h2><div class="st-v1-grid">'+(projects.length ? projects.slice(0,30).map(p=>'<div class="st-v1-card"><strong>'+escapeHtml(p.name||'Projet')+'</strong><small>'+escapeHtml(p.type||'Chantier')+'</small></div>').join('') : '<div class="st-v1-card">Aucun projet local</div>')+'</div>'+
+        '<h2>Mes projets</h2><label for="st-v1-search">Rechercher un projet</label><input id="st-v1-search" placeholder="Nom du chantier…" style="width:100%;padding:12px;margin:10px 0;background:#17243a;color:white;border:1px solid #556782;border-radius:9px"><div id="st-v1-projects" class="st-v1-grid">'+(projects.length ? projects.slice(0,30).map(p=>'<div class="st-v1-card"><strong>'+escapeHtml(p.name||'Projet')+'</strong><small>'+escapeHtml(p.type||'Chantier')+'</small></div>').join('') : '<div class="st-v1-card">Aucun projet local</div>')+'</div>'+
         '<h2>Architecture à venir</h2><div class="st-v1-pills"><span class="st-v1-pill">Entreprise</span><span class="st-v1-pill">Qualité</span><span class="st-v1-pill">Travaux</span><span class="st-v1-pill">Documents</span><span class="st-v1-pill">Groupement JV</span></div>'+
         '<div class="st-v1-note">Prévisualisation intégrée : les modules SaaS, comptes partagés et permissions serveur ne sont pas encore activés. Aucune donnée existante n’est modifiée.</div>';
+      const search = body.querySelector('#st-v1-search');
+      const list = body.querySelector('#st-v1-projects');
+      if (search && list) search.addEventListener('input', () => {
+        const q = search.value.trim().toLocaleLowerCase();
+        const matches = projects.filter(p => String(p.name || '').toLocaleLowerCase().includes(q)).slice(0, 30);
+        list.innerHTML = matches.length
+          ? matches.map(p => '<div class="st-v1-card"><strong>'+escapeHtml(p.name||'Projet')+'</strong><small>'+escapeHtml(p.type||'Chantier')+'</small></div>').join('')
+          : '<div class="st-v1-card">Aucun projet correspondant</div>';
+      });
     } catch(e) {
       body.textContent='Impossible de charger les données locales : '+String(e && e.message || e);
     }
