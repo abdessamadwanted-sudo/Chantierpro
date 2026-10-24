@@ -135,5 +135,18 @@ OK   titulaire : suspendre l'accès du partenaire
 OK   partenaire suspendu : REFUS de lecture
 OK   partenaire : quitter le projet
 OK   partenaire retiré : REFUS de lecture du projet
+OK   fichiers : le titulaire envoie un plan
+OK   fichiers : le titulaire lit le fichier
+OK   fichiers : REFUS pour un membre sans droit fichiers
+OK   fichiers : REFUS d'envoi sans droit fichiers
+OK   fichiers : le partenaire lit le fichier
+OK   fichiers : le partenaire envoie un fichier (Modifier)
+OK   fichiers : REFUS pour un membre du partenaire sans ce projet
+OK   fichiers : REFUS pour une organisation étrangère
+OK   fichiers : REFUS sans compte
+OK   fichiers : REFUS d'un fichier de plus de 50 Mo
+OK   fichiers : REFUS en dehors des projets
+OK   fichiers : le partenaire suspendu perd l'accès
+OK   fichiers : le titulaire supprime
 
-TOUT OK — 137 vérifications
+TOUT OK — 150 vérifications
