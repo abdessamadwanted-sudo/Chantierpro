@@ -14,7 +14,7 @@ const ST_POSTE = {
   respcentrale: ['log', 'dirlog'], pilotecentrale: ['log', 'logi'], laborantin: ['labo', 'techlab'], chefparc: ['log', 'logi'], chauffeur: ['log', 'logi'], pompiste: ['log', 'logi'],
   respmateriel: ['log', 'dirlog'], magmateriel: ['log', 'mag'], mecanicien: ['log', 'logi'], conducteurengin: ['log', 'logi'],
   cheftopo: ['etu', 'topo'], techtopo: ['etu', 'topo'], topoext: ['etu', 'topo'],
-  respqualite: ['qual', 'respq'], techqualite: ['qual', 'tsq'],
+  dirqualite: ['qual', 'dirq'], ingqualite: ['qual', 'ingq'], respqualite: ['qual', 'respq'], techqualite: ['qual', 'tsq'], ctrlqualite: ['qual', 'ctrl'],
   resphse: ['hse', 'resphse'], animhse: ['hse', 'anim'],
   metreur: ['etu', 'metreur'], bimmanager: ['etu', 'meth'], projeteur: ['etu', 'proj'],
   magasinier: ['log', 'mag'], resppointage: ['log', 'logi'], pointeur: ['log', 'logi'],
@@ -53,7 +53,10 @@ const ST = (() => {
   FEAT_MOD.career = null;   // emploi & carrière : hors SiteTeam
 
   function applyRole() {
-    const m = ST_POSTE[roleKey()]; if (!m || typeof Org === 'undefined') return;
+    if (typeof Org === 'undefined') return;
+    const k = roleKey(), m = ST_POSTE[k] || ST_POSTE[(tmRoleOf(k) || {}).like];
+    // pas de correspondance (ex. collaborateur) : pas d'ancien poste d'un autre espace
+    if (!m) { try { localStorage.removeItem('org.me'); } catch (e) {} Org.apply && Org.apply(); return; }
     const cur = Org.me(); if (!cur || cur.service !== m[0] || cur.poste !== m[1]) Org.set({ service: m[0], poste: m[1], at: todayISO(), st: roleKey() });
   }
   function banner() {
@@ -140,8 +143,10 @@ const ST = (() => {
     const team = (Team.members() || []).filter(m => m.managerUid && m.managerUid === me.uid).length, multi = Team.workspaces().length > 1;
     // contexte : où l'on travaille (espace · service · poste · projet) — le Dashboard se lit à partir de là
     return `<div class="st-ctx"><button class="st-wsc" data-a="st-ws"><span class="e">${esc(T.e)}</span><b>${esc(C.name || '')}</b><i>${multi ? '▾ changer' : '＋ espaces'}</i></button>
-        <div class="st-chips"><span>${esc(serviceOf(PV.get() ? R.s : (me.service || R.s)).l)}</span><span>${esc(R.l)}</span><button data-a="st-proj">Projet ▾</button></div></div>
+        <div class="st-chips">${Team.isCollab() && !PV.get() ? '<span>🤝 Projet partagé</span><span>Collaborateur</span>' : `<span>${esc(serviceOf(PV.get() ? R.s : (me.service || R.s)).l)}</span><span>${esc(R.l)}</span>`}<button data-a="st-proj">Projet ▾</button></div></div>
       ${team ? `<button class="st-team" data-a="st-team"><b>Mon équipe : ${team} personne(s)</b><small>sous ma responsabilité</small></button>` : ''}
+      ${(me.missions || []).length && !PV.get() ? `<div class="st-mbox"><b>Mes missions</b>${me.missions.map(x => `<div class="st-mis">• ${esc(x.t)}</div>`).join('')}</div>` : ''}
+      ${R.s === 'qualite' || Team.lvl('forms') >= 2 ? `<div class="st-qual" data-stq><div class="h2-sec"><span>Validation des PV</span></div><div class="st-qtiles">${['À valider', 'À corriger', 'Brouillons', 'Validés (7 j)'].map(l => `<div class="st-ps"><b>…</b><small>${l}</small></div>`).join('')}</div></div>` : ''}
       <div class="st-dash" data-stdash><div class="h2-sec"><span>Mon tableau de bord</span><small>${esc(T.e)} ${esc(R.l)}</small></div><div class="st-tiles"><div class="st-load">…</div></div></div>`;
   }
   async function dashBind(root) {
@@ -156,6 +161,11 @@ const ST = (() => {
         const p = L.find(x => x.id === id); if (p) openProject(p);
       };
     }
+    // validation des PV : compteurs du poste (ce que je dois valider, corriger, envoyer)
+    const qb = root && root.querySelector('[data-stq]');
+    if (qb) { DB.all('forms').then(F => { const me = Team.uid(), wk = Date.now() - 7 * 864e5;
+      const v = [F.filter(f => f.vst === 'soumis' && Team.canValidateForm(f)).length, F.filter(f => f.aut === me && f.vst === 'refuse').length, F.filter(f => f.aut === me && (!f.vst || f.vst === 'brouillon')).length, F.filter(f => f.vst === 'valide' && (f.vat || 0) > wk).length];
+      $$('.st-ps b', qb).forEach((b, i) => { b.textContent = v[i]; }); }).catch(() => {}); }
     const box = root && root.querySelector('[data-stdash] .st-tiles'); if (!box || typeof briefingData !== 'function') return;
     let cards = [];
     try { cards = (await briefingData()).cards.filter(c => !c.sc); } catch (e) { console.warn('dash', e); }
@@ -175,7 +185,11 @@ const ST = (() => {
       if (!(f in FEAT_MOD)) return lvl('projet') >= (ST_LEVELS[lv] || 2);
       const m = FEAT_MOD[f]; if (!m) return false;
       // menu de tous les jours : seulement les outils réellement autorisés (organisation + pack + poste) ; pas de 🔒 ici, le catalogue est à part
-      return orgHas(m) && planHas(m) && lvl(m) >= (ST_LEVELS[lv] || 2);
+      if (!(orgHas(m) && planHas(m) && lvl(m) >= (ST_LEVELS[lv] || 2))) return false;
+      // chaque poste a SON menu : les outils de son métier (sauf administrateur de l'organisation) — pour l'instant le service Qualité ;
+      // les autres services gardent leur menu actuel jusqu'à leur ouverture
+      if ((PV.get() || !Team.isAdmin()) && (tmRoleOf(roleKey()) || {}).s === 'qualite') { const P = Org.poste && Org.poste(); if (P && P.f !== '*' && Array.isArray(P.f) && !P.f.includes(f)) return false; }
+      return true;
     };
   }
   // formule : une fonction hors formule apparaît avec 🔒 (si le poste y a droit), sinon elle est masquée
@@ -272,6 +286,65 @@ const ST = (() => {
     await DB.put('projects', p); toast('Fiche projet enregistrée ✓'); return projectFiche(p);
   }
 
+  // ---------- validation d'un PV : Brouillon → Soumis → Validé / Refusé (motif) → corrigé et renvoyé ----------
+  const VST = { brouillon: ['Brouillon', '#94a3b8'], soumis: ['Soumis — à valider', '#f59e0b'], valide: ['Validé', '#22c55e'], refuse: ['Refusé — à corriger', '#ef4444'] };
+  const nameOf = (uid) => ((Team.members() || []).find(m => m.uid === uid) || {}).name || '';
+  function vChip(f) { const [l, c] = VST[f.vst || 'brouillon'] || VST.brouillon; return `<span class="st-state" style="--c:${c}">${l}</span>`; }
+  function vBox(f) {
+    if (!ready() || perso()) return '';
+    const me = Team.uid(), st = f.vst || 'brouillon', mine = !f.aut || f.aut === me, canV = Team.canValidateForm(f);
+    return `<div class="st-vbox">${vChip(f)}
+      ${f.vst === 'valide' ? `<small>Validé par ${esc(nameOf(f.vby) || '—')} le ${f.vat ? new Date(f.vat).toLocaleDateString('fr-FR') : ''}</small>` : ''}
+      ${f.vst === 'refuse' ? `<small>Refusé par ${esc(nameOf(f.vby) || '—')} : ${esc(f.vmotif || '')}</small>` : ''}
+      ${f.aut ? `<small>Auteur : ${esc(nameOf(f.aut) || '—')}</small>` : ''}
+      <div class="btnrow" style="padding:0">${mine && (st === 'brouillon' || st === 'refuse') ? '<button class="btn small" data-v="soumettre">Soumettre pour validation</button>' : ''}
+        ${canV && st === 'soumis' ? '<button class="btn small" data-v="valider">Valider</button><button class="btn ghost small" data-v="refuser">Refuser</button>' : ''}</div></div>`;
+  }
+  function vBind(el, f, save) {
+    if (!ready() || perso()) return;
+    const me = Team.uid(), canV = Team.canValidateForm(f);
+    // PV validé : en lecture seule pour qui ne peut pas valider
+    if (f.vst === 'valide' && !canV) $$('.content input, .content select, .content textarea, .content [data-res], .content [data-r]', el).forEach(x => { x.disabled = true; x.style.pointerEvents = 'none'; });
+    $$('[data-v]', el).forEach(b => b.onclick = async () => {
+      const a = b.dataset.v; f.vhist = f.vhist || [];
+      if (a === 'soumettre') { if (!f.aut) f.aut = me; f.vst = 'soumis'; f.vhist.push({ a: 'soumis', by: me, at: Date.now() }); }
+      if (a === 'valider') { if (!(await confirmBox('Valider ce PV ?', 'Valider'))) return; f.vst = 'valide'; f.vby = me; f.vat = Date.now(); f.vmotif = ''; f.vhist.push({ a: 'valide', by: me, at: f.vat }); }
+      if (a === 'refuser') { const r = await formSheet('Refuser le PV', [{ name: 'm', label: 'Motif (ce qu\'il faut corriger)', type: 'textarea' }], { okLabel: 'Refuser' }); if (!r || !r.m) return; f.vst = 'refuse'; f.vby = me; f.vat = Date.now(); f.vmotif = r.m; f.vhist.push({ a: 'refuse', by: me, at: f.vat, m: r.m }); }
+      await save(); toast(a === 'soumettre' ? 'PV envoyé pour validation ✓' : a === 'valider' ? 'PV validé ✓' : 'PV refusé — renvoyé à l\'auteur');
+      try { Sync.run({ quiet: true }).catch(() => {}); } catch (e) {}
+    });
+  }
+  // ---------- Archive & Documentation (qualité) : classement des documents du projet ----------
+  const DOC_CATS = [['paq', 'PAQ — Plan d\'assurance qualité', '📘'], ['proc', 'Procédures', '📑'], ['pc', 'Plans de contrôle', '🗂️'], ['ft', 'Fiches techniques et agréments', '🧾'],
+    ['pv', 'PV de réception', '✅'], ['labo', 'Rapports d\'essais labo', '🧪'], ['nc', 'NC et actions correctives', '⚠️'], ['visa', 'Visas', '🖋️'], ['audit', 'Audits', '🔍'], ['autre', 'Divers', '📎'], ['archive', 'Archives', '🗄️']];
+  async function renderDocs(root) {
+    const pid = App.project.id, all = (await DB.byProject('files', pid)).filter(f => f.role === 'doc' && f.docCat), cat = App.docCat;
+    const canW = Team.lvl('files') >= 2, inCat = (k) => all.filter(f => k === 'archive' ? f.archived : (!f.archived && f.docCat === k));
+    if (!cat) {
+      root.innerHTML = `<div class="pagehead"><h2>Documentation & archives</h2><p>Classement des documents du projet</p></div>
+        <div class="st-docs">${DOC_CATS.map(([k, l, e]) => `<button class="st-doc" data-c="${k}"><span class="e">${e}</span><b>${esc(l)}</b><small>${inCat(k).length} document(s)</small></button>`).join('')}</div>`;
+      $$('[data-c]', root).forEach(b => b.onclick = () => { App.docCat = b.dataset.c; renderDocs(root); });
+      return;
+    }
+    const C = DOC_CATS.find(x => x[0] === cat) || DOC_CATS[0], L = inCat(cat).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    root.innerHTML = `<div class="pagehead"><button class="linkbtn" data-a="up">← Tous les classements</button><h2>${C[2]} ${esc(C[1])}</h2></div>
+      ${L.length ? `<div class="list">${L.map(f => `<div class="row" data-id="${f.id}"><span>${icon('file')}</span><div class="grow"><div class="title">${esc(f.name || 'Document')}</div><div class="sub">${new Date(f.updatedAt || Date.now()).toLocaleDateString('fr-FR')}${f.archived ? ' · archivé' : ''}</div></div></div>`).join('')}</div>`
+        : `<div class="empty">Aucun document ici.${canW && cat !== 'archive' ? '<br>Appuyez sur <b>+</b> pour ajouter un PDF, une photo, un Word ou un Excel.' : ''}</div>`}`;
+    $('[data-a=up]', root).onclick = () => { App.docCat = null; renderDocs(root); };
+    $$('.row[data-id]', root).forEach(r => r.onclick = async () => { const f = L.find(x => x.id === r.dataset.id);
+      const v = await menu(f.name || 'Document', [{ label: 'Ouvrir', icon: 'file', value: 'open' }, ...(canW ? [{ label: f.archived ? 'Sortir des archives' : 'Archiver', icon: 'folder', value: 'arc' }, { label: 'Changer de classement', icon: 'edit', value: 'mv' }, { label: 'Supprimer', icon: 'trash', danger: true, value: 'del' }] : [])]);
+      if (v === 'open') return openFileRecord(f, f.name);
+      if (v === 'arc') { f.archived = !f.archived; await DB.put('files', f); }
+      if (v === 'mv') { const c = await menu('Classer dans', DOC_CATS.filter(x => x[0] !== 'archive').map(([k, l, e]) => ({ label: `${e} ${l}`, value: k, checked: k === f.docCat }))); if (c) { f.docCat = c; await DB.put('files', f); } }
+      if (v === 'del' && await confirmBox(`Supprimer « ${f.name} » ?`, 'Supprimer')) await DB.del('files', f.id);
+      renderDocs(root); });
+    if (canW && cat !== 'archive') fab(root, async () => {
+      const files = await pickFiles({ accept: '*/*', multiple: true }); if (!files || !files.length) return;
+      for (const file of files) await DB.put('files', { projectId: pid, blob: file, mime: mimeFromName(file.name, file.type), name: file.name, role: 'doc', docCat: cat, by: Team.uid() });
+      toast(`${files.length} document(s) ajouté(s) ✓`); renderDocs(root);
+    });
+  }
+
   function refreshRole() { applyRole(); try { App.project ? renderSection() : renderHome(); } catch (e) {} }
-  return { dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso };
+  return { dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
 })();

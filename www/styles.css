@@ -2514,3 +2514,16 @@ body:has(.pst-page) #plansFab, body:has(.rub-page) #plansFab, body:has(.scanpage
 .st-ws.pend { opacity: .8; border-style: dashed; }
 .st-tpl { display: flex; gap: 8px; margin: 4px 0 10px; } .st-tpl button { flex: 1; padding: 9px; border-radius: 10px; border: 1px solid rgba(148,163,184,.35); background: transparent; color: inherit; }
 .st-tpl button.on { border-color: #f5b82e; background: rgba(245,184,46,.14); }
+
+/* ---------- v1.0.18 : service Qualité (services fermés, missions, validation des PV, documentation) ---------- */
+.st-svcs button.lk { opacity: .45; border-style: dashed; } .st-lknote { display: block; color: #94a3b8; font-size: 12px; margin: -6px 0 10px; }
+.st-mbox { margin: 0 4px 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--card, #1e2430); display: grid; gap: 4px; }
+.st-mis { font-size: 13.5px; } .st-mis small { color: var(--muted); margin-left: 6px; font-size: 11.5px; }
+.st-qual { margin-bottom: 4px; } .st-qtiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 4px 14px; }
+@media (min-width: 600px) { .st-qtiles { grid-template-columns: repeat(4, 1fr); } }
+.st-vbox { display: grid; gap: 6px; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: rgba(148,163,184,.06); }
+.st-vbox small { color: var(--muted); font-size: 12.5px; } .st-vbox .st-state { margin-left: 0; justify-self: start; }
+.st-docs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 16px 16px; }
+.st-doc { display: grid; gap: 4px; text-align: left; padding: 14px 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--card, #1e2430); color: inherit; }
+.st-doc .e { font-size: 22px; } .st-doc b { font-size: 14px; line-height: 1.25; } .st-doc small { color: var(--muted); font-size: 12px; }
+@media (min-width: 600px) { .st-docs { grid-template-columns: repeat(3, 1fr); } }

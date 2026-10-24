@@ -20,6 +20,10 @@ async function signup(pg, name, email) {
   await pg.click('[data-a=go]'); await pg.waitForSelector('.tm-choice', { timeout: 20000 });
 }
 const shot = (pg, n) => pg.screenshot({ path: `${O}/${n}.png` });
+// services ouverts (config/services, écrite par le Super Admin) : tous ouverts pour les parcours existants, puis la valeur par défaut pour v1.0.18
+const SVC = 'http://127.0.0.1:8080/v1/projects/siteteam/databases/(default)/documents/config/services';
+const setSvcs = (L) => fetch(SVC, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { open: { arrayValue: { values: L.map(v => ({ stringValue: v })) } } } }) }).then(r => r.status);
+log('services ouverts (test)', await setSvcs(['*']));
 let A, B, C, D;
 try {
   // ---- patron
@@ -258,6 +262,55 @@ try {
   await A.pg.click('[data-t=inv]'); await A.pg.waitForTimeout(1500); await A.pg.click(`[data-del="${code7}"]`); await A.pg.waitForTimeout(400); await A.pg.click('.opt:has-text("Révoquer le code")'); await A.pg.waitForTimeout(1500);
   log('code révoqué', await A.pg.evaluate(async (c) => (await firebase.firestore().collection('invites').doc(c).get()).data().status, code7));
   log('errors v1.0.17', [...G.errs, ...C.errs]);
+  // ---- v1.0.18 : service Qualité — services fermés, organigramme qualité, missions, validation des PV, documentation
+  log('services par défaut', await setSvcs(['direction', 'qualite', 'externe', 'perso']));
+  const H = await newUser('H'); await signup(H.pg, 'Karima Qualité', 'karima@test.ma');
+  await H.pg.click('[data-a=create]'); await H.pg.waitForSelector('.st-offers'); await H.pg.click('[data-p=enterprise]'); await H.pg.waitForSelector('.st-orgs');
+  await H.pg.click('[data-o=entreprise]'); await H.pg.waitForSelector('.st-svcs'); await shot(H.pg, '60_services_fermes');
+  log('H services ouverts / fermés', await H.pg.evaluate(() => [[...document.querySelectorAll('.st-svcs [data-s]')].map(b => b.dataset.s + (b.classList.contains('on') ? '+' : '')), [...document.querySelectorAll('.st-svcs .lk')].map(b => b.dataset.lk)]));
+  await H.pg.click('.st-svcs .lk'); await H.pg.waitForTimeout(300);
+  log('H service fermé reste fermé', await H.pg.evaluate(() => document.querySelectorAll('.st-svcs .on.lk').length));
+  await H.pg.fill('[name=cname]', 'Qualité Maroc SA'); await H.pg.click('[data-a=go]'); await H.pg.waitForSelector('.home2', { timeout: 20000 }); await H.pg.waitForTimeout(800);
+  await H.pg.evaluate(async () => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); await DB.put('projects', { name: 'Viaduc Oued Bouregreg', type: 'pont', team: [] }); await Sync.run({ force: true }); }); await H.pg.waitForTimeout(1500);
+  log('H organisation', await H.pg.evaluate(() => [Team.plan().k, Team.company().services]));
+  await H.pg.evaluate(() => Team.openCompany('org')); await H.pg.waitForTimeout(1200); await H.pg.click('.tm-page [data-a=invite]'); await H.pg.waitForTimeout(500);
+  log('H postes qualité proposés', await H.pg.evaluate(() => [...document.querySelectorAll('[data-f=role] option')].filter(o => !o.disabled && o.closest('optgroup') && /qualit/i.test(o.closest('optgroup').label)).map(o => o.value)));
+  log('H postes fermés (désactivés)', await H.pg.evaluate(() => [...document.querySelectorAll('[data-f=role] option')].filter(o => o.disabled).length));
+  await H.pg.fill('[data-f=name]', 'Omar Technicien'); await H.pg.selectOption('[data-f=role]', 'techqualite'); await shot(H.pg, '61_invite_qualite');
+  await H.pg.click('.tm-form [data-a=ok]'); await H.pg.waitForSelector('.opt:has-text("Créer le code")', { timeout: 15000 }); await H.pg.click('.opt:has-text("Créer le code")'); await H.pg.waitForSelector('.opt:has-text("Fermer")', { timeout: 15000 }); await H.pg.waitForTimeout(300);
+  const codeQ = (await H.pg.textContent('.sheet:has(.opt:has-text("Fermer")) h3')).split(':').pop().trim(); await H.pg.click('.opt:has-text("Fermer")'); log('code technicien qualité', codeQ);
+  const I = await newUser('I'); await signup(I.pg, 'Omar Technicien', 'omar@test.ma');
+  await I.pg.click('[data-a=join]'); await I.pg.fill('[name=code]', codeQ); await I.pg.click('.sheet [data-a=ok]');
+  await I.pg.waitForSelector('[data-a=join-ok]', { timeout: 15000 }); await I.pg.click('[data-a=join-ok]'); await I.pg.waitForSelector('.home2', { timeout: 20000 });
+  await I.pg.evaluate(() => Sync.run({ force: true })); await I.pg.waitForTimeout(2500);
+  // missions : l'administrateur charge le technicien
+  await H.pg.evaluate(() => Team.refreshMembers()); await H.pg.waitForTimeout(800);
+  log('H mission', await H.pg.evaluate(async () => { const m = Team.members().find(x => x.name === 'Omar Technicien'); await firebase.firestore().collection('companies').doc(Team.company().id).collection('members').doc(m.uid).update({ missions: [{ t: 'Réception ferraillage pile P2', at: Date.now() }] }); return m.role; }));
+  await H.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); Team.openCompany('org'); }); await H.pg.waitForTimeout(1200); await shot(H.pg, '62_organigramme_qualite');
+  log('H gérer les postes', await H.pg.evaluate(() => !!document.querySelector('.tm-page [data-a=postes]')));
+  await I.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); location.reload(); }); await I.pg.waitForSelector('.home2', { timeout: 30000 }); await I.pg.waitForTimeout(1500);
+  await I.pg.evaluate(() => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await I.pg.waitForTimeout(800); await shot(I.pg, '63_dash_technicien');
+  log('I tableau de bord', await I.pg.evaluate(() => [Team.me().role, [...document.querySelectorAll('.st-mis')].map(x => x.textContent.trim()), !!document.querySelector('[data-stq]')]));
+  // PV : le technicien rédige et soumet, l'administrateur valide
+  await I.pg.evaluate(async () => { const p = (await DB.all('projects'))[0]; window.__pv = await DB.put('forms', { projectId: p.id, templateId: 'x', title: 'Réception ferraillage P2', location: 'Pile P2', date: todayISO(), inspector: '', notes: '', aut: Team.uid(), vst: 'brouillon', items: [{ label: 'Diamètres conformes', res: 'ok', comment: '' }], photoIds: [] }); openFormDetail(window.__pv); });
+  await I.pg.waitForSelector('[data-v=soumettre]', { timeout: 10000 }); await shot(I.pg, '64_pv_brouillon');
+  log('I peut valider son PV', await I.pg.evaluate(() => !!document.querySelector('[data-v=valider]')));
+  await I.pg.click('[data-v=soumettre]'); await I.pg.waitForTimeout(2500); await I.pg.evaluate(() => Sync.run({ force: true })); await I.pg.waitForTimeout(2000);
+  await H.pg.evaluate(() => Sync.run({ force: true })); await H.pg.waitForTimeout(2500);
+  await H.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await H.pg.waitForTimeout(1500); await shot(H.pg, '65_dash_validation');
+  log('H tuiles validation', await H.pg.evaluate(() => [...document.querySelectorAll('[data-stq] .st-ps')].map(x => x.textContent.trim())));
+  await H.pg.evaluate(async () => { const f = (await DB.all('forms'))[0]; openFormDetail(f); }); await H.pg.waitForSelector('[data-v=valider]', { timeout: 10000 }); await shot(H.pg, '66_pv_a_valider');
+  await H.pg.click('[data-v=valider]'); await H.pg.click('.opt:has-text("Valider")'); await H.pg.waitForTimeout(2500); await H.pg.evaluate(() => Sync.run({ force: true })); await H.pg.waitForTimeout(2000);
+  await I.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); return Sync.run({ force: true }); }); await I.pg.waitForTimeout(2500);
+  log('I PV après validation', await I.pg.evaluate(async () => { const f = (await DB.all('forms'))[0]; return [f.vst, f.vby === f.aut, (f.vhist || []).map(h => h.a)]; }));
+  await I.pg.evaluate(async () => { openFormDetail((await DB.all('forms'))[0]); }); await I.pg.waitForTimeout(1200); await shot(I.pg, '67_pv_valide_lecture');
+  log('I PV validé en lecture seule', await I.pg.evaluate(() => [...document.querySelectorAll('.fullpage .content input, .fullpage .content textarea')].every(x => x.disabled)));
+  log('I modification serveur refusée', await I.pg.evaluate(async () => { const pid = (await DB.all('projects'))[0].id, f = (await DB.all('forms'))[0]; try { await firebase.firestore().collection('companies').doc(Team.company().id).collection('projects').doc(pid).collection('m').doc('forms').collection('r').doc('forms__' + f.id).set({ store: 'forms', id: f.id, projectId: pid, aut: f.aut, vst: 'brouillon', data: '{}' }); return 'ALLOWED (BAD)'; } catch (e) { return 'denied OK: ' + e.code; } }));
+  // Documentation & archives
+  await H.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); await openProject((await DB.all('projects'))[0]); App.section = 'docq'; renderSection(); }); await H.pg.waitForTimeout(1000);
+  await H.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove())); await shot(H.pg, '68_documentation');
+  log('H classements', await H.pg.evaluate(() => [...document.querySelectorAll('.st-doc b')].map(x => x.textContent)));
+  log('errors v1.0.18', [...H.errs, ...I.errs]);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);

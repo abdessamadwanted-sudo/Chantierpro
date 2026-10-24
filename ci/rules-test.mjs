@@ -167,6 +167,49 @@ await t('collaborateur : REFUS d\'un administrateur', () => assertFails(own3.col
 await t('collaborateur : REFUS d\'un autre poste qu\'« collaborateur »', () => assertFails(own3.collection('invites').doc('COLLKO05').set(col('own3', 'pro1', { role: 'conducteur' }))));
 await t('collaborateur : REFUS en pack Basic', () => assertFails(own4.collection('invites').doc('COLLKO06').set(col('own4', 'bas1'))));
 
+// --- v1.0.18 : service Qualité — délégation en cascade, postes, validation des PV
+const Q = (f, e) => ({ ...ALL0, projet: 2, forms: f, equipe: e, files: 2 });
+await env.withSecurityRulesDisabled(async (c) => {
+  const co = c.firestore().collection('companies').doc('c5');
+  await co.set({ name: 'Qualité SA', ownerUid: 'adq', plan: 'enterprise', planStatus: 'essai' });
+  const M = (uid, d) => co.collection('members').doc(uid).set({ name: uid, admin: false, allProjects: false, projects: ['p5'], ...d });
+  await M('adq', { admin: true, perms: ALL4, allProjects: true, projects: [] });
+  await M('dq', { role: 'dirqualite', perms: Q(4, 4) });
+  await M('rq', { role: 'respqualite', perms: Q(3, 3), managerUid: 'dq' });
+  await M('rq2', { role: 'respqualite', perms: Q(3, 3), managerUid: 'dq' });
+  await M('tq', { role: 'techqualite', perms: Q(2, 1), managerUid: 'rq' });
+});
+const [adq, dq, rq, rq2, tq] = ['adq', 'dq', 'rq', 'rq2', 'tq'].map(nu);
+const pv = (db, id) => db.collection('companies').doc('c5').collection('projects').doc('p5').collection('m').doc('forms').collection('r').doc(id);
+const mb = (db, uid) => db.collection('companies').doc('c5').collection('members').doc(uid);
+const F0 = { t: 'PV béton', aut: 'tq', vst: 'brouillon' };
+await t('PV : le technicien crée un brouillon', () => assertSucceeds(pv(tq, 'pv1').set(F0)));
+await t('PV : le technicien soumet', () => assertSucceeds(pv(tq, 'pv1').set({ ...F0, vst: 'soumis' })));
+await t('PV : REFUS que l\'auteur valide son propre PV', () => assertFails(pv(tq, 'pv1').set({ ...F0, vst: 'valide', vby: 'tq' })));
+await t('PV : REFUS de créer un PV déjà validé', () => assertFails(pv(tq, 'pv9').set({ ...F0, vst: 'valide', vby: 'tq' })));
+await t('PV : REFUS de validation par un responsable qui n\'est pas le sien', () => assertFails(pv(rq2, 'pv1').set({ ...F0, vst: 'valide', vby: 'rq2' })));
+await t('PV : le responsable direct valide', () => assertSucceeds(pv(rq, 'pv1').set({ ...F0, vst: 'valide', vby: 'rq' })));
+await t('PV validé : REFUS de modification par l\'auteur', () => assertFails(pv(tq, 'pv1').set({ ...F0, vst: 'valide', vby: 'rq', t: 'modifié' })));
+await t('PV validé : REFUS de le remettre en brouillon par l\'auteur', () => assertFails(pv(tq, 'pv1').set({ ...F0, vst: 'brouillon' })));
+await t('PV : REFUS de changer l\'auteur', () => assertFails(pv(rq2, 'pv1').set({ ...F0, aut: 'rq2', vst: 'valide', vby: 'rq' })));
+await t('PV : le responsable direct refuse (motif)', async () => { await assertSucceeds(pv(tq, 'pv2').set({ ...F0, vst: 'soumis' })); await assertSucceeds(pv(rq, 'pv2').set({ ...F0, vst: 'refuse', vby: 'rq', vmotif: 'Photos manquantes' })); });
+await t('PV refusé : l\'auteur corrige et resoumet', () => assertSucceeds(pv(tq, 'pv2').set({ ...F0, vst: 'soumis', vmotif: 'Photos manquantes' })));
+await t('PV : le Directeur qualité (Administrer) valide', () => assertSucceeds(pv(dq, 'pv2').set({ ...F0, vst: 'valide', vby: 'dq' })));
+await t('PV : l\'administrateur valide', async () => { await assertSucceeds(pv(tq, 'pv3').set({ ...F0, vst: 'soumis' })); await assertSucceeds(pv(adq, 'pv3').set({ ...F0, vst: 'valide', vby: 'adq' })); });
+await t('PV : REFUS de valider au nom d\'un autre (vby)', async () => { await assertSucceeds(pv(tq, 'pv4').set({ ...F0, vst: 'soumis' })); await assertFails(pv(rq, 'pv4').set({ ...F0, vst: 'valide', vby: 'dq' })); });
+await t('délégation : le responsable ajuste les droits de son technicien (dans ses limites)', () => assertSucceeds(mb(rq, 'tq').update({ perms: Q(3, 1), missions: [{ t: 'Contrôle ferraillage', at: 1 }] })));
+await t('délégation : REFUS de donner plus que ses propres droits', () => assertFails(mb(rq, 'tq').update({ perms: Q(4, 1) })));
+await t('délégation : REFUS de nommer administrateur', () => assertFails(mb(rq, 'tq').update({ admin: true })));
+await t('délégation : REFUS de changer le poste', () => assertFails(mb(rq, 'tq').update({ role: 'respqualite' })));
+await t('délégation : REFUS de donner tous les projets', () => assertFails(mb(rq, 'tq').update({ allProjects: true })));
+await t('délégation : REFUS par un responsable qui n\'est pas le sien', () => assertFails(mb(rq2, 'tq').update({ missions: [{ t: 'x', at: 1 }] })));
+await t('délégation : REFUS de modifier ses propres droits', () => assertFails(mb(rq, 'rq').update({ perms: Q(4, 4) })));
+await t('délégation : le directeur délègue à son responsable', () => assertSucceeds(mb(dq, 'rq').update({ missions: [{ t: 'Plan de contrôle lot GO', at: 1 }] })));
+await t('postes : le Directeur qualité crée un poste', () => assertSucceeds(dq.collection('companies').doc('c5').collection('postes').doc('labq').set({ label: 'Laborantin', s: 'qualite', under: 'ingqualite' })));
+await t('postes : l\'administrateur renomme un poste', () => assertSucceeds(adq.collection('companies').doc('c5').collection('postes').doc('techqualite').set({ label: 'Technicien contrôle' })));
+await t('postes : REFUS par un technicien', () => assertFails(tq.collection('companies').doc('c5').collection('postes').doc('x').set({ label: 'X' })));
+await t('postes : un membre lit les postes', () => assertSucceeds(tq.collection('companies').doc('c5').collection('postes').get()));
+
 log(`\n${fails ? fails + ' ÉCHEC(S)' : 'TOUT OK'} — ${out.length} vérifications`);
 fs.writeFileSync(O + '/rules-test.txt', out.join('\n') + '\n');
 await env.cleanup();

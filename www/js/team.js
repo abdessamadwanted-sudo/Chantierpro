@@ -132,7 +132,9 @@ const TM_ROLES = [
   ['respmateriel', 'Responsable matériel', 'materiel', '1100202010200421'], ['magmateriel', 'Magasinier matériel', 'materiel', '1000201000200311'],
   ['mecanicien', 'Mécanicien', 'materiel', '1000201000200201'], ['conducteurengin', "Conducteur d'engins", 'materiel', '1000201000200101'],
   ['cheftopo', 'Chef topographe', 'topo', '2211222030241011'], ['techtopo', 'Technicien topographe', 'topo', '2100222020231011'], ['topoext', 'Topographe extérieur', 'topo', '1100220020221001'],
+  ['dirqualite', 'Directeur qualité', 'qualite', '3234343424311002'], ['ingqualite', 'Ingénieur qualité', 'qualite', '2233232323211001'],
   ['respqualite', 'Responsable qualité', 'qualite', '2233231310221112'], ['techqualite', 'Technicien qualité', 'qualite', '2133221210221111'],
+  ['ctrlqualite', 'Contrôleur qualité', 'qualite', '1122220100100001'],
   ['resphse', 'Responsable HSE', 'hse', '2120231300211114'], ['animhse', 'Animateur HSE', 'hse', '2120220200211113'],
   ['metreur', 'Métreur', 'metre', '1211111130211110'], ['bimmanager', 'BIM manager', 'bim', '2300100020210000'], ['projeteur', 'Projeteur', 'bim', '1200000010210000'],
   ['magasinier', 'Magasinier', 'logistique', '1000201000200311'], ['resppointage', 'Responsable pointage', 'logistique', '1000102002200041'], ['pointeur', 'Pointeur', 'logistique', '1000102002200031'],
@@ -144,11 +146,23 @@ const TM_ROLES = [
   ['respadmin', 'Responsable administratif & financier', 'admin', '2110111012200131'], ['comptable', 'Comptable / RH', 'admin', '1000011011200120'],
 ].map(([k, l, s, p, adm]) => ({ k, l, s, perms: Object.fromEntries(MODS.map(([m], i) => [m, +p[i] || 0])), admin: !!adm }));
 // module « finance » (ajouté avec les outils de Chantier) : accès par défaut selon le poste (les administrateurs ont tout)
-{ const FIN = { respadmin: 3, comptable: 2, dirtravaux: 3, conducteur: 1, condferraillage: 1, metreur: 3, respmateriel: 1, resppointage: 1, mo: 1, mod: 1, bet: 1 };
+{ const FIN = { dirqualite: 1, respadmin: 3, comptable: 2, dirtravaux: 3, conducteur: 1, condferraillage: 1, metreur: 3, respmateriel: 1, resppointage: 1, mo: 1, mod: 1, bet: 1 };
   TM_ROLES.forEach(r => { r.perms.finance = r.admin ? 4 : (FIN[r.k] || 0); }); }
+// rang hiérarchique dans le service (1 = le plus haut) : sert à l'organigramme, à la délégation et à la validation
+const ROLE_RANK = { dirqualite: 1, ingqualite: 2, respqualite: 3, techqualite: 4, ctrlqualite: 5 };
+TM_ROLES.forEach(r => { r.rank = ROLE_RANK[r.k] || (r.admin ? 1 : 3); });
+// services ouverts : on travaille service par service, les autres restent fermés (🔒) — liste modifiable par le Super Admin (config/services)
+let SERVICES_OPEN = ['direction', 'qualite', 'externe', 'perso'];
+const svcOpen = (k) => SERVICES_OPEN.includes('*') || SERVICES_OPEN.includes(k);
+// postes de l'organisation : postes de base (renommables, désactivables) + postes créés par l'organisation (companies/{cid}/postes)
+let ROLE_CFG = {}, ROLE_CUSTOM = [];
+const allRoles = () => [...TM_ROLES.filter(r => !(ROLE_CFG[r.k] || {}).disabled).map(r => (ROLE_CFG[r.k] && ROLE_CFG[r.k].l ? { ...r, l: ROLE_CFG[r.k].l } : r)), ...ROLE_CUSTOM.filter(r => !r.disabled)];
 const ROLE_PROPRIO = { k: 'proprietaire', l: 'Propriétaire de l\'espace', s: 'perso', perms: {}, admin: true };
 const ROLE_COLLAB = { k: 'collaborateur', l: 'Collaborateur (projet partagé)', s: 'perso', perms: {}, admin: false };
-const tmRoleOf = (k) => (k === 'proprietaire' ? ROLE_PROPRIO : k === 'collaborateur' ? ROLE_COLLAB : TM_ROLES.find(r => r.k === k) || { k, l: k, s: 'externe', perms: {}, admin: false });
+const tmRoleOf = (k) => { if (k === 'proprietaire') return ROLE_PROPRIO; if (k === 'collaborateur') return ROLE_COLLAB;
+  const c = ROLE_CUSTOM.find(r => r.k === k); if (c) return c;
+  const b = TM_ROLES.find(r => r.k === k); if (b) return ROLE_CFG[k] && ROLE_CFG[k].l ? { ...b, l: ROLE_CFG[k].l } : b;
+  return { k, l: k, s: 'externe', perms: {}, admin: false, rank: 9 }; };
 const metierOf = (k) => TM_ROLES.find(r => r.k === k) || null;
 const serviceOf = (k) => TM_SERVICES.find(s => s.k === k) || TM_SERVICES[TM_SERVICES.length - 1];
 // magasin local → module (sous-collection Firestore)
@@ -161,7 +175,7 @@ const modOf = (store, rec) => store === 'items' ? KIND_MOD[(rec || {}).kind] : S
 const SECTION_MOD = { avancement: 'projet', clauses: 'forms', gestion: 'materiel', finance: 'finance', tce: 'finance', avenants: 'finance', st: 'finance',
   planning: 'projet', reunions: 'forms', pointage: 'pointage', rfi: 'forms', visa: 'forms', labo: 'reception', hse: 'hse', org: 'equipe',
   dashboard: 'projet', plans: 'plans', tasks: 'reserves', reception: 'reception', beton: 'reception', photos: 'photos', forms: 'forms', reports: 'rapports',
-  constat: 'constats', models3d: 'plans', maquette: 'plans', calc: 'calc', team: 'equipe', settings: 'projet' };
+  constat: 'constats', models3d: 'plans', maquette: 'plans', calc: 'calc', team: 'equipe', settings: 'projet', docq: 'files' };
 
 const FIRESTORE_RULES = `rules_version = '2';
 service cloud.firestore {
@@ -175,6 +189,22 @@ service cloud.firestore {
     function canProj(cid, pid) { return mem(cid).allProjects == true || pid in mem(cid).projects; }
     function inv(code) { return get(/databases/$(db)/documents/invites/$(code)).data; }
     function invLive(code) { return inv(code).used == false && inv(code).get('status', 'valide') == 'valide' && (inv(code).get('expiresAt', null) == null || inv(code).expiresAt > request.time); }
+    function memOf(cid, u) { return get(/databases/$(db)/documents/companies/$(cid)/members/$(u)).data; }
+    // validation des PV (module forms) : brouillon → soumis par l'auteur ; validé / refusé seulement par un responsable
+    // (administrateur, niveau Administrer, ou niveau Valider ET responsable direct de l'auteur) — jamais par l'auteur lui-même
+    function validator(cid, d) {
+      return d.get('aut', '') != request.auth.uid && (isAdmin(cid) || lvl(cid, 'forms') >= 4
+        || (lvl(cid, 'forms') >= 3 && d.get('aut', '') != '' && exists(/databases/$(db)/documents/companies/$(cid)/members/$(d.aut))
+            && memOf(cid, d.aut).get('managerUid', '') == request.auth.uid));
+    }
+    function vOk(cid) {
+      let d = request.resource.data;
+      let n = d.get('vst', 'brouillon');
+      let o = resource == null ? 'brouillon' : resource.data.get('vst', 'brouillon');
+      return (resource == null || d.get('aut', '') == resource.data.get('aut', ''))
+        && ((o != 'valide' && (n == o || n == 'brouillon' || n == 'soumis'))
+          || (n in ['valide', 'refuse'] && d.get('vby', '') == request.auth.uid && validator(cid, d)));
+    }
     function co(cid) { return get(/databases/$(db)/documents/companies/$(cid)).data; }
     function maxLvl2(p) { return p.keys().hasOnly(['projet', 'plans', 'reserves', 'reception', 'photos', 'forms', 'rapports', 'constats', 'calc', 'equipe', 'files', 'topo', 'centrale', 'materiel', 'pointage', 'hse', 'finance']) && p.get('projet', 0) <= 2 && p.get('plans', 0) <= 2 && p.get('reserves', 0) <= 2 && p.get('reception', 0) <= 2 && p.get('photos', 0) <= 2 && p.get('forms', 0) <= 2 && p.get('rapports', 0) <= 2 && p.get('constats', 0) <= 2 && p.get('calc', 0) <= 2 && p.get('equipe', 0) <= 2 && p.get('files', 0) <= 2 && p.get('topo', 0) <= 2 && p.get('centrale', 0) <= 2 && p.get('materiel', 0) <= 2 && p.get('pointage', 0) <= 2 && p.get('hse', 0) <= 2 && p.get('finance', 0) <= 2; }
     // espace personnel : seulement des « collaborateurs » sur UN projet, au plus « Modifier », jamais admin, et seulement en pack Pro
@@ -278,7 +308,10 @@ service cloud.firestore {
               && request.resource.data.admin == inv(request.resource.data.invite).admin
               && request.resource.data.allProjects == inv(request.resource.data.invite).allProjects
               && request.resource.data.projects == inv(request.resource.data.invite).projects))));
-        allow update: if isAdmin(cid);
+        // délégation en cascade : le responsable direct ajuste les droits, projets, zone et missions de son équipe, sans dépasser les siens
+        allow update: if isAdmin(cid) || (isMem(cid) && uid != request.auth.uid && resource.data.get('managerUid', '') == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['perms', 'missions', 'projects', 'allProjects', 'zone'])
+          && permsWithin(cid, request.resource.data.perms) && projWithin(cid, request.resource.data));
         allow delete: if isAdmin(cid) || (signed() && uid == request.auth.uid);
       }
       // demandes d'accès (codes « avec approbation ») : la personne dépose sa demande, un administrateur accepte ou refuse
@@ -288,6 +321,11 @@ service cloud.firestore {
           && invLive(request.resource.data.code) && inv(request.resource.data.code).get('needsApproval', false) == true;
         allow read: if signed() && (uid == request.auth.uid || isAdmin(cid));
         allow update, delete: if isAdmin(cid);
+      }
+      // postes de l'organisation : administrateur ou niveau « Administrer » sur l'équipe (ex. Directeur qualité)
+      match /postes/{pk} {
+        allow read: if isMem(cid);
+        allow write: if isAdmin(cid) || (isMem(cid) && lvl(cid, 'equipe') >= 4);
       }
       match /private/{doc} {
         allow read: if isMem(cid);
@@ -300,7 +338,8 @@ service cloud.firestore {
         allow delete: if isAdmin(cid);
         match /m/{mod}/r/{rid} {
           allow read: if isMem(cid) && canProj(cid, pid) && lvl(cid, mod) >= 1;
-          allow write: if isMem(cid) && canProj(cid, pid) && lvl(cid, mod) >= 2;
+          allow create, update: if isMem(cid) && canProj(cid, pid) && lvl(cid, mod) >= 2 && (mod != 'forms' || vOk(cid));
+          allow delete: if isMem(cid) && canProj(cid, pid) && lvl(cid, mod) >= 2;
         }
       }
     }
@@ -358,7 +397,17 @@ const Team = (() => {
   function applyPlanCfg(cfg) { if (!cfg) return; for (const [k, v] of Object.entries(cfg)) { if (!v || typeof v !== 'object') continue; PLANS[k] = { ...(PLANS[k] || {}), ...v, k }; } }
   async function loadPlanCfg() {
     applyPlanCfg(LS.get('plansCfg'));
-    try { const d = await withTimeout(fs.collection('config').doc('plans').get(), 10000); if (d.exists) { LS.set('plansCfg', d.data()); applyPlanCfg(d.data()); } } catch (e) { console.warn('plans cfg', e); }
+    const so = LS.get('svcOpen'); if (Array.isArray(so)) SERVICES_OPEN = so;
+    try { const [d, sv] = await withTimeout(Promise.all([fs.collection('config').doc('plans').get(), fs.collection('config').doc('services').get()]), 10000);
+      if (d.exists) { LS.set('plansCfg', d.data()); applyPlanCfg(d.data()); }
+      if (sv.exists && Array.isArray(sv.data().open)) { SERVICES_OPEN = sv.data().open; LS.set('svcOpen', SERVICES_OPEN); } } catch (e) { console.warn('plans cfg', e); }
+  }
+  // postes de l'organisation (renommés, désactivés, créés)
+  async function loadPostes() {
+    const apply = (L) => { ROLE_CFG = {}; ROLE_CUSTOM = []; for (const x of L || []) { if (TM_ROLES.some(r => r.k === x.k)) ROLE_CFG[x.k] = x;
+      else { const B = tmRoleOf(x.like) || {}; ROLE_CUSTOM.push({ k: x.k, l: x.l, s: x.s, rank: x.rank || 9, like: x.like, perms: x.perms || B.perms || {}, admin: false, disabled: !!x.disabled, custom: true }); } } };
+    apply(LS.get('postes'));
+    try { const q = await withTimeout(fs.collection('companies').doc(S.cid).collection('postes').get(), 10000); const L = q.docs.map(d => ({ k: d.id, ...d.data() })); LS.set('postes', L); apply(L); } catch (e) { console.warn('postes', e); }
   }
   // limites du pack (appliquées dans l'application ; la vérification serveur viendra avec la facturation)
   async function checkLimit(kind) {
@@ -393,6 +442,13 @@ const Team = (() => {
     await loadMembership();
     auth.onAuthStateChanged(u => { if (!u && S.ready) { S.ready = false; location.reload(); } });
   }
+  // ---------- validation des PV ----------
+  function canValidateForm(f) {
+    if (!S.ready || !S.me || !f || f.aut === S.user.uid) return false;
+    if (S.me.admin || lvl('forms') >= 4) return true;
+    const a = (S.members || []).find(m => m.uid === f.aut);
+    return lvl('forms') >= 3 && !!a && a.managerUid === S.user.uid;
+  }
   // ---------- Workspace Switcher : un compte, plusieurs espaces (espace personnel, organisations) ----------
   // Sur le téléphone, chaque espace a sa propre base IndexedDB et ses propres repères de synchronisation (Drive, envoi, réception),
   // rangés à part quand on change d'espace : rien n'est déplacé, rien n'est mélangé.
@@ -407,7 +463,7 @@ const Team = (() => {
     bind(cid) {
       if (!WS.get('st.wsLegacy')) { WS.put('st.wsLegacy', cid); WS.put('st.wsCid', cid); }   // 1re ouverture : les données déjà présentes appartiennent à cet espace
       const cur = WS.get('st.wsCid');
-      if (cur !== cid) { WS.save(cur); WS.restore(cid); WS.put('st.wsCid', cid); ['company', 'me', 'members'].forEach(LS.del); }
+      if (cur !== cid) { WS.save(cur); WS.restore(cid); WS.put('st.wsCid', cid); ['company', 'me', 'members', 'postes'].forEach(LS.del); }
       const want = WS.dbFor(cid);
       if ((WS.get('st.db') || 'chantier') !== want || (typeof DB !== 'undefined' && DB.name && DB.name() !== want)) {
         WS.put('st.db', want === 'chantier' ? null : want);
@@ -477,6 +533,7 @@ const Team = (() => {
     } catch (e) { if (!S.me || S.me.uid !== S.user.uid) { await alertBox('Connexion impossible : ' + errMsg(e)); return loadMembership(); } }
     S.ready = true;
     await loadPlanCfg();
+    await loadPostes();
     try { if (!localStorage.getItem('userName') && S.me.name) localStorage.setItem('userName', S.me.name.split(' ')[0]); localStorage.setItem('askedName', '1'); } catch (e) {}
     await refreshMembers();
     saveWorkspace();
@@ -664,9 +721,11 @@ const Team = (() => {
       // 4 · services (modèle modifiable : on ne force pas 12 services à un petit entrepreneur)
       function stepSvcs() {
         const T = orgTypeOf(W.org), L = TM_SERVICES.filter(s => s.k !== 'externe');
+        W.svcs = W.svcs.filter(svcOpen); if (!W.svcs.includes('direction')) W.svcs.unshift('direction');
         el.innerHTML = `<div class="tm-lg-in">${steps(4, tot())}<h1>${T.e} ${esc(T.l)}</h1><p>Vos services : gardez seulement ceux que vous avez (modifiable plus tard dans Réglages).</p>
           <div class="seg st-tpl"><button data-tpl="petite">Petite entreprise</button><button data-tpl="grande">Grande entreprise</button></div>
-          <div class="st-svcs">${L.map(s => `<button data-s="${s.k}" class="${W.svcs.includes(s.k) ? 'on' : ''}" style="--c:${s.c}">${esc(s.l)}</button>`).join('')}</div>
+          <div class="st-svcs">${L.map(s => svcOpen(s.k) ? `<button data-s="${s.k}" class="${W.svcs.includes(s.k) ? 'on' : ''}" style="--c:${s.c}">${esc(s.l)}</button>` : `<button class="lk" data-lk="${s.k}" style="--c:${s.c}">🔒 ${esc(s.l)}</button>`).join('')}</div>
+          <small class="st-lknote">🔒 Services en préparation : ils s'ouvriront un par un.</small>
           <div class="form"><label>Nom de l'organisation<input name="cname" placeholder="Ex : ${T.k === 'entreprise' ? 'Entreprise BTP …' : esc(T.l) + ' …'}"></label>
           <label>Votre nom<input name="me" value="${esc(auth.currentUser.displayName || '')}"></label>
           ${T.k === 'entreprise' ? `<label>Votre poste<select name="role">${TM_ROLES.filter(x => x.admin).map(x => `<option value="${x.k}">${esc(x.l)}</option>`).join('')}</select></label>` : ''}
@@ -678,7 +737,8 @@ const Team = (() => {
           if (!W.svcs.includes(k) && maxS && W.svcs.length >= maxS) return toast(`Pack ${planOf(W.plan).l} : ${maxS} services au maximum`);
           W.svcs = W.svcs.includes(k) ? W.svcs.filter(x => x !== k) : [...W.svcs, k]; b.classList.toggle('on'); }; });
         // modèles : petite entreprise (3 services de base) ou grande entreprise (tout le modèle du type d'organisation) — modifiables ensuite
-        $$('[data-tpl]', el).forEach(b => b.onclick = () => { const full = orgTypeOf(W.org).svcs; W.svcs = b.dataset.tpl === 'petite' ? full.slice(0, 3) : [...full]; if (maxS && W.svcs.length > maxS) { W.svcs = W.svcs.slice(0, maxS); toast(`Pack ${planOf(W.plan).l} : ${maxS} services au maximum`); }
+        $$('[data-lk]', el).forEach(b => b.onclick = () => toast('🔒 Ce service ouvrira bientôt'));
+        $$('[data-tpl]', el).forEach(b => b.onclick = () => { const full = orgTypeOf(W.org).svcs.filter(svcOpen); W.svcs = b.dataset.tpl === 'petite' ? full.slice(0, 3) : [...full]; if (maxS && W.svcs.length > maxS) { W.svcs = W.svcs.slice(0, maxS); toast(`Pack ${planOf(W.plan).l} : ${maxS} services au maximum`); }
           $$('[data-s]', el).forEach(x => x.classList.toggle('on', W.svcs.includes(x.dataset.s))); $$('[data-tpl]', el).forEach(x => x.classList.toggle('on', x === b)); });
         back(stepOrg);
         $('[data-a=go]', el).onclick = () => { const cn = $('[name=cname]', el).value.trim(); if (!cn) return toast('Tapez le nom de l\'organisation');
@@ -718,7 +778,9 @@ const Team = (() => {
   const projRef = (pid) => fs.collection('companies').doc(S.cid).collection('projects').doc(pid);
   async function push(records) {
     if (!S.ready) return;
-    const ok = records.filter(r => { const m = modOf(r._store, r); return m && lvl(m) >= 2 && (r._store === 'projects' ? (canProject(r.id) || lvl('projet') >= 3) : canProject(r.projectId)); });
+    // un PV validé ne se renvoie que par un responsable (sinon le serveur refuserait tout le lot)
+    const ok = records.filter(r => { const m = modOf(r._store, r); return m && lvl(m) >= 2 && (r._store === 'projects' ? (canProject(r.id) || lvl('projet') >= 3) : canProject(r.projectId))
+      && !(r._store === 'forms' && (r.vst === 'valide' || r.vst === 'refuse') && r.vby !== S.user.uid && !canValidateForm(r)); });
     const skipped = records.length - ok.length;
     for (let i = 0; i < ok.length; i += 400) {
       const b = fs.batch();
@@ -726,7 +788,8 @@ const Team = (() => {
         const { _store, _deleted, ...rec } = r, mod = modOf(_store, r), pid = _store === 'projects' ? rec.id : rec.projectId;
         if (!pid) continue;
         const doc = projRef(pid).collection('m').doc(mod).collection('r').doc(`${_store}__${rec.id}`);
-        b.set(doc, { store: _store, id: rec.id, projectId: pid, kind: rec.kind || null, updatedAt: rec.updatedAt || Date.now(), deleted: !!_deleted, data: _deleted ? '' : JSON.stringify(rec), by: S.user.uid, srv: ts() });
+        b.set(doc, { store: _store, id: rec.id, projectId: pid, kind: rec.kind || null, updatedAt: rec.updatedAt || Date.now(), deleted: !!_deleted, data: _deleted ? '' : JSON.stringify(rec), by: S.user.uid, srv: ts(),
+          ...(_store === 'forms' ? { vst: rec.vst || 'brouillon', vby: rec.vby || '', aut: rec.aut || '' } : {}) });
         if (_store === 'projects') b.set(projRef(pid), { name: rec.name || '', address: rec.address || '', deleted: !!_deleted, updatedAt: rec.updatedAt || Date.now(), by: S.user.uid }, { merge: true });
       }
       await withTimeout(b.commit(), 45000);
@@ -961,10 +1024,11 @@ const Team = (() => {
       const av = (m) => `<span class="tm-av" style="background:${serviceOf(m.service).c}">${esc(String(m.name || m.email || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase())}</span>`;
       const card = (m) => `<button class="tm-mem" data-uid="${m.uid}">${av(m)}<span class="grow"><b>${esc(m.name || m.email)}</b><small>${esc(tmRoleOf(m.role).l)}${m.zone ? ' · ' + esc(m.zone) : ''}${m.admin ? ' · admin' : ''}</small></span>${m.uid === S.user.uid ? '<i class="tm-me">moi</i>' : ''}</button>`;
       if (tab === 'org') {
-        const rIdx = (m) => TM_ROLES.findIndex(r => r.k === m.role);
+        const rIdx = (m) => (tmRoleOf(m.role).rank || 9) * 1000 + TM_ROLES.findIndex(r => r.k === m.role);
         const tree = (list, parent, depth) => list.filter(m => (m.managerUid || null) === parent || (depth === 0 && m.managerUid && !list.some(x => x.uid === m.managerUid)))
           .sort((a, b) => rIdx(a) - rIdx(b)).map(m => `<div class="tm-node" style="--d:${depth}">${card(m)}</div>${tree(list, m.uid, depth + 1)}`).join('');
-        body.innerHTML = companyServices().map(s => { const L = M.filter(m => (m.service || tmRoleOf(m.role).s) === s.k); if (!L.length) return '';
+        const canPostes = isAdmin() || lvl('equipe') >= 4;
+        body.innerHTML = (canPostes && !perso ? `<div class="btnrow" style="padding:0 0 8px"><button class="btn ghost small" data-a="postes">${icon('settings')} Gérer les postes</button></div>` : '') + companyServices().map(s => { const L = M.filter(m => (m.service || tmRoleOf(m.role).s) === s.k); if (!L.length) return '';
           return `<div class="tm-svc"><div class="tm-svc-h" style="--c:${s.c}"><i></i>${s.l}<span>${L.length}</span></div>${tree(L, null, 0)}</div>`; }).join('') || '<div class="empty">Aucun membre.</div>';
       }
       if (tab === 'mem') body.innerHTML = `<div class="list">${M.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(m => `<div class="tm-row">${card(m)}<div class="tm-sub">${m.allProjects ? 'Tous les projets' : (m.projects || []).map(pname).join(', ') || 'Aucun projet'}${m.managerUid && byUid[m.managerUid] ? ' · sous ' + esc(byUid[m.managerUid].name) : ''}</div></div>`).join('')}</div>`;
@@ -1064,10 +1128,16 @@ const Team = (() => {
         $$('[data-shcode]', body).forEach(r => r.onclick = () => { const x = mine.find(i => i.code === r.dataset.shcode); if (x) viewSharedAccess(x.code, x); });
         $('[data-a=name]', body).onclick = async () => { const r = await formSheet('Mon nom', [{ name: 'n', label: 'Nom et prénom', value: S.me.name || '' }]); if (r && r.n) { try { await auth.currentUser.updateProfile({ displayName: r.n }); if (isAdmin()) await fs.collection('companies').doc(S.cid).collection('members').doc(S.user.uid).update({ name: r.n }); S.me.name = r.n; LS.set('me', S.me); toast('Enregistré ✓'); draw(); } catch (e) { alertBox(errMsg(e)); } } };
       }
+      const pb = $('[data-a=postes]', body); if (pb) pb.onclick = () => managePostes().then(draw);
       $$('[data-uid]', body).forEach(b => b.onclick = async () => {
-        const m = S.members.find(x => x.uid === b.dataset.uid); if (!isAdmin()) return showMember(m);
-        const v = m.uid === S.user.uid ? 'edit' : await menu(m.name || m.email, [{ label: 'Poste, projets et droits', icon: 'edit', value: 'edit' }, { label: 'Voir ses droits', icon: 'team', value: 'see' }, { label: 'Retirer de l\'entreprise', icon: 'trash', danger: true, value: 'del' }]);
+        const m = S.members.find(x => x.uid === b.dataset.uid);
+        // responsable direct (pas administrateur) : délégation de droits, missions
+        if (!isAdmin()) { if (m.managerUid !== S.user.uid) return showMember(m);
+          const v2 = await menu(m.name || m.email, [{ label: 'Missions', sub: 'ce dont la personne est chargée', icon: 'file', value: 'mis' }, { label: 'Droits et projets (délégation)', sub: 'sans dépasser les vôtres', icon: 'edit', value: 'del' }, { label: 'Voir', icon: 'team', value: 'see' }]);
+          if (v2 === 'see') showMember(m); if (v2 === 'mis' && await editMissions(m)) draw(); if (v2 === 'del' && await delegate(m, projects)) { await refreshMembers(); draw(); } return; }
+        const v = m.uid === S.user.uid ? 'edit' : await menu(m.name || m.email, [{ label: 'Poste, projets et droits', icon: 'edit', value: 'edit' }, { label: 'Missions', icon: 'file', value: 'mis' }, { label: 'Voir ses droits', icon: 'team', value: 'see' }, { label: 'Retirer de l\'entreprise', icon: 'trash', danger: true, value: 'del' }]);
         if (v === 'see') showMember(m);
+        if (v === 'mis' && await editMissions(m)) draw();
         if (v === 'edit' && await editMember(m, projects)) { await refreshMembers(); draw(); }
         if (v === 'del' && await removeMember(m)) { await refreshMembers(); draw(); }
       });
@@ -1075,7 +1145,65 @@ const Team = (() => {
     await refreshMembers(); draw();
   }
   const permTable = (P = {}) => `<div class="tm-perms">${MODS.filter(([m]) => m !== 'files').map(([m, l]) => `<div><span>${l}</span><b class="lv${P[m] || 0}">${LEVELS[P[m] || 0]}</b></div>`).join('')}</div>`;
-  function showMember(m) { const R = tmRoleOf(m.role); sheet(`<div class="tm-box tm-mecard"><div><b>${esc(m.name || '')}</b><small>${esc(m.email || '')}</small><small>${esc(R.l)} · ${esc(serviceOf(m.service).l)}${m.zone ? ' · ' + esc(m.zone) : ''}</small></div></div>${permTable(m.perms)}`, { title: m.name || 'Membre' }); }
+  const missionsHTML = (m) => (m.missions || []).length ? `<div class="tm-box"><b>Missions</b>${m.missions.map(x => `<div class="st-mis">• ${esc(x.t)}${x.by ? `<small>${esc((S.members.find(y => y.uid === x.by) || {}).name || '')}</small>` : ''}</div>`).join('')}</div>` : '';
+  function showMember(m) { const R = tmRoleOf(m.role), boss = S.members.find(x => x.uid === m.managerUid); sheet(`<div class="tm-box tm-mecard"><div><b>${esc(m.name || '')}</b><small>${esc(m.email || '')}</small><small>${esc(R.l)} · ${esc(serviceOf(m.service).l)}${m.zone ? ' · ' + esc(m.zone) : ''}</small>${boss ? `<small>Sous la responsabilité de ${esc(boss.name || boss.email)}</small>` : ''}</div></div>${missionsHTML(m)}${permTable(m.perms)}`, { title: m.name || 'Membre' }); }
+  // missions confiées par le responsable direct (ou un administrateur)
+  async function editMissions(m) {
+    let L = [...(m.missions || [])];
+    for (;;) {
+      const v = await menu(`Missions de ${m.name || m.email}`, [...L.map((x, i) => ({ label: x.t, icon: 'check', value: 'i' + i })), { label: 'Ajouter une mission', icon: 'plus', value: 'add' }, { label: 'Terminé', icon: 'close', value: 'ok' }]);
+      if (!v || v === 'ok') break;
+      if (v === 'add') { const r = await formSheet('Nouvelle mission', [{ name: 't', label: 'Mission', placeholder: 'Ex : Réception ferraillage Bloc A, suivi des essais labo…' }]); if (r && r.t) L.push({ t: r.t.trim(), by: S.user.uid, at: Date.now() }); continue; }
+      const i = +v.slice(1); if (await confirmBox(`Retirer « ${L[i].t} » ?`, 'Retirer')) L.splice(i, 1);
+    }
+    if (JSON.stringify(L) === JSON.stringify(m.missions || [])) return false;
+    try { await withTimeout(fs.collection('companies').doc(S.cid).collection('members').doc(m.uid).update({ missions: L })); m.missions = L; toast('Missions enregistrées ✓'); return true; } catch (e) { alertBox(errMsg(e)); return false; }
+  }
+  // délégation : le responsable ajuste les droits et projets de son équipe, sans dépasser les siens (le serveur vérifie)
+  async function delegate(m, projects) {
+    const mine = S.me.perms || {}, P = { ...(m.perms || {}) };
+    const r = await new Promise((resolve) => {
+      const sh = sheet(`<div class="form tm-form"><p class="muted" style="margin:0;font-size:12.5px">Vous pouvez donner jusqu'à votre propre niveau. Le poste ne change pas.</p>
+        ${MODS.map(([k, l]) => `<label class="tm-pl"><span>${esc(l)}</span><select data-dm="${k}">${LEVELS.map((x, i) => `<option value="${i}" ${(+P[k] || 0) === i ? 'selected' : ''} ${i > (mine[k] || 0) ? 'disabled' : ''}>${x}</option>`).join('')}</select></label>`).join('')}
+        <div class="fld">Projets</div>${projects.filter(p => S.me.allProjects || (S.me.projects || []).includes(p.id)).map(p => `<label class="tm-ck"><input type="checkbox" data-dp="${p.id}" ${m.allProjects || (m.projects || []).includes(p.id) ? 'checked' : ''}> ${esc(p.name)}</label>`).join('')}
+        <div class="btnrow" style="padding:0"><button class="btn ghost" data-a="c">Annuler</button><button class="btn" data-a="ok">Enregistrer</button></div></div>`, { title: `Délégation · ${m.name || m.email}` });
+      sh.onClose = () => resolve(null);
+      $('[data-a=c]', sh.el).onclick = () => sh.close();
+      $('[data-a=ok]', sh.el).onclick = () => { const np = { ...P }; $$('[data-dm]', sh.el).forEach(x => { np[x.dataset.dm] = Math.min(+x.value, mine[x.dataset.dm] || 0); });
+        sh.onClose = null; sh.close(); resolve({ perms: np, projects: $$('[data-dp]', sh.el).filter(x => x.checked).map(x => x.dataset.dp) }); };
+    });
+    if (!r) return false;
+    try { await withTimeout(fs.collection('companies').doc(S.cid).collection('members').doc(m.uid).update({ perms: r.perms, allProjects: false, projects: r.projects })); toast('Droits mis à jour ✓'); return true; } catch (e) { alertBox(errMsg(e)); return false; }
+  }
+  // postes : renommer / désactiver les postes de base, créer des postes (sous un poste existant) — services ouverts seulement
+  async function managePostes() {
+    for (;;) {
+      const L = [...TM_ROLES.filter(r => svcOpen(r.s) && r.s !== 'externe' && companyServices().some(x => x.k === r.s)).map(r => ({ ...r, ...(ROLE_CFG[r.k] || {}), base: true })), ...ROLE_CUSTOM.filter(r => svcOpen(r.s))]
+        .sort((a, b) => (a.s || '').localeCompare(b.s || '') || (a.rank || 9) - (b.rank || 9));
+      const v = await menu('Postes de l\'organisation', [...L.map(r => ({ label: `${'· '.repeat(Math.max(0, (r.rank || 3) - 1))}${r.l}${r.disabled ? ' (désactivé)' : ''}`, sub: `${serviceOf(r.s).l} · niveau ${r.rank || '—'}${r.custom ? ' · créé' : ''}`, icon: 'edit', value: r.k })), { label: 'Ajouter un poste', icon: 'plus', value: '__add' }, { label: 'Terminé', icon: 'close', value: '__ok' }]);
+      if (!v || v === '__ok') return;
+      const ref = (k) => fs.collection('companies').doc(S.cid).collection('postes').doc(k);
+      try {
+        if (v === '__add') {
+          const svs = companyServices().filter(x => svcOpen(x.k) && x.k !== 'externe' && x.k !== 'perso');
+          const r = await formSheet('Nouveau poste', [{ name: 'l', label: 'Nom du poste', placeholder: 'Ex : Chef de brigade qualité' },
+            { name: 's', label: 'Service', type: 'select', value: svs.some(x => x.k === 'qualite') ? 'qualite' : (svs[0] || {}).k, options: svs.map(x => ({ value: x.k, label: x.l })) },
+            { name: 'like', label: 'Sous le poste / interface de', type: 'select', value: 'respqualite', options: allRoles().filter(x => svcOpen(x.s) && !x.admin).map(x => ({ value: x.k, label: `${x.l} (niveau ${x.rank || '—'})` })) }], { okLabel: 'Créer le poste' });
+          if (!r || !r.l) continue;
+          const B = tmRoleOf(r.like), k = 'cp_' + Date.now().toString(36);
+          const perms = Object.fromEntries(MODS.map(([m]) => [m, Math.min((B.perms || {})[m] || 0, 3)]));
+          await ref(k).set({ l: r.l.trim(), s: r.s, like: r.like, rank: (B.rank || 3) + 1, perms, by: S.user.uid, at: ts() }); toast('Poste créé ✓');
+        } else {
+          const R = L.find(x => x.k === v), used = S.members.some(m => m.role === v);
+          const a = await menu(R.l, [{ label: 'Renommer', icon: 'edit', value: 'ren' }, { label: R.disabled ? 'Réactiver' : 'Désactiver (plus proposé aux invitations)', icon: 'eye', value: 'dis' }, ...(R.custom && !used ? [{ label: 'Supprimer', icon: 'trash', danger: true, value: 'rm' }] : [])]);
+          if (a === 'ren') { const r = await formSheet('Renommer le poste', [{ name: 'l', label: 'Nom', value: R.l }]); if (r && r.l) await ref(v).set({ l: r.l.trim() }, { merge: true }); }
+          if (a === 'dis') await ref(v).set({ disabled: !R.disabled }, { merge: true });
+          if (a === 'rm' && await confirmBox(`Supprimer le poste « ${R.l} » ?`, 'Supprimer')) await ref(v).delete();
+        }
+        await loadPostes();
+      } catch (e) { alertBox(errMsg(e)); }
+    }
+  }
   function copyText(t) { navigator.clipboard.writeText(t).then(() => toast('Copié ✓'), () => alertBox(t)); }
 
   // formulaire commun : rôle, responsable, projets, zone, droits
@@ -1084,15 +1212,15 @@ const Team = (() => {
       const lim = !isAdmin(), P = myPlan(), svcs = companyServices(), mine = S.me || {};
       const cap = (pp) => lim ? Object.fromEntries(MODS.map(([m]) => [m, Math.min(+pp[m] || 0, (mine.perms || {})[m] || 0)])) : pp;
       if (lim && !mine.allProjects) { projects = projects.filter(p => (mine.projects || []).includes(p.id)); if (o.allProjects) { o = { ...o, allProjects: false }; } }
-      const roles = TM_ROLES.filter(r => !(lim && r.admin));
+      const roles = allRoles().filter(r => !(lim && r.admin));
       // le poste PROPOSE des droits, plafonnés à « Valider » : « Administrer » et le statut d'administrateur se donnent à part, avec confirmation
       const tpl = (k) => cap(Object.fromEntries(MODS.map(([m]) => [m, Math.min(tmRoleOf(k).perms[m] || 0, 3)])));
-      if (!o.role) o = { ...o, role: (roles.find(r => svcs.some(x => x.k === r.s) && r.k === 'conducteur') || roles.find(r => svcs.some(x => x.k === r.s)) || roles[0]).k };
+      if (!o.role) o = { ...o, role: (roles.find(r => svcOpen(r.s) && svcs.some(x => x.k === r.s) && r.k === 'techqualite') || roles.find(r => svcOpen(r.s) && svcs.some(x => x.k === r.s) && !r.admin) || roles[0]).k };
       if (lim && o.managerUid == null) o = { ...o, managerUid: mine.uid };
       const st = { role: o.role || 'conducteur', managerUid: o.managerUid || '', allProjects: o.allProjects !== false && !(o.projects || []).length, projects: [...(o.projects || [])], zone: o.zone || '', name: o.name || '', admin: !lim && !!o.admin, perms: o.perms ? cap({ ...o.perms }) : tpl(o.role || 'conducteur'), custom: false };
       const s = sheet(`<div class="form tm-form">
         ${o.withName ? '<label>Nom (optionnel)<input data-f="name" placeholder="Ex : Youssef (chef de chantier zone 11)"></label>' : ''}
-        <label>Poste<select data-f="role">${svcs.map(sv => `<optgroup label="${esc(sv.l)}">${roles.filter(r => r.s === sv.k).map(r => `<option value="${r.k}">${esc(r.l)}</option>`).join('')}</optgroup>`).join('')}</select></label>
+        <label>Poste<select data-f="role">${svcs.map(sv => `<optgroup label="${svcOpen(sv.k) ? '' : '🔒 '}${esc(sv.l)}">${roles.filter(r => r.s === sv.k).sort((a, b) => (a.rank || 9) - (b.rank || 9)).map(r => `<option value="${r.k}" ${!svcOpen(sv.k) && r.k !== o.role ? 'disabled' : ''}>${esc(r.l)}</option>`).join('')}</optgroup>`).join('')}</select></label>
         <div ${P.hier ? '' : 'hidden'}><label>Responsable direct<select data-f="managerUid"><option value="">— aucun —</option>${S.members.filter(m => m.uid !== o.uid).map(m => `<option value="${m.uid}">${esc(m.name || m.email)} · ${esc(tmRoleOf(m.role).l)}</option>`).join('')}</select></label>
         <label>Zone / lot / niveau (périmètre)<input data-f="zone" placeholder="Ex : Zone 11, Lot gros œuvre…"></label></div>
         <div class="fld">Projets</div><label class="tm-ck" ${lim && !mine.allProjects ? 'hidden' : ''}><input type="checkbox" data-all> Tous les projets (actuels et futurs)</label>
@@ -1337,7 +1465,7 @@ const Team = (() => {
   return {
     boot, push, pull, resetPull, lvl, canSection, canProject, isAdmin, openCompany, inviteFlow, logout, decorateSection, removeMember, refreshMembers,
     isSuper, superConsole, orgType, isPerso, companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, workspaces: () => S.workspaces || [],
-    profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab,
+    profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
     openProjectShares, claimShare,
     ready: () => S.ready, me: () => S.me, uid: () => S.user && S.user.uid, company: () => S.company, members: () => S.members, rules: FIRESTORE_RULES,
   };
