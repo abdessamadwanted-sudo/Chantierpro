@@ -186,8 +186,9 @@ const ST = (() => {
       const m = FEAT_MOD[f]; if (!m) return false;
       // menu de tous les jours : seulement les outils réellement autorisés (organisation + pack + poste) ; pas de 🔒 ici, le catalogue est à part
       if (!(orgHas(m) && planHas(m) && lvl(m) >= (ST_LEVELS[lv] || 2))) return false;
-      // chaque poste a SON menu : les outils de son métier (sauf administrateur de l'organisation)
-      if (PV.get() || !Team.isAdmin()) { const P = Org.poste && Org.poste(); if (P && P.f !== '*' && Array.isArray(P.f) && !P.f.includes(f)) return false; }
+      // chaque poste a SON menu : les outils de son métier (sauf administrateur de l'organisation) — pour l'instant le service Qualité ;
+      // les autres services gardent leur menu actuel jusqu'à leur ouverture
+      if ((PV.get() || !Team.isAdmin()) && (tmRoleOf(roleKey()) || {}).s === 'qualite') { const P = Org.poste && Org.poste(); if (P && P.f !== '*' && Array.isArray(P.f) && !P.f.includes(f)) return false; }
       return true;
     };
   }
