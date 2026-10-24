@@ -1,0 +1,50 @@
+name: Tests SiteTeam
+
+# Lancé sur chaque Pull Request vers « siteteam », et avant chaque construction de l'APK (Build SiteTeam).
+# Si un seul test échoue, la Pull Request est rouge et aucun APK / mise à jour n'est publié.
+on:
+  pull_request:
+    branches: [siteteam]
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - name: Syntaxe JavaScript
+        run: for f in www/js/*.js; do node --check "$f" || exit 1; done
+      - name: Outils de test
+        run: npm i -g firebase-tools@13 && npm i --no-save playwright@1.47.2 @firebase/rules-unit-testing@3 firebase@10.14.1 && npx playwright install --with-deps chromium
+      - name: Règles Firestore et Storage (extraites de team.js)
+        run: node ci/rules.mjs && test -s ci/firestore.rules && test -s ci/storage.rules
+      - name: Tests (émulateurs Firebase + parcours complet)
+        run: |
+          mkdir -p ci-out
+          [ -f www/vendor/firebase/firebase-storage-compat.js ] || cp node_modules/firebase/firebase-storage-compat.js www/vendor/firebase/
+          cd ci && (firebase emulators:start --only auth,firestore,storage --project siteteam > ../emu.log 2>&1 &) && cd ..
+          for i in $(seq 1 60); do curl -s 127.0.0.1:8080 >/dev/null && curl -s 127.0.0.1:9099 >/dev/null && curl -s 127.0.0.1:9199 >/dev/null && break; sleep 2; done
+          (cd www && python3 -m http.server 8765 > /dev/null 2>&1 &)
+          sleep 2
+          node ci/rules-test.mjs || true
+          node ci/db-test.mjs || true
+          node ci/st.mjs || true
+          tail -40 emu.log > ci-out/emu.txt || true
+      - name: Résultats (captures d'écran et journaux)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resultats-tests
+          path: ci-out
+          retention-days: 14
+      - name: Verdict
+        run: node ci/verdict.mjs
