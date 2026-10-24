@@ -1,0 +1,19 @@
+anciennes règles chargées 200
+v1.0.20 A accueil affiché 1 texte SITETEAM 🏗️ Directeur de projet Bonsoir, Abdessamad 👷 Le temps de faire le bilan du jour 📊 Samedi 24 octobre 🏗️ BTP 
+v1.0.20 A après synchro, accueil 1
+v1.0.20 A erreurs ["console: Failed to load resource: the server responded with a status of 404 (File not found)","console: Failed to load resource: the server responded with a status of 404 (File not found)"]
+v1.0.20 H accueil affiché 1 texte SITETEAM 🏗️ Directeur de projet Bonsoir, Karima 👷 Le temps de faire le bilan du jour 📊 Samedi 24 octobre 🏗️ Qualité 
+v1.0.20 H après synchro, accueil 1
+v1.0.20 H erreurs ["console: Failed to load resource: the server responded with a status of 404 (File not found)","console: Failed to load resource: the server responded with a status of 404 (File not found)"]
+v1.0.20 G accueil affiché 1 texte SITETEAM 👷 Chef topographe Bonsoir, Nadia 👷 Le temps de faire le bilan du jour 📊 Samedi 24 octobre 👷 Espace personne
+v1.0.20 G après synchro, accueil 1
+v1.0.20 G erreurs ["console: Failed to load resource: the server responded with a status of 404 (File not found)","console: Failed to load resource: the server responded with a status of 404 (File not found)"]
+v1.0.21 A accueil affiché 1 texte SITETEAM 🏗️ Directeur de projet Bonsoir, Abdessamad 👷 Le temps de faire le bilan du jour 📊 Samedi 24 octobre 🏗️ BTP 
+v1.0.21 A après synchro, accueil 1
+v1.0.21 A erreurs ["console: Failed to load resource: the server responded with a status of 404 (File not found)","console: Failed to load resource: the server responded with a status of 404 (File not found)"]
+v1.0.21 H accueil affiché 1 texte SITETEAM 🏗️ Directeur de projet Bonsoir, Karima 👷 Le temps de faire le bilan du jour 📊 Samedi 24 octobre 🏗️ Qualité 
+v1.0.21 H après synchro, accueil 1
+v1.0.21 H erreurs ["console: Failed to load resource: the server responded with a status of 404 (File not found)","console: Failed to load resource: the server responded with a status of 404 (File not found)"]
+v1.0.21 G accueil affiché 1 texte SITETEAM 👷 Chef topographe Bonsoir, Nadia 👷 Le temps de faire le bilan du jour 📊 Samedi 24 octobre 👷 Espace personne
+v1.0.21 G après synchro, accueil 1
+v1.0.21 G erreurs ["console: Failed to load resource: the server responded with a status of 404 (File not found)","console: Failed to load resource: the server responded with a status of 404 (File not found)"]
