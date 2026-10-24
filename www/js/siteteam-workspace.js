@@ -1,6 +1,8 @@
 // SiteTeam V1 integration: opt-in workspace preview, no migration or data writes.
 (() => {
   'use strict';
+  const SITE_BUILD = 'ST-002';
+  const installedVersion = () => typeof APP_VERSION === 'string' ? APP_VERSION : 'Inconnue';
   const css = document.createElement('style');
   css.textContent = `
 #st-v1-open{position:fixed;right:14px;bottom:85px;z-index:8999;border:0;border-radius:30px;padding:11px 16px;background:#2563eb;color:#fff;font:600 14px system-ui;box-shadow:0 6px 18px #0005}
@@ -22,7 +24,7 @@
     if (document.getElementById('st-v1-overlay')) return;
     const root = document.createElement('div');
     root.id = 'st-v1-overlay';
-    root.innerHTML = '<div class="st-v1-head"><strong>SiteTeam · Workspace V1</strong><button type="button" id="st-v1-close">Retour</button></div><div class="st-v1-content" id="st-v1-body">Chargement…</div>';
+    root.innerHTML = '<div class="st-v1-head"><strong>SiteTeam · '+SITE_BUILD+'</strong><button type="button" id="st-v1-close">Retour</button></div><div class="st-v1-content" id="st-v1-body">Chargement…</div>';
     document.body.appendChild(root);
     root.querySelector('#st-v1-close').onclick = () => root.remove();
     const body = root.querySelector('#st-v1-body');
@@ -37,7 +39,7 @@
         ['Service actuel', members?.service || 'Non défini'],
         ['Poste actuel', members?.poste || 'Non défini']
       ];
-      body.innerHTML = '<h1>Tableau de bord SiteTeam</h1><p>Référence ST-001 · Vue de transition reliée aux données locales du téléphone.</p>' +
+      body.innerHTML = '<h1>Tableau de bord SiteTeam</h1><p>Version installée : '+escapeHtml(installedVersion())+' · Développement : '+SITE_BUILD+'</p><p>Vue de transition reliée aux données locales du téléphone.</p>' +
         '<div class="st-v1-grid">'+cards.map(([name,val])=>'<div class="st-v1-card"><strong>'+escapeHtml(val)+'</strong><small>'+escapeHtml(name)+'</small></div>').join('')+'</div>'+
         '<h2>Mes projets</h2><label for="st-v1-search">Rechercher un projet</label><input id="st-v1-search" placeholder="Nom du chantier…" style="width:100%;padding:12px;margin:10px 0;background:#17243a;color:white;border:1px solid #556782;border-radius:9px"><div id="st-v1-projects" class="st-v1-grid">'+(projects.length ? projects.slice(0,30).map(p=>'<div class="st-v1-card"><strong>'+escapeHtml(p.name||'Projet')+'</strong><small>'+escapeHtml(p.type||'Chantier')+'</small></div>').join('') : '<div class="st-v1-card">Aucun projet local</div>')+'</div>'+
         '<h2>Architecture à venir</h2><div class="st-v1-pills"><span class="st-v1-pill">Entreprise</span><span class="st-v1-pill">Qualité</span><span class="st-v1-pill">Travaux</span><span class="st-v1-pill">Documents</span><span class="st-v1-pill">Groupement JV</span></div>'+
@@ -57,7 +59,7 @@
   }
   function boot(){
     if(document.getElementById('st-v1-open'))return;
-    const b=document.createElement('button');b.id='st-v1-open';b.type='button';b.textContent='SiteTeam V1 · ST-001';b.onclick=openWorkspace;document.body.appendChild(b);
+    const b=document.createElement('button');b.id='st-v1-open';b.type='button';b.textContent='SiteTeam '+SITE_BUILD;b.onclick=openWorkspace;document.body.appendChild(b);
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
