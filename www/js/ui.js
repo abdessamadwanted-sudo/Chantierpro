@@ -571,3 +571,11 @@ async function rotateFile(id, quarter = 1) {   // quarter : +1 = droite, -1 = ga
   const start = () => { add(document.body); new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) add(n); }))).observe(document.body, { childList: true, subtree: true }); };
   if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
 })();
+
+// Logo d'origine de SiteTeam (le même que l'icône et l'écran d'ouverture) : cercle bleu, casque, équipe
+function stLogo(cls = '') {
+  return `<svg class="st-logo ${cls}" viewBox="182 182 660 660" aria-label="SiteTeam" role="img"><circle cx="512" cy="512" r="330" fill="#2563eb"/>
+    <g fill="#fff"><path d="M315 530A200 180 0 0 1 490 353V540H315Z"/><path d="M535 353A200 180 0 0 1 710 530H535Z"/><rect x="252" y="528" width="520" height="58" rx="29"/>
+    <circle cx="412" cy="650" r="31"/><circle cx="512" cy="650" r="31"/><circle cx="612" cy="650" r="31"/>
+    <path d="M360 743A52 52 0 0 1 464 743Z"/><path d="M460 743A52 52 0 0 1 564 743Z"/><path d="M560 743A52 52 0 0 1 664 743Z"/></g></svg>`;
+}

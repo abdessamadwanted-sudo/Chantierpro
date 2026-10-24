@@ -147,7 +147,8 @@ const TM_ROLES = [
 { const FIN = { respadmin: 3, comptable: 2, dirtravaux: 3, conducteur: 1, condferraillage: 1, metreur: 3, respmateriel: 1, resppointage: 1, mo: 1, mod: 1, bet: 1 };
   TM_ROLES.forEach(r => { r.perms.finance = r.admin ? 4 : (FIN[r.k] || 0); }); }
 const ROLE_PROPRIO = { k: 'proprietaire', l: 'Propriétaire de l\'espace', s: 'perso', perms: {}, admin: true };
-const tmRoleOf = (k) => (k === 'proprietaire' ? ROLE_PROPRIO : TM_ROLES.find(r => r.k === k) || { k, l: k, s: 'externe', perms: {}, admin: false });
+const ROLE_COLLAB = { k: 'collaborateur', l: 'Collaborateur (projet partagé)', s: 'perso', perms: {}, admin: false };
+const tmRoleOf = (k) => (k === 'proprietaire' ? ROLE_PROPRIO : k === 'collaborateur' ? ROLE_COLLAB : TM_ROLES.find(r => r.k === k) || { k, l: k, s: 'externe', perms: {}, admin: false });
 const metierOf = (k) => TM_ROLES.find(r => r.k === k) || null;
 const serviceOf = (k) => TM_SERVICES.find(s => s.k === k) || TM_SERVICES[TM_SERVICES.length - 1];
 // magasin local → module (sous-collection Firestore)
@@ -173,7 +174,12 @@ service cloud.firestore {
     function lvl(cid, m) { return mem(cid).perms.get(m, 0); }
     function canProj(cid, pid) { return mem(cid).allProjects == true || pid in mem(cid).projects; }
     function inv(code) { return get(/databases/$(db)/documents/invites/$(code)).data; }
-    function invLive(code) { return inv(code).used == false && (inv(code).get('expiresAt', null) == null || inv(code).expiresAt > request.time); }
+    function invLive(code) { return inv(code).used == false && inv(code).get('status', 'valide') == 'valide' && (inv(code).get('expiresAt', null) == null || inv(code).expiresAt > request.time); }
+    function co(cid) { return get(/databases/$(db)/documents/companies/$(cid)).data; }
+    function maxLvl2(p) { return p.keys().hasOnly(['projet', 'plans', 'reserves', 'reception', 'photos', 'forms', 'rapports', 'constats', 'calc', 'equipe', 'files', 'topo', 'centrale', 'materiel', 'pointage', 'hse', 'finance']) && p.get('projet', 0) <= 2 && p.get('plans', 0) <= 2 && p.get('reserves', 0) <= 2 && p.get('reception', 0) <= 2 && p.get('photos', 0) <= 2 && p.get('forms', 0) <= 2 && p.get('rapports', 0) <= 2 && p.get('constats', 0) <= 2 && p.get('calc', 0) <= 2 && p.get('equipe', 0) <= 2 && p.get('files', 0) <= 2 && p.get('topo', 0) <= 2 && p.get('centrale', 0) <= 2 && p.get('materiel', 0) <= 2 && p.get('pointage', 0) <= 2 && p.get('hse', 0) <= 2 && p.get('finance', 0) <= 2; }
+    // espace personnel : seulement des « collaborateurs » sur UN projet, au plus « Modifier », jamais admin, et seulement en pack Pro
+    function persoOK(d) { return co(d.cid).get('kind', 'org') != 'perso' || (d.admin == false && d.allProjects == false && d.projects.size() == 1
+      && d.role == 'collaborateur' && co(d.cid).get('plan', '') == 'pro' && maxLvl2(d.perms)); }
     // personne autorisée à créer un code d'accès : administrateur, ou poste avec « Équipe » au niveau Valider (3) ou plus,
     // qui ne peut donner ni plus de droits ni plus de projets qu'elle n'en a, ni le statut d'administrateur
     function canInvite(cid) { return isMem(cid) && (mem(cid).admin == true || lvl(cid, 'equipe') >= 3); }
@@ -194,10 +200,14 @@ service cloud.firestore {
     match /invites/{code} {
       allow get: if signed();
       allow list: if signed() && (isAdmin(resource.data.cid) || resource.data.createdBy == request.auth.uid);
-      allow create: if signed() && request.resource.data.createdBy == request.auth.uid && (isAdmin(request.resource.data.cid)
-        || (canInvite(request.resource.data.cid) && request.resource.data.admin == false
+      // un code créé par une personne autorisée (non administrateur) passe toujours par l'approbation d'un administrateur
+      allow create: if signed() && request.resource.data.createdBy == request.auth.uid && persoOK(request.resource.data) && (isAdmin(request.resource.data.cid)
+        || (canInvite(request.resource.data.cid) && request.resource.data.admin == false && request.resource.data.get('needsApproval', false) == true
             && permsWithin(request.resource.data.cid, request.resource.data.perms) && projWithin(request.resource.data.cid, request.resource.data)));
-      allow update: if signed() && (isAdmin(resource.data.cid) || (invLive(code)
+      allow update: if signed() && (isAdmin(resource.data.cid)
+        || (resource.data.createdBy == request.auth.uid && request.resource.data.status == 'revoque'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'revokedAt']))
+        || (invLive(code)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used', 'usedBy', 'usedAt'])
         && request.resource.data.usedBy == request.auth.uid));
       allow delete: if signed() && (isAdmin(resource.data.cid) || resource.data.createdBy == request.auth.uid);
@@ -262,6 +272,7 @@ service cloud.firestore {
           || (request.resource.data.invite is string
               && inv(request.resource.data.invite).cid == cid
               && invLive(request.resource.data.invite)
+              && inv(request.resource.data.invite).get('needsApproval', false) == false
               && request.resource.data.role == inv(request.resource.data.invite).role
               && request.resource.data.perms == inv(request.resource.data.invite).perms
               && request.resource.data.admin == inv(request.resource.data.invite).admin
@@ -269,6 +280,14 @@ service cloud.firestore {
               && request.resource.data.projects == inv(request.resource.data.invite).projects))));
         allow update: if isAdmin(cid);
         allow delete: if isAdmin(cid) || (signed() && uid == request.auth.uid);
+      }
+      // demandes d'accès (codes « avec approbation ») : la personne dépose sa demande, un administrateur accepte ou refuse
+      match /requests/{uid} {
+        allow create: if signed() && uid == request.auth.uid && request.resource.data.status == 'attente'
+          && request.resource.data.code is string && inv(request.resource.data.code).cid == cid
+          && invLive(request.resource.data.code) && inv(request.resource.data.code).get('needsApproval', false) == true;
+        allow read: if signed() && (uid == request.auth.uid || isAdmin(cid));
+        allow update, delete: if isAdmin(cid);
       }
       match /private/{doc} {
         allow read: if isMem(cid);
@@ -327,7 +346,9 @@ const Team = (() => {
   const SUPER_EMAIL = 'abdessamad.daga94@gmail.com';
   const isSuper = () => !!(S.user && (S.user.email || '').toLowerCase() === SUPER_EMAIL);
   const orgType = () => orgTypeOf((S.company || {}).orgType || ((S.company || {}).kind === 'perso' ? 'independant' : 'entreprise'));
-  const isPerso = () => (S.company || {}).kind === 'perso';
+  // espace personnel vu par son propriétaire ; un collaborateur invité sur un projet voit seulement ce projet
+  const isPerso = () => (S.company || {}).kind === 'perso' && (S.me || {}).role !== 'collaborateur';
+  const isCollab = () => (S.me || {}).role === 'collaborateur';
   // services de l'organisation : ceux choisis à la création (+ externes + ceux déjà utilisés par un membre) ; anciennes entreprises : tous
   const companyServices = () => { const c = S.company || {}; if (!Array.isArray(c.services)) return TM_SERVICES;
     const keep = new Set([...c.services, 'externe', ...(S.members || []).map(m => m.service)]); return TM_SERVICES.filter(x => keep.has(x.k)); };
@@ -416,11 +437,18 @@ const Team = (() => {
     if (!S.ready) return;
     const L = (S.workspaces || []).length ? S.workspaces : [{ cid: S.cid, name: S.company.name, kind: S.company.kind, org: orgType().k, role: S.me.role, plan: myPlan().k }];
     const row = (w) => { const T = orgTypeOf(w.org || (w.kind === 'perso' ? 'independant' : 'entreprise')), on = w.cid === S.cid;
+      if (w.pending) return `<button class="st-ws pend" data-pend="${esc(w.cid)}"><span class="e">⏳</span><span class="grow"><b>${esc(w.name || '?')}</b><small>Demande en attente d'approbation · toucher pour vérifier</small></span></button>`;
+      if (w.role === 'collaborateur') return `<button class="st-ws ${on ? 'on' : ''}" data-ws="${esc(w.cid)}"><span class="e">🤝</span><span class="grow"><b>${esc(w.name || '?')}${on ? ' ✓' : ''}</b><small>Projet partagé · Collaborateur</small></span></button>`;
       return `<button class="st-ws ${on ? 'on' : ''}" data-ws="${esc(w.cid)}"><span class="e">${T.e}</span><span class="grow"><b>${esc(w.name || '?')}${on ? ' ✓' : ''}</b><small>${w.kind === 'perso' ? 'Espace personnel' : esc(T.l)} · ${esc(tmRoleOf(w.role).l)} · ${esc(planOf(w.plan).l)}</small></span></button>`; };
     const sh = sheet(`<div class="st-wsl">${L.map(row).join('')}</div>
       <div class="st-wsa"><button class="linkbtn" data-a="join">＋ Rejoindre avec un code</button><button class="linkbtn" data-a="new">＋ Créer un espace personnel ou une organisation</button></div>
       <p class="muted" style="padding:0 16px 14px;font-size:12.5px">Chaque espace garde ses données à part sur ce téléphone. Pas besoin de se reconnecter.</p>`, { title: 'Changer d\'espace' });
     $$('[data-ws]', sh.el).forEach(b => b.onclick = () => { sh.close(); switchTo(b.dataset.ws); });
+    $$('[data-pend]', sh.el).forEach(b => b.onclick = async () => { const cid = b.dataset.pend;
+      try { const r = await withTimeout(fs.collection('companies').doc(cid).collection('requests').doc(S.user.uid).get()); const st = r.exists ? r.data().status : 'attente';
+        if (st === 'acceptee') { sh.close(); return switchTo(cid); }
+        if (st === 'refusee') { sh.close(); const L2 = (S.workspaces || []).filter(x => x.cid !== cid); await fs.collection('users').doc(S.user.uid).set({ workspaces: L2 }, { merge: true }); S.workspaces = L2; return alertBox('Votre demande a été refusée par l\'organisation.'); }
+        toast('Toujours en attente d\'approbation'); } catch (e) { alertBox(errMsg(e)); } });
     $('[data-a=join]', sh.el).onclick = async () => { sh.close(); const cid = await joinWithCode(); if (cid) switchTo(cid); };
     $('[data-a=new]', sh.el).onclick = async () => { sh.close(); const ok = await onboardScreen({ add: true }); if (ok) { try { if (typeof Sync !== 'undefined' && Sync.enabled && Sync.enabled()) await Sync.run({ quiet: true }); } catch (e) {} location.reload(); } };
   }
@@ -511,7 +539,7 @@ const Team = (() => {
       const el = document.createElement('div'); el.className = 'fullpage tm-login';
       let mode = 'in';
       const draw = () => {
-        el.innerHTML = `<div class="tm-lg-in"><div class="tm-logo">${icon('hard')}</div><h1>SiteTeam</h1><p>Toute l'équipe du chantier, au même endroit.</p>
+        el.innerHTML = `<div class="tm-lg-in"><div class="tm-logo st-lg">${stLogo()}</div><h1>SiteTeam</h1><p>Toute l'équipe du chantier, au même endroit.</p>
           <div class="seg tm-seg"><button data-m="in" class="${mode === 'in' ? 'on' : ''}">Se connecter</button><button data-m="up" class="${mode === 'up' ? 'on' : ''}">Créer un compte</button></div>
           <div class="form">
             ${mode === 'up' ? `<label>Nom et prénom<input name="name" autocomplete="name" placeholder="Ex : Abdessamad …"></label>` : ''}
@@ -553,6 +581,7 @@ const Team = (() => {
           <div class="st-join-r"><span>Outils</span><b>${lv.length} outil(s)${I.admin ? ' · administrateur' : ''}</b></div>
           <div class="st-join-l">${lv.map(([m, l]) => `<i>${esc(l.split(' (')[0])} · ${LEVELS[P[m]]}</i>`).join('')}</div>
           ${days != null ? `<small class="muted">Code valable encore ${days} jour(s), une seule fois.</small>` : ''}
+          ${I.needsApproval ? '<small class="muted">⏳ Un administrateur de l\'organisation doit accepter votre demande avant l\'accès.</small>' : ''}
           <div class="btnrow" style="padding:0"><button class="btn ghost" data-a="no">Annuler</button><button class="btn" data-a="join-ok">Rejoindre</button></div></div>`, { title: 'Confirmer le code' });
       sh.onClose = () => resolve(false);
       $('[data-a=no]', sh.el).onclick = () => sh.close();
@@ -570,8 +599,17 @@ const Team = (() => {
       if (I.expiresAt && I.expiresAt.toMillis && I.expiresAt.toMillis() < Date.now()) throw new Error('Ce code a expiré — demandez un nouveau code');
       ld.close();
       if (!(await confirmJoin(I))) return null;
-      ld = loading('Connexion à l\'organisation…');
       const uid = auth.currentUser.uid;
+      if (I.needsApproval) {
+        // code « avec approbation » : on dépose une demande ; l'accès n'existe qu'après l'accord d'un administrateur
+        ld = loading('Envoi de la demande…');
+        await withTimeout(fs.collection('companies').doc(I.cid).collection('requests').doc(uid).set({ code, status: 'attente', name: auth.currentUser.displayName || I.name || '', email: auth.currentUser.email, role: I.role, at: ts() }));
+        await withTimeout(fs.collection('invites').doc(code).update({ used: true, usedBy: uid, usedAt: ts() }));
+        const W2 = [...(S.workspaces || []).filter(x => x.cid !== I.cid), { cid: I.cid, name: I.companyName || '', kind: 'org', org: I.orgType || 'entreprise', role: I.role, pending: true }];
+        await withTimeout(fs.collection('users').doc(uid).set({ workspaces: W2 }, { merge: true })); S.workspaces = W2;
+        ld.close(); await alertBox(`Demande envoyée à « ${I.companyName || 'l\'organisation'} ».\nVous aurez accès dès qu'un administrateur l'aura acceptée (Changer d'espace › toucher la demande).`); return null;
+      }
+      ld = loading('Connexion à l\'organisation…');
       await withTimeout(fs.collection('companies').doc(I.cid).collection('members').doc(uid).set({ name: auth.currentUser.displayName || I.name || '', email: auth.currentUser.email, role: I.role, service: I.service, perms: I.perms, admin: I.admin, allProjects: I.allProjects, projects: I.projects, managerUid: I.managerUid || null, zone: I.zone || '', invite: code, createdAt: ts() }));
       await withTimeout(fs.collection('invites').doc(code).update({ used: true, usedBy: uid, usedAt: ts() }));
       await withTimeout(fs.collection('users').doc(uid).set({ companyId: I.cid }, { merge: true }));
@@ -592,7 +630,7 @@ const Team = (() => {
       const tot = () => W.espace === 'perso' ? 4 : 6;
       // 1 · choix de l'espace
       function stepEspace() {
-        el.innerHTML = `<div class="tm-lg-in"><div class="tm-logo">${icon('team')}</div><h1>Bienvenue${nm ? ' ' + esc(nm) : ''}</h1><p>Comment voulez-vous utiliser SiteTeam ?</p>
+        el.innerHTML = `<div class="tm-lg-in"><div class="tm-logo st-lg">${stLogo()}</div><h1>Bienvenue${nm ? ' ' + esc(nm) : ''}</h1><p>Comment voulez-vous utiliser SiteTeam ?</p>
           <div class="tm-choice">
             <button data-a="perso"><b>👷 Espace personnel</b><span>Professionnel indépendant : vos outils et vos projets</span></button>
             <button data-a="create"><b>🏢 Créer une organisation</b><span>Entreprise, BET, architecte, labo, MOA… vous invitez ensuite l'équipe</span></button>
@@ -627,6 +665,7 @@ const Team = (() => {
       function stepSvcs() {
         const T = orgTypeOf(W.org), L = TM_SERVICES.filter(s => s.k !== 'externe');
         el.innerHTML = `<div class="tm-lg-in">${steps(4, tot())}<h1>${T.e} ${esc(T.l)}</h1><p>Vos services : gardez seulement ceux que vous avez (modifiable plus tard dans Réglages).</p>
+          <div class="seg st-tpl"><button data-tpl="petite">Petite entreprise</button><button data-tpl="grande">Grande entreprise</button></div>
           <div class="st-svcs">${L.map(s => `<button data-s="${s.k}" class="${W.svcs.includes(s.k) ? 'on' : ''}" style="--c:${s.c}">${esc(s.l)}</button>`).join('')}</div>
           <div class="form"><label>Nom de l'organisation<input name="cname" placeholder="Ex : ${T.k === 'entreprise' ? 'Entreprise BTP …' : esc(T.l) + ' …'}"></label>
           <label>Votre nom<input name="me" value="${esc(auth.currentUser.displayName || '')}"></label>
@@ -638,6 +677,9 @@ const Team = (() => {
         $$('[data-s]', el).forEach(b => { b.classList.toggle('on', W.svcs.includes(b.dataset.s)); b.onclick = () => { const k = b.dataset.s;
           if (!W.svcs.includes(k) && maxS && W.svcs.length >= maxS) return toast(`Pack ${planOf(W.plan).l} : ${maxS} services au maximum`);
           W.svcs = W.svcs.includes(k) ? W.svcs.filter(x => x !== k) : [...W.svcs, k]; b.classList.toggle('on'); }; });
+        // modèles : petite entreprise (3 services de base) ou grande entreprise (tout le modèle du type d'organisation) — modifiables ensuite
+        $$('[data-tpl]', el).forEach(b => b.onclick = () => { const full = orgTypeOf(W.org).svcs; W.svcs = b.dataset.tpl === 'petite' ? full.slice(0, 3) : [...full]; if (maxS && W.svcs.length > maxS) { W.svcs = W.svcs.slice(0, maxS); toast(`Pack ${planOf(W.plan).l} : ${maxS} services au maximum`); }
+          $$('[data-s]', el).forEach(x => x.classList.toggle('on', W.svcs.includes(x.dataset.s))); $$('[data-tpl]', el).forEach(x => x.classList.toggle('on', x === b)); });
         back(stepOrg);
         $('[data-a=go]', el).onclick = () => { const cn = $('[name=cname]', el).value.trim(); if (!cn) return toast('Tapez le nom de l\'organisation');
           const rs = $('[name=role]', el); create({ name: cn, me: $('[name=me]', el).value.trim(), role: rs ? rs.value : T.owner }); };
@@ -724,10 +766,37 @@ const Team = (() => {
   async function createInvite(o) {
     const R = tmRoleOf(o.role), code = newCode();
     const inv = { cid: S.cid, companyName: S.company.name, name: o.name || '', role: R.k, service: R.s, perms: o.perms || R.perms, admin: !!o.admin, allProjects: !!o.allProjects, projects: o.allProjects ? [] : (o.projects || []),
-      managerUid: o.managerUid || null, zone: o.zone || '', orgType: orgType().k, used: false, createdBy: S.user.uid, createdAt: ts(),
+      managerUid: o.managerUid || null, zone: o.zone || '', orgType: orgType().k, used: false, status: 'valide', needsApproval: !isAdmin(), createdBy: S.user.uid, createdAt: ts(),
       expiresAt: firebase.firestore.Timestamp.fromMillis(Date.now() + 7 * 864e5) };
     await withTimeout(fs.collection('invites').doc(code).set(inv));
     return code;
+  }
+  // ---------- espace personnel Pro : inviter un collaborateur sur UN projet (au plus « Modifier », jamais admin) ----------
+  async function collabFlow(p) {
+    if (!isPerso()) return;
+    const P = myPlan();
+    if (P.k !== 'pro') return limitBox('Travailler à plusieurs sur un projet personnel est inclus dans le pack Pro.');
+    let n = S.members.filter(m => m.role === 'collaborateur' && (m.projects || []).includes(p.id)).length;
+    try { const q = await fs.collection('invites').where('cid', '==', S.cid).get(); n += q.docs.map(d => d.data()).filter(x => !x.used && (x.status || 'valide') === 'valide' && (x.projects || []).includes(p.id)).length; } catch (e) {}
+    if (n >= 3) return alertBox('Ce projet a déjà 3 collaborateurs (ou codes en cours). Révoquez un code ou retirez un collaborateur.');
+    const mods = (P.modules === '*' ? MODS.map(([m]) => m) : P.modules).filter(m => m !== 'equipe');
+    const def = { projet: 1, plans: 1, reserves: 2, photos: 2, rapports: 1 };
+    const r = await new Promise((resolve) => {
+      const sh = sheet(`<div class="form tm-form"><p class="muted" style="margin:0;font-size:12.5px">La personne verra seulement « ${esc(p.name)} », avec les outils cochés. Elle ne pourra ni valider, ni administrer, ni voir vos autres projets.</p>
+        <label>Nom (facultatif)<input data-f="name" placeholder="Ex : Youssef, chef d'équipe"></label>
+        <div class="fld">Outils et niveau</div>${mods.map(m => `<label class="tm-pl"><span>${esc(MOD_LABEL(m))}</span><select data-cm="${m}"><option value="0">Aucun accès</option><option value="1" ${def[m] === 1 ? 'selected' : ''}>Voir</option><option value="2" ${def[m] === 2 ? 'selected' : ''}>Modifier</option></select></label>`).join('')}
+        <div class="btnrow" style="padding:0"><button class="btn ghost" data-a="c">Annuler</button><button class="btn" data-a="ok">Créer le code</button></div></div>`, { title: 'Inviter un collaborateur' });
+      sh.onClose = () => resolve(null);
+      $('[data-a=c]', sh.el).onclick = () => sh.close();
+      $('[data-a=ok]', sh.el).onclick = () => { const perms = Object.fromEntries(MODS.map(([m]) => [m, 0])); $$('[data-cm]', sh.el).forEach(x => { perms[x.dataset.cm] = Math.min(2, +x.value); });
+        if (!perms.projet) perms.projet = 1; sh.onClose = null; sh.close(); resolve({ name: $('[data-f=name]', sh.el).value.trim(), perms }); };
+    });
+    if (!r) return;
+    const ld = loading('Création du code…');
+    try { const code = await createInvite({ name: r.name, role: 'collaborateur', perms: r.perms, admin: false, allProjects: false, projects: [p.id] }); ld.close();
+      const v = await menu(`Code : ${code}`, [{ label: 'Envoyer par WhatsApp', icon: 'share', value: 'wa' }, { label: 'Copier le code', icon: 'file', value: 'cp' }, { label: 'Fermer', icon: 'check', value: 'ok' }]);
+      if (v === 'wa') shareInvite(code, { name: r.name, role: 'collaborateur' }); if (v === 'cp') copyText(code); return code;
+    } catch (e) { ld.close(); alertBox(errMsg(e) + (e.code === 'permission-denied' ? '\n\nLes règles Firestore v1.0.17 sont-elles publiées ?' : '')); }
   }
   function shareInvite(code, o) {
     const R = tmRoleOf(o.role);
@@ -874,11 +943,12 @@ const Team = (() => {
     const projects = (await DB.all('projects')).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     const pname = (id) => (projects.find(p => p.id === id) || {}).name || '?';
     // espace personnel : ni organigramme, ni membres, ni codes — profil professionnel, abonnement, paramètres, compte
-    const perso = isPerso();
+    const perso = isPerso(), collab = isCollab();
     if (perso && ['org', 'mem', 'inv'].includes(tab)) tab = 'prof';
+    if (collab) tab = 'me';
     const draw = async () => {
       const M = S.members, byUid = Object.fromEntries(M.map(m => [m.uid, m]));
-      const tabs = perso ? [['prof', 'Mon profil'], ['abo', 'Mon abonnement'], ['set', 'Paramètres'], ['me', 'Mon compte']]
+      const tabs = collab ? [['me', 'Mon compte']] : perso ? [['prof', 'Mon profil'], ['abo', 'Mon abonnement'], ['set', 'Paramètres'], ['me', 'Mon compte']]
         : [['org', 'Organigramme'], ['mem', 'Membres'], ...(canInvite() ? [['inv', 'Codes d\'accès']] : []), ...(isAdmin() ? [['set', 'Réglages']] : []), ['me', 'Mon compte']];
       el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><h1 style="flex:1;font-size:17px">${perso ? 'Mon espace personnel' : esc(S.company.name)}</h1>
           ${canInvite() ? `<button class="btn small" data-a="invite" style="flex:none">${icon('plus')} Inviter</button>` : ''}</div>
@@ -899,12 +969,22 @@ const Team = (() => {
       }
       if (tab === 'mem') body.innerHTML = `<div class="list">${M.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(m => `<div class="tm-row">${card(m)}<div class="tm-sub">${m.allProjects ? 'Tous les projets' : (m.projects || []).map(pname).join(', ') || 'Aucun projet'}${m.managerUid && byUid[m.managerUid] ? ' · sous ' + esc(byUid[m.managerUid].name) : ''}</div></div>`).join('')}</div>`;
       if (tab === 'inv') {
-        let L = []; try { const q = await (isAdmin() ? fs.collection('invites').where('cid', '==', S.cid) : fs.collection('invites').where('cid', '==', S.cid).where('createdBy', '==', S.user.uid)).get(); L = q.docs.map(d => ({ code: d.id, ...d.data() })).filter(x => !x.used); } catch (e) { body.innerHTML = `<div class="empty">${esc(errMsg(e))}</div>`; return; }
-        body.innerHTML = L.length ? `<div class="list">${L.map(x => `<div class="tm-inv"><b class="tm-code">${x.code}</b><span class="grow">${esc(x.name || '—')}<small>${esc(tmRoleOf(x.role).l)} · ${x.allProjects ? 'tous les projets' : (x.projects || []).map(pname).join(', ')}${x.expiresAt && x.expiresAt.toMillis ? (x.expiresAt.toMillis() < Date.now() ? ' · <b style="color:#ef4444">expiré</b>' : ` · expire dans ${Math.ceil((x.expiresAt.toMillis() - Date.now()) / 864e5)} j`) : ''}</small></span>
+        let L = [], Rq = []; try { const q = await (isAdmin() ? fs.collection('invites').where('cid', '==', S.cid) : fs.collection('invites').where('cid', '==', S.cid).where('createdBy', '==', S.user.uid)).get(); L = q.docs.map(d => ({ code: d.id, ...d.data() })).filter(x => !x.used && (x.status || 'valide') === 'valide');
+          if (isAdmin()) { const rq = await fs.collection('companies').doc(S.cid).collection('requests').where('status', '==', 'attente').get(); Rq = rq.docs.map(d => ({ uid: d.id, ...d.data() })); } } catch (e) { body.innerHTML = `<div class="empty">${esc(errMsg(e))}</div>`; return; }
+        const reqHTML = Rq.length ? `<div class="tm-box"><b>⏳ Demandes à approuver (${Rq.length})</b>${Rq.map(r => `<div class="tm-inv"><span class="grow">${esc(r.name || r.email || '?')}<small>${esc(r.email || '')} · ${esc(tmRoleOf(r.role).l)} · code ${esc(r.code)}</small></span>
+          <button class="btn small" data-acc="${esc(r.uid)}">Accepter</button><button class="btn ghost small" data-ref="${esc(r.uid)}">Refuser</button></div>`).join('')}</div>` : '';
+        body.innerHTML = reqHTML + (L.length ? `<div class="list">${L.map(x => `<div class="tm-inv"><b class="tm-code">${x.code}</b><span class="grow">${esc(x.name || '—')}<small>${esc(tmRoleOf(x.role).l)} · ${x.allProjects ? 'tous les projets' : (x.projects || []).map(pname).join(', ')}${x.expiresAt && x.expiresAt.toMillis ? (x.expiresAt.toMillis() < Date.now() ? ' · <b style="color:#ef4444">expiré</b>' : ` · expire dans ${Math.ceil((x.expiresAt.toMillis() - Date.now()) / 864e5)} j`) : ''}</small></span>
           <button class="iconbtn sm" data-sh="${x.code}">${icon('share')}</button><button class="iconbtn sm" data-del="${x.code}">${icon('trash')}</button></div>`).join('')}</div>`
-          : '<div class="empty">Aucune invitation en attente.<br>Touchez <b>Inviter</b> pour ajouter un membre.</div>';
+          : '<div class="empty">Aucun code d\'accès en cours.<br>Touchez <b>Inviter</b> pour ajouter un membre.</div>');
         $$('[data-sh]', body).forEach(b => b.onclick = () => { const x = L.find(i => i.code === b.dataset.sh); shareInvite(x.code, x); });
-        $$('[data-del]', body).forEach(b => b.onclick = async () => { if (await confirmBox('Annuler cette invitation ?', 'Annuler l\'invitation')) { await fs.collection('invites').doc(b.dataset.del).delete(); draw(); } });
+        // révoquer : le code reste dans l'historique avec l'état « révoqué » et ne peut plus servir
+        $$('[data-del]', body).forEach(b => b.onclick = async () => { if (await confirmBox('Révoquer ce code ? Il ne pourra plus servir.', 'Révoquer le code')) { try { await fs.collection('invites').doc(b.dataset.del).update({ status: 'revoque', revokedAt: ts() }); toast('Code révoqué ✓'); } catch (e) { alertBox(errMsg(e)); } draw(); } });
+        $$('[data-acc]', body).forEach(b => b.onclick = async () => { const r = Rq.find(x => x.uid === b.dataset.acc); try {
+            const iv = await fs.collection('invites').doc(r.code).get(); const I = iv.data();
+            if (!(await confirmBox(`Accepter ${r.name || r.email} comme ${tmRoleOf(I.role).l} ?`, 'Accepter'))) return;
+            await fs.collection('companies').doc(S.cid).collection('members').doc(r.uid).set({ name: r.name || I.name || '', email: r.email || '', role: I.role, service: I.service, perms: I.perms, admin: false, allProjects: I.allProjects, projects: I.projects, managerUid: I.managerUid || null, zone: I.zone || '', invite: r.code, createdAt: ts() });
+            await fs.collection('companies').doc(S.cid).collection('requests').doc(r.uid).update({ status: 'acceptee', by: S.user.uid, at: ts() }); toast('Accès accordé ✓'); await refreshMembers(); draw(); } catch (e) { alertBox(errMsg(e)); } });
+        $$('[data-ref]', body).forEach(b => b.onclick = async () => { if (!(await confirmBox('Refuser cette demande ?', 'Refuser'))) return; try { await fs.collection('companies').doc(S.cid).collection('requests').doc(b.dataset.ref).update({ status: 'refusee', by: S.user.uid, at: ts() }); toast('Demande refusée'); draw(); } catch (e) { alertBox(errMsg(e)); } });
       }
       if (tab === 'set') {
         const c = Sync.cfg(), P = myPlan(), nUsers = S.members.length, over = P.users && nUsers > P.users, T = orgType();
@@ -1257,7 +1337,7 @@ const Team = (() => {
   return {
     boot, push, pull, resetPull, lvl, canSection, canProject, isAdmin, openCompany, inviteFlow, logout, decorateSection, removeMember, refreshMembers,
     isSuper, superConsole, orgType, isPerso, companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, workspaces: () => S.workspaces || [],
-    profil: () => S.profil || {}, planState: () => planStateOf(S.company),
+    profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab,
     openProjectShares, claimShare,
     ready: () => S.ready, me: () => S.me, uid: () => S.user && S.user.uid, company: () => S.company, members: () => S.members, rules: FIRESTORE_RULES,
   };
