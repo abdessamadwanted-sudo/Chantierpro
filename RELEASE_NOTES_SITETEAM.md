@@ -1,10 +1,8 @@
-## SiteTeam : espace personnel séparé, packs plus clairs
-- Espace personnel :
-  - un tableau de bord professionnel : Mes outils professionnels selon votre métier, tâches, projets, documents, échéances et activité récente ;
-  - pas de Direction, de service, de poste ni d'organigramme.
-- Métier ≠ poste : le métier est rangé dans votre profil. Il choisit vos outils et ne donne aucun droit dans une organisation.
-- Mon espace personnel : Mon profil (métier, spécialités, expérience, compétences, diplômes, langues, confidentialité), Mon abonnement, Paramètres, Mon compte.
-- Choisir un pack :
-  - deux listes séparées : personnel (Basic, Pro) et organisation (Basic Organisation, Business, Enterprise) ;
-  - une terminologie claire : utilisateurs inclus, projets actifs, services, stockage, outils inclus (liste détaillée).
-- État de l'abonnement : Gratuit, Essai (14 jours), Paiement requis, Essai terminé, Actif. L'activation est faite par SiteTeam, car la facturation en ligne n'existe pas encore.
+## SiteTeam : logo d'origine, collaborateurs, codes plus sûrs
+- Logo d'origine de SiteTeam (cercle bleu, casque et équipe) dans l'en-tête et sur l'écran de connexion, comme sur l'écran d'ouverture.
+- Pack Pro : inviter jusqu'à 3 collaborateurs sur un projet personnel (Paramètres du projet). Ils voient seulement ce projet et les outils cochés, au plus « Modifier », jamais administrateur.
+- Codes d'accès :
+  - « Révoquer » garde le code dans l'historique, et il ne peut plus servir ;
+  - les codes créés par un membre autorisé (non administrateur) demandent l'approbation d'un administrateur (états : en attente, acceptée, refusée).
+- Nouvelle organisation : modèles « Petite entreprise » ou « Grande entreprise » pour les services, modifiables ensuite.
+- Règles de sécurité Firestore mises à jour : à publier (Réglages › Copier les règles).

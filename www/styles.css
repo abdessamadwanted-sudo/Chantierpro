@@ -2506,3 +2506,11 @@ body:has(.pst-page) #plansFab, body:has(.rub-page) #plansFab, body:has(.scanpage
 .st-prof textarea { min-height: 70px; }
 @media (min-width: 600px) { .st-pstats { grid-template-columns: repeat(4, 1fr); } .st-ptools { grid-template-columns: repeat(4, 1fr); } .st-offers { grid-template-columns: repeat(2, 1fr); } }
 @media (min-width: 1024px) { .st-ptools { grid-template-columns: repeat(6, 1fr); } .st-offers { grid-template-columns: repeat(3, 1fr); } }
+
+/* ---------- v1.0.17 : logo d'origine (casque + équipe, cercle bleu) ---------- */
+.st-logo { width: 100%; height: 100%; display: block; }
+.h2-top .logo.st-lg, .brand .logo.st-lg { background: transparent !important; padding: 0; width: 36px; height: 36px; box-shadow: none; }
+.tm-logo.st-lg { background: transparent; box-shadow: 0 10px 30px rgba(37,99,235,.35); border-radius: 50%; width: 84px; height: 84px; }
+.st-ws.pend { opacity: .8; border-style: dashed; }
+.st-tpl { display: flex; gap: 8px; margin: 4px 0 10px; } .st-tpl button { flex: 1; padding: 9px; border-radius: 10px; border: 1px solid rgba(148,163,184,.35); background: transparent; color: inherit; }
+.st-tpl button.on { border-color: #f5b82e; background: rgba(245,184,46,.14); }

@@ -101,8 +101,9 @@ await env.withSecurityRulesDisabled(async (c) => {
 const adm2 = env.authenticatedContext('adm2', { email: 'adm2@test.ma' }).firestore();
 const chef2 = env.authenticatedContext('chef2', { email: 'chef2@test.ma' }).firestore();
 const low2 = env.authenticatedContext('low2', { email: 'low2@test.ma' }).firestore();
-const inv = (who, extra) => ({ cid: 'c2', companyName: 'Business SARL', name: 'X', role: 'chefequipe', service: 'travaux', perms: { projet: 1, reserves: 2, equipe: 1 }, admin: false, allProjects: false, projects: ['p1'], used: false, createdBy: who, ...extra });
+const inv = (who, extra) => ({ cid: 'c2', companyName: 'Business SARL', name: 'X', role: 'chefequipe', service: 'travaux', perms: { projet: 1, reserves: 2, equipe: 1 }, admin: false, allProjects: false, projects: ['p1'], used: false, needsApproval: true, createdBy: who, ...extra });
 await t('code : personne autorisée (Équipe = Valider) crée un code dans ses droits', () => assertSucceeds(chef2.collection('invites').doc('CHEFOK01').set(inv('chef2'))));
+await t('code : REFUS d\'un code sans approbation créé par un non-administrateur', () => assertFails(chef2.collection('invites').doc('CHEFKO09').set(inv('chef2', { needsApproval: false }))));
 await t('code : REFUS de donner plus de droits que les siens', () => assertFails(chef2.collection('invites').doc('CHEFKO01').set(inv('chef2', { perms: { projet: 4 } }))));
 await t('code : REFUS de créer un administrateur', () => assertFails(chef2.collection('invites').doc('CHEFKO02').set(inv('chef2', { admin: true }))));
 await t('code : REFUS de donner un projet qu\'on n\'a pas', () => assertFails(chef2.collection('invites').doc('CHEFKO03').set(inv('chef2', { projects: ['p9'] }))));
@@ -133,6 +134,38 @@ await t('config : REFUS de lecture sans compte', () => assertFails(anon.collecti
 await t('création : REFUS de créer une organisation déjà « actif » (payé)', () => assertFails(nu('newE').collection('companies').doc('c4').set({ name: 'X', ownerUid: 'newE', plan: 'enterprise', planStatus: 'actif' })));
 await t('pack : REFUS que l\'admin prolonge son essai', () => assertFails(adm2.collection('companies').doc('c2').update({ trialEndsAt: new Date(Date.now() + 99 * 864e5) })));
 await t('création : une organisation avec type et services', () => assertSucceeds(nu('newD').collection('companies').doc('c3').set({ name: 'Labo', ownerUid: 'newD', plan: 'basic', planStatus: 'essai', kind: 'org', orgType: 'labo', services: ['direction', 'labo'] })));
+
+// --- v1.0.17 : révocation, demandes avec approbation, collaborateurs d'un espace personnel Pro
+const ALL0 = Object.fromEntries(Object.keys(ALL4).map(k => [k, 0]));
+await env.withSecurityRulesDisabled(async (c) => {
+  const db = c.firestore();
+  const base = { cid: 'c2', role: 'chefequipe', service: 'travaux', perms: { projet: 1 }, admin: false, allProjects: false, projects: [], used: false };
+  await db.collection('invites').doc('REVOKED1').set({ ...base, status: 'revoque' });
+  await db.collection('invites').doc('APPRV001').set({ ...base, needsApproval: true, expiresAt: new Date(Date.now() + 864e5) });
+  await db.collection('companies').doc('pro1').set({ name: 'Espace de Hamid', ownerUid: 'own3', plan: 'pro', planStatus: 'essai', kind: 'perso' });
+  await db.collection('companies').doc('pro1').collection('members').doc('own3').set({ name: 'Hamid', admin: true, perms: ALL4, allProjects: true, projects: [], role: 'proprietaire' });
+  await db.collection('companies').doc('bas1').set({ name: 'Espace de Karim', ownerUid: 'own4', plan: 'basic', planStatus: 'gratuit', kind: 'perso' });
+  await db.collection('companies').doc('bas1').collection('members').doc('own4').set({ name: 'Karim', admin: true, perms: ALL4, allProjects: true, projects: [], role: 'proprietaire' });
+});
+await t('révoquer : le créateur révoque son propre code', async () => { await assertSucceeds(chef2.collection('invites').doc('CHEFRV01').set(inv('chef2'))); await assertSucceeds(chef2.collection('invites').doc('CHEFRV01').update({ status: 'revoque', revokedAt: 1 })); });
+await t('révoquer : REFUS par un autre membre', async () => { await assertSucceeds(chef2.collection('invites').doc('CHEFRV02').set(inv('chef2'))); await assertFails(low2.collection('invites').doc('CHEFRV02').update({ status: 'revoque', revokedAt: 1 })); });
+await t('rejoindre : REFUS avec un code révoqué', () => assertFails(join('newG', 'REVOKED1')));
+await t('approbation : REFUS d\'entrer directement avec un code « avec approbation »', () => assertFails(join('newF', 'APPRV001')));
+const nf = nu('newF');
+await t('approbation : déposer sa demande', () => assertSucceeds(nf.collection('companies').doc('c2').collection('requests').doc('newF').set({ code: 'APPRV001', status: 'attente', name: 'F' })));
+await t('approbation : REFUS de s\'accepter soi-même', () => assertFails(nf.collection('companies').doc('c2').collection('requests').doc('newF').update({ status: 'acceptee' })));
+await t('approbation : REFUS d\'une demande « acceptée » dès la création', () => assertFails(nu('newH').collection('companies').doc('c2').collection('requests').doc('newH').set({ code: 'APPRV001', status: 'acceptee' })));
+await t('approbation : l\'administrateur accepte', () => assertSucceeds(adm2.collection('companies').doc('c2').collection('requests').doc('newF').update({ status: 'acceptee' })));
+await t('approbation : l\'administrateur crée le membre', () => assertSucceeds(adm2.collection('companies').doc('c2').collection('members').doc('newF').set({ name: 'F', role: 'chefequipe', perms: { projet: 1 }, admin: false, allProjects: false, projects: [] })));
+const own3 = env.authenticatedContext('own3', { email: 'own3@test.ma' }).firestore(), own4 = env.authenticatedContext('own4', { email: 'own4@test.ma' }).firestore();
+const col = (who, cid, extra) => ({ cid, role: 'collaborateur', service: 'perso', perms: { ...ALL0, projet: 1, reserves: 2, photos: 2 }, admin: false, allProjects: false, projects: ['pp1'], used: false, status: 'valide', needsApproval: false, createdBy: who, ...extra });
+await t('collaborateur (Pro) : code sur un projet, au plus Modifier', () => assertSucceeds(own3.collection('invites').doc('COLLOK01').set(col('own3', 'pro1'))));
+await t('collaborateur : REFUS du niveau Valider', () => assertFails(own3.collection('invites').doc('COLLKO01').set(col('own3', 'pro1', { perms: { ...ALL0, reserves: 3 } }))));
+await t('collaborateur : REFUS de deux projets', () => assertFails(own3.collection('invites').doc('COLLKO02').set(col('own3', 'pro1', { projects: ['pp1', 'pp2'] }))));
+await t('collaborateur : REFUS de tous les projets', () => assertFails(own3.collection('invites').doc('COLLKO03').set(col('own3', 'pro1', { allProjects: true, projects: [] }))));
+await t('collaborateur : REFUS d\'un administrateur', () => assertFails(own3.collection('invites').doc('COLLKO04').set(col('own3', 'pro1', { admin: true }))));
+await t('collaborateur : REFUS d\'un autre poste qu\'« collaborateur »', () => assertFails(own3.collection('invites').doc('COLLKO05').set(col('own3', 'pro1', { role: 'conducteur' }))));
+await t('collaborateur : REFUS en pack Basic', () => assertFails(own4.collection('invites').doc('COLLKO06').set(col('own4', 'bas1'))));
 
 log(`\n${fails ? fails + ' ÉCHEC(S)' : 'TOUT OK'} — ${out.length} vérifications`);
 fs.writeFileSync(O + '/rules-test.txt', out.join('\n') + '\n');

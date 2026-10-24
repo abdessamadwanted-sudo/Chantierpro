@@ -149,7 +149,7 @@ async function renderHome() {
   $('#app').innerHTML = `
     <div class="home2">
       <div class="h2-hero">
-        <div class="h2-top"><div class="brand notr"><span class="logo">${icon('hard')}</span><b class="bt">SITETEAM</b></div>
+        <div class="h2-top"><div class="brand notr"><span class="logo st-lg">${stLogo()}</span><b class="bt">SITETEAM</b></div>
           <div class="h2-acts"><button class="h2-cloud ${Sync.enabled() ? 'on' : 'off'}" data-a="sync" title="Google Drive">${icon('drive')}<i data-syncdot></i></button>
           ${Sync.enabled() ? `<button class="iconbtn" data-a="syncnow" title="Synchroniser">${icon('undo')}</button>` : ''}
           ${featOn('career') ? `<button class="iconbtn h2-emo" data-a="career" title="Emploi & carrière">💼${(() => { try { return +localStorage.getItem('job.new') > 0 ? `<i class="h2-badge">${localStorage.getItem('job.new')}</i>` : ''; } catch (e) { return ''; } })()}</button>` : ''}
@@ -1357,6 +1357,7 @@ async function renderSettings(root) {
         <div style="color:var(--muted);font-size:14px;line-height:1.5;margin-bottom:12px">Crée un fichier <b>.chantier</b> avec tout le projet (plans, pins, tâches, photos, formulaires, rapports). Enregistrez-le dans Google Drive ou envoyez-le sur WhatsApp. Pour le récupérer : accueil → ⋮ → Restaurer une sauvegarde.</div>
         <button class="btn" data-a="backup" style="width:100%">${icon('share')} Sauvegarder ce projet</button>
         <button class="btn ghost" data-a="pfiche" style="width:100%;margin-top:8px">${icon('file')} Fiche projet (essentiel + avancé)</button>
+        ${Team.ready() && Team.isPerso() ? `<button class="btn ghost" data-a="pcollab" style="width:100%;margin-top:8px">${icon('team')} Inviter un collaborateur${Team.plan().k === 'pro' ? '' : ' · avec Pro'}</button>` : ''}
         <button class="btn ghost" data-a="pfeat" style="width:100%;margin-top:8px">${icon('grid')} Type de projet & fonctions du projet${p.type && projTypeOf(p.type) ? ' · ' + projTypeOf(p.type).e : ''}</button>
         <button class="btn ghost" data-a="stock" style="width:100%;margin-top:8px">${icon('cloud')} Stockage du téléphone · libérer de l'espace</button>
       </div>
@@ -1368,6 +1369,7 @@ async function renderSettings(root) {
   $('[data-a=stock]', root).onclick = () => openStorage();
   $('[data-a=pfeat]', root).onclick = () => projectFeaturesDialog(p);
   $('[data-a=pfiche]', root).onclick = () => ST.projectFiche(p);
+  const pcb = $('[data-a=pcollab]', root); if (pcb) pcb.onclick = () => Team.collabFlow(p);
   const wb = $('[data-a=welcome]', root); if (wb) wb.onclick = () => orgOnboard(true);
   fxPanel($('[data-fxbox]', root));
   $('[data-a=save]', root).onclick = async () => { p.name = $('[name=name]', root).value.trim() || p.name; p.address = $('[name=address]', root).value.trim(); p.pdfTitle = $('[name=pdfTitle]', root).value.trim(); p.mo = $('[name=mo]', root).value.trim(); await DB.put('projects', p); toast('Enregistré ✓'); renderSection(); };
