@@ -1143,3 +1143,108 @@ D after delete: login screen 1
 A members after D delete ["Abdessamad Patron","Client MO","Sara BET","Youssef Conducteur"]
 D relogin Compte introuvable
 errors ["A console: Failed to load resource: the server responded with a status of 403 (Forbidden)","D console: Failed to load resource: the server responded with a status of 400 (Bad Request)"]
+services ouverts (test) 200
+A offres organisation ["basic:🌱 Basic Organisation","business:🏢 Business","enterprise:🏛️ Enterprise"]
+A pack/type ["business","entreprise",17,true]
+A projet [["Grand stade Benslimane","equip","Ministère"]]
+A sync state <span style="color:#22c55e">✓ Synchronisé</span> <span style="color:var(--muted)">· 24/10 22:47</span>
+A poste Directeur de projet : admin auto / max droit [false,3]
+code conducteur VB5B2PE7
+code MO PFBPSHQD
+B projects ["Grand stade Benslimane"]
+B tasks ["Enrobage insuffisant voile V12"]
+B receptions 1
+A sees task ["Enrobage insuffisant voile V12 (repris) / progress"]
+B self-admin denied OK: permission-denied
+B invite create denied OK: permission-denied
+C fab 0 projects ["Grand stade Benslimane"]
+C write task denied OK: permission-denied
+D items ["impl:demandee","cmd:demandee","rdt:","pt:"]
+D topo write cmd denied OK: permission-denied
+A items ["impl:implantee","cmd:demandee","rdt:","pt:","stock:","mat:"]
+B poste {"service":"trav","poste":"conduct","at":"2026-10-24","st":"conducteur"} C poste {"service":"mo","poste":"mo","at":"2026-10-24","st":"mo"} D poste {"service":"etu","poste":"topo","at":"2026-10-24","st":"cheftopo"}
+B tableau de bord ["Tâches / réserves","PV non reçus","PV non livrés au BET"]
+C sections finance/reception [true,true,false,true]
+A aperçu basic [false,false,false,false,true,false]
+A aperçu tiroir {"lock":0,"items":["dashboard","plans","avancement","planning","tasks","reports","photos","orgs","histo","docq","models3d","maquette","settings"]}
+A sans aperçu [true,true]
+B peut créer un code false
+E packs proposés ["basic","pro"]
+E espace [true,"basic","Espace de Hamid Indep","proprietaire",true,"tsq"]
+E dashboard perso {"outils":true,"direction":false,"espaceDir":false,"stats":["0","0 / 1","0","0"],"tools":["forms🔒","tasks","reception🔒","constat🔒","photos","reports","plans"],"role":"👷 Technicien qualité"}
+E profil / metier ["techqualite",false,false]
+E mon espace onglets ["Mon profil","Mon abonnement","Paramètres","Mon compte"]
+E abonnement ["Gratuit","Basic · Gratuit"]
+E outils basic [true,false,false]
+E limite projets 🔒 Le pack Basic est limité à 1 projet(s).
+Pour aller plus loin : Pro, Business, Enterprise.
+E limite résultat false
+F services proposés ["direction","metre","bim","doc","admin"]
+F espaces BET ["board","rdt"]
+E espaces basic []
+F interface BET ["bet","bet","bet",true,true,false,false,false]
+F postes proposés (services) ["Direction","Métré","Méthodes / Planning / BIM","Documentation","Administration & finance","Intervenants externes"]
+errors v1.0.14 []
+code BET US42VS5H
+F espace 2 ["BTP Test SARL","chantier_NoR9jMTZpx0WfSjSbyQE",2,["Grand stade Benslimane"],"bet"]
+F retour espace 1 ["BET Structures","chantier",["Pont BET"]]
+errors v1.0.15 []
+logo [true,"#2563eb"]
+logo connexion true
+G pro ["pro","Essai · 14 j",true]
+code collaborateur VH5A3NTX
+C collaborateur ["Espace de Nadia Pro","collaborateur",false,true,["Lotissement Nadia"],2,0,false]
+C collaborateur : écriture d'une réserve sur un autre projet refusée denied OK: permission-denied
+code révoqué revoque
+errors v1.0.17 []
+services par défaut 200
+H services ouverts / fermés [["direction+","qualite+"],["travaux","ferraillage","centrale","materiel","topo","hse","metre","bim","doc","labo","admin","achats","magasin","rh","pointage","maintenance","methodes","etudes","contrats","transport"]]
+H service fermé reste fermé 0
+H organisation ["enterprise",["direction","qualite"]]
+H postes qualité proposés ["dirqualite","ingqualite","respqualite","techqualite","ctrlqualite"]
+H postes fermés (désactivés) 0
+code technicien qualité PZQJSK37
+H mission techqualite
+H gérer les postes true
+I tableau de bord ["techqualite",["• Réception ferraillage pile P2"],true]
+I peut valider son PV false
+H tuiles validation ["1À valider","0À corriger","0Brouillons","0Validés (7 j)"]
+I PV après validation ["valide",false,["soumis","valide"]]
+I PV validé en lecture seule true
+I modification serveur refusée denied OK: permission-denied
+H classements ["PAQ — Plan d'assurance qualité","Procédures","Plans de contrôle","Fiches techniques et agréments","PV de réception","Rapports d'essais labo","NC et actions correctives","Visas","Audits","Divers","Archives"]
+errors v1.0.18 []
+code partenaire 5ZJ4989P
+F projet partenaire ["BET Structures",["Pont BET","Viaduc Oued Bouregreg"],"bet","Qualité Maroc SA"]
+F droits dans le projet [2,1,0,false]
+F lecture équipe du titulaire denied OK: permission-denied
+F modifier la fiche du projet refusé denied OK: permission-denied
+H reçoit la réserve du BET ["Avis BET : enrobage pile P2"]
+H organisations ["Qualité Maroc SA (vous)","BET Structures","Groupement Qualité Maroc – BET StructuresMandataire : BET Structures"]
+H historique ["AjoutRéserve / tâche · Avis BET : enrobage pile P2Sara BET · BET Structures · 22:49","PV validéFormulaire / PV · Réception ferraillage P2Karima Qualité · Qualité Maroc SA · 22:49","AjoutFormulaire / PV · Réception ferraillage P2Omar Technicien · Qualité Maroc SA · 22:49","AjoutFormulaire / PV · Réception ferraillage P2Omar Technicien · Qualité Maroc SA · 22:49"]
+F voit le groupement ["Groupement Qualité Maroc – BET StructuresMandataire : BET Structures",true,true]
+types d'organisation ["entreprise","soustraitant","bet","archi","moa","bc","labo","topo","artisan","fournisseur","loueur","promoteur","formation"]
+errors v1.0.19 []
+stockage activé (Super Admin) 200
+stockage désactivé par défaut false
+stockage actif [true,true]
+H envoie un plan [true,33,[]]
+F reçoit le plan ["Plan de contrôle pile P2.pdf",true,"%PDF-1.4 plan de controle pile P2"]
+F envoie une note [true,true]
+H reçoit la note du BET ["Visa BET pile P2.pdf",true,"%PDF-1.4 visa BET"]
+A (autre organisation) : lecture refusée denied OK: storage/unauthorized
+F classements ["Plans de contrôle : 1 document(s)","Visas : 1 document(s)"]
+H supprime le plan → fichier retiré du cloud storage/object-not-found
+errors v1.0.20 []
+versions comparées [true,true,true]
+nouveaux services (entreprise) 9
+postes : finance et rang [2,3,1,2]
+valider suppose de voir [false,true,true]
+postes remplacés non proposés []
+écran version Version de l'application Version : développement Dernière version publiée : — État : pas encore vérifié Vérifier maintenant
+errors v1.0.23 []
+D delete message Votre compte a été supprimé.
+D after delete: login screen 1
+A members after D delete ["Sara BET","Abdessamad Patron","Youssef Conducteur","Client MO"]
+D relogin Compte introuvable
+errors ["A console: Failed to load resource: the server responded with a status of 403 (Forbidden)","D console: Failed to load resource: the server responded with a status of 400 (Bad Request)"]
