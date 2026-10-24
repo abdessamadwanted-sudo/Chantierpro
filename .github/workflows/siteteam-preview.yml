@@ -31,6 +31,8 @@ jobs:
         run: node --check www/js/siteteam-workspace.js
       - name: Copy PDF libraries
         run: npm run copy-libs
+      - name: Set separate SiteTeam Preview Android identity
+        run: sed -i 's/ma.chantier.app/ma.chantier.siteteam.preview/' capacitor.config.json
       - name: Build Android project
         run: |
           npx cap add android
