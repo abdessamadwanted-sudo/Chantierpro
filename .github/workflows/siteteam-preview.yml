@@ -1,0 +1,44 @@
+name: SiteTeam Preview APK (isolated)
+on:
+  push:
+    branches:
+      - feature/siteteam-backend-foundation
+    paths:
+      - 'www/**'
+      - 'package.json'
+      - 'capacitor.config.json'
+      - '.github/workflows/siteteam-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install dependencies
+        run: npm install
+      - name: Copy PDF libraries
+        run: npm run copy-libs
+      - name: Build Android project
+        run: |
+          npx cap add android
+          npx cap sync android
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+      - name: Upload preview APK only (no release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: siteteam-preview-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7
