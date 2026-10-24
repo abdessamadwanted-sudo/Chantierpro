@@ -1,9 +1,7 @@
-## SiteTeam : fichiers partagés (plans, photos, PDF)
-- Fichiers partagés : les plans, photos, PDF et documents d'un projet sont envoyés dans Firebase Storage. Ils arrivent sur les téléphones de l'équipe et des organisations partenaires, selon leurs droits.
-- Mêmes droits que les données : il faut « Voir » pour télécharger et « Modifier » pour envoyer ou supprimer. Ces droits sont vérifiés par le serveur.
-- Hors connexion : tout continue de fonctionner sur le téléphone. L'envoi se fait à la prochaine synchronisation.
-- Espace du téléphone : les fichiers déjà envoyés peuvent être libérés (réglage « Stockage »). Ils se retéléchargent à l'ouverture.
-- Un fichier supprimé dans l'application est aussi retiré du stockage en ligne.
-- Taille maximale : 50 Mo par fichier.
-- Désactivé par défaut. Le Super Admin l'active (Super Admin › Stockage) après avoir mis en place la formule Blaze, une alerte de budget et les règles Storage.
+## SiteTeam : services spécialisés, validation et version
+- Services spécialisés ajoutés au modèle « Entreprise BTP » : Achats, Magasin & stocks, RH, Pointage, Maintenance, Méthodes, Études, Contrats et Transport. Ils restent fermés 🔒 jusqu'à leur ouverture.
+- Plus de doublons : les anciens postes Magasinier, Responsable pointage et Pointeur (service Logistique) ne sont plus proposés. Ils sont remplacés par les postes des nouveaux services. Les membres qui les ont déjà gardent leur poste.
+- Nouveaux postes : accès Finance par défaut (achats, contrats, RH…) et rang dans l'organigramme (responsable au-dessus de son équipe).
+- Validation : un poste ne peut valider que ce qu'il voit.
+- Version : ⋮ › Version affiche la version installée, la version Android, la dernière version publiée et l'état (à jour, nouvelle version, hors ligne, vérification impossible).
 - À publier : règles Firestore (Réglages › Copier les règles) et règles Storage (Réglages › Copier les règles Storage).
