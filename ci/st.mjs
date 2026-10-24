@@ -366,8 +366,11 @@ try {
   log('versions comparées', await H.pg.evaluate(() => [verCmp('1.0.10', '1.0.9') > 0, verCmp('1.0.22', '1.0.22') === 0, verCmp('1.0.2', '1.0.10') < 0]));
   log('nouveaux services (entreprise)', await H.pg.evaluate(() => orgTypeOf('entreprise').svcs.filter(k => ['achats', 'magasin', 'rh', 'pointage', 'maintenance', 'methodes', 'etudes', 'contrats', 'transport'].includes(k)).length));
   log('postes : finance et rang', await H.pg.evaluate(() => [tmRoleOf('respachats').perms.finance, tmRoleOf('gestionnairecontrats').perms.finance, tmRoleOf('respachats').rank, tmRoleOf('acheteur').rank]));
-  log('valider suppose de voir', await H.pg.evaluate(() => { const o = Org.poste, ow = Org.owner; Org.poste = () => ({ f: ['plans'], va: ['tasks'], ro: [] }); Org.owner = () => false;
-    const r = [Org.can('tasks', 'valid'), Org.can('plans', 'see')]; Org.poste = o; Org.owner = ow; return r; }));
+  // règle des postes Chantier (org.js, utilisée hors compte SiteTeam) : valider suppose de voir — testée sur la fonction d'origine
+  log('valider suppose de voir', await H.pg.evaluate(async () => { const src = await (await fetch('js/org.js')).text(); const body = src.slice(src.indexOf('  can(f, lvl'), src.indexOf('  owner()'));
+    const can = new Function('Org', 'ALL_F', 'return ({' + body + '}).can;')({ poste: () => ({ f: ['plans'], va: ['tasks'], ro: [] }), owner: () => false }, '*');
+    const O = { poste: () => ({ f: ['plans'], va: ['tasks'], ro: [] }), owner: () => false }; const c = can.bind(O);
+    return [c('tasks', 'valid'), c('plans', 'see'), c('plans', 'edit')]; }));
   await H.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); Team.openCompany('org'); }); await H.pg.waitForTimeout(1200);
   await H.pg.click('.tm-page [data-a=invite]'); await H.pg.waitForTimeout(500);
   log('postes remplacés non proposés', await H.pg.evaluate(() => [...document.querySelectorAll('[data-f=role] option')].map(o => o.value).filter(v => ['magasinier', 'resppointage', 'pointeur'].includes(v))));
