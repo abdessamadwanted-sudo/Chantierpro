@@ -37,7 +37,7 @@
         ['Service actuel', members?.service || 'Non défini'],
         ['Poste actuel', members?.poste || 'Non défini']
       ];
-      body.innerHTML = '<h1>Tableau de bord SiteTeam</h1><p>Vue de transition reliée aux données locales du téléphone.</p>' +
+      body.innerHTML = '<h1>Tableau de bord SiteTeam</h1><p>Référence ST-001 · Vue de transition reliée aux données locales du téléphone.</p>' +
         '<div class="st-v1-grid">'+cards.map(([name,val])=>'<div class="st-v1-card"><strong>'+escapeHtml(val)+'</strong><small>'+escapeHtml(name)+'</small></div>').join('')+'</div>'+
         '<h2>Mes projets</h2><div class="st-v1-grid">'+(projects.length ? projects.slice(0,30).map(p=>'<div class="st-v1-card"><strong>'+escapeHtml(p.name||'Projet')+'</strong><small>'+escapeHtml(p.type||'Chantier')+'</small></div>').join('') : '<div class="st-v1-card">Aucun projet local</div>')+'</div>'+
         '<h2>Architecture à venir</h2><div class="st-v1-pills"><span class="st-v1-pill">Entreprise</span><span class="st-v1-pill">Qualité</span><span class="st-v1-pill">Travaux</span><span class="st-v1-pill">Documents</span><span class="st-v1-pill">Groupement JV</span></div>'+
@@ -48,7 +48,7 @@
   }
   function boot(){
     if(document.getElementById('st-v1-open'))return;
-    const b=document.createElement('button');b.id='st-v1-open';b.type='button';b.textContent='SiteTeam V1';b.onclick=openWorkspace;document.body.appendChild(b);
+    const b=document.createElement('button');b.id='st-v1-open';b.type='button';b.textContent='SiteTeam V1 · ST-001';b.onclick=openWorkspace;document.body.appendChild(b);
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
