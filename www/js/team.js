@@ -67,7 +67,7 @@ const PLAN_DEFAULT_COMPANY = 'enterprise';
 // mods : modules affichés pour ce type d'organisation ('*' = tous) · svcs : services proposés à la création · owner : poste du créateur
 const ORG_TYPES = [
   { k: 'entreprise', e: '🏗️', l: 'Entreprise BTP', d: 'Entreprise générale, gros œuvre, travaux', owner: 'patron', mods: '*',
-    svcs: ['direction', 'travaux', 'hse', 'qualite', 'labo', 'topo', 'bim', 'logistique', 'materiel', 'admin'] },
+    svcs: ['direction', 'travaux', 'hse', 'qualite', 'labo', 'topo', 'methodes', 'etudes', 'achats', 'magasin', 'materiel', 'maintenance', 'transport', 'pointage', 'rh', 'contrats', 'admin'] },
   { k: 'soustraitant', e: '🤝', l: 'Sous-traitant / tâcheron', d: 'Un lot : ferraillage, coffrage, finitions…', owner: 'soustraitant',
     mods: ['projet', 'plans', 'reserves', 'reception', 'photos', 'forms', 'rapports', 'constats', 'calc', 'equipe', 'files', 'materiel', 'pointage', 'hse', 'finance'],
     svcs: ['direction', 'travaux', 'ferraillage', 'materiel', 'hse'] },
@@ -141,8 +141,10 @@ const TM_SERVICES = [
   { k: 'etudes', l: 'Études techniques', c: '#0369a1' },
   { k: 'contrats', l: 'Marchés, métrés & contrats', c: '#6d28d9' },
   { k: 'transport', l: 'Transport & logistique', c: '#a16207' },
-    { k: 'externe', l: 'Intervenants externes', c: '#db2777' },
+  { k: 'externe', l: 'Intervenants externes', c: '#db2777' },
 ];
+// services remplacés par des services plus précis (v1.0.21) : gardés pour les membres existants, plus proposés aux nouvelles organisations
+const SERVICES_LEGACY = ['logistique'];
 // modules (= droits) : projet (infos, rappels, constats, 3D…), plans, réserves, réception & bétonnage, photos, formulaires, rapports, constats, calculs, équipe, fichiers
 const MODS = [['projet', 'Projet (infos, rappels, 3D)'], ['plans', 'Plans & maquettes'], ['reserves', 'Réserves / tâches'], ['reception', 'Réception & bétonnage'], ['photos', 'Photos'],
   ['forms', 'Formulaires / PV'], ['rapports', 'Rapports journaliers'], ['constats', 'Constats / NC'], ['calc', 'Calculs & topo'], ['equipe', 'Équipe du projet'], ['files', 'Fichiers'],
@@ -184,7 +186,7 @@ const TM_ROLES = [
   ['ingetudes', 'Ingénieur études', 'etudes', '2300100020210000'],
   ['gestionnairecontrats', 'Gestionnaire contrats', 'contrats', '1211111130211110'],
   ['responsabletransport', 'Responsable transport', 'transport', '1100202010200421'],
-    ['magasinier', 'Magasinier', 'logistique', '1000201000200311'], ['resppointage', 'Responsable pointage', 'logistique', '1000102002200041'], ['pointeur', 'Pointeur', 'logistique', '1000102002200031'],
+  ['magasinier', 'Magasinier', 'logistique', '1000201000200311'], ['resppointage', 'Responsable pointage', 'logistique', '1000102002200041'], ['pointeur', 'Pointeur', 'logistique', '1000102002200031'],
   ['mo', "Maître d'ouvrage", 'externe', '1111111101111001'], ['mod', "Maître d'ouvrage délégué", 'externe', '1111111101111001'], ['architecte', 'Architecte', 'externe', '1221101101110000'],
   ['bet', "BET (bureau d'études)", 'externe', '1221111211111001'], ['bcontrole', 'Bureau de contrôle', 'externe', '1121111201111001'], ['labo', 'Laboratoire', 'externe', '1001220000102000'],
   ['soustraitant', 'Sous-traitant', 'externe', '1120201001211011'],
@@ -193,10 +195,15 @@ const TM_ROLES = [
   ['respadmin', 'Responsable administratif & financier', 'admin', '2110111012200131'], ['comptable', 'Comptable / RH', 'admin', '1000011011200120'],
 ].map(([k, l, s, p, adm]) => ({ k, l, s, perms: Object.fromEntries(MODS.map(([m], i) => [m, +p[i] || 0])), admin: !!adm }));
 // module « finance » (ajouté avec les outils de Chantier) : accès par défaut selon le poste (les administrateurs ont tout)
-{ const FIN = { dirqualite: 1, respadmin: 3, comptable: 2, dirtravaux: 3, conducteur: 1, condferraillage: 1, metreur: 3, respmateriel: 1, resppointage: 1, mo: 1, mod: 1, bet: 1 };
+{ const FIN = { dirqualite: 1, respadmin: 3, comptable: 2, dirtravaux: 3, conducteur: 1, condferraillage: 1, metreur: 3, respmateriel: 1, resppointage: 1, mo: 1, mod: 1, bet: 1,
+    respachats: 2, acheteur: 1, chefmagasin: 1, responsablerh: 2, responsablepointage: 1, chefmaintenance: 1, gestionnairecontrats: 3, responsabletransport: 1 };
   TM_ROLES.forEach(r => { r.perms.finance = r.admin ? 4 : (FIN[r.k] || 0); }); }
 // rang hiérarchique dans le service (1 = le plus haut) : sert à l'organigramme, à la délégation et à la validation
-const ROLE_RANK = { dirqualite: 1, ingqualite: 2, respqualite: 3, techqualite: 4, ctrlqualite: 5 };
+const ROLE_RANK = { dirqualite: 1, ingqualite: 2, respqualite: 3, techqualite: 4, ctrlqualite: 5,
+  respachats: 1, acheteur: 2, chefmagasin: 1, magasinierstock: 2, responsablerh: 1, gestionnairepersonnel: 2, responsablepointage: 1, agentpointage: 2,
+  chefmaintenance: 1, technicienmaintenance: 2, responsablemethodes: 1, planificateur: 2, ingetudes: 1, gestionnairecontrats: 1, responsabletransport: 1 };
+// postes remplacés par ceux des nouveaux services (même métier) : un membre existant garde son poste, mais ils ne sont plus proposés
+const ROLE_LEGACY = { magasinier: 'magasinierstock', resppointage: 'responsablepointage', pointeur: 'agentpointage' };
 TM_ROLES.forEach(r => { r.rank = ROLE_RANK[r.k] || (r.admin ? 1 : 3); });
 // services ouverts : on travaille service par service, les autres restent fermés (🔒) — liste modifiable par le Super Admin (config/services)
 let SERVICES_OPEN = ['direction', 'qualite', 'externe', 'perso'];
@@ -518,7 +525,7 @@ const Team = (() => {
   const isPerso = () => (S.company || {}).kind === 'perso' && (S.me || {}).role !== 'collaborateur';
   const isCollab = () => (S.me || {}).role === 'collaborateur';
   // services de l'organisation : ceux choisis à la création (+ externes + ceux déjà utilisés par un membre) ; anciennes entreprises : tous
-  const companyServices = () => { const c = S.company || {}; if (!Array.isArray(c.services)) return TM_SERVICES;
+  const companyServices = () => { const c = S.company || {}; if (!Array.isArray(c.services)) return TM_SERVICES.filter(x => !SERVICES_LEGACY.includes(x.k) || (S.members || []).some(m => m.service === x.k));
     const keep = new Set([...c.services, 'externe', ...(S.members || []).map(m => m.service)]); return TM_SERVICES.filter(x => keep.has(x.k)); };
   // créer un code d'accès : administrateur, ou poste avec « Équipe » au niveau Valider
   const canInvite = () => S.ready && !!S.me && !isPerso() && (S.me.admin || lvl('equipe') >= 3);
@@ -890,7 +897,7 @@ const Team = (() => {
       }
       // 4 · services (modèle modifiable : on ne force pas 12 services à un petit entrepreneur)
       function stepSvcs() {
-        const T = orgTypeOf(W.org), L = TM_SERVICES.filter(s => s.k !== 'externe');
+        const T = orgTypeOf(W.org), L = TM_SERVICES.filter(s => s.k !== 'externe' && !SERVICES_LEGACY.includes(s.k));
         W.svcs = W.svcs.filter(svcOpen); if (!W.svcs.includes('direction')) W.svcs.unshift('direction');
         el.innerHTML = `<div class="tm-lg-in">${steps(4, tot())}<h1>${T.e} ${esc(T.l)}</h1><p>Vos services : gardez seulement ceux que vous avez (modifiable plus tard dans Réglages).</p>
           <div class="seg st-tpl"><button data-tpl="petite">Petite entreprise</button><button data-tpl="grande">Grande entreprise</button></div>
@@ -917,7 +924,7 @@ const Team = (() => {
       // espace personnel : le métier choisit l'interface
       function stepMetier() {
         el.innerHTML = `<div class="tm-lg-in">${steps(3, tot())}<h1>Votre métier</h1><p>Il sert à choisir vos outils et vos recommandations. Ce n'est pas un poste et il ne donne aucun droit dans une organisation.</p>
-          <div class="form"><label>Métier principal<select name="role">${TM_SERVICES.filter(s => s.k !== 'direction').map(sv => `<optgroup label="${esc(sv.l)}">${TM_ROLES.filter(r => r.s === sv.k).map(r => `<option value="${r.k}" ${r.k === 'conducteur' ? 'selected' : ''}>${esc(r.l)}</option>`).join('')}</optgroup>`).join('')}</select></label>
+          <div class="form"><label>Métier principal<select name="role">${TM_SERVICES.filter(s => s.k !== 'direction' && !SERVICES_LEGACY.includes(s.k)).map(sv => `<optgroup label="${esc(sv.l)}">${TM_ROLES.filter(r => r.s === sv.k && !ROLE_LEGACY[r.k]).map(r => `<option value="${r.k}" ${r.k === 'conducteur' ? 'selected' : ''}>${esc(r.l)}</option>`).join('')}</optgroup>`).join('')}</select></label>
           <label>Spécialités (facultatif)<input name="spec" placeholder="Ex : ferraillage, gros œuvre"></label>
           <label>Votre nom<input name="me" value="${esc(auth.currentUser.displayName || '')}"></label>
           <button class="btn" data-a="go">Créer mon espace</button></div>
@@ -1418,7 +1425,7 @@ const Team = (() => {
         const F = S.profil || {}, M2 = metierOf(F.metier);
         body.innerHTML = `<div class="form st-prof">
           <p class="muted" style="margin:0;font-size:12.5px">Votre métier personnalise vos outils et vos recommandations. Ce n'est pas un poste : il ne donne aucun droit dans une organisation.</p>
-          <label>Métier principal<select data-f="metier">${TM_SERVICES.filter(x => x.k !== 'direction').map(sv => `<optgroup label="${esc(sv.l)}">${TM_ROLES.filter(r => r.s === sv.k).map(r => `<option value="${r.k}" ${r.k === F.metier ? 'selected' : ''}>${esc(r.l)}</option>`).join('')}</optgroup>`).join('')}</select></label>
+          <label>Métier principal<select data-f="metier">${TM_SERVICES.filter(x => x.k !== 'direction' && (!SERVICES_LEGACY.includes(x.k) || tmRoleOf(F.metier).s === x.k)).map(sv => `<optgroup label="${esc(sv.l)}">${TM_ROLES.filter(r => r.s === sv.k && (!ROLE_LEGACY[r.k] || r.k === F.metier)).map(r => `<option value="${r.k}" ${r.k === F.metier ? 'selected' : ''}>${esc(r.l)}</option>`).join('')}</optgroup>`).join('')}</select></label>
           <label>Spécialités<input data-f="specialites" value="${esc(F.specialites || '')}" placeholder="Ex : ferraillage, gros œuvre"></label>
           <label>Expérience (années)<input data-f="experience" type="number" min="0" value="${esc(F.experience ?? '')}"></label>
           <label>Compétences<textarea data-f="competences" placeholder="Une par ligne">${esc(F.competences || '')}</textarea></label>
@@ -1542,7 +1549,7 @@ const Team = (() => {
       const lim = !isAdmin(), P = myPlan(), svcs = companyServices(), mine = S.me || {};
       const cap = (pp) => lim ? Object.fromEntries(MODS.map(([m]) => [m, Math.min(+pp[m] || 0, (mine.perms || {})[m] || 0)])) : pp;
       if (lim && !mine.allProjects) { projects = projects.filter(p => (mine.projects || []).includes(p.id)); if (o.allProjects) { o = { ...o, allProjects: false }; } }
-      const roles = allRoles().filter(r => !(lim && r.admin));
+      const roles = allRoles().filter(r => !(lim && r.admin) && (!ROLE_LEGACY[r.k] || r.k === o.role));
       // le poste PROPOSE des droits, plafonnés à « Valider » : « Administrer » et le statut d'administrateur se donnent à part, avec confirmation
       const tpl = (k) => cap(Object.fromEntries(MODS.map(([m]) => [m, Math.min(tmRoleOf(k).perms[m] || 0, 3)])));
       if (!o.role) o = { ...o, role: (roles.find(r => svcOpen(r.s) && svcs.some(x => x.k === r.s) && r.k === 'techqualite') || roles.find(r => svcOpen(r.s) && svcs.some(x => x.k === r.s) && !r.admin) || roles[0]).k };
@@ -1700,7 +1707,7 @@ const Team = (() => {
   function pickServices(cur) {
     return new Promise((resolve) => {
       let L = [...cur];
-      const sh = sheet(`<div class="form"><div class="st-svcs">${TM_SERVICES.filter(x => x.k !== 'externe').map(x => `<button data-s="${x.k}" class="${L.includes(x.k) ? 'on' : ''}" style="--c:${x.c}">${esc(x.l)}</button>`).join('')}</div>
+      const sh = sheet(`<div class="form"><div class="st-svcs">${TM_SERVICES.filter(x => x.k !== 'externe' && (!SERVICES_LEGACY.includes(x.k) || L.includes(x.k))).map(x => `<button data-s="${x.k}" class="${L.includes(x.k) ? 'on' : ''}" style="--c:${x.c}">${esc(x.l)}</button>`).join('')}</div>
         <small class="muted">Un service retiré reste visible tant qu'un membre y est rattaché.</small>
         <div class="btnrow" style="padding:0"><button class="btn ghost" data-a="c">Annuler</button><button class="btn" data-a="ok">Enregistrer</button></div></div>`, { title: 'Services de l\'organisation' });
       sh.onClose = () => resolve(null);
