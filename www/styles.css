@@ -2539,3 +2539,8 @@ body:has(.pst-page) #plansFab, body:has(.rub-page) #plansFab, body:has(.scanpage
 .st-hrow { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .st-hrow .st-state { margin: 2px 0 0; flex: none; font-size: 11px; }
 .st-hrow b { font-size: 13.5px; font-weight: 600; display: block; } .st-hrow small { color: var(--muted); font-size: 12px; }
+.st-pt { display: block; text-align: left; } .st-pt > * { text-align: left; }
+.st-pt .tm-box, .st-pt .tm-inv, .st-pt .list { width: 100%; box-sizing: border-box; align-self: stretch; }
+.st-pt .tm-inv { display: flex; align-items: center; gap: 10px; padding: 12px 14px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: 12px; }
+.st-pt .tm-inv small { font-size: 12px; color: var(--muted); line-height: 1.35; }
+.st-pt .section-label { padding-left: 0; text-align: left; }
