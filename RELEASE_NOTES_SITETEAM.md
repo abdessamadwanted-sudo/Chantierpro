@@ -1,9 +1,9 @@
-## SiteTeam : projet multi-organisations, groupement et historique
-- Organisations du projet : le titulaire invite une autre organisation (maître d'ouvrage, BET, architecte, bureau de contrôle, laboratoire, topographe, sous-traitant, membre du groupement…) avec un code partenaire. Il choisit les modules qu'elle voit, au plus « Modifier ».
-- L'administrateur de l'organisation invitée entre le code (Changer d'espace › Rejoindre avec un code). Le projet apparaît chez elle avec la mention 🤝. Ses membres y travaillent avec leurs propres comptes et leurs propres droits.
-- Chaque organisation garde ses données privées : son équipe, son organigramme et ses autres projets ne sont jamais visibles par les autres.
-- Le titulaire peut modifier les accès d'une organisation partenaire, les suspendre ou la retirer du projet. L'organisation partenaire peut aussi quitter le projet.
-- Groupement d'entreprises (JV) : on déclare le nom du groupement et le mandataire. L'administrateur du mandataire peut lui aussi inviter des organisations.
-- Historique du projet : qui a ajouté, modifié ou supprimé, dans quelle organisation et à quelle heure (heure du serveur). Aucune ligne ne peut être modifiée ou effacée.
-- Nouveaux types d'organisation : Artisan, Fournisseur / commerçant, Loueur de matériel, Promoteur immobilier, Établissement de formation.
-- Règles de sécurité Firestore mises à jour : à publier (Réglages › Copier les règles).
+## SiteTeam : fichiers partagés (plans, photos, PDF)
+- Fichiers partagés : les plans, photos, PDF et documents d'un projet sont envoyés dans Firebase Storage. Ils arrivent sur les téléphones de l'équipe et des organisations partenaires, selon leurs droits.
+- Mêmes droits que les données : il faut « Voir » pour télécharger et « Modifier » pour envoyer ou supprimer. Ces droits sont vérifiés par le serveur.
+- Hors connexion : tout continue de fonctionner sur le téléphone. L'envoi se fait à la prochaine synchronisation.
+- Espace du téléphone : les fichiers déjà envoyés peuvent être libérés (réglage « Stockage »). Ils se retéléchargent à l'ouverture.
+- Un fichier supprimé dans l'application est aussi retiré du stockage en ligne.
+- Taille maximale : 50 Mo par fichier.
+- Désactivé par défaut. Le Super Admin l'active (Super Admin › Stockage) après avoir mis en place la formule Blaze, une alerte de budget et les règles Storage.
+- À publier : règles Firestore (Réglages › Copier les règles) et règles Storage (Réglages › Copier les règles Storage).

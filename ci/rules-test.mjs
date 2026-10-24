@@ -15,6 +15,7 @@ async function t(name, fn) {
 const env = await initializeTestEnvironment({
   projectId: 'siteteam',
   firestore: { rules: fs.readFileSync('ci/firestore.rules', 'utf8'), host: '127.0.0.1', port: 8080 },
+  storage: { rules: fs.readFileSync('ci/storage.rules', 'utf8'), host: '127.0.0.1', port: 9199 },
 });
 await env.clearFirestore();
 
@@ -271,6 +272,30 @@ await t('titulaire : suspendre l\'accès du partenaire', () => assertSucceeds(P6
 await t('partenaire suspendu : REFUS de lecture', () => assertFails(R6(pm7, 'reserves', 'tasks__t1').get()));
 await t('partenaire : quitter le projet', () => assertSucceeds(P6(pa7).collection('partners').doc('c7').delete()));
 await t('partenaire retiré : REFUS de lecture du projet', () => assertFails(P6(pm7).get()));
+
+// --- v1.0.20 : fichiers partagés (Cloud Storage) — mêmes droits que les données, lus dans Firestore
+const BK = 'gs://siteteam.firebasestorage.app';
+await env.withSecurityRulesDisabled(async (c) => {
+  const db = c.firestore();
+  await db.collection('companies').doc('c6').collection('projects').doc('p6').collection('partners').doc('c7').set({ orgName: 'BET Partenaire', role: 'bet', mods: { projet: 1, plans: 1, files: 2 }, status: 'actif' });
+  await db.collection('companies').doc('c7').collection('members').doc('pm7').update({ perms: { ...ALL0, projet: 1, plans: 1, reserves: 2, files: 2 } });
+});
+const stg = (uid) => (uid ? env.authenticatedContext(uid, { email: uid + '@test.ma' }) : env.unauthenticatedContext()).storage(BK);
+const F6 = (uid, f) => stg(uid).ref(`companies/c6/projects/p6/files/${f}`);
+const BYTES = new Uint8Array([37, 80, 68, 70, 45, 49]);
+await t('fichiers : le titulaire envoie un plan', () => assertSucceeds(F6('own6', 'plan1').put(BYTES, { contentType: 'application/pdf' })));
+await t('fichiers : le titulaire lit le fichier', () => assertSucceeds(F6('own6', 'plan1').getMetadata()));
+await t('fichiers : REFUS pour un membre sans droit fichiers', () => assertFails(F6('m6', 'plan1').getMetadata()));
+await t('fichiers : REFUS d\'envoi sans droit fichiers', () => assertFails(F6('m6', 'x1').put(BYTES)));
+await t('fichiers : le partenaire lit le fichier', () => assertSucceeds(F6('pm7', 'plan1').getMetadata()));
+await t('fichiers : le partenaire envoie un fichier (Modifier)', () => assertSucceeds(F6('pm7', 'note1').put(BYTES, { contentType: 'application/pdf' })));
+await t('fichiers : REFUS pour un membre du partenaire sans ce projet', () => assertFails(F6('px7', 'plan1').getMetadata()));
+await t('fichiers : REFUS pour une organisation étrangère', () => assertFails(F6('ad8', 'plan1').getMetadata()));
+await t('fichiers : REFUS sans compte', () => assertFails(F6(null, 'plan1').getMetadata()));
+await t('fichiers : REFUS d\'un fichier de plus de 50 Mo', () => assertFails(F6('own6', 'big1').put(new Uint8Array(51 * 1024 * 1024))));
+await t('fichiers : REFUS en dehors des projets', () => assertFails(stg('own6').ref('autre/chemin.pdf').put(BYTES)));
+await t('fichiers : le partenaire suspendu perd l\'accès', async () => { await env.withSecurityRulesDisabled(c => c.firestore().collection('companies').doc('c6').collection('projects').doc('p6').collection('partners').doc('c7').update({ status: 'suspendu' })); await assertFails(F6('pm7', 'plan1').getMetadata()); });
+await t('fichiers : le titulaire supprime', () => assertSucceeds(F6('own6', 'plan1').delete()));
 
 log(`\n${fails ? fails + ' ÉCHEC(S)' : 'TOUT OK'} — ${out.length} vérifications`);
 fs.writeFileSync(O + '/rules-test.txt', out.join('\n') + '\n');

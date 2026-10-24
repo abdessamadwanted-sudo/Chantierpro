@@ -22,7 +22,7 @@ async function signup(pg, name, email) {
 const shot = (pg, n) => pg.screenshot({ path: `${O}/${n}.png` });
 // services ouverts (config/services, écrite par le Super Admin) : tous ouverts pour les parcours existants, puis la valeur par défaut pour v1.0.18
 const SVC = 'http://127.0.0.1:8080/v1/projects/siteteam/databases/(default)/documents/config/services';
-const setSvcs = (L) => fetch(SVC, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { open: { arrayValue: { values: L.map(v => ({ stringValue: v })) } } } }) }).then(r => r.status);
+const setSvcs = (L, storage = false) => fetch(SVC, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { open: { arrayValue: { values: L.map(v => ({ stringValue: v })) } }, storage: { booleanValue: storage }, maxMb: { integerValue: '50' } } }) }).then(r => r.status);
 log('services ouverts (test)', await setSvcs(['*']));
 let A, B, C, D;
 try {
@@ -340,6 +340,28 @@ try {
   log('F voit le groupement', await F.pg.evaluate(() => [...document.querySelectorAll('.st-jv p')].map(x => x.textContent.trim()).concat([!!document.querySelector('.st-pt [data-a=inv]'), !!document.querySelector('.st-pt [data-a=leave]')])));
   log('types d\'organisation', await H.pg.evaluate(() => ORG_TYPES.map(t => t.k)));
   log('errors v1.0.19', [...H.errs, ...F.errs]);
+  // ---- v1.0.20 : fichiers partagés (Cloud Storage) entre le titulaire (H) et le BET partenaire (F)
+  log('stockage activé (Super Admin)', await setSvcs(['direction', 'qualite', 'externe', 'perso'], true));
+  log('stockage désactivé par défaut', await H.pg.evaluate(() => Team.cloudOn()));
+  for (const X of [H, F]) await X.pg.evaluate(() => { localStorage.setItem('team.cloud', JSON.stringify({ on: true, maxMb: 50 })); });
+  log('stockage actif', [await H.pg.evaluate(() => Team.cloudOn()), await F.pg.evaluate(() => Team.cloudOn())]);
+  log('H envoie un plan', await H.pg.evaluate(async () => { const p = (await DB.all('projects')).find(x => x.name.startsWith('Viaduc'));
+    const f = await DB.put('files', { projectId: p.id, blob: new Blob(['%PDF-1.4 plan de controle pile P2'], { type: 'application/pdf' }), mime: 'application/pdf', name: 'Plan de contrôle pile P2.pdf', role: 'doc', docCat: 'pc', by: Team.uid() });
+    await Sync.run({ force: true }); const g = await DB.peek('files', f.id); window.__fid = f.id; return [!!g.sref, g.ssize, (JSON.parse(localStorage.getItem('sync.fails') || '[]'))]; }));
+  await F.pg.evaluate(() => Sync.run({ force: true })); await F.pg.waitForTimeout(3500);
+  const fid = await H.pg.evaluate(() => window.__fid);
+  log('F reçoit le plan', await F.pg.evaluate(async (id) => { const g = await DB.peek('files', id); return g ? [g.name, !!g.blob, g.blob ? await g.blob.text() : null] : 'absent'; }, fid));
+  log('F envoie une note', await F.pg.evaluate(async (pid) => { const f = await DB.put('files', { projectId: pid, blob: new Blob(['%PDF-1.4 visa BET'], { type: 'application/pdf' }), mime: 'application/pdf', name: 'Visa BET pile P2.pdf', role: 'doc', docCat: 'visa', by: Team.uid() });
+    await Sync.run({ force: true }); const g = await DB.peek('files', f.id); window.__fid2 = f.id; return [!!g.sref, (g.sref || '').split('/').slice(0, 2).join('/') === 'companies/' + Team.sharedOf(pid).cid]; }, vPid));
+  await H.pg.evaluate(() => Sync.run({ force: true })); await H.pg.waitForTimeout(3500);
+  const fid2 = await F.pg.evaluate(() => window.__fid2);
+  log('H reçoit la note du BET', await H.pg.evaluate(async (id) => { const g = await DB.peek('files', id); return g ? [g.name, !!g.blob, g.blob ? await g.blob.text() : null] : 'absent'; }, fid2));
+  log('A (autre organisation) : lecture refusée', await A.pg.evaluate(async (path) => { try { await firebase.storage().ref(path).getDownloadURL(); return 'ALLOWED (BAD)'; } catch (e) { return 'denied OK: ' + e.code; } }, await H.pg.evaluate(async (id) => (await DB.peek('files', id)).sref, fid)));
+  await F.pg.evaluate(async (pid) => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); await openProject(await DB.get('projects', pid)); document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); App.docCat = null; App.section = 'docq'; renderSection(); }, vPid);
+  await F.pg.waitForTimeout(1500); await shot(F.pg, '80_docs_partenaire');
+  log('F classements', await F.pg.evaluate(() => [...document.querySelectorAll('.st-doc')].filter(b => !/^0 /.test(b.querySelector('small').textContent)).map(b => b.querySelector('b').textContent + ' : ' + b.querySelector('small').textContent)));
+  log('H supprime le plan → fichier retiré du cloud', await H.pg.evaluate(async (id) => { const sref = (await DB.peek('files', id)).sref; await DB.del('files', id); await Sync.run({ force: true }); try { await firebase.storage().ref(sref).getMetadata(); return 'encore présent'; } catch (e) { return e.code; } }, fid));
+  log('errors v1.0.20', [...H.errs, ...F.errs]);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);
