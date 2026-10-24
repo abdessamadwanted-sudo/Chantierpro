@@ -417,13 +417,41 @@ service cloud.firestore {
   }
 }`;
 
+// Règles Cloud Storage (fichiers partagés : plans, photos, PDF). Elles lisent Firestore (membres, partenaires) : mêmes droits que les données.
+// À publier dans la console Firebase › Storage › Règles (la console demande d'autoriser l'accès à Firestore : accepter).
+const STORAGE_RULES = `rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signed() { return request.auth != null; }
+    function memPath(cid) { return /databases/(default)/documents/companies/$(cid)/members/$(request.auth.uid); }
+    function mem(cid) { return firestore.get(memPath(cid)).data; }
+    function lv(p, n) { return p.get('files', 0) >= n || p.get('plans', 0) >= n || p.get('photos', 0) >= n; }
+    function ownOk(cid, pid, n) {
+      return signed() && firestore.exists(memPath(cid)) && (mem(cid).allProjects == true || pid in mem(cid).projects) && lv(mem(cid).perms, n);
+    }
+    function partOk(cid, pid, n) {
+      let o = firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('companyId', '');
+      let pp = /databases/(default)/documents/companies/$(cid)/projects/$(pid)/partners/$(o);
+      return signed() && o != '' && o != cid && firestore.exists(memPath(o)) && firestore.exists(pp)
+        && firestore.get(pp).data.get('status', '') == 'actif' && lv(firestore.get(pp).data.mods, n) && lv(mem(o).perms, n)
+        && (mem(o).allProjects == true || pid in mem(o).projects);
+    }
+    // fichiers d'un projet : lecture = « Voir », envoi / suppression = « Modifier » ; 50 Mo au plus par fichier
+    match /companies/{cid}/projects/{pid}/files/{fid} {
+      allow read: if ownOk(cid, pid, 1) || partOk(cid, pid, 1);
+      allow create, update: if (ownOk(cid, pid, 2) || partOk(cid, pid, 2)) && request.resource.size < 50 * 1024 * 1024;
+      allow delete: if ownOk(cid, pid, 2) || partOk(cid, pid, 2);
+    }
+  }
+}`;
+
 const Team = (() => {
   const LS = {
     get(k, d = null) { try { const v = localStorage.getItem('team.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem('team.' + k, JSON.stringify(v)); } catch (e) {} },
     del(k) { try { localStorage.removeItem('team.' + k); } catch (e) {} },
   };
-  let fb = null, auth = null, fs = null;
+  let fb = null, auth = null, fs = null, st = null;
   const S = { user: null, cid: LS.get('cid'), company: LS.get('company'), me: LS.get('me'), members: LS.get('members', []), ready: false };
 
   function init() {
@@ -434,6 +462,7 @@ const Team = (() => {
     const emu = /[?&]emu=1/.test(location.search);
     try { fs.settings(emu ? { experimentalForceLongPolling: true, merge: true } : { experimentalAutoDetectLongPolling: true, merge: true }); } catch (e) {}
     if (emu) { auth.useEmulator('http://127.0.0.1:9099'); fs.useEmulator('127.0.0.1', 8080); }
+    try { if (firebase.storage) { st = firebase.storage(); if (emu) st.useEmulator('127.0.0.1', 9199); } } catch (e) { console.warn('storage', e); st = null; }
     return true;
   }
   const ts = () => firebase.firestore.FieldValue.serverTimestamp();
@@ -476,7 +505,8 @@ const Team = (() => {
     const so = LS.get('svcOpen'); if (Array.isArray(so)) SERVICES_OPEN = so;
     try { const [d, sv] = await withTimeout(Promise.all([fs.collection('config').doc('plans').get(), fs.collection('config').doc('services').get()]), 10000);
       if (d.exists) { LS.set('plansCfg', d.data()); applyPlanCfg(d.data()); }
-      if (sv.exists && Array.isArray(sv.data().open)) { SERVICES_OPEN = sv.data().open; LS.set('svcOpen', SERVICES_OPEN); } } catch (e) { console.warn('plans cfg', e); }
+      if (sv.exists && Array.isArray(sv.data().open)) { SERVICES_OPEN = sv.data().open; LS.set('svcOpen', SERVICES_OPEN); }
+      if (sv.exists) LS.set('cloud', { on: sv.data().storage === true, maxMb: +sv.data().maxMb || 50 }); } catch (e) { console.warn('plans cfg', e); }
   }
   // postes de l'organisation (renommés, désactivés, créés)
   async function loadPostes() {
@@ -508,6 +538,31 @@ const Team = (() => {
     if (v === 'plans') openCompany('set');
   }
   const canProject = (pid) => !S.ready || !!(S.me && (S.me.allProjects || (S.me.projects || []).includes(pid)));
+  // ---------- fichiers partagés (Cloud Storage) : activés par le Super Admin (config/services.storage), jamais sans son accord ----------
+  const cloudCfg = () => LS.get('cloud') || { on: false, maxMb: 50 };
+  const cloudOn = () => !!(S.ready && st && S.cid && cloudCfg().on && (myPlan().storageGb || 0) > 0);
+  const canCloud = (f, n = 1) => !!(f && f.projectId && canProject(f.projectId) && lvlFor('files', f.projectId) >= n);
+  const cloudPath = (f) => `companies/${(sharedOf(f.projectId) || {}).cid || S.cid}/projects/${f.projectId}/files/${f.id}`;
+  async function cloudUpload(f) {
+    if (!f.blob) throw new Error('fichier absent du téléphone');
+    if (f.blob.size > cloudCfg().maxMb * 1048576) throw new Error(`fichier trop lourd (plus de ${cloudCfg().maxMb} Mo)`);
+    const path = cloudPath(f);
+    await withTimeout(st.ref(path).put(f.blob, { contentType: f.mime || f.blob.type || 'application/octet-stream', customMetadata: { by: S.user.uid, name: String(f.name || '').slice(0, 200) } }), 180000, 'Envoi trop long (connexion lente ?)');
+    return { sref: path, ssize: f.blob.size };
+  }
+  async function cloudDownload(f) {
+    const url = await withTimeout(st.ref(f.sref).getDownloadURL(), 20000), type = f.mime || 'application/octet-stream';
+    const H = window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform() && Capacitor.Plugins && Capacitor.Plugins.CapacitorHttp;
+    if (H) {   // téléphone : requête native (pas de restriction CORS)
+      const r = await withTimeout(H.request({ url, method: 'GET', responseType: 'blob' }), 180000);
+      if (r.status && r.status >= 400) throw new Error('téléchargement refusé (' + r.status + ')');
+      const bin = atob(String(r.data || '')), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+      return new Blob([u], { type });
+    }
+    const r = await withTimeout(fetch(url), 180000); if (!r.ok) throw new Error('téléchargement refusé (' + r.status + ')');
+    const b = await r.blob(); return b.type ? b : new Blob([b], { type });
+  }
+  async function cloudRemove(sref) { if (st && sref) { try { await st.ref(sref).delete(); } catch (e) { if (e.code !== 'storage/object-not-found') console.warn('cloud del', e); } } }
   // projets partagés par d'autres organisations (companies/{moi}/shared)
   async function loadShared() {
     S.shared = LS.get('shared') || [];
@@ -1317,6 +1372,8 @@ const Team = (() => {
             <button class="btn ghost small" data-a="import">Importer des projets</button></div>
           <div class="tm-box"><b>🔒 Règles de sécurité Firestore</b><p>À coller une seule fois dans la console Firebase › Firestore Database › Règles › Publier.</p>
             <button class="btn ghost small" data-a="rules">Copier les règles</button></div>
+          <div class="tm-box"><b>🗂 Règles Cloud Storage (fichiers partagés)</b><p>À coller dans la console Firebase › Storage › Règles › Publier (accepter l'accès à Firestore si la console le demande).</p>
+            <button class="btn ghost small" data-a="srules">Copier les règles Storage</button></div>
           <div class="tm-box"><b>🏢 Entreprise</b><button class="btn ghost small" data-a="ren">Renommer l'entreprise</button></div></div>`;
         $('[data-a=drive]', body).onclick = () => Sync.openSyncSettings();
         const sup = $('[data-a=super]', body); if (sup) sup.onclick = () => superConsole();
@@ -1329,6 +1386,7 @@ const Team = (() => {
         const sh = $('[data-a=share]', body); if (sh) sh.onclick = shareDrive;
         $('[data-a=import]', body).onclick = () => importChantier();
         $('[data-a=rules]', body).onclick = () => copyText(FIRESTORE_RULES);
+        $('[data-a=srules]', body).onclick = () => copyText(STORAGE_RULES);
         $('[data-a=ren]', body).onclick = async () => { const r = await formSheet('Entreprise', [{ name: 'n', label: 'Nom', value: S.company.name }]); if (r && r.n) { await fs.collection('companies').doc(S.cid).update({ name: r.n }); S.company.name = r.n; LS.set('company', S.company); draw(); } };
         $('[data-a=planchange]', body).onclick = () => { const body2 = encodeURIComponent(`Bonjour, je souhaite changer le pack de « ${S.company.name} » (actuellement ${myPlan().l}).`); openUrl(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Changement de pack SiteTeam')}&body=${body2}`); };
       }
@@ -1639,7 +1697,7 @@ const Team = (() => {
     let tab = 'packs', orgs = null;
     const draw = async () => {
       el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><h1 style="flex:1;font-size:17px">🛡 Super Admin SiteTeam</h1></div>
-        <div class="tm-tabs"><button data-t="packs" class="${tab === 'packs' ? 'on' : ''}">Packs & limites</button><button data-t="orgs" class="${tab === 'orgs' ? 'on' : ''}">Organisations</button></div><div class="tm-body"></div>`;
+        <div class="tm-tabs"><button data-t="packs" class="${tab === 'packs' ? 'on' : ''}">Packs & limites</button><button data-t="orgs" class="${tab === 'orgs' ? 'on' : ''}">Organisations</button><button data-t="cloud" class="${tab === 'cloud' ? 'on' : ''}">Stockage</button></div><div class="tm-body"></div>`;
       $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
       $$('[data-t]', el).forEach(b => b.onclick = () => { tab = b.dataset.t; draw(); });
       const body = $('.tm-body', el);
@@ -1647,6 +1705,22 @@ const Team = (() => {
         body.innerHTML = `<div class="list">${Object.values(PLANS).map(P => `<button class="tm-mem" data-p="${P.k}"><span class="grow"><b>${esc(P.e || '')} ${esc(P.l)}</b><small>${esc(planPrice(P))} · ${esc(planUsers(P))} · ${P.projects ? P.projects + ' projet(s)' : 'projets illimités'} · ${P.storageGb} Go · ${P.modules === '*' ? 'tous les outils' : P.modules.length + ' outils'}${P.hier ? ' · hiérarchie' : ''}${P.shares ? ' · groupements' : ''}</small></span>${icon('edit')}</button>`).join('')}</div>
           <p class="muted" style="padding:0 16px;font-size:12.5px">Les changements s'appliquent à tous les téléphones à leur prochaine ouverture, sans nouvelle version.</p>`;
         $$('[data-p]', body).forEach(b => b.onclick = async () => { if (await editPack(PLANS[b.dataset.p])) draw(); });
+      }
+      if (tab === 'cloud') {
+        const C = cloudCfg();
+        body.innerHTML = `<div class="tm-box"><b>🗂 Fichiers partagés (Cloud Storage)</b>
+            <p>Quand c'est activé, les plans, photos et PDF sont envoyés dans Firebase Storage et arrivent sur les téléphones de l'équipe et des organisations partenaires (selon leurs droits).</p>
+            <p>Avant d'activer : projet Firebase en formule <b>Blaze</b> avec une alerte de budget, Storage créé, règles Storage publiées.</p>
+            <label class="tm-ck"><input type="checkbox" data-c="on" ${C.on ? 'checked' : ''}> Activer l'envoi des fichiers</label>
+            <label>Taille maximale par fichier (Mo)<input type="number" inputmode="numeric" min="1" max="50" data-c="max" value="${C.maxMb || 50}"></label>
+            <div class="btnrow" style="padding:0"><button class="btn" data-a="csave">Enregistrer</button><button class="btn ghost small" data-a="crules">Copier les règles Storage</button></div></div>`;
+        $('[data-a=crules]', body).onclick = () => copyText(STORAGE_RULES);
+        $('[data-a=csave]', body).onclick = async () => {
+          const v = { storage: $('[data-c=on]', body).checked, maxMb: Math.min(50, Math.max(1, +$('[data-c=max]', body).value || 50)) };
+          if (v.storage && !C.on && !await confirmBox('Activer l\'envoi des fichiers vers Firebase Storage ?\nVérifiez que la formule Blaze, l\'alerte de budget et les règles Storage sont en place.', 'Activer')) return;
+          try { await withTimeout(fs.collection('config').doc('services').set(v, { merge: true })); LS.set('cloud', { on: v.storage, maxMb: v.maxMb }); toast(v.storage ? 'Fichiers partagés activés ✓' : 'Fichiers partagés désactivés'); draw(); }
+          catch (e) { alertBox(errMsg(e)); }
+        };
       }
       if (tab === 'orgs') {
         if (!orgs) { body.innerHTML = '<div class="empty">Chargement…</div>'; try { const q = await withTimeout(fs.collection('companies').limit(300).get(), 20000); orgs = q.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.name || '').localeCompare(b.name || '')); } catch (e) { body.innerHTML = `<div class="empty">${esc(errMsg(e))}<br>Les règles Firestore v1.0.14 sont-elles publiées ?</div>`; return; } }
@@ -1715,6 +1789,7 @@ const Team = (() => {
     isSuper, superConsole, orgType, isPerso, companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, workspaces: () => S.workspaces || [],
     profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
     openProjectShares, claimShare, openPartners, renderHistory, sharedOf, joinWithCode,
+    cloudOn, canCloud, cloudUpload, cloudDownload, cloudRemove, cloudCfg, storageRules: STORAGE_RULES,
     ready: () => S.ready, me: () => S.me, uid: () => S.user && S.user.uid, company: () => S.company, members: () => S.members, rules: FIRESTORE_RULES,
   };
 })();

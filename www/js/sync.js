@@ -16,6 +16,9 @@ const Sync = (() => {
   const hasDrive = () => !!(cfg() && cfg().url && cfg().key);
   const teamOn = () => typeof Team !== 'undefined' && Team.ready();
   const enabled = () => hasDrive() || teamOn();
+  // fichiers partagés SiteTeam (Cloud Storage), activés par le Super Admin
+  const cloudOn = () => teamOn() && typeof Team.cloudOn === 'function' && Team.cloudOn();
+  const inCloud = (f) => !!(f && f.sref && cloudOn() && Team.canCloud(f, 1));
 
   // ---------- état (pastille) ----------
   function setStatus(state, msg = '') {
@@ -152,18 +155,21 @@ const Sync = (() => {
     return false;
   }
   async function freeSpace() {
-    if (!hasDrive()) return 0;
+    if (!hasDrive() && !cloudOn()) return 0;
     let freed = 0;
     for (const f of await DB.all('files')) {
-      if (f.blob && f.driveId && f.drivePath && !wantLocal(f)) { freed += f.blob.size || 0; f.blob = null; BlobURL.drop(f.id); await DB.putRaw('files', f); }
+      if (f.blob && ((hasDrive() && f.driveId && f.drivePath) || (inCloud(f) && f.ssize === f.blob.size)) && !wantLocal(f)) { freed += f.blob.size || 0; f.blob = null; BlobURL.drop(f.id); await DB.putRaw('files', f); }
     }
     return freed;
   }
   const pending = new Map();
-  async function fetchBlob(f) {                                               // téléchargement à la demande depuis Drive
-    if (!f || f.blob || !f.driveId || !hasDrive()) return f;
+  async function fetchBlob(f) {                                               // téléchargement à la demande (Drive ou fichiers partagés SiteTeam)
+    if (!f || f.blob || !((f.driveId && hasDrive()) || inCloud(f))) return f;
     if (!pending.has(f.id)) pending.set(f.id, (async () => {
-      try { const d = await call('download', { id: f.driveId }); f.blob = fromB64(d.b64, f.mime || d.mime); f.lastUsed = Date.now(); await DB.putRaw('files', f); }
+      try {
+        if (inCloud(f)) f.blob = await Team.cloudDownload(f);
+        else { const d = await call('download', { id: f.driveId }); f.blob = fromB64(d.b64, f.mime || d.mime); }
+        f.lastUsed = Date.now(); await DB.putRaw('files', f); }
       catch (e) { console.warn('fetch', e); }
       finally { pending.delete(f.id); }
       return f;
@@ -172,10 +178,10 @@ const Sync = (() => {
   }
   // DB.get / DB.byProject sur « files » : si le fichier n'est plus sur le téléphone, on le reprend dans Drive
   const _get = DB.get.bind(DB), _byP = DB.byProject.bind(DB);
-  DB.get = async (store, id) => { const r = await _get(store, id); if (store === 'files' && r && !r.blob && r.driveId) { await fetchBlob(r); } return r; };
-  DB.byProject = async (store, pid) => { const l = await _byP(store, pid); if (store === 'files') await pool(l.filter(f => !f.blob && f.driveId && !f.freed).slice(0, 40), 4, fetchBlob); return l; };
+  DB.get = async (store, id) => { const r = await _get(store, id); if (store === 'files' && r && !r.blob && (r.driveId || r.sref)) { await fetchBlob(r); } return r; };
+  DB.byProject = async (store, pid) => { const l = await _byP(store, pid); if (store === 'files') await pool(l.filter(f => !f.blob && (f.driveId || f.sref) && !f.freed).slice(0, 40), 4, fetchBlob); return l; };
   DB.peek = (store, id) => _get(store, id);   // lecture sans téléchargement depuis Drive
-  async function usage() { let local = 0, n = 0, cloud = 0; for (const f of await DB.all('files')) { if (f.blob) { local += f.blob.size || 0; n++; } else if (f.driveId) cloud++; } return { local, n, cloud }; }
+  async function usage() { let local = 0, n = 0, cloud = 0; for (const f of await DB.all('files')) { if (f.blob) { local += f.blob.size || 0; n++; } else if (f.driveId || f.sref) cloud++; } return { local, n, cloud }; }
 
   // ---------- synchronisation ----------
   async function run({ quiet = false, force = false } = {}) {
@@ -203,17 +209,28 @@ const Sync = (() => {
         } catch (e) { fails.push(`${pth.name} : ${e.message || e}`); }
         finally { i++; setStatus('sync', `Envoi vers Drive ${i}/${todo.length}`); }
       });
+      // 1b) fichiers partagés SiteTeam (Cloud Storage) : envoi des fichiers nouveaux ou remplacés, selon les droits sur le projet
+      if (cloudOn()) {
+        const up = files.filter(f => f.blob && f.projectId && (!f.sref || f.ssize !== f.blob.size) && !f.cloudSkip && Team.canCloud(f, 2));
+        let k = 0;
+        await pool(up, 3, async (f) => {
+          try { const r = await Team.cloudUpload(f); f.sref = r.sref; f.ssize = r.ssize; await DB.put('files', f); }
+          catch (e) { fails.push(`${f.name || 'fichier'} : ${e.message || e.code || e}`); if (/trop lourd/.test(String(e.message))) { f.cloudSkip = true; await DB.putRaw('files', f); } }
+          finally { k++; setStatus('sync', `Envoi des fichiers ${k}/${up.length}`); }
+        });
+      }
       // 2) envoyer les données modifiées (tableaux, pins, tâches…)
       const since = LS.get('pushAt', 0), start = Date.now();
       const out = [];
       for (const s of DATA) for (const r of await DB.all(s)) if ((r.updatedAt || 0) > since) { const { blob, ...rest } = r; out.push({ ...rest, _store: s }); }
-      for (const t of await DB.all('tomb')) if (t.at > since) out.push({ _store: t.store, id: t.rid, projectId: t.projectId, kind: t.kind, driveId: t.driveId, _deleted: true, updatedAt: t.at });
+      for (const t of await DB.all('tomb')) if (t.at > since) out.push({ _store: t.store, id: t.rid, projectId: t.projectId, kind: t.kind, driveId: t.driveId, sref: t.sref || null, _deleted: true, updatedAt: t.at });
       if (teamOn()) {
         setStatus('sync', `Envoi des données (${out.length})`);
         await Team.push(out);
         // suppression des fichiers correspondants dans le Drive de l'entreprise
         const del = out.filter(r => r._deleted && r.driveId);
         if (del.length && hasDrive()) { try { await call('push', { records: del }); } catch (e) { console.warn('drive del', e); } }
+        if (cloudOn()) for (const r of out.filter(r => r._deleted && r.sref)) await Team.cloudRemove(r.sref);
       } else for (let k = 0; k < out.length; k += 150) { setStatus('sync', `Envoi des données ${Math.min(k + 150, out.length)}/${out.length}`); await call('push', { records: out.slice(k, k + 150) }); }
       LS.set('pushAt', start);
       // 3) recevoir les changements des autres appareils
@@ -227,7 +244,7 @@ const Sync = (() => {
           const local = await _get(store, rec.id);   // sans téléchargement automatique
           if (_deleted) { if (local && (local.updatedAt || 0) <= (r.updatedAt || 0)) { await DB.delRaw(store, rec.id); BlobURL.drop(rec.id); pulledCount++; } continue; }
           if (local && (local.updatedAt || 0) >= (rec.updatedAt || 0)) continue;
-          if (store === 'files' && local && local.blob && local.driveId === rec.driveId) rec.blob = local.blob;
+          if (store === 'files' && local && local.blob && local.driveId === rec.driveId && !(rec.sref && rec.ssize && rec.ssize !== local.blob.size)) rec.blob = local.blob;
           await DB.putRaw(store, rec); pulledCount++;
         } catch (e) {
           // un enregistrement non sauvegardé ne bloque pas les autres ; le repère de réception n'avance pas → il sera repris
@@ -238,10 +255,12 @@ const Sync = (() => {
       if (pullFails) fails.push(`${pullFails} élément(s) reçu(s) non enregistré(s) — nouvel essai à la prochaine synchro`);
       else if (pull.commit) pull.commit(); else LS.set('pullAt', pull.now);
       // 4) télécharger les fichiers manquants (plans d'abord)
-      const missing = !hasDrive() ? [] : (await DB.all('files')).filter(f => f.driveId && !f.blob && wantLocal(f)).sort((a, b) => (b.role === 'plan') - (a.role === 'plan'));
+      const missing = (!hasDrive() && !cloudOn()) ? [] : (await DB.all('files')).filter(f => ((hasDrive() && f.driveId) || inCloud(f)) && !f.blob && wantLocal(f)).sort((a, b) => (b.role === 'plan') - (a.role === 'plan'));
       let j = 0;
       await pool(missing, 4, async (f) => {
-        try { const d = await call('download', { id: f.driveId }); f.blob = fromB64(d.b64, f.mime || d.mime); await DB.putRaw('files', f); pulledCount++; }
+        try {
+          if (inCloud(f)) f.blob = await Team.cloudDownload(f); else { const d = await call('download', { id: f.driveId }); f.blob = fromB64(d.b64, f.mime || d.mime); }
+          await DB.putRaw('files', f); pulledCount++; }
         catch (e) { console.warn('download', f.id, e); }
         finally { j++; setStatus('sync', `Téléchargement ${j}/${missing.length}`); }
       });

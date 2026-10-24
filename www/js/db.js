@@ -81,7 +81,7 @@ const DB = (() => {
       const old = await this.get(store, id);
       await run(store, 'readwrite', (os) => os.delete(id));
       if (old && store !== 'tomb') {
-        await run('tomb', 'readwrite', (os) => os.put({ id: store + ':' + id, store, rid: id, projectId: old.projectId || (store === 'projects' ? id : null), kind: old.kind || null, driveId: old.driveId || null, at: Date.now() }));
+        await run('tomb', 'readwrite', (os) => os.put({ id: store + ':' + id, store, rid: id, projectId: old.projectId || (store === 'projects' ? id : null), kind: old.kind || null, driveId: old.driveId || null, sref: old.sref || null, at: Date.now() }));
         changed(store);
       }
     },
