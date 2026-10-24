@@ -74,5 +74,31 @@ OK   collaborateur : REFUS de tous les projets
 OK   collaborateur : REFUS d'un administrateur
 OK   collaborateur : REFUS d'un autre poste qu'« collaborateur »
 OK   collaborateur : REFUS en pack Basic
+OK   PV : le technicien crée un brouillon
+OK   PV : le technicien soumet
+OK   PV : REFUS que l'auteur valide son propre PV
+OK   PV : REFUS de créer un PV déjà validé
+OK   PV : REFUS de validation par un responsable qui n'est pas le sien
+OK   PV : le responsable direct valide
+OK   PV validé : REFUS de modification par l'auteur
+OK   PV validé : REFUS de le remettre en brouillon par l'auteur
+OK   PV : REFUS de changer l'auteur
+OK   PV : le responsable direct refuse (motif)
+OK   PV refusé : l'auteur corrige et resoumet
+OK   PV : le Directeur qualité (Administrer) valide
+OK   PV : l'administrateur valide
+OK   PV : REFUS de valider au nom d'un autre (vby)
+OK   délégation : le responsable ajuste les droits de son technicien (dans ses limites)
+OK   délégation : REFUS de donner plus que ses propres droits
+OK   délégation : REFUS de nommer administrateur
+OK   délégation : REFUS de changer le poste
+OK   délégation : REFUS de donner tous les projets
+OK   délégation : REFUS par un responsable qui n'est pas le sien
+OK   délégation : REFUS de modifier ses propres droits
+OK   délégation : le directeur délègue à son responsable
+OK   postes : le Directeur qualité crée un poste
+OK   postes : l'administrateur renomme un poste
+OK   postes : REFUS par un technicien
+OK   postes : un membre lit les postes
 
-TOUT OK — 76 vérifications
+TOUT OK — 102 vérifications
