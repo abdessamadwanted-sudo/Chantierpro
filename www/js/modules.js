@@ -136,6 +136,7 @@ async function otaInstall(rel, ld) {
   const P = window.Capacitor?.Plugins || {}, FS = P.Filesystem, WV = OTA_WV();
   if (!FS || !FS.downloadFile || !WV || !WV.setServerBasePath || /^__/.test(NATIVE_ID)) return false;
   try { if (localStorage.getItem('ota.off')) return false; } catch (e) {}
+  try { if (localStorage.getItem('ota.bad') === relVer(rel)) return false; } catch (e) {}   // cette version n'a pas démarré correctement ici → APK
   const A = (n) => (rel.assets || []).find(a => a.name === n), aj = A('ota.json'), az = A('www.zip');
   if (!aj || !az) return false;
   const ver = relVer(rel);
@@ -173,7 +174,12 @@ async function otaBoot() {
   try {
     const { path } = await WV.getServerBasePath(), onOta = /\/ota\//.test(path || '');
     let T = null; try { T = JSON.parse(localStorage.getItem('ota.try') || 'null'); } catch (e) {}
-    if (onOta) { await WV.persistServerBasePath(); try { localStorage.removeItem('ota.try'); } catch (e) {} }
+    // le nouveau paquet ne devient permanent qu'une fois l'écran réellement affiché (sinon : retour automatique à l'APK, voir index.html)
+    if (onOta) {
+      let ok = false; for (let i = 0; i < 40 && !ok; i++) { ok = !!document.querySelector('.home2, .tm-login, .st-onb, .fullpage, .sheet-bg'); if (!ok) await new Promise(r => setTimeout(r, 500)); }
+      if (!ok) return;
+      await WV.persistServerBasePath(); try { localStorage.removeItem('ota.try'); localStorage.removeItem('ota.bad'); } catch (e) {}
+    }
     else if (T && T.v !== APP_VERSION && Date.now() - T.at < 10 * 60000) { try { localStorage.setItem('ota.off', '1'); localStorage.removeItem('ota.try'); } catch (e) {} }   // le changement n'a pas pris : on repasse par l'APK
     const cur = onOta ? path.split('/ota/')[1].split('/')[0] : '';
     const d = await FS.readdir({ path: 'ota', directory: 'DATA' }).catch(() => null);

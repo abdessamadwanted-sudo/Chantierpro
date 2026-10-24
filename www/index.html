@@ -11,6 +11,17 @@
   <div id="app"></div>
   <div id="sheet-root"></div>
   <div id="toast"></div>
+  <script>
+  // Sécurité des mises à jour rapides (OTA) : si une nouvelle version ne s'affiche pas en 25 s, l'application se ferme
+  // et repart sur la version installée (APK) ; cette version n'est plus proposée en mise à jour rapide.
+  (function () { try {
+    var C = window.Capacitor, W = C && C.Plugins && C.Plugins.WebView; if (!W || !W.getServerBasePath) return;
+    W.getServerBasePath().then(function (r) { var p = (r && r.path) || ''; if (p.indexOf('/ota/') < 0) return; var v = p.split('/ota/')[1].split('/')[0];
+      setTimeout(function () { if (document.querySelector('.home2, .tm-login, .st-onb, .fullpage, .sheet-bg')) return;
+        try { localStorage.setItem('ota.bad', v); localStorage.removeItem('ota.try'); } catch (e) {}
+        var A = C.Plugins.App; if (A && A.exitApp) A.exitApp(); }, 25000); }).catch(function () {});
+  } catch (e) {} })();
+  </script>
   <script src="lib/pdf.min.js" onerror="window.pdfjsLib=null"></script>
   <script src="lib/pdf-lib.min.js" onerror="window.PDFLib=null"></script>
   <script src="js/db.js"></script>
