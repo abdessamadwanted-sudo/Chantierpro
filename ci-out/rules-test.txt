@@ -29,6 +29,7 @@ OK   partage : REFUS de modifier une réponse existante
 OK   partage : REFUS de répondre si « répondre » n'est pas autorisé
 OK   partage : REFUS de changer le périmètre
 OK   code : personne autorisée (Équipe = Valider) crée un code dans ses droits
+OK   code : REFUS d'un code sans approbation créé par un non-administrateur
 OK   code : REFUS de donner plus de droits que les siens
 OK   code : REFUS de créer un administrateur
 OK   code : REFUS de donner un projet qu'on n'a pas
@@ -57,5 +58,21 @@ OK   config : REFUS de lecture sans compte
 OK   création : REFUS de créer une organisation déjà « actif » (payé)
 OK   pack : REFUS que l'admin prolonge son essai
 OK   création : une organisation avec type et services
+OK   révoquer : le créateur révoque son propre code
+OK   révoquer : REFUS par un autre membre
+OK   rejoindre : REFUS avec un code révoqué
+OK   approbation : REFUS d'entrer directement avec un code « avec approbation »
+OK   approbation : déposer sa demande
+OK   approbation : REFUS de s'accepter soi-même
+OK   approbation : REFUS d'une demande « acceptée » dès la création
+OK   approbation : l'administrateur accepte
+OK   approbation : l'administrateur crée le membre
+OK   collaborateur (Pro) : code sur un projet, au plus Modifier
+OK   collaborateur : REFUS du niveau Valider
+OK   collaborateur : REFUS de deux projets
+OK   collaborateur : REFUS de tous les projets
+OK   collaborateur : REFUS d'un administrateur
+OK   collaborateur : REFUS d'un autre poste qu'« collaborateur »
+OK   collaborateur : REFUS en pack Basic
 
-TOUT OK — 59 vérifications
+TOUT OK — 76 vérifications

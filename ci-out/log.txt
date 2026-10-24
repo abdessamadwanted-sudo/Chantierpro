@@ -405,3 +405,56 @@ D after delete: login screen 1
 A members after D delete ["Youssef Conducteur","Sara BET","Abdessamad Patron","Client MO"]
 D relogin Compte introuvable
 errors ["D console: Failed to load resource: the server responded with a status of 400 (Bad Request)"]
+A offres organisation ["basic:🌱 Basic Organisation","business:🏢 Business","enterprise:🏛️ Enterprise"]
+A pack/type ["business","entreprise",10,true]
+A projet [["Grand stade Benslimane","equip","Ministère"]]
+A sync state <span style="color:#22c55e">✓ Synchronisé</span> <span style="color:var(--muted)">· 24/10 15:07</span>
+A poste Directeur de projet : admin auto / max droit [false,3]
+code conducteur GB4FZCHR
+code MO N38NHUZU
+B projects ["Grand stade Benslimane"]
+B tasks ["Enrobage insuffisant voile V12"]
+B receptions 1
+A sees task ["Enrobage insuffisant voile V12 (repris) / progress"]
+B self-admin denied OK: permission-denied
+B invite create denied OK: permission-denied
+C fab 0 projects ["Grand stade Benslimane"]
+C write task denied OK: permission-denied
+D items ["impl:demandee","cmd:demandee","rdt:","pt:"]
+D topo write cmd denied OK: permission-denied
+A items ["impl:implantee","cmd:demandee","rdt:","pt:","mat:","stock:"]
+B poste {"service":"trav","poste":"conduct","at":"2026-10-24","st":"conducteur"} C poste {"service":"mo","poste":"mo","at":"2026-10-24","st":"mo"} D poste {"service":"etu","poste":"topo","at":"2026-10-24","st":"cheftopo"}
+B tableau de bord ["Tâches / réserves","PV non reçus","PV non livrés au BET"]
+C sections finance/reception [true,true,false,true]
+A aperçu basic [false,false,false,false,true,false]
+A aperçu tiroir {"lock":0,"items":["dashboard","plans","avancement","planning","tasks","reports","photos","models3d","maquette","settings"]}
+A sans aperçu [true,true]
+B peut créer un code false
+E packs proposés ["basic","pro"]
+E espace [true,"basic","Espace de Hamid Indep","proprietaire",true,"tsq"]
+E dashboard perso {"outils":true,"direction":false,"espaceDir":false,"stats":["0","0 / 1","0","0"],"tools":["forms🔒","tasks","reception🔒","constat🔒","photos","reports","plans"],"role":"👷 Technicien qualité"}
+E profil / metier ["techqualite",false,false]
+E mon espace onglets ["Mon profil","Mon abonnement","Paramètres","Mon compte"]
+E abonnement ["Gratuit","Basic · Gratuit"]
+E outils basic [true,false,false]
+E limite projets 🔒 Le pack Basic est limité à 1 projet(s).
+Pour aller plus loin : Pro, Business, Enterprise.
+E limite résultat false
+F services proposés ["direction","metre","bim","doc","admin"]
+F espaces BET ["board","rdt"]
+E espaces basic []
+F interface BET ["bet","bet","bet",true,true,false,false,false]
+F postes proposés (services) ["Direction","Métré","Méthodes / Planning / BIM","Documentation","Administration & finance","Intervenants externes"]
+errors v1.0.14 []
+code BET D6UF9DQV
+F espace 2 ["BTP Test SARL","chantier_wIkeGFHxoMagaN48GvME",2,["Grand stade Benslimane"],"bet"]
+F retour espace 1 ["BET Structures","chantier",["Pont BET"]]
+errors v1.0.15 []
+FAIL page.evaluate: TypeError: Failed to execute 'getComputedStyle' on 'Window': parameter 1 is not of type 'Element'.
+    at eval (eval at evaluate (:234:30), <anonymous>:1:54)
+    at UtilityScript.evaluate (<anonymous>:236:17)
+    at UtilityScript.<anonymous> (<anonymous>:1:44)
+ERRS []
+ERRS []
+ERRS []
+ERRS []
