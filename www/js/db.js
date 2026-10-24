@@ -1,6 +1,8 @@
 // Stockage local (IndexedDB) — tout reste sur le téléphone, fonctionne sans internet.
 const DB = (() => {
-  const NAME = 'chantier';
+  // une base par espace de travail (Workspace Switcher) : le premier espace du téléphone garde « chantier » (données existantes),
+  // les autres espaces ont la leur (« chantier_<organisation> ») — aucune donnée n'est déplacée ni mélangée
+  const NAME = (() => { try { return localStorage.getItem('st.db') || 'chantier'; } catch (e) { return 'chantier'; } })();
   const VERSION = 4;
   const STORES = ['projects', 'folders', 'plans', 'tasks', 'links', 'files', 'forms', 'reports', 'receptions', 'items', 'tomb'];  // tomb = suppressions à synchroniser
   let dbp = null;
@@ -62,6 +64,7 @@ const DB = (() => {
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
   return {
+    name: () => NAME,
     uid,
     async get(store, id) { return run(store, 'readonly', (os) => os.get(id)); },
     async all(store) { return run(store, 'readonly', (os) => os.getAll()); },
