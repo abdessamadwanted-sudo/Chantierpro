@@ -1,0 +1,98 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function signed() { return request.auth != null; }
+    function memPath(cid) { return /databases/$(db)/documents/companies/$(cid)/members/$(request.auth.uid); }
+    function isMem(cid) { return signed() && exists(memPath(cid)); }
+    function mem(cid) { return get(memPath(cid)).data; }
+    function isAdmin(cid) { return isMem(cid) && mem(cid).admin == true; }
+    function lvl(cid, m) { return mem(cid).perms.get(m, 0); }
+    function canProj(cid, pid) { return mem(cid).allProjects == true || pid in mem(cid).projects; }
+    function inv(code) { return get(/databases/$(db)/documents/invites/$(code)).data; }
+
+    match /users/{uid} { allow read, write: if signed() && request.auth.uid == uid; }
+
+    match /invites/{code} {
+      allow get: if signed();
+      allow list: if signed() && isAdmin(resource.data.cid);
+      allow create: if signed() && isAdmin(request.resource.data.cid);
+      allow update: if signed() && (isAdmin(resource.data.cid) || (resource.data.used == false
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used', 'usedBy', 'usedAt'])
+        && request.resource.data.usedBy == request.auth.uid));
+      allow delete: if signed() && isAdmin(resource.data.cid);
+    }
+
+    // partage externe (projet précis, accès limité) : créé/géré par l'entreprise propriétaire du projet ; l'intervenant externe
+    // (compte d'une autre entreprise, ou sans entreprise) le récupère par code puis ne peut qu'ajouter des réponses, pas modifier le périmètre.
+    match /shares/{code} {
+      allow get: if signed();
+      allow list: if signed() && (isAdmin(resource.data.cid) || resource.data.usedBy == request.auth.uid);
+      allow create: if signed() && isAdmin(request.resource.data.cid);
+      allow update: if signed() && (isAdmin(resource.data.cid)
+        || (resource.data.used == false
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used', 'usedBy', 'usedByName', 'usedAt'])
+            && request.resource.data.usedBy == request.auth.uid)
+        || (resource.data.usedBy == request.auth.uid && resource.data.ops.comment == true
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['responses'])
+            && request.resource.data.responses.size() == resource.data.responses.size() + 1
+            && request.resource.data.responses[0:resource.data.responses.size()] == resource.data.responses));
+      allow delete: if signed() && isAdmin(resource.data.cid);
+    }
+
+    // ---- Application Chantier (ma.chantier.app) : licences « CH- » et suivi, dans le MÊME projet Firebase.
+    // Ces règles reproduisent exactement ce que fait www/js/licence.js (branche main) : les téléphones activés
+    // par code n'ont pas de compte Firebase (le code sert de secret) ; seul le propriétaire crée et gère les licences.
+    function licOwner() { return signed() && request.auth.token.get('email', '').lower() == 'abdessamad.daga94@gmail.com'; }
+    function licOf(code) { return get(/databases/$(db)/documents/licences/$(code)).data; }
+    match /licences/{code} {
+      allow get: if true;
+      allow list: if signed() && resource.data.ownerUid == request.auth.uid;
+      allow create: if licOwner() && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if (signed() && resource.data.ownerUid == request.auth.uid)
+        || (resource.data.status == 'active'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['device', 'accepted', 'lastSeen', 'version'])
+            && (resource.data.get('device', null) == null || resource.data.device.id == request.resource.data.device.id));
+      allow delete: if signed() && resource.data.ownerUid == request.auth.uid;
+      match /suivi/{id} {
+        allow read: if signed() && licOf(code).ownerUid == request.auth.uid;
+        allow write: if (signed() && licOf(code).ownerUid == request.auth.uid) || licOf(code).status == 'active';
+      }
+    }
+
+    match /companies/{cid} {
+      allow create: if signed() && request.resource.data.ownerUid == request.auth.uid;
+      allow read: if isMem(cid);
+      allow update: if isAdmin(cid);
+
+      match /members/{uid} {
+        allow read: if isMem(cid);
+        allow create: if signed() && (isAdmin(cid) || (uid == request.auth.uid && (
+          (get(/databases/$(db)/documents/companies/$(cid)).data.ownerUid == request.auth.uid)
+          || (request.resource.data.invite is string
+              && inv(request.resource.data.invite).cid == cid
+              && inv(request.resource.data.invite).used == false
+              && request.resource.data.role == inv(request.resource.data.invite).role
+              && request.resource.data.perms == inv(request.resource.data.invite).perms
+              && request.resource.data.admin == inv(request.resource.data.invite).admin
+              && request.resource.data.allProjects == inv(request.resource.data.invite).allProjects
+              && request.resource.data.projects == inv(request.resource.data.invite).projects))));
+        allow update: if isAdmin(cid);
+        allow delete: if isAdmin(cid) || (signed() && uid == request.auth.uid);
+      }
+      match /private/{doc} {
+        allow read: if isMem(cid);
+        allow write: if isAdmin(cid);
+      }
+      match /projects/{pid} {
+        allow read: if isMem(cid) && canProj(cid, pid);
+        allow create: if isMem(cid) && lvl(cid, 'projet') >= 3;
+        allow update: if isMem(cid) && canProj(cid, pid) && lvl(cid, 'projet') >= 2;
+        allow delete: if isAdmin(cid);
+        match /m/{mod}/r/{rid} {
+          allow read: if isMem(cid) && canProj(cid, pid) && lvl(cid, mod) >= 1;
+          allow write: if isMem(cid) && canProj(cid, pid) && lvl(cid, mod) >= 2;
+        }
+      }
+    }
+  }
+}

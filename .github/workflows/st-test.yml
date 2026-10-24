@@ -10,6 +10,7 @@ jobs:
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     steps:
       - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - uses: actions/setup-java@v4
@@ -27,6 +28,10 @@ jobs:
           node ci/rules-test.mjs || true
           node ci/db-test.mjs || true
           node ci/st.mjs || true
+          git fetch -q origin siteteam && mkdir -p /tmp/w21 && git archive f86f78c www | tar -x -C /tmp/w21 && cp -n www/vendor/firebase/firebase-storage-compat.js /tmp/w21/www/vendor/firebase/ || true
+          (cd /tmp/w21/www && python3 -m http.server 8766 > /dev/null 2>&1 &)
+          sleep 2
+          node ci/boot-old.mjs || true
           tail -30 emu.log > ci-out/emu.txt || true
       - run: |
           git config user.name bot && git config user.email bot@example.com
