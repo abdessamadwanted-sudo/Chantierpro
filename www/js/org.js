@@ -120,7 +120,7 @@ const Org = {
     const vis = P.f === ALL_F || P.f.includes(f);
     if (lvl === 'see') return vis;
     if (lvl === 'edit') return vis && !(P.ro || []).includes(f);
-    return P.va === ALL_F || (P.va || []).includes(f);
+    return vis && (P.va === ALL_F || (P.va || []).includes(f));
   },
   owner() { const L = (typeof Lic !== 'undefined' && Lic.get()) || {}; return L.mode === 'owner'; },
   apply() { const P = Org.poste(); if (P) document.documentElement.style.setProperty('--role', P.svc.c); },
