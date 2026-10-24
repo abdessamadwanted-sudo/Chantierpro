@@ -100,5 +100,40 @@ OK   postes : le Directeur qualité crée un poste
 OK   postes : l'administrateur renomme un poste
 OK   postes : REFUS par un technicien
 OK   postes : un membre lit les postes
+OK   partenaire : l'administrateur du titulaire crée un code partenaire
+OK   partenaire : REFUS d'un code au-delà de « Modifier »
+OK   partenaire : REFUS d'un code par un non-administrateur
+OK   partenaire : REFUS d'utiliser un code partenaire pour devenir membre
+OK   partenaire : REFUS d'accepter par un non-administrateur
+OK   partenaire : REFUS avec des accès modifiés
+OK   partenaire : l'administrateur du partenaire accepte
+OK   partenaire : REFUS de réutiliser le code
+OK   partenaire : un membre lit le projet partagé
+OK   partenaire : un membre lit les réserves accordées
+OK   partenaire : un membre ajoute une réserve
+OK   partenaire : REFUS au-delà de ses propres droits (plans : voir)
+OK   partenaire : REFUS d'un module non accordé (finance)
+OK   partenaire : REFUS pour un membre sans ce projet
+OK   partenaire : REFUS de lire l'équipe du titulaire
+OK   partenaire : REFUS de lire l'organisation du titulaire
+OK   partenaire : REFUS pour une organisation étrangère
+OK   partenaire : REFUS de modifier ses propres accès
+OK   partenaire : REFUS depuis un autre espace actif
+OK   historique : le partenaire ajoute une ligne
+OK   historique : REFUS au nom d'un autre
+OK   historique : REFUS de modifier une ligne
+OK   historique : REFUS d'effacer une ligne
+OK   historique : le titulaire lit
+OK   historique : REFUS pour une organisation étrangère
+OK   titulaire : REFUS d'accorder plus que « Modifier »
+OK   titulaire : ajuste les accès du partenaire
+OK   groupement : REFUS par un membre non administrateur
+OK   groupement : l'administrateur déclare le groupement et le mandataire
+OK   groupement : le mandataire invite une organisation
+OK   groupement : REFUS par un membre du mandataire non administrateur
+OK   titulaire : suspendre l'accès du partenaire
+OK   partenaire suspendu : REFUS de lecture
+OK   partenaire : quitter le projet
+OK   partenaire retiré : REFUS de lecture du projet
 
-TOUT OK — 102 vérifications
+TOUT OK — 137 vérifications
