@@ -2527,3 +2527,15 @@ body:has(.pst-page) #plansFab, body:has(.rub-page) #plansFab, body:has(.scanpage
 .st-doc { display: grid; gap: 4px; text-align: left; padding: 14px 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--card, #1e2430); color: inherit; }
 .st-doc .e { font-size: 22px; } .st-doc b { font-size: 14px; line-height: 1.25; } .st-doc small { color: var(--muted); font-size: 12px; }
 @media (min-width: 600px) { .st-docs { grid-template-columns: repeat(3, 1fr); } }
+
+/* ---------- v1.0.19 : projet multi-organisations, groupement, historique ---------- */
+.st-pmods { display: grid; gap: 6px; max-height: 46vh; overflow: auto; }
+.st-jv p { margin: 4px 0 8px; font-size: 13.5px; }
+.st-pt .tm-inv small { display: block; }
+.st-hist { padding: 0 16px 24px; }
+.st-hf { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; }
+.st-hf button { border: 1px solid var(--line); background: transparent; color: inherit; border-radius: 16px; padding: 6px 12px; font-size: 13px; }
+.st-hf button.on { background: var(--accent, #2563eb); border-color: transparent; color: #fff; }
+.st-hrow { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.st-hrow .st-state { margin: 2px 0 0; flex: none; font-size: 11px; }
+.st-hrow b { font-size: 13.5px; font-weight: 600; display: block; } .st-hrow small { color: var(--muted); font-size: 12px; }

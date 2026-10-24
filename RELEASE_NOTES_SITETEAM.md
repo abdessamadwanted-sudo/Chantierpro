@@ -1,10 +1,9 @@
-## SiteTeam : service Qualité (Pack Enterprise)
-- Services : seul le service Qualité est ouvert pour l'instant (avec Direction et Intervenants externes). Les autres services sont fermés 🔒 et ouvriront un par un. Les membres déjà présents dans ces services continuent de travailler normalement.
-- Hiérarchie qualité sur 5 niveaux : Directeur qualité, Ingénieur qualité, Responsable qualité, Technicien qualité, Contrôleur qualité. Chaque poste a son propre tableau de bord et son propre menu.
-- Organigramme qualité. L'administrateur ou le Directeur qualité peut ajouter, renommer, désactiver ou supprimer un poste.
-- Délégation en cascade : chaque responsable donne des droits à son équipe directe, jamais plus que les siens. Le poste ne change que par l'administrateur ou le responsable direct.
-- Missions : un responsable confie des missions à son équipe directe. Elles s'affichent sur le tableau de bord de la personne.
-- Validation des PV : Brouillon → Soumis → Validé ou Refusé (avec un motif) → corrigé puis renvoyé. Personne ne valide son propre PV. Un PV validé passe en lecture seule. Ces règles sont vérifiées par le serveur.
-- Documentation & archives : les documents du projet sont classés (PAQ, Procédures, Plans de contrôle, Fiches techniques, PV de réception, Essais labo, NC, Visas, Audits, Divers, Archives).
-- Collaborateurs : affichage corrigé (« Projet partagé · Collaborateur »).
+## SiteTeam : projet multi-organisations, groupement et historique
+- Organisations du projet : le titulaire invite une autre organisation (maître d'ouvrage, BET, architecte, bureau de contrôle, laboratoire, topographe, sous-traitant, membre du groupement…) avec un code partenaire. Il choisit les modules qu'elle voit, au plus « Modifier ».
+- L'administrateur de l'organisation invitée entre le code (Changer d'espace › Rejoindre avec un code). Le projet apparaît chez elle avec la mention 🤝. Ses membres y travaillent avec leurs propres comptes et leurs propres droits.
+- Chaque organisation garde ses données privées : son équipe, son organigramme et ses autres projets ne sont jamais visibles par les autres.
+- Le titulaire peut modifier les accès d'une organisation partenaire, les suspendre ou la retirer du projet. L'organisation partenaire peut aussi quitter le projet.
+- Groupement d'entreprises (JV) : on déclare le nom du groupement et le mandataire. L'administrateur du mandataire peut lui aussi inviter des organisations.
+- Historique du projet : qui a ajouté, modifié ou supprimé, dans quelle organisation et à quelle heure (heure du serveur). Aucune ligne ne peut être modifiée ou effacée.
+- Nouveaux types d'organisation : Artisan, Fournisseur / commerçant, Loueur de matériel, Promoteur immobilier, Établissement de formation.
 - Règles de sécurité Firestore mises à jour : à publier (Réglages › Copier les règles).

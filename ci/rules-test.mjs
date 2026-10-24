@@ -2,6 +2,8 @@
 // Lancé par .github/workflows/st-test.yml (branche siteteam-ci). Résultat : ci-out/rules-test.txt
 import fs from 'fs';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/firestore';
 
 const O = 'ci-out'; fs.mkdirSync(O, { recursive: true });
 const out = []; let fails = 0;
@@ -209,6 +211,66 @@ await t('postes : le Directeur qualité crée un poste', () => assertSucceeds(dq
 await t('postes : l\'administrateur renomme un poste', () => assertSucceeds(adq.collection('companies').doc('c5').collection('postes').doc('techqualite').set({ label: 'Technicien contrôle' })));
 await t('postes : REFUS par un technicien', () => assertFails(tq.collection('companies').doc('c5').collection('postes').doc('x').set({ label: 'X' })));
 await t('postes : un membre lit les postes', () => assertSucceeds(tq.collection('companies').doc('c5').collection('postes').get()));
+
+// --- v1.0.19 : projet multi-organisations (partenaires), groupement (JV), historique
+const SRV = () => firebase.firestore.FieldValue.serverTimestamp();
+await env.withSecurityRulesDisabled(async (c) => {
+  const db = c.firestore(), A = db.collection('companies').doc('c6'), B = db.collection('companies').doc('c7');
+  await A.set({ name: 'Entreprise Titulaire', ownerUid: 'own6', plan: 'enterprise', planStatus: 'essai' });
+  await A.collection('members').doc('own6').set({ name: 'Own', admin: true, perms: ALL4, allProjects: true, projects: [] });
+  await A.collection('members').doc('m6').set({ name: 'Cond', admin: false, perms: { ...ALL0, projet: 2, reserves: 2, equipe: 3 }, allProjects: true, projects: [] });
+  await A.collection('projects').doc('p6').set({ name: 'Hôpital', by: 'own6' });
+  await A.collection('projects').doc('p6').collection('m').doc('reserves').collection('r').doc('tasks__t1').set({ store: 'tasks', id: 't1', projectId: 'p6', data: '{}' });
+  await A.collection('projects').doc('p6').collection('m').doc('finance').collection('r').doc('items__f1').set({ store: 'items', id: 'f1', projectId: 'p6', data: '{}' });
+  await B.set({ name: 'BET Partenaire', ownerUid: 'pa7', plan: 'business', planStatus: 'essai', orgType: 'bet' });
+  await B.collection('members').doc('pa7').set({ name: 'Admin BET', admin: true, perms: ALL4, allProjects: true, projects: [] });
+  await B.collection('members').doc('pm7').set({ name: 'Ing BET', admin: false, perms: { ...ALL0, projet: 1, plans: 1, reserves: 2 }, allProjects: true, projects: [] });
+  await B.collection('members').doc('px7').set({ name: 'Autre BET', admin: false, perms: { ...ALL0, projet: 1, reserves: 2 }, allProjects: false, projects: [] });
+  await db.collection('companies').doc('c8').set({ name: 'Étrangère', ownerUid: 'ad8', plan: 'business', planStatus: 'essai' });
+  await db.collection('companies').doc('c8').collection('members').doc('ad8').set({ name: 'Ad8', admin: true, perms: ALL4, allProjects: true, projects: [] });
+  for (const [u, cid] of [['pa7', 'c7'], ['pm7', 'c7'], ['px7', 'c7'], ['ad8', 'c8'], ['own6', 'c6'], ['m6', 'c6']]) await db.collection('users').doc(u).set({ companyId: cid });
+});
+const [own6, m6, pa7, pm7, px7, ad8] = ['own6', 'm6', 'pa7', 'pm7', 'px7', 'ad8'].map(nu);
+const PM = { projet: 1, plans: 2, reserves: 2 };
+const pinv = (who, code, extra) => who.collection('invites').doc(code).set({ kind: 'partner', cid: 'c6', pid: 'p6', pname: 'Hôpital', ownerName: 'Entreprise Titulaire', prole: 'bet', mods: PM, used: false, status: 'valide', createdBy: who === own6 ? 'own6' : who === m6 ? 'm6' : who === pa7 ? 'pa7' : 'pm7', expiresAt: new Date(Date.now() + 864e5), ...extra });
+const P6 = (db) => db.collection('companies').doc('c6').collection('projects').doc('p6');
+const part = (db, o, code, extra) => P6(db).collection('partners').doc(o).set({ orgName: 'X', role: 'bet', mods: PM, status: 'actif', code, ...extra });
+await t('partenaire : l\'administrateur du titulaire crée un code partenaire', () => assertSucceeds(pinv(own6, 'PART0001')));
+await t('partenaire : REFUS d\'un code au-delà de « Modifier »', () => assertFails(pinv(own6, 'PARTKO01', { mods: { projet: 1, plans: 3 } })));
+await t('partenaire : REFUS d\'un code par un non-administrateur', () => assertFails(pinv(m6, 'PARTKO02')));
+await t('partenaire : REFUS d\'utiliser un code partenaire pour devenir membre', () => assertFails(pm7.collection('companies').doc('c6').collection('members').doc('pm7').set({ name: 'x', role: 'bet', perms: PM, admin: false, allProjects: false, projects: [], invite: 'PART0001' })));
+await t('partenaire : REFUS d\'accepter par un non-administrateur', () => assertFails(part(pm7, 'c7', 'PART0001')));
+await t('partenaire : REFUS avec des accès modifiés', () => assertFails(part(pa7, 'c7', 'PART0001', { mods: { projet: 1, plans: 2, reserves: 2, finance: 2 } })));
+await t('partenaire : l\'administrateur du partenaire accepte', async () => { await assertSucceeds(part(pa7, 'c7', 'PART0001')); await assertSucceeds(pa7.collection('companies').doc('c7').collection('shared').doc('p6').set({ cid: 'c6', name: 'Hôpital', mods: PM })); await assertSucceeds(pa7.collection('invites').doc('PART0001').update({ used: true, usedBy: 'pa7', usedAt: 1 })); });
+await t('partenaire : REFUS de réutiliser le code', () => assertFails(part(ad8, 'c8', 'PART0001')));
+const R6 = (db, mod, id) => P6(db).collection('m').doc(mod).collection('r').doc(id);
+await t('partenaire : un membre lit le projet partagé', () => assertSucceeds(P6(pm7).get()));
+await t('partenaire : un membre lit les réserves accordées', () => assertSucceeds(R6(pm7, 'reserves', 'tasks__t1').get()));
+await t('partenaire : un membre ajoute une réserve', () => assertSucceeds(R6(pm7, 'reserves', 'tasks__t2').set({ store: 'tasks', id: 't2', projectId: 'p6', data: '{}' })));
+await t('partenaire : REFUS au-delà de ses propres droits (plans : voir)', () => assertFails(R6(pm7, 'plans', 'plans__x').set({ store: 'plans', id: 'x', projectId: 'p6', data: '{}' })));
+await t('partenaire : REFUS d\'un module non accordé (finance)', () => assertFails(R6(pm7, 'finance', 'items__f1').get()));
+await t('partenaire : REFUS pour un membre sans ce projet', () => assertFails(R6(px7, 'reserves', 'tasks__t1').get()));
+await t('partenaire : REFUS de lire l\'équipe du titulaire', () => assertFails(pm7.collection('companies').doc('c6').collection('members').get()));
+await t('partenaire : REFUS de lire l\'organisation du titulaire', () => assertFails(pm7.collection('companies').doc('c6').get()));
+await t('partenaire : REFUS pour une organisation étrangère', () => assertFails(R6(ad8, 'reserves', 'tasks__t1').get()));
+await t('partenaire : REFUS de modifier ses propres accès', () => assertFails(P6(pm7).collection('partners').doc('c7').update({ mods: { ...PM, finance: 2 } })));
+await t('partenaire : REFUS depuis un autre espace actif', async () => { await env.withSecurityRulesDisabled(c => c.firestore().collection('users').doc('pm7').set({ companyId: 'c8' })); await assertFails(R6(pm7, 'reserves', 'tasks__t1').get()); await env.withSecurityRulesDisabled(c => c.firestore().collection('users').doc('pm7').set({ companyId: 'c7' })); });
+await t('historique : le partenaire ajoute une ligne', () => assertSucceeds(P6(pm7).collection('audit').doc('a1').set({ act: 'ajout', store: 'tasks', by: 'pm7', srv: SRV() })));
+await t('historique : REFUS au nom d\'un autre', () => assertFails(P6(pm7).collection('audit').doc('a2').set({ act: 'ajout', by: 'own6', srv: SRV() })));
+await t('historique : REFUS de modifier une ligne', () => assertFails(P6(own6).collection('audit').doc('a1').update({ act: 'suppr' })));
+await t('historique : REFUS d\'effacer une ligne', () => assertFails(P6(own6).collection('audit').doc('a1').delete()));
+await t('historique : le titulaire lit', () => assertSucceeds(P6(own6).collection('audit').get()));
+await t('historique : REFUS pour une organisation étrangère', () => assertFails(P6(ad8).collection('audit').get()));
+await t('titulaire : REFUS d\'accorder plus que « Modifier »', () => assertFails(P6(own6).collection('partners').doc('c7').update({ mods: { projet: 1, plans: 3 } })));
+await t('titulaire : ajuste les accès du partenaire', () => assertSucceeds(P6(own6).collection('partners').doc('c7').update({ mods: { projet: 1, plans: 1, reserves: 2 } })));
+await t('groupement : REFUS par un membre non administrateur', () => assertFails(P6(m6).update({ jv: { name: 'G', mand: 'c7' } })));
+await t('groupement : l\'administrateur déclare le groupement et le mandataire', () => assertSucceeds(P6(own6).update({ jv: { name: 'Groupement Atlas', mand: 'c7' } })));
+await t('groupement : le mandataire invite une organisation', () => assertSucceeds(pinv(pa7, 'PART0003', { prole: 'labo' })));
+await t('groupement : REFUS par un membre du mandataire non administrateur', () => assertFails(pinv(pm7, 'PARTKO03')));
+await t('titulaire : suspendre l\'accès du partenaire', () => assertSucceeds(P6(own6).collection('partners').doc('c7').update({ status: 'suspendu' })));
+await t('partenaire suspendu : REFUS de lecture', () => assertFails(R6(pm7, 'reserves', 'tasks__t1').get()));
+await t('partenaire : quitter le projet', () => assertSucceeds(P6(pa7).collection('partners').doc('c7').delete()));
+await t('partenaire retiré : REFUS de lecture du projet', () => assertFails(P6(pm7).get()));
 
 log(`\n${fails ? fails + ' ÉCHEC(S)' : 'TOUT OK'} — ${out.length} vérifications`);
 fs.writeFileSync(O + '/rules-test.txt', out.join('\n') + '\n');

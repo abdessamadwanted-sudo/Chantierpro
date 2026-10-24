@@ -311,6 +311,35 @@ try {
   await H.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove())); await shot(H.pg, '68_documentation');
   log('H classements', await H.pg.evaluate(() => [...document.querySelectorAll('.st-doc b')].map(x => x.textContent)));
   log('errors v1.0.18', [...H.errs, ...I.errs]);
+  // ---- v1.0.19 : projet multi-organisations (le BET de F devient partenaire du projet de H), groupement, historique
+  await H.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); await openProject((await DB.all('projects')).find(p => p.name.startsWith('Viaduc'))); document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); App.section = 'orgs'; renderSection(); });
+  await H.pg.waitForSelector('.st-pt [data-a=inv]', { timeout: 15000 }); await shot(H.pg, '70_orgs_titulaire');
+  await H.pg.click('.st-pt [data-a=inv]'); await H.pg.waitForSelector('.st-pform'); await H.pg.fill('.st-pform [data-f=label]', 'BET Structures'); await shot(H.pg, '71_invite_partenaire');
+  await H.pg.click('.st-pform [data-a=ok]'); await H.pg.waitForSelector('.sheet h3:has-text("Code partenaire")', { timeout: 15000 });
+  const codeP = (await H.pg.textContent('.sheet h3:has-text("Code partenaire")')).split(':').pop().trim(); await H.pg.click('.opt:has-text("Fermer")'); log('code partenaire', codeP);
+  await F.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); Team.openSwitcher(); }); await F.pg.waitForSelector('.st-wsa [data-a=join]');
+  await F.pg.click('.st-wsa [data-a=join]'); await F.pg.fill('[name=code]', codeP); await F.pg.click('.sheet [data-a=ok]');
+  await F.pg.waitForSelector('[data-a=pj-ok]', { timeout: 15000 }); await shot(F.pg, '72_confirm_partenaire'); await F.pg.click('[data-a=pj-ok]');
+  await F.pg.waitForTimeout(3000); await F.pg.evaluate(() => Sync.run({ force: true })); await F.pg.waitForTimeout(3000);
+  const vPid = await F.pg.evaluate(async () => { const p = (await DB.all('projects')).find(x => x.name.startsWith('Viaduc')); return p && p.id; });
+  log('F projet partenaire', await F.pg.evaluate(async (pid) => { const sh = Team.sharedOf(pid); return [Team.company().name, (await DB.all('projects')).map(p => p.name), sh && sh.role, sh && sh.ownerName]; }, vPid));
+  await F.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await F.pg.waitForTimeout(800); await shot(F.pg, '73_home_partenaire');
+  log('F droits dans le projet', await F.pg.evaluate(async (pid) => { await openProject(await DB.get('projects', pid)); document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); return [Team.lvl('reserves'), Team.lvl('projet'), Team.lvl('finance'), Team.canSection('team')]; }, vPid));
+  await F.pg.evaluate(async (pid) => { await DB.put('tasks', { projectId: pid, title: 'Avis BET : enrobage pile P2', status: 'open', num: 1 }); await Sync.run({ force: true }); }, vPid); await F.pg.waitForTimeout(2500);
+  log('F lecture équipe du titulaire', await F.pg.evaluate(async (pid) => { try { await firebase.firestore().collection('companies').doc(Team.sharedOf(pid).cid).collection('members').get(); return 'ALLOWED (BAD)'; } catch (e) { return 'denied OK: ' + e.code; } }, vPid));
+  log('F modifier la fiche du projet refusé', await F.pg.evaluate(async (pid) => { try { await firebase.firestore().collection('companies').doc(Team.sharedOf(pid).cid).collection('projects').doc(pid).update({ name: 'piraté' }); return 'ALLOWED (BAD)'; } catch (e) { return 'denied OK: ' + e.code; } }, vPid));
+  await H.pg.evaluate(() => Sync.run({ force: true })); await H.pg.waitForTimeout(2500);
+  log('H reçoit la réserve du BET', await H.pg.evaluate(async () => (await DB.all('tasks')).map(t => t.title)));
+  await H.pg.evaluate(() => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); App.section = 'orgs'; renderSection(); }); await H.pg.waitForSelector('.st-pt [data-a=jv]', { timeout: 15000 });
+  await H.pg.click('.st-pt [data-a=jv]'); await H.pg.waitForSelector('.sheet [name=mand]'); await H.pg.fill('.sheet [name=name]', 'Groupement Qualité Maroc – BET Structures');
+  await H.pg.selectOption('.sheet [name=mand]', { index: 1 }); await H.pg.click('.sheet [data-a=ok]'); await H.pg.waitForTimeout(2500); await shot(H.pg, '74_groupement');
+  log('H organisations', await H.pg.evaluate(() => [...document.querySelectorAll('.st-pt .tm-inv b')].map(x => x.textContent.trim()).concat([...document.querySelectorAll('.st-jv p')].map(x => x.textContent.trim()))));
+  await H.pg.evaluate(() => { App.section = 'histo'; renderSection(); }); await H.pg.waitForTimeout(3000); await shot(H.pg, '75_historique');
+  log('H historique', await H.pg.evaluate(() => [...document.querySelectorAll('.st-hrow')].slice(0, 6).map(x => x.textContent.replace(/\s+/g, ' ').trim())));
+  await F.pg.evaluate(() => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); App.section = 'orgs'; renderSection(); }); await F.pg.waitForTimeout(2500); await shot(F.pg, '76_orgs_partenaire');
+  log('F voit le groupement', await F.pg.evaluate(() => [...document.querySelectorAll('.st-jv p')].map(x => x.textContent.trim()).concat([!!document.querySelector('.st-pt [data-a=inv]'), !!document.querySelector('.st-pt [data-a=leave]')])));
+  log('types d\'organisation', await H.pg.evaluate(() => ORG_TYPES.map(t => t.k)));
+  log('errors v1.0.19', [...H.errs, ...F.errs]);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);
