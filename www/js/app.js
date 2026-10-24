@@ -157,14 +157,14 @@ async function renderHome() {
           <button class="iconbtn h2-emo off" data-a="freeph" title="Stockage">🧹</button>
           <button class="iconbtn h2-quit" data-a="quit" title="Fermer (appui long : verrouiller)">${icon('power')}</button>
           <button class="iconbtn" data-a="homemore">${icon('more')}</button></div></div>
-        ${(() => { if (ST.isPerso()) { const M = metierOf(Team.profil().metier); Org.apply && Org.poste() && Org.apply(); return `<span class="h2-role" title="Votre métier (profil)">👷 ${esc(M ? M.l : 'Espace personnel')}</span>`; } const P = Org.poste(); if (P) { Org.apply(); return `<span class="h2-role" title="Vous êtes connecté comme">${P.svc.e} ${esc(P.n)}</span>`; } const r = applyRoleColor(), R = r && roleOf(r); return R ? `<button class="h2-role" data-a="role">${R.e} ${esc(R.n.split(' / ')[0])}</button>` : ''; })()}
+        ${(() => { if (Team.ready() && Team.isCollab()) return '<span class="h2-role">🤝 Collaborateur · projet partagé</span>'; if (ST.isPerso()) { const M = metierOf(Team.profil().metier); Org.apply && Org.poste() && Org.apply(); return `<span class="h2-role" title="Votre métier (profil)">👷 ${esc(M ? M.l : 'Espace personnel')}</span>`; } const P = Org.poste(); if (P) { Org.apply(); return `<span class="h2-role" title="Vous êtes connecté comme">${P.svc.e} ${esc(P.n)}</span>`; } const r = applyRoleColor(), R = r && roleOf(r); return Team.ready() ? '' : (R ? `<button class="h2-role" data-a="role">${R.e} ${esc(R.n.split(' / ')[0])}</button>` : ''); })()}
         <div class="h2-hello" data-a="uname">${tr(hello)}${uname ? (Lang.cur === 'ar' ? '، ' : ', ') + esc(uname) : ''} 👷</div>
         <div class="h2-phrase">${phrase}</div>
         <div class="h2-date">${dateL.charAt(0).toUpperCase() + dateL.slice(1)}</div>
       </div>
       <div class="h2-body">
         ${ST.dashHTML()}
-        ${ST.isPerso() ? '' : espaceHome()}
+        ${ST.isPerso() || (Team.ready() && Team.isCollab()) ? '' : espaceHome()}
         ${fp ? focusHTML() : `<div class="h2-sec"><span>Mes chantiers</span><small>${projects.length}</small></div>
         ${projects.length ? projects.map(p => { const st = stats(p), [c1, c2] = hue(p.name), open = !!App.homeOpen[p.id];
           const due = (x) => x.at && x.at.slice(0, 10) <= today;
@@ -318,6 +318,7 @@ const SECTIONS = {
   st: { label: 'Sous-traitants', icon: 'hands', render: (r) => renderSt(r), title: 'Sous-traitants', subtitle: 'Contrats · situations · paiements' },
   org: { label: 'Organigramme', icon: 'org', render: (r) => renderOrg(r), title: 'Organigramme', subtitle: 'Hiérarchie du chantier' },
   team: { label: 'Équipe', icon: 'team', render: renderTeam },
+  docq: { label: 'Documentation & archives', icon: 'file', render: (r) => ST.renderDocs(r), title: 'Documentation', subtitle: 'PAQ · procédures · PV · essais · archives' },
   settings: { label: 'Paramètres', icon: 'settings', render: renderSettings },
 };
 
@@ -1140,7 +1141,7 @@ async function renderForms(root) {
     ${forms.length ? `<div class="list">${forms.map(f => { const s = formStats(f); return `
       <div class="row" data-id="${f.id}"><span style="color:${s.color}">${icon('form')}</span>
         <div class="grow"><div class="title">${esc(f.title)}${f.location ? ' — ' + esc(f.location) : ''}</div>
-        <div class="sub"><span style="color:${s.color}">${s.status}</span> · ${s.answered}/${s.n} · ${fmtDate(f.date)}</div>
+        <div class="sub"><span style="color:${s.color}">${s.status}</span> · ${s.answered}/${s.n} · ${fmtDate(f.date)} ${Team.ready() && !ST.isPerso() ? ST.vChip(f) : ''}</div>
         <div class="progress"><div style="width:${s.n ? s.answered / s.n * 100 : 0}%;background:${s.color}"></div></div></div></div>`; }).join('')}</div>`
     : `<div class="empty">Aucun formulaire.<br>Appuyez sur <b>+</b> pour une fiche de réception (ferraillage, coffrage, bétonnage…).</div>`}`;
   $$('.row[data-id]', root).forEach(r => r.onclick = async () => { await openFormDetail(forms.find(f => f.id === r.dataset.id)); renderForms(root); });
@@ -1148,7 +1149,7 @@ async function renderForms(root) {
     const tid = await menu('Nouveau formulaire', FORM_TEMPLATES.map(t => ({ label: t.title, icon: 'form', value: t.id })));
     if (!tid) return;
     const t = FORM_TEMPLATES.find(x => x.id === tid);
-    const f = await DB.put('forms', { projectId: App.project.id, templateId: t.id, title: t.title, location: '', date: todayISO(), inspector: '', notes: '',
+    const f = await DB.put('forms', { projectId: App.project.id, templateId: t.id, title: t.title, location: '', date: todayISO(), inspector: '', notes: '', aut: Team.ready() ? Team.uid() : '', vst: 'brouillon',
       items: t.items.map(label => ({ label, res: null, comment: '' })), photoIds: [] });
     await openFormDetail(f); renderForms(root);
   });
@@ -1171,6 +1172,7 @@ function openFormDetail(form) {
           <button class="iconbtn" data-a="share">${icon('share')}</button><button class="iconbtn" data-a="more">${icon('more')}</button></div>
         <div class="content"><div class="form" style="padding-top:16px">
           <div style="color:${s.color};font-weight:600">${s.status} · ✔ ${s.ok} · ✘ ${s.nok} · N/A ${s.na}</div>
+          ${ST.vBox(form)}
           <label>Localisation (ouvrage / axe / niveau)<input name="location" value="${esc(form.location)}" placeholder="Ex : Poteaux SSL axes C10–C15"></label>
           <div class="kv"><label>Date<input name="date" type="date" value="${esc(form.date)}"></label>
           <label>Contrôlé par<input name="inspector" value="${esc(form.inspector)}"></label></div>
@@ -1187,6 +1189,7 @@ function openFormDetail(form) {
         </div></div>`;
       $('[data-a=back]', el).onclick = () => { unBack(); finish(); };
       $$('input[name], textarea[name], select[name]', el).forEach(i => i.oninput = i.onchange = () => { form[i.name] = i.value; save(); });
+      ST.vBind(el, form, async () => { clearTimeout(saveT); await DB.put('forms', form); render(); });
       $$('.sigbox', el).forEach(b => signaturePad(b, form[b.dataset.sig], (v) => { form[b.dataset.sig] = v; save(); }));
       $('[data-a=pdf]', el).onclick = async () => { clearTimeout(saveT); await DB.put('forms', form); formPdf(form); };
       $$('.check-item', el).forEach(ci => {
