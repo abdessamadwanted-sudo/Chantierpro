@@ -592,3 +592,79 @@ D after delete: login screen 1
 A members after D delete ["Sara BET","Youssef Conducteur","Client MO","Abdessamad Patron"]
 D relogin Compte introuvable
 errors ["D console: Failed to load resource: the server responded with a status of 400 (Bad Request)"]
+services ouverts (test) 200
+A offres organisation ["basic:🌱 Basic Organisation","business:🏢 Business","enterprise:🏛️ Enterprise"]
+A pack/type ["business","entreprise",10,true]
+A projet [["Grand stade Benslimane","equip","Ministère"]]
+A sync state <span style="color:#22c55e">✓ Synchronisé</span> <span style="color:var(--muted)">· 24/10 16:10</span>
+A poste Directeur de projet : admin auto / max droit [false,3]
+code conducteur WBCJKP5K
+code MO 4DFB2GS8
+B projects ["Grand stade Benslimane"]
+B tasks ["Enrobage insuffisant voile V12"]
+B receptions 1
+A sees task ["Enrobage insuffisant voile V12 (repris) / progress"]
+B self-admin denied OK: permission-denied
+B invite create denied OK: permission-denied
+C fab 0 projects ["Grand stade Benslimane"]
+C write task denied OK: permission-denied
+D items ["impl:demandee","cmd:demandee","rdt:","pt:"]
+D topo write cmd denied OK: permission-denied
+A items ["impl:implantee","cmd:demandee","rdt:","pt:","mat:","stock:"]
+B poste {"service":"trav","poste":"conduct","at":"2026-10-24","st":"conducteur"} C poste {"service":"mo","poste":"mo","at":"2026-10-24","st":"mo"} D poste {"service":"etu","poste":"topo","at":"2026-10-24","st":"cheftopo"}
+B tableau de bord ["Tâches / réserves","PV non reçus","PV non livrés au BET"]
+C sections finance/reception [true,true,false,true]
+A aperçu basic [false,false,false,false,true,false]
+A aperçu tiroir {"lock":0,"items":["dashboard","plans","avancement","planning","tasks","reports","photos","docq","models3d","maquette","settings"]}
+A sans aperçu [true,true]
+B peut créer un code false
+E packs proposés ["basic","pro"]
+E espace [true,"basic","Espace de Hamid Indep","proprietaire",true,"tsq"]
+E dashboard perso {"outils":true,"direction":false,"espaceDir":false,"stats":["0","0 / 1","0","0"],"tools":["forms🔒","tasks","reception🔒","constat🔒","photos","reports","plans"],"role":"👷 Technicien qualité"}
+E profil / metier ["techqualite",false,false]
+E mon espace onglets ["Mon profil","Mon abonnement","Paramètres","Mon compte"]
+E abonnement ["Gratuit","Basic · Gratuit"]
+E outils basic [true,false,false]
+E limite projets 🔒 Le pack Basic est limité à 1 projet(s).
+Pour aller plus loin : Pro, Business, Enterprise.
+E limite résultat false
+F services proposés ["direction","metre","bim","doc","admin"]
+F espaces BET ["board","rdt"]
+E espaces basic []
+F interface BET ["bet","bet","bet",true,true,false,false,false]
+F postes proposés (services) ["Direction","Métré","Méthodes / Planning / BIM","Documentation","Administration & finance","Intervenants externes"]
+errors v1.0.14 []
+code BET STAMSM3X
+F espace 2 ["BTP Test SARL","chantier_c7APTsTZPXvMaAvt7kH4",2,["Grand stade Benslimane"],"bet"]
+F retour espace 1 ["BET Structures","chantier",["Pont BET"]]
+errors v1.0.15 []
+logo [true,"#2563eb"]
+logo connexion true
+G pro ["pro","Essai · 14 j",true]
+code collaborateur QUB6WTK2
+C collaborateur ["Espace de Nadia Pro","collaborateur",false,true,["Lotissement Nadia"],2,0,false]
+C collaborateur : écriture d'une réserve sur un autre projet refusée denied OK: permission-denied
+code révoqué revoque
+errors v1.0.17 []
+services par défaut 200
+H services ouverts / fermés [["direction+","qualite+"],["travaux","ferraillage","centrale","materiel","topo","hse","metre","bim","logistique","doc","labo","admin"]]
+H service fermé reste fermé 0
+H organisation ["enterprise",["direction","qualite"]]
+H postes qualité proposés ["dirqualite","ingqualite","respqualite","techqualite","ctrlqualite"]
+H postes fermés (désactivés) 0
+code technicien qualité QCP9E6KH
+H mission techqualite
+H gérer les postes true
+I tableau de bord ["techqualite",["• Réception ferraillage pile P2"],true]
+I peut valider son PV false
+H tuiles validation ["1À valider","0À corriger","0Brouillons","0Validés (7 j)"]
+I PV après validation ["valide",false,["soumis","valide"]]
+I PV validé en lecture seule true
+I modification serveur refusée denied OK: permission-denied
+H classements ["PAQ — Plan d'assurance qualité","Procédures","Plans de contrôle","Fiches techniques et agréments","PV de réception","Rapports d'essais labo","NC et actions correctives","Visas","Audits","Divers","Archives"]
+errors v1.0.18 []
+D delete message Votre compte a été supprimé.
+D after delete: login screen 1
+A members after D delete ["Sara BET","Abdessamad Patron","Youssef Conducteur","Client MO"]
+D relogin Compte introuvable
+errors ["D console: Failed to load resource: the server responded with a status of 400 (Bad Request)"]
