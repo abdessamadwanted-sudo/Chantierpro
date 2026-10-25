@@ -27,6 +27,9 @@ jobs:
           V=web-${{ github.run_number }}
           sed -i "s/__APP_VERSION__/$V/" www/js/app.js
           sed -i -E "s#(src|href)=\"(js|lib|vendor)/([^\"?]+)\"#\1=\"\2/\3?v=$V\"#g; s#href=\"styles.css\"#href=\"styles.css?v=$V\"#" www/index.html
+      - name: Garder le dossier SiteTeam (siteteam/) publié par la branche siteteam
+        run: |
+          git fetch -q origin gh-pages && (git archive origin/gh-pages siteteam | tar -x -C www) || echo "pas encore de dossier siteteam"
       - name: Publier sur la branche gh-pages
         run: |
           cd www && touch .nojekyll
