@@ -188,5 +188,19 @@ OK   annonces : REFUS de publier
 OK   annonces : organisation (membre lit)
 OK   panneau : le Super Admin liste comptes, membres et projets
 OK   panneau : REFUS pour un autre compte
+OK   code pack : le Super Admin crée des codes
+OK   code pack : REFUS de création par un compte
+OK   code pack : REFUS de lister les codes
+OK   code pack : un compte lit un code précis
+OK   code pack : création d'un espace Pro avec le code
+OK   code pack : la personne enregistre l'utilisation
+OK   code pack : REFUS de réutiliser son code
+OK   code pack : REFUS d'une durée plus longue que le code
+OK   code pack : REFUS d'un autre pack que celui du code
+OK   code pack : REFUS d'un code annulé
+OK   code pack : REFUS de remettre le compteur à zéro
+OK   code pack : REFUS « actif » pour un code limité dans le temps
+OK   code pack : l'administrateur passe son organisation au pack du code
+OK   code pack : REFUS sans code (changement de pack)
 
-TOUT OK — 190 vérifications
+TOUT OK — 204 vérifications
