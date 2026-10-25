@@ -739,9 +739,23 @@ const Team = (() => {
     S.user = auth.currentUser; ST_SUPER = isSuper();
     await loadMembership();
     await gate();
+    setTimeout(() => askPoste().catch(e => console.warn('poste', e)), 1500);
     setTimeout(() => checkAnnonces().catch(e => console.warn('annonces', e)), 3000);
     setInterval(() => { if (document.visibilityState === 'visible') checkAnnonces().catch(() => {}); }, 10 * 60000);
     auth.onAuthStateChanged(u => { if (!u && S.ready) { S.ready = false; location.reload(); } });
+  }
+  // ---------- espace personnel : Basic = Free (sans poste) ; Pro et plus = service + poste choisis une fois ----------
+  const isFree = () => isPerso() && myPlan().k === 'basic';
+  async function askPoste(force) {
+    if (!S.ready || !isPerso() || isFree() || (!force && metierOf((S.profil || {}).metier))) return false;
+    const opts = TM_SERVICES.filter(x => x.k !== 'direction' && x.k !== 'externe' && x.k !== 'perso' && !SERVICES_LEGACY.includes(x.k))
+      .flatMap(sv => TM_ROLES.filter(r => r.s === sv.k && !ROLE_LEGACY[r.k]).map(r => ({ value: r.k, label: `${sv.l} › ${r.l}` })));
+    const r = await formSheet('Votre service et votre poste', [{ name: 'info', type: 'info', label: `Pack ${myPlan().l}`, value: 'L\'application s\'adapte à votre poste : tableau de bord, outils et recommandations.' },
+      { name: 'm', label: 'Service › poste', type: 'select', options: opts, value: (S.profil || {}).metier || 'conducteur' }], { okLabel: 'Enregistrer' });
+    if (!r || !r.m) return false;
+    S.profil = { ...(S.profil || {}), metier: r.m }; LS.set('profile', { ...(LS.get('profile') || {}), profil: S.profil });
+    try { await withTimeout(fs.collection('users').doc(S.user.uid).set({ profil: S.profil }, { merge: true })); } catch (e) { console.warn('profil', e); }
+    toast('Poste enregistré ✓'); try { ST.refreshRole(); } catch (e) {} return true;
   }
   // ---------- décisions du panneau d'administration appliquées dans l'application ----------
   // écran bloquant (compte bloqué, organisation suspendue, maintenance, version trop ancienne) : l'application s'arrête là
@@ -1110,8 +1124,17 @@ const Team = (() => {
       }
       // espace personnel : le métier choisit l'interface
       function stepMetier() {
-        el.innerHTML = `<div class="tm-lg-in">${steps(3, tot())}<h1>Votre métier</h1><p>Il sert à choisir vos outils et vos recommandations. Ce n'est pas un poste et il ne donne aucun droit dans une organisation.</p>
-          <div class="form"><label>Métier principal<select name="role">${TM_SERVICES.filter(s => s.k !== 'direction' && !SERVICES_LEGACY.includes(s.k)).map(sv => `<optgroup label="${esc(sv.l)}">${TM_ROLES.filter(r => r.s === sv.k && !ROLE_LEGACY[r.k]).map(r => `<option value="${r.k}" ${r.k === 'conducteur' ? 'selected' : ''}>${esc(r.l)}</option>`).join('')}</optgroup>`).join('')}</select></label>
+        // Basic = « Free » : interface générale, sans poste ; le service et le poste se choisissent avec Pro (l'application s'adapte au poste)
+        if (planOf(W.plan).k === 'basic') {
+          el.innerHTML = `<div class="tm-lg-in">${steps(3, tot())}<h1>Espace Free</h1><p>Pack Basic gratuit : les outils essentiels (projets, plans, tâches, photos, rapports), sans poste.<br>Avec Pro, vous choisissez votre service et votre poste, et l'application s'adapte à votre métier.</p>
+            <div class="form"><label>Votre nom<input name="me" value="${esc(auth.currentUser.displayName || '')}"></label><button class="btn" data-a="go">Créer mon espace Free</button></div>
+            <button class="linkbtn" data-a="back">← Retour</button></div>`;
+          back(stepPlan);
+          $('[data-a=go]', el).onclick = () => { const me = $('[name=me]', el).value.trim() || auth.currentUser.displayName || ''; create({ name: `Espace de ${me || 'moi'}`, me, metier: '', spec: '' }); };
+          return;
+        }
+        el.innerHTML = `<div class="tm-lg-in">${steps(3, tot())}<h1>Votre service et votre poste</h1><p>L'application s'adapte à votre poste : tableau de bord, outils et recommandations. Ce n'est pas un droit dans une organisation.</p>
+          <div class="form"><label>Service › poste<select name="role">${TM_SERVICES.filter(s => s.k !== 'direction' && !SERVICES_LEGACY.includes(s.k)).map(sv => `<optgroup label="${esc(sv.l)}">${TM_ROLES.filter(r => r.s === sv.k && !ROLE_LEGACY[r.k]).map(r => `<option value="${r.k}" ${r.k === 'conducteur' ? 'selected' : ''}>${esc(r.l)}</option>`).join('')}</optgroup>`).join('')}</select></label>
           <label>Spécialités (facultatif)<input name="spec" placeholder="Ex : ferraillage, gros œuvre"></label>
           <label>Votre nom<input name="me" value="${esc(auth.currentUser.displayName || '')}"></label>
           <button class="btn" data-a="go">Créer mon espace</button></div>
@@ -2013,7 +2036,7 @@ const Team = (() => {
     profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
     openProjectShares, claimShare, openPartners, renderHistory, sharedOf, joinWithCode,
     cloudOn, canCloud, cloudUpload, cloudDownload, cloudRemove, cloudCfg, storageRules: STORAGE_RULES,
-    appCfg, isOff, checkAnnonces, requestPack, logError, applyPackCode,
+    appCfg, isOff, checkAnnonces, requestPack, logError, applyPackCode, isFree, askPoste,
     ready: () => S.ready, me: () => S.me, uid: () => S.user && S.user.uid, company: () => S.company, members: () => S.members, rules: FIRESTORE_RULES,
   };
 })();
