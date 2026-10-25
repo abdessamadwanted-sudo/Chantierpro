@@ -1,6 +1,6 @@
 // Synchronisation Google Drive (téléphone ⇄ PC ⇄ autres appareils)
-// Tout est envoyé dans « Mon Drive / SiteTeam / <Projet> / … » par un petit script Google (Apps Script)
-// que l'utilisateur installe une seule fois dans son compte. Les données restent dans SON Drive.
+// Tout est envoyé dans « Mon Drive / SiteTeam / <Projet> / … ». Les données restent dans SON Drive.
+// Connexion conseillée : « Se connecter avec Google » (gdrive.js, sans script). Ancienne méthode : petit script Google (Apps Script).
 const Sync = (() => {
   const DATA = ['projects', 'folders', 'plans', 'tasks', 'links', 'files', 'forms', 'reports', 'receptions', 'items'];
   const LS = {
@@ -13,7 +13,9 @@ const Sync = (() => {
   let running = false, again = false, timer = null, autoT = null;
 
   const cfg = () => LS.get('cfg');
-  const hasDrive = () => !!(cfg() && cfg().url && cfg().key);
+  // deux façons de connecter Drive : « g » = compte Google dans l'application (direct, sans script) · sinon ancien script Apps Script
+  const direct = () => !!(cfg() && cfg().mode === 'g');
+  const hasDrive = () => !!(cfg() && (cfg().mode === 'g' || (cfg().url && cfg().key)));
   const teamOn = () => typeof Team !== 'undefined' && Team.ready();
   const enabled = () => hasDrive() || teamOn();
   // fichiers partagés SiteTeam (Cloud Storage), activés par le Super Admin
@@ -41,6 +43,18 @@ const Sync = (() => {
   // ---------- appel du script ----------
   async function call(action, body = {}) {
     const c = cfg(); if (!c) throw new Error('Non connecté');
+    if (c.mode === 'g') {
+      try { return await GDrive.call(action, body); }
+      catch (e) {   // fichier resté dans l'ancien Drive (script) : on le reprend par l'ancien script tant qu'il existe
+        const lg = LS.get('legacy');
+        if (action === 'download' && lg && lg.url && (e.status === 404 || e.status === 403)) return scriptCall(lg, action, body);
+        throw e;
+      }
+    }
+    return scriptCall(c, action, body);
+  }
+  async function scriptCall(c, action, body = {}) {
+    if (body.blob) { const { blob, ...rest } = body; body = { ...rest, b64: await b64(blob) }; }
     const payload = JSON.stringify({ key: c.key, action, ...body });
     let txt;
     try {
@@ -168,7 +182,7 @@ const Sync = (() => {
     if (!pending.has(f.id)) pending.set(f.id, (async () => {
       try {
         if (inCloud(f)) f.blob = await Team.cloudDownload(f);
-        else { const d = await call('download', { id: f.driveId }); f.blob = fromB64(d.b64, f.mime || d.mime); }
+        else { const d = await call('download', { id: f.driveId }); f.blob = d.blob || fromB64(d.b64, f.mime || d.mime); }
         f.lastUsed = Date.now(); await DB.putRaw('files', f); }
       catch (e) { console.warn('fetch', e); }
       finally { pending.delete(f.id); }
@@ -203,7 +217,7 @@ const Sync = (() => {
         try {
           if (f.driveId) { try { res = await call('upload', { driveId: f.driveId, path: pth.segs, name: pth.name }); } catch (e) { res = null; } }
           if (!res && !f.blob) return;
-          if (!res) res = await call('upload', { path: pth.segs, name: pth.name, mime: f.mime || f.blob.type, b64: await b64(f.blob) });
+          if (!res) res = await call('upload', { path: pth.segs, name: pth.name, mime: f.mime || f.blob.type, blob: f.blob });
           f.driveId = res.id; f.drivePath = key;
           await DB.put('files', f);
         } catch (e) { fails.push(`${pth.name} : ${e.message || e}`); }
@@ -259,7 +273,7 @@ const Sync = (() => {
       let j = 0;
       await pool(missing, 4, async (f) => {
         try {
-          if (inCloud(f)) f.blob = await Team.cloudDownload(f); else { const d = await call('download', { id: f.driveId }); f.blob = fromB64(d.b64, f.mime || d.mime); }
+          if (inCloud(f)) f.blob = await Team.cloudDownload(f); else { const d = await call('download', { id: f.driveId }); f.blob = d.blob || fromB64(d.b64, f.mime || d.mime); }
           await DB.putRaw('files', f); pulledCount++; }
         catch (e) { console.warn('download', f.id, e); }
         finally { j++; setStatus('sync', `Téléchargement ${j}/${missing.length}`); }
@@ -286,7 +300,7 @@ const Sync = (() => {
   }
   // ---------- contrôle hebdomadaire : tout est-il bien dans Drive ? ----------
   const SCRIPT_VER = 3;
-  async function scriptVer() { const c = cfg(); if (!c) return 0; try { const r = await call('ping', {}); c.ver = r.ver || 1; LS.set('cfg', c); return c.ver; } catch (e) { return c.ver || 0; } }
+  async function scriptVer() { const c = cfg(); if (!c) return 0; if (c.mode === 'g') return SCRIPT_VER; try { const r = await call('ping', {}); c.ver = r.ver || 1; LS.set('cfg', c); return c.ver; } catch (e) { return c.ver || 0; } }
   async function weeklyCheck(manual) {
     if ((await scriptVer()) < SCRIPT_VER) { LS.set('chkAt', Date.now()); if (manual) alertBox('Mettez d\'abord à jour le script Google (Synchronisation › « Mettre à jour le script »).'); return null; }
     const files = (await DB.all('files')).filter(f => f.driveId), miss = [];
@@ -329,7 +343,7 @@ const Sync = (() => {
       for (const j of todo) {
         n++; setStatus('sync', `PDF dans Drive ${n}/${todo.length}`);
         const out = await capturePdf(j.make); if (!out) { fails0.push(`${j.name} : PDF non créé`); continue; }
-        let res; try { res = await call('upload', { path: j.segs, name: j.name, mime: 'application/pdf', b64: await b64(out.blob) }); } catch (e) { fails0.push(`${j.name} : ${e.message || e}`); continue; }
+        let res; try { res = await call('upload', { path: j.segs, name: j.name, mime: 'application/pdf', blob: out.blob }); } catch (e) { fails0.push(`${j.name} : ${e.message || e}`); continue; }
         const old = docs[j.key] && docs[j.key].id;
         if (old && old !== res.id) await call('push', { records: [{ _store: 'gen', id: j.key + ':' + Date.now(), driveId: old, _deleted: true, updatedAt: Date.now() }] });
         docs[j.key] = { id: res.id, sig: j.sig }; dirty = true;
@@ -375,7 +389,18 @@ const Sync = (() => {
     start(); await run();
     return c;
   }
-  function disconnect() { LS.del('cfg'); LS.del('pushAt'); LS.del('pullAt'); clearInterval(autoT); setStatus('off'); }
+  // connexion directe avec le compte Google (sans script.google.com)
+  async function connectGoogle() {
+    const prev = cfg();
+    const r = await GDrive.connect();
+    if (prev && prev.url && prev.key) LS.set('legacy', { url: prev.url, key: prev.key });   // anciens fichiers encore lisibles par l'ancien script
+    const c = { mode: 'g', key: 'g', email: r.email || '', folder: r.folder, ver: r.ver || SCRIPT_VER };
+    LS.set('cfg', c);
+    LS.set('pushAt', 0); LS.set('pullAt', 0);   // première synchro complète : tout est envoyé dans le nouveau dossier
+    start(); await run();
+    return c;
+  }
+  function disconnect() { if (direct() && typeof GDrive !== 'undefined') GDrive.forget(); LS.del('cfg'); LS.del('pushAt'); LS.del('pullAt'); clearInterval(autoT); setStatus('off'); }
 
   function script(key) {
     return `// SiteTeam → Google Drive (synchronisation téléphone / PC)
@@ -485,7 +510,7 @@ function doPost(e) {
     const c = cfg();
     if (c) {
       const s = sheet(`<div class="form">
-        <div class="sync-card"><div class="cl">☁</div><div class="grow"><b>Google Drive connecté</b><div data-syncstate>${statusLine()}</div></div></div>
+        <div class="sync-card"><div class="cl">☁</div><div class="grow"><b>Google Drive connecté</b>${c.mode === 'g' && c.email ? `<div class="muted" style="font-size:12.5px">${esc(c.email)}</div>` : ''}<div data-syncstate>${statusLine()}</div></div></div>
         <div class="muted" style="font-size:13.5px;line-height:1.55">Tout est rangé dans <b>Mon Drive › SiteTeam › (projet)</b> : Plans par niveau, Réception ferraillage et Programme de bétonnage par mois et par jour (Réserves, Retours, PV du jour), Réserves, Photos…<br>La synchro se fait toute seule (après chaque modification, à l'ouverture et toutes les 2 minutes).</div>
         <div class="sync-diag" data-syncdiag>…</div>
         <div class="keep-box"><div class="fld">Garder sur le téléphone</div>
@@ -500,11 +525,11 @@ function doPost(e) {
           <div class="muted" style="font-size:12.5px;line-height:1.5">Les fichiers libérés restent dans Drive et se téléchargent tout seuls quand vous les ouvrez.</div></div>
         <button class="btn" data-a="now">${icon('undo')} Synchroniser maintenant</button>
         ${c.folder ? `<button class="btn ghost" data-a="open">${icon('drive')} Ouvrir le dossier dans Drive</button>` : ''}
-        <button class="btn ghost" data-a="code">${icon('phone')} Copier le code de connexion (PC / autre téléphone)</button>
+        ${c.mode === 'g' ? `<div class="muted" style="font-size:12.5px;line-height:1.5">📱 Autre téléphone : connectez-le avec le même compte Google (Paramètres › Google Drive › Se connecter avec Google).</div>` : `<button class="btn ghost" data-a="code">${icon('phone')} Copier le code de connexion (PC / autre téléphone)</button>`}
         <div class="sync-upd" data-upd></div>
         <button class="btn ghost" data-a="dedupe">🧹 Fusionner les dossiers en double dans Drive</button>
         <button class="btn ghost" data-a="check">🔎 Vérifier que tout est dans Drive${LS.get('chk') ? ` <small style="opacity:.7">· ${new Date(LS.get('chk').at).toLocaleDateString('fr-FR')}</small>` : ''}</button>
-        <button class="btn ghost" data-a="script">${icon('file')} Copier le code du script</button>
+        ${c.mode === 'g' ? '' : `${GDrive.available() ? `<button class="btn" data-a="gnew">G&nbsp; Passer à la connexion Google (sans script)</button>` : ''}<button class="btn ghost" data-a="script">${icon('file')} Copier le code du script</button>`}
         <button class="btn danger" data-a="off">Déconnecter cet appareil</button>
       </div>`, { title: 'Synchronisation Google Drive' });
       $('[data-a=now]', s.el).onclick = async () => { await run({ force: true }); diag(); };
@@ -514,7 +539,7 @@ function doPost(e) {
         const nDocs = projects.reduce((a, p) => a + Object.keys(p.driveDocs || {}).length, 0);
         const fl = LS.get('fails', []);
         const el = $('[data-syncdiag]', s.el); if (!el) return;
-        el.innerHTML = `<div>📁 Compte Google : celui qui a autorisé le script</div>
+        el.innerHTML = `<div>📁 Compte Google : ${c.mode === 'g' ? esc(c.email || 'connecté dans l\'application') : 'celui qui a autorisé le script'}</div>
           <div>📷 Fichiers envoyés : <b>${sent} / ${withBlob.length}</b></div>
           <div>📄 PDF créés dans Drive : <b>${nDocs}</b> · Tableaux réception/bétonnage : <b>${recs.length}</b></div>
           ${fl.length ? `<div style="color:#ef4444;margin-top:6px"><b>Erreurs :</b><br>${fl.map(esc).join('<br>')}</div>` : '<div style="color:#22c55e">Aucune erreur</div>'}`;
@@ -527,9 +552,12 @@ function doPost(e) {
       $('[data-a=free]', s.el).onclick = async () => { const ld = loading('Libération…'); const fr = await freeSpace(); ld.close(); showUse(); toast(fr ? `${mb(fr)} libérés ✓` : 'Rien à libérer (fichiers pas encore envoyés ?)'); };
       showUse();
       const o = $('[data-a=open]', s.el); if (o) o.onclick = () => openUrl(c.folder);
-      $('[data-a=code]', s.el).onclick = () => copy(codeOf(c));
-      $('[data-a=script]', s.el).onclick = () => copy(script(c.key));
-      scriptVer().then(v => { const u = $('[data-upd]', s.el); if (!u || v >= SCRIPT_VER) return;
+      const cd = $('[data-a=code]', s.el); if (cd) cd.onclick = () => copy(codeOf(c));
+      const sc = $('[data-a=script]', s.el); if (sc) sc.onclick = () => copy(script(c.key));
+      const gn = $('[data-a=gnew]', s.el); if (gn) gn.onclick = async () => {
+        if (!await confirmBox('Passer à la connexion Google directe ? Un nouveau dossier « SiteTeam » sera créé dans votre Drive et tout y sera renvoyé. L\'ancien dossier reste en place.')) return;
+        const ld = loading('Connexion à Google…'); try { await connectGoogle(); ld.close(); s.close(); toast('☁ Google Drive connecté ✓'); } catch (e) { ld.close(); alertBox('Connexion impossible : ' + (e.message || e)); } };
+      if (c.mode !== 'g') scriptVer().then(v => { const u = $('[data-upd]', s.el); if (!u || v >= SCRIPT_VER) return;
         u.innerHTML = `<div class="sync-warn"><b>⚠️ Mettre à jour le script Google (une fois)</b><br>Nécessaire pour fusionner les dossiers en double et ne plus en créer.<br><b>1.</b> Copiez le nouveau code ci-dessous.<br><b>2.</b> Sur script.google.com, ouvrez votre projet « SiteTeam », effacez tout et collez.<br><b>3.</b> <b>Déployer → Gérer les déploiements → ✏️ Modifier → Version : Nouvelle version → Déployer</b> (le lien reste le même).</div><button class="btn small" data-a="copy3">${icon('file')} Copier le nouveau code</button>`;
         $('[data-a=copy3]', u).onclick = () => copy(script(c.key)); });
       $('[data-a=dedupe]', s.el).onclick = async () => { if ((await scriptVer()) < SCRIPT_VER) return alertBox('Mettez d\'abord à jour le script Google (encadré ci-dessus).'); const ld = loading('Fusion des dossiers en double…'); try { const r = await call('dedupe', {}); toast(r.merged ? `${r.merged} dossier(s) en double fusionné(s) ✓` : 'Aucun dossier en double ✓'); } catch (e) { alertBox(String(e.message || e)); } finally { ld.close(); } };
@@ -538,8 +566,16 @@ function doPost(e) {
       return;
     }
     let key = LS.get('pendingKey'); if (!key) { key = newKey(); LS.set('pendingKey', key); }
+    const g = GDrive.available();
     const s = sheet(`<div class="form">
-      <div class="seg" style="margin-bottom:4px"><button type="button" data-tab="new" class="on">Première fois</button><button type="button" data-tab="code">J'ai un code</button></div>
+      <div class="gd-box">
+        <div class="muted" style="font-size:13.5px;line-height:1.55">Vos plans, photos, PDF et tableaux sont rangés dans <b>Mon Drive › SiteTeam</b>, dans <b>votre</b> compte Google. SiteTeam ne voit que les fichiers qu'il crée.</div>
+        ${g ? `<button class="btn gd-btn" data-a="google"><span class="gd-g">G</span> Se connecter avec Google</button>
+        <div class="muted" style="font-size:12.5px">Choisissez votre compte, acceptez une fois : c'est tout. Sur un autre téléphone, même compte = mêmes projets.</div>`
+        : `<div class="muted" style="font-size:12.5px">La connexion Google en un geste est disponible dans l'application Android. Ici : méthode avancée ci-dessous.</div>`}
+      </div>
+      <details class="gd-adv"${g ? '' : ' open'}><summary>Méthode avancée (script Google, ancienne méthode)</summary>
+      <div class="seg" style="margin:8px 0 4px"><button type="button" data-tab="new" class="on">Première fois</button><button type="button" data-tab="code">J'ai un code</button></div>
       <div data-pane="new">
         <div class="muted steps">
           <b>1.</b> Sur PC (ou Chrome en mode ordinateur), ouvrez <b>script.google.com</b> avec votre compte Google → <b>Nouveau projet</b>.<br>
@@ -555,7 +591,13 @@ function doPost(e) {
         <label>Code de connexion<textarea name="code" style="min-height:80px" placeholder="https://script.google.com/macros/s/…/exec#k=…"></textarea></label>
       </div>
       <button class="btn" data-a="ok">${icon('check')} Connecter</button>
+      </details>
     </div>`, { title: 'Connecter Google Drive' });
+    const gb = $('[data-a=google]', s.el); if (gb) gb.onclick = async () => {
+      const ld = loading('Connexion à Google…');
+      try { await connectGoogle(); ld.close(); s.close(); toast('☁ Google Drive connecté ✓'); if (!App.project) renderHome(); }
+      catch (e) { ld.close(); if (!/annulée/.test(e.message)) alertBox('Connexion impossible : ' + (e.message || e)); }
+    };
     let tab = 'new';
     $$('[data-tab]', s.el).forEach(b => b.onclick = () => { tab = b.dataset.tab; $$('[data-tab]', s.el).forEach(x => x.classList.toggle('on', x === b)); $$('[data-pane]', s.el).forEach(p => p.style.display = p.dataset.pane === tab ? '' : 'none'); });
     $('[data-a=copy]', s.el).onclick = () => copy(script(key));
@@ -567,5 +609,5 @@ function doPost(e) {
     };
   }
 
-  return { start, run, schedule, enabled, hasDrive, disconnect, openSyncSettings, statusLine, cfg, buildPaths, pathFor, _call: call, _parse: parseCode, _script: script };
+  return { start, run, schedule, enabled, hasDrive, direct, connectGoogle, disconnect, openSyncSettings, statusLine, cfg, buildPaths, pathFor, _call: call, _parse: parseCode, _script: script };
 })();

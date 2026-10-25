@@ -5,13 +5,16 @@ service firebase.storage {
     function memPath(cid) { return /databases/(default)/documents/companies/$(cid)/members/$(request.auth.uid); }
     function mem(cid) { return firestore.get(memPath(cid)).data; }
     function lv(p, n) { return p.get('files', 0) >= n || p.get('plans', 0) >= n || p.get('photos', 0) >= n; }
+    // compte bloqué / organisation suspendue par le Super Admin : plus d'accès aux fichiers
+    function okUser() { let u = /databases/(default)/documents/users/$(request.auth.uid); return !firestore.exists(u) || firestore.get(u).data.get('blocked', false) != true; }
+    function live(cid) { let c = /databases/(default)/documents/companies/$(cid); return !firestore.exists(c) || firestore.get(c).data.get('planStatus', '') != 'suspendu'; }
     function ownOk(cid, pid, n) {
-      return signed() && firestore.exists(memPath(cid)) && (mem(cid).allProjects == true || pid in mem(cid).projects) && lv(mem(cid).perms, n);
+      return signed() && firestore.exists(memPath(cid)) && okUser() && live(cid) && (mem(cid).allProjects == true || pid in mem(cid).projects) && lv(mem(cid).perms, n);
     }
     function partOk(cid, pid, n) {
       let o = firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('companyId', '');
       let pp = /databases/(default)/documents/companies/$(cid)/projects/$(pid)/partners/$(o);
-      return signed() && o != '' && o != cid && firestore.exists(memPath(o)) && firestore.exists(pp)
+      return signed() && o != '' && o != cid && okUser() && live(cid) && firestore.exists(memPath(o)) && firestore.exists(pp)
         && firestore.get(pp).data.get('status', '') == 'actif' && lv(firestore.get(pp).data.mods, n) && lv(mem(o).perms, n)
         && (mem(o).allProjects == true || pid in mem(o).projects);
     }
