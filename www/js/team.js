@@ -621,6 +621,13 @@ const Team = (() => {
   const canProject = (pid) => !S.ready || !!(S.me && (S.me.allProjects || (S.me.projects || []).includes(pid)));
   // ---------- demande de pack (la facturation n'est pas en ligne : la demande arrive dans le panneau d'administration) ----------
   async function requestPack(k, perso) {
+    // Super Admin : pas de demande, le pack s'applique tout de suite à l'espace ouvert (les règles l'autorisent pour lui seul)
+    if (isSuper() && S.cid && S.company) {
+      const P0 = planFor(planOf(k), (S.company || {}).kind === 'perso');
+      if (!(await confirmBox(`Passer « ${S.company.name} » au pack ${P0.l} (actif) ?`, 'Activer'))) return false;
+      try { await withTimeout(fs.collection('companies').doc(S.cid).update({ plan: k, planStatus: 'actif' })); S.company = { ...S.company, plan: k, planStatus: 'actif' }; LS.set('company', S.company);
+        toast(`Pack ${P0.l} activé ✓`); setTimeout(() => location.reload(), 600); return true; } catch (e) { alertBox(errMsg(e)); return false; }
+    }
     const P = planFor(planOf(k), perso), r = await formSheet(`Demander ${P.l}`, [{ name: 'msg', label: 'Message (optionnel)', type: 'textarea', placeholder: 'Ex : nombre d\'utilisateurs, besoin particulier…' }, { name: 'tel', label: 'Téléphone (optionnel)', type: 'tel' }], { okLabel: 'Envoyer la demande' });
     if (!r) return false;
     try {
@@ -1567,9 +1574,9 @@ const Team = (() => {
           <div class="tm-box"><b>Mon abonnement <span class="st-state" style="--c:${stt.c}">${esc(stt.l)}</span></b>
             <div class="st-of-r"><span>Projets actifs</span><b>${nProj}${P.projects ? ' / ' + P.projects : ''}</b></div></div>
           ${offerCard(P, true, false)}
-          ${up.length ? `<div class="tm-box"><b>Passer à un autre pack</b>${up.map(x => offerCard(x, true, false)).join('')}<button class="btn" data-a="askup">Demander ${esc(up[0].l)}</button>
+          ${up.length ? `<div class="tm-box"><b>Passer à un autre pack</b>${up.map(x => offerCard(x, true, false)).join('')}<button class="btn" data-a="askup">${isSuper() ? 'Activer' : 'Demander'} ${esc(up[0].l)}</button>
             <small class="muted">La facturation n'est pas encore en ligne : la demande part à SiteTeam, qui active le pack.</small></div>` : ''}</div>`;
-        const a = $('[data-a=askup]', body); if (a) a.onclick = () => requestPack(up[0].k, true);
+        const a = $('[data-a=askup]', body); if (a) a.onclick = async () => { const k = isSuper() && up.length > 1 ? await menu('Quel pack ?', up.map(x => ({ label: `${x.e || ''} ${x.l} · ${planPrice(x)}`, value: x.k }))) : up[0].k; if (k) requestPack(k, true); };
       }
       if (tab === 'me') {
         const R = tmRoleOf(S.me.role), mine = await myShares();
