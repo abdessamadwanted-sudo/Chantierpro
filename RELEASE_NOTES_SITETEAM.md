@@ -1,6 +1,18 @@
-## SiteTeam : codes pack
-- Codes pack : le Super Admin crée un code dans le panneau (onglet « Codes pack »). Il choisit le pack, la durée (ou sans limite), le nombre d'utilisations et la validité du code, puis l'envoie par WhatsApp.
-- La personne entre le code avec « 🎟 J'ai un code pack », à la création de son espace ou dans « Mon abonnement ». Le pack s'ouvre tout de suite, sans demande. Le serveur vérifie le code (pack, durée, une utilisation par personne, code annulé ou expiré).
-- Demande de pack acceptée avant la création de l'espace : un code est créé automatiquement et envoyé à la personne en annonce.
-- Super Admin : tous les packs ouverts, changement de pack direct.
-- À publier : règles Firestore (Réglages › Copier les règles).
+## SiteTeam : menus rangés, espace Free, écran des packs
+- Menu ⋮ de l'accueil : 6 groupes courts, sans doublon :
+  - Briefing ;
+  - Mon espace (changer d'espace, mon organisation, tester une interface, panneau d'administration pour le Super Admin) ;
+  - Outils ;
+  - Données ;
+  - Réglages (apparence, langue, code PIN, fonctions affichées) ;
+  - Version et mise à jour.
+- Menu du projet en 5 groupes :
+  - Chantier ;
+  - Qualité & sécurité (réception, formulaires, constats, labo, HSE, documentation) ;
+  - Études & 3D ;
+  - Gestion & finance (dont pointage) ;
+  - Projet & équipe (équipe, organisations, historique).
+- Outils et liens rapides sont réunis dans un seul groupe, et la langue n'est plus en double.
+- Espace personnel Basic = « Free » : les outils essentiels, sans poste. Une carte « Passez à Pro » propose de demander Pro ou d'entrer un code pack.
+- Espace personnel Pro : on choisit son service et son poste, et l'application s'adapte au poste. Après le passage à Pro, le choix est demandé une fois.
+- Écrans de choix du pack et du type d'organisation : le haut de la page n'est plus coupé.
