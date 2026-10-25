@@ -436,6 +436,25 @@ try {
   log('G maintenance', await G.pg.evaluate(() => (document.querySelector('.st-gate h1') || {}).textContent || 'pas de maintenance'));
   await SA.pg.uncheck('[name=mon]'); await SA.pg.click('[data-a=ver]'); await SA.pg.waitForTimeout(1000); await SA.pg.uncheck('[data-off=finance]'); await SA.pg.click('[data-a=off]'); await SA.pg.waitForTimeout(800);
   log('errors v1.0.24', [...J.errs, ...SA.errs].filter(x => !/Erreur de test|403|permission/i.test(x)));
+  // codes pack : le Super Admin crée un code Business, une nouvelle personne l'entre à la création de son organisation
+  await SA.pg.goto('http://127.0.0.1:8765/admin.html?emu=1#codes'); await SA.pg.waitForSelector('[data-a=mk]', { timeout: 30000 });
+  await SA.pg.selectOption('[name=plan]', 'business'); await SA.pg.fill('[name=days]', '30'); await SA.pg.fill('[name=note]', 'Test parcours'); await SA.pg.click('[data-a=mk]');
+  await SA.pg.waitForSelector('dialog h3', { timeout: 15000 }); const codeB = (await SA.pg.textContent('dialog h3')).trim(); await shot(SA.pg, '101_admin_code'); log('code pack créé', codeB);
+  await SA.pg.click('dialog button:has-text("Fermer")');
+  const K = await newUser('K'); await signup(K.pg, 'Karim Code', 'karim@test.ma');
+  await K.pg.click('[data-a=create]'); await K.pg.waitForSelector('[data-a=pcode]'); await K.pg.click('[data-a=pcode]'); await K.pg.fill('.sheet [name=code]', codeB.toLowerCase()); await K.pg.click('.sheet [data-a=ok]');
+  await K.pg.waitForSelector('.st-orgs', { timeout: 15000 }); await K.pg.click('[data-o=entreprise]'); await K.pg.waitForSelector('.st-svcs'); await K.pg.fill('[name=cname]', 'Karim Travaux'); await K.pg.click('[data-a=go]');
+  await K.pg.waitForSelector('.home2', { timeout: 30000 });
+  log('K pack par code', await K.pg.evaluate(() => [Team.plan().k, Team.company().planStatus, Team.company().packCode ? 'code' : '']));
+  log('K utilisation enregistrée', await K.pg.evaluate(async (c) => { try { const d = await firebase.firestore().collection('packCodes').doc(c).get(); return [d.data().uses, d.data().usedBy.length]; } catch (e) { return e.code; } }, codeB));
+  // l'administratrice de « Jamal BTP » (Basic) passe à Enterprise avec un code
+  await SA.pg.goto('http://127.0.0.1:8765/admin.html?emu=1#codes'); await SA.pg.waitForSelector('[data-a=mk]', { timeout: 30000 });
+  await SA.pg.selectOption('[name=plan]', 'enterprise'); await SA.pg.fill('[name=days]', '0'); await SA.pg.click('[data-a=mk]'); await SA.pg.waitForSelector('dialog h3');
+  const codeE = (await SA.pg.textContent('dialog h3')).trim(); await SA.pg.click('dialog button:has-text("Fermer")');
+  await J.pg.evaluate(() => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); Team.applyPackCode(); }); await J.pg.waitForSelector('.sheet [name=code]'); await J.pg.fill('.sheet [name=code]', codeE); await J.pg.click('.sheet [data-a=ok]');
+  await J.pg.waitForSelector('.opt:has-text("Activer")', { timeout: 15000 }); await J.pg.click('.opt:has-text("Activer")'); await J.pg.waitForSelector('.opt:has-text("OK")', { timeout: 15000 }); await J.pg.click('.opt:has-text("OK")');
+  await J.pg.waitForSelector('.home2', { timeout: 30000 }); log('J passage par code', await J.pg.evaluate(() => [Team.plan().k, Team.company().planStatus]));
+  log('errors v1.0.27', [...K.errs, ...J.errs].filter(x => !/403|permission/i.test(x)));
   // le Super Admin choisit un pack fermé pour son propre espace, puis change de pack sans demande
   await SA.pg.goto('http://127.0.0.1:8765/?emu=1'); await SA.pg.waitForSelector('.tm-choice', { timeout: 30000 });
   await SA.pg.click('[data-a=perso]'); await SA.pg.waitForSelector('.st-offers'); log('Super Admin : Pro choisissable', await SA.pg.evaluate(() => [!!document.querySelector('[data-p=pro]'), !!document.querySelector('[data-req]')]));

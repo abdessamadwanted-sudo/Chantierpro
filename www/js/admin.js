@@ -33,26 +33,28 @@
   const stPill = (s) => { const x = STATUS[s] || [s || '—', '']; return `<span class="pill ${x[1]}">${esc(x[0])}</span>`; };
 
   // ---------- données ----------
-  const D = { users: [], orgs: [], members: [], projects: [], errors: [], reqs: [], annonces: [], cfg: { plans: {}, services: {}, app: {} }, at: 0 };
+  const D = { users: [], orgs: [], members: [], projects: [], errors: [], reqs: [], annonces: [], codes: [], cfg: { plans: {}, services: {}, app: {} }, at: 0 };
   async function load(force) {
     if (!force && Date.now() - D.at < 60000) return D;
-    const [u, c, m, p, e, r, a, cp, cs, ca] = await Promise.all([
+    const [u, c, m, p, e, r, a, cp, cs, ca, pk] = await Promise.all([
       db.collection('users').get(), db.collection('companies').get(), db.collectionGroup('members').get(), db.collectionGroup('projects').get(),
       db.collection('errors').orderBy('at', 'desc').limit(400).get().catch(() => ({ docs: [] })), db.collection('packRequests').orderBy('at', 'desc').limit(200).get().catch(() => ({ docs: [] })),
-      db.collection('annonces').get().catch(() => ({ docs: [] })), db.collection('config').doc('plans').get(), db.collection('config').doc('services').get(), db.collection('config').doc('app').get()]);
+      db.collection('annonces').get().catch(() => ({ docs: [] })), db.collection('config').doc('plans').get(), db.collection('config').doc('services').get(), db.collection('config').doc('app').get(),
+      db.collection('packCodes').get().catch(() => ({ docs: [] }))]);
     D.users = u.docs.map(d => ({ uid: d.id, ...d.data() }));
     D.orgs = c.docs.map(d => ({ id: d.id, ...d.data() }));
     D.members = m.docs.filter(d => d.ref.parent.parent && d.ref.parent.parent.parent.id === 'companies').map(d => ({ uid: d.id, cid: d.ref.parent.parent.id, ...d.data() }));
     D.projects = p.docs.filter(d => d.ref.parent.parent && d.ref.parent.parent.parent.id === 'companies').map(d => ({ id: d.id, cid: d.ref.parent.parent.id, ...d.data() })).filter(x => !x.deleted);
     D.errors = e.docs.map(d => ({ id: d.id, ...d.data() })); D.reqs = r.docs.map(d => ({ id: d.id, ...d.data() })); D.annonces = a.docs.map(d => ({ id: d.id, ...d.data() }));
     D.cfg = { plans: cp.exists ? cp.data() : {}, services: cs.exists ? cs.data() : {}, app: ca.exists ? ca.data() : {} };
+    D.codes = pk.docs.map(d => ({ code: d.id, ...d.data() }));
     D.at = Date.now(); return D;
   }
   const userOf = (uid) => D.users.find(x => x.uid === uid) || {};
   const orgOf = (cid) => D.orgs.find(x => x.id === cid) || {};
 
   // ---------- écrans ----------
-  const TABS = [['dash', 'Tableau de bord'], ['users', 'Utilisateurs'], ['orgs', 'Organisations'], ['reqs', 'Demandes'], ['ctrl', 'Contrôle de l\'app'], ['ann', 'Annonces'], ['err', 'Erreurs']];
+  const TABS = [['dash', 'Tableau de bord'], ['users', 'Utilisateurs'], ['orgs', 'Organisations'], ['reqs', 'Demandes'], ['codes', 'Codes pack'], ['ctrl', 'Contrôle de l\'app'], ['ann', 'Annonces'], ['err', 'Erreurs']];
   let tab = (location.hash || '').slice(1); if (!TABS.some(t => t[0] === tab)) tab = 'dash';
   function shell(user) {
     app.innerHTML = `<header><div class="hd"><div class="grow"><b>🛡 SiteTeam Admin</b><br><small>${esc(user.email)}</small></div>
@@ -66,7 +68,7 @@
   async function draw(force) {
     const M = $('#main'); if (!M) return;
     try { await load(force); } catch (e) { M.innerHTML = `<div class="card"><b>Impossible de charger les données</b><p class="muted">${esc(e.code === 'permission-denied' ? 'Accès refusé : publiez les dernières règles Firestore (application › Réglages › Copier les règles).' : (e.message || e))}</p></div>`; return; }
-    ({ dash, users, orgs, reqs, ctrl, ann, err })[tab](M);
+    ({ dash, users, orgs, reqs, codes, ctrl, ann, err })[tab](M);
   }
 
   function dash(M) {
@@ -156,17 +158,70 @@
     $$('[data-r]', M).forEach(row => row.onclick = async () => {
       const x = L.find(i => i.id === row.dataset.r), o = orgOf(x.cid);
       const r = await modal(`Demande : ${PLAN_L(x.plan)}`, `<div class="kv"><span>Personne</span><b>${esc(x.name || '')} · ${esc(x.email)}</b><span>Téléphone</span><b>${esc(x.tel || '—')}</b><span>Espace</span><b>${esc(x.cname || '—')}</b><span>Pack actuel</span><b>${x.cid ? esc(PLAN_L(o.plan || 'enterprise')) : '—'}</b></div>${x.msg ? `<pre>${esc(x.msg)}</pre>` : ''}
-        ${x.cid ? '<p class="muted">Accepter active ce pack sur cet espace (statut « Actif »).</p>' : '<p class="muted">Pas encore d\'espace : accepter ouvre ce pack pour cette personne ; elle pourra le choisir à la création.</p>'}`,
+        ${x.cid ? '<p class="muted">Accepter active ce pack sur cet espace (statut « Actif »).</p>' : '<p class="muted">Pas encore d\'espace : accepter crée un code pack pour cette personne (1 utilisation, valable 30 jours) et le lui envoie en annonce.</p>'}`,
         x.status === 'attente' ? [['Accepter', 'ok'], ['Refuser', 'no', 'bad'], ['Fermer', null, 'ghost']] : [['Supprimer', 'del', 'ghost'], ['Fermer', null, 'ghost']]);
       if (!r) return;
       try {
-        if (r.v === 'ok') { if (x.cid) await db.collection('companies').doc(x.cid).update({ plan: x.plan, planStatus: 'actif' }); await db.collection('packRequests').doc(x.id).update({ status: 'acceptee', doneAt: ts() });
-          await db.collection('annonces').add({ target: x.uid, title: 'Pack activé', text: `Votre demande « ${planOf(x.plan).l} » est acceptée${x.cid ? ' : le pack est actif sur « ' + (x.cname || '') + ' »' : ''}.`, at: ts(), by: auth.currentUser.uid }); }
+        if (r.v === 'ok') {
+          let code = '';
+          if (x.cid) await db.collection('companies').doc(x.cid).update({ plan: x.plan, planStatus: 'actif' });
+          else code = await makeCode({ plan: x.plan, days: 0, maxUses: 1, validDays: 30, note: `Demande de ${x.email}` });
+          await db.collection('packRequests').doc(x.id).update({ status: 'acceptee', doneAt: ts(), ...(code ? { code } : {}) });
+          await db.collection('annonces').add({ target: x.uid, title: 'Pack accepté', text: x.cid ? `Votre demande « ${planOf(x.plan).l} » est acceptée : le pack est actif sur « ${x.cname || ''} ».`
+            : `Votre demande « ${planOf(x.plan).l} » est acceptée. Votre code pack : ${code}\nEntrez-le à la création de votre espace (🎟 J'ai un code pack) ou dans Mon abonnement.`, at: ts(), by: auth.currentUser.uid }); }
         if (r.v === 'no') { await db.collection('packRequests').doc(x.id).update({ status: 'refusee', doneAt: ts() }); }
         if (r.v === 'del') await db.collection('packRequests').doc(x.id).delete();
         toast('Enregistré ✓'); draw(true);
       } catch (e) { fail(e); }
     });
+  }
+
+  // ---------- codes pack ----------
+  const PREFIX = { basic: 'BAS', pro: 'PRO', business: 'BUS', enterprise: 'ENT' };
+  async function makeCode({ plan, days, maxUses, validDays, note }) {
+    const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789', rnd = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), b => A[b % A.length]).join('');
+    for (let i = 0; i < 5; i++) {
+      const code = `${PREFIX[plan] || 'SIT'}-${rnd()}`, ref = db.collection('packCodes').doc(code);
+      if ((await ref.get()).exists) continue;
+      await ref.set({ plan, days: Math.max(0, +days || 0), maxUses: Math.max(1, +maxUses || 1), uses: 0, usedBy: [], status: 'valide', note: note || '',
+        expiresAt: +validDays > 0 ? firebase.firestore.Timestamp.fromMillis(Date.now() + validDays * 864e5) : null, createdAt: ts(), by: auth.currentUser.uid });
+      return code;
+    }
+    throw new Error('Impossible de créer un code unique, réessayez');
+  }
+  const codeTxt = (c) => `${PLAN_L(c.plan)} · ${c.days > 0 ? c.days + ' jours' : 'sans limite'} · ${c.uses || 0}/${c.maxUses} utilisation(s)`;
+  const shareTxt = (c) => `Bonjour,\nVoici votre code pour SiteTeam : *${c.code}*\nPack : ${planOf(c.plan).l}${c.days > 0 ? ` pendant ${c.days} jours` : ''}.\n\n1️⃣ Installez SiteTeam\n2️⃣ Créez votre compte\n3️⃣ Au choix du pack : « 🎟 J'ai un code pack » (ou Mon abonnement › Code pack si votre espace existe déjà)`;
+  function codes(M) {
+    const L = [...D.codes].sort((a, b) => ms(b.createdAt) - ms(a.createdAt));
+    M.innerHTML = `<h2>Codes pack</h2>
+      <div class="card"><p class="muted">Un code ouvre un pack à la personne qui l'entre (à la création de son espace ou dans « Mon abonnement »), sans passer par une demande.</p>
+        <div class="cks"><label>Pack<select name="plan">${Object.values(PLANS).map(P => `<option value="${P.k}" ${P.k === 'pro' ? 'selected' : ''}>${esc(PLAN_L(P.k))}</option>`).join('')}</select></label>
+        <label>Durée du pack (jours, 0 = sans limite)<input name="days" type="number" min="0" value="30"></label>
+        <label>Nombre d'utilisations<input name="max" type="number" min="1" value="1"></label>
+        <label>Code valable (jours, 0 = toujours)<input name="valid" type="number" min="0" value="30"></label></div>
+        <label>Note (pour qui ?)<input name="note" placeholder="Ex : Bureau d'études Atlas — essai"></label>
+        <div class="btns"><button class="btn" data-a="mk">Créer le code</button></div></div>
+      <div class="card">${L.length ? L.map(c => `<div class="row" data-c="${esc(c.code)}"><div class="t grow"><b>${esc(c.code)}</b><small>${esc(codeTxt(c))}${c.note ? ' · ' + esc(c.note) : ''}${c.expiresAt ? ' · valable jusqu\'au ' + esc(dt(c.expiresAt)) : ''}</small></div>
+        <span class="pill ${c.status !== 'valide' ? 'bad' : (c.uses || 0) >= c.maxUses ? '' : 'ok'}">${c.status !== 'valide' ? 'Annulé' : (c.uses || 0) >= c.maxUses ? 'Utilisé' : 'Valide'}</span></div>`).join('') : '<div class="empty">Aucun code</div>'}</div>`;
+    const v = (n) => $(`[name=${n}]`, M).value;
+    $('[data-a=mk]', M).onclick = async () => {
+      try { const code = await makeCode({ plan: v('plan'), days: v('days'), maxUses: v('max'), validDays: v('valid'), note: v('note').trim() }); D.at = 0; await load(true); codes(M); codeCard(code); }
+      catch (e) { fail(e); }
+    };
+    $$('[data-c]', M).forEach(r => r.onclick = () => codeCard(r.dataset.c));
+  }
+  async function codeCard(code) {
+    const c = D.codes.find(x => x.code === code); if (!c) return;
+    const who = (c.usedBy || []).map(u => userOf(u).email || u);
+    const r = await modal(c.code, `<div class="kv"><span>Pack</span><b>${esc(codeTxt(c))}</b><span>Note</span><b>${esc(c.note || '—')}</b><span>Créé le</span><b>${esc(dt(c.createdAt))}</b><span>Utilisé par</span><b>${who.length ? who.map(esc).join('<br>') : '—'}</b></div>
+      <label>Message à envoyer<textarea readonly>${esc(shareTxt(c))}</textarea></label>`,
+      [['Copier le message', 'copy'], ['WhatsApp', 'wa', 'ghost'], ...(c.status === 'valide' ? [['Annuler le code', 'rev', 'bad']] : []), ['Fermer', null, 'ghost']]);
+    if (!r) return;
+    try {
+      if (r.v === 'copy') { try { await navigator.clipboard.writeText(shareTxt(c)); toast('Message copié ✓'); } catch (e) { toast('Copie impossible : sélectionnez le texte'); } }
+      if (r.v === 'wa') window.open('https://wa.me/?text=' + encodeURIComponent(shareTxt(c)), '_blank');
+      if (r.v === 'rev') { await db.collection('packCodes').doc(c.code).update({ status: 'revoque' }); toast('Code annulé ✓'); draw(true); }
+    } catch (e) { fail(e); }
   }
 
   function ctrl(M) {

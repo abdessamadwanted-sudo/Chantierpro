@@ -351,6 +351,28 @@ await t('annonces : organisation (membre lit)', async () => { await assertSuccee
 await t('panneau : le Super Admin liste comptes, membres et projets', async () => { await assertSucceeds(owner.collection('users').get()); await assertSucceeds(owner.collectionGroup('members').get()); await assertSucceeds(owner.collectionGroup('projects').get()); });
 await t('panneau : REFUS pour un autre compte', async () => { await assertFails(other.collection('users').get()); await assertFails(other.collectionGroup('members').get()); });
 
+// --- v1.0.27 : codes pack (le Super Admin ouvre un pack à une personne, sans demande)
+const [nw3, nw4] = ['nw3', 'nw4'].map(nu);
+const futur = (d) => new Date(Date.now() + d * 864e5);
+await t('code pack : le Super Admin crée des codes', async () => {
+  await assertSucceeds(owner.collection('packCodes').doc('PRO-TEST01').set({ plan: 'pro', days: 30, maxUses: 2, uses: 0, usedBy: [], status: 'valide', expiresAt: futur(30) }));
+  await assertSucceeds(owner.collection('packCodes').doc('ENT-TEST01').set({ plan: 'enterprise', days: 0, maxUses: 1, uses: 0, usedBy: [], status: 'valide', expiresAt: null }));
+  await assertSucceeds(owner.collection('packCodes').doc('BUS-REVOK1').set({ plan: 'business', days: 0, maxUses: 5, uses: 0, usedBy: [], status: 'revoque', expiresAt: null })); });
+await t('code pack : REFUS de création par un compte', () => assertFails(nw3.collection('packCodes').doc('PRO-HACK01').set({ plan: 'pro', days: 0, maxUses: 99, uses: 0, usedBy: [], status: 'valide' })));
+await t('code pack : REFUS de lister les codes', () => assertFails(nw3.collection('packCodes').get()));
+await t('code pack : un compte lit un code précis', () => assertSucceeds(nw3.collection('packCodes').doc('PRO-TEST01').get()));
+const coCode = (db, id, uid, plan, code, extra) => db.collection('companies').doc(id).set({ name: 'C', ownerUid: uid, plan, planStatus: 'essai', trialEndsAt: futur(30), kind: 'perso', packCode: code, ...extra });
+await t('code pack : création d\'un espace Pro avec le code', () => assertSucceeds(coCode(nw3, 'cc1', 'nw3', 'pro', 'PRO-TEST01')));
+await t('code pack : la personne enregistre l\'utilisation', () => assertSucceeds(nw3.collection('packCodes').doc('PRO-TEST01').update({ uses: 1, usedBy: ['nw3'], lastUsedAt: SRV() })));
+await t('code pack : REFUS de réutiliser son code', () => assertFails(coCode(nw3, 'cc2', 'nw3', 'pro', 'PRO-TEST01')));
+await t('code pack : REFUS d\'une durée plus longue que le code', () => assertFails(coCode(nw4, 'cc3', 'nw4', 'pro', 'PRO-TEST01', { trialEndsAt: futur(120) })));
+await t('code pack : REFUS d\'un autre pack que celui du code', () => assertFails(coCode(nw4, 'cc4', 'nw4', 'enterprise', 'PRO-TEST01')));
+await t('code pack : REFUS d\'un code annulé', () => assertFails(coCode(nw4, 'cc5', 'nw4', 'business', 'BUS-REVOK1', { planStatus: 'actif' })));
+await t('code pack : REFUS de remettre le compteur à zéro', () => assertFails(nw4.collection('packCodes').doc('PRO-TEST01').update({ uses: 0, usedBy: [] })));
+await t('code pack : REFUS « actif » pour un code limité dans le temps', () => assertFails(coCode(nw4, 'cc6', 'nw4', 'pro', 'PRO-TEST01', { planStatus: 'actif' })));
+await t('code pack : l\'administrateur passe son organisation au pack du code', () => assertSucceeds(own9.collection('companies').doc('c9').update({ plan: 'enterprise', planStatus: 'actif', packCode: 'ENT-TEST01' })));
+await t('code pack : REFUS sans code (changement de pack)', () => assertFails(nw1.collection('companies').doc('cn1').update({ plan: 'enterprise', planStatus: 'actif' })));
+
 log(`\n${fails ? fails + ' ÉCHEC(S)' : 'TOUT OK'} — ${out.length} vérifications`);
 fs.writeFileSync(O + '/rules-test.txt', out.join('\n') + '\n');
 await env.cleanup();
