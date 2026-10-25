@@ -1,5 +1,5 @@
 node_modules/
-android/
+/android/
 www/lib/
 *.apk
 # fichiers locaux / secrets (jamais dans Git)
