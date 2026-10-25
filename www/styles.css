@@ -2562,3 +2562,9 @@ body:has(.pst-page) #plansFab, body:has(.rub-page) #plansFab, body:has(.scanpage
 .st-promo { margin: 0 4px 12px; padding: 14px; border-radius: 14px; border: 1px solid rgba(245,158,11,.45); background: linear-gradient(135deg, rgba(245,158,11,.14), rgba(59,130,246,.10)); display: grid; gap: 6px; }
 .st-promo b { font-size: 15px; } .st-promo p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.45; }
 .dr-sep { padding: 10px 16px 4px; font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .3px; }
+
+/* Connexion Google Drive directe (sans script) */
+.gd-box { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--line, rgba(148,163,184,.25)); border-radius: 14px; background: rgba(37,99,235,.06); }
+.gd-btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; background: #fff; color: #1f2937; border: 1px solid #dadce0; font-weight: 600; }
+.gd-g { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: conic-gradient(#ea4335 0 25%, #fbbc05 0 50%, #34a853 0 75%, #4285f4 0); color: #fff; font-weight: 800; font-size: 13px; }
+.gd-adv { margin-top: 6px; } .gd-adv > summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 6px 0; }

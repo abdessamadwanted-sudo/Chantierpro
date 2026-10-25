@@ -944,7 +944,7 @@ const Team = (() => {
       const same = remote && local && local.url === remote.url && local.key === remote.key;
       // l'administrateur : son Drive (vérifié SiteTeam) fait foi ; les membres : celui de l'entreprise
       if (isAdmin() && local && local.url && !same) { if (await isSiteTeamScript(local)) await ref.set({ url: local.url, key: local.key, folder: local.folder || '', by: S.user.uid, at: ts() }); }
-      else if (remote && remote.url && !same && await isSiteTeamScript(remote)) { localStorage.setItem('sync.cfg', JSON.stringify({ url: remote.url, key: remote.key, folder: remote.folder || '' })); Sync.start(); }
+      else if (remote && remote.url && !same && !(local && local.mode === 'g') && await isSiteTeamScript(remote)) { localStorage.setItem('sync.cfg', JSON.stringify({ url: remote.url, key: remote.key, folder: remote.folder || '' })); Sync.start(); }
       // ancien code de Chantier connecté par erreur : on le retire de SiteTeam (les données de Chantier ne sont pas touchées)
       if (local && local.url && !(await isSiteTeamScript(local))) { localStorage.removeItem('sync.cfg'); if (isAdmin() && remote && remote.url === local.url) await ref.delete(); toast('Drive de Chantier détaché de SiteTeam — connectez le script SiteTeam'); }
     } catch (e) { console.warn('drive cfg', e); }
@@ -1609,8 +1609,8 @@ const Team = (() => {
           ${isPerso() ? '' : `<div class="tm-box"><b>${T.e} Type d'organisation : ${esc(T.l)}</b><p>Le type choisit l'interface (outils mis en avant). Services actifs : ${companyServices().filter(x => x.k !== 'externe').map(x => esc(x.l)).join(', ')}.</p>
             <div class="btnrow" style="padding:0"><button class="btn ghost small" data-a="otype">Changer le type</button><button class="btn ghost small" data-a="svcs">Services…</button></div></div>`}
           <div class="tm-box"><b>☁ Google Drive de l'entreprise</b><p>Les plans, photos et PDF de toute l'équipe sont rangés dans ce Drive. Les membres le reçoivent automatiquement.</p>
-            <div>${c && c.url ? '<span style="color:#22c55e">✓ Connecté</span>' : '<span style="color:#f59e0b">Non connecté — les fichiers restent sur chaque téléphone</span>'}</div>
-            <div class="btnrow" style="padding:0"><button class="btn ghost small" data-a="drive">${c && c.url ? 'Réglages Drive' : 'Connecter Google Drive'}</button>${c && c.url ? '<button class="btn ghost small" data-a="share">Partager avec l\'équipe</button>' : ''}</div></div>
+            <div>${c && c.mode === 'g' ? `<span style="color:#22c55e">✓ Connecté avec Google${c.email ? ' (' + esc(c.email) + ')' : ''}</span><br><span style="font-size:12.5px;color:var(--muted)">Drive personnel de ce compte (chaque membre peut connecter le sien).</span>` : c && c.url ? '<span style="color:#22c55e">✓ Connecté</span>' : '<span style="color:#f59e0b">Non connecté — les fichiers restent sur chaque téléphone</span>'}</div>
+            <div class="btnrow" style="padding:0"><button class="btn ghost small" data-a="drive">${c && (c.url || c.mode === 'g') ? 'Réglages Drive' : 'Connecter Google Drive'}</button>${c && c.url ? '<button class="btn ghost small" data-a="share">Partager avec l\'équipe</button>' : ''}</div></div>
           <div class="tm-box"><b>📥 Importer depuis l'application Chantier</b><p>Récupère vos projets (tableaux, réserves, plans, photos…) depuis le code de connexion Drive de Chantier.</p>
             <button class="btn ghost small" data-a="import">Importer des projets</button></div>
           <div class="tm-box"><b>🔒 Règles de sécurité Firestore</b><p>À coller une seule fois dans la console Firebase › Firestore Database › Règles › Publier.</p>
