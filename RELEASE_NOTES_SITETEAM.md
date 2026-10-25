@@ -1,14 +1,6 @@
-## SiteTeam : panneau de contrôle et préparation Google Play
-- Packs : seul Basic est ouvert au public. Les autres packs s'affichent avec 🔒 « Sur demande » et un bouton « Demander l'accès ». Le Super Admin les voit et les choisit tous, et ouvre ceux qu'il veut depuis le panneau. Le serveur refuse un pack fermé.
-- Panneau d'administration (Super Admin), sur le web et dans l'application :
-  - tableau de bord : comptes, actifs, organisations, projets, versions ;
-  - utilisateurs : recherche, blocage et déblocage du compte ;
-  - organisations : pack, statut, suspension réelle, membres ;
-  - demandes de pack ;
-  - contrôle de l'application : packs et services ouverts, fonctions coupées, version minimale, maintenance, message d'accueil, stockage ;
-  - annonces avec notification sur le téléphone ;
-  - erreurs remontées par les téléphones.
-- Compte bloqué / organisation suspendue : l'application affiche un écran clair, et le serveur bloque l'accès aux projets et aux fichiers.
-- Version minimale : une version trop ancienne demande la mise à jour avant de continuer.
-- Google Play : version AAB (API 36, sans installation d'APK), pages Confidentialité, Suppression du compte et Conditions.
-- À publier : règles Firestore et règles Storage (Réglages › Copier les règles / Copier les règles Storage).
+## SiteTeam : codes pack
+- Codes pack : le Super Admin crée un code dans le panneau (onglet « Codes pack »). Il choisit le pack, la durée (ou sans limite), le nombre d'utilisations et la validité du code, puis l'envoie par WhatsApp.
+- La personne entre le code avec « 🎟 J'ai un code pack », à la création de son espace ou dans « Mon abonnement ». Le pack s'ouvre tout de suite, sans demande. Le serveur vérifie le code (pack, durée, une utilisation par personne, code annulé ou expiré).
+- Demande de pack acceptée avant la création de l'espace : un code est créé automatiquement et envoyé à la personne en annonce.
+- Super Admin : tous les packs ouverts, changement de pack direct.
+- À publier : règles Firestore (Réglages › Copier les règles).
