@@ -189,7 +189,7 @@ try {
   let E, F;
   E = await newUser('E'); await signup(E.pg, 'Hamid Indep', 'hamid@test.ma');
   await E.pg.click('[data-a=perso]'); await E.pg.waitForSelector('.st-offers'); log('E packs proposés', await E.pg.evaluate(() => [...document.querySelectorAll('.st-offers [data-p]')].map(b => b.dataset.p)));
-  await E.pg.click('[data-p=basic]'); await E.pg.waitForSelector('[name=role]'); await E.pg.selectOption('[name=role]', 'techqualite'); await shot(E.pg, '30_perso_metier');
+  await E.pg.click('[data-p=basic]'); await E.pg.waitForSelector('[name=me]'); log('E Basic = Free (sans poste)', await E.pg.evaluate(() => [!document.querySelector('[name=role]'), document.querySelector('h1').textContent])); await shot(E.pg, '30_perso_free');
   await E.pg.click('[data-a=go]'); await E.pg.waitForSelector('.home2', { timeout: 20000 }); await E.pg.waitForTimeout(800);
   await E.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove())); await shot(E.pg, '31_perso_home');
   log('E espace', await E.pg.evaluate(() => [Team.isPerso(), Team.plan().k, Team.company().name, Team.me().role, Team.isAdmin(), Org.me() && Org.me().poste]));
@@ -464,6 +464,20 @@ try {
   await SA.pg.click('.opt:has-text("Activer"), .sheet [data-a=ok]'); await SA.pg.waitForTimeout(2500); await SA.pg.waitForSelector('.home2', { timeout: 30000 });
   log('Super Admin : changement direct (sans demande)', await SA.pg.evaluate(() => [Team.plan().k, Team.company().planStatus]));
   log('packs rouverts (test)', await setPacks(true));
+  // ---- v1.0.28 : menus réorganisés, espace Free, écran des packs défilable
+  log('E accueil Free', await E.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.project = null; renderHome(); return [Team.isFree(), !!document.querySelector('.st-promo'), (document.querySelector('.h2-role') || {}).textContent]; }));
+  await E.pg.waitForTimeout(500); await shot(E.pg, '102_free_accueil');
+  log('G Pro : poste choisi', await G.pg.evaluate(() => [Team.isFree(), Team.profil().metier]));
+  await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(600);
+  await A.pg.click('[data-a=homemore]'); await A.pg.waitForSelector('.gm'); await shot(A.pg, '103_menu_accueil');
+  log('menu ⋮ (groupes · rubriques)', await A.pg.evaluate(() => [[...document.querySelectorAll('.gm-g')].map(x => x.textContent), document.querySelectorAll('.gm-i').length]));
+  await A.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove()));
+  await A.pg.evaluate(async () => { await openProject((await DB.all('projects'))[0]); document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); openDrawer(); }); await A.pg.waitForTimeout(700); await shot(A.pg, '104_menu_projet');
+  log('menu projet (groupes)', await A.pg.evaluate(() => [...document.querySelectorAll('.drawer .dr-gh span')].map(x => x.textContent + ' ' + x.nextElementSibling.textContent)));
+  await A.pg.evaluate(() => document.querySelectorAll('.drawer,.drawer-bg').forEach(x => x.remove()));
+  const Z = await newUser('Z'); await signup(Z.pg, 'Zineb Scroll', 'zineb@test.ma'); await Z.pg.click('[data-a=create]'); await Z.pg.waitForSelector('.st-offers');
+  log('packs : haut de l\'écran visible', await Z.pg.evaluate(() => { const el = document.querySelector('.tm-login'); el.scrollTop = 0; const h = document.querySelector('.tm-lg-in h1').getBoundingClientRect(); return [Math.round(h.top) >= 0, el.scrollHeight > el.clientHeight]; }));
+  log('errors v1.0.28', [...E.errs, ...Z.errs, ...A.errs].filter(x => !/403|400|permission/i.test(x)));
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);
