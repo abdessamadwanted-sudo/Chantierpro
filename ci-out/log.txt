@@ -1248,3 +1248,46 @@ D after delete: login screen 1
 A members after D delete ["Sara BET","Abdessamad Patron","Youssef Conducteur","Client MO"]
 D relogin Compte introuvable
 errors ["A console: Failed to load resource: the server responded with a status of 403 (Forbidden)","D console: Failed to load resource: the server responded with a status of 400 (Bad Request)"]
+services ouverts (test) 200
+packs ouverts (test) 200
+A offres organisation ["basic:🌱 Basic Organisation","business:🏢 Business","enterprise:🏛️ Enterprise"]
+A pack/type ["business","entreprise",17,true]
+A projet [["Grand stade Benslimane","equip","Ministère"]]
+A sync state <span style="color:#60a5fa">⟳ Réception…</span>
+A poste Directeur de projet : admin auto / max droit [false,3]
+code conducteur J245RYPN
+code MO WMUHHYVH
+B projects ["Grand stade Benslimane"]
+B tasks ["Enrobage insuffisant voile V12"]
+B receptions 1
+A sees task ["Enrobage insuffisant voile V12 (repris) / progress"]
+B self-admin denied OK: permission-denied
+B invite create denied OK: permission-denied
+C fab 0 projects ["Grand stade Benslimane"]
+C write task denied OK: permission-denied
+D items ["impl:demandee","cmd:demandee","pt:","rdt:"]
+D topo write cmd denied OK: permission-denied
+A items ["impl:implantee","cmd:demandee","pt:","rdt:","mat:","stock:"]
+B poste {"service":"trav","poste":"conduct","at":"2026-10-25","st":"conducteur"} C poste {"service":"mo","poste":"mo","at":"2026-10-25","st":"mo"} D poste {"service":"etu","poste":"topo","at":"2026-10-25","st":"cheftopo"}
+B tableau de bord ["Tâches / réserves","PV non reçus","PV non livrés au BET"]
+C sections finance/reception [true,true,false,true]
+A aperçu basic [false,false,false,false,true,false]
+A aperçu tiroir {"lock":0,"items":["dashboard","plans","avancement","planning","tasks","reports","photos","orgs","histo","docq","models3d","maquette","settings"]}
+A sans aperçu [true,true]
+B peut créer un code false
+E packs proposés ["basic","pro"]
+E espace [true,"basic","Espace de Hamid Indep","proprietaire",true,"tsq"]
+E dashboard perso {"outils":true,"direction":false,"espaceDir":false,"stats":["0","0 / 1","0","0"],"tools":["forms🔒","tasks","reception🔒","constat🔒","photos","reports","plans"],"role":"👷 Technicien qualité"}
+E profil / metier ["techqualite",false,false]
+E mon espace onglets ["Mon profil","Mon abonnement","Paramètres","Mon compte"]
+FAIL page.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator('[data-t=abo]')
+  -   locator resolved to <button class="" data-t="abo">Mon abonnement</button>
+  - attempting click action
+  -   waiting for element to be visible, enabled and stable
+  -   element is visible, enabled and stable
+ERRS []
+ERRS []
+ERRS []
+ERRS []

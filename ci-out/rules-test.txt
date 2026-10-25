@@ -148,5 +148,45 @@ OK   fichiers : REFUS d'un fichier de plus de 50 Mo
 OK   fichiers : REFUS en dehors des projets
 OK   fichiers : le partenaire suspendu perd l'accès
 OK   fichiers : le titulaire supprime
+OK   compte : la personne modifie son profil
+OK   compte : lecture des projets avant blocage
+OK   blocage : REFUS qu'une personne se bloque / débloque elle-même
+OK   blocage : REFUS par un autre compte
+OK   blocage : le Super Admin bloque le compte
+OK   blocage : le compte bloqué perd l'accès aux projets
+OK   blocage : le compte bloqué perd l'accès à l'organisation
+OK   blocage : REFUS que le Super Admin change autre chose que le blocage
+OK   blocage : le Super Admin débloque
+OK   profil : création par la personne (non bloqué)
+OK   suspension : avant, le propriétaire lit ses réserves
+OK   suspension : REFUS que l'admin se suspende / réactive lui-même
+OK   suspension : le Super Admin suspend l'organisation
+OK   suspension : REFUS de lecture des projets
+OK   suspension : REFUS d'écriture
+OK   suspension : l'organisation reste lisible (message « suspendue »)
+OK   suspension : le Super Admin rétablit
+OK   packs : création en Basic
+OK   packs : REFUS d'un pack fermé (Business)
+OK   packs : le Super Admin crée avec n'importe quel pack
+OK   packs : le Super Admin ouvre Business au public
+OK   packs : création en Business une fois ouvert
+OK   packs : REFUS de Pro (toujours fermé)
+OK   erreurs : un compte envoie une erreur
+OK   erreurs : REFUS au nom d'un autre
+OK   erreurs : REFUS de lecture par un compte
+OK   erreurs : le Super Admin lit
+OK   demandes : un compte demande un pack
+OK   demandes : REFUS d'une demande déjà « acceptée »
+OK   demandes : la personne lit sa demande
+OK   demandes : REFUS qu'elle l'accepte elle-même
+OK   demandes : REFUS de lecture par un autre compte
+OK   demandes : le Super Admin accepte
+OK   annonces : le Super Admin publie à tous et à une personne
+OK   annonces : un compte lit les annonces pour lui
+OK   annonces : REFUS de lire l'annonce d'un autre
+OK   annonces : REFUS de publier
+OK   annonces : organisation (membre lit)
+OK   panneau : le Super Admin liste comptes, membres et projets
+OK   panneau : REFUS pour un autre compte
 
-TOUT OK — 150 vérifications
+TOUT OK — 190 vérifications
