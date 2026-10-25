@@ -1,0 +1,92 @@
+name: SiteTeam Google Play (AAB)
+
+# Version Google Play de SiteTeam : Android App Bundle signé avec la clé d'upload Play (secrets GitHub).
+# Se lance en poussant la branche « siteteam-play » (ou à la main). Les tests passent d'abord.
+# Sans les secrets PLAY_UPLOAD_*, un AAB NON signé est construit pour vérifier la compilation (il ne peut pas être envoyé à Play).
+on:
+  push:
+    branches: [siteteam-play]
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: Version (X.Y.Z) — vide = 1.0.<numéro de build>
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    uses: ./.github/workflows/siteteam-tests.yml
+
+  aab:
+    needs: tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: android-actions/setup-android@v3
+      - name: Android SDK 36
+        run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+      - run: npm install --no-audit --no-fund
+      - run: npm run copy-libs
+      - name: Projet Android
+        run: CI=true npx cap add android
+      - name: Icône et écran de démarrage
+        run: npx @capacitor/assets generate --android --iconBackgroundColor '#0f172a' --iconBackgroundColorDark '#0f172a' --splashBackgroundColor '#0f172a' --splashBackgroundColorDark '#0f172a'
+        continue-on-error: true
+      - name: Clé d'upload Play (secrets GitHub)
+        id: key
+        env:
+          KS: ${{ secrets.PLAY_UPLOAD_KEYSTORE_BASE64 }}
+          SP: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
+          KA: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+          KP: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KS" ] || [ -z "$SP" ] || [ -z "$KA" ] || [ -z "$KP" ]; then
+            echo "signed=0" >> "$GITHUB_OUTPUT"; echo "::warning::Secrets PLAY_UPLOAD_* absents : AAB non signé (compilation seulement)"; exit 0; fi
+          printf '%s' "$KS" | base64 --decode > "$RUNNER_TEMP/play-upload.jks"
+          keytool -list -keystore "$RUNNER_TEMP/play-upload.jks" -storepass "$SP" -alias "$KA" > /dev/null
+          echo "signed=1" >> "$GITHUB_OUTPUT"
+      - name: Version Play (API 36, sans installation d'APK)
+        run: |
+          V="${{ inputs.version_name }}"; [ -n "$V" ] || V="1.0.${{ github.run_number }}"
+          bash scripts/prepare-siteteam-play.sh "$V" "$((100000 + ${{ github.run_number }}))" "${{ steps.key.outputs.signed }}"
+          echo "VNAME=$V" >> "$GITHUB_ENV"
+      - name: Partager → SiteTeam
+        run: |
+          python3 - <<'PY'
+          p = 'android/app/src/main/AndroidManifest.xml'; s = open(p).read()
+          act = '''
+          <activity android:name="de.mindlib.sendIntent.SendIntentActivity" android:label="@string/app_name" android:exported="true" android:theme="@style/AppTheme.NoActionBar">
+              <intent-filter><action android:name="android.intent.action.SEND" /><category android:name="android.intent.category.DEFAULT" /><data android:mimeType="image/*" /></intent-filter>
+              <intent-filter><action android:name="android.intent.action.SEND_MULTIPLE" /><category android:name="android.intent.category.DEFAULT" /><data android:mimeType="image/*" /></intent-filter>
+          </activity>
+          '''
+          if 'SendIntentActivity' not in s: s = s.replace('</application>', act + '</application>', 1)
+          open(p, 'w').write(s)
+          PY
+      - run: npx cap sync android
+      - name: Android App Bundle
+        env:
+          PLAY_UPLOAD_KEYSTORE_PATH: ${{ runner.temp }}/play-upload.jks
+          PLAY_UPLOAD_STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
+          PLAY_UPLOAD_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+          PLAY_UPLOAD_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+        run: |
+          cd android && chmod +x gradlew && ./gradlew bundleRelease --no-daemon
+          cp app/build/outputs/bundle/release/app-release.aab "../SiteTeam-play-$VNAME.aab"
+          rm -f "$RUNNER_TEMP/play-upload.jks"
+      - name: Vérification (signature, API, permissions)
+        run: |
+          unzip -p SiteTeam-play-*.aab base/manifest/AndroidManifest.xml | strings | grep -i -E "siteteam|permission" | head -20 || true
+          jarsigner -verify -certs SiteTeam-play-*.aab | tail -3 || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SiteTeam-Play-AAB
+          path: SiteTeam-play-*.aab
+          retention-days: 30

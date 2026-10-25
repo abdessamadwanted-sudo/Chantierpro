@@ -1,0 +1,44 @@
+name: SiteTeam web (admin + pages légales)
+
+# Publie sur GitHub Pages, dans le dossier « siteteam/ » de la branche gh-pages (sans toucher au site Chantier) :
+# le panneau d'administration (admin.html) et les pages demandées par Google Play. Seulement si les tests passent.
+on:
+  push:
+    branches: [siteteam]
+    paths: ['site/**', 'www/admin.html', 'www/js/admin.js', 'www/js/team.js', '.github/workflows/siteteam-web.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  tests:
+    uses: ./.github/workflows/siteteam-tests.yml
+  publish:
+    needs: tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Préparer le dossier
+        run: |
+          mkdir -p pub/js pub/vendor/firebase
+          cp www/admin.html pub/ && cp www/js/team.js www/js/admin.js pub/js/
+          cp www/vendor/firebase/firebase-app-compat.js www/vendor/firebase/firebase-auth-compat.js www/vendor/firebase/firebase-firestore-compat.js pub/vendor/firebase/
+          C=$(head -1 site/contact.txt | tr -d '\r' | xargs)
+          if [ -n "$C" ] && [ "$C" != "A_COMPLETER" ]; then
+            cp site/*.html site/_style.css pub/ && sed -i "s#__CONTACT__#$C#g" pub/*.html
+          else
+            echo "::warning::site/contact.txt à compléter : pages légales non publiées"
+            printf '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>SiteTeam</title><p style="font-family:system-ui;padding:24px">SiteTeam — <a href="admin.html">Administration</a></p>' > pub/index.html
+          fi
+          touch pub/.nojekyll && ls -R pub | head -30
+      - name: Publier dans gh-pages/siteteam
+        run: |
+          git fetch -q origin +gh-pages:refs/remotes/origin/gh-pages && git worktree add -q gp origin/gh-pages
+          rm -rf gp/siteteam && mkdir -p gp/siteteam && cp -r pub/. gp/siteteam/
+          cd gp && git add -A siteteam && (git -c user.name=github-actions -c user.email=actions@github.com commit -qm "SiteTeam web ${{ github.run_number }}" || echo "rien à publier")
+          git push -q origin HEAD:gh-pages
