@@ -1,18 +1,8 @@
-## SiteTeam : menus rangés, espace Free, écran des packs
-- Menu ⋮ de l'accueil : 6 groupes courts, sans doublon :
-  - Briefing ;
-  - Mon espace (changer d'espace, mon organisation, tester une interface, panneau d'administration pour le Super Admin) ;
-  - Outils ;
-  - Données ;
-  - Réglages (apparence, langue, code PIN, fonctions affichées) ;
-  - Version et mise à jour.
-- Menu du projet en 5 groupes :
-  - Chantier ;
-  - Qualité & sécurité (réception, formulaires, constats, labo, HSE, documentation) ;
-  - Études & 3D ;
-  - Gestion & finance (dont pointage) ;
-  - Projet & équipe (équipe, organisations, historique).
-- Outils et liens rapides sont réunis dans un seul groupe, et la langue n'est plus en double.
-- Espace personnel Basic = « Free » : les outils essentiels, sans poste. Une carte « Passez à Pro » propose de demander Pro ou d'entrer un code pack.
-- Espace personnel Pro : on choisit son service et son poste, et l'application s'adapte au poste. Après le passage à Pro, le choix est demandé une fois.
-- Écrans de choix du pack et du type d'organisation : le haut de la page n'est plus coupé.
+## SiteTeam : Google Drive en un geste (sans script.google.com)
+- Paramètres › Google Drive › « Se connecter avec Google » : on choisit son compte, on accepte une fois, c'est tout. Plus besoin de copier un script ni de « Déployer ».
+- SiteTeam ne voit que les fichiers qu'il crée dans votre Drive (permission « drive.file ») : dossier « Mon Drive › SiteTeam ».
+- Même rangement qu'avant : plans, photos, PDF des tableaux, réserves, rapports, base de synchronisation entre téléphones.
+- Autre téléphone : se connecter avec le même compte Google suffit (plus de code à copier).
+- Gros plans PDF (plus de 4 Mo) envoyés par morceaux.
+- L'ancienne méthode (script Google) reste disponible dans « Méthode avancée ». Les utilisateurs déjà connectés par script peuvent passer à la connexion Google : un nouveau dossier SiteTeam est créé et tout y est renvoyé ; les anciens fichiers restent lisibles.
+- Mise à jour de l'application à installer (nouvelle partie Android).
