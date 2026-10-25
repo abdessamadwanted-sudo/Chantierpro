@@ -1,0 +1,28 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signed() { return request.auth != null; }
+    function memPath(cid) { return /databases/(default)/documents/companies/$(cid)/members/$(request.auth.uid); }
+    function mem(cid) { return firestore.get(memPath(cid)).data; }
+    function lv(p, n) { return p.get('files', 0) >= n || p.get('plans', 0) >= n || p.get('photos', 0) >= n; }
+    // compte bloqué / organisation suspendue par le Super Admin : plus d'accès aux fichiers
+    function okUser() { let u = /databases/(default)/documents/users/$(request.auth.uid); return !firestore.exists(u) || firestore.get(u).data.get('blocked', false) != true; }
+    function live(cid) { return firestore.get(/databases/(default)/documents/companies/$(cid)).data.get('planStatus', '') != 'suspendu'; }
+    function ownOk(cid, pid, n) {
+      return signed() && firestore.exists(memPath(cid)) && okUser() && live(cid) && (mem(cid).allProjects == true || pid in mem(cid).projects) && lv(mem(cid).perms, n);
+    }
+    function partOk(cid, pid, n) {
+      let o = firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('companyId', '');
+      let pp = /databases/(default)/documents/companies/$(cid)/projects/$(pid)/partners/$(o);
+      return signed() && o != '' && o != cid && okUser() && live(cid) && firestore.exists(memPath(o)) && firestore.exists(pp)
+        && firestore.get(pp).data.get('status', '') == 'actif' && lv(firestore.get(pp).data.mods, n) && lv(mem(o).perms, n)
+        && (mem(o).allProjects == true || pid in mem(o).projects);
+    }
+    // fichiers d'un projet : lecture = « Voir », envoi / suppression = « Modifier » ; 50 Mo au plus par fichier
+    match /companies/{cid}/projects/{pid}/files/{fid} {
+      allow read: if ownOk(cid, pid, 1) || partOk(cid, pid, 1);
+      allow create, update: if (ownOk(cid, pid, 2) || partOk(cid, pid, 2)) && request.resource.size < 50 * 1024 * 1024;
+      allow delete: if ownOk(cid, pid, 2) || partOk(cid, pid, 2);
+    }
+  }
+}

@@ -1,7 +1,14 @@
-## SiteTeam : services spécialisés, validation et version
-- Services spécialisés ajoutés au modèle « Entreprise BTP » : Achats, Magasin & stocks, RH, Pointage, Maintenance, Méthodes, Études, Contrats et Transport. Ils restent fermés 🔒 jusqu'à leur ouverture.
-- Plus de doublons : les anciens postes Magasinier, Responsable pointage et Pointeur (service Logistique) ne sont plus proposés. Ils sont remplacés par les postes des nouveaux services. Les membres qui les ont déjà gardent leur poste.
-- Nouveaux postes : accès Finance par défaut (achats, contrats, RH…) et rang dans l'organigramme (responsable au-dessus de son équipe).
-- Validation : un poste ne peut valider que ce qu'il voit.
-- Version : ⋮ › Version affiche la version installée, la version Android, la dernière version publiée et l'état (à jour, nouvelle version, hors ligne, vérification impossible).
-- À publier : règles Firestore (Réglages › Copier les règles) et règles Storage (Réglages › Copier les règles Storage).
+## SiteTeam : panneau de contrôle et préparation Google Play
+- Packs : seul Basic est ouvert au public. Les autres packs s'affichent avec 🔒 « Sur demande » et un bouton « Demander l'accès ». Le Super Admin les voit et les choisit tous, et ouvre ceux qu'il veut depuis le panneau. Le serveur refuse un pack fermé.
+- Panneau d'administration (Super Admin), sur le web et dans l'application :
+  - tableau de bord : comptes, actifs, organisations, projets, versions ;
+  - utilisateurs : recherche, blocage et déblocage du compte ;
+  - organisations : pack, statut, suspension réelle, membres ;
+  - demandes de pack ;
+  - contrôle de l'application : packs et services ouverts, fonctions coupées, version minimale, maintenance, message d'accueil, stockage ;
+  - annonces avec notification sur le téléphone ;
+  - erreurs remontées par les téléphones.
+- Compte bloqué / organisation suspendue : l'application affiche un écran clair, et le serveur bloque l'accès aux projets et aux fichiers.
+- Version minimale : une version trop ancienne demande la mise à jour avant de continuer.
+- Google Play : version AAB (API 36, sans installation d'APK), pages Confidentialité, Suppression du compte et Conditions.
+- À publier : règles Firestore et règles Storage (Réglages › Copier les règles / Copier les règles Storage).

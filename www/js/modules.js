@@ -82,7 +82,11 @@ const UPD_APK = 'https://github.com/abdessamadwanted-sudo/Chantierpro/releases';
 const verNum = (v) => String(v || '').replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0);
 function verCmp(a, b) { const A = verNum(a), B = verNum(b); for (let i = 0; i < Math.max(A.length, B.length); i++) { const d = (A[i] || 0) - (B[i] || 0); if (d) return d; } return 0; }
 
+// version Google Play : les mises à jour passent uniquement par le Play Store (pas d'APK téléchargé, pas de mise à jour rapide)
+const PLAY_STORE_BUILD = false;
+const PLAY_URL = 'https://play.google.com/store/apps/details?id=com.siteteam.app';
 async function checkUpdate(manual = false) {
+  if (PLAY_STORE_BUILD) { if (manual) openUrl(PLAY_URL); return; }
   const cur = typeof APP_VERSION === 'string' ? APP_VERSION : '';
   if (!/^\d+\.\d+\.\d+$/.test(cur)) { if (manual) alertBox('Version de développement : la mise à jour se fait depuis le téléphone.'); return; }
   // licence avec une version figée par le titulaire : pas de proposition de mise à jour, on va sur SA version
@@ -196,6 +200,7 @@ async function otaInstall(rel, ld) {
 }
 // au démarrage : rendre permanent le paquet qui vient de démarrer, nettoyer les anciens
 async function otaBoot() {
+  if (PLAY_STORE_BUILD) return;
   const P = window.Capacitor?.Plugins || {}, FS = P.Filesystem, WV = OTA_WV(); if (!FS || !WV || !WV.getServerBasePath) return;
   try {
     const { path } = await WV.getServerBasePath(), onOta = /\/ota\//.test(path || '');

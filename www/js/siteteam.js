@@ -192,6 +192,7 @@ const ST = (() => {
       if (!f) return true; if (!ready()) return true;
       if (!(f in FEAT_MOD)) return lvl('projet') >= (ST_LEVELS[lv] || 2);
       const m = FEAT_MOD[f]; if (!m) return false;
+      if (Team.isOff && Team.isOff(m)) return false;   // fonction coupée depuis le panneau d'administration
       // menu de tous les jours : seulement les outils réellement autorisés (organisation + pack + poste) ; pas de 🔒 ici, le catalogue est à part
       if (!(orgHas(m) && planHas(m) && lvl(m) >= (ST_LEVELS[lv] || 2))) return false;
       // chaque poste a SON menu : les outils de son métier (sauf administrateur de l'organisation) — pour l'instant le service Qualité ;
