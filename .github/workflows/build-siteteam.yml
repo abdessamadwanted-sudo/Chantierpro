@@ -44,7 +44,7 @@ jobs:
           V=1.0.${{ github.run_number }}
           sed -i "s/__APP_VERSION__/$V/" www/js/app.js
           # empreinte de la partie native : si elle ne change pas, la mise à jour se fait sans réinstaller (paquet web)
-          NID=$(cat package.json capacitor.config.json keystore/debug.keystore ci/signing.sh .github/workflows/build-siteteam.yml assets/* 2>/dev/null | sha1sum | cut -c1-16)
+          NID=$(cat package.json capacitor.config.json keystore/debug.keystore ci/signing.sh .github/workflows/build-siteteam.yml assets/* $(find native -type f | sort) 2>/dev/null | sha1sum | cut -c1-16)
           sed -i "s/__NATIVE_ID__/$NID/" www/js/modules.js
           echo "{\"version\":\"$V\",\"native\":\"$NID\"}" > ota.json; cat ota.json
           sed -i -E "s#(src|href)=\"(js|lib|vendor)/([^\"?]+)\"#\1=\"\2/\3?v=$V\"#g; s#href=\"styles.css\"#href=\"styles.css?v=$V\"#" www/index.html

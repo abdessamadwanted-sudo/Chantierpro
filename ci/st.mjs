@@ -1,6 +1,7 @@
 // Test complet SiteTeam contre les émulateurs Firebase (auth + firestore + règles)
 import { chromium } from 'playwright';
 import fs from 'fs';
+import { fakeDrive } from './fake-drive.mjs';
 const O = 'ci-out'; fs.mkdirSync(O, { recursive: true });
 const log = (...a) => { const s = a.map(x => typeof x === 'string' ? x : JSON.stringify(x)).join(' '); console.log(s); fs.appendFileSync(O + '/log.txt', s + '\n'); };
 const URL = 'http://127.0.0.1:8765/?emu=1';
@@ -478,6 +479,47 @@ try {
   const Z = await newUser('Z'); await signup(Z.pg, 'Zineb Scroll', 'zineb@test.ma'); await Z.pg.click('[data-a=create]'); await Z.pg.waitForSelector('.st-offers');
   log('packs : haut de l\'écran visible', await Z.pg.evaluate(() => { const el = document.querySelector('.tm-login'); el.scrollTop = 0; const h = document.querySelector('.tm-lg-in h1').getBoundingClientRect(); return [Math.round(h.top) >= 0, el.scrollHeight > el.clientHeight]; }));
   log('errors v1.0.28', [...E.errs, ...Z.errs, ...A.errs].filter(x => !/403|400|permission/i.test(x)));
+  // ---- v1.0.29 : Google Drive connecté depuis l'application (sans script.google.com), avec un faux Drive
+  const FD = fakeDrive(); await E.ctx.route('https://www.googleapis.com/**', FD.handle);
+  log('Drive : sans plugin (web) → méthode avancée seule', await E.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); Sync.openSyncSettings(); return [!!document.querySelector('[data-a=google]'), !!document.querySelector('.gd-adv[open]')]; }));
+  await E.pg.evaluate(() => {
+    document.querySelectorAll('.sheet-bg').forEach(x => x.remove());
+    window.Capacitor = window.Capacitor || {}; window.Capacitor.Plugins = window.Capacitor.Plugins || {};
+    window.__gd = { n: 0, cleared: [] };
+    window.Capacitor.Plugins.GDriveAuth = { authorize: async (o) => { window.__gd.n++; window.__gd.last = o; return { accessToken: 'tok' + window.__gd.n, scopes: o.scopes }; }, clearToken: async (o) => { window.__gd.cleared.push(o.token); } };
+    Sync.openSyncSettings();
+  });
+  await E.pg.waitForSelector('[data-a=google]'); await shot(E.pg, '105_drive_connecter');
+  await E.pg.evaluate(async () => { let p = (await DB.all('projects'))[0]; if (!p) { await DB.put('projects', { name: 'Villa Hamid' }); p = (await DB.all('projects'))[0]; } await DB.put('files', { projectId: p.id, name: 'photo.jpg', mime: 'image/jpeg', role: 'photo', blob: new Blob([new Uint8Array(3000)], { type: 'image/jpeg' }) }); });
+  await E.pg.click('[data-a=google]'); await E.pg.waitForFunction(() => Sync.cfg() && Sync.cfg().mode === 'g' && !document.querySelector('.loading'), null, { timeout: 30000 }); await E.pg.waitForTimeout(3000);
+  log('Drive : connecté avec Google', await E.pg.evaluate(() => [Sync.cfg().mode, Sync.cfg().email, /drive\.google\.com\/drive\/folders\//.test(Sync.cfg().folder), Sync.hasDrive(), window.__gd.last.interactive, window.__gd.last.scopes]));
+  await E.pg.evaluate(() => Sync.run({ force: true })); await E.pg.waitForTimeout(4000);
+  log('Drive : fichiers rangés', FD.tree().filter(x => !/db\.json/.test(x)).slice(0, 6));
+  log('Drive : photo envoyée', await E.pg.evaluate(async () => (await DB.all('files')).filter(f => f.name === 'photo.jpg').map(f => [!!f.driveId, !!f.drivePath])));
+  log('Drive : push/pull (base de synchro)', await E.pg.evaluate(async () => {
+    await Sync._call('push', { records: [{ _store: 'tasks', id: 't1', title: 'A', updatedAt: 10 }, { _store: 'tasks', id: 't2', title: 'B', updatedAt: 10 }] });
+    await Sync._call('push', { records: [{ _store: 'tasks', id: 't1', title: 'ancien', updatedAt: 5 }] });   // plus ancien : ignoré
+    const a = await Sync._call('pull', { since: 0 }), b = await Sync._call('pull', { since: a.now });
+    return [a.records.map(r => r.id + ':' + r.title).sort().join(','), b.records.length, a.now > 0];
+  }));
+  log('Drive : envoi / lecture / gros fichier / contrôle', await E.pg.evaluate(async () => {
+    const up = await Sync._call('upload', { path: ['Test', 'Sous'], name: 'a.bin', mime: 'application/octet-stream', blob: new Blob([new Uint8Array(1234)]) });
+    const mv = await Sync._call('upload', { driveId: up.id, path: ['Test', 'Autre'], name: 'b.bin' });
+    const d = await Sync._call('download', { id: up.id });
+    const big = await Sync._call('upload', { path: ['Test'], name: 'plan.pdf', mime: 'application/pdf', blob: new Blob([new Uint8Array(5 * 1048576)], { type: 'application/pdf' }) });
+    const ck = await Sync._call('check', { ids: [up.id, 'inexistant'] });
+    const oc = await Sync._call('ocr', { b64: btoa('img'), mime: 'image/jpeg' });
+    return [mv.id === up.id, d.blob.size, !!big.id, ck.missing, /Voile V12/.test(oc.text)];
+  }));
+  log('Drive : arborescence', FD.tree().filter(x => /Test\//.test(x)));
+  FD.fail401.add('tok1');
+  log('Drive : jeton expiré → renouvelé', await E.pg.evaluate(async () => { GDrive._reset(); const r = await Sync._call('pull', { since: 0 }).then(() => 'ok', e => e.message); return [r, window.__gd.cleared.length > 0, window.__gd.n]; }));
+  log('Drive : dossiers en double fusionnés', await E.pg.evaluate(async () => (await Sync._call('dedupe', {})).ok));
+  await E.pg.evaluate(() => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); Sync.openSyncSettings(); }); await E.pg.waitForTimeout(800); await shot(E.pg, '106_drive_connecte');
+  log('Drive : écran connecté (sans bouton script)', await E.pg.evaluate(() => [!!document.querySelector('[data-a=script]'), !!document.querySelector('[data-a=code]'), document.querySelector('.sync-card').textContent.includes('hamid@gmail.com')]));
+  await E.pg.evaluate(() => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); Sync.disconnect(); });
+  log('Drive : déconnecté', await E.pg.evaluate(() => [Sync.cfg(), localStorage.getItem('gd.root')]));
+  log('errors v1.0.29', E.errs.filter(x => !/401|403|400|permission/i.test(x)));   // 401 = jeton expiré simulé
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);

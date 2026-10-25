@@ -1,7 +1,7 @@
 {
   "name": "chantier-app",
   "version": "1.0.0",
-  "description": "Application de suivi de chantier (plans, t\u00e2ches, photos, contr\u00f4le qualit\u00e9, rapports)",
+  "description": "Application de suivi de chantier (plans, tâches, photos, contrôle qualité, rapports)",
   "private": true,
   "scripts": {
     "copy-libs": "mkdir -p www/lib && cp node_modules/pdfjs-dist/legacy/build/pdf.min.js node_modules/pdfjs-dist/legacy/build/pdf.worker.min.js www/lib/ && cp node_modules/pdf-lib/dist/pdf-lib.min.js www/lib/"
@@ -17,7 +17,8 @@
     "pdf-lib": "1.17.1",
     "@capacitor/local-notifications": "^6.1.0",
     "send-intent": "6.0.3",
-    "@capgo/capacitor-native-biometric": "6.0.4"
+    "@capgo/capacitor-native-biometric": "6.0.4",
+    "siteteam-gdrive-auth": "file:native/gdrive-auth"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
