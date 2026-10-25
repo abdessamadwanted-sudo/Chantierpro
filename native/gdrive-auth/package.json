@@ -1,0 +1,11 @@
+{
+  "name": "siteteam-gdrive-auth",
+  "version": "1.0.0",
+  "description": "SiteTeam : autorisation Google Drive (drive.file) native, sans Apps Script",
+  "private": true,
+  "license": "UNLICENSED",
+  "main": "index.js",
+  "files": ["android/", "index.js"],
+  "capacitor": { "android": { "src": "android" } },
+  "peerDependencies": { "@capacitor/core": "^6.0.0" }
+}
