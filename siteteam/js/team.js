@@ -269,6 +269,17 @@ service cloud.firestore {
           || (n in ['valide', 'refuse'] && d.get('vby', '') == request.auth.uid && validator(cid, d)));
     }
     function co(cid) { return get(/databases/$(db)/documents/companies/$(cid)).data; }
+    // code pack (créé par le Super Admin) : ouvre un pack à la personne qui l'entre, une fois par personne, dans la limite des utilisations
+    function pc(code) { return get(/databases/$(db)/documents/packCodes/$(code)).data; }
+    function codeOk(code) {
+      return code is string && exists(/databases/$(db)/documents/packCodes/$(code)) && pc(code).status == 'valide' && pc(code).uses < pc(code).maxUses
+        && !(request.auth.uid in pc(code).usedBy) && (pc(code).get('expiresAt', null) == null || pc(code).expiresAt > request.time);
+    }
+    function codePlanOk(d) {
+      return codeOk(d.packCode) && d.plan == pc(d.packCode).plan
+        && ((pc(d.packCode).days == 0 && d.planStatus == 'actif')
+          || (pc(d.packCode).days > 0 && d.planStatus == 'essai' && d.trialEndsAt <= request.time + duration.value(pc(d.packCode).days + 1, 'd')));
+    }
     function maxLvl2(p) { return p.keys().hasOnly(['projet', 'plans', 'reserves', 'reception', 'photos', 'forms', 'rapports', 'constats', 'calc', 'equipe', 'files', 'topo', 'centrale', 'materiel', 'pointage', 'hse', 'finance']) && p.get('projet', 0) <= 2 && p.get('plans', 0) <= 2 && p.get('reserves', 0) <= 2 && p.get('reception', 0) <= 2 && p.get('photos', 0) <= 2 && p.get('forms', 0) <= 2 && p.get('rapports', 0) <= 2 && p.get('constats', 0) <= 2 && p.get('calc', 0) <= 2 && p.get('equipe', 0) <= 2 && p.get('files', 0) <= 2 && p.get('topo', 0) <= 2 && p.get('centrale', 0) <= 2 && p.get('materiel', 0) <= 2 && p.get('pointage', 0) <= 2 && p.get('hse', 0) <= 2 && p.get('finance', 0) <= 2; }
     // espace personnel : seulement des « collaborateurs » sur UN projet, au plus « Modifier », jamais admin, et seulement en pack Pro
     function persoOK(d) { return co(d.cid).get('kind', 'org') != 'perso' || (d.admin == false && d.allProjects == false && d.projects.size() == 1
@@ -324,6 +335,15 @@ service cloud.firestore {
       allow create: if signed() && request.resource.data.uid == request.auth.uid && request.resource.data.msg is string && request.resource.data.msg.size() <= 300
         && request.resource.data.keys().hasOnly(['uid', 'cid', 'msg', 'src', 'stack', 'ver', 'platform', 'at']);
       allow read, delete: if licOwner();
+    }
+    // codes pack : lus un par un par tout compte connecté ; une utilisation = +1 et son propre identifiant, rien d'autre
+    match /packCodes/{code} {
+      allow get: if signed();
+      allow list, create, delete: if licOwner();
+      allow update: if licOwner() || (signed() && resource.data.status == 'valide' && resource.data.uses < resource.data.maxUses
+        && !(request.auth.uid in resource.data.usedBy)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uses', 'usedBy', 'lastUsedAt'])
+        && request.resource.data.uses == resource.data.uses + 1 && request.resource.data.usedBy == resource.data.usedBy.concat([request.auth.uid]));
     }
     // demandes de pack (la facturation n'est pas en ligne) : la personne dépose, le Super Admin traite
     match /packRequests/{id} {
@@ -402,14 +422,16 @@ service cloud.firestore {
 
     match /companies/{cid} {
       allow create: if signed() && request.resource.data.ownerUid == request.auth.uid
-        && request.resource.data.get('planStatus', 'essai') in ['essai', 'gratuit']
-        && (request.resource.data.get('plan', 'basic') == 'basic' || licOwner()
-            || get(/databases/$(db)/documents/config/plans).data.get(request.resource.data.get('plan', 'basic'), {}).get('open', false) == true);
+        && ((request.resource.data.get('planStatus', 'essai') in ['essai', 'gratuit']
+            && (request.resource.data.get('plan', 'basic') == 'basic' || licOwner()
+              || get(/databases/$(db)/documents/config/plans).data.get(request.resource.data.get('plan', 'basic'), {}).get('open', false) == true))
+          || (request.resource.data.get('packCode', null) != null && codePlanOk(request.resource.data)));
       allow read: if isMem(cid) || licOwner();
       // la formule (pack) ne change que par le Super Admin SiteTeam (plus tard : la facturation)
       allow update: if (isAdmin(cid) && request.resource.data.get('plan', null) == resource.data.get('plan', null)
           && request.resource.data.get('planStatus', null) == resource.data.get('planStatus', null)
-          && request.resource.data.get('trialEndsAt', null) == resource.data.get('trialEndsAt', null)) || licOwner();
+          && request.resource.data.get('trialEndsAt', null) == resource.data.get('trialEndsAt', null)) || licOwner()
+        || (isAdmin(cid) && request.resource.data.get('packCode', null) != resource.data.get('packCode', null) && codePlanOk(request.resource.data));
 
       match /members/{uid} {
         allow read: if isMem(cid) || licOwner();
@@ -619,6 +641,41 @@ const Team = (() => {
     if (v === 'plans') openCompany('set');
   }
   const canProject = (pid) => !S.ready || !!(S.me && (S.me.allProjects || (S.me.projects || []).includes(pid)));
+  // ---------- code pack : entré par la personne, il ouvre le pack choisi par le Super Admin (création d'espace ou changement de pack) ----------
+  async function readPackCode(raw) {
+    const code = String(raw || '').toUpperCase().replace(/[^A-Z0-9-]/g, ''); if (!code) return null;
+    const d = await withTimeout(fs.collection('packCodes').doc(code).get());
+    if (!d.exists) throw new Error('Code introuvable — vérifiez les lettres et les chiffres');
+    const C = { code, ...d.data() };
+    if (C.status !== 'valide') throw new Error('Ce code a été annulé');
+    if (C.expiresAt && C.expiresAt.toMillis && C.expiresAt.toMillis() < Date.now()) throw new Error('Ce code a expiré');
+    if ((C.usedBy || []).includes(S.user.uid)) throw new Error('Vous avez déjà utilisé ce code');
+    if ((C.uses || 0) >= (C.maxUses || 1)) throw new Error('Ce code a déjà été utilisé le nombre de fois prévu');
+    return C;
+  }
+  const codeSub = (C) => C.days > 0 ? { planStatus: 'essai', trialEndsAt: firebase.firestore.Timestamp.fromMillis(Date.now() + C.days * 864e5) } : { planStatus: 'actif' };
+  const codeLabel = (C) => `${planOf(C.plan).e || ''} ${planOf(C.plan).l}${C.days > 0 ? ` pendant ${C.days} jours` : ' (sans limite de durée)'}`;
+  const useCode = (C) => fs.collection('packCodes').doc(C.code).update({ uses: (C.uses || 0) + 1, usedBy: [...(C.usedBy || []), S.user.uid], lastUsedAt: ts() });
+  async function askPackCode() {
+    const r = await formSheet('Code pack', [{ name: 'code', label: 'Code reçu de SiteTeam', placeholder: 'Ex : PRO-7K2M9Q' }], { okLabel: 'Vérifier' });
+    if (!r || !r.code) return null;
+    const ld = loading('Vérification du code…');
+    try { const C = await readPackCode(r.code); ld.close(); return C; } catch (e) { ld.close(); alertBox(e.message || errMsg(e)); return null; }
+  }
+  // espace déjà créé : l'administrateur passe au pack du code
+  async function applyPackCode() {
+    if (!S.cid || !isAdmin()) return alertBox('Seul un administrateur de l\'espace peut entrer un code pack.');
+    const C = await askPackCode(); if (!C) return false;
+    if (!(await confirmBox(`Activer ${codeLabel(C)} sur « ${S.company.name} » ?`, 'Activer'))) return false;
+    const ld = loading('Activation…');
+    try {
+      const sub = codeSub(C);
+      await withTimeout(fs.collection('companies').doc(S.cid).update({ plan: C.plan, ...sub, packCode: C.code }));
+      await withTimeout(useCode(C)).catch(e => console.warn('code', e));
+      S.company = { ...S.company, plan: C.plan, ...sub, packCode: C.code }; LS.set('company', S.company); ld.close();
+      await alertBox(`Pack ${planOf(C.plan).l} activé ✓`); location.reload(); return true;
+    } catch (e) { ld.close(); alertBox(errMsg(e)); return false; }
+  }
   // ---------- demande de pack (la facturation n'est pas en ligne : la demande arrive dans le panneau d'administration) ----------
   async function requestPack(k, perso) {
     // Super Admin : pas de demande, le pack s'applique tout de suite à l'espace ouvert (les règles l'autorisent pour lui seul)
@@ -1009,10 +1066,12 @@ const Team = (() => {
         el.innerHTML = `<div class="tm-lg-in">${steps(2, tot())}<h1>Choisir un pack · ${perso ? 'Espace personnel' : 'Organisation'}</h1>
           <p>${perso ? 'Pour vous seul. Une organisation a son propre pack, payé par elle.' : 'Payé par l\'organisation, il couvre tous ses membres.'} La facturation n'est pas encore activée : rien n'est payé aujourd'hui.</p>
           <div class="st-offers">${L.map(P => offerCard(P, perso)).join('')}</div>
+          <button class="btn ghost st-codebtn" data-a="pcode">🎟 J'ai un code pack</button>
           ${perso ? '<p class="st-of-n">Invité par une organisation ? Pas de pack : c\'est elle qui paie pour vous.</p>' : ''}
           <button class="linkbtn" data-a="back">← Retour</button></div>`;
         $$('[data-p]', el).forEach(b => b.onclick = () => { W.plan = b.dataset.p; W.espace === 'perso' ? stepMetier() : stepOrg(); });
         $$('[data-req]', el).forEach(b => b.onclick = () => requestPack(b.dataset.req, perso));
+        $('[data-a=pcode]', el).onclick = async () => { const C = await askPackCode(); if (!C) return; W.code = C; W.plan = C.plan; toast(`Code accepté : ${codeLabel(C)} ✓`); W.espace === 'perso' ? stepMetier() : stepOrg(); };
         back(stepEspace);
       }
       // 3 · type d'organisation (= interface)
@@ -1065,8 +1124,10 @@ const Team = (() => {
         try {
           const uid = auth.currentUser.uid, ref = fs.collection('companies').doc(), perso = W.espace === 'perso', R = perso ? ROLE_PROPRIO : tmRoleOf(r.role), P = planOf(W.plan);
           // nouvel espace : « gratuit » ou « essai » (avec date de fin) ; « actif » ne se donne que par le Super Admin
-          const sub = P.price === 0 ? { planStatus: 'gratuit' } : { planStatus: 'essai', trialEndsAt: firebase.firestore.Timestamp.fromMillis(Date.now() + (P.trialDays || 14) * 864e5) };
+          const viaCode = W.code && W.code.plan === W.plan;
+          const sub = viaCode ? { ...codeSub(W.code), packCode: W.code.code } : P.price === 0 ? { planStatus: 'gratuit' } : { planStatus: 'essai', trialEndsAt: firebase.firestore.Timestamp.fromMillis(Date.now() + (P.trialDays || 14) * 864e5) };
           await withTimeout(ref.set({ name: r.name, ownerUid: uid, plan: W.plan, ...sub, kind: W.espace, orgType: W.org, services: W.svcs, createdAt: ts() }));
+          if (viaCode) await withTimeout(useCode(W.code)).catch(e => console.warn('code', e));
           // espace personnel : « propriétaire » (pas un poste, pas de service) ; organisation : le créateur est l'administrateur initial, de CETTE organisation seulement
           const all = Object.fromEntries(MODS.map(([m]) => [m, 4]));
           await withTimeout(ref.collection('members').doc(uid).set({ name: r.me || auth.currentUser.displayName || '', email: auth.currentUser.email, role: R.k, service: perso ? 'perso' : (R.admin ? R.s : 'direction'), perms: all, admin: true, allProjects: true, projects: [], managerUid: null, zone: '', createdAt: ts() }));
@@ -1521,7 +1582,7 @@ const Team = (() => {
             <p>${esc(planPrice(P))} · ${esc(planUsers(P))}${P.extraUserPrice ? ` (puis ${P.extraUserPrice} MAD/mois par compte)` : ''} · ${P.projects ? P.projects + ' projet(s)' : 'projets illimités'} · ${P.storageGb} Go${P.modules === '*' ? ' · tous les outils' : ` · ${P.modules.length} outils`}${P.hier ? ' · hiérarchie' : ''}${P.shares ? ' · groupements' : ''}</p>
             <div style="color:${over ? '#ef4444' : 'var(--muted)'}">${nUsers}${P.users ? ' / ' + P.users : ''} compte(s) · ${nProj}${P.projects ? ' / ' + P.projects : ''} projet(s)${over ? ' — au-delà du pack' : ''}</div>
             <p style="font-size:12.5px;color:var(--muted)">Essai — la facturation n'est pas encore activée. Un membre invité par code n'a pas besoin de pack : seule l'organisation est facturée.</p>
-            <div class="btnrow" style="padding:0"><button class="btn ghost small" data-a="catalog">Catalogue des outils</button><button class="btn ghost small" data-a="planchange">Demander un changement de pack</button></div></div>
+            <div class="btnrow" style="padding:0"><button class="btn ghost small" data-a="catalog">Catalogue des outils</button><button class="btn ghost small" data-a="planchange">Demander un changement de pack</button><button class="btn ghost small" data-a="pcode">🎟 Code pack</button></div></div>
           ${isPerso() ? '' : `<div class="tm-box"><b>${T.e} Type d'organisation : ${esc(T.l)}</b><p>Le type choisit l'interface (outils mis en avant). Services actifs : ${companyServices().filter(x => x.k !== 'externe').map(x => esc(x.l)).join(', ')}.</p>
             <div class="btnrow" style="padding:0"><button class="btn ghost small" data-a="otype">Changer le type</button><button class="btn ghost small" data-a="svcs">Services…</button></div></div>`}
           <div class="tm-box"><b>☁ Google Drive de l'entreprise</b><p>Les plans, photos et PDF de toute l'équipe sont rangés dans ce Drive. Les membres le reçoivent automatiquement.</p>
@@ -1548,6 +1609,7 @@ const Team = (() => {
         $('[data-a=rules]', body).onclick = () => copyText(FIRESTORE_RULES);
         $('[data-a=srules]', body).onclick = () => copyText(STORAGE_RULES);
         $('[data-a=ren]', body).onclick = async () => { const r = await formSheet('Entreprise', [{ name: 'n', label: 'Nom', value: S.company.name }]); if (r && r.n) { await fs.collection('companies').doc(S.cid).update({ name: r.n }); S.company.name = r.n; LS.set('company', S.company); draw(); } };
+        { const pcb = $('[data-a=pcode]', body); if (pcb) pcb.onclick = () => applyPackCode(); }
         $('[data-a=planchange]', body).onclick = async () => { const L = offersFor(false).filter(x => x.k !== myPlan().k); const k = await menu('Quel pack demander ?', L.map(x => ({ label: `${x.e || ''} ${x.l} · ${planPrice(x)}`, value: x.k }))); if (k) requestPack(k, false); };
       }
       if (tab === 'prof') {
@@ -1574,8 +1636,9 @@ const Team = (() => {
           <div class="tm-box"><b>Mon abonnement <span class="st-state" style="--c:${stt.c}">${esc(stt.l)}</span></b>
             <div class="st-of-r"><span>Projets actifs</span><b>${nProj}${P.projects ? ' / ' + P.projects : ''}</b></div></div>
           ${offerCard(P, true, false)}
-          ${up.length ? `<div class="tm-box"><b>Passer à un autre pack</b>${up.map(x => offerCard(x, true, false)).join('')}<button class="btn" data-a="askup">${isSuper() ? 'Activer' : 'Demander'} ${esc(up[0].l)}</button>
+          ${up.length ? `<div class="tm-box"><b>Passer à un autre pack</b>${up.map(x => offerCard(x, true, false)).join('')}<button class="btn" data-a="askup">${isSuper() ? 'Activer' : 'Demander'} ${esc(up[0].l)}</button><button class="btn ghost" data-a="pcode">🎟 J'ai un code pack</button>
             <small class="muted">La facturation n'est pas encore en ligne : la demande part à SiteTeam, qui active le pack.</small></div>` : ''}</div>`;
+        const pcb = $('[data-a=pcode]', body); if (pcb) pcb.onclick = () => applyPackCode();
         const a = $('[data-a=askup]', body); if (a) a.onclick = async () => { const k = isSuper() && up.length > 1 ? await menu('Quel pack ?', up.map(x => ({ label: `${x.e || ''} ${x.l} · ${planPrice(x)}`, value: x.k }))) : up[0].k; if (k) requestPack(k, true); };
       }
       if (tab === 'me') {
@@ -1950,7 +2013,7 @@ const Team = (() => {
     profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
     openProjectShares, claimShare, openPartners, renderHistory, sharedOf, joinWithCode,
     cloudOn, canCloud, cloudUpload, cloudDownload, cloudRemove, cloudCfg, storageRules: STORAGE_RULES,
-    appCfg, isOff, checkAnnonces, requestPack, logError,
+    appCfg, isOff, checkAnnonces, requestPack, logError, applyPackCode,
     ready: () => S.ready, me: () => S.me, uid: () => S.user && S.user.uid, company: () => S.company, members: () => S.members, rules: FIRESTORE_RULES,
   };
 })();
