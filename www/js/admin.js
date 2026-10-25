@@ -65,6 +65,8 @@
     $$('nav [data-t]').forEach(b => b.onclick = () => { tab = b.dataset.t; location.hash = tab; $$('nav [data-t]').forEach(x => x.classList.toggle('on', x === b)); draw(); });
     draw();
   }
+  // lien direct vers un onglet (admin.html#codes) : suivi aussi quand l'adresse change sans recharger
+  window.addEventListener('hashchange', () => { const t = (location.hash || '').slice(1); if (t !== tab && TABS.some(x => x[0] === t)) { tab = t; $$('nav [data-t]').forEach(x => x.classList.toggle('on', x.dataset.t === t)); draw(); } });
   async function draw(force) {
     const M = $('#main'); if (!M) return;
     try { await load(force); } catch (e) { M.innerHTML = `<div class="card"><b>Impossible de charger les données</b><p class="muted">${esc(e.code === 'permission-denied' ? 'Accès refusé : publiez les dernières règles Firestore (application › Réglages › Copier les règles).' : (e.message || e))}</p></div>`; return; }
