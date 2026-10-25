@@ -519,7 +519,7 @@ try {
   log('Drive : écran connecté (sans bouton script)', await E.pg.evaluate(() => [!!document.querySelector('[data-a=script]'), !!document.querySelector('[data-a=code]'), document.querySelector('.sync-card').textContent.includes('hamid@gmail.com')]));
   await E.pg.evaluate(() => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); Sync.disconnect(); });
   log('Drive : déconnecté', await E.pg.evaluate(() => [Sync.cfg(), localStorage.getItem('gd.root')]));
-  log('errors v1.0.29', E.errs.filter(x => !/403|400|permission/i.test(x)));
+  log('errors v1.0.29', E.errs.filter(x => !/401|403|400|permission/i.test(x)));   // 401 = jeton expiré simulé
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);
