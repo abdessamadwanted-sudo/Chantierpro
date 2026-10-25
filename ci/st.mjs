@@ -29,6 +29,8 @@ const CFG = 'http://127.0.0.1:8080/v1/projects/siteteam/databases/(default)/docu
 const setPacks = (open) => fetch(CFG + 'plans?updateMask.fieldPaths=pro.open&updateMask.fieldPaths=business.open&updateMask.fieldPaths=enterprise.open', { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
   body: JSON.stringify({ fields: Object.fromEntries(['pro', 'business', 'enterprise'].map(k => [k, { mapValue: { fields: { open: { booleanValue: open } } } }])) }) }).then(r => r.status);
 log('packs ouverts (test)', await setPacks(true));
+// annonces laissées par le test des règles : retirées, sinon elles s'affichent à l'ouverture de chaque compte
+for (const id of ['an1', 'an2']) await fetch(CFG.replace('config/', 'annonces/') + id, { method: 'DELETE', headers: { Authorization: 'Bearer owner' } });
 let A, B, C, D;
 try {
   // ---- patron
