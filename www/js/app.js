@@ -157,7 +157,7 @@ async function renderHome() {
           <button class="iconbtn h2-emo off" data-a="freeph" title="Stockage">🧹</button>
           <button class="iconbtn h2-quit" data-a="quit" title="Fermer (appui long : verrouiller)">${icon('power')}</button>
           <button class="iconbtn" data-a="homemore">${icon('more')}</button></div></div>
-        ${(() => { if (Team.ready() && Team.isCollab()) return '<span class="h2-role">🤝 Collaborateur · projet partagé</span>'; if (ST.isPerso()) { const M = metierOf(Team.profil().metier); Org.apply && Org.poste() && Org.apply(); return `<span class="h2-role" title="Votre métier (profil)">👷 ${esc(M ? M.l : 'Espace personnel')}</span>`; } const P = Org.poste(); if (P) { Org.apply(); return `<span class="h2-role" title="Vous êtes connecté comme">${P.svc.e} ${esc(P.n)}</span>`; } const r = applyRoleColor(), R = r && roleOf(r); return Team.ready() ? '' : (R ? `<button class="h2-role" data-a="role">${R.e} ${esc(R.n.split(' / ')[0])}</button>` : ''); })()}
+        ${(() => { if (Team.ready() && Team.isCollab()) return '<span class="h2-role">🤝 Collaborateur · projet partagé</span>'; if (ST.isPerso()) { if (Team.isFree()) return '<span class="h2-role" title="Pack Basic">🆓 Free</span>'; const M = metierOf(Team.profil().metier); Org.apply && Org.poste() && Org.apply(); return `<span class="h2-role" title="Votre métier (profil)">👷 ${esc(M ? M.l : 'Espace personnel')}</span>`; } const P = Org.poste(); if (P) { Org.apply(); return `<span class="h2-role" title="Vous êtes connecté comme">${P.svc.e} ${esc(P.n)}</span>`; } const r = applyRoleColor(), R = r && roleOf(r); return Team.ready() ? '' : (R ? `<button class="h2-role" data-a="role">${R.e} ${esc(R.n.split(' / ')[0])}</button>` : ''); })()}
         <div class="h2-hello" data-a="uname">${tr(hello)}${uname ? (Lang.cur === 'ar' ? '، ' : ', ') + esc(uname) : ''} 👷</div>
         <div class="h2-phrase">${phrase}</div>
         <div class="h2-date">${dateL.charAt(0).toUpperCase() + dateL.slice(1)}</div>
@@ -231,29 +231,30 @@ async function renderHome() {
   try { if (!uname && !localStorage.getItem('askedName')) { localStorage.setItem('askedName', '1'); setTimeout(askName, 600); } } catch (e) {}
   { const mo = $('[data-a=msgoff]'); if (mo) mo.onclick = () => { const M = Team.appCfg().message || {}; try { localStorage.setItem('st.msgOff', String(M.id || M.text)); } catch (e) {} mo.closest('.st-msg').remove(); }; }
   $('[data-a=homemore]').onclick = async () => {
+        // menu ⋮ : 6 groupes courts, sans doublon (déconnexion et prénom sont dans « Mon compte », la langue dans Réglages, la version ouvre la mise à jour)
         const v = await groupMenu('SiteTeam', [
-      { title: 'Aujourd\'hui', color: '#22c55e', items: [{ label: 'Briefing du jour', sub: 'notes, rappels, PV à livrer, tâches', icon: 'calendar', value: 'brief' }] },
-      { title: 'Mon entreprise', color: '#3b82f6', items: [
-        ...(Team.ready() ? [{ label: 'Changer d\'espace', sub: 'espace personnel · organisations · rejoindre avec un code', icon: 'swap', value: 'ws' }, (Team.isPerso() ? { label: 'Mon espace personnel', sub: 'profil · abonnement · paramètres · compte', icon: 'user', value: 'company' } : { label: 'Mon organisation', sub: 'équipe · organigramme · mon compte', icon: 'team', value: 'company' }), ...(Team.canInvite() ? [{ label: 'Inviter un membre', sub: 'code d\'accès lié à un poste', icon: 'plus', value: 'invite' }] : []), ...(Team.isAdmin() && !Team.isPerso() ? [ST.preview() ? { label: 'Quitter l\'aperçu', sub: 'revenir à mon interface', icon: 'eye', value: 'preview-off' } : { label: 'Tester une interface', sub: 'aperçu par poste et formule', icon: 'eye', value: 'preview' }] : [])] : []),
-        { label: 'Mon prénom', sub: uname || 'pour les messages d\'accueil', icon: 'edit', value: 'name' },
-        ...(Team.ready() ? [{ label: 'Se déconnecter', icon: 'power', value: 'logout' }] : [])] },
-      { title: 'Apparence', color: '#a855f7', items: [
-        { label: 'Thèmes', sub: 'Sakura, Océan, Noir & Or… · net ou verre', icon: 'brush', value: 'theme' },
-        { label: 'Sons et effets', sub: `${Fx.on('sound') ? '💧 bulle' : 'sans son'} · ${Fx.on('wave') ? '🌊 vague' : 'sans vague'}`, icon: 'disc', value: 'fx' },
-        { label: 'Langue', sub: 'Français · العربية · English', icon: 'globe', value: 'lang' }] },
-      { title: 'Sécurité', color: '#ef4444', items: [{ label: 'Code PIN et empreinte', sub: 'verrouillage de l\'application', icon: 'settings', value: 'pin' }] },
+      { title: '', color: '#22c55e', items: [{ label: 'Briefing du jour', sub: 'notes, rappels, PV à livrer, tâches', icon: 'calendar', value: 'brief' }] },
+      { title: 'Mon espace', color: '#3b82f6', items: Team.ready() ? [
+        { label: 'Changer d\'espace', sub: 'espace personnel · organisations · code', icon: 'swap', value: 'ws' },
+        Team.isPerso() ? { label: 'Mon espace personnel', sub: 'profil · abonnement · compte', icon: 'user', value: 'company' } : { label: 'Mon organisation', sub: 'équipe · codes d\'accès · compte', icon: 'team', value: 'company' },
+        ...(Team.isAdmin() && !Team.isPerso() ? [ST.preview() ? { label: 'Quitter l\'aperçu', sub: 'revenir à mon interface', icon: 'eye', value: 'preview-off' } : { label: 'Tester une interface', sub: 'aperçu par poste et pack', icon: 'eye', value: 'preview' }] : []),
+        ...(Team.isSuper() ? [{ label: 'Panneau d\'administration', sub: 'comptes · packs · codes · annonces', icon: 'settings', value: 'admin' }] : [])] : [
+        { label: 'Mon prénom', sub: uname || 'pour les messages d\'accueil', icon: 'edit', value: 'name' }] },
+      { title: 'Outils', color: '#f59e0b', items: [
+        { label: 'Outils PDF', sub: 'fusionner · diviser · compresser', icon: 'pdf', value: 'pdf' },
+        { label: 'Studio photo', sub: 'auto · document · recadrage', icon: 'camera', value: 'photo' },
+        { label: 'Tableau de dessin', icon: 'brush', value: 'board' }] },
       { title: 'Données', color: '#0ea5e9', items: [
         { label: 'Stockage & sauvegarde', sub: 'libérer · Google Drive · .zip', icon: 'cloud', value: 'stock' },
         { label: 'Restaurer une sauvegarde', sub: 'fichier .zip ou .chantier', icon: 'undo', value: 'restore' },
-        { label: 'Corbeille', sub: 'lignes et tableaux supprimés (30 jours)', icon: 'trash', value: 'trash' }] },
-      { title: 'Outils', color: '#f59e0b', items: [
-        { label: 'Outils PDF', sub: 'fusionner · diviser · pages · compresser', icon: 'pdf', value: 'pdf' },
-        { label: 'Studio photo', sub: 'auto · document · lumière · netteté · recadrage', icon: 'camera', value: 'photo' },
-        { label: 'Tableau de dessin', icon: 'brush', value: 'board' },
+        { label: 'Corbeille', sub: 'supprimés depuis 30 jours', icon: 'trash', value: 'trash' }] },
+      { title: 'Réglages', color: '#a855f7', items: [
+        { label: 'Apparence', sub: 'thèmes · sons et effets', icon: 'brush', value: 'look' },
+        { label: 'Langue', sub: 'Français · العربية · English', icon: 'globe', value: 'lang' },
+        { label: 'Code PIN et empreinte', icon: 'settings', value: 'pin' },
         { label: 'Fonctions affichées', sub: 'masquer ce qui ne sert pas', icon: 'grid', value: 'feat' }] },
       { title: 'Application', color: '#64748b', items: [
-        { label: 'Rechercher une mise à jour', icon: 'upload', value: 'upd' },
-        { label: `Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}`, sub: 'état de la mise à jour', icon: 'settings', value: 'ver' }] },
+        { label: `Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}`, sub: 'mise à jour', icon: 'upload', value: 'ver' }] },
     ]);
     if (v === 'brief') { const act = await briefingShow(); if (act) act(); }
     if (v === 'trash') { const ps = (await DB.all('projects')).filter(p => (p.trash || []).length); if (!ps.length) toast('La corbeille est vide'); else { const id = ps.length === 1 ? ps[0].id : await menu('Corbeille de quel chantier ?', ps.map(p => ({ label: `${p.name} · ${p.trash.length}`, icon: 'trash', value: p.id }))); if (id) openTrash(id); } }
@@ -265,6 +266,8 @@ async function renderHome() {
     if (v === 'feat') chooseMyFeatures();
     if (v === 'upd') checkUpdate(true);
     if (v === 'ver') showVersion();
+    if (v === 'admin') location.href = 'admin.html' + (/[?&]emu=1/.test(location.search) ? '?emu=1' : '');
+    if (v === 'look') { const w = await menu('Apparence', [{ label: 'Thèmes', icon: 'brush', value: 'theme' }, { label: 'Sons et effets', icon: 'disc', value: 'fx' }]); if (w === 'theme') chooseTheme(() => {}); if (w === 'fx') fxSettings(); }
     if (v === 'pdf') openPdfTools();
     if (v === 'photo') photoStudioTool();
     if (v === 'name') askName();
@@ -375,15 +378,14 @@ async function openDrawer(opts = {}) {
     <div class="drawer-head"><h3>${esc(App.project.name)}</h3><button class="iconbtn" data-home>${icon('home')}</button></div>
     ${Team.ready() ? `<button class="item tm-dr" data-company>${icon('team')}<span>${esc((Team.me() || {}).name || 'Mon entreprise')}</span><span class="count" style="font-size:11.5px;opacity:.7">${esc(tmRoleOf((Team.me() || {}).role).l)}</span></button>` : ''}
     <div class="dr-scroll">${drawerSections((k) => { const s = SECTIONS[k]; return `<button class="item ${App.section === k || (k === 'reception' && App.section === 'beton') ? 'active' : ''}" data-s="${k === 'reception' && App.section === 'beton' ? 'beton' : k}">${icon(s.icon)}<span>${s.label}</span>${k === 'reception' && nPv ? `<span class="count pvbadge">${nPv} PV</span>` : ''}${k === 'tasks' ? `<span class="count dr-rt" data-rtog>${tasks.filter(t => t.status === 'open').length || ''}<i style="display:inline-block;transform:rotate(${resOpen ? 180 : 0}deg)">${icon('chevdown', 'style="width:18px;height:18px"')}</i></span>` : ''}</button>${k === 'tasks' ? `<div class="dr-sub" style="${resOpen ? '' : 'display:none'}">${resRows}</div>` : ''}`; })}
-    <div class="dr-g ${(() => { try { const v = localStorage.getItem('dr.g.tools'); return v === '1'; } catch (e) { return false; } })() ? 'open' : ''}" data-g="tools"><button class="group dr-gh" data-gt="tools"><span>🧰 Outils</span><i>5</i>${icon('chevdown', 'style="width:16px;height:16px"')}</button><div class="dr-gb">
+    <div class="dr-g ${(() => { try { const v = localStorage.getItem('dr.g.tools'); return v === '1'; } catch (e) { return false; } })() ? 'open' : ''}" data-g="tools"><button class="group dr-gh" data-gt="tools"><span>🧰 Outils & liens</span><i>${6 + (App.project.quickLinks || [1]).length}</i>${icon('chevdown', 'style="width:16px;height:16px"')}</button><div class="dr-gb">
     <button class="item" data-tool="pdf">${icon('pdf')}<span>Outils PDF</span><span class="count" style="font-size:12px;opacity:.6">fusionner · pages · compresser</span></button>
     <button class="item" data-tool="poutre">🧱<span>Poutre 3D</span><span class="count" style="font-size:12px;opacity:.6">plan Arche → 3D</span></button>
     <button class="item" data-tool="photo">${icon('camera')}<span>Studio photo</span><span class="count" style="font-size:12px;opacity:.6">auto · document · netteté</span></button>
     <button class="item" data-tool="board">${icon('brush')}<span>Tableau de dessin</span><span class="count" style="font-size:12px;opacity:.6">${(App.project.boards || []).length || ''}</span></button>
     <button class="item" data-tool="bar">${icon('rows')}<span>Dessiner une barre</span><span class="count" style="font-size:12px;opacity:.6">façonnage</span></button>
-    <button class="item" data-tool="lang">${icon('globe')}<span>Langue</span><span class="count" style="font-size:12px;opacity:.6">${(LANGS.find(l => l[0] === Lang.cur) || [])[1] || ''}</span></button>
-    <button class="item" data-tool="rap">${icon('calendar')}<span>Rappels</span>${(App.project.rappels || []).filter(x => !x.done).length ? `<span class="count">${(App.project.rappels || []).filter(x => !x.done).length}</span>` : ''}</button></div></div>
-    <div class="dr-g ${(() => { try { const v = localStorage.getItem('dr.g.links'); return v === '1'; } catch (e) { return false; } })() ? 'open' : ''}" data-g="links"><button class="group dr-gh" data-gt="links"><span>🔗 Liens rapides (Drive)</span><i>${(App.project.quickLinks || [1]).length}</i>${icon('chevdown', 'style="width:16px;height:16px"')}</button><div class="dr-gb">
+    <button class="item" data-tool="rap">${icon('calendar')}<span>Rappels</span>${(App.project.rappels || []).filter(x => !x.done).length ? `<span class="count">${(App.project.rappels || []).filter(x => !x.done).length}</span>` : ''}</button>
+    <div class="dr-sep">🔗 Liens rapides</div>
     ${(App.project.quickLinks || [{ id: 'reception', name: 'Tableau de réception (Drive)', url: '' }]).map(q => `<button class="item" data-q="${q.id}">${icon('grid')}<span>${esc(q.name)}</span>${q.url ? `<span class="count qe" data-qe="${q.id}">${icon('edit', 'style="width:18px;height:18px;opacity:.55"')}</span>` : '<span class="count" style="font-size:12px;opacity:.6">à lier</span>'}</button>`).join('')}
     <button class="item" data-q="__add" style="color:var(--muted)">${icon('plus')}<span>Ajouter un lien</span></button></div></div>
     </div><div class="dr-foot"><button class="item ${App.section === 'settings' ? 'active' : ''}" data-s="settings">${icon('settings')}<span>Paramètres</span></button><button class="dr-org" data-a="drorg" title="Organiser le menu">${icon('edit', 'style="width:18px;height:18px"')}</button></div>`;

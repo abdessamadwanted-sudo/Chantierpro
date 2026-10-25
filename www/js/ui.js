@@ -191,7 +191,7 @@ function pickFiles({ accept = 'image/*', multiple = true, capture = false } = {}
 function groupMenu(title, groups) {
   return new Promise((resolve) => {
     let v = null;
-    const s = sheet(`<div class="gm">${groups.filter(g => g.items.length).map(g => `<div class="gm-g">${esc(g.title)}</div><div class="gm-box">${g.items.map(it => `<button class="gm-i" ${it.value != null ? `data-v="${esc(it.value)}"` : 'disabled'}><span class="gm-ic" style="--c:${g.color}">${icon(it.icon)}</span><span class="grow"><b>${esc(it.label)}</b>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span>${it.value != null ? icon('chevright') : ''}</button>`).join('')}</div>`).join('')}</div>`, { title });
+    const s = sheet(`<div class="gm">${groups.filter(g => g.items.length).map(g => `${g.title ? `<div class="gm-g">${esc(g.title)}</div>` : ''}<div class="gm-box">${g.items.map(it => `<button class="gm-i" ${it.value != null ? `data-v="${esc(it.value)}"` : 'disabled'}><span class="gm-ic" style="--c:${g.color}">${icon(it.icon)}</span><span class="grow"><b>${esc(it.label)}</b>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span>${it.value != null ? icon('chevright') : ''}</button>`).join('')}</div>`).join('')}</div>`, { title });
     $$('[data-v]', s.el).forEach(b => b.onclick = () => { v = b.dataset.v; s.close(); });
     s.onClose = () => resolve(v);
   });

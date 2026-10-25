@@ -169,15 +169,15 @@ function orgOnboard(force) {
 const featName = (k) => ({ planning: 'Planning', reunions: 'Réunions', rfi: 'RFI', visa: 'Visas', pointage: 'Pointage', hse: 'HSE', labo: 'Laboratoire', finance: 'Financier & avenants', tce: 'TCE', st: 'Sous-traitants', org: 'Organigramme', reception: 'Réception', tasks: 'Réserves', photos: 'Photos', forms: 'Formulaires', reports: 'Rapports', constat: 'Constats', clauses: 'CPS', models3d: '3D', calc: 'Calculs', gestion: 'Stock & gestion', career: 'Emploi', avancement: 'Avancement' })[k] || ((FEATURES.find(f => f[0] === k) || [])[1] || k);
 
 // ---------- menu latéral rangé par groupes (le groupe de votre service en premier) ----------
+// 5 groupes courts (v1.0.28) : chantier au quotidien, qualité & sécurité, études, gestion, projet & équipe
 const DR_GROUPS = [
-  ['trav', '🏗️ Chantier', ['dashboard', 'plans', 'reception', 'avancement', 'planning', 'reunions', 'tasks', 'reports', 'photos', 'pointage']],
-  ['qual', '✅ Qualité & laboratoire', ['labo', 'forms', 'constat', 'clauses', 'rfi', 'visa']],
-  ['hse', '🦺 Sécurité (HSE)', ['hse']],
-  ['etu', '📐 Études & 3D', ['calc', 'models3d', 'maquette']],
-  ['fin', '💰 Finance, stock & contrats', ['finance', 'avenants', 'gestion', 'tce', 'st']],
-  ['org', '👥 Organisation', ['org', 'team']],
+  ['trav', '🏗️ Chantier', ['dashboard', 'plans', 'tasks', 'photos', 'reports', 'avancement', 'planning', 'reunions']],
+  ['qual', '✅ Qualité & sécurité', ['reception', 'forms', 'constat', 'labo', 'hse', 'docq', 'clauses']],
+  ['etu', '📐 Études & 3D', ['rfi', 'visa', 'calc', 'models3d', 'maquette']],
+  ['fin', '💰 Gestion & finance', ['finance', 'avenants', 'gestion', 'pointage', 'tce', 'st']],
+  ['org', '👥 Projet & équipe', ['team', 'orgs', 'histo', 'org']],
 ];
-const SVC_GROUP = { trav: 'trav', qual: 'qual', labo: 'qual', hse: 'hse', etu: 'etu', log: 'fin', fin: 'fin', ext: 'trav', archi: 'trav', bet: 'etu', bc: 'qual', mo: 'trav' };
+const SVC_GROUP = { trav: 'trav', qual: 'qual', labo: 'qual', hse: 'qual', etu: 'etu', log: 'fin', fin: 'fin', ext: 'trav', archi: 'trav', bet: 'etu', bc: 'qual', mo: 'trav' };
 // ordre du menu choisi par l'utilisateur (groupes et rubriques) : { g: [groupe…], k: { groupe: [rubrique…] } }
 const drOrd = () => { try { return JSON.parse(localStorage.getItem('dr.ord') || 'null'); } catch (e) { return null; } };
 const drOrdSet = (o) => { try { localStorage.setItem('dr.ord', JSON.stringify(o)); } catch (e) {} };
@@ -209,7 +209,9 @@ function drawerSections(itemHtml) {
   const groups = drLayout(DR_GROUPS.map(g => g[0] === 'trav' ? [g[0], g[1], [...g[2], ...Object.keys(SECTIONS).filter(k => !placed.has(k))]] : g).sort((a, b) => (b[0] === first) - (a[0] === first)));
   const st = (k) => { try { const v = localStorage.getItem('dr.g.' + k); return v == null ? null : v === '1'; } catch (e) { return null; } };
   return groups.map(([gk, gl, keys]) => {
-    const items = keys.filter(k => SECTIONS[k] && !SECTIONS[k].hidden && k !== 'settings').map(k => { const f = SECTION_FEATURE[k];
+    // avec un compte SiteTeam, l'organigramme de l'organisation remplace l'organigramme local du chantier (pas de doublon)
+    const dup = (k) => k === 'org' && typeof Team !== 'undefined' && Team.ready();
+    const items = keys.filter(k => SECTIONS[k] && !SECTIONS[k].hidden && k !== 'settings' && !dup(k)).map(k => { const f = SECTION_FEATURE[k];
       if (sectionOn(k)) return itemHtml(k);
       if (f && !featAllowed(f) && Org.can(f, 'see')) return `<button class="item lk" data-lock="${f}">${icon(SECTIONS[k].icon)}<span>${SECTIONS[k].label}</span><span class="count">${icon('lock', 'style="width:16px;height:16px"')}</span></button>`;
       return ''; }).filter(Boolean);

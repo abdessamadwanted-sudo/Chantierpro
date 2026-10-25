@@ -2556,3 +2556,9 @@ body:has(.pst-page) #plansFab, body:has(.rub-page) #plansFab, body:has(.scanpage
 .st-offer.lk { opacity: .78; } .st-offer.lk .st-of-h b { color: var(--muted); } .st-of-h i.soon { background: rgba(148,163,184,.18); color: var(--muted); }
 .st-ann .tm-box p { white-space: normal; line-height: 1.5; }
 .st-of-h i.soon { white-space: nowrap; font-size: 11px; }
+
+/* ---------- v1.0.28 : écrans d'entrée défilables depuis le haut, espace Free, menus ---------- */
+.tm-login { justify-content: flex-start; align-items: stretch; } .tm-login > .tm-lg-in { margin: auto; flex: none; }
+.st-promo { margin: 0 4px 12px; padding: 14px; border-radius: 14px; border: 1px solid rgba(245,158,11,.45); background: linear-gradient(135deg, rgba(245,158,11,.14), rgba(59,130,246,.10)); display: grid; gap: 6px; }
+.st-promo b { font-size: 15px; } .st-promo p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.45; }
+.dr-sep { padding: 10px 16px 4px; font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .3px; }

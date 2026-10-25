@@ -41,7 +41,7 @@ const ST = (() => {
   const ready = () => typeof Team !== 'undefined' && Team.ready();
   // espace personnel : c'est le MÉTIER (profil du compte) qui choisit l'interface — jamais un poste ni des droits
   const perso = () => !PV.get() && ready() && Team.isPerso();
-  const roleKey = () => { const p = PV.get(); if (p) return p.role; if (perso()) return Team.profil().metier || 'conducteur'; return ((ready() && Team.me()) || {}).role; };
+  const roleKey = () => { const p = PV.get(); if (p) return p.role; if (perso()) return Team.isFree && Team.isFree() ? '' : (Team.profil().metier || ''); return ((ready() && Team.me()) || {}).role; };
   const planKey = () => { const p = PV.get(); return p ? p.plan : ((ready() && Team.company()) || {}).plan || PLAN_DEFAULT_COMPANY; };
   const plan = () => planOf(planKey());
   const org = () => { const p = PV.get(); return p && p.org ? orgTypeOf(p.org) : (ready() ? Team.orgType() : orgTypeOf('entreprise')); };
@@ -105,15 +105,17 @@ const ST = (() => {
   };
   const DEF_TOOLS = ['reports', 'tasks', 'plans', 'photos', 'calc', 'forms'];
   function persoTools() {
-    const M = metierOf(Team.profil().metier), L = [...(METIER_TOOLS[M ? M.s : ''] || DEF_TOOLS)];
+    const M = Team.isFree && Team.isFree() ? null : metierOf(Team.profil().metier), L = [...(METIER_TOOLS[M ? M.s : ''] || DEF_TOOLS)];
     for (const k of ['plans', 'tasks', 'reports', 'photos']) if (!L.includes(k)) L.push(k);
     return L.filter(k => SECTIONS[k]).map(k => ({ k, on: Team.canSection(k), label: SECTIONS[k].label.split(' (')[0], icon: SECTIONS[k].icon }));
   }
   function persoHTML() {
-    const M = metierOf(Team.profil().metier), P = Team.plan(), stt = Team.planState(), multi = Team.workspaces().length > 1;
+    const free = Team.isFree && Team.isFree(), M = free ? null : metierOf(Team.profil().metier), P = Team.plan(), stt = Team.planState(), multi = Team.workspaces().length > 1;
     const T = persoTools().slice(0, 8);
     return `<div class="st-ctx"><button class="st-wsc" data-a="st-ws"><span class="e">👷</span><b>Espace personnel</b><i>${multi ? '▾ changer' : '＋ espaces'}</i></button>
-        <div class="st-chips"><span>${esc(M ? M.l : 'Métier à choisir')}</span><span class="st-state" style="--c:${stt.c}">${esc(P.l)} · ${esc(stt.l)}</span></div></div>
+        <div class="st-chips"><span ${!free && !M ? 'data-a="st-poste" style="cursor:pointer"' : ''}>${free ? '🆓 Free' : esc(M ? M.l : 'Choisir mon poste ›')}</span><span class="st-state" style="--c:${stt.c}">${esc(P.l)} · ${esc(stt.l)}</span></div></div>
+      ${free ? `<div class="st-promo"><b>⭐ Passez à Pro</b><p>Choisissez votre service et votre poste : tableau de bord, outils et recommandations s'adaptent à votre métier.</p>
+        <div class="btnrow" style="padding:0"><button class="btn small" data-a="st-pro">Demander Pro</button><button class="btn ghost small" data-a="st-code">🎟 Code pack</button></div></div>` : ''}
       <div class="st-pstats" data-pstats>${['Tâches à faire', 'Projets', 'Documents', 'Échéances 7 jours'].map(l => `<div class="st-ps"><b>…</b><small>${l}</small></div>`).join('')}</div>
       <div class="h2-sec"><span>Mes outils professionnels</span><small>${esc(M ? M.l : '')}</small></div>
       <div class="st-ptools">${T.map(t => `<button class="st-pt ${t.on ? '' : 'off'}" data-pt="${t.k}" ${t.on ? '' : 'data-locked="1"'}>${icon(t.icon)}<span>${esc(t.label)}</span>${t.on ? '' : '<small>avec Pro</small>'}</button>`).join('')}</div>
@@ -127,6 +129,9 @@ const ST = (() => {
     return L.find(p => p.id === id) || null;
   }
   async function persoBind(root) {
+    const pro = root.querySelector('[data-a=st-pro]'); if (pro) pro.onclick = () => Team.requestPack('pro', true);
+    const cd = root.querySelector('[data-a=st-code]'); if (cd) cd.onclick = () => Team.applyPackCode();
+    const po = root.querySelector('[data-a=st-poste]'); if (po) po.onclick = () => Team.askPoste(true);
     $$('[data-pt]', root).forEach(b => b.onclick = async () => {
       if (b.dataset.locked) { const v = await menu(`« ${b.querySelector('span').textContent} » est inclus dans le pack Pro.`, [{ label: 'Voir mon abonnement', icon: 'settings', value: 'abo' }, { label: 'Fermer', icon: 'check', value: 'x' }]); if (v === 'abo') Team.openCompany('abo'); return; }
       const p = await pickPersoProject(); if (!p) return; await openProject(p); App.section = b.dataset.pt; App.search = ''; renderSection();
