@@ -14,7 +14,8 @@
     body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
     header { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--card); border-bottom: 1px solid var(--line); }
     .hd { display: flex; align-items: center; gap: 10px; padding: 12px max(16px, env(safe-area-inset-right, 0px)) 8px max(16px, env(safe-area-inset-left, 0px)); }
-    .hd b { font-size: 16px; } .hd small { color: var(--muted); } .grow { flex: 1; min-width: 0; }
+    .hd b { font-size: 16px; white-space: nowrap; } .hd small { color: var(--muted); overflow-wrap: anywhere; } .grow { flex: 1; min-width: 0; }
+    .hd .btn { padding: 7px 10px; font-size: 13px; } a.btn { text-decoration: none; display: inline-block; }
     nav { display: flex; gap: 4px; overflow-x: auto; padding: 0 max(12px, env(safe-area-inset-left, 0px)) 8px; scrollbar-width: none; }
     nav button { flex: none; border: 0; background: transparent; color: var(--muted); padding: 8px 12px; border-radius: 999px; font: inherit; font-weight: 600; cursor: pointer; }
     nav button.on { background: var(--chip); color: var(--accent); }
