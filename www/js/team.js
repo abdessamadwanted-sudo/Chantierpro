@@ -16,13 +16,17 @@ const PLANS = {
   // modules inclus (voir MODS) : la formule limite les outils disponibles, le poste limite ce que chacun voit et fait
   // users / projects : quotas (0 = illimité) · storageGb : indicatif (pas encore mesuré) · hier : hiérarchie avancée · shares : groupements / partage externe
   // org : limites quand le pack sert à une organisation (petite entreprise) plutôt qu'à un espace personnel
-  basic:      { k: 'basic', l: 'Basic', orgLabel: 'Basic Organisation', e: '🌱', price: 0, period: 'mois', users: 1, projects: 1, storageGb: 1, perso: true, org: { users: 5, projects: 2, services: 3, storageGb: 2 }, for: 'Fonctions essentielles, pour démarrer', orgFor: 'Petite entreprise : quelques utilisateurs, fonctions essentielles',
+  basic:      { k: 'basic', l: 'Basic', orgLabel: 'Basic Organisation', e: '🌱', open: true, price: 0, period: 'mois', users: 1, projects: 1, storageGb: 1, perso: true, org: { users: 5, projects: 2, services: 3, storageGb: 2 }, for: 'Fonctions essentielles, pour démarrer', orgFor: 'Petite entreprise : quelques utilisateurs, fonctions essentielles',
                 modules: ['projet', 'plans', 'reserves', 'photos', 'rapports', 'equipe'] },
   pro:        { k: 'pro', l: 'Pro', e: '⭐', price: 99, period: 'mois', trialDays: 14, users: 1, projects: 0, storageGb: 30, perso: true, orgOffer: false, highlight: true, for: 'Professionnel indépendant — outils avancés',
                 modules: ['projet', 'plans', 'reserves', 'photos', 'rapports', 'equipe', 'reception', 'forms', 'constats', 'calc', 'files', 'topo', 'centrale', 'materiel', 'pointage', 'hse', 'finance'] },
   business:   { k: 'business', l: 'Business', e: '🏢', price: 990, period: 'mois', trialDays: 14, highlight: true, users: 15, extraUserPrice: 49, projects: 0, storageGb: 200, hier: true, for: 'Entreprise — plusieurs utilisateurs, services et projets', modules: '*' },
   enterprise: { k: 'enterprise', l: 'Enterprise', e: '🏛️', price: null, period: 'mois', trialDays: 14, users: 0, projects: 0, storageGb: 1000, hier: true, shares: true, for: 'Grandes entreprises — hiérarchie et groupements avancés', modules: '*' },
 };
+// packs ouverts au public : Basic seulement par défaut ; les autres s'ouvrent depuis le panneau d'administration (config/plans.<pack>.open).
+// Le Super Admin les voit et les choisit tous. Le serveur refuse la création d'un espace avec un pack fermé.
+let ST_SUPER = false;
+const planOpen = (P) => !!P && (P.k === 'basic' || (PLANS[P.k] || {}).open === true);
 // anciennes formules (avant v1.0.14) : « personnel » → Pro, « entreprise » → Enterprise (aucun outil perdu)
 const PLAN_ALIAS = { personnel: 'pro', entreprise: 'enterprise' };
 const planOf = (k) => PLANS[PLAN_ALIAS[k] || k] || PLANS.basic;
@@ -39,7 +43,8 @@ const storageL = (g) => (g >= 1000 ? g / 1000 + ' To' : g + ' Go') + ' (indicati
 function offerCard(P, perso, btn = true) {
   const mods = P.modules === '*' ? MODS.map(([m]) => m) : P.modules, price = P.price == null ? 'Sur devis' : P.price ? `${P.price} MAD / ${P.period}` : 'Gratuit';
   const act = P.price == null ? 'Demander un devis · essai' : P.price ? `Démarrer l'essai ${P.trialDays || 14} jours` : 'Commencer gratuitement';
-  return `<div class="st-offer ${P.highlight ? 'hl' : ''}" data-offer="${P.k}"><div class="st-of-h"><b>${esc(P.e || '')} ${esc(P.l)}</b>${P.highlight ? '<i>Recommandé</i>' : ''}<em class="${P.price === 0 ? 'free' : ''}">${esc(price)}</em></div>
+  const locked = btn && !planOpen(P) && !ST_SUPER;
+  return `<div class="st-offer ${P.highlight && !locked ? 'hl' : ''} ${locked ? 'lk' : ''}" data-offer="${P.k}"><div class="st-of-h"><b>${locked ? '🔒 ' : ''}${esc(P.e || '')} ${esc(P.l)}</b>${P.highlight && !locked ? '<i>Recommandé</i>' : ''}${locked ? '<i class="soon">Sur demande</i>' : ''}<em class="${P.price === 0 ? 'free' : ''}">${esc(price)}</em></div>
     ${P.price && P.trialDays ? `<small class="st-of-t">Essai gratuit ${P.trialDays} jours, sans paiement</small>` : ''}<small class="st-of-f">${esc(P.for || '')}</small>
     <div class="st-of-r"><span>Utilisateurs inclus</span><b>${P.users ? (perso && P.users === 1 ? '1 (vous)' : P.users) + (P.extraUserPrice ? ` (+${P.extraUserPrice} MAD / pers.)` : '') : 'Selon contrat'}</b></div>
     <div class="st-of-r"><span>Projets actifs</span><b>${qty(P.projects)}</b></div>
@@ -47,7 +52,7 @@ function offerCard(P, perso, btn = true) {
     <div class="st-of-r"><span>Stockage</span><b>${storageL(P.storageGb)}</b></div>
     <details class="st-of-d"><summary><span>Outils inclus</span><b>${mods.length} sur ${MODS.length}${P.hier ? ' + hiérarchie' : ''}${P.shares ? ' + groupements' : ''}</b></summary>
       <div>${MODS.map(([m]) => `<i class="${mods.includes(m) ? 'on' : ''}">${mods.includes(m) ? '✓' : '—'} ${esc(MOD_LABEL(m))}</i>`).join('')}</div></details>
-    ${btn ? `<button class="btn ${P.highlight ? '' : 'ghost'}" data-p="${P.k}">${act}</button>` : ''}</div>`;
+    ${btn ? (locked ? `<button class="btn ghost" data-req="${P.k}">Demander l'accès</button>` : `<button class="btn ${P.highlight ? '' : 'ghost'}" data-p="${P.k}">${act}</button>`) : ''}</div>`;
 }
 // état de l'abonnement (la facturation n'existe pas encore : l'activation est faite par le Super Admin)
 function planStateOf(c) {
@@ -236,11 +241,15 @@ service cloud.firestore {
   match /databases/{db}/documents {
     function signed() { return request.auth != null; }
     function memPath(cid) { return /databases/$(db)/documents/companies/$(cid)/members/$(request.auth.uid); }
-    function isMem(cid) { return signed() && exists(memPath(cid)); }
+    // compte bloqué par le Super Admin (users/{uid}.blocked) : plus aucun accès aux organisations, projets et fichiers
+    function okUser() { return !exists(/databases/$(db)/documents/users/$(request.auth.uid)) || get(/databases/$(db)/documents/users/$(request.auth.uid)).data.get('blocked', false) != true; }
+    function isMem(cid) { return signed() && exists(memPath(cid)) && okUser(); }
     function mem(cid) { return get(memPath(cid)).data; }
     function isAdmin(cid) { return isMem(cid) && mem(cid).admin == true; }
     function lvl(cid, m) { return mem(cid).perms.get(m, 0); }
-    function canProj(cid, pid) { return mem(cid).allProjects == true || pid in mem(cid).projects; }
+    // organisation suspendue par le Super Admin : ses projets ne sont plus accessibles (rien n'est effacé)
+    function live(cid) { return !exists(/databases/$(db)/documents/companies/$(cid)) || get(/databases/$(db)/documents/companies/$(cid)).data.get('planStatus', '') != 'suspendu'; }
+    function canProj(cid, pid) { return (mem(cid).allProjects == true || pid in mem(cid).projects) && live(cid); }
     function inv(code) { return get(/databases/$(db)/documents/invites/$(code)).data; }
     function invLive(code) { return inv(code).used == false && inv(code).get('status', 'valide') == 'valide' && (inv(code).get('expiresAt', null) == null || inv(code).expiresAt > request.time); }
     function memOf(cid, u) { return get(/databases/$(db)/documents/companies/$(cid)/members/$(u)).data; }
@@ -285,7 +294,7 @@ service cloud.firestore {
     function partOf(cid, pid, o) { return get(/databases/$(db)/documents/companies/$(cid)/projects/$(pid)/partners/$(o)).data; }
     function pOk(cid, pid, mod, n) {
       let o = wsOf();
-      return signed() && o != '' && o != cid && exists(/databases/$(db)/documents/companies/$(o)/members/$(request.auth.uid))
+      return signed() && o != '' && o != cid && okUser() && live(cid) && exists(/databases/$(db)/documents/companies/$(o)/members/$(request.auth.uid))
         && exists(/databases/$(db)/documents/companies/$(cid)/projects/$(pid)/partners/$(o))
         && partOf(cid, pid, o).get('status', '') == 'actif' && partOf(cid, pid, o).mods.get(mod, 0) >= n
         && memOf(o, request.auth.uid).perms.get(mod, 0) >= n
@@ -299,7 +308,34 @@ service cloud.firestore {
     }
     function projAcc(cid, pid) { return (isMem(cid) && canProj(cid, pid)) || pOk(cid, pid, 'projet', 1); }
 
-    match /users/{uid} { allow read, write: if signed() && request.auth.uid == uid; }
+    // profil : la personne elle-même ; le blocage (blocked) ne se change que par le Super Admin
+    match /users/{uid} {
+      allow read: if (signed() && request.auth.uid == uid) || licOwner();
+      allow create: if signed() && request.auth.uid == uid && request.resource.data.get('blocked', false) == false;
+      allow update: if (signed() && request.auth.uid == uid && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['blocked', 'blockedAt', 'blockedWhy']))
+        || (licOwner() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['blocked', 'blockedAt', 'blockedWhy']));
+      allow delete: if signed() && request.auth.uid == uid;
+    }
+    // panneau d'administration (Super Admin) : vues globales en lecture
+    match /{path=**}/projects/{pid} { allow read: if licOwner(); }
+    match /{path=**}/members/{uid} { allow read: if licOwner(); }
+    // erreurs de l'application : chacun envoie les siennes (sans données personnelles), le Super Admin les lit
+    match /errors/{id} {
+      allow create: if signed() && request.resource.data.uid == request.auth.uid && request.resource.data.msg is string && request.resource.data.msg.size() <= 300
+        && request.resource.data.keys().hasOnly(['uid', 'cid', 'msg', 'src', 'stack', 'ver', 'platform', 'at']);
+      allow read, delete: if licOwner();
+    }
+    // demandes de pack (la facturation n'est pas en ligne) : la personne dépose, le Super Admin traite
+    match /packRequests/{id} {
+      allow create: if signed() && request.resource.data.uid == request.auth.uid && request.resource.data.status == 'attente';
+      allow read: if licOwner() || (signed() && resource.data.uid == request.auth.uid);
+      allow update, delete: if licOwner();
+    }
+    // annonces du Super Admin : à tous (target = 'all') ou à une personne (target = uid)
+    match /annonces/{id} {
+      allow read: if licOwner() || (signed() && (resource.data.target == 'all' || resource.data.target == request.auth.uid));
+      allow write: if licOwner();
+    }
 
     match /invites/{code} {
       allow get: if signed();
@@ -366,7 +402,9 @@ service cloud.firestore {
 
     match /companies/{cid} {
       allow create: if signed() && request.resource.data.ownerUid == request.auth.uid
-        && request.resource.data.get('planStatus', 'essai') in ['essai', 'gratuit'];
+        && request.resource.data.get('planStatus', 'essai') in ['essai', 'gratuit']
+        && (request.resource.data.get('plan', 'basic') == 'basic' || licOwner()
+            || get(/databases/$(db)/documents/config/plans).data.get(request.resource.data.get('plan', 'basic'), {}).get('open', false) == true);
       allow read: if isMem(cid) || licOwner();
       // la formule (pack) ne change que par le Super Admin SiteTeam (plus tard : la facturation)
       allow update: if (isAdmin(cid) && request.resource.data.get('plan', null) == resource.data.get('plan', null)
@@ -402,6 +440,11 @@ service cloud.firestore {
         allow update, delete: if isAdmin(cid);
       }
       // postes de l'organisation : administrateur ou niveau « Administrer » sur l'équipe (ex. Directeur qualité)
+      // annonces du Super Admin à une organisation
+      match /annonces/{id} {
+        allow read: if isMem(cid) || licOwner();
+        allow write: if licOwner();
+      }
       match /postes/{pk} {
         allow read: if isMem(cid);
         allow write: if isAdmin(cid) || (isMem(cid) && lvl(cid, 'equipe') >= 4);
@@ -457,13 +500,16 @@ service firebase.storage {
     function memPath(cid) { return /databases/(default)/documents/companies/$(cid)/members/$(request.auth.uid); }
     function mem(cid) { return firestore.get(memPath(cid)).data; }
     function lv(p, n) { return p.get('files', 0) >= n || p.get('plans', 0) >= n || p.get('photos', 0) >= n; }
+    // compte bloqué / organisation suspendue par le Super Admin : plus d'accès aux fichiers
+    function okUser() { let u = /databases/(default)/documents/users/$(request.auth.uid); return !firestore.exists(u) || firestore.get(u).data.get('blocked', false) != true; }
+    function live(cid) { let c = /databases/(default)/documents/companies/$(cid); return !firestore.exists(c) || firestore.get(c).data.get('planStatus', '') != 'suspendu'; }
     function ownOk(cid, pid, n) {
-      return signed() && firestore.exists(memPath(cid)) && (mem(cid).allProjects == true || pid in mem(cid).projects) && lv(mem(cid).perms, n);
+      return signed() && firestore.exists(memPath(cid)) && okUser() && live(cid) && (mem(cid).allProjects == true || pid in mem(cid).projects) && lv(mem(cid).perms, n);
     }
     function partOk(cid, pid, n) {
       let o = firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('companyId', '');
       let pp = /databases/(default)/documents/companies/$(cid)/projects/$(pid)/partners/$(o);
-      return signed() && o != '' && o != cid && firestore.exists(memPath(o)) && firestore.exists(pp)
+      return signed() && o != '' && o != cid && okUser() && live(cid) && firestore.exists(memPath(o)) && firestore.exists(pp)
         && firestore.get(pp).data.get('status', '') == 'actif' && lv(firestore.get(pp).data.mods, n) && lv(mem(o).perms, n)
         && (mem(o).allProjects == true || pid in mem(o).projects);
     }
@@ -514,7 +560,10 @@ const Team = (() => {
   const lvlFor = (mod, pid) => { const sh = sharedOf(pid); return sh ? (sh.status && sh.status !== 'actif' ? 0 : Math.min(+((sh.mods || {})[mod]) || 0, lvl0(mod))) : lvl0(mod); };
   const curPid = () => { try { return (typeof App !== 'undefined' && App.project && App.project.id) || null; } catch (e) { return null; } };
   const lvl = (mod) => lvlFor(mod, curPid());
-  const canSection = (k) => lvl(SECTION_MOD[k] || 'projet') >= 1;
+  // réglages généraux décidés dans le panneau d'administration (config/app) : version minimale, maintenance, message, fonctions coupées
+  const appCfg = () => LS.get('appCfg') || {};
+  const isOff = (mod) => !!mod && Array.isArray(appCfg().off) && appCfg().off.includes(mod) && !isSuper();
+  const canSection = (k) => !isOff(SECTION_MOD[k] || 'projet') && lvl(SECTION_MOD[k] || 'projet') >= 1;
   const isAdmin = () => !S.ready || !!(S.me && S.me.admin);
   const myPlan = () => planFor(planOf((S.company || {}).plan || PLAN_DEFAULT_COMPANY), (S.company || {}).kind === 'perso');
   // Super Admin SiteTeam (le même compte que le propriétaire des licences Chantier dans les règles)
@@ -534,8 +583,9 @@ const Team = (() => {
   async function loadPlanCfg() {
     applyPlanCfg(LS.get('plansCfg'));
     const so = LS.get('svcOpen'); if (Array.isArray(so)) SERVICES_OPEN = so;
-    try { const [d, sv] = await withTimeout(Promise.all([fs.collection('config').doc('plans').get(), fs.collection('config').doc('services').get()]), 10000);
+    try { const [d, sv, ap] = await withTimeout(Promise.all([fs.collection('config').doc('plans').get(), fs.collection('config').doc('services').get(), fs.collection('config').doc('app').get().catch(() => null)]), 10000);
       if (d.exists) { LS.set('plansCfg', d.data()); applyPlanCfg(d.data()); }
+      if (ap) LS.set('appCfg', ap.exists ? ap.data() : {});
       if (sv.exists && Array.isArray(sv.data().open)) { SERVICES_OPEN = sv.data().open; LS.set('svcOpen', SERVICES_OPEN); }
       if (sv.exists) LS.set('cloud', { on: sv.data().storage === true, maxMb: +sv.data().maxMb || 50 }); } catch (e) { console.warn('plans cfg', e); }
   }
@@ -569,6 +619,16 @@ const Team = (() => {
     if (v === 'plans') openCompany('set');
   }
   const canProject = (pid) => !S.ready || !!(S.me && (S.me.allProjects || (S.me.projects || []).includes(pid)));
+  // ---------- demande de pack (la facturation n'est pas en ligne : la demande arrive dans le panneau d'administration) ----------
+  async function requestPack(k, perso) {
+    const P = planFor(planOf(k), perso), r = await formSheet(`Demander ${P.l}`, [{ name: 'msg', label: 'Message (optionnel)', type: 'textarea', placeholder: 'Ex : nombre d\'utilisateurs, besoin particulier…' }, { name: 'tel', label: 'Téléphone (optionnel)', type: 'tel' }], { okLabel: 'Envoyer la demande' });
+    if (!r) return false;
+    try {
+      await withTimeout(fs.collection('packRequests').add({ uid: S.user.uid, email: S.user.email || '', name: (S.me || {}).name || S.user.displayName || '', cid: S.cid || '', cname: (S.company || {}).name || '',
+        plan: k, perso: !!perso, msg: (r.msg || '').slice(0, 1000), tel: (r.tel || '').slice(0, 40), status: 'attente', at: ts() }));
+      await alertBox(`Demande envoyée ✓\nSiteTeam vous répond et active le pack « ${P.l} ».`); return true;
+    } catch (e) { alertBox(errMsg(e)); return false; }
+  }
   // ---------- fichiers partagés (Cloud Storage) : activés par le Super Admin (config/services.storage), jamais sans son accord ----------
   const cloudCfg = () => LS.get('cloud') || { on: false, maxMb: 50 };
   const cloudOn = () => !!(S.ready && st && S.cid && cloudCfg().on && (myPlan().storageGb || 0) > 0);
@@ -612,10 +672,68 @@ const Team = (() => {
     if (!init()) { toast('Module de connexion absent — mode local'); return; }
     const user = await new Promise((res) => { const un = auth.onAuthStateChanged(u => { un(); res(u); }); });
     if (!user) { await loginScreen(); }
-    S.user = auth.currentUser;
+    S.user = auth.currentUser; ST_SUPER = isSuper();
     await loadMembership();
+    await gate();
+    setTimeout(() => checkAnnonces().catch(e => console.warn('annonces', e)), 3000);
+    setInterval(() => { if (document.visibilityState === 'visible') checkAnnonces().catch(() => {}); }, 10 * 60000);
     auth.onAuthStateChanged(u => { if (!u && S.ready) { S.ready = false; location.reload(); } });
   }
+  // ---------- décisions du panneau d'administration appliquées dans l'application ----------
+  // écran bloquant (compte bloqué, organisation suspendue, maintenance, version trop ancienne) : l'application s'arrête là
+  function gateScreen(title, text, opts = {}) {
+    document.querySelectorAll('.st-gate').forEach(x => x.remove());
+    const el = document.createElement('div'); el.className = 'fullpage st-gate';
+    el.innerHTML = `<div class="st-gate-in"><div class="st-gate-logo">${typeof stLogo === 'function' ? stLogo() : ''}</div><h1>${esc(title)}</h1><p>${esc(text).replace(/\n/g, '<br>')}</p>
+      <div class="st-gate-b">${opts && opts.update ? `<button class="btn" data-g="upd">${icon('upload')} Mettre à jour</button>` : ''}${opts && opts.switcher && (S.workspaces || []).length > 1 ? '<button class="btn ghost" data-g="ws">Changer d\'espace</button>' : ''}
+      ${opts && opts.retry ? '<button class="btn ghost" data-g="retry">Réessayer</button>' : ''}<button class="btn ghost" data-g="out">Se déconnecter</button></div></div>`;
+    document.body.appendChild(el);
+    const on = (k, f) => { const b = $(`[data-g=${k}]`, el); if (b) b.onclick = f; };
+    on('upd', () => { try { typeof PLAY_STORE_BUILD !== 'undefined' && PLAY_STORE_BUILD ? openUrl('https://play.google.com/store/apps/details?id=com.siteteam.app') : checkUpdate(true); } catch (e) {} });
+    on('ws', () => openSwitcher()); on('retry', () => location.reload()); on('out', () => logout());
+    return new Promise(() => {});
+  }
+  async function gate() {
+    if (isSuper()) return;
+    const C = appCfg(), V = typeof APP_VERSION === 'string' ? APP_VERSION : '';
+    if (C.maintenance && C.maintenance.on) return gateScreen('🛠 Maintenance', C.maintenance.text || 'SiteTeam est en maintenance. Revenez dans quelques minutes.', { retry: true });
+    if (C.minVersion && /^\d+\.\d+\.\d+$/.test(V) && typeof verCmp === 'function' && verCmp(V, C.minVersion) < 0)
+      return gateScreen('⬆️ Mise à jour obligatoire', `Cette version (${V}) n'est plus prise en charge. Installez la version ${C.minVersion} ou plus récente pour continuer. Vos données restent sur le téléphone.`, { update: true });
+    if (S.company && S.company.planStatus === 'suspendu')
+      return gateScreen('⏸ Organisation suspendue', `L'accès à « ${S.company.name || 'cette organisation'} » est suspendu par SiteTeam.\nVos données ne sont pas effacées. Contact : ${SUPPORT_EMAIL}`, { switcher: true });
+  }
+  // présence : e-mail, dernière ouverture, version (pour le panneau d'administration), au plus une fois par heure
+  function presence(prof) {
+    try { if (Date.now() - (+localStorage.getItem('st.seenAt') || 0) < 3600e3 && prof.appVersion === APP_VERSION) return; localStorage.setItem('st.seenAt', String(Date.now())); } catch (e) {}
+    fs.collection('users').doc(S.user.uid).set({ email: S.user.email || '', name: prof.name || S.user.displayName || '', lastSeen: ts(), appVersion: typeof APP_VERSION === 'string' ? APP_VERSION : '',
+      platform: (window.Capacitor && Capacitor.getPlatform && Capacitor.getPlatform()) || 'web' }, { merge: true }).catch(e => console.warn('presence', e));
+  }
+  // annonces envoyées depuis le panneau : à tous, à une personne, ou à une organisation ; notification sur le téléphone
+  async function checkAnnonces() {
+    if (!S.ready || !S.user) return [];
+    const seen = +(LS.get('annSeen') || 0), out = [];
+    const q1 = await withTimeout(fs.collection('annonces').where('target', 'in', ['all', S.user.uid]).limit(50).get(), 15000).catch(e => { console.warn('annonces', e); return null; });
+    if (q1) q1.forEach(d => out.push({ id: d.id, ...d.data() }));
+    if (S.cid) { const q2 = await withTimeout(fs.collection('companies').doc(S.cid).collection('annonces').orderBy('at', 'desc').limit(10).get(), 15000).catch(() => null); if (q2) q2.forEach(d => out.push({ id: d.id, ...d.data() })); }
+    const ms = (x) => (x.at && x.at.toMillis ? x.at.toMillis() : 0), fresh = out.filter(x => ms(x) > seen).sort((a, b) => ms(b) - ms(a));
+    if (!fresh.length) return [];
+    LS.set('annSeen', Math.max(...fresh.map(ms)));
+    try { const N = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.LocalNotifications; if (N && N.schedule) await N.schedule({ notifications: [{ id: Math.floor(Math.random() * 1e6), title: fresh[0].title || 'SiteTeam', body: String(fresh[0].text || '').slice(0, 200) }] }); } catch (e) {}
+    if (!document.querySelector('.st-gate')) sheet(`<div class="st-ann">${fresh.map(x => `<div class="tm-box"><b>📣 ${esc(x.title || 'SiteTeam')}</b><p>${esc(x.text || '').replace(/\n/g, '<br>')}</p><small class="muted">${new Date(ms(x)).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></div>`).join('')}</div>`, { title: 'Annonces SiteTeam' });
+    return fresh;
+  }
+  // erreurs de l'application envoyées au panneau (sans données personnelles : message, fichier, version) — 10 au plus par ouverture
+  const errSent = new Set();
+  function logError(msg, src, stack) {
+    try {
+      msg = String(msg || '').slice(0, 300); if (!msg || /ResizeObserver|Script error|Load failed|NetworkError|Failed to fetch/i.test(msg)) return;
+      if (!fs || !S.user || errSent.size >= 10 || errSent.has(msg)) return; errSent.add(msg);
+      fs.collection('errors').add({ uid: S.user.uid, cid: S.cid || '', msg, src: String(src || '').slice(0, 200), stack: String(stack || '').split('\n').slice(0, 4).join('\n').slice(0, 600),
+        ver: typeof APP_VERSION === 'string' ? APP_VERSION : '', platform: (window.Capacitor && Capacitor.getPlatform && Capacitor.getPlatform()) || 'web', at: ts() }).catch(() => {});
+    } catch (e) {}
+  }
+  window.addEventListener('error', (e) => logError(e.message, (e.filename || '') + ':' + (e.lineno || ''), e.error && e.error.stack));
+  window.addEventListener('unhandledrejection', (e) => { const r = e.reason || {}; logError(r.message || String(r), 'promise', r.stack); });
   // ---------- validation des PV ----------
   function canValidateForm(f) {
     if (!S.ready || !S.me || !f || f.aut === S.user.uid || sharedOf(f.projectId)) return false;
@@ -688,6 +806,8 @@ const Team = (() => {
     let prof = null;
     try { const d = await withTimeout(fs.collection('users').doc(S.user.uid).get(), 15000); prof = d.exists ? d.data() : {}; LS.set('profile', prof); }
     catch (e) { prof = LS.get('profile'); if (!prof) { await alertBox('Connexion internet nécessaire pour la première ouverture.'); return loadMembership(); } }
+    if (prof.blocked === true && !isSuper()) return gateScreen('⛔ Compte bloqué', `Ce compte a été bloqué par SiteTeam.${prof.blockedWhy ? '\nMotif : ' + prof.blockedWhy : ''}\nPour toute question : ${SUPPORT_EMAIL}`, false);
+    presence(prof);
     if (!prof.companyId) { await loadPlanCfg(); await onboardScreen(); return loadMembership(); }
     S.workspaces = Array.isArray(prof.workspaces) ? prof.workspaces : [];
     S.profil = prof.profil || {};
@@ -885,6 +1005,7 @@ const Team = (() => {
           ${perso ? '<p class="st-of-n">Invité par une organisation ? Pas de pack : c\'est elle qui paie pour vous.</p>' : ''}
           <button class="linkbtn" data-a="back">← Retour</button></div>`;
         $$('[data-p]', el).forEach(b => b.onclick = () => { W.plan = b.dataset.p; W.espace === 'perso' ? stepMetier() : stepOrg(); });
+        $$('[data-req]', el).forEach(b => b.onclick = () => requestPack(b.dataset.req, perso));
         back(stepEspace);
       }
       // 3 · type d'organisation (= interface)
@@ -1388,7 +1509,7 @@ const Team = (() => {
         const c = Sync.cfg(), P = myPlan(), nUsers = S.members.length, over = P.users && nUsers > P.users, T = orgType();
         const nProj = projects.filter(p => !p.deleted).length;
         body.innerHTML = `<div class="form">
-          ${isSuper() ? `<div class="tm-box st-super"><b>🛡 Super Admin SiteTeam</b><p>Packs, limites et pack de chaque organisation.</p><button class="btn small" data-a="super">Ouvrir la console</button></div>` : ''}
+          ${isSuper() ? `<div class="tm-box st-super"><b>🛡 Super Admin SiteTeam</b><p>Panneau d'administration : utilisateurs, organisations, packs, demandes, annonces, version, erreurs.</p><div class="btnrow" style="padding:0"><button class="btn small" data-a="admin">Panneau d'administration</button><button class="btn ghost small" data-a="super">Console rapide</button></div></div>` : ''}
           <div class="tm-box"><b>📦 Pack ${esc(P.e || '')} ${esc(P.l)}</b>
             <p>${esc(planPrice(P))} · ${esc(planUsers(P))}${P.extraUserPrice ? ` (puis ${P.extraUserPrice} MAD/mois par compte)` : ''} · ${P.projects ? P.projects + ' projet(s)' : 'projets illimités'} · ${P.storageGb} Go${P.modules === '*' ? ' · tous les outils' : ` · ${P.modules.length} outils`}${P.hier ? ' · hiérarchie' : ''}${P.shares ? ' · groupements' : ''}</p>
             <div style="color:${over ? '#ef4444' : 'var(--muted)'}">${nUsers}${P.users ? ' / ' + P.users : ''} compte(s) · ${nProj}${P.projects ? ' / ' + P.projects : ''} projet(s)${over ? ' — au-delà du pack' : ''}</div>
@@ -1408,6 +1529,7 @@ const Team = (() => {
           <div class="tm-box"><b>🏢 Entreprise</b><button class="btn ghost small" data-a="ren">Renommer l'entreprise</button></div></div>`;
         $('[data-a=drive]', body).onclick = () => Sync.openSyncSettings();
         const sup = $('[data-a=super]', body); if (sup) sup.onclick = () => superConsole();
+        const adm = $('[data-a=admin]', body); if (adm) adm.onclick = () => { location.href = 'admin.html' + (/[?&]emu=1/.test(location.search) ? '?emu=1' : ''); };
         $('[data-a=catalog]', body).onclick = () => openCatalogue();
         const ot = $('[data-a=otype]', body); if (ot) ot.onclick = async () => {
           const k = await menu('Type d\'organisation', ORG_TYPES.map(t => ({ label: `${t.e} ${t.l}`, value: t.k, checked: t.k === T.k })));
@@ -1419,7 +1541,7 @@ const Team = (() => {
         $('[data-a=rules]', body).onclick = () => copyText(FIRESTORE_RULES);
         $('[data-a=srules]', body).onclick = () => copyText(STORAGE_RULES);
         $('[data-a=ren]', body).onclick = async () => { const r = await formSheet('Entreprise', [{ name: 'n', label: 'Nom', value: S.company.name }]); if (r && r.n) { await fs.collection('companies').doc(S.cid).update({ name: r.n }); S.company.name = r.n; LS.set('company', S.company); draw(); } };
-        $('[data-a=planchange]', body).onclick = () => { const body2 = encodeURIComponent(`Bonjour, je souhaite changer le pack de « ${S.company.name} » (actuellement ${myPlan().l}).`); openUrl(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Changement de pack SiteTeam')}&body=${body2}`); };
+        $('[data-a=planchange]', body).onclick = async () => { const L = offersFor(false).filter(x => x.k !== myPlan().k); const k = await menu('Quel pack demander ?', L.map(x => ({ label: `${x.e || ''} ${x.l} · ${planPrice(x)}`, value: x.k }))); if (k) requestPack(k, false); };
       }
       if (tab === 'prof') {
         const F = S.profil || {}, M2 = metierOf(F.metier);
@@ -1447,7 +1569,7 @@ const Team = (() => {
           ${offerCard(P, true, false)}
           ${up.length ? `<div class="tm-box"><b>Passer à un autre pack</b>${up.map(x => offerCard(x, true, false)).join('')}<button class="btn" data-a="askup">Demander ${esc(up[0].l)}</button>
             <small class="muted">La facturation n'est pas encore en ligne : la demande part à SiteTeam, qui active le pack.</small></div>` : ''}</div>`;
-        const a = $('[data-a=askup]', body); if (a) a.onclick = () => openUrl(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Pack ' + up[0].l + ' — espace personnel')}&body=${encodeURIComponent(`Bonjour, je souhaite passer au pack ${up[0].l} (compte ${S.user.email}).`)}`);
+        const a = $('[data-a=askup]', body); if (a) a.onclick = () => requestPack(up[0].k, true);
       }
       if (tab === 'me') {
         const R = tmRoleOf(S.me.role), mine = await myShares();
@@ -1821,6 +1943,7 @@ const Team = (() => {
     profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
     openProjectShares, claimShare, openPartners, renderHistory, sharedOf, joinWithCode,
     cloudOn, canCloud, cloudUpload, cloudDownload, cloudRemove, cloudCfg, storageRules: STORAGE_RULES,
+    appCfg, isOff, checkAnnonces, requestPack, logError,
     ready: () => S.ready, me: () => S.me, uid: () => S.user && S.user.uid, company: () => S.company, members: () => S.members, rules: FIRESTORE_RULES,
   };
 })();

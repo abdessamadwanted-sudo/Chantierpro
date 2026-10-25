@@ -24,6 +24,11 @@ const shot = (pg, n) => pg.screenshot({ path: `${O}/${n}.png` });
 const SVC = 'http://127.0.0.1:8080/v1/projects/siteteam/databases/(default)/documents/config/services';
 const setSvcs = (L, storage = false) => fetch(SVC, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { open: { arrayValue: { values: L.map(v => ({ stringValue: v })) } }, storage: { booleanValue: storage }, maxMb: { integerValue: '50' } } }) }).then(r => r.status);
 log('services ouverts (test)', await setSvcs(['*']));
+// packs (v1.0.24 : seul Basic est ouvert par défaut) : ouverts pour les parcours existants, refermés plus bas pour tester le verrou
+const CFG = 'http://127.0.0.1:8080/v1/projects/siteteam/databases/(default)/documents/config/';
+const setPacks = (open) => fetch(CFG + 'plans?updateMask.fieldPaths=pro.open&updateMask.fieldPaths=business.open&updateMask.fieldPaths=enterprise.open', { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+  body: JSON.stringify({ fields: Object.fromEntries(['pro', 'business', 'enterprise'].map(k => [k, { mapValue: { fields: { open: { booleanValue: open } } } }])) }) }).then(r => r.status);
+log('packs ouverts (test)', await setPacks(true));
 let A, B, C, D;
 try {
   // ---- patron
@@ -377,6 +382,59 @@ try {
   await H.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); showVersion(); }); await H.pg.waitForSelector('.ver-box .tm-box', { timeout: 10000 }); await shot(H.pg, '90_version');
   log('écran version', await H.pg.evaluate(() => document.querySelector('.ver-box').innerText.replace(/\s+/g, ' ').slice(0, 160)));
   log('errors v1.0.23', [...H.errs]);
+  // ---- v1.0.24 : panneau d'administration et décisions appliquées dans l'application
+  log('packs refermés (Basic seul)', await setPacks(false));
+  const J = await newUser('J'); await signup(J.pg, 'Jamal Invité', 'jamal@test.ma');
+  await J.pg.click('[data-a=create]'); await J.pg.waitForSelector('.st-offers'); await shot(J.pg, '91_packs_fermes');
+  log('J packs : ouverts / sur demande', await J.pg.evaluate(() => [[...document.querySelectorAll('.st-offers [data-p]')].map(b => b.dataset.p), [...document.querySelectorAll('.st-offers [data-req]')].map(b => b.dataset.req)]));
+  await J.pg.click('[data-req=business]'); await J.pg.waitForSelector('.sheet [name=msg]'); await J.pg.fill('.sheet [name=msg]', '12 utilisateurs, 3 chantiers'); await J.pg.click('.sheet [data-a=ok]');
+  await J.pg.waitForSelector('.opt:has-text("OK")', { timeout: 15000 }); log('J demande envoyée', await J.pg.textContent('.sheet h3')); await J.pg.click('.opt:has-text("OK")');
+  log('J refus serveur d\'un pack fermé', await J.pg.evaluate(async () => { try { await firebase.firestore().collection('companies').doc('jx1').set({ name: 'X', ownerUid: firebase.auth().currentUser.uid, plan: 'business', planStatus: 'essai' }); return 'ALLOWED (BAD)'; } catch (e) { return 'denied OK: ' + e.code; } }));
+  await J.pg.click('[data-p=basic]'); await J.pg.waitForSelector('.st-orgs'); await J.pg.click('[data-o=entreprise]'); await J.pg.waitForSelector('.st-svcs');
+  await J.pg.fill('[name=cname]', 'Jamal BTP'); await J.pg.click('[data-a=go]'); await J.pg.waitForSelector('.home2', { timeout: 20000 });
+  // Super Admin (compte du propriétaire)
+  const SA = await newUser('SA'); await signup(SA.pg, 'Super Admin', 'abdessamad.daga94@gmail.com');
+  await SA.pg.click('[data-a=create]'); await SA.pg.waitForSelector('.st-offers');
+  log('Super Admin : tous les packs ouverts', await SA.pg.evaluate(() => [document.querySelectorAll('.st-offers [data-p]').length, document.querySelectorAll('.st-offers [data-req]').length]));
+  await SA.pg.goto('http://127.0.0.1:8765/admin.html?emu=1'); await SA.pg.waitForSelector('.tile', { timeout: 30000 }); await SA.pg.waitForTimeout(800); await shot(SA.pg, '92_admin_tableau');
+  log('admin tableau de bord', await SA.pg.evaluate(() => [...document.querySelectorAll('.tile')].map(t => t.innerText.replace(/\s+/g, ' '))));
+  const tabA = async (k) => { await SA.pg.click(`nav [data-t=${k}]`); await SA.pg.waitForTimeout(900); };
+  await tabA('users'); await shot(SA.pg, '93_admin_utilisateurs');
+  log('admin utilisateurs', await SA.pg.evaluate(() => document.querySelectorAll('#ul .row').length));
+  await SA.pg.fill('#q-users', 'jamal'); await SA.pg.waitForTimeout(300); await SA.pg.click('#ul .row'); await SA.pg.waitForSelector('dialog [name=why]');
+  await SA.pg.fill('dialog [name=why]', 'Test du blocage'); await SA.pg.click('dialog button:has-text("Bloquer le compte")'); await SA.pg.waitForTimeout(1500);
+  await J.pg.reload(); await J.pg.waitForSelector('.st-gate, .home2', { timeout: 30000 }); await shot(J.pg, '94_compte_bloque');
+  log('J après blocage', await J.pg.evaluate(() => (document.querySelector('.st-gate h1') || {}).textContent || 'pas bloqué'));
+  log('J données refusées', await J.pg.evaluate(async () => { try { await firebase.firestore().collection('companies').doc(JSON.parse(localStorage.getItem('team.cid'))).get(); return 'ALLOWED (BAD)'; } catch (e) { return 'denied OK: ' + e.code; } }));
+  await SA.pg.fill('#q-users', 'jamal'); await SA.pg.waitForTimeout(300); await SA.pg.click('#ul .row'); await SA.pg.waitForSelector('dialog'); await SA.pg.click('dialog button:has-text("Débloquer")'); await SA.pg.waitForTimeout(1500);
+  await J.pg.reload(); await J.pg.waitForSelector('.st-gate, .home2', { timeout: 30000 }); log('J après déblocage', await J.pg.evaluate(() => !!document.querySelector('.home2') && !document.querySelector('.st-gate')));
+  await tabA('orgs'); await shot(SA.pg, '95_admin_organisations');
+  await SA.pg.fill('#q-orgs', 'Qualité Maroc'); await SA.pg.waitForTimeout(300); await SA.pg.click('#ol .row'); await SA.pg.waitForSelector('dialog [name=st]');
+  await SA.pg.selectOption('dialog [name=st]', 'suspendu'); await SA.pg.click('dialog button:has-text("Enregistrer")'); await SA.pg.waitForSelector('dialog button:has-text("Suspendre")'); await SA.pg.click('dialog button:has-text("Suspendre")'); await SA.pg.waitForTimeout(1500);
+  await H.pg.goto('http://127.0.0.1:8765/?emu=1'); await H.pg.waitForSelector('.st-gate, .home2', { timeout: 30000 }); await shot(H.pg, '96_org_suspendue');
+  log('H organisation suspendue', await H.pg.evaluate(() => (document.querySelector('.st-gate h1') || {}).textContent || 'pas suspendue'));
+  await SA.pg.fill('#q-orgs', 'Qualité Maroc'); await SA.pg.waitForTimeout(300); await SA.pg.click('#ol .row'); await SA.pg.waitForSelector('dialog [name=st]'); await SA.pg.selectOption('dialog [name=st]', 'actif'); await SA.pg.click('dialog button:has-text("Enregistrer")'); await SA.pg.waitForTimeout(1500);
+  await tabA('reqs'); await shot(SA.pg, '97_admin_demandes');
+  log('admin demandes', await SA.pg.evaluate(() => [...document.querySelectorAll('#rl .row')].map(r => r.innerText.replace(/\s+/g, ' ').slice(0, 90))));
+  await SA.pg.click('#rl .row'); await SA.pg.waitForSelector('dialog'); await SA.pg.click('dialog button:has-text("Accepter")'); await SA.pg.waitForTimeout(1500);
+  await tabA('ctrl'); await shot(SA.pg, '98_admin_controle');
+  await SA.pg.check('[name=gon]'); await SA.pg.fill('[name=gtext]', 'Bienvenue sur SiteTeam 1.0.24 : nouveau panneau de contrôle.'); await SA.pg.click('[data-a=msg]'); await SA.pg.waitForTimeout(1200);
+  await SA.pg.check('[data-off=finance]'); await SA.pg.click('[data-a=off]'); await SA.pg.waitForTimeout(1200);
+  await tabA('ann'); await SA.pg.click('[data-a=new]'); await SA.pg.waitForSelector('dialog [name=text]'); await SA.pg.fill('dialog [name=title]', 'Maintenance prévue'); await SA.pg.fill('dialog [name=text]', 'Dimanche 22 h : mise à jour de 10 minutes.');
+  await SA.pg.click('dialog button:has-text("Envoyer")'); await SA.pg.waitForTimeout(1500);
+  await H.pg.goto('http://127.0.0.1:8765/?emu=1'); await H.pg.waitForSelector('.home2', { timeout: 30000 }); await H.pg.waitForTimeout(4500); await shot(H.pg, '99_message_annonce');
+  log('H message accueil', await H.pg.evaluate(() => (document.querySelector('.st-msg p') || {}).textContent || 'aucun'));
+  log('H annonce reçue', await H.pg.evaluate(() => [...document.querySelectorAll('.st-ann b')].map(b => b.textContent)));
+  log('H fonction coupée (finance)', await H.pg.evaluate(() => [Team.isOff('finance'), Team.canSection('fin')]));
+  await H.pg.evaluate(() => { setTimeout(() => { throw new Error('Erreur de test SiteTeam 1.0.24'); }, 10); }); await H.pg.waitForTimeout(2000);
+  await SA.pg.click('[data-a=reload]'); await SA.pg.waitForTimeout(1500); await tabA('err'); await shot(SA.pg, '100_admin_erreurs');
+  log('admin erreurs', await SA.pg.evaluate(() => [...document.querySelectorAll('main .row b')].map(b => b.textContent).filter(t => /Erreur de test/.test(t))));
+  await tabA('ctrl'); await SA.pg.check('[name=mon]'); await SA.pg.fill('[name=mtext]', 'Maintenance de test'); await SA.pg.click('[data-a=ver]'); await SA.pg.waitForTimeout(1200);
+  await G.pg.goto('http://127.0.0.1:8765/?emu=1'); await G.pg.waitForSelector('.st-gate, .home2', { timeout: 30000 });
+  log('G maintenance', await G.pg.evaluate(() => (document.querySelector('.st-gate h1') || {}).textContent || 'pas de maintenance'));
+  await SA.pg.uncheck('[name=mon]'); await SA.pg.click('[data-a=ver]'); await SA.pg.waitForTimeout(1000); await SA.pg.uncheck('[data-off=finance]'); await SA.pg.click('[data-a=off]'); await SA.pg.waitForTimeout(800);
+  log('errors v1.0.24', [...J.errs, ...SA.errs].filter(x => !/Erreur de test|403|permission/i.test(x)));
+  log('packs rouverts (test)', await setPacks(true));
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);
