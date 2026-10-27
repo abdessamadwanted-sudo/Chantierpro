@@ -1819,10 +1819,10 @@ const Team = (() => {
         $$('[data-pm]', pe).forEach(sel => sel.onchange = async () => { const m = sel.dataset.pm, v = +sel.value, was = +st.perms[m] || 0;
           if (v === 4 && was < 4 && !(await confirmBox(`Donner « Administrer » sur « ${(MODS.find(x => x[0] === m) || [m, m])[1]} » ?\nLa personne pourra tout modifier et supprimer dans cet outil.`, 'Donner Administrer'))) { sel.value = was; return; }
           st.perms[m] = v; st.perms = cap(st.perms); sel.value = st.perms[m]; st.custom = true; }); };
-      const syncPostes = () => { $('[data-poste]', E).forEach(c => { c.disabled = c.dataset.poste === st.role; c.checked = c.dataset.poste !== st.role && st.postes.includes(c.dataset.poste); }); };
+      const syncPostes = () => { $$('[data-poste]', E).forEach(c => { c.disabled = c.dataset.poste === st.role; c.checked = c.dataset.poste !== st.role && st.postes.includes(c.dataset.poste); }); };
       syncPostes();
-      $('[data-poste]', E).forEach(c => c.onchange = () => {
-        const chosen = $('[data-poste]', E).filter(x => x.checked && !x.disabled).map(x => x.dataset.poste);
+      $$('[data-poste]', E).forEach(c => c.onchange = () => {
+        const chosen = $$('[data-poste]', E).filter(x => x.checked && !x.disabled).map(x => x.dataset.poste);
         if (chosen.length > 9) { c.checked = false; return toast('9 postes supplémentaires au maximum'); }
         st.postes = chosen; st.perms = tpl(st.role, st.postes); pedit();
       });
