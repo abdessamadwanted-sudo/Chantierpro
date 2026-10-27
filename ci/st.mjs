@@ -626,6 +626,12 @@ try {
   await A.pg.evaluate(() => { Affectations.open(); }); await A.pg.waitForSelector('[data-aff-project]'); await shot(A.pg, '125_affectations');
   await A.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove()));
   log('Affectations : début / fin / historique', affResult);
+  // organigramme accessible en Free (espace personnel)
+  log('organigramme en Free', await E.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.project = null; App.homeTab = 'home'; await renderHome();
+    const tile = !!document.querySelector('[data-pt=org]'); const p = (await DB.all('projects'))[0]; if (!p) return [tile, 'pas de projet']; await openProject(p); document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); App.section = 'org'; await renderSection(); await new Promise(r => setTimeout(r, 600));
+    return [tile, App.section, !!document.querySelector('.og-zc'), !!document.querySelector('.og-empty')]; }));
+  await shot(E.pg, '126_organigramme_free');
+  await E.pg.evaluate(() => { App.project = null; renderHome(); });
   log('E erreurs brutes (diagnostic)', E.errs.slice(-8));
   log('errors v1.0.33', [...affErrors, ...A.errs.slice(affStart)]);
   // ---- v1.0.15 : tablette et ordinateur
