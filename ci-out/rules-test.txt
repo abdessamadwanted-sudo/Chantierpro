@@ -202,5 +202,26 @@ OK   code pack : REFUS de remettre le compteur à zéro
 OK   code pack : REFUS « actif » pour un code limité dans le temps
 OK   code pack : l'administrateur passe son organisation au pack du code
 OK   code pack : REFUS sans code (changement de pack)
+OK   équipe projet : membre affecté lit le projet
+OK   équipe projet : REFUS du projet au membre non affecté
+OK   équipe projet : REFUS des réserves au membre non affecté
+OK   équipe projet : REFUS d’une écriture hors équipe
+OK   équipe projet : REFUS d’ajouter son uid à l’équipe
+OK   équipe projet : projet historique ouvert conservé
+OK   équipe projet : direction lit tous les projets
+OK   équipe projet : requête sur les projets ouverts
+OK   équipe projet : requête sur ses affectations
+FAIL équipe projet : REFUS d’une requête globale par un membre :: Expected request to fail, but it succeeded.
+OK   équipe fichiers : administrateur envoie
+OK   équipe fichiers : membre affecté lit
+OK   équipe fichiers : REFUS hors équipe
+OK   équipe projet : administrateur retire un membre
+OK   équipe projet : accès retiré côté serveur
+OK   équipe projet : REFUS de créer un projet avec sa propre équipe
+OK   audit entreprise : ajout par administrateur
+OK   audit entreprise : REFUS de modifier une ligne
+OK   audit entreprise : REFUS de supprimer une ligne
+OK   audit entreprise : REFUS de falsifier l’auteur
+OK   audit entreprise : REFUS de lecture par un membre
 
-TOUT OK — 204 vérifications
+1 ÉCHEC(S) — 225 vérifications
