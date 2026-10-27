@@ -1,5 +1,18 @@
 # KNOWN_ISSUES — SiteTeam
 
+## Reprise du 27/10/2026 — phase 2a
+
+Phase 2b ajoutée dans une PR dépendante : publier Firestore ET Storage avant de définir la première équipe
+nominative. Un appareil hors ligne utilise la dernière politique reçue ; un retrait prend effet côté serveur
+immédiatement et côté interface à la prochaine synchronisation. La définition d'une équipe exige une connexion.
+
+- Publier les règles Firestore après fusion : les postes supplémentaires d'un nouveau membre doivent correspondre
+  exactement à ceux du code d'invitation. La sécurité continue à reposer sur les droits enregistrés par un responsable.
+- Protection des captures : nécessite le nouvel APK, ne fonctionne pas dans le navigateur ; vérification Android réelle à faire.
+- Équipe projet, affectations historisées et écrans Enterprise avancés : phases 2b et 2c, pas inclus dans 2a.
+- Firebase en production, consentement Google Drive et publication Play nécessitent la configuration du propriétaire.
+- Les lignes historiques ci-dessous peuvent précéder les corrections v1.0.14–29 : vérifier le code actuel avant intervention.
+
 Constatés en lisant le code et les builds (octobre 2026). « Non vérifié » = soupçonné, non reproduit.
 
 | # | Problème | Où | Impact | Statut |

@@ -520,6 +520,60 @@ try {
   await E.pg.evaluate(() => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); Sync.disconnect(); });
   log('Drive : déconnecté', await E.pg.evaluate(() => [Sync.cfg(), localStorage.getItem('gd.root')]));
   log('errors v1.0.29', E.errs.filter(x => !/401|403|400|permission/i.test(x)));   // 401 = jeton expiré simulé
+  // ---- v1.0.31 : accueil entreprise, taille, fil d'Ariane, plusieurs postes et protection Android
+  const entErrors = [];
+  const entStart = [A.errs.length, B.errs.length];
+  const entCheck = (label, ok) => { log('Entreprise : ' + label, ok); if (!ok) entErrors.push(label); };
+  await A.pg.evaluate(() => document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()));
+  const entOriginal = await A.pg.evaluate(() => Team.company().plan);
+  for (const [pack, size, services] of [['pro', 'petite', false], ['business', 'moyenne', true], ['enterprise', 'grande', true]]) {
+    const result = await A.pg.evaluate(async ({ pack }) => {
+      Team.company().plan = pack; App.entView = 'accueil'; await renderHome();
+      return [Entreprise.taille(), !!document.querySelector('[data-ent=org]'), (await DB.all('projects')).length];
+    }, { pack });
+    entCheck(pack + ' → taille et navigation', result[0] === size && result[1] === services);
+  }
+  await A.pg.waitForSelector('[data-ent-kpis] b');
+  await shot(A.pg, '107_direction_entreprise');
+  const entBefore = await A.pg.evaluate(async () => (await DB.all('projects')).map(p => p.id).sort());
+  await A.pg.evaluate(async () => { const p = (await DB.all('projects'))[0]; App.project = p; App.section = 'plans'; await renderSection(); });
+  await A.pg.click('[data-ent-home]'); await A.pg.waitForSelector('.ent-dashboard');
+  entCheck('fil d’Ariane → accueil indépendant du projet', await A.pg.evaluate(() => App.project === null));
+  entCheck('changement de pack sans perte de projets', JSON.stringify(entBefore) === JSON.stringify(await A.pg.evaluate(async () => (await DB.all('projects')).map(p => p.id).sort())));
+  await A.pg.evaluate(() => { Team.inviteFlow(); }); await A.pg.waitForSelector('[data-f=role]');
+  await A.pg.selectOption('[data-f=role]', 'conducteur'); await A.pg.check('[data-poste=techqualite]'); await A.pg.click('[data-a=perms]');
+  entCheck('union Conducteur + Qualité, sans Finance', await A.pg.evaluate(() => +document.querySelector('[data-pm=forms]').value >= 2 && +document.querySelector('[data-pm=reserves]').value >= 2 && +document.querySelector('[data-pm=finance]').value === 0));
+  await A.pg.click('.tm-form [data-a=c]');
+  const roleUI = await B.pg.evaluate(async () => {
+    const me = Team.me(), old = JSON.parse(JSON.stringify(me)), co = Team.company(), plan = co.plan;
+    try {
+      co.plan = 'business'; me.role = 'conducteur'; me.postes = ['techqualite']; me.perms = permsPostes(me.role, me.postes); me.admin = false;
+      return [Team.canSection('forms'), Team.canSection('tasks'), Team.canSection('finance')];
+    } finally { Object.keys(me).forEach(k => delete me[k]); Object.assign(me, old); co.plan = plan; }
+  });
+  entCheck('outils des deux postes uniquement', roleUI[0] && roleUI[1] && !roleUI[2]);
+  await A.pg.evaluate(() => Team.openCompany('set')); await A.pg.waitForSelector('[data-secure]');
+  entCheck('Enterprise : ligne serveur privé', (await A.pg.textContent('.tm-body')).includes('Serveur privé — Contactez-nous'));
+  await A.pg.locator('.tm-page [data-a=x]').click();
+  await A.pg.evaluate(async plan => { Team.company().plan = plan; await renderHome(); }, entOriginal);
+  log('errors v1.0.31', [...entErrors, ...A.errs.slice(entStart[0]), ...B.errs.slice(entStart[1])]);
+  // ---- v1.0.32 : affecter, terminer et conserver l’historique du projet
+  const affStart = A.errs.length, affErrors = [];
+  await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; });
+  const affResult = await A.pg.evaluate(async () => {
+    const p = (await DB.all('projects'))[0], uid = Team.members().find(m => !m.admin)?.uid || Team.uid();
+    const list = [{ id: 'ci-aff32', uid, role: 'techqualite', debut: todayISO(), fin: null }];
+    await Team.saveAffectations(p, list, 'affectation', uid);
+    const initial = [p.teamEnabled, p.teamUids.includes(uid), p.affectations.length];
+    await Team.saveAffectations(p, list.map(a => ({ ...a, fin: todayISO() })), 'fin_affectation', uid);
+    const ended = [p.teamUids.length, p.affectations[0].fin, p.affectations.length];
+    return { initial, ended };
+  });
+  if (!affResult.initial[0] || !affResult.initial[1] || affResult.initial[2] !== 1 || affResult.ended[0] !== 0 || !affResult.ended[1] || affResult.ended[2] !== 1) affErrors.push('Affectation ou historique incorrect');
+  await A.pg.evaluate(() => { Affectations.open(); }); await A.pg.waitForSelector('[data-aff-project]'); await shot(A.pg, '108_affectations');
+  await A.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove()));
+  log('Affectations : début / fin / historique', affResult);
+  log('errors v1.0.32', [...affErrors, ...A.errs.slice(affStart)]);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);

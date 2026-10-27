@@ -373,6 +373,61 @@ await t('code pack : REFUS « actif » pour un code limité dans le temps', () =
 await t('code pack : l\'administrateur passe son organisation au pack du code', () => assertSucceeds(own9.collection('companies').doc('c9').update({ plan: 'enterprise', planStatus: 'actif', packCode: 'ENT-TEST01' })));
 await t('code pack : REFUS sans code (changement de pack)', () => assertFails(nw1.collection('companies').doc('cn1').update({ plan: 'enterprise', planStatus: 'actif' })));
 
+// --- v1.0.31 : plusieurs postes et protection des captures, sans auto-promotion
+await env.withSecurityRulesDisabled(async c => {
+  const db = c.firestore();
+  await db.doc('companies/ent31').set({ ownerUid: 'boss31', plan: 'business', planStatus: 'actif' });
+  await db.doc('companies/ent31/members/boss31').set({ role: 'patron', admin: true, perms: { equipe: 4 }, allProjects: true, projects: [] });
+  await db.doc('companies/ent31/members/member31').set({ role: 'conducteur', postes: ['techqualite'], admin: false, perms: { reserves: 3, forms: 3, finance: 0 }, allProjects: true, projects: [] });
+  await db.doc('companies/ent31/projects/p31').set({ name: 'Projet de test' });
+  await db.doc('invites/ENT31CODE').set({ cid: 'ent31', role: 'conducteur', postes: ['techqualite'], admin: false, perms: { reserves: 3, forms: 3, finance: 0 }, allProjects: true, projects: [], used: false, status: 'valide' });
+});
+const boss31 = env.authenticatedContext('boss31').firestore(), member31 = env.authenticatedContext('member31').firestore(), join31 = env.authenticatedContext('join31').firestore();
+const member31Data = { role: 'conducteur', postes: ['techqualite'], admin: false, perms: { reserves: 3, forms: 3, finance: 0 }, allProjects: true, projects: [], invite: 'ENT31CODE' };
+await t('postes : REFUS d’ajouter soi-même un poste', () => assertFails(member31.doc('companies/ent31/members/member31').update({ postes: ['comptable'] })));
+await t('postes : REFUS d’augmenter ses propres droits', () => assertFails(member31.doc('companies/ent31/members/member31').update({ 'perms.finance': 4 })));
+await t('postes : l’administrateur enregistre les postes', () => assertSucceeds(boss31.doc('companies/ent31/members/member31').update({ postes: ['techqualite', 'animhse'] })));
+await t('postes : REFUS d’altérer les postes du code', () => assertFails(join31.doc('companies/ent31/members/join31').set({ ...member31Data, postes: ['comptable'] })));
+await t('postes : adhésion avec les postes exacts du code', () => assertSucceeds(join31.doc('companies/ent31/members/join31').set(member31Data)));
+await t('postes : union enregistrée permet les réserves', () => assertSucceeds(member31.doc('companies/ent31/projects/p31/m/reserves/r/t31').set({ title: 'Test' })));
+await t('postes : REFUS de lire Finance', () => assertFails(member31.doc('companies/ent31/projects/p31/m/finance/r/f31').get()));
+await t('captures : administrateur active le réglage', () => assertSucceeds(boss31.doc('companies/ent31').update({ screenProtection: true })));
+await t('captures : REFUS du changement par un membre', () => assertFails(member31.doc('companies/ent31').update({ screenProtection: false })));
+await t('captures : REFUS du réglage global par un administrateur ordinaire', () => assertFails(boss31.doc('config/app').set({ screenProtectionForce: true }, { merge: true })));
+
+
+ // --- v1.0.32 : équipes projet, accès serveur, projets historiques et audit immuable
+ await env.withSecurityRulesDisabled(async c => {
+   const db = c.firestore();
+   await db.doc('companies/ent32').set({ ownerUid: 'boss32', plan: 'business', teamsVersion: 1 });
+   for (const uid of ['boss32', 'yes32', 'no32']) await db.doc('companies/ent32/members/' + uid).set({ admin: uid === 'boss32', allProjects: true, projects: [], perms: { projet: 3, reserves: 2, files: 2 } });
+   await db.doc('companies/ent32/projects/private32').set({ name: 'Équipe nominative', teamEnabled: true, teamUids: ['yes32'], affectations: [] });
+   await db.doc('companies/ent32/projects/legacy32').set({ name: 'Historique', teamEnabled: false, teamUids: [] });
+   await db.doc('companies/ent32/projects/private32/m/reserves/r/t32').set({ title: 'Réserve' });
+ });
+ const [boss32, yes32, no32] = ['boss32', 'yes32', 'no32'].map(u => env.authenticatedContext(u).firestore());
+ const p32 = 'companies/ent32/projects/private32', a32 = 'companies/ent32/audit/evt32';
+ await t('équipe projet : membre affecté lit le projet', () => assertSucceeds(yes32.doc(p32).get()));
+ await t('équipe projet : REFUS du projet au membre non affecté', () => assertFails(no32.doc(p32).get()));
+ await t('équipe projet : REFUS des réserves au membre non affecté', () => assertFails(no32.doc(p32 + '/m/reserves/r/t32').get()));
+ await t('équipe projet : REFUS d’une écriture hors équipe', () => assertFails(no32.doc(p32 + '/m/reserves/r/hack32').set({ title: 'Test' })));
+ await t('équipe projet : REFUS d’ajouter son uid à l’équipe', () => assertFails(no32.doc(p32).update({ teamUids: ['yes32', 'no32'] })));
+ await t('équipe projet : projet historique ouvert conservé', () => assertSucceeds(no32.doc('companies/ent32/projects/legacy32').get()));
+ await t('équipe projet : direction lit tous les projets', () => assertSucceeds(boss32.collection('companies/ent32/projects').get()));
+ await t('équipe projet : requête sur les projets ouverts', () => assertSucceeds(no32.collection('companies/ent32/projects').where('teamEnabled', '==', false).get()));
+ await t('équipe projet : requête sur ses affectations', () => assertSucceeds(yes32.collection('companies/ent32/projects').where('teamUids', 'array-contains', 'yes32').get()));
+ await t('équipe projet : REFUS d’une requête globale par un membre', () => assertFails(no32.collection('companies/ent32/projects').get()));
+await t('équipe fichiers : administrateur envoie', () => assertSucceeds(stg('boss32').ref('companies/ent32/projects/private32/files/test32').put(BYTES)));
+await t('équipe fichiers : membre affecté lit', () => assertSucceeds(stg('yes32').ref('companies/ent32/projects/private32/files/test32').getMetadata()));
+await t('équipe fichiers : REFUS hors équipe', () => assertFails(stg('no32').ref('companies/ent32/projects/private32/files/test32').getMetadata()));
+ await t('équipe projet : administrateur retire un membre', () => assertSucceeds(boss32.doc(p32).update({ teamUids: [] })));
+ await t('équipe projet : accès retiré côté serveur', () => assertFails(yes32.doc(p32).get()));
+ await t('équipe projet : REFUS de créer un projet avec sa propre équipe', () => assertFails(no32.doc('companies/ent32/projects/hack32').set({ teamEnabled: true, teamUids: ['no32'] })));
+ await t('audit entreprise : ajout par administrateur', () => assertSucceeds(boss32.doc(a32).set({ by: 'boss32', at: firebase.firestore.FieldValue.serverTimestamp(), action: 'affectation' })));
+ await t('audit entreprise : REFUS de modifier une ligne', () => assertFails(boss32.doc(a32).update({ action: 'faux' })));
+ await t('audit entreprise : REFUS de supprimer une ligne', () => assertFails(boss32.doc(a32).delete()));
+ await t('audit entreprise : REFUS de falsifier l’auteur', () => assertFails(boss32.doc(a32 + 'x').set({ by: 'no32', at: firebase.firestore.FieldValue.serverTimestamp() })));
+ await t('audit entreprise : REFUS de lecture par un membre', () => assertFails(no32.doc(a32).get()));
 log(`\n${fails ? fails + ' ÉCHEC(S)' : 'TOUT OK'} — ${out.length} vérifications`);
 fs.writeFileSync(O + '/rules-test.txt', out.join('\n') + '\n');
 await env.cleanup();

@@ -166,9 +166,9 @@ async function renderHome() {
         ${(() => { const M = Team.ready() && Team.appCfg().message; let off = ''; try { off = localStorage.getItem('st.msgOff') || ''; } catch (e) {}
           return M && M.on && M.text && off !== String(M.id || M.text) ? `<div class="st-msg ${M.level === 'alerte' ? 'al' : ''}"><span>${M.level === 'alerte' ? '⚠️' : '📣'}</span><p>${esc(M.text)}</p><button class="iconbtn sm" data-a="msgoff" aria-label="Masquer">${icon('close')}</button></div>` : ''; })()}
         ${ST.dashHTML()}
-        ${ST.isPerso() || (Team.ready() && Team.isCollab()) ? '' : espaceHome()}
+        ${ST.isPerso() || (Team.ready() && Team.isCollab()) || (Entreprise.active() && Entreprise.taille() === 'petite') ? '' : espaceHome()}
         ${fp ? focusHTML() : `<div class="h2-sec"><span>Mes chantiers</span><small>${projects.length}</small></div>
-        ${projects.length ? projects.map(p => { const st = stats(p), [c1, c2] = hue(p.name), open = !!App.homeOpen[p.id];
+        ${projects.length ? projects.filter((p, i) => !Entreprise.active() || App.entView === 'projets' || i < 3).map(p => { const st = stats(p), [c1, c2] = hue(p.name), open = !!App.homeOpen[p.id];
           const due = (x) => x.at && x.at.slice(0, 10) <= today;
           const ropen = !!(App.homeRap || {})[p.id];
           if (!fRec) { st.today = 0; st.pv = 0; } if (!fTasks) { st.open = 0; st.late = 0; }
@@ -197,6 +197,10 @@ async function renderHome() {
   const cmp = $('[data-a=company]'); if (cmp) cmp.onclick = () => Team.openCompany();
   espaceBind($('#app'));
   ST.dashBind($('#app'));
+  if (Entreprise.active()) {
+    if (projects.length > 3 && App.entView !== 'projets') $('.h2-body').insertAdjacentHTML('beforeend', '<button class="btn ghost ent-all" data-ent="projets">Voir tous les projets</button>');
+    Entreprise.bind($('#app')).catch(e => console.warn('accueil entreprise', e));
+  }
   if (keepScroll) { const hb = $('.h2-body'); if (hb) hb.scrollTop = keepScroll; }
   // toucher un chantier : son briefing, puis « Entrer » → la page du chantier
   const focusOn = async (id) => { App.homeFocus = id; await renderHome(); $('#app .h2-body') && ($('#app .h2-body').scrollTop = 0);
@@ -333,6 +337,7 @@ const SECTIONS = {
 };
 
 async function renderSection() {
+  if (!App.project || !Team.canProject(App.project.id)) return renderHome();
   BackStack.length = 0;
   if (!SECTIONS[App.section] || !sectionOn(App.section) || !Team.canSection(App.section)) App.section = Object.keys(SECTIONS).find(k => !SECTIONS[k].hidden && sectionOn(k) && Team.canSection(k)) || 'plans';
   pushBack(() => { if (App.fromBrief && typeof briefReopen === 'function') return briefReopen(); if (App.section !== 'plans') { App.section = 'plans'; App.search = ''; renderSection(); } else renderHome(); });
@@ -347,7 +352,9 @@ async function renderSection() {
       ${s.title ? `<div class="tb-title"><b>${esc(s.title)}</b><span>${esc(App.project.name)}</span></div><div class="tb-actions" id="tbActions"></div>`
         : `<h1>${esc(App.project.name)}</h1><button class="iconbtn" data-a="home">${icon('home')}</button>`}
     </div>
+    ${Entreprise.breadcrumbHTML()}
     <div class="content" id="content"></div>`;
+  Entreprise.bindBreadcrumb($('#app'));
   $('[data-a=drawer]').onclick = openDrawer;
   const hb = $('[data-a=home]'); if (hb) hb.onclick = renderHome;
   await s.render($('#content'));
@@ -1311,6 +1318,7 @@ async function renderTeam(root) {
   const p = App.project; p.team = p.team || []; p.companies = p.companies || [];
   const tasks = await DB.byProject('tasks', p.id);
   root.innerHTML = `<div class="pagehead"><h2>Équipe</h2><p>Entreprises (lots) et intervenants</p></div>
+    ${Affectations.active() && !Team.sharedOf(p.id) ? '<button class="btn ghost" data-a="affectations">Équipe projet & affectations</button>' : ''}
     <div class="section-label" style="display:flex;align-items:center">Entreprises / lots<button class="btn small ghost" data-a="addco" style="margin-left:auto">${icon('plus')} Ajouter</button></div>
     ${p.companies.length ? `<div class="list">${p.companies.map(c => { const ts = tasks.filter(t => t.companyId === c.id); return `
       <div class="row" data-co="${c.id}"><span class="tasknum" style="background:${c.color}">${esc((c.name || '?')[0].toUpperCase())}</span>
@@ -1326,6 +1334,7 @@ async function renderTeam(root) {
     <div class="empty" style="padding:20px 24px">Maître d'ouvrage, BET, architecte, laboratoire, membres du groupement… Chaque organisation travaille dans ce projet avec ses propres comptes et ne voit que les modules accordés.</div>` : ''}
     ${Team.ready() && !Team.sharedOf(p.id) ? `<div class="section-label" style="display:flex;align-items:center">Partage simple (sans compte)<button class="btn small ghost" data-a="extshare" style="margin-left:auto">${icon('share')} Partager</button></div>
     <div class="empty" style="padding:20px 24px">Donnez à un maître d'ouvrage, un BET, un sous-traitant… un accès limité à ce projet, sans l'ajouter à votre entreprise.</div>` : ''}`;
+  const af = $('[data-a=affectations]', root); if (af) af.onclick = () => Affectations.open(p);
   const edit = async (m, i) => {
     const r = await formSheet(m ? 'Modifier' : 'Nouvel intervenant', [
       { name: 'name', label: 'Nom', value: m?.name }, { name: 'role', label: 'Fonction / entreprise', value: m?.role }, { name: 'phone', label: 'Téléphone', type: 'tel', value: m?.phone },
