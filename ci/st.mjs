@@ -550,6 +550,10 @@ try {
   await A.pg.click('[data-a=secure]'); await A.pg.waitForTimeout(1200); log('anti-capture désactivé', await A.pg.evaluate(() => Team.secureOn()));
   log('Enterprise : serveur privé', await Z.pg.evaluate(() => !!document.querySelector('[data-offer=enterprise] .st-of-srv')));
   await A.pg.evaluate(() => { document.querySelectorAll('.sheet-bg,.fullpage').forEach(x => x.remove()); App.project = null; renderHome(); });
+  // poste et service verrouillés : un membre d'organisation n'a aucun moyen de changer son poste ; un Pro ne change plus le sien
+  log('poste verrouillé (membre B)', await B.pg.evaluate(async () => { const before = Team.me().role; document.querySelectorAll('.sheet-bg,.fullpage').forEach(x => x.remove()); await Team.openCompany('me'); await new Promise(r => setTimeout(r, 800));
+    const ui = !!document.querySelector('.fullpage select[data-f=role], .sheet select[data-f=role], [data-a=st-poste]'); document.querySelectorAll('.sheet-bg,.fullpage').forEach(x => x.remove()); return [before, ui]; }));
+  log('poste verrouillé (Pro G)', await G.pg.evaluate(async () => [Team.profil().metier, await Team.askPoste(true), Team.profil().metier]));
   log('errors v1.0.30', [...A.errs, ...B.errs, ...E.errs, ...Z.errs].filter(x => !/401|403|400|permission/i.test(x)));
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {

@@ -755,6 +755,8 @@ const Team = (() => {
   const isFree = () => isPerso() && myPlan().k === 'basic';
   async function askPoste(force) {
     if (!S.ready || !isPerso() || isFree() || (!force && metierOf((S.profil || {}).metier))) return false;
+    // poste verrouillé (v1.0.30) : une fois choisi, l'utilisateur ne le change plus lui-même (seul le Super Admin peut le refaire)
+    if (metierOf((S.profil || {}).metier) && !isSuper()) { toast('Votre poste est fixé. Pour le changer, contactez SiteTeam.'); return false; }
     const opts = TM_SERVICES.filter(x => x.k !== 'direction' && x.k !== 'externe' && x.k !== 'perso' && !SERVICES_LEGACY.includes(x.k))
       .flatMap(sv => TM_ROLES.filter(r => r.s === sv.k && !ROLE_LEGACY[r.k]).map(r => ({ value: r.k, label: `${sv.l} › ${r.l}` })));
     const r = await formSheet('Votre service et votre poste', [{ name: 'info', type: 'info', label: `Pack ${myPlan().l}`, value: 'L\'application s\'adapte à votre poste : tableau de bord, outils et recommandations.' },
