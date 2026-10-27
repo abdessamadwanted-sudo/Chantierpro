@@ -2637,3 +2637,9 @@ html.th-st input, html.th-st select, html.th-st textarea { background: #fff; col
 .st-tgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .st-tool { display: grid; justify-items: center; gap: 6px; padding: 12px 4px; border-radius: 14px; background: var(--card2); color: var(--text); font-size: 12px; line-height: 1.2; text-align: center; min-height: 78px; }
 .st-tool svg.i { width: 24px; height: 24px; color: var(--accent); }
+/* correctifs v1.0.30 : pas de débordement horizontal ; espaces métier en clair */
+.st-dir, .st-tools { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.st-dir > *, .st-kpis > * { min-width: 0; }
+.st-dir-hero small { white-space: normal; overflow-wrap: anywhere; }
+html.th-st .es-tile { background: #fff; border-color: var(--line); color: var(--navy); box-shadow: 0 2px 8px rgba(20,35,55,.05); }
+html.th-st .es-tile .i { color: var(--c, var(--accent)); }
