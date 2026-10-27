@@ -1,0 +1,78 @@
+/* ST-UI-002 — Premium Glass, adaptation progressive du thème glass existant.
+   Ne modifie ni les données, ni les permissions, ni les viewers techniques.
+   Les variables de couleur des thèmes existants restent prioritaires. */
+html.glass {
+  --st-glass-radius: 17px;
+  --st-glass-hairline: rgba(220, 236, 255, .16);
+  --st-glass-elevation: 0 10px 30px rgba(2, 12, 27, .16);
+  --st-glass-surface: rgba(233, 244, 255, .075);
+  --st-glass-focus: rgba(143, 197, 241, .82);
+}
+html.glass .home2 .h2-hero {
+  border-radius: 0 0 22px 22px;
+  border-bottom: 1px solid var(--st-glass-hairline);
+  background: linear-gradient(160deg, rgba(255,255,255,.09), rgba(255,255,255,.018));
+  box-shadow: 0 12px 28px rgba(4, 12, 25, .13);
+}
+html.glass .home2 .h2-card,
+html.glass .home2 .h2-proj,
+html.glass .tm-box,
+html.glass .st-cat,
+html.glass .st-p {
+  border: 1px solid var(--st-glass-hairline);
+  border-radius: var(--st-glass-radius);
+  box-shadow: var(--st-glass-elevation), inset 0 1px 0 rgba(255,255,255,.06);
+}
+html.glass .home2 .h2-card,
+html.glass .tm-box {
+  background: var(--st-glass-surface);
+}
+html.glass .topbar,
+html.glass .sheet {
+  border-color: var(--st-glass-hairline);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+  backdrop-filter: blur(16px) saturate(120%);
+}
+html.glass .drawer {
+  border-right: 1px solid var(--st-glass-hairline);
+}
+html.glass .iconbtn,
+html.glass .h2-card,
+html.glass button,
+html.glass input,
+html.glass select,
+html.glass textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+html.glass :is(button, input, textarea, select, a):focus-visible {
+  outline: 2px solid var(--st-glass-focus);
+  outline-offset: 2px;
+}
+html.glass :is(input, select, textarea) {
+  border: 1px solid rgba(225,239,255,.18);
+  border-radius: 12px;
+}
+html.glass svg.i {
+  stroke-width: 1.75;
+}
+@media (prefers-reduced-motion: no-preference) {
+  html.glass .home2 .h2-card,
+  html.glass .iconbtn {
+    transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+  }
+  html.glass .home2 .h2-card:active { transform: scale(.992); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html.glass *, html.glass *::before, html.glass *::after {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}
+@media (max-width: 640px) {
+  html.glass .home2 .h2-card,
+  html.glass .tm-box { border-radius: 15px; }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html.glass .topbar { background: var(--panel2); }
+  html.glass .sheet { background: var(--panel); }
+}
