@@ -537,6 +537,21 @@ try {
   // le compte supprimé ne peut plus se connecter
   await D.pg.fill('[name=email]', 'topo@test.ma'); await D.pg.fill('[name=pw]', 'secret123'); await D.pg.click('[data-a=go]'); await D.pg.waitForTimeout(2500);
   log('D relogin', await D.pg.evaluate(() => document.querySelector('.sheet h3') ? document.querySelector('.sheet h3').textContent : 'pas de message'));
-  log('errors', [...A.errs, ...B.errs, ...C.errs, ...D.errs]);
+  // ---- v1.0.30 : ST-UI-002 Premium Glass (présentation uniquement)
+  const glassResult = await A.pg.evaluate(async () => {
+    document.documentElement.classList.add('glass');
+    const css = [...document.querySelectorAll('link[rel="stylesheet"]')].find(x => /premium-glass\\.css/.test(x.getAttribute('href') || ''));
+    const card = document.querySelector('.h2-card');
+    const token = getComputedStyle(document.documentElement).getPropertyValue('--st-glass-radius').trim();
+    const radius = card && getComputedStyle(card).borderTopLeftRadius;
+    return { loaded: !!css && !!css.sheet, token, card: !!card, radius };
+  });
+  const glassErrors = [];
+  if (!glassResult.loaded) glassErrors.push('Feuille Premium Glass absente ou non chargée');
+  if (glassResult.token !== '17px') glassErrors.push('Token Premium Glass manquant');
+  if (!glassResult.card || !glassResult.radius) glassErrors.push('Carte accueil ou style absent');
+  log('ST-UI-002 Premium Glass', glassResult);
+  log('errors v1.0.30', glassErrors);
+  log('errors', [...A.errs, ...B.errs, ...C.errs, ...D.errs, ...glassErrors]);
 } catch (e) { log('FAIL', e.message.slice(0, 300)); try { for (const x of [A, B, C, D]) if (x) { log('ERRS', x.errs); await shot(x.pg, 'zz_fail_' + Math.random().toString(36).slice(2, 6)); } } catch (e2) {} }
 await b.close();
