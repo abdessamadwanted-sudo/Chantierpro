@@ -170,8 +170,9 @@ async function renderHome() {
       <div class="h2-body">
         ${(() => { const M = Team.ready() && Team.appCfg().message; let off = ''; try { off = localStorage.getItem('st.msgOff') || ''; } catch (e) {}
           return M && M.on && M.text && off !== String(M.id || M.text) ? `<div class="st-msg ${M.level === 'alerte' ? 'al' : ''}"><span>${M.level === 'alerte' ? '⚠️' : '📣'}</span><p>${esc(M.text)}</p><button class="iconbtn sm" data-a="msgoff" aria-label="Masquer">${icon('close')}</button></div>` : ''; })()}
-        ${ST.directionHTML()}
+        ${ST.directionHTML()}${ST.serviceHTML()}
         ${ST.dashHTML()}
+        ${ST.toolsHTML()}
         ${ST.isPerso() || (Team.ready() && Team.isCollab()) ? '' : espaceHome()}
         ${fp ? focusHTML() : `<div class="h2-sec"><span>Mes chantiers</span><small>${projects.length}</small></div>
         ${projects.length ? projects.map(p => { const st = stats(p), [c1, c2] = hue(p.name), open = !!App.homeOpen[p.id];
@@ -352,7 +353,7 @@ async function renderSection() {
     <div class="topbar dark">
       <button class="iconbtn" data-a="drawer">${icon('menu')}</button>
       ${s.title ? `<div class="tb-title"><b>${esc(s.title)}</b><span class="tb-crumb">${Team.ready() && (Team.company() || {}).name ? `<a data-a="crumb">${esc(Team.company().name)}</a> › ` : ''}${esc(App.project.name)}</span></div><div class="tb-actions" id="tbActions"></div>`
-        : `<h1>${esc(App.project.name)}</h1><button class="iconbtn" data-a="home">${icon('home')}</button>`}
+        : (Team.ready() && (Team.company() || {}).name ? `<div class="tb-title"><b>${esc(App.project.name)}</b><span class="tb-crumb"><a data-a="crumb">${esc(Team.company().name)}</a> › ${esc(s.label || '')}</span></div><button class="iconbtn" data-a="home">${icon('home')}</button>` : `<h1>${esc(App.project.name)}</h1><button class="iconbtn" data-a="home">${icon('home')}</button>`)}
     </div>
     <div class="content" id="content"></div>`;
   $('[data-a=drawer]').onclick = openDrawer;

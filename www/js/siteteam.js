@@ -205,6 +205,64 @@ const ST = (() => {
       <circle cx="${pts[pts.length - 1][0] - 4}" cy="${pts[pts.length - 1][1]}" r="5" class="pt"/></svg>
       <div class="st-perf-x"><span>S-7</span><span>Cette semaine · ${v[v.length - 1]}</span></div>`;
   }
+  // ---------- Tableau de bord du SERVICE (membres non administrateurs) : en-tête navy + 4 chiffres propres au service ----------
+  const svcOn = () => ready() && !perso() && !PV.get() && !Team.isCollab() && !Team.isAdmin();
+  const grpOf = () => { const P = typeof Org !== 'undefined' && Org.poste && Org.poste(); return (P && typeof SVC_GROUP !== 'undefined' && SVC_GROUP[P.svc.k]) || 'trav'; };
+  const SVC_KPI = {
+    qual: [['pvv', '📋', 'PV à valider'], ['pvr', '📨', 'PV à récupérer'], ['res', '🔧', 'Réserves ouvertes'], ['rec', '🧱', 'Réceptions (7 j)']],
+    trav: [['res', '🔧', 'Réserves ouvertes'], ['late', '⏰', 'En retard'], ['rap', '📝', 'Rapports (7 j)'], ['lev', '✅', 'Levées (7 j)']],
+  };
+  function serviceHTML() {
+    if (!svcOn()) return '';
+    const P = Org.poste && Org.poste(), R = tmRoleOf(roleKey()), sv = serviceOf((Team.me() || {}).service || R.s), C = Team.company() || {};
+    const K = SVC_KPI[grpOf()] || SVC_KPI.trav;
+    return `<div class="st-dir" data-stsvc>
+      <div class="st-dir-hero"><small>${esc(C.name || '')} · ${esc(sv.l)}</small><b>${esc(sv.e || (P && P.svc.e) || '🏗️')} Service ${esc(sv.l)}</b><span>${esc([Team.me() && Team.me().role, ...((Team.me() || {}).postes || [])].filter(Boolean).map(k => tmRoleOf(k).l).join(' + ') || R.l)}</span>
+        <div class="st-dir-pills"><i>Aujourd'hui</i><button data-a="dir-proj">Mes projets ▾</button></div></div>
+      <div class="st-kpis">${K.map(([k, e, l]) => `<button class="st-kpi" data-k="${k}"><span class="ic">${e}</span><b>…</b><small>${l}</small></button>`).join('')}</div>
+      <div class="st-perf"><div class="st-perf-h"><b>Mon activité</b><small>8 dernières semaines</small></div><div class="st-perf-c" data-perf></div></div>
+    </div>`;
+  }
+  async function svcBind(root) {
+    const box = root && root.querySelector('[data-stsvc]'); if (!box) return;
+    const pj = box.querySelector('[data-a=dir-proj]'); if (pj) pj.onclick = () => { const s = document.querySelector('.h2-sec'); if (s) s.scrollIntoView({ behavior: 'smooth' }); };
+    try {
+      const projects = (await DB.all('projects')).filter(p => !p.deleted && Team.canProject(p.id)), ids = new Set(projects.map(p => p.id)), me = Team.uid();
+      const [tasks, recs, forms, reps] = await Promise.all(['tasks', 'receptions', 'forms', 'reports'].map(k => DB.all(k).catch(() => [])));
+      const T = tasks.filter(x => ids.has(x.projectId)), wk = new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10), w7 = Date.now() - 7 * 864e5;
+      const V = {
+        pvv: forms.filter(f => ids.has(f.projectId) && f.vst === 'soumis' && Team.canValidateForm(f)).length,
+        pvr: recs.filter(d => ids.has(d.projectId) && d.type !== 'Bétonnage').reduce((a, d) => a + (d.rows || []).filter(pvMissing).length, 0),
+        res: T.filter(x => !isLifted(x)).length, late: T.filter(isLate).length,
+        rec: recs.filter(d => ids.has(d.projectId) && (d.date || '') >= wk).reduce((a, d) => a + (d.rows || []).filter(x => x.element).length, 0),
+        rap: reps.filter(r => ids.has(r.projectId) && (r.date || '') >= wk).length, lev: T.filter(x => isLifted(x) && (x.updatedAt || 0) > w7).length,
+      };
+      box.querySelectorAll('.st-kpi').forEach(b => { const k = b.dataset.k, v = V[k] || 0; b.querySelector('b').textContent = String(v).padStart(2, '0'); b.classList.toggle('warn', ['pvv', 'pvr', 'late'].includes(k) && v > 0);
+        b.onclick = async () => { if (typeof briefingShow === 'function') { const act = await briefingShow(); if (act) act(); } }; });
+      const W = 8, now = Date.now(), bins = Array(W).fill(0);
+      for (const x of [...T, ...recs, ...forms, ...reps]) { if (!ids.has(x.projectId)) continue; if (x.aut && x.aut !== me && x.by && x.by !== me) continue; const i = W - 1 - Math.floor((now - (x.updatedAt || 0)) / (7 * 864e5)); if (i >= 0 && i < W) bins[i]++; }
+      const c = box.querySelector('[data-perf]'); if (c) c.innerHTML = perfSvg(bins);
+    } catch (e) { console.warn('service', e); }
+  }
+  // ---------- Mes outils par catégorie (Chantier · Qualité & sécurité · Études · Gestion · Projet & équipe) ----------
+  function toolsHTML() {
+    if (!ready() || perso() || Team.isCollab() || typeof DR_GROUPS === 'undefined') return '';
+    const first = grpOf(), ok = (k) => SECTIONS[k] && !SECTIONS[k].hidden && k !== 'dashboard' && sectionOn(k) && Team.canSection(k);
+    const G = DR_GROUPS.slice().sort((a, b) => (b[0] === first) - (a[0] === first)).map(([g, l, ks]) => [g, l, ks.filter(ok)]).filter(g => g[2].length);
+    if (!G.length) return '';
+    return `<div class="st-tools" data-sttools><div class="h2-sec"><span>Mes outils</span><small>par catégorie</small></div>
+      ${G.map(([g, l, ks]) => `<div class="st-tcat"><div class="st-tcat-h">${esc(l)}<small>${ks.length}</small></div><div class="st-tgrid">${ks.map(k => `<button class="st-tool" data-tool="${k}">${icon(SECTIONS[k].icon || 'grid')}<span>${esc(SECTIONS[k].title || SECTIONS[k].label)}</span></button>`).join('')}</div></div>`).join('')}</div>`;
+  }
+  function toolsBind(root) {
+    const box = root && root.querySelector('[data-sttools]'); if (!box) return;
+    box.querySelectorAll('[data-tool]').forEach(b => b.onclick = async () => {
+      const L = (await DB.all('projects')).filter(p => !p.deleted && Team.canProject(p.id)).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+      if (!L.length) return toast('Créez ou rejoignez d\'abord un projet');
+      let p = L[0]; if (L.length > 1) { const id = await menu(`${SECTIONS[b.dataset.tool].label} — quel projet ?`, L.map(x => ({ label: `${(projTypeOf(x.type) || {}).e || '🏗️'} ${x.name}`, value: x.id }))); p = L.find(x => x.id === id); if (!p) return; }
+      await openProject(p); App.section = b.dataset.tool; App.search = ''; renderSection();
+    });
+  }
+
   // ---------- barre de navigation du bas (UI Kit) : Accueil · Projets · Équipes · Réglages ----------
   function bottomNav() {
     const app = document.getElementById('app'); if (!app || !ready() || Team.isCollab()) return;
@@ -234,7 +292,7 @@ const ST = (() => {
       <div class="st-dash" data-stdash><div class="h2-sec"><span>Mon tableau de bord</span><small>${esc(T.e)} ${esc(R.l)}</small></div><div class="st-tiles"><div class="st-load">…</div></div></div>`;
   }
   async function dashBind(root) {
-    if (root && root.id === 'app') { if (Team.secureApply) Team.secureApply(); dirBind(root); if (!root.querySelector('.st-bnav')) bottomNav(); }
+    if (root && root.id === 'app') { if (Team.secureApply) Team.secureApply(); dirBind(root); svcBind(root); toolsBind(root); if (!root.querySelector('.st-bnav')) bottomNav(); }
     if (root && perso()) { const ws = root.querySelector('[data-a=st-ws]'); if (ws) ws.onclick = () => Team.openSwitcher(); return persoBind(root); }
     if (root) {
       const ws = root.querySelector('[data-a=st-ws]'); if (ws) ws.onclick = () => Team.openSwitcher();
@@ -432,5 +490,5 @@ const ST = (() => {
   }
 
   function refreshRole() { applyRole(); try { App.project ? renderSection() : renderHome(); } catch (e) {} }
-  return { directionHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
+  return { directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
 })();
