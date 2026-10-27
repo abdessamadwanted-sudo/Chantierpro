@@ -520,6 +520,37 @@ try {
   await E.pg.evaluate(() => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); Sync.disconnect(); });
   log('Drive : déconnecté', await E.pg.evaluate(() => [Sync.cfg(), localStorage.getItem('gd.root')]));
   log('errors v1.0.29', E.errs.filter(x => !/401|403|400|permission/i.test(x)));   // 401 = jeton expiré simulé
+  // ---- v1.0.30 : SiteTeam UI Kit, tableau de bord « Vue Direction », taille selon le pack, fil d'Ariane, plusieurs postes, anti-capture
+  await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForSelector('.st-dir', { timeout: 15000 });
+  await A.pg.waitForFunction(() => !document.querySelector('.st-kpi b') || document.querySelector('.st-kpi b').textContent !== '…', null, { timeout: 15000 }); await A.pg.waitForTimeout(600);
+  await shot(A.pg, '107_vue_direction');
+  log('Vue Direction (A, Business)', await A.pg.evaluate(() => [Team.taille(), document.querySelector('.st-dir-hero b').textContent, document.querySelectorAll('.st-kpi').length, [...document.querySelectorAll('.st-kpi b')].every(b => b.textContent !== '…'), !!document.querySelector('.st-perf-c svg'), document.querySelectorAll('.st-svc2').length > 0, document.documentElement.classList.contains('th-st'), document.querySelectorAll('.st-bnav button').length]));
+  await A.pg.evaluate(() => document.querySelector('.h2-body').scrollTo(0, 99999)); await A.pg.waitForTimeout(400); await shot(A.pg, '108_vue_direction_bas');
+  log('Free (E) : pas de Vue Direction, barre du bas', await E.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.project = null; renderHome(); return new Promise(r => setTimeout(() => r([Team.taille(), !!document.querySelector('.st-dir'), [...document.querySelectorAll('.st-bnav span')].map(x => x.textContent)]), 800)); }));
+  await shot(E.pg, '109_free_ui_kit');
+  // fil d'Ariane : Entreprise › Projet, retour au tableau de bord
+  await A.pg.evaluate(async () => { await openProject((await DB.all('projects'))[0]); document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); App.section = 'tasks'; await renderSection(); }); await A.pg.waitForTimeout(600);
+  log('fil d\'Ariane', await A.pg.evaluate(() => [!!document.querySelector('.tb-crumb a'), (document.querySelector('.tb-crumb') || {}).textContent, document.getElementById('app').classList.contains('with-bnav')]));
+  await shot(A.pg, '110_fil_ariane');
+  await A.pg.click('.tb-crumb a'); await A.pg.waitForSelector('.st-dir', { timeout: 10000 }); log('fil d\'Ariane → tableau de bord', await A.pg.evaluate(() => !App.project));
+  // plusieurs postes : l'administrateur ajoute un poste Qualité au conducteur B
+  const bUid = await B.pg.evaluate(() => Team.uid()), bBefore = await B.pg.evaluate(() => ({ ...(Team.me() || {}).perms }));
+  await A.pg.evaluate(() => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); Team.openCompany('mem'); }); await A.pg.waitForSelector(`[data-uid="${bUid}"]`, { timeout: 15000 });
+  await A.pg.click(`[data-uid="${bUid}"]`); await A.pg.click('.opt:has-text("Poste, projets et droits")'); await A.pg.waitForSelector('[data-a=addposte]', { timeout: 10000 });
+  await A.pg.click('[data-a=addposte]'); await A.pg.waitForTimeout(400); await A.pg.locator('.opt:has-text("Qualité ›")').first().click(); await A.pg.waitForTimeout(400);
+  await shot(A.pg, '111_plusieurs_postes');
+  await A.pg.locator('.sheet [data-a=ok]').last().click(); await A.pg.waitForTimeout(2500);
+  await B.pg.evaluate(() => Team.refreshMembers()); await B.pg.waitForTimeout(1500);
+  log('plusieurs postes (B)', await B.pg.evaluate((before) => { const m = Team.me() || {}, P = m.perms || {}; return [(m.postes || []).length, Object.keys(P).some(k => (P[k] || 0) > (before[k] || 0))]; }, bBefore));
+  log('liste équipe : postes affichés', await A.pg.evaluate((u) => { const b = document.querySelector(`[data-uid="${u}"] small`); return b ? b.textContent.includes('+') : null; }, bUid));
+  // anti-capture : option de l'organisation (sur Android FLAG_SECURE ; ici la classe témoin)
+  await A.pg.evaluate(() => { document.querySelectorAll('.sheet-bg,.fullpage').forEach(x => x.remove()); Team.openCompany('set'); }); await A.pg.waitForSelector('[data-a=secure]', { timeout: 15000 });
+  await A.pg.click('[data-a=secure]'); await A.pg.waitForTimeout(1500);
+  log('anti-capture', await A.pg.evaluate(() => [Team.secureOn(), document.documentElement.classList.contains('st-secure'), Team.company().secureScreen]));
+  await A.pg.click('[data-a=secure]'); await A.pg.waitForTimeout(1200); log('anti-capture désactivé', await A.pg.evaluate(() => Team.secureOn()));
+  log('Enterprise : serveur privé', await Z.pg.evaluate(() => !!document.querySelector('[data-offer=enterprise] .st-of-srv')));
+  await A.pg.evaluate(() => { document.querySelectorAll('.sheet-bg,.fullpage').forEach(x => x.remove()); App.project = null; renderHome(); });
+  log('errors v1.0.30', [...A.errs, ...B.errs, ...E.errs, ...Z.errs].filter(x => !/401|403|400|permission/i.test(x)));
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);

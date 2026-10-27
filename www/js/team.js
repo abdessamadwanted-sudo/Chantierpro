@@ -52,6 +52,7 @@ function offerCard(P, perso, btn = true) {
     <div class="st-of-r"><span>Stockage</span><b>${storageL(P.storageGb)}</b></div>
     <details class="st-of-d"><summary><span>Outils inclus</span><b>${mods.length} sur ${MODS.length}${P.hier ? ' + hiérarchie' : ''}${P.shares ? ' + groupements' : ''}</b></summary>
       <div>${MODS.map(([m]) => `<i class="${mods.includes(m) ? 'on' : ''}">${mods.includes(m) ? '✓' : '—'} ${esc(MOD_LABEL(m))}</i>`).join('')}</div></details>
+    ${P.k === 'enterprise' && !perso ? '<div class="st-of-r st-of-srv"><span>🖥️ Serveur privé (vos données chez vous)</span><b>Contactez-nous</b></div>' : ''}
     ${btn ? (locked ? `<button class="btn ghost" data-req="${P.k}">Demander l'accès</button>` : `<button class="btn ${P.highlight ? '' : 'ghost'}" data-p="${P.k}">${act}</button>`) : ''}</div>`;
 }
 // état de l'abonnement (la facturation n'existe pas encore : l'activation est faite par le Super Admin)
@@ -584,6 +585,10 @@ const Team = (() => {
   const lvl = (mod) => lvlFor(mod, curPid());
   // réglages généraux décidés dans le panneau d'administration (config/app) : version minimale, maintenance, message, fonctions coupées
   const appCfg = () => LS.get('appCfg') || {};
+  // anti-capture d'écran (Android FLAG_SECURE) : option de l'organisation, ou imposée à tous par le Super Admin (config/app.secureAll)
+  const secureOn = () => !!(appCfg().secureAll || (S.ready && (S.company || {}).secureScreen && !isPerso()));
+  let _sec = null;
+  function secureApply() { const on = secureOn(); if (on === _sec) return; _sec = on; const P = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.SecureScreen; if (P && P.set) P.set({ on }).catch(() => {}); document.documentElement.classList.toggle('st-secure', on); }
   const isOff = (mod) => !!mod && Array.isArray(appCfg().off) && appCfg().off.includes(mod) && !isSuper();
   const canSection = (k) => !isOff(SECTION_MOD[k] || 'projet') && lvl(SECTION_MOD[k] || 'projet') >= 1;
   const isAdmin = () => !S.ready || !!(S.me && S.me.admin);
@@ -594,6 +599,8 @@ const Team = (() => {
   const orgType = () => orgTypeOf((S.company || {}).orgType || ((S.company || {}).kind === 'perso' ? 'independant' : 'entreprise'));
   // espace personnel vu par son propriétaire ; un collaborateur invité sur un projet voit seulement ce projet
   const isPerso = () => (S.company || {}).kind === 'perso' && (S.me || {}).role !== 'collaborateur';
+  // taille d'entreprise (décision du 27/10) : elle suit le pack — Basic = petite · Business = moyenne · Enterprise = grande
+  const taille = () => { if ((S.company || {}).kind === 'perso') return 'perso'; const k = myPlan().k; return k === 'enterprise' ? 'grande' : k === 'business' ? 'moyenne' : 'petite'; };
   const isCollab = () => (S.me || {}).role === 'collaborateur';
   // services de l'organisation : ceux choisis à la création (+ externes + ceux déjà utilisés par un membre) ; anciennes entreprises : tous
   const companyServices = () => { const c = S.company || {}; if (!Array.isArray(c.services)) return TM_SERVICES.filter(x => !SERVICES_LEGACY.includes(x.k) || (S.members || []).some(m => m.service === x.k));
@@ -1568,7 +1575,7 @@ const Team = (() => {
       const inv = $('[data-a=invite]', el); if (inv) inv.onclick = () => inviteFlow().then(c => { if (c) { tab = 'inv'; draw(); } });
       const body = $('.tm-body', el);
       const av = (m) => `<span class="tm-av" style="background:${serviceOf(m.service).c}">${esc(String(m.name || m.email || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase())}</span>`;
-      const card = (m) => `<button class="tm-mem" data-uid="${m.uid}">${av(m)}<span class="grow"><b>${esc(m.name || m.email)}</b><small>${esc(tmRoleOf(m.role).l)}${m.zone ? ' · ' + esc(m.zone) : ''}${m.admin ? ' · admin' : ''}</small></span>${m.uid === S.user.uid ? '<i class="tm-me">moi</i>' : ''}</button>`;
+      const card = (m) => `<button class="tm-mem" data-uid="${m.uid}">${av(m)}<span class="grow"><b>${esc(m.name || m.email)}</b><small>${esc([m.role, ...(m.postes || [])].map(k => tmRoleOf(k).l).join(' + '))}${m.zone ? ' · ' + esc(m.zone) : ''}${m.admin ? ' · admin' : ''}</small></span>${m.uid === S.user.uid ? '<i class="tm-me">moi</i>' : ''}</button>`;
       if (tab === 'org') {
         const rIdx = (m) => (tmRoleOf(m.role).rank || 9) * 1000 + TM_ROLES.findIndex(r => r.k === m.role);
         const tree = (list, parent, depth) => list.filter(m => (m.managerUid || null) === parent || (depth === 0 && m.managerUid && !list.some(x => x.uid === m.managerUid)))
@@ -1617,8 +1624,11 @@ const Team = (() => {
             <button class="btn ghost small" data-a="rules">Copier les règles</button></div>
           <div class="tm-box"><b>🗂 Règles Cloud Storage (fichiers partagés)</b><p>À coller dans la console Firebase › Storage › Règles › Publier (accepter l'accès à Firestore si la console le demande).</p>
             <button class="btn ghost small" data-a="srules">Copier les règles Storage</button></div>
+          <div class="tm-box"><b>🔒 Confidentialité de l'écran</b><p>Interdire les captures et l'enregistrement de l'écran pour tous les membres (l'application apparaît noire dans les applications récentes). Une photo de l'écran avec un autre téléphone reste possible.</p>
+            <label class="tm-ck"><input type="checkbox" data-a="secure" ${(S.company || {}).secureScreen ? 'checked' : ''} ${appCfg().secureAll ? 'disabled' : ''}> Anti-capture d'écran${appCfg().secureAll ? ' (imposé par SiteTeam)' : ''}</label></div>
           <div class="tm-box"><b>🏢 Entreprise</b><button class="btn ghost small" data-a="ren">Renommer l'entreprise</button></div></div>`;
         $('[data-a=drive]', body).onclick = () => Sync.openSyncSettings();
+        const sc = $('[data-a=secure]', body); if (sc) sc.onchange = async () => { try { await fs.collection('companies').doc(S.cid).update({ secureScreen: sc.checked }); S.company.secureScreen = sc.checked; LS.set('company', S.company); secureApply(); toast(sc.checked ? 'Anti-capture activé ✓' : 'Anti-capture désactivé'); } catch (e) { sc.checked = !sc.checked; alertBox(errMsg(e)); } };
         const sup = $('[data-a=super]', body); if (sup) sup.onclick = () => superConsole();
         const adm = $('[data-a=admin]', body); if (adm) adm.onclick = () => { location.href = 'admin.html' + (/[?&]emu=1/.test(location.search) ? '?emu=1' : ''); };
         $('[data-a=catalog]', body).onclick = () => openCatalogue();
@@ -1769,10 +1779,13 @@ const Team = (() => {
       const tpl = (k) => cap(Object.fromEntries(MODS.map(([m]) => [m, Math.min(tmRoleOf(k).perms[m] || 0, 3)])));
       if (!o.role) o = { ...o, role: (roles.find(r => svcOpen(r.s) && svcs.some(x => x.k === r.s) && r.k === 'techqualite') || roles.find(r => svcOpen(r.s) && svcs.some(x => x.k === r.s) && !r.admin) || roles[0]).k };
       if (lim && o.managerUid == null) o = { ...o, managerUid: mine.uid };
-      const st = { role: o.role || 'conducteur', managerUid: o.managerUid || '', allProjects: o.allProjects !== false && !(o.projects || []).length, projects: [...(o.projects || [])], zone: o.zone || '', name: o.name || '', admin: !lim && !!o.admin, perms: o.perms ? cap({ ...o.perms }) : tpl(o.role || 'conducteur'), custom: false };
+      const st = { role: o.role || 'conducteur', managerUid: o.managerUid || '', allProjects: o.allProjects !== false && !(o.projects || []).length, projects: [...(o.projects || [])], zone: o.zone || '', name: o.name || '', admin: !lim && !!o.admin, perms: o.perms ? cap({ ...o.perms }) : tpl(o.role || 'conducteur'), custom: false, postes: [...(o.postes || [])] };
+      // plusieurs postes (v1.0.30) : poste principal + postes supplémentaires ; les droits proposés = le maximum de chaque poste
+      const tplAll = () => [st.role, ...st.postes].reduce((a, k) => { const t = tpl(k); for (const m in t) a[m] = Math.max(a[m] || 0, t[m] || 0); return a; }, {});
       const s = sheet(`<div class="form tm-form">
         ${o.withName ? '<label>Nom (optionnel)<input data-f="name" placeholder="Ex : Youssef (chef de chantier zone 11)"></label>' : ''}
         <label>Poste<select data-f="role">${svcs.map(sv => `<optgroup label="${svcOpen(sv.k) ? '' : '🔒 '}${esc(sv.l)}">${roles.filter(r => r.s === sv.k).sort((a, b) => (a.rank || 9) - (b.rank || 9)).map(r => `<option value="${r.k}" ${!svcOpen(sv.k) && r.k !== o.role ? 'disabled' : ''}>${esc(r.l)}</option>`).join('')}</optgroup>`).join('')}</select></label>
+        ${o.uid ? '<div class="fld">Postes supplémentaires</div><div class="tm-extra" data-extra></div><button type="button" class="btn ghost small" data-a="addposte">＋ Ajouter un poste</button>' : ''}
         <div ${P.hier ? '' : 'hidden'}><label>Responsable direct<select data-f="managerUid"><option value="">— aucun —</option>${S.members.filter(m => m.uid !== o.uid).map(m => `<option value="${m.uid}">${esc(m.name || m.email)} · ${esc(tmRoleOf(m.role).l)}</option>`).join('')}</select></label>
         <label>Zone / lot / niveau (périmètre)<input data-f="zone" placeholder="Ex : Zone 11, Lot gros œuvre…"></label></div>
         <div class="fld">Projets</div><label class="tm-ck" ${lim && !mine.allProjects ? 'hidden' : ''}><input type="checkbox" data-all> Tous les projets (actuels et futurs)</label>
@@ -1794,12 +1807,17 @@ const Team = (() => {
         $$('[data-pm]', pe).forEach(sel => sel.onchange = async () => { const m = sel.dataset.pm, v = +sel.value, was = +st.perms[m] || 0;
           if (v === 4 && was < 4 && !(await confirmBox(`Donner « Administrer » sur « ${(MODS.find(x => x[0] === m) || [m, m])[1]} » ?\nLa personne pourra tout modifier et supprimer dans cet outil.`, 'Donner Administrer'))) { sel.value = was; return; }
           st.perms[m] = v; st.perms = cap(st.perms); sel.value = st.perms[m]; st.custom = true; }); };
-      f('role').onchange = () => { st.role = f('role').value; st.perms = tpl(st.role); pedit(); };
+      const drawX = () => { const x = $('[data-extra]', E); if (!x) return; x.innerHTML = st.postes.length ? st.postes.map(k => `<span class="tm-xp">${esc(tmRoleOf(k).l)}<button type="button" data-xrm="${k}">✕</button></span>`).join('') : '<small class="muted">Aucun — la personne n\'a que son poste principal</small>';
+        $$('[data-xrm]', x).forEach(b => b.onclick = () => { st.postes = st.postes.filter(k => k !== b.dataset.xrm); if (!st.custom) st.perms = tplAll(); drawX(); pedit(); }); };
+      drawX();
+      const ap = $('[data-a=addposte]', E); if (ap) ap.onclick = async () => { const L = roles.filter(r => !r.admin && r.k !== st.role && !st.postes.includes(r.k) && svcOpen(r.s) && svcs.some(x => x.k === r.s));
+        const k = await menu('Poste supplémentaire', L.map(r => ({ label: `${(svcs.find(x => x.k === r.s) || {}).l || ''} › ${r.l}`, value: r.k }))); if (!k) return; st.postes.push(k); if (!st.custom) st.perms = tplAll(); drawX(); pedit(); };
+      f('role').onchange = () => { st.role = f('role').value; st.postes = st.postes.filter(k => k !== st.role); st.perms = tplAll(); drawX(); pedit(); };
       $('[data-admin]', E).onchange = async (e) => { if (e.target.checked && !st.admin) { const ok = await confirmBox('Donner le statut Administrateur ?\nLa personne pourra gérer les membres, les codes d\'accès, les droits et les réglages de l\'organisation.', 'Donner le statut'); e.target.checked = ok; } st.admin = e.target.checked; };
       $('[data-a=perms]', E).onclick = () => { const pe = $('.tm-pedit', E); pe.hidden = !pe.hidden; pedit(); };
       $('[data-a=c]', E).onclick = () => s.close();
       $('[data-a=ok]', E).onclick = () => {
-        const out = { name: f('name') ? f('name').value.trim() : undefined, role: f('role').value, managerUid: f('managerUid').value || null, zone: f('zone').value.trim(), allProjects: st.allProjects, projects: st.allProjects ? [] : st.projects, admin: !lim && $('[data-admin]', E).checked, perms: cap(st.perms) };
+        const out = { name: f('name') ? f('name').value.trim() : undefined, role: f('role').value, managerUid: f('managerUid').value || null, zone: f('zone').value.trim(), allProjects: st.allProjects, projects: st.allProjects ? [] : st.projects, admin: !lim && $('[data-admin]', E).checked, perms: cap(st.perms), postes: st.postes };
         if (!out.allProjects && !out.projects.length && !confirm('Aucun projet coché : la personne ne verra aucun projet. Continuer ?')) return;
         s.onClose = null; s.close(); resolve(out);
       };
@@ -1829,7 +1847,7 @@ const Team = (() => {
     if (m.uid === S.user.uid && !o.admin && !S.members.some(x => x.uid !== m.uid && x.admin)) { alertBox('Il faut au moins un administrateur.'); return false; }
     const R = tmRoleOf(o.role);
     try {
-      await withTimeout(ref.update({ role: R.k, service: R.s, managerUid: o.managerUid, zone: o.zone, allProjects: o.allProjects, projects: o.projects, admin: o.admin, perms: o.perms }));
+      await withTimeout(ref.update({ role: R.k, service: R.s, managerUid: o.managerUid, zone: o.zone, allProjects: o.allProjects, projects: o.projects, admin: o.admin, perms: o.perms, ...(isAdmin() ? { postes: (o.postes || []).filter(k => k !== R.k) } : {}) }));
       toast('Enregistré ✓');
       return true;
     } catch (e) { alertBox(errMsg(e)); return false; }
@@ -2031,7 +2049,7 @@ const Team = (() => {
   }
 
   return {
-    boot, push, pull, resetPull, lvl, canSection, canProject, isAdmin, openCompany, inviteFlow, logout, decorateSection, removeMember, refreshMembers,
+    boot, push, pull, resetPull, lvl, canSection, canProject, isAdmin, openCompany, taille, secureApply, secureOn, inviteFlow, logout, decorateSection, removeMember, refreshMembers,
     isSuper, superConsole, orgType, isPerso, companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, workspaces: () => S.workspaces || [],
     profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
     openProjectShares, claimShare, openPartners, renderHistory, sharedOf, joinWithCode,
