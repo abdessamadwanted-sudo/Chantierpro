@@ -1,5 +1,6 @@
 // ---------- Thèmes ----------
 const THEMES = [
+  ['siteteam', '🏗️ SiteTeam (clair)', 'linear-gradient(160deg,#F2F5F9,#E3EAF3)', '#2164A8'],
   ['dark', 'Classique', 'linear-gradient(160deg,#2c313a,#1b1e24)', '#5b8def'],
   ['glass', 'Verre', 'radial-gradient(60% 40% at 0 0,#3b82f6aa,transparent),radial-gradient(50% 40% at 100% 40%,#a855f7aa,transparent),#0e1430', 'linear-gradient(135deg,#4f8cff,#a855f7)'],
   ['sakura', '🌸 Sakura', 'radial-gradient(60% 40% at 0 0,#ff6faecc,transparent),radial-gradient(50% 40% at 100% 40%,#ffb6d5aa,transparent),#2a0f22', 'linear-gradient(135deg,#ff6fae,#c084fc)'],
@@ -16,11 +17,14 @@ const themeInt = () => { try { return localStorage.getItem('theme.int') || 'comp
 function applyTheme(t) {
   const h = document.documentElement;
   h.className = h.className.split(' ').filter(c => c && c !== 'glass' && c !== 'sober' && !c.startsWith('th-') && !c.startsWith('gi-')).join(' ');
-  if (t === 'pro' || t === 'net') h.classList.add('sober', 'th-' + t);   // thèmes professionnels : sobres, sans effets
+  if (t === 'siteteam') h.classList.add('sober', 'th-net', 'th-st');   // SiteTeam UI Kit : clair, Navy / Blue / Amber / Green
+  else if (t === 'pro' || t === 'net') h.classList.add('sober', 'th-' + t);   // thèmes professionnels : sobres, sans effets
   else if (t && t !== 'dark') { h.classList.add('glass'); if (t !== 'glass') h.classList.add('th-' + t); h.classList.add('gi-' + themeInt()); }
-  const meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.content = ({ dark: '#1b1e24', glass: '#0e1430', pro: '#15171b', net: '#ffffff' })[t] || getComputedStyle(h).getPropertyValue('--base').trim() || '#1b1e24';
+  const meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.content = ({ dark: '#1b1e24', glass: '#0e1430', pro: '#15171b', net: '#ffffff', siteteam: '#ffffff' })[t] || getComputedStyle(h).getPropertyValue('--base').trim() || '#1b1e24';
 }
-const curTheme = () => { try { return localStorage.getItem('theme') || 'dark'; } catch (e) { return 'dark'; } };
+// v1.0.30 : le thème SiteTeam (UI Kit) devient le thème par défaut ; un thème choisi auparavant (autre que « Classique ») est conservé
+try { if (!localStorage.getItem('theme.v30')) { const t0 = localStorage.getItem('theme'); if (!t0 || t0 === 'dark') localStorage.setItem('theme', 'siteteam'); localStorage.setItem('theme.v30', '1'); } } catch (e) {}
+const curTheme = () => { try { return localStorage.getItem('theme') || 'siteteam'; } catch (e) { return 'siteteam'; } };
 try { applyTheme(curTheme()); } catch (e) {}
 function chooseTheme(after) {
   const s = sheet(`<div style="padding:0 16px 14px"><h3 style="margin:0 0 10px">Apparence</h3><div class="thm-grid">${THEMES.map(([k, l, bg, fab]) => `<button class="thm ${curTheme() === k ? 'on' : ''}" data-t="${k}"><i style="background:${bg};--fab:${fab}"><u></u></i>${l}</button>`).join('')}</div>
@@ -103,6 +107,7 @@ const rapLabel = (x) => { const d = rapDays(x); return d < 0 ? ` · en retard de
 async function renderHome() {
   App.fromBrief = null;
   const keepScroll = App.project ? 0 : (($('.h2-body') || {}).scrollTop || 0);
+  $('#app').classList.remove('with-bnav');
   App.homeFocus = null;   // plus de page intermédiaire : la liste des chantiers, un toucher = on entre
   App.project = null;
   BackStack.length = 0;
@@ -165,7 +170,9 @@ async function renderHome() {
       <div class="h2-body">
         ${(() => { const M = Team.ready() && Team.appCfg().message; let off = ''; try { off = localStorage.getItem('st.msgOff') || ''; } catch (e) {}
           return M && M.on && M.text && off !== String(M.id || M.text) ? `<div class="st-msg ${M.level === 'alerte' ? 'al' : ''}"><span>${M.level === 'alerte' ? '⚠️' : '📣'}</span><p>${esc(M.text)}</p><button class="iconbtn sm" data-a="msgoff" aria-label="Masquer">${icon('close')}</button></div>` : ''; })()}
+        ${ST.directionHTML()}${ST.serviceHTML()}
         ${ST.dashHTML()}
+        ${ST.toolsHTML()}
         ${ST.isPerso() || (Team.ready() && Team.isCollab()) ? '' : espaceHome()}
         ${fp ? focusHTML() : `<div class="h2-sec"><span>Mes chantiers</span><small>${projects.length}</small></div>
         ${projects.length ? projects.map(p => { const st = stats(p), [c1, c2] = hue(p.name), open = !!App.homeOpen[p.id];
@@ -341,15 +348,17 @@ async function renderSection() {
   const c0 = $('#content'); if (c0 && App.lastSecKey) App.secScroll[App.lastSecKey] = [c0.scrollTop, (document.scrollingElement || {}).scrollTop || 0];
   const secKey = App.project.id + '|' + App.section; App.lastSecKey = secKey;
   const s = SECTIONS[App.section];
+  $('#app').classList.remove('with-bnav');
   $('#app').innerHTML = `
     <div class="topbar dark">
       <button class="iconbtn" data-a="drawer">${icon('menu')}</button>
-      ${s.title ? `<div class="tb-title"><b>${esc(s.title)}</b><span>${esc(App.project.name)}</span></div><div class="tb-actions" id="tbActions"></div>`
-        : `<h1>${esc(App.project.name)}</h1><button class="iconbtn" data-a="home">${icon('home')}</button>`}
+      ${s.title ? `<div class="tb-title"><b>${esc(s.title)}</b><span class="tb-crumb">${Team.ready() && (Team.company() || {}).name ? `<a data-a="crumb">${esc(Team.company().name)}</a> › ` : ''}${esc(App.project.name)}</span></div><div class="tb-actions" id="tbActions"></div>`
+        : (Team.ready() && (Team.company() || {}).name ? `<div class="tb-title"><b>${esc(App.project.name)}</b><span class="tb-crumb"><a data-a="crumb">${esc(Team.company().name)}</a> › ${esc(s.label || '')}</span></div><button class="iconbtn" data-a="home">${icon('home')}</button>` : `<h1>${esc(App.project.name)}</h1><button class="iconbtn" data-a="home">${icon('home')}</button>`)}
     </div>
     <div class="content" id="content"></div>`;
   $('[data-a=drawer]').onclick = openDrawer;
   const hb = $('[data-a=home]'); if (hb) hb.onclick = renderHome;
+  const cr = $('[data-a=crumb]'); if (cr) cr.onclick = (e) => { e.stopPropagation(); renderHome(); };
   await s.render($('#content'));
   const sv = App.secScroll[secKey]; if (sv && !App.scrollFolder) requestAnimationFrame(() => { const c1 = $('#content'); if (c1 && App.lastSecKey === secKey) { c1.scrollTop = sv[0]; if (document.scrollingElement) document.scrollingElement.scrollTop = sv[1]; } });
   Team.decorateSection(App.section);
@@ -1011,7 +1020,7 @@ async function renderTasks(root) {
       <div class="row" data-id="${t.id}"><span class="tasknum" style="background:${STATUS[t.status].color}">${t.num}</span>
         <div class="grow"><div class="title">${esc(t.title || 'Sans titre')}</div>
         <div class="sub">${c ? `<span class="dot" style="background:${c.color};width:8px;height:8px"></span> ${esc(c.name)} · ` : ''}${[KINDS[t.kind || 'reserve'], planName(t.planId) && '📍 ' + planName(t.planId), t.due && '⏰ ' + fmtDate(t.due)].filter(Boolean).map(esc).join(' · ')}</div></div>
-        ${late ? `<span class="late-badge">Retard</span>` : `<span style="color:${['', '#ef4444', '#f59e0b', '#9aa3b2'][t.priority]};font-weight:700;font-size:13px">P${t.priority}</span>`}</div>`; }).join('')}</div>`
+        ${late ? `<span class="late-badge">Retard</span>` : `<span style="color:${['', '#ef4444', '#f59e0b', '#9aa3b2'][t.priority || 2]};font-weight:700;font-size:13px">P${t.priority || 2}</span>`}</div>`; }).join('')}</div>`
     : `<div class="empty">Rien ici.<br>Créez une réserve avec <b>+</b> ou placez un pin sur un plan.</div>`}`;
   $$('[data-f]', root).forEach(b => b.onclick = () => { App.taskFilter = b.dataset.f; renderTasks(root); });
   $$('[data-co]', root).forEach(b => b.onclick = () => { App.companyFilter = b.dataset.co; renderTasks(root); });

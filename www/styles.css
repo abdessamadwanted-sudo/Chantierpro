@@ -2568,3 +2568,78 @@ body:has(.pst-page) #plansFab, body:has(.rub-page) #plansFab, body:has(.scanpage
 .gd-btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; background: #fff; color: #1f2937; border: 1px solid #dadce0; font-weight: 600; }
 .gd-g { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: conic-gradient(#ea4335 0 25%, #fbbc05 0 50%, #34a853 0 75%, #4285f4 0); color: #fff; font-weight: 800; font-size: 13px; }
 .gd-adv { margin-top: 6px; } .gd-adv > summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 6px 0; }
+
+/* ================= v1.0.30 · SiteTeam UI Kit (thème clair par défaut) =================
+   Navy #142337 · Blue #2164A8 · Amber #F4A340 · Green #18866B · Cloud #F2F5F9 — mêmes composants pour tous les services */
+html.th-st { --bg: #F2F5F9; --bg2: #FFFFFF; --card: #FFFFFF; --card2: #EEF2F7; --line: #DDE4EE; --text: #142337; --muted: #5B6B80;
+  --accent: #2164A8; --accent2: #1A5290; --navy: #142337; --amber: #F4A340; --green: #18866B; --blue: #2164A8; --orange: #F4A340; --role: #2164A8; }
+html.th-st .home2, html.th-st body { background: var(--bg) !important; }
+html.th-st .h2-hero { background: #FFFFFF !important; border-bottom: 1px solid var(--line); box-shadow: none !important; }
+html.th-st .h2-hello { color: var(--navy) !important; font-weight: 700; } html.th-st .h2-phrase, html.th-st .h2-date { color: var(--muted) !important; }
+html.th-st .h2-top .brand .bt { color: var(--navy); }
+html.th-st .h2-acts .iconbtn, html.th-st .h2-acts .h2-cloud { color: var(--navy) !important; }
+html.th-st .h2-sec span { color: var(--navy) !important; } html.th-st .h2-sec small { color: var(--muted); }
+html.th-st .h2-card, html.th-st .h2-proj { background: #fff !important; border: 1px solid var(--line) !important; border-radius: 18px !important; box-shadow: 0 2px 10px rgba(20,35,55,.05) !important; }
+html.th-st .btn:not(.ghost):not(.danger) { background: var(--accent); color: #fff; }
+html.th-st .btn.ghost { color: var(--accent); border-color: var(--line); background: #fff; }
+html.th-st .fab { background: var(--accent) !important; color: #fff; box-shadow: 0 8px 20px rgba(33,100,168,.35) !important; }
+html.th-st .topbar, html.th-st .topbar.dark { background: #fff !important; color: var(--navy) !important; border-bottom: 1px solid var(--line); }
+html.th-st .st-wsc { border-color: var(--line); background: #fff; } html.th-st .st-wsc i { color: var(--accent); }
+html.th-st .st-tile { background: #fff; border-color: var(--line); } html.th-st .st-tile b { color: var(--navy); }
+html.th-st .sheet { background: #fff; color: var(--text); }
+html.th-st .drawer { background: #fff; color: var(--text); } html.th-st .drawer .item.active { background: var(--accent) !important; }
+html.th-st input, html.th-st select, html.th-st textarea { background: #fff; color: var(--text); border-color: var(--line); }
+
+/* fil d'Ariane : Entreprise › Projet (toucher le nom de l'entreprise = retour au tableau de bord) */
+.tb-crumb a { color: var(--accent); font-weight: 600; text-decoration: none; }
+
+/* ---- Tableau de bord « Vue Direction » ---- */
+.st-dir { display: grid; gap: 12px; margin: 0 4px 16px; }
+.st-dir-hero { background: #142337; color: #fff; border-radius: 22px; padding: 18px 18px 16px; display: grid; gap: 4px; box-shadow: 0 10px 24px rgba(20,35,55,.22); }
+.st-dir-hero small { font-size: 11.5px; letter-spacing: .08em; color: #b8c4d6; text-transform: uppercase; }
+.st-dir-hero b { font-size: 26px; line-height: 1.15; font-weight: 700; }
+.st-dir-hero span { font-size: 14px; color: #cfd8e6; }
+.st-dir-pills { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.st-dir-pills i, .st-dir-pills button { font-style: normal; font-size: 13px; padding: 8px 14px; border-radius: 12px; background: #24395a; color: #fff; }
+.st-dir-pills button { background: #2164A8; }
+.st-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.st-kpi { display: grid; justify-items: start; gap: 2px; padding: 14px 16px; border-radius: 18px; background: var(--card); border: 1px solid var(--line); text-align: left; color: var(--text); }
+.st-kpi .ic { font-size: 18px; } .st-kpi b { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--navy, var(--text)); line-height: 1.1; }
+.st-kpi small { font-size: 13px; color: var(--muted); }
+.st-kpi.warn b { color: #c2410c; } .st-kpi.warn { border-color: #F4A34088; }
+.st-perf, .st-svcrow { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 14px 14px 10px; }
+.st-perf-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.st-perf-h b { font-size: 16px; color: var(--navy, var(--text)); } .st-perf-h small { color: var(--muted); font-size: 12.5px; }
+.st-perf-c svg { width: 100%; height: 110px; display: block; }
+.st-perf-c .gl { stroke: var(--line); stroke-dasharray: 4 4; } .st-perf-c .ln { fill: none; stroke: #2164A8; stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
+.st-perf-c .ar { fill: #2164A81f; } .st-perf-c .pt { fill: #2164A8; stroke: #fff; stroke-width: 2; }
+.st-perf-x { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); margin-top: 4px; }
+.st-svcs2 { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.st-svc2 { flex: none; display: grid; justify-items: start; gap: 1px; min-width: 112px; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--line); border-top: 3px solid var(--c); background: var(--card); color: var(--text); text-align: left; }
+.st-svc2 span { font-size: 18px; } .st-svc2 b { font-size: 13.5px; } .st-svc2 small { font-size: 11.5px; color: var(--muted); }
+
+/* ---- barre de navigation du bas ---- */
+.st-bnav { position: fixed; left: 10px; right: 10px; bottom: calc(10px + var(--safe-bottom)); z-index: 40; display: grid; grid-template-columns: repeat(4, 1fr);
+  background: var(--card); border: 1px solid var(--line); border-radius: 20px; box-shadow: 0 8px 26px rgba(20,35,55,.16); padding: 6px; }
+.st-bnav button { display: grid; justify-items: center; gap: 2px; padding: 6px 2px; border-radius: 14px; color: var(--muted); font-size: 11.5px; }
+.st-bnav button svg.i { width: 22px; height: 22px; } .st-bnav button.on { color: var(--accent); }
+#app.with-bnav .fab { bottom: calc(92px + var(--safe-bottom)); }
+#app.with-bnav .home2 .h2-body { padding-bottom: 170px !important; }
+.st-of-srv span { color: var(--text); }
+.tm-extra { display: flex; flex-wrap: wrap; gap: 6px; } .tm-xp { display: inline-flex; align-items: center; gap: 4px; padding: 5px 4px 5px 10px; border-radius: 999px; background: var(--card2); border: 1px solid var(--line); font-size: 13px; }
+.tm-xp button { width: 22px; height: 22px; border-radius: 50%; font-size: 11px; color: var(--muted); }
+/* ---- Mes outils par catégorie ---- */
+.st-tools { margin: 4px 4px 16px; display: grid; gap: 10px; }
+.st-tools .h2-sec { margin: 0 0 2px; }
+.st-tcat { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 12px; }
+.st-tcat-h { display: flex; justify-content: space-between; align-items: baseline; font-weight: 700; font-size: 14.5px; margin-bottom: 8px; color: var(--navy, var(--text)); }
+.st-tcat-h small { color: var(--muted); font-weight: 500; }
+.st-tgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.st-tool { display: grid; justify-items: center; gap: 6px; padding: 12px 4px; border-radius: 14px; background: var(--card2); color: var(--text); font-size: 12px; line-height: 1.2; text-align: center; min-height: 78px; }
+.st-tool svg.i { width: 24px; height: 24px; color: var(--accent); }
+/* correctifs v1.0.30 : pas de débordement horizontal ; espaces métier en clair */
+.st-dir, .st-tools { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.st-dir > *, .st-kpis > * { min-width: 0; }
+.st-dir-hero small { white-space: normal; overflow-wrap: anywhere; }
+html.th-st .es-tile { background: #fff; border-color: var(--line); color: var(--navy); box-shadow: 0 2px 8px rgba(20,35,55,.05); }
+html.th-st .es-tile .i { color: var(--c, var(--accent)); }
