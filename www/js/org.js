@@ -285,13 +285,13 @@ function orgSvg(p, collapsed, { forExport } = {}) {
   const L = p.team, Ly = orgLayout(L, collapsed), { pos, par, CW, CH } = Ly, O = 20;
   const X = (s) => esc(String(s || ''));
   const lines = [...pos.values()].filter(q => par.get(q.m.id) && pos.has(par.get(q.m.id))).map(q => { const a = pos.get(par.get(q.m.id)), x1 = a.x + O + CW / 2, y1 = a.y + O + CH, x2 = q.x + O + CW / 2, y2 = q.y + O, my = (y1 + y2) / 2;
-    return `<path d="M${x1} ${y1} V${my} H${x2} V${y2}" fill="none" stroke="${forExport ? '#94a3b8' : 'rgba(148,163,184,.55)'}" stroke-width="1.6"/>`; }).join('');
+    return `<path d="M${x1} ${y1} V${my} H${x2} V${y2}" fill="none" stroke="${forExport ? '#94a3b8' : 'var(--muted)'}" stroke-opacity="${forExport ? 1 : .55}" stroke-width="1.6"/>`; }).join('');
   const cards = [...pos.values()].map(({ x, y, m, n }) => { const c = memColor(m), P = memPoste(m), x0 = x + O, y0 = y + O;
-    return `<g data-m="${m.id}" style="cursor:pointer"><rect x="${x0}" y="${y0}" width="${CW}" height="${CH}" rx="12" fill="${forExport ? '#ffffff' : '#1e293b'}" stroke="${c}" stroke-width="1.6"/>
+    return `<g data-m="${m.id}" style="cursor:pointer"><rect x="${x0}" y="${y0}" width="${CW}" height="${CH}" rx="12" fill="${forExport ? '#ffffff' : 'var(--card)'}" stroke="${c}" stroke-width="1.6"/>
       <rect x="${x0}" y="${y0}" width="6" height="${CH}" rx="3" fill="${c}"/>
       <circle cx="${x0 + 28}" cy="${y0 + CH / 2}" r="15" fill="${c}"/><text x="${x0 + 28}" y="${y0 + CH / 2 + 5}" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">${X((m.name || '?')[0].toUpperCase())}</text>
-      <text x="${x0 + 50}" y="${y0 + 26}" font-size="13" font-weight="700" fill="${forExport ? '#0f172a' : '#f1f5f9'}">${X((m.name || '').slice(0, 17))}${m.me ? ' (moi)' : ''}</text>
-      <text x="${x0 + 50}" y="${y0 + 43}" font-size="10.5" fill="${forExport ? '#475569' : '#94a3b8'}">${X(((P && P.n) || m.role || '').slice(0, 24))}</text>
+      <text x="${x0 + 50}" y="${y0 + 26}" font-size="13" font-weight="700" fill="${forExport ? '#0f172a' : 'var(--text)'}">${X((m.name || '').slice(0, 17))}${m.me ? ' (moi)' : ''}</text>
+      <text x="${x0 + 50}" y="${y0 + 43}" font-size="10.5" fill="${forExport ? '#475569' : 'var(--muted)'}">${X(((P && P.n) || m.role || '').slice(0, 24))}</text>
       <text x="${x0 + 50}" y="${y0 + 58}" font-size="10" fill="${c}">${X(((P && P.svc.n) || '').slice(0, 24))}${m.interim ? ' · intérim' : ''}</text>
       ${n ? `<g data-cl="${m.id}"><circle cx="${x0 + CW / 2}" cy="${y0 + CH}" r="9" fill="${c}"/><text x="${x0 + CW / 2}" y="${y0 + CH + 4}" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">${collapsed.has(m.id) ? '+' : '−'}</text></g>` : ''}</g>`; }).join('');
   return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${Ly.W}" height="${Ly.H}" viewBox="0 0 ${Ly.W} ${Ly.H}" font-family="Roboto, Arial, sans-serif">${forExport ? `<rect width="100%" height="100%" fill="#fff"/>` : ''}${lines}${cards}</svg>`, W: Ly.W, H: Ly.H, pos: Ly.pos, CW, CH, O };
@@ -308,7 +308,7 @@ async function renderOrg(root) {
   const save = () => DB.put('projects', p), redraw = () => renderOrg(root);
   root.innerHTML = `<div class="og"><div class="og-bar"><b>Organigramme</b><small>${p.team.length} personne(s)</small><span class="grow"></span>
       ${canE ? `<button class="btn small" data-a="add">${icon('plus')} Personne</button>` : ''}<button class="iconbtn" data-a="exp">${icon('share')}</button></div>
-    <div class="og-vp"><div class="og-st"></div></div><div class="og-hint">Pincez pour zoomer · touchez une carte · ± pour plier une branche</div></div>`;
+    <div class="og-vp"><div class="og-st"></div><div class="og-zc"><button data-z="in" aria-label="Zoom avant">＋</button><button data-z="out" aria-label="Zoom arrière">－</button><button data-z="fit" aria-label="Ajuster">⤢</button><button data-z="full" aria-label="Plein écran">⛶</button></div></div><div class="og-hint">Glissez pour déplacer · pincez ou ＋/－ pour zoomer · touchez une carte · ± pour plier une branche</div></div>`;
   const vp = $('.og-vp', root), stg = $('.og-st', root); let G;
   const build = () => { G = orgSvg(p, collapsed); stg.innerHTML = G.svg; stg.style.width = G.W + 'px'; stg.style.height = G.H + 'px'; };
   build();
@@ -317,6 +317,12 @@ async function renderOrg(root) {
       if (q.n && Math.hypot(x - (x0 + G.CW / 2), y - (y0 + G.CH)) < 14) { collapsed.has(q.m.id) ? collapsed.delete(q.m.id) : collapsed.add(q.m.id); p.orgCollapsed = [...collapsed]; save(); build(); return; }
       if (x >= x0 && x <= x0 + G.CW && y >= y0 && y <= y0 + G.CH) return orgFiche(p, q.m, canE, save, redraw); } } });
   setTimeout(() => { pz.fit(); if (pz.st.s > 1) { pz.st.s = 1; pz.apply(); } }, 30);
+  // commandes de zoom (v1.0.32) : ＋ / － au centre de l'écran, ajuster, plein écran
+  const ctr = () => [vp.clientWidth / 2, vp.clientHeight / 2];
+  $$('[data-z]', root).forEach(b => b.onclick = (e) => { e.stopPropagation(); const z = b.dataset.z;
+    if (z === 'in') pz.zoomAt(ctr(), pz.st.s * 1.35); if (z === 'out') pz.zoomAt(ctr(), pz.st.s / 1.35); if (z === 'fit') pz.fit();
+    if (z === 'full') { const og = $('.og', root); og.classList.toggle('full'); b.textContent = og.classList.contains('full') ? '✕' : '⛶'; setTimeout(() => pz.fit(), 60); } });
+  $$('.og-zc', root).forEach(x => ['pointerdown', 'pointerup'].forEach(ev => x.addEventListener(ev, e => e.stopPropagation())));
   if (canE) $('[data-a=add]', root).onclick = () => orgEditMember(p, null, save, redraw);
   $('[data-a=exp]', root).onclick = async () => {
     const v = await menu('Organigramme', [{ label: 'PDF (A4 / A3 paysage)', icon: 'pdf', value: 'pdf' }, { label: 'Image (WhatsApp)', icon: 'image', value: 'png' }]); if (!v) return;

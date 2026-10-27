@@ -170,14 +170,10 @@ async function renderHome() {
       <div class="h2-body">
         ${(() => { const M = Team.ready() && Team.appCfg().message; let off = ''; try { off = localStorage.getItem('st.msgOff') || ''; } catch (e) {}
           return M && M.on && M.text && off !== String(M.id || M.text) ? `<div class="st-msg ${M.level === 'alerte' ? 'al' : ''}"><span>${M.level === 'alerte' ? '⚠️' : '📣'}</span><p>${esc(M.text)}</p><button class="iconbtn sm" data-a="msgoff" aria-label="Masquer">${icon('close')}</button></div>` : ''; })()}
-        ${ST.directionHTML()}${ST.serviceHTML()}
-        ${ST.dashHTML()}
-        ${ST.toolsHTML()}
-        ${ST.isPerso() || (Team.ready() && Team.isCollab()) ? '' : espaceHome()}
-        ${fp ? focusHTML() : `<div class="h2-sec"><span>Mes chantiers</span><small>${projects.length}</small></div>
-        ${projects.length ? projects.map(p => { const st = stats(p), [c1, c2] = hue(p.name), open = !!App.homeOpen[p.id];
+        ${(() => {
+          // v1.0.32 : accueil en onglets (barre du bas) — Accueil · Projets · Outils ; chaque onglet est court, sans doublon
+          const card = (p) => { const st = stats(p), [c1, c2] = hue(p.name), open = !!App.homeOpen[p.id];
           const due = (x) => x.at && x.at.slice(0, 10) <= today;
-          const ropen = !!(App.homeRap || {})[p.id];
           if (!fRec) { st.today = 0; st.pv = 0; } if (!fTasks) { st.open = 0; st.late = 0; }
           return `<div class="h2-proj ${open ? 'open' : ''}"><div class="h2-stick"><button class="h2-card" data-id="${p.id}">
             <span class="h2-av" style="background:linear-gradient(135deg,${c1},${c2})">${esc(initials(p.name))}</span>
@@ -192,9 +188,19 @@ async function renderHome() {
                 ${!st.today && !st.pv && !st.open && !st.rap.length && !(st.av && st.av.late) ? '<i class="c-g">À jour ✓</i>' : ''}
               </span></span>
             <span class="h2-chev" data-det="${p.id}" style="transform:rotate(${open ? 180 : 0}deg)">${icon('chevdown')}</span></button></div>
-            ${open ? `<div class="h2-detw"><button class="h2-bbrief" data-brief="${p.id}">☀️ Briefing du chantier</button>${detHTML(p, st)}</div>` : ''}</div>`; }).join('')
-        : `<div class="h2-empty"><div class="ic">${icon('hard')}</div><b>Aucun chantier pour le moment</b><span>Créez votre premier projet avec le bouton <b>+</b>, ou récupérez vos données avec Google Drive.</span>
-            <button class="btn ghost" data-a="restore2" style="flex:none">${icon('undo')} Restaurer une sauvegarde</button></div>`}`}
+            ${open ? `<div class="h2-detw"><button class="h2-bbrief" data-brief="${p.id}">☀️ Briefing du chantier</button>${detHTML(p, st)}</div>` : ''}</div>`; };
+          const empty = `<div class="h2-empty"><div class="ic">${icon('hard')}</div><b>Aucun chantier pour le moment</b><span>Créez votre premier projet avec le bouton <b>+</b>, ou récupérez vos données avec Google Drive.</span>
+            <button class="btn ghost" data-a="restore2" style="flex:none">${icon('undo')} Restaurer une sauvegarde</button></div>`;
+          const tabs = Team.ready() && !Team.isCollab(), T = tabs ? (App.homeTab || 'home') : '';
+          const sec = (k, html) => tabs ? `<section class="h2-tab ${T === k ? 'on' : ''}" data-tab="${k}">${html}</section>` : html;
+          const all = `<div class="h2-sec"><span>Mes chantiers</span><small>${projects.length}</small></div>${projects.length ? projects.map(card).join('') : empty}`;
+          if (!tabs) return `${ST.directionHTML()}${ST.serviceHTML()}${ST.dashHTML()}${ST.isPerso() || (Team.ready() && Team.isCollab()) ? '' : espaceHome()}${fp ? focusHTML() : all}`;
+          const recent = projects.slice(0, 2);
+          return sec('home', `${ST.directionHTML()}${ST.serviceHTML()}${ST.dashHTML()}
+              <div class="h2-sec"><span>Derniers chantiers</span><small>${projects.length}</small>${projects.length > 2 ? '<button class="h2-more" data-tabgo="proj">Tous ›</button>' : ''}</div>${recent.length ? recent.map(card).join('') : empty}`)
+            + sec('proj', all)
+            + sec('tools', `${ST.toolsHTML()}${ST.isPerso() ? '' : `<div class="h2-sec"><span>Espaces métier</span></div>${espaceHome()}`}`);
+        })()}
       </div>
     </div>
     ${fp || Team.lvl('projet') < 3 ? '' : `<button class="fab" data-a="new">${icon('plus')}</button>`}`;

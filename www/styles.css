@@ -2664,3 +2664,22 @@ html.th-st .es-tile .i { color: var(--c, var(--accent)); }
 .wz-rec { display: grid; gap: 0; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--card); }
 .wz-rec > div { display: flex; justify-content: space-between; gap: 12px; padding: 12px 14px; border-top: 1px solid var(--line); } .wz-rec > div:first-child { border-top: 0; }
 .wz-rec span { color: var(--muted); } .wz-rec b { text-align: right; }
+
+/* ================= v1.0.32 · accueil en onglets, plus compact ================= */
+.h2-tab { display: none; } .h2-tab.on { display: block; }
+.st-bnav.n5 { grid-template-columns: repeat(5, 1fr); } .st-bnav.n5 button { font-size: 10.5px; }
+.h2-sec .h2-more { margin-left: auto; color: var(--accent); font-weight: 600; font-size: 14px; }
+html.th-st .home2 .h2-hello { font-size: 20px !important; } html.th-st .home2 .h2-phrase { display: none; }
+html.th-st .home2 .h2-hero { padding-bottom: 8px !important; }
+.st-dir { gap: 10px; } .st-dir-hero { padding: 14px 16px; border-radius: 18px; } .st-dir-hero b { font-size: 21px; } .st-dir-hero span { font-size: 13px; }
+.st-dir-pills { margin-top: 6px; } .st-dir-pills i, .st-dir-pills button { padding: 6px 12px; font-size: 12.5px; }
+.st-kpi { padding: 10px 12px; border-radius: 14px; } .st-kpi b { font-size: 24px; } .st-kpi .ic { font-size: 15px; } .st-kpi small { font-size: 12px; }
+.st-perf-c svg { height: 80px; }
+.st-tgrid { grid-template-columns: repeat(4, 1fr); } .st-tool { min-height: 66px; padding: 9px 2px; font-size: 11px; } .st-tool svg.i { width: 21px; height: 21px; }
+.st-tcats { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 0 8px; position: sticky; top: 0; z-index: 2; background: var(--bg); }
+.st-tcats button { flex: none; padding: 8px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font-size: 13px; font-weight: 600; color: var(--text); }
+.st-tcats button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+/* organigramme : commandes de zoom, plein écran */
+.og-zc { position: absolute; right: 10px; bottom: 10px; display: grid; gap: 6px; z-index: 3; }
+.og-zc button { width: 42px; height: 42px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); color: var(--text); font-size: 20px; font-weight: 700; box-shadow: 0 4px 12px rgba(20,35,55,.15); }
+.og.full { position: fixed; inset: 0; z-index: 60; height: 100dvh; background: var(--bg); padding-top: var(--safe-top); }

@@ -141,7 +141,8 @@ try {
   // conducteur B : demande d'implantation + commande béton + rendement + pointage (via l'interface pour la 1re)
   await B.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); renderHome(); }); await B.pg.waitForTimeout(800);
   await shot(B.pg, '17_home_conducteur_espace');
-  await B.pg.click('[data-es=impl]'); await B.pg.waitForTimeout(500); await B.pg.click('.es-page .fab'); await B.pg.waitForTimeout(400);
+  await B.pg.evaluate(() => { const n = document.querySelector('.st-bnav [data-n=tools]'); if (n) n.click(); }); await B.pg.waitForTimeout(300);
+  await B.pg.click('[data-es=impl]'); await B.pg.evaluate(() => { App.homeTab = 'home'; }); await B.pg.waitForTimeout(500); await B.pg.click('.es-page .fab'); await B.pg.waitForTimeout(400);
   await B.pg.fill('[name=ouvrage]', 'Voile V12'); await B.pg.fill('[name=niveau]', 'R+3'); await B.pg.fill('[name=zone]', '11'); await B.pg.fill('[name=axes]', 'C-D / 4-6');
   await B.pg.click('.sheet [data-a=ok]'); await B.pg.waitForTimeout(800); await shot(B.pg, '18_impl_detail');
   await B.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove())); await B.pg.waitForTimeout(300); await shot(B.pg, '19_impl_list');
@@ -160,7 +161,8 @@ try {
   await D.pg.evaluate(() => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); renderHome(); }); await D.pg.waitForTimeout(800);
   await shot(D.pg, '20_home_topo');
   log('D items', await D.pg.evaluate(async () => (await DB.all('items')).map(x => x.kind + ':' + (x.status || ''))));
-  await D.pg.click('[data-es=impl]'); await D.pg.waitForTimeout(500); await D.pg.click('.es-row'); await D.pg.waitForTimeout(500);
+  await D.pg.evaluate(() => { const n = document.querySelector('.st-bnav [data-n=tools]'); if (n) n.click(); }); await D.pg.waitForTimeout(300);
+  await D.pg.click('[data-es=impl]'); await D.pg.evaluate(() => { App.homeTab = 'home'; }); await D.pg.waitForTimeout(500); await D.pg.click('.es-row'); await D.pg.waitForTimeout(500);
   await D.pg.click('[data-st=implantee]'); await D.pg.waitForTimeout(500); await shot(D.pg, '21_topo_implantee');
   await D.pg.evaluate(() => Sync.run({ force: true })); await D.pg.waitForTimeout(2000);
   log('D topo write cmd', await D.pg.evaluate(async () => { try { const pid = (await DB.all('projects'))[0].id; await firebase.firestore().collection('companies').doc(Team.company().id).collection('projects').doc(pid).collection('m').doc('centrale').collection('r').doc('items__x').set({ a: 1 }); return 'ALLOWED (BAD)'; } catch (e) { return 'denied OK: ' + e.code; } }));
@@ -555,13 +557,15 @@ try {
     const ui = !!document.querySelector('.fullpage select[data-f=role], .sheet select[data-f=role], [data-a=st-poste]'); document.querySelectorAll('.sheet-bg,.fullpage').forEach(x => x.remove()); return [before, ui]; }));
   log('poste verrouillé (Pro G)', await G.pg.evaluate(async () => [Team.profil().metier, await Team.askPoste(true), Team.profil().metier]));
   // tableau de bord du service (membre B) + outils par catégorie
-  await B.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await B.pg.waitForSelector('[data-stsvc]', { timeout: 15000 });
+  await B.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; App.homeTab = 'home'; renderHome(); }); await B.pg.waitForSelector('[data-stsvc]', { timeout: 15000 });
   await B.pg.waitForFunction(() => [...document.querySelectorAll('[data-stsvc] .st-kpi b')].every(b => b.textContent !== '…'), null, { timeout: 15000 }); await B.pg.waitForTimeout(500);
   await shot(B.pg, '112_service_dashboard');
   log('tableau de bord service (B)', await B.pg.evaluate(() => [document.querySelector('[data-stsvc] .st-dir-hero b').textContent, document.querySelectorAll('[data-stsvc] .st-kpi').length, document.querySelectorAll('.st-tcat').length > 0, document.querySelectorAll('.st-tool').length > 0]));
-  await B.pg.evaluate(() => document.querySelector('.st-tools').scrollIntoView()); await B.pg.waitForTimeout(400); await shot(B.pg, '113_outils_categories');
+  await B.pg.evaluate(() => { App.homeTab = 'tools'; renderHome(); }); await B.pg.waitForTimeout(600); await shot(B.pg, '113_outils_categories');
+  await B.pg.click('.st-bnav [data-n=tools]'); await B.pg.waitForTimeout(300);
   await B.pg.locator('.st-tool').first().click(); await B.pg.waitForTimeout(800); const sel = await B.pg.$('.opt'); if (sel) { await sel.click(); await B.pg.waitForTimeout(1200); }
   log('outil → projet ouvert', await B.pg.evaluate(() => !!App.project));
+  await B.pg.evaluate(() => { App.homeTab = 'home'; });
   await B.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); });
   log('errors v1.0.30', [...A.errs, ...B.errs, ...E.errs, ...Z.errs].filter(x => !/401|403|400|permission/i.test(x)));
   // ---- v1.0.31 : assistant de création de projet (type → fiche → caractéristiques → lots suggérés → zones → services → récap)
@@ -583,6 +587,29 @@ try {
   log('wizard : suggestion → lot coché', await A.pg.evaluate(async () => { const p = (await DB.all('projects')).find(x => x.name === 'Tour Casa Marina'); return p.catLots.some(([f, l]) => /Rabattement/.test(l)) && p.catLots.some(([f, l]) => l === 'Ascenseurs'); }));
   log('wizard : moteur', await A.pg.evaluate(() => [Wizard.suggest({ type: 'villa', env: 'petit', carac: { piscine: true } }).map(x => x.lot), Wizard.zonesOf({ type: 'bat', carac: { niv: 2, ss: 0, blocs: '' } })]));
   log('errors v1.0.31', A.errs.filter(x => !/401|403|400|permission/i.test(x)));
+  // ---- v1.0.32 : accueil en onglets (Accueil · Projets · Outils), catégories en boutons, anti-capture fiable, organigramme zoomable
+  await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; App.homeTab = 'home'; renderHome(); }); await A.pg.waitForSelector('.st-bnav'); await A.pg.waitForTimeout(1200);
+  await shot(A.pg, '120_onglet_accueil');
+  log('onglets : accueil', await A.pg.evaluate(() => [document.querySelector('.h2-tab.on').dataset.tab, document.querySelectorAll('.h2-tab.on .h2-card').length <= 2, [...document.querySelectorAll('.st-bnav span')].map(x => x.textContent)]));
+  await A.pg.click('.st-bnav [data-n=proj]'); await A.pg.waitForTimeout(400); await shot(A.pg, '121_onglet_projets');
+  log('onglets : projets', await A.pg.evaluate(() => [document.querySelector('.h2-tab.on').dataset.tab, document.querySelectorAll('.h2-tab.on .h2-card').length]));
+  await A.pg.click('.st-bnav [data-n=tools]'); await A.pg.waitForTimeout(400); await shot(A.pg, '122_onglet_outils');
+  const cat = await A.pg.evaluate(() => document.querySelectorAll('.h2-tab.on .st-tcats [data-cat]')[2].dataset.cat);
+  await A.pg.click(`.h2-tab.on .st-tcats [data-cat="${cat}"]`); await A.pg.waitForTimeout(300); await shot(A.pg, '123_outils_categorie');
+  log('outils : catégorie en boutons', await A.pg.evaluate(() => [...document.querySelectorAll('.h2-tab.on .st-tcat')].filter(t => t.style.display !== 'none').length, cat));
+  // anti-capture : activer puis désactiver — l'état du téléphone suit à chaque fois
+  await A.pg.evaluate(() => { Team.openCompany('set'); }); await A.pg.waitForSelector('[data-a=secure]', { timeout: 15000 });
+  await A.pg.click('[data-a=secure]'); await A.pg.waitForTimeout(1500); const s1 = await A.pg.evaluate(() => [Team.secureOn(), document.querySelector('[data-secstate]').textContent]);
+  await A.pg.click('[data-a=secure]'); await A.pg.waitForTimeout(1500); const s2 = await A.pg.evaluate(() => [Team.secureOn(), document.querySelector('[data-secstate]').textContent, document.documentElement.classList.contains('st-secure')]);
+  log('anti-capture activer / désactiver', [s1, s2]);
+  // organigramme du projet : commandes de zoom et plein écran
+  await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.homeTab = 'home'; await openProject((await DB.all('projects')).find(p => p.name === 'Grand stade Benslimane')); document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); App.section = 'org'; await renderSection(); }); await A.pg.waitForSelector('.og-zc', { timeout: 10000 }); await A.pg.waitForTimeout(500);
+  const z0 = await A.pg.evaluate(() => document.querySelector('.og-st').style.transform);
+  await A.pg.click('[data-z=in]'); await A.pg.click('[data-z=in]'); await A.pg.waitForTimeout(200); const z1 = await A.pg.evaluate(() => document.querySelector('.og-st').style.transform);
+  await A.pg.click('[data-z=full]'); await A.pg.waitForTimeout(300); await shot(A.pg, '124_organigramme_plein_ecran');
+  log('organigramme : zoom + plein écran', await A.pg.evaluate(([a, b]) => [a !== b, !!document.querySelector('.og.full')], [z0, z1]));
+  await A.pg.click('[data-z=full]'); await A.pg.evaluate(() => { App.project = null; renderHome(); });
+  log('errors v1.0.32', A.errs.filter(x => !/401|403|400|permission/i.test(x)));
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);
