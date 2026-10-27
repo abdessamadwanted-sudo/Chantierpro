@@ -172,7 +172,7 @@ const ST = (() => {
   }
   async function dirBind(root) {
     const box = root && root.querySelector('[data-stdir]'); if (!box) return;
-    const pj = box.querySelector('[data-a=dir-proj]'); if (pj) pj.onclick = () => { const s = document.querySelector('.h2-sec'); if (s) s.scrollIntoView({ behavior: 'smooth' }); };
+    const pj = box.querySelector('[data-a=dir-proj]'); if (pj) pj.onclick = () => { const n = document.querySelector('.st-bnav [data-n=proj]'); if (n) n.click(); else { const s = document.querySelector('.h2-sec'); if (s) s.scrollIntoView({ behavior: 'smooth' }); } };
     box.querySelectorAll('[data-a=dir-svc]').forEach(b => b.onclick = () => Team.openCompany('org'));
     try {
       const projects = (await DB.all('projects')).filter(p => !p.deleted && !p.archived && Team.canProject(p.id));
@@ -188,7 +188,7 @@ const ST = (() => {
       const set = (k, v, warn) => { const b = box.querySelector(`[data-k=${k}] b`); if (b) { b.textContent = v; b.closest('.st-kpi').classList.toggle('warn', !!warn); } };
       set('av', pct == null ? '—' : pct + '%'); set('pj', String(projects.length).padStart(2, '0')); set('dec', String(dec).padStart(2, '0'), dec > 0); set('al', String(al).padStart(2, '0'), al > 0);
       box.querySelector('[data-k=al]').onclick = box.querySelector('[data-k=dec]').onclick = async () => { if (typeof briefingShow === 'function') { const act = await briefingShow(); if (act) act(); } };
-      box.querySelector('[data-k=pj]').onclick = () => { const s = document.querySelector('.h2-sec'); if (s) s.scrollIntoView({ behavior: 'smooth' }); };
+      box.querySelector('[data-k=pj]').onclick = () => { const n = document.querySelector('.st-bnav [data-n=proj]'); if (n) n.click(); };
       // activité : éléments créés ou modifiés par semaine (réserves, réceptions, PV, rapports)
       const W = 8, now = Date.now(), wk = 7 * 864e5, bins = Array(W).fill(0);
       for (const x of [...T, ...recs, ...forms, ...reps]) { if (!ids.has(x.projectId)) continue; const i = W - 1 - Math.floor((now - (x.updatedAt || 0)) / wk); if (i >= 0 && i < W) bins[i]++; }
@@ -209,7 +209,7 @@ const ST = (() => {
   const svcOn = () => ready() && !perso() && !PV.get() && !Team.isCollab() && !Team.isAdmin();
   const grpOf = () => { const P = typeof Org !== 'undefined' && Org.poste && Org.poste(); return (P && typeof SVC_GROUP !== 'undefined' && SVC_GROUP[P.svc.k]) || 'trav'; };
   const SVC_KPI = {
-    qual: [['pvv', '📋', 'PV à valider'], ['pvr', '📨', 'PV à récupérer'], ['res', '🔧', 'Réserves ouvertes'], ['rec', '🧱', 'Réceptions (7 j)']],
+    qual: [['pvr', '📨', 'PV à récupérer'], ['res', '🔧', 'Réserves ouvertes'], ['rec', '🧱', 'Réceptions (7 j)'], ['lev', '✅', 'Levées (7 j)']],
     trav: [['res', '🔧', 'Réserves ouvertes'], ['late', '⏰', 'En retard'], ['rap', '📝', 'Rapports (7 j)'], ['lev', '✅', 'Levées (7 j)']],
   };
   function serviceHTML() {
@@ -220,12 +220,11 @@ const ST = (() => {
       <div class="st-dir-hero"><small>${esc(C.name || '')} · ${esc(sv.l)}</small><b>${esc(sv.e || (P && P.svc.e) || '🏗️')} Service ${esc(sv.l)}</b><span>${esc([Team.me() && Team.me().role, ...((Team.me() || {}).postes || [])].filter(Boolean).map(k => tmRoleOf(k).l).join(' + ') || R.l)}</span>
         <div class="st-dir-pills"><i>Aujourd'hui</i><button data-a="dir-proj">Mes projets ▾</button></div></div>
       <div class="st-kpis">${K.map(([k, e, l]) => `<button class="st-kpi" data-k="${k}"><span class="ic">${e}</span><b>…</b><small>${l}</small></button>`).join('')}</div>
-      <div class="st-perf"><div class="st-perf-h"><b>Mon activité</b><small>8 dernières semaines</small></div><div class="st-perf-c" data-perf></div></div>
     </div>`;
   }
   async function svcBind(root) {
     const box = root && root.querySelector('[data-stsvc]'); if (!box) return;
-    const pj = box.querySelector('[data-a=dir-proj]'); if (pj) pj.onclick = () => { const s = document.querySelector('.h2-sec'); if (s) s.scrollIntoView({ behavior: 'smooth' }); };
+    const pj = box.querySelector('[data-a=dir-proj]'); if (pj) pj.onclick = () => { const n = document.querySelector('.st-bnav [data-n=proj]'); if (n) n.click(); else { const s = document.querySelector('.h2-sec'); if (s) s.scrollIntoView({ behavior: 'smooth' }); } };
     try {
       const projects = (await DB.all('projects')).filter(p => !p.deleted && Team.canProject(p.id)), ids = new Set(projects.map(p => p.id)), me = Team.uid();
       const [tasks, recs, forms, reps] = await Promise.all(['tasks', 'receptions', 'forms', 'reports'].map(k => DB.all(k).catch(() => [])));
@@ -250,11 +249,13 @@ const ST = (() => {
     const first = grpOf(), ok = (k) => SECTIONS[k] && !SECTIONS[k].hidden && k !== 'dashboard' && sectionOn(k) && Team.canSection(k);
     const G = DR_GROUPS.slice().sort((a, b) => (b[0] === first) - (a[0] === first)).map(([g, l, ks]) => [g, l, ks.filter(ok)]).filter(g => g[2].length);
     if (!G.length) return '';
-    return `<div class="st-tools" data-sttools><div class="h2-sec"><span>Mes outils</span><small>par catégorie</small></div>
-      ${G.map(([g, l, ks]) => `<div class="st-tcat"><div class="st-tcat-h">${esc(l)}<small>${ks.length}</small></div><div class="st-tgrid">${ks.map(k => `<button class="st-tool" data-tool="${k}">${icon(SECTIONS[k].icon || 'grid')}<span>${esc(SECTIONS[k].title || SECTIONS[k].label)}</span></button>`).join('')}</div></div>`).join('')}</div>`;
+    return `<div class="st-tools" data-sttools><div class="h2-sec"><span>Mes outils</span><small>${G.reduce((a, g) => a + g[2].length, 0)}</small></div>
+      <div class="st-tcats"><button class="on" data-cat="*">Tous</button>${G.map(([g, l]) => `<button data-cat="${g}">${esc(l)}</button>`).join('')}</div>
+      ${G.map(([g, l, ks]) => `<div class="st-tcat" data-g="${g}"><div class="st-tcat-h">${esc(l)}<small>${ks.length}</small></div><div class="st-tgrid">${ks.map(k => `<button class="st-tool" data-tool="${k}">${icon(SECTIONS[k].icon || 'grid')}<span>${esc(SECTIONS[k].title || SECTIONS[k].label)}</span></button>`).join('')}</div></div>`).join('')}</div>`;
   }
   function toolsBind(root) {
     const box = root && root.querySelector('[data-sttools]'); if (!box) return;
+    box.querySelectorAll('[data-cat]').forEach(c => c.onclick = () => { box.querySelectorAll('[data-cat]').forEach(x => x.classList.toggle('on', x === c)); box.querySelectorAll('.st-tcat').forEach(t => { t.style.display = c.dataset.cat === '*' || t.dataset.g === c.dataset.cat ? '' : 'none'; }); });
     box.querySelectorAll('[data-tool]').forEach(b => b.onclick = async () => {
       const L = (await DB.all('projects')).filter(p => !p.deleted && Team.canProject(p.id)).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
       if (!L.length) return toast('Créez ou rejoignez d\'abord un projet');
@@ -267,12 +268,13 @@ const ST = (() => {
   function bottomNav() {
     const app = document.getElementById('app'); if (!app || !ready() || Team.isCollab()) return;
     app.classList.add('with-bnav');
-    const nav = document.createElement('nav'); nav.className = 'st-bnav';
-    nav.innerHTML = `<button data-n="home" class="on">${icon('grid')}<span>Accueil</span></button><button data-n="proj">${icon('folder')}<span>Projets</span></button>
-      ${perso() ? `<button data-n="me">${icon('user')}<span>Mon espace</span></button>` : `<button data-n="team">${icon('team')}<span>Équipes</span></button>`}<button data-n="set">${icon('settings')}<span>Réglages</span></button>`;
+    const T = App.homeTab || 'home', nav = document.createElement('nav'); nav.className = 'st-bnav' + (perso() ? '' : ' n5');
+    nav.innerHTML = `<button data-n="home" class="${T === 'home' ? 'on' : ''}">${icon('grid')}<span>Accueil</span></button><button data-n="proj" class="${T === 'proj' ? 'on' : ''}">${icon('folder')}<span>Projets</span></button>
+      ${perso() ? `<button data-n="me">${icon('user')}<span>Mon espace</span></button>` : `<button data-n="tools" class="${T === 'tools' ? 'on' : ''}">${icon('layers')}<span>Outils</span></button><button data-n="team">${icon('team')}<span>Équipe</span></button>`}<button data-n="set">${icon('settings')}<span>Réglages</span></button>`;
     app.appendChild(nav);
-    nav.querySelector('[data-n=home]').onclick = () => { const b = document.querySelector('.h2-body'); if (b) b.scrollTo({ top: 0, behavior: 'smooth' }); };
-    nav.querySelector('[data-n=proj]').onclick = () => { const s = document.querySelector('.h2-sec'); if (s) s.scrollIntoView({ behavior: 'smooth' }); };
+    const go = (t) => { App.homeTab = t; document.querySelectorAll('.h2-tab').forEach(x => x.classList.toggle('on', x.dataset.tab === t)); nav.querySelectorAll('[data-n]').forEach(x => x.classList.toggle('on', x.dataset.n === t)); const b = document.querySelector('.h2-body'); if (b) b.scrollTop = 0; };
+    ['home', 'proj', 'tools'].forEach(t => { const b = nav.querySelector(`[data-n=${t}]`); if (b) b.onclick = () => go(t); });
+    document.querySelectorAll('[data-tabgo]').forEach(b => b.onclick = () => go(b.dataset.tabgo));
     const tm = nav.querySelector('[data-n=team]'); if (tm) tm.onclick = () => Team.openCompany('org');
     const me = nav.querySelector('[data-n=me]'); if (me) me.onclick = () => Team.openCompany('me');
     nav.querySelector('[data-n=set]').onclick = () => Team.openCompany(perso() ? 'me' : 'set');
@@ -289,7 +291,7 @@ const ST = (() => {
       ${team ? `<button class="st-team" data-a="st-team"><b>Mon équipe : ${team} personne(s)</b><small>sous ma responsabilité</small></button>` : ''}
       ${(me.missions || []).length && !PV.get() ? `<div class="st-mbox"><b>Mes missions</b>${me.missions.map(x => `<div class="st-mis">• ${esc(x.t)}</div>`).join('')}</div>` : ''}
       ${R.s === 'qualite' || Team.lvl('forms') >= 2 ? `<div class="st-qual" data-stq><div class="h2-sec"><span>Validation des PV</span></div><div class="st-qtiles">${['À valider', 'À corriger', 'Brouillons', 'Validés (7 j)'].map(l => `<div class="st-ps"><b>…</b><small>${l}</small></div>`).join('')}</div></div>` : ''}
-      <div class="st-dash" data-stdash><div class="h2-sec"><span>Mon tableau de bord</span><small>${esc(T.e)} ${esc(R.l)}</small></div><div class="st-tiles"><div class="st-load">…</div></div></div>`;
+      <div class="st-dash" data-stdash><div class="h2-sec"><span>À faire aujourd'hui</span><small>${esc(T.e)} ${esc(R.l)}</small></div><div class="st-tiles"><div class="st-load">…</div></div></div>`;
   }
   async function dashBind(root) {
     if (root && root.id === 'app') { if (Team.secureApply) Team.secureApply(); dirBind(root); svcBind(root); toolsBind(root); if (!root.querySelector('.st-bnav')) bottomNav(); }
@@ -314,8 +316,8 @@ const ST = (() => {
     try { cards = (await briefingData()).cards.filter(c => !c.sc); } catch (e) { console.warn('dash', e); }
     if (!box.isConnected) return;
     if (!cards.length) { box.innerHTML = '<div class="st-ok">✓ Rien d\'urgent pour votre poste aujourd\'hui</div>'; return; }
-    box.innerHTML = cards.slice(0, 8).map((c, i) => `<button class="st-tile ${c.alert ? 'al' : ''}" data-i="${i}" style="--c:${c.c || '#3b82f6'}"><span class="e">${c.e || '•'}</span><b>${esc(String(c.n ?? ''))}</b><small>${esc(c.t)}</small></button>`).join('')
-      + (cards.length > 8 ? `<button class="st-tile more" data-i="-1"><span class="e">＋</span><b>${cards.length - 8}</b><small>autres</small></button>` : '');
+    box.innerHTML = cards.slice(0, 4).map((c, i) => `<button class="st-tile ${c.alert ? 'al' : ''}" data-i="${i}" style="--c:${c.c || '#3b82f6'}"><span class="e">${c.e || '•'}</span><b>${esc(String(c.n ?? ''))}</b><small>${esc(c.t)}</small></button>`).join('')
+      + (cards.length > 4 ? `<button class="st-tile more" data-i="-1"><span class="e">＋</span><b>${cards.length - 4}</b><small>autres</small></button>` : '');
     box.querySelectorAll('[data-i]').forEach(b => b.onclick = async () => { if (typeof briefingShow !== 'function') return; const act = await briefingShow(); if (act) act(); });
   }
 
