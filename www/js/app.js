@@ -192,7 +192,7 @@ async function renderHome() {
           const empty = `<div class="h2-empty"><div class="ic">${icon('hard')}</div><b>Aucun chantier pour le moment</b><span>Créez votre premier projet avec le bouton <b>+</b>, ou récupérez vos données avec Google Drive.</span>
             <button class="btn ghost" data-a="restore2" style="flex:none">${icon('undo')} Restaurer une sauvegarde</button></div>`;
           const tabs = Team.ready() && !Team.isCollab(), T = tabs ? (App.homeTab || 'home') : '';
-          const sec = (k, html) => tabs ? `<section class="h2-tab ${T === k ? 'on' : ''}" data-tab="${k}">${html}</section>` : html;
+          const sec = (k, html) => tabs ? `<section class="h2-pane ${T === k ? 'on' : ''}" data-tab="${k}">${html}</section>` : html;
           const all = `<div class="h2-sec"><span>Mes chantiers</span><small>${projects.length}</small></div>${projects.length ? projects.map(card).join('') : empty}`;
           if (!tabs) return `${ST.directionHTML()}${ST.serviceHTML()}${ST.dashHTML()}${ST.isPerso() || (Team.ready() && Team.isCollab()) ? '' : espaceHome()}${fp ? focusHTML() : all}`;
           const recent = projects.slice(0, 2);

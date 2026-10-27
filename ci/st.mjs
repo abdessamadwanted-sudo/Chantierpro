@@ -590,13 +590,13 @@ try {
   // ---- v1.0.32 : accueil en onglets (Accueil · Projets · Outils), catégories en boutons, anti-capture fiable, organigramme zoomable
   await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; App.homeTab = 'home'; renderHome(); }); await A.pg.waitForSelector('.st-bnav'); await A.pg.waitForTimeout(1200);
   await shot(A.pg, '120_onglet_accueil');
-  log('onglets : accueil', await A.pg.evaluate(() => [document.querySelector('.h2-tab.on').dataset.tab, document.querySelectorAll('.h2-tab.on .h2-card').length <= 2, [...document.querySelectorAll('.st-bnav span')].map(x => x.textContent)]));
+  log('onglets : accueil', await A.pg.evaluate(() => [document.querySelector('.h2-pane.on').dataset.tab, document.querySelectorAll('.h2-pane.on .h2-card').length <= 2, [...document.querySelectorAll('.st-bnav span')].map(x => x.textContent)]));
   await A.pg.click('.st-bnav [data-n=proj]'); await A.pg.waitForTimeout(400); await shot(A.pg, '121_onglet_projets');
-  log('onglets : projets', await A.pg.evaluate(() => [document.querySelector('.h2-tab.on').dataset.tab, document.querySelectorAll('.h2-tab.on .h2-card').length]));
+  log('onglets : projets', await A.pg.evaluate(() => [document.querySelector('.h2-pane.on').dataset.tab, document.querySelectorAll('.h2-pane.on .h2-card').length]));
   await A.pg.click('.st-bnav [data-n=tools]'); await A.pg.waitForTimeout(400); await shot(A.pg, '122_onglet_outils');
-  const cat = await A.pg.evaluate(() => document.querySelectorAll('.h2-tab.on .st-tcats [data-cat]')[2].dataset.cat);
-  await A.pg.click(`.h2-tab.on .st-tcats [data-cat="${cat}"]`); await A.pg.waitForTimeout(300); await shot(A.pg, '123_outils_categorie');
-  log('outils : catégorie en boutons', await A.pg.evaluate(() => [...document.querySelectorAll('.h2-tab.on .st-tcat')].filter(t => t.style.display !== 'none').length, cat));
+  const cat = await A.pg.evaluate(() => document.querySelectorAll('.h2-pane.on .st-tcats [data-cat]')[2].dataset.cat);
+  await A.pg.click(`.h2-pane.on .st-tcats [data-cat="${cat}"]`); await A.pg.waitForTimeout(300); await shot(A.pg, '123_outils_categorie');
+  log('outils : catégorie en boutons', await A.pg.evaluate(() => [...document.querySelectorAll('.h2-pane.on .st-tcat')].filter(t => t.style.display !== 'none').length, cat));
   // anti-capture : activer puis désactiver — l'état du téléphone suit à chaque fois
   await A.pg.evaluate(() => { Team.openCompany('set'); }); await A.pg.waitForSelector('[data-a=secure]', { timeout: 15000 });
   await A.pg.click('[data-a=secure]'); await A.pg.waitForTimeout(1500); const s1 = await A.pg.evaluate(() => [Team.secureOn(), document.querySelector('[data-secstate]').textContent]);
@@ -626,6 +626,7 @@ try {
   await A.pg.evaluate(() => { Affectations.open(); }); await A.pg.waitForSelector('[data-aff-project]'); await shot(A.pg, '125_affectations');
   await A.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove()));
   log('Affectations : début / fin / historique', affResult);
+  log('E erreurs brutes (diagnostic)', E.errs.slice(-8));
   log('errors v1.0.33', [...affErrors, ...A.errs.slice(affStart)]);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
