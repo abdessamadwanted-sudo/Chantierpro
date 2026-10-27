@@ -170,8 +170,9 @@ async function renderHome() {
       <div class="h2-body">
         ${(() => { const M = Team.ready() && Team.appCfg().message; let off = ''; try { off = localStorage.getItem('st.msgOff') || ''; } catch (e) {}
           return M && M.on && M.text && off !== String(M.id || M.text) ? `<div class="st-msg ${M.level === 'alerte' ? 'al' : ''}"><span>${M.level === 'alerte' ? '⚠️' : '📣'}</span><p>${esc(M.text)}</p><button class="iconbtn sm" data-a="msgoff" aria-label="Masquer">${icon('close')}</button></div>` : ''; })()}
-        ${ST.directionHTML()}
+        ${ST.directionHTML()}${ST.serviceHTML()}
         ${ST.dashHTML()}
+        ${ST.toolsHTML()}
         ${ST.isPerso() || (Team.ready() && Team.isCollab()) ? '' : espaceHome()}
         ${fp ? focusHTML() : `<div class="h2-sec"><span>Mes chantiers</span><small>${projects.length}</small></div>
         ${projects.length ? projects.map(p => { const st = stats(p), [c1, c2] = hue(p.name), open = !!App.homeOpen[p.id];
