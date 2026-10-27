@@ -211,7 +211,7 @@ OK   équipe projet : projet historique ouvert conservé
 OK   équipe projet : direction lit tous les projets
 OK   équipe projet : requête sur les projets ouverts
 OK   équipe projet : requête sur ses affectations
-FAIL équipe projet : REFUS d’une requête globale par un membre :: Expected request to fail, but it succeeded.
+OK   équipe projet : REFUS d’une requête globale par un membre
 OK   équipe fichiers : administrateur envoie
 OK   équipe fichiers : membre affecté lit
 OK   équipe fichiers : REFUS hors équipe
@@ -224,4 +224,4 @@ OK   audit entreprise : REFUS de supprimer une ligne
 OK   audit entreprise : REFUS de falsifier l’auteur
 OK   audit entreprise : REFUS de lecture par un membre
 
-1 ÉCHEC(S) — 225 vérifications
+TOUT OK — 225 vérifications
