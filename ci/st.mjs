@@ -564,6 +564,25 @@ try {
   log('outil → projet ouvert', await B.pg.evaluate(() => !!App.project));
   await B.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); });
   log('errors v1.0.30', [...A.errs, ...B.errs, ...E.errs, ...Z.errs].filter(x => !/401|403|400|permission/i.test(x)));
+  // ---- v1.0.31 : assistant de création de projet (type → fiche → caractéristiques → lots suggérés → zones → services → récap)
+  await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(500);
+  await A.pg.click('.fab'); await A.pg.waitForSelector('.wz .st-types'); await shot(A.pg, '114_wizard_type');
+  await A.pg.click('.wz [data-f=bat]'); await A.pg.waitForTimeout(400); await A.pg.click('.opt:has-text("Bâtiment (logements")'); await A.pg.waitForSelector('.wz [data-fi=name]');
+  await A.pg.fill('.wz [data-fi=name]', 'Tour Casa Marina'); await A.pg.fill('.wz [data-fi=code]', 'TCM-01'); await A.pg.fill('.wz [data-fi=address]', 'Casablanca'); await shot(A.pg, '115_wizard_fiche');
+  await A.pg.click('.wz [data-a=next]'); await A.pg.waitForSelector('.wz [data-ca=niv]');
+  await A.pg.click('.wz [data-env=grand]'); await A.pg.fill('.wz [data-ca=niv]', '6'); await A.pg.fill('.wz [data-ca=ss]', '2'); await A.pg.fill('.wz [data-ca=blocs]', 'A, B'); await A.pg.check('.wz [data-ca=parking]'); await shot(A.pg, '116_wizard_carac');
+  await A.pg.click('.wz [data-a=next]'); await A.pg.waitForSelector('.wz .wz-sug'); await shot(A.pg, '117_wizard_lots');
+  log('wizard : suggestions expliquées', await A.pg.evaluate(() => [...document.querySelectorAll('.wz-sug label')].map(l => l.textContent.trim()).slice(0, 6)));
+  await A.pg.click('.wz [data-a=next]'); await A.pg.waitForSelector('.wz [data-zones]'); await shot(A.pg, '118_wizard_zones');
+  log('wizard : zones générées', await A.pg.evaluate(() => { const z = document.querySelector('[data-zones]').value.split('\n'); return [z.length, z[0], z[z.length - 1]]; }));
+  await A.pg.click('.wz [data-a=next]'); await A.pg.waitForTimeout(400);
+  log('wizard : étape services (entreprise moyenne)', await A.pg.evaluate(() => [document.querySelector('.wz-h b').textContent, document.querySelectorAll('[data-svc]').length > 0]));
+  await A.pg.click('.wz [data-a=next]'); await A.pg.waitForSelector('.wz-rec'); await shot(A.pg, '119_wizard_recap');
+  await A.pg.click('.wz [data-a=next]'); await A.pg.waitForTimeout(2000);
+  log('wizard : projet créé', await A.pg.evaluate(async () => { const p = (await DB.all('projects')).find(x => x.name === 'Tour Casa Marina'); return p ? [p.code, p.envergure, p.catLots.length > 10, p.zones.split('\n').length, (p.services || []).length > 0, !!App.project] : null; }));
+  log('wizard : suggestion → lot coché', await A.pg.evaluate(async () => { const p = (await DB.all('projects')).find(x => x.name === 'Tour Casa Marina'); return p.catLots.some(([f, l]) => /Rabattement/.test(l)) && p.catLots.some(([f, l]) => l === 'Ascenseurs'); }));
+  log('wizard : moteur', await A.pg.evaluate(() => [Wizard.suggest({ type: 'villa', env: 'petit', carac: { piscine: true } }).map(x => x.lot), Wizard.zonesOf({ type: 'bat', carac: { niv: 2, ss: 0, blocs: '' } })]));
+  log('errors v1.0.31', A.errs.filter(x => !/401|403|400|permission/i.test(x)));
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);

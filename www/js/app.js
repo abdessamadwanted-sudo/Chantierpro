@@ -1020,7 +1020,7 @@ async function renderTasks(root) {
       <div class="row" data-id="${t.id}"><span class="tasknum" style="background:${STATUS[t.status].color}">${t.num}</span>
         <div class="grow"><div class="title">${esc(t.title || 'Sans titre')}</div>
         <div class="sub">${c ? `<span class="dot" style="background:${c.color};width:8px;height:8px"></span> ${esc(c.name)} · ` : ''}${[KINDS[t.kind || 'reserve'], planName(t.planId) && '📍 ' + planName(t.planId), t.due && '⏰ ' + fmtDate(t.due)].filter(Boolean).map(esc).join(' · ')}</div></div>
-        ${late ? `<span class="late-badge">Retard</span>` : `<span style="color:${['', '#ef4444', '#f59e0b', '#9aa3b2'][t.priority]};font-weight:700;font-size:13px">P${t.priority}</span>`}</div>`; }).join('')}</div>`
+        ${late ? `<span class="late-badge">Retard</span>` : `<span style="color:${['', '#ef4444', '#f59e0b', '#9aa3b2'][t.priority || 2]};font-weight:700;font-size:13px">P${t.priority || 2}</span>`}</div>`; }).join('')}</div>`
     : `<div class="empty">Rien ici.<br>Créez une réserve avec <b>+</b> ou placez un pin sur un plan.</div>`}`;
   $$('[data-f]', root).forEach(b => b.onclick = () => { App.taskFilter = b.dataset.f; renderTasks(root); });
   $$('[data-co]', root).forEach(b => b.onclick = () => { App.companyFilter = b.dataset.co; renderTasks(root); });
