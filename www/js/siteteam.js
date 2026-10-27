@@ -106,12 +106,12 @@ const ST = (() => {
   const DEF_TOOLS = ['reports', 'tasks', 'plans', 'photos', 'calc', 'forms'];
   function persoTools() {
     const M = Team.isFree && Team.isFree() ? null : metierOf(Team.profil().metier), L = [...(METIER_TOOLS[M ? M.s : ''] || DEF_TOOLS)];
-    for (const k of ['plans', 'tasks', 'reports', 'photos']) if (!L.includes(k)) L.push(k);
+    for (const k of ['plans', 'tasks', 'reports', 'photos', 'org']) if (!L.includes(k)) L.push(k);
     return L.filter(k => SECTIONS[k]).map(k => ({ k, on: Team.canSection(k), label: SECTIONS[k].label.split(' (')[0], icon: SECTIONS[k].icon }));
   }
   function persoHTML() {
     const free = Team.isFree && Team.isFree(), M = free ? null : metierOf(Team.profil().metier), P = Team.plan(), stt = Team.planState(), multi = Team.workspaces().length > 1;
-    const T = persoTools().slice(0, 8);
+    const T = persoTools().slice(0, 9);
     return `<div class="st-ctx"><button class="st-wsc" data-a="st-ws"><span class="e">👷</span><b>Espace personnel</b><i>${multi ? '▾ changer' : '＋ espaces'}</i></button>
         <div class="st-chips"><span ${!free && !M ? 'data-a="st-poste" style="cursor:pointer"' : ''}>${free ? '🆓 Free' : esc(M ? M.l : 'Choisir mon poste ›')}</span><span class="st-state" style="--c:${stt.c}">${esc(P.l)} · ${esc(stt.l)}</span></div></div>
       ${free ? `<div class="st-promo"><b>⭐ Passez à Pro</b><p>Choisissez votre service et votre poste : tableau de bord, outils et recommandations s'adaptent à votre métier.</p>
@@ -356,7 +356,8 @@ const ST = (() => {
   // espaces (topo, centrale, pointage…) et boutons : un outil hors du métier de l'organisation ou hors pack n'apparaît pas
   Team.lvl = (mod) => (orgHas(mod) && planHas(mod)) ? lvl(mod) : 0;
   // espace personnel : pas d'organigramme d'entreprise
-  Team.canSection = (k) => !(k === 'org' && perso()) && (PV.get() ? lvl(SECTION_MOD[k] || 'projet') >= 1 : _canSection(k)) && orgHas(SECTION_MOD[k]) && planHas(SECTION_FEATURE[k] ? FEAT_MOD[SECTION_FEATURE[k]] : null);
+  // organigramme du projet (personnes saisies à la main) : disponible partout, même en Free (v1.0.33)
+  Team.canSection = (k) => (k === 'org' && (perso() || !ready())) || (PV.get() ? lvl(SECTION_MOD[k] || 'projet') >= 1 : _canSection(k)) && orgHas(SECTION_MOD[k]) && planHas(SECTION_FEATURE[k] ? FEAT_MOD[SECTION_FEATURE[k]] : null);
   // le poste est appliqué après la connexion (et à chaque démarrage)
   const _boot = Team.boot;
   Team.boot = async () => { await _boot(); applyRole(); banner(); };

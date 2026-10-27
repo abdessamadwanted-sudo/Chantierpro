@@ -308,7 +308,7 @@ async function renderOrg(root) {
   const save = () => DB.put('projects', p), redraw = () => renderOrg(root);
   root.innerHTML = `<div class="og"><div class="og-bar"><b>Organigramme</b><small>${p.team.length} personne(s)</small><span class="grow"></span>
       ${canE ? `<button class="btn small" data-a="add">${icon('plus')} Personne</button>` : ''}<button class="iconbtn" data-a="exp">${icon('share')}</button></div>
-    <div class="og-vp"><div class="og-st"></div><div class="og-zc"><button data-z="in" aria-label="Zoom avant">＋</button><button data-z="out" aria-label="Zoom arrière">－</button><button data-z="fit" aria-label="Ajuster">⤢</button><button data-z="full" aria-label="Plein écran">⛶</button></div></div><div class="og-hint">Glissez pour déplacer · pincez ou ＋/－ pour zoomer · touchez une carte · ± pour plier une branche</div></div>`;
+    <div class="og-vp"><div class="og-st"></div><div class="og-zc"><button data-z="in" aria-label="Zoom avant">＋</button><button data-z="out" aria-label="Zoom arrière">－</button><button data-z="fit" aria-label="Ajuster">⤢</button><button data-z="full" aria-label="Plein écran">⛶</button></div></div>${p.team.length <= 1 && canE ? '<div class="og-empty"><b>Créer l\'organigramme</b><span>1. Touchez « ＋ Personne »<br>2. Nom, service, poste et responsable (N+1)<br>3. L\'organigramme se dessine tout seul — exportez-le en PDF avec ⤴</span></div>' : ''}<div class="og-hint">Glissez pour déplacer · pincez ou ＋/－ pour zoomer · touchez une carte · ± pour plier une branche</div></div>`;
   const vp = $('.og-vp', root), stg = $('.og-st', root); let G;
   const build = () => { G = orgSvg(p, collapsed); stg.innerHTML = G.svg; stg.style.width = G.W + 'px'; stg.style.height = G.H + 'px'; };
   build();

@@ -490,8 +490,9 @@ service cloud.firestore {
         allow create: if isAdmin(cid) && request.resource.data.by == request.auth.uid && request.resource.data.at == request.time;
       }
       match /projects/{pid} {
-        allow read: if (isMem(cid) && baseProj(cid, pid) && teamAllowed(cid, resource.data)) || pOk(cid, pid, 'projet', 1);
-        allow get: if isMem(cid) && baseProj(cid, pid) && !exists(/databases/$(db)/documents/companies/$(cid)/projects/$(pid));
+        allow get: if (isMem(cid) && baseProj(cid, pid) && (resource == null || teamAllowed(cid, resource.data))) || pOk(cid, pid, 'projet', 1);
+        // liste : la requête doit elle-même se limiter aux projets ouverts ou à ceux où l'on est affecté (sinon refus)
+        allow list: if isMem(cid) && live(cid) && (isAdmin(cid) || (mem(cid).allProjects == true && (!teamsOn(cid) || resource.data.teamEnabled == false || request.auth.uid in resource.data.teamUids)));
         allow create: if isMem(cid) && lvl(cid, 'projet') >= 3 && (isAdmin(cid) || (request.resource.data.get('teamEnabled', false) == false && request.resource.data.get('teamUids', []).size() == 0 && request.resource.data.get('affectations', []).size() == 0));
         // le groupement (jv : nom, mandataire) ne change que par l'administrateur de l'organisation titulaire du projet
         allow update: if isMem(cid) && canProj(cid, pid) && lvl(cid, 'projet') >= 2
