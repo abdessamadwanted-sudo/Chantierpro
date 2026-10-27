@@ -236,7 +236,7 @@ function panZoom(viewport, stage, W, H, { onTap, onChange } = {}) {
   const fit = () => { const vw = viewport.clientWidth, vh = viewport.clientHeight; st.s = st.fit = Math.min(vw / W, vh / H) * 0.97; st.tx = (vw - W * st.s) / 2; st.ty = (vh - H * st.s) / 2; apply(); };
   const rel = (e) => { const r = viewport.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
   const toImg = ([x, y]) => [(x - st.tx) / st.s, (y - st.ty) / st.s];
-  const zoomAt = ([x, y], ns) => { ns = Math.max(st.fit * 0.8, Math.min(st.fit * 40, ns)); const ix = (x - st.tx) / st.s, iy = (y - st.ty) / st.s; st.s = ns; st.tx = x - ix * ns; st.ty = y - iy * ns; apply(); };
+  const zoomAt = ([x, y], ns) => { ns = Math.max(st.fit * 0.4, Math.min(st.fit * 40, ns)); const ix = (x - st.tx) / st.s, iy = (y - st.ty) / st.s; st.s = ns; st.tx = x - ix * ns; st.ty = y - iy * ns; apply(); };
   viewport.style.touchAction = 'none';
   viewport.addEventListener('pointerdown', (e) => {
     try { viewport.setPointerCapture(e.pointerId); } catch (x) {}
@@ -247,7 +247,7 @@ function panZoom(viewport, stage, W, H, { onTap, onChange } = {}) {
   viewport.addEventListener('pointermove', (e) => {
     if (!P.has(e.pointerId)) return; P.set(e.pointerId, rel(e));
     if (P.size >= 2 && pinch) { const [p1, p2] = [...P.values()], m = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2];
-      const ns = Math.max(st.fit * 0.8, Math.min(st.fit * 40, pinch.s * Math.hypot(p1[0] - p2[0], p1[1] - p2[1]) / pinch.d));
+      const ns = Math.max(st.fit * 0.4, Math.min(st.fit * 40, pinch.s * Math.hypot(p1[0] - p2[0], p1[1] - p2[1]) / pinch.d));
       st.s = ns; st.tx = m[0] - pinch.img[0] * ns; st.ty = m[1] - pinch.img[1] * ns; apply(); return; }
     if (P.size === 1 && start) { const p = rel(e), dx = p[0] - start.p[0], dy = p[1] - start.p[1];
       if (!start.moved && Math.hypot(dx, dy) > 8) start.moved = true;

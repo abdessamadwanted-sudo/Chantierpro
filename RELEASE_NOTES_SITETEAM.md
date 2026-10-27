@@ -1,6 +1,6 @@
-## SiteTeam : assistant de création de projet
-- Nouveau projet en étapes : type → fiche (nom, code, lieu, MOA, dates) → caractéristiques (envergure, niveaux, sous-sols, blocs, parking, ascenseurs, piscine…) → lots → zones → services → récapitulatif.
-- Lots : modèle de départ selon le type (immeuble, villa, stade, route, pont…) + suggestions expliquées (ex. « Rabattement de nappe — 2 sous-sol(s) », « Ascenseurs — R+6 »). Tout se coche / décoche.
-- Zones générées automatiquement (Bloc A · SS2 … R+6 · Terrasse), modifiables.
-- Services du projet (entreprise moyenne et grande).
-- « Créer maintenant » dès la fiche pour aller vite : le reste se complète plus tard.
+## SiteTeam : accueil réorganisé, anti-capture corrigé, organigramme zoomable
+- Accueil en onglets avec la barre du bas : Accueil (chiffres + à faire + 2 derniers chantiers) · Projets (tous les chantiers) · Outils (tous les outils et espaces métier) · Équipe · Réglages. Fini la longue page.
+- Outils : catégories en boutons (Tous, Chantier, Qualité & sécurité, Études, Gestion, Projet & équipe) au lieu de listes dépliantes.
+- Interface plus compacte (titres, chiffres et cartes plus petits).
+- Anti-capture : se désactive correctement ; l'état du téléphone est affiché (activé / désactivé) et réappliqué au retour dans l'application. Le Super Admin peut lever l'anti-capture imposé à tous depuis l'application.
+- Organigramme : boutons ＋ / － / ajuster / plein écran, zoom plus souple, couleurs du thème clair.
