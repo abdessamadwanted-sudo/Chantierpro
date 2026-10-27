@@ -1,6 +1,7 @@
 package com.siteteam.gdriveauth;
 
 import android.app.Activity;
+import android.view.WindowManager;
 import android.app.PendingIntent;
 
 import androidx.activity.result.ActivityResult;
@@ -36,8 +37,23 @@ public class GDriveAuthPlugin extends Plugin {
     private ActivityResultLauncher<IntentSenderRequest> consent;
     private PluginCall pending;
 
+    // Réglage indépendant de Google Drive, conservé entre deux démarrages de l'APK.
+    @PluginMethod
+    public void setScreenProtection(PluginCall call) {
+        boolean enabled = Boolean.TRUE.equals(call.getBoolean("enabled", false));
+        getActivity().runOnUiThread(() -> {
+            getContext().getSharedPreferences("siteteam_privacy", 0).edit().putBoolean("secure", enabled).apply();
+            if (enabled) getActivity().getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+            else getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
+            call.resolve();
+        });
+    }
+
     @Override
     public void load() {
+        if (getContext().getSharedPreferences("siteteam_privacy", 0).getBoolean("secure", false)) {
+            getActivity().runOnUiThread(() -> getActivity().getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE));
+        }
         consent = getActivity().registerForActivityResult(new ActivityResultContracts.StartIntentSenderForResult(), this::onConsent);
     }
 

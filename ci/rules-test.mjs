@@ -373,6 +373,28 @@ await t('code pack : REFUS « actif » pour un code limité dans le temps', () =
 await t('code pack : l\'administrateur passe son organisation au pack du code', () => assertSucceeds(own9.collection('companies').doc('c9').update({ plan: 'enterprise', planStatus: 'actif', packCode: 'ENT-TEST01' })));
 await t('code pack : REFUS sans code (changement de pack)', () => assertFails(nw1.collection('companies').doc('cn1').update({ plan: 'enterprise', planStatus: 'actif' })));
 
+// --- v1.0.31 : plusieurs postes et protection des captures, sans auto-promotion
+await env.withSecurityRulesDisabled(async c => {
+  const db = c.firestore();
+  await db.doc('companies/ent31').set({ ownerUid: 'boss31', plan: 'business', planStatus: 'actif' });
+  await db.doc('companies/ent31/members/boss31').set({ role: 'patron', admin: true, perms: { equipe: 4 }, allProjects: true, projects: [] });
+  await db.doc('companies/ent31/members/member31').set({ role: 'conducteur', postes: ['techqualite'], admin: false, perms: { reserves: 3, forms: 3, finance: 0 }, allProjects: true, projects: [] });
+  await db.doc('companies/ent31/projects/p31').set({ name: 'Projet de test' });
+  await db.doc('invites/ENT31CODE').set({ cid: 'ent31', role: 'conducteur', postes: ['techqualite'], admin: false, perms: { reserves: 3, forms: 3, finance: 0 }, allProjects: true, projects: [], used: false, status: 'valide' });
+});
+const boss31 = env.authenticatedContext('boss31').firestore(), member31 = env.authenticatedContext('member31').firestore(), join31 = env.authenticatedContext('join31').firestore();
+const member31Data = { role: 'conducteur', postes: ['techqualite'], admin: false, perms: { reserves: 3, forms: 3, finance: 0 }, allProjects: true, projects: [], invite: 'ENT31CODE' };
+await t('postes : REFUS d’ajouter soi-même un poste', () => assertFails(member31.doc('companies/ent31/members/member31').update({ postes: ['comptable'] })));
+await t('postes : REFUS d’augmenter ses propres droits', () => assertFails(member31.doc('companies/ent31/members/member31').update({ 'perms.finance': 4 })));
+await t('postes : l’administrateur enregistre les postes', () => assertSucceeds(boss31.doc('companies/ent31/members/member31').update({ postes: ['techqualite', 'animhse'] })));
+await t('postes : REFUS d’altérer les postes du code', () => assertFails(join31.doc('companies/ent31/members/join31').set({ ...member31Data, postes: ['comptable'] })));
+await t('postes : adhésion avec les postes exacts du code', () => assertSucceeds(join31.doc('companies/ent31/members/join31').set(member31Data)));
+await t('postes : union enregistrée permet les réserves', () => assertSucceeds(member31.doc('companies/ent31/projects/p31/m/reserves/r/t31').set({ title: 'Test' })));
+await t('postes : REFUS de lire Finance', () => assertFails(member31.doc('companies/ent31/projects/p31/m/finance/r/f31').get()));
+await t('captures : administrateur active le réglage', () => assertSucceeds(boss31.doc('companies/ent31').update({ screenProtection: true })));
+await t('captures : REFUS du changement par un membre', () => assertFails(member31.doc('companies/ent31').update({ screenProtection: false })));
+await t('captures : REFUS du réglage global par un administrateur ordinaire', () => assertFails(boss31.doc('config/app').set({ screenProtectionForce: true }, { merge: true })));
+
 log(`\n${fails ? fails + ' ÉCHEC(S)' : 'TOUT OK'} — ${out.length} vérifications`);
 fs.writeFileSync(O + '/rules-test.txt', out.join('\n') + '\n');
 await env.cleanup();

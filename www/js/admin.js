@@ -239,7 +239,7 @@
       <div class="card"><h3>Fonctions coupées</h3><p class="muted">Cachées pour tout le monde (sauf vous), sans effacer les données.</p>
         <div class="cks">${MODS.filter(([k]) => k !== 'projet').map(([k, l]) => `<label class="ck"><input type="checkbox" data-off="${k}" ${off.includes(k) ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</div>
         <div class="btns"><button class="btn" data-a="off">Enregistrer</button></div></div>
-      <div class="card"><h3>Version et maintenance</h3>
+      <div class="card"><h3>Version et maintenance</h3><label class="ck"><input type="checkbox" name="secureforce" ${A.screenProtectionForce ? 'checked' : ''}> Imposer la protection des captures Android à toutes les organisations (nouvel APK)</label>
         <label>Version minimale (X.Y.Z) — en dessous, l'application demande la mise à jour<input name="minv" value="${esc(A.minVersion || '')}" placeholder="Ex : 1.0.24" inputmode="decimal"></label>
         <label class="ck"><input type="checkbox" name="mon" ${A.maintenance && A.maintenance.on ? 'checked' : ''}> Mode maintenance (application fermée pour tous, sauf vous)</label>
         <label>Texte de maintenance<input name="mtext" value="${esc((A.maintenance || {}).text || '')}" placeholder="SiteTeam est en maintenance. Revenez dans quelques minutes."></label>
@@ -258,7 +258,7 @@
     $('[data-a=svcs]', M).onclick = () => save('services', { open: [...new Set(['direction', 'externe', 'perso', ...$$('[data-sv]', M).filter(x => x.checked).map(x => x.dataset.sv)])] }, 'Services enregistrés ✓');
     $('[data-a=off]', M).onclick = () => save('app', { off: $$('[data-off]', M).filter(x => x.checked).map(x => x.dataset.off) }, 'Fonctions enregistrées ✓');
     $('[data-a=ver]', M).onclick = () => { const v = val('minv').value.trim(); if (v && !/^\d+\.\d+\.\d+$/.test(v)) return toast('Version au format X.Y.Z (ex : 1.0.24)');
-      save('app', { minVersion: v, maintenance: { on: val('mon').checked, text: val('mtext').value.trim() } }); };
+      save('app', { screenProtectionForce: val('secureforce').checked, minVersion: v, maintenance: { on: val('mon').checked, text: val('mtext').value.trim() } }); };
     $('[data-a=msg]', M).onclick = () => save('app', { message: { on: val('gon').checked, level: val('glev').value, text: val('gtext').value.trim(), id: String(Date.now()) } });
     $('[data-a=sto]', M).onclick = () => save('services', { storage: val('son').checked, maxMb: Math.min(50, Math.max(1, +val('smax').value || 50)) });
   }

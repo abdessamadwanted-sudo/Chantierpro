@@ -166,9 +166,9 @@ async function renderHome() {
         ${(() => { const M = Team.ready() && Team.appCfg().message; let off = ''; try { off = localStorage.getItem('st.msgOff') || ''; } catch (e) {}
           return M && M.on && M.text && off !== String(M.id || M.text) ? `<div class="st-msg ${M.level === 'alerte' ? 'al' : ''}"><span>${M.level === 'alerte' ? '⚠️' : '📣'}</span><p>${esc(M.text)}</p><button class="iconbtn sm" data-a="msgoff" aria-label="Masquer">${icon('close')}</button></div>` : ''; })()}
         ${ST.dashHTML()}
-        ${ST.isPerso() || (Team.ready() && Team.isCollab()) ? '' : espaceHome()}
+        ${ST.isPerso() || (Team.ready() && Team.isCollab()) || (Entreprise.active() && Entreprise.taille() === 'petite') ? '' : espaceHome()}
         ${fp ? focusHTML() : `<div class="h2-sec"><span>Mes chantiers</span><small>${projects.length}</small></div>
-        ${projects.length ? projects.map(p => { const st = stats(p), [c1, c2] = hue(p.name), open = !!App.homeOpen[p.id];
+        ${projects.length ? projects.filter((p, i) => !Entreprise.active() || App.entView === 'projets' || i < 3).map(p => { const st = stats(p), [c1, c2] = hue(p.name), open = !!App.homeOpen[p.id];
           const due = (x) => x.at && x.at.slice(0, 10) <= today;
           const ropen = !!(App.homeRap || {})[p.id];
           if (!fRec) { st.today = 0; st.pv = 0; } if (!fTasks) { st.open = 0; st.late = 0; }
@@ -197,6 +197,10 @@ async function renderHome() {
   const cmp = $('[data-a=company]'); if (cmp) cmp.onclick = () => Team.openCompany();
   espaceBind($('#app'));
   ST.dashBind($('#app'));
+  if (Entreprise.active()) {
+    if (projects.length > 3 && App.entView !== 'projets') $('.h2-body').insertAdjacentHTML('beforeend', '<button class="btn ghost ent-all" data-ent="projets">Voir tous les projets</button>');
+    Entreprise.bind($('#app')).catch(e => console.warn('accueil entreprise', e));
+  }
   if (keepScroll) { const hb = $('.h2-body'); if (hb) hb.scrollTop = keepScroll; }
   // toucher un chantier : son briefing, puis « Entrer » → la page du chantier
   const focusOn = async (id) => { App.homeFocus = id; await renderHome(); $('#app .h2-body') && ($('#app .h2-body').scrollTop = 0);
@@ -347,7 +351,9 @@ async function renderSection() {
       ${s.title ? `<div class="tb-title"><b>${esc(s.title)}</b><span>${esc(App.project.name)}</span></div><div class="tb-actions" id="tbActions"></div>`
         : `<h1>${esc(App.project.name)}</h1><button class="iconbtn" data-a="home">${icon('home')}</button>`}
     </div>
+    ${Entreprise.breadcrumbHTML()}
     <div class="content" id="content"></div>`;
+  Entreprise.bindBreadcrumb($('#app'));
   $('[data-a=drawer]').onclick = openDrawer;
   const hb = $('[data-a=home]'); if (hb) hb.onclick = renderHome;
   await s.render($('#content'));

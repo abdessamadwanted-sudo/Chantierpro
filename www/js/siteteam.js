@@ -154,9 +154,10 @@ const ST = (() => {
     if (perso()) return persoHTML();
     const R = tmRoleOf(roleKey()), T = org(), C = Team.company() || {}, me = Team.me() || {};
     const team = (Team.members() || []).filter(m => m.managerUid && m.managerUid === me.uid).length, multi = Team.workspaces().length > 1;
+    if (Entreprise.active()) return `<div class="st-ctx"><button class="st-wsc" data-a="st-ws"><span class="e">${esc(T.e)}</span><b>${esc(C.name || '')}</b><i>${multi ? '▾ changer' : '＋ espaces'}</i></button><div class="st-chips"><span>${esc(memberPostes(PV.get() ? { role: R.k } : me).map(k => tmRoleOf(k).l).join(' · '))}</span></div></div>${Entreprise.dashboardHTML()}`;
     // contexte : où l'on travaille (espace · service · poste · projet) — le Dashboard se lit à partir de là
     return `<div class="st-ctx"><button class="st-wsc" data-a="st-ws"><span class="e">${esc(T.e)}</span><b>${esc(C.name || '')}</b><i>${multi ? '▾ changer' : '＋ espaces'}</i></button>
-        <div class="st-chips">${Team.isCollab() && !PV.get() ? '<span>🤝 Projet partagé</span><span>Collaborateur</span>' : `<span>${esc(serviceOf(PV.get() ? R.s : (me.service || R.s)).l)}</span><span>${esc(R.l)}</span>`}<button data-a="st-proj">Projet ▾</button></div></div>
+        <div class="st-chips">${Team.isCollab() && !PV.get() ? '<span>🤝 Projet partagé</span><span>Collaborateur</span>' : `${Entreprise.taille() === 'petite' ? '' : `<span>${esc(serviceOf(PV.get() ? R.s : (me.service || R.s)).l)}</span>`}<span>${esc(memberPostes(PV.get() ? { role: R.k } : me).map(k => tmRoleOf(k).l).join(' · '))}</span>`}<button data-a="st-proj">Projet ▾</button></div></div>
       ${team ? `<button class="st-team" data-a="st-team"><b>Mon équipe : ${team} personne(s)</b><small>sous ma responsabilité</small></button>` : ''}
       ${(me.missions || []).length && !PV.get() ? `<div class="st-mbox"><b>Mes missions</b>${me.missions.map(x => `<div class="st-mis">• ${esc(x.t)}</div>`).join('')}</div>` : ''}
       ${R.s === 'qualite' || Team.lvl('forms') >= 2 ? `<div class="st-qual" data-stq><div class="h2-sec"><span>Validation des PV</span></div><div class="st-qtiles">${['À valider', 'À corriger', 'Brouillons', 'Validés (7 j)'].map(l => `<div class="st-ps"><b>…</b><small>${l}</small></div>`).join('')}</div></div>` : ''}
