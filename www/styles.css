@@ -2666,7 +2666,7 @@ html.th-st .es-tile .i { color: var(--c, var(--accent)); }
 .wz-rec span { color: var(--muted); } .wz-rec b { text-align: right; }
 
 /* ================= v1.0.32 · accueil en onglets, plus compact ================= */
-.h2-tab { display: none; } .h2-tab.on { display: block; }
+.h2-pane { display: none; } .h2-pane.on { display: block; }
 .st-bnav.n5 { grid-template-columns: repeat(5, 1fr); } .st-bnav.n5 button { font-size: 10.5px; }
 .h2-sec .h2-more { margin-left: auto; color: var(--accent); font-weight: 600; font-size: 14px; }
 html.th-st .home2 .h2-hello { font-size: 20px !important; } html.th-st .home2 .h2-phrase { display: none; }

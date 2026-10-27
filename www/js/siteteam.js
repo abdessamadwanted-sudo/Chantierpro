@@ -273,7 +273,7 @@ const ST = (() => {
     nav.innerHTML = `<button data-n="home" class="${T === 'home' ? 'on' : ''}">${icon('grid')}<span>Accueil</span></button><button data-n="proj" class="${T === 'proj' ? 'on' : ''}">${icon('folder')}<span>Projets</span></button>
       ${perso() ? `<button data-n="me">${icon('user')}<span>Mon espace</span></button>` : `<button data-n="tools" class="${T === 'tools' ? 'on' : ''}">${icon('layers')}<span>Outils</span></button><button data-n="team">${icon('team')}<span>Équipe</span></button>`}<button data-n="set">${icon('settings')}<span>Réglages</span></button>`;
     app.appendChild(nav);
-    const go = (t) => { App.homeTab = t; document.querySelectorAll('.h2-tab').forEach(x => x.classList.toggle('on', x.dataset.tab === t)); nav.querySelectorAll('[data-n]').forEach(x => x.classList.toggle('on', x.dataset.n === t)); const b = document.querySelector('.h2-body'); if (b) b.scrollTop = 0; };
+    const go = (t) => { App.homeTab = t; document.querySelectorAll('.h2-pane').forEach(x => x.classList.toggle('on', x.dataset.tab === t)); nav.querySelectorAll('[data-n]').forEach(x => x.classList.toggle('on', x.dataset.n === t)); const b = document.querySelector('.h2-body'); if (b) b.scrollTop = 0; };
     ['home', 'proj', 'tools'].forEach(t => { const b = nav.querySelector(`[data-n=${t}]`); if (b) b.onclick = () => go(t); });
     document.querySelectorAll('[data-tabgo]').forEach(b => b.onclick = () => go(b.dataset.tabgo));
     const tm = nav.querySelector('[data-n=team]'); if (tm) tm.onclick = () => Team.openCompany('org');
