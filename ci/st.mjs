@@ -540,7 +540,7 @@ try {
   // ---- v1.0.30 : ST-UI-002 Premium Glass (présentation uniquement)
   const glassResult = await A.pg.evaluate(async () => {
     document.documentElement.classList.add('glass');
-    const css = [...document.querySelectorAll('link[rel="stylesheet"]')].find(x => /premium-glass\\.css/.test(x.getAttribute('href') || ''));
+    const css = [...document.querySelectorAll('link[rel="stylesheet"]')].find(x => (x.getAttribute('href') || '').split('?')[0].endsWith('premium-glass.css'));
     const card = document.querySelector('.h2-card');
     const token = getComputedStyle(document.documentElement).getPropertyValue('--st-glass-radius').trim();
     const radius = card && getComputedStyle(card).borderTopLeftRadius;
