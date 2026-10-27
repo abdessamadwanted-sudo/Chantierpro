@@ -244,6 +244,9 @@
         <label class="ck"><input type="checkbox" name="mon" ${A.maintenance && A.maintenance.on ? 'checked' : ''}> Mode maintenance (application fermée pour tous, sauf vous)</label>
         <label>Texte de maintenance<input name="mtext" value="${esc((A.maintenance || {}).text || '')}" placeholder="SiteTeam est en maintenance. Revenez dans quelques minutes."></label>
         <div class="btns"><button class="btn" data-a="ver">Enregistrer</button></div></div>
+      <div class="card"><h3>Anti-capture d'écran</h3><p class="muted">Interdit les captures et l'enregistrement d'écran dans l'application Android, pour toutes les organisations (chaque organisation peut aussi l'activer pour elle-même).</p>
+        <label class="ck"><input type="checkbox" name="secall" ${A.secureAll ? 'checked' : ''}> Imposer l'anti-capture à tous</label>
+        <div class="btns"><button class="btn" data-a="sec">Enregistrer</button></div></div>
       <div class="card"><h3>Message sur l'accueil</h3>
         <label class="ck"><input type="checkbox" name="gon" ${A.message && A.message.on ? 'checked' : ''}> Afficher le message</label>
         <label>Niveau<select name="glev"><option value="info">Information</option><option value="alerte" ${(A.message || {}).level === 'alerte' ? 'selected' : ''}>Alerte</option></select></label>
@@ -259,6 +262,7 @@
     $('[data-a=off]', M).onclick = () => save('app', { off: $$('[data-off]', M).filter(x => x.checked).map(x => x.dataset.off) }, 'Fonctions enregistrées ✓');
     $('[data-a=ver]', M).onclick = () => { const v = val('minv').value.trim(); if (v && !/^\d+\.\d+\.\d+$/.test(v)) return toast('Version au format X.Y.Z (ex : 1.0.24)');
       save('app', { minVersion: v, maintenance: { on: val('mon').checked, text: val('mtext').value.trim() } }); };
+    $('[data-a=sec]', M).onclick = () => save('app', { secureAll: val('secall').checked }, val('secall').checked ? 'Anti-capture imposé ✓' : 'Anti-capture libre ✓');
     $('[data-a=msg]', M).onclick = () => save('app', { message: { on: val('gon').checked, level: val('glev').value, text: val('gtext').value.trim(), id: String(Date.now()) } });
     $('[data-a=sto]', M).onclick = () => save('services', { storage: val('son').checked, maxMb: Math.min(50, Math.max(1, +val('smax').value || 50)) });
   }

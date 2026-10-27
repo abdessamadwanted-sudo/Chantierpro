@@ -149,6 +149,77 @@ const ST = (() => {
       : '<div class="st-ok">Aucune activité pour le moment. Créez un projet avec le bouton +.</div>';
   }
 
+  // ---------- Tableau de bord « Vue Direction » (organisation : administrateurs) — style SiteTeam UI Kit ----------
+  // la taille d'entreprise suit le pack : Basic = petite · Business = moyenne · Enterprise = grande
+  const TAILLE_L = { petite: 'Petite entreprise', moyenne: 'Entreprise moyenne', grande: 'Grande entreprise' };
+  const dirOn = () => ready() && !perso() && !PV.get() && !Team.isCollab() && Team.isAdmin();
+  function directionHTML() {
+    if (!dirOn()) return '';
+    const t = Team.taille(), P = plan(), title = t === 'grande' ? 'Vue Direction générale' : t === 'moyenne' ? 'Vue Direction' : 'Tableau de bord';
+    const svcs = t === 'petite' ? [] : Team.companyServices().filter(x => x.k !== 'externe'), M = Team.members() || [];
+    return `<div class="st-dir" data-stdir>
+      <div class="st-dir-hero"><small>TABLEAU DE BORD · ${esc(TAILLE_L[t] || '')} · ${esc(P.l)}</small><b>${title}</b><span>Pilotage des projets${t === 'petite' ? '' : ' et services'}</span>
+        <div class="st-dir-pills"><i>Cette semaine</i><button data-a="dir-proj">Tous les projets ▾</button></div></div>
+      <div class="st-kpis">
+        <button class="st-kpi" data-k="av"><span class="ic">📈</span><b>…</b><small>Avancement</small></button>
+        <button class="st-kpi" data-k="pj"><span class="ic">🏢</span><b>…</b><small>Projets actifs</small></button>
+        <button class="st-kpi" data-k="dec"><span class="ic">📋</span><b>…</b><small>Décisions</small></button>
+        <button class="st-kpi" data-k="al"><span class="ic">⚠️</span><b>…</b><small>Alertes</small></button></div>
+      <div class="st-perf"><div class="st-perf-h"><b>Activité des projets</b><small>8 dernières semaines</small></div><div class="st-perf-c" data-perf></div></div>
+      ${svcs.length ? `<div class="st-svcrow"><div class="st-perf-h"><b>Services</b><small>${svcs.length}</small></div><div class="st-svcs2">${svcs.map(x => { const n = M.filter(m => (m.service || tmRoleOf(m.role).s) === x.k).length;
+        return `<button class="st-svc2" data-a="dir-svc" style="--c:${x.c || '#2164A8'}"><span>${esc(x.e || '')}</span><b>${esc(x.l)}</b><small>${n} pers.</small></button>`; }).join('')}</div></div>` : ''}
+    </div>`;
+  }
+  async function dirBind(root) {
+    const box = root && root.querySelector('[data-stdir]'); if (!box) return;
+    const pj = box.querySelector('[data-a=dir-proj]'); if (pj) pj.onclick = () => { const s = document.querySelector('.h2-sec'); if (s) s.scrollIntoView({ behavior: 'smooth' }); };
+    box.querySelectorAll('[data-a=dir-svc]').forEach(b => b.onclick = () => Team.openCompany('org'));
+    try {
+      const projects = (await DB.all('projects')).filter(p => !p.deleted && !p.archived && Team.canProject(p.id));
+      const ids = new Set(projects.map(p => p.id));
+      const [tasks, recs, forms, links, reps] = await Promise.all(['tasks', 'receptions', 'forms', 'links', 'reports'].map(k => DB.all(k).catch(() => [])));
+      const T = tasks.filter(x => ids.has(x.projectId));
+      // avancement : moyenne des projets suivis en « Avancement » ; sinon part des réserves levées
+      const av = typeof avHomeStats === 'function' ? projects.map(p => { try { return avHomeStats(p, links); } catch (e) { return null; } }).filter(x => x && x.locs) : [];
+      const pct = av.length ? Math.round(av.reduce((a, x) => a + x.pct, 0) / av.length) : T.length ? Math.round(100 * T.filter(isLifted).length / T.length) : null;
+      const dec = forms.filter(f => ids.has(f.projectId) && f.vst === 'soumis' && Team.canValidateForm(f)).length;
+      const pvOld = recs.filter(d => ids.has(d.projectId) && d.type !== 'Bétonnage').flatMap(d => (d.rows || []).filter(pvMissing).map(() => d.date)).filter(dt => daysSince(dt) >= 3).length;
+      const al = T.filter(isLate).length + pvOld + projects.reduce((a, p) => a + (p.rappels || []).filter(x => !x.done && x.at && x.at.slice(0, 10) < todayISO()).length, 0);
+      const set = (k, v, warn) => { const b = box.querySelector(`[data-k=${k}] b`); if (b) { b.textContent = v; b.closest('.st-kpi').classList.toggle('warn', !!warn); } };
+      set('av', pct == null ? '—' : pct + '%'); set('pj', String(projects.length).padStart(2, '0')); set('dec', String(dec).padStart(2, '0'), dec > 0); set('al', String(al).padStart(2, '0'), al > 0);
+      box.querySelector('[data-k=al]').onclick = box.querySelector('[data-k=dec]').onclick = async () => { if (typeof briefingShow === 'function') { const act = await briefingShow(); if (act) act(); } };
+      box.querySelector('[data-k=pj]').onclick = () => { const s = document.querySelector('.h2-sec'); if (s) s.scrollIntoView({ behavior: 'smooth' }); };
+      // activité : éléments créés ou modifiés par semaine (réserves, réceptions, PV, rapports)
+      const W = 8, now = Date.now(), wk = 7 * 864e5, bins = Array(W).fill(0);
+      for (const x of [...T, ...recs, ...forms, ...reps]) { if (!ids.has(x.projectId)) continue; const i = W - 1 - Math.floor((now - (x.updatedAt || 0)) / wk); if (i >= 0 && i < W) bins[i]++; }
+      const c = box.querySelector('[data-perf]'); if (c) c.innerHTML = perfSvg(bins);
+    } catch (e) { console.warn('direction', e); }
+  }
+  function perfSvg(v) {
+    const w = 320, h = 110, mx = Math.max(1, ...v), step = w / (v.length - 1), y = (n) => h - 12 - (n / mx) * (h - 28);
+    const pts = v.map((n, i) => [Math.round(i * step), Math.round(y(n))]);
+    const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0] + ' ' + p[1]).join(' ');
+    return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Activité par semaine : ${v.join(', ')}">
+      ${[0.25, 0.5, 0.75].map(f => `<line x1="0" x2="${w}" y1="${Math.round(h * f)}" y2="${Math.round(h * f)}" class="gl"/>`).join('')}
+      <path d="${d} L${w} ${h} L0 ${h} Z" class="ar"/><path d="${d}" class="ln"/>
+      <circle cx="${pts[pts.length - 1][0] - 4}" cy="${pts[pts.length - 1][1]}" r="5" class="pt"/></svg>
+      <div class="st-perf-x"><span>S-7</span><span>Cette semaine · ${v[v.length - 1]}</span></div>`;
+  }
+  // ---------- barre de navigation du bas (UI Kit) : Accueil · Projets · Équipes · Réglages ----------
+  function bottomNav() {
+    const app = document.getElementById('app'); if (!app || !ready() || Team.isCollab()) return;
+    app.classList.add('with-bnav');
+    const nav = document.createElement('nav'); nav.className = 'st-bnav';
+    nav.innerHTML = `<button data-n="home" class="on">${icon('grid')}<span>Accueil</span></button><button data-n="proj">${icon('folder')}<span>Projets</span></button>
+      ${perso() ? `<button data-n="me">${icon('user')}<span>Mon espace</span></button>` : `<button data-n="team">${icon('team')}<span>Équipes</span></button>`}<button data-n="set">${icon('settings')}<span>Réglages</span></button>`;
+    app.appendChild(nav);
+    nav.querySelector('[data-n=home]').onclick = () => { const b = document.querySelector('.h2-body'); if (b) b.scrollTo({ top: 0, behavior: 'smooth' }); };
+    nav.querySelector('[data-n=proj]').onclick = () => { const s = document.querySelector('.h2-sec'); if (s) s.scrollIntoView({ behavior: 'smooth' }); };
+    const tm = nav.querySelector('[data-n=team]'); if (tm) tm.onclick = () => Team.openCompany('org');
+    const me = nav.querySelector('[data-n=me]'); if (me) me.onclick = () => Team.openCompany('me');
+    nav.querySelector('[data-n=set]').onclick = () => Team.openCompany(perso() ? 'me' : 'set');
+  }
+
   function dashHTML() {
     if (!ready()) return '';
     if (perso()) return persoHTML();
@@ -163,6 +234,7 @@ const ST = (() => {
       <div class="st-dash" data-stdash><div class="h2-sec"><span>Mon tableau de bord</span><small>${esc(T.e)} ${esc(R.l)}</small></div><div class="st-tiles"><div class="st-load">…</div></div></div>`;
   }
   async function dashBind(root) {
+    if (root && root.id === 'app') { if (Team.secureApply) Team.secureApply(); dirBind(root); if (!root.querySelector('.st-bnav')) bottomNav(); }
     if (root && perso()) { const ws = root.querySelector('[data-a=st-ws]'); if (ws) ws.onclick = () => Team.openSwitcher(); return persoBind(root); }
     if (root) {
       const ws = root.querySelector('[data-a=st-ws]'); if (ws) ws.onclick = () => Team.openSwitcher();
@@ -360,5 +432,5 @@ const ST = (() => {
   }
 
   function refreshRole() { applyRole(); try { App.project ? renderSection() : renderHome(); } catch (e) {} }
-  return { dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
+  return { directionHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
 })();
