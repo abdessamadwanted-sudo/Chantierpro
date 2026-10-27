@@ -101,6 +101,7 @@ const Wizard = (() => {
       const p = await DB.put('projects', { name: st.fiche.name, code: st.fiche.code || '', address: st.fiche.address || '', moa: st.fiche.moa || '', dateDebut: st.fiche.debut || '', dureeMois: +st.fiche.duree || null,
         type: X.k, featOff: Object.fromEntries(X.off.map(k => [k, true])), team: [], envergure: st.env, carac: st.carac, catLots: [...st.lots].map(k => k.split('|')),
         zones: zones.join('\n'), ...(svcs.length ? { services: [...st.services] } : {}), wizard: 1 });
+      if (Team.ready() && Team.noteProject) Team.noteProject(p);
       s.onClose = null; s.close(); toast('Projet créé ✓'); openProject(p);
     }
     draw();

@@ -8,8 +8,16 @@ service firebase.storage {
     // compte bloqué / organisation suspendue par le Super Admin : plus d'accès aux fichiers
     function okUser() { let u = /databases/(default)/documents/users/$(request.auth.uid); return !firestore.exists(u) || firestore.get(u).data.get('blocked', false) != true; }
     function live(cid) { let c = /databases/(default)/documents/companies/$(cid); return !firestore.exists(c) || firestore.get(c).data.get('planStatus', '') != 'suspendu'; }
+    function projectTeamOk(cid, pid) {
+      let p = firestore.get(/databases/(default)/documents/companies/$(cid)/projects/$(pid)).data;
+      return p.get('teamEnabled', false) == false || request.auth.uid in p.get('teamUids', []);
+    }
+    function teamAllowed(cid, pid) {
+      let c = firestore.get(/databases/(default)/documents/companies/$(cid)).data;
+      return c.get('teamsVersion', 0) != 1 || c.get('plan', 'basic') in ['basic', 'pro', 'personnel'] || mem(cid).admin == true || projectTeamOk(cid, pid);
+    }
     function ownOk(cid, pid, n) {
-      return signed() && firestore.exists(memPath(cid)) && okUser() && live(cid) && (mem(cid).allProjects == true || pid in mem(cid).projects) && lv(mem(cid).perms, n);
+      return signed() && firestore.exists(memPath(cid)) && okUser() && live(cid) && (mem(cid).admin == true || mem(cid).allProjects == true || pid in mem(cid).projects) && teamAllowed(cid, pid) && lv(mem(cid).perms, n);
     }
     function partOk(cid, pid, n) {
       let o = firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('companyId', '');
