@@ -5,7 +5,7 @@ const Entreprise = (() => {
   const label = () => ({ petite: 'Petite organisation', moyenne: 'Moyenne organisation', grande: 'Grande organisation' })[taille()];
   function navHTML() {
     if (!active()) return '';
-    return `<nav class="ent-nav" aria-label="Organisation"><button data-ent="accueil" class="${App.entView !== 'projets' ? 'on' : ''}">${icon('home')} Accueil</button><button data-ent="projets" class="${App.entView === 'projets' ? 'on' : ''}">${icon('plans')} Projets</button><button data-ent="equipe">${icon('team')} Équipe</button>${taille() !== 'petite' ? '<button data-ent="org">Organisation</button>' : ''}${Team.isAdmin() ? '<button data-ent="reglages">Réglages</button>' : ''}</nav>`;
+    return `<nav class="ent-nav" aria-label="Organisation"><button data-ent="accueil" class="${App.entView !== 'projets' ? 'on' : ''}">${icon('home')} Accueil</button><button data-ent="projets" class="${App.entView === 'projets' ? 'on' : ''}">${icon('plans')} Projets</button><button data-ent="equipe">${icon('team')} Équipe</button>${taille() !== 'petite' ? '<button data-ent="org">Organisation</button><button data-ent="affectations">Affectations</button>' : ''}${Team.isAdmin() ? '<button data-ent="reglages">Réglages</button>' : ''}</nav>`;
   }
   function dashboardHTML() {
     if (!active()) return '';
@@ -15,6 +15,7 @@ const Entreprise = (() => {
     if (!active()) return;
     $$('[data-ent]', root).forEach(b => b.onclick = () => {
       const k = b.dataset.ent;
+      if (k === 'affectations') return Affectations.open();
       if (k === 'nouveau') return newProject();
       if (k === 'inviter') return Team.inviteFlow();
       if (k === 'equipe' || k === 'org' || k === 'reglages') return Team.openCompany({ equipe: 'mem', org: 'org', reglages: 'set' }[k]);

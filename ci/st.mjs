@@ -557,6 +557,23 @@ try {
   await A.pg.locator('.tm-page [data-a=x]').click();
   await A.pg.evaluate(async plan => { Team.company().plan = plan; await renderHome(); }, entOriginal);
   log('errors v1.0.31', [...entErrors, ...A.errs.slice(entStart[0]), ...B.errs.slice(entStart[1])]);
+  // ---- v1.0.32 : affecter, terminer et conserver l’historique du projet
+  const affStart = A.errs.length, affErrors = [];
+  await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; });
+  const affResult = await A.pg.evaluate(async () => {
+    const p = (await DB.all('projects'))[0], uid = Team.members().find(m => !m.admin)?.uid || Team.uid();
+    const list = [{ id: 'ci-aff32', uid, role: 'techqualite', debut: todayISO(), fin: null }];
+    await Team.saveAffectations(p, list, 'affectation', uid);
+    const initial = [p.teamEnabled, p.teamUids.includes(uid), p.affectations.length];
+    await Team.saveAffectations(p, list.map(a => ({ ...a, fin: todayISO() })), 'fin_affectation', uid);
+    const ended = [p.teamUids.length, p.affectations[0].fin, p.affectations.length];
+    return { initial, ended };
+  });
+  if (!affResult.initial[0] || !affResult.initial[1] || affResult.initial[2] !== 1 || affResult.ended[0] !== 0 || !affResult.ended[1] || affResult.ended[2] !== 1) affErrors.push('Affectation ou historique incorrect');
+  await A.pg.evaluate(() => { Affectations.open(); }); await A.pg.waitForSelector('[data-aff-project]'); await shot(A.pg, '108_affectations');
+  await A.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove()));
+  log('Affectations : début / fin / historique', affResult);
+  log('errors v1.0.32', [...affErrors, ...A.errs.slice(affStart)]);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);

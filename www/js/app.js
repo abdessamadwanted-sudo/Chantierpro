@@ -337,6 +337,7 @@ const SECTIONS = {
 };
 
 async function renderSection() {
+  if (!App.project || !Team.canProject(App.project.id)) return renderHome();
   BackStack.length = 0;
   if (!SECTIONS[App.section] || !sectionOn(App.section) || !Team.canSection(App.section)) App.section = Object.keys(SECTIONS).find(k => !SECTIONS[k].hidden && sectionOn(k) && Team.canSection(k)) || 'plans';
   pushBack(() => { if (App.fromBrief && typeof briefReopen === 'function') return briefReopen(); if (App.section !== 'plans') { App.section = 'plans'; App.search = ''; renderSection(); } else renderHome(); });
@@ -1317,6 +1318,7 @@ async function renderTeam(root) {
   const p = App.project; p.team = p.team || []; p.companies = p.companies || [];
   const tasks = await DB.byProject('tasks', p.id);
   root.innerHTML = `<div class="pagehead"><h2>Équipe</h2><p>Entreprises (lots) et intervenants</p></div>
+    ${Affectations.active() && !Team.sharedOf(p.id) ? '<button class="btn ghost" data-a="affectations">Équipe projet & affectations</button>' : ''}
     <div class="section-label" style="display:flex;align-items:center">Entreprises / lots<button class="btn small ghost" data-a="addco" style="margin-left:auto">${icon('plus')} Ajouter</button></div>
     ${p.companies.length ? `<div class="list">${p.companies.map(c => { const ts = tasks.filter(t => t.companyId === c.id); return `
       <div class="row" data-co="${c.id}"><span class="tasknum" style="background:${c.color}">${esc((c.name || '?')[0].toUpperCase())}</span>
@@ -1332,6 +1334,7 @@ async function renderTeam(root) {
     <div class="empty" style="padding:20px 24px">Maître d'ouvrage, BET, architecte, laboratoire, membres du groupement… Chaque organisation travaille dans ce projet avec ses propres comptes et ne voit que les modules accordés.</div>` : ''}
     ${Team.ready() && !Team.sharedOf(p.id) ? `<div class="section-label" style="display:flex;align-items:center">Partage simple (sans compte)<button class="btn small ghost" data-a="extshare" style="margin-left:auto">${icon('share')} Partager</button></div>
     <div class="empty" style="padding:20px 24px">Donnez à un maître d'ouvrage, un BET, un sous-traitant… un accès limité à ce projet, sans l'ajouter à votre entreprise.</div>` : ''}`;
+  const af = $('[data-a=affectations]', root); if (af) af.onclick = () => Affectations.open(p);
   const edit = async (m, i) => {
     const r = await formSheet(m ? 'Modifier' : 'Nouvel intervenant', [
       { name: 'name', label: 'Nom', value: m?.name }, { name: 'role', label: 'Fonction / entreprise', value: m?.role }, { name: 'phone', label: 'Téléphone', type: 'tel', value: m?.phone },

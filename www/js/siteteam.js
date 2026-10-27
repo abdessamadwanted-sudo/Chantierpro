@@ -276,6 +276,7 @@ const ST = (() => {
     if (!r) return;
     if (!r.name) return toast('Le nom du projet est obligatoire');
     const p = await DB.put('projects', { name: r.name, address: r.address || '', moa: r.moa || '', dateDebut: r.debut || '', dureeMois: +r.duree || null, type: T.k, featOff: Object.fromEntries(T.off.map(k => [k, true])), team: [] });
+    Team.noteProject(p);
     openProject(p);
   }
   window.newProjectDialog = newProject;

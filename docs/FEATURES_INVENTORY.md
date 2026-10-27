@@ -2,6 +2,19 @@
 
 ## Phase 2a — reprise du 27/10/2026
 
+### Phase 2b — équipe projet et affectations
+
+Business/Enterprise : écran Affectations depuis l'accueil et Équipe projet. Affectation nominative avec poste
+et date de début, remplacement, fin et transfert atomique vers un autre projet ; les affectations terminées
+restent visibles et chaque opération produit une ligne d'audit serveur immuable. Les droits du poste dans
+l'organisation continuent à limiter les actions ; le poste d'affectation est une mission, pas une promotion.
+
+L'activation initiale marque les anciens projets comme ouverts. Seuls les projets dont l'équipe a été définie
+deviennent nominatifs. Firestore et Storage vérifient l'équipe en plus des droits existants ; l'administrateur
+garde l'accès. Les règles doivent être publiées ensemble. La synchro recharge la politique et le cache des
+projets accessibles ; hors ligne, la dernière politique reçue est utilisée. Aucune donnée passée n'est supprimée.
+Les modifications concurrentes d'équipe sont rejetées par transaction. Tests : errors v1.0.32 et règles serveur.
+
 Accueil entreprise indépendant du projet : quatre compteurs calculés sur les projets autorisés, activités récentes,
 trois projets puis « Voir tous les projets », accès Équipe / Organisation / Réglages. Taille déduite du pack :
 Basic et Pro = petite ; Business = moyenne ; Enterprise = grande. Aucun champ taille ni migration IndexedDB.
