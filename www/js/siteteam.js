@@ -159,7 +159,7 @@ const ST = (() => {
     const svcs = t === 'petite' ? [] : Team.companyServices().filter(x => x.k !== 'externe'), M = Team.members() || [];
     return `<div class="st-dir" data-stdir>
       <div class="st-dir-hero"><small>TABLEAU DE BORD · ${esc(TAILLE_L[t] || '')} · ${esc(P.l)}</small><b>${title}</b><span>Pilotage des projets${t === 'petite' ? '' : ' et services'}</span>
-        <div class="st-dir-pills"><i>Cette semaine</i><button data-a="dir-proj">Tous les projets ▾</button></div></div>
+        <div class="st-dir-pills"><i>Cette semaine</i><button data-a="dir-proj">Tous les projets ▾</button>${t !== 'petite' && typeof Affectations !== 'undefined' ? '<button data-a="dir-aff">👥 Affectations</button>' : ''}</div></div>
       <div class="st-kpis">
         <button class="st-kpi" data-k="av"><span class="ic">📈</span><b>…</b><small>Avancement</small></button>
         <button class="st-kpi" data-k="pj"><span class="ic">🏢</span><b>…</b><small>Projets actifs</small></button>
@@ -174,6 +174,7 @@ const ST = (() => {
     const box = root && root.querySelector('[data-stdir]'); if (!box) return;
     const pj = box.querySelector('[data-a=dir-proj]'); if (pj) pj.onclick = () => { const n = document.querySelector('.st-bnav [data-n=proj]'); if (n) n.click(); else { const s = document.querySelector('.h2-sec'); if (s) s.scrollIntoView({ behavior: 'smooth' }); } };
     box.querySelectorAll('[data-a=dir-svc]').forEach(b => b.onclick = () => Team.openCompany('org'));
+    const af = box.querySelector('[data-a=dir-aff]'); if (af) af.onclick = () => Affectations.open();
     try {
       const projects = (await DB.all('projects')).filter(p => !p.deleted && !p.archived && Team.canProject(p.id));
       const ids = new Set(projects.map(p => p.id));
@@ -407,6 +408,7 @@ const ST = (() => {
     if (!r) return;
     if (!r.name) return toast('Le nom du projet est obligatoire');
     const p = await DB.put('projects', { name: r.name, address: r.address || '', moa: r.moa || '', dateDebut: r.debut || '', dureeMois: +r.duree || null, type: T.k, featOff: Object.fromEntries(T.off.map(k => [k, true])), team: [] });
+    Team.noteProject(p);
     openProject(p);
   }
   window.newProjectDialog = newProject;
