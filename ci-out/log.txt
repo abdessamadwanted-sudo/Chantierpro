@@ -3063,3 +3063,32 @@ D after delete: login screen 1
 A members after D delete ["Sara BET","Abdessamad Patron","Client MO","Youssef Conducteur"]
 D relogin Compte introuvable
 errors ["A console: Failed to load resource: the server responded with a status of 403 (Forbidden)","D console: Failed to load resource: the server responded with a status of 400 (Bad Request)"]
+services ouverts (test) 200
+packs ouverts (test) 200
+A offres organisation ["basic:🌱 Basic Organisation","business:🏢 Business","enterprise:🏛️ Enterprise"]
+A pack/type ["business","entreprise",17,true]
+A projet [["Grand stade Benslimane","equip","Ministère"]]
+A sync state <span style="color:#22c55e">✓ Synchronisé</span> <span style="color:var(--muted)">· 27/10 22:40</span>
+A poste Directeur de projet : admin auto / max droit [false,3]
+code conducteur M5H9VEP2
+code MO DDWXXCET
+B projects ["Grand stade Benslimane"]
+B tasks ["Enrobage insuffisant voile V12"]
+B receptions 1
+A sees task ["Enrobage insuffisant voile V12 (repris) / progress"]
+B self-admin denied OK: permission-denied
+B invite create denied OK: permission-denied
+C fab 0 projects ["Grand stade Benslimane"]
+C write task denied OK: permission-denied
+FAIL page.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator('[data-es=impl]')
+  -   locator resolved to <button data-es="impl" class="es-tile">…</button>
+  - attempting click action
+  -   waiting for element to be visible, enabled and stable
+  -   element is not visible
+  - retrying clic
+ERRS []
+ERRS []
+ERRS []
+ERRS []
