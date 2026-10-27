@@ -1,6 +1,6 @@
-## SiteTeam : accueil réorganisé, anti-capture corrigé, organigramme zoomable
-- Accueil en onglets avec la barre du bas : Accueil (chiffres + à faire + 2 derniers chantiers) · Projets (tous les chantiers) · Outils (tous les outils et espaces métier) · Équipe · Réglages. Fini la longue page.
-- Outils : catégories en boutons (Tous, Chantier, Qualité & sécurité, Études, Gestion, Projet & équipe) au lieu de listes dépliantes.
-- Interface plus compacte (titres, chiffres et cartes plus petits).
-- Anti-capture : se désactive correctement ; l'état du téléphone est affiché (activé / désactivé) et réappliqué au retour dans l'application. Le Super Admin peut lever l'anti-capture imposé à tous depuis l'application.
-- Organigramme : boutons ＋ / － / ajuster / plein écran, zoom plus souple, couleurs du thème clair.
+## SiteTeam : équipe projet et affectations (Business / Enterprise)
+- L'administrateur définit l'équipe de chaque projet : affecter un membre (poste sur le projet, date de début), remplacer un titulaire, terminer ou transférer une mission vers un autre projet.
+- Historique conservé (dates de début et de fin) et journal de l'organisation protégé (ajout seulement, aucune modification ni suppression).
+- Sécurité côté serveur : un membre non affecté ne voit plus le projet ni ses fichiers ; les administrateurs gardent l'accès ; les anciens projets restent ouverts tant qu'aucune équipe n'est définie.
+- Accès : Vue Direction › « 👥 Affectations », ou Projet › Équipe › « Équipe projet & affectations ».
+- Important : publier les nouvelles règles Firestore ET Storage avant de définir la première équipe.
