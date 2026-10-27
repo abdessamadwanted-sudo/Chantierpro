@@ -2643,3 +2643,24 @@ html.th-st input, html.th-st select, html.th-st textarea { background: #fff; col
 .st-dir-hero small { white-space: normal; overflow-wrap: anywhere; }
 html.th-st .es-tile { background: #fff; border-color: var(--line); color: var(--navy); box-shadow: 0 2px 8px rgba(20,35,55,.05); }
 html.th-st .es-tile .i { color: var(--c, var(--accent)); }
+
+/* ================= v1.0.31 · Assistant de création de projet ================= */
+.sheet.wz-sheet { max-height: 94vh; height: 94vh; display: flex; flex-direction: column; padding-bottom: 0; }
+.wz { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.wz-h { display: flex; align-items: center; gap: 8px; padding: 0 4px 6px; }
+.wz-h small { display: block; color: var(--muted); font-size: 12px; } .wz-h b { font-size: 20px; color: var(--navy, var(--text)); }
+.wz-bar { display: flex; gap: 4px; padding: 0 8px 10px; } .wz-bar i { flex: 1; height: 5px; border-radius: 3px; background: var(--line); } .wz-bar i.d { background: #18866B; } .wz-bar i.on { background: var(--accent); }
+.wz-b { flex: 1; overflow-y: auto; padding: 4px 8px 12px; display: grid; gap: 10px; align-content: start; }
+.wz-f { position: sticky; bottom: 0; display: flex; gap: 8px; padding: 10px 0 calc(10px + var(--safe-bottom)); background: linear-gradient(transparent, var(--card) 30%); }
+.wz-f .btn { flex: 1; }
+.wz-chip { display: inline-block; justify-self: start; padding: 6px 12px; border-radius: 999px; background: var(--card2); border: 1px solid var(--line); font-weight: 600; font-size: 13.5px; }
+.wz-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.wz-seg, .wz-models { display: flex; flex-wrap: wrap; gap: 6px; }
+.wz-seg button, .wz-models button { padding: 9px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font-size: 13.5px; }
+.wz-seg button.on, .wz-models button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.wz-cks { display: grid; gap: 4px; }
+.wz-sug { display: grid; gap: 4px; padding: 12px; border-radius: 14px; background: #F4A3401a; border: 1px solid #F4A34066; }
+.wz-sug small { color: var(--muted); }
+.wz-rec { display: grid; gap: 0; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--card); }
+.wz-rec > div { display: flex; justify-content: space-between; gap: 12px; padding: 12px 14px; border-top: 1px solid var(--line); } .wz-rec > div:first-child { border-top: 0; }
+.wz-rec span { color: var(--muted); } .wz-rec b { text-align: right; }

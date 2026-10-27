@@ -1,10 +1,6 @@
-## SiteTeam : nouveau design (UI Kit) et tableau de bord « Vue Direction »
-- Nouveau thème clair SiteTeam (Navy, Bleu, Ambre, Vert) appliqué par défaut ; les autres thèmes restent dans Réglages › Apparence.
-- Organisation (administrateurs) : tableau de bord « Vue Direction » — avancement, projets actifs, décisions (PV à valider), alertes, courbe d'activité des 8 dernières semaines, et services de l'entreprise.
-- La taille de l'entreprise suit le pack : Basic = petite, Business = moyenne, Enterprise = grande (titre et blocs adaptés).
-- Barre de navigation en bas : Accueil · Projets · Équipes · Réglages.
-- Dans un projet, fil d'Ariane « Entreprise › Projet » : toucher le nom de l'entreprise ramène au tableau de bord.
-- Plusieurs postes pour une même personne (ex. Conducteur + Qualité) : l'administrateur ajoute des postes supplémentaires, les droits s'additionnent.
-- Anti-capture d'écran : option de l'organisation (Réglages), ou imposée par le Super Admin.
-- Pack Enterprise : ligne « Serveur privé — Contactez-nous ».
-- Mise à jour de l'application à installer (partie Android : anti-capture).
+## SiteTeam : assistant de création de projet
+- Nouveau projet en étapes : type → fiche (nom, code, lieu, MOA, dates) → caractéristiques (envergure, niveaux, sous-sols, blocs, parking, ascenseurs, piscine…) → lots → zones → services → récapitulatif.
+- Lots : modèle de départ selon le type (immeuble, villa, stade, route, pont…) + suggestions expliquées (ex. « Rabattement de nappe — 2 sous-sol(s) », « Ascenseurs — R+6 »). Tout se coche / décoche.
+- Zones générées automatiquement (Bloc A · SS2 … R+6 · Terrasse), modifiables.
+- Services du projet (entreprise moyenne et grande).
+- « Créer maintenant » dès la fiche pour aller vite : le reste se complète plus tard.
