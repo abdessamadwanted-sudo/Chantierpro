@@ -587,8 +587,9 @@ const Team = (() => {
   const appCfg = () => LS.get('appCfg') || {};
   // anti-capture d'écran (Android FLAG_SECURE) : option de l'organisation, ou imposée à tous par le Super Admin (config/app.secureAll)
   const secureOn = () => !!(appCfg().secureAll || (S.ready && (S.company || {}).secureScreen && !isPerso()));
-  let _sec = null;
-  function secureApply() { const on = secureOn(); if (on === _sec) return; _sec = on; const P = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.SecureScreen; if (P && P.set) P.set({ on }).catch(() => {}); document.documentElement.classList.toggle('st-secure', on); }
+  // appliqué à chaque fois (sans cache) : l'état du téléphone suit toujours le réglage, y compris au retour dans l'application
+  function secureApply() { const on = secureOn(); const P = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.SecureScreen; if (P && P.set) P.set({ on }).catch(() => {}); document.documentElement.classList.toggle('st-secure', on); return on; }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') try { secureApply(); } catch (e) {} });
   const isOff = (mod) => !!mod && Array.isArray(appCfg().off) && appCfg().off.includes(mod) && !isSuper();
   const canSection = (k) => !isOff(SECTION_MOD[k] || 'projet') && lvl(SECTION_MOD[k] || 'projet') >= 1;
   const isAdmin = () => !S.ready || !!(S.me && S.me.admin);
@@ -1627,10 +1628,13 @@ const Team = (() => {
           <div class="tm-box"><b>🗂 Règles Cloud Storage (fichiers partagés)</b><p>À coller dans la console Firebase › Storage › Règles › Publier (accepter l'accès à Firestore si la console le demande).</p>
             <button class="btn ghost small" data-a="srules">Copier les règles Storage</button></div>
           <div class="tm-box"><b>🔒 Confidentialité de l'écran</b><p>Interdire les captures et l'enregistrement de l'écran pour tous les membres (l'application apparaît noire dans les applications récentes). Une photo de l'écran avec un autre téléphone reste possible.</p>
-            <label class="tm-ck"><input type="checkbox" data-a="secure" ${(S.company || {}).secureScreen ? 'checked' : ''} ${appCfg().secureAll ? 'disabled' : ''}> Anti-capture d'écran${appCfg().secureAll ? ' (imposé par SiteTeam)' : ''}</label></div>
+            <label class="tm-ck"><input type="checkbox" data-a="secure" ${(S.company || {}).secureScreen ? 'checked' : ''} ${appCfg().secureAll ? 'disabled' : ''}> Anti-capture d'écran${appCfg().secureAll ? ' (imposé par SiteTeam)' : ''}</label>
+            <small data-secstate style="color:var(--muted)">Sur ce téléphone : ${secureOn() ? '🔒 activé' : '🔓 désactivé'}</small>
+            ${appCfg().secureAll && isSuper() ? '<button class="btn ghost small" data-a="secall-off">Lever l\'anti-capture imposé à tous</button>' : ''}</div>
           <div class="tm-box"><b>🏢 Entreprise</b><button class="btn ghost small" data-a="ren">Renommer l'entreprise</button></div></div>`;
         $('[data-a=drive]', body).onclick = () => Sync.openSyncSettings();
-        const sc = $('[data-a=secure]', body); if (sc) sc.onchange = async () => { try { await fs.collection('companies').doc(S.cid).update({ secureScreen: sc.checked }); S.company.secureScreen = sc.checked; LS.set('company', S.company); secureApply(); toast(sc.checked ? 'Anti-capture activé ✓' : 'Anti-capture désactivé'); } catch (e) { sc.checked = !sc.checked; alertBox(errMsg(e)); } };
+        const sc = $('[data-a=secure]', body); if (sc) sc.onchange = async () => { try { await fs.collection('companies').doc(S.cid).update({ secureScreen: sc.checked }); S.company.secureScreen = sc.checked; LS.set('company', S.company); secureApply(); const ss = $('[data-secstate]', body); if (ss) ss.textContent = 'Sur ce téléphone : ' + (secureOn() ? '🔒 activé' : '🔓 désactivé'); toast(sc.checked ? 'Anti-capture activé ✓' : 'Anti-capture désactivé ✓'); } catch (e) { sc.checked = !sc.checked; alertBox(errMsg(e)); } };
+        const so = $('[data-a=secall-off]', body); if (so) so.onclick = async () => { try { await fs.collection('config').doc('app').set({ secureAll: false }, { merge: true }); LS.set('appCfg', { ...appCfg(), secureAll: false }); secureApply(); toast('Anti-capture levé pour tous ✓'); draw(); } catch (e) { alertBox(errMsg(e)); } };
         const sup = $('[data-a=super]', body); if (sup) sup.onclick = () => superConsole();
         const adm = $('[data-a=admin]', body); if (adm) adm.onclick = () => { location.href = 'admin.html' + (/[?&]emu=1/.test(location.search) ? '?emu=1' : ''); };
         $('[data-a=catalog]', body).onclick = () => openCatalogue();
