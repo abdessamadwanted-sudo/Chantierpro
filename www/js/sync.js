@@ -599,7 +599,9 @@ function doPost(e) {
     const gb = $('[data-a=google]', s.el); if (gb) gb.onclick = async () => {
       const ld = loading('Connexion à Google…');
       try { await connectGoogle(); ld.close(); s.close(); toast('☁ Google Drive connecté ✓'); if (!App.project) renderHome(); }
-      catch (e) { ld.close(); if (!/annulée/.test(e.message)) alertBox('Connexion impossible : ' + (e.message || e)); }
+      catch (e) { ld.close(); alertBox(/annulée/.test(e.message)
+        ? 'Connexion Google non terminée.\n\nSi vous avez choisi votre compte et que l\'application est revenue sans demander d\'autorisation, la configuration Google du projet est incomplète : ID client Android (com.siteteam.app + empreinte SHA-1), Google Drive API activée, écran de consentement publié.\n\nSinon, réessayez et touchez « Continuer ».'
+        : 'Connexion impossible : ' + (e.message || e)); }
     };
     let tab = 'new';
     $$('[data-tab]', s.el).forEach(b => b.onclick = () => { tab = b.dataset.tab; $$('[data-tab]', s.el).forEach(x => x.classList.toggle('on', x === b)); $$('[data-pane]', s.el).forEach(p => p.style.display = p.dataset.pane === tab ? '' : 'none'); });

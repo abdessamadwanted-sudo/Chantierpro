@@ -266,6 +266,22 @@ const ST = (() => {
       ${esp ? `<div class="st-tcat st-esp" data-g="esp" style="--c:#3D5A80;${open === 'esp' ? '' : 'display:none'}">${esp}</div>` : ''}
       ${!open ? '<p class="st-thint">Touchez une catégorie pour afficher ses outils.</p>' : ''}</div>`;
   }
+  // ---------- v1.0.38 : accueil du projet — les outils de CE projet (type, fonctions du projet, service, pack), par catégorie ----------
+  function renderProjectTools(root) {
+    const p = App.project; if (!p) return;
+    const ok = (k) => secShown(k) && k !== 'dashboard' && k !== 'ptools' && sectionOn(k) && Team.canSection(k);
+    const first = Team.isAdmin() ? (ORG_FIRST[(Team.orgType() || {}).k] || 'trav') : grpOf();
+    const G = DR_GROUPS.slice().sort((a, b) => (b[0] === first) - (a[0] === first)).map(([g, l, ks]) => [g, l, ks.filter(ok)]).filter(g => g[2].length);
+    const T = projTypeOf(p.type) || {};
+    root.innerHTML = `<div class="st-ptools-p">
+      <div class="st-hd"><b>${esc(T.e || '🏗️')} ${esc(p.name)}</b><small>${esc(T.n || 'Projet')}${p.address ? ' · ' + esc(p.address) : ''}</small></div>
+      ${G.map(([g, l, ks]) => `<div class="st-tcat" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}"><div class="st-tcat-h">${esc(l.replace(/^\S+\s/, ''))}<small>${ks.length}</small></div>
+        <div class="st-tgrid">${ks.map(k => `<button class="st-tool" data-tool="${k}" style="--c:${CAT_C[catOf(k)] || CAT_C[g] || 'var(--accent)'}"><i class="st-ico">${icon(SECTIONS[k].icon || 'grid')}</i><span>${esc(toolName(k))}</span></button>`).join('')}</div></div>`).join('')}
+      ${typeof espaceHome === 'function' && espaceHome() ? `<details class="st-tcat st-esp" style="--c:#3D5A80"><summary class="st-tcat-h">Espace métier</summary>${espaceHome()}</details>` : ''}
+    </div>`;
+    root.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { App.section = b.dataset.tool; App.search = ''; renderSection(); });
+    if (typeof espaceBind === 'function') espaceBind(root);
+  }
   function toolsBind(root) {
     const box = root && root.querySelector('[data-sttools]'); if (!box) return;
     box.querySelectorAll('[data-cat]').forEach(c => c.onclick = () => { const g = App.toolCat === c.dataset.cat ? '' : c.dataset.cat; App.toolCat = g;
@@ -325,16 +341,17 @@ const ST = (() => {
   function bottomNav() {
     const app = document.getElementById('app'); if (!app || !ready() || Team.isCollab()) return;
     app.classList.add('with-bnav');
-    const T = App.homeTab || 'home', nav = document.createElement('nav'); nav.className = 'st-bnav' + (perso() ? '' : ' n5');
+    const T = App.homeTab || 'home', nav = document.createElement('nav'); nav.className = 'st-bnav';   // v1.0.38 : 4 onglets — les outils sont dans chaque projet
     nav.innerHTML = `<button data-n="home" class="${T === 'home' ? 'on' : ''}">${icon('grid')}<span>Accueil</span></button><button data-n="proj" class="${T === 'proj' ? 'on' : ''}">${icon('folder')}<span>Projets</span></button>
-      ${perso() ? `<button data-n="me">${icon('user')}<span>Mon espace</span></button>` : `<button data-n="tools" class="${T === 'tools' ? 'on' : ''}">${icon('layers')}<span>Outils</span></button><button data-n="team">${icon('team')}<span>Équipe</span></button>`}<button data-n="set">${icon('settings')}<span>Réglages</span></button>`;
+      ${perso() ? `<button data-n="me">${icon('user')}<span>Mon espace</span></button>` : `<button data-n="team">${icon('team')}<span>Équipe</span></button>`}<button data-n="set">${icon('settings')}<span>Réglages</span></button>`;
     app.appendChild(nav);
     const go = (t) => { App.homeTab = t; document.querySelectorAll('.h2-pane').forEach(x => x.classList.toggle('on', x.dataset.tab === t)); nav.querySelectorAll('[data-n]').forEach(x => x.classList.toggle('on', x.dataset.n === t)); const b = document.querySelector('.h2-body'); if (b) b.scrollTop = 0; };
     ['home', 'proj', 'tools'].forEach(t => { const b = nav.querySelector(`[data-n=${t}]`); if (b) b.onclick = () => go(t); });
     document.querySelectorAll('[data-tabgo]').forEach(b => b.onclick = () => go(b.dataset.tabgo));
     const tm = nav.querySelector('[data-n=team]'); if (tm) tm.onclick = () => Team.openCompany('org');
     const me = nav.querySelector('[data-n=me]'); if (me) me.onclick = () => Team.openCompany('me');
-    nav.querySelector('[data-n=set]').onclick = () => Team.openCompany(perso() ? 'me' : 'set');
+    // v1.0.38 : Réglages = tout le menu ⋮ (compte, organisation, Drive, données, apparence, mise à jour, version…)
+    nav.querySelector('[data-n=set]').onclick = () => { const b = document.querySelector('[data-a=homemore]'); if (b) b.click(); else Team.openCompany(perso() ? 'me' : 'set'); };
   }
 
   function dashHTML() {
@@ -552,5 +569,5 @@ const ST = (() => {
   }
 
   function refreshRole() { applyRole(); try { App.project ? renderSection() : renderHome(); } catch (e) {} }
-  return { families: FAMILIES, wsBtnHTML, wsMenu, directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
+  return { families: FAMILIES, wsBtnHTML, wsMenu, renderProjectTools, directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
 })();

@@ -233,13 +233,13 @@ const modOf = (store, rec) => store === 'items' ? KIND_MOD[(rec || {}).kind] : S
 // section de l'application → module
 // rubriques issues de Chantier : rattachées au module SiteTeam le plus proche (visibilité selon le poste)
 const SECTION_MOD = { avancement: 'projet', clauses: 'forms', gestion: 'materiel', finance: 'finance', tce: 'finance', avenants: 'finance', st: 'finance',
-  planning: 'projet', lotsuivi: 'projet', reunions: 'forms', pointage: 'pointage', rfi: 'forms', visa: 'forms', labo: 'reception', hse: 'hse', org: 'equipe',
+  planning: 'projet', lotsuivi: 'projet', ptools: 'projet', reunions: 'forms', pointage: 'pointage', rfi: 'forms', visa: 'forms', labo: 'reception', hse: 'hse', org: 'equipe',
   dashboard: 'projet', plans: 'plans', tasks: 'reserves', reception: 'reception', beton: 'reception', photos: 'photos', forms: 'forms', reports: 'rapports',
   constat: 'constats', models3d: 'plans', maquette: 'plans', calc: 'calc', team: 'equipe', settings: 'projet', docq: 'files', histo: 'projet', orgs: 'projet' };
 
 // v1.0.34 : bibliothèque de chaque service. Socle commun + outils du métier. Les PV de réception (ferraillage) relèvent de la Qualité ;
 // les Travaux gardent le programme de bétonnage. Les droits du poste (0 à 4) s'appliquent toujours en plus.
-const LIB_CORE = ['dashboard', 'plans', 'tasks', 'photos', 'reports', 'team', 'org', 'settings', 'histo'];
+const LIB_CORE = ['ptools', 'dashboard', 'plans', 'tasks', 'photos', 'reports', 'team', 'org', 'settings', 'histo'];
 const SVC_LIB = {
   travaux: ['lotsuivi', 'avancement', 'planning', 'reunions', 'beton', 'calc', 'models3d', 'pointage', 'gestion'],
   ferraillage: ['lotsuivi', 'avancement', 'planning', 'beton', 'calc', 'models3d', 'gestion'],
@@ -1040,26 +1040,50 @@ const Team = (() => {
   // ---------- écran de connexion ----------
   function loginScreen() {
     return new Promise((resolve) => {
-      const el = document.createElement('div'); el.className = 'fullpage tm-login';
+      const el = document.createElement('div'); el.className = 'fullpage tm-login tm-auth';
       let mode = 'in';
       const draw = () => {
-        el.innerHTML = `<div class="tm-lg-in"><div class="tm-logo st-lg">${stLogo()}</div><h1>SiteTeam</h1><p>Toute l'équipe du chantier, au même endroit.</p>
-          <div class="seg tm-seg"><button data-m="in" class="${mode === 'in' ? 'on' : ''}">Se connecter</button><button data-m="up" class="${mode === 'up' ? 'on' : ''}">Créer un compte</button></div>
-          <div class="form">
-            ${mode === 'up' ? `<label>Nom et prénom<input name="name" autocomplete="name" placeholder="Ex : Abdessamad …"></label>` : ''}
-            <label>E-mail<input name="email" type="email" autocomplete="email" inputmode="email" placeholder="vous@exemple.com"></label>
-            <label>Mot de passe<input name="pw" type="password" autocomplete="${mode === 'up' ? 'new-password' : 'current-password'}" placeholder="6 caractères minimum"></label>
-            <button class="btn" data-a="go">${mode === 'up' ? 'Créer mon compte' : 'Se connecter'}</button>
-            ${mode === 'in' ? '<button class="linkbtn" data-a="reset">Mot de passe oublié ?</button>' : ''}
-          </div></div>`;
+        el.innerHTML = `<div class="tm-auth-shell">
+          <section class="tm-auth-story" aria-label="Présentation de SiteTeam">
+            <div class="tm-auth-brand"><div class="tm-logo st-lg">${stLogo()}</div><div><b>SiteTeam</b><span>Gestion de chantier collaborative</span></div></div>
+            <div class="tm-auth-copy"><span class="tm-auth-kicker">LE CHANTIER, EN ÉQUIPE</span>
+              <h1>Pilotez vos chantiers avec toute l'équipe.</h1>
+              <p>Plans, réserves, PV, rapports et suivi terrain réunis dans un espace commun, adapté au poste de chacun.</p>
+              <div class="tm-auth-points">
+                <span><i>✓</i><b>Travail hors connexion</b><small>Les données synchronisées restent accessibles sur le terrain.</small></span>
+                <span><i>✓</i><b>Droits par poste</b><small>Chaque membre voit les projets et les outils qui le concernent.</small></span>
+                <span><i>✓</i><b>Fichiers sur Google Drive</b><small>Les documents de l'entreprise restent organisés et partagés.</small></span>
+              </div>
+            </div>
+            <div class="tm-auth-trust"><span>🔒 Connexion sécurisée</span><span>☁️ Synchronisation maîtrisée</span></div>
+          </section>
+          <main class="tm-auth-panel"><div class="tm-auth-card">
+            <div class="tm-auth-mobile-brand"><div class="tm-logo st-lg">${stLogo()}</div><div><b>SiteTeam</b><span>Toute l'équipe du chantier</span></div></div>
+            <div class="tm-auth-heading"><small>${mode === 'up' ? 'NOUVEAU COMPTE' : 'BON RETOUR'}</small><h2>${mode === 'up' ? 'Créer votre accès' : 'Accéder à votre espace'}</h2><p>${mode === 'up' ? 'Créez votre compte, puis rejoignez votre organisation avec le code reçu.' : 'Retrouvez vos projets, votre équipe et votre travail en cours.'}</p></div>
+            <div class="seg tm-seg" role="tablist" aria-label="Mode de connexion"><button data-m="in" role="tab" aria-selected="${mode === 'in'}" class="${mode === 'in' ? 'on' : ''}">Se connecter</button><button data-m="up" role="tab" aria-selected="${mode === 'up'}" class="${mode === 'up' ? 'on' : ''}">Créer un compte</button></div>
+            <div class="form tm-auth-form">
+              ${mode === 'up' ? `<label>Nom et prénom<input name="name" autocomplete="name" placeholder="Ex : Abdessamad El Amrani"></label>` : ''}
+              <label>Adresse e-mail<input name="email" type="email" autocomplete="email" inputmode="email" placeholder="vous@entreprise.com"></label>
+              <label>Mot de passe<div class="tm-pw"><input name="pw" type="password" autocomplete="${mode === 'up' ? 'new-password' : 'current-password'}" placeholder="6 caractères minimum"><button type="button" data-a="showpw" aria-label="Afficher le mot de passe">Afficher</button></div></label>
+              <button class="btn tm-auth-submit" data-a="go">${mode === 'up' ? 'Créer mon compte' : 'Se connecter'} <span>→</span></button>
+              ${mode === 'in' ? '<button class="linkbtn" data-a="reset">Mot de passe oublié ?</button>' : '<small class="tm-auth-note">En créant un compte, vous pourrez utiliser un code d’invitation pour rejoindre votre équipe.</small>'}
+            </div>
+            <div class="tm-auth-foot"><span>SiteTeam fonctionne sur téléphone, tablette et ordinateur.</span><span>Version ${APP_VERSION.startsWith('__') ? 'développement' : esc(APP_VERSION)}</span></div>
+          </div></main>
+        </div>`;
         $$('[data-m]', el).forEach(b => b.onclick = () => { mode = b.dataset.m; draw(); });
         $('[data-a=go]', el).onclick = go;
+        const pw = $('[name=pw]', el), show = $('[data-a=showpw]', el);
+        show.onclick = () => { const visible = pw.type === 'text'; pw.type = visible ? 'password' : 'text'; show.textContent = visible ? 'Afficher' : 'Masquer'; show.setAttribute('aria-label', visible ? 'Afficher le mot de passe' : 'Masquer le mot de passe'); };
+        $$('input', el).forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') go(); }));
         const r = $('[data-a=reset]', el); if (r) r.onclick = async () => { const em = $('[name=email]', el).value.trim(); if (!em) return toast('Tapez d\'abord votre e-mail');
           try { await auth.sendPasswordResetEmail(em); alertBox('Un e-mail de réinitialisation a été envoyé à ' + em); } catch (e) { alertBox(errMsg(e)); } };
       };
       async function go() {
         const em = $('[name=email]', el).value.trim(), pw = $('[name=pw]', el).value, nm = mode === 'up' ? $('[name=name]', el).value.trim() : '';
         if (mode === 'up' && !nm) return toast('Tapez votre nom');
+        if (!em || !em.includes('@')) return toast('Tapez une adresse e-mail valide');
+        if (!pw || pw.length < 6) return toast('Le mot de passe doit contenir au moins 6 caractères');
         const ld = loading(mode === 'up' ? 'Création du compte…' : 'Connexion…');
         try {
           if (mode === 'up') { const c = await auth.createUserWithEmailAndPassword(em, pw); await c.user.updateProfile({ displayName: nm }); await fs.collection('users').doc(c.user.uid).set({ name: nm, email: em, createdAt: ts() }, { merge: true }); }
