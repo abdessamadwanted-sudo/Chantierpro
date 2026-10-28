@@ -634,6 +634,50 @@ try {
   await E.pg.evaluate(() => { App.project = null; renderHome(); });
   log('E erreurs brutes (diagnostic)', E.errs.slice(-8));
   log('errors v1.0.33', [...affErrors, ...A.errs.slice(affStart)]);
+  // ---- v1.0.34 : bibliothèque par service, interface Basic unique, Mon dossier pro, palette professionnelle (clair / sombre)
+  const v34 = [], a34 = A.errs.length, e34 = E.errs.length, clean34 = (pg) => pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; });
+  const libB = await B.pg.evaluate(() => [!!Team.svcLib(), Team.canSection('reception'), Team.canSection('beton'), Team.canSection('tasks'), secShown('beton')]);
+  log('bibliothèque Travaux (conducteur)', libB); if (!libB[0] || libB[1] || !libB[2] || !libB[3] || !libB[4]) v34.push('bibliothèque Travaux incorrecte');
+  const libI = await I.pg.evaluate(() => [!!Team.svcLib(), Team.canSection('reception'), Team.canSection('tasks')]);
+  log('bibliothèque Qualité (technicien)', libI); if (!libI[0] || !libI[1] || !libI[2]) v34.push('bibliothèque Qualité incorrecte');
+  const libA = await A.pg.evaluate(() => [Team.svcLib(), Team.canSection('reception')]);
+  log('administrateur : aucune restriction', libA); if (libA[0] !== null || !libA[1]) v34.push('administrateur restreint à tort');
+  for (const [U, n] of [[B, '127_outils_travaux'], [I, '128_outils_qualite']]) { await clean34(U.pg); await U.pg.evaluate(async () => { App.homeTab = 'tools'; await renderHome(); }); await U.pg.waitForTimeout(900); await shot(U.pg, n); }
+  log('outils Travaux', await B.pg.evaluate(() => [...document.querySelectorAll('.h2-pane.on [data-tool]')].map(b => b.dataset.tool)));
+  log('outils Qualité', await I.pg.evaluate(() => [...document.querySelectorAll('.h2-pane.on [data-tool]')].map(b => b.dataset.tool)));
+  // PV de réception : la Qualité garde la réception ; les Travaux arrivent sur le programme de bétonnage
+  log('réception côté Qualité', await I.pg.evaluate(async () => { const p = (await DB.all('projects')).find(x => !x.deleted && Team.canProject(x.id)); if (!p) return 'pas de projet'; await openProject(p); document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); App.section = 'reception'; await renderSection(); await new Promise(r => setTimeout(r, 500)); return [App.section, !!document.querySelector('.kseg [data-k=reception]:not([hidden])')]; }));
+  await shot(I.pg, '129_reception_qualite');
+  // espace personnel : carte « Mon dossier pro », profil, CV PDF
+  const dp = await E.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.project = null; App.homeTab = 'home'; await renderHome();
+    const card = !!document.querySelector('[data-a=dossier]');
+    Dossier.set({ name: 'Rachid Alami', titre: 'Technicien qualité BTP', ville: 'Casablanca', tel: '+212 600 000 000', dispo: 'ouvert', about: 'Technicien qualité, 6 ans sur des chantiers de bâtiment et d\'ouvrages d\'art : réception de ferraillage, essais béton, PV.',
+      exp: [{ id: 'x1', poste: 'Technicien qualité', co: 'Entreprise Atlas BTP', lieu: 'Tanger', de: '2021-03', cur: true, desc: 'Réception ferraillage, PV, suivi des essais béton.' }, { id: 'x2', poste: 'Technicien travaux', co: 'Bâtir Maroc', lieu: 'Rabat', de: '2018-09', a: '2021-02' }],
+      form: [{ id: 'f1', dip: 'Technicien spécialisé gros œuvre', ecole: 'ISTA', an: '2018' }], skills: ['Lecture de plans', 'Béton armé', 'Contrôle qualité', 'AutoCAD'],
+      langs: [{ l: 'Arabe', niv: 'Bilingue / natif' }, { l: 'Français', niv: 'Courant' }], certs: [{ id: 'c1', n: 'Sauveteur secouriste du travail', org: 'OFPPT', an: '2022' }] });
+    await openDossier(); await new Promise(r => setTimeout(r, 400));
+    const sp = sharePdf; let cv = null; sharePdf = async (doc, n) => { cv = [n, doc.getNumberOfPages(), doc.output('arraybuffer').byteLength > 3000]; }; await dpCv(); sharePdf = sp;
+    return { card, score: Dossier.score(Dossier.get()), secs: document.querySelectorAll('.dp-page .dp-sec').length, items: document.querySelectorAll('.dp-page .dp-it').length, cv }; });
+  log('Mon dossier pro', dp); if (!dp.card || dp.score < 80 || dp.secs < 6 || !dp.cv || !dp.cv[2]) v34.push('dossier pro incomplet');
+  await shot(E.pg, '130_dossier_pro');
+  await E.pg.evaluate(() => { const b = document.querySelector('.dp-page [data-a=career]'); if (b) b.click(); }); await E.pg.waitForTimeout(600); await shot(E.pg, '131_dossier_candidatures');
+  // thème sombre professionnel : aucune carte blanche
+  await clean34(A.pg);
+  const dark = await A.pg.evaluate(async () => { localStorage.setItem('theme', 'siteteam-dark'); applyTheme('siteteam-dark'); App.homeTab = 'home'; await renderHome(); await new Promise(r => setTimeout(r, 900));
+    const white = [...document.querySelectorAll('.st-kpi,.h2-card,.h2-proj,.st-perf,.topbar,.h2-hero')].filter(x => getComputedStyle(x).backgroundColor === 'rgb(255, 255, 255)').map(x => x.className);
+    return [document.documentElement.classList.contains('th-std'), white]; });
+  log('thème sombre (classe, cartes blanches)', dark); if (!dark[0] || dark[1].length) v34.push('thème sombre : cartes blanches ' + dark[1].join(','));
+  await shot(A.pg, '132_sombre_accueil');
+  await A.pg.click('.st-bnav [data-n=tools]'); await A.pg.waitForTimeout(400); await shot(A.pg, '133_sombre_outils');
+  await A.pg.evaluate(async () => { localStorage.setItem('theme', 'siteteam'); applyTheme('siteteam'); App.homeTab = 'tools'; await renderHome(); }); await A.pg.waitForTimeout(700); await shot(A.pg, '134_clair_outils');
+  await A.pg.evaluate(async () => { App.homeTab = 'home'; await renderHome(); }); await A.pg.waitForTimeout(700); await shot(A.pg, '135_clair_accueil');
+  await E.pg.evaluate(() => { document.querySelectorAll('.fullpage').forEach(x => x.remove()); localStorage.setItem('theme', 'siteteam-dark'); applyTheme('siteteam-dark'); openDossier(); }); await E.pg.waitForTimeout(600); await shot(E.pg, '136_sombre_dossier');
+  await E.pg.evaluate(async () => { document.querySelectorAll('.fullpage').forEach(x => x.remove()); App.homeTab = 'home'; await renderHome(); }); await E.pg.waitForTimeout(700); await shot(E.pg, '137_sombre_perso');
+  await E.pg.evaluate(async () => { localStorage.setItem('theme', 'siteteam'); applyTheme('siteteam'); await renderHome(); }); await E.pg.waitForTimeout(700); await shot(E.pg, '138_clair_perso');
+  // petite entreprise (Basic) : une seule grille d'outils, sans catégories de services
+  log('Basic : interface unique (diagnostic)', await J.pg.evaluate(async () => { try { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.homeTab = 'tools'; await renderHome(); return [Team.taille(), !!document.querySelector('.h2-pane.on .st-tcats'), document.querySelectorAll('.h2-pane.on [data-tool]').length]; } catch (e) { return String(e); } }));
+  await shot(J.pg, '139_basic_outils');
+  log('errors v1.0.34', [...v34, ...A.errs.slice(a34), ...E.errs.slice(e34).filter(x => !/401/.test(x))]);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);

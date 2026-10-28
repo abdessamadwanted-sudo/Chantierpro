@@ -1,6 +1,7 @@
 // ---------- Thèmes ----------
 const THEMES = [
   ['siteteam', '🏗️ SiteTeam (clair)', 'linear-gradient(160deg,#F2F5F9,#E3EAF3)', '#2164A8'],
+  ['siteteam-dark', '🌙 SiteTeam (sombre)', 'linear-gradient(160deg,#132238,#0B1422)', '#4C8DDB'],
   ['dark', 'Classique', 'linear-gradient(160deg,#2c313a,#1b1e24)', '#5b8def'],
   ['glass', 'Verre', 'radial-gradient(60% 40% at 0 0,#3b82f6aa,transparent),radial-gradient(50% 40% at 100% 40%,#a855f7aa,transparent),#0e1430', 'linear-gradient(135deg,#4f8cff,#a855f7)'],
   ['sakura', '🌸 Sakura', 'radial-gradient(60% 40% at 0 0,#ff6faecc,transparent),radial-gradient(50% 40% at 100% 40%,#ffb6d5aa,transparent),#2a0f22', 'linear-gradient(135deg,#ff6fae,#c084fc)'],
@@ -18,9 +19,10 @@ function applyTheme(t) {
   const h = document.documentElement;
   h.className = h.className.split(' ').filter(c => c && c !== 'glass' && c !== 'sober' && !c.startsWith('th-') && !c.startsWith('gi-')).join(' ');
   if (t === 'siteteam') h.classList.add('sober', 'th-net', 'th-st');   // SiteTeam UI Kit : clair, Navy / Blue / Amber / Green
+  else if (t === 'siteteam-dark') h.classList.add('sober', 'th-pro', 'th-st', 'th-std');   // v1.0.34 : SiteTeam sombre professionnel
   else if (t === 'pro' || t === 'net') h.classList.add('sober', 'th-' + t);   // thèmes professionnels : sobres, sans effets
   else if (t && t !== 'dark') { h.classList.add('glass'); if (t !== 'glass') h.classList.add('th-' + t); h.classList.add('gi-' + themeInt()); }
-  const meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.content = ({ dark: '#1b1e24', glass: '#0e1430', pro: '#15171b', net: '#ffffff', siteteam: '#ffffff' })[t] || getComputedStyle(h).getPropertyValue('--base').trim() || '#1b1e24';
+  const meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.content = ({ dark: '#1b1e24', glass: '#0e1430', pro: '#15171b', net: '#ffffff', siteteam: '#ffffff', 'siteteam-dark': '#101C2E' })[t] || getComputedStyle(h).getPropertyValue('--base').trim() || '#1b1e24';
 }
 // v1.0.30 : le thème SiteTeam (UI Kit) devient le thème par défaut ; un thème choisi auparavant (autre que « Classique ») est conservé
 try { if (!localStorage.getItem('theme.v30')) { const t0 = localStorage.getItem('theme'); if (!t0 || t0 === 'dark') localStorage.setItem('theme', 'siteteam'); localStorage.setItem('theme.v30', '1'); } } catch (e) {}
@@ -348,6 +350,7 @@ const SECTIONS = {
 async function renderSection() {
   if (!App.project || !Team.canProject(App.project.id)) return renderHome();
   BackStack.length = 0;
+  if (App.section === 'reception' && !Team.canSection('reception') && Team.canSection('beton') && sectionOn('beton')) App.section = 'beton';   // v1.0.34 : bibliothèque du service
   if (!SECTIONS[App.section] || !sectionOn(App.section) || !Team.canSection(App.section)) App.section = Object.keys(SECTIONS).find(k => !SECTIONS[k].hidden && sectionOn(k) && Team.canSection(k)) || 'plans';
   pushBack(() => { if (App.fromBrief && typeof briefReopen === 'function') return briefReopen(); if (App.section !== 'plans') { App.section = 'plans'; App.search = ''; renderSection(); } else renderHome(); });
   // retour intelligent : chaque page du chantier retrouve sa position quand on y revient
