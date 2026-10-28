@@ -71,15 +71,22 @@ function lotPanel(L, f, root) {
     ${!open ? '' : `<div class="lp-body">
     ${lotDueHTML(L, D, f)}
     ${lotPaHTML(L, D)}
-    <div class="lp-links">
+    ${lotEquipeHTML(L, D)}
+    <div class="lp-linkg"><small>Suivi</small><div class="lp-links">
       ${L.id === 'go' ? `<button data-go="rec">🔩 Réception ferraillage${niv ? ' · ' + esc(niv) : ''}</button><button data-go="bet">🧱 Bétonnage${niv ? ' · ' + esc(niv) : ''}</button><button data-go="dec">⏱️ Suivi décoffrage</button>` : ''}
       ${av ? `<button data-go="av">📊 Avancement ${esc(L.name)}</button>` : ''}
       <button data-go="tasks">⚠️ Réserves${niv ? ' · ' + esc(niv) : ''}</button>
+    </div></div>
+    <div class="lp-linkg"><small>Gestion</small><div class="lp-links">
       ${LOT_GS.map(([k, l]) => `<button data-gs="${k}">${l}</button>`).join('')}
+    </div></div>
+    ${(L.rub || []).length || true ? `<div class="lp-linkg"><small>Rubriques</small><div class="lp-links">
       ${(L.rub || []).map(R => `<button data-rub="${R.id}">${esc(R.e)} ${esc(R.name)}${(((f.lotData || {})[L.id] || {})._rub || {})[R.id] && f.lotData[L.id]._rub[R.id].length ? ` <small>${f.lotData[L.id]._rub[R.id].length}</small>` : ''}</button>`).join('')}
       <button data-a="rubnew" class="lp-rubnew">＋ Rubrique</button>
+    </div></div>` : ''}
+    ${sc.length ? `<div class="lp-linkg"><small>Raccourcis</small><div class="lp-links">
       ${sc.map((x, i) => `<button data-sc="${i}">${SC_EMO && SC_EMO[x.sec] ? SC_EMO[x.sec] + ' ' : '🔗 '}${esc(x.label)}</button>`).join('')}
-    </div>
+    </div></div>` : ''}
     ${docs.length ? `<div class="lp-docs">${docs.map((d, i) => `<div class="lp-doc"><button class="grow" data-doc="${i}">${icon(d.url && !d.fileId ? 'drive' : d.planId ? 'plans' : 'pdf')}<span>${esc(d.name)}</span></button><button class="iconbtn sm" data-docm="${i}">${icon('more')}</button></div>`).join('')}</div>` : ''}
     <details class="lp-det" ${App.lotDet ? 'open' : ''}><summary>☑ Points de contrôle ${done}/${(L.points || []).length} · notes</summary>
     <div class="lp-pts">${(L.points || []).map(x => { const v = D[x.id] || {}; return `<button class="lp-pt ${v.done ? 'on' : ''}" data-pt="${x.id}"><i>${v.done ? '☑' : '☐'}</i><span class="grow">${esc(x.t)}${v.at ? `<small>${fmtDate(v.at)}</small>` : ''}</span></button>`; }).join('')}
@@ -96,6 +103,7 @@ function lotPanel(L, f, root) {
   $('[data-a=addpt]', el).onclick = addPt;
   const ta = $('textarea', el); ta.oninput = () => { D._note = ta.value; clearTimeout(ta._t); ta._t = setTimeout(save, 500); };
   bindLotDue(el, L, D, f, save, redraw);
+  bindLotEquipe(el, L, D, f, save, redraw);
   $$('[data-go]', el).forEach(b => b.onclick = async () => {
     const g = b.dataset.go;
     if (g === 'rec' || g === 'bet') { const k = g === 'rec' ? 'Ferraillage' : 'Bétonnage'; App.recNiv = App.recNiv || {}; App.recNiv[k] = niv; App.section = g === 'rec' ? 'reception' : 'beton'; return renderSection(); }
@@ -163,9 +171,39 @@ function lotDueHTML(L, D, f) {
   const pa = L.pa || [], paOk = pa.filter(x => ((D.pa || {})[x.id] || {}).st === 'ok').length;
   const prog = nP + pa.length ? Math.round((done + paOk) / (nP + pa.length) * 100) : 0;
   let tp = 0; if (D._due) { const a = new Date((D._start || D._dueSet || todayISO()) + 'T12:00:00'), b = new Date(D._due + 'T12:00:00'), n = new Date(todayISO() + 'T12:00:00'); tp = b > a ? Math.max(0, Math.min(100, Math.round((n - a) / (b - a) * 100))) : 100; }
+  const behind = D._due && (tp - prog) >= 15;
   if (!di) return `<button class="lp-due none" data-a="due">⏳ <span class="grow">Échéance ${esc(D._dueBy || 'du maître d\'ouvrage')} <small>non fixée · toucher pour la fixer</small></span>${icon('plus')}</button>`;
   return `<button class="lp-due ${di.cls}" data-a="due"><span class="lp-dd">${di.txt}</span><span class="grow"><b>Échéance ${esc(D._dueBy || 'MO')} · ${fmtDate(D._due)}</b><small>${esc(p.mo || 'Maître d\'ouvrage : toucher pour le nommer')}${(D._dueHist || []).length ? ` · modifiée ${(D._dueHist || []).length} fois` : ''}</small>
-    <span class="lp-bars"><span><i style="width:${tp}%"></i></span><em>temps ${tp}%</em><span class="pr"><i style="width:${prog}%"></i></span><em>fait ${prog}%</em></span></span></button>`;
+    <span class="lp-bars"><span><i style="width:${tp}%"></i></span><em>temps ${tp}%</em><span class="pr"><i style="width:${prog}%"></i></span><em>fait ${prog}%</em></span>${behind ? `<small class="lp-behind">⚠️ En retard sur le planning (temps ${tp}% / fait ${prog}%)</small>` : ''}</span></button>`;
+}
+// ---------- Équipes / sous-traitants par lot (zone, responsable, effectif, coût, consommation, rendement) ----------
+const lotEqSum = (D) => (D._eq || []).reduce((s, x) => ({ eff: s.eff + (+x.eff || 0), cout: s.cout + (+x.cout || 0), conso: s.conso + (+x.conso || 0) }), { eff: 0, cout: 0, conso: 0 });
+function lotEquipeHTML(L, D) {
+  const eq = D._eq || [], sum = lotEqSum(D);
+  return `<details class="lp-det lp-eqd" ${App.lotEqDet ? 'open' : ''}><summary>👷 Équipes & sous-traitants ${eq.length ? `<b>${eq.length}</b>` : ''}${sum.eff ? ` · ${sum.eff} ouvriers` : ''}</summary>
+    <div class="lp-eq-list">${eq.map((x, i) => `<button class="lp-eq-row" data-eq="${i}"><span class="lp-eq-z" style="--c:${L.c}">${esc(x.zone || '—')}</span><span class="grow"><b>${esc(x.nom || 'Équipe')}</b><small>${x.resp ? '👤 ' + esc(x.resp) : 'Responsable non défini'}${x.eff ? ` · ${x.eff} ouvriers` : ''}</small>
+      <small class="lp-eq-m">${x.cout ? `💰 ${(+x.cout).toLocaleString('fr-FR')} DH` : ''}${x.conso ? ` · 📦 ${esc(x.conso)}` : ''}${x.rend ? ` · ⚙️ ${esc(x.rend)}/j` : ''}</small></span>${icon('chevright')}</button>`).join('') || '<div class="lp-none">Aucune équipe/sous-traitant assigné à ce lot pour ce niveau.</div>'}</div>
+    <button class="lp-add" data-a="eqnew">${icon('plus')} Équipe / sous-traitant</button></details>`;
+}
+function bindLotEquipe(el, L, D, f, save, redraw) {
+  const ed = $('.lp-eqd', el); if (ed) ed.ontoggle = (e) => { App.lotEqDet = e.target.open; };
+  const eqForm = async (x) => formSheet(x ? `Équipe · ${x.nom || ''}` : `Nouvelle équipe · ${L.name}`, [
+    { name: 'nom', label: 'Nom de l\'équipe / sous-traitant', value: x && x.nom || '', placeholder: 'Ex : Équipe Rachid, STE Benali…' },
+    { name: 'zone', label: 'Zone / secteur', value: x && x.zone || '', placeholder: 'Ex : Bloc A, Zone 2…' },
+    { name: 'resp', label: 'Responsable / chef d\'équipe', value: x && x.resp || '', placeholder: 'Ex : Hassan (chef)' },
+    { name: 'eff', label: 'Effectif (nombre d\'ouvriers)', type: 'number', value: x && x.eff || '' },
+    { name: 'cout', label: 'Coût / budget (DH)', type: 'number', value: x && x.cout || '' },
+    { name: 'conso', label: 'Consommation (matériaux)', value: x && x.conso || '', placeholder: 'Ex : 12 sacs ciment, 3 m³ sable…' },
+    { name: 'rend', label: 'Rendement journalier', value: x && x.rend || '', placeholder: 'Ex : 15 m² / jour' },
+  ], { okLabel: 'Enregistrer', danger: x ? 'Retirer cette équipe' : null });
+  $('[data-a=eqnew]', el).onclick = async () => { const r = await eqForm(); if (r) { D._eq = D._eq || []; D._eq.push(r); await save(); App.lotEqDet = true; redraw(); } };
+  $$('[data-eq]', el).forEach(b => b.onclick = async () => {
+    const i = +b.dataset.eq, x = (D._eq || [])[i]; if (!x) return;
+    const r = await eqForm(x);
+    if (!r) return;
+    if (r.__danger) D._eq.splice(i, 1); else D._eq[i] = r;
+    await save(); App.lotEqDet = true; redraw();
+  });
 }
 function lotPaHTML(L, D) {
   const pa = L.pa || [], st = D.pa || {};

@@ -86,3 +86,23 @@ création d'invitation par un non-admin, écriture de tâche par un rôle en lec
 | Import depuis Chantier | Récupérer les projets de l'app Chantier | team.js (`importChantier`) | Réglages | Drive de Chantier | Fonctionnel (non testé auto) | — |
 | Langues | FR / العربية / EN | i18n.js | Menu › Langue | — | Fonctionnel (non testé auto) | Traduction par remplacement de libellés |
 | Emploi & carrière | Recherche d'offres, dossier de candidature | career.js | — | — | **Présent dans le dépôt mais non chargé** (absent de index.html, aucun appel à `openCareer`) | À retirer ou à relier |
+
+## v1.0.35 — Accueil, lots & équipes (ce lot de changements)
+
+Accueil : les cartes « Tableau de bord des équipes » / « Rendement journalier » utilisent les modules déjà actifs
+(permissions par poste) ; le contenu identique sur tous les espaces d'une même société vient des niveaux de
+permission des postes (voir « Gérer les postes »), pas d'un bug d'affichage — non modifié, à vérifier avec le
+propriétaire si un contenu différencié par espace est attendu. En-tête de l'accueil (« Bonjour, … ») : réduction
+douce au défilement, carte « Mon dossier pro » déplacée dans l'en-tête. Barre de navigation basse (`.st-bnav`) :
+désormais pleine largeur, fixée, masquée automatiquement derrière un plein écran ou une feuille modale (CSS
+`:has()`), contenu de l'accueil avec marge basse suffisante. Bouton « Affectations » retiré du tableau de bord
+Direction (fonction conservée au niveau du projet) ; remplacé par une liste déroulante « Tous les projets ▾ »
+stylée. Pastille de synchro (`sync.js`) : messages d'erreur Firestore/réseau traduits en français au lieu du texte
+brut (ex. « Missing or insufficient permissions » → « Synchro refusée (règles Firestore à publier) »). Délégation
+d'équipe : texte d'aide ajouté sur le module « Équipe du projet » rappelant que le niveau « Valider » permet de
+créer des codes d'accès et d'inviter d'autres personnes sous sa responsabilité (fonction `delegate()` déjà
+existante, plafonnée au niveau du délégant). Lots (plans) : actions du lot regroupées par catégorie (Suivi /
+Gestion / Rubriques / Raccourcis) au lieu d'une rangée unique ; nouvelle section « Équipes & sous-traitants » par
+lot et par niveau (`folders.lotData[lotId]._eq`, tableau d'entrées zone/responsable/effectif/coût/consommation/
+rendement journalier) ; alerte « En retard sur le planning » dans l'échéance du lot quand l'écart temps écoulé /
+avancement réel dépasse 15 points. Fonctionnel (non testé auto) — à ajouter à `ci/st.mjs`.

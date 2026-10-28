@@ -33,6 +33,14 @@ const Sync = (() => {
     document.querySelectorAll('[data-syncstate]').forEach(n => n.innerHTML = statusLine());
     document.querySelectorAll('.h2-cloud').forEach(n => { n.classList.remove('st-ok', 'st-sync', 'st-error'); n.classList.add('st-' + (state || 'ok')); });
   }
+  // v1.0.35 : messages d'erreur de synchro compréhensibles (au lieu du texte brut Firebase/Google en anglais)
+  function friendlyErr(e) {
+    const c = String((e && e.code) || ''), m = String((e && e.message) || e || '');
+    if (c === 'permission-denied' || /missing or insufficient permissions/i.test(m)) return 'Synchro refusée (règles Firestore à publier) — contactez l\'administrateur';
+    if (c === 'unavailable' || /network|hors connexion|offline/i.test(m)) return 'Connexion impossible (vérifiez internet)';
+    if (/quota/i.test(m)) return 'Mémoire du téléphone pleine';
+    return m.slice(0, 120);
+  }
   function statusLine() {
     if (!enabled()) return '<span style="color:var(--muted)">Non connecté</span>';
     if (st.state === 'sync') return `<span style="color:#60a5fa">⟳ ${esc(st.msg || 'Synchronisation…')}</span>`;
@@ -292,7 +300,7 @@ const Sync = (() => {
         if (!document.querySelector('.sheet-bg, .fullpage, .viewer')) { try { App.project ? (App.project = await DB.get('projects', App.project.id) || App.project, renderSection()) : renderHome(); } catch (e) {} }
       }
     } catch (e) {
-      console.error('sync', e); LS.set('fails', [String(e.message || e)]); setStatus('error', String(e.message || e).slice(0, 80));
+      console.error('sync', e); const msg = friendlyErr(e); LS.set('fails', [msg]); setStatus('error', msg.slice(0, 80));
     } finally {
       running = false;
       if (again) schedule(1500);
