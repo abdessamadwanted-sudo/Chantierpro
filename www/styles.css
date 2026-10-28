@@ -2805,7 +2805,8 @@ html.th-std .st-kpi .ic[style*="#18866B"] { --c: #3CC29C !important; } html.th-s
 .h2-me i { position: absolute; right: -6px; bottom: -4px; font-style: normal; font-size: 9.5px; font-weight: 800; padding: 1px 4px; border-radius: 7px; background: #3CC29C; color: #0B1422; }
 /* en défilant : une seule ligne (logo · actions) + nom ; puce du poste et date masquées */
 .home2 .h2-hero.mini { padding-bottom: 6px !important; }
-.h2-hero.mini .h2-chiprow, .h2-hero.mini .h2-date { display: none !important; }
+.h2-hero.mini .h2-chiprow .h2-role, .h2-hero.mini .h2-date { display: none !important; }
+.h2-hero.mini .h2-chiprow { margin: 0 0 4px; } .h2-hero.mini .h2-ws { padding: 2px 8px; font-size: 12px; }
 .h2-hero.mini .h2-hello { font-size: 15.5px !important; }
 .h2-hero.mini .h2-me { width: 32px; height: 32px; padding: 2px; } .h2-hero.mini .h2-me i { display: none; } .h2-hero.mini .h2-me span { font-size: 11px; border-width: 1px; }
 .h2-hero.mini .h2-top { height: 40px; }
