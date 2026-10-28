@@ -75,7 +75,7 @@ function lotPanel(L, f, root) {
       ${L.id === 'go' ? `<button data-go="rec">🔩 Réception ferraillage${niv ? ' · ' + esc(niv) : ''}</button><button data-go="bet">🧱 Bétonnage${niv ? ' · ' + esc(niv) : ''}</button><button data-go="dec">⏱️ Suivi décoffrage</button>` : ''}
       ${av ? `<button data-go="av">📊 Avancement ${esc(L.name)}</button>` : ''}
       <button data-go="tasks">⚠️ Réserves${niv ? ' · ' + esc(niv) : ''}</button>
-      ${LOT_GS.map(([k, l]) => `<button data-gs="${k}">${l}</button>`).join('')}
+      <button data-go="suivi">📊 Suivi du lot · équipes</button>
       ${(L.rub || []).map(R => `<button data-rub="${R.id}">${esc(R.e)} ${esc(R.name)}${(((f.lotData || {})[L.id] || {})._rub || {})[R.id] && f.lotData[L.id]._rub[R.id].length ? ` <small>${f.lotData[L.id]._rub[R.id].length}</small>` : ''}</button>`).join('')}
       <button data-a="rubnew" class="lp-rubnew">＋ Rubrique</button>
       ${sc.map((x, i) => `<button data-sc="${i}">${SC_EMO && SC_EMO[x.sec] ? SC_EMO[x.sec] + ' ' : '🔗 '}${esc(x.label)}</button>`).join('')}
@@ -102,6 +102,7 @@ function lotPanel(L, f, root) {
     if (g === 'dec') return openDecof(p);
     if (g === 'av') { App.avTab = av.id; App.section = 'avancement'; return renderSection(); }
     if (g === 'tasks') { App.section = 'tasks'; App.search = niv || ''; return renderSection(); }
+    if (g === 'suivi') { App.section = 'lotsuivi'; return renderSection(); }   // v1.0.35 : attachements / décomptes → Gestion & finance
   });
   $$('[data-gs]', el).forEach(b => b.onclick = () => { App.gsTab = b.dataset.gs; App.gsLot = b.dataset.gs === 'stock' ? '' : L.id; App.section = 'gestion'; renderSection(); });
   $$('[data-sc]', el).forEach(b => { const x = sc[+b.dataset.sc]; b.onclick = () => { if (!SECTIONS[x.sec]) return toast('Section introuvable'); App.section = x.sec; App.search = x.q || ''; renderSection(); };

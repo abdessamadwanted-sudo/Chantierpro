@@ -19,6 +19,11 @@ const Dossier = {
     const ok = [d.name, d.titre, d.ville, d.about, d.exp.length, d.form.length, d.skills.length >= 3, d.langs.length, d.tel || d.email, d.photo];
     return Math.round(ok.filter(Boolean).length * 10);
   },
+  // v1.0.35 : avatar dans l'en-tête (anneau = complétude du profil)
+  meHTML() {
+    const d = Dossier.get(), s = Dossier.score(d);
+    return `<button class="h2-me" data-a="dossier" title="Mon dossier pro · ${s}%" style="--p:${s}"><span>${d.photo ? `<img src="${esc(d.photo)}" alt="">` : esc(dpIni(d.name))}</span><i>${s}%</i></button>`;
+  },
   cardHTML() {
     const d = Dossier.get(), s = Dossier.score(d);
     return `<button class="dp-card" data-a="dossier"><span class="dp-av sm">${d.photo ? `<img src="${esc(d.photo)}" alt="">` : esc(dpIni(d.name))}</span>

@@ -112,14 +112,13 @@ const ST = (() => {
   function persoHTML() {
     const free = Team.isFree && Team.isFree(), M = free ? null : metierOf(Team.profil().metier), P = Team.plan(), stt = Team.planState(), multi = Team.workspaces().length > 1;
     const T = persoTools().slice(0, 9);
-    return `<div class="st-ctx"><button class="st-wsc" data-a="st-ws"><span class="e">👷</span><b>Espace personnel</b><i>${multi ? '▾ changer' : '＋ espaces'}</i></button>
-        <div class="st-chips"><span ${!free && !M ? 'data-a="st-poste" style="cursor:pointer"' : ''}>${free ? '🆓 Free' : esc(M ? M.l : 'Choisir mon poste ›')}</span><span class="st-state" style="--c:${stt.c}">${esc(P.l)} · ${esc(stt.l)}</span></div></div>
+    void multi; void stt;
+    return `${!free && !M ? '<button class="st-pick" data-a="st-poste">👷 Choisir mon poste (métier) ›</button>' : ''}
       ${free ? `<div class="st-promo"><b>⭐ Passez à Pro</b><p>Choisissez votre service et votre poste : tableau de bord, outils et recommandations s'adaptent à votre métier.</p>
         <div class="btnrow" style="padding:0"><button class="btn small" data-a="st-pro">Demander Pro</button><button class="btn ghost small" data-a="st-code">🎟 Code pack</button></div></div>` : ''}
       <div class="st-pstats" data-pstats>${['Tâches à faire', 'Projets', 'Documents', 'Échéances 7 jours'].map(l => `<div class="st-ps"><b>…</b><small>${l}</small></div>`).join('')}</div>
       <div class="h2-sec"><span>Mes outils professionnels</span><small>${esc(M ? M.l : '')}</small></div>
       <div class="st-ptools">${T.map(t => `<button class="st-pt ${t.on ? '' : 'off'}" data-pt="${t.k}" ${t.on ? '' : 'data-locked="1"'} style="--c:${CAT_C[catOf(t.k)] || 'var(--accent)'}"><i class="st-ico">${icon(t.icon)}</i><span>${esc(t.label)}</span>${t.on ? '' : '<small>avec Pro</small>'}</button>`).join('')}</div>
-      ${typeof Dossier !== 'undefined' ? Dossier.cardHTML() : ''}
       <div class="h2-sec"><span>Activité récente</span></div><div class="st-pact" data-pact><div class="st-ok">…</div></div>`;
   }
   async function pickPersoProject() {
@@ -158,17 +157,15 @@ const ST = (() => {
     if (!dirOn()) return '';
     const t = Team.taille(), P = plan(), title = t === 'grande' ? 'Vue Direction générale' : t === 'moyenne' ? 'Vue Direction' : 'Tableau de bord';
     const svcs = t === 'petite' ? [] : Team.companyServices().filter(x => x.k !== 'externe'), M = Team.members() || [];
+    // v1.0.35 : accueil court — un titre, 4 chiffres sur une ligne, l'activité ; services et affectations passent dans le menu de l'espace
     return `<div class="st-dir" data-stdir>
-      <div class="st-dir-hero"><small>TABLEAU DE BORD · ${esc(TAILLE_L[t] || '')} · ${esc(P.l)}</small><b>${title}</b><span>Pilotage des projets${t === 'petite' ? '' : ' et services'}</span>
-        <div class="st-dir-pills"><i>Cette semaine</i><button data-a="dir-proj">Tous les projets ▾</button>${t !== 'petite' && typeof Affectations !== 'undefined' ? '<button data-a="dir-aff">👥 Affectations</button>' : ''}</div></div>
-      <div class="st-kpis">
+      <div class="st-hd"><b>${title}</b><small>${esc(TAILLE_L[t] || '')} · ${esc(P.l)} · cette semaine</small></div>
+      <div class="st-kpis k4">
         <button class="st-kpi" data-k="av"><span class="ic" style="--c:#2164A8">${icon('trend')}</span><b>…</b><small>Avancement</small></button>
         <button class="st-kpi" data-k="pj"><span class="ic" style="--c:#3D5A80">${icon('folder')}</span><b>…</b><small>Projets actifs</small></button>
         <button class="st-kpi" data-k="dec"><span class="ic" style="--c:#18866B">${icon('check')}</span><b>…</b><small>Décisions</small></button>
         <button class="st-kpi" data-k="al"><span class="ic" style="--c:#C2410C">${icon('alert')}</span><b>…</b><small>Alertes</small></button></div>
       <div class="st-perf"><div class="st-perf-h"><b>Activité des projets</b><small>8 dernières semaines</small></div><div class="st-perf-c" data-perf></div></div>
-      ${svcs.length ? `<div class="st-svcrow"><div class="st-perf-h"><b>Services</b><small>${svcs.length}</small></div><div class="st-svcs2">${svcs.map(x => { const n = M.filter(m => (m.service || tmRoleOf(m.role).s) === x.k).length;
-        return `<button class="st-svc2" data-a="dir-svc" style="--c:${x.c || '#2164A8'}"><span>${esc(x.e || '')}</span><b>${esc(x.l)}</b><small>${n} pers.</small></button>`; }).join('')}</div></div>` : ''}
     </div>`;
   }
   async function dirBind(root) {
@@ -220,9 +217,8 @@ const ST = (() => {
     const uni = Team.taille() === 'petite', K = uni ? SVC_KPI.trav : SVC_KPI[grpOf()] || SVC_KPI.trav;
     // v1.0.34 : petite entreprise (Basic) = interface unique, sans service ; Business / Enterprise = tableau du service
     return `<div class="st-dir" data-stsvc>
-      <div class="st-dir-hero"><small>${esc(C.name || '')} · ${esc(uni ? plan().l : sv.l)}</small><b>${uni ? '🏗️ Mon entreprise' : `${esc(sv.e || (P && P.svc.e) || '🏗️')} Service ${esc(sv.l)}`}</b><span>${esc([Team.me() && Team.me().role, ...((Team.me() || {}).postes || [])].filter(Boolean).map(k => tmRoleOf(k).l).join(' + ') || R.l)}</span>
-        <div class="st-dir-pills"><i>Aujourd'hui</i><button data-a="dir-proj">Mes projets ▾</button></div></div>
-      <div class="st-kpis">${K.map(([k, e, l, c]) => `<button class="st-kpi" data-k="${k}"><span class="ic" style="--c:${c}">${icon(e)}</span><b>…</b><small>${l}</small></button>`).join('')}</div>
+      <div class="st-hd"><b>${uni ? 'Mon entreprise' : `Service ${esc(sv.l)}`}</b><small>${esc([Team.me() && Team.me().role, ...((Team.me() || {}).postes || [])].filter(Boolean).map(k => tmRoleOf(k).l).join(' + ') || R.l)} · aujourd'hui</small></div>
+      <div class="st-kpis k4">${K.map(([k, e, l, c]) => `<button class="st-kpi" data-k="${k}"><span class="ic" style="--c:${c}">${icon(e)}</span><b>…</b><small>${l}</small></button>`).join('')}</div>
     </div>`;
   }
   async function svcBind(root) {
@@ -251,21 +247,32 @@ const ST = (() => {
   const catOf = (k) => { const g = typeof DR_GROUPS !== 'undefined' && DR_GROUPS.find(x => x[2].includes(k)); return g ? g[0] : 'trav'; };
   const toolName = (k) => k === 'beton' ? 'Programme de bétonnage' : (SECTIONS[k].title || SECTIONS[k].label).split(' (')[0];
   // ---------- Mes outils par catégorie (Chantier · Qualité & sécurité · Études · Gestion · Projet & équipe) ----------
+  // v1.0.35 : catégories en cartes (sans « Tous ») ; rien n'est déplié tant qu'on ne touche pas une catégorie.
+  // L'ordre suit le service (membres) ou le type d'organisation (BET / architecte → Études ; labo / contrôle → Qualité).
+  const ORG_FIRST = { bet: 'etu', archi: 'etu', labo: 'qual', bc: 'qual', moa: 'org' };
+  const CAT_IC = { trav: 'hard', qual: 'shield', etu: 'ruler', fin: 'sheet', org: 'team', esp: 'grid', all: 'grid' };
   function toolsHTML() {
     if (!ready() || perso() || Team.isCollab() || typeof DR_GROUPS === 'undefined') return '';
-    const first = grpOf(), ok = (k) => secShown(k) && k !== 'dashboard' && sectionOn(k) && Team.canSection(k);
+    const first = Team.isAdmin() ? (ORG_FIRST[(Team.orgType() || {}).k] || 'trav') : grpOf(), ok = (k) => secShown(k) && k !== 'dashboard' && sectionOn(k) && Team.canSection(k);
     let G = DR_GROUPS.slice().sort((a, b) => (b[0] === first) - (a[0] === first)).map(([g, l, ks]) => [g, l, ks.filter(ok)]).filter(g => g[2].length);
-    if (!G.length) return '';
-    // v1.0.34 : petite entreprise (Basic) — une seule grille « Outils essentiels », sans catégories de services
-    if (Team.taille() === 'petite') G = [['all', 'Outils essentiels', G.flatMap(g => g[2])]];
-    const cats = G.length > 1;
-    return `${typeof Dossier !== 'undefined' ? Dossier.cardHTML() : ''}<div class="st-tools" data-sttools><div class="h2-sec"><span>Mes outils</span><small>${G.reduce((a, g) => a + g[2].length, 0)}</small></div>
-      ${cats ? `<div class="st-tcats"><button class="on" data-cat="*">Tous</button>${G.map(([g, l]) => `<button data-cat="${g}">${esc(l)}</button>`).join('')}</div>` : ''}
-      ${G.map(([g, l, ks]) => `<div class="st-tcat" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}"><div class="st-tcat-h">${esc(l)}<small>${ks.length}</small></div><div class="st-tgrid">${ks.map(k => `<button class="st-tool" data-tool="${k}" style="--c:${CAT_C[catOf(k)] || CAT_C[g] || 'var(--accent)'}"><i class="st-ico">${icon(SECTIONS[k].icon || 'grid')}</i><span>${esc(toolName(k))}</span></button>`).join('')}</div></div>`).join('')}</div>`;
+    if (Team.taille() === 'petite') G = G.length ? [['all', 'Outils essentiels', G.flatMap(g => g[2])]] : [];
+    const esp = typeof espaceHome === 'function' ? espaceHome() : '';
+    if (!G.length && !esp) return '';
+    const open = App.toolCat || '';
+    const cards = [...G.map(([g, l, ks]) => [g, l.replace(/^\S+\s/, ''), ks.length]), ...(esp ? [['esp', 'Espace métier', '']] : [])];
+    return `<div class="st-tools" data-sttools><div class="h2-sec"><span>Mes outils</span><small>${G.reduce((a, g) => a + g[2].length, 0)}</small></div>
+      <div class="st-tcats">${cards.map(([g, l, n]) => `<button class="${open === g ? 'on' : ''}" data-cat="${g}" style="--c:${CAT_C[g] || '#3D5A80'}"><i class="st-ico">${icon(CAT_IC[g] || 'grid')}</i><span><b>${esc(l)}</b>${n !== '' ? `<small>${n} outil${n > 1 ? 's' : ''}</small>` : '<small>Mon service</small>'}</span>${icon('chevdown')}</button>`).join('')}</div>
+      ${G.map(([g, l, ks]) => `<div class="st-tcat" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'};${open === g ? '' : 'display:none'}"><div class="st-tgrid">${ks.map(k => `<button class="st-tool" data-tool="${k}" style="--c:${CAT_C[catOf(k)] || CAT_C[g] || 'var(--accent)'}"><i class="st-ico">${icon(SECTIONS[k].icon || 'grid')}</i><span>${esc(toolName(k))}</span></button>`).join('')}</div></div>`).join('')}
+      ${esp ? `<div class="st-tcat st-esp" data-g="esp" style="--c:#3D5A80;${open === 'esp' ? '' : 'display:none'}">${esp}</div>` : ''}
+      ${!open ? '<p class="st-thint">Touchez une catégorie pour afficher ses outils.</p>' : ''}</div>`;
   }
   function toolsBind(root) {
     const box = root && root.querySelector('[data-sttools]'); if (!box) return;
-    box.querySelectorAll('[data-cat]').forEach(c => c.onclick = () => { box.querySelectorAll('[data-cat]').forEach(x => x.classList.toggle('on', x === c)); box.querySelectorAll('.st-tcat').forEach(t => { t.style.display = c.dataset.cat === '*' || t.dataset.g === c.dataset.cat ? '' : 'none'; }); });
+    box.querySelectorAll('[data-cat]').forEach(c => c.onclick = () => { const g = App.toolCat === c.dataset.cat ? '' : c.dataset.cat; App.toolCat = g;
+      box.querySelectorAll('[data-cat]').forEach(x => x.classList.toggle('on', x.dataset.cat === g));
+      box.querySelectorAll('.st-tcat').forEach(t => { t.style.display = t.dataset.g === g ? '' : 'none'; });
+      const h = box.querySelector('.st-thint'); if (h) h.style.display = g ? 'none' : '';
+      const t = box.querySelector(`.st-tcat[data-g="${g}"]`); if (t) setTimeout(() => t.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 30); });
     box.querySelectorAll('[data-tool]').forEach(b => b.onclick = async () => {
       const L = (await DB.all('projects')).filter(p => !p.deleted && Team.canProject(p.id)).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
       if (!L.length) return toast('Créez ou rejoignez d\'abord un projet');
@@ -274,6 +281,46 @@ const ST = (() => {
     });
   }
 
+
+  // ---------- v1.0.35 : menu déroulant de l'espace (en-tête) : changer d'espace + accès rapides ----------
+  function wsBtnHTML() {
+    if (!ready()) return '';
+    const C = Team.company() || {}, T = org(), multi = Team.workspaces().length > 1;
+    return `<button class="h2-ws" data-a="wsmenu" aria-haspopup="menu"><span>${esc(perso() ? '👷' : Team.isCollab() ? '🤝' : T.e)}</span><b>${esc(perso() ? 'Espace personnel' : C.name || 'Organisation')}</b>${multi ? '<i class="n">' + Team.workspaces().length + '</i>' : ''}${icon('chevdown')}</button>`;
+  }
+  function wsMenu(btn) {
+    const old = document.querySelector('.ws-dd'); if (old) { old.remove(); return; }
+    const C = Team.company() || {}, me = Team.me() || {}, R = tmRoleOf(roleKey()), cur = Team.company() && Team.company().id;
+    const W = (Team.workspaces() || []).filter(w => w.cid !== cur && !w.pending);
+    const item = (k, ic, l, sub) => `<button class="ws-it" data-wm="${k}"><span class="ws-ic">${icon(ic)}</span><span class="grow"><b>${l}</b>${sub ? `<small>${sub}</small>` : ''}</span></button>`;
+    const orgOn = !perso() && !Team.isCollab();
+    const el = document.createElement('div'); el.className = 'ws-dd';
+    const r = btn.getBoundingClientRect();
+    el.innerHTML = `<div class="ws-bg"></div><div class="ws-pn" role="menu" style="top:${Math.round(r.bottom + 6)}px">
+      <div class="ws-cur"><span class="ws-e">${esc(perso() ? '👷' : org().e)}</span><span class="grow"><b>${esc(perso() ? 'Espace personnel' : C.name || '')}</b><small>${esc(plan().l)} · ${esc(perso() ? ((metierOf(Team.profil().metier) || {}).l || 'Indépendant') : R.l)}</small></span><i>✓</i></div>
+      ${W.length ? `<div class="ws-h">Changer d'espace</div>${W.map(w => `<button class="ws-it" data-wsw="${esc(w.cid)}"><span class="ws-ic e">${esc(w.kind === 'perso' ? '👷' : w.role === 'collaborateur' ? '🤝' : orgTypeOf(w.org || 'entreprise').e)}</span><span class="grow"><b>${esc(w.name || '?')}</b><small>${w.kind === 'perso' ? 'Espace personnel' : esc(tmRoleOf(w.role).l)}</small></span>${icon('chevright')}</button>`).join('')}` : ''}
+      ${item('switch', 'plus', 'Ajouter ou rejoindre un espace', 'Code d\'accès, organisation, espace personnel')}
+      ${orgOn ? `<div class="ws-h">${esc(C.name || 'Organisation')}</div>
+        ${item('org', 'team', 'Organigramme & membres', (Team.members() || []).length + ' membre(s)')}
+        ${Team.canInvite() ? item('inv', 'share', 'Codes d\'accès', Team.isAdmin() ? 'Inviter, approuver' : 'Pour les personnes sous votre responsabilité') : ''}
+        ${typeof Affectations !== 'undefined' && Affectations.active && Affectations.active() ? item('aff', 'layers', 'Affectations', 'Équipe de chaque projet') : ''}
+        ${Team.isAdmin() ? item('set', 'settings', 'Réglages de l\'organisation', 'Pack, services, Drive, sécurité') : ''}` : ''}
+      <div class="ws-h">Moi</div>
+      ${item('dossier', 'briefcase', 'Mon dossier pro', 'Profil, CV, candidatures')}
+      ${item('me', 'user', 'Mon compte', esc(me.name || ''))}
+      ${item('look', 'brush', 'Apparence', 'Thème clair ou sombre')}
+    </div>`;
+    document.body.appendChild(el);
+    const close = () => { el.remove(); unB(); }, unB = pushBack(() => el.remove());
+    $('.ws-bg', el).onclick = close;
+    $$('[data-wsw]', el).forEach(b => b.onclick = () => { close(); Team.switchTo(b.dataset.wsw); });
+    $$('[data-wm]', el).forEach(b => b.onclick = () => { const k = b.dataset.wm; close();
+      if (k === 'switch') return Team.openSwitcher();
+      if (k === 'org' || k === 'inv' || k === 'set' || k === 'me') return Team.openCompany(k === 'org' ? 'org' : k);
+      if (k === 'aff') return Affectations.open();
+      if (k === 'dossier') return openDossier();
+      if (k === 'look') return chooseTheme(() => renderHome()); });
+  }
   // ---------- barre de navigation du bas (UI Kit) : Accueil · Projets · Équipes · Réglages ----------
   function bottomNav() {
     const app = document.getElementById('app'); if (!app || !ready() || Team.isCollab()) return;
@@ -296,15 +343,15 @@ const ST = (() => {
     const R = tmRoleOf(roleKey()), T = org(), C = Team.company() || {}, me = Team.me() || {};
     const team = (Team.members() || []).filter(m => m.managerUid && m.managerUid === me.uid).length, multi = Team.workspaces().length > 1;
     // contexte : où l'on travaille (espace · service · poste · projet) — le Dashboard se lit à partir de là
-    return `<div class="st-ctx"><button class="st-wsc" data-a="st-ws"><span class="e">${esc(T.e)}</span><b>${esc(C.name || '')}</b><i>${multi ? '▾ changer' : '＋ espaces'}</i></button>
-        <div class="st-chips">${Team.isCollab() && !PV.get() ? '<span>🤝 Projet partagé</span><span>Collaborateur</span>' : `${Team.taille() === 'petite' ? '' : `<span>${esc(serviceOf(PV.get() ? R.s : (me.service || R.s)).l)}</span>`}<span>${esc(R.l)}</span>`}<button data-a="st-proj">Projet ▾</button></div></div>
-      ${team ? `<button class="st-team" data-a="st-team"><b>Mon équipe : ${team} personne(s)</b><small>sous ma responsabilité</small></button>` : ''}
+    void multi; void C;
+    return `      ${team ? `<button class="st-team" data-a="st-team"><b>Mon équipe : ${team} personne(s)</b><small>sous ma responsabilité</small></button>` : ''}
       ${(me.missions || []).length && !PV.get() ? `<div class="st-mbox"><b>Mes missions</b>${me.missions.map(x => `<div class="st-mis">• ${esc(x.t)}</div>`).join('')}</div>` : ''}
       ${R.s === 'qualite' || Team.lvl('forms') >= 2 ? `<div class="st-qual" data-stq><div class="h2-sec"><span>Validation des PV</span></div><div class="st-qtiles">${['À valider', 'À corriger', 'Brouillons', 'Validés (7 j)'].map(l => `<div class="st-ps"><b>…</b><small>${l}</small></div>`).join('')}</div></div>` : ''}
       <div class="st-dash" data-stdash><div class="h2-sec"><span>À faire aujourd'hui</span><small>${esc(T.e)} ${esc(R.l)}</small></div><div class="st-tiles"><div class="st-load">…</div></div></div>`;
   }
   async function dashBind(root) {
     if (root && root.id === 'app') { if (Team.secureApply) Team.secureApply(); dirBind(root); svcBind(root); toolsBind(root); if (!root.querySelector('.st-bnav')) bottomNav(); }
+    if (root && root.id === 'app') { const wb = root.querySelector('[data-a=wsmenu]'); if (wb) wb.onclick = (e) => { e.stopPropagation(); wsMenu(wb); }; }
     if (root) root.querySelectorAll('[data-a=dossier]').forEach(b => b.onclick = () => openDossier());
     if (root && perso()) { const ws = root.querySelector('[data-a=st-ws]'); if (ws) ws.onclick = () => Team.openSwitcher(); return persoBind(root); }
     if (root) {
@@ -505,5 +552,5 @@ const ST = (() => {
   }
 
   function refreshRole() { applyRole(); try { App.project ? renderSection() : renderHome(); } catch (e) {} }
-  return { families: FAMILIES, directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
+  return { families: FAMILIES, wsBtnHTML, wsMenu, directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
 })();

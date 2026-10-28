@@ -164,10 +164,11 @@ async function renderHome() {
           <button class="iconbtn h2-emo off" data-a="freeph" title="Stockage">🧹</button>
           <button class="iconbtn h2-quit" data-a="quit" title="Fermer (appui long : verrouiller)">${icon('power')}</button>
           <button class="iconbtn" data-a="homemore">${icon('more')}</button></div></div>
-        ${(() => { if (Team.ready() && Team.isCollab()) return '<span class="h2-role">🤝 Collaborateur · projet partagé</span>'; if (ST.isPerso()) { if (Team.isFree()) return '<span class="h2-role" title="Pack Basic">🆓 Free</span>'; const M = metierOf(Team.profil().metier); Org.apply && Org.poste() && Org.apply(); return `<span class="h2-role" title="Votre métier (profil)">👷 ${esc(M ? M.l : 'Espace personnel')}</span>`; } const P = Org.poste(); if (P) { Org.apply(); return `<span class="h2-role" title="Vous êtes connecté comme">${P.svc.e} ${esc(P.n)}</span>`; } const r = applyRoleColor(), R = r && roleOf(r); return Team.ready() ? '' : (R ? `<button class="h2-role" data-a="role">${R.e} ${esc(R.n.split(' / ')[0])}</button>` : ''); })()}
+        <div class="h2-chiprow">${(() => { if (Team.ready() && Team.isCollab()) return '<span class="h2-role">🤝 Collaborateur · projet partagé</span>'; if (ST.isPerso()) { if (Team.isFree()) return '<span class="h2-role" title="Pack Basic">🆓 Free</span>'; const M = metierOf(Team.profil().metier); Org.apply && Org.poste() && Org.apply(); return `<span class="h2-role" title="Votre métier (profil)">👷 ${esc(M ? M.l : 'Espace personnel')}</span>`; } const P = Org.poste(); if (P) { Org.apply(); return `<span class="h2-role" title="Vous êtes connecté comme">${P.svc.e} ${esc(P.n)}</span>`; } const r = applyRoleColor(), R = r && roleOf(r); return Team.ready() ? '' : (R ? `<button class="h2-role" data-a="role">${R.e} ${esc(R.n.split(' / ')[0])}</button>` : ''); })()}${Team.ready() && ST.wsBtnHTML ? ST.wsBtnHTML() : ''}</div>
+        <div class="h2-who">${Team.ready() && typeof Dossier !== 'undefined' ? Dossier.meHTML() : ''}<div class="h2-whot">
         <div class="h2-hello" data-a="uname">${tr(hello)}${uname ? (Lang.cur === 'ar' ? '، ' : ', ') + esc(uname) : ''} 👷</div>
         <div class="h2-phrase">${phrase}</div>
-        <div class="h2-date">${dateL.charAt(0).toUpperCase() + dateL.slice(1)}</div>
+        <div class="h2-date">${dateL.charAt(0).toUpperCase() + dateL.slice(1)}</div></div></div>
       </div>
       <div class="h2-body">
         ${(() => { const M = Team.ready() && Team.appCfg().message; let off = ''; try { off = localStorage.getItem('st.msgOff') || ''; } catch (e) {}
@@ -201,7 +202,7 @@ async function renderHome() {
           return sec('home', `${ST.directionHTML()}${ST.serviceHTML()}${ST.dashHTML()}
               <div class="h2-sec"><span>Derniers chantiers</span><small>${projects.length}</small>${projects.length > 2 ? '<button class="h2-more" data-tabgo="proj">Tous ›</button>' : ''}</div>${recent.length ? recent.map(card).join('') : empty}`)
             + sec('proj', all)
-            + sec('tools', `${ST.toolsHTML()}${ST.isPerso() ? '' : `<div class="h2-sec"><span>Espaces métier</span></div>${espaceHome()}`}`);
+            + sec('tools', ST.toolsHTML());   // v1.0.35 : l'espace métier est une catégorie des outils (plus de doublon)
         })()}
       </div>
     </div>
@@ -213,6 +214,9 @@ async function renderHome() {
   espaceBind($('#app'));
   ST.dashBind($('#app'));
   if (keepScroll) { const hb = $('.h2-body'); if (hb) hb.scrollTop = keepScroll; }
+  // v1.0.35 : l'en-tête se resserre quand on fait défiler (le nom et le menu des espaces restent visibles)
+  { const hb = $('.h2-body'), he = $('.h2-hero'); if (hb && he) { const f = () => he.classList.toggle('mini', hb.scrollTop > 30); hb.addEventListener('scroll', f, { passive: true }); f(); } }
+  const meb = $('.h2-hero [data-a=dossier]'); if (meb) meb.onclick = (e) => { e.stopPropagation(); openDossier(); };
   // toucher un chantier : son briefing, puis « Entrer » → la page du chantier
   const focusOn = async (id) => { App.homeFocus = id; await renderHome(); $('#app .h2-body') && ($('#app .h2-body').scrollTop = 0);
     if (typeof briefingShow === 'function') { const act = await briefingShow({ pid: id }).catch(e => { console.warn(e); return null; }); if (act) act(); } };
@@ -335,6 +339,7 @@ const SECTIONS = {
   pointage: { label: 'Pointage main d\'œuvre', icon: 'clock', render: (r) => renderPointage(r), title: 'Pointage', subtitle: 'Présences · coût' },
   rfi: { label: 'RFI · demandes au BET', icon: 'ask', render: (r) => renderRfi(r), title: 'RFI', subtitle: 'Demandes d\'information' },
   visa: { label: 'Visas & bordereaux', icon: 'stamp', render: (r) => renderVisa(r), title: 'Visas', subtitle: 'Documents · bordereaux d\'envoi' },
+  lotsuivi: { label: 'Lots & équipes', icon: 'layers', render: (r) => renderLotSuivi(r), title: 'Lots & équipes', subtitle: 'Avancement · sous-traitants · rendement' },
   labo: { label: 'Laboratoire', icon: 'flask', render: (r) => renderLabo(r), title: 'Laboratoire', subtitle: 'Béton · slump · essais' },
   hse: { label: 'HSE · sécurité', icon: 'shield', render: (r) => renderHse(r), title: 'HSE', subtitle: 'Causeries · EPI · accidents · permis' },
   avenants: { label: 'Avenants & OS', icon: 'sign', render: (r) => renderAvenants(r), title: 'Avenants & OS', subtitle: 'Montants · délais' },

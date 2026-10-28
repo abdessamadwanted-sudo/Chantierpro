@@ -141,7 +141,7 @@ try {
   // conducteur B : demande d'implantation + commande béton + rendement + pointage (via l'interface pour la 1re)
   await B.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); renderHome(); }); await B.pg.waitForTimeout(800);
   await shot(B.pg, '17_home_conducteur_espace');
-  await B.pg.evaluate(() => { const n = document.querySelector('.st-bnav [data-n=tools]'); if (n) n.click(); }); await B.pg.waitForTimeout(300);
+  await B.pg.evaluate(() => { const n = document.querySelector('.st-bnav [data-n=tools]'); if (n) n.click(); const c = document.querySelector('.h2-pane.on [data-cat=esp]'); if (c && !c.classList.contains('on')) c.click(); }); await B.pg.waitForTimeout(300);
   await B.pg.click('[data-es=impl]'); await B.pg.evaluate(() => { App.homeTab = 'home'; }); await B.pg.waitForTimeout(500); await B.pg.click('.es-page .fab'); await B.pg.waitForTimeout(400);
   await B.pg.fill('[name=ouvrage]', 'Voile V12'); await B.pg.fill('[name=niveau]', 'R+3'); await B.pg.fill('[name=zone]', '11'); await B.pg.fill('[name=axes]', 'C-D / 4-6');
   await B.pg.click('.sheet [data-a=ok]'); await B.pg.waitForTimeout(800); await shot(B.pg, '18_impl_detail');
@@ -161,7 +161,7 @@ try {
   await D.pg.evaluate(() => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); renderHome(); }); await D.pg.waitForTimeout(800);
   await shot(D.pg, '20_home_topo');
   log('D items', await D.pg.evaluate(async () => (await DB.all('items')).map(x => x.kind + ':' + (x.status || ''))));
-  await D.pg.evaluate(() => { const n = document.querySelector('.st-bnav [data-n=tools]'); if (n) n.click(); }); await D.pg.waitForTimeout(300);
+  await D.pg.evaluate(() => { const n = document.querySelector('.st-bnav [data-n=tools]'); if (n) n.click(); const c = document.querySelector('.h2-pane.on [data-cat=esp]'); if (c && !c.classList.contains('on')) c.click(); }); await D.pg.waitForTimeout(300);
   await D.pg.click('[data-es=impl]'); await D.pg.evaluate(() => { App.homeTab = 'home'; }); await D.pg.waitForTimeout(500); await D.pg.click('.es-row'); await D.pg.waitForTimeout(500);
   await D.pg.click('[data-st=implantee]'); await D.pg.waitForTimeout(500); await shot(D.pg, '21_topo_implantee');
   await D.pg.evaluate(() => Sync.run({ force: true })); await D.pg.waitForTimeout(2000);
@@ -232,7 +232,7 @@ try {
   const code5 = (await A.pg.textContent('.sheet:has(.opt:has-text("Fermer")) h3')).split(':').pop().trim(); await A.pg.click('.opt:has-text("Fermer")'); log('code BET', code5);
   await F.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await F.pg.waitForTimeout(800);
   await shot(F.pg, '41_dash_contexte');
-  await F.pg.click('[data-a=st-ws]'); await F.pg.waitForSelector('.st-wsl'); await shot(F.pg, '42_switcher');
+  await F.pg.click('[data-a=wsmenu]'); await F.pg.waitForSelector('.ws-dd [data-wm=switch]'); await F.pg.click('.ws-dd [data-wm=switch]'); await F.pg.waitForSelector('.st-wsl'); await shot(F.pg, '42_switcher');
   await F.pg.click('.st-wsa [data-a=join]'); await F.pg.fill('[name=code]', code5); await F.pg.click('.sheet [data-a=ok]');
   await F.pg.waitForSelector('[data-a=join-ok]', { timeout: 15000 }); await shot(F.pg, '43_confirm_code'); await F.pg.click('[data-a=join-ok]');
   await F.pg.waitForTimeout(3000); await F.pg.waitForSelector('.home2', { timeout: 30000 }); await F.pg.waitForTimeout(1500);
@@ -686,6 +686,63 @@ try {
   log('Basic : interface unique (diagnostic)', await J.pg.evaluate(async () => { try { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.homeTab = 'tools'; await renderHome(); return [Team.taille(), !!document.querySelector('.h2-pane.on .st-tcats'), document.querySelectorAll('.h2-pane.on [data-tool]').length]; } catch (e) { return String(e); } }));
   await shot(J.pg, '139_basic_outils');
   log('errors v1.0.34', [...v34, ...A.errs.slice(a34), ...E.errs.slice(e34).filter(x => !/401/.test(x))]);
+  // ---- v1.0.35 : en-tête compact (dossier pro + menu de l'espace), accueil court, barre du bas fixe, outils au toucher, Lots & équipes, codes délégués
+  const v35 = [], a35 = A.errs.length, cl35 = (pg) => pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg,.ws-dd').forEach(x => x.remove()); App.project = null; });
+  await cl35(A.pg); await A.pg.evaluate(async () => { App.homeTab = 'home'; await renderHome(); }); await A.pg.waitForTimeout(800);
+  const hd = await A.pg.evaluate(() => { const nav = document.querySelector('.st-bnav'), cs = nav && getComputedStyle(nav), r = nav && nav.getBoundingClientRect();
+    return { me: !!document.querySelector('.h2-hero [data-a=dossier]'), ws: !!document.querySelector('.h2-hero [data-a=wsmenu]'), aff: !!document.querySelector('[data-a=dir-aff]'), kpis: document.querySelectorAll('.st-kpis.k4 .st-kpi').length,
+      navBottom: r ? Math.round(innerHeight - r.bottom) : null, navBg: cs ? cs.backgroundColor : '', heroH: Math.round(document.querySelector('.h2-hero').getBoundingClientRect().height) }; });
+  log('en-tête & accueil', hd); if (!hd.me || !hd.ws || hd.aff || hd.kpis !== 4 || hd.navBottom > 1 || /rgba\(.*, 0(\.\d+)?\)$/.test(hd.navBg)) v35.push('en-tête / barre du bas incorrects');
+  await shot(A.pg, '140_accueil_compact');
+  await A.pg.evaluate(() => { const b = document.querySelector('.h2-body'); b.scrollTop = 400; b.dispatchEvent(new Event('scroll')); }); await A.pg.waitForTimeout(300);
+  log('en-tête réduit au défilement', await A.pg.evaluate(() => [document.querySelector('.h2-hero').classList.contains('mini'), Math.round(document.querySelector('.h2-hero').getBoundingClientRect().height)]));
+  await shot(A.pg, '141_accueil_defile');
+  await A.pg.click('[data-a=wsmenu]'); await A.pg.waitForSelector('.ws-dd .ws-pn');
+  const wm = await A.pg.evaluate(() => [...document.querySelectorAll('.ws-dd [data-wm]')].map(b => b.dataset.wm)); log('menu de l\'espace', wm);
+  if (!wm.includes('org') || !wm.includes('dossier') || !wm.includes('aff')) v35.push('menu de l\'espace incomplet');
+  await shot(A.pg, '142_menu_espace'); await A.pg.click('.ws-dd .ws-bg');
+  // outils : pas de « Tous », rien d'ouvert avant le toucher
+  await A.pg.click('.st-bnav [data-n=tools]'); await A.pg.waitForTimeout(400);
+  const tl = await A.pg.evaluate(() => { App.toolCat = ''; return null; }); void tl;
+  await A.pg.evaluate(async () => { App.homeTab = 'tools'; await renderHome(); }); await A.pg.waitForTimeout(500);
+  const tc = await A.pg.evaluate(() => { const P = document.querySelector('.h2-pane.on'); return { tous: !!P.querySelector('[data-cat="*"]'), cats: [...P.querySelectorAll('[data-cat]')].map(b => b.dataset.cat), open: [...P.querySelectorAll('.st-tcat')].filter(t => t.style.display !== 'none').length, espRepete: P.querySelectorAll('.es-wrap').length }; });
+  log('outils : catégories au toucher', tc); if (tc.tous || tc.open !== 0 || tc.espRepete > 1) v35.push('outils : catégories incorrectes');
+  await shot(A.pg, '143_outils_categories');
+  await A.pg.click(`.h2-pane.on [data-cat="${tc.cats[0]}"]`); await A.pg.waitForTimeout(300);
+  log('catégorie ouverte', await A.pg.evaluate(() => [...document.querySelectorAll('.h2-pane.on .st-tcat')].filter(t => t.style.display !== 'none').map(t => t.dataset.g)));
+  await shot(A.pg, '144_outils_categorie_ouverte');
+  await A.pg.evaluate(() => { App.toolCat = ''; App.homeTab = 'home'; });
+  // Lots & équipes : dates, équipe sous-traitante, saisies → rendement et alertes
+  const lsr = await A.pg.evaluate(async () => { const p = (await DB.all('projects')).find(x => !x.deleted); await openProject(p); document.querySelectorAll('.sheet-bg').forEach(x => x.remove());
+    const L = lsLots(p), l = L[0], D = lsData(p, l.id), t = todayISO(), d = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+    D.deb = d(-10); D.fin = d(20); D.zones = ['Bloc A', 'Bloc B'];
+    D.eq.push({ id: 'eq1', kind: 'st', nom: 'Ste Atlas Coffrage', chef: 'Hassan', tel: '0600000000', eff: 8, mis: 'Coffrage des voiles R+1', u: 'm²', eng: '1 grue', j: [{ d: d(-2), eff: 8, q: 96, av: 20, c: [{ m: 'Béton', q: 12, u: 'm³' }], n: '' }, { d: d(-1), eff: 10, q: 130, av: 30, c: [], n: 'Bloc A' }] });
+    D.eq.push({ id: 'eq2', kind: 'int', nom: 'Équipe ferrailleurs 2', chef: 'Youssef', eff: 6, u: 'kg', j: [{ d: d(-5), eff: 6, q: 1800, av: 15, c: [] }] });
+    await DB.put('projects', p); App.section = 'lotsuivi'; await renderSection(); await new Promise(r => setTimeout(r, 500));
+    const S = lsState(D);
+    return { lots: L.length, real: S.real, prev: S.prev, alertes: S.al.map(x => x[1]), rend: Math.round(lsRendAvg(D.eq[0]) * 10) / 10, cartes: document.querySelectorAll('.ls-lot').length }; });
+  log('Lots & équipes', lsr); if (!lsr.lots || lsr.rend !== 12.5 || !lsr.cartes || !lsr.alertes.some(x => /aucune saisie/.test(x))) v35.push('suivi des lots incorrect');
+  await shot(A.pg, '145_lots_equipes');
+  await A.pg.click('.ls-lot'); await A.pg.waitForSelector('.ls-page'); await A.pg.waitForTimeout(300); await shot(A.pg, '146_lot_detail');
+  await A.pg.click('.ls-page [data-eq=eq1]'); await A.pg.waitForSelector('.ls-eqs'); await A.pg.waitForTimeout(300); await shot(A.pg, '147_equipe_rendement');
+  await A.pg.evaluate(() => document.querySelectorAll('.sheet-bg,.fullpage').forEach(x => x.remove()));
+  await A.pg.evaluate(() => lsSousTraitants(App.project)); await A.pg.waitForTimeout(300); await shot(A.pg, '148_sous_traitants');
+  log('lot (plans) : plus d\'attachement / décompte', await A.pg.evaluate(() => !/data-gs=/.test(String(lotPanel))));
+  await cl35(A.pg);
+  // codes d'accès délégués : l'administrateur autorise le conducteur
+  const dlg = await A.pg.evaluate(async () => { const m = Team.members().find(x => x.name && /Youssef/.test(x.name)); if (!m) return 'membre introuvable';
+    await firebase.firestore().collection('companies').doc(Team.company().id).collection('members').doc(m.uid).update({ canInvite: true }); return true; });
+  await B.pg.waitForTimeout(1500);
+  log('codes délégués (diagnostic) [admin a autorisé, conducteur peut partager]', [dlg, await B.pg.evaluate(async () => { try { await Team.refreshMembers(); } catch (e) {} return Team.canInvite(); })]);
+  // thème « Classique » (sombre) : aucune zone blanche dans l'accueil perso et organisation
+  for (const [U, n] of [[A, '149_classique_org'], [E, '150_classique_perso']]) {
+    await cl35(U.pg);
+    const w = await U.pg.evaluate(async () => { applyTheme('dark'); App.homeTab = 'home'; await renderHome(); await new Promise(r => setTimeout(r, 800));
+      return [...document.querySelectorAll('.h2-body, .h2-pane.on, .h2-pane.on *')].filter(x => x.offsetHeight > 30 && getComputedStyle(x).backgroundColor === 'rgb(255, 255, 255)').map(x => x.className).slice(0, 5); });
+    log('thème Classique : zones blanches ' + n, w); if (w.length) v35.push('Classique : blanc ' + w.join(','));
+    await shot(U.pg, n); await U.pg.evaluate(() => { applyTheme(localStorage.getItem('theme') || 'siteteam'); });
+  }
+  log('errors v1.0.35', [...v35, ...A.errs.slice(a35)]);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);
