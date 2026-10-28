@@ -273,6 +273,7 @@ async function renderHome() {
         { label: 'Code PIN et empreinte', icon: 'settings', value: 'pin' },
         { label: 'Fonctions affichées', sub: 'masquer ce qui ne sert pas', icon: 'grid', value: 'feat' }] },
       { title: 'Application', color: '#64748b', items: [
+        ...(() => { try { const T = JSON.parse(localStorage.getItem('boot.t') || 'null'); return T ? [{ label: `⏱ Dernier démarrage : ${(T.total / 1000).toFixed(1)} s`, sub: `fichiers ${(T.scripts / 1000).toFixed(1)} s · connexion ${(T.team / 1000).toFixed(1)} s · accueil ${(T.home / 1000).toFixed(1)} s`, icon: 'calendar', value: 'boott' }] : []; } catch (e) { return []; } })(),
         { label: `Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}`, sub: 'mise à jour', icon: 'upload', value: 'ver' }] },
     ]);
     if (v === 'brief') { const act = await briefingShow(); if (act) act(); }
@@ -1576,7 +1577,10 @@ async function openPlansQuick() {
   document.addEventListener('touchend', gend, { passive: true }); document.addEventListener('touchcancel', gend, { passive: true });
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   try { Splash.boot(); } catch (e) {}
-  Team.boot().catch(e => console.error('team', e)).finally(() => { renderHome(); Sync.start(); setTimeout(() => checkUpdate(false).catch(() => {}), 2500); try { dwgCrashCheck(); } catch (e) {} setTimeout(showWhatsNew, 1800); setTimeout(() => otaBoot().catch(() => {}), 1200); });
+  // v1.0.36 : temps de démarrage mesuré (fichiers · connexion · accueil), visible dans le menu ⋮ › Application
+  const tTeam0 = Date.now();
+  Team.boot().catch(e => console.error('team', e)).finally(() => { const tTeam1 = Date.now(); Promise.resolve(renderHome()).finally(() => { try { const t0 = window.__t0 || tTeam0, ts = window.__tScripts || tTeam0, now = Date.now();
+      localStorage.setItem('boot.t', JSON.stringify({ total: now - t0, scripts: Math.max(0, ts - t0), team: tTeam1 - tTeam0, home: now - tTeam1, at: now })); } catch (e) {} }); Sync.start(); setTimeout(() => checkUpdate(false).catch(() => {}), 2500); try { dwgCrashCheck(); } catch (e) {} setTimeout(showWhatsNew, 1800); setTimeout(() => otaBoot().catch(() => {}), 1200); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(false).catch(() => {}); });
   // hors ligne : petite pastille en haut
   const net = () => { let b = document.getElementById('offBadge'); if (navigator.onLine) { if (b) b.remove(); return; } if (!b) { b = document.createElement('div'); b.id = 'offBadge'; b.textContent = '⚡ Hors ligne'; b.onclick = () => toast('Pas d\'internet : les photos et fichiers de Drive se chargeront au retour du réseau'); document.body.appendChild(b); } };
