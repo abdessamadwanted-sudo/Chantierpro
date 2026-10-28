@@ -8,6 +8,16 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <!-- v1.0.35+ : écran de démarrage affiché immédiatement (plus d'écran noir pendant le chargement) -->
+  <style>
+    #boot{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:#0F2540;color:#cfd8e6;font:600 14px system-ui,-apple-system,Roboto,sans-serif;transition:opacity .25s}
+    #boot.l{background:#F4F6FA;color:#5A6A80} #boot.out{opacity:0;pointer-events:none}
+    #boot svg{width:78px;height:78px} #boot b{font-size:20px;letter-spacing:.18em;color:#fff} #boot.l b{color:#0F2540}
+    #boot .bar{width:150px;height:4px;border-radius:4px;background:rgba(127,140,160,.25);overflow:hidden} #boot .bar i{display:block;height:100%;width:6%;border-radius:4px;background:#3E86C9;transition:width .3s}
+    #boot small{opacity:.75;font-weight:500}
+  </style>
+  <div id="boot"><svg viewBox="0 0 120 120" fill="none" stroke="#3E86C9" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="60" cy="60" r="52" stroke-opacity=".35"/><path d="M26 80h68M32 80v-10a28 28 0 0 1 56 0v10M52 44v-9h16v9"/></svg><b>SITETEAM</b><div class="bar"><i></i></div><small>Ouverture…</small></div>
+  <script>window.__t0 = Date.now(); try { var t = localStorage.getItem('theme'); if (!t || t === 'siteteam') document.getElementById('boot').className = 'l'; } catch (e) {}</script>
   <div id="app"></div>
   <div id="sheet-root"></div>
   <div id="toast"></div>
@@ -22,72 +32,86 @@
         var A = C.Plugins.App; if (A && A.exitApp) A.exitApp(); }, 25000); }).catch(function () {});
   } catch (e) {} })();
   </script>
-  <script src="lib/pdf.min.js" onerror="window.pdfjsLib=null"></script>
-  <script src="lib/pdf-lib.min.js" onerror="window.PDFLib=null"></script>
-  <script src="js/db.js"></script>
-  <script src="js/ui.js"></script>
-  <script src="js/viewer.js"></script>
-  <script src="js/plansbox.js"></script>
-  <script src="js/notes.js"></script>
-  <script src="js/clauses.js"></script>
-  <script src="js/cpssmart.js"></script>
-  <script src="js/scan.js"></script>
-  <script src="js/inbox.js"></script>
-  <script src="js/licence.js"></script>
-  <script src="js/backup.js"></script>
-  <script src="vendor/firebase/firebase-app-compat.js"></script>
-  <script src="vendor/firebase/firebase-auth-compat.js"></script>
-  <script src="vendor/firebase/firebase-firestore-compat.js"></script>
-  <script src="vendor/firebase/firebase-storage-compat.js"></script>
-  <script src="js/gdrive.js"></script>
-  <script src="js/sync.js"></script>
-  <script src="js/team.js"></script>
-  <script src="vendor/jspdf.umd.min.js"></script>
-  <script src="js/pro.js"></script>
-  <script src="js/sketch.js"></script>
-  <script src="js/calc.js"></script>
-  <script src="js/reception.js"></script>
-  <script src="js/bon.js"></script>
-  <script src="js/pvgen.js"></script>
-  <script src="js/fiches.js"></script>
-  <script src="js/tools.js"></script>
-  <script src="js/m3d.js"></script>
-  <script src="js/poutre3d.js"></script>
-  <script src="js/fer.js"></script>
-  <script src="js/dxf.js"></script>
-  <script src="js/espace.js"></script>
-  <script src="js/career.js"></script>
-  <script src="js/dossier.js"></script>
-  <script src="js/modules.js"></script>
-  <script src="js/planrev.js"></script>
-  <script src="js/cmpv.js"></script>
-  <script src="js/lots.js"></script>
-  <script src="js/lotsuivi.js"></script>
-  <script src="js/catalogue.js"></script>
-  <script src="js/rub.js"></script>
-  <script src="js/photo.js"></script>
-  <script src="js/dwg.js"></script>
-  <script src="js/lvcmp.js"></script>
-  <script src="js/ruler.js"></script>
-  <script src="js/stack.js"></script>
-  <script src="js/storage.js"></script>
-  <script src="js/roles.js"></script>
-  <script src="js/org.js"></script>
-  <script src="js/weekly.js"></script>
-  <script src="js/gestion.js"></script>
-  <script src="js/avancement.js"></script>
-  <script src="js/i18n.js"></script>
-  <script src="js/fin.js"></script>
-  <script src="js/reg.js"></script>
-  <script src="js/planning.js"></script>
-  <script src="js/pvsmart.js"></script>
-  <script src="js/game.js"></script>
-  <script src="js/briefing.js"></script>
-  <script src="js/fx.js"></script>
-  <script src="js/splash.js"></script>
-  <script src="js/siteteam.js"></script>
-  <script src="js/wizard.js"></script>
-  <script src="js/affectations.js"></script>
-  <script src="js/app.js"></script>
+  <!-- scripts de l'application : chargés après le premier affichage, dans l'ordre -->
+  <script type="text/plain" data-src="lib/pdf.min.js"></script>
+  <script type="text/plain" data-src="lib/pdf-lib.min.js"></script>
+  <script type="text/plain" data-src="js/db.js"></script>
+  <script type="text/plain" data-src="js/ui.js"></script>
+  <script type="text/plain" data-src="js/viewer.js"></script>
+  <script type="text/plain" data-src="js/plansbox.js"></script>
+  <script type="text/plain" data-src="js/notes.js"></script>
+  <script type="text/plain" data-src="js/clauses.js"></script>
+  <script type="text/plain" data-src="js/cpssmart.js"></script>
+  <script type="text/plain" data-src="js/scan.js"></script>
+  <script type="text/plain" data-src="js/inbox.js"></script>
+  <script type="text/plain" data-src="js/licence.js"></script>
+  <script type="text/plain" data-src="js/backup.js"></script>
+  <script type="text/plain" data-src="vendor/firebase/firebase-app-compat.js"></script>
+  <script type="text/plain" data-src="vendor/firebase/firebase-auth-compat.js"></script>
+  <script type="text/plain" data-src="vendor/firebase/firebase-firestore-compat.js"></script>
+  <script type="text/plain" data-src="vendor/firebase/firebase-storage-compat.js"></script>
+  <script type="text/plain" data-src="js/gdrive.js"></script>
+  <script type="text/plain" data-src="js/sync.js"></script>
+  <script type="text/plain" data-src="js/team.js"></script>
+  <script type="text/plain" data-src="js/pro.js"></script>
+  <script type="text/plain" data-src="js/sketch.js"></script>
+  <script type="text/plain" data-src="js/calc.js"></script>
+  <script type="text/plain" data-src="js/reception.js"></script>
+  <script type="text/plain" data-src="js/bon.js"></script>
+  <script type="text/plain" data-src="js/pvgen.js"></script>
+  <script type="text/plain" data-src="js/fiches.js"></script>
+  <script type="text/plain" data-src="js/tools.js"></script>
+  <script type="text/plain" data-src="js/m3d.js"></script>
+  <script type="text/plain" data-src="js/poutre3d.js"></script>
+  <script type="text/plain" data-src="js/fer.js"></script>
+  <script type="text/plain" data-src="js/dxf.js"></script>
+  <script type="text/plain" data-src="js/espace.js"></script>
+  <script type="text/plain" data-src="js/career.js"></script>
+  <script type="text/plain" data-src="js/dossier.js"></script>
+  <script type="text/plain" data-src="js/modules.js"></script>
+  <script type="text/plain" data-src="js/planrev.js"></script>
+  <script type="text/plain" data-src="js/cmpv.js"></script>
+  <script type="text/plain" data-src="js/lots.js"></script>
+  <script type="text/plain" data-src="js/lotsuivi.js"></script>
+  <script type="text/plain" data-src="js/catalogue.js"></script>
+  <script type="text/plain" data-src="js/rub.js"></script>
+  <script type="text/plain" data-src="js/photo.js"></script>
+  <script type="text/plain" data-src="js/dwg.js"></script>
+  <script type="text/plain" data-src="js/lvcmp.js"></script>
+  <script type="text/plain" data-src="js/ruler.js"></script>
+  <script type="text/plain" data-src="js/stack.js"></script>
+  <script type="text/plain" data-src="js/storage.js"></script>
+  <script type="text/plain" data-src="js/roles.js"></script>
+  <script type="text/plain" data-src="js/org.js"></script>
+  <script type="text/plain" data-src="js/weekly.js"></script>
+  <script type="text/plain" data-src="js/gestion.js"></script>
+  <script type="text/plain" data-src="js/avancement.js"></script>
+  <script type="text/plain" data-src="js/i18n.js"></script>
+  <script type="text/plain" data-src="js/fin.js"></script>
+  <script type="text/plain" data-src="js/reg.js"></script>
+  <script type="text/plain" data-src="js/planning.js"></script>
+  <script type="text/plain" data-src="js/pvsmart.js"></script>
+  <script type="text/plain" data-src="js/game.js"></script>
+  <script type="text/plain" data-src="js/briefing.js"></script>
+  <script type="text/plain" data-src="js/fx.js"></script>
+  <script type="text/plain" data-src="js/splash.js"></script>
+  <script type="text/plain" data-src="js/siteteam.js"></script>
+  <script type="text/plain" data-src="js/wizard.js"></script>
+  <script type="text/plain" data-src="js/affectations.js"></script>
+  <script type="text/plain" data-src="js/app.js"></script>
+  <script type="text/plain" data-src="vendor/jspdf.umd.min.js"></script>
+  <script>
+  (function () {
+    var L = [].slice.call(document.querySelectorAll('script[data-src]')).map(function (e) { return e.getAttribute('data-src'); }), n = 0, bar = document.querySelector('#boot .bar i');
+    function go() { L.forEach(function (src) { var e = document.createElement('script'); e.src = src; e.async = false;
+      e.onerror = function () { if (/pdf\.min/.test(src)) window.pdfjsLib = null; if (/pdf-lib/.test(src)) window.PDFLib = null; step(); }; e.onload = step; function step() { n++; if (bar) bar.style.width = Math.round(8 + 72 * n / L.length) + '%'; if (n === L.length) window.__tScripts = Date.now(); }
+      document.body.appendChild(e); }); }
+    requestAnimationFrame(function () { setTimeout(go, 0); });
+    // l'écran de démarrage disparaît dès que l'application affiche quelque chose (accueil, connexion, accueil animé…)
+    var done = false; function hide() { var b = document.getElementById('boot'); if (!b || done) return; done = true; if (bar) bar.style.width = '100%'; window.__tHome = Date.now(); b.className += ' out'; setTimeout(function () { b.remove(); }, 300); }
+    new MutationObserver(function (m, o) { if (document.querySelector('.home2, .tm-login, .st-onb, .splash, .st-gate, .fullpage, .sheet-bg')) { hide(); o.disconnect(); } }).observe(document.body, { childList: true, subtree: true });
+    setTimeout(hide, 30000);
+  })();
+  </script>
 </body>
 </html>

@@ -215,7 +215,12 @@ async function renderHome() {
   ST.dashBind($('#app'));
   if (keepScroll) { const hb = $('.h2-body'); if (hb) hb.scrollTop = keepScroll; }
   // v1.0.35 : l'en-tête se resserre quand on fait défiler (le nom et le menu des espaces restent visibles)
-  { const hb = $('.h2-body'), he = $('.h2-hero'); if (hb && he) { const f = () => he.classList.toggle('mini', hb.scrollTop > 30); hb.addEventListener('scroll', f, { passive: true }); f(); } }
+  // v1.0.36 : sans effet « vibration » — on réduit au-delà de 64 px, on ré-agrandit seulement près du haut (< 6 px),
+  // et jamais si la page est trop courte (sinon la réduction elle-même fait remonter la page et l'en-tête oscille)
+  { const hb = $('.h2-body'), he = $('.h2-hero'); if (hb && he) { let mini = false, lock = 0;
+      const f = () => { if (Date.now() < lock) return; const y = hb.scrollTop, room = hb.scrollHeight - hb.clientHeight;
+        const want = mini ? y > 6 : (y > 64 && room > 200); if (want !== mini) { mini = want; he.classList.toggle('mini', mini); lock = Date.now() + 260; } };
+      hb.addEventListener('scroll', f, { passive: true }); f(); } }
   const meb = $('.h2-hero [data-a=dossier]'); if (meb) meb.onclick = (e) => { e.stopPropagation(); openDossier(); };
   // toucher un chantier : son briefing, puis « Entrer » → la page du chantier
   const focusOn = async (id) => { App.homeFocus = id; await renderHome(); $('#app .h2-body') && ($('#app .h2-body').scrollTop = 0);
@@ -273,6 +278,7 @@ async function renderHome() {
         { label: 'Code PIN et empreinte', icon: 'settings', value: 'pin' },
         { label: 'Fonctions affichées', sub: 'masquer ce qui ne sert pas', icon: 'grid', value: 'feat' }] },
       { title: 'Application', color: '#64748b', items: [
+        ...(() => { try { const T = JSON.parse(localStorage.getItem('boot.t') || 'null'); return T ? [{ label: `⏱ Dernier démarrage : ${(T.total / 1000).toFixed(1)} s`, sub: `fichiers ${(T.scripts / 1000).toFixed(1)} s · connexion ${(T.team / 1000).toFixed(1)} s · accueil ${(T.home / 1000).toFixed(1)} s`, icon: 'calendar', value: 'boott' }] : []; } catch (e) { return []; } })(),
         { label: `Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}`, sub: 'mise à jour', icon: 'upload', value: 'ver' }] },
     ]);
     if (v === 'brief') { const act = await briefingShow(); if (act) act(); }
@@ -1576,7 +1582,10 @@ async function openPlansQuick() {
   document.addEventListener('touchend', gend, { passive: true }); document.addEventListener('touchcancel', gend, { passive: true });
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   try { Splash.boot(); } catch (e) {}
-  Team.boot().catch(e => console.error('team', e)).finally(() => { renderHome(); Sync.start(); setTimeout(() => checkUpdate(false).catch(() => {}), 2500); try { dwgCrashCheck(); } catch (e) {} setTimeout(showWhatsNew, 1800); setTimeout(() => otaBoot().catch(() => {}), 1200); });
+  // v1.0.36 : temps de démarrage mesuré (fichiers · connexion · accueil), visible dans le menu ⋮ › Application
+  const tTeam0 = Date.now();
+  Team.boot().catch(e => console.error('team', e)).finally(() => { const tTeam1 = Date.now(); Promise.resolve(renderHome()).finally(() => { try { const t0 = window.__t0 || tTeam0, ts = window.__tScripts || tTeam0, now = Date.now();
+      localStorage.setItem('boot.t', JSON.stringify({ total: now - t0, scripts: Math.max(0, ts - t0), team: tTeam1 - tTeam0, home: now - tTeam1, at: now })); } catch (e) {} }); Sync.start(); setTimeout(() => checkUpdate(false).catch(() => {}), 2500); try { dwgCrashCheck(); } catch (e) {} setTimeout(showWhatsNew, 1800); setTimeout(() => otaBoot().catch(() => {}), 1200); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(false).catch(() => {}); });
   // hors ligne : petite pastille en haut
   const net = () => { let b = document.getElementById('offBadge'); if (navigator.onLine) { if (b) b.remove(); return; } if (!b) { b = document.createElement('div'); b.id = 'offBadge'; b.textContent = '⚡ Hors ligne'; b.onclick = () => toast('Pas d\'internet : les photos et fichiers de Drive se chargeront au retour du réseau'); document.body.appendChild(b); } };
