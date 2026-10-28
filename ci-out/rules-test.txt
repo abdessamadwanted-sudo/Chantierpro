@@ -32,6 +32,11 @@ OK   code : personne autorisée (Équipe = Valider) crée un code dans ses droit
 OK   code : REFUS d'un code sans approbation créé par un non-administrateur
 OK   code : REFUS de donner plus de droits que les siens
 OK   code : REFUS de créer un administrateur
+OK   code délégué : membre autorisé (canInvite) crée un code avec approbation
+OK   code délégué : REFUS sans approbation
+OK   code délégué : REFUS de dépasser ses droits
+OK   code délégué : REFUS de s'accorder soi-même le partage
+OK   code délégué : REFUS pour un membre sans délégation
 OK   code : REFUS de donner un projet qu'on n'a pas
 OK   code : REFUS de donner « tous les projets » sans les avoir
 OK   code : REFUS de clés de droits inconnues
@@ -224,4 +229,4 @@ OK   audit entreprise : REFUS de supprimer une ligne
 OK   audit entreprise : REFUS de falsifier l’auteur
 OK   audit entreprise : REFUS de lecture par un membre
 
-TOUT OK — 225 vérifications
+TOUT OK — 230 vérifications
