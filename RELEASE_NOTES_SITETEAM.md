@@ -1,6 +1,7 @@
-## SiteTeam : équipe projet et affectations (Business / Enterprise)
-- L'administrateur définit l'équipe de chaque projet : affecter un membre (poste sur le projet, date de début), remplacer un titulaire, terminer ou transférer une mission vers un autre projet.
-- Historique conservé (dates de début et de fin) et journal de l'organisation protégé (ajout seulement, aucune modification ni suppression).
-- Sécurité côté serveur : un membre non affecté ne voit plus le projet ni ses fichiers ; les administrateurs gardent l'accès ; les anciens projets restent ouverts tant qu'aucune équipe n'est définie.
-- Accès : Vue Direction › « 👥 Affectations », ou Projet › Équipe › « Équipe projet & affectations ».
-- Important : publier les nouvelles règles Firestore ET Storage avant de définir la première équipe.
+## SiteTeam : palette professionnelle, bibliothèque par service, Basic unifiée, Mon dossier pro
+- Palette professionnelle : bleu acier, navy profond et couleurs sobres par famille d'outils (Chantier, Qualité, Études, Gestion, Équipe). Les pictogrammes sont posés sur des pastilles teintées.
+- Nouveau thème « 🌙 SiteTeam (sombre) » professionnel. Aucune carte blanche ; à choisir dans Réglages › Apparence.
+- Bibliothèque par service (Business / Enterprise) : chacun ne voit que les outils de son métier. Les PV de réception sont réservés à la Qualité ; les Travaux gardent le programme de bétonnage. La Direction et les administrateurs voient tout.
+- Basic (petite entreprise) : interface unique sans services, avec une seule grille « Outils essentiels ».
+- Mon dossier pro (pour tous) : profil type LinkedIn (photo, titre, expérience, formation, compétences, langues, certifications), taux de complétude et CV PDF en un clic. Les documents et le suivi des candidatures sont regroupés au même endroit.
+- Affectations : rappel à la première ouverture pour publier les règles Firestore et Storage.
