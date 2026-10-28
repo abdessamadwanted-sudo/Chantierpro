@@ -171,7 +171,7 @@ const featName = (k) => ({ planning: 'Planning', reunions: 'Réunions', rfi: 'RF
 // ---------- menu latéral rangé par groupes (le groupe de votre service en premier) ----------
 // 5 groupes courts (v1.0.28) : chantier au quotidien, qualité & sécurité, études, gestion, projet & équipe
 const DR_GROUPS = [
-  ['trav', '🏗️ Chantier', ['dashboard', 'plans', 'tasks', 'photos', 'reports', 'avancement', 'planning', 'beton', 'reunions']],
+  ['trav', '🏗️ Chantier', ['dashboard', 'plans', 'tasks', 'photos', 'reports', 'avancement', 'lotsuivi', 'planning', 'beton', 'reunions']],
   ['qual', '✅ Qualité & sécurité', ['reception', 'forms', 'constat', 'labo', 'hse', 'docq', 'clauses']],
   ['etu', '📐 Études & 3D', ['rfi', 'visa', 'calc', 'models3d', 'maquette']],
   ['fin', '💰 Gestion & finance', ['finance', 'avenants', 'gestion', 'pointage', 'tce', 'st']],

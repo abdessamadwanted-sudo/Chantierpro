@@ -96,6 +96,7 @@ await env.withSecurityRulesDisabled(async (c) => {
   await co.collection('members').doc('adm2').set({ name: 'Admin', admin: true, perms: ALL4, allProjects: true, projects: [] });
   await co.collection('members').doc('chef2').set({ name: 'Chef', admin: false, perms: CHEF, allProjects: false, projects: ['p1'] });
   await co.collection('members').doc('low2').set({ name: 'Ouvrier', admin: false, perms: { ...CHEF, equipe: 2 }, allProjects: false, projects: ['p1'] });
+  await co.collection('members').doc('del2').set({ name: 'Chef délégué', admin: false, canInvite: true, perms: { ...CHEF, equipe: 2 }, allProjects: false, projects: ['p1'] });
   const base = { cid: 'c2', role: 'chefequipe', service: 'travaux', perms: { projet: 1 }, admin: false, allProjects: false, projects: [], used: false };
   await db.collection('invites').doc('EXPIRED1').set({ ...base, expiresAt: new Date(Date.now() - 864e5) });
   await db.collection('invites').doc('LIVE0001').set({ ...base, expiresAt: new Date(Date.now() + 864e5) });
@@ -104,11 +105,18 @@ await env.withSecurityRulesDisabled(async (c) => {
 const adm2 = env.authenticatedContext('adm2', { email: 'adm2@test.ma' }).firestore();
 const chef2 = env.authenticatedContext('chef2', { email: 'chef2@test.ma' }).firestore();
 const low2 = env.authenticatedContext('low2', { email: 'low2@test.ma' }).firestore();
+const del2 = env.authenticatedContext('del2', { email: 'del2@test.ma' }).firestore();
 const inv = (who, extra) => ({ cid: 'c2', companyName: 'Business SARL', name: 'X', role: 'chefequipe', service: 'travaux', perms: { projet: 1, reserves: 2, equipe: 1 }, admin: false, allProjects: false, projects: ['p1'], used: false, needsApproval: true, createdBy: who, ...extra });
 await t('code : personne autorisée (Équipe = Valider) crée un code dans ses droits', () => assertSucceeds(chef2.collection('invites').doc('CHEFOK01').set(inv('chef2'))));
 await t('code : REFUS d\'un code sans approbation créé par un non-administrateur', () => assertFails(chef2.collection('invites').doc('CHEFKO09').set(inv('chef2', { needsApproval: false }))));
 await t('code : REFUS de donner plus de droits que les siens', () => assertFails(chef2.collection('invites').doc('CHEFKO01').set(inv('chef2', { perms: { projet: 4 } }))));
 await t('code : REFUS de créer un administrateur', () => assertFails(chef2.collection('invites').doc('CHEFKO02').set(inv('chef2', { admin: true }))));
+// v1.0.35 : partage de codes délégué par un administrateur (canInvite), toujours avec approbation et dans les droits du délégué
+await t('code délégué : membre autorisé (canInvite) crée un code avec approbation', () => assertSucceeds(del2.collection('invites').doc('DELOK001').set(inv('del2', { managerUid: 'del2' }))));
+await t('code délégué : REFUS sans approbation', () => assertFails(del2.collection('invites').doc('DELKO001').set(inv('del2', { needsApproval: false }))));
+await t('code délégué : REFUS de dépasser ses droits', () => assertFails(del2.collection('invites').doc('DELKO002').set(inv('del2', { perms: { projet: 4 } }))));
+await t('code délégué : REFUS de s\'accorder soi-même le partage', () => assertFails(low2.collection('companies').doc('c2').collection('members').doc('low2').update({ canInvite: true })));
+await t('code délégué : REFUS pour un membre sans délégation', () => assertFails(low2.collection('invites').doc('LOWKO001').set(inv('low2'))));
 await t('code : REFUS de donner un projet qu\'on n\'a pas', () => assertFails(chef2.collection('invites').doc('CHEFKO03').set(inv('chef2', { projects: ['p9'] }))));
 await t('code : REFUS de donner « tous les projets » sans les avoir', () => assertFails(chef2.collection('invites').doc('CHEFKO04').set(inv('chef2', { allProjects: true, projects: [] }))));
 await t('code : REFUS de clés de droits inconnues', () => assertFails(chef2.collection('invites').doc('CHEFKO05').set(inv('chef2', { perms: { projet: 1, superpouvoir: 1 } }))));
