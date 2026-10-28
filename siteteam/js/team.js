@@ -233,7 +233,7 @@ const modOf = (store, rec) => store === 'items' ? KIND_MOD[(rec || {}).kind] : S
 // section de l'application → module
 // rubriques issues de Chantier : rattachées au module SiteTeam le plus proche (visibilité selon le poste)
 const SECTION_MOD = { avancement: 'projet', clauses: 'forms', gestion: 'materiel', finance: 'finance', tce: 'finance', avenants: 'finance', st: 'finance',
-  planning: 'projet', reunions: 'forms', pointage: 'pointage', rfi: 'forms', visa: 'forms', labo: 'reception', hse: 'hse', org: 'equipe',
+  planning: 'projet', lotsuivi: 'projet', reunions: 'forms', pointage: 'pointage', rfi: 'forms', visa: 'forms', labo: 'reception', hse: 'hse', org: 'equipe',
   dashboard: 'projet', plans: 'plans', tasks: 'reserves', reception: 'reception', beton: 'reception', photos: 'photos', forms: 'forms', reports: 'rapports',
   constat: 'constats', models3d: 'plans', maquette: 'plans', calc: 'calc', team: 'equipe', settings: 'projet', docq: 'files', histo: 'projet', orgs: 'projet' };
 
@@ -241,8 +241,8 @@ const SECTION_MOD = { avancement: 'projet', clauses: 'forms', gestion: 'materiel
 // les Travaux gardent le programme de bétonnage. Les droits du poste (0 à 4) s'appliquent toujours en plus.
 const LIB_CORE = ['dashboard', 'plans', 'tasks', 'photos', 'reports', 'team', 'org', 'settings', 'histo'];
 const SVC_LIB = {
-  travaux: ['avancement', 'planning', 'reunions', 'beton', 'calc', 'models3d', 'pointage', 'gestion'],
-  ferraillage: ['avancement', 'planning', 'beton', 'calc', 'models3d', 'gestion'],
+  travaux: ['lotsuivi', 'avancement', 'planning', 'reunions', 'beton', 'calc', 'models3d', 'pointage', 'gestion'],
+  ferraillage: ['lotsuivi', 'avancement', 'planning', 'beton', 'calc', 'models3d', 'gestion'],
   centrale: ['beton', 'labo', 'gestion', 'pointage'],
   materiel: ['gestion', 'pointage', 'planning'], maintenance: ['gestion', 'pointage', 'planning'],
   logistique: ['gestion', 'pointage', 'planning'], transport: ['gestion', 'pointage', 'planning'],
@@ -252,7 +252,7 @@ const SVC_LIB = {
   labo: ['labo', 'beton', 'forms', 'docq'],
   hse: ['hse', 'constat', 'forms', 'pointage', 'reunions'],
   metre: ['calc', 'finance', 'tce', 'avenants', 'st', 'avancement', 'models3d'], contrats: ['finance', 'tce', 'avenants', 'st', 'clauses', 'docq'],
-  bim: ['planning', 'models3d', 'maquette', 'calc', 'avancement', 'rfi', 'visa', 'reunions'], methodes: ['planning', 'models3d', 'maquette', 'calc', 'avancement', 'reunions'],
+  bim: ['lotsuivi', 'planning', 'models3d', 'maquette', 'calc', 'avancement', 'rfi', 'visa', 'reunions'], methodes: ['lotsuivi', 'planning', 'models3d', 'maquette', 'calc', 'avancement', 'reunions'],
   etudes: ['calc', 'rfi', 'visa', 'models3d', 'maquette', 'docq'], doc: ['docq', 'forms', 'visa', 'rfi', 'clauses', 'reunions'],
   admin: ['finance', 'tce', 'avenants', 'st', 'pointage', 'clauses', 'docq'], rh: ['pointage', 'hse'], pointage: ['pointage'],
   externe: [],
@@ -311,7 +311,7 @@ service cloud.firestore {
       && d.role == 'collaborateur' && co(d.cid).get('plan', '') == 'pro' && maxLvl2(d.perms)); }
     // personne autorisée à créer un code d'accès : administrateur, ou poste avec « Équipe » au niveau Valider (3) ou plus,
     // qui ne peut donner ni plus de droits ni plus de projets qu'elle n'en a, ni le statut d'administrateur
-    function canInvite(cid) { return isMem(cid) && (mem(cid).admin == true || lvl(cid, 'equipe') >= 3); }
+    function canInvite(cid) { return isMem(cid) && (mem(cid).admin == true || lvl(cid, 'equipe') >= 3 || mem(cid).get('canInvite', false) == true); }
     function permsWithin(cid, p) {
       let m = mem(cid).perms;
       return p.keys().hasOnly(['projet', 'plans', 'reserves', 'reception', 'photos', 'forms', 'rapports', 'constats', 'calc', 'equipe', 'files', 'topo', 'centrale', 'materiel', 'pointage', 'hse', 'finance'])
@@ -654,7 +654,8 @@ const Team = (() => {
   const companyServices = () => { const c = S.company || {}; if (!Array.isArray(c.services)) return TM_SERVICES.filter(x => !SERVICES_LEGACY.includes(x.k) || (S.members || []).some(m => m.service === x.k));
     const keep = new Set([...c.services, 'externe', ...(S.members || []).map(m => m.service)]); return TM_SERVICES.filter(x => keep.has(x.k)); };
   // créer un code d'accès : administrateur, ou poste avec « Équipe » au niveau Valider
-  const canInvite = () => S.ready && !!S.me && !isPerso() && (S.me.admin || lvl('equipe') >= 3);
+  // v1.0.35 : un administrateur peut déléguer le partage de codes (personnes sous la responsabilité du membre, validation par un administrateur)
+  const canInvite = () => S.ready && !!S.me && !isPerso() && (S.me.admin || lvl('equipe') >= 3 || S.me.canInvite === true);
   // packs modifiables par le Super Admin : config/plans (Firestore) remplace les valeurs par défaut du code
   function applyPlanCfg(cfg) { if (!cfg) return; for (const [k, v] of Object.entries(cfg)) { if (!v || typeof v !== 'object') continue; PLANS[k] = { ...(PLANS[k] || {}), ...v, k }; } }
   async function loadPlanCfg() {
@@ -947,8 +948,11 @@ const Team = (() => {
   async function loadMembership() {
     // profil + entreprise (cache local si hors connexion)
     let prof = null;
-    try { const d = await withTimeout(fs.collection('users').doc(S.user.uid).get(), 15000); prof = d.exists ? d.data() : {}; LS.set('profile', prof); }
-    catch (e) { prof = LS.get('profile'); if (!prof) { await alertBox('Connexion internet nécessaire pour la première ouverture.'); return loadMembership(); } }
+    // v1.0.35 : démarrage rapide — avec un cache sur ce téléphone, on n'attend pas plus de 2,5 s le réseau (mise à jour en arrière-plan)
+    const pC = LS.get('profile'), quick = !!(pC && pC.companyId && (LS.get('me') || {}).uid === S.user.uid);
+    const pReq = fs.collection('users').doc(S.user.uid).get();
+    try { const d = await withTimeout(pReq, quick ? 2500 : 15000); prof = d.exists ? d.data() : {}; LS.set('profile', prof); }
+    catch (e) { if (quick) pReq.then(d => { if (d.exists) LS.set('profile', d.data()); }).catch(() => {}); prof = LS.get('profile'); if (!prof) { await alertBox('Connexion internet nécessaire pour la première ouverture.'); return loadMembership(); } }
     if (prof.blocked === true && !isSuper()) return gateScreen('⛔ Compte bloqué', `Ce compte a été bloqué par SiteTeam.${prof.blockedWhy ? '\nMotif : ' + prof.blockedWhy : ''}\nPour toute question : ${SUPPORT_EMAIL}`, false);
     presence(prof);
     if (!prof.companyId) { await loadPlanCfg(); await onboardScreen(); return loadMembership(); }
@@ -957,8 +961,12 @@ const Team = (() => {
     // espace de travail : chaque organisation a sa base locale ; si l'espace a changé (ici ou sur un autre téléphone), on bascule puis on recharge
     if (WS.bind(prof.companyId)) return new Promise(() => {});
     S.cid = prof.companyId; LS.set('cid', S.cid);
+    const cC = LS.get('company'), mC = LS.get('me'), quickC = !!(cC && cC.id === S.cid && mC && mC.uid === S.user.uid);
+    if (quickC && (!S.me || S.me.uid !== S.user.uid)) { S.company = cC; S.me = mC; }
+    const cmReq = Promise.all([fs.collection('companies').doc(S.cid).get(), fs.collection('companies').doc(S.cid).collection('members').doc(S.user.uid).get()]);
+    if (quickC) cmReq.then(([c, m]) => { if (c.exists && m.exists && S.cid === c.id) { S.company = { id: c.id, ...c.data() }; S.me = { uid: S.user.uid, ...m.data() }; LS.set('company', S.company); LS.set('me', S.me); } }).catch(() => {});
     try {
-      const [c, m] = await withTimeout(Promise.all([fs.collection('companies').doc(S.cid).get(), fs.collection('companies').doc(S.cid).collection('members').doc(S.user.uid).get()]), 15000);
+      const [c, m] = await withTimeout(cmReq, quickC ? 2500 : 15000);
       if (!m.exists) {
         const rest = S.workspaces.filter(w => w.cid !== S.cid);
         await fs.collection('users').doc(S.user.uid).set({ companyId: rest.length ? rest[0].cid : null, workspaces: rest }, { merge: true });
@@ -969,7 +977,7 @@ const Team = (() => {
       LS.set('company', S.company); LS.set('me', S.me);
     } catch (e) { if (!S.me || S.me.uid !== S.user.uid) { await alertBox('Connexion impossible : ' + errMsg(e)); return loadMembership(); } }
     S.ready = true;
-    await loadPlanCfg();
+    if (LS.get('plansCfg')) loadPlanCfg().catch(() => {}); else await loadPlanCfg();   // v1.0.35 : configuration en arrière-plan si déjà connue
     await loadPostes();
     await loadShared();
     try { await projectIds(); } catch (e) { console.warn('équipes projet', e); }
@@ -1346,7 +1354,7 @@ const Team = (() => {
   async function createInvite(o) {
     const R = tmRoleOf(o.role), code = newCode();
     const inv = { cid: S.cid, companyName: S.company.name, name: o.name || '', role: R.k, service: R.s, perms: o.perms || R.perms, admin: !!o.admin, allProjects: !!o.allProjects, projects: o.allProjects ? [] : (o.projects || []),
-      managerUid: o.managerUid || null, zone: o.zone || '', orgType: orgType().k, used: false, status: 'valide', needsApproval: !isAdmin(), createdBy: S.user.uid, createdAt: ts(),
+      managerUid: isAdmin() ? (o.managerUid || null) : S.user.uid, zone: o.zone || '', orgType: orgType().k, used: false, status: 'valide', needsApproval: !isAdmin(), createdBy: S.user.uid, createdAt: ts(),
       expiresAt: firebase.firestore.Timestamp.fromMillis(Date.now() + 7 * 864e5) };
     await withTimeout(fs.collection('invites').doc(code).set(inv));
     return code;
@@ -1902,6 +1910,7 @@ const Team = (() => {
         <div class="fld">Projets</div><label class="tm-ck" ${lim && !mine.allProjects ? 'hidden' : ''}><input type="checkbox" data-all> Tous les projets (actuels et futurs)</label>
         <div class="tm-projs">${projects.map(p => `<label class="tm-ck"><input type="checkbox" data-p="${p.id}"> ${esc(p.name)}</label>`).join('') || '<small class="muted">Aucun projet pour le moment</small>'}</div>
         <label class="tm-ck" ${lim ? 'hidden' : ''}><input type="checkbox" data-admin> Administrateur (gère les membres et les invitations)</label>
+        <label class="tm-ck" ${lim ? 'hidden' : ''}><input type="checkbox" data-caninv> 🔑 Peut partager des codes d'accès aux personnes sous sa responsabilité (validés par un administrateur)</label>
         ${lim ? '<small class="muted">Vous ne pouvez pas donner plus de droits ni plus de projets que les vôtres.</small>' : ''}
         <button type="button" class="btn ghost small" data-a="perms">Droits détaillés…</button><div class="tm-pedit" hidden></div>
         <div class="btnrow" style="padding:0"><button class="btn ghost" data-a="c">Annuler</button><button class="btn" data-a="ok">${esc(okLabel)}</button></div></div>`, { title });
@@ -1909,7 +1918,7 @@ const Team = (() => {
       const E = s.el, f = (k) => $(`[data-f=${k}]`, E);
       if (f('name')) f('name').value = st.name;
       f('role').value = st.role; f('managerUid').value = st.managerUid; f('zone').value = st.zone;
-      $('[data-admin]', E).checked = st.admin;
+      $('[data-admin]', E).checked = st.admin; $('[data-caninv]', E).checked = !!o.canInvite;
       const syncP = () => { $('[data-all]', E).checked = st.allProjects; $$('[data-p]', E).forEach(c => { c.checked = st.allProjects || st.projects.includes(c.dataset.p); c.disabled = st.allProjects; }); };
       syncP();
       $('[data-all]', E).onchange = (e) => { st.allProjects = e.target.checked; syncP(); };
@@ -1928,7 +1937,7 @@ const Team = (() => {
       $('[data-a=perms]', E).onclick = () => { const pe = $('.tm-pedit', E); pe.hidden = !pe.hidden; pedit(); };
       $('[data-a=c]', E).onclick = () => s.close();
       $('[data-a=ok]', E).onclick = () => {
-        const out = { name: f('name') ? f('name').value.trim() : undefined, role: f('role').value, managerUid: f('managerUid').value || null, zone: f('zone').value.trim(), allProjects: st.allProjects, projects: st.allProjects ? [] : st.projects, admin: !lim && $('[data-admin]', E).checked, perms: cap(st.perms), postes: st.postes };
+        const out = { name: f('name') ? f('name').value.trim() : undefined, role: f('role').value, managerUid: f('managerUid').value || null, zone: f('zone').value.trim(), allProjects: st.allProjects, projects: st.allProjects ? [] : st.projects, admin: !lim && $('[data-admin]', E).checked, canInvite: !lim && $('[data-caninv]', E).checked, perms: cap(st.perms), postes: st.postes };
         if (!out.allProjects && !out.projects.length && !confirm('Aucun projet coché : la personne ne verra aucun projet. Continuer ?')) return;
         s.onClose = null; s.close(); resolve(out);
       };
@@ -1958,7 +1967,7 @@ const Team = (() => {
     if (m.uid === S.user.uid && !o.admin && !S.members.some(x => x.uid !== m.uid && x.admin)) { alertBox('Il faut au moins un administrateur.'); return false; }
     const R = tmRoleOf(o.role);
     try {
-      await withTimeout(ref.update({ role: R.k, service: R.s, managerUid: o.managerUid, zone: o.zone, allProjects: o.allProjects, projects: o.projects, admin: o.admin, perms: o.perms, ...(isAdmin() ? { postes: (o.postes || []).filter(k => k !== R.k) } : {}) }));
+      await withTimeout(ref.update({ role: R.k, service: R.s, managerUid: o.managerUid, zone: o.zone, allProjects: o.allProjects, projects: o.projects, admin: o.admin, perms: o.perms, ...(isAdmin() ? { postes: (o.postes || []).filter(k => k !== R.k), canInvite: !!o.canInvite } : {}) }));
       toast('Enregistré ✓');
       return true;
     } catch (e) { alertBox(errMsg(e)); return false; }
