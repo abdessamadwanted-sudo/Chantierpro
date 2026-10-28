@@ -1,5 +1,37 @@
 # FEATURES_INVENTORY — inventaire fonctionnel réel de SiteTeam
 
+## Phase 2a — reprise du 27/10/2026
+
+### Phase 2b — équipe projet et affectations
+
+Business/Enterprise : écran Affectations depuis l'accueil et Équipe projet. Affectation nominative avec poste
+et date de début, remplacement, fin et transfert atomique vers un autre projet ; les affectations terminées
+restent visibles et chaque opération produit une ligne d'audit serveur immuable. Les droits du poste dans
+l'organisation continuent à limiter les actions ; le poste d'affectation est une mission, pas une promotion.
+
+L'activation initiale marque les anciens projets comme ouverts. Seuls les projets dont l'équipe a été définie
+deviennent nominatifs. Firestore et Storage vérifient l'équipe en plus des droits existants ; l'administrateur
+garde l'accès. Les règles doivent être publiées ensemble. La synchro recharge la politique et le cache des
+projets accessibles ; hors ligne, la dernière politique reçue est utilisée. Aucune donnée passée n'est supprimée.
+Les modifications concurrentes d'équipe sont rejetées par transaction. Tests : errors v1.0.32 et règles serveur.
+
+Accueil entreprise indépendant du projet : quatre compteurs calculés sur les projets autorisés, activités récentes,
+trois projets puis « Voir tous les projets », accès Équipe / Organisation / Réglages. Taille déduite du pack :
+Basic et Pro = petite ; Business = moyenne ; Enterprise = grande. Aucun champ taille ni migration IndexedDB.
+Fil d'Ariane cliquable dans les écrans du projet. Le poste principal et les postes supplémentaires sont enregistrés
+dans le membre et son invitation ; les droits proposés sont leur union, plafonnée à Valider. La carte `perms`
+reste l'autorité côté serveur ; l'ajout de postes ne confère jamais automatiquement le statut administrateur.
+Les nouveaux modèles Conducteur ne donnent plus Finance par défaut ; les droits déjà enregistrés sont conservés.
+
+Protection Android : réglage d'organisation, désactivé par défaut, forçable dans le panneau Super Admin.
+Méthode native `setScreenProtection` dans le plugin déjà embarqué, utilisant FLAG_SECURE et une préférence locale.
+Nécessite un nouvel APK. L'effet sur un appareil Android réel reste à vérifier. Enterprise affiche
+« Serveur privé — Contactez-nous » ; aucun serveur privé n'est provisionné.
+
+Validation : syntaxe JS et affichage local avec données fictives ; parcours et refus serveur ajoutés à
+`ci/st.mjs` (errors v1.0.31) et `ci/rules-test.mjs`. Le résultat CI fait foi pour la livraison.
+Les sections historiques ci-dessous décrivent un inventaire antérieur et ne remplacent pas ce point de reprise.
+
 > **v1.0.12** : SiteTeam reprend tous les outils et corrections de l'application Chantier (avancement, planning, registres, financier & TCE, gestion, bons de bétonnage, fiches PDF, poutre 3D, DWG/DXF, indices de plans, scanner, studio photo, notes vocales, clauses CPS/CCTP, briefing, thèmes, PIN, stockage) et la mise à jour depuis l'application. Ces outils fonctionnent comme dans Chantier ; ils ne sont pas encore couverts par le test E2E SiteTeam. Les interfaces par service / pack viendront ensuite.
 
 Légende de l'**état réel** :

@@ -2666,7 +2666,7 @@ html.th-st .es-tile .i { color: var(--c, var(--accent)); }
 .wz-rec span { color: var(--muted); } .wz-rec b { text-align: right; }
 
 /* ================= v1.0.32 · accueil en onglets, plus compact ================= */
-.h2-tab { display: none; } .h2-tab.on { display: block; }
+.h2-pane { display: none; } .h2-pane.on { display: block; }
 .st-bnav.n5 { grid-template-columns: repeat(5, 1fr); } .st-bnav.n5 button { font-size: 10.5px; }
 .h2-sec .h2-more { margin-left: auto; color: var(--accent); font-weight: 600; font-size: 14px; }
 html.th-st .home2 .h2-hello { font-size: 20px !important; } html.th-st .home2 .h2-phrase { display: none; }
@@ -2683,3 +2683,8 @@ html.th-st .home2 .h2-hero { padding-bottom: 8px !important; }
 .og-zc { position: absolute; right: 10px; bottom: 10px; display: grid; gap: 6px; z-index: 3; }
 .og-zc button { width: 42px; height: 42px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); color: var(--text); font-size: 20px; font-weight: 700; box-shadow: 0 4px 12px rgba(20,35,55,.15); }
 .og.full { position: fixed; inset: 0; z-index: 60; height: 100dvh; background: var(--bg); padding-top: var(--safe-top); }
+
+/* phase 2b : équipe projet & affectations */
+.aff-body{padding:0 16px 16px}.aff-row{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line,#ffffff20)}.aff-row span{display:flex;flex-direction:column;gap:5px;min-width:0}.aff-row small{color:var(--muted);font-size:11px}.aff-row button{font-size:11px;flex:none}.aff-body details{font-size:12px;margin-top:14px;color:var(--muted)}
+.og-empty { margin: 0 12px 6px; padding: 12px 14px; border-radius: 14px; border: 1px dashed var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); display: grid; gap: 4px; font-size: 13px; line-height: 1.5; }
+.og-empty b { color: var(--accent); }

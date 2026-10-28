@@ -1,5 +1,9 @@
 # KNOWN_ISSUES — SiteTeam
 
+## Phase 2b (équipes projet)
+
+Publier les règles Firestore ET Storage avant de définir la première équipe nominative. Un appareil hors ligne utilise la dernière politique reçue ; un retrait prend effet côté serveur immédiatement et côté interface à la prochaine synchronisation. La définition d'une équipe exige une connexion.
+
 Constatés en lisant le code et les builds (octobre 2026). « Non vérifié » = soupçonné, non reproduit.
 
 | # | Problème | Où | Impact | Statut |

@@ -250,7 +250,10 @@ service cloud.firestore {
     function lvl(cid, m) { return mem(cid).perms.get(m, 0); }
     // organisation suspendue par le Super Admin : ses projets ne sont plus accessibles (rien n'est effacé)
     function live(cid) { return !exists(/databases/$(db)/documents/companies/$(cid)) || get(/databases/$(db)/documents/companies/$(cid)).data.get('planStatus', '') != 'suspendu'; }
-    function canProj(cid, pid) { return (mem(cid).allProjects == true || pid in mem(cid).projects) && live(cid); }
+    function teamsOn(cid) { let c = co(cid); return c.get('teamsVersion', 0) == 1 && !(c.get('plan', 'basic') in ['basic', 'pro', 'personnel']); }
+    function teamAllowed(cid, d) { return !teamsOn(cid) || isAdmin(cid) || d.get('teamEnabled', false) == false || request.auth.uid in d.get('teamUids', []); }
+    function baseProj(cid, pid) { return (isAdmin(cid) || mem(cid).allProjects == true || pid in mem(cid).projects) && live(cid); }
+    function canProj(cid, pid) { return baseProj(cid, pid) && (!exists(/databases/$(db)/documents/companies/$(cid)/projects/$(pid)) || teamAllowed(cid, get(/databases/$(db)/documents/companies/$(cid)/projects/$(pid)).data)); }
     function inv(code) { return get(/databases/$(db)/documents/invites/$(code)).data; }
     function invLive(code) { return inv(code).used == false && inv(code).get('status', 'valide') == 'valide' && (inv(code).get('expiresAt', null) == null || inv(code).expiresAt > request.time); }
     function memOf(cid, u) { return get(/databases/$(db)/documents/companies/$(cid)/members/$(u)).data; }
@@ -481,12 +484,19 @@ service cloud.firestore {
         allow read: if isMem(cid);
         allow write: if isAdmin(cid);
       }
+      // Journal de l'organisation : append-only, administrateurs seulement.
+      match /audit/{aid} {
+        allow read: if isAdmin(cid);
+        allow create: if isAdmin(cid) && request.resource.data.by == request.auth.uid && request.resource.data.at == request.time;
+      }
       match /projects/{pid} {
-        allow read: if projAcc(cid, pid);
-        allow create: if isMem(cid) && lvl(cid, 'projet') >= 3;
+        allow get: if (isMem(cid) && baseProj(cid, pid) && (resource == null || teamAllowed(cid, resource.data))) || pOk(cid, pid, 'projet', 1);
+        // liste : la requête doit elle-même se limiter aux projets ouverts ou à ceux où l'on est affecté (sinon refus)
+        allow list: if isMem(cid) && live(cid) && (isAdmin(cid) || (mem(cid).allProjects == true && (!teamsOn(cid) || resource.data.teamEnabled == false || request.auth.uid in resource.data.teamUids)));
+        allow create: if isMem(cid) && lvl(cid, 'projet') >= 3 && (isAdmin(cid) || (request.resource.data.get('teamEnabled', false) == false && request.resource.data.get('teamUids', []).size() == 0 && request.resource.data.get('affectations', []).size() == 0));
         // le groupement (jv : nom, mandataire) ne change que par l'administrateur de l'organisation titulaire du projet
         allow update: if isMem(cid) && canProj(cid, pid) && lvl(cid, 'projet') >= 2
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['jv']) || isAdmin(cid));
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['jv', 'teamEnabled', 'teamUids', 'affectations']) || isAdmin(cid));
         allow delete: if isAdmin(cid);
         match /m/{mod}/r/{rid} {
           allow read: if (isMem(cid) && canProj(cid, pid) && lvl(cid, mod) >= 1) || pOk(cid, pid, mod, 1);
@@ -526,8 +536,16 @@ service firebase.storage {
     // compte bloqué / organisation suspendue par le Super Admin : plus d'accès aux fichiers
     function okUser() { let u = /databases/(default)/documents/users/$(request.auth.uid); return !firestore.exists(u) || firestore.get(u).data.get('blocked', false) != true; }
     function live(cid) { let c = /databases/(default)/documents/companies/$(cid); return !firestore.exists(c) || firestore.get(c).data.get('planStatus', '') != 'suspendu'; }
+    function projectTeamOk(cid, pid) {
+      let p = firestore.get(/databases/(default)/documents/companies/$(cid)/projects/$(pid)).data;
+      return p.get('teamEnabled', false) == false || request.auth.uid in p.get('teamUids', []);
+    }
+    function teamAllowed(cid, pid) {
+      let c = firestore.get(/databases/(default)/documents/companies/$(cid)).data;
+      return c.get('teamsVersion', 0) != 1 || c.get('plan', 'basic') in ['basic', 'pro', 'personnel'] || mem(cid).admin == true || projectTeamOk(cid, pid);
+    }
     function ownOk(cid, pid, n) {
-      return signed() && firestore.exists(memPath(cid)) && okUser() && live(cid) && (mem(cid).allProjects == true || pid in mem(cid).projects) && lv(mem(cid).perms, n);
+      return signed() && firestore.exists(memPath(cid)) && okUser() && live(cid) && (mem(cid).admin == true || mem(cid).allProjects == true || pid in mem(cid).projects) && teamAllowed(cid, pid) && lv(mem(cid).perms, n);
     }
     function partOk(cid, pid, n) {
       let o = firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('companyId', '');
@@ -648,7 +666,15 @@ const Team = (() => {
     const v = await menu(`🔒 ${msg}\nPour aller plus loin : ${up || '—'}.`, [...(isAdmin() ? [{ label: 'Voir les packs', icon: 'settings', value: 'plans' }] : []), { label: 'Fermer', icon: 'check', value: 'ok' }]);
     if (v === 'plans') openCompany('set');
   }
-  const canProject = (pid) => !S.ready || !!(S.me && (S.me.allProjects || (S.me.projects || []).includes(pid)));
+  const teamsOn = () => S.company && S.company.teamsVersion === 1 && taille() !== 'petite';
+  const canProject = (pid) => {
+    if (!S.ready) return true;
+    if (!S.me || !(isAdmin() || S.me.allProjects || (S.me.projects || []).includes(pid))) return false;
+    if (sharedOf(pid) || !teamsOn() || isAdmin()) return true;
+    const p = (S.projectTeams || LS.get('projectTeams', {}))[pid];
+    return !!p && (!p.teamEnabled || (p.teamUids || []).includes(S.user.uid));
+  };
+  const noteProject = p => { S.projectTeams = S.projectTeams || LS.get('projectTeams', {}); S.projectTeams[p.id] = { teamEnabled: false, teamUids: [] }; LS.set('projectTeams', S.projectTeams); };
   // ---------- code pack : entré par la personne, il ouvre le pack choisi par le Super Admin (création d'espace ou changement de pack) ----------
   async function readPackCode(raw) {
     const code = String(raw || '').toUpperCase().replace(/[^A-Z0-9-]/g, ''); if (!code) return null;
@@ -843,7 +869,7 @@ const Team = (() => {
     bind(cid) {
       if (!WS.get('st.wsLegacy')) { WS.put('st.wsLegacy', cid); WS.put('st.wsCid', cid); }   // 1re ouverture : les données déjà présentes appartiennent à cet espace
       const cur = WS.get('st.wsCid');
-      if (cur !== cid) { WS.save(cur); WS.restore(cid); WS.put('st.wsCid', cid); ['company', 'me', 'members', 'postes', 'shared'].forEach(LS.del); }
+      if (cur !== cid) { WS.save(cur); WS.restore(cid); WS.put('st.wsCid', cid); ['company', 'me', 'members', 'postes', 'shared', 'projectTeams'].forEach(LS.del); }
       const want = WS.dbFor(cid);
       if ((WS.get('st.db') || 'chantier') !== want || (typeof DB !== 'undefined' && DB.name && DB.name() !== want)) {
         WS.put('st.db', want === 'chantier' ? null : want);
@@ -917,6 +943,7 @@ const Team = (() => {
     await loadPlanCfg();
     await loadPostes();
     await loadShared();
+    try { await projectIds(); } catch (e) { console.warn('équipes projet', e); }
     try { if (!localStorage.getItem('userName') && S.me.name) localStorage.setItem('userName', S.me.name.split(' ')[0]); localStorage.setItem('askedName', '1'); } catch (e) {}
     await refreshMembers();
     saveWorkspace();
@@ -1198,7 +1225,10 @@ const Team = (() => {
         const doc = projRef(pid).collection('m').doc(mod).collection('r').doc(`${_store}__${rec.id}`);
         b.set(doc, { store: _store, id: rec.id, projectId: pid, kind: rec.kind || null, updatedAt: rec.updatedAt || Date.now(), deleted: !!_deleted, data: _deleted ? '' : JSON.stringify(rec), by: S.user.uid, srv: ts(),
           ...(_store === 'forms' ? { vst: rec.vst || 'brouillon', vby: rec.vby || '', aut: rec.aut || '' } : {}) });
-        if (_store === 'projects') b.set(projRef(pid), { name: rec.name || '', address: rec.address || '', deleted: !!_deleted, updatedAt: rec.updatedAt || Date.now(), by: S.user.uid }, { merge: true });
+        if (_store === 'projects') {
+          const data = { name: rec.name || '', address: rec.address || '', deleted: !!_deleted, updatedAt: rec.updatedAt || Date.now(), by: S.user.uid };
+          await fs.runTransaction(async tx => { const doc = await tx.get(projRef(pid)); tx.set(projRef(pid), { ...(!doc.exists ? { teamEnabled: false, teamUids: [] } : {}), ...data }, { merge: true }); });
+        }
         else b.set(projRef(pid).collection('audit').doc(), auditOf(r, pid));
       }
       await withTimeout(b.commit(), 45000);
@@ -1206,8 +1236,54 @@ const Team = (() => {
     return { skipped };
   }
   async function projectIds() {
-    if (S.me.allProjects) { const q = await fs.collection('companies').doc(S.cid).collection('projects').get(); return q.docs.filter(d => !d.data().deleted).map(d => d.id); }
-    return S.me.projects || [];
+    // Recharger aussi la politique : retrait de projet et changement de pack pris en compte à la prochaine synchro.
+    const company = await fs.collection('companies').doc(S.cid).get();
+    if (company.exists) { S.company = { id: company.id, ...company.data() }; LS.set('company', S.company); }
+    const ref = fs.collection('companies').doc(S.cid).collection('projects');
+    let docs = [];
+    if (isAdmin() || (S.me.allProjects && !teamsOn())) docs = (await ref.get()).docs;
+    else if (S.me.allProjects) {
+      const queries = await Promise.all([ref.where('teamEnabled', '==', false).get(), ref.where('teamUids', 'array-contains', S.user.uid).get()]);
+      docs = [...new Map(queries.flatMap(q => q.docs).map(d => [d.id, d])).values()];
+    } else {
+      for (const id of S.me.projects || []) {
+        try { const d = await ref.doc(id).get(); if (d.exists) docs.push(d); }
+        catch (e) { if (e.code !== 'permission-denied') throw e; }
+      }
+    }
+    const meta = {};
+    for (const d of docs) { const x = d.data(); if (x.deleted) continue;
+      meta[d.id] = { teamEnabled: x.teamEnabled === true, teamUids: x.teamUids || [], affectations: x.affectations || [] };
+      const p = await DB.get('projects', d.id); if (p) await DB.putRaw('projects', { ...p, ...meta[d.id] });
+    }
+    S.projectTeams = meta; LS.set('projectTeams', meta);
+    return Object.keys(meta);
+  }
+  async function saveAffectations(p, list, action, who, target = null) {
+    if (!isAdmin() || taille() === 'petite' || sharedOf(p.id)) throw new Error('Affectations réservées à l’administrateur de cette organisation');
+    const ref = fs.collection('companies').doc(S.cid);
+    // Initialisation unique : les projets historiques restent ouverts. Les nouveaux portent aussi teamEnabled:false.
+    if (!S.company.teamsVersion) {
+      const q = await ref.collection('projects').get();
+      for (let i = 0; i < q.docs.length; i += 400) {
+        const batch = fs.batch(); q.docs.slice(i, i + 400).forEach(d => { if (d.data().teamEnabled == null) batch.update(d.ref, { teamEnabled: false, teamUids: [] }); }); await batch.commit();
+      }
+      await ref.update({ teamsVersion: 1 }); S.company.teamsVersion = 1; LS.set('company', S.company);
+    }
+    const changed = [{ p, list }, ...(target ? [target] : [])];
+    const changes = changed.map(x => ({ ...x, data: { teamEnabled: true, teamUids: [...new Set(x.list.filter(a => !a.fin).map(a => a.uid))], affectations: x.list } }));
+    // Transaction : deux appareils ne peuvent pas remplacer silencieusement une affectation concurrente.
+    await fs.runTransaction(async tx => {
+      const current = await Promise.all(changes.map(x => tx.get(ref.collection('projects').doc(x.p.id))));
+      current.forEach((d, i) => {
+        if (!d.exists) throw new Error('Synchronisez ce projet avant de définir son équipe');
+        if (JSON.stringify(d.data().affectations || []) !== JSON.stringify(changes[i].p.affectations || [])) throw new Error('Équipe modifiée sur un autre appareil. Synchronisez puis réessayez.');
+      });
+      changes.forEach(x => tx.update(ref.collection('projects').doc(x.p.id), x.data));
+      tx.set(ref.collection('audit').doc(), { action, uid: who, pid: p.id, targetPid: target ? target.p.id : '', by: S.user.uid, byName: S.me.name || '', at: ts() });
+    });
+    for (const x of changes) { Object.assign(x.p, x.data); await DB.putRaw('projects', x.p); }
+    await projectIds();
   }
   async function pull() {
     if (!S.ready) return { records: [], now: Date.now() };
@@ -1226,7 +1302,7 @@ const Team = (() => {
       let mx = t;
       snap.forEach(d => { const x = d.data(); const s = x.srv ? x.srv.toMillis() : 0; if (s > mx) mx = s;
         if (x.deleted) out.push({ _store: x.store, id: x.id, projectId: x.projectId, kind: x.kind, _deleted: true, updatedAt: x.updatedAt });
-        else { try { out.push({ ...JSON.parse(x.data), _store: x.store }); } catch (e) {} } });
+        else { try { out.push({ ...JSON.parse(x.data), ...(x.store === 'projects' ? (S.projectTeams || {})[x.id] || {} : {}), _store: x.store }); } catch (e) {} } });
       since[key] = mx;
     }
     // le repère n'est enregistré qu'après l'écriture réussie des données dans le téléphone (commitPull),
@@ -2055,7 +2131,7 @@ const Team = (() => {
   }
 
   return {
-    boot, push, pull, resetPull, lvl, canSection, canProject, isAdmin, openCompany, taille, secureApply, secureOn, inviteFlow, logout, decorateSection, removeMember, refreshMembers,
+    boot, push, pull, resetPull, lvl, canSection, canProject, isAdmin, openCompany, taille, secureApply, secureOn, saveAffectations, noteProject, projectIds, inviteFlow, logout, decorateSection, removeMember, refreshMembers,
     isSuper, superConsole, orgType, isPerso, companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, workspaces: () => S.workspaces || [],
     profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
     openProjectShares, claimShare, openPartners, renderHistory, sharedOf, joinWithCode,

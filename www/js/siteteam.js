@@ -106,12 +106,12 @@ const ST = (() => {
   const DEF_TOOLS = ['reports', 'tasks', 'plans', 'photos', 'calc', 'forms'];
   function persoTools() {
     const M = Team.isFree && Team.isFree() ? null : metierOf(Team.profil().metier), L = [...(METIER_TOOLS[M ? M.s : ''] || DEF_TOOLS)];
-    for (const k of ['plans', 'tasks', 'reports', 'photos']) if (!L.includes(k)) L.push(k);
+    for (const k of ['plans', 'tasks', 'reports', 'photos', 'org']) if (!L.includes(k)) L.push(k);
     return L.filter(k => SECTIONS[k]).map(k => ({ k, on: Team.canSection(k), label: SECTIONS[k].label.split(' (')[0], icon: SECTIONS[k].icon }));
   }
   function persoHTML() {
     const free = Team.isFree && Team.isFree(), M = free ? null : metierOf(Team.profil().metier), P = Team.plan(), stt = Team.planState(), multi = Team.workspaces().length > 1;
-    const T = persoTools().slice(0, 8);
+    const T = persoTools().slice(0, 9);
     return `<div class="st-ctx"><button class="st-wsc" data-a="st-ws"><span class="e">👷</span><b>Espace personnel</b><i>${multi ? '▾ changer' : '＋ espaces'}</i></button>
         <div class="st-chips"><span ${!free && !M ? 'data-a="st-poste" style="cursor:pointer"' : ''}>${free ? '🆓 Free' : esc(M ? M.l : 'Choisir mon poste ›')}</span><span class="st-state" style="--c:${stt.c}">${esc(P.l)} · ${esc(stt.l)}</span></div></div>
       ${free ? `<div class="st-promo"><b>⭐ Passez à Pro</b><p>Choisissez votre service et votre poste : tableau de bord, outils et recommandations s'adaptent à votre métier.</p>
@@ -159,7 +159,7 @@ const ST = (() => {
     const svcs = t === 'petite' ? [] : Team.companyServices().filter(x => x.k !== 'externe'), M = Team.members() || [];
     return `<div class="st-dir" data-stdir>
       <div class="st-dir-hero"><small>TABLEAU DE BORD · ${esc(TAILLE_L[t] || '')} · ${esc(P.l)}</small><b>${title}</b><span>Pilotage des projets${t === 'petite' ? '' : ' et services'}</span>
-        <div class="st-dir-pills"><i>Cette semaine</i><button data-a="dir-proj">Tous les projets ▾</button></div></div>
+        <div class="st-dir-pills"><i>Cette semaine</i><button data-a="dir-proj">Tous les projets ▾</button>${t !== 'petite' && typeof Affectations !== 'undefined' ? '<button data-a="dir-aff">👥 Affectations</button>' : ''}</div></div>
       <div class="st-kpis">
         <button class="st-kpi" data-k="av"><span class="ic">📈</span><b>…</b><small>Avancement</small></button>
         <button class="st-kpi" data-k="pj"><span class="ic">🏢</span><b>…</b><small>Projets actifs</small></button>
@@ -174,6 +174,7 @@ const ST = (() => {
     const box = root && root.querySelector('[data-stdir]'); if (!box) return;
     const pj = box.querySelector('[data-a=dir-proj]'); if (pj) pj.onclick = () => { const n = document.querySelector('.st-bnav [data-n=proj]'); if (n) n.click(); else { const s = document.querySelector('.h2-sec'); if (s) s.scrollIntoView({ behavior: 'smooth' }); } };
     box.querySelectorAll('[data-a=dir-svc]').forEach(b => b.onclick = () => Team.openCompany('org'));
+    const af = box.querySelector('[data-a=dir-aff]'); if (af) af.onclick = () => Affectations.open();
     try {
       const projects = (await DB.all('projects')).filter(p => !p.deleted && !p.archived && Team.canProject(p.id));
       const ids = new Set(projects.map(p => p.id));
@@ -272,7 +273,7 @@ const ST = (() => {
     nav.innerHTML = `<button data-n="home" class="${T === 'home' ? 'on' : ''}">${icon('grid')}<span>Accueil</span></button><button data-n="proj" class="${T === 'proj' ? 'on' : ''}">${icon('folder')}<span>Projets</span></button>
       ${perso() ? `<button data-n="me">${icon('user')}<span>Mon espace</span></button>` : `<button data-n="tools" class="${T === 'tools' ? 'on' : ''}">${icon('layers')}<span>Outils</span></button><button data-n="team">${icon('team')}<span>Équipe</span></button>`}<button data-n="set">${icon('settings')}<span>Réglages</span></button>`;
     app.appendChild(nav);
-    const go = (t) => { App.homeTab = t; document.querySelectorAll('.h2-tab').forEach(x => x.classList.toggle('on', x.dataset.tab === t)); nav.querySelectorAll('[data-n]').forEach(x => x.classList.toggle('on', x.dataset.n === t)); const b = document.querySelector('.h2-body'); if (b) b.scrollTop = 0; };
+    const go = (t) => { App.homeTab = t; document.querySelectorAll('.h2-pane').forEach(x => x.classList.toggle('on', x.dataset.tab === t)); nav.querySelectorAll('[data-n]').forEach(x => x.classList.toggle('on', x.dataset.n === t)); const b = document.querySelector('.h2-body'); if (b) b.scrollTop = 0; };
     ['home', 'proj', 'tools'].forEach(t => { const b = nav.querySelector(`[data-n=${t}]`); if (b) b.onclick = () => go(t); });
     document.querySelectorAll('[data-tabgo]').forEach(b => b.onclick = () => go(b.dataset.tabgo));
     const tm = nav.querySelector('[data-n=team]'); if (tm) tm.onclick = () => Team.openCompany('org');
@@ -355,7 +356,8 @@ const ST = (() => {
   // espaces (topo, centrale, pointage…) et boutons : un outil hors du métier de l'organisation ou hors pack n'apparaît pas
   Team.lvl = (mod) => (orgHas(mod) && planHas(mod)) ? lvl(mod) : 0;
   // espace personnel : pas d'organigramme d'entreprise
-  Team.canSection = (k) => !(k === 'org' && perso()) && (PV.get() ? lvl(SECTION_MOD[k] || 'projet') >= 1 : _canSection(k)) && orgHas(SECTION_MOD[k]) && planHas(SECTION_FEATURE[k] ? FEAT_MOD[SECTION_FEATURE[k]] : null);
+  // organigramme du projet (personnes saisies à la main) : disponible partout, même en Free (v1.0.33)
+  Team.canSection = (k) => (k === 'org' && (perso() || !ready())) || (PV.get() ? lvl(SECTION_MOD[k] || 'projet') >= 1 : _canSection(k)) && orgHas(SECTION_MOD[k]) && planHas(SECTION_FEATURE[k] ? FEAT_MOD[SECTION_FEATURE[k]] : null);
   // le poste est appliqué après la connexion (et à chaque démarrage)
   const _boot = Team.boot;
   Team.boot = async () => { await _boot(); applyRole(); banner(); };
@@ -407,6 +409,7 @@ const ST = (() => {
     if (!r) return;
     if (!r.name) return toast('Le nom du projet est obligatoire');
     const p = await DB.put('projects', { name: r.name, address: r.address || '', moa: r.moa || '', dateDebut: r.debut || '', dureeMois: +r.duree || null, type: T.k, featOff: Object.fromEntries(T.off.map(k => [k, true])), team: [] });
+    Team.noteProject(p);
     openProject(p);
   }
   window.newProjectDialog = newProject;
