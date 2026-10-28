@@ -703,7 +703,7 @@ try {
   await A.pg.click('[data-a=wsmenu]'); await A.pg.waitForSelector('.ws-dd .ws-pn');
   const wm = await A.pg.evaluate(() => [...document.querySelectorAll('.ws-dd [data-wm]')].map(b => b.dataset.wm)); log('menu de l\'espace', wm);
   if (!wm.includes('org') || !wm.includes('dossier') || !wm.includes('aff')) v35.push('menu de l\'espace incomplet');
-  await shot(A.pg, '142_menu_espace'); await A.pg.click('.ws-dd .ws-bg');
+  await shot(A.pg, '142_menu_espace'); await A.pg.click('.ws-dd .ws-bg', { position: { x: 20, y: 20 } });
   // outils : pas de « Tous », rien d'ouvert avant le toucher
   await A.pg.click('.st-bnav [data-n=tools]'); await A.pg.waitForTimeout(400);
   const tl = await A.pg.evaluate(() => { App.toolCat = ''; return null; }); void tl;
