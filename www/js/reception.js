@@ -114,6 +114,9 @@ async function sharePhotos(ids, text, base = 'pv') {
 
 async function renderReceptions(root, kind = 'Ferraillage') {
   const p = App.project;
+  // v1.0.34 : PV de réception réservés au service Qualité (bibliothèque du service) ; les autres gardent le programme de bétonnage
+  const noRec = typeof Team !== 'undefined' && Team.svcLib && Team.svcLib() && !Team.canSection('reception');
+  if (noRec && kind === 'Ferraillage') { kind = 'Bétonnage'; App.section = 'beton'; }
   if (kind === 'Ferraillage') { try { const n = await carryPending(p.id); if (n) { const u = carryPending.undo; toast(`↪ ${n} ouvrage(s) non réceptionné(s) reporté(s) au lendemain`, { action: 'Annuler', onAction: async () => { await u(); toast('Report annulé ✓'); renderSection(); } }); } } catch (e) { console.warn('report', e); } }
   const all = (await DB.byProject('receptions', p.id)).filter(d => kindOf(d) === kind).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   App.recSearch = App.recSearch || {}; App.openMonths = App.openMonths || {};
@@ -129,7 +132,7 @@ async function renderReceptions(root, kind = 'Ferraillage') {
   if (tba) tba.innerHTML = `<button class="iconbtn" data-a="sync" title="Google Sheets">${icon('grid')}</button>`;
 
   const nPvAll = nMiss;
-  root.innerHTML = `<div class="kseg"><button class="${!isBeton(kind) ? 'on' : ''}" data-k="reception">${icon('layers')} Réception${nPvAll ? ` <i>${nPvAll}</i>` : ''}</button><button class="${isBeton(kind) ? 'on' : ''}" data-k="beton">${icon('calendar')} Bétonnage</button></div>
+  root.innerHTML = `<div class="kseg ${noRec ? 'solo' : ''}"><button class="${!isBeton(kind) ? 'on' : ''}" data-k="reception" ${noRec ? 'hidden' : ''}>${icon('layers')} Réception${nPvAll ? ` <i>${nPvAll}</i>` : ''}</button><button class="${isBeton(kind) ? 'on' : ''}" data-k="beton">${icon('calendar')} Bétonnage</button></div>
     ${isBeton(kind) ? decofBanner(p, all) : ''}
     <div class="search">${icon('search')}<input placeholder="Rechercher un ouvrage (ex : CR 77, voile…)" value="${esc(App.recSearch[kind] || '')}"></div>
     <div class="fbar">

@@ -118,7 +118,8 @@ const ST = (() => {
         <div class="btnrow" style="padding:0"><button class="btn small" data-a="st-pro">Demander Pro</button><button class="btn ghost small" data-a="st-code">🎟 Code pack</button></div></div>` : ''}
       <div class="st-pstats" data-pstats>${['Tâches à faire', 'Projets', 'Documents', 'Échéances 7 jours'].map(l => `<div class="st-ps"><b>…</b><small>${l}</small></div>`).join('')}</div>
       <div class="h2-sec"><span>Mes outils professionnels</span><small>${esc(M ? M.l : '')}</small></div>
-      <div class="st-ptools">${T.map(t => `<button class="st-pt ${t.on ? '' : 'off'}" data-pt="${t.k}" ${t.on ? '' : 'data-locked="1"'}>${icon(t.icon)}<span>${esc(t.label)}</span>${t.on ? '' : '<small>avec Pro</small>'}</button>`).join('')}</div>
+      <div class="st-ptools">${T.map(t => `<button class="st-pt ${t.on ? '' : 'off'}" data-pt="${t.k}" ${t.on ? '' : 'data-locked="1"'} style="--c:${CAT_C[catOf(t.k)] || 'var(--accent)'}"><i class="st-ico">${icon(t.icon)}</i><span>${esc(t.label)}</span>${t.on ? '' : '<small>avec Pro</small>'}</button>`).join('')}</div>
+      ${typeof Dossier !== 'undefined' ? Dossier.cardHTML() : ''}
       <div class="h2-sec"><span>Activité récente</span></div><div class="st-pact" data-pact><div class="st-ok">…</div></div>`;
   }
   async function pickPersoProject() {
@@ -161,10 +162,10 @@ const ST = (() => {
       <div class="st-dir-hero"><small>TABLEAU DE BORD · ${esc(TAILLE_L[t] || '')} · ${esc(P.l)}</small><b>${title}</b><span>Pilotage des projets${t === 'petite' ? '' : ' et services'}</span>
         <div class="st-dir-pills"><i>Cette semaine</i><button data-a="dir-proj">Tous les projets ▾</button>${t !== 'petite' && typeof Affectations !== 'undefined' ? '<button data-a="dir-aff">👥 Affectations</button>' : ''}</div></div>
       <div class="st-kpis">
-        <button class="st-kpi" data-k="av"><span class="ic">📈</span><b>…</b><small>Avancement</small></button>
-        <button class="st-kpi" data-k="pj"><span class="ic">🏢</span><b>…</b><small>Projets actifs</small></button>
-        <button class="st-kpi" data-k="dec"><span class="ic">📋</span><b>…</b><small>Décisions</small></button>
-        <button class="st-kpi" data-k="al"><span class="ic">⚠️</span><b>…</b><small>Alertes</small></button></div>
+        <button class="st-kpi" data-k="av"><span class="ic" style="--c:#2164A8">${icon('trend')}</span><b>…</b><small>Avancement</small></button>
+        <button class="st-kpi" data-k="pj"><span class="ic" style="--c:#3D5A80">${icon('folder')}</span><b>…</b><small>Projets actifs</small></button>
+        <button class="st-kpi" data-k="dec"><span class="ic" style="--c:#18866B">${icon('check')}</span><b>…</b><small>Décisions</small></button>
+        <button class="st-kpi" data-k="al"><span class="ic" style="--c:#C2410C">${icon('alert')}</span><b>…</b><small>Alertes</small></button></div>
       <div class="st-perf"><div class="st-perf-h"><b>Activité des projets</b><small>8 dernières semaines</small></div><div class="st-perf-c" data-perf></div></div>
       ${svcs.length ? `<div class="st-svcrow"><div class="st-perf-h"><b>Services</b><small>${svcs.length}</small></div><div class="st-svcs2">${svcs.map(x => { const n = M.filter(m => (m.service || tmRoleOf(m.role).s) === x.k).length;
         return `<button class="st-svc2" data-a="dir-svc" style="--c:${x.c || '#2164A8'}"><span>${esc(x.e || '')}</span><b>${esc(x.l)}</b><small>${n} pers.</small></button>`; }).join('')}</div></div>` : ''}
@@ -210,17 +211,18 @@ const ST = (() => {
   const svcOn = () => ready() && !perso() && !PV.get() && !Team.isCollab() && !Team.isAdmin();
   const grpOf = () => { const P = typeof Org !== 'undefined' && Org.poste && Org.poste(); return (P && typeof SVC_GROUP !== 'undefined' && SVC_GROUP[P.svc.k]) || 'trav'; };
   const SVC_KPI = {
-    qual: [['pvr', '📨', 'PV à récupérer'], ['res', '🔧', 'Réserves ouvertes'], ['rec', '🧱', 'Réceptions (7 j)'], ['lev', '✅', 'Levées (7 j)']],
-    trav: [['res', '🔧', 'Réserves ouvertes'], ['late', '⏰', 'En retard'], ['rap', '📝', 'Rapports (7 j)'], ['lev', '✅', 'Levées (7 j)']],
+    qual: [['pvr', 'inbox', 'PV à récupérer', '#C2410C'], ['res', 'wrench', 'Réserves ouvertes', '#2164A8'], ['rec', 'layers', 'Réceptions (7 j)', '#5B4BA8'], ['lev', 'check', 'Levées (7 j)', '#18866B']],
+    trav: [['res', 'wrench', 'Réserves ouvertes', '#2164A8'], ['late', 'clock', 'En retard', '#C2410C'], ['rap', 'report', 'Rapports (7 j)', '#5B4BA8'], ['lev', 'check', 'Levées (7 j)', '#18866B']],
   };
   function serviceHTML() {
     if (!svcOn()) return '';
     const P = Org.poste && Org.poste(), R = tmRoleOf(roleKey()), sv = serviceOf((Team.me() || {}).service || R.s), C = Team.company() || {};
-    const K = SVC_KPI[grpOf()] || SVC_KPI.trav;
+    const uni = Team.taille() === 'petite', K = uni ? SVC_KPI.trav : SVC_KPI[grpOf()] || SVC_KPI.trav;
+    // v1.0.34 : petite entreprise (Basic) = interface unique, sans service ; Business / Enterprise = tableau du service
     return `<div class="st-dir" data-stsvc>
-      <div class="st-dir-hero"><small>${esc(C.name || '')} · ${esc(sv.l)}</small><b>${esc(sv.e || (P && P.svc.e) || '🏗️')} Service ${esc(sv.l)}</b><span>${esc([Team.me() && Team.me().role, ...((Team.me() || {}).postes || [])].filter(Boolean).map(k => tmRoleOf(k).l).join(' + ') || R.l)}</span>
+      <div class="st-dir-hero"><small>${esc(C.name || '')} · ${esc(uni ? plan().l : sv.l)}</small><b>${uni ? '🏗️ Mon entreprise' : `${esc(sv.e || (P && P.svc.e) || '🏗️')} Service ${esc(sv.l)}`}</b><span>${esc([Team.me() && Team.me().role, ...((Team.me() || {}).postes || [])].filter(Boolean).map(k => tmRoleOf(k).l).join(' + ') || R.l)}</span>
         <div class="st-dir-pills"><i>Aujourd'hui</i><button data-a="dir-proj">Mes projets ▾</button></div></div>
-      <div class="st-kpis">${K.map(([k, e, l]) => `<button class="st-kpi" data-k="${k}"><span class="ic">${e}</span><b>…</b><small>${l}</small></button>`).join('')}</div>
+      <div class="st-kpis">${K.map(([k, e, l, c]) => `<button class="st-kpi" data-k="${k}"><span class="ic" style="--c:${c}">${icon(e)}</span><b>…</b><small>${l}</small></button>`).join('')}</div>
     </div>`;
   }
   async function svcBind(root) {
@@ -244,15 +246,22 @@ const ST = (() => {
       const c = box.querySelector('[data-perf]'); if (c) c.innerHTML = perfSvg(bins);
     } catch (e) { console.warn('service', e); }
   }
+  // ---------- couleurs professionnelles par famille d'outils (pictogrammes sur pastille teintée) ----------
+  const CAT_C = { trav: '#2164A8', qual: '#18866B', etu: '#5B4BA8', fin: '#B7791F', org: '#3D5A80', all: '#2164A8' };
+  const catOf = (k) => { const g = typeof DR_GROUPS !== 'undefined' && DR_GROUPS.find(x => x[2].includes(k)); return g ? g[0] : 'trav'; };
+  const toolName = (k) => k === 'beton' ? 'Programme de bétonnage' : (SECTIONS[k].title || SECTIONS[k].label).split(' (')[0];
   // ---------- Mes outils par catégorie (Chantier · Qualité & sécurité · Études · Gestion · Projet & équipe) ----------
   function toolsHTML() {
     if (!ready() || perso() || Team.isCollab() || typeof DR_GROUPS === 'undefined') return '';
-    const first = grpOf(), ok = (k) => SECTIONS[k] && !SECTIONS[k].hidden && k !== 'dashboard' && sectionOn(k) && Team.canSection(k);
-    const G = DR_GROUPS.slice().sort((a, b) => (b[0] === first) - (a[0] === first)).map(([g, l, ks]) => [g, l, ks.filter(ok)]).filter(g => g[2].length);
+    const first = grpOf(), ok = (k) => secShown(k) && k !== 'dashboard' && sectionOn(k) && Team.canSection(k);
+    let G = DR_GROUPS.slice().sort((a, b) => (b[0] === first) - (a[0] === first)).map(([g, l, ks]) => [g, l, ks.filter(ok)]).filter(g => g[2].length);
     if (!G.length) return '';
-    return `<div class="st-tools" data-sttools><div class="h2-sec"><span>Mes outils</span><small>${G.reduce((a, g) => a + g[2].length, 0)}</small></div>
-      <div class="st-tcats"><button class="on" data-cat="*">Tous</button>${G.map(([g, l]) => `<button data-cat="${g}">${esc(l)}</button>`).join('')}</div>
-      ${G.map(([g, l, ks]) => `<div class="st-tcat" data-g="${g}"><div class="st-tcat-h">${esc(l)}<small>${ks.length}</small></div><div class="st-tgrid">${ks.map(k => `<button class="st-tool" data-tool="${k}">${icon(SECTIONS[k].icon || 'grid')}<span>${esc(SECTIONS[k].title || SECTIONS[k].label)}</span></button>`).join('')}</div></div>`).join('')}</div>`;
+    // v1.0.34 : petite entreprise (Basic) — une seule grille « Outils essentiels », sans catégories de services
+    if (Team.taille() === 'petite') G = [['all', 'Outils essentiels', G.flatMap(g => g[2])]];
+    const cats = G.length > 1;
+    return `${typeof Dossier !== 'undefined' ? Dossier.cardHTML() : ''}<div class="st-tools" data-sttools><div class="h2-sec"><span>Mes outils</span><small>${G.reduce((a, g) => a + g[2].length, 0)}</small></div>
+      ${cats ? `<div class="st-tcats"><button class="on" data-cat="*">Tous</button>${G.map(([g, l]) => `<button data-cat="${g}">${esc(l)}</button>`).join('')}</div>` : ''}
+      ${G.map(([g, l, ks]) => `<div class="st-tcat" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}"><div class="st-tcat-h">${esc(l)}<small>${ks.length}</small></div><div class="st-tgrid">${ks.map(k => `<button class="st-tool" data-tool="${k}" style="--c:${CAT_C[catOf(k)] || CAT_C[g] || 'var(--accent)'}"><i class="st-ico">${icon(SECTIONS[k].icon || 'grid')}</i><span>${esc(toolName(k))}</span></button>`).join('')}</div></div>`).join('')}</div>`;
   }
   function toolsBind(root) {
     const box = root && root.querySelector('[data-sttools]'); if (!box) return;
@@ -288,7 +297,7 @@ const ST = (() => {
     const team = (Team.members() || []).filter(m => m.managerUid && m.managerUid === me.uid).length, multi = Team.workspaces().length > 1;
     // contexte : où l'on travaille (espace · service · poste · projet) — le Dashboard se lit à partir de là
     return `<div class="st-ctx"><button class="st-wsc" data-a="st-ws"><span class="e">${esc(T.e)}</span><b>${esc(C.name || '')}</b><i>${multi ? '▾ changer' : '＋ espaces'}</i></button>
-        <div class="st-chips">${Team.isCollab() && !PV.get() ? '<span>🤝 Projet partagé</span><span>Collaborateur</span>' : `<span>${esc(serviceOf(PV.get() ? R.s : (me.service || R.s)).l)}</span><span>${esc(R.l)}</span>`}<button data-a="st-proj">Projet ▾</button></div></div>
+        <div class="st-chips">${Team.isCollab() && !PV.get() ? '<span>🤝 Projet partagé</span><span>Collaborateur</span>' : `${Team.taille() === 'petite' ? '' : `<span>${esc(serviceOf(PV.get() ? R.s : (me.service || R.s)).l)}</span>`}<span>${esc(R.l)}</span>`}<button data-a="st-proj">Projet ▾</button></div></div>
       ${team ? `<button class="st-team" data-a="st-team"><b>Mon équipe : ${team} personne(s)</b><small>sous ma responsabilité</small></button>` : ''}
       ${(me.missions || []).length && !PV.get() ? `<div class="st-mbox"><b>Mes missions</b>${me.missions.map(x => `<div class="st-mis">• ${esc(x.t)}</div>`).join('')}</div>` : ''}
       ${R.s === 'qualite' || Team.lvl('forms') >= 2 ? `<div class="st-qual" data-stq><div class="h2-sec"><span>Validation des PV</span></div><div class="st-qtiles">${['À valider', 'À corriger', 'Brouillons', 'Validés (7 j)'].map(l => `<div class="st-ps"><b>…</b><small>${l}</small></div>`).join('')}</div></div>` : ''}
@@ -296,6 +305,7 @@ const ST = (() => {
   }
   async function dashBind(root) {
     if (root && root.id === 'app') { if (Team.secureApply) Team.secureApply(); dirBind(root); svcBind(root); toolsBind(root); if (!root.querySelector('.st-bnav')) bottomNav(); }
+    if (root) root.querySelectorAll('[data-a=dossier]').forEach(b => b.onclick = () => openDossier());
     if (root && perso()) { const ws = root.querySelector('[data-a=st-ws]'); if (ws) ws.onclick = () => Team.openSwitcher(); return persoBind(root); }
     if (root) {
       const ws = root.querySelector('[data-a=st-ws]'); if (ws) ws.onclick = () => Team.openSwitcher();

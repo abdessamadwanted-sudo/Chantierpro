@@ -237,6 +237,27 @@ const SECTION_MOD = { avancement: 'projet', clauses: 'forms', gestion: 'materiel
   dashboard: 'projet', plans: 'plans', tasks: 'reserves', reception: 'reception', beton: 'reception', photos: 'photos', forms: 'forms', reports: 'rapports',
   constat: 'constats', models3d: 'plans', maquette: 'plans', calc: 'calc', team: 'equipe', settings: 'projet', docq: 'files', histo: 'projet', orgs: 'projet' };
 
+// v1.0.34 : bibliothèque de chaque service. Socle commun + outils du métier. Les PV de réception (ferraillage) relèvent de la Qualité ;
+// les Travaux gardent le programme de bétonnage. Les droits du poste (0 à 4) s'appliquent toujours en plus.
+const LIB_CORE = ['dashboard', 'plans', 'tasks', 'photos', 'reports', 'team', 'org', 'settings', 'histo'];
+const SVC_LIB = {
+  travaux: ['avancement', 'planning', 'reunions', 'beton', 'calc', 'models3d', 'pointage', 'gestion'],
+  ferraillage: ['avancement', 'planning', 'beton', 'calc', 'models3d', 'gestion'],
+  centrale: ['beton', 'labo', 'gestion', 'pointage'],
+  materiel: ['gestion', 'pointage', 'planning'], maintenance: ['gestion', 'pointage', 'planning'],
+  logistique: ['gestion', 'pointage', 'planning'], transport: ['gestion', 'pointage', 'planning'],
+  achats: ['gestion', 'finance', 'planning'], magasin: ['gestion', 'pointage'],
+  topo: ['calc', 'models3d', 'maquette', 'avancement'],
+  qualite: ['reception', 'beton', 'forms', 'constat', 'labo', 'docq', 'clauses', 'visa', 'rfi'],
+  labo: ['labo', 'beton', 'forms', 'docq'],
+  hse: ['hse', 'constat', 'forms', 'pointage', 'reunions'],
+  metre: ['calc', 'finance', 'tce', 'avenants', 'st', 'avancement', 'models3d'], contrats: ['finance', 'tce', 'avenants', 'st', 'clauses', 'docq'],
+  bim: ['planning', 'models3d', 'maquette', 'calc', 'avancement', 'rfi', 'visa', 'reunions'], methodes: ['planning', 'models3d', 'maquette', 'calc', 'avancement', 'reunions'],
+  etudes: ['calc', 'rfi', 'visa', 'models3d', 'maquette', 'docq'], doc: ['docq', 'forms', 'visa', 'rfi', 'clauses', 'reunions'],
+  admin: ['finance', 'tce', 'avenants', 'st', 'pointage', 'clauses', 'docq'], rh: ['pointage', 'hse'], pointage: ['pointage'],
+  externe: [],
+};
+
 const FIRESTORE_RULES = `rules_version = '2';
 service cloud.firestore {
   match /databases/{db}/documents {
@@ -609,7 +630,15 @@ const Team = (() => {
   function secureApply() { const on = secureOn(); const P = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.SecureScreen; if (P && P.set) P.set({ on }).catch(() => {}); document.documentElement.classList.toggle('st-secure', on); return on; }
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') try { secureApply(); } catch (e) {} });
   const isOff = (mod) => !!mod && Array.isArray(appCfg().off) && appCfg().off.includes(mod) && !isSuper();
-  const canSection = (k) => !isOff(SECTION_MOD[k] || 'projet') && lvl(SECTION_MOD[k] || 'projet') >= 1;
+  // v1.0.34 : bibliothèque du service (Business / Enterprise) — chacun ne voit que les outils de son métier (postes cumulés : union).
+  // Direction, administrateurs, petite entreprise, espace personnel et projet partagé : aucune restriction.
+  const svcLib = () => {
+    if (!S.ready || !S.me || isPerso() || isCollab() || isAdmin() || taille() === 'petite' || sharedOf(curPid())) return null;
+    const svs = [S.me.service || tmRoleOf(S.me.role).s, ...(S.me.postes || []).map(k => tmRoleOf(k).s)];
+    if (svs.some(s => !s || s === 'direction' || !SVC_LIB[s])) return null;
+    return new Set([...LIB_CORE, ...svs.flatMap(s => SVC_LIB[s])]);
+  };
+  const canSection = (k) => { if (isOff(SECTION_MOD[k] || 'projet') || lvl(SECTION_MOD[k] || 'projet') < 1) return false; const L = svcLib(); return !L || L.has(k); };
   const isAdmin = () => !S.ready || !!(S.me && S.me.admin);
   const myPlan = () => planFor(planOf((S.company || {}).plan || PLAN_DEFAULT_COMPANY), (S.company || {}).kind === 'perso');
   // Super Admin SiteTeam (le même compte que le propriétaire des licences Chantier dans les règles)
@@ -2131,7 +2160,7 @@ const Team = (() => {
   }
 
   return {
-    boot, push, pull, resetPull, lvl, canSection, canProject, isAdmin, openCompany, taille, secureApply, secureOn, saveAffectations, noteProject, projectIds, inviteFlow, logout, decorateSection, removeMember, refreshMembers,
+    boot, push, pull, resetPull, lvl, canSection, svcLib, canProject, isAdmin, openCompany, taille, secureApply, secureOn, saveAffectations, noteProject, projectIds, inviteFlow, logout, decorateSection, removeMember, refreshMembers,
     isSuper, superConsole, orgType, isPerso, companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, workspaces: () => S.workspaces || [],
     profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
     openProjectShares, claimShare, openPartners, renderHistory, sharedOf, joinWithCode,

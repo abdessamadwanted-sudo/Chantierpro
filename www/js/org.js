@@ -171,12 +171,14 @@ const featName = (k) => ({ planning: 'Planning', reunions: 'Réunions', rfi: 'RF
 // ---------- menu latéral rangé par groupes (le groupe de votre service en premier) ----------
 // 5 groupes courts (v1.0.28) : chantier au quotidien, qualité & sécurité, études, gestion, projet & équipe
 const DR_GROUPS = [
-  ['trav', '🏗️ Chantier', ['dashboard', 'plans', 'tasks', 'photos', 'reports', 'avancement', 'planning', 'reunions']],
+  ['trav', '🏗️ Chantier', ['dashboard', 'plans', 'tasks', 'photos', 'reports', 'avancement', 'planning', 'beton', 'reunions']],
   ['qual', '✅ Qualité & sécurité', ['reception', 'forms', 'constat', 'labo', 'hse', 'docq', 'clauses']],
   ['etu', '📐 Études & 3D', ['rfi', 'visa', 'calc', 'models3d', 'maquette']],
   ['fin', '💰 Gestion & finance', ['finance', 'avenants', 'gestion', 'pointage', 'tce', 'st']],
   ['org', '👥 Projet & équipe', ['team', 'orgs', 'histo', 'org']],
 ];
+// v1.0.34 : « Programme de bétonnage » devient une rubrique à part pour les services sans accès aux PV de réception (bibliothèque du service)
+const secShown = (k) => !!SECTIONS[k] && (!SECTIONS[k].hidden || (k === 'beton' && typeof Team !== 'undefined' && Team.svcLib && !!Team.svcLib() && !Team.canSection('reception') && Team.canSection('beton')));
 const SVC_GROUP = { trav: 'trav', qual: 'qual', labo: 'qual', hse: 'qual', etu: 'etu', log: 'fin', fin: 'fin', ext: 'trav', archi: 'trav', bet: 'etu', bc: 'qual', mo: 'trav' };
 // ordre du menu choisi par l'utilisateur (groupes et rubriques) : { g: [groupe…], k: { groupe: [rubrique…] } }
 const drOrd = () => { try { return JSON.parse(localStorage.getItem('dr.ord') || 'null'); } catch (e) { return null; } };
@@ -211,7 +213,7 @@ function drawerSections(itemHtml) {
   return groups.map(([gk, gl, keys]) => {
     // avec un compte SiteTeam, l'organigramme de l'organisation remplace l'organigramme local du chantier (pas de doublon)
     const dup = (k) => k === 'org' && typeof Team !== 'undefined' && Team.ready();
-    const items = keys.filter(k => SECTIONS[k] && !SECTIONS[k].hidden && k !== 'settings' && !dup(k)).map(k => { const f = SECTION_FEATURE[k];
+    const items = keys.filter(k => secShown(k) && k !== 'settings' && !dup(k)).map(k => { const f = SECTION_FEATURE[k];
       if (sectionOn(k)) return itemHtml(k);
       if (f && !featAllowed(f) && Org.can(f, 'see')) return `<button class="item lk" data-lock="${f}">${icon(SECTIONS[k].icon)}<span>${SECTIONS[k].label}</span><span class="count">${icon('lock', 'style="width:16px;height:16px"')}</span></button>`;
       return ''; }).filter(Boolean);
