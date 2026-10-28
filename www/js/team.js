@@ -2160,11 +2160,7 @@ const Team = (() => {
   }
 
   return {
-<<<<<<< HEAD
     boot, push, pull, resetPull, lvl, canSection, svcLib, canProject, isAdmin, openCompany, taille, secureApply, secureOn, saveAffectations, noteProject, projectIds, inviteFlow, logout, decorateSection, removeMember, refreshMembers,
-=======
-    boot, push, pull, resetPull, lvl, canSection, canProject, isAdmin, openCompany, taille, secureApply, secureOn, saveAffectations, noteProject, projectIds, inviteFlow, logout, decorateSection, removeMember, refreshMembers,
->>>>>>> origin/siteteam
     isSuper, superConsole, orgType, isPerso, companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, workspaces: () => S.workspaces || [],
     profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
     openProjectShares, claimShare, openPartners, renderHistory, sharedOf, joinWithCode,
