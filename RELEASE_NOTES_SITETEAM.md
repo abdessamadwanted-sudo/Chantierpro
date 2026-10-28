@@ -1,12 +1,4 @@
-## SiteTeam : en-tête compact, menu de l'espace, accueil court, Lots & équipes, codes délégués, démarrage rapide
-- En-tête compact : avatar « Mon dossier pro » (anneau = profil complété), nom et date. Il se réduit à une ligne quand on fait défiler.
-- Menu déroulant de l'espace (en haut) : changer d'espace en un geste, Organigramme & membres, Codes d'accès, Affectations, Réglages, Mon dossier pro, Apparence. Le bouton « Affectations » quitte l'accueil.
-- Accueil court : un titre, 4 chiffres sur une ligne, l'activité, « À faire aujourd'hui » et les derniers chantiers. Les services sont dans l'Équipe.
-- Barre du bas fixée en bas de l'écran, opaque : plus rien n'apparaît derrière.
-- Outils : catégories en cartes, sans « Tous ». Le contenu s'affiche seulement au toucher d'une catégorie. L'espace métier (tableau de bord des équipes, rendement) devient une catégorie et n'est plus répété. L'ordre suit le type d'organisation (BET → Études d'abord).
-- Nouveau « Lots & équipes » : par lot, dates prévues, zones, responsable, avancement réel / prévu, alertes (démarrage, retard, fin dépassée, équipe sans saisie). Pour chaque équipe ou sous-traitant : chef, téléphone, effectif, mission, engins, saisie du jour (effectif, quantité, consommation, avancement) et rendement journalier calculé. Vue globale des sous-traitants.
-- Lots dans les plans : les boutons BPU / Attachements / Décompte / Stock sont retirés (ils restent dans Gestion & finance), remplacés par « Suivi du lot · équipes ».
-- Codes d'accès délégués : l'administrateur autorise un membre à partager des codes pour les personnes sous sa responsabilité ; chaque code reste validé par un administrateur.
-- Démarrage plus rapide : l'animation d'accueil ne s'affiche qu'à la première ouverture du jour, et l'application s'ouvre avec les données du téléphone sans attendre le réseau plus de 2,5 s.
-- Erreur de droits plus claire : « Règles du serveur à publier », au lieu de « Missing or insufficient permissions ».
-- Important : publier les nouvelles règles Firestore (codes délégués) et Storage.
+## SiteTeam : démarrage sans écran noir
+- Écran de démarrage immédiat (logo SiteTeam et barre de progression) au lieu de l'écran noir.
+- Les fichiers de l'application se chargent après ce premier affichage, dans l'ordre. Le module PDF (le plus lourd) se charge en dernier.
+- Temps de démarrage mesuré à chaque ouverture : menu ⋮ › Application › « ⏱ Dernier démarrage » (fichiers · connexion · accueil). Envoyez-moi ce chiffre pour cibler la suite.
