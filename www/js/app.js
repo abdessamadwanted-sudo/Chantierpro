@@ -202,7 +202,7 @@ async function renderHome() {
           return sec('home', `${ST.directionHTML()}${ST.serviceHTML()}${ST.dashHTML()}
               <div class="h2-sec"><span>Derniers chantiers</span><small>${projects.length}</small>${projects.length > 2 ? '<button class="h2-more" data-tabgo="proj">Tous ›</button>' : ''}</div>${recent.length ? recent.map(card).join('') : empty}`)
             + sec('proj', all)
-            + sec('tools', ST.toolsHTML());   // v1.0.35 : l'espace métier est une catégorie des outils (plus de doublon)
+            + sec('tools', ST.toolsHTML());   // v1.0.38 : plus d'onglet « Outils » dans la barre du bas (chaque projet s'ouvre sur ses outils) ; panneau gardé pour les tests
         })()}
       </div>
     </div>
@@ -228,10 +228,10 @@ async function renderHome() {
   // un toucher sur le chantier = on entre (page Plans) ; la flèche ⌄ déplie les chiffres et le briefing
   $$('.h2-card[data-id]').forEach(r => r.onclick = async (e) => { const pv = e.target.closest('[data-pvgo]'); if (pv) { await openProject(await DB.get('projects', pv.dataset.pvgo)); return goMissingPv(); }
     const dt = e.target.closest('[data-det]'); if (dt) { e.stopPropagation(); App.homeOpen[dt.dataset.det] = !App.homeOpen[dt.dataset.det]; return renderHome(); }
-    openProject(await DB.get('projects', r.dataset.id)); });
+    openProject(await DB.get('projects', r.dataset.id), Team.ready() ? 'ptools' : null); });
   const unf = $('[data-a=unfocus]'); if (unf) { unf.onclick = () => { App.homeFocus = false; renderHome().then(() => { App.homeFocus = null; }); }; pushBack(() => unf.onclick()); }
   $$('[data-brief]').forEach(bb => bb.onclick = async () => { const act = await briefingShow({ pid: bb.dataset.brief }); if (act) act(); });
-  $$('[data-open]').forEach(b => b.onclick = async () => openProject(await DB.get('projects', b.dataset.open)));
+  $$('[data-open]').forEach(b => b.onclick = async () => openProject(await DB.get('projects', b.dataset.open), Team.ready() ? 'ptools' : null));
   $$('[data-go]').forEach(b => b.onclick = async () => {
     const [pid, where] = b.dataset.go.split('|'); const p = await DB.get('projects', pid);
     await openProject(p);
@@ -256,7 +256,7 @@ async function renderHome() {
   { const mo = $('[data-a=msgoff]'); if (mo) mo.onclick = () => { const M = Team.appCfg().message || {}; try { localStorage.setItem('st.msgOff', String(M.id || M.text)); } catch (e) {} mo.closest('.st-msg').remove(); }; }
   $('[data-a=homemore]').onclick = async () => {
         // menu ⋮ : 6 groupes courts, sans doublon (déconnexion et prénom sont dans « Mon compte », la langue dans Réglages, la version ouvre la mise à jour)
-        const v = await groupMenu('SiteTeam', [
+        const v = await groupMenu('Réglages', [
       { title: '', color: '#22c55e', items: [{ label: 'Briefing du jour', sub: 'notes, rappels, PV à livrer, tâches', icon: 'calendar', value: 'brief' }] },
       { title: 'Mon espace', color: '#3b82f6', items: Team.ready() ? [
         { label: 'Changer d\'espace', sub: 'espace personnel · organisations · code', icon: 'swap', value: 'ws' },
@@ -312,8 +312,8 @@ async function renderHome() {
   const nb = $('[data-a=new]'); if (nb) nb.onclick = () => newProjectDialog();
 }
 
-async function openProject(p) {
-  App.project = p; App.section = 'plans';   // on arrive directement sur les plans (dossiers) App.search = ''; App.companyFilter = 'all'; App.taskFilter = 'all';
+async function openProject(p, sec) {
+  App.project = p; App.section = sec || 'plans';   // on arrive directement sur les plans (dossiers) App.search = ''; App.companyFilter = 'all'; App.taskFilter = 'all';
   p.updatedAt = Date.now(); await DB.put('projects', p);
   renderSection();
   const late = (await DB.byProject('tasks', p.id)).filter(isLate).length;
@@ -345,6 +345,7 @@ const SECTIONS = {
   pointage: { label: 'Pointage main d\'œuvre', icon: 'clock', render: (r) => renderPointage(r), title: 'Pointage', subtitle: 'Présences · coût' },
   rfi: { label: 'RFI · demandes au BET', icon: 'ask', render: (r) => renderRfi(r), title: 'RFI', subtitle: 'Demandes d\'information' },
   visa: { label: 'Visas & bordereaux', icon: 'stamp', render: (r) => renderVisa(r), title: 'Visas', subtitle: 'Documents · bordereaux d\'envoi' },
+  ptools: { label: 'Outils du projet', icon: 'grid', hidden: true, render: (r) => ST.renderProjectTools(r), title: 'Outils du projet' },
   lotsuivi: { label: 'Lots & équipes', icon: 'layers', render: (r) => renderLotSuivi(r), title: 'Lots & équipes', subtitle: 'Avancement · sous-traitants · rendement' },
   labo: { label: 'Laboratoire', icon: 'flask', render: (r) => renderLabo(r), title: 'Laboratoire', subtitle: 'Béton · slump · essais' },
   hse: { label: 'HSE · sécurité', icon: 'shield', render: (r) => renderHse(r), title: 'HSE', subtitle: 'Causeries · EPI · accidents · permis' },
@@ -363,7 +364,7 @@ async function renderSection() {
   BackStack.length = 0;
   if (App.section === 'reception' && !Team.canSection('reception') && Team.canSection('beton') && sectionOn('beton')) App.section = 'beton';   // v1.0.34 : bibliothèque du service
   if (!SECTIONS[App.section] || !sectionOn(App.section) || !Team.canSection(App.section)) App.section = Object.keys(SECTIONS).find(k => !SECTIONS[k].hidden && sectionOn(k) && Team.canSection(k)) || 'plans';
-  pushBack(() => { if (App.fromBrief && typeof briefReopen === 'function') return briefReopen(); if (App.section !== 'plans') { App.section = 'plans'; App.search = ''; renderSection(); } else renderHome(); });
+  pushBack(() => { if (App.fromBrief && typeof briefReopen === 'function') return briefReopen(); const home = Team.ready() ? 'ptools' : 'plans'; if (App.section !== home) { App.section = home; App.search = ''; renderSection(); } else renderHome(); });
   // retour intelligent : chaque page du chantier retrouve sa position quand on y revient
   App.secScroll = App.secScroll || {};
   const c0 = $('#content'); if (c0 && App.lastSecKey) App.secScroll[App.lastSecKey] = [c0.scrollTop, (document.scrollingElement || {}).scrollTop || 0];

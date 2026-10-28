@@ -2903,3 +2903,9 @@ html:not(.th-net) .h2-tab tr[data-go]:active td { background: rgba(76,141,219,.1
 html:not(.th-net) .h2-kpi > div { background: var(--card, #2a303a) !important; color: var(--text, #e6e8eb); }
 html:not(.th-net) .h2-kpi span { color: var(--muted, #9aa3ae) !important; } html:not(.th-net) .h2-kpi small { color: #F08A5D !important; }
 html:not(.th-net) .h2-rh button { color: #7FB0EC !important; }
+
+/* v1.0.38 : accueil du projet (outils du projet) ; Réglages = menu ⋮ (le bouton ⋮ de l'en-tête reste pour les espaces sans barre du bas) */
+.st-ptools-p { padding: 6px 2px 40px; display: grid; gap: 10px; }
+.st-ptools-p .st-tcat { display: block !important; }
+.st-ptools-p details.st-esp summary { cursor: pointer; list-style: none; }
+#app.with-bnav .home2 .h2-acts [data-a=homemore] { display: none; }
