@@ -117,6 +117,9 @@ const Splash = (() => {
     // ordre : bouton vert « Entrer » → logo + texte avec la musique → mes chantiers (le briefing s'ouvre en touchant un chantier)
     const S = sched();
     if (S.mode === 'off') return;
+    // v1.0.35 : animation complète seulement à la première ouverture du jour ; ensuite l'application s'ouvre directement
+    const day = new Date().toISOString().slice(0, 10); let seen = ''; try { seen = localStorage.getItem('splash.day') || ''; localStorage.setItem('splash.day', day); } catch (e) {}
+    if (seen === day && S.mode !== 'time') return;
     await welcome();
     await show(true);
   }

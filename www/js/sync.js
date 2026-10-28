@@ -292,7 +292,10 @@ const Sync = (() => {
         if (!document.querySelector('.sheet-bg, .fullpage, .viewer')) { try { App.project ? (App.project = await DB.get('projects', App.project.id) || App.project, renderSection()) : renderHome(); } catch (e) {} }
       }
     } catch (e) {
-      console.error('sync', e); LS.set('fails', [String(e.message || e)]); setStatus('error', String(e.message || e).slice(0, 80));
+      // v1.0.35 : message clair (au lieu de « Missing or insufficient permissions ») ; le détail reste dans la liste des problèmes
+      const raw = String(e.message || e), perm = e.code === 'permission-denied' || /insufficient permissions|permission-denied/i.test(raw);
+      console.error('sync', e); LS.set('fails', [perm ? 'Accès refusé par le serveur : les règles Firestore / Storage publiées ne sont pas à jour (Réglages › Copier les règles, puis console Firebase › Publier). Détail : ' + raw : raw]);
+      setStatus('error', perm ? 'Règles du serveur à publier — touchez pour voir' : raw.slice(0, 80));
     } finally {
       running = false;
       if (again) schedule(1500);

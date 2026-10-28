@@ -1,7 +1,12 @@
-## SiteTeam : palette professionnelle, bibliothèque par service, Basic unifiée, Mon dossier pro
-- Palette professionnelle : bleu acier, navy profond et couleurs sobres par famille d'outils (Chantier, Qualité, Études, Gestion, Équipe). Les pictogrammes sont posés sur des pastilles teintées.
-- Nouveau thème « 🌙 SiteTeam (sombre) » professionnel. Aucune carte blanche ; à choisir dans Réglages › Apparence.
-- Bibliothèque par service (Business / Enterprise) : chacun ne voit que les outils de son métier. Les PV de réception sont réservés à la Qualité ; les Travaux gardent le programme de bétonnage. La Direction et les administrateurs voient tout.
-- Basic (petite entreprise) : interface unique sans services, avec une seule grille « Outils essentiels ».
-- Mon dossier pro (pour tous) : profil type LinkedIn (photo, titre, expérience, formation, compétences, langues, certifications), taux de complétude et CV PDF en un clic. Les documents et le suivi des candidatures sont regroupés au même endroit.
-- Affectations : rappel à la première ouverture pour publier les règles Firestore et Storage.
+## SiteTeam : en-tête compact, menu de l'espace, accueil court, Lots & équipes, codes délégués, démarrage rapide
+- En-tête compact : avatar « Mon dossier pro » (anneau = profil complété), nom et date. Il se réduit à une ligne quand on fait défiler.
+- Menu déroulant de l'espace (en haut) : changer d'espace en un geste, Organigramme & membres, Codes d'accès, Affectations, Réglages, Mon dossier pro, Apparence. Le bouton « Affectations » quitte l'accueil.
+- Accueil court : un titre, 4 chiffres sur une ligne, l'activité, « À faire aujourd'hui » et les derniers chantiers. Les services sont dans l'Équipe.
+- Barre du bas fixée en bas de l'écran, opaque : plus rien n'apparaît derrière.
+- Outils : catégories en cartes, sans « Tous ». Le contenu s'affiche seulement au toucher d'une catégorie. L'espace métier (tableau de bord des équipes, rendement) devient une catégorie et n'est plus répété. L'ordre suit le type d'organisation (BET → Études d'abord).
+- Nouveau « Lots & équipes » : par lot, dates prévues, zones, responsable, avancement réel / prévu, alertes (démarrage, retard, fin dépassée, équipe sans saisie). Pour chaque équipe ou sous-traitant : chef, téléphone, effectif, mission, engins, saisie du jour (effectif, quantité, consommation, avancement) et rendement journalier calculé. Vue globale des sous-traitants.
+- Lots dans les plans : les boutons BPU / Attachements / Décompte / Stock sont retirés (ils restent dans Gestion & finance), remplacés par « Suivi du lot · équipes ».
+- Codes d'accès délégués : l'administrateur autorise un membre à partager des codes pour les personnes sous sa responsabilité ; chaque code reste validé par un administrateur.
+- Démarrage plus rapide : l'animation d'accueil ne s'affiche qu'à la première ouverture du jour, et l'application s'ouvre avec les données du téléphone sans attendre le réseau plus de 2,5 s.
+- Erreur de droits plus claire : « Règles du serveur à publier », au lieu de « Missing or insufficient permissions ».
+- Important : publier les nouvelles règles Firestore (codes délégués) et Storage.
