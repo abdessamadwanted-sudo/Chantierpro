@@ -12,4 +12,6 @@ for (const l of L.split('\n')) {
 const sum = bad.length ? `❌ ${bad.length} problème(s)\n- ` + bad.join('\n- ') : `✅ Tous les tests sont passés\n${(R.match(/TOUT OK — \d+ vérifications/) || [''])[0]} (règles) · ${(D.match(/TOUT OK — \d+ vérifications/) || [''])[0]} (base locale) · parcours complet sans erreur`;
 console.log(sum);
 if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, '## Tests SiteTeam\n\n' + sum.replace(/\n- /g, '\n- ') + '\n');
+// annotations GitHub (visibles via l'API Checks même sans télécharger les journaux/artefacts)
+for (const b of bad) console.log('::error::' + String(b).replace(/\n/g, ' ').slice(0, 900));
 process.exit(bad.length ? 1 : 0);
