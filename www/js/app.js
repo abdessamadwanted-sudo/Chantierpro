@@ -215,7 +215,12 @@ async function renderHome() {
   ST.dashBind($('#app'));
   if (keepScroll) { const hb = $('.h2-body'); if (hb) hb.scrollTop = keepScroll; }
   // v1.0.35 : l'en-tête se resserre quand on fait défiler (le nom et le menu des espaces restent visibles)
-  { const hb = $('.h2-body'), he = $('.h2-hero'); if (hb && he) { const f = () => he.classList.toggle('mini', hb.scrollTop > 30); hb.addEventListener('scroll', f, { passive: true }); f(); } }
+  // v1.0.36 : sans effet « vibration » — on réduit au-delà de 64 px, on ré-agrandit seulement près du haut (< 6 px),
+  // et jamais si la page est trop courte (sinon la réduction elle-même fait remonter la page et l'en-tête oscille)
+  { const hb = $('.h2-body'), he = $('.h2-hero'); if (hb && he) { let mini = false, lock = 0;
+      const f = () => { if (Date.now() < lock) return; const y = hb.scrollTop, room = hb.scrollHeight - hb.clientHeight;
+        const want = mini ? y > 6 : (y > 64 && room > 200); if (want !== mini) { mini = want; he.classList.toggle('mini', mini); lock = Date.now() + 260; } };
+      hb.addEventListener('scroll', f, { passive: true }); f(); } }
   const meb = $('.h2-hero [data-a=dossier]'); if (meb) meb.onclick = (e) => { e.stopPropagation(); openDossier(); };
   // toucher un chantier : son briefing, puis « Entrer » → la page du chantier
   const focusOn = async (id) => { App.homeFocus = id; await renderHome(); $('#app .h2-body') && ($('#app .h2-body').scrollTop = 0);

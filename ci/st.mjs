@@ -753,6 +753,12 @@ try {
   { const P = H.pg; const t0 = Date.now(); await P.goto('http://127.0.0.1:8765/?emu=1', { waitUntil: 'commit' }); await P.waitForSelector('#boot', { timeout: 5000 }).catch(() => {}); const first = Date.now() - t0;
     await P.waitForSelector('.home2', { timeout: 30000 }); const t1 = Date.now(); await P.waitForTimeout(1200);
     log('démarrage mesuré (navigateur de test) [ms avant l\'écran de démarrage, ms jusqu\'à l\'accueil, écran retiré, temps enregistrés]', [first, t1 - t0, !(await P.$('#boot')), await P.evaluate(() => localStorage.getItem('boot.t'))]); await shot(P, '151_demarrage_accueil'); }
+  // en-tête : pas d'oscillation (réduit / agrandi en boucle) en faisant défiler une page courte
+  const osc = await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg,.ws-dd').forEach(x => x.remove()); App.project = null; App.homeTab = 'proj'; await renderHome(); await new Promise(r => setTimeout(r, 400));
+    const he = document.querySelector('.h2-hero'), hb = document.querySelector('.h2-body'); let n = 0; const o = new MutationObserver(() => n++); o.observe(he, { attributes: true, attributeFilter: ['class'] });
+    for (let i = 0; i < 30; i++) { hb.scrollTop = hb.scrollHeight; hb.dispatchEvent(new Event('scroll')); await new Promise(r => setTimeout(r, 40)); }
+    await new Promise(r => setTimeout(r, 600)); o.disconnect(); App.homeTab = 'home'; return n; });
+  log('en-tête : changements pendant le défilement (≤ 2 attendu)', osc); if (osc > 2) v36.push('en-tête : oscillation');
   log('errors v1.0.36', v36);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
