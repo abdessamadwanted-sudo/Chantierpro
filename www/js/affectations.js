@@ -4,9 +4,12 @@ const Affectations = (() => {
   const current = p => (p.affectations || []).filter(a => !a.fin);
   async function open(project = null) {
     if (!active()) return;
+<<<<<<< HEAD
     // v1.0.34 : rappel unique — sans les nouvelles règles publiées, les membres non affectés gardent l'accès (sécurité côté serveur absente)
     let seen = '1'; try { seen = localStorage.getItem('aff.rules') || ''; } catch (e) {}
     if (!seen) { await alertBox('⚠️ Avant de définir la première équipe, publiez les nouvelles règles Firestore ET Storage (Réglages › « Copier les règles », puis console Firebase › Règles › Publier). Sinon la restriction par équipe ne sera pas appliquée par le serveur.'); try { localStorage.setItem('aff.rules', '1'); } catch (e) {} }
+=======
+>>>>>>> origin/siteteam
     const projects = (await DB.all('projects')).filter(p => !p.deleted && Team.canProject(p.id));
     const s = sheet('<div class="aff-body"></div>', { title: project ? 'Équipe du projet' : 'Affectations' }), box = $('.aff-body', s.el);
     let chosen = project && project.id;
