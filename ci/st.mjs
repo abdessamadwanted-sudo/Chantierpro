@@ -13,6 +13,8 @@ async function newUser(tag) {
   pg.on('console', m => { if (m.type() === 'error' && !/404|favicon/.test(m.text())) errs.push(tag + ' console: ' + m.text().slice(0, 300)); });
   pg.on('dialog', d => d.accept());
   await pg.addInitScript(() => { localStorage.setItem('askedName', '1'); localStorage.setItem('splash.sched', JSON.stringify({ mode: 'off' })); });
+  // le bandeau « emulator mode » de Firebase (absent en production) recouvrirait la barre du bas, collée en bas depuis v1.0.35
+  await pg.addInitScript(() => { const add = () => { const s = document.createElement('style'); s.textContent = '.firebase-emulator-warning{display:none!important}'; document.head.appendChild(s); }; if (document.head) add(); else document.addEventListener('DOMContentLoaded', add); });
   await pg.goto(URL); await pg.waitForSelector('.tm-login', { timeout: 20000 });
   return { pg, errs, ctx };
 }
