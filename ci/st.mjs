@@ -623,7 +623,9 @@ try {
     return { initial, ended };
   });
   if (!affResult.initial[0] || !affResult.initial[1] || affResult.initial[2] !== 1 || affResult.ended[0] !== 0 || !affResult.ended[1] || affResult.ended[2] !== 1) affErrors.push('Affectation ou historique incorrect');
-  await A.pg.evaluate(() => { Affectations.open(); }); await A.pg.waitForSelector('[data-aff-project]'); await shot(A.pg, '125_affectations');
+  await A.pg.evaluate(() => { localStorage.removeItem('aff.rules'); Affectations.open(); }); await A.pg.waitForSelector('.opt:has-text("OK")', { timeout: 10000 });
+  log('Affectations : rappel des règles à la 1re ouverture', await A.pg.evaluate(() => /publiez les nouvelles règles/.test(document.body.innerText)));
+  await A.pg.click('.opt:has-text("OK")'); await A.pg.waitForSelector('[data-aff-project]'); await shot(A.pg, '125_affectations');
   await A.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove()));
   log('Affectations : début / fin / historique', affResult);
   // organigramme accessible en Free (espace personnel)
