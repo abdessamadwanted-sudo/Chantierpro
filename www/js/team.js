@@ -153,7 +153,7 @@ const TM_SERVICES = [
 const SERVICES_LEGACY = ['logistique'];
 // modules (= droits) : projet (infos, rappels, constats, 3D…), plans, réserves, réception & bétonnage, photos, formulaires, rapports, constats, calculs, équipe, fichiers
 const MODS = [['projet', 'Projet (infos, rappels, 3D)'], ['plans', 'Plans & maquettes'], ['reserves', 'Réserves / tâches'], ['reception', 'Réception & bétonnage'], ['photos', 'Photos'],
-  ['forms', 'Formulaires / PV'], ['rapports', 'Rapports journaliers'], ['constats', 'Constats / NC'], ['calc', 'Calculs & topo'], ['equipe', 'Équipe du projet'], ['files', 'Fichiers'],
+  ['forms', 'Formulaires / PV'], ['rapports', 'Rapports journaliers'], ['constats', 'Constats / NC'], ['calc', 'Calculs & topo'], ['equipe', 'Équipe du projet', 'Niveau « Valider » : peut créer des codes d\'accès et inviter d\'autres personnes sous sa responsabilité'], ['files', 'Fichiers'],
   ['topo', 'Topographie (implantations, levés)'], ['centrale', 'Centrale à béton (commandes, BL)'], ['materiel', 'Matériel & stock'], ['pointage', 'Pointage & effectifs'], ['hse', 'HSE (sécurité)'],
   ['finance', 'Financier, TCE, avenants & sous-traitants']];
 const LEVELS = ['Aucun accès', 'Voir', 'Modifier', 'Valider', 'Administrer'];
@@ -1837,7 +1837,7 @@ const Team = (() => {
     const mine = S.me.perms || {}, P = { ...(m.perms || {}) };
     const r = await new Promise((resolve) => {
       const sh = sheet(`<div class="form tm-form"><p class="muted" style="margin:0;font-size:12.5px">Vous pouvez donner jusqu'à votre propre niveau. Le poste ne change pas.</p>
-        ${MODS.map(([k, l]) => `<label class="tm-pl"><span>${esc(l)}</span><select data-dm="${k}">${LEVELS.map((x, i) => `<option value="${i}" ${(+P[k] || 0) === i ? 'selected' : ''} ${i > (mine[k] || 0) ? 'disabled' : ''}>${x}</option>`).join('')}</select></label>`).join('')}
+        ${MODS.map(([k, l, hint]) => `<label class="tm-pl"><span>${esc(l)}${hint ? `<small>${esc(hint)}</small>` : ''}</span><select data-dm="${k}">${LEVELS.map((x, i) => `<option value="${i}" ${(+P[k] || 0) === i ? 'selected' : ''} ${i > (mine[k] || 0) ? 'disabled' : ''}>${x}</option>`).join('')}</select></label>`).join('')}
         <div class="fld">Projets</div>${projects.filter(p => S.me.allProjects || (S.me.projects || []).includes(p.id)).map(p => `<label class="tm-ck"><input type="checkbox" data-dp="${p.id}" ${m.allProjects || (m.projects || []).includes(p.id) ? 'checked' : ''}> ${esc(p.name)}</label>`).join('')}
         <div class="btnrow" style="padding:0"><button class="btn ghost" data-a="c">Annuler</button><button class="btn" data-a="ok">Enregistrer</button></div></div>`, { title: `Délégation · ${m.name || m.email}` });
       sh.onClose = () => resolve(null);
@@ -1914,7 +1914,7 @@ const Team = (() => {
       syncP();
       $('[data-all]', E).onchange = (e) => { st.allProjects = e.target.checked; syncP(); };
       $$('[data-p]', E).forEach(c => c.onchange = () => { st.projects = $$('[data-p]', E).filter(x => x.checked).map(x => x.dataset.p); });
-      const pedit = () => { const pe = $('.tm-pedit', E); pe.innerHTML = MODS.map(([m, l]) => `<label class="tm-pl"><span>${l}</span><select data-pm="${m}">${LEVELS.map((x, i) => `<option value="${i}" ${+st.perms[m] === i ? 'selected' : ''}>${x}</option>`).join('')}</select></label>`).join('');
+      const pedit = () => { const pe = $('.tm-pedit', E); pe.innerHTML = MODS.map(([m, l, hint]) => `<label class="tm-pl"><span>${l}${hint ? `<small>${esc(hint)}</small>` : ''}</span><select data-pm="${m}">${LEVELS.map((x, i) => `<option value="${i}" ${+st.perms[m] === i ? 'selected' : ''}>${x}</option>`).join('')}</select></label>`).join('');
         $$('[data-pm]', pe).forEach(sel => sel.onchange = async () => { const m = sel.dataset.pm, v = +sel.value, was = +st.perms[m] || 0;
           if (v === 4 && was < 4 && !(await confirmBox(`Donner « Administrer » sur « ${(MODS.find(x => x[0] === m) || [m, m])[1]} » ?\nLa personne pourra tout modifier et supprimer dans cet outil.`, 'Donner Administrer'))) { sel.value = was; return; }
           st.perms[m] = v; st.perms = cap(st.perms); sel.value = st.perms[m]; st.custom = true; }); };

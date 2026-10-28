@@ -35,3 +35,5 @@ Constatés en lisant le code et les builds (octobre 2026). « Non vérifié » =
   le 14/10/2026 : scénario complet sans erreur (`errors []`).
 - **Android** : APK installés et utilisés par le propriétaire (retours d'usage dans le projet) ; aucun test automatisé sur appareil.
 - Tablette Android, iPhone/iPad, navigateurs desktop : **non vérifié**.
+| 22 | Cartes Accueil (Tableau de bord équipes / Rendement) identiques sur tous les espaces : dépend des niveaux de permission par poste, pas du code d'affichage | espace.js `espaceHome` | Peut sembler être un bug si les postes n'ont que « pointage »/« rapports » activés | À vérifier avec le propriétaire (« Gérer les postes ») |
+| 23 | Correctif v1.0.35 de `sync.js` traduit le message d'erreur affiché mais ne corrige pas une éventuelle règle Firestore obsolète | sync.js, team.js (`FIRESTORE_RULES`) | La synchro reste refusée si les règles publiées dans la console Firebase diffèrent de `FIRESTORE_RULES` | **Action manuelle du propriétaire requise** : republier les règles dans la console Firebase |

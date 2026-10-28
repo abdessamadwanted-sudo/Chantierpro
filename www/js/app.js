@@ -166,8 +166,9 @@ async function renderHome() {
           <button class="iconbtn" data-a="homemore">${icon('more')}</button></div></div>
         ${(() => { if (Team.ready() && Team.isCollab()) return '<span class="h2-role">🤝 Collaborateur · projet partagé</span>'; if (ST.isPerso()) { if (Team.isFree()) return '<span class="h2-role" title="Pack Basic">🆓 Free</span>'; const M = metierOf(Team.profil().metier); Org.apply && Org.poste() && Org.apply(); return `<span class="h2-role" title="Votre métier (profil)">👷 ${esc(M ? M.l : 'Espace personnel')}</span>`; } const P = Org.poste(); if (P) { Org.apply(); return `<span class="h2-role" title="Vous êtes connecté comme">${P.svc.e} ${esc(P.n)}</span>`; } const r = applyRoleColor(), R = r && roleOf(r); return Team.ready() ? '' : (R ? `<button class="h2-role" data-a="role">${R.e} ${esc(R.n.split(' / ')[0])}</button>` : ''); })()}
         <div class="h2-hello" data-a="uname">${tr(hello)}${uname ? (Lang.cur === 'ar' ? '، ' : ', ') + esc(uname) : ''} 👷</div>
-        <div class="h2-phrase">${phrase}</div>
-        <div class="h2-date">${dateL.charAt(0).toUpperCase() + dateL.slice(1)}</div>
+        <div class="h2-shrink"><div class="h2-phrase">${phrase}</div>
+        <div class="h2-date">${dateL.charAt(0).toUpperCase() + dateL.slice(1)}</div></div>
+        ${typeof Dossier !== 'undefined' ? `<div class="h2-dp">${Dossier.cardHTML()}</div>` : ''}
       </div>
       <div class="h2-body">
         ${(() => { const M = Team.ready() && Team.appCfg().message; let off = ''; try { off = localStorage.getItem('st.msgOff') || ''; } catch (e) {}
@@ -213,6 +214,8 @@ async function renderHome() {
   espaceBind($('#app'));
   ST.dashBind($('#app'));
   if (keepScroll) { const hb = $('.h2-body'); if (hb) hb.scrollTop = keepScroll; }
+  // v1.0.35 : l'en-tête se réduit en douceur au défilement (gagner de la place sur un petit écran)
+  { const hero = $('.h2-hero'), hb2 = $('.h2-body'); if (hero && hb2) { const upd = () => hero.classList.toggle('sm', hb2.scrollTop > 18); upd(); hb2.addEventListener('scroll', upd, { passive: true }); } }
   // toucher un chantier : son briefing, puis « Entrer » → la page du chantier
   const focusOn = async (id) => { App.homeFocus = id; await renderHome(); $('#app .h2-body') && ($('#app .h2-body').scrollTop = 0);
     if (typeof briefingShow === 'function') { const act = await briefingShow({ pid: id }).catch(e => { console.warn(e); return null; }); if (act) act(); } };

@@ -119,7 +119,6 @@ const ST = (() => {
       <div class="st-pstats" data-pstats>${['Tâches à faire', 'Projets', 'Documents', 'Échéances 7 jours'].map(l => `<div class="st-ps"><b>…</b><small>${l}</small></div>`).join('')}</div>
       <div class="h2-sec"><span>Mes outils professionnels</span><small>${esc(M ? M.l : '')}</small></div>
       <div class="st-ptools">${T.map(t => `<button class="st-pt ${t.on ? '' : 'off'}" data-pt="${t.k}" ${t.on ? '' : 'data-locked="1"'} style="--c:${CAT_C[catOf(t.k)] || 'var(--accent)'}"><i class="st-ico">${icon(t.icon)}</i><span>${esc(t.label)}</span>${t.on ? '' : '<small>avec Pro</small>'}</button>`).join('')}</div>
-      ${typeof Dossier !== 'undefined' ? Dossier.cardHTML() : ''}
       <div class="h2-sec"><span>Activité récente</span></div><div class="st-pact" data-pact><div class="st-ok">…</div></div>`;
   }
   async function pickPersoProject() {
@@ -160,7 +159,7 @@ const ST = (() => {
     const svcs = t === 'petite' ? [] : Team.companyServices().filter(x => x.k !== 'externe'), M = Team.members() || [];
     return `<div class="st-dir" data-stdir>
       <div class="st-dir-hero"><small>TABLEAU DE BORD · ${esc(TAILLE_L[t] || '')} · ${esc(P.l)}</small><b>${title}</b><span>Pilotage des projets${t === 'petite' ? '' : ' et services'}</span>
-        <div class="st-dir-pills"><i>Cette semaine</i><button data-a="dir-proj">Tous les projets ▾</button>${t !== 'petite' && typeof Affectations !== 'undefined' ? '<button data-a="dir-aff">👥 Affectations</button>' : ''}</div></div>
+        <div class="st-dir-pills"><i>Cette semaine</i><button data-a="dir-proj" class="st-dd">Tous les projets <i class="chv">▾</i></button></div></div>
       <div class="st-kpis">
         <button class="st-kpi" data-k="av"><span class="ic" style="--c:#2164A8">${icon('trend')}</span><b>…</b><small>Avancement</small></button>
         <button class="st-kpi" data-k="pj"><span class="ic" style="--c:#3D5A80">${icon('folder')}</span><b>…</b><small>Projets actifs</small></button>
@@ -175,7 +174,6 @@ const ST = (() => {
     const box = root && root.querySelector('[data-stdir]'); if (!box) return;
     const pj = box.querySelector('[data-a=dir-proj]'); if (pj) pj.onclick = () => { const n = document.querySelector('.st-bnav [data-n=proj]'); if (n) n.click(); else { const s = document.querySelector('.h2-sec'); if (s) s.scrollIntoView({ behavior: 'smooth' }); } };
     box.querySelectorAll('[data-a=dir-svc]').forEach(b => b.onclick = () => Team.openCompany('org'));
-    const af = box.querySelector('[data-a=dir-aff]'); if (af) af.onclick = () => Affectations.open();
     try {
       const projects = (await DB.all('projects')).filter(p => !p.deleted && !p.archived && Team.canProject(p.id));
       const ids = new Set(projects.map(p => p.id));
@@ -259,7 +257,7 @@ const ST = (() => {
     // v1.0.34 : petite entreprise (Basic) — une seule grille « Outils essentiels », sans catégories de services
     if (Team.taille() === 'petite') G = [['all', 'Outils essentiels', G.flatMap(g => g[2])]];
     const cats = G.length > 1;
-    return `${typeof Dossier !== 'undefined' ? Dossier.cardHTML() : ''}<div class="st-tools" data-sttools><div class="h2-sec"><span>Mes outils</span><small>${G.reduce((a, g) => a + g[2].length, 0)}</small></div>
+    return `<div class="st-tools" data-sttools><div class="h2-sec"><span>Mes outils</span><small>${G.reduce((a, g) => a + g[2].length, 0)}</small></div>
       ${cats ? `<div class="st-tcats"><button class="on" data-cat="*">Tous</button>${G.map(([g, l]) => `<button data-cat="${g}">${esc(l)}</button>`).join('')}</div>` : ''}
       ${G.map(([g, l, ks]) => `<div class="st-tcat" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}"><div class="st-tcat-h">${esc(l)}<small>${ks.length}</small></div><div class="st-tgrid">${ks.map(k => `<button class="st-tool" data-tool="${k}" style="--c:${CAT_C[catOf(k)] || CAT_C[g] || 'var(--accent)'}"><i class="st-ico">${icon(SECTIONS[k].icon || 'grid')}</i><span>${esc(toolName(k))}</span></button>`).join('')}</div></div>`).join('')}</div>`;
   }
