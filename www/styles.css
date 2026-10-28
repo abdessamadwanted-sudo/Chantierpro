@@ -2778,3 +2778,5 @@ html.th-std .dp-head, html.th-std .dp-sec, html.th-std .dp-card { background: va
 .st-tcat-h { justify-content: flex-start !important; } .st-tcat-h small { margin-left: auto; }
 .st-tcat { overflow: hidden; }
 @media (min-width: 600px) { .st-tgrid { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; } }
+html.th-std .st-kpi .ic[style*="#2164A8"] { --c: #5B9BE6 !important; } html.th-std .st-kpi .ic[style*="#3D5A80"] { --c: #8FB0D8 !important; }
+html.th-std .st-kpi .ic[style*="#18866B"] { --c: #3CC29C !important; } html.th-std .st-kpi .ic[style*="#C2410C"] { --c: #F08A5D !important; } html.th-std .st-kpi .ic[style*="#5B4BA8"] { --c: #A497EE !important; }
