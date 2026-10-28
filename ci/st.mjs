@@ -638,8 +638,14 @@ try {
   log('errors v1.0.33', [...affErrors, ...A.errs.slice(affStart)]);
   // ---- v1.0.34 : bibliothèque par service, interface Basic unique, Mon dossier pro, palette professionnelle (clair / sombre)
   const v34 = [], a34 = A.errs.length, e34 = E.errs.length, clean34 = (pg) => pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; });
-  const libB = await B.pg.evaluate(() => [!!Team.svcLib(), Team.canSection('reception'), Team.canSection('beton'), Team.canSection('tasks'), secShown('beton')]);
-  log('bibliothèque Travaux (conducteur)', libB); if (!libB[0] || libB[1] || !libB[2] || !libB[3] || !libB[4]) v34.push('bibliothèque Travaux incorrecte');
+  // le conducteur peut cumuler un poste Qualité (test des postes multiples) : la réception suit alors l'union des bibliothèques
+  const libB = await B.pg.evaluate(() => { const q = [Team.me().role, ...(Team.me().postes || [])].some(k => tmRoleOf(k).s === 'qualite');
+    return [!!Team.svcLib(), Team.canSection('reception'), Team.canSection('beton'), Team.canSection('tasks'), q, Team.svcLib() ? Team.svcLib().has('finance') : null]; });
+  log('bibliothèque Travaux (conducteur) [lib, réception, bétonnage, réserves, poste qualité cumulé, finance]', libB);
+  if (!libB[0] || libB[1] !== libB[4] || !libB[2] || !libB[3] || libB[5]) v34.push('bibliothèque Travaux incorrecte');
+  // conducteur seul (sans poste qualité) : la réception disparaît, le bétonnage reste
+  const libB2 = await B.pg.evaluate(() => { const me = Team.me(), sv = me.postes; me.postes = []; const r = [Team.canSection('reception'), Team.canSection('beton'), secShown('beton')]; me.postes = sv; return r; });
+  log('bibliothèque Travaux seule [réception, bétonnage, rubrique bétonnage]', libB2); if (libB2[0] || !libB2[1] || !libB2[2]) v34.push('Travaux seul : réception visible');
   const libI = await I.pg.evaluate(() => [!!Team.svcLib(), Team.canSection('reception'), Team.canSection('tasks')]);
   log('bibliothèque Qualité (technicien)', libI); if (!libI[0] || !libI[1] || !libI[2]) v34.push('bibliothèque Qualité incorrecte');
   const libA = await A.pg.evaluate(() => [Team.svcLib(), Team.canSection('reception')]);
