@@ -2893,3 +2893,13 @@ html.th-std .ls-al i.r, html:not(.th-st) .ls-al i.r { color: #F08A5D; } html.th-
 .ls-cons { display: grid; gap: 2px; margin-top: 10px; padding: 8px 10px; border-radius: 12px; background: var(--card2); font-size: 13px; } .ls-cons > b { font-size: 12px; color: var(--muted); }
 .ls-j { display: grid; gap: 6px; } .ls-jr { display: grid; gap: 2px; text-align: left; padding: 8px 10px; border-radius: 12px; background: var(--card2); color: var(--text); } .ls-jr span { font-size: 13px; } .ls-jr em { color: var(--accent); font-style: normal; font-weight: 700; } .ls-jr small { color: var(--muted); font-size: 12px; }
 .ls-sts { padding: 0 14px 16px; }
+
+/* v1.0.36 : détail d'un chantier (tableau réception / bétonnage, PV, réserves, rappels) lisible en thème sombre — plus de blocs blancs */
+html:not(.th-net) .h2-det { background: var(--card2, #232a35) !important; color: var(--text, #e6e8eb) !important; }
+html:not(.th-net) .h2-tab { background: var(--card, #2a303a) !important; color: var(--text, #e6e8eb); }
+html:not(.th-net) .h2-tab th, html:not(.th-net) .h2-tab th:first-child { background: #16233A !important; }
+html:not(.th-net) .h2-tab td { border-top-color: var(--line, #3a414c) !important; color: var(--text, #e6e8eb); }
+html:not(.th-net) .h2-tab tr[data-go]:active td { background: rgba(76,141,219,.18) !important; }
+html:not(.th-net) .h2-kpi > div { background: var(--card, #2a303a) !important; color: var(--text, #e6e8eb); }
+html:not(.th-net) .h2-kpi span { color: var(--muted, #9aa3ae) !important; } html:not(.th-net) .h2-kpi small { color: #F08A5D !important; }
+html:not(.th-net) .h2-rh button { color: #7FB0EC !important; }
