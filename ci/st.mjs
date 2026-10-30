@@ -474,7 +474,7 @@ try {
   await E.pg.waitForTimeout(500); await shot(E.pg, '102_free_accueil');
   log('G Pro : poste choisi', await G.pg.evaluate(() => [Team.isFree(), Team.profil().metier]));
   await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(600);
-  await A.pg.click('[data-a=homemore]'); await A.pg.waitForSelector('.gm'); await shot(A.pg, '103_menu_accueil');
+  await A.pg.evaluate(() => document.querySelector('[data-a=homemore]').click()); await A.pg.waitForSelector('.gm'); await shot(A.pg, '103_menu_accueil');
   log('menu ⋮ (groupes · rubriques)', await A.pg.evaluate(() => [[...document.querySelectorAll('.gm-g')].map(x => x.textContent), document.querySelectorAll('.gm-i').length]));
   await A.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove()));
   await A.pg.evaluate(async () => { await openProject((await DB.all('projects'))[0]); document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); openDrawer(); }); await A.pg.waitForTimeout(700); await shot(A.pg, '104_menu_projet');
