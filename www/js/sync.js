@@ -344,7 +344,7 @@ const Sync = (() => {
       const tasks = await DB.byProject('tasks', p.id);
       if (tasks.length) jobs.push({ key: 'res', sig: hash(tasks), segs: [pn, 'Réserves'], name: 'Liste des réserves (à jour).pdf', make: () => buildReservesPdf(p, { company: 'all', status: 'all', period: 'all', photos: 'yes' }, () => {}) });
       for (const r of await DB.byProject('reports', p.id)) jobs.push({ key: 'rep:' + r.id, sig: hash(r), segs: [pn, 'Rapports journaliers', (r.date || '').slice(0, 7)], name: `Rapport journalier ${r.date}.pdf`, make: () => dailyPdf(r) });
-      for (const f of await DB.byProject('forms', p.id)) jobs.push({ key: 'form:' + f.id, sig: hash(f), segs: [pn, 'Formulaires'], name: `PV ${(f.date || '').slice(0, 10)} ${clean(f.title)}.pdf`, make: () => formPdf(f) });
+      for (const f of await DB.byProject('forms', p.id)) jobs.push({ key: 'form:' + f.id, sig: hash(f), segs: f.v2 ? [pn, 'Formulaires', clean(String(f.title || 'PV').replace(' (contre-visite)', '')), clean(f.niv || 'Sans niveau')] : [pn, 'Formulaires'], name: f.v2 ? `${clean(f.ref || 'PV')} ${(f.date || '').slice(0, 10)}${f.location ? ' ' + clean(f.location) : ''}.pdf` : `PV ${(f.date || '').slice(0, 10)} ${clean(f.title)}.pdf`, make: () => formPdf(f) });
       jobs.forEach(j => { j.segs = rnSegs(p, j.segs); j.sig += '|' + pn + (p.driveNames ? '|' + JSON.stringify(p.driveNames) : ''); });
       const todo = jobs.filter(j => !docs[j.key] || docs[j.key].sig !== j.sig);
       let n = 0;

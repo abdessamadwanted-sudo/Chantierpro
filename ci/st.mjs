@@ -815,6 +815,38 @@ try {
     const paths = await Sync.buildPaths(); paths.PR[p.id] = p; const r = Sync.pathFor(f, paths).segs; delete p.driveNames; return r; });
   log('dossiers Drive renommés', dn); if (!dn || dn[1] !== '02 - PV Réception') v41.push('renommage des dossiers Drive incorrect');
   log('errors v1.0.41', v41);
+  // ---- v1.0.42 : PV de réception intelligents (modèles par service, mesures + tolérances, verdict, réserves, contre-visite)
+  const v42 = [];
+  await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.section = 'ptools'; await renderSection(); }); await A.pg.waitForTimeout(300);
+  log('PV : bouton dans les outils du projet', await A.pg.evaluate(() => !!document.querySelector('.st-ptools-p [data-a=newpv]')));
+  await A.pg.evaluate(() => { window.__pvp = pvCreate(App.project); }); await A.pg.waitForSelector('.pv-pick'); await shot(A.pg, '160_pv_choix_modele');
+  log('PV : modèles proposés', await A.pg.evaluate(() => document.querySelectorAll('.pv-tc[data-t]').length));
+  await A.pg.click('.pv-tc[data-t=pv_fer]'); await A.pg.waitForTimeout(300);
+  const pf = await A.pg.evaluate(async () => { const f = await window.__pvp; return { ref: f.ref, n: f.items.length, mes: f.mes.length, secs: [...new Set(f.items.map(i => i.sec))].length }; });
+  log('PV ferraillage créé', pf); if (!pf || !/^PV-FER-\d{3}$/.test(pf.ref) || pf.n < 10 || pf.mes !== 3) v42.push('création PV ferraillage');
+  await A.pg.evaluate(async () => { const f = await window.__pvp; f.niv = 'R+1'; f.location = 'Voiles V1 à V6'; await DB.put('forms', f); window.__pvo = openFormDetail(f); }); await A.pg.waitForSelector('.pv-verdict');
+  await shot(A.pg, '161_pv_detail');
+  await A.pg.click('[data-a=allok]'); await A.pg.waitForTimeout(250);
+  log('PV verdict tout conforme', await A.pg.evaluate(() => document.querySelector('.pv-verdict b').textContent));
+  await A.pg.click('.pv-it[data-i="0"] [data-r=res]'); await A.pg.waitForTimeout(250);
+  await A.pg.fill('.pv-m[data-m="0"] [data-v]', '18'); await A.pg.dispatchEvent('.pv-m[data-m="0"] [data-v]', 'change'); await A.pg.waitForTimeout(300);
+  const vd = await A.pg.evaluate(() => ({ v: document.querySelector('.pv-verdict b').textContent, bad: document.querySelectorAll('.pv-m.bad').length }));
+  log('PV verdict réserve + enrobage 18 mm (< 25)', vd); if (vd.v !== 'Non conforme' || vd.bad !== 1) v42.push('verdict / tolérance');
+  await A.pg.evaluate(() => document.querySelector('.pv-act').scrollIntoView()); await shot(A.pg, '162_pv_mesures_verdict');
+  await A.pg.click('[data-a=res]'); await A.pg.waitForTimeout(600);
+  const rs = await A.pg.evaluate(async () => (await DB.byProject('tasks', App.project.id)).filter(t => t.pvId).map(t => t.title));
+  log('PV réserves créées', rs); if (rs.length !== 2) v42.push('réserves depuis PV');
+  await A.pg.click('[data-a=cv]'); await A.pg.waitForTimeout(700);
+  const cv = await A.pg.evaluate(async () => { const F = (await DB.byProject('forms', App.project.id)).filter(f => f.parent); return F.map(f => ({ n: f.items.length, mes: f.mes.length, t: f.title })); });
+  log('PV contre-visite', cv); if (cv.length !== 1 || cv[0].n !== 1 || cv[0].mes !== 1) v42.push('contre-visite');
+  await shot(A.pg, '163_pv_contre_visite');
+  const ss = await A.pg.evaluate(() => formStats({ items: [{ res: 'ok' }, { res: 'res' }], mes: [] }).status); log('statut avec réserve', ss); if (ss !== 'Conforme avec réserves') v42.push('statut réserves');
+  await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.section = 'forms'; await renderSection(); }); await A.pg.waitForTimeout(400);
+  log('PV liste : filtres', await A.pg.evaluate(() => [...document.querySelectorAll('.pv-kpi button')].map(b => b.textContent.trim())));
+  await shot(A.pg, '164_pv_liste');
+  const dj = await A.pg.evaluate(async () => { const f = (await DB.byProject('forms', App.project.id)).find(f => f.v2 && !f.parent); window.PdfCapture = []; await formPdf(f); const ok = window.PdfCapture.length === 1 && window.PdfCapture[0].fname; delete window.PdfCapture; return ok; });
+  log('PV PDF', dj); if (!dj || !/^PV-FER-/.test(dj)) v42.push('PDF PV');
+  log('errors v1.0.42', v42);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);

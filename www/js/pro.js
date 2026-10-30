@@ -354,20 +354,25 @@ async function formPdf(form) {
     const p = await DB.get('projects', form.projectId);
     const s = formStats(form);
     const R = newDoc('PV de contrôle', p); const { doc, M, W } = R;
-    R.text(`PV - ${form.title}`, { size: 18, bold: true, gap: 2 });
+    R.text(`${form.v2 ? '' : 'PV - '}${form.title}`, { size: 18, bold: true, gap: 2 });
+    if (form.ref) R.text(`N° ${form.ref}${form.parent ? '  (contre-visite)' : ''}`, { size: 10, bold: true, gap: 1 });
     R.text(`${p.name}${p.address ? ' - ' + p.address : ''}`, { size: 11, gap: 1 });
+    if (form.niv) R.text(`Niveau : ${form.niv}`, { size: 10, gap: 0.5 });
+    if (form.lotId && typeof lsLots === 'function') { const l = lsLots(p).find(x => x.id === form.lotId); if (l) R.text(`Lot : ${l.name}`, { size: 10, gap: 0.5 }); }
     if (form.location) R.text(`Ouvrage / localisation : ${form.location}`, { size: 10, gap: 0.5 });
     R.text(`Date : ${fmtDate(form.date)}${form.inspector ? '   ·   Contrôlé par : ' + form.inspector : ''}`, { size: 10, gap: 0.5 });
     const co = companyOf(p, form.companyId); if (co) R.text(`Entreprise : ${co.name} (${co.lot})`, { size: 10, gap: 0.5 });
-    const col = s.status === 'Conforme' ? [34, 160, 80] : s.status === 'Non conforme' ? [210, 50, 50] : [220, 140, 0];
-    R.y += 2; R.text(`Résultat : ${s.status.toUpperCase()}   (Conforme ${s.ok} · Non conforme ${s.nok} · N/A ${s.na})`, { size: 11, bold: true, color: col, gap: 4 });
+    const col = s.status === 'Conforme' ? [34, 160, 80] : s.status === 'Non conforme' ? [210, 50, 50] : s.status === 'Conforme avec réserves' ? [217, 119, 6] : [220, 140, 0];
+    R.y += 2; R.text(`Résultat : ${s.status.toUpperCase()}   (Conforme ${s.ok}${s.res ? ' · Réserves ' + s.res : ''} · Non conforme ${s.nok} · N/A ${s.na}${s.mb ? ' · Mesures hors tolérance ' + s.mb : ''})`, { size: 11, bold: true, color: col, gap: 4 });
     // tableau
     doc.setFillColor(238, 240, 244); doc.rect(M, R.y, W - 2 * M, 7, 'F');
     doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(40, 40, 40);
     doc.text('Point de contrôle', M + 2, R.y + 4.8); doc.text(pt('Résultat'), W - M - 32, R.y + 4.8); R.y += 7;
-    const lab = { ok: ['Conforme', [34, 160, 80]], nok: ['Non conforme', [210, 50, 50]], na: ['N/A', [120, 120, 120]] };
+    const lab = { ok: ['Conforme', [34, 160, 80]], res: ['Réserve', [217, 119, 6]], nok: ['Non conforme', [210, 50, 50]], na: ['N/A', [120, 120, 120]] };
+    let lastSec = null;
     for (let i = 0; i < form.items.length; i++) {
       const it = form.items[i];
+      if (it.sec && it.sec !== lastSec) { lastSec = it.sec; R.need(14); doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(30, 64, 120); doc.text(pt(it.sec.toUpperCase()), M + 2, R.y + 5); R.y += 7; }
       doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
       const lines = doc.splitTextToSize(pt(`${i + 1}. ${it.label}`), W - 2 * M - 40);
       const cl = it.comment ? doc.splitTextToSize(pt('-> ' + it.comment), W - 2 * M - 40) : [];
@@ -380,6 +385,18 @@ async function formPdf(form) {
       doc.setDrawColor(228, 228, 228); doc.line(M, R.y + h, W - M, R.y + h); R.y += h;
     }
     R.y += 4;
+    // v1.0.42 : mesures avec tolérances
+    const MS = (form.mes || []).filter(m => m.v !== '' && m.v != null);
+    if (MS.length && typeof pvMesOk === 'function') {
+      R.need(16); R.text('Mesures', { size: 11, bold: true, gap: 1.5 });
+      doc.setFillColor(238, 240, 244); doc.rect(M, R.y, W - 2 * M, 7, 'F'); doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(40, 40, 40);
+      doc.text('Mesure', M + 2, R.y + 4.8); doc.text('Valeur', M + 92, R.y + 4.8); doc.text(pt('Tolérance'), M + 120, R.y + 4.8); doc.text(pt('Résultat'), W - M - 32, R.y + 4.8); R.y += 7;
+      for (const m of MS) { const ok = pvMesOk(m); R.need(7); doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(20, 20, 20);
+        doc.text(pt(m.l), M + 2, R.y + 4.8); doc.text(pt(`${m.v} ${m.u || ''}`), M + 92, R.y + 4.8); doc.text(pt(pvTol(m)), M + 120, R.y + 4.8);
+        doc.setFont('helvetica', 'bold'); doc.setTextColor(...(ok ? [34, 160, 80] : [210, 50, 50])); doc.text(ok ? 'Conforme' : 'Hors tol.', W - M - 32, R.y + 4.8);
+        doc.setDrawColor(228, 228, 228); doc.line(M, R.y + 7, W - M, R.y + 7); R.y += 7; }
+      R.y += 4;
+    }
     if (form.notes) { R.text('Observations', { size: 11, bold: true, gap: 1 }); R.text(form.notes, { size: 10, gap: 3 }); }
     // photos
     const photos = []; for (const id of (form.photoIds || [])) { const f = await DB.get('files', id); if (f) photos.push(await blobToJpegURL(f.blob, 800)); }
@@ -406,7 +423,7 @@ async function formPdf(form) {
     });
     R.y += 40;
     R.finish();
-    await sharePdf(doc, `PV_${safeName(form.title)}_${form.date || todayISO()}.pdf`);
+    await sharePdf(doc, `${form.ref ? safeName(form.ref) + '_' : 'PV_'}${safeName(form.title)}_${form.date || todayISO()}.pdf`);
   } catch (e) { console.error(e); alertBox('Erreur PDF : ' + (e.message || e)); }
   finally { ld.close(); }
 }
