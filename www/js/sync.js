@@ -217,7 +217,7 @@ const Sync = (() => {
       if (typeof BgUp !== 'undefined' && BgUp.available()) { try { await BgUp.settle(); } catch (e) { console.warn('bgup settle', e); } }
       const paths = await buildPaths();
       const files = await DB.all('files');
-      const todo = !hasDrive() ? [] : files.filter(f => !f.bgq).filter(f => (f.blob && (!f.driveId || f.drivePath !== JSON.stringify(pathFor(f, paths)))) || (!f.blob && f.driveId && f.drivePath && f.drivePath !== JSON.stringify(pathFor(f, paths))));
+      const todo = !hasDrive() ? [] : files.filter(f => !f.bgq && !f.prep).filter(f => (f.blob && (!f.driveId || f.drivePath !== JSON.stringify(pathFor(f, paths)))) || (!f.blob && f.driveId && f.drivePath && f.drivePath !== JSON.stringify(pathFor(f, paths))));
       let i = 0;
       await pool(todo, 3, async (f) => {
         const pth = pathFor(f, paths), key = JSON.stringify(pth);
@@ -629,5 +629,5 @@ function doPost(e) {
     };
   }
 
-  return { DIRS: D, start, run, schedule, enabled, hasDrive, direct, connectGoogle, disconnect, openSyncSettings, statusLine, cfg, buildPaths, pathFor, _call: call, _parse: parseCode, _script: script };
+  return { DIRS: D, state: () => ({ ...st }), start, run, schedule, enabled, hasDrive, direct, connectGoogle, disconnect, openSyncSettings, statusLine, cfg, buildPaths, pathFor, _call: call, _parse: parseCode, _script: script };
 })();

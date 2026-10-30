@@ -1,11 +1,11 @@
-## SiteTeam : accueil = vos projets, nouvelle barre (Réseau · Emploi · Mon dossier), photos envoyées même application fermée
-- L'accueil n'affiche plus que vos projets. Chaque projet porte ses propres chiffres : PV à valider, PV à corriger, réserves, rappels, réceptions du jour.
-- Nouvelle barre du bas : Projets · Réseau · Emploi · Mon dossier · Plus.
-- Réseau : vos contacts BTP réunis automatiquement (membres de l'organisation, intervenants et entreprises de vos projets), plus vos contacts personnels. Recherche, filtres, appel et WhatsApp en un toucher. Partager mon profil, inviter un collègue sur SiteTeam.
-- Emploi : offres et candidatures. Mon dossier : CV et profil pro.
-- Plus : tableau de bord (vue direction, service, à faire aujourd'hui), équipe et organigramme, réglages.
-- Le bouton organisation en haut de l'écran est retiré (il est dans Plus).
-- Photos en masse : dès qu'elles sont choisies, les photos sont confiées au téléphone. Android les envoie vers Google Drive dès qu'il y a du réseau, même si vous fermez SiteTeam. L'envoi reprend après une coupure ou un redémarrage, avec une notification de progression. Réseau au choix : 4G et Wi-Fi, ou Wi-Fi seulement.
-- À la réouverture, l'application relit ce qui a été envoyé : pas de doublon dans Drive, et le rangement est respecté.
-- Réglages › Données › « Envoi en arrière-plan » : photos en attente, réseau, notification, batterie (Huawei : « Gérer manuellement »).
-- Cette version change la partie Android : installez l'APK.
+## SiteTeam : barre simplifiée, chaque chose à un seul endroit, photos sans attente, nouveau démarrage, style verre
+- Barre du bas : Projets · Pro · Équipe · Réglages.
+- Pro : une seule page avec trois onglets, Mon dossier · Réseau · Emploi.
+- Équipe : organigramme et membres, codes d'accès, affectations, tableau de bord, réglages de l'organisation.
+- Réglages : votre profil en tête (nom, poste, organisation), puis tout le reste. L'avatar en haut de l'accueil est retiré.
+- Le menu de l'espace (« Sgtm ⌄ ») sert seulement à changer ou ajouter un espace. Plus de doublons.
+- Chaque projet affiche ce qui concerne votre service. Qualité : réception, PV, réserves. Travaux : lots et niveaux, avancement, réserves. Topo, HSE, labo… : leurs propres chiffres. « Choisir ce que je vois ici » permet de personnaliser.
+- Photos partout (réception, anomalie, réparation, bétonnage, réserves, PV, rapports…) : plusieurs photos d'un coup, enregistrées aussitôt, sans écran d'attente. La préparation et l'envoi vers Drive se font en arrière-plan. Une pastille en bas montre ce qui reste à envoyer.
+- Suppression des photos : bouton 🗑 dans la visionneuse. Appui long sur une miniature pour en sélectionner plusieurs et les supprimer d'un coup. Les photos vont dans la corbeille de Google Drive.
+- Écran de démarrage : le logo SiteTeam, et les têtes de l'équipe se colorent pendant l'ouverture.
+- Nouveau style « verre » : fond vectoriel, cartes translucides, en-tête et fenêtres en verre dépoli (clair et sombre).

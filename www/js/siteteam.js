@@ -315,22 +315,12 @@ const ST = (() => {
     const C = Team.company() || {}, me = Team.me() || {}, R = tmRoleOf(roleKey()), cur = Team.company() && Team.company().id;
     const W = (Team.workspaces() || []).filter(w => w.cid !== cur && !w.pending);
     const item = (k, ic, l, sub) => `<button class="ws-it" data-wm="${k}"><span class="ws-ic">${icon(ic)}</span><span class="grow"><b>${l}</b>${sub ? `<small>${sub}</small>` : ''}</span></button>`;
-    const orgOn = !perso() && !Team.isCollab();
     const el = document.createElement('div'); el.className = 'ws-dd';
     const r = btn.getBoundingClientRect();
     el.innerHTML = `<div class="ws-bg"></div><div class="ws-pn" role="menu" style="top:${Math.round(r.bottom + 6)}px">
       <div class="ws-cur"><span class="ws-e">${esc(perso() ? '👷' : org().e)}</span><span class="grow"><b>${esc(perso() ? 'Espace personnel' : C.name || '')}</b><small>${esc(plan().l)} · ${esc(perso() ? ((metierOf(Team.profil().metier) || {}).l || 'Indépendant') : R.l)}</small></span><i>✓</i></div>
       ${W.length ? `<div class="ws-h">Changer d'espace</div>${W.map(w => `<button class="ws-it" data-wsw="${esc(w.cid)}"><span class="ws-ic e">${esc(w.kind === 'perso' ? '👷' : w.role === 'collaborateur' ? '🤝' : orgTypeOf(w.org || 'entreprise').e)}</span><span class="grow"><b>${esc(w.name || '?')}</b><small>${w.kind === 'perso' ? 'Espace personnel' : esc(tmRoleOf(w.role).l)}</small></span>${icon('chevright')}</button>`).join('')}` : ''}
       ${item('switch', 'plus', 'Ajouter ou rejoindre un espace', 'Code d\'accès, organisation, espace personnel')}
-      ${orgOn ? `<div class="ws-h">${esc(C.name || 'Organisation')}</div>
-        ${item('org', 'team', 'Organigramme & membres', (Team.members() || []).length + ' membre(s)')}
-        ${Team.canInvite() ? item('inv', 'share', 'Codes d\'accès', Team.isAdmin() ? 'Inviter, approuver' : 'Pour les personnes sous votre responsabilité') : ''}
-        ${typeof Affectations !== 'undefined' && Affectations.active && Affectations.active() ? item('aff', 'layers', 'Affectations', 'Équipe de chaque projet') : ''}
-        ${Team.isAdmin() ? item('set', 'settings', 'Réglages de l\'organisation', 'Pack, services, Drive, sécurité') : ''}` : ''}
-      <div class="ws-h">Moi</div>
-      ${item('dossier', 'briefcase', 'Mon dossier pro', 'Profil, CV, candidatures')}
-      ${item('me', 'user', 'Mon compte', esc(me.name || ''))}
-      ${item('look', 'brush', 'Apparence', 'Thème clair ou sombre')}
     </div>`;
     document.body.appendChild(el);
     const close = () => { el.remove(); unB(); }, unB = pushBack(() => el.remove());
@@ -343,39 +333,67 @@ const ST = (() => {
       if (k === 'dossier') return openDossier();
       if (k === 'look') return chooseTheme(() => renderHome()); });
   }
-  // ---------- barre de navigation du bas — v1.0.43 : Projets · Réseau · Emploi · Mon dossier · Plus ----------
+  // ---------- barre de navigation du bas — v1.0.44 : Projets · Pro · Équipe · Réglages (chaque chose à un seul endroit) ----------
   function bottomNav() {
     const app = document.getElementById('app'); if (!app || !ready() || Team.isCollab()) return;
     app.classList.add('with-bnav');
-    const nav = document.createElement('nav'); nav.className = 'st-bnav st-bnav5';
+    const nav = document.createElement('nav'); nav.className = 'st-bnav st-bnav4';
     let jn = 0; try { jn = +localStorage.getItem('job.new') || 0; } catch (e) {}
     const d = typeof Dossier !== 'undefined' ? Dossier.score(Dossier.get()) : 100;
     nav.innerHTML = `<button data-n="home" class="on">${icon('folder')}<span>Projets</span></button>
-      <button data-n="net">${icon('net')}<span>Réseau</span></button>
-      <button data-n="job">${icon('bag')}<span>Emploi</span>${jn ? `<i class="bn-b">${jn > 9 ? '9+' : jn}</i>` : ''}</button>
-      <button data-n="cv">${icon('idcard')}<span>Mon dossier</span>${d < 60 ? '<i class="bn-d"></i>' : ''}</button>
-      <button data-n="more">${icon('dots')}<span>Plus</span></button>`;
+      <button data-n="pro">${icon('bag')}<span>Pro</span>${jn ? `<i class="bn-b">${jn > 9 ? '9+' : jn}</i>` : d < 60 ? '<i class="bn-d"></i>' : ''}</button>
+      <button data-n="team">${icon(perso() ? 'user' : 'team')}<span>${perso() ? 'Mon espace' : 'Équipe'}</span></button>
+      <button data-n="set">${icon('settings')}<span>Réglages</span></button>`;
     app.appendChild(nav);
     const go = (t) => { App.homeTab = t; document.querySelectorAll('.h2-pane').forEach(x => x.classList.toggle('on', x.dataset.tab === t)); const b = document.querySelector('.h2-body'); if (b) b.scrollTop = 0; };
     nav.querySelector('[data-n=home]').onclick = () => go('home');
     document.querySelectorAll('[data-tabgo]').forEach(b => b.onclick = () => go(b.dataset.tabgo === 'proj' ? 'home' : b.dataset.tabgo));
-    nav.querySelector('[data-n=net]').onclick = () => (typeof openReseau === 'function' ? openReseau() : toast('Réseau : bientôt'));
-    nav.querySelector('[data-n=job]').onclick = () => (typeof openCareer === 'function' ? openCareer() : toast('Emploi : bientôt'));
-    nav.querySelector('[data-n=cv]').onclick = () => (typeof openDossier === 'function' ? openDossier() : null);
-    nav.querySelector('[data-n=more]').onclick = () => openMore();
+    nav.querySelector('[data-n=pro]').onclick = () => openPro();
+    nav.querySelector('[data-n=team]').onclick = () => openTeamHub();
+    nav.querySelector('[data-n=set]').onclick = () => { const b = document.querySelector('[data-a=homemore]'); if (b) b.click(); else Team.openCompany(perso() ? 'me' : 'set'); };
   }
-  // « Plus » : tableau de bord, équipe, réglages (tout le menu ⋮)
-  async function openMore() {
-    const v = await menu('Plus', [
-      ...(perso() ? [{ label: 'Mon espace', icon: 'user', value: 'me' }] : [
-        { label: 'Tableau de bord', icon: 'trend', value: 'dash' },
-        { label: 'Équipe & organigramme', icon: 'team', value: 'team' }]),
-      { label: 'Réglages', icon: 'settings', value: 'set' },
+  // « Pro » : Mon dossier · Réseau · Emploi dans une seule page à onglets
+  const PRO_TABS = [['cv', 'Mon dossier', 'idcard'], ['net', 'Réseau', 'net'], ['job', 'Emploi', 'bag']];
+  function openPro(tab) {
+    try { tab = tab || localStorage.getItem('pro.tab') || 'cv'; localStorage.setItem('pro.tab', tab); } catch (e) { tab = tab || 'cv'; }
+    const fn = { cv: () => openDossier(), net: () => openReseau(), job: () => openCareer() }[tab];
+    if (!fn || (tab === 'net' && typeof openReseau !== 'function') || (tab === 'job' && typeof openCareer !== 'function')) return;
+    const before = new Set(document.querySelectorAll('.fullpage'));
+    fn();
+    const el = [...document.querySelectorAll('.fullpage')].find(x => !before.has(x)); if (!el) return;
+    el.classList.add('pro-in'); el.dataset.pro = tab;
+    const put = () => {
+      if (!el.isConnected) { mo.disconnect(); return; }
+      if (el.querySelector('.pro-tabs')) return; const tb = el.querySelector('.topbar'); if (!tb) return;
+      tb.insertAdjacentHTML('afterend', `<div class="pro-tabs">${PRO_TABS.map(([k, l, ic]) => `<button data-pt="${k}" class="${k === tab ? 'on' : ''}">${icon(ic)}<span>${l}</span></button>`).join('')}</div>`);
+      el.querySelectorAll('[data-pt]').forEach(b => b.onclick = () => { if (b.dataset.pt === tab) return; mo.disconnect(); const x = el.querySelector('.topbar [data-a=x], .topbar [data-a=back]'); if (x) x.click(); else el.remove(); openPro(b.dataset.pt); });
+    };
+    const mo = new MutationObserver(put); mo.observe(el, { childList: true }); put();
+    return el;
+  }
+  // « Équipe » : organisation (organigramme, codes, affectations, réglages) + tableau de bord
+  async function openTeamHub() {
+    if (perso()) return Team.openCompany('me');
+    const C = Team.company() || {};
+    const v = await groupMenu(C.name || 'Équipe', [
+      { title: 'Équipe', color: '#2563eb', items: [
+        { label: 'Organigramme & membres', sub: (Team.members() || []).length + ' membre(s)', icon: 'team', value: 'org' },
+        ...(Team.canInvite() ? [{ label: 'Codes d\'accès', sub: Team.isAdmin() ? 'inviter, approuver' : 'pour les personnes sous votre responsabilité', icon: 'share', value: 'inv' }] : []),
+        ...(typeof Affectations !== 'undefined' && Affectations.active && Affectations.active() ? [{ label: 'Affectations', sub: 'équipe de chaque projet', icon: 'layers', value: 'aff' }] : [])] },
+      { title: 'Pilotage', color: '#0d9488', items: [{ label: 'Tableau de bord', sub: 'vue direction · service · à faire aujourd\'hui', icon: 'trend', value: 'dash' }] },
+      { title: '', color: '#64748b', items: Team.isAdmin() ? [{ label: 'Réglages de l\'organisation', sub: 'pack, services, Drive, sécurité', icon: 'settings', value: 'set' }] : [] },
     ]);
+    if (v === 'org' || v === 'inv' || v === 'set') Team.openCompany(v);
+    if (v === 'aff') Affectations.open();
     if (v === 'dash') openDash();
-    if (v === 'team') Team.openCompany('org');
-    if (v === 'me') Team.openCompany('me');
-    if (v === 'set') { const b = document.querySelector('[data-a=homemore]'); if (b) b.click(); else Team.openCompany(perso() ? 'me' : 'set'); }
+  }
+  // carte du profil (en tête des Réglages)
+  function profileCardHTML() {
+    const me = Team.me() || {}, R = tmRoleOf(roleKey()), C = Team.company() || {};
+    const d = typeof Dossier !== 'undefined' ? Dossier.get() : {}, name = me.name || d.name || '';
+    let mail = ''; try { mail = (firebase.auth().currentUser || {}).email || ''; } catch (e) {}
+    return `<button class="pf-card" data-v="profile"><span class="pf-av">${d.photo ? `<img src="${esc(d.photo)}" alt="">` : esc(dpIni(name))}</span>
+      <span class="grow"><b>${esc(name || 'Mon compte')}</b><small>${esc(perso() ? 'Espace personnel' : `${R.l} · ${C.name || ''}`)}</small>${mail ? `<small class="pf-m">${esc(mail)}</small>` : ''}</span>${icon('chevright')}</button>`;
   }
   // tableau de bord (vue direction / service / à faire) : sorti de l'accueil, ouvert depuis « Plus »
   function openDash() {
@@ -604,5 +622,5 @@ const ST = (() => {
   }
 
   function refreshRole() { applyRole(); try { App.project ? renderSection() : renderHome(); } catch (e) {} }
-  return { families: FAMILIES, openDash, openMore, wsBtnHTML, wsMenu, renderProjectTools, directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
+  return { families: FAMILIES, openDash, openPro, openTeamHub, profileCardHTML, wsBtnHTML, wsMenu, renderProjectTools, directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
 })();

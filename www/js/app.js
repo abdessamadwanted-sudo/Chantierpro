@@ -78,6 +78,8 @@ async function addPhotos(projectId, extra = {}) {
   if (!files.length) return [];
   const scan = extra.scan; delete extra.scan;
   if (scan) { const sc = await scanDocuments(files); if (!sc || !sc.length) return []; files = sc; extra.hq = true; }
+  // v1.0.44 : enregistrement immédiat (sans écran d'attente) ; réduction et envoi vers Drive en arrière-plan
+  if (!scan && typeof PhotoQ !== 'undefined') { const recs = await PhotoQ.save(projectId, files, { ...extra }); if (recs.length > 1) toast(`📷 ${recs.length} photos ajoutées — envoi en arrière-plan`); return recs; }
   const ld = loading('Enregistrement…');
   try {
     const out = [];
@@ -106,6 +108,29 @@ const rapRank = (x) => ({ late: 0, soon: 1 })[rapState(x)] ?? 2;
 const rapLabel = (x) => { const d = rapDays(x); return d < 0 ? ` · en retard de ${-d} j` : d === 0 ? " · aujourd'hui" : d === 1 ? ' · demain' : ''; };
 
 // ---------- Accueil : projets ----------
+// v1.0.44 : ce que montre chaque projet sur l'accueil dépend du service (et se personnalise) — la réception / les PV ne concernent que la qualité
+const HOME_BLOCKS = [['lots', '📊 Lots & niveaux (avancement, alertes)'], ['av', '🏗️ Avancement second œuvre'], ['rec', '🔩 Réception & bétonnage (tableau)'], ['pv', '📥 PV à récupérer'], ['pvv', '📋 PV à valider / à corriger'], ['res', '⚠️ Réserves ouvertes'], ['rap', '🔔 Rappels']];
+const HOME_DEF = { qualite: ['rec', 'pv', 'pvv', 'res', 'rap'], labo: ['rec', 'pvv', 'rap'], centrale: ['rec', 'rap'], travaux: ['lots', 'av', 'res', 'rap'], ferraillage: ['lots', 'rec', 'res', 'rap'], methodes: ['lots', 'av', 'rap'], bim: ['lots', 'av', 'rap'],
+  topo: ['av', 'rap'], hse: ['res', 'rap'], metre: ['lots', 'av', 'rap'], contrats: ['lots', 'rap'], direction: ['lots', 'pvv', 'res', 'rap'] };
+function homeBlocks() {
+  try { const c = JSON.parse(localStorage.getItem('home.blocks') || 'null'); if (Array.isArray(c)) return new Set(c); } catch (e) {}
+  if (!Team.ready()) return new Set(HOME_BLOCKS.map(b => b[0]));
+  const me = Team.me() || {}; let sv = me.service || (typeof tmRoleOf === 'function' ? tmRoleOf(me.role).s : '');
+  if (me.admin && !Team.isPerso()) sv = sv && HOME_DEF[sv] && sv !== 'direction' ? sv : 'direction';
+  if (Team.isPerso()) { const M = typeof metierOf === 'function' && metierOf(Team.profil().metier); sv = (M && M.s) || sv || 'qualite'; }
+  return new Set(HOME_DEF[sv] || ['lots', 'res', 'rap']);
+}
+async function homeBlocksEdit() {
+  for (;;) {
+    const cur = homeBlocks();
+    const v = await menu('Ce que je vois dans chaque projet', [...HOME_BLOCKS.map(([k, l]) => ({ label: l, value: k, checked: cur.has(k) })), { label: '↺ Revenir au choix de mon service', value: '__def' }, { label: '✓ Terminé', value: '__ok' }]);
+    if (!v || v === '__ok') break;
+    if (v === '__def') { try { localStorage.removeItem('home.blocks'); } catch (e) {} continue; }
+    cur.has(v) ? cur.delete(v) : cur.add(v);
+    try { localStorage.setItem('home.blocks', JSON.stringify([...cur])); } catch (e) {}
+  }
+  renderHome();
+}
 async function renderHome() {
   App.fromBrief = null;
   const keepScroll = App.project ? 0 : (($('.h2-body') || {}).scrollTop || 0);
@@ -116,7 +141,7 @@ async function renderHome() {
   const projects = (await DB.all('projects')).filter(p => Team.canProject(p.id)).sort((a, b) => b.updatedAt - a.updatedAt);
   const [allTasks, allRecs, allLinks, allForms] = await Promise.all([DB.all('tasks'), DB.all('receptions'), DB.all('links'), DB.all('forms').catch(() => [])]);
   const meUid = Team.ready() ? Team.uid() : '';
-  const fRec = featOn('reception'), fTasks = featOn('tasks'), fAv = featOn('avancement');
+  const HB = homeBlocks(), fRec = featOn('reception') && (HB.has('rec') || HB.has('pv')), fTasks = featOn('tasks') && HB.has('res'), fAv = featOn('avancement') && HB.has('av'), fLots = HB.has('lots') && typeof lsState === 'function', fPvv = HB.has('pvv'), fRap = HB.has('rap');
   const today = todayISO();
   const wk = new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10);
   const stats = (p) => {
@@ -128,8 +153,10 @@ async function renderHome() {
       rap: (p.rappels || []).filter(x => !x.done).sort((a, b) => rapRank(a) - rapRank(b) || (a.at || '9').localeCompare(b.at || '9')),
       av: fAv ? avHomeStats(p, allLinks) : null,
       // v1.0.43 : la validation des PV se lit dans chaque projet (plus de bloc global sur l'accueil)
-      pva: Team.ready() ? allForms.filter(f => f.projectId === p.id && f.vst === 'soumis' && Team.canValidateForm(f)).length : 0,
-      pvc: Team.ready() ? allForms.filter(f => f.projectId === p.id && f.aut === meUid && f.vst === 'refuse').length : 0 };
+      lots: fLots ? (() => { const ids = Object.keys(p.lotSuivi || {}).filter(id => { const D = p.lotSuivi[id] || {}; return (D.eq || []).length || Object.keys(D.parts || {}).length || D.deb; }); if (!ids.length) return null;
+        const S = ids.map(id => lsState(p.lotSuivi[id])); return { n: ids.length, av: Math.round(S.reduce((a, x) => a + x.real, 0) / S.length), red: S.reduce((a, x) => a + x.al.filter(z => z[0] === 'r').length, 0), rec: S.reduce((a, x) => a + x.al.filter(z => /réception à faire/.test(z[1])).length, 0) }; })() : null,
+      pva: Team.ready() && fPvv ? allForms.filter(f => f.projectId === p.id && f.vst === 'soumis' && Team.canValidateForm(f)).length : 0,
+      pvc: Team.ready() && fPvv ? allForms.filter(f => f.projectId === p.id && f.aut === meUid && f.vst === 'refuse').length : 0 };
   };
   App.homeOpen = App.homeOpen || {};
   const HUES = [['#2563eb', '#1e3a8a'], ['#0d9488', '#134e4a'], ['#7c3aed', '#4c1d95'], ['#ea580c', '#7c2d12'], ['#db2777', '#831843'], ['#0891b2', '#164e63']];
@@ -143,14 +170,17 @@ async function renderHome() {
   const phrase = PHR[(new Date().getDate() + h) % PHR.length];
   const dateL = new Date().toLocaleDateString({ ar: 'ar-MA', en: 'en-GB' }[Lang.cur] || 'fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
   const detHTML = (p, st) => { const due = (x) => x.at && x.at.slice(0, 10) <= today, ropen = !!(App.homeRap || {})[p.id]; return `<div class="h2-det">
+              ${st.lots ? `<div class="h2-kpi" style="grid-template-columns:1fr;margin:0 0 10px"><div class="${st.lots.red ? 'r' : 'g'}" data-go="${p.id}|lotsuivi"><b>${st.lots.av}%</b><span>Lots & niveaux · ${st.lots.n} lot(s) suivis ›</span>${st.lots.red || st.lots.rec ? `<small>${st.lots.red ? st.lots.red + ' alerte(s)' : ''}${st.lots.red && st.lots.rec ? ' · ' : ''}${st.lots.rec ? st.lots.rec + ' réception(s) à faire' : ''}</small>` : ''}</div></div>` : ''}
+              ${fPvv && (st.pva || st.pvc) ? `<div class="h2-kpi"><div class="${st.pva ? 'o' : 'g'}" data-go="${p.id}|forms"><b>${st.pva}</b><span>PV à valider ›</span></div><div class="${st.pvc ? 'r' : 'g'}" data-go="${p.id}|forms"><b>${st.pvc}</b><span>PV à corriger ›</span></div></div>` : ''}
               ${st.av ? `<div class="h2-kpi" style="grid-template-columns:1fr;margin:0 0 10px"><div class="${st.av.late ? 'r' : 'g'}" data-go="${p.id}|avancement"><b>${st.av.pct}%</b><span>Avancement second œuvre · ${st.av.locs} locaux ›</span>${st.av.late ? `<small>${st.av.late} engagement(s) en retard</small>` : ''}</div></div>` : ''}
-              ${fRec ? `<table class="h2-tab"><tr><th></th><th>Aujourd'hui</th><th>7 jours</th><th>Total</th></tr>
+              ${fRec && HB.has('rec') ? `<table class="h2-tab"><tr><th></th><th>Aujourd'hui</th><th>7 jours</th><th>Total</th></tr>
                 <tr data-go="${p.id}|reception"><td>Réception ferraillage ›</td><td><b>${st.fT}</b></td><td>${st.fW}</td><td>${st.fA}</td></tr>
                 <tr data-go="${p.id}|beton"><td>Bétonnage ›</td><td><b>${st.bT}</b></td><td>${st.bW}</td><td>${st.bA}</td></tr></table>` : ''}
-              ${fRec || fTasks ? `<div class="h2-kpi" style="${fRec && fTasks ? '' : 'grid-template-columns:1fr'}">${fRec ? `<div class="${st.pv ? 'r' : 'g'}" data-go="${p.id}|pv"><b>${st.pv}</b><span>PV à récupérer ›</span>${st.pvOld ? `<small>dont ${st.pvOld} > 3 jours</small>` : ''}</div>` : ''}
+              ${(fRec && HB.has('pv')) || fTasks ? `<div class="h2-kpi" style="${fRec && HB.has('pv') && fTasks ? '' : 'grid-template-columns:1fr'}">${fRec && HB.has('pv') ? `<div class="${st.pv ? 'r' : 'g'}" data-go="${p.id}|pv"><b>${st.pv}</b><span>PV à récupérer ›</span>${st.pvOld ? `<small>dont ${st.pvOld} > 3 jours</small>` : ''}</div>` : ''}
                 ${fTasks ? `<div class="${st.open ? 'o' : 'g'}" data-go="${p.id}|tasks"><b>${st.open}</b><span>Réserves ouvertes ›</span>${st.late ? `<small>${st.late} en retard</small>` : ''}</div>` : ''}</div>` : ''}
-              <div class="h2-rh"><button class="h2-rt" data-raptog="${p.id}"><b>🔔 Rappels</b><span class="n">${st.rap.length}</span>${st.rap.some(due) ? '<span class="due">à faire</span>' : ''}<span class="chev" style="transform:rotate(${ropen ? 180 : 0}deg)">${icon('chevdown')}</span></button><button data-addrap="${p.id}">${icon('plus')} Ajouter</button></div>
-              ${!ropen ? '' : st.rap.length ? st.rap.map(x => `<div class="h2-rap ${rapState(x)}"><button class="ck" data-rapok="${p.id}|${x.id}"></button><div class="grow" data-rapedit="${p.id}|${x.id}"><span>${esc(x.text)}</span>${x.at ? `<small>${fmtDate(x.at.slice(0, 10))}${x.at.length > 10 ? ' · ' + x.at.slice(11, 16) : ''}${rapLabel(x)}</small>` : ''}</div><button class="iconbtn sm" data-rapdel="${p.id}|${x.id}">${icon('close')}</button></div>`).join('') : '<div class="h2-none">Aucun rappel</div>'}
+              ${fRap ? `<div class="h2-rh"><button class="h2-rt" data-raptog="${p.id}"><b>🔔 Rappels</b><span class="n">${st.rap.length}</span>${st.rap.some(due) ? '<span class="due">à faire</span>' : ''}<span class="chev" style="transform:rotate(${ropen ? 180 : 0}deg)">${icon('chevdown')}</span></button><button data-addrap="${p.id}">${icon('plus')} Ajouter</button></div>
+              ${!ropen ? '' : st.rap.length ? st.rap.map(x => `<div class="h2-rap ${rapState(x)}"><button class="ck" data-rapok="${p.id}|${x.id}"></button><div class="grow" data-rapedit="${p.id}|${x.id}"><span>${esc(x.text)}</span>${x.at ? `<small>${fmtDate(x.at.slice(0, 10))}${x.at.length > 10 ? ' · ' + x.at.slice(11, 16) : ''}${rapLabel(x)}</small>` : ''}</div><button class="iconbtn sm" data-rapdel="${p.id}|${x.id}">${icon('close')}</button></div>`).join('') : '<div class="h2-none">Aucun rappel</div>'}` : ''}
+              <button class="h2-cust" data-a="hblocks">${icon('settings')} Choisir ce que je vois ici</button>
             </div>`; };
   const fp = App.homeFocus && projects.find(x => x.id === App.homeFocus); if (!fp) App.homeFocus = null;
   const focusHTML = () => { const st = stats(fp), [c1, c2] = hue(fp.name); if (!fRec) { st.today = 0; st.pv = 0; } if (!fTasks) { st.open = 0; st.late = 0; }
@@ -168,7 +198,7 @@ async function renderHome() {
           <button class="iconbtn h2-quit" data-a="quit" title="Fermer (appui long : verrouiller)">${icon('power')}</button>
           <button class="iconbtn" data-a="homemore">${icon('more')}</button></div></div>
         <div class="h2-chiprow">${(() => { if (Team.ready() && Team.isCollab()) return '<span class="h2-role">🤝 Collaborateur · projet partagé</span>'; if (ST.isPerso()) { if (Team.isFree()) return '<span class="h2-role" title="Pack Basic">🆓 Free</span>'; const M = metierOf(Team.profil().metier); Org.apply && Org.poste() && Org.apply(); return `<span class="h2-role" title="Votre métier (profil)">👷 ${esc(M ? M.l : 'Espace personnel')}</span>`; } const P = Org.poste(); if (P) { Org.apply(); return `<span class="h2-role" title="Vous êtes connecté comme">${P.svc.e} ${esc(P.n)}</span>`; } const r = applyRoleColor(), R = r && roleOf(r); return Team.ready() ? '' : (R ? `<button class="h2-role" data-a="role">${R.e} ${esc(R.n.split(' / ')[0])}</button>` : ''); })()}${Team.ready() && ST.wsBtnHTML ? ST.wsBtnHTML() : ''}</div>
-        <div class="h2-who">${Team.ready() && typeof Dossier !== 'undefined' ? Dossier.meHTML() : ''}<div class="h2-whot">
+        <div class="h2-who"><div class="h2-whot">
         <div class="h2-hello" data-a="uname">${tr(hello)}${uname ? (Lang.cur === 'ar' ? '، ' : ', ') + esc(uname) : ''} 👷</div>
         <div class="h2-phrase">${phrase}</div>
         <div class="h2-date">${dateL.charAt(0).toUpperCase() + dateL.slice(1)}</div></div></div>
@@ -180,7 +210,7 @@ async function renderHome() {
           // v1.0.32 : accueil en onglets (barre du bas) — Accueil · Projets · Outils ; chaque onglet est court, sans doublon
           const card = (p) => { const st = stats(p), [c1, c2] = hue(p.name), open = !!App.homeOpen[p.id];
           const due = (x) => x.at && x.at.slice(0, 10) <= today;
-          if (!fRec) { st.today = 0; st.pv = 0; } if (!fTasks) { st.open = 0; st.late = 0; }
+          if (!fRec) { st.today = 0; st.pv = 0; } if (!HB.has('pv')) st.pv = 0; if (!fTasks) { st.open = 0; st.late = 0; }
           return `<div class="h2-proj ${open ? 'open' : ''}"><div class="h2-stick"><button class="h2-card" data-id="${p.id}">
             <span class="h2-av" style="background:linear-gradient(135deg,${c1},${c2})">${esc(initials(p.name))}</span>
             <span class="grow"><b>${esc(p.name)}</b>${p.address ? `<small>${icon('pin')} ${esc(p.address)}</small>` : ''}
@@ -188,11 +218,12 @@ async function renderHome() {
                 ${Team.ready() && Team.sharedOf(p.id) ? `<i class="c-b">🤝 ${esc(Team.sharedOf(p.id).ownerName || 'Projet partenaire')}</i>` : ''}
                 ${st.today ? `<i class="c-b">${st.today} réception(s) aujourd'hui</i>` : ''}
                 ${st.pv ? `<i class="c-r c-go" data-pvgo="${p.id}">${st.pv} PV à récupérer ›</i>` : ''}
-                ${st.rap.length ? `<i class="${st.rap.some(x => rapState(x) === 'late') ? 'c-r' : st.rap.some(x => rapState(x) === 'soon') ? 'c-g2' : 'c-y'}">🔔 ${st.rap.length} rappel(s)</i>` : ''}
+                ${st.lots && st.lots.red ? `<i class="c-r">📊 ${st.lots.red} alerte(s) lots</i>` : ''}${st.lots && st.lots.rec ? `<i class="c-y">✓ ${st.lots.rec} réception(s) à faire</i>` : ''}
+                ${fRap && st.rap.length ? `<i class="${st.rap.some(x => rapState(x) === 'late') ? 'c-r' : st.rap.some(x => rapState(x) === 'soon') ? 'c-g2' : 'c-y'}">🔔 ${st.rap.length} rappel(s)</i>` : ''}
                 ${st.pva ? `<i class="c-b">📋 ${st.pva} PV à valider</i>` : ''}${st.pvc ? `<i class="c-r">✎ ${st.pvc} PV à corriger</i>` : ''}
                 ${st.open ? `<i class="c-o">${st.open} réserve(s)</i>` : ''}
                 ${st.av ? `<i class="${st.av.late ? 'c-r' : 'c-b'}">🏗️ ${st.av.pct}%${st.av.late ? ` · ${st.av.late} en retard` : ''}</i>` : ''}
-                ${!st.today && !st.pv && !st.open && !st.pva && !st.pvc && !st.rap.length && !(st.av && st.av.late) ? '<i class="c-g">À jour ✓</i>' : ''}
+                ${!st.today && !st.pv && !st.open && !st.pva && !st.pvc && !(fRap && st.rap.length) && !(st.av && st.av.late) && !(st.lots && (st.lots.red || st.lots.rec)) ? '<i class="c-g">À jour ✓</i>' : ''}
               </span></span>
             <span class="h2-chev" data-det="${p.id}" style="transform:rotate(${open ? 180 : 0}deg)">${icon('chevdown')}</span></button></div>
             ${open ? `<div class="h2-detw"><button class="h2-bbrief" data-brief="${p.id}">☀️ Briefing du chantier</button>${detHTML(p, st)}</div>` : ''}</div>`; };
@@ -234,6 +265,7 @@ async function renderHome() {
     const dt = e.target.closest('[data-det]'); if (dt) { e.stopPropagation(); App.homeOpen[dt.dataset.det] = !App.homeOpen[dt.dataset.det]; return renderHome(); }
     openProject(await DB.get('projects', r.dataset.id), Team.ready() ? 'ptools' : null); });
   const unf = $('[data-a=unfocus]'); if (unf) { unf.onclick = () => { App.homeFocus = false; renderHome().then(() => { App.homeFocus = null; }); }; pushBack(() => unf.onclick()); }
+  $$('[data-a=hblocks]').forEach(b => b.onclick = (e) => { e.stopPropagation(); homeBlocksEdit(); });
   $$('[data-brief]').forEach(bb => bb.onclick = async () => { const act = await briefingShow({ pid: bb.dataset.brief }); if (act) act(); });
   $$('[data-open]').forEach(b => b.onclick = async () => openProject(await DB.get('projects', b.dataset.open), Team.ready() ? 'ptools' : null));
   $$('[data-go]').forEach(b => b.onclick = async () => {
@@ -260,11 +292,10 @@ async function renderHome() {
   { const mo = $('[data-a=msgoff]'); if (mo) mo.onclick = () => { const M = Team.appCfg().message || {}; try { localStorage.setItem('st.msgOff', String(M.id || M.text)); } catch (e) {} mo.closest('.st-msg').remove(); }; }
   $('[data-a=homemore]').onclick = async () => {
         // menu ⋮ : 6 groupes courts, sans doublon (déconnexion et prénom sont dans « Mon compte », la langue dans Réglages, la version ouvre la mise à jour)
+        // v1.0.44 : profil en tête des Réglages ; l'espace se change par le menu « Sgtm ⌄ », l'organisation est dans l'onglet Équipe (pas de doublon)
         const v = await groupMenu('Réglages', [
       { title: '', color: '#22c55e', items: [{ label: 'Briefing du jour', sub: 'notes, rappels, PV à livrer, tâches', icon: 'calendar', value: 'brief' }] },
-      { title: 'Mon espace', color: '#3b82f6', items: Team.ready() ? [
-        { label: 'Changer d\'espace', sub: 'espace personnel · organisations · code', icon: 'swap', value: 'ws' },
-        Team.isPerso() ? { label: 'Mon espace personnel', sub: 'profil · abonnement · compte', icon: 'user', value: 'company' } : { label: 'Mon organisation', sub: 'équipe · codes d\'accès · compte', icon: 'team', value: 'company' },
+      { title: Team.ready() && (Team.isAdmin() || Team.isSuper()) && !Team.isPerso() ? 'Administration' : '', color: '#3b82f6', items: Team.ready() ? [
         ...(Team.isAdmin() && !Team.isPerso() ? [ST.preview() ? { label: 'Quitter l\'aperçu', sub: 'revenir à mon interface', icon: 'eye', value: 'preview-off' } : { label: 'Tester une interface', sub: 'aperçu par poste et pack', icon: 'eye', value: 'preview' }] : []),
         ...(Team.isSuper() ? [{ label: 'Panneau d\'administration', sub: 'comptes · packs · codes · annonces', icon: 'settings', value: 'admin' }] : [])] : [
         { label: 'Mon prénom', sub: uname || 'pour les messages d\'accueil', icon: 'edit', value: 'name' }] },
@@ -285,7 +316,7 @@ async function renderHome() {
       { title: 'Application', color: '#64748b', items: [
         ...(() => { try { const T = JSON.parse(localStorage.getItem('boot.t') || 'null'); return T ? [{ label: `⏱ Dernier démarrage : ${(T.total / 1000).toFixed(1)} s`, sub: `fichiers ${(T.scripts / 1000).toFixed(1)} s · connexion ${(T.team / 1000).toFixed(1)} s · accueil ${(T.home / 1000).toFixed(1)} s`, icon: 'calendar', value: 'boott' }] : []; } catch (e) { return []; } })(),
         { label: `Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}`, sub: 'mise à jour', icon: 'upload', value: 'ver' }] },
-    ]);
+    ], { head: Team.ready() ? ST.profileCardHTML() : '' });
     if (v === 'brief') { const act = await briefingShow(); if (act) act(); }
     if (v === 'trash') { const ps = (await DB.all('projects')).filter(p => (p.trash || []).length); if (!ps.length) toast('La corbeille est vide'); else { const id = ps.length === 1 ? ps[0].id : await menu('Corbeille de quel chantier ?', ps.map(p => ({ label: `${p.name} · ${p.trash.length}`, icon: 'trash', value: p.id }))); if (id) openTrash(id); } }
     if (v === 'packs') openPacks();
@@ -304,6 +335,7 @@ async function renderHome() {
     if (v === 'name') askName();
     if (v === 'board') openBoardTool();
     if (v === 'company') Team.openCompany();
+    if (v === 'profile') Team.openCompany('me');
     if (v === 'ws') Team.openSwitcher();
     if (v === 'preview') ST.startPreview();
     if (v === 'preview-off') ST.stopPreview();
