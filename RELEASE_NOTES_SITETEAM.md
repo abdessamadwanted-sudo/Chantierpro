@@ -4,3 +4,4 @@
 - Matrice du chantier : niveaux × lots. La couleur donne le statut, les initiales indiquent qui tient la partie. Toucher une case ouvre le lot.
 - Alertes : partie terminée en attente de réception, partie bloquée, fin prévue dépassée, niveau sans équipe.
 - Sous-traitants & équipes : pour chacun, les lots et les niveaux qu'il tient (✓ réceptionné, ⛔ bloqué).
+- Photos en masse : depuis « Outils du projet » ou depuis un lot, choisissez plusieurs photos d'un coup, en qualité originale ou optimisée. Elles sont enregistrées tout de suite et partent vers Drive en arrière-plan (compteur « Envoi vers Drive 12/30 », reprise automatique au retour du réseau). Classement : Projet › rubrique (Réception, Bétonnage, Réserves, Rapports, Lots…) › mois › jour › niveau › ouvrage.

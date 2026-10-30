@@ -800,6 +800,17 @@ try {
   await shot(A.pg, '156_sous_traitants_parties'); await A.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove()));
   await A.pg.evaluate(async () => { App.section = 'ptools'; await renderSection(); }); await A.pg.waitForTimeout(400); await shot(A.pg, '157_outils_compacts');
   log('errors v1.0.40', v40);
+  // ---- v1.0.41 : photos en masse — rangement Drive selon la rubrique (projet › rubrique › mois › jour › niveau › ouvrage)
+  const v41 = [];
+  const pbr = await A.pg.evaluate(async () => { const p = App.project || (await DB.all('projects')).find(x => !x.deleted);
+    const id = await DB.put('files', { projectId: p.id, blob: new Blob(['x'], { type: 'image/jpeg' }), mime: 'image/jpeg', name: 'Voile V12 1.jpg', role: 'photo', grp: { dest: 'rec', niv: 'R+1', ouv: 'Voile V12', date: '2026-10-28' } });
+    const f = (await DB.all('files')).find(x => x.grp && x.grp.ouv === 'Voile V12'); const paths = await Sync.buildPaths(); const r = Sync.pathFor(f, paths);
+    await DB.del('files', f.id); void id; return r.segs; });
+  log('photos en masse : dossier Drive', pbr); if (!pbr || pbr[1] !== '02 - Réception ferraillage' || !pbr.includes('R+1') || !pbr.includes('Voile V12') || !pbr.includes('2026-10-28')) v41.push('photos en masse : rangement Drive incorrect');
+  await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.section = 'ptools'; await renderSection(); }); await A.pg.waitForTimeout(300);
+  log('photos en masse : bouton dans les outils du projet', await A.pg.evaluate(() => !!document.querySelector('.st-ptools-p [data-a=pbatch]')));
+  await A.pg.click('.st-ptools-p [data-a=pbatch]'); await A.pg.waitForSelector('.sheet [name=dest]'); await shot(A.pg, '158_photos_en_masse'); await A.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove()));
+  log('errors v1.0.41', v41);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);

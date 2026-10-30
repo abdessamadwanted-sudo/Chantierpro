@@ -143,6 +143,7 @@ const Sync = (() => {
     if (f.projectId === '__career') return { segs: ['Mon dossier de candidature'], name: clean(`${f.cat || 'Document'} - ${String(f.name || f.id).replace(/\.\w{2,5}$/, '')}`) + extOf(f) };
     const m = paths.map[f.id];
     const ext = extOf(f);
+    if (!m && f.grp && typeof pbPath === 'function') return { segs: pbPath(f, D, paths.P, moisDe, clean), name: clean((f.name || f.id).replace(/\.\w{2,5}$/, '')) + ext };   // v1.0.41 : photos en masse
     if (m) return { segs: m.segs, name: m.name + ext };
     const day = new Date(f.createdAt || Date.now()).toISOString().slice(0, 10);
     const base = (f.name || f.id).replace(/\.\w{2,5}$/, '');
