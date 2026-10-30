@@ -275,6 +275,7 @@ const ST = (() => {
     const T = projTypeOf(p.type) || {};
     root.innerHTML = `<div class="st-ptools-p">
       <div class="st-hd"><b>${esc(T.e || '🏗️')} ${esc(p.name)}</b><small>${esc(T.n || 'Projet')}${p.address ? ' · ' + esc(p.address) : ''}</small></div>
+      ${typeof pvCreate === 'function' && Team.canSection('forms') !== false ? `<button class="st-pb" data-a="newpv">${icon('form')}<span><b>Nouveau PV de réception</b><small>Check-list de votre service · mesures · verdict · réserves</small></span>${icon('chevright')}</button>` : ''}
       ${typeof openPhotoBatch === 'function' ? `<button class="st-pb" data-a="pbatch">${icon('camera')}<span><b>Photos en masse</b><small>Plusieurs photos d'un coup · envoi en arrière-plan · rangées dans Drive</small></span>${icon('chevright')}</button>` : ''}
       ${typeof openDriveNames === 'function' ? `<button class="st-pb" data-a="dnames">${icon('folder')}<span><b>Dossiers Drive du projet</b><small>Renommer, renuméroter les rubriques · fichiers déplacés sans doublon</small></span>${icon('chevright')}</button>` : ''}
       ${G.map(([g, l, ks]) => `<div class="st-tcat" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}"><div class="st-tcat-h">${esc(l.replace(/^\S+\s/, ''))}<small>${ks.length}</small></div>
@@ -282,6 +283,7 @@ const ST = (() => {
       ${typeof espaceHome === 'function' && espaceHome() ? `<details class="st-tcat st-esp" style="--c:#3D5A80"><summary class="st-tcat-h">Espace métier</summary>${espaceHome()}</details>` : ''}
     </div>`;
     root.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { App.section = b.dataset.tool; App.search = ''; renderSection(); });
+    const npv = root.querySelector('[data-a=newpv]'); if (npv) npv.onclick = async () => { const f = await pvCreate(p); if (f) { await openFormDetail(f); } };
     const pb = root.querySelector('[data-a=pbatch]'); if (pb) pb.onclick = () => openPhotoBatch(p);
     const dn = root.querySelector('[data-a=dnames]'); if (dn) dn.onclick = () => openDriveNames(p);
     if (typeof espaceBind === 'function') espaceBind(root);

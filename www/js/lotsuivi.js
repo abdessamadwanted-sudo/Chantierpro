@@ -95,7 +95,7 @@ function lsOpenLot(p, l, back) {
         <div class="ls-parts">${lsNiv(p).map(n => { const x = (D.parts || {})[n], S2 = lsSt(x && x.st), e = x && (D.eq || []).find(q => q.id === x.eq);
           return `<button class="ls-part ${x ? '' : 'vide'}" data-part="${esc(n)}" style="--s:${S2[2]};--e:${x ? lsEqC(D, x.eq) : '#94a3b8'}"><b class="n">${esc(n)}</b>
             ${x ? `<span class="who"><i>${esc(e ? lsIni(e.nom) : '?')}</i>${esc(e ? e.nom : 'Non affecté')}</span><span class="st">${esc(S2[1])}</span><span class="pb"><u style="width:${lsPartAv(x)}%"></u></span>` : '<span class="who mut">＋ Affecter</span>'}</button>`; }).join('')}</div>
-        <div class="btnrow" style="padding:0;margin:6px 0 2px">${(D.eq || []).length ? `<button class="btn ghost small" data-a="all">${icon('layers')} Une équipe pour tout le bâtiment</button>` : ''}${typeof openPhotoBatch === 'function' ? `<button class="btn ghost small" data-a="pb">${icon('camera')} Photos du lot</button>` : ''}</div>
+        <div class="btnrow" style="padding:0;margin:6px 0 2px">${(D.eq || []).length ? `<button class="btn ghost small" data-a="all">${icon('layers')} Une équipe pour tout le bâtiment</button>` : ''}${typeof openPhotoBatch === 'function' ? `<button class="btn ghost small" data-a="pb">${icon('camera')} Photos du lot</button>` : ''}${typeof pvCreate === 'function' ? `<button class="btn ghost small" data-a="pv">${icon('form')} PV de réception</button>` : ''}</div>
         <div class="h2-sec"><span>Équipes & sous-traitants</span><small>${(D.eq || []).length}</small></div>
         ${(D.eq || []).map(e => { const la = S.last(e), r = lsRendAvg(e), K = LS_KIND.find(k => k[0] === e.kind) || LS_KIND[0];
           return `<button class="ls-card ls-eq" data-eq="${e.id}"><div class="ls-lh"><span class="ls-av">${esc((e.nom || '?')[0].toUpperCase())}</span><span class="grow"><b>${esc(e.nom)}</b><small>${esc(K[1])}${e.chef ? ' · Chef : ' + esc(e.chef) : ''}</small></span><em>${la && la.av != null ? (+la.av) + '%' : '—'}</em></div>
@@ -115,6 +115,8 @@ function lsOpenLot(p, l, back) {
     $('[data-a=addeq]', el).onclick = async () => { const e = await lsEqForm(p, null); if (e) { D.eq.push(e); await save(); draw(); } };
     $('[data-a=niv]', el).onclick = async () => { const r = await formSheet('Niveaux du projet', [{ name: 'n', label: 'Un niveau par ligne (communs à tous les lots)', type: 'textarea', value: lsNiv(p).join('\n') }], { okLabel: 'Enregistrer' });
       if (r) { const L = r.n.split('\n').map(x => x.trim()).filter(Boolean); if (L.length) { p.lsNiv = L; await save(); draw(); } } };
+    const pvb = $('[data-a=pv]', el); if (pvb) pvb.onclick = async () => { const nv = await menu('PV de réception · niveau', [...lsNiv(p).map(n => ({ label: n, value: n })), { label: 'Sans niveau', value: '-' }]); if (!nv) return;
+      const f = await pvCreate(p, { lotId: l.id, niv: nv === '-' ? '' : nv }); if (f) { await openFormDetail(f); draw(); } };
     const pbb = $('[data-a=pb]', el); if (pbb) pbb.onclick = () => openPhotoBatch(p, { dest: 'lot', lot: l.id });
     const ab = $('[data-a=all]', el); if (ab) ab.onclick = async () => { const id = await menu('Toute la hauteur du bâtiment', D.eq.map(e => ({ label: e.nom, value: e.id }))); if (!id) return;
       D.parts = D.parts || {}; for (const n of lsNiv(p)) { const x = D.parts[n] = D.parts[n] || { st: 'todo', av: 0 }; x.eq = id; } await save(); draw(); toast('Affecté à tous les niveaux ✓'); };

@@ -1,8 +1,11 @@
-## SiteTeam : lots par niveau, matrice du chantier, outils du projet compacts
-- Outils du projet : écran compact, 4 outils par ligne, sans longue page à faire défiler.
-- Lots & équipes › un lot (ex. Maçonnerie) › « Répartition par niveau » : pour chaque niveau, qui tient la partie (sous-traitant, équipe de l'entreprise ou tâcheron), son statut (à faire, en cours, terminé à réceptionner, réceptionné, bloqué), son avancement, ses dates et une note. Bouton « Une équipe pour tout le bâtiment ». Niveaux modifiables (Niveaux…).
-- Matrice du chantier : niveaux × lots. La couleur donne le statut, les initiales indiquent qui tient la partie. Toucher une case ouvre le lot.
-- Alertes : partie terminée en attente de réception, partie bloquée, fin prévue dépassée, niveau sans équipe.
-- Sous-traitants & équipes : pour chacun, les lots et les niveaux qu'il tient (✓ réceptionné, ⛔ bloqué).
-- Photos en masse : depuis « Outils du projet » ou depuis un lot, choisissez plusieurs photos d'un coup, en qualité originale ou optimisée. Elles sont enregistrées tout de suite et partent vers Drive en arrière-plan (compteur « Envoi vers Drive 12/30 », reprise automatique au retour du réseau). Classement : Projet › rubrique (Réception, Bétonnage, Réserves, Rapports, Lots…) › mois › jour › niveau › ouvrage.
-- Dossiers Drive du projet : renommez ou renumérotez chaque rubrique (ex. « 02 - PV Réception »). Les fichiers déjà envoyés sont déplacés à la prochaine synchro, sans doublon.
+## SiteTeam : PV de réception intelligents par service, écrans unifiés
+- Nouveau PV de réception : les modèles de votre service sont proposés en premier. Qualité / travaux : ferraillage, coffrage, bétonnage, maçonnerie, étanchéité. Topo : implantation, contrôle altimétrique. Labo : béton frais, écrasement, compactage. HSE : inspection sécurité.
+- Chaque PV a des rubriques (armatures, enrobage, recouvrements…), quatre réponses par point (Conforme, Réserve, Non conforme, N/A) et un bouton « Le reste est conforme ».
+- Mesures avec tolérances modifiables (enrobage, slump, température, écarts X/Y/Z, compacité, EV2, résistance…) : vérification automatique ✓ / ✗.
+- Verdict automatique en couleur : Conforme, Conforme avec réserves ou Non conforme. Numérotation PV-FER-001, PV-IMP-001…
+- « Créer les réserves » : chaque point en réserve ou non conforme, et chaque mesure hors tolérance, devient une réserve à suivre.
+- « Contre-visite » : un nouveau PV qui reprend seulement les points à revoir.
+- Niveau, ouvrage, lot et entreprise sur chaque PV. Bouton « PV de réception » dans chaque lot et dans les outils du projet.
+- PDF avec rubriques, tableau des mesures et verdict. Rangement Drive : Formulaires › type de PV › niveau.
+- Liste « PV & contrôles » avec filtres : En cours, Réserves, Non conformes, Conformes.
+- Anciens écrans (listes, titres, pages vides, boutons) mis au même style que les nouveaux.

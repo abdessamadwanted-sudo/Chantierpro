@@ -331,7 +331,7 @@ const SECTIONS = {
   reception: { label: 'Réception & Bétonnage', icon: 'layers', render: (r) => renderReceptions(r, 'Ferraillage'), title: 'Réception & Bétonnage', subtitle: 'Tableaux par jour' },
   beton: { label: 'Programme de bétonnage', hidden: true, icon: 'calendar', render: (r) => renderReceptions(r, 'Bétonnage'), title: 'Réception & Bétonnage', subtitle: 'Tableaux par jour' },
   photos: { label: 'Photos', icon: 'camera', render: renderPhotos },
-  forms: { label: 'Formulaires', icon: 'form', render: renderForms },
+  forms: { label: 'PV & contrôles', icon: 'form', render: renderForms },
   reports: { label: 'Rapports journaliers', icon: 'report', render: renderReports },
   constat: { label: 'Constats / NC', icon: 'report', render: (r) => renderConstats(r) },
   models3d: { label: 'Modèles 3D', icon: 'cube', render: (r) => renderModels3D(r) },
@@ -1172,30 +1172,36 @@ async function renderPhotos(root) {
 function formStats(f) {
   const n = f.items.length, ok = f.items.filter(i => i.res === 'ok').length, nok = f.items.filter(i => i.res === 'nok').length, na = f.items.filter(i => i.res === 'na').length;
   const answered = ok + nok + na;
-  const status = n && answered === n ? (nok ? 'Non conforme' : 'Conforme') : 'En cours';
-  return { n, ok, nok, na, answered, status, color: status === 'Conforme' ? 'var(--green)' : status === 'Non conforme' ? 'var(--red)' : 'var(--orange)' };
+  // v1.0.42 : « Réserve » + mesures hors tolérance (PV intelligents)
+  const res = f.items.filter(i => i.res === 'res').length, mb = typeof pvMesOk === 'function' ? (f.mes || []).filter(m => pvMesOk(m) === false).length : 0;
+  const answered2 = answered + res;
+  const status = n && answered2 === n ? (nok || mb ? 'Non conforme' : res ? 'Conforme avec réserves' : 'Conforme') : 'En cours';
+  return { n, ok, nok, na, res, mb, answered: answered2, status, color: status === 'Conforme' ? 'var(--green)' : status === 'Non conforme' ? 'var(--red)' : status === 'Conforme avec réserves' ? '#d97706' : 'var(--orange)' };
 }
 async function renderForms(root) {
-  const forms = (await DB.byProject('forms', App.project.id)).sort((a, b) => b.createdAt - a.createdAt);
-  root.innerHTML = `<div class="pagehead"><h2>Formulaires</h2><p>Fiches de contrôle qualité</p></div>
-    ${forms.length ? `<div class="list">${forms.map(f => { const s = formStats(f); return `
-      <div class="row" data-id="${f.id}"><span style="color:${s.color}">${icon('form')}</span>
-        <div class="grow"><div class="title">${esc(f.title)}${f.location ? ' — ' + esc(f.location) : ''}</div>
-        <div class="sub"><span style="color:${s.color}">${s.status}</span> · ${s.answered}/${s.n} · ${fmtDate(f.date)} ${Team.ready() && !ST.isPerso() ? ST.vChip(f) : ''}</div>
+  const all = (await DB.byProject('forms', App.project.id)).sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.createdAt - a.createdAt);
+  const S = all.map(f => [f, formStats(f)]), flt = App.pvFilt || 'all';
+  const cnt = { all: S.length, cours: S.filter(([, s]) => s.status === 'En cours').length, res: S.filter(([, s]) => s.status === 'Conforme avec réserves').length, nc: S.filter(([, s]) => s.status === 'Non conforme').length, ok: S.filter(([, s]) => s.status === 'Conforme').length };
+  const keep = S.filter(([, s]) => flt === 'all' || (flt === 'cours' && s.status === 'En cours') || (flt === 'res' && s.status === 'Conforme avec réserves') || (flt === 'nc' && s.status === 'Non conforme') || (flt === 'ok' && s.status === 'Conforme'));
+  const lotN = (id) => ((typeof lsLots === 'function' ? lsLots(App.project) : []).find(l => l.id === id) || {}).name;
+  root.innerHTML = `<div class="pagehead"><h2>PV & contrôles</h2><p>PV de réception par service : check-list, mesures, verdict, réserves</p></div>
+    ${S.length ? `<div class="pv-kpi">${[['all', 'Tous', ''], ['cours', 'En cours', 'b'], ['res', 'Réserves', 'o'], ['nc', 'Non conf.', 'r'], ['ok', 'Conformes', 'g']].map(([k, l, c]) => `<button class="${c} ${flt === k ? 'on' : ''}" data-pf="${k}"><b>${cnt[k]}</b><small>${l}</small></button>`).join('')}</div>` : ''}
+    ${keep.length ? `<div class="list">${keep.map(([f, s]) => { const T = typeof pvTpl === 'function' && pvTpl(f.templateId); return `
+      <div class="row" data-id="${f.id}"><span class="pv-ic" style="color:${s.color}">${T ? T.e : icon('form')}</span>
+        <div class="grow"><div class="title">${f.ref ? `<small class="pv-ref">${esc(f.ref)}</small> ` : ''}${esc(f.title)}</div>
+        <div class="sub">${[f.niv, f.location, lotN(f.lotId)].filter(Boolean).map(esc).join(' · ')}${f.niv || f.location ? '<br>' : ''}<span style="color:${s.color};font-weight:600">${s.status}</span> · ${s.answered}/${s.n} · ${fmtDate(f.date)} ${Team.ready() && !ST.isPerso() ? ST.vChip(f) : ''}</div>
         <div class="progress"><div style="width:${s.n ? s.answered / s.n * 100 : 0}%;background:${s.color}"></div></div></div></div>`; }).join('')}</div>`
-    : `<div class="empty">Aucun formulaire.<br>Appuyez sur <b>+</b> pour une fiche de réception (ferraillage, coffrage, bétonnage…).</div>`}`;
-  $$('.row[data-id]', root).forEach(r => r.onclick = async () => { await openFormDetail(forms.find(f => f.id === r.dataset.id)); renderForms(root); });
+    : `<div class="empty">${S.length ? 'Aucun PV dans ce filtre.' : 'Aucun PV.<br>Appuyez sur <b>+</b> : les PV de votre service (ferraillage, coffrage, bétonnage, implantation, essais…) sont proposés en premier.'}</div>`}`;
+  $$('[data-pf]', root).forEach(b => b.onclick = () => { App.pvFilt = b.dataset.pf; renderForms(root); });
+  $$('.row[data-id]', root).forEach(r => r.onclick = async () => { await openFormDetail(all.find(f => f.id === r.dataset.id)); renderForms(root); });
   fab(root, async () => {
-    const tid = await menu('Nouveau formulaire', FORM_TEMPLATES.map(t => ({ label: t.title, icon: 'form', value: t.id })));
-    if (!tid) return;
-    const t = FORM_TEMPLATES.find(x => x.id === tid);
-    const f = await DB.put('forms', { projectId: App.project.id, templateId: t.id, title: t.title, location: '', date: todayISO(), inspector: '', notes: '', aut: Team.ready() ? Team.uid() : '', vst: 'brouillon',
-      items: t.items.map(label => ({ label, res: null, comment: '' })), photoIds: [] });
+    const f = await pvCreate(App.project); if (!f) return;
     await openFormDetail(f); renderForms(root);
   });
 }
 
 function openFormDetail(form) {
+  if (form && form.v2 && typeof openPvDetail === 'function') return openPvDetail(form);
   return new Promise(async (resolve) => {
     const project = await DB.get('projects', form.projectId);
     const el = document.createElement('div'); el.className = 'fullpage'; document.body.appendChild(el);
