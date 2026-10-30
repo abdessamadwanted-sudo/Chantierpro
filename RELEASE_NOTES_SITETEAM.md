@@ -1,3 +1,10 @@
+## SiteTeam : bibliothèque métier unifiée et organigramme complet
+- Basic : une bibliothèque commune et simple avec les outils essentiels.
+- Pro : la même bibliothèque se spécialise selon le métier ou le service, puis respecte les droits de la personne.
+- Accès à la bibliothèque depuis chaque projet et depuis Équipe / Mon espace.
+- Organigramme en hiérarchie globale ou par service, avec recherche, compteurs et responsables directs.
+- Mise en page responsive pour téléphone, tablette et ordinateur.
+
 ## SiteTeam : barre simplifiée, chaque chose à un seul endroit, photos sans attente, nouveau démarrage, style verre
 - Barre du bas : Projets · Pro · Équipe · Réglages.
 - Pro : une seule page avec trois onglets, Mon dossier · Réseau · Emploi.

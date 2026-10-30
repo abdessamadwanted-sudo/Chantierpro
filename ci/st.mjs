@@ -956,6 +956,31 @@ try {
     await P.waitForSelector('.home2', { timeout: 30000 }); await P.waitForTimeout(1500);
     const stray = await P.evaluate(() => [...document.querySelectorAll('body *')].some(e => !e.children.length && /Ouverture…/.test(e.textContent))); log('démarrage : rien ne reste à l\'écran', !stray); if (stray) v44.push('texte du démarrage resté'); }
   log('errors v1.0.44', v44);
+  // ---- v1.0.45 : bibliothèque unifiée Basic / Pro + organigramme global / par service
+  const v45 = [];
+  const lib45 = await A.pg.evaluate(() => {
+    document.querySelectorAll('.fullpage,.sheet-bg,.ws-dd').forEach(x => x.remove());
+    const c = Team.company(), old = c.plan, out = {};
+    c.plan = 'basic'; ST.openServiceLibrary();
+    out.basic = { title: (document.querySelector('.st-libhero h2') || {}).textContent, pack: (document.querySelector('.st-lib-pack') || {}).textContent, tools: document.querySelectorAll('.st-libtool').length, upgrade: !!document.querySelector('.st-libupgrade') };
+    document.querySelectorAll('.st-libpage').forEach(x => x.remove());
+    c.plan = 'pro'; ST.openServiceLibrary();
+    out.pro = { title: (document.querySelector('.st-libhero h2') || {}).textContent, pack: (document.querySelector('.st-lib-pack') || {}).textContent, groups: document.querySelectorAll('.st-libgroup').length, services: document.querySelectorAll('[data-svc]').length };
+    c.plan = old; return out;
+  });
+  log('bibliothèque Basic / Pro', lib45); await shot(A.pg, '190_bibliotheque_metier');
+  if (!/essentiels/i.test(lib45.basic.title || '') || !/Basic/.test(lib45.basic.pack || '') || !lib45.basic.tools || !lib45.basic.upgrade || !/Pro/.test(lib45.pro.pack || '') || !lib45.pro.groups) v45.push('bibliothèque Basic / Pro');
+  await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); Team.openCompany('org'); });
+  await A.pg.waitForSelector('.tm-orghead', { timeout: 12000 }); await A.pg.waitForTimeout(500);
+  const org45 = await A.pg.evaluate(() => ({ stats: [...document.querySelectorAll('.tm-orgstats b')].map(x => x.textContent), modes: [...document.querySelectorAll('[data-om]')].map(x => x.textContent.trim()), nodes: document.querySelectorAll('.tm-orgtree .tm-node').length, services: document.querySelectorAll('.tm-orgcard em').length, reports: document.querySelectorAll('.tm-reports').length }));
+  log('organigramme hiérarchique', org45); await shot(A.pg, '191_organigramme_hierarchie');
+  if (org45.stats.length !== 3 || org45.modes.join('|') !== 'Hiérarchie|Par service' || !org45.nodes || !org45.services) v45.push('organigramme hiérarchique');
+  await A.pg.click('[data-om=service]'); await A.pg.waitForTimeout(350);
+  const svc45 = await A.pg.evaluate(() => ({ groups: document.querySelectorAll('.tm-svc').length, nodes: document.querySelectorAll('.tm-svc .tm-node').length, search: !!document.querySelector('[data-orgq]') }));
+  log('organigramme par service', svc45); await shot(A.pg, '192_organigramme_services');
+  if (!svc45.groups || !svc45.nodes || !svc45.search) v45.push('organigramme par service');
+  await A.pg.evaluate(() => document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()));
+  log('errors v1.0.45', v45);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);

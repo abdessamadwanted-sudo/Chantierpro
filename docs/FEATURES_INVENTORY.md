@@ -1,5 +1,21 @@
 # FEATURES_INVENTORY — inventaire fonctionnel réel de SiteTeam
 
+## Phase 2c — Basic / Pro, bibliothèque métier et organigramme
+
+La bibliothèque métier utilise maintenant un écran unique sur téléphone, tablette et ordinateur. En Basic, elle
+présente le socle commun (plans, tâches, photos, rapports et équipe). À partir de Pro, le même écran classe les
+outils selon le service ou le métier, puis applique le pack, le poste et les droits. Un administrateur peut parcourir
+les bibliothèques des services actifs de son organisation. La bibliothèque est accessible depuis les outils d'un
+projet et depuis le menu Équipe / Mon espace ; un outil s'ouvre toujours dans un projet autorisé.
+
+L'organigramme propose deux vues complémentaires : hiérarchie globale (y compris lorsqu'un responsable et son
+collaborateur appartiennent à des services différents) et regroupement par service. Il affiche les totaux membres,
+services et postes, la recherche, le service de chaque personne et le nombre de collaborateurs directs. Les anciennes
+données comportant un responsable absent ou une boucle restent visibles au lieu de faire disparaître un membre.
+
+Validation locale : syntaxe JavaScript, extraction des règles et `git diff --check`. Le scénario E2E v1.0.45 et la CI
+de la Pull Request font foi pour la livraison complète.
+
 ## Phase 2a — reprise du 27/10/2026
 
 ### Phase 2b — équipe projet et affectations
