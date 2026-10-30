@@ -953,7 +953,8 @@ try {
   { const P = A.pg; await P.reload({ waitUntil: 'commit' }); await P.waitForSelector('#boot .hd', { timeout: 8000 }).catch(() => {}); await P.waitForTimeout(350); await shot(P, '186_demarrage_logo');
     const bt = await P.evaluate(() => ({ heads: document.querySelectorAll('#boot .hd').length, on: document.querySelectorAll('#boot .hd.on').length, letters: document.querySelectorAll('#boot b span').length }));
     log('démarrage : logo', bt); if (bt.heads !== 3 || bt.letters !== 8) v44.push('écran de démarrage');
-    await P.waitForSelector('.home2', { timeout: 30000 }); await P.waitForTimeout(1500); }
+    await P.waitForSelector('.home2', { timeout: 30000 }); await P.waitForTimeout(1500);
+    const stray = await P.evaluate(() => [...document.querySelectorAll('body *')].some(e => !e.children.length && /Ouverture…/.test(e.textContent))); log('démarrage : rien ne reste à l\'écran', !stray); if (stray) v44.push('texte du démarrage resté'); }
   log('errors v1.0.44', v44);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
