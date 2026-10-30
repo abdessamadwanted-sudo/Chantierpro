@@ -65,10 +65,10 @@ function pvPickTemplate() {
   return new Promise((resolve) => {
     const mine = pvMyServices(), isMine = (t) => t.svc.some(s => mine.includes(s));
     const A = mine.length ? PVT.filter(isMine) : [], B = PVT.filter(t => !A.includes(t));
-    const card = (t) => `<button class="pv-tc" data-t="${t.id}"><span>${t.e}</span><b>${esc(t.title.replace(/^PV (de |d'|d’)?/, ''))}</b><small>${t.sec.reduce((n, s) => n + s[1].length, 0)} points${t.mes.length ? ' · ' + t.mes.length + ' mesures' : ''}</small></button>`;
+    const card = (t) => `<button class="pv-tc" data-t="${t.id}"><span>${t.e}</span><b>${esc((x => x.charAt(0).toUpperCase() + x.slice(1))(t.title.replace(/^PV (de |d'|d’)?/, '')))}</b><small>${t.sec.reduce((n, s) => n + s[1].length, 0)} points${t.mes.length ? ' · ' + t.mes.length + ' mesures' : ''}</small></button>`;
     let picked = null;
     const s = sheet(`<div class="pv-pick">${A.length ? `<div class="pv-ph">⭐ Mon service</div><div class="pv-tg">${A.map(card).join('')}</div><div class="pv-ph">Autres services</div>` : ''}<div class="pv-tg">${B.map(card).join('')}</div>
-      <div class="pv-ph">Anciennes fiches</div><div class="pv-tg">${FORM_TEMPLATES.map(t => `<button class="pv-tc old" data-o="${t.id}"><span>📝</span><b>${esc(t.title)}</b><small>fiche simple</small></button>`).join('')}</div></div>`, {
+      <details class="pv-old"><summary class="pv-ph">Anciennes fiches simples ›</summary><div class="pv-tg">${FORM_TEMPLATES.map(t => `<button class="pv-tc old" data-o="${t.id}"><span>📝</span><b>${esc(t.title)}</b><small>fiche simple</small></button>`).join('')}</div></details></div>`, {
       title: 'Nouveau PV de réception',
       onMount: (el) => { $$('[data-t]', el).forEach(b => b.onclick = () => { picked = { v2: b.dataset.t }; s.close(); }); $$('[data-o]', el).forEach(b => b.onclick = () => { picked = { old: b.dataset.o }; s.close(); }); },
     });
