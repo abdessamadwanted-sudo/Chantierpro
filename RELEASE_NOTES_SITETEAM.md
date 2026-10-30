@@ -1,8 +1,11 @@
-## SiteTeam : envoi des photos vers Drive même application fermée (WorkManager)
-- Photos en masse : dès qu'elles sont choisies, les photos sont confiées au téléphone. Android les envoie vers Google Drive dès qu'il y a du réseau, même si vous fermez SiteTeam. L'envoi reprend après une coupure de réseau ou un redémarrage du téléphone.
-- Notification « SiteTeam · envoi vers Google Drive 12 / 30 », puis « 30 photo(s) envoyée(s) ✓ ».
-- Choix du réseau : 4G et Wi-Fi, ou Wi-Fi seulement.
-- En quittant l'application, les photos qui restent à envoyer sont aussi confiées au téléphone.
-- À la réouverture, l'application relit ce qui a été envoyé : pas de doublon dans Drive, et le rangement (rubrique › mois › jour › niveau › ouvrage) est respecté.
-- Réglages › Données › « Envoi en arrière-plan » : photos en attente, réseau, notification, et réglage de la batterie (Huawei : « Gérer manuellement »).
-- Cette version change la partie Android : installez l'APK (la mise à jour sans réinstallation ne suffit pas).
+## SiteTeam : accueil = vos projets, nouvelle barre (Réseau · Emploi · Mon dossier), photos envoyées même application fermée
+- L'accueil n'affiche plus que vos projets. Chaque projet porte ses propres chiffres : PV à valider, PV à corriger, réserves, rappels, réceptions du jour.
+- Nouvelle barre du bas : Projets · Réseau · Emploi · Mon dossier · Plus.
+- Réseau : vos contacts BTP réunis automatiquement (membres de l'organisation, intervenants et entreprises de vos projets), plus vos contacts personnels. Recherche, filtres, appel et WhatsApp en un toucher. Partager mon profil, inviter un collègue sur SiteTeam.
+- Emploi : offres et candidatures. Mon dossier : CV et profil pro.
+- Plus : tableau de bord (vue direction, service, à faire aujourd'hui), équipe et organigramme, réglages.
+- Le bouton organisation en haut de l'écran est retiré (il est dans Plus).
+- Photos en masse : dès qu'elles sont choisies, les photos sont confiées au téléphone. Android les envoie vers Google Drive dès qu'il y a du réseau, même si vous fermez SiteTeam. L'envoi reprend après une coupure ou un redémarrage, avec une notification de progression. Réseau au choix : 4G et Wi-Fi, ou Wi-Fi seulement.
+- À la réouverture, l'application relit ce qui a été envoyé : pas de doublon dans Drive, et le rangement est respecté.
+- Réglages › Données › « Envoi en arrière-plan » : photos en attente, réseau, notification, batterie (Huawei : « Gérer manuellement »).
+- Cette version change la partie Android : installez l'APK.
