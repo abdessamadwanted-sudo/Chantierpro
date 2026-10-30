@@ -2909,3 +2909,36 @@ html:not(.th-net) .h2-rh button { color: #7FB0EC !important; }
 .st-ptools-p .st-tcat { display: block !important; }
 .st-ptools-p details.st-esp summary { cursor: pointer; list-style: none; }
 #app.with-bnav .home2 .h2-acts [data-a=homemore] { display: none; }
+
+/* ===================== v1.0.40 — outils du projet compacts ; lots : répartition par niveau, matrice ===================== */
+.st-ptools-p { gap: 8px !important; }
+.st-ptools-p .st-hd { margin: 0 2px 2px; }
+.st-ptools-p .st-tcat { padding: 8px 8px 10px !important; border-radius: 14px !important; }
+.st-ptools-p .st-tcat-h { font-size: 13px !important; margin-bottom: 6px !important; }
+.st-ptools-p .st-tgrid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 6px !important; }
+.st-ptools-p .st-tool { min-height: 0 !important; padding: 8px 2px 7px !important; gap: 4px !important; border-radius: 12px !important; }
+.st-ptools-p .st-tool .st-ico { width: 34px; height: 34px; border-radius: 10px; }
+.st-ptools-p .st-tool .st-ico svg.i { width: 18px; height: 18px; }
+.st-ptools-p .st-tool span { font-size: 10.5px !important; line-height: 1.15; font-weight: 600; }
+@media (min-width: 600px) { .st-ptools-p .st-tgrid { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; } }
+
+.ls-parts { display: grid; gap: 6px; }
+.ls-part { display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; grid-template-areas: "n who st" "n pb pb"; align-items: center; gap: 2px 8px; padding: 8px 10px; border-radius: 12px;
+  background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--s); text-align: left; color: var(--text); }
+.ls-part.vide { border-left-color: var(--line); opacity: .8; grid-template-areas: "n who who"; }
+.ls-part .n { grid-area: n; font-size: 13.5px; }
+.ls-part .who { grid-area: who; display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ls-part .who.mut { color: var(--accent); font-weight: 600; }
+.ls-part .who i { display: grid; place-items: center; flex: none; width: 24px; height: 24px; border-radius: 7px; background: var(--e); color: #fff; font-style: normal; font-size: 10.5px; font-weight: 800; }
+.ls-part .st { grid-area: st; font-size: 11px; font-weight: 700; color: var(--s); white-space: nowrap; }
+.ls-part .pb { grid-area: pb; height: 5px; border-radius: 4px; background: var(--card2); overflow: hidden; } .ls-part .pb u { display: block; height: 100%; background: var(--s); text-decoration: none; }
+.ls-strip { display: flex; gap: 2px; margin: -2px 0 6px; } .ls-strip i { flex: 1; height: 6px; border-radius: 3px; background: var(--s); border: 1px solid var(--line); }
+.ls-mx-w { overflow-x: auto; margin: 0 -2px 8px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); }
+.ls-mx { border-collapse: separate; border-spacing: 3px; min-width: 100%; font-size: 12px; }
+.ls-mx th { padding: 6px 4px; color: var(--muted); font-weight: 700; text-align: center; white-space: nowrap; }
+.ls-mx tr:first-child th { color: var(--text); border-bottom: 3px solid var(--c, transparent); }
+.ls-mx tr th:first-child { text-align: right; padding-right: 8px; color: var(--text); }
+.ls-mx td { min-width: 52px; height: 42px; border-radius: 8px; text-align: center; background: var(--s); color: #fff; cursor: pointer; }
+.ls-mx td b { display: block; font-size: 12.5px; } .ls-mx td small { font-size: 10px; opacity: .9; }
+.ls-mx td.vide { background: var(--card2); cursor: default; }
+.ls-leg { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11.5px; color: var(--muted); margin-bottom: 10px; } .ls-leg i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
