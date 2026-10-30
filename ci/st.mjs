@@ -143,7 +143,7 @@ try {
   // conducteur B : demande d'implantation + commande béton + rendement + pointage (via l'interface pour la 1re)
   await B.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); renderHome(); }); await B.pg.waitForTimeout(800);
   await shot(B.pg, '17_home_conducteur_espace');
-  await B.pg.evaluate(() => { const n = document.querySelector('.st-bnav [data-n=tools]'); if (n) n.click(); const c = document.querySelector('.h2-pane.on [data-cat=esp]'); if (c && !c.classList.contains('on')) c.click(); }); await B.pg.waitForTimeout(300);
+  await B.pg.evaluate(async () => { App.homeTab = 'tools'; await renderHome(); const c = document.querySelector('.h2-pane.on [data-cat=esp]'); if (c && !c.classList.contains('on')) c.click(); }); await B.pg.waitForTimeout(300);
   await B.pg.click('[data-es=impl]'); await B.pg.evaluate(() => { App.homeTab = 'home'; }); await B.pg.waitForTimeout(500); await B.pg.click('.es-page .fab'); await B.pg.waitForTimeout(400);
   await B.pg.fill('[name=ouvrage]', 'Voile V12'); await B.pg.fill('[name=niveau]', 'R+3'); await B.pg.fill('[name=zone]', '11'); await B.pg.fill('[name=axes]', 'C-D / 4-6');
   await B.pg.click('.sheet [data-a=ok]'); await B.pg.waitForTimeout(800); await shot(B.pg, '18_impl_detail');
@@ -163,7 +163,7 @@ try {
   await D.pg.evaluate(() => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); renderHome(); }); await D.pg.waitForTimeout(800);
   await shot(D.pg, '20_home_topo');
   log('D items', await D.pg.evaluate(async () => (await DB.all('items')).map(x => x.kind + ':' + (x.status || ''))));
-  await D.pg.evaluate(() => { const n = document.querySelector('.st-bnav [data-n=tools]'); if (n) n.click(); const c = document.querySelector('.h2-pane.on [data-cat=esp]'); if (c && !c.classList.contains('on')) c.click(); }); await D.pg.waitForTimeout(300);
+  await D.pg.evaluate(async () => { App.homeTab = 'tools'; await renderHome(); const c = document.querySelector('.h2-pane.on [data-cat=esp]'); if (c && !c.classList.contains('on')) c.click(); }); await D.pg.waitForTimeout(300);
   await D.pg.click('[data-es=impl]'); await D.pg.evaluate(() => { App.homeTab = 'home'; }); await D.pg.waitForTimeout(500); await D.pg.click('.es-row'); await D.pg.waitForTimeout(500);
   await D.pg.click('[data-st=implantee]'); await D.pg.waitForTimeout(500); await shot(D.pg, '21_topo_implantee');
   await D.pg.evaluate(() => Sync.run({ force: true })); await D.pg.waitForTimeout(2000);
@@ -474,7 +474,7 @@ try {
   await E.pg.waitForTimeout(500); await shot(E.pg, '102_free_accueil');
   log('G Pro : poste choisi', await G.pg.evaluate(() => [Team.isFree(), Team.profil().metier]));
   await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(600);
-  await A.pg.click('[data-a=homemore]'); await A.pg.waitForSelector('.gm'); await shot(A.pg, '103_menu_accueil');
+  await A.pg.evaluate(() => document.querySelector('[data-a=homemore]').click()); await A.pg.waitForSelector('.gm'); await shot(A.pg, '103_menu_accueil');
   log('menu ⋮ (groupes · rubriques)', await A.pg.evaluate(() => [[...document.querySelectorAll('.gm-g')].map(x => x.textContent), document.querySelectorAll('.gm-i').length]));
   await A.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove()));
   await A.pg.evaluate(async () => { await openProject((await DB.all('projects'))[0]); document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); openDrawer(); }); await A.pg.waitForTimeout(700); await shot(A.pg, '104_menu_projet');
@@ -564,7 +564,7 @@ try {
   await shot(B.pg, '112_service_dashboard');
   log('tableau de bord service (B)', await B.pg.evaluate(() => [document.querySelector('[data-stsvc] .st-hd b').textContent, document.querySelectorAll('[data-stsvc] .st-kpi').length, document.querySelectorAll('.st-tcat').length > 0, document.querySelectorAll('.st-tool').length > 0]));
   await B.pg.evaluate(() => { App.homeTab = 'tools'; renderHome(); }); await B.pg.waitForTimeout(600); await shot(B.pg, '113_outils_categories');
-  await B.pg.click('.st-bnav [data-n=tools]'); await B.pg.waitForTimeout(300);
+  await B.pg.evaluate(async () => { App.homeTab = 'tools'; await renderHome(); }); await B.pg.waitForTimeout(300);
   await B.pg.evaluate(() => { const c = document.querySelector('.h2-pane.on .st-tcats [data-cat]:not([data-cat=esp])'); if (c && !c.classList.contains('on')) c.click(); }); await B.pg.waitForTimeout(300);   // v1.0.35 : outils visibles après le toucher d'une catégorie
   await B.pg.locator('.h2-pane.on .st-tcat:not([style*="display: none"]) .st-tool').first().click(); await B.pg.waitForTimeout(800); const sel = await B.pg.$('.opt'); if (sel) { await sel.click(); await B.pg.waitForTimeout(1200); }
   log('outil → projet ouvert', await B.pg.evaluate(() => !!App.project));
@@ -596,7 +596,7 @@ try {
   log('onglets : accueil', await A.pg.evaluate(() => [document.querySelector('.h2-pane.on').dataset.tab, document.querySelectorAll('.h2-pane.on .h2-card').length <= 2, [...document.querySelectorAll('.st-bnav span')].map(x => x.textContent)]));
   await A.pg.click('.st-bnav [data-n=proj]'); await A.pg.waitForTimeout(400); await shot(A.pg, '121_onglet_projets');
   log('onglets : projets', await A.pg.evaluate(() => [document.querySelector('.h2-pane.on').dataset.tab, document.querySelectorAll('.h2-pane.on .h2-card').length]));
-  await A.pg.click('.st-bnav [data-n=tools]'); await A.pg.waitForTimeout(400); await shot(A.pg, '122_onglet_outils');
+  await A.pg.evaluate(async () => { App.homeTab = 'tools'; await renderHome(); }); await A.pg.waitForTimeout(400); await shot(A.pg, '122_onglet_outils');
   const cat = await A.pg.evaluate(() => document.querySelectorAll('.h2-pane.on .st-tcats [data-cat]')[2].dataset.cat);
   await A.pg.click(`.h2-pane.on .st-tcats [data-cat="${cat}"]`); await A.pg.waitForTimeout(300); await shot(A.pg, '123_outils_categorie');
   log('outils : catégorie en boutons', await A.pg.evaluate(() => [...document.querySelectorAll('.h2-pane.on .st-tcat')].filter(t => t.style.display !== 'none').length, cat));
@@ -679,7 +679,7 @@ try {
     return [document.documentElement.classList.contains('th-std'), white]; });
   log('thème sombre (classe, cartes blanches)', dark); if (!dark[0] || dark[1].length) v34.push('thème sombre : cartes blanches ' + dark[1].join(','));
   await shot(A.pg, '132_sombre_accueil');
-  await A.pg.click('.st-bnav [data-n=tools]'); await A.pg.waitForTimeout(400); await shot(A.pg, '133_sombre_outils');
+  await A.pg.evaluate(async () => { App.homeTab = 'tools'; await renderHome(); }); await A.pg.waitForTimeout(400); await shot(A.pg, '133_sombre_outils');
   await A.pg.evaluate(async () => { localStorage.setItem('theme', 'siteteam'); applyTheme('siteteam'); App.homeTab = 'tools'; await renderHome(); }); await A.pg.waitForTimeout(700); await shot(A.pg, '134_clair_outils');
   await A.pg.evaluate(async () => { App.homeTab = 'home'; await renderHome(); }); await A.pg.waitForTimeout(700); await shot(A.pg, '135_clair_accueil');
   await E.pg.evaluate(() => { document.querySelectorAll('.fullpage').forEach(x => x.remove()); localStorage.setItem('theme', 'siteteam-dark'); applyTheme('siteteam-dark'); openDossier(); }); await E.pg.waitForTimeout(600); await shot(E.pg, '136_sombre_dossier');
@@ -705,7 +705,7 @@ try {
   if (!wm.includes('org') || !wm.includes('dossier') || !wm.includes('aff')) v35.push('menu de l\'espace incomplet');
   await shot(A.pg, '142_menu_espace'); await A.pg.click('.ws-dd .ws-bg', { position: { x: 20, y: 20 } });
   // outils : pas de « Tous », rien d'ouvert avant le toucher
-  await A.pg.click('.st-bnav [data-n=tools]'); await A.pg.waitForTimeout(400);
+  await A.pg.evaluate(async () => { App.homeTab = 'tools'; await renderHome(); }); await A.pg.waitForTimeout(400);
   const tl = await A.pg.evaluate(() => { App.toolCat = ''; return null; }); void tl;
   await A.pg.evaluate(async () => { App.homeTab = 'tools'; await renderHome(); }); await A.pg.waitForTimeout(500);
   const tc = await A.pg.evaluate(() => { const P = document.querySelector('.h2-pane.on'); return { tous: !!P.querySelector('[data-cat="*"]'), cats: [...P.querySelectorAll('[data-cat]')].map(b => b.dataset.cat), open: [...P.querySelectorAll('.st-tcat')].filter(t => t.style.display !== 'none').length, espRepete: P.querySelectorAll('.es-wrap').length }; });
@@ -760,6 +760,24 @@ try {
     await new Promise(r => setTimeout(r, 600)); o.disconnect(); App.homeTab = 'home'; return n; });
   log('en-tête : changements pendant le défilement (≤ 2 attendu)', osc); if (osc > 2) v36.push('en-tête : oscillation');
   log('errors v1.0.36', v36);
+  // ---- v1.0.38 : barre du bas à 4 onglets (sans Outils), projet ouvert sur ses outils, Réglages = menu ⋮, fins de ligne LF
+  const v38 = [];
+  await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg,.ws-dd').forEach(x => x.remove()); App.project = null; App.homeTab = 'proj'; await renderHome(); });
+  await A.pg.waitForTimeout(500);
+  const nav = await A.pg.evaluate(() => [...document.querySelectorAll('.st-bnav [data-n]')].map(b => b.dataset.n));
+  log('barre du bas', nav); if (nav.includes('tools') || nav.length !== 4) v38.push('barre du bas incorrecte');
+  await A.pg.click('.h2-pane.on .h2-card[data-id]'); await A.pg.waitForTimeout(900);
+  const pt = await A.pg.evaluate(() => [App.section, document.querySelectorAll('.st-ptools-p [data-tool]').length, document.querySelectorAll('.st-ptools-p .st-tcat').length]);
+  log('projet ouvert sur ses outils [section, outils, catégories]', pt); if (pt[0] !== 'ptools' || !pt[1]) v38.push('projet : outils absents');
+  await shot(A.pg, '152_outils_du_projet');
+  await A.pg.click('.st-ptools-p [data-tool]'); await A.pg.waitForTimeout(600);
+  log('outil ouvert depuis le projet', await A.pg.evaluate(() => App.section));
+  await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.project = null; App.homeTab = 'home'; await renderHome(); }); await A.pg.waitForTimeout(500);
+  await A.pg.click('.st-bnav [data-n=set]'); await A.pg.waitForTimeout(600);
+  const rg = await A.pg.evaluate(() => [!!document.querySelector('.sheet-bg'), (document.querySelector('.sheet h3, .sheet .sh-title') || {}).textContent || '']);
+  log('Réglages = menu ⋮', rg); if (!rg[0]) v38.push('Réglages : menu absent');
+  await shot(A.pg, '153_reglages_menu'); await A.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove()));
+  log('errors v1.0.38', v38);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);
