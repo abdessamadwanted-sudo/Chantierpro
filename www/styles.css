@@ -3017,7 +3017,8 @@ html:not(.th-net) .h2-rh button { color: #7FB0EC !important; }
 .st-bnav5 .bn-d { position: absolute; top: 4px; left: calc(50% + 12px); width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; box-shadow: 0 0 0 2px var(--bg2); }
 .st-dashp .st-dashc { padding-bottom: 24px; }
 /* ===== v1.0.43 — Réseau ===== */
-.rs-c { padding: 12px 14px 28px; display: grid; gap: 12px; align-content: start; }
+.rs-c { padding: 12px 14px 28px; display: grid; gap: 12px; align-content: start; grid-auto-rows: max-content; }
+.rs-list > .rs-row { flex: none; }
 .rs-me { display: flex; gap: 12px; align-items: center; padding: 14px; border-radius: 18px; background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, var(--card)), var(--card)); border: 1px solid var(--line); }
 .rs-me .grow { display: grid; gap: 3px; min-width: 0; } .rs-me b { font-size: 16px; } .rs-me small { color: var(--muted); font-size: 12.5px; } .rs-me em { font-style: normal; font-size: 11px; color: var(--muted); }
 .rs-bar { height: 5px; border-radius: 99px; background: var(--bg2); overflow: hidden; } .rs-bar i { display: block; height: 100%; background: linear-gradient(90deg, #22c55e, var(--accent)); }
