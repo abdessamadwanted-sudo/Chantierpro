@@ -22,20 +22,12 @@ async function openPhotoBatch(p, pre = {}) {
   const files = await pickFiles({ accept: 'image/*', multiple: true }); if (!files.length) return;
   const lot = lots.find(l => l.id === r.lot);
   const grp = { dest: r.dest, lot: lot ? lot.name : '', niv: (r.niv || '').trim(), ouv: (r.ouv || '').trim(), date: r.date || todayISO() };
-  const ld = loading(`Enregistrement 0/${files.length}…`); let n = 0, bg = 0; const saved = [];
-  try {
-    for (const f of files) {
-      let blob = f;
-      if (r.q === 'opt' && typeof compressImage === 'function') { try { const c = await compressImage(f, 2400, 0.88); blob = (c && c.blob) || f; } catch (e) { blob = f; } }
-      n++; saved.push(await DB.putRaw('files', { id: DB.uid(), createdAt: Date.now(), updatedAt: Date.now(), projectId: p.id, blob, mime: blob.type || f.type || 'image/jpeg', name: `${grp.ouv || grp.niv || 'photo'} ${n}`.trim() + '.jpg', role: 'photo', grp }));
-      ld.set(`Enregistrement ${n}/${files.length}…`);
-    }
-    // v1.0.43 : confiées tout de suite au téléphone (WorkManager) → l'envoi continue même si l'application est fermée
-    if (typeof BgUp !== 'undefined' && BgUp.on()) { ld.set('Préparation de l\'envoi…'); bg = await BgUp.hand(saved, { onStep: (k, t) => ld.set(`Préparation de l'envoi ${k}/${t}…`) }); }
-    for (const x of saved) await DB.put('files', x);   // enregistrement normal (la synchro ne renvoie pas celles confiées au téléphone)
-  } finally { ld.close(); }
-  toast(bg ? `📷 ${n} photo(s) — envoi vers Drive en arrière-plan, même application fermée` : `📷 ${n} photo(s) enregistrée(s) — envoi vers Drive en arrière-plan`, { ms: 4500 });
-  if (bg) { try { if (!localStorage.getItem('bg.notifAsked')) { localStorage.setItem('bg.notifAsked', '1'); await window.Capacitor.Plugins.BgUpload.notifPermission({ ask: true }); } } catch (e) {} }
+  // v1.0.44 : rien ne bloque — enregistrement immédiat, réduction puis envoi en arrière-plan (pastille d'envoi en bas)
+  let n = files.length;
+  if (typeof PhotoQ !== 'undefined') await PhotoQ.save(p.id, files.map((f, i) => { try { Object.defineProperty(f, 'name', { value: `${grp.ouv || grp.niv || 'photo'} ${i + 1}`.trim() + '.jpg' }); } catch (e) {} return f; }), { grp, hq: true });
+  else n = 0;
+  toast(`📷 ${n} photo(s) — envoi vers Drive en arrière-plan${typeof BgUp !== 'undefined' && BgUp.on() ? ', même application fermée' : ''}`, { ms: 4000 });
+  try { if (!localStorage.getItem('bg.notifAsked') && window.Capacitor && window.Capacitor.Plugins.BgUpload) { localStorage.setItem('bg.notifAsked', '1'); window.Capacitor.Plugins.BgUpload.notifPermission({ ask: true }); } } catch (e) {}
   try { if (typeof Sync !== 'undefined' && Sync.schedule) Sync.schedule(800); } catch (e) {}
   return n;
 }

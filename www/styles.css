@@ -3040,3 +3040,65 @@ html:not(.th-net) .h2-rh button { color: #7FB0EC !important; }
 .rs-b { width: 36px; height: 36px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--bg2); color: var(--accent); text-decoration: none; font-size: 16px; }
 .rs-b svg.i { width: 18px; height: 18px; } .rs-b.wa { background: rgba(34,197,94,.12); }
 .rs-soon { display: grid; gap: 4px; padding: 12px 14px; border-radius: 14px; border: 1px dashed var(--line); color: var(--muted); font-size: 12.5px; } .rs-soon b { color: var(--text); font-size: 13px; }
+
+/* ===== v1.0.44 — barre à 4, Pro à onglets, profil, carte projet, pastille d'envoi, sélection de photos ===== */
+.st-bnav.st-bnav4 { grid-template-columns: repeat(4, 1fr) !important; padding-top: 7px !important; }
+.st-bnav4 button { position: relative; gap: 3px; padding: 5px 0 4px; font-size: 11px; font-weight: 600; background: none !important; }
+.st-bnav4 button svg.i { width: 23px; height: 23px; padding: 3px 16px; box-sizing: content-box; border-radius: 99px; transition: background .2s; }
+.st-bnav4 button.on { color: var(--accent); } .st-bnav4 button.on svg.i { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.st-bnav4 .bn-b { position: absolute; top: 0; left: calc(50% + 8px); min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; background: #ef4444; color: #fff; font-size: 10px; font-style: normal; font-weight: 800; display: grid; place-items: center; }
+.st-bnav4 .bn-d { position: absolute; top: 4px; left: calc(50% + 12px); width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; box-shadow: 0 0 0 2px var(--bg2); }
+.pro-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 8px 12px 4px; padding: 4px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); flex: none; }
+.pro-tabs button { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 4px; border-radius: 12px; color: var(--muted); font-size: 13px; font-weight: 700; }
+.pro-tabs button svg.i { width: 18px; height: 18px; } .pro-tabs button.on { background: var(--accent); color: #fff; box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent); }
+.pf-card { display: flex; align-items: center; gap: 12px; width: 100%; margin: 0 0 14px; padding: 14px; border-radius: 18px; text-align: left; color: var(--text);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 18%, var(--card)), var(--card)); border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--line)); }
+.pf-card .grow { display: grid; gap: 2px; min-width: 0; } .pf-card b { font-size: 16px; } .pf-card small { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .pf-card .pf-m { font-size: 11.5px; }
+.pf-av { width: 52px; height: 52px; flex: none; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 18px; overflow: hidden; background: linear-gradient(135deg, #2563eb, #0d9488); }
+.pf-av img { width: 100%; height: 100%; object-fit: cover; } .pf-card > svg.i { width: 18px; height: 18px; color: var(--muted); }
+.h2-cust { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 10px; padding: 9px; border-radius: 12px; border: 1px dashed var(--line); color: var(--muted); font-size: 12.5px; font-weight: 600; background: none; }
+.h2-cust svg.i { width: 16px; height: 16px; }
+.ph-pill { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(92px + var(--safe-bottom)); z-index: 45; display: flex; align-items: center; gap: 6px; padding: 7px 12px 7px 9px; border-radius: 99px; color: #fff; font-size: 13px;
+  background: rgba(15,23,42,.72); backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%); border: 1px solid rgba(255,255,255,.18); box-shadow: 0 8px 24px rgba(15,23,42,.25); animation: phIn .25s ease-out; }
+.ph-pill svg.i { width: 16px; height: 16px; } .ph-pill b { font-weight: 800; } .ph-pill small { opacity: .85; }
+.ph-spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,.3); border-top-color: #60a5fa; animation: phSpin .8s linear infinite; }
+@keyframes phSpin { to { transform: rotate(360deg); } } @keyframes phIn { from { opacity: 0; transform: translate(-50%, 10px); } }
+body:not(:has(.st-bnav)) .ph-pill { bottom: calc(22px + var(--safe-bottom)); }
+.sel-mode > .t[data-id], .sel-mode > .ph[data-id] { position: relative; }
+.sel-mode > .t[data-id]::after, .sel-mode > .ph[data-id]::after { content: ''; position: absolute; top: 5px; left: 5px; width: 20px; height: 20px; border-radius: 50%; border: 2px solid #fff; background: rgba(0,0,0,.25); box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+.sel-mode > .ph-sel { outline: 3px solid var(--accent); outline-offset: -3px; }
+.sel-mode > .ph-sel::after { background: var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center/13px no-repeat !important; }
+.sel-bar { position: fixed; left: 10px; right: 10px; bottom: calc(14px + var(--safe-bottom)); z-index: 120; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 18px; color: #fff;
+  background: rgba(15,23,42,.88); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: 0 12px 30px rgba(0,0,0,.35); }
+.sel-bar b { flex: 1; font-size: 14px; } .sel-bar button { display: flex; align-items: center; gap: 5px; padding: 8px 10px; border-radius: 12px; color: #fff; font-size: 13px; font-weight: 700; background: rgba(255,255,255,.1); }
+.sel-bar button svg.i { width: 18px; height: 18px; } .sel-bar .d { background: #ef4444; } .sel-bar .d:disabled { opacity: .5; }
+
+/* ===== v1.0.44 — style « verre » vectoriel (SiteTeam clair et sombre) =====
+   Fond vectoriel (halos de couleur), cartes translucides avec reflet, verre dépoli sur l'en-tête, les feuilles et les pastilles.
+   Le flou (coûteux sur les petits téléphones) est réservé aux éléments flottants ; les cartes imitent le verre sans flou. */
+html.th-st { --gl-card: linear-gradient(150deg, rgba(255,255,255,.92), rgba(255,255,255,.66)); --gl-bd: rgba(255,255,255,.85); --gl-edge: rgba(33,100,168,.14);
+  --gl-sh: 0 1px 0 rgba(255,255,255,.9) inset, 0 10px 28px rgba(20,35,55,.08); --gl-float: rgba(255,255,255,.72);
+  --gl-scene: radial-gradient(60% 40% at 0% 0%, rgba(59,130,246,.16), transparent 70%), radial-gradient(50% 35% at 100% 18%, rgba(13,148,136,.12), transparent 70%), radial-gradient(60% 40% at 50% 100%, rgba(244,163,64,.10), transparent 70%); }
+html.th-st.th-std { --gl-card: linear-gradient(150deg, rgba(255,255,255,.085), rgba(255,255,255,.025)); --gl-bd: rgba(255,255,255,.10); --gl-edge: rgba(255,255,255,.06);
+  --gl-sh: 0 1px 0 rgba(255,255,255,.08) inset, 0 12px 30px rgba(0,0,0,.28); --gl-float: rgba(16,28,46,.62);
+  --gl-scene: radial-gradient(60% 40% at 0% 0%, rgba(59,130,246,.22), transparent 70%), radial-gradient(50% 35% at 100% 20%, rgba(13,148,136,.16), transparent 70%), radial-gradient(60% 45% at 50% 105%, rgba(124,58,237,.14), transparent 70%); }
+html.th-st .home2, html.th-st .fullpage:not(.sketch):not(.ob):not(.tm-login):not(.st-gate):not(.lock-page):not(.m3page):not(.scanpage):not(.v3page):not(.lic-lock):not(.plansq) { background: var(--gl-scene), var(--bg) !important; }
+/* cartes en verre */
+html.th-st .h2-proj, html.th-st .st-tile, html.th-st .st-kpi, html.th-st .st-ps, html.th-st .st-tcat, html.th-st .st-pb, html.th-st .gm-box, html.th-st .pv-sec, html.th-st .pv-ctx, html.th-st .pv-mes,
+html.th-st .rs-list, html.th-st .rs-acts button, html.th-st #content .list, html.th-st .h2-kpi > div, html.th-st .dp-sec, html.th-st .cr-grp, html.th-st .tm-box, html.th-st .pv-tc, html.th-st .rs-q,
+html.th-st #content .empty, html.th-st .h2-tab, html.th-st .pv-kpi button, html.th-st .st-mbox, html.th-st .st-team {
+  background: var(--gl-card) !important; border: 1px solid var(--gl-bd) !important; box-shadow: var(--gl-sh) !important; }
+html.th-st .h2-proj .h2-card { background: transparent !important; }
+html.th-st .h2-proj .h2-detw, html.th-st .h2-proj .h2-det { background: transparent !important; }
+html.th-st .h2-av { box-shadow: 0 8px 18px rgba(15,23,42,.18), 0 1px 0 rgba(255,255,255,.35) inset; }
+/* verre dépoli : en-tête, feuilles, barre d'onglets Pro, pastilles */
+html.th-st .h2-hero { background: linear-gradient(160deg, rgba(37,99,235,.10), transparent 60%), var(--gl-float) !important; backdrop-filter: blur(18px) saturate(160%); -webkit-backdrop-filter: blur(18px) saturate(160%); border-bottom: 1px solid var(--gl-bd) !important; }
+html.th-st.th-std .h2-hero { background: radial-gradient(120% 90% at 100% 0%, rgba(59,130,246,.35), transparent 60%), linear-gradient(160deg, rgba(19,34,56,.9), rgba(11,20,34,.85)) !important; }
+html.th-st .sheet { background: linear-gradient(180deg, color-mix(in srgb, var(--card) 88%, transparent), var(--card)) !important; backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%); border-top: 1px solid var(--gl-bd); box-shadow: 0 -12px 40px rgba(0,0,0,.18); }
+html.th-st .sheet-bg { background: rgba(10,20,35,.38) !important; backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+html.th-st .pro-tabs { background: var(--gl-float) !important; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid var(--gl-bd) !important; }
+html.th-st .st-bnav { box-shadow: 0 -1px 0 var(--gl-bd) inset, 0 -10px 30px rgba(15,23,42,.10) !important; }
+html.th-st .fab { background: linear-gradient(145deg, #3b82f6, #1d4ed8) !important; box-shadow: 0 10px 26px rgba(37,99,235,.42), 0 1px 0 rgba(255,255,255,.35) inset !important; }
+html.th-st .btn:not(.ghost):not(.danger) { background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 88%, #fff), var(--accent)); box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 30%, transparent), 0 1px 0 rgba(255,255,255,.3) inset; }
+html.th-st .btn.ghost { background: var(--gl-card); border: 1px solid var(--gl-bd); }
+html.th-st .st-ico { box-shadow: 0 1px 0 rgba(255,255,255,.4) inset; }

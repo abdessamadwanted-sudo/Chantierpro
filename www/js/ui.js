@@ -205,10 +205,10 @@ function pickFiles({ accept = 'image/*', multiple = true, capture = false } = {}
 }
 
 // menu en groupes (titre de groupe, icône dans une pastille colorée, libellé + détail)
-function groupMenu(title, groups) {
+function groupMenu(title, groups, { head = '' } = {}) {
   return new Promise((resolve) => {
     let v = null;
-    const s = sheet(`<div class="gm">${groups.filter(g => g.items.length).map(g => `${g.title ? `<div class="gm-g">${esc(g.title)}</div>` : ''}<div class="gm-box">${g.items.map(it => `<button class="gm-i" ${it.value != null ? `data-v="${esc(it.value)}"` : 'disabled'}><span class="gm-ic" style="--c:${g.color}">${icon(it.icon)}</span><span class="grow"><b>${esc(it.label)}</b>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span>${it.value != null ? icon('chevright') : ''}</button>`).join('')}</div>`).join('')}</div>`, { title });
+    const s = sheet(`<div class="gm">${head}${groups.filter(g => g.items.length).map(g => `${g.title ? `<div class="gm-g">${esc(g.title)}</div>` : ''}<div class="gm-box">${g.items.map(it => `<button class="gm-i" ${it.value != null ? `data-v="${esc(it.value)}"` : 'disabled'}><span class="gm-ic" style="--c:${g.color}">${icon(it.icon)}</span><span class="grow"><b>${esc(it.label)}</b>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span>${it.value != null ? icon('chevright') : ''}</button>`).join('')}</div>`).join('')}</div>`, { title });
     $$('[data-v]', s.el).forEach(b => b.onclick = () => { v = b.dataset.v; s.close(); });
     s.onClose = () => resolve(v);
   });
@@ -316,6 +316,8 @@ function showImage(src, caption = '') { return showGallery([{ src, caption }], 0
 // Galerie plein écran façon téléphone : la photo suit le doigt, zoom à deux doigts / double appui, miniatures
 function showGallery(items, start = 0, opts = {}) {
   items = items.filter(x => x && x.src);
+  // v1.0.44 : suppression possible partout où la photo est un fichier de l'application
+  if (!opts.onDelete && items.some(x => x.fileId) && typeof PhotoQ !== 'undefined') opts = { ...opts, onDelete: async (it) => { if (!it.fileId) { toast('Photo non supprimable ici'); return false; } return PhotoQ.remove([it.fileId], { ask: false }); } };
   if (!items.length) return;
   let i = Math.max(0, Math.min(start, items.length - 1)), dx = 0, zoom = 1, px = 0, py = 0;
   const el = document.createElement('div');

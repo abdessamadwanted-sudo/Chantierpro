@@ -14,7 +14,7 @@ const BgUp = (() => {
   // confie des fichiers au téléphone ; renvoie le nombre confié
   async function hand(files, { onStep } = {}) {
     if (!on()) return 0;
-    const L = (files || []).filter(f => f && f.blob && !f.driveId && !f.bgq);
+    const L = (files || []).filter(f => f && f.blob && !f.driveId && !f.bgq && !f.prep);
     if (!L.length) return 0;
     const paths = await Sync.buildPaths(); let n = 0;
     for (const f of L) {
@@ -51,7 +51,7 @@ const BgUp = (() => {
   // au passage en arrière-plan : les photos encore à envoyer sont confiées au téléphone
   async function handPending(skip) {
     if (!on()) return 0;
-    const L = (await DB.all('files')).filter(f => f.blob && !f.driveId && !f.bgq && f.role === 'photo' && !(skip && skip.has(f.id)));
+    const L = (await DB.all('files')).filter(f => f.blob && !f.driveId && !f.bgq && !f.prep && f.role === 'photo' && !(skip && skip.has(f.id)));
     return hand(L);
   }
 

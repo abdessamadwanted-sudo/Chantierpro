@@ -8,7 +8,8 @@ const rsWa = (t) => { let n = t.replace(/^\+/, ''); if (/^0[5-7]\d{8}$/.test(n))
 
 async function rsCollect() {
   const out = [], seen = new Set();
-  const add = (c) => { const k = (c.name || '').toLowerCase().trim() + '|' + (c.tel || c.email || ''); if (!c.name || seen.has(k)) return; seen.add(k); out.push(c); };
+  const self = new Set([((Team.ready() && Team.me()) || {}).name, typeof Dossier !== 'undefined' ? Dossier.get().name : ''].filter(Boolean).map(x => x.toLowerCase().trim()));
+  const add = (c) => { const k = (c.name || '').toLowerCase().trim() + '|' + (c.tel || c.email || ''); if (!c.name || seen.has(k) || (c.src !== 'me' && self.has(c.name.toLowerCase().trim()))) return; seen.add(k); out.push(c); };
   for (const [i, c] of rsMine().entries()) add({ ...c, src: 'me', idx: i, tel: c.tel || '' });
   const meU = Team.ready() ? Team.uid() : '';
   if (Team.ready() && !Team.isPerso()) for (const m of (Team.members() || [])) if (m.uid !== meU) {
