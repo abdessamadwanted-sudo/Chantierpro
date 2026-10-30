@@ -270,6 +270,7 @@ async function renderHome() {
         { label: 'Tableau de dessin', icon: 'brush', value: 'board' }] },
       { title: 'Données', color: '#0ea5e9', items: [
         { label: 'Stockage & sauvegarde', sub: 'libérer · Google Drive · .zip', icon: 'cloud', value: 'stock' },
+        ...(typeof BgUp !== 'undefined' && BgUp.available() ? [{ label: 'Envoi en arrière-plan', sub: 'photos vers Drive, même application fermée · Wi-Fi · batterie', icon: 'upload', value: 'bgup' }] : []),
         { label: 'Restaurer une sauvegarde', sub: 'fichier .zip ou .chantier', icon: 'undo', value: 'restore' },
         { label: 'Corbeille', sub: 'supprimés depuis 30 jours', icon: 'trash', value: 'trash' }] },
       { title: 'Réglages', color: '#a855f7', items: [
@@ -286,6 +287,7 @@ async function renderHome() {
     if (v === 'packs') openPacks();
     if (v === 'restore') restoreBackup();
     if (v === 'stock') openStorage();
+    if (v === 'bgup') BgUp.openSettings();
     if (v === 'team') openMyTeam();
     if (v === 'pin') setPinDialog();
     if (v === 'feat') chooseMyFeatures();

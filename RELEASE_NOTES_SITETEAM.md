@@ -1,11 +1,8 @@
-## SiteTeam : PV de réception intelligents par service, écrans unifiés
-- Nouveau PV de réception : les modèles de votre service sont proposés en premier. Qualité / travaux : ferraillage, coffrage, bétonnage, maçonnerie, étanchéité. Topo : implantation, contrôle altimétrique. Labo : béton frais, écrasement, compactage. HSE : inspection sécurité.
-- Chaque PV a des rubriques (armatures, enrobage, recouvrements…), quatre réponses par point (Conforme, Réserve, Non conforme, N/A) et un bouton « Le reste est conforme ».
-- Mesures avec tolérances modifiables (enrobage, slump, température, écarts X/Y/Z, compacité, EV2, résistance…) : vérification automatique ✓ / ✗.
-- Verdict automatique en couleur : Conforme, Conforme avec réserves ou Non conforme. Numérotation PV-FER-001, PV-IMP-001…
-- « Créer les réserves » : chaque point en réserve ou non conforme, et chaque mesure hors tolérance, devient une réserve à suivre.
-- « Contre-visite » : un nouveau PV qui reprend seulement les points à revoir.
-- Niveau, ouvrage, lot et entreprise sur chaque PV. Bouton « PV de réception » dans chaque lot et dans les outils du projet.
-- PDF avec rubriques, tableau des mesures et verdict. Rangement Drive : Formulaires › type de PV › niveau.
-- Liste « PV & contrôles » avec filtres : En cours, Réserves, Non conformes, Conformes.
-- Anciens écrans (listes, titres, pages vides, boutons) mis au même style que les nouveaux.
+## SiteTeam : envoi des photos vers Drive même application fermée (WorkManager)
+- Photos en masse : dès qu'elles sont choisies, les photos sont confiées au téléphone. Android les envoie vers Google Drive dès qu'il y a du réseau, même si vous fermez SiteTeam. L'envoi reprend après une coupure de réseau ou un redémarrage du téléphone.
+- Notification « SiteTeam · envoi vers Google Drive 12 / 30 », puis « 30 photo(s) envoyée(s) ✓ ».
+- Choix du réseau : 4G et Wi-Fi, ou Wi-Fi seulement.
+- En quittant l'application, les photos qui restent à envoyer sont aussi confiées au téléphone.
+- À la réouverture, l'application relit ce qui a été envoyé : pas de doublon dans Drive, et le rangement (rubrique › mois › jour › niveau › ouvrage) est respecté.
+- Réglages › Données › « Envoi en arrière-plan » : photos en attente, réseau, notification, et réglage de la batterie (Huawei : « Gérer manuellement »).
+- Cette version change la partie Android : installez l'APK (la mise à jour sans réinstallation ne suffit pas).

@@ -847,6 +847,37 @@ try {
   const dj = await A.pg.evaluate(async () => { const f = (await DB.byProject('forms', App.project.id)).find(f => f.v2 && !f.parent); window.PdfCapture = []; await formPdf(f); const ok = window.PdfCapture.length === 1 && window.PdfCapture[0].fname; delete window.PdfCapture; return ok; });
   log('PV PDF', dj); if (!dj || !/^PV-FER-/.test(dj)) v42.push('PDF PV');
   log('errors v1.0.42', v42);
+  // ---- v1.0.43 : envoi en arrière-plan (WorkManager) — plugin Android simulé : file, résultats, pas de double envoi
+  const v43 = await A.pg.evaluate(async () => {
+    const E = [], Q = new Map(), DONE = []; let started = 0;
+    window.Capacitor = window.Capacitor || {}; window.Capacitor.Plugins = window.Capacitor.Plugins || {};
+    window.Capacitor.Plugins.BgUpload = { enqueue: async (o) => { Q.set(o.id, o); }, start: async () => { started++; }, status: async () => ({ pendingIds: [...Q.keys()], done: DONE.slice(), running: false, lastError: '' }),
+      ack: async ({ ids }) => { for (const id of ids) { const i = DONE.findIndex(d => d.id === id); if (i >= 0) DONE.splice(i, 1); } }, notifPermission: async () => ({ granted: true }), cancel: async () => {} };
+    const old = localStorage.getItem('sync.cfg'); localStorage.setItem('sync.cfg', JSON.stringify({ mode: 'g' }));
+    try {
+      if (!BgUp.on()) E.push('BgUp.on() faux');
+      const p = App.project || (await DB.all('projects')).find(x => !x.deleted);
+      const f1 = await DB.putRaw('files', { id: 'bgt1', projectId: p.id, blob: new Blob(['abc'], { type: 'image/jpeg' }), mime: 'image/jpeg', name: 'V12 1.jpg', role: 'photo', grp: { dest: 'rec', niv: 'R+1', ouv: 'Voile V12', date: '2026-10-30' } });
+      const f2 = await DB.putRaw('files', { id: 'bgt2', projectId: p.id, blob: new Blob(['def'], { type: 'image/jpeg' }), mime: 'image/jpeg', name: 'V12 2.jpg', role: 'photo', grp: { dest: 'rec', niv: 'R+1', ouv: 'Voile V12', date: '2026-10-30' } });
+      const n = await BgUp.hand([f1, f2]);
+      if (n !== 2 || Q.size !== 2 || !started) E.push('mise en file ' + n + '/' + Q.size);
+      const q1 = Q.get('bgt1'); if (!q1 || q1.segs[1] !== '02 - Réception ferraillage' || !q1.segs.includes('Voile V12') || atob(q1.data) !== 'abc') E.push('contenu de la file ' + JSON.stringify(q1 && q1.segs));
+      const again = await BgUp.hand([await DB.get('files', 'bgt1')]); if (again !== 0) E.push('double mise en file');
+      // le téléphone a envoyé bgt1 ; bgt2 en attente
+      Q.delete('bgt1'); DONE.push({ id: 'bgt1', driveId: 'DRV123' });
+      const st = await BgUp.settle();
+      const a = await DB.get('files', 'bgt1'), b = await DB.get('files', 'bgt2');
+      if (a.driveId !== 'DRV123' || a.bgq || !a.drivePath) E.push('résultat non relu');
+      if (!b.bgq || st.pending !== 1) E.push('en attente perdu');
+      if (DONE.length) E.push('résultats non acquittés');
+      // perdu par le téléphone : l'application le reprend
+      Q.delete('bgt2'); await BgUp.settle(); if ((await DB.get('files', 'bgt2')).bgq) E.push('reprise par l\'application');
+      await DB.delRaw('files', 'bgt1'); await DB.delRaw('files', 'bgt2');
+    } catch (e) { E.push('exception ' + e.message); }
+    finally { if (old) localStorage.setItem('sync.cfg', old); else localStorage.removeItem('sync.cfg'); delete window.Capacitor.Plugins.BgUpload; }
+    return E;
+  });
+  log('errors v1.0.43', v43);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);
