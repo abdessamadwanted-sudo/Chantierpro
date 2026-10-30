@@ -79,6 +79,9 @@ const Sync = (() => {
   // Rangement Drive « pro » : un dossier par projet, sous-dossiers numérotés, un dossier par jour et par ouvrage.
   // Changer un chemin DÉPLACE le fichier dans Drive (jamais de doublon).
   const D = { plans: '01 - Plans', rec: '02 - Réception ferraillage', bet: '03 - Bétonnage', res: '04 - Réserves', rap: '05 - Rapports journaliers', form: '06 - Formulaires', cons: '07 - Constats', cl: '08 - Clauses techniques', doc: '09 - Documents', ph: '10 - Photos' };
+  // v1.0.41 : organisation des dossiers Drive — noms personnalisés par projet (p.driveNames : { nom par défaut → nouveau nom }), synchronisés avec le projet.
+  // Renommer DÉPLACE les fichiers existants (même mécanisme que tout changement de chemin) : aucun doublon.
+  const rnSegs = (proj, segs) => { const o = (proj && proj.driveNames) || {}; return segs.map((x, i) => (i === 1 && o[x]) ? clean(o[x]) : x); };
   const MOIS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
   const moisDe = (iso) => { const m = String(iso || '').match(/^(\d{4})-(\d{2})/); return m ? `${m[1]}-${m[2]} ${MOIS[+m[2] - 1]}` : 'Sans date'; };
   async function buildPaths() {
@@ -137,12 +140,14 @@ const Sync = (() => {
     for (const t of tasks) (t.photoIds || []).forEach((id, i) => put(id, [pj(t.projectId), D.res, `#${t.num || ''} ${t.title || ''}`], `#${t.num || ''} - ${i + 1}`));
     for (const f of forms) (f.photoIds || []).forEach((id, i) => put(id, [pj(f.projectId), D.form, `${(f.date || '').slice(0, 10)} ${f.title || ''}`], `photo ${i + 1}`));
     for (const r of reports) (r.photoIds || []).forEach((id, i) => put(id, [pj(r.projectId), D.rap, moisDe(r.date), r.date || ''], `photo ${i + 1}`));
-    return { map, P };
+    return { map, P, PR: Object.fromEntries(projects.map(p => [p.id, p])) };
   }
-  function pathFor(f, paths) {
+  function pathFor(f, paths) { const r = pathFor0(f, paths); return paths.PR ? { ...r, segs: rnSegs(paths.PR[f.projectId], r.segs) } : r; }
+  function pathFor0(f, paths) {
     if (f.projectId === '__career') return { segs: ['Mon dossier de candidature'], name: clean(`${f.cat || 'Document'} - ${String(f.name || f.id).replace(/\.\w{2,5}$/, '')}`) + extOf(f) };
     const m = paths.map[f.id];
     const ext = extOf(f);
+    if (!m && f.grp && typeof pbPath === 'function') return { segs: pbPath(f, D, paths.P, moisDe, clean), name: clean((f.name || f.id).replace(/\.\w{2,5}$/, '')) + ext };   // v1.0.41 : photos en masse
     if (m) return { segs: m.segs, name: m.name + ext };
     const day = new Date(f.createdAt || Date.now()).toISOString().slice(0, 10);
     const base = (f.name || f.id).replace(/\.\w{2,5}$/, '');
@@ -340,7 +345,7 @@ const Sync = (() => {
       if (tasks.length) jobs.push({ key: 'res', sig: hash(tasks), segs: [pn, 'Réserves'], name: 'Liste des réserves (à jour).pdf', make: () => buildReservesPdf(p, { company: 'all', status: 'all', period: 'all', photos: 'yes' }, () => {}) });
       for (const r of await DB.byProject('reports', p.id)) jobs.push({ key: 'rep:' + r.id, sig: hash(r), segs: [pn, 'Rapports journaliers', (r.date || '').slice(0, 7)], name: `Rapport journalier ${r.date}.pdf`, make: () => dailyPdf(r) });
       for (const f of await DB.byProject('forms', p.id)) jobs.push({ key: 'form:' + f.id, sig: hash(f), segs: [pn, 'Formulaires'], name: `PV ${(f.date || '').slice(0, 10)} ${clean(f.title)}.pdf`, make: () => formPdf(f) });
-      jobs.forEach(j => { j.sig += '|' + pn; });
+      jobs.forEach(j => { j.segs = rnSegs(p, j.segs); j.sig += '|' + pn + (p.driveNames ? '|' + JSON.stringify(p.driveNames) : ''); });
       const todo = jobs.filter(j => !docs[j.key] || docs[j.key].sig !== j.sig);
       let n = 0;
       for (const j of todo) {
@@ -614,5 +619,5 @@ function doPost(e) {
     };
   }
 
-  return { start, run, schedule, enabled, hasDrive, direct, connectGoogle, disconnect, openSyncSettings, statusLine, cfg, buildPaths, pathFor, _call: call, _parse: parseCode, _script: script };
+  return { DIRS: D, start, run, schedule, enabled, hasDrive, direct, connectGoogle, disconnect, openSyncSettings, statusLine, cfg, buildPaths, pathFor, _call: call, _parse: parseCode, _script: script };
 })();
