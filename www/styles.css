@@ -3004,3 +3004,4 @@ html:not(.th-net) .h2-rh button { color: #7FB0EC !important; }
 .fullpage .form > label:not(.bon-ok), .fullpage .form > .fld { font-size: 13px; font-weight: 600; }
 .check-item { padding: 12px 0; }
 .check-item .lbl { font-size: 14px; color: var(--text); }
+.pv-old > summary { list-style: none; cursor: pointer; } .pv-old > summary::-webkit-details-marker { display: none; }

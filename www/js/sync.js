@@ -10,7 +10,8 @@ const Sync = (() => {
   };
   const st = { state: 'off', msg: '', last: LS.get('last', 0) };
   let fails0 = [];
-  let running = false, again = false, timer = null, autoT = null;
+  let running = false, again = false, timer = null, autoT = null, handoff = false;
+  const inflight = new Set();
 
   const cfg = () => LS.get('cfg');
   // deux façons de connecter Drive : « g » = compte Google dans l'application (direct, sans script) · sinon ancien script Apps Script
@@ -212,13 +213,17 @@ const Sync = (() => {
     try {
       setStatus('sync', 'Synchronisation…');
       // 1) envoyer les fichiers (photos, plans, PDF…) dans des dossiers rangés
+      // v1.0.43 : résultats de l'envoi en arrière-plan (WorkManager) — les photos confiées au téléphone ne sont pas renvoyées ici
+      if (typeof BgUp !== 'undefined' && BgUp.available()) { try { await BgUp.settle(); } catch (e) { console.warn('bgup settle', e); } }
       const paths = await buildPaths();
       const files = await DB.all('files');
-      const todo = !hasDrive() ? [] : files.filter(f => (f.blob && (!f.driveId || f.drivePath !== JSON.stringify(pathFor(f, paths)))) || (!f.blob && f.driveId && f.drivePath && f.drivePath !== JSON.stringify(pathFor(f, paths))));
+      const todo = !hasDrive() ? [] : files.filter(f => !f.bgq).filter(f => (f.blob && (!f.driveId || f.drivePath !== JSON.stringify(pathFor(f, paths)))) || (!f.blob && f.driveId && f.drivePath && f.drivePath !== JSON.stringify(pathFor(f, paths))));
       let i = 0;
       await pool(todo, 3, async (f) => {
         const pth = pathFor(f, paths), key = JSON.stringify(pth);
         let res = null;
+        if (handoff && !f.driveId && f.role === 'photo') return;   // application passée en arrière-plan : le téléphone s'en charge
+        inflight.add(f.id);
         try {
           if (f.driveId) { try { res = await call('upload', { driveId: f.driveId, path: pth.segs, name: pth.name }); } catch (e) { res = null; } }
           if (!res && !f.blob) return;
@@ -226,7 +231,7 @@ const Sync = (() => {
           f.driveId = res.id; f.drivePath = key;
           await DB.put('files', f);
         } catch (e) { fails.push(`${pth.name} : ${e.message || e}`); }
-        finally { i++; setStatus('sync', `Envoi vers Drive ${i}/${todo.length}`); }
+        finally { inflight.delete(f.id); i++; setStatus('sync', `Envoi vers Drive ${i}/${todo.length}`); }
       });
       // 1b) fichiers partagés SiteTeam (Cloud Storage) : envoi des fichiers nouveaux ou remplacés, selon les droits sur le projet
       if (cloudOn()) {
@@ -290,7 +295,8 @@ const Sync = (() => {
       st.last = Date.now(); LS.set('last', st.last);
       if (Date.now() - LS.get('chkAt', 0) > 7 * 864e5) weeklyCheck().catch(e => console.warn('check', e));
       LS.set('fails', fails.slice(0, 20));
-      if (fails.length) setStatus('error', `${fails.length} problème(s) de synchro — touchez pour voir`); else setStatus('ok');
+      const bgp = typeof BgUp !== 'undefined' ? BgUp.last().pending : 0;
+      if (fails.length) setStatus('error', `${fails.length} problème(s) de synchro — touchez pour voir`); else if (bgp) setStatus('sync', `Envoi en arrière-plan : ${bgp} photo(s)`); else setStatus('ok');
       if (pulledCount) {
         if (!quiet) toast(`☁ ${pulledCount} mise(s) à jour reçue(s)`);
         // rafraîchir l'écran si aucune fenêtre n'est ouverte
@@ -374,7 +380,11 @@ const Sync = (() => {
     setTimeout(() => (window.requestIdleCallback || setTimeout)(() => run({ quiet: true }), { timeout: 3000 }), 2500);
     clearInterval(autoT); autoT = setInterval(() => { if (document.visibilityState === 'visible') run({ quiet: false }); }, 120000);
     if (start.done) return; start.done = true;
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') schedule(800); });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') { handoff = false; schedule(800); return; }
+      // v1.0.43 : application fermée / en arrière-plan → les photos restantes partent avec WorkManager (Android)
+      if (typeof BgUp !== 'undefined' && BgUp.on()) { handoff = true; BgUp.handPending(inflight).catch(e => console.warn('bgup', e)); }
+    });
     window.addEventListener('online', () => schedule(800));
   }
 
