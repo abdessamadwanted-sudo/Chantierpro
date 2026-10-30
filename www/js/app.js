@@ -114,7 +114,8 @@ async function renderHome() {
   App.project = null;
   BackStack.length = 0;
   const projects = (await DB.all('projects')).filter(p => Team.canProject(p.id)).sort((a, b) => b.updatedAt - a.updatedAt);
-  const [allTasks, allRecs, allLinks] = await Promise.all([DB.all('tasks'), DB.all('receptions'), DB.all('links')]);
+  const [allTasks, allRecs, allLinks, allForms] = await Promise.all([DB.all('tasks'), DB.all('receptions'), DB.all('links'), DB.all('forms').catch(() => [])]);
+  const meUid = Team.ready() ? Team.uid() : '';
   const fRec = featOn('reception'), fTasks = featOn('tasks'), fAv = featOn('avancement');
   const today = todayISO();
   const wk = new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10);
@@ -125,7 +126,10 @@ async function renderHome() {
     return { open: t.filter(x => !isLifted(x)).length, late: t.filter(isLate).length, pv: pvl.length, pvOld: pvl.filter(dt => daysSince(dt) >= 3).length,
       today: cnt('F', today) + cnt('B', today), fT: cnt('F', today), fW: cnt('F', wk), fA: cnt('F'), bT: cnt('B', today), bW: cnt('B', wk), bA: cnt('B'),
       rap: (p.rappels || []).filter(x => !x.done).sort((a, b) => rapRank(a) - rapRank(b) || (a.at || '9').localeCompare(b.at || '9')),
-      av: fAv ? avHomeStats(p, allLinks) : null };
+      av: fAv ? avHomeStats(p, allLinks) : null,
+      // v1.0.43 : la validation des PV se lit dans chaque projet (plus de bloc global sur l'accueil)
+      pva: Team.ready() ? allForms.filter(f => f.projectId === p.id && f.vst === 'soumis' && Team.canValidateForm(f)).length : 0,
+      pvc: Team.ready() ? allForms.filter(f => f.projectId === p.id && f.aut === meUid && f.vst === 'refuse').length : 0 };
   };
   App.homeOpen = App.homeOpen || {};
   const HUES = [['#2563eb', '#1e3a8a'], ['#0d9488', '#134e4a'], ['#7c3aed', '#4c1d95'], ['#ea580c', '#7c2d12'], ['#db2777', '#831843'], ['#0891b2', '#164e63']];
@@ -159,8 +163,7 @@ async function renderHome() {
         <div class="h2-top"><div class="brand notr"><span class="logo st-lg">${stLogo()}</span><b class="bt">SITETEAM</b></div>
           <div class="h2-acts"><button class="h2-cloud ${Sync.enabled() ? 'on' : 'off'}" data-a="sync" title="Google Drive">${icon('drive')}<i data-syncdot></i></button>
           ${Sync.enabled() ? `<button class="iconbtn" data-a="syncnow" title="Synchroniser">${icon('undo')}</button>` : ''}
-          ${featOn('career') ? `<button class="iconbtn h2-emo" data-a="career" title="Emploi & carrière">💼${(() => { try { return +localStorage.getItem('job.new') > 0 ? `<i class="h2-badge">${localStorage.getItem('job.new')}</i>` : ''; } catch (e) { return ''; } })()}</button>` : ''}
-          ${Team.ready() ? `<button class="iconbtn" data-a="company" title="${Team.isPerso() ? 'Mon espace' : 'Mon organisation'}">${icon(Team.isPerso() ? 'user' : 'team')}</button>` : ''}
+          ${featOn('career') && !(Team.ready() && !Team.isCollab()) ? `<button class="iconbtn h2-emo" data-a="career" title="Emploi & carrière">💼${(() => { try { return +localStorage.getItem('job.new') > 0 ? `<i class="h2-badge">${localStorage.getItem('job.new')}</i>` : ''; } catch (e) { return ''; } })()}</button>` : ''}
           <button class="iconbtn h2-emo off" data-a="freeph" title="Stockage">🧹</button>
           <button class="iconbtn h2-quit" data-a="quit" title="Fermer (appui long : verrouiller)">${icon('power')}</button>
           <button class="iconbtn" data-a="homemore">${icon('more')}</button></div></div>
@@ -186,22 +189,23 @@ async function renderHome() {
                 ${st.today ? `<i class="c-b">${st.today} réception(s) aujourd'hui</i>` : ''}
                 ${st.pv ? `<i class="c-r c-go" data-pvgo="${p.id}">${st.pv} PV à récupérer ›</i>` : ''}
                 ${st.rap.length ? `<i class="${st.rap.some(x => rapState(x) === 'late') ? 'c-r' : st.rap.some(x => rapState(x) === 'soon') ? 'c-g2' : 'c-y'}">🔔 ${st.rap.length} rappel(s)</i>` : ''}
+                ${st.pva ? `<i class="c-b">📋 ${st.pva} PV à valider</i>` : ''}${st.pvc ? `<i class="c-r">✎ ${st.pvc} PV à corriger</i>` : ''}
                 ${st.open ? `<i class="c-o">${st.open} réserve(s)</i>` : ''}
                 ${st.av ? `<i class="${st.av.late ? 'c-r' : 'c-b'}">🏗️ ${st.av.pct}%${st.av.late ? ` · ${st.av.late} en retard` : ''}</i>` : ''}
-                ${!st.today && !st.pv && !st.open && !st.rap.length && !(st.av && st.av.late) ? '<i class="c-g">À jour ✓</i>' : ''}
+                ${!st.today && !st.pv && !st.open && !st.pva && !st.pvc && !st.rap.length && !(st.av && st.av.late) ? '<i class="c-g">À jour ✓</i>' : ''}
               </span></span>
             <span class="h2-chev" data-det="${p.id}" style="transform:rotate(${open ? 180 : 0}deg)">${icon('chevdown')}</span></button></div>
             ${open ? `<div class="h2-detw"><button class="h2-bbrief" data-brief="${p.id}">☀️ Briefing du chantier</button>${detHTML(p, st)}</div>` : ''}</div>`; };
           const empty = `<div class="h2-empty"><div class="ic">${icon('hard')}</div><b>Aucun chantier pour le moment</b><span>Créez votre premier projet avec le bouton <b>+</b>, ou récupérez vos données avec Google Drive.</span>
             <button class="btn ghost" data-a="restore2" style="flex:none">${icon('undo')} Restaurer une sauvegarde</button></div>`;
-          const tabs = Team.ready() && !Team.isCollab(), T = tabs ? (App.homeTab || 'home') : '';
+          const tabs = Team.ready() && !Team.isCollab(); if (App.homeTab !== 'tools') App.homeTab = 'home'; const T = tabs ? App.homeTab : '';
           const sec = (k, html) => tabs ? `<section class="h2-pane ${T === k ? 'on' : ''}" data-tab="${k}">${html}</section>` : html;
           const all = `<div class="h2-sec"><span>Mes chantiers</span><small>${projects.length}</small></div>${projects.length ? projects.map(card).join('') : empty}`;
           if (!tabs) return `${ST.directionHTML()}${ST.serviceHTML()}${ST.dashHTML()}${ST.isPerso() || (Team.ready() && Team.isCollab()) ? '' : espaceHome()}${fp ? focusHTML() : all}`;
           const recent = projects.slice(0, 2);
-          return sec('home', `${ST.directionHTML()}${ST.serviceHTML()}${ST.dashHTML()}
-              <div class="h2-sec"><span>Derniers chantiers</span><small>${projects.length}</small>${projects.length > 2 ? '<button class="h2-more" data-tabgo="proj">Tous ›</button>' : ''}</div>${recent.length ? recent.map(card).join('') : empty}`)
-            + sec('proj', all)
+          void recent;
+          // v1.0.43 : l'accueil = mes projets (chaque projet porte ses chiffres : PV, réserves, rappels…) ; tableau de bord dans « Plus »
+          return sec('home', `<div class="h2-sec"><span>Mes projets</span><small>${projects.length}</small></div>${projects.length ? projects.map(card).join('') : empty}`)
             + sec('tools', ST.toolsHTML());   // v1.0.38 : plus d'onglet « Outils » dans la barre du bas (chaque projet s'ouvre sur ses outils) ; panneau gardé pour les tests
         })()}
       </div>

@@ -301,7 +301,7 @@ try {
   await H.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); Team.openCompany('org'); }); await H.pg.waitForTimeout(1200); await shot(H.pg, '62_organigramme_qualite');
   log('H gérer les postes', await H.pg.evaluate(() => !!document.querySelector('.tm-page [data-a=postes]')));
   await I.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); location.reload(); }); await I.pg.waitForSelector('.home2', { timeout: 30000 }); await I.pg.waitForTimeout(1500);
-  await I.pg.evaluate(() => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await I.pg.waitForTimeout(800); await shot(I.pg, '63_dash_technicien');
+  await I.pg.evaluate(async () => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); App.project = null; await renderHome(); ST.openDash(); }); await I.pg.waitForTimeout(800); await shot(I.pg, '63_dash_technicien');
   log('I tableau de bord', await I.pg.evaluate(() => [Team.me().role, [...document.querySelectorAll('.st-mis')].map(x => x.textContent.trim()), !!document.querySelector('[data-stq]')]));
   // PV : le technicien rédige et soumet, l'administrateur valide
   await I.pg.evaluate(async () => { const p = (await DB.all('projects'))[0]; window.__pv = await DB.put('forms', { projectId: p.id, templateId: 'x', title: 'Réception ferraillage P2', location: 'Pile P2', date: todayISO(), inspector: '', notes: '', aut: Team.uid(), vst: 'brouillon', items: [{ label: 'Diamètres conformes', res: 'ok', comment: '' }], photoIds: [] }); openFormDetail(window.__pv); });
@@ -309,7 +309,7 @@ try {
   log('I peut valider son PV', await I.pg.evaluate(() => !!document.querySelector('[data-v=valider]')));
   await I.pg.click('[data-v=soumettre]'); await I.pg.waitForTimeout(2500); await I.pg.evaluate(() => Sync.run({ force: true })); await I.pg.waitForTimeout(2000);
   await H.pg.evaluate(() => Sync.run({ force: true })); await H.pg.waitForTimeout(2500);
-  await H.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await H.pg.waitForTimeout(1500); await shot(H.pg, '65_dash_validation');
+  await H.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.project = null; await renderHome(); ST.openDash(); }); await H.pg.waitForTimeout(1500); await shot(H.pg, '65_dash_validation');
   log('H tuiles validation', await H.pg.evaluate(() => [...document.querySelectorAll('[data-stq] .st-ps')].map(x => x.textContent.trim())));
   await H.pg.evaluate(async () => { const f = (await DB.all('forms'))[0]; openFormDetail(f); }); await H.pg.waitForSelector('[data-v=valider]', { timeout: 10000 }); await shot(H.pg, '66_pv_a_valider');
   await H.pg.click('[data-v=valider]'); await H.pg.click('.opt:has-text("Valider")'); await H.pg.waitForTimeout(2500); await H.pg.evaluate(() => Sync.run({ force: true })); await H.pg.waitForTimeout(2000);
@@ -525,18 +525,18 @@ try {
   log('Drive : déconnecté', await E.pg.evaluate(() => [Sync.cfg(), localStorage.getItem('gd.root')]));
   log('errors v1.0.29', E.errs.filter(x => !/401|403|400|permission/i.test(x)));   // 401 = jeton expiré simulé
   // ---- v1.0.30 : SiteTeam UI Kit, tableau de bord « Vue Direction », taille selon le pack, fil d'Ariane, plusieurs postes, anti-capture
-  await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForSelector('.st-dir', { timeout: 15000 });
+  await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome().then(() => ST.openDash()); }); await A.pg.waitForSelector('.st-dir', { timeout: 15000 });
   await A.pg.waitForFunction(() => !document.querySelector('.st-kpi b') || document.querySelector('.st-kpi b').textContent !== '…', null, { timeout: 15000 }); await A.pg.waitForTimeout(600);
   await shot(A.pg, '107_vue_direction');
   log('Vue Direction (A, Business)', await A.pg.evaluate(() => [Team.taille(), document.querySelector('.st-hd b').textContent, document.querySelectorAll('.st-kpi').length, [...document.querySelectorAll('.st-kpi b')].every(b => b.textContent !== '…'), !!document.querySelector('.st-perf-c svg'), document.querySelectorAll('.st-svc2').length > 0, document.documentElement.classList.contains('th-st'), document.querySelectorAll('.st-bnav button').length]));
-  await A.pg.evaluate(() => document.querySelector('.h2-body').scrollTo(0, 99999)); await A.pg.waitForTimeout(400); await shot(A.pg, '108_vue_direction_bas');
+  await A.pg.evaluate(() => document.querySelector('.st-dashc').scrollTo(0, 99999)); await A.pg.waitForTimeout(400); await shot(A.pg, '108_vue_direction_bas');
   log('Free (E) : pas de Vue Direction, barre du bas', await E.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.project = null; renderHome(); return new Promise(r => setTimeout(() => r([Team.taille(), !!document.querySelector('.st-dir'), [...document.querySelectorAll('.st-bnav span')].map(x => x.textContent)]), 800)); }));
   await shot(E.pg, '109_free_ui_kit');
   // fil d'Ariane : Entreprise › Projet, retour au tableau de bord
-  await A.pg.evaluate(async () => { await openProject((await DB.all('projects'))[0]); document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); App.section = 'tasks'; await renderSection(); }); await A.pg.waitForTimeout(600);
+  await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage').forEach(x => x.remove()); await openProject((await DB.all('projects'))[0]); document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); App.section = 'tasks'; await renderSection(); }); await A.pg.waitForTimeout(600);
   log('fil d\'Ariane', await A.pg.evaluate(() => [!!document.querySelector('.tb-crumb a'), (document.querySelector('.tb-crumb') || {}).textContent, document.getElementById('app').classList.contains('with-bnav')]));
   await shot(A.pg, '110_fil_ariane');
-  await A.pg.click('.tb-crumb a'); await A.pg.waitForSelector('.st-dir', { timeout: 10000 }); log('fil d\'Ariane → tableau de bord', await A.pg.evaluate(() => !App.project));
+  await A.pg.click('.tb-crumb a'); await A.pg.waitForSelector('.h2-pane.on', { timeout: 10000 }); log('fil d\'Ariane → tableau de bord', await A.pg.evaluate(() => !App.project));
   // plusieurs postes : l'administrateur ajoute un poste Qualité au conducteur B
   const bUid = await B.pg.evaluate(() => Team.uid()), bBefore = await B.pg.evaluate(() => ({ ...(Team.me() || {}).perms }));
   await A.pg.evaluate(() => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); Team.openCompany('mem'); }); await A.pg.waitForSelector(`[data-uid="${bUid}"]`, { timeout: 15000 });
@@ -559,11 +559,11 @@ try {
     const ui = !!document.querySelector('.fullpage select[data-f=role], .sheet select[data-f=role], [data-a=st-poste]'); document.querySelectorAll('.sheet-bg,.fullpage').forEach(x => x.remove()); return [before, ui]; }));
   log('poste verrouillé (Pro G)', await G.pg.evaluate(async () => [Team.profil().metier, await Team.askPoste(true), Team.profil().metier]));
   // tableau de bord du service (membre B) + outils par catégorie
-  await B.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; App.homeTab = 'home'; renderHome(); }); await B.pg.waitForSelector('[data-stsvc]', { timeout: 15000 });
+  await B.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; App.homeTab = 'home'; renderHome().then(() => ST.openDash()); }); await B.pg.waitForSelector('[data-stsvc]', { timeout: 15000 });
   await B.pg.waitForFunction(() => [...document.querySelectorAll('[data-stsvc] .st-kpi b')].every(b => b.textContent !== '…'), null, { timeout: 15000 }); await B.pg.waitForTimeout(500);
   await shot(B.pg, '112_service_dashboard');
   log('tableau de bord service (B)', await B.pg.evaluate(() => [document.querySelector('[data-stsvc] .st-hd b').textContent, document.querySelectorAll('[data-stsvc] .st-kpi').length, document.querySelectorAll('.st-tcat').length > 0, document.querySelectorAll('.st-tool').length > 0]));
-  await B.pg.evaluate(() => { App.homeTab = 'tools'; renderHome(); }); await B.pg.waitForTimeout(600); await shot(B.pg, '113_outils_categories');
+  await B.pg.evaluate(() => { document.querySelectorAll('.fullpage').forEach(x => x.remove()); App.homeTab = 'tools'; renderHome(); }); await B.pg.waitForTimeout(600); await shot(B.pg, '113_outils_categories');
   await B.pg.evaluate(async () => { App.homeTab = 'tools'; await renderHome(); }); await B.pg.waitForTimeout(300);
   await B.pg.evaluate(() => { const c = document.querySelector('.h2-pane.on .st-tcats [data-cat]:not([data-cat=esp])'); if (c && !c.classList.contains('on')) c.click(); }); await B.pg.waitForTimeout(300);   // v1.0.35 : outils visibles après le toucher d'une catégorie
   await B.pg.locator('.h2-pane.on .st-tcat:not([style*="display: none"]) .st-tool').first().click(); await B.pg.waitForTimeout(800); const sel = await B.pg.$('.opt'); if (sel) { await sel.click(); await B.pg.waitForTimeout(1200); }
@@ -594,7 +594,7 @@ try {
   await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; App.homeTab = 'home'; renderHome(); }); await A.pg.waitForSelector('.st-bnav'); await A.pg.waitForTimeout(1200);
   await shot(A.pg, '120_onglet_accueil');
   log('onglets : accueil', await A.pg.evaluate(() => [document.querySelector('.h2-pane.on').dataset.tab, document.querySelectorAll('.h2-pane.on .h2-card').length <= 2, [...document.querySelectorAll('.st-bnav span')].map(x => x.textContent)]));
-  await A.pg.click('.st-bnav [data-n=proj]'); await A.pg.waitForTimeout(400); await shot(A.pg, '121_onglet_projets');
+  await A.pg.click('.st-bnav [data-n=home]'); await A.pg.waitForTimeout(400); await shot(A.pg, '121_onglet_projets');
   log('onglets : projets', await A.pg.evaluate(() => [document.querySelector('.h2-pane.on').dataset.tab, document.querySelectorAll('.h2-pane.on .h2-card').length]));
   await A.pg.evaluate(async () => { App.homeTab = 'tools'; await renderHome(); }); await A.pg.waitForTimeout(400); await shot(A.pg, '122_onglet_outils');
   const cat = await A.pg.evaluate(() => document.querySelectorAll('.h2-pane.on .st-tcats [data-cat]')[2].dataset.cat);
@@ -695,7 +695,7 @@ try {
   const hd = await A.pg.evaluate(() => { const nav = document.querySelector('.st-bnav'), cs = nav && getComputedStyle(nav), r = nav && nav.getBoundingClientRect();
     return { me: !!document.querySelector('.h2-hero [data-a=dossier]'), ws: !!document.querySelector('.h2-hero [data-a=wsmenu]'), aff: !!document.querySelector('[data-a=dir-aff]'), kpis: document.querySelectorAll('.st-kpis.k4 .st-kpi').length,
       navBottom: r ? Math.round(innerHeight - r.bottom) : null, navBg: cs ? cs.backgroundColor : '', heroH: Math.round(document.querySelector('.h2-hero').getBoundingClientRect().height) }; });
-  log('en-tête & accueil', hd); if (!hd.me || !hd.ws || hd.aff || hd.kpis !== 4 || hd.navBottom > 1 || /rgba\(.*, 0(\.\d+)?\)$/.test(hd.navBg)) v35.push('en-tête / barre du bas incorrects');
+  log('en-tête & accueil', hd); if (!hd.me || !hd.ws || hd.aff || hd.kpis !== 0 || hd.navBottom > 1 || /rgba\(.*, 0(\.\d+)?\)$/.test(hd.navBg)) v35.push('en-tête / barre du bas incorrects');
   await shot(A.pg, '140_accueil_compact');
   await A.pg.evaluate(() => { const b = document.querySelector('.h2-body'); b.scrollTop = 400; b.dispatchEvent(new Event('scroll')); }); await A.pg.waitForTimeout(300);
   log('en-tête réduit au défilement', await A.pg.evaluate(() => [document.querySelector('.h2-hero').classList.contains('mini'), Math.round(document.querySelector('.h2-hero').getBoundingClientRect().height)]));
@@ -765,7 +765,7 @@ try {
   await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg,.ws-dd').forEach(x => x.remove()); App.project = null; App.homeTab = 'proj'; await renderHome(); });
   await A.pg.waitForTimeout(500);
   const nav = await A.pg.evaluate(() => [...document.querySelectorAll('.st-bnav [data-n]')].map(b => b.dataset.n));
-  log('barre du bas', nav); if (nav.includes('tools') || nav.length !== 4) v38.push('barre du bas incorrecte');
+  log('barre du bas', nav); if (nav.includes('tools') || nav.length !== 5) v38.push('barre du bas incorrecte');
   await A.pg.click('.h2-pane.on .h2-card[data-id]'); await A.pg.waitForTimeout(900);
   const pt = await A.pg.evaluate(() => [App.section, document.querySelectorAll('.st-ptools-p [data-tool]').length, document.querySelectorAll('.st-ptools-p .st-tcat').length]);
   log('projet ouvert sur ses outils [section, outils, catégories]', pt); if (pt[0] !== 'ptools' || !pt[1]) v38.push('projet : outils absents');
@@ -773,7 +773,7 @@ try {
   await A.pg.click('.st-ptools-p [data-tool]'); await A.pg.waitForTimeout(600);
   log('outil ouvert depuis le projet', await A.pg.evaluate(() => App.section));
   await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.project = null; App.homeTab = 'home'; await renderHome(); }); await A.pg.waitForTimeout(500);
-  await A.pg.click('.st-bnav [data-n=set]'); await A.pg.waitForTimeout(600);
+  await A.pg.click('.st-bnav [data-n=more]'); await A.pg.waitForTimeout(400); await A.pg.click('.opt:has-text("Réglages")'); await A.pg.waitForTimeout(600);
   const rg = await A.pg.evaluate(() => [!!document.querySelector('.sheet-bg'), (document.querySelector('.sheet h3, .sheet .sh-title') || {}).textContent || '']);
   log('Réglages = menu ⋮', rg); if (!rg[0]) v38.push('Réglages : menu absent');
   await shot(A.pg, '153_reglages_menu'); await A.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove()));
@@ -878,6 +878,29 @@ try {
     return E;
   });
   log('errors v1.0.43', v43);
+  // ---- v1.0.43 : accueil = projets, barre Projets · Réseau · Emploi · Mon dossier · Plus, plus de bouton organisation en haut
+  const u43 = [];
+  await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg,.ws-dd').forEach(x => x.remove()); App.project = null; App.homeTab = 'home'; await renderHome(); }); await A.pg.waitForTimeout(700);
+  const h43 = await A.pg.evaluate(() => ({ nav: [...document.querySelectorAll('.st-bnav span')].map(x => x.textContent), dir: !!document.querySelector('.h2-pane.on .st-dir, .h2-pane.on [data-stq], .h2-pane.on [data-stdash]'), org: !!document.querySelector('.h2-hero [data-a=company]'), cards: document.querySelectorAll('.h2-pane.on .h2-card').length, title: (document.querySelector('.h2-pane.on .h2-sec span') || {}).textContent }));
+  log('accueil v1.0.43', h43); if (h43.nav.join('|') !== 'Projets|Réseau|Emploi|Mon dossier|Plus' || h43.dir || h43.org || !h43.cards) u43.push('accueil / barre');
+  await shot(A.pg, '170_accueil_projets');
+  await A.pg.click('.st-bnav [data-n=net]'); await A.pg.waitForSelector('.rs-page', { timeout: 8000 }); await A.pg.waitForTimeout(400);
+  const rs = await A.pg.evaluate(() => ({ rows: document.querySelectorAll('.rs-row').length, f: [...document.querySelectorAll('.rs-f button')].map(b => b.textContent.trim()) }));
+  log('réseau', rs); await shot(A.pg, '171_reseau');
+  await A.pg.evaluate(() => { localStorage.setItem('reseau.contacts', JSON.stringify([{ name: 'Youssef Ferrailleur', sub: 'Tâcheron ferraillage', tel: '0612345678', email: '' }])); document.querySelector('.rs-page [data-a=back]').click(); openReseau(); }); await A.pg.waitForTimeout(500);
+  const rs2 = await A.pg.evaluate(() => ({ me: [...document.querySelectorAll('.rs-row b')].some(b => b.textContent === 'Youssef Ferrailleur'), wa: !!document.querySelector('.rs-row a[href="https://wa.me/212612345678"]') }));
+  log('réseau : contact perso + WhatsApp', rs2); if (!rs2.me || !rs2.wa) u43.push('réseau contacts');
+  await A.pg.fill('.rs-page [data-q]', 'youssef'); await A.pg.waitForTimeout(300);
+  log('réseau : recherche', await A.pg.evaluate(() => document.querySelectorAll('.rs-row').length));
+  await A.pg.evaluate(() => { localStorage.removeItem('reseau.contacts'); document.querySelectorAll('.fullpage').forEach(x => x.remove()); });
+  await A.pg.click('.st-bnav [data-n=more]'); await A.pg.waitForTimeout(400);
+  const more = await A.pg.evaluate(() => [...document.querySelectorAll('.sheet .opt')].map(o => o.textContent.trim())); log('Plus', more); await shot(A.pg, '172_plus');
+  await A.pg.click('.opt:has-text("Tableau de bord")'); await A.pg.waitForSelector('.st-dashp', { timeout: 8000 }); await A.pg.waitForTimeout(800);
+  log('tableau de bord (Plus)', await A.pg.evaluate(() => !!document.querySelector('.st-dashp .st-dir')));
+  await shot(A.pg, '173_tableau_de_bord');
+  await A.pg.evaluate(() => document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()));
+  await A.pg.click('.st-bnav [data-n=cv]'); await A.pg.waitForTimeout(700); log('Mon dossier ouvert', await A.pg.evaluate(() => !!document.querySelector('.fullpage'))); await A.pg.evaluate(() => document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()));
+  log('errors v1.0.43 ui', u43);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);
