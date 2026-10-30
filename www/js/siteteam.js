@@ -343,21 +343,50 @@ const ST = (() => {
       if (k === 'dossier') return openDossier();
       if (k === 'look') return chooseTheme(() => renderHome()); });
   }
-  // ---------- barre de navigation du bas (UI Kit) : Accueil · Projets · Équipes · Réglages ----------
+  // ---------- barre de navigation du bas — v1.0.43 : Projets · Réseau · Emploi · Mon dossier · Plus ----------
   function bottomNav() {
     const app = document.getElementById('app'); if (!app || !ready() || Team.isCollab()) return;
     app.classList.add('with-bnav');
-    const T = App.homeTab || 'home', nav = document.createElement('nav'); nav.className = 'st-bnav';   // v1.0.38 : 4 onglets — les outils sont dans chaque projet
-    nav.innerHTML = `<button data-n="home" class="${T === 'home' ? 'on' : ''}">${icon('grid')}<span>Accueil</span></button><button data-n="proj" class="${T === 'proj' ? 'on' : ''}">${icon('folder')}<span>Projets</span></button>
-      ${perso() ? `<button data-n="me">${icon('user')}<span>Mon espace</span></button>` : `<button data-n="team">${icon('team')}<span>Équipe</span></button>`}<button data-n="set">${icon('settings')}<span>Réglages</span></button>`;
+    const nav = document.createElement('nav'); nav.className = 'st-bnav st-bnav5';
+    let jn = 0; try { jn = +localStorage.getItem('job.new') || 0; } catch (e) {}
+    const d = typeof Dossier !== 'undefined' ? Dossier.score(Dossier.get()) : 100;
+    nav.innerHTML = `<button data-n="home" class="on">${icon('folder')}<span>Projets</span></button>
+      <button data-n="net">${icon('net')}<span>Réseau</span></button>
+      <button data-n="job">${icon('bag')}<span>Emploi</span>${jn ? `<i class="bn-b">${jn > 9 ? '9+' : jn}</i>` : ''}</button>
+      <button data-n="cv">${icon('idcard')}<span>Mon dossier</span>${d < 60 ? '<i class="bn-d"></i>' : ''}</button>
+      <button data-n="more">${icon('dots')}<span>Plus</span></button>`;
     app.appendChild(nav);
-    const go = (t) => { App.homeTab = t; document.querySelectorAll('.h2-pane').forEach(x => x.classList.toggle('on', x.dataset.tab === t)); nav.querySelectorAll('[data-n]').forEach(x => x.classList.toggle('on', x.dataset.n === t)); const b = document.querySelector('.h2-body'); if (b) b.scrollTop = 0; };
-    ['home', 'proj', 'tools'].forEach(t => { const b = nav.querySelector(`[data-n=${t}]`); if (b) b.onclick = () => go(t); });
-    document.querySelectorAll('[data-tabgo]').forEach(b => b.onclick = () => go(b.dataset.tabgo));
-    const tm = nav.querySelector('[data-n=team]'); if (tm) tm.onclick = () => Team.openCompany('org');
-    const me = nav.querySelector('[data-n=me]'); if (me) me.onclick = () => Team.openCompany('me');
-    // v1.0.38 : Réglages = tout le menu ⋮ (compte, organisation, Drive, données, apparence, mise à jour, version…)
-    nav.querySelector('[data-n=set]').onclick = () => { const b = document.querySelector('[data-a=homemore]'); if (b) b.click(); else Team.openCompany(perso() ? 'me' : 'set'); };
+    const go = (t) => { App.homeTab = t; document.querySelectorAll('.h2-pane').forEach(x => x.classList.toggle('on', x.dataset.tab === t)); const b = document.querySelector('.h2-body'); if (b) b.scrollTop = 0; };
+    nav.querySelector('[data-n=home]').onclick = () => go('home');
+    document.querySelectorAll('[data-tabgo]').forEach(b => b.onclick = () => go(b.dataset.tabgo === 'proj' ? 'home' : b.dataset.tabgo));
+    nav.querySelector('[data-n=net]').onclick = () => (typeof openReseau === 'function' ? openReseau() : toast('Réseau : bientôt'));
+    nav.querySelector('[data-n=job]').onclick = () => (typeof openCareer === 'function' ? openCareer() : toast('Emploi : bientôt'));
+    nav.querySelector('[data-n=cv]').onclick = () => (typeof openDossier === 'function' ? openDossier() : null);
+    nav.querySelector('[data-n=more]').onclick = () => openMore();
+  }
+  // « Plus » : tableau de bord, équipe, réglages (tout le menu ⋮)
+  async function openMore() {
+    const v = await menu('Plus', [
+      ...(perso() ? [{ label: 'Mon espace', icon: 'user', value: 'me' }] : [
+        { label: 'Tableau de bord', icon: 'trend', value: 'dash' },
+        { label: 'Équipe & organigramme', icon: 'team', value: 'team' }]),
+      { label: 'Réglages', icon: 'settings', value: 'set' },
+    ]);
+    if (v === 'dash') openDash();
+    if (v === 'team') Team.openCompany('org');
+    if (v === 'me') Team.openCompany('me');
+    if (v === 'set') { const b = document.querySelector('[data-a=homemore]'); if (b) b.click(); else Team.openCompany(perso() ? 'me' : 'set'); }
+  }
+  // tableau de bord (vue direction / service / à faire) : sorti de l'accueil, ouvert depuis « Plus »
+  function openDash() {
+    const el = document.createElement('div'); el.className = 'fullpage st-dashp'; document.body.appendChild(el);
+    const unBack = pushBack(() => el.remove());
+    el.innerHTML = `<div class="topbar"><button class="iconbtn" data-a="back">${icon('back')}</button><h1>Tableau de bord</h1></div><div class="content st-dashc">${directionHTML()}${serviceHTML()}${dashHTML()}</div>`;
+    el.querySelector('[data-a=back]').onclick = () => { unBack(); el.remove(); };
+    const c = el.querySelector('.st-dashc');
+    c.addEventListener('click', (e) => { if (e.target.closest('[data-a=dir-proj]')) { unBack(); el.remove(); } }, true);
+    dirBind(c); svcBind(c); dashBind(c);
+    return el;
   }
 
   function dashHTML() {
@@ -575,5 +604,5 @@ const ST = (() => {
   }
 
   function refreshRole() { applyRole(); try { App.project ? renderSection() : renderHome(); } catch (e) {} }
-  return { families: FAMILIES, wsBtnHTML, wsMenu, renderProjectTools, directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
+  return { families: FAMILIES, openDash, openMore, wsBtnHTML, wsMenu, renderProjectTools, directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
 })();

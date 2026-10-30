@@ -15,22 +15,27 @@ async function openPhotoBatch(p, pre = {}) {
     { name: 'ouv', label: 'Ouvrage / élément', value: pre.ouv || '', placeholder: 'Ex : Voile V12, Poteaux P1 à P8' },
     { name: 'date', label: 'Date', type: 'date', value: pre.date || todayISO() },
     { name: 'q', label: 'Qualité', type: 'select', value: q, options: [{ value: 'orig', label: 'Originale (fichiers lourds)' }, { value: 'opt', label: 'Optimisée — 2400 px (conseillé)' }] },
+    ...(typeof BgUp !== 'undefined' && BgUp.on() ? [{ name: 'net', label: 'Envoi vers Drive (même application fermée)', type: 'select', value: BgUp.wifi() ? 'wifi' : 'all', options: [{ value: 'all', label: '4G et Wi-Fi' }, { value: 'wifi', label: 'Wi-Fi seulement' }] }] : []),
   ], { okLabel: 'Choisir les photos' });
   if (!r) return;
-  try { localStorage.setItem('pb.q', r.q); } catch (e) {}
+  try { localStorage.setItem('pb.q', r.q); if (r.net) localStorage.setItem('bg.wifi', r.net === 'wifi' ? '1' : '0'); } catch (e) {}
   const files = await pickFiles({ accept: 'image/*', multiple: true }); if (!files.length) return;
   const lot = lots.find(l => l.id === r.lot);
   const grp = { dest: r.dest, lot: lot ? lot.name : '', niv: (r.niv || '').trim(), ouv: (r.ouv || '').trim(), date: r.date || todayISO() };
-  const ld = loading(`Enregistrement 0/${files.length}…`); let n = 0;
+  const ld = loading(`Enregistrement 0/${files.length}…`); let n = 0, bg = 0; const saved = [];
   try {
     for (const f of files) {
       let blob = f;
       if (r.q === 'opt' && typeof compressImage === 'function') { try { const c = await compressImage(f, 2400, 0.88); blob = (c && c.blob) || f; } catch (e) { blob = f; } }
-      n++; await DB.put('files', { projectId: p.id, blob, mime: blob.type || f.type || 'image/jpeg', name: `${grp.ouv || grp.niv || 'photo'} ${n}`.trim() + '.jpg', role: 'photo', grp });
+      n++; saved.push(await DB.putRaw('files', { id: DB.uid(), createdAt: Date.now(), updatedAt: Date.now(), projectId: p.id, blob, mime: blob.type || f.type || 'image/jpeg', name: `${grp.ouv || grp.niv || 'photo'} ${n}`.trim() + '.jpg', role: 'photo', grp }));
       ld.set(`Enregistrement ${n}/${files.length}…`);
     }
+    // v1.0.43 : confiées tout de suite au téléphone (WorkManager) → l'envoi continue même si l'application est fermée
+    if (typeof BgUp !== 'undefined' && BgUp.on()) { ld.set('Préparation de l\'envoi…'); bg = await BgUp.hand(saved, { onStep: (k, t) => ld.set(`Préparation de l'envoi ${k}/${t}…`) }); }
+    for (const x of saved) await DB.put('files', x);   // enregistrement normal (la synchro ne renvoie pas celles confiées au téléphone)
   } finally { ld.close(); }
-  toast(`📷 ${n} photo(s) enregistrée(s) — envoi vers Drive en arrière-plan`, { ms: 4000 });
+  toast(bg ? `📷 ${n} photo(s) — envoi vers Drive en arrière-plan, même application fermée` : `📷 ${n} photo(s) enregistrée(s) — envoi vers Drive en arrière-plan`, { ms: 4500 });
+  if (bg) { try { if (!localStorage.getItem('bg.notifAsked')) { localStorage.setItem('bg.notifAsked', '1'); await window.Capacitor.Plugins.BgUpload.notifPermission({ ask: true }); } } catch (e) {} }
   try { if (typeof Sync !== 'undefined' && Sync.schedule) Sync.schedule(800); } catch (e) {}
   return n;
 }
