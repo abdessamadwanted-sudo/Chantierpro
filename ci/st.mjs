@@ -661,7 +661,7 @@ try {
   await shot(I.pg, '129_reception_qualite');
   // espace personnel : carte « Mon dossier pro », profil, CV PDF
   const dp = await E.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.project = null; App.homeTab = 'home'; await renderHome();
-    const card = !!document.querySelector('[data-a=dossier]');
+    const card = !!document.querySelector('.st-bnav [data-n=pro]');   // v1.0.44 : le dossier pro est dans l'onglet « Pro »
     Dossier.set({ name: 'Rachid Alami', titre: 'Technicien qualité BTP', ville: 'Casablanca', tel: '+212 600 000 000', dispo: 'ouvert', about: 'Technicien qualité, 6 ans sur des chantiers de bâtiment et d\'ouvrages d\'art : réception de ferraillage, essais béton, PV.',
       exp: [{ id: 'x1', poste: 'Technicien qualité', co: 'Entreprise Atlas BTP', lieu: 'Tanger', de: '2021-03', cur: true, desc: 'Réception ferraillage, PV, suivi des essais béton.' }, { id: 'x2', poste: 'Technicien travaux', co: 'Bâtir Maroc', lieu: 'Rabat', de: '2018-09', a: '2021-02' }],
       form: [{ id: 'f1', dip: 'Technicien spécialisé gros œuvre', ecole: 'ISTA', an: '2018' }], skills: ['Lecture de plans', 'Béton armé', 'Contrôle qualité', 'AutoCAD'],
@@ -702,7 +702,7 @@ try {
   await shot(A.pg, '141_accueil_defile');
   await A.pg.click('[data-a=wsmenu]'); await A.pg.waitForSelector('.ws-dd .ws-pn');
   const wm = await A.pg.evaluate(() => [...document.querySelectorAll('.ws-dd [data-wm]')].map(b => b.dataset.wm)); log('menu de l\'espace', wm);
-  if (!wm.includes('org') || !wm.includes('dossier') || !wm.includes('aff')) v35.push('menu de l\'espace incomplet');
+  if (!wm.includes('switch') || wm.some(k => ['org', 'dossier', 'aff', 'me', 'look'].includes(k))) v35.push('menu de l\'espace : seulement les espaces (v1.0.44)');
   await shot(A.pg, '142_menu_espace'); await A.pg.click('.ws-dd .ws-bg', { position: { x: 20, y: 20 } });
   // outils : pas de « Tous », rien d'ouvert avant le toucher
   await A.pg.evaluate(async () => { App.homeTab = 'tools'; await renderHome(); }); await A.pg.waitForTimeout(400);
