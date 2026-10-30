@@ -661,7 +661,7 @@ try {
   await shot(I.pg, '129_reception_qualite');
   // espace personnel : carte « Mon dossier pro », profil, CV PDF
   const dp = await E.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.project = null; App.homeTab = 'home'; await renderHome();
-    const card = !!document.querySelector('[data-a=dossier]');
+    const card = !!document.querySelector('.st-bnav [data-n=pro]');   // v1.0.44 : le dossier pro est dans l'onglet « Pro »
     Dossier.set({ name: 'Rachid Alami', titre: 'Technicien qualité BTP', ville: 'Casablanca', tel: '+212 600 000 000', dispo: 'ouvert', about: 'Technicien qualité, 6 ans sur des chantiers de bâtiment et d\'ouvrages d\'art : réception de ferraillage, essais béton, PV.',
       exp: [{ id: 'x1', poste: 'Technicien qualité', co: 'Entreprise Atlas BTP', lieu: 'Tanger', de: '2021-03', cur: true, desc: 'Réception ferraillage, PV, suivi des essais béton.' }, { id: 'x2', poste: 'Technicien travaux', co: 'Bâtir Maroc', lieu: 'Rabat', de: '2018-09', a: '2021-02' }],
       form: [{ id: 'f1', dip: 'Technicien spécialisé gros œuvre', ecole: 'ISTA', an: '2018' }], skills: ['Lecture de plans', 'Béton armé', 'Contrôle qualité', 'AutoCAD'],
@@ -695,14 +695,14 @@ try {
   const hd = await A.pg.evaluate(() => { const nav = document.querySelector('.st-bnav'), cs = nav && getComputedStyle(nav), r = nav && nav.getBoundingClientRect();
     return { me: !!document.querySelector('.h2-hero [data-a=dossier]'), ws: !!document.querySelector('.h2-hero [data-a=wsmenu]'), aff: !!document.querySelector('[data-a=dir-aff]'), kpis: document.querySelectorAll('.st-kpis.k4 .st-kpi').length,
       navBottom: r ? Math.round(innerHeight - r.bottom) : null, navBg: cs ? cs.backgroundColor : '', heroH: Math.round(document.querySelector('.h2-hero').getBoundingClientRect().height) }; });
-  log('en-tête & accueil', hd); if (!hd.me || !hd.ws || hd.aff || hd.kpis !== 0 || hd.navBottom > 1 || /rgba\(.*, 0(\.\d+)?\)$/.test(hd.navBg)) v35.push('en-tête / barre du bas incorrects');
+  log('en-tête & accueil', hd); if (hd.me || !hd.ws || hd.aff || hd.kpis !== 0 || hd.navBottom > 1 || /rgba\(.*, 0(\.\d+)?\)$/.test(hd.navBg)) v35.push('en-tête / barre du bas incorrects');
   await shot(A.pg, '140_accueil_compact');
   await A.pg.evaluate(() => { const b = document.querySelector('.h2-body'); b.scrollTop = 400; b.dispatchEvent(new Event('scroll')); }); await A.pg.waitForTimeout(300);
   log('en-tête réduit au défilement', await A.pg.evaluate(() => [document.querySelector('.h2-hero').classList.contains('mini'), Math.round(document.querySelector('.h2-hero').getBoundingClientRect().height)]));
   await shot(A.pg, '141_accueil_defile');
   await A.pg.click('[data-a=wsmenu]'); await A.pg.waitForSelector('.ws-dd .ws-pn');
   const wm = await A.pg.evaluate(() => [...document.querySelectorAll('.ws-dd [data-wm]')].map(b => b.dataset.wm)); log('menu de l\'espace', wm);
-  if (!wm.includes('org') || !wm.includes('dossier') || !wm.includes('aff')) v35.push('menu de l\'espace incomplet');
+  if (!wm.includes('switch') || wm.some(k => ['org', 'dossier', 'aff', 'me', 'look'].includes(k))) v35.push('menu de l\'espace : seulement les espaces (v1.0.44)');
   await shot(A.pg, '142_menu_espace'); await A.pg.click('.ws-dd .ws-bg', { position: { x: 20, y: 20 } });
   // outils : pas de « Tous », rien d'ouvert avant le toucher
   await A.pg.evaluate(async () => { App.homeTab = 'tools'; await renderHome(); }); await A.pg.waitForTimeout(400);
@@ -765,7 +765,7 @@ try {
   await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg,.ws-dd').forEach(x => x.remove()); App.project = null; App.homeTab = 'proj'; await renderHome(); });
   await A.pg.waitForTimeout(500);
   const nav = await A.pg.evaluate(() => [...document.querySelectorAll('.st-bnav [data-n]')].map(b => b.dataset.n));
-  log('barre du bas', nav); if (nav.includes('tools') || nav.length !== 5) v38.push('barre du bas incorrecte');
+  log('barre du bas', nav); if (nav.includes('tools') || nav.length !== 4) v38.push('barre du bas incorrecte');
   await A.pg.click('.h2-pane.on .h2-card[data-id]'); await A.pg.waitForTimeout(900);
   const pt = await A.pg.evaluate(() => [App.section, document.querySelectorAll('.st-ptools-p [data-tool]').length, document.querySelectorAll('.st-ptools-p .st-tcat').length]);
   log('projet ouvert sur ses outils [section, outils, catégories]', pt); if (pt[0] !== 'ptools' || !pt[1]) v38.push('projet : outils absents');
@@ -773,7 +773,7 @@ try {
   await A.pg.click('.st-ptools-p [data-tool]'); await A.pg.waitForTimeout(600);
   log('outil ouvert depuis le projet', await A.pg.evaluate(() => App.section));
   await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.project = null; App.homeTab = 'home'; await renderHome(); }); await A.pg.waitForTimeout(500);
-  await A.pg.click('.st-bnav [data-n=more]'); await A.pg.waitForTimeout(400); await A.pg.click('.opt:has-text("Réglages")'); await A.pg.waitForTimeout(600);
+  await A.pg.click('.st-bnav [data-n=set]'); await A.pg.waitForTimeout(600);
   const rg = await A.pg.evaluate(() => [!!document.querySelector('.sheet-bg'), (document.querySelector('.sheet h3, .sheet .sh-title') || {}).textContent || '']);
   log('Réglages = menu ⋮', rg); if (!rg[0]) v38.push('Réglages : menu absent');
   await shot(A.pg, '153_reglages_menu'); await A.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove()));
@@ -882,9 +882,9 @@ try {
   const u43 = [];
   await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg,.ws-dd').forEach(x => x.remove()); App.project = null; App.homeTab = 'home'; await renderHome(); }); await A.pg.waitForTimeout(700);
   const h43 = await A.pg.evaluate(() => ({ nav: [...document.querySelectorAll('.st-bnav span')].map(x => x.textContent), dir: !!document.querySelector('.h2-pane.on .st-dir, .h2-pane.on [data-stq], .h2-pane.on [data-stdash]'), org: !!document.querySelector('.h2-hero [data-a=company]'), cards: document.querySelectorAll('.h2-pane.on .h2-card').length, title: (document.querySelector('.h2-pane.on .h2-sec span') || {}).textContent }));
-  log('accueil v1.0.43', h43); if (h43.nav.join('|') !== 'Projets|Réseau|Emploi|Mon dossier|Plus' || h43.dir || h43.org || !h43.cards) u43.push('accueil / barre');
+  log('accueil v1.0.43', h43); if (h43.nav.join('|') !== 'Projets|Pro|Équipe|Réglages' || h43.dir || h43.org || !h43.cards) u43.push('accueil / barre');
   await shot(A.pg, '170_accueil_projets');
-  await A.pg.click('.st-bnav [data-n=net]'); await A.pg.waitForSelector('.rs-page', { timeout: 8000 }); await A.pg.waitForTimeout(400);
+  await A.pg.evaluate(() => ST.openPro('net')); await A.pg.waitForSelector('.rs-page', { timeout: 8000 }); await A.pg.waitForTimeout(400);
   const rs43 = await A.pg.evaluate(() => ({ rows: document.querySelectorAll('.rs-row').length, f: [...document.querySelectorAll('.rs-f button')].map(b => b.textContent.trim()) }));
   log('réseau', rs43); await shot(A.pg, '171_reseau');
   await A.pg.evaluate(() => { localStorage.setItem('reseau.contacts', JSON.stringify([{ name: 'Youssef Ferrailleur', sub: 'Tâcheron ferraillage', tel: '0612345678', email: '' }])); document.querySelector('.rs-page [data-a=back]').click(); openReseau(); }); await A.pg.waitForTimeout(500);
@@ -893,14 +893,69 @@ try {
   await A.pg.fill('.rs-page [data-q]', 'youssef'); await A.pg.waitForTimeout(300);
   log('réseau : recherche', await A.pg.evaluate(() => document.querySelectorAll('.rs-row').length));
   await A.pg.evaluate(() => { localStorage.removeItem('reseau.contacts'); document.querySelectorAll('.fullpage').forEach(x => x.remove()); });
-  await A.pg.click('.st-bnav [data-n=more]'); await A.pg.waitForTimeout(400);
-  const more = await A.pg.evaluate(() => [...document.querySelectorAll('.sheet .opt')].map(o => o.textContent.trim())); log('Plus', more); await shot(A.pg, '172_plus');
-  await A.pg.click('.opt:has-text("Tableau de bord")'); await A.pg.waitForSelector('.st-dashp', { timeout: 8000 }); await A.pg.waitForTimeout(800);
+  await A.pg.click('.st-bnav [data-n=team]'); await A.pg.waitForTimeout(400);
+  const more = await A.pg.evaluate(() => [...document.querySelectorAll('.sheet .gm-i b')].map(o => o.textContent.trim())); log('Équipe', more); await shot(A.pg, '172_equipe');
+  await A.pg.click('.gm-i:has-text("Tableau de bord")'); await A.pg.waitForSelector('.st-dashp', { timeout: 8000 }); await A.pg.waitForTimeout(800);
   log('tableau de bord (Plus)', await A.pg.evaluate(() => !!document.querySelector('.st-dashp .st-dir')));
   await shot(A.pg, '173_tableau_de_bord');
   await A.pg.evaluate(() => document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()));
-  await A.pg.click('.st-bnav [data-n=cv]'); await A.pg.waitForTimeout(700); log('Mon dossier ouvert', await A.pg.evaluate(() => !!document.querySelector('.fullpage'))); await A.pg.evaluate(() => document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()));
+  await A.pg.evaluate(() => localStorage.setItem('pro.tab', 'cv')); await A.pg.click('.st-bnav [data-n=pro]'); await A.pg.waitForTimeout(700); log('Mon dossier ouvert', await A.pg.evaluate(() => !!document.querySelector('.fullpage'))); await A.pg.evaluate(() => document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()));
   log('errors v1.0.43 ui', u43);
+  // ---- v1.0.44 : Pro à onglets, Équipe, profil dans Réglages, carte projet selon le service, photos sans attente + suppression, démarrage, verre
+  const v44 = [];
+  await A.pg.evaluate(() => document.querySelectorAll('.fullpage,.sheet-bg,.ws-dd').forEach(x => x.remove()));
+  await A.pg.evaluate(() => { localStorage.setItem('pro.tab', 'cv'); }); await A.pg.click('.st-bnav [data-n=pro]'); await A.pg.waitForSelector('.pro-tabs', { timeout: 8000 });
+  const pt44 = await A.pg.evaluate(() => [...document.querySelectorAll('.pro-tabs button')].map(b => b.textContent.trim() + (b.classList.contains('on') ? '*' : '')));
+  log('Pro : onglets', pt44); await shot(A.pg, '180_pro_dossier'); if (pt44.join('|') !== 'Mon dossier*|Réseau|Emploi') v44.push('onglets Pro');
+  await A.pg.click('.pro-tabs [data-pt=net]'); await A.pg.waitForSelector('.rs-page .pro-tabs', { timeout: 8000 }); await A.pg.waitForTimeout(400);
+  log('Pro → Réseau', await A.pg.evaluate(() => [document.querySelectorAll('.fullpage').length, document.querySelector('.pro-tabs .on').textContent.trim()])); await shot(A.pg, '181_pro_reseau');
+  await A.pg.click('.pro-tabs [data-pt=job]'); await A.pg.waitForSelector('.cr-page .pro-tabs', { timeout: 8000 }); await A.pg.waitForTimeout(400); await shot(A.pg, '182_pro_emploi');
+  const n44 = await A.pg.evaluate(() => document.querySelectorAll('.fullpage').length); log('Pro → Emploi : pages ouvertes', n44); if (n44 !== 1) v44.push('Pro : pages empilées');
+  await A.pg.evaluate(() => document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()));
+  await A.pg.click('.st-bnav [data-n=set]'); await A.pg.waitForTimeout(500);
+  const rg44 = await A.pg.evaluate(() => ({ card: !!document.querySelector('.sheet .pf-card'), ws: [...document.querySelectorAll('.sheet .gm-i b')].some(b => /Changer d'espace|Mon organisation/.test(b.textContent)) }));
+  log('Réglages : profil en tête, sans doublon', rg44); await shot(A.pg, '183_reglages_profil'); if (!rg44.card || rg44.ws) v44.push('Réglages');
+  await A.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove()));
+  await A.pg.click('.h2-hero [data-a=wsmenu]'); await A.pg.waitForTimeout(400);
+  const ws44 = await A.pg.evaluate(() => [...document.querySelectorAll('.ws-dd .ws-it b, .ws-dd .ws-h')].map(x => x.textContent.trim()));
+  log('menu espace (seulement les espaces)', ws44); await shot(A.pg, '184_menu_espace'); if (ws44.some(t => /Organigramme|Mon dossier|Apparence|Mon compte/.test(t))) v44.push('menu espace : doublons');
+  await A.pg.evaluate(() => document.querySelectorAll('.ws-dd').forEach(x => x.remove()));
+  // carte projet selon le service : qualité (par défaut admin = direction) puis choix personnel
+  const hb = await A.pg.evaluate(async () => { localStorage.removeItem('home.blocks'); const a = [...homeBlocks()]; localStorage.setItem('home.blocks', JSON.stringify(['lots', 'rap'])); const b = [...homeBlocks()];
+    App.homeOpen = {}; const p = (await DB.all('projects')).find(x => !x.deleted); App.homeOpen[p.id] = true; await renderHome();
+    const r = { def: a, perso: b, table: !!document.querySelector('.h2-pane.on .h2-tab'), cust: !!document.querySelector('[data-a=hblocks]') }; localStorage.removeItem('home.blocks'); App.homeOpen = {}; return r; });
+  log('carte projet (défaut direction, choix lots+rappels)', hb); if (hb.table || !hb.cust || hb.def.includes('rec')) v44.push('carte projet selon le service');
+  const hbq = await B.pg.evaluate(() => [...homeBlocks()]); log('carte projet du conducteur B (travaux)', hbq);
+  await A.pg.evaluate(async () => { await renderHome(); }); await A.pg.waitForTimeout(400); await shot(A.pg, '185_accueil_verre');
+  // photos : enregistrement immédiat (sans écran bloquant), préparation en arrière-plan, puis suppression avec nettoyage des références
+  const ph = await A.pg.evaluate(async () => {
+    const p = (await DB.all('projects')).find(x => !x.deleted);
+    const c = document.createElement('canvas'); c.width = 3000; c.height = 2000; c.getContext('2d').fillRect(0, 0, 50, 50);
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.95)); const files = [0, 1, 2].map(i => new File([blob], `ph${i}.jpg`, { type: 'image/jpeg' }));
+    const t0 = performance.now(); const recs = await PhotoQ.save(p.id, files, { source: 'Test' }); const ms = Math.round(performance.now() - t0);
+    const blocked = !!document.querySelector('.loading'); const pill = !!document.getElementById('phPill');
+    const task = await DB.put('tasks', { projectId: p.id, num: 999, kind: 'reserve', title: 'Test photos', status: 'open', photoIds: recs.map(r => r.id), log: [] });
+    for (let i = 0; i < 60 && PhotoQ.pending(); i++) await new Promise(r => setTimeout(r, 200));
+    const f0 = await DB.get('files', recs[0].id), prep = !!f0.prep, small = f0.blob.size < blob.size || f0.w <= 2000;
+    await PhotoQ.remove([recs[0].id, recs[1].id], { ask: false });
+    const t2 = await DB.get('tasks', task.id), gone = !(await DB.get('files', recs[0].id));
+    await PhotoQ.remove([recs[2].id], { ask: false }); await DB.del('tasks', task.id);
+    return { ms, blocked, pill, prep, small, left: t2.photoIds.length, gone };
+  });
+  log('photos sans attente + suppression', ph); if (ph.blocked || !ph.pill || ph.prep || ph.left !== 1 || !ph.gone) v44.push('photos');
+  // sélection multiple par appui long
+  const sel44 = await A.pg.evaluate(async () => { const box = document.createElement('div'); box.className = 'thumbs'; box.innerHTML = '<div class="t" data-id="zz1"></div><div class="t" data-id="zz2"></div>'; document.body.appendChild(box);
+    const t = box.firstChild, ev = (type) => t.dispatchEvent(new PointerEvent(type, { bubbles: true, clientX: 5, clientY: 5 }));
+    ev('pointerdown'); await new Promise(r => setTimeout(r, 700)); ev('pointerup'); t.click(); box.children[1].click();
+    const r = { mode: box.classList.contains('sel-mode'), n: box.querySelectorAll('.ph-sel').length, bar: !!document.getElementById('selBar') }; PhotoQ.endSel(); box.remove(); return r; });
+  log('sélection multiple (appui long)', sel44); if (!sel44.mode || sel44.n !== 2 || !sel44.bar) v44.push('sélection multiple');
+  // écran de démarrage : logo et têtes colorées
+  { const P = A.pg; await P.reload({ waitUntil: 'commit' }); await P.waitForSelector('#boot .hd', { timeout: 8000 }).catch(() => {}); await P.waitForTimeout(350); await shot(P, '186_demarrage_logo');
+    const bt = await P.evaluate(() => ({ heads: document.querySelectorAll('#boot .hd').length, on: document.querySelectorAll('#boot .hd.on').length, letters: document.querySelectorAll('#boot b span').length }));
+    log('démarrage : logo', bt); if (bt.heads !== 3 || bt.letters !== 8) v44.push('écran de démarrage');
+    await P.waitForSelector('.home2', { timeout: 30000 }); await P.waitForTimeout(1500);
+    const stray = await P.evaluate(() => [...document.querySelectorAll('body *')].some(e => !e.children.length && /Ouverture…/.test(e.textContent))); log('démarrage : rien ne reste à l\'écran', !stray); if (stray) v44.push('texte du démarrage resté'); }
+  log('errors v1.0.44', v44);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);

@@ -205,10 +205,10 @@ function pickFiles({ accept = 'image/*', multiple = true, capture = false } = {}
 }
 
 // menu en groupes (titre de groupe, icône dans une pastille colorée, libellé + détail)
-function groupMenu(title, groups) {
+function groupMenu(title, groups, { head = '' } = {}) {
   return new Promise((resolve) => {
     let v = null;
-    const s = sheet(`<div class="gm">${groups.filter(g => g.items.length).map(g => `${g.title ? `<div class="gm-g">${esc(g.title)}</div>` : ''}<div class="gm-box">${g.items.map(it => `<button class="gm-i" ${it.value != null ? `data-v="${esc(it.value)}"` : 'disabled'}><span class="gm-ic" style="--c:${g.color}">${icon(it.icon)}</span><span class="grow"><b>${esc(it.label)}</b>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span>${it.value != null ? icon('chevright') : ''}</button>`).join('')}</div>`).join('')}</div>`, { title });
+    const s = sheet(`<div class="gm">${head}${groups.filter(g => g.items.length).map(g => `${g.title ? `<div class="gm-g">${esc(g.title)}</div>` : ''}<div class="gm-box">${g.items.map(it => `<button class="gm-i" ${it.value != null ? `data-v="${esc(it.value)}"` : 'disabled'}><span class="gm-ic" style="--c:${g.color}">${icon(it.icon)}</span><span class="grow"><b>${esc(it.label)}</b>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span>${it.value != null ? icon('chevright') : ''}</button>`).join('')}</div>`).join('')}</div>`, { title });
     $$('[data-v]', s.el).forEach(b => b.onclick = () => { v = b.dataset.v; s.close(); });
     s.onClose = () => resolve(v);
   });
@@ -316,6 +316,8 @@ function showImage(src, caption = '') { return showGallery([{ src, caption }], 0
 // Galerie plein écran façon téléphone : la photo suit le doigt, zoom à deux doigts / double appui, miniatures
 function showGallery(items, start = 0, opts = {}) {
   items = items.filter(x => x && x.src);
+  // v1.0.44 : suppression possible partout où la photo est un fichier de l'application
+  if (!opts.onDelete && items.some(x => x.fileId) && typeof PhotoQ !== 'undefined') opts = { ...opts, onDelete: async (it) => { if (!it.fileId) { toast('Photo non supprimable ici'); return false; } return PhotoQ.remove([it.fileId], { ask: false }); } };
   if (!items.length) return;
   let i = Math.max(0, Math.min(start, items.length - 1)), dx = 0, zoom = 1, px = 0, py = 0;
   const el = document.createElement('div');
@@ -590,9 +592,9 @@ async function rotateFile(id, quarter = 1) {   // quarter : +1 = droite, -1 = ga
 })();
 
 // Logo d'origine de SiteTeam (le même que l'icône et l'écran d'ouverture) : cercle bleu, casque, équipe
+let _stlN = 0;
 function stLogo(cls = '') {
-  return `<svg class="st-logo ${cls}" viewBox="182 182 660 660" aria-label="SiteTeam" role="img"><circle cx="512" cy="512" r="330" fill="#2563eb"/>
-    <g fill="#fff"><path d="M315 530A200 180 0 0 1 490 353V540H315Z"/><path d="M535 353A200 180 0 0 1 710 530H535Z"/><rect x="252" y="528" width="520" height="58" rx="29"/>
-    <circle cx="412" cy="650" r="31"/><circle cx="512" cy="650" r="31"/><circle cx="612" cy="650" r="31"/>
-    <path d="M360 743A52 52 0 0 1 464 743Z"/><path d="M460 743A52 52 0 0 1 564 743Z"/><path d="M560 743A52 52 0 0 1 664 743Z"/></g></svg>`;
+  const q = 'stl' + (++_stlN);   // identifiants uniques : un dégradé caché (display:none) ne doit pas servir aux autres logos
+  // v1.0.44 : logo vectoriel soigné (dégradés, reflet, ombre douce) — même dessin que l'écran de démarrage
+  return `<svg class="st-logo ${cls}" viewBox="182 182 660 660" aria-label="SiteTeam" role="img"><defs><radialGradient id="${q}c" cx="35%" cy="28%" r="80%"><stop offset="0" stop-color="#5b9cff"/><stop offset=".55" stop-color="#2563eb"/><stop offset="1" stop-color="#1e3a8a"/></radialGradient><linearGradient id="${q}h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".7" stop-color="#e8f0ff"/><stop offset="1" stop-color="#c7d8fb"/></linearGradient><linearGradient id="${q}gl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".38"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><linearGradient id="${q}a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fcd34d"/><stop offset="1" stop-color="#ea8a0c"/></linearGradient><linearGradient id="${q}b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6ee7a0"/><stop offset="1" stop-color="#15a34a"/></linearGradient><linearGradient id="${q}s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#93dcff"/><stop offset="1" stop-color="#0b84d0"/></linearGradient><filter id="${q}f" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="10" stdDeviation="9" flood-color="#0b1f4d" flood-opacity=".35"/></filter></defs><circle cx="512" cy="512" r="330" fill="url(#${q}c)"/><circle cx="512" cy="512" r="318" fill="none" stroke="#fff" stroke-opacity=".16" stroke-width="5"/><ellipse cx="490" cy="335" rx="190" ry="100" fill="url(#${q}gl)"/><g filter="url(#${q}f)" fill="url(#${q}h)" class="cap"><path d="M315 530A200 180 0 0 1 490 353V540H315Z"/><path d="M535 353A200 180 0 0 1 710 530H535Z"/><rect x="252" y="528" width="520" height="58" rx="29"/></g><path d="M340 500A170 150 0 0 1 470 378" fill="none" stroke="#fff" stroke-width="16" stroke-linecap="round" stroke-opacity=".9"/><g filter="url(#${q}f)"><circle cx="412" cy="650" r="31" fill="url(#${q}a)"/><path d="M360 743A52 52 0 0 1 464 743Z" fill="url(#${q}a)"/><circle cx="512" cy="650" r="31" fill="url(#${q}b)"/><path d="M460 743A52 52 0 0 1 564 743Z" fill="url(#${q}b)"/><circle cx="612" cy="650" r="31" fill="url(#${q}s)"/><path d="M560 743A52 52 0 0 1 664 743Z" fill="url(#${q}s)"/></g></svg>`;
 }
