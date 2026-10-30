@@ -778,6 +778,28 @@ try {
   log('Réglages = menu ⋮', rg); if (!rg[0]) v38.push('Réglages : menu absent');
   await shot(A.pg, '153_reglages_menu'); await A.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove()));
   log('errors v1.0.38', v38);
+  // ---- v1.0.40 : outils du projet compacts ; lots : répartition par niveau (qui tient quelle partie), matrice, alertes de réception
+  const v40 = [];
+  await A.pg.evaluate(() => document.querySelectorAll('.fullpage,.sheet-bg,.ws-dd').forEach(x => x.remove()));
+  const lp = await A.pg.evaluate(async () => { const p = (await DB.all('projects')).find(x => !x.deleted); await openProject(p, 'ptools'); await new Promise(r => setTimeout(r, 500));
+    const h = Math.round(document.querySelector('#content').scrollHeight);
+    const L = lsLots(p), l = L[0], D = lsData(p, l.id); D.eq = D.eq && D.eq.length ? D.eq : [];
+    D.eq.push({ id: 'st1', kind: 'st', nom: 'Ste Atlas Maçonnerie', chef: 'Hassan', eff: 8, u: 'm²', j: [] }, { id: 'in1', kind: 'int', nom: 'Équipe maçons 1', chef: 'Said', eff: 5, u: 'm²', j: [] });
+    const d = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+    D.parts = { 'RDC': { eq: 'st1', st: 'rec', av: 100 }, 'R+1': { eq: 'st1', st: 'done', av: 100 }, 'R+2': { eq: 'in1', st: 'run', av: 40, fin: d(-2) }, 'R+3': { eq: '', st: 'todo', av: 0 } };
+    await DB.put('projects', p); App.lsView = 'mx'; App.section = 'lotsuivi'; await renderSection(); await new Promise(r => setTimeout(r, 400));
+    const S = lsState(D);
+    return { hauteurOutils: h, cellules: document.querySelectorAll('.ls-mx td:not(.vide)').length, avancement: S.real, alertes: S.al.map(x => x[1]) }; });
+  log('lots par niveau [hauteur outils, cellules matrice, avancement, alertes]', lp);
+  if (lp.cellules !== 4 || lp.avancement !== 60 || !lp.alertes.some(x => /réception à faire/.test(x)) || !lp.alertes.some(x => /aucune équipe/.test(x))) v40.push('répartition par niveau incorrecte');
+  await shot(A.pg, '154_lots_matrice');
+  await A.pg.evaluate(() => { App.lsView = 'actifs'; }); await A.pg.click('.ls-mx td[data-lot]'); await A.pg.waitForSelector('.ls-parts'); await A.pg.waitForTimeout(300); await shot(A.pg, '155_lot_niveaux');
+  await A.pg.evaluate(() => document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()));
+  await A.pg.evaluate(() => lsSousTraitants(App.project)); await A.pg.waitForTimeout(300);
+  log('sous-traitants : parties tenues', await A.pg.evaluate(() => [...document.querySelectorAll('.ls-sts p')].map(x => x.textContent).slice(0, 3)));
+  await shot(A.pg, '156_sous_traitants_parties'); await A.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove()));
+  await A.pg.evaluate(async () => { App.section = 'ptools'; await renderSection(); }); await A.pg.waitForTimeout(400); await shot(A.pg, '157_outils_compacts');
+  log('errors v1.0.40', v40);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);
