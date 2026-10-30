@@ -810,6 +810,10 @@ try {
   await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.section = 'ptools'; await renderSection(); }); await A.pg.waitForTimeout(300);
   log('photos en masse : bouton dans les outils du projet', await A.pg.evaluate(() => !!document.querySelector('.st-ptools-p [data-a=pbatch]')));
   await A.pg.click('.st-ptools-p [data-a=pbatch]'); await A.pg.waitForSelector('.sheet [name=dest]'); await shot(A.pg, '158_photos_en_masse'); await A.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove()));
+  const dn = await A.pg.evaluate(async () => { const p = App.project || (await DB.all('projects')).find(x => !x.deleted); p.driveNames = { '02 - Réception ferraillage': '02 - PV Réception' };
+    const f = { id: 'tmpf', projectId: p.id, role: 'photo', name: 'x.jpg', mime: 'image/jpeg', grp: { dest: 'rec', date: '2026-10-28' } };
+    const paths = await Sync.buildPaths(); paths.PR[p.id] = p; const r = Sync.pathFor(f, paths).segs; delete p.driveNames; return r; });
+  log('dossiers Drive renommés', dn); if (!dn || dn[1] !== '02 - PV Réception') v41.push('renommage des dossiers Drive incorrect');
   log('errors v1.0.41', v41);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {

@@ -43,3 +43,18 @@ function pbPath(f, D, P, moisDe, clean) {
   if (g.niv) segs.push(g.niv); if (g.ouv) segs.push(g.ouv);
   return segs.map(s => clean(s));
 }
+// v1.0.41 : organisation des dossiers Drive du projet — renommer / renuméroter les rubriques (déplace les fichiers, sans doublon)
+async function openDriveNames(p) {
+  p = p || App.project; if (!p || typeof Sync === 'undefined' || !Sync.DIRS) return;
+  const names = [...new Set([...Object.values(Sync.DIRS), 'Réserves', 'Rapports journaliers', 'Formulaires', '10 - Lots'])];
+  const cur = p.driveNames || {};
+  const r = await formSheet('🗂 Dossiers Drive du projet', [
+    { name: 'info', type: 'info', label: p.name, value: 'Renommez ou renumérotez chaque rubrique (ex. « 02 - PV Réception »). Les fichiers déjà dans Drive sont déplacés automatiquement à la prochaine synchro, sans doublon. Laissez vide pour garder le nom par défaut.' },
+    ...names.map((n, i) => ({ name: 'n' + i, label: n, value: cur[n] || '', placeholder: n })),
+  ], { okLabel: 'Enregistrer', danger: Object.keys(cur).length ? 'Revenir aux noms par défaut' : null });
+  if (!r) return;
+  if (r.__danger) delete p.driveNames;
+  else { const o = {}; names.forEach((n, i) => { const v = (r['n' + i] || '').trim(); if (v && v !== n) o[n] = v; }); if (Object.keys(o).length) p.driveNames = o; else delete p.driveNames; }
+  await DB.put('projects', p); toast('Dossiers Drive enregistrés ✓ — rangement à la prochaine synchro');
+  try { Sync.schedule(800); } catch (e) {}
+}

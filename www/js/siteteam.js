@@ -276,12 +276,14 @@ const ST = (() => {
     root.innerHTML = `<div class="st-ptools-p">
       <div class="st-hd"><b>${esc(T.e || '🏗️')} ${esc(p.name)}</b><small>${esc(T.n || 'Projet')}${p.address ? ' · ' + esc(p.address) : ''}</small></div>
       ${typeof openPhotoBatch === 'function' ? `<button class="st-pb" data-a="pbatch">${icon('camera')}<span><b>Photos en masse</b><small>Plusieurs photos d'un coup · envoi en arrière-plan · rangées dans Drive</small></span>${icon('chevright')}</button>` : ''}
+      ${typeof openDriveNames === 'function' ? `<button class="st-pb" data-a="dnames">${icon('folder')}<span><b>Dossiers Drive du projet</b><small>Renommer, renuméroter les rubriques · fichiers déplacés sans doublon</small></span>${icon('chevright')}</button>` : ''}
       ${G.map(([g, l, ks]) => `<div class="st-tcat" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}"><div class="st-tcat-h">${esc(l.replace(/^\S+\s/, ''))}<small>${ks.length}</small></div>
         <div class="st-tgrid">${ks.map(k => `<button class="st-tool" data-tool="${k}" style="--c:${CAT_C[catOf(k)] || CAT_C[g] || 'var(--accent)'}"><i class="st-ico">${icon(SECTIONS[k].icon || 'grid')}</i><span>${esc(toolName(k))}</span></button>`).join('')}</div></div>`).join('')}
       ${typeof espaceHome === 'function' && espaceHome() ? `<details class="st-tcat st-esp" style="--c:#3D5A80"><summary class="st-tcat-h">Espace métier</summary>${espaceHome()}</details>` : ''}
     </div>`;
     root.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { App.section = b.dataset.tool; App.search = ''; renderSection(); });
     const pb = root.querySelector('[data-a=pbatch]'); if (pb) pb.onclick = () => openPhotoBatch(p);
+    const dn = root.querySelector('[data-a=dnames]'); if (dn) dn.onclick = () => openDriveNames(p);
     if (typeof espaceBind === 'function') espaceBind(root);
   }
   function toolsBind(root) {
