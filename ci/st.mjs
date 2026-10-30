@@ -885,8 +885,8 @@ try {
   log('accueil v1.0.43', h43); if (h43.nav.join('|') !== 'Projets|Réseau|Emploi|Mon dossier|Plus' || h43.dir || h43.org || !h43.cards) u43.push('accueil / barre');
   await shot(A.pg, '170_accueil_projets');
   await A.pg.click('.st-bnav [data-n=net]'); await A.pg.waitForSelector('.rs-page', { timeout: 8000 }); await A.pg.waitForTimeout(400);
-  const rs = await A.pg.evaluate(() => ({ rows: document.querySelectorAll('.rs-row').length, f: [...document.querySelectorAll('.rs-f button')].map(b => b.textContent.trim()) }));
-  log('réseau', rs); await shot(A.pg, '171_reseau');
+  const rs43 = await A.pg.evaluate(() => ({ rows: document.querySelectorAll('.rs-row').length, f: [...document.querySelectorAll('.rs-f button')].map(b => b.textContent.trim()) }));
+  log('réseau', rs43); await shot(A.pg, '171_reseau');
   await A.pg.evaluate(() => { localStorage.setItem('reseau.contacts', JSON.stringify([{ name: 'Youssef Ferrailleur', sub: 'Tâcheron ferraillage', tel: '0612345678', email: '' }])); document.querySelector('.rs-page [data-a=back]').click(); openReseau(); }); await A.pg.waitForTimeout(500);
   const rs2 = await A.pg.evaluate(() => ({ me: [...document.querySelectorAll('.rs-row b')].some(b => b.textContent === 'Youssef Ferrailleur'), wa: !!document.querySelector('.rs-row a[href="https://wa.me/212612345678"]') }));
   log('réseau : contact perso + WhatsApp', rs2); if (!rs2.me || !rs2.wa) u43.push('réseau contacts');
