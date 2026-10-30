@@ -1700,6 +1700,7 @@ const Team = (() => {
     const pname = (id) => (projects.find(p => p.id === id) || {}).name || '?';
     // espace personnel : ni organigramme, ni membres, ni codes — profil professionnel, abonnement, paramètres, compte
     const perso = isPerso(), collab = isCollab();
+    let orgMode = 'tree';
     if (perso && ['org', 'mem', 'inv'].includes(tab)) tab = 'prof';
     if (collab) tab = 'me';
     const draw = async () => {
@@ -1715,14 +1716,29 @@ const Team = (() => {
       const inv = $('[data-a=invite]', el); if (inv) inv.onclick = () => inviteFlow().then(c => { if (c) { tab = 'inv'; draw(); } });
       const body = $('.tm-body', el);
       const av = (m) => `<span class="tm-av" style="background:${serviceOf(m.service).c}">${esc(String(m.name || m.email || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase())}</span>`;
-      const card = (m) => `<button class="tm-mem" data-uid="${m.uid}">${av(m)}<span class="grow"><b>${esc(m.name || m.email)}</b><small>${esc([m.role, ...(m.postes || [])].map(k => tmRoleOf(k).l).join(' + '))}${m.zone ? ' · ' + esc(m.zone) : ''}${m.admin ? ' · admin' : ''}</small></span>${m.uid === S.user.uid ? '<i class="tm-me">moi</i>' : ''}</button>`;
+      const card = (m, withService = false) => { const sv = serviceOf(m.service || tmRoleOf(m.role).s), reports = M.filter(x => x.managerUid === m.uid).length;
+        return `<button class="tm-mem tm-orgcard" data-uid="${m.uid}" data-search="${esc(`${m.name || ''} ${m.email || ''} ${tmRoleOf(m.role).l} ${sv.l} ${m.zone || ''}`.toLowerCase())}">${av(m)}<span class="grow"><b>${esc(m.name || m.email)}</b><small>${esc([m.role, ...(m.postes || [])].map(k => tmRoleOf(k).l).join(' + '))}${m.zone ? ' · ' + esc(m.zone) : ''}</small>${withService ? `<em style="--c:${sv.c}">${esc(sv.l)}</em>` : ''}</span>${reports ? `<i class="tm-reports" title="${reports} personne(s) sous sa responsabilité">${reports}</i>` : ''}${m.admin ? '<i class="tm-admin">Admin</i>' : ''}${m.uid === S.user.uid ? '<i class="tm-me">moi</i>' : ''}</button>`; };
       if (tab === 'org') {
         const rIdx = (m) => (tmRoleOf(m.role).rank || 9) * 1000 + TM_ROLES.findIndex(r => r.k === m.role);
-        const tree = (list, parent, depth) => list.filter(m => (m.managerUid || null) === parent || (depth === 0 && m.managerUid && !list.some(x => x.uid === m.managerUid)))
-          .sort((a, b) => rIdx(a) - rIdx(b)).map(m => `<div class="tm-node" style="--d:${depth}">${card(m)}</div>${tree(list, m.uid, depth + 1)}`).join('');
+        const tree = (list, withService = false) => { const seen = new Set(), ids = new Set(list.map(x => x.uid));
+          const branch = (parent, depth) => list.filter(m => !seen.has(m.uid) && (m.managerUid || null) === parent).sort((a, b) => rIdx(a) - rIdx(b)).map(m => { seen.add(m.uid); return `<div class="tm-node" style="--d:${Math.min(depth, 8)}">${card(m, withService)}</div>${branch(m.uid, depth + 1)}`; }).join('');
+          let html = list.filter(m => !m.managerUid || m.managerUid === m.uid || !ids.has(m.managerUid)).sort((a, b) => rIdx(a) - rIdx(b)).map(m => { if (seen.has(m.uid)) return ''; seen.add(m.uid); return `<div class="tm-node" style="--d:0">${card(m, withService)}</div>${branch(m.uid, 1)}`; }).join('');
+          // Données anciennes avec boucle de responsables : personne ne disparaît de l'organigramme.
+          html += list.filter(m => !seen.has(m.uid)).sort((a, b) => rIdx(a) - rIdx(b)).map(m => { seen.add(m.uid); return `<div class="tm-node" style="--d:0">${card(m, withService)}</div>${branch(m.uid, 1)}`; }).join(''); return html;
+        };
         const canPostes = isAdmin() || lvl('equipe') >= 4;
-        body.innerHTML = (canPostes && !perso ? `<div class="btnrow" style="padding:0 0 8px"><button class="btn ghost small" data-a="postes">${icon('settings')} Gérer les postes</button></div>` : '') + companyServices().map(s => { const L = M.filter(m => (m.service || tmRoleOf(m.role).s) === s.k); if (!L.length) return '';
-          return `<div class="tm-svc"><div class="tm-svc-h" style="--c:${s.c}"><i></i>${s.l}<span>${L.length}</span></div>${tree(L, null, 0)}</div>`; }).join('') || '<div class="empty">Aucun membre.</div>';
+        const svcUsed = companyServices().filter(s => M.some(m => (m.service || tmRoleOf(m.role).s) === s.k));
+        const nPostes = new Set(M.flatMap(m => [m.role, ...(m.postes || [])]).filter(Boolean)).size;
+        const toolbar = `<div class="tm-orghead"><div class="tm-orgstats"><div><b>${M.length}</b><small>Membres</small></div><div><b>${svcUsed.length}</b><small>Services</small></div><div><b>${nPostes}</b><small>Postes actifs</small></div></div>
+          <div class="tm-orgtools"><div class="seg"><button data-om="tree" class="${orgMode === 'tree' ? 'on' : ''}">Hiérarchie</button><button data-om="service" class="${orgMode === 'service' ? 'on' : ''}">Par service</button></div>
+          <label class="tm-orgsearch">${icon('search')}<input data-orgq placeholder="Rechercher un membre, poste, service…"></label>
+          ${canPostes && !perso ? `<button class="btn ghost small" data-a="postes">${icon('settings')} Gérer les postes</button>` : ''}</div></div>`;
+        const content = orgMode === 'tree'
+          ? `<div class="tm-orglegend"><span><i></i>Responsable</span><span>Le chiffre indique le nombre de collaborateurs directs</span></div><div class="tm-orgtree">${tree(M, true)}</div>`
+          : svcUsed.map(s => { const L = M.filter(m => (m.service || tmRoleOf(m.role).s) === s.k); return `<section class="tm-svc"><div class="tm-svc-h" style="--c:${s.c}"><i></i>${esc(s.l)}<span>${L.length}</span></div>${tree(L)}</section>`; }).join('');
+        body.innerHTML = M.length ? toolbar + content : '<div class="empty">Aucun membre.</div>';
+        $$('[data-om]', body).forEach(b => b.onclick = () => { orgMode = b.dataset.om; draw(); });
+        const q = $('[data-orgq]', body); if (q) q.oninput = () => { const s = q.value.trim().toLowerCase(); $$('.tm-node', body).forEach(n => { n.hidden = !!s && !($('[data-search]', n).dataset.search || '').includes(s); }); };
       }
       if (tab === 'mem') body.innerHTML = `<div class="list">${M.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(m => `<div class="tm-row">${card(m)}<div class="tm-sub">${m.allProjects ? 'Tous les projets' : (m.projects || []).map(pname).join(', ') || 'Aucun projet'}${m.managerUid && byUid[m.managerUid] ? ' · sous ' + esc(byUid[m.managerUid].name) : ''}</div></div>`).join('')}</div>`;
       if (tab === 'inv') {

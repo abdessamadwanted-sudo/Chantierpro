@@ -275,6 +275,7 @@ const ST = (() => {
     const T = projTypeOf(p.type) || {};
     root.innerHTML = `<div class="st-ptools-p">
       <div class="st-hd"><b>${esc(T.e || '🏗️')} ${esc(p.name)}</b><small>${esc(T.n || 'Projet')}${p.address ? ' · ' + esc(p.address) : ''}</small></div>
+      <button class="st-pb st-pb-lib" data-a="library">${icon('grid')}<span><b>Bibliothèque métier</b><small>Outils réunis et classés selon votre service · pack ${esc(plan().l)}</small></span>${icon('chevright')}</button>
       ${typeof pvCreate === 'function' && Team.canSection('forms') !== false ? `<button class="st-pb" data-a="newpv">${icon('form')}<span><b>Nouveau PV de réception</b><small>Check-list de votre service · mesures · verdict · réserves</small></span>${icon('chevright')}</button>` : ''}
       ${typeof openPhotoBatch === 'function' ? `<button class="st-pb" data-a="pbatch">${icon('camera')}<span><b>Photos en masse</b><small>Plusieurs photos d'un coup · envoi en arrière-plan · rangées dans Drive</small></span>${icon('chevright')}</button>` : ''}
       ${typeof openDriveNames === 'function' ? `<button class="st-pb" data-a="dnames">${icon('folder')}<span><b>Dossiers Drive du projet</b><small>Renommer, renuméroter les rubriques · fichiers déplacés sans doublon</small></span>${icon('chevright')}</button>` : ''}
@@ -284,9 +285,77 @@ const ST = (() => {
     </div>`;
     root.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { App.section = b.dataset.tool; App.search = ''; renderSection(); });
     const npv = root.querySelector('[data-a=newpv]'); if (npv) npv.onclick = async () => { const f = await pvCreate(p); if (f) { await openFormDetail(f); } };
+    const lib = root.querySelector('[data-a=library]'); if (lib) lib.onclick = () => openServiceLibrary({ project: p });
     const pb = root.querySelector('[data-a=pbatch]'); if (pb) pb.onclick = () => openPhotoBatch(p);
     const dn = root.querySelector('[data-a=dnames]'); if (dn) dn.onclick = () => openDriveNames(p);
     if (typeof espaceBind === 'function') espaceBind(root);
+  }
+
+  // ---------- bibliothèque unifiée : même écran pour tous, contenu adapté au pack, au service et aux droits ----------
+  const LIB_SKIP = new Set(['ptools', 'dashboard', 'settings', 'histo']);
+  const libServiceKey = () => {
+    if (perso()) { const M = metierOf(Team.profil().metier); return (M && M.s) || 'travaux'; }
+    const me = Team.me() || {}, r = tmRoleOf(roleKey()); return me.service || r.s || 'travaux';
+  };
+  const libKeys = (svc) => {
+    // Basic reste volontairement commun et lisible. À partir de Pro, la même bibliothèque se spécialise par métier.
+    const P = plan();
+    const base = ['plans', 'tasks', 'photos', 'reports', 'team', 'org'];
+    const métier = [...LIB_CORE, ...(SVC_LIB[svc] || [])];
+    return [...new Set(P.k === 'basic' ? base : métier)].filter(k => SECTIONS[k] && !LIB_SKIP.has(k));
+  };
+  const libModule = (k) => SECTION_MOD[k] || (SECTION_FEATURE[k] ? FEAT_MOD[SECTION_FEATURE[k]] : 'projet') || 'projet';
+  const libGroups = (svc) => {
+    const keys = libKeys(svc), used = new Set(), groups = [];
+    if (typeof DR_GROUPS !== 'undefined') for (const [g, l, ks] of DR_GROUPS) {
+      const list = ks.filter(k => keys.includes(k)); list.forEach(k => used.add(k)); if (list.length) groups.push([g, l, list]);
+    }
+    const rest = keys.filter(k => !used.has(k)); if (rest.length) groups.push(['org', '📁 Projet & équipe', rest]);
+    return groups;
+  };
+  async function libProject(cur) {
+    if (cur && !cur.deleted && Team.canProject(cur.id)) return cur;
+    const L = (await DB.all('projects')).filter(p => !p.deleted && Team.canProject(p.id)).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    if (!L.length) { toast('Créez ou rejoignez d\'abord un projet'); return null; }
+    if (L.length === 1) return L[0];
+    const id = await menu('Dans quel projet ?', L.map(p => ({ label: `${(projTypeOf(p.type) || {}).e || '🏗️'} ${p.name}`, value: p.id })));
+    return L.find(p => p.id === id) || null;
+  }
+  function openServiceLibrary(opt = {}) {
+    const el = document.createElement('div'); el.className = 'fullpage st-libpage'; document.body.appendChild(el);
+    const unBack = pushBack(() => el.remove()); let svc = opt.service || libServiceKey();
+    const close = () => { unBack(); el.remove(); };
+    const services = (() => {
+      if (perso()) { const s = serviceOf(svc); return s ? [s] : []; }
+      if (Team.isAdmin()) return Team.companyServices().filter(s => s.k !== 'direction' && s.k !== 'externe');
+      const me = Team.me() || {}, ks = [...new Set([me.service, ...(me.postes || []).map(k => tmRoleOf(k).s)].filter(Boolean))];
+      return ks.map(serviceOf).filter(s => s && s.k !== 'direction' && s.k !== 'externe');
+    })();
+    if (!services.some(s => s.k === svc) && services[0]) svc = services[0].k;
+    const draw = () => {
+      const P = plan(), S = serviceOf(svc), G = libGroups(svc);
+      const all = G.flatMap(g => g[2]), available = all.filter(k => orgHas(libModule(k)) && planHas(libModule(k)) && lvl(libModule(k)) >= 1 && Team.canSection(k));
+      const upgrade = perso() ? 'Pro' : 'Business';
+      el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="back">${icon('back')}</button><h1>Bibliothèque métier</h1><span class="st-lib-pack">${esc(P.e || '')} ${esc(P.l)}</span></div>
+        <div class="content st-libcontent">
+          <section class="st-libhero" style="--svc:${esc(S.c || '#2563eb')}"><div class="st-libhero-ic">${esc(P.k === 'basic' ? '🌱' : '📚')}</div><div><small>${P.k === 'basic' ? 'BIBLIOTHÈQUE COMMUNE' : 'BIBLIOTHÈQUE DU SERVICE'}</small><h2>${esc(P.k === 'basic' ? 'Les essentiels SiteTeam' : S.l)}</h2><p>${P.k === 'basic' ? 'Une base simple et identique pour démarrer : plans, tâches, photos, rapports et équipe.' : 'Une seule bibliothèque, organisée automatiquement selon votre service, votre poste et vos droits.'}</p></div></section>
+          ${services.length > 1 ? `<div class="st-libservices" aria-label="Choisir un service">${services.map(s => `<button data-svc="${s.k}" class="${s.k === svc ? 'on' : ''}" style="--svc:${s.c}">${esc(s.l)}</button>`).join('')}</div>` : ''}
+          <div class="st-libstats"><div><b>${available.length}</b><small>outils accessibles</small></div><div><b>${G.length}</b><small>catégories</small></div><div><b>${esc(P.l)}</b><small>pack actif</small></div></div>
+          ${G.map(([g, l, ks]) => `<section class="st-libgroup" style="--c:${CAT_C[g] || '#3D5A80'}"><header><span>${esc(l.replace(/^\S+\s/, ''))}</span><small>${ks.filter(k => available.includes(k)).length}/${ks.length}</small></header><div class="st-libgrid">${ks.map(k => {
+            const mod = libModule(k), packOk = planHas(mod), access = packOk && orgHas(mod) && lvl(mod) >= 1 && Team.canSection(k), title = toolName(k);
+            return `<button class="st-libtool ${access ? '' : 'locked'}" data-lib="${k}" data-access="${access ? '1' : '0'}" data-pack="${packOk ? '1' : '0'}"><i>${icon(SECTIONS[k].icon || 'grid')}</i><span><b>${esc(title)}</b><small>${access ? 'Ouvrir dans un projet' : packOk ? 'Non inclus dans vos droits' : `Disponible avec ${upgrade}`}</small></span>${access ? icon('chevright') : '<em>🔒</em>'}</button>`;
+          }).join('')}</div></section>`).join('')}
+          ${P.k === 'basic' ? `<button class="st-libupgrade" data-a="upgrade"><span>⭐</span><span><b>Débloquer la bibliothèque par service</b><small>Avec ${upgrade}, les outils et recommandations s'adaptent à votre métier.</small></span>${icon('chevright')}</button>` : ''}
+        </div>`;
+      $('[data-a=back]', el).onclick = close;
+      $$('[data-svc]', el).forEach(b => b.onclick = () => { svc = b.dataset.svc; draw(); });
+      const up = $('[data-a=upgrade]', el); if (up) up.onclick = () => Team.openCompany(perso() ? 'abo' : 'set');
+      $$('[data-lib]', el).forEach(b => b.onclick = async () => {
+        if (b.dataset.access !== '1') { if (b.dataset.pack !== '1') return Team.openCompany(perso() ? 'abo' : 'set'); return toast('Cet outil n\'est pas autorisé par votre poste.'); }
+        const p = await libProject(opt.project || App.project); if (!p) return; close(); await openProject(p); App.section = b.dataset.lib; App.search = ''; renderSection();
+      });
+    };
+    draw(); return el;
   }
   function toolsBind(root) {
     const box = root && root.querySelector('[data-sttools]'); if (!box) return;
@@ -373,7 +442,13 @@ const ST = (() => {
   }
   // « Équipe » : organisation (organigramme, codes, affectations, réglages) + tableau de bord
   async function openTeamHub() {
-    if (perso()) return Team.openCompany('me');
+    if (perso()) {
+      const v = await groupMenu('Mon espace', [{ title: 'Personnel', color: '#2563eb', items: [
+        { label: 'Bibliothèque métier', sub: `Outils du pack ${plan().l}`, icon: 'grid', value: 'lib' },
+        { label: 'Mon profil professionnel', sub: 'métier, compétences, expérience', icon: 'user', value: 'me' },
+        { label: 'Mon abonnement', sub: `Pack ${plan().l}`, icon: 'bag', value: 'abo' }]}]);
+      if (v === 'lib') openServiceLibrary(); if (v === 'me' || v === 'abo') Team.openCompany(v); return;
+    }
     const C = Team.company() || {};
     const v = await groupMenu(C.name || 'Équipe', [
       { title: 'Équipe', color: '#2563eb', items: [
@@ -381,11 +456,13 @@ const ST = (() => {
         ...(Team.canInvite() ? [{ label: 'Codes d\'accès', sub: Team.isAdmin() ? 'inviter, approuver' : 'pour les personnes sous votre responsabilité', icon: 'share', value: 'inv' }] : []),
         ...(typeof Affectations !== 'undefined' && Affectations.active && Affectations.active() ? [{ label: 'Affectations', sub: 'équipe de chaque projet', icon: 'layers', value: 'aff' }] : [])] },
       { title: 'Pilotage', color: '#0d9488', items: [{ label: 'Tableau de bord', sub: 'vue direction · service · à faire aujourd\'hui', icon: 'trend', value: 'dash' }] },
+      { title: 'Bibliothèque', color: '#5B4BA8', items: [{ label: 'Bibliothèque métier', sub: 'outils classés selon le service et le pack', icon: 'grid', value: 'lib' }] },
       { title: '', color: '#64748b', items: Team.isAdmin() ? [{ label: 'Réglages de l\'organisation', sub: 'pack, services, Drive, sécurité', icon: 'settings', value: 'set' }] : [] },
     ]);
     if (v === 'org' || v === 'inv' || v === 'set') Team.openCompany(v);
     if (v === 'aff') Affectations.open();
     if (v === 'dash') openDash();
+    if (v === 'lib') openServiceLibrary();
   }
   // carte du profil (en tête des Réglages)
   function profileCardHTML() {
@@ -622,5 +699,5 @@ const ST = (() => {
   }
 
   function refreshRole() { applyRole(); try { App.project ? renderSection() : renderHome(); } catch (e) {} }
-  return { families: FAMILIES, openDash, openPro, openTeamHub, profileCardHTML, wsBtnHTML, wsMenu, renderProjectTools, directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
+  return { families: FAMILIES, openDash, openPro, openTeamHub, openServiceLibrary, profileCardHTML, wsBtnHTML, wsMenu, renderProjectTools, directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
 })();
