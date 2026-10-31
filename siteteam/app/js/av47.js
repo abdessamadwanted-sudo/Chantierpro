@@ -14,6 +14,7 @@ function avLiteURL(fileId, max) {
   const k = fileId + '|' + max; if (_avLite.has(k)) return _avLite.get(k);
   if (max <= 400) { try { const d = localStorage.getItem('th.' + k); if (d) { const pr0 = Promise.resolve(d); _avLite.set(k, pr0); return pr0; } } catch (e) {} }
   const pr = avLiteQ(async () => { const f = await DB.get('files', fileId); if (!f || !f.blob) return fileURL(fileId);
+    if (max <= 400 && f.blob.size > 9e6) return '';   // v1.0.51 : image trop lourde pour une miniature sur téléphone → pas de miniature
     if (max <= 400) { try { const bm = await createImageBitmap(f.blob, { resizeWidth: max, resizeQuality: 'medium' }), c = document.createElement('canvas'); c.width = bm.width; c.height = bm.height; c.getContext('2d').drawImage(bm, 0, 0); bm.close && bm.close();
       const d = c.toDataURL('image/jpeg', 0.72); c.width = c.height = 0; try { localStorage.setItem('th.' + k, d); } catch (e) {} return d; } catch (e) { /* ancien navigateur : chemin normal */ } }
     try { const bm = await createImageBitmap(f.blob), r = Math.min(1, max / Math.max(bm.width, bm.height)); if (r >= 1) { bm.close && bm.close(); return BlobURL.get(f.id, f.blob); }
@@ -116,12 +117,17 @@ async function avCompareAnyPlans(p, folderId) {
   const [plans, folders] = await Promise.all([DB.byProject('plans', p.id), DB.byProject('folders', p.id)]);
   const cur = plans.filter(isCurrentPlan), fn = (pl) => (folders.find(f => f.id === pl.folderId) || {}).name || 'Sans dossier';
   const lots = typeof planLots === 'function' ? planLots(p) : [], ln = (pl) => (lots.find(l => l.id === pl.lotId) || {}).name || '';
-  const sorted = cur.slice().sort((a, b) => ((b.folderId === folderId) - (a.folderId === folderId)) || fn(a).localeCompare(fn(b), 'fr', { numeric: true }) || avNameSort(a, b));
+  // v1.0.49 : depuis un dossier de niveau → seulement les plans de CE niveau ; « autre niveau » = comparaison entre niveaux
+  const inF = folderId ? cur.filter(x => x.folderId === folderId) : cur;
+  if (folderId && inF.length < 2) { const v = await menu('⇄ Comparer', [{ label: `Un seul plan dans ${(folders.find(f => f.id === folderId) || {}).name || 'ce dossier'} : ajoutez le plan d'un autre lot`, value: 'x' }, ...(typeof openLevelStack === 'function' && inF[0] ? [{ label: '🏢 Comparer avec un autre niveau', icon: 'layers', value: 'niv' }] : [])]); if (v === 'niv') openLevelStack(inF[0]); return; }
+  if (folderId) { const w = await menu('⇄ Comparer', [{ label: `Deux plans de ${(folders.find(f => f.id === folderId) || {}).name || 'ce niveau'} (lots, archi…)`, icon: 'plans', value: 'same' }, ...(typeof openLevelStack === 'function' ? [{ label: '🏢 Avec un autre niveau', icon: 'layers', value: 'niv' }] : [])]); if (!w) return; if (w === 'niv') return openLevelStack(inF[0]); }
+  const sorted = inF.slice().sort((a, b) => (ln(a) || 'zz').localeCompare(ln(b) || 'zz', 'fr') || avNameSort(a, b));
   if (sorted.length < 2) { toast('Il faut au moins deux plans : ajoutez un plan'); return; }
   const pick = async (t, ex) => { const id = await menu(t, sorted.filter(x => x.id !== ex).map(x => ({ label: `${fn(x)} · ${ln(x) ? ln(x) + ' · ' : ''}${x.name} · ind. ${planIndice(x)}`, icon: 'plans', value: x.id }))); return sorted.find(x => x.id === id); };
   const A = await pick('⇄ Plan de base', null); if (!A) return; const B = await pick('Comparer avec', A.id); if (!B) return;
   p.cmpHold = p.cmpHold || { name: 'Plans', cal: {} };
-  return avComparePlans(p, p.cmpHold, { id: 'a', serieId: planSerie(A), plan: A, label: ln(A) || A.name }, { id: 'b', serieId: planSerie(B), plan: B, label: ln(B) || B.name });
+  const fo = folders.find(f => f.id === folderId), hold = { ...p.cmpHold, name: fo ? fo.name : (fn(A) === fn(B) ? fn(A) : '') };
+  return avComparePlans(p, hold, { id: 'a', serieId: planSerie(A), plan: A, label: ln(A) || A.name }, { id: 'b', serieId: planSerie(B), plan: B, label: ln(B) || B.name });
 }
 
 // ---------- zones automatiques par les joints (JD01…) ----------
@@ -259,6 +265,9 @@ async function avOpenReserves(p) { try { return (await DB.byProject('tasks', p.i
 function avEntryOn(p, loc, o) {
   const e = { id: DB.uid(), d: o.d || todayISO(), t: Date.now() + (o.k || 0), lot: o.lot, eq: o.eq || '', pct: Math.max(0, Math.min(100, +o.pct || 0)), eff: +o.eff || 0, qty: o.qty || '', note: o.note || '', photos: [], src: o.src || '', by: Team.ready() ? ((Team.me() || {}).name || '') : '', ...(o.g ? { g: o.g } : {}) };
   e.prev = avPctAt(loc, e.lot, avAddDays(e.d, -1));
+  const R0 = (loc.lots || {})[e.lot] || {};
+  if (o.qc != null && +R0.qtot > 0) { const prevC = avQtyDone(loc, e.lot, avAddDays(e.d, -1)); e.qc = Math.max(0, Math.min(+R0.qtot, +o.qc)); e.qd = Math.round((e.qc - prevC) * 100) / 100; e.pct = Math.min(100, Math.round(e.qc / R0.qtot * 100)); e.qty = `${avFmtQ(e.qd)} ${R0.unit || 'm²'}`; }
+  else if (+R0.qtot > 0) { e.qc = Math.round(R0.qtot * e.pct) / 100; }   // % saisi : la quantité suit
   loc.journal = [...(loc.journal || []), e]; avApplyEntry(loc, e);
   return e;
 }
@@ -327,7 +336,7 @@ async function openAvTable(p, o = {}) {
   const { locaux, nivs: N0 } = await avData(p), nivs = avNivSorted(p, N0);
   if (!nivs.length) return toast('Ajoutez d\'abord un niveau dans Avancement');
   const lots = avLotsOrdered(p), my = avMyLots(p);
-  const S = { niv: o.nivId && nivs.some(n => n.id === o.nivId) ? o.nivId : nivs[0].id, zone: o.zone || '', d: todayISO(), eq: '', eff: '', ch: new Map(), focus: o.lotId || '' };
+  const S = { niv: o.nivId && nivs.some(n => n.id === o.nivId) ? o.nivId : nivs[0].id, zone: o.zone || '', d: todayISO(), eq: '', eff: '', ch: new Map(), qc: new Map(), focus: o.lotId || '' };
   const el = document.createElement('div'); el.className = 'fullpage avt-page'; document.body.appendChild(el);
   const unBack = pushBack(() => el.remove()); const close = () => { unBack(); el.remove(); o.onClose && o.onClose(); };
   const STEPS = [0, 25, 50, 75, 100];
@@ -347,7 +356,8 @@ async function openAvTable(p, o = {}) {
       </div>
       <div class="avt-wrap">${L.length ? `<table class="avt"><thead><tr><th class="avt-c0">${L.length} pin(s)</th>${LC.map(l => `<th data-col="${l.id}" style="--c:${l.color}" class="${my && !my.has(l.id) ? 'ro' : ''}">${esc(l.name)}</th>`).join('')}</tr></thead>
         <tbody>${L.map(l => `<tr><th data-row="${l.id}" class="avt-c0"><b>${esc(l.name)}</b>${l.anep ? `<small>${esc(l.anep)}</small>` : ''}</th>${LC.map(lot => { const v = cur(l, lot), ch = S.ch.has(l.id + '|' + lot.id);
-          return `<td data-c="${l.id}|${lot.id}" class="${ch ? 'ch' : ''} ${my && !my.has(lot.id) ? 'ro' : ''}" style="--v:${v}%;--k:${col(v)}"><b>${v}</b></td>`; }).join('')}</tr>`).join('')}</tbody></table>`
+          const R = (l.lots || {})[lot.id] || {}, qq = +R.qtot ? (S.qc.has(l.id + '|' + lot.id) ? S.qc.get(l.id + '|' + lot.id) : Math.round(R.qtot * v) / 100) : null;
+          return `<td data-c="${l.id}|${lot.id}" class="${ch ? 'ch' : ''} ${my && !my.has(lot.id) ? 'ro' : ''}" style="--v:${v}%;--k:${col(v)}"><b>${v}${qq != null ? `<small>${avFmtQ(qq)}/${avFmtQ(R.qtot)} ${esc(R.unit || 'm²')}</small>` : ''}</b></td>`; }).join('')}</tr>`).join('')}</tbody></table>`
         : '<div class="empty">Aucun pin sur ce niveau.<br>Placez les locaux sur le plan (Avancement › niveau › + Pin) ou importez-les du PDF.</div>'}</div>
       <div class="avt-foot"><span><b>${S.ch.size}</b> modification(s)</span><small>Toucher : 0 › 25 › 50 › 75 › 100 · appui long : valeur, historique</small><button class="btn" data-a="save" ${S.ch.size ? '' : 'disabled'}>${icon('check')} Enregistrer</button></div>`;
     $('[data-a=x]', el).onclick = async () => { if (S.ch.size && !await confirmBox(`${S.ch.size} modification(s) non enregistrée(s). Quitter ?`, 'Quitter')) return; close(); };
@@ -378,7 +388,13 @@ async function openAvTable(p, o = {}) {
     const J = (l.journal || []).filter(e => e.lot === lot.id).sort((a, b) => (b.d + b.t).localeCompare(a.d + a.t));
     const v = await menu(`${l.name} · ${lot.name}`, [{ label: 'Saisir une valeur…', icon: 'edit', value: 'val' }, ...(S.ch.has(l.id + '|' + lot.id) ? [{ label: 'Remettre comme avant', icon: 'undo', value: 'undo' }] : []),
       ...J.slice(0, 12).map(e => ({ label: `${fmtDate(e.d)} · ${e.prev != null ? e.prev + ' → ' : ''}${e.pct} %${avTeam(p, e.eq) ? ' · ' + avTeam(p, e.eq).name : ''}${e.by ? ' · ' + e.by : ''}  (supprimer)`, icon: 'history', value: 'h:' + e.id }))]);
-    if (v === 'val') { if (my && !my.has(lot.id)) return toast('Lot d\'une autre équipe'); const r = await formSheet(`${l.name} · ${lot.name}`, [{ name: 'v', label: 'Avancement (%)', type: 'number', value: cur(l, lot) }]); if (r && r.v !== '') set(l, lot, Math.max(0, Math.min(100, Math.round(+r.v)))); }
+    if (v === 'val') { if (my && !my.has(lot.id)) return toast('Lot d\'une autre équipe'); const R = (l.lots || {})[lot.id] || {};
+      const r = await formSheet(`${l.name} · ${lot.name}`, [{ name: 'v', label: 'Avancement (%)', type: 'number', value: cur(l, lot) }, { name: 'q', label: `… ou quantité faite au total${R.qtot ? ` (sur ${avFmtQ(R.qtot)} ${R.unit || 'm²'})` : ''}`, type: 'number', value: '' }, { name: 't', label: 'Quantité totale du local', type: 'number', value: R.qtot || l.area || '' }, { name: 'u', label: 'Unité', type: 'select', value: R.unit || 'm²', options: AV_UNITS.map(u => ({ value: u, label: u })) }]);
+      if (!r) return; const k = l.id + '|' + lot.id;
+      if (+r.t > 0) { const fresh = await DB.get('links', l.id); fresh.lots = fresh.lots || {}; const rr = fresh.lots[lot.id] = fresh.lots[lot.id] || { state: 'todo', photos: [] }; rr.qtot = +r.t; rr.unit = r.u; await DB.put('links', fresh); Object.assign(l, fresh); }
+      const RT = ((l.lots || {})[lot.id] || {}).qtot;
+      if (r.q !== '' && +RT > 0) { S.qc.set(k, +r.q); set(l, lot, Math.max(0, Math.min(100, Math.round(+r.q / RT * 100)))); }
+      else if (r.v !== '') { S.qc.delete(k); set(l, lot, Math.max(0, Math.min(100, Math.round(+r.v)))); } }
     if (v === 'undo') { S.ch.delete(l.id + '|' + lot.id); draw(); }
     if (v && v.startsWith('h:') && await confirmBox('Supprimer cette saisie de l\'historique ?')) { const fresh = await DB.get('links', l.id); fresh.journal = (fresh.journal || []).filter(e => e.id !== v.slice(2)); const last = fresh.journal.filter(e => e.lot === lot.id).sort((a, b) => (b.d + b.t).localeCompare(a.d + a.t))[0];
       if (last) { const keep = last; avApplyEntry(fresh, keep); } await DB.put('links', fresh); Object.assign(l, fresh); toast('Saisie supprimée'); draw(); }
@@ -387,8 +403,8 @@ async function openAvTable(p, o = {}) {
     let pairs = [...S.ch.entries()].map(([k, v]) => { const [lid, lotId] = k.split('|'); return { loc: locaux.find(l => l.id === lid), lot: lotId, pct: v }; }).filter(x => x.loc);
     pairs = await avCheckReserves(p, pairs); if (!pairs.length) return;
     const g = DB.uid(); let k = 0; const by = {}; for (const x of pairs) (by[x.loc.id] = by[x.loc.id] || []).push(x);
-    for (const [lid, X] of Object.entries(by)) { const fresh = await DB.get('links', lid); if (!fresh) continue; for (const x of X) { avEntryOn(p, fresh, { d: S.d, lot: x.lot, pct: x.pct, eq: S.eq, eff: k === 0 ? S.eff : 0, g, k, src: 'tab', note: '' }); k++; } await DB.put('links', fresh); Object.assign(locaux.find(l => l.id === lid), fresh); }
-    await DB.put('projects', p); S.ch.clear(); toast(`✓ ${k} saisie(s) enregistrée(s)`); draw();
+    for (const [lid, X] of Object.entries(by)) { const fresh = await DB.get('links', lid); if (!fresh) continue; for (const x of X) { const qk = lid + '|' + x.lot; avEntryOn(p, fresh, { d: S.d, lot: x.lot, pct: x.pct, eq: S.eq, eff: k === 0 ? S.eff : 0, g, k, src: 'tab', note: '', ...(S.qc.has(qk) ? { qc: S.qc.get(qk) } : {}) }); k++; } await DB.put('links', fresh); Object.assign(locaux.find(l => l.id === lid), fresh); }
+    await DB.put('projects', p); S.ch.clear(); S.qc.clear(); toast(`✓ ${k} saisie(s) enregistrée(s)`); draw();
   }
   draw();
   return el;
@@ -447,7 +463,7 @@ async function avReminderCheck(p) {
 }
 // notification quotidienne à 17 h (téléphone) tant que des lots sont en cours
 async function avReminderNotif(p) {
-  const LN = window.Capacitor?.Plugins?.LocalNotifications; if (!LN) return;
+  const LN = window.Capacitor?.Plugins?.LocalNotifications; if (!LN || window.__safe) return;
   try { const k = 'avRemN.' + p.id; if (localStorage.getItem(k) === todayISO()) return; localStorage.setItem(k, todayISO()); } catch (e) {}   // v1.0.48 : une fois par jour, pas à chaque affichage
   try {
     const today = todayISO(), on = (p.avNiveaux || []).some(n => avLots(p).some(lot => { const P = (p.avPlan || {})[n.id + '|' + lot.id]; return P && !P.done && P.deb && P.deb <= today && (!P.fin || avDaysBetween(P.fin, today) < 30); }));

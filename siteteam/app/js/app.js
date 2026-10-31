@@ -57,7 +57,7 @@ const FORM_TEMPLATES = [
 ];
 const WEATHER = ['Ensoleillé', 'Nuageux', 'Pluie', 'Vent fort', 'Chaleur', 'Froid'];
 
-const APP_VERSION = '1.0.49-web';
+const APP_VERSION = '1.0.51-web';
 const App = { project: null, section: 'dashboard', taskFilter: 'all', companyFilter: 'all', search: '' };
 
 // ---------- Helpers données ----------
@@ -311,7 +311,8 @@ async function renderHome() {
         { label: 'Fonctions affichées', sub: 'masquer ce qui ne sert pas', icon: 'grid', value: 'feat' }] },
       { title: 'Application', color: '#64748b', items: [
         ...(() => { try { const T = JSON.parse(localStorage.getItem('boot.t') || 'null'); return T ? [{ label: `⏱ Dernier démarrage : ${(T.total / 1000).toFixed(1)} s`, sub: `fichiers ${(T.scripts / 1000).toFixed(1)} s · connexion ${(T.team / 1000).toFixed(1)} s · accueil ${(T.home / 1000).toFixed(1)} s`, icon: 'calendar', value: 'boott' }] : []; } catch (e) { return []; } })(),
-        { label: `Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}`, sub: 'mise à jour', icon: 'upload', value: 'ver' }] },
+        { label: `Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}`, sub: 'mise à jour', icon: 'upload', value: 'ver' },
+        { label: 'Rapport de diagnostic', sub: 'démarrages, fermetures, erreurs → WhatsApp', icon: 'share', value: 'diag' }] },
     ], { head: Team.ready() ? ST.profileCardHTML() : '' });
     if (v === 'brief') { const act = await briefingShow(); if (act) act(); }
     if (v === 'trash') { const ps = (await DB.all('projects')).filter(p => (p.trash || []).length); if (!ps.length) toast('La corbeille est vide'); else { const id = ps.length === 1 ? ps[0].id : await menu('Corbeille de quel chantier ?', ps.map(p => ({ label: `${p.name} · ${p.trash.length}`, icon: 'trash', value: p.id }))); if (id) openTrash(id); } }
@@ -324,6 +325,7 @@ async function renderHome() {
     if (v === 'feat') chooseMyFeatures();
     if (v === 'upd') checkUpdate(true);
     if (v === 'ver') showVersion();
+    if (v === 'diag') safeModeInfo();
     if (v === 'admin') location.href = 'admin.html' + (/[?&]emu=1/.test(location.search) ? '?emu=1' : '');
     if (v === 'look') { const w = await menu('Apparence', [{ label: 'Thèmes', icon: 'brush', value: 'theme' }, { label: 'Sons et effets', icon: 'disc', value: 'fx' }]); if (w === 'theme') chooseTheme(() => {}); if (w === 'fx') fxSettings(); }
     if (v === 'pdf') openPdfTools();
@@ -557,7 +559,7 @@ async function renderPlans(root) {
     const add = document.createElement('div');
     add.className = App.planView === 'grid' ? 'ptile add' : 'prow';
     add.innerHTML = App.planView === 'grid' ? `${icon('plus')}<span>Ajouter un plan</span>` : `<span class="pic" style="color:var(--accent)">${icon('plus')}</span><div class="nm" style="color:var(--accent)">Ajouter un plan</div>`;
-    add.onclick = async () => { const sel = lotF ? lotSelOf(lotF.id) : ''; App.newPlanLot = sel || null; try { await addPlanTo(f.id === '_none' ? null : f.id, folders, root); } finally { App.newPlanLot = null; } if (sel) renderPlans(root); };   // le plan reste dans le lot ouvert
+    add.onclick = async () => { const sel = lotF ? lotSelOf(lotF.id) : ''; App.newPlanLot = sel && sel !== '__none' ? sel : null; try { await addPlanTo(f.id === '_none' ? null : f.id, folders, root); } finally { App.newPlanLot = null; } if (sel) renderPlans(root); };   // le plan reste dans le lot ouvert
     if (lotF && lotSelOf(lotF.id) && !list.length && ps.length) grid.insertAdjacentHTML('afterbegin', `<div class="lot-empty">Aucun plan de ce lot ici.</div>`);
     grid.appendChild(add);
   };
@@ -1635,6 +1637,8 @@ async function openPlansQuick() {
   // la prochaine ouverture se fait sans synchro ni envoi des photos, et montre les dernières étapes / erreurs pour le diagnostic
   let crashN = 0; try { crashN = +localStorage.getItem('boot.crash') || 0; localStorage.setItem('boot.crash', String(crashN + 1)); } catch (e) {}
   window.__safe = crashN >= 2; bootTrail('démarrage' + (window.__safe ? ' (mode secours)' : ''));
+  // v1.0.51 : dernier plantage côté Android (Java ou moteur web) → journal des erreurs
+  setTimeout(async () => { try { const G = window.Capacitor?.Plugins?.GDriveAuth; if (!G || !G.lastCrash) return; const r = await G.lastCrash({ clear: true }); if (r && r.last) { const L = JSON.parse(localStorage.getItem('err.log') || '[]'); L.push('ANDROID ' + r.last.slice(0, 400)); localStorage.setItem('err.log', JSON.stringify(L.slice(-20))); } } catch (e) {} }, 1500);
   setTimeout(() => { try { localStorage.setItem('boot.crash', '0'); } catch (e) {} bootTrail('ouvert depuis 30 s ✓'); }, 30000);
   try { const LN = window.Capacitor?.Plugins?.LocalNotifications; if (LN) LN.cancel({ notifications: [{ id: 1999000301 }, { id: 1999000101 }] }).catch(() => {}); } catch (e) {}   // anciens rappels « on » (boucle) retirés
   setTimeout(() => { try { const C = typeof Career !== 'undefined' && Career.get(); if (C && C.robot && C.robot.on) careerRobotNotif(C.robot); } catch (e) {} }, 4000);   // robot emploi : reprogrammé (notification datée)
@@ -1749,8 +1753,9 @@ function bootTrail(step) { try { const L = JSON.parse(localStorage.getItem('boot
 })();
 async function safeModeInfo() {
   let T = [], E = []; try { T = JSON.parse(localStorage.getItem('boot.trail') || '[]'); E = JSON.parse(localStorage.getItem('err.log') || '[]'); } catch (e) {}
-  const txt = `SiteTeam ${typeof APP_VERSION !== 'undefined' ? APP_VERSION : ''} — mode secours\n${navigator.userAgent}\n\nDernières étapes :\n${T.slice(-15).join('\n')}\n\nErreurs :\n${E.slice(-10).join('\n') || '—'}`;
-  const v = await menu('🛟 Mode secours', [{ label: 'L\'application s\'est fermée plusieurs fois au démarrage : synchro et envoi des photos sont arrêtés pour cette ouverture. Vos données sont intactes.', value: 'x' },
+  try { const G = window.Capacitor?.Plugins?.GDriveAuth; if (G && G.lastCrash) { const r = await G.lastCrash({}); if (r && r.last) E.push('ANDROID ' + r.last); } } catch (e) {}
+  const txt = `SiteTeam ${typeof APP_VERSION !== 'undefined' ? APP_VERSION : ''} — ${window.__safe ? 'mode secours' : 'diagnostic'}\n${navigator.userAgent}\n\nDernières étapes :\n${T.slice(-15).join('\n')}\n\nErreurs :\n${E.slice(-10).join('\n') || '—'}`;
+  const v = await menu(window.__safe ? '🛟 Mode secours' : 'Rapport de diagnostic', [{ label: window.__safe ? 'L\'application s\'est fermée plusieurs fois au démarrage : synchro et envoi des photos sont arrêtés pour cette ouverture. Vos données sont intactes.' : 'Dernières étapes et erreurs de l\'application (aucune donnée de chantier).', value: 'x' },
     { label: 'Envoyer le rapport (WhatsApp)', icon: 'share', value: 'wa' }, { label: 'Continuer', icon: 'check', value: 'ok' }]);
   if (v === 'wa') shareWhatsApp(txt);
 }

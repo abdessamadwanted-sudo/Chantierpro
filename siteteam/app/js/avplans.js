@@ -177,6 +177,8 @@ async function avComparePlans(p, niv, preA, preB) {
   const pick = async (t, ex) => { const id = await menu(t, L.filter(x => x.id !== ex).map(x => ({ label: `${x.label}${lotsOf(x) ? ' (' + lotsOf(x) + ')' : ''} · ${x.plan.name}`, icon: 'plans', value: x.id }))); return L.find(x => x.id === id); };
   const A = preA || await pick('Plan de base', null); if (!A) return; const Bx = preB || await pick('Comparer avec', A.id); if (!Bx) return;
   if (A.serieId === Bx.serieId) return toast('Les deux lots utilisent le même plan : attribuez un plan à chaque lot (Plans du niveau › plan › « Plan affiché pour un lot »)');
+  // v1.0.49 : même affichage que « Comparer deux niveaux » (rideau fluide, calage à l'équerre une fois par plan, plan entier en HD)
+  if (typeof openStackView === 'function' && typeof openEquerreSteps === 'function') return avCompareSame(p, niv, A, Bx, L);
   const ld = loading('Calage des deux plans…'); let C;
   try { C = await avPairMatrix(p, niv, A, Bx); } finally { ld.close(); }
   const el = document.createElement('div'); el.className = 'fullpage av-page avc-page'; document.body.appendChild(el);
@@ -215,6 +217,13 @@ async function avComparePlans(p, niv, preA, preB) {
   Object.assign(bx.style, { position: 'absolute', left: 0, top: 0, width: W + 'px', height: H + 'px', overflow: 'hidden' });
   setM(); apply();
   return el;
+}
+async function avCompareSame(p, niv, A, B, L) {
+  const lab = (x) => x.label || x.plan.name, same = niv && niv.name && !/^x/.test(String(B.id || '')) ? niv.name : '';
+  const list = (L && L.length ? L : [A, B]).map(x => ({ p: x.plan, niv: lab(x), label: lab(x) }));
+  let todo = [A.plan, B.plan].filter(x => !x.lvRef);
+  if (todo.length && !(await openEquerreSteps(todo, todo.map(x => x === A.plan ? lab(A) : lab(B)), todo.includes(A.plan) ? (B.plan.lvRef ? B.plan : A.plan) : A.plan))) return;
+  return openStackView([{ p: A.plan, niv: lab(A), label: lab(A) }, { p: B.plan, niv: lab(B), label: lab(B) }], same ? { same, list } : {});
 }
 // comparer les plans de deux lots du même niveau (ex : gros œuvre ↔ enduit)
 async function avCompareLots(p, niv) {

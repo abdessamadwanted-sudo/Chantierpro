@@ -4,7 +4,9 @@
 
 const planIndice = (p) => (p && p.indice) || 'A';
 const planSerie = (p) => (p && (p.serieId || p.id));
-const nextIndice = (i) => { i = String(i || 'A').trim().toUpperCase(); if (/^[A-Y]$/.test(i)) return String.fromCharCode(i.charCodeAt(0) + 1); if (/^\d+$/.test(i)) return String(+i + 1); return i + '1'; };
+const nextIndice = (i) => { i = String(i || 'A').trim().toUpperCase(); if (/^[A-Y]$/.test(i)) return String.fromCharCode(i.charCodeAt(0) + 1); if (/^\d+$/.test(i)) return String(+i + 1);
+  const m = i.match(/^(.*?)(\d+)([A-Z]?)$/); if (m) return m[1] + String(+m[2] + 1).padStart(m[2].length, '0') + m[3];   // v1.0.50 : PE02.5 → PE02.6, DCE01 → DCE02
+  return i + '1'; };
 const isCurrentPlan = (p) => !p.supersededBy;
 
 async function planHistory(plan) {

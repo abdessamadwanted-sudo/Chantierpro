@@ -43,7 +43,8 @@ async function planTexts(plan) {
 function cartoucheFromTexts(T) {
   if (!T || !T.length) return null;
   const DRX = /\b(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})\b/;
-  const IRX = /^(?:[A-Z]{1,3}\s?\d{0,3}|\d{1,3}|IND\.?\s?[A-Z0-9]{1,3})$/;
+  // v1.0.50 : indices à points ou tirets (PE02.5, DCE01, APD04, 1, B, IND C…) — avant, « PE02.5 » n'était pas reconnu → mauvais indice
+  const IRX = /^(?:IND\.?\s?)?(?:[A-Z]{0,5}\s?\d{1,3}(?:[.\-_]\d{1,3}){0,2}[A-Z]?|[A-Z]{1,2})$/;
   const out = [];
   for (const d of T) {
     const m = d.s.match(DRX); if (!m) continue;
@@ -53,10 +54,12 @@ function cartoucheFromTexts(T) {
     const left = line.filter(t => t.x < d.x && d.x - t.x < d.h * 25 && IRX.test(t.s) && !/^(DATE|INDICE|IND)$/i.test(t.s)).sort((a, b) => b.x - a.x)[0];
     if (!left) continue;
     const desc = line.filter(t => t.x > d.x + d.w * 0.5 && t.x - d.x < d.h * 60 && !DRX.test(t.s)).sort((a, b) => a.x - b.x).map(t => t.s).join(' ').trim();
-    out.push({ indice: left.s.replace(/^IND\.?\s?/i, '').replace(/\s+/g, ''), date: iso, desc: desc.slice(0, 120) });
+    out.push({ indice: left.s.replace(/^IND\.?\s?/i, '').replace(/\s+/g, ''), date: iso, desc: desc.slice(0, 120), y: d.y });
   }
   if (!out.length) return null;
-  out.sort((a, b) => b.date.localeCompare(a.date) || b.indice.localeCompare(a.indice, 'fr', { numeric: true }));
+  // la date la plus récente ; à date égale, la ligne la plus basse du tableau (dernière saisie), puis l'indice le plus grand
+  out.sort((a, b) => b.date.localeCompare(a.date) || (b.y - a.y) || b.indice.localeCompare(a.indice, 'fr', { numeric: true }));
+  delete out[0].y;
   return out[0];
 }
 async function cartoucheFromFile(file, pageNo = 1) {
