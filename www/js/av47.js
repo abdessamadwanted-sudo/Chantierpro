@@ -6,13 +6,19 @@
 // · Ordre partout : niveaux de bas en haut (SSL › RDC › MEZZ › R+1…), lots dans l'ordre des travaux.
 
 // ---------- images réduites (miniatures, comparaison rapide) — cache par taille ----------
-const _avLite = new Map();
+// v1.0.48 : une seule image décodée à la fois (un plan A0 = 12 Mpx en mémoire) ; les miniatures (≤ 400 px) sont gardées
+// sur le téléphone (localStorage) → plus jamais recalculées à chaque ouverture d'un onglet de lot
+const _avLite = new Map(); let _avLiteQ = Promise.resolve();
+const avLiteQ = (fn) => { const r = _avLiteQ.then(fn, fn); _avLiteQ = r.catch(() => {}); return r; };
 function avLiteURL(fileId, max) {
   const k = fileId + '|' + max; if (_avLite.has(k)) return _avLite.get(k);
-  const pr = (async () => { const f = await DB.get('files', fileId); if (!f || !f.blob) return fileURL(fileId);
+  if (max <= 400) { try { const d = localStorage.getItem('th.' + k); if (d) { const pr0 = Promise.resolve(d); _avLite.set(k, pr0); return pr0; } } catch (e) {} }
+  const pr = avLiteQ(async () => { const f = await DB.get('files', fileId); if (!f || !f.blob) return fileURL(fileId);
+    if (max <= 400) { try { const bm = await createImageBitmap(f.blob, { resizeWidth: max, resizeQuality: 'medium' }), c = document.createElement('canvas'); c.width = bm.width; c.height = bm.height; c.getContext('2d').drawImage(bm, 0, 0); bm.close && bm.close();
+      const d = c.toDataURL('image/jpeg', 0.72); c.width = c.height = 0; try { localStorage.setItem('th.' + k, d); } catch (e) {} return d; } catch (e) { /* ancien navigateur : chemin normal */ } }
     try { const bm = await createImageBitmap(f.blob), r = Math.min(1, max / Math.max(bm.width, bm.height)); if (r >= 1) { bm.close && bm.close(); return BlobURL.get(f.id, f.blob); }
       const c = document.createElement('canvas'); c.width = Math.round(bm.width * r); c.height = Math.round(bm.height * r); const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(bm, 0, 0, c.width, c.height); bm.close && bm.close();
-      const b = await new Promise(res => c.toBlob(res, 'image/jpeg', max <= 400 ? 0.8 : 0.9)); c.width = c.height = 0; return URL.createObjectURL(b); } catch (e) { return BlobURL.get(f.id, f.blob); } })();
+      const b = await new Promise(res => c.toBlob(res, 'image/jpeg', max <= 400 ? 0.8 : 0.9)); c.width = c.height = 0; return URL.createObjectURL(b); } catch (e) { return BlobURL.get(f.id, f.blob); } });
   _avLite.set(k, pr); if (_avLite.size > 60) _avLite.delete(_avLite.keys().next().value); return pr;
 }
 
@@ -442,6 +448,7 @@ async function avReminderCheck(p) {
 // notification quotidienne à 17 h (téléphone) tant que des lots sont en cours
 async function avReminderNotif(p) {
   const LN = window.Capacitor?.Plugins?.LocalNotifications; if (!LN) return;
+  try { const k = 'avRemN.' + p.id; if (localStorage.getItem(k) === todayISO()) return; localStorage.setItem(k, todayISO()); } catch (e) {}   // v1.0.48 : une fois par jour, pas à chaque affichage
   try {
     const today = todayISO(), on = (p.avNiveaux || []).some(n => avLots(p).some(lot => { const P = (p.avPlan || {})[n.id + '|' + lot.id]; return P && !P.done && P.deb && P.deb <= today && (!P.fin || avDaysBetween(P.fin, today) < 30); }));
     const id = 1999000301; await LN.cancel({ notifications: [{ id }] }).catch(() => {});
@@ -723,7 +730,9 @@ async function renderPhotosV2(root) {
   const mo = new MutationObserver(() => { const bar = document.getElementById('selBar'); if (!bar || bar.querySelector('[data-a=cls]') || !root.isConnected) return;
     const b = document.createElement('button'); b.dataset.a = 'cls'; b.innerHTML = `${icon('folder')} Classer`; bar.insertBefore(b, bar.querySelector('[data-a=del]'));
     b.onclick = async () => { const ids = [...document.querySelectorAll('.ph-sel')].map(x => x.dataset.id); if (ids.length && await phClassify(p, ids)) { PhotoQ.endSel(); renderPhotosV2(root); } }; });
-  mo.observe(document.body, { childList: true }); const un = () => { if (!root.isConnected) { mo.disconnect(); clearInterval(iv); } }, iv = setInterval(un, 3000);
+  if (window.__phMO) { window.__phMO.disconnect(); clearInterval(window.__phIV); }   // v1.0.48 : un seul observateur (avant : un de plus à chaque affichage)
+  mo.observe(document.body, { childList: true }); window.__phMO = mo; const tok = root.querySelector('.pagehead');
+  window.__phIV = setInterval(() => { if (!tok.isConnected) { mo.disconnect(); clearInterval(window.__phIV); window.__phMO = null; } }, 3000);
   fab(root, async () => { const v = await menu('Ajouter des photos', [{ label: '📍 Sur un pin / local technique', value: 'pin' }, { label: '🏗️ Photos en masse (ouvrage, niveau, rubrique)', value: 'batch' }]);
     if (v === 'batch') { await openPhotoBatch(p); renderPhotosV2(root); }
     if (v === 'pin') { const { locaux, nivs } = await avData(p); const loc = await avPickPin(p, nivs, locaux); if (!loc) return; const lid = await menu('Lot', avLotsOrdered(p).map(l => ({ label: l.name, swatch: l.color, value: l.id }))); if (!lid) return;

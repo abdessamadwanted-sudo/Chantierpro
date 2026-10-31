@@ -36,9 +36,14 @@ async function avSecteursEdit(p) {
 // ---------- plusieurs plans par niveau ----------
 // niv.plans = [{ id, serieId, label, kind }] (en plus du plan principal niv.serieId = plan architecte) ; niv.lotPlan = { lotId: id }
 const AVP_PKINDS = [['archi', 'Architecte'], ['anep', 'Numérotation ANEP'], ['chape', 'Chape'], ['maconnerie', 'Maçonnerie'], ['autre', 'Autre']];
+// v1.0.48 : la liste des plans du projet est lue une seule fois (avant : une lecture complète par plan et par niveau)
+let _avPlC = null;
+async function avAllPlans(pid) { if (_avPlC && _avPlC.pid === pid && Date.now() - _avPlC.t < 3000) return _avPlC.L; const L = await DB.byProject('plans', pid); _avPlC = { pid, t: Date.now(), L }; return L; }
+try { const _P = DB.put.bind(DB), _D = DB.del.bind(DB); DB.put = (st, o) => { if (st === 'plans') _avPlC = null; return _P(st, o); }; DB.del = (st, id) => { if (st === 'plans') _avPlC = null; return _D(st, id); }; } catch (e) {}
 async function avNivPlans(p, niv) {
-  const base = await latestPlanOfSerie(p.id, niv.serieId), out = base ? [{ id: 'main', serieId: niv.serieId, label: 'Architecte', kind: 'archi', plan: base }] : [];
-  for (const x of niv.plans || []) { const pl = await latestPlanOfSerie(p.id, x.serieId); if (pl) out.push({ ...x, plan: pl }); }
+  const all = await avAllPlans(p.id);
+  const base = await latestPlanOfSerie(p.id, niv.serieId, all), out = base ? [{ id: 'main', serieId: niv.serieId, label: 'Architecte', kind: 'archi', plan: base }] : [];
+  for (const x of niv.plans || []) { const pl = await latestPlanOfSerie(p.id, x.serieId, all); if (pl) out.push({ ...x, plan: pl }); }
   return out;
 }
 async function avNivPlansMenu(p, niv) {

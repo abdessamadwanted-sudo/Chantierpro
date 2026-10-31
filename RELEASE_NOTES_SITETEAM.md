@@ -1,3 +1,10 @@
+## SiteTeam : application plus fluide
+- Tableau de bord Avancement : calcul de l'historique beaucoup plus rapide (journal trié une seule fois par local et par lot).
+- Miniatures des plans de lot : une seule image décodée à la fois et miniatures gardées sur le téléphone (avant : tous les plans A0 décodés en même temps à chaque ouverture d'un onglet de lot → téléphone saturé).
+- Réparation des anciens plans A0 : une seule tentative par plan, un plan à la fois, 4 s après l'ouverture (l'écran reste fluide).
+- Plans d'un niveau lus une seule fois (avant : une lecture complète de tous les plans pour chaque plan de chaque niveau).
+- Rappel de saisie (17 h) programmé une fois par jour, et non à chaque affichage ; vérification du rangement Drive une fois par session ; page Photos sans accumulation d'observateurs.
+
 ## SiteTeam : Avancement relié aux Plans, zones par joints, saisie rapide, équipes & sous-traitants, photos classées
 - Plans ↔ Avancement : les dossiers de niveau (2-RDC, 1-MEZZ…) et les plans de chaque lot (Outils › Plans) apparaissent tout seuls dans Avancement. L'onglet Maçonnerie montre tous les niveaux avec LEUR plan de maçonnerie (miniature, nom, indice) ; « ＋ Plan maçonnerie » s'il manque. Les pins d'un niveau sont communs à tous ses plans (recalés automatiquement).
 - Dans Plans › lot › niveau : bloc « Avancement » dépliable (%, alerte, dates prévues / réelles / prévision, équipes, saisies du jour, plan + pins, saisie, ✓ Terminé, PDF). Pastille d'alerte sur la barre des lots.
