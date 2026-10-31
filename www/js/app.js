@@ -1631,10 +1631,17 @@ async function openPlansQuick() {
   document.addEventListener('touchend', gend, { passive: true }); document.addEventListener('touchcancel', gend, { passive: true });
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   try { Splash.boot(); } catch (e) {}
+  // v1.0.48 : mode secours — si l'application s'est fermée 2 fois de suite pendant le démarrage (moins de 30 s),
+  // la prochaine ouverture se fait sans synchro ni envoi des photos, et montre les dernières étapes / erreurs pour le diagnostic
+  let crashN = 0; try { crashN = +localStorage.getItem('boot.crash') || 0; localStorage.setItem('boot.crash', String(crashN + 1)); } catch (e) {}
+  window.__safe = crashN >= 2; bootTrail('démarrage' + (window.__safe ? ' (mode secours)' : ''));
+  setTimeout(() => { try { localStorage.setItem('boot.crash', '0'); } catch (e) {} bootTrail('ouvert depuis 30 s ✓'); }, 30000);
+  try { const LN = window.Capacitor?.Plugins?.LocalNotifications; if (LN) LN.cancel({ notifications: [{ id: 1999000301 }, { id: 1999000101 }] }).catch(() => {}); } catch (e) {}   // anciens rappels « on » (boucle) retirés
+  setTimeout(() => { try { const C = typeof Career !== 'undefined' && Career.get(); if (C && C.robot && C.robot.on) careerRobotNotif(C.robot); } catch (e) {} }, 4000);   // robot emploi : reprogrammé (notification datée)
   // v1.0.36 : temps de démarrage mesuré (fichiers · connexion · accueil), visible dans le menu ⋮ › Application
   const tTeam0 = Date.now();
   Team.boot().catch(e => console.error('team', e)).finally(() => { const tTeam1 = Date.now(); Promise.resolve(renderHome()).finally(() => { try { const t0 = window.__t0 || tTeam0, ts = window.__tScripts || tTeam0, now = Date.now();
-      localStorage.setItem('boot.t', JSON.stringify({ total: now - t0, scripts: Math.max(0, ts - t0), team: tTeam1 - tTeam0, home: now - tTeam1, at: now })); } catch (e) {} }); Sync.start(); setTimeout(() => checkUpdate(false).catch(() => {}), 2500); try { dwgCrashCheck(); } catch (e) {} setTimeout(showWhatsNew, 1800); setTimeout(() => otaBoot().catch(() => {}), 1200); });
+      localStorage.setItem('boot.t', JSON.stringify({ total: now - t0, scripts: Math.max(0, ts - t0), team: tTeam1 - tTeam0, home: now - tTeam1, at: now })); } catch (e) {} bootTrail('accueil affiché'); if (window.__safe) setTimeout(safeModeInfo, 900); }); if (!window.__safe) Sync.start(); setTimeout(() => checkUpdate(false).catch(() => {}), 2500); try { dwgCrashCheck(); } catch (e) {} setTimeout(showWhatsNew, 1800); setTimeout(() => otaBoot().catch(() => {}), 1200); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(false).catch(() => {}); });
   // hors ligne : petite pastille en haut
   const net = () => { let b = document.getElementById('offBadge'); if (navigator.onLine) { if (b) b.remove(); return; } if (!b) { b = document.createElement('div'); b.id = 'offBadge'; b.textContent = '⚡ Hors ligne'; b.onclick = () => toast('Pas d\'internet : les photos et fichiers de Drive se chargeront au retour du réseau'); document.body.appendChild(b); } };
@@ -1731,4 +1738,19 @@ function openMaquette(m) {
   $('[data-a=out]', el).onclick = () => openUrl(m.url);
   $('[data-a=reload]', el).onclick = () => { const f = $('iframe', el); f.src = m.url; };
   $('iframe', el).onload = () => { const l = $('.m3-load', el); if (l) l.style.display = 'none'; };
+}
+
+// ---------- v1.0.48 : journal de démarrage et des erreurs (diagnostic des fermetures) ----------
+function bootTrail(step) { try { const L = JSON.parse(localStorage.getItem('boot.trail') || '[]'); L.push(new Date().toTimeString().slice(0, 8) + ' ' + String(step).slice(0, 120)); localStorage.setItem('boot.trail', JSON.stringify(L.slice(-25))); } catch (e) {} }
+(() => {
+  const keep = (m) => { try { const L = JSON.parse(localStorage.getItem('err.log') || '[]'); L.push(new Date().toISOString().slice(5, 19).replace('T', ' ') + ' ' + String(m).slice(0, 220)); localStorage.setItem('err.log', JSON.stringify(L.slice(-20))); } catch (e) {} };
+  window.addEventListener('error', (e) => keep((e.message || 'erreur') + (e.filename ? ' @' + String(e.filename).split('/').pop() + ':' + e.lineno : '')));
+  window.addEventListener('unhandledrejection', (e) => keep('promesse : ' + ((e.reason && (e.reason.message || e.reason)) || '?')));
+})();
+async function safeModeInfo() {
+  let T = [], E = []; try { T = JSON.parse(localStorage.getItem('boot.trail') || '[]'); E = JSON.parse(localStorage.getItem('err.log') || '[]'); } catch (e) {}
+  const txt = `SiteTeam ${typeof APP_VERSION !== 'undefined' ? APP_VERSION : ''} — mode secours\n${navigator.userAgent}\n\nDernières étapes :\n${T.slice(-15).join('\n')}\n\nErreurs :\n${E.slice(-10).join('\n') || '—'}`;
+  const v = await menu('🛟 Mode secours', [{ label: 'L\'application s\'est fermée plusieurs fois au démarrage : synchro et envoi des photos sont arrêtés pour cette ouverture. Vos données sont intactes.', value: 'x' },
+    { label: 'Envoyer le rapport (WhatsApp)', icon: 'share', value: 'wa' }, { label: 'Continuer', icon: 'check', value: 'ok' }]);
+  if (v === 'wa') shareWhatsApp(txt);
 }

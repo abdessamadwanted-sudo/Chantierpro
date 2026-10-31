@@ -451,10 +451,11 @@ async function avReminderNotif(p) {
   try { const k = 'avRemN.' + p.id; if (localStorage.getItem(k) === todayISO()) return; localStorage.setItem(k, todayISO()); } catch (e) {}   // v1.0.48 : une fois par jour, pas à chaque affichage
   try {
     const today = todayISO(), on = (p.avNiveaux || []).some(n => avLots(p).some(lot => { const P = (p.avPlan || {})[n.id + '|' + lot.id]; return P && !P.done && P.deb && P.deb <= today && (!P.fin || avDaysBetween(P.fin, today) < 30); }));
-    const id = 1999000301; await LN.cancel({ notifications: [{ id }] }).catch(() => {});
+    const id = 1999000302; await LN.cancel({ notifications: [{ id }, { id: 1999000301 }] }).catch(() => {});
     if (!on) return;
-    try { await LN.createChannel({ id: 'rappels', name: 'Rappels de chantier', importance: 4, visibility: 1, vibration: true }); } catch (e) {}
-    await LN.schedule({ notifications: [{ id, title: '📊 Saisie d\'avancement', body: `${p.name} : pensez à la saisie du jour (lots en cours)`, channelId: 'rappels', schedule: { on: { hour: 17, minute: 0 }, allowWhileIdle: true } }] });
+    // v1.0.48 : une seule notification à une date précise (« at »), reprogrammée à l'ouverture suivante — jamais de répétition automatique
+    const d = new Date(); d.setHours(17, 0, 0, 0); if (d <= new Date()) d.setDate(d.getDate() + 1);
+    await LN.schedule({ notifications: [{ id, title: '📊 Saisie d\'avancement', body: `${p.name} : pensez à la saisie du jour (lots en cours)`, channelId: 'rappels', schedule: { at: d, allowWhileIdle: true } }] });
   } catch (e) { console.warn('rappel av', e); }
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && App.project && App.section === 'avancement') avReminderCheck(App.project); });
