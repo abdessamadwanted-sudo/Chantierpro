@@ -1,6 +1,7 @@
 ## SiteTeam : comparaison sur le même niveau, équerre stable, avancement par quantité
 - Comparer deux plans du MÊME niveau (lots, archi, ANEP…) : même écran que « Comparer deux niveaux » (rideau fluide, plan entier net), rideau seul ; seuls les plans de ce niveau sont proposés ; « Avec un autre niveau » à part. Calage à l'équerre comme entre deux niveaux (une fois par plan).
 - Calage à l'équerre : le plan reste immobile pendant qu'on tire l'équerre (plus de tremblement).
+- Plans : plus de bouton « Tous » dans la barre des lots — le premier lot qui a des plans est choisi ; « Sans lot » n'apparaît que s'il reste des plans sans lot.
 - Avancement par quantité : quantité totale du local par lot (m², ml, m³, unités, portes, kg) ; on saisit la quantité faite → % calculé (45 / 120 m² = 37 %). Dans la saisie du jour, la fiche du local et le tableau rapide (appui long › valeur). Total du lot en quantité dans son onglet.
 
 ## SiteTeam : correction urgente — vibrations en boucle et fermeture
