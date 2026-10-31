@@ -23,7 +23,7 @@ async function ptPageItems(doc, n) {
     if (seen.has(k)) continue; seen.add(k); const horiz = Math.abs(t[1]) < Math.abs(t[0]); items.push({ s, x, y, w: horiz ? (it.width || 0) * vp.scale : 0 }); }
   return { items, vp };
 }
-const ptDocOf = async (file) => { if (!pdfReady()) throw new Error('Lecteur PDF indisponible'); return file._doc || (file._doc = await pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise); };
+const ptDocOf = async (file) => { if (!(await pdfReadyA())) throw new Error('Lecteur PDF indisponible'); return file._doc || (file._doc = await pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise); };
 // liste des poutres du PDF (une par page) : repère, niveau, section
 async function ptScanPdf(file) {
   const doc = await ptDocOf(file), out = [];

@@ -1,11 +1,6 @@
-## SiteTeam : barre simplifiée, chaque chose à un seul endroit, photos sans attente, nouveau démarrage, style verre
-- Barre du bas : Projets · Pro · Équipe · Réglages.
-- Pro : une seule page avec trois onglets, Mon dossier · Réseau · Emploi.
-- Équipe : organigramme et membres, codes d'accès, affectations, tableau de bord, réglages de l'organisation.
-- Réglages : votre profil en tête (nom, poste, organisation), puis tout le reste. L'avatar en haut de l'accueil est retiré.
-- Le menu de l'espace (« Sgtm ⌄ ») sert seulement à changer ou ajouter un espace. Plus de doublons.
-- Chaque projet affiche ce qui concerne votre service. Qualité : réception, PV, réserves. Travaux : lots et niveaux, avancement, réserves. Topo, HSE, labo… : leurs propres chiffres. « Choisir ce que je vois ici » permet de personnaliser.
-- Photos partout (réception, anomalie, réparation, bétonnage, réserves, PV, rapports…) : plusieurs photos d'un coup, enregistrées aussitôt, sans écran d'attente. La préparation et l'envoi vers Drive se font en arrière-plan. Une pastille en bas montre ce qui reste à envoyer.
-- Suppression des photos : bouton 🗑 dans la visionneuse. Appui long sur une miniature pour en sélectionner plusieurs et les supprimer d'un coup. Les photos vont dans la corbeille de Google Drive.
-- Écran de démarrage : le logo SiteTeam, et les têtes de l'équipe se colorent pendant l'ouverture.
-- Nouveau style « verre » : fond vectoriel, cartes translucides, en-tête et fenêtres en verre dépoli (clair et sombre).
+## SiteTeam : ouverture rapide, accès sur code uniquement
+- Ouverture beaucoup plus rapide, surtout avec une 4G faible sur chantier : l'accueil s'affiche tout de suite avec les données du téléphone. Le profil, l'organisation, les membres, les postes et les équipes projet se mettent à jour en arrière-plan.
+- Les bibliothèques PDF (≈ 1,2 Mo) se chargent juste après l'accueil, et non plus au démarrage.
+- Nouveau (Panneau d'administration › « Accès sur code uniquement ») : une personne qui installe l'application ne peut rien faire sans un code d'accès que vous lui donnez (Équipe › Codes d'accès). Les espaces personnels sont bloqués, sauf ceux que vous autorisez.
+- Pour arrêter quelqu'un : retirez-le de l'organisation, révoquez son code ou bloquez son compte.
+- Nouvelles règles Firestore : sans le Super Admin, aucun nouvel espace ne peut être créé quand l'accès sur code est activé. À publier dans la console Firebase.

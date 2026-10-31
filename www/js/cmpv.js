@@ -4,7 +4,7 @@
 
 const _pdfDocs = new Map();
 async function pdfDocOfFile(fileId) {
-  if (!fileId || !pdfReady()) return null;
+  if (!fileId || !(await pdfReadyA())) return null;
   if (_pdfDocs.has(fileId)) return _pdfDocs.get(fileId);
   const f = await DB.get('files', fileId); if (!f || !f.blob) return null;
   const doc = await pdfjsLib.getDocument({ data: new Uint8Array(await f.blob.arrayBuffer()) }).promise;
@@ -49,7 +49,7 @@ function cartoucheFromTexts(T) {
   return out[0];
 }
 async function cartoucheFromFile(file, pageNo = 1) {
-  if (!pdfReady()) return null;
+  if (!(await pdfReadyA())) return null;
   const doc = await pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
   const page = await doc.getPage(Math.min(pageNo, doc.numPages));
   return cartoucheFromTexts(await pageTexts(page, 1));

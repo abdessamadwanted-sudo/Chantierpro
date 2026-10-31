@@ -140,6 +140,7 @@
     const r = await modal(o.name || cid, `<div class="kv"><span>Type</span><b>${o.kind === 'perso' ? 'Espace personnel' : esc(orgTypeOf(o.orgType || 'entreprise').l)}</b><span>Créée</span><b>${esc(dt(o.createdAt))}</b><span>Propriétaire</span><b>${esc(own.email || own.name || o.ownerUid || '—')}</b>${o.trialEndsAt ? `<span>Fin d'essai</span><b>${esc(dt(o.trialEndsAt))}</b>` : ''}</div>
       <label>Pack<select name="plan">${Object.values(PLANS).map(P => `<option value="${P.k}" ${planOf(o.plan || 'enterprise').k === P.k ? 'selected' : ''}>${esc(PLAN_L(P.k))} · ${esc(planPrice(P))}</option>`).join('')}</select></label>
       <label>Statut<select name="st">${Object.entries(STATUS).map(([k, [l]]) => `<option value="${k}" ${o.planStatus === k ? 'selected' : ''}>${esc(l)}${k === 'essai' ? ' (14 jours de plus)' : ''}${k === 'suspendu' ? ' — bloque l\'accès aux projets' : ''}</option>`).join('')}</select></label>
+      ${o.kind === 'perso' ? `<label class="ck"><input type="checkbox" name="allow" ${o.allowed ? 'checked' : ''}> Autoriser cet espace personnel (même en « accès sur code uniquement »)</label>` : ''}
       <h3 style="margin-top:6px">Membres (${mem.length})</h3>${mem.map(m => `<div class="row"><div class="t grow"><b>${esc(m.name || m.email || m.uid)}</b><small>${esc(m.email || '')} · ${esc(tmRoleOf(m.role).l)}${m.admin ? ' · admin' : ''}</small></div></div>`).join('') || '<div class="empty">Aucun</div>'}`,
       [['Enregistrer', 'save'], ['Annonce à l\'organisation', 'ann', 'ghost'], ['Fermer', null, 'ghost']]);
     if (!r) return;
@@ -147,6 +148,7 @@
       if (r.v === 'save') {
         if (r.st === 'suspendu' && o.planStatus !== 'suspendu' && !(await modal('Suspendre ?', `<p>« ${esc(o.name)} » n'aura plus accès à ses projets et fichiers. Rien n'est effacé ; vous pourrez rétablir l'accès.</p>`, [['Suspendre', 'ok', 'bad'], ['Annuler', null, 'ghost']]))) return;
         const extra = r.st === 'essai' ? { trialEndsAt: firebase.firestore.Timestamp.fromMillis(Date.now() + 14 * 864e5) } : {};
+        if (o.kind === 'perso') extra.allowed = !!r.allow;
         await db.collection('companies').doc(cid).update({ plan: r.plan, planStatus: r.st, ...extra }); toast('Enregistré ✓'); draw(true);
       }
       if (r.v === 'ann') annForm({ cid, label: o.name || cid });
@@ -239,6 +241,9 @@
       <div class="card"><h3>Fonctions coupées</h3><p class="muted">Cachées pour tout le monde (sauf vous), sans effacer les données.</p>
         <div class="cks">${MODS.filter(([k]) => k !== 'projet').map(([k, l]) => `<label class="ck"><input type="checkbox" data-off="${k}" ${off.includes(k) ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</div>
         <div class="btns"><button class="btn" data-a="off">Enregistrer</button></div></div>
+      <div class="card"><h3>🔑 Accès sur code uniquement</h3><p class="muted">Activé : une personne qui installe l'application ne peut rien faire sans un code d'accès que vous lui donnez (Équipe › Codes d'accès). Les espaces personnels sont bloqués, sauf ceux que vous autorisez (Organisations › ouvrir › « Autoriser »). Pour arrêter quelqu'un : retirez-le de l'organisation, révoquez son code ou bloquez son compte.</p>
+        <label class="ck"><input type="checkbox" name="inv" ${A.inviteOnly ? 'checked' : ''}> Accès sur code uniquement</label>
+        <div class="btns"><button class="btn" data-a="inv">Enregistrer</button></div></div>
       <div class="card"><h3>Version et maintenance</h3>
         <label>Version minimale (X.Y.Z) — en dessous, l'application demande la mise à jour<input name="minv" value="${esc(A.minVersion || '')}" placeholder="Ex : 1.0.24" inputmode="decimal"></label>
         <label class="ck"><input type="checkbox" name="mon" ${A.maintenance && A.maintenance.on ? 'checked' : ''}> Mode maintenance (application fermée pour tous, sauf vous)</label>
@@ -262,6 +267,7 @@
     $('[data-a=off]', M).onclick = () => save('app', { off: $$('[data-off]', M).filter(x => x.checked).map(x => x.dataset.off) }, 'Fonctions enregistrées ✓');
     $('[data-a=ver]', M).onclick = () => { const v = val('minv').value.trim(); if (v && !/^\d+\.\d+\.\d+$/.test(v)) return toast('Version au format X.Y.Z (ex : 1.0.24)');
       save('app', { minVersion: v, maintenance: { on: val('mon').checked, text: val('mtext').value.trim() } }); };
+    $('[data-a=inv]', M).onclick = () => save('app', { inviteOnly: val('inv').checked }, val('inv').checked ? 'Accès sur code uniquement ✓' : 'Accès libre ✓');
     $('[data-a=sec]', M).onclick = () => save('app', { secureAll: val('secall').checked }, val('secall').checked ? 'Anti-capture imposé ✓' : 'Anti-capture libre ✓');
     $('[data-a=msg]', M).onclick = () => save('app', { message: { on: val('gon').checked, level: val('glev').value, text: val('gtext').value.trim(), id: String(Date.now()) } });
     $('[data-a=sto]', M).onclick = () => save('services', { storage: val('son').checked, maxMb: Math.min(50, Math.max(1, +val('smax').value || 50)) });

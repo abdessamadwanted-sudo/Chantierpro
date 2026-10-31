@@ -446,7 +446,10 @@ service cloud.firestore {
     }
 
     match /companies/{cid} {
+      // v1.0.45 : « accès sur code uniquement » (config/app.inviteOnly) — plus de nouvel espace sans le Super Admin ; « allowed » ne se donne que par lui
       allow create: if signed() && request.resource.data.ownerUid == request.auth.uid
+        && (licOwner() || (request.resource.data.get('allowed', false) == false
+          && (!exists(/databases/$(db)/documents/config/app) || get(/databases/$(db)/documents/config/app).data.get('inviteOnly', false) != true)))
         && ((request.resource.data.get('planStatus', 'essai') in ['essai', 'gratuit']
             && (request.resource.data.get('plan', 'basic') == 'basic' || licOwner()
               || get(/databases/$(db)/documents/config/plans).data.get(request.resource.data.get('plan', 'basic'), {}).get('open', false) == true))
@@ -455,7 +458,8 @@ service cloud.firestore {
       // la formule (pack) ne change que par le Super Admin SiteTeam (plus tard : la facturation)
       allow update: if (isAdmin(cid) && request.resource.data.get('plan', null) == resource.data.get('plan', null)
           && request.resource.data.get('planStatus', null) == resource.data.get('planStatus', null)
-          && request.resource.data.get('trialEndsAt', null) == resource.data.get('trialEndsAt', null)) || licOwner()
+          && request.resource.data.get('trialEndsAt', null) == resource.data.get('trialEndsAt', null)
+          && request.resource.data.get('allowed', null) == resource.data.get('allowed', null)) || licOwner()
         || (isAdmin(cid) && request.resource.data.get('packCode', null) != resource.data.get('packCode', null) && codePlanOk(request.resource.data));
 
       match /members/{uid} {
@@ -624,6 +628,8 @@ const Team = (() => {
   const lvl = (mod) => lvlFor(mod, curPid());
   // réglages généraux décidés dans le panneau d'administration (config/app) : version minimale, maintenance, message, fonctions coupées
   const appCfg = () => LS.get('appCfg') || {};
+  // v1.0.45 : accès sur code uniquement — le Super Admin n'est jamais concerné
+  const inviteOnly = () => !!appCfg().inviteOnly && !isSuper();
   // anti-capture d'écran (Android FLAG_SECURE) : option de l'organisation, ou imposée à tous par le Super Admin (config/app.secureAll)
   const secureOn = () => !!(appCfg().secureAll || (S.ready && (S.company || {}).secureScreen && !isPerso()));
   // appliqué à chaque fois (sans cache) : l'état du téléphone suit toujours le réglage, y compris au retour dans l'application
@@ -837,12 +843,21 @@ const Team = (() => {
     on('ws', () => openSwitcher()); on('retry', () => location.reload()); on('out', () => logout());
     return new Promise(() => {});
   }
+  // écran « code d'accès obligatoire » : le seul bouton utile est « Entrer mon code d'accès »
+  function gateCode() {
+    gateScreen('🔑 Code d\'accès nécessaire', 'SiteTeam est accessible sur invitation.\nEntrez le code d\'accès donné par votre responsable pour ouvrir l\'application.', { switcher: true });
+    const b = document.querySelector('.st-gate .st-gate-b');
+    if (b) { b.insertAdjacentHTML('afterbegin', '<button class="btn" data-g="code">🔑 Entrer mon code d\'accès</button>'); b.querySelector('[data-g=code]').onclick = () => joinWithCode(); }
+    return new Promise(() => {});
+  }
   async function gate() {
     if (isSuper()) return;
     const C = appCfg(), V = typeof APP_VERSION === 'string' ? APP_VERSION : '';
     if (C.maintenance && C.maintenance.on) return gateScreen('🛠 Maintenance', C.maintenance.text || 'SiteTeam est en maintenance. Revenez dans quelques minutes.', { retry: true });
     if (C.minVersion && /^\d+\.\d+\.\d+$/.test(V) && typeof verCmp === 'function' && verCmp(V, C.minVersion) < 0)
       return gateScreen('⬆️ Mise à jour obligatoire', `Cette version (${V}) n'est plus prise en charge. Installez la version ${C.minVersion} ou plus récente pour continuer. Vos données restent sur le téléphone.`, { update: true });
+    // accès sur code uniquement : un espace personnel n'ouvre plus l'application (sauf autorisation du Super Admin) ; une organisation se rejoint par code
+    if (inviteOnly() && S.company && !S.company.allowed && isPerso()) return gateCode();
     if (S.company && S.company.planStatus === 'suspendu')
       return gateScreen('⏸ Organisation suspendue', `L'accès à « ${S.company.name || 'cette organisation'} » est suspendu par SiteTeam.\nVos données ne sont pas effacées. Contact : ${SUPPORT_EMAIL}`, { switcher: true });
   }
@@ -951,7 +966,8 @@ const Team = (() => {
     // v1.0.35 : démarrage rapide — avec un cache sur ce téléphone, on n'attend pas plus de 2,5 s le réseau (mise à jour en arrière-plan)
     const pC = LS.get('profile'), quick = !!(pC && pC.companyId && (LS.get('me') || {}).uid === S.user.uid);
     const pReq = fs.collection('users').doc(S.user.uid).get();
-    try { const d = await withTimeout(pReq, quick ? 2500 : 15000); prof = d.exists ? d.data() : {}; LS.set('profile', prof); }
+    // v1.0.45 : avec le cache, on n'attend presque pas le réseau (chantier, 4G faible) — la mise à jour arrive en arrière-plan
+    try { const d = await withTimeout(pReq, quick ? 900 : 15000); prof = d.exists ? d.data() : {}; LS.set('profile', prof); }
     catch (e) { if (quick) pReq.then(d => { if (d.exists) LS.set('profile', d.data()); }).catch(() => {}); prof = LS.get('profile'); if (!prof) { await alertBox('Connexion internet nécessaire pour la première ouverture.'); return loadMembership(); } }
     if (prof.blocked === true && !isSuper()) return gateScreen('⛔ Compte bloqué', `Ce compte a été bloqué par SiteTeam.${prof.blockedWhy ? '\nMotif : ' + prof.blockedWhy : ''}\nPour toute question : ${SUPPORT_EMAIL}`, false);
     presence(prof);
@@ -966,7 +982,7 @@ const Team = (() => {
     const cmReq = Promise.all([fs.collection('companies').doc(S.cid).get(), fs.collection('companies').doc(S.cid).collection('members').doc(S.user.uid).get()]);
     if (quickC) cmReq.then(([c, m]) => { if (c.exists && m.exists && S.cid === c.id) { S.company = { id: c.id, ...c.data() }; S.me = { uid: S.user.uid, ...m.data() }; LS.set('company', S.company); LS.set('me', S.me); } }).catch(() => {});
     try {
-      const [c, m] = await withTimeout(cmReq, quickC ? 2500 : 15000);
+      const [c, m] = await withTimeout(cmReq, quickC ? 900 : 15000);
       if (!m.exists) {
         const rest = S.workspaces.filter(w => w.cid !== S.cid);
         await fs.collection('users').doc(S.user.uid).set({ companyId: rest.length ? rest[0].cid : null, workspaces: rest }, { merge: true });
@@ -978,12 +994,16 @@ const Team = (() => {
     } catch (e) { if (!S.me || S.me.uid !== S.user.uid) { await alertBox('Connexion impossible : ' + errMsg(e)); return loadMembership(); } }
     S.ready = true;
     if (LS.get('plansCfg')) loadPlanCfg().catch(() => {}); else await loadPlanCfg();   // v1.0.35 : configuration en arrière-plan si déjà connue
-    await loadPostes();
-    await loadShared();
-    try { await projectIds(); } catch (e) { console.warn('équipes projet', e); }
+    // v1.0.45 : postes, projets partagés, équipes projet et membres — depuis le cache tout de suite, puis réseau en arrière-plan
+    const rest = async () => { await loadPostes(); await loadShared(); try { await projectIds(); } catch (e) { console.warn('équipes projet', e); } await refreshMembers(); saveWorkspace(); };
+    const fast = quickC && Array.isArray(LS.get('members')) && LS.get('projectTeams');
+    if (fast) {
+      S.members = LS.get('members'); S.projectTeams = LS.get('projectTeams'); S.shared = LS.get('shared') || [];
+      const snap = () => JSON.stringify([S.projectTeams, (S.members || []).map(m => m.uid + m.role), S.company && [S.company.plan, S.company.planStatus], (S.shared || []).map(x => x.pid + x.status)]), before = snap();
+      rest().then(() => { if (snap() !== before) { try { gate(); if (typeof App !== 'undefined' && !App.project && document.querySelector('.home2') && !document.querySelector('.sheet-bg, .fullpage')) renderHome(); } catch (e) {} } })
+        .catch(e => console.warn('actualisation', e));
+    } else await rest();
     try { if (!localStorage.getItem('userName') && S.me.name) localStorage.setItem('userName', S.me.name.split(' ')[0]); localStorage.setItem('askedName', '1'); } catch (e) {}
-    await refreshMembers();
-    saveWorkspace();
     // espaces personnels créés avant v1.0.16 : le métier était rangé comme « poste » ; on le recopie dans le profil (rien n'est effacé)
     if (isPerso() && !S.profil.metier && metierOf(S.me.role)) { S.profil = { ...S.profil, metier: S.me.role }; fs.collection('users').doc(S.user.uid).set({ profil: S.profil }, { merge: true }).catch(e => console.warn('profil', e)); }
     migratePerms();
@@ -1160,16 +1180,18 @@ const Team = (() => {
       const tot = () => W.espace === 'perso' ? 4 : 6;
       // 1 · choix de l'espace
       function stepEspace() {
-        el.innerHTML = `<div class="tm-lg-in"><div class="tm-logo st-lg">${stLogo()}</div><h1>Bienvenue${nm ? ' ' + esc(nm) : ''}</h1><p>Comment voulez-vous utiliser SiteTeam ?</p>
+        // v1.0.45 : « Accès sur code uniquement » (Panneau d'administration) — seul le code d'accès ouvre l'application
+        const io = inviteOnly();
+        el.innerHTML = `<div class="tm-lg-in"><div class="tm-logo st-lg">${stLogo()}</div><h1>Bienvenue${nm ? ' ' + esc(nm) : ''}</h1><p>${io ? 'SiteTeam est accessible sur invitation. Entrez le code d\'accès donné par votre responsable.' : 'Comment voulez-vous utiliser SiteTeam ?'}</p>
           <div class="tm-choice">
-            <button data-a="perso"><b>👷 Espace personnel</b><span>Professionnel indépendant : vos outils et vos projets</span></button>
-            <button data-a="create"><b>🏢 Créer une organisation</b><span>Entreprise, BET, architecte, labo, MOA… vous invitez ensuite l'équipe</span></button>
-            <button data-a="join"><b>🔑 Rejoindre avec un code</b><span>Code d'accès donné par votre responsable</span></button></div>
+            ${io ? '' : `<button data-a="perso"><b>👷 Espace personnel</b><span>Professionnel indépendant : vos outils et vos projets</span></button>
+            <button data-a="create"><b>🏢 Créer une organisation</b><span>Entreprise, BET, architecte, labo, MOA… vous invitez ensuite l'équipe</span></button>`}
+            <button data-a="join"><b>🔑 ${io ? 'Entrer mon code d\'accès' : 'Rejoindre avec un code'}</b><span>Code d'accès donné par votre responsable</span></button></div>
           ${opt.add ? '<button class="linkbtn" data-a="cancel">← Retour à mon espace</button>' : `<button class="linkbtn" data-a="out">Se déconnecter (${esc(auth.currentUser.email || '')})</button>`}</div>`;
         const out = $('[data-a=out]', el); if (out) out.onclick = async () => { await auth.signOut(); LS.del('me'); LS.del('cid'); location.reload(); };
         const cc = $('[data-a=cancel]', el); if (cc) cc.onclick = () => { el.remove(); resolve(false); };
-        $('[data-a=perso]', el).onclick = () => { W.espace = 'perso'; W.org = 'independant'; stepPlan(); };
-        $('[data-a=create]', el).onclick = () => { W.espace = 'org'; stepPlan(); };
+        if (!io) { $('[data-a=perso]', el).onclick = () => { W.espace = 'perso'; W.org = 'independant'; stepPlan(); };
+          $('[data-a=create]', el).onclick = () => { W.espace = 'org'; stepPlan(); }; }
         $('[data-a=join]', el).onclick = join;
       }
       // 2 · formule

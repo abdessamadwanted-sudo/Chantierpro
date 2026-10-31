@@ -20,7 +20,7 @@ function ftDefaults(p, day, r, tpl) {
 async function ftTemplateBlob(tpl) { const f = await DB.get('files', tpl.fileId); return f && f.blob; }
 // ---------- éditeur : placer les champs sur le PDF ----------
 async function ftEditor(p, tpl) {
-  if (!pdfReady()) return alertBox('Lecteur PDF indisponible');
+  if (!(await pdfReadyA())) return alertBox('Lecteur PDF indisponible');
   const blob = await ftTemplateBlob(tpl); if (!blob) return alertBox('Modèle introuvable');
   const doc = await pdfjsLib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise, page = await doc.getPage(1), vp1 = page.getViewport({ scale: 1 });
   tpl.W = vp1.width; tpl.H = vp1.height;
