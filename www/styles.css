@@ -3211,3 +3211,17 @@ html.th-st .st-ico { box-shadow: 0 1px 0 rgba(255,255,255,.4) inset; }
 .avc-bar { display: grid; gap: 8px; padding: 10px 14px calc(12px + var(--safe-bottom, 0px)); background: var(--bg2); border-top: 1px solid var(--line); }
 .avc-bar input[type=range] { width: 100%; } .avc-lab { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
 .avc-bar .avp-seg { margin: 0; justify-self: center; }
+/* v1.0.46 — planning des lots, alertes, avancement de deux lots */
+.avp-al { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 4px; border-top: 1px solid var(--line); text-align: left; color: var(--text); background: none; }
+.avp-al:first-of-type { border-top: 0; } .avp-al > i { width: 10px; height: 10px; border-radius: 50%; background: var(--c); flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 20%, transparent); }
+.avp-al .grow { display: grid; min-width: 0; } .avp-al b { font-size: 13.5px; } .avp-al small { font-size: 12px; color: var(--c); font-weight: 700; }
+.avp-pt { border-collapse: separate; border-spacing: 4px; min-width: 100%; }
+.avp-pt th { font-size: 11px; font-weight: 800; color: var(--muted); padding: 2px 4px 6px; border-bottom: 3px solid var(--c, var(--line)); white-space: nowrap; }
+.avp-pz td { padding: 8px 2px 2px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--accent); }
+.avp-pt td[data-pl] { padding: 0; cursor: pointer; }
+.avp-pc { position: relative; min-width: 96px; padding: 6px 7px; border-radius: 12px; background: color-mix(in srgb, var(--c) 9%, var(--card2)); border: 1px solid color-mix(in srgb, var(--c) 25%, transparent); display: grid; gap: 2px; }
+.avp-pc b { font-size: 14px; } .avp-pc small { font-size: 10.5px; color: var(--muted); white-space: nowrap; } .avp-pc small.r { color: var(--text); font-weight: 600; }
+.avp-pb { height: 4px; border-radius: 99px; background: color-mix(in srgb, var(--c) 18%, transparent); overflow: hidden; } .avp-pb i { display: block; height: 100%; width: var(--p); background: var(--c); }
+.avp-pc em { position: absolute; top: -5px; right: -5px; width: 18px; height: 18px; border-radius: 50%; color: #fff; font-style: normal; font-weight: 900; font-size: 11px; display: grid; place-items: center; border: 2px solid var(--card); }
+.avt-l { font-size: 12.5px; } .avt-l em { font-style: normal; color: #16a34a; font-weight: 700; }
+.av-legend [data-a=twoimg] { display: inline-flex; align-items: center; gap: 4px; }
