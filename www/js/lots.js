@@ -38,10 +38,11 @@ const tint = (c, a) => c + Math.round(a * 255).toString(16).padStart(2, '0');
 function lotBarInto(card, f, ps, root) {
   const p = App.project, lots = planLots(p), sel = lotSelOf(f.id);
   const cnt = (id) => ps.filter(x => x.lotId === id).length;
+  const avB = (L) => { try { return typeof avLotBadge === 'function' && App._avLinks ? avLotBadge(p, L, f, App._avLinks) : ''; } catch (e) { return ''; } };
   const bar = document.createElement('div'); bar.className = 'lot-bar';
   bar.innerHTML = `<button class="lot-c ${!sel ? 'on' : ''}" data-l="" style="--c:#64748b">📁 Tous <small>${ps.length}</small></button>`
     + lots.map(l => { const D = (f.lotData || {})[l.id] || {}, di = dueInfo(D), po = lotStarted(l, D) ? paOpen(l, D).length : 0;
-      return `<button class="lot-c ${sel === l.id ? 'on' : ''}" data-l="${l.id}" style="--c:${l.c};--t:${tint(l.c, .16)}">${l.e} ${esc(l.name)}${cnt(l.id) ? ` <small>${cnt(l.id)}</small>` : ''}${po ? `<i class="lc-pa">🛑${po}</i>` : ''}${di && di.cls !== 'ok' ? `<i class="lc-due ${di.cls}">⏳</i>` : ''}</button>`; }).join('')
+      return `<button class="lot-c ${sel === l.id ? 'on' : ''}" data-l="${l.id}" style="--c:${l.c};--t:${tint(l.c, .16)}">${l.e} ${esc(l.name)}${cnt(l.id) ? ` <small>${cnt(l.id)}</small>` : ''}${po ? `<i class="lc-pa">🛑${po}</i>` : ''}${di && di.cls !== 'ok' ? `<i class="lc-due ${di.cls}">⏳</i>` : ''}${avB(l)}</button>`; }).join('')
     + `<button class="lot-c add" data-l="__add">＋</button>`;
   const head = $('.folder-head', card); head.after(bar);
   $$('[data-l]', bar).forEach(b => {
@@ -69,6 +70,7 @@ function lotPanel(L, f, root) {
   const el = document.createElement('div'); el.className = 'lot-panel' + (open ? ' open' : ''); el.style.setProperty('--c', L.c); el.style.setProperty('--t', tint(L.c, .12));
   el.innerHTML = `<div class="lp-h" data-a="tog"><span class="lp-e">${L.e}</span><div class="grow"><b>${esc(L.name)}</b><small>${esc(f.name)}${(L.points || []).length ? ` · ${done}/${L.points.length} points` : ''}${po ? ` · 🛑 ${po}` : ''}${di ? ` · ⏳ ${di.txt}` : ''}</small></div><button class="iconbtn sm" data-a="lm">${icon('more')}</button><span class="lp-chev">${icon('chevdown')}</span></div>
     ${!open ? '' : `<div class="lp-body">
+    <div class="lp-avslot"></div>
     ${lotDueHTML(L, D, f)}
     ${lotPaHTML(L, D)}
     <div class="lp-links">
@@ -90,6 +92,8 @@ function lotPanel(L, f, root) {
   $('[data-a=tog]', el).onclick = (e) => { if (e.target.closest('[data-a=lm]')) return; lotOpenSet(L, !open); App.scrollFolder = f.id; redraw(); };
   $('[data-a=lm]', el).onclick = (e) => { e.stopPropagation(); lotMenu(L, root); };
   if (!open) return el;
+  // v1.0.47 : lien direct vers l'avancement de CE lot sur CE niveau (alertes, dates, équipes, saisies, ✓ terminé)
+  { const sl = $('.lp-avslot', el); if (sl && typeof avLotPanelBlock === 'function') sl.replaceWith(avLotPanelBlock(p, L, f, redraw)); }
   $('.lp-det', el).ontoggle = (e) => { App.lotDet = e.target.open; };
   $$('[data-pt]', el).forEach(b => b.onclick = async () => { const v = D[b.dataset.pt] = D[b.dataset.pt] || {}; v.done = !v.done; v.at = v.done ? todayISO() : null; await save(); redraw(); });
   const addPt = async () => { const r = await formSheet(`Point de contrôle · ${L.name}`, [{ name: 't', label: 'Intitulé (ajouté à tous les niveaux)', placeholder: 'Ex : Réservations vérifiées' }], { okLabel: 'Ajouter' }); if (r && r.t) { L.points = L.points || []; L.points.push({ id: DB.uid(), t: r.t }); App.lotDet = true; await DB.put('projects', p); redraw(); } };

@@ -8,7 +8,10 @@ async function pdfDocOfFile(fileId) {
   if (_pdfDocs.has(fileId)) return _pdfDocs.get(fileId);
   const f = await DB.get('files', fileId); if (!f || !f.blob) return null;
   const doc = await pdfjsLib.getDocument({ data: new Uint8Array(await f.blob.arrayBuffer()) }).promise;
-  _pdfDocs.set(fileId, doc); return doc;
+  _pdfDocs.set(fileId, doc);
+  // v1.0.47 : on ne garde que les 4 derniers PDF ouverts (plans A0 lourds en mémoire)
+  while (_pdfDocs.size > 4) { const k = _pdfDocs.keys().next().value, d = _pdfDocs.get(k); _pdfDocs.delete(k); try { d.destroy(); } catch (e) {} }
+  return doc;
 }
 // page PDF d'un plan + k = pixels de l'image du plan par unité PDF
 async function planPdfPage(plan) {
@@ -26,7 +29,15 @@ async function pageTexts(page, k) {
     return { s: i.str.trim().replace(/\s+/g, ' '), x, y, w: Math.max(4, (i.width || 0) * k), h };
   });
 }
-async function planTexts(plan) { const P = await planPdfPage(plan); return P ? pageTexts(P.page, P.k) : null; }
+// v1.0.47 : textes gardés en mémoire (un plan A0 n'est lu qu'une fois par session) — comparaison et calage beaucoup plus rapides
+const _planTxt = new Map();
+async function planTexts(plan) {
+  if (!plan || !plan.pdfFileId) return null;
+  const k = plan.id + '|' + plan.w; if (_planTxt.has(k)) return _planTxt.get(k);
+  const pr = (async () => { const P = await planPdfPage(plan); return P ? pageTexts(P.page, P.k) : null; })().catch(() => null);
+  _planTxt.set(k, pr); if (_planTxt.size > 24) _planTxt.delete(_planTxt.keys().next().value);
+  return pr;
+}
 
 // ---------- Cartouche : « SUIVI DES MODIFICATIONS » → dernier indice, date, objet ----------
 function cartoucheFromTexts(T) {
@@ -58,7 +69,13 @@ async function cartoucheOfPlan(plan) { const T = await planTexts(plan); return c
 
 // ---------- Recalage ancien → nouveau (textes identiques) ----------
 // renvoie { sx, sy, ox, oy } : position de l'ancien plan dans les pixels du nouveau
-async function planAlignMap(oldPlan, newPlan) {
+const _alignC = new Map();
+function planAlignMap(oldPlan, newPlan) {   // v1.0.47 : résultat gardé (calage calculé une seule fois)
+  const k = oldPlan.id + '>' + newPlan.id + '|' + oldPlan.w + '|' + newPlan.w;
+  if (!_alignC.has(k)) _alignC.set(k, planAlignMap0(oldPlan, newPlan));
+  return _alignC.get(k);
+}
+async function planAlignMap0(oldPlan, newPlan) {
   const base = { sx: newPlan.w / oldPlan.w, sy: newPlan.h / oldPlan.h, ox: 0, oy: 0 };
   try {
     const [A, B] = await Promise.all([planTexts(oldPlan), planTexts(newPlan)]);
@@ -66,7 +83,8 @@ async function planAlignMap(oldPlan, newPlan) {
     const kx = base.sx, ky = base.sy;
     const cnt = (L) => { const m = new Map(); L.forEach(t => m.set(t.s, (m.get(t.s) || 0) + 1)); return m; };
     const ca = cnt(A), cb = cnt(B), dx = [], dy = [];
-    for (const a of A) { if (a.s.length < 2 || ca.get(a.s) !== 1 || cb.get(a.s) !== 1) continue; const b = B.find(t => t.s === a.s); dx.push(b.x - a.x * kx); dy.push(b.y - a.y * ky); }
+    const bm = new Map(); for (const t of B) if (cb.get(t.s) === 1) bm.set(t.s, t);
+    for (const a of A) { if (a.s.length < 2 || ca.get(a.s) !== 1 || !bm.has(a.s)) continue; const b = bm.get(a.s); dx.push(b.x - a.x * kx); dy.push(b.y - a.y * ky); }
     if (dx.length < 4) return base;
     const med = (v) => v.sort((p, q) => p - q)[v.length >> 1];
     const ox = med(dx), oy = med(dy);

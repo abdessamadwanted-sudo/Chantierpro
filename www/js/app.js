@@ -294,15 +294,11 @@ async function renderHome() {
         // menu ⋮ : 6 groupes courts, sans doublon (déconnexion et prénom sont dans « Mon compte », la langue dans Réglages, la version ouvre la mise à jour)
         // v1.0.44 : profil en tête des Réglages ; l'espace se change par le menu « Sgtm ⌄ », l'organisation est dans l'onglet Équipe (pas de doublon)
         const v = await groupMenu('Réglages', [
-      { title: '', color: '#22c55e', items: [{ label: 'Briefing du jour', sub: 'notes, rappels, PV à livrer, tâches', icon: 'calendar', value: 'brief' }] },
       { title: Team.ready() && (Team.isAdmin() || Team.isSuper()) && !Team.isPerso() ? 'Administration' : '', color: '#3b82f6', items: Team.ready() ? [
         ...(Team.isAdmin() && !Team.isPerso() ? [ST.preview() ? { label: 'Quitter l\'aperçu', sub: 'revenir à mon interface', icon: 'eye', value: 'preview-off' } : { label: 'Tester une interface', sub: 'aperçu par poste et pack', icon: 'eye', value: 'preview' }] : []),
         ...(Team.isSuper() ? [{ label: 'Panneau d\'administration', sub: 'comptes · packs · codes · annonces', icon: 'settings', value: 'admin' }] : [])] : [
         { label: 'Mon prénom', sub: uname || 'pour les messages d\'accueil', icon: 'edit', value: 'name' }] },
-      { title: 'Outils', color: '#f59e0b', items: [
-        { label: 'Outils PDF', sub: 'fusionner · diviser · compresser', icon: 'pdf', value: 'pdf' },
-        { label: 'Studio photo', sub: 'auto · document · recadrage', icon: 'camera', value: 'photo' },
-        { label: 'Tableau de dessin', icon: 'brush', value: 'board' }] },
+      // v1.0.47 : Outils PDF / Studio photo / Tableau de dessin → Outils du projet ; Briefing → Équipe › Pilotage
       { title: 'Données', color: '#0ea5e9', items: [
         { label: 'Stockage & sauvegarde', sub: 'libérer · Google Drive · .zip', icon: 'cloud', value: 'stock' },
         ...(typeof BgUp !== 'undefined' && BgUp.available() ? [{ label: 'Envoi en arrière-plan', sub: 'photos vers Drive, même application fermée · Wi-Fi · batterie', icon: 'upload', value: 'bgup' }] : []),
@@ -368,7 +364,7 @@ const SECTIONS = {
   tasks: { label: 'Réserves / Tâches', icon: 'tasks', render: renderTasks },
   reception: { label: 'Réception & Bétonnage', icon: 'layers', render: (r) => renderReceptions(r, 'Ferraillage'), title: 'Réception & Bétonnage', subtitle: 'Tableaux par jour' },
   beton: { label: 'Programme de bétonnage', hidden: true, icon: 'calendar', render: (r) => renderReceptions(r, 'Bétonnage'), title: 'Réception & Bétonnage', subtitle: 'Tableaux par jour' },
-  photos: { label: 'Photos', icon: 'camera', render: renderPhotos },
+  photos: { label: 'Photos', icon: 'camera', render: (r) => (typeof renderPhotosV2 === 'function' ? renderPhotosV2 : renderPhotos)(r) },   // v1.0.47 : photos classées (av47.js)
   forms: { label: 'PV & contrôles', icon: 'form', render: renderForms },
   reports: { label: 'Rapports journaliers', icon: 'report', render: renderReports },
   constat: { label: 'Constats / NC', icon: 'report', render: (r) => renderConstats(r) },
@@ -505,6 +501,7 @@ function fab(root, onClick) {
 async function renderPlans(root) {
   const pid = App.project.id;
   const [folders, plans, tasks] = await Promise.all([DB.byProject('folders', pid), DB.byProject('plans', pid), DB.byProject('tasks', pid)]);
+  try { App._avLinks = (App.project.avNiveaux || []).length ? (await DB.byProject('links', pid)).filter(l => l.kind === 'local') : null; } catch (e) { App._avLinks = null; }   // v1.0.47 : pastilles d'alerte des lots
   folders.sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true }));
   plans.sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true }));
   const allPlans = plans.slice(); plans.length = 0; plans.push(...allPlans.filter(isCurrentPlan));   // seulement le dernier indice de chaque plan
@@ -535,12 +532,12 @@ async function renderPlans(root) {
     <div style="height:8px"></div>
     <div class="search">${icon('search')}<input placeholder="Rechercher des plans" value="${esc(App.search)}"></div>
     ${groups.length ? '' : `<div class="empty">Aucun plan.<br>Appuyez sur <b>+</b> pour importer un plan (PDF ou image).</div>`}
-    ${typeof featOn === 'function' && featOn('reception') && sectionOn('reception') && !q ? `<button class="rb-card" data-a="recbox"><span class="rb-ic">📚</span><span class="grow"><b>Plans des ouvrages du jour</b><small>Programme de réception d'aujourd'hui · <span class="rb-n">…</span></small></span>${icon('chevright')}</button>` : ''}
+    ${typeof featOn === 'function' && featOn('reception') && sectionOn('reception') && !q && (() => { try { return localStorage.getItem('plans.daybox') === '1'; } catch (e) { return false; } })() ? `<button class="rb-card rb-mini" data-a="recbox" style="display:none"><span class="rb-ic">📚</span><span class="grow"><b>Plans des ouvrages du jour</b><small>Programme de réception d'aujourd'hui · <span class="rb-n">…</span></small></span>${icon('chevright')}</button>` : ''}
     <div id="folders"></div>`;
   const rbc = $('[data-a=recbox]', root);
   if (rbc) {
     rbc.onclick = () => openRecBox(pid);
-    DB.byProject('receptions', pid).then(ds => { const n = ds.filter(d => d.date === todayISO() && kindOf(d) === 'Ferraillage').reduce((a, d) => a + d.rows.filter(r => r.element).length, 0); const x = $('.rb-n', rbc); if (x) x.textContent = n ? `${n} ouvrage(s) — touchez pour ajouter / ouvrir les plans` : 'aucun ouvrage aujourd\'hui'; }).catch(() => {});
+    DB.byProject('receptions', pid).then(ds => { const n = ds.filter(d => d.date === todayISO() && kindOf(d) === 'Ferraillage').reduce((a, d) => a + d.rows.filter(r => r.element).length, 0); const x = $('.rb-n', rbc); if (x) x.textContent = n ? `${n} ouvrage(s) — touchez pour ajouter / ouvrir les plans` : 'aucun ouvrage aujourd\'hui'; if (n) rbc.style.display = ''; }).catch(() => {});   // v1.0.47 : seulement si activé et s'il y a des ouvrages
   }
   const box = $('#folders', root);
   const lotOf = (p) => { const L = p.lotId && planLots(App.project).find(l => l.id === p.lotId); return L ? `<span class="lot-dot" style="background:${L.c}" title="${esc(L.name)}">${L.e}</span>` : ''; };
@@ -675,12 +672,14 @@ async function folderMenu(f, root) {
   const isSub = !!(f.parentId && all.find(x => x.id === f.parentId)), hasSubs = all.some(x => x.parentId === f.id);
   const tops = all.filter(x => x.id !== f.id && (!x.parentId || !all.find(y => y.id === x.parentId)));
   const v = await menu(folderPath(f, all), [{ label: 'Ajouter un plan ici', icon: 'plus', value: 'add' },
+    ...(typeof avCompareAnyPlans === 'function' ? [{ label: '⇄ Comparer deux plans', icon: 'swap', value: 'cmp' }] : []),
     ...(isSub ? [] : [{ label: 'Nouveau sous-dossier', icon: 'folder', value: 'sub' }]),
     { label: 'Renommer', icon: 'edit', value: 'rename' },
     ...(hasSubs ? [] : [{ label: isSub ? 'Déplacer vers un autre niveau…' : 'Mettre dans un niveau…', icon: 'layers', value: 'move' }]),
     ...(isSub ? [] : [{ label: 'Couleur', icon: 'fill', value: 'color' }]),
     { label: 'Supprimer le dossier', icon: 'trash', danger: true, value: 'del' }]);
   if (v === 'add') { App.openFolders[f.id] = true; if (f.parentId) App.openFolders[f.parentId] = true; return addPlanTo(f.id, all, root); }
+  if (v === 'cmp') return avCompareAnyPlans(App.project, f.id);
   if (v === 'sub') return newFolder(root, f);
   if (v === 'move') {
     const to = await menu('Déplacer vers', [...(isSub ? [{ label: 'Dossier principal (niveau)', icon: 'folder', value: '_top' }] : []), ...tops.filter(x => x.id !== f.parentId).map(x => ({ label: x.name, icon: 'folder', value: x.id }))]);
@@ -1348,11 +1347,16 @@ function openReportDetail(rep) {
             <label>Température (°C)<input name="temp" type="number" inputmode="numeric" value="${esc(rep.temp)}"></label></div>
           <label>Engins / matériel<input name="equipment" value="${esc(rep.equipment)}" placeholder="Grue, pompe à béton…"></label>
           <label>Travaux réalisés<textarea name="works" placeholder="- Coulage poteaux SSL axes C10–C15&#10;- Ferraillage voiles V3">${esc(rep.works)}</textarea></label>
+          ${typeof avDayText === 'function' && (project.avNiveaux || []).length ? `<button class="btn small ghost" data-a="avday" type="button">📊 Ajouter l'avancement du jour</button>` : ''}
           <label>Livraisons<textarea name="deliveries" style="min-height:60px" placeholder="Béton 24 m³, acier HA12…">${esc(rep.deliveries)}</textarea></label>
           <label>Problèmes / observations<textarea name="issues" style="min-height:60px">${esc(rep.issues)}</textarea></label>
           <label>Photos</label>${thumbsHTML(photos)}
         </div></div>`;
       $('[data-a=back]', el).onclick = () => { unBack(); finish(); };
+      // v1.0.47 : les saisies d'avancement du jour (lots, %, équipes, effectif) sont reprises dans le rapport
+      const avd = $('[data-a=avday]', el); if (avd) avd.onclick = async () => { const t = await avDayText(project, rep.date); if (!t) return toast('Aucune saisie d\'avancement ce jour'); rep.works = (rep.works ? rep.works.trim() + '\n\n' : '') + t;
+        const { locaux } = await avData(project); const eff = {}; for (const l of locaux) for (const e of l.journal || []) if (e.d === rep.date && e.eq) eff[e.eq] = Math.max(eff[e.eq] || 0, +e.eff || 0); const n = Object.values(eff).reduce((a, b) => a + b, 0); if (n && !+rep.workers) rep.workers = String(n);
+        save(); render(); toast('Avancement du jour ajouté ✓'); };
       $$('[name]', el).forEach(i => i.oninput = i.onchange = () => { rep[i.name] = i.value; save(); if (i.name === 'date') $('h1', el).textContent = 'Rapport du ' + fmtDate(rep.date); });
       $('[data-a=addphoto]', el).onclick = async () => {
         const recs = await addPhotos(rep.projectId, { source: 'Rapport ' + fmtDate(rep.date) });
