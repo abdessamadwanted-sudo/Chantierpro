@@ -605,6 +605,7 @@ async function avProDash(root, p, nivs, locaux) {
     : `<div class="muted avp-pad">${avTeams(p).length ? 'Aucune saisie d\'équipe sur la période' : 'Ajoutez vos équipes et sous-traitants, puis choisissez-les à chaque saisie'}</div>`;
   const rows = F.by === 'type' ? avLocTypes(p).map(t => ({ k: 't:' + t.id, label: t.name, sub: '', c: t.color, L: L.filter(l => l.ltype === t.id) })).filter(r => r.L.length)
     : F.by === 'niv' || F.zone ? N.map(n => ({ k: 'n:' + n.id, label: n.name, sub: F.zone ? '' : [...new Set(L.filter(l => l.nivId === n.id).map(pz))].join(', '), L: L.filter(l => l.nivId === n.id) })).filter(r => r.L.length || !F.zone)
+    : SE.length && !F.sect ? [...SE.map(s => ({ k: 's:' + s, label: s, sub: `${allZ.filter(z => avSectOf(p, z) === s).length} zone(s)`, L: L.filter(l => avSectOf(p, pz(l)) === s) })), ...(L.some(l => !avSectOf(p, pz(l))) ? [{ k: 's:', label: 'Sans secteur', sub: '', L: L.filter(l => !avSectOf(p, pz(l))) }] : [])]
     : zones.map(z => ({ k: 'z:' + z, label: z, sub: `${new Set(L.filter(l => pz(l) === z).map(l => l.nivId)).size} niv.`, L: L.filter(l => pz(l) === z) }));
   root.innerHTML = `<div class="avp">
     <div class="avf-bar">
@@ -647,9 +648,9 @@ async function avProDash(root, p, nivs, locaux) {
   $$('[data-open]', root).forEach(b => b.onclick = () => { const [nid, lid] = b.dataset.open.split('|'); openAvViewer(nid, lid, () => renderAvancement(root.closest('#content') || root)); });
   $$('[data-team]', root).forEach(b => b.onclick = () => avTeamFiche(p, b.dataset.team, nivs, L, lots, per));
   $$('[data-row]', root).forEach(b => b.onclick = () => { const [t, id] = b.dataset.row.split(/:(.*)/s);
-    if (t === 'z') { F.zone = id; F.niv = ''; } else if (t === 't') F.lt = F.lt === id ? '' : id; else F.niv = F.niv === id ? '' : id; redraw(); });
+    if (t === 's') { F.sect = id; F.zone = ''; F.niv = ''; } else if (t === 'z') { F.zone = id; F.niv = ''; } else if (t === 't') F.lt = F.lt === id ? '' : id; else F.niv = F.niv === id ? '' : id; redraw(); });
   $$('[data-cell]', root).forEach(c => c.onclick = () => { const [rk, lid] = c.dataset.cell.split('|'), [t, id] = rk.split(/:(.*)/s);
-    if (t === 'z') { F.zone = id; F.lot = lid; redraw(); } else if (t === 't') { F.lt = id; F.lot = lid; redraw(); } else openAvViewer(id, lid, () => renderAvancement(root.closest('#content') || root)); });
+    if (t === 's') { F.sect = id; F.lot = lid; redraw(); } else if (t === 'z') { F.zone = id; F.lot = lid; redraw(); } else if (t === 't') { F.lt = id; F.lot = lid; redraw(); } else openAvViewer(id, lid, () => renderAvancement(root.closest('#content') || root)); });
   const tb = $('[data-a=teams]', root); if (tb) tb.onclick = async () => { await avTeamsMenu(p); redraw(); };
   $$('[data-x]', root).forEach(b => b.onclick = () => avProExport(b.dataset.x, p, nivs, locaux));
   $$('[data-pl]', root).forEach(b => b.onclick = async () => { const [nid, lid] = b.dataset.pl.split('|'); if (await avPlanningEdit(p, nivs.find(n => n.id === nid), avLot(p, lid), nivs)) redraw(); });
