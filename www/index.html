@@ -126,7 +126,7 @@
     function paint() { raf = 0; cur += (tgt - cur) * 0.14; if (Math.abs(tgt - cur) < 0.002) cur = tgt;
       CR.forEach(function (r, k) { if (!r) return; var f = Math.max(0, Math.min(1, (cur - k / 3) * 3)), H0 = 124 * f; r.setAttribute('y', 743 - H0); r.setAttribute('height', H0 + 1); });
       if (BP) BP.setAttribute('stroke-dasharray', (cur * 1000).toFixed(1) + ' 1000');
-      if (LBL && !paint.fin) LBL.textContent = 'Ouverture… ' + Math.round(cur * 100) + ' %';
+      if (LBL && !paint.fin) LBL.textContent = 'Ouverture\u2026 ' + Math.round(cur * 100) + ' %';
       if (cur !== tgt) raf = requestAnimationFrame(paint); }
     function heads(p) { tgt = Math.max(tgt, Math.min(1, p)); if (!raf) raf = requestAnimationFrame(paint); }
     frame(); addEventListener('resize', frame); setTimeout(function () { heads(0.12); }, 120);
