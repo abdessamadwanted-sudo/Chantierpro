@@ -1,7 +1,16 @@
 package com.siteteam.gdriveauth;
 
 import android.app.Activity;
+import android.app.AlarmManager;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.os.Build;
+import android.webkit.RenderProcessGoneDetail;
+import android.webkit.WebView;
 
 import androidx.activity.result.ActivityResult;
 import androidx.activity.result.ActivityResultLauncher;
@@ -13,6 +22,7 @@ import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
+import com.getcapacitor.WebViewListener;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.google.android.gms.auth.GoogleAuthUtil;
 import com.google.android.gms.auth.api.identity.AuthorizationRequest;
@@ -21,6 +31,8 @@ import com.google.android.gms.auth.api.identity.Identity;
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.common.api.Scope;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,6 +51,57 @@ public class GDriveAuthPlugin extends Plugin {
     @Override
     public void load() {
         consent = getActivity().registerForActivityResult(new ActivityResultContracts.StartIntentSenderForResult(), this::onConsent);
+        final Context ctx = getContext();
+        // v1.0.51 : au démarrage, AVANT la page web — on retire côté Android les anciens rappels programmés avec « on »
+        // (v1.0.47 : rappel 17 h, robot emploi) qui pouvaient se redéclencher en boucle et bloquer l'application
+        purgeLoopNotifs(ctx);
+        // diagnostic : plantage Java ou arrêt du moteur web enregistrés pour le rapport du mode secours
+        final Thread.UncaughtExceptionHandler prev = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+            try { StringWriter sw = new StringWriter(); e.printStackTrace(new PrintWriter(sw)); String st = sw.toString();
+                saveCrash(ctx, "java " + t.getName() + " : " + (st.length() > 3000 ? st.substring(0, 3000) : st)); } catch (Throwable ignored) { }
+            if (prev != null) prev.uncaughtException(t, e);
+        });
+        try {
+            getBridge().addWebViewListener(new WebViewListener() {
+                @Override
+                public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                    String why = "moteur web arrêté";
+                    try { if (Build.VERSION.SDK_INT >= 26) why += detail.didCrash() ? " (plantage)" : " (mémoire insuffisante : Android l'a fermé)"; } catch (Throwable ignored) { }
+                    saveCrash(ctx, why);
+                    return false;
+                }
+            });
+        } catch (Throwable ignored) { }
+    }
+
+    private static void saveCrash(Context ctx, String msg) {
+        try { ctx.getSharedPreferences("st_crash", Context.MODE_PRIVATE).edit().putString("last", new java.util.Date().toString() + " — " + msg).commit(); } catch (Throwable ignored) { }
+    }
+
+    static void purgeLoopNotifs(Context ctx) {
+        try {
+            AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
+            NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+            ComponentName cn = new ComponentName(ctx.getPackageName(), "com.capacitorjs.plugins.localnotifications.TimedNotificationPublisher");
+            int fl = PendingIntent.FLAG_NO_CREATE | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);
+            for (int id : new int[] { 1999000301, 1999000101 }) {
+                Intent i = new Intent(); i.setComponent(cn);
+                PendingIntent pi = PendingIntent.getBroadcast(ctx, id, i, fl);
+                if (pi != null && am != null) { am.cancel(pi); pi.cancel(); }
+                if (nm != null) nm.cancel(id);
+            }
+            SharedPreferences sp = ctx.getSharedPreferences("NOTIFICATION_STORE", Context.MODE_PRIVATE);
+            sp.edit().remove("1999000301").remove("1999000101").commit();
+        } catch (Throwable ignored) { }
+    }
+
+    @PluginMethod
+    public void lastCrash(PluginCall call) {
+        SharedPreferences sp = getContext().getSharedPreferences("st_crash", Context.MODE_PRIVATE);
+        JSObject r = new JSObject(); r.put("last", sp.getString("last", ""));
+        if (call.getBoolean("clear", false)) sp.edit().remove("last").apply();
+        call.resolve(r);
     }
 
     private List<Scope> scopes(PluginCall call) {

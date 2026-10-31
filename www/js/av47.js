@@ -14,6 +14,7 @@ function avLiteURL(fileId, max) {
   const k = fileId + '|' + max; if (_avLite.has(k)) return _avLite.get(k);
   if (max <= 400) { try { const d = localStorage.getItem('th.' + k); if (d) { const pr0 = Promise.resolve(d); _avLite.set(k, pr0); return pr0; } } catch (e) {} }
   const pr = avLiteQ(async () => { const f = await DB.get('files', fileId); if (!f || !f.blob) return fileURL(fileId);
+    if (max <= 400 && f.blob.size > 9e6) return '';   // v1.0.51 : image trop lourde pour une miniature sur téléphone → pas de miniature
     if (max <= 400) { try { const bm = await createImageBitmap(f.blob, { resizeWidth: max, resizeQuality: 'medium' }), c = document.createElement('canvas'); c.width = bm.width; c.height = bm.height; c.getContext('2d').drawImage(bm, 0, 0); bm.close && bm.close();
       const d = c.toDataURL('image/jpeg', 0.72); c.width = c.height = 0; try { localStorage.setItem('th.' + k, d); } catch (e) {} return d; } catch (e) { /* ancien navigateur : chemin normal */ } }
     try { const bm = await createImageBitmap(f.blob), r = Math.min(1, max / Math.max(bm.width, bm.height)); if (r >= 1) { bm.close && bm.close(); return BlobURL.get(f.id, f.blob); }
@@ -462,7 +463,7 @@ async function avReminderCheck(p) {
 }
 // notification quotidienne à 17 h (téléphone) tant que des lots sont en cours
 async function avReminderNotif(p) {
-  const LN = window.Capacitor?.Plugins?.LocalNotifications; if (!LN) return;
+  const LN = window.Capacitor?.Plugins?.LocalNotifications; if (!LN || window.__safe) return;
   try { const k = 'avRemN.' + p.id; if (localStorage.getItem(k) === todayISO()) return; localStorage.setItem(k, todayISO()); } catch (e) {}   // v1.0.48 : une fois par jour, pas à chaque affichage
   try {
     const today = todayISO(), on = (p.avNiveaux || []).some(n => avLots(p).some(lot => { const P = (p.avPlan || {})[n.id + '|' + lot.id]; return P && !P.done && P.deb && P.deb <= today && (!P.fin || avDaysBetween(P.fin, today) < 30); }));
