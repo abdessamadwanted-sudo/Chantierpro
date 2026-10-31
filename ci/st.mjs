@@ -1132,7 +1132,7 @@ try {
   if (!b47.express || !b47.express[0] || b47.express[2] !== 80 || b47.express[3] !== 6 || b47.express[4]) v47.push('saisie express');
   if (b47.done[0] !== 4 || !/En retard de 4 j/.test(b47.done[1]) || !b47.done[2] || b47.done[3] !== 'o') v47.push('lot terminé / retard');
   // Pro : barre de choix (listes déroulantes), période, total, équipes & sous-traitants
-  await A.pg.evaluate(async () => { const p = App.project; for (const t of [{ id: 't1', name: 'Sgtm', type: 'int', color: '#2563eb' }, { id: 't2', name: 'STE Atlas', type: 'st', soc: 'Atlas SARL', color: '#ea580c' }]) if (!avTeam(p, t.id)) avTeams(p).push(t);
+  await A.pg.evaluate(async () => { const p = App.project; for (const t of [{ id: 't1', name: 'Sgtm', type: 'int', color: '#2563eb' }, { id: 't2', name: 'STE Atlas', type: 'st', soc: 'Atlas SARL', color: '#ea580c' }]) if (!avTeam(p, t.id)) avTeams(p).push(t); else Object.assign(avTeam(p, t.id), { type: t.type, ...(t.soc ? { soc: t.soc } : {}) });
     const L = (await DB.byProject('links', p.id)).filter(l => l.kind === 'local' && l.nivId === 'n1'); const lot = p.lots[0];
     for (const [i, l] of L.slice(0, 2).entries()) { avEntryOn(p, l, { d: todayISO(), lot: lot.id, pct: 50 + i * 25, eq: i ? 't2' : 't1', eff: 4 + i }); await DB.put('links', l); }
     await DB.put('projects', p); document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.avTab = 'dash'; App.avF = null; try { localStorage.removeItem('avF.' + App.project.id); } catch (e) {} try { localStorage.removeItem('avF.' + p.id); } catch (e) {} await renderSection(); });
