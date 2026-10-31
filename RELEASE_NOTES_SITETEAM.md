@@ -1,3 +1,9 @@
+## SiteTeam : fermetures au démarrage — nettoyage côté Android et diagnostic
+- Au lancement, avant même la page, l'application retire côté Android les anciens rappels (17 h, robot emploi) qui pouvaient se redéclencher en boucle et la faire fermer au bout de 20 s.
+- Diagnostic : un plantage Android (Java) ou un arrêt du moteur web (mémoire) est enregistré et ajouté au rapport. Réglages › Application › « Rapport de diagnostic » (WhatsApp) à tout moment.
+- Mode secours : aucun rappel programmé.
+- Avancement : changer de lot ne décode plus plusieurs plans d'un coup (miniatures déjà gardées affichées tout de suite, au plus 2 nouvelles à chaque affichage, rien pour les images très lourdes).
+
 ## SiteTeam : comparaison sur le même niveau, équerre stable, avancement par quantité
 - Comparer deux plans du MÊME niveau (lots, archi, ANEP…) : même écran que « Comparer deux niveaux » (rideau fluide, plan entier net), rideau seul ; seuls les plans de ce niveau sont proposés ; « Avec un autre niveau » à part. Calage à l'équerre comme entre deux niveaux (une fois par plan).
 - Calage à l'équerre : le plan reste immobile pendant qu'on tire l'équerre (plus de tremblement).
