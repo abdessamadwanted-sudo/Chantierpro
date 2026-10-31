@@ -3379,3 +3379,10 @@ details.avp-sec[open] > summary { margin-bottom: 10px; }
 body:has(.avt-page) #plansFab, body:has(.avc-page) #plansFab { display: none; }
 .lpa-h > .grow, .lp-av > .lpa-h > .grow { flex: 1; min-width: 0; }
 .ph-acts .btn { width: auto; }
+/* v1.0.49 : quantités, comparaison même niveau */
+.avq { display: flex; gap: 8px; } .avq input { flex: 1; min-width: 0; } .avq select { flex: 0 0 96px; }
+.avq-t { display: block; margin-top: 4px; color: var(--accent); font-weight: 700; font-size: 12.5px; }
+.avt td b { flex-direction: column; line-height: 1.1; } .avt td b small { font-size: 9.5px; font-weight: 600; color: var(--muted); }
+.avt td b { display: flex; align-items: center; justify-content: center; }
+.lvs-same .lvs-sw { display: none !important; }
+.rl-wrap { touch-action: none; overscroll-behavior: none; }

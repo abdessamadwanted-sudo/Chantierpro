@@ -74,8 +74,10 @@ async function renderAvancement(root) {
   else {
     const lot = avLot(p, App.avTab);
     const zh = (n, i) => typeof avZoneOf === 'function' && (i === 0 || avZoneOf(p, nivs[i - 1]) !== avZoneOf(p, n)) ? `<div class="av-zh">${esc(avZoneOf(p, n))}</div>` : '';
-    const tl = avStats(locaux.filter(l => nivs.some(n => n.id === l.nivId)), lot.id);
-    body = `<div class="av-list"><div class="av-total" style="--c:${lot.color}"><span>Total ${esc(lot.name)}</span><span class="av-tb"><i style="width:${tl.pct}%"></i></span><b>${tl.pct}%</b><small>${tl.fin}/${tl.n} terminé(s)${tl.late ? ` · <em>${tl.late} en retard</em>` : ''}</small></div>${nivs.map((n, i) => { const locs = locaux.filter(l => l.nivId === n.id), s = avStats(locs, lot.id);
+    const LL0 = locaux.filter(l => nivs.some(n => n.id === l.nivId)), tl = avStats(LL0, lot.id);
+    const QL = typeof avQtyDone === 'function' ? LL0.filter(l => +((l.lots || {})[lot.id] || {}).qtot > 0) : [], qU = [...new Set(QL.map(l => (l.lots[lot.id].unit || 'm²')))];
+    const qTxt = QL.length && qU.length === 1 ? ` · ${avFmtQ(QL.reduce((a, l) => a + avQtyDone(l, lot.id), 0))} / ${avFmtQ(QL.reduce((a, l) => a + +l.lots[lot.id].qtot, 0))} ${qU[0]}` : '';
+    body = `<div class="av-list"><div class="av-total" style="--c:${lot.color}"><span>Total ${esc(lot.name)}</span><span class="av-tb"><i style="width:${tl.pct}%"></i></span><b>${tl.pct}%</b><small>${tl.fin}/${tl.n} terminé(s)${qTxt}${tl.late ? ` · <em>${tl.late} en retard</em>` : ''}</small></div>${nivs.map((n, i) => { const locs = locaux.filter(l => l.nivId === n.id), s = avStats(locs, lot.id);
       return `${zh(n, i)}<div class="av-niv" data-niv="${n.id}"><div class="av-niv-h"><span class="av-th" data-th="${n.id}"></span><span class="av-niv-n">${esc(n.name)}</span>
           <span class="grow"><b>${s.pct}%</b> <small>${s.fin}/${s.n} local(aux) terminé(s)</small><small class="av-pl" data-pl="${n.id}">${n.plan ? `Plan général · ind. ${esc(planIndice(n.plan))}` : '<span style="color:var(--red)">plan manquant</span>'}</small></span>
           ${typeof avCompareQuick === 'function' ? `<button class="iconbtn sm av-cmpb" data-ncmp="${n.id}" title="Comparer">${icon('swap')}</button>` : ''}<button class="iconbtn sm" data-nmore="${n.id}">${icon('more')}</button></div>
@@ -453,6 +455,7 @@ function openAvLocal(loc, lotId, onChange, { onMove } = {}) {
       <div class="form">
         <label>État<div class="av-seg">${AV_STATES.map(([v, l, c]) => `<button data-st="${v}" class="${r.state === v || (!r.state && v === 'todo') ? 'on' : ''}" style="--c:${c}">${l}</button>`).join('')}</div></label>
         ${r.state === 'progress' ? `<label>Avancement : <b data-pctv>${+r.pct || 50}%</b><input type="range" min="10" max="90" step="10" value="${+r.pct || 50}" data-in="pct"></label>` : ''}
+        <label>Quantité totale du local (le % se calcule à la saisie)<span class="avq"><input type="number" inputmode="decimal" value="${esc(r.qtot || '')}" placeholder="${esc(loc.area || 'Ex : 120')}" data-in="qtot"><select data-in="unit">${(typeof AV_UNITS !== 'undefined' ? AV_UNITS : ['m²']).map(u => `<option ${u === (r.unit || 'm²') ? 'selected' : ''}>${u}</option>`).join('')}</select></span>${typeof avQtyTxt === 'function' && avQtyTxt(loc, cur) ? `<small class="avq-t">Fait : ${esc(avQtyTxt(loc, cur))}</small>` : ''}</label>
         <label>Engagement maître d'ouvrage (date limite)<input type="date" value="${esc(r.due || '')}" data-in="due"></label>
         ${r.state === 'done' ? `<label>Date de fin réelle<input type="date" value="${esc(r.doneAt || '')}" data-in="doneAt"></label>` : ''}
         <label>Observations<textarea data-in="obs" placeholder="Remarques, réserves, entreprise…">${esc(r.obs || '')}</textarea></label>
@@ -463,7 +466,7 @@ function openAvLocal(loc, lotId, onChange, { onMove } = {}) {
     $$('[data-lt]', box).forEach(b => b.onclick = () => { cur = b.dataset.lt; render(); });
     bindMode();
     $$('[data-st]', box).forEach(b => b.onclick = () => { r.state = b.dataset.st; if (r.state === 'done' && !r.doneAt) r.doneAt = todayISO(); if (r.state !== 'done') delete r.doneAt; save(true); render(); });
-    $$('[data-in]', box).forEach(i => i.oninput = () => { r[i.dataset.in] = i.dataset.in === 'pct' ? +i.value : i.value; if (i.dataset.in === 'pct') $('[data-pctv]', box).textContent = i.value + '%'; save(); if (i.type === 'date') { save(true); render(); } });
+    $$('[data-in]', box).forEach(i => i.oninput = i.onchange = () => { r[i.dataset.in] = i.dataset.in === 'pct' || i.dataset.in === 'qtot' ? (i.value === '' ? '' : +i.value) : i.value; if (i.dataset.in === 'pct') $('[data-pctv]', box).textContent = i.value + '%'; save(); if (i.type === 'date') { save(true); render(); } });
     const add = $('[data-a=addphoto]', box); if (add) add.onclick = async () => { const fs = await addPhotos(p.id, { local: loc.id, lot: cur }); if (fs.length) { r.photos.push(...fs.map(f => f.id)); await save(true); render(); } };
     $$('.thumbs .t[data-id]', box).forEach(t => t.onclick = (e) => { if (e.target.closest('[data-del]')) return; const i = files.findIndex(f => f.id === t.dataset.id); showGallery(files.map(f => ({ src: BlobURL.get(f.id, f.blob), caption: `${loc.name} · ${avLot(p, cur).name} · ${fmtDateTime(f.createdAt)}` })), i); });
     $$('[data-del]', box).forEach(b => b.onclick = async (e) => { e.stopPropagation(); if (!await confirmBox('Supprimer cette photo ?')) return; r.photos = r.photos.filter(x => x !== b.dataset.del); await DB.del('files', b.dataset.del); await save(true); render(); });

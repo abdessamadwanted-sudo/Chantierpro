@@ -1197,6 +1197,11 @@ try {
     const p = App.project; try { localStorage.removeItem('avRemN.' + p.id); } catch (e) {} p.avPlan = p.avPlan || {}; const n = p.avNiveaux[0], lot = p.lots[0]; const k = n.id + '|' + lot.id, keep = p.avPlan[k]; p.avPlan[k] = { deb: avAddDays(todayISO(), -2), fin: avAddDays(todayISO(), 10) };
     await avReminderNotif(p); p.avPlan[k] = keep; window.Capacitor.Plugins = old; const sc = got[0] && got[0].notifications[0].schedule; return sc ? { on: !!sc.on, at: !!sc.at, future: sc.at > new Date(), hour: new Date(sc.at).getHours() } : null; });
   log('rappel 17 h : une seule notification datée (jamais « on » répétitif)', nt48); if (!nt48 || nt48.on || !nt48.at || !nt48.future || nt48.hour !== 17) v48.push('rappel 17 h');
+  const q49 = await A.pg.evaluate(async () => { const p = App.project, L = (await DB.byProject('links', p.id)).find(l => l.kind === 'local'), lot = p.lots[0];
+    L.lots = L.lots || {}; const r = L.lots[lot.id] = L.lots[lot.id] || { state: 'todo', photos: [] }; r.qtot = 120; r.unit = 'm²'; L.journal = (L.journal || []).filter(e => e.lot !== lot.id);
+    const e1 = avEntryOn(p, L, { d: avAddDays(todayISO(), -1), lot: lot.id, pct: 0, qc: 45 }); const e2 = avEntryOn(p, L, { d: todayISO(), lot: lot.id, pct: 0, qc: 90 });
+    return [e1.pct, e2.pct, e2.qd, avQtyTxt(L, lot.id), typeof openStackView === 'function' && typeof avCompareSame === 'function']; });
+  log('quantités [% J-1, % J, qté du jour, texte] + comparaison même niveau', q49); if (q49[0] !== 38 || q49[1] !== 75 || q49[2] !== 45 || !/90 \/ 120 m² = 75 %/.test(q49[3]) || !q49[4]) v48.push('quantités');
   log('errors v1.0.48', v48);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
