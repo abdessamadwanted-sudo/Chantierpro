@@ -50,18 +50,21 @@ function avStats(locs, lotId) {
 // ---------- Section « Avancement » ----------
 async function renderAvancement(root) {
   const p = App.project; avLots(p);
-  const { locaux, nivs } = await avData(p);
-  if (typeof avZoneOf === 'function') nivs.sort((a, b) => avZones(p).indexOf(avZoneOf(p, a)) - avZones(p).indexOf(avZoneOf(p, b)));   // v1.0.46 : niveaux rangés par zone
+  if (typeof avSyncFromPlans === 'function') { try { await avSyncFromPlans(p); } catch (e) { console.warn('sync plans', e); } }   // v1.0.47 : niveaux et plans par lot repris d'Outils › Plans
+  const { locaux, nivs: N0 } = await avData(p);
+  const nivs = typeof avNivSorted === 'function' ? avNivSorted(p, N0) : N0;   // v1.0.47 : par zone, puis de bas en haut (SSL › RDC › MEZZ › R+1…)
+  if (typeof avReminderCheck === 'function') { setTimeout(() => avReminderCheck(p), 1200); avReminderNotif(p); }
   if (App.avTab && App.avTab !== 'dash' && !p.lots.find(l => l.id === App.avTab)) App.avTab = 'dash';
   App.avTab = App.avTab || 'dash';
   const tba = $('#tbActions');
   if (tba) {
-    tba.innerHTML = `<button class="iconbtn" data-a="avjour" title="Avancement du jour">${icon('calendar')}</button><button class="iconbtn" data-a="avpdf" title="Rapport PDF">${icon('pdf')}</button><button class="iconbtn" data-a="avset" title="Lots et réglages">${icon('settings')}</button>`;
+    tba.innerHTML = `${typeof openAvTable === 'function' ? `<button class="iconbtn" data-a="avtab" title="Tableau rapide">${icon('grid')}</button>` : ''}<button class="iconbtn" data-a="avjour" title="Avancement du jour">${icon('calendar')}</button><button class="iconbtn" data-a="avpdf" title="Rapport PDF">${icon('pdf')}</button><button class="iconbtn" data-a="avset" title="Lots et réglages">${icon('settings')}</button>`;
     $('[data-a=avjour]').onclick = () => typeof openAvJour === 'function' && openAvJour(p);
+    const avt = $('[data-a=avtab]'); if (avt) avt.onclick = () => openAvTable(p, { lotId: App.avTab !== 'dash' ? App.avTab : '', onClose: () => renderAvancement(root) });
     $('[data-a=avpdf]').onclick = () => avReportDialog({});
     $('[data-a=avset]').onclick = () => avSettings(root);
   }
-  const tabs = `<div class="av-tabs"><button data-t="dash" class="${App.avTab === 'dash' ? 'on' : ''}">📊 Pro</button>${p.lots.map(l => `<button data-t="${l.id}" class="${App.avTab === l.id ? 'on' : ''}" style="--c:${l.color}"><i></i>${esc(l.name)}</button>`).join('')}</div>`;
+  const tabs = `<div class="av-tabs"><button data-t="dash" class="${App.avTab === 'dash' ? 'on' : ''}">📊 Pro</button>${(typeof avLotsOrdered === 'function' ? avLotsOrdered(p) : p.lots).map(l => `<button data-t="${l.id}" class="${App.avTab === l.id ? 'on' : ''}" style="--c:${l.color}"><i></i>${esc(l.name)}</button>`).join('')}</div>`;
   let body = '';
   if (!nivs.length) {
     body = `<div class="av-empty"><div class="ic">🏗️</div><b>Suivi d'avancement par lot</b>
@@ -71,10 +74,11 @@ async function renderAvancement(root) {
   else {
     const lot = avLot(p, App.avTab);
     const zh = (n, i) => typeof avZoneOf === 'function' && (i === 0 || avZoneOf(p, nivs[i - 1]) !== avZoneOf(p, n)) ? `<div class="av-zh">${esc(avZoneOf(p, n))}</div>` : '';
-    body = `<div class="av-list">${nivs.map((n, i) => { const locs = locaux.filter(l => l.nivId === n.id), s = avStats(locs, lot.id);
-      return `${zh(n, i)}<div class="av-niv" data-niv="${n.id}"><div class="av-niv-h"><span class="av-niv-n">${esc(n.name)}</span>
-          <span class="grow"><b>${s.pct}%</b> <small>${s.fin}/${s.n} local(aux) terminé(s)${n.plan ? ` · plan ind. ${esc(planIndice(n.plan))}` : ' · <span style="color:var(--red)">plan manquant</span>'}</small></span>
-          <button class="iconbtn sm" data-nmore="${n.id}">${icon('more')}</button></div>
+    const tl = avStats(locaux.filter(l => nivs.some(n => n.id === l.nivId)), lot.id);
+    body = `<div class="av-list"><div class="av-total" style="--c:${lot.color}"><span>Total ${esc(lot.name)}</span><span class="av-tb"><i style="width:${tl.pct}%"></i></span><b>${tl.pct}%</b><small>${tl.fin}/${tl.n} terminé(s)${tl.late ? ` · <em>${tl.late} en retard</em>` : ''}</small></div>${nivs.map((n, i) => { const locs = locaux.filter(l => l.nivId === n.id), s = avStats(locs, lot.id);
+      return `${zh(n, i)}<div class="av-niv" data-niv="${n.id}"><div class="av-niv-h"><span class="av-th" data-th="${n.id}"></span><span class="av-niv-n">${esc(n.name)}</span>
+          <span class="grow"><b>${s.pct}%</b> <small>${s.fin}/${s.n} local(aux) terminé(s)</small><small class="av-pl" data-pl="${n.id}">${n.plan ? `Plan général · ind. ${esc(planIndice(n.plan))}` : '<span style="color:var(--red)">plan manquant</span>'}</small></span>
+          ${typeof avCompareQuick === 'function' ? `<button class="iconbtn sm av-cmpb" data-ncmp="${n.id}" title="Comparer">${icon('swap')}</button>` : ''}<button class="iconbtn sm" data-nmore="${n.id}">${icon('more')}</button></div>
         <div class="av-bar">${['done', 'donelate', 'progress', 'soon', 'late', 'todo'].map(k => s[k] ? `<i style="flex:${s[k]};background:${AV_ST[k][1]}"></i>` : '').join('') || '<i style="flex:1;background:var(--line)"></i>'}</div>
         <div class="av-cnt">${s.late ? `<em class="r">${s.late} en retard</em>` : ''}${s.soon ? `<em class="o">${s.soon} échéance sous 7 j</em>` : ''}${s.progress ? `<em class="b">${s.progress} en cours</em>` : ''}${!s.n ? '<em>Aucun local — touchez pour en placer</em>' : ''}</div></div>`; }).join('')}
       <button class="av-add" data-a="addniv">${icon('plus')} Ajouter un niveau</button></div>`;
@@ -83,7 +87,14 @@ async function renderAvancement(root) {
   const pr = $('.avp-root', root); if (pr) avProDash(pr, p, nivs, locaux);
   $$('.av-tabs [data-t]', root).forEach(b => b.onclick = () => { App.avTab = b.dataset.t; renderAvancement(root); });
   $$('[data-a=addniv]', root).forEach(b => b.onclick = async () => { if (await avAddNiveau(p)) renderAvancement(root); });
-  $$('[data-niv]', root).forEach(c => c.onclick = (e) => { if (e.target.closest('[data-nmore]')) return; const n = nivs.find(x => x.id === c.dataset.niv); openAvViewer(n.id, App.avTab, () => renderAvancement(root)); });
+  $$('[data-ncmp]', root).forEach(b => b.onclick = (e) => { e.stopPropagation(); const n = (p.avNiveaux || []).find(x => x.id === b.dataset.ncmp); if (n) avCompareQuick(p, n, App.avTab); });
+  // v1.0.47 : chaque niveau montre le plan DE CE LOT (miniature, nom, indice) ; sinon le plan général et « ＋ Plan <lot> »
+  if (App.avTab !== 'dash' && typeof avLotPlan === 'function') (async () => { const lot = avLot(p, App.avTab);
+    for (const n of nivs) { const pn = (p.avNiveaux || []).find(x => x.id === n.id); if (!pn) continue; let L = null; try { L = await avLotPlan(p, pn, lot.id); } catch (e) {} if (!L || !L.plan) continue;
+      const lab = $(`[data-pl="${n.id}"]`, root); if (lab) lab.innerHTML = L.id !== 'main' ? `<b style="color:${lot.color}">Plan ${esc(lot.name)}</b> · ${esc(L.plan.name)} · ind. ${esc(planIndice(L.plan))}` : `Plan général · ind. ${esc(planIndice(L.plan))} <button class="av-addpl" data-addpl="${n.id}">＋ Plan ${esc(lot.name)}</button>`;
+      const ab = lab && lab.querySelector('[data-addpl]'); if (ab) ab.onclick = async (e) => { e.stopPropagation(); if (await avAddLotPlan(p, pn, lot.id)) renderAvancement(root); };
+      const th = $(`[data-th="${n.id}"]`, root); if (th && typeof avLiteURL === 'function') avLiteURL(L.plan.fileId, 240).then(u => { if (u && th.isConnected) th.innerHTML = `<img src="${u}" alt="">`; }).catch(() => {}); } })();
+  $$('[data-niv]', root).forEach(c => c.onclick = (e) => { if (e.target.closest('[data-nmore],[data-ncmp],[data-addpl]')) return; const n = nivs.find(x => x.id === c.dataset.niv); openAvViewer(n.id, App.avTab, () => renderAvancement(root)); });
   $$('[data-nmore]', root).forEach(b => b.onclick = () => avNiveauMenu(p, b.dataset.nmore, () => renderAvancement(root)));
   $$('[data-cell]', root).forEach(c => c.onclick = () => { const [nid, lid] = c.dataset.cell.split('|'); openAvViewer(nid, lid, () => renderAvancement(root)); });
   $$('[data-loc]', root).forEach(c => c.onclick = () => { const [nid, lid, locId] = c.dataset.loc.split('|'); openAvViewer(nid, lid, () => renderAvancement(root), locId); });
@@ -207,7 +218,7 @@ async function avSettings(root) {
     if (a === 'up') { [p.lots[i - 1], p.lots[i]] = [p.lots[i], p.lots[i - 1]]; }
     if (a === 'del' && await confirmBox(`Supprimer le lot ${lot.name} ? (les données de ce lot sont retirées des locaux)`)) {
       for (const l of (await DB.byProject('links', p.id)).filter(l => l.kind === 'local' && l.lots && l.lots[lot.id])) { for (const id of l.lots[lot.id].photos || []) await DB.del('files', id); delete l.lots[lot.id]; await DB.put('links', l); }
-      p.lots = p.lots.filter(x => x !== lot); }
+      p.lots = p.lots.filter(x => x !== lot); p.avLotSkip = [...new Set([...(p.avLotSkip || []), normQ(lot.name)])]; }
   }
   await DB.put('projects', p); renderAvancement(root);
 }
@@ -228,7 +239,15 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
   let plan = await latestPlanOfSerie(p.id, niv.serieId);
   if (!plan) return alertBox('Le plan de ce niveau est introuvable (supprimé ?). Utilisez « Changer de plan ».');
   if (!lotId || lotId === 'dash' || !p.lots.find(l => l.id === lotId)) lotId = p.lots[0].id;
-  const st = { lot: lotId, add: false, moving: null, locs: [], filter: null, zdraw: null, anep: false, anepL: null };
+  const st = { lot: lotId, add: false, moving: null, locs: [], filter: null, zdraw: null, anep: false, anepL: null, sel: null, lasso: null };
+  // v1.0.47 : plan affiché = plan du lot sur ce niveau (maçonnerie, chape…) ; les pins restent ceux du niveau, recalés (auto ou 2 points)
+  let vplan = plan, VM = null, VMi = null;   // VM : pixel du plan de base → pixel du plan affiché
+  const T = (x, y) => VM ? avApply(VM, x, y) : [x, y], Ti = (x, y) => VMi ? avApply(VMi, x, y) : [x, y];
+  async function setView(lid) {
+    vplan = plan; VM = VMi = null;
+    if (typeof avLotPlan !== 'function') return;
+    try { const L = await avLotPlan(p, niv, lid); if (L && L.plan && L.id !== 'main' && L.plan.id !== plan.id) { const C = await avPairMatrix(p, niv, { serieId: niv.serieId, plan }, { serieId: L.serieId, plan: L.plan }); vplan = L.plan; VMi = C.m; VM = avInv(C.m); } } catch (e) { console.warn('vue lot', e); vplan = plan; VM = VMi = null; }
+  }
   const el = document.createElement('div'); el.className = 'fullpage av-page';
   document.body.appendChild(el);
   let pz = null;
@@ -236,42 +255,49 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
   const unBack = pushBack(teardown);
   const close = () => { unBack(); teardown(); };
 
-  async function load() { st.locs = (await DB.byProject('links', p.id)).filter(l => l.kind === 'local' && l.nivId === niv.id).sort(avNameSort); }
+  async function load() { st.locs = (await DB.byProject('links', p.id)).filter(l => l.kind === 'local' && l.nivId === niv.id).sort(avNameSort); st.res = new Set(typeof avOpenReserves === 'function' ? (await avOpenReserves(p)).map(t => t.localId) : []); }
   async function build() {
-    const src = await fileURL(plan.fileId), W = plan.w, H = plan.h;
+    if (typeof planNeedsHeal === 'function' && planNeedsHeal(vplan)) { const hp = vplan; planHeal(hp).then(async ok => { if (ok && el.isConnected && vplan === hp) { const im = $('.av-stage > img', el); if (im) { BlobURL.drop(hp.fileId); im.src = await fileURL(hp.fileId); } toast('Plan A0 : image complète ✓'); } }); }
+    const src = await fileURL(vplan.fileId), W = vplan.w, H = vplan.h;
+    const vl = vplan !== plan ? avLot(p, st.lot) : null;
     el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button>
-        <div class="tb-title" style="flex:1"><b>${esc(niv.name)}</b><span>${esc(plan.name)} · ind. ${esc(planIndice(plan))}</span></div>
+        <div class="tb-title" style="flex:1"><b>${esc(niv.name)}${vl ? ` · <span style="color:${vl.color}">${esc(vl.name)}</span>` : ''}</b><span>${esc(vplan.name)} · ind. ${esc(planIndice(vplan))}</span></div>
+        ${typeof avComparePlans === 'function' ? `<button class="iconbtn" data-a="cmpq" title="Comparer deux plans">${icon('swap')}</button>` : ''}
         ${typeof avNivPlansMenu === 'function' ? `<button class="iconbtn" data-a="plans" title="Plans, zones, import">${icon('layers')}</button>` : ''}
         <button class="iconbtn" data-a="ind" title="Indices du plan">${icon('history')}</button>
         <button class="iconbtn" data-a="share" title="Partager">${icon('share')}</button>
         <button class="iconbtn" data-a="more">${icon('more')}</button></div>
       <div class="av-chips lots"></div>
       <div class="av-view"><div class="av-stage"><img src="${src}" width="${W}" height="${H}"><svg class="av-ov" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"></svg></div><div class="av-hint"></div></div>
-      <div class="av-bottom"><div class="av-legend"></div><button class="btn small av-addbtn" data-a="add">${icon('plus')} Local</button></div>`;
+      <div class="av-bottom"><div class="av-legend"></div><button class="btn small ghost av-selbtn" data-a="sel" title="Sélection de plusieurs pins">${icon('check')}</button><button class="btn small av-addbtn" data-a="add">${icon('plus')} Pin</button></div>`;
     $('[data-a=x]', el).onclick = close;
+    const cq = $('[data-a=cmpq]', el); if (cq) cq.onclick = () => avCompareQuick(p, niv, st.lot);
+    $('[data-a=sel]', el).onclick = () => { st.sel = st.sel ? null : new Set(); st.add = false; st.moving = null; st.lasso = null; drawUI(); };
     $('[data-a=add]', el).onclick = async () => { if (st.zdraw) return finishZone(); st.add = !st.add; st.moving = null; drawUI(); };
     $('[data-a=share]', el).onclick = shareMenu;
     const plb = $('[data-a=plans]', el); if (plb) plb.onclick = plansMenu;
     $('[data-a=more]', el).onclick = moreMenu;
-    $('[data-a=ind]', el).onclick = () => planIndicesMenu(plan, { onNew: async (np) => { plan = np; await load(); await build(); }, onOpen: (old) => openPlanViewer(old, planCtx(() => {})) });
+    $('[data-a=ind]', el).onclick = () => planIndicesMenu(plan, { onNew: async (np) => { plan = np; await load(); await setView(st.lot); await build(); }, onOpen: (old) => openPlanViewer(old, planCtx(() => {})) });
     pz = panZoom($('.av-view', el), $('.av-stage', el), W, H, { onTap, onChange: drawMarkers });
-    requestAnimationFrame(() => { pz.fit(); if (focusLocId) { const l = st.locs.find(x => x.id === focusLocId); if (l) { pz.zoomTo(l.x - 60, l.y - 60, 120, 120); setTimeout(() => openAvLocal(l, st.lot, refresh), 250); } focusLocId = null; } });
+    requestAnimationFrame(() => { pz.fit(); if (focusLocId) { const l = st.locs.find(x => x.id === focusLocId); if (l) { const [fx, fy] = T(l.x, l.y); pz.zoomTo(fx - 60, fy - 60, 120, 120); setTimeout(() => openAvLocal(l, st.lot, refresh), 250); } focusLocId = null; } });
     drawUI();
   }
   const lotObj = () => avLot(p, st.lot);
   function drawUI() {
     $('.av-chips.lots', el).innerHTML = p.lots.map(l => { const s = avStats(st.locs, l.id); return `<button data-l="${l.id}" class="${st.lot === l.id ? 'on' : ''}" style="--c:${l.color}"><i></i>${esc(l.name)} <small>${s.pct}%</small></button>`; }).join('');
-    $$('.av-chips.lots [data-l]', el).forEach(b => b.onclick = () => { st.lot = b.dataset.l; st.filter = null; drawUI(); });
+    $$('.av-chips.lots [data-l]', el).forEach(b => b.onclick = async () => { st.lot = b.dataset.l; st.filter = null; const old = vplan; await setView(st.lot); if (vplan !== old) await build(); else drawUI(); });
     const s = avStats(st.locs, st.lot);
+    const sb = $('[data-a=sel]', el); if (sb) sb.classList.toggle('on', !!st.sel);
+    if (st.sel) { avSelBar(el, p, niv, st, { T, pz, redraw: drawUI, refresh }); drawMarkers(); return; }
     if (st.two) { const [la, lb] = st.two.map(id => avLot(p, id)), done = (id) => st.locs.filter(l => avIsDone(avStatus((l.lots || {})[id]))).length, gap = st.locs.filter(l => avIsDone(avStatus((l.lots || {})[la.id])) && avStatus((l.lots || {})[lb.id]) === 'todo').length;
       $('.av-legend', el).innerHTML = `<span class="avt-l"><b style="color:${la.color}">◐ ${esc(la.name)}</b> ${done(la.id)}/${st.locs.length} · <b style="color:${lb.color}">◑ ${esc(lb.name)}</b> ${done(lb.id)}/${st.locs.length}${gap ? ` · <em>${gap} prêt(s) pour ${esc(lb.name)}</em>` : ''}</span><button data-a="twoimg">${icon('share')} Image</button>`;
       $('[data-a=twoimg]', el).onclick = async () => { const ld = loading('Préparation de l\'image…'); try { const c = await avTwoLotsImage(p, plan, st.locs, la, lb, `${niv.name} — ${la.name} / ${lb.name}`); const b = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9)); ld.close(); await shareBlob(b, avFileName(`${p.name} ${niv.name} ${la.name}-${lb.name}`) + '.jpg'); } catch (e) { ld.close(); alertBox(e.message || String(e)); } };
       const ab2 = $('[data-a=add]', el); ab2.classList.toggle('on', !!st.add); drawMarkers(); return; }
-    $('.av-legend', el).innerHTML = Object.entries(AV_ST).filter(([k]) => s[k]).map(([k, [l, c]]) => `<button data-f="${k}" class="${st.filter === k ? 'on' : ''}"><i style="background:${c}"></i>${s[k]} ${l}</button>`).join('') || `<span class="muted">Touchez « + Local » puis le plan pour placer les locaux</span>`;
+    $('.av-legend', el).innerHTML = Object.entries(AV_ST).filter(([k]) => s[k]).map(([k, [l, c]]) => `<button data-f="${k}" class="${st.filter === k ? 'on' : ''}"><i style="background:${c}"></i>${s[k]} ${l}</button>`).join('') || `<span class="muted">Touchez « + Pin » puis le plan pour placer les locaux</span>`;
     $$('.av-legend [data-f]', el).forEach(b => b.onclick = () => { st.filter = st.filter === b.dataset.f ? null : b.dataset.f; drawUI(); });
     const ab = $('[data-a=add]', el); ab.classList.toggle('on', st.add || !!st.zdraw); ab.innerHTML = st.zdraw ? `${icon('check')} Terminer la zone` : st.add ? `${icon('check')} Terminer` : `${icon('plus')} Pin`;
     const hint = $('.av-hint', el);
-    hint.textContent = st.zdraw ? `Zone : touchez les coins (${st.zdraw.length} point(s)), puis « Terminer la zone »` : st.moving ? `Touchez la nouvelle position de « ${st.moving.name} »` : st.add ? 'Touchez le plan pour placer un pin (plusieurs à la suite)' : '';
+    hint.textContent = st.zhint ? st.zhint : st.zdraw ? `Zone : touchez les coins (${st.zdraw.length} point(s)), puis « Terminer la zone »` : st.moving ? `Touchez la nouvelle position de « ${st.moving.name} »` : st.add ? 'Touchez le plan pour placer un pin (plusieurs à la suite)' : '';
     hint.style.display = hint.textContent ? '' : 'none';
     drawMarkers();
   }
@@ -279,27 +305,32 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
     if (!pz) return;
     const s = pz.st.s, R = 11 / s, showLbl = s / pz.st.fit > 1.6 || st.locs.length <= 25;
     const ZC = ['#2563eb', '#0d9488', '#7c3aed', '#ea580c', '#db2777', '#16a34a', '#0891b2', '#b45309'], zc = (z) => ZC[Math.abs([...String(z)].reduce((a, c) => a * 31 + c.charCodeAt(0), 7)) % ZC.length];
-    const zonesSvg = (niv.zonePolys || []).map(z => { const tl = z.pts.slice().sort((a, b) => (a[0] + a[1]) - (b[0] + b[1]))[0], cx = tl[0] + 8 / s, cy = tl[1] + 20 / s;   // nom de la zone dans son coin, sans masquer les pins
-      return `<polygon points="${z.pts.map(q => q.join(',')).join(' ')}" fill="${zc(z.zone)}" fill-opacity=".10" stroke="${zc(z.zone)}" stroke-width="${2 / s}" stroke-dasharray="${8 / s} ${5 / s}"/><text x="${cx}" y="${cy}" text-anchor="start" font-size="${16 / s}" font-weight="800" fill="${zc(z.zone)}" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="${4 / s}">${esc(z.zone)}</text>`; }).join('');
-    const drawSvg = st.zdraw && st.zdraw.length ? `<polyline points="${st.zdraw.map(q => q.join(',')).join(' ')}" fill="rgba(37,99,235,.12)" stroke="#2563eb" stroke-width="${2.5 / s}"/>${st.zdraw.map(q => `<circle cx="${q[0]}" cy="${q[1]}" r="${5 / s}" fill="#2563eb"/>`).join('')}` : '';
-    const anepSvg = st.anep && st.anepL ? st.anepL.map(t => `<text x="${t.x}" y="${t.y}" text-anchor="middle" font-size="${Math.max(t.h, 9 / s)}" font-weight="700" fill="#1d4ed8" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="${2.5 / s}">${esc(t.s)}</text>`).join('') : '';
+    const polys = (st.zprev ? st.zprev.polys : null) || (niv.zonePolys || []);
+    const zonesSvg = polys.map(z0 => { const z = { ...z0, pts: z0.pts.map(q => T(q[0], q[1])) }, tl = z0.lp ? T(z0.lp[0], z0.lp[1]) : z.pts.slice().sort((a, b) => (a[0] + a[1]) - (b[0] + b[1]))[0], cx = tl[0] + (z0.lp ? 0 : 8 / s), cy = tl[1] + (z0.lp ? 0 : 20 / s);   // nom de la zone dans son coin (ou au milieu du secteur), sans masquer les pins
+      return `<polygon points="${z.pts.map(q => q.join(',')).join(' ')}" fill="${zc(z.zone)}" fill-opacity=".10" stroke="${zc(z.zone)}" stroke-width="${2 / s}" stroke-dasharray="${8 / s} ${5 / s}"/><text x="${cx}" y="${cy}" text-anchor="${z0.lp ? 'middle' : 'start'}" font-size="${(z0.lp ? 20 : 16) / s}" font-weight="800" fill="${zc(z.zone)}" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="${4 / s}">${esc(z.zone)}</text>`; }).join('');
+    const zd = (st.zdraw || []).map(q => T(q[0], q[1])), drawSvg = zd.length ? `<polyline points="${zd.map(q => q.join(',')).join(' ')}" fill="rgba(37,99,235,.12)" stroke="#2563eb" stroke-width="${2.5 / s}"/>${zd.map(q => `<circle cx="${q[0]}" cy="${q[1]}" r="${5 / s}" fill="#2563eb"/>`).join('')}` : '';
+    const anepSvg = st.anep && st.anepL ? st.anepL.map(t => { const [ax, ay] = T(t.x, t.y); return `<text x="${ax}" y="${ay}" text-anchor="middle" font-size="${Math.max(t.h, 9 / s)}" font-weight="700" fill="#1d4ed8" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="${2.5 / s}">${esc(t.s)}</text>`; }).join('') : '';
     const LT = typeof avLocTypes === 'function' ? avLocTypes(p) : [];
     $('.av-ov', el).innerHTML = zonesSvg + anepSvg + drawSvg + st.locs.map(l => {
       const ltc = l.ltype && (LT.find(t => t.id === l.ltype) || {}).color;
-      const k = avStatus((l.lots || {})[st.lot]), c = AV_ST[k][1], dim = st.filter && st.filter !== k;
-      return `<g transform="translate(${l.x},${l.y})" opacity="${dim ? 0.2 : 1}">
+      const k = avStatus((l.lots || {})[st.lot]), c = AV_ST[k][1], dim = st.filter && st.filter !== k, [px, py] = T(l.x, l.y), sel = st.sel && st.sel.has(l.id);
+      return `<g transform="translate(${px},${py})" opacity="${dim ? 0.2 : 1}">
+        ${sel ? `<circle r="${R * 2}" fill="#facc15" fill-opacity=".35" stroke="#facc15" stroke-width="${3 / s}"/>` : ''}
         ${l.checkIndice ? `<circle r="${R * 1.7}" fill="none" stroke="#f59e0b" stroke-width="${2.5 / s}" stroke-dasharray="${4 / s} ${3 / s}"/>` : ''}
         ${ltc ? `<circle r="${R * 1.45}" fill="none" stroke="${ltc}" stroke-width="${3.5 / s}"/>` : ''}
         ${st.two ? (() => { const [la, lb] = st.two.map(id => avLot(p, id)), ca = AV_ST[avStatus((l.lots || {})[la.id])][1], cb = AV_ST[avStatus((l.lots || {})[lb.id])][1];
           return `<path d="M0,${-R} A${R},${R} 0 0 0 0,${R} Z" fill="${ca}"/><path d="M0,${-R} A${R},${R} 0 0 1 0,${R} Z" fill="${cb}"/><circle r="${R}" fill="none" stroke="#fff" stroke-width="${2.5 / s}"/><line y1="${-R}" y2="${R}" stroke="#fff" stroke-width="${2 / s}"/>`; })() : l.type === 'travail' ? `<rect x="${-R}" y="${-R * 0.75}" width="${R * 2}" height="${R * 1.5}" rx="${R * 0.3}" fill="${c}" stroke="#fff" stroke-width="${2.5 / s}"/>` : `<circle r="${R}" fill="${c}" stroke="#fff" stroke-width="${2.5 / s}"/>`}
         ${(l.journal || []).some(e => e.d === todayISO()) ? `<circle cx="${R * 0.85}" cy="${-R * 0.85}" r="${R * 0.38}" fill="#f59e0b" stroke="#fff" stroke-width="${1.5 / s}"/>` : ''}
+        ${st.res && st.res.has(l.id) ? `<text x="${-R * 1.25}" y="${-R * 0.6}" font-size="${R * 1.1}" text-anchor="middle">⚠️</text>` : ''}
         ${avIsDone(k) ? `<path d="M${-R * 0.45},0 L${-R * 0.1},${R * 0.38} L${R * 0.5},${-R * 0.35}" fill="none" stroke="#fff" stroke-width="${2.6 / s}" stroke-linecap="round"/>` : k === 'late' ? `<text y="${R * 0.42}" text-anchor="middle" font-size="${R * 1.3}" font-weight="700" fill="#fff" font-family="Arial">!</text>` : ''}
         ${showLbl ? `<text y="${R * 2.4}" text-anchor="middle" font-size="${12 / s}" font-weight="700" fill="#111" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="${3.5 / s}">${esc(l.name)}${l.anep ? ' · ' + esc(l.anep) : ''}</text>` : ''}</g>`;
     }).join('');
   }
   async function refresh() { await load(); if (el.isConnected) drawUI(); }
-  async function onTap([x, y]) {
-    const out = x < 0 || y < 0 || x > plan.w || y > plan.h;
+  async function onTap([vx, vy]) {
+    const out = vx < 0 || vy < 0 || vx > vplan.w || vy > vplan.h, [x, y] = Ti(vx, vy);
+    if (st.zpick) return st.zpick([x, y], out);
+    if (st.sel) { const tol0 = 26 / pz.st.s; let b0 = null, d0 = 1e9; for (const l of st.locs) { const [px, py] = T(l.x, l.y), d = Math.hypot(px - vx, py - vy); if (d < tol0 && d < d0) { d0 = d; b0 = l; } } if (b0) { st.sel.has(b0.id) ? st.sel.delete(b0.id) : st.sel.add(b0.id); drawUI(); } return; }
     if (st.zdraw) { if (!out) { st.zdraw.push([Math.round(x), Math.round(y)]); drawUI(); } return; }
     if (st.moving && !out) { const l = st.moving; l.x = x; l.y = y; delete l.checkIndice; await DB.put('links', l); st.moving = null; toast('Local déplacé ✓'); return refresh(); }
     if (st.add && !out) {
@@ -316,13 +347,14 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
     }
     // toucher un local (tolérance ~ 24 px à l'écran)
     const tol = 24 / pz.st.s; let best = null, bd = 1e9;
-    for (const l of st.locs) { const d = Math.hypot(l.x - x, l.y - y); if (d < tol && d < bd) { bd = d; best = l; } }
+    for (const l of st.locs) { const [px, py] = T(l.x, l.y), d = Math.hypot(px - vx, py - vy); if (d < tol && d < bd) { bd = d; best = l; } }
     if (best) openAvLocal(best, st.lot, refresh, { onMove: (l) => { st.moving = l; st.add = false; drawUI(); } });
   }
   // v1.0.46 : plans du niveau, zones (joints) dessinées, import des locaux du PDF, calque ANEP, comparaison
   async function plansMenu() {
     const hasAnep = (niv.plans || []).some(x => x.kind === 'anep');
     const v = await menu(`${niv.name} — plans & zones`, [
+      ...(typeof avAutoZones === 'function' ? [{ label: '✨ Zones automatiques (axes des joints JD)', icon: 'zone', value: 'auto' }] : []),
       { label: 'Dessiner une zone (joint) sur le plan', icon: 'zone', value: 'zone' },
       ...((niv.zonePolys || []).length ? [{ label: `Zones dessinées (${niv.zonePolys.length})…`, icon: 'layers', value: 'zones' }] : []),
       { label: 'Importer les locaux du plan (textes du PDF)', icon: 'upload', value: 'imp' },
@@ -333,8 +365,9 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
       ...(hasAnep ? [{ label: st.anep ? 'Masquer la numérotation ANEP' : 'Afficher la numérotation ANEP', icon: 'eye', value: 'anep' }, { label: 'Donner aux pins leur numéro ANEP', icon: 'edit', value: 'anepPins' }] : []),
       { label: 'Secteurs et zones…', icon: 'settings', value: 'sect' },
     ]);
+    if (v === 'auto') return avAutoZones(p, niv, plan, { st, el, redraw: drawUI, refresh, pz, T });
     if (v === 'zone') { st.zdraw = []; st.add = false; st.moving = null; drawUI(); toast('Touchez les coins de la zone sur le plan'); }
-    if (v === 'zones') { const i = await menu('Zones dessinées', niv.zonePolys.map((z, k) => ({ label: `${z.zone} (${z.pts.length} points)`, icon: 'trash', danger: true, value: String(k) }))); if (i != null && await confirmBox(`Effacer le dessin de la zone « ${niv.zonePolys[+i].zone} » ? (les pins gardent leur zone)`)) { niv.zonePolys.splice(+i, 1); await DB.put('projects', p); drawUI(); } }
+    if (v === 'zones') { if (typeof avZonesManage === 'function') { await avZonesManage(p, niv); await refresh(); return; } const i = await menu('Zones dessinées', niv.zonePolys.map((z, k) => ({ label: `${z.zone} (${z.pts.length} points)`, icon: 'trash', danger: true, value: String(k) }))); if (i != null && await confirmBox(`Effacer le dessin de la zone « ${niv.zonePolys[+i].zone} » ? (les pins gardent leur zone)`)) { niv.zonePolys.splice(+i, 1); await DB.put('projects', p); drawUI(); } }
     if (v === 'imp') { const n = await avImportLocaux(p, niv, plan); if (n) await refresh(); }
     if (v === 'plans') await avNivPlansMenu(p, niv);
     if (v === 'cmp') avComparePlans(p, niv);
@@ -381,7 +414,7 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
     ]);
     if (v === 'fit') pz.fit();
     if (v === 'open') openPlanViewer(plan, planCtx(() => {}));
-    if (v === 'ind') { const np = await newPlanIndice(plan); if (np) { plan = np; await load(); await build(); } }
+    if (v === 'ind') { const np = await newPlanIndice(plan); if (np) { plan = np; await load(); await setView(st.lot); await build(); } }
     if (v === 'bulk') {
       if (!st.locs.length) return toast('Aucun local sur ce niveau');
       const r = await formSheet(`Engagement ${lot.name} — ${niv.name}`, [{ name: 'due', label: 'Date limite (engagement maître d\'ouvrage)', type: 'date' },
@@ -391,7 +424,7 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
       toast(`${n} local(aux) mis à jour ✓`); refresh();
     }
   }
-  await load(); await build();
+  await load(); await setView(st.lot); await build();
 }
 function avNextName(locs) { const last = locs.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0]; if (!last) return ''; const m = String(last.name).match(/^(.*?)(\d+)(\D*)$/); return m ? m[1] + (+m[2] + 1) + m[3] : ''; }
 const avFileName = (s) => String(s).replace(/[\\/:*?"<>|#]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 90);
@@ -426,7 +459,7 @@ function openAvLocal(loc, lotId, onChange, { onMove } = {}) {
         <label>Photos (${files.length})</label>${thumbsHTML(files)}
       </div>
       <div class="btnrow wrap"><button class="btn ghost small" data-a="ren">${icon('edit')} Renommer</button><button class="btn ghost small" data-a="move">${icon('move')} Déplacer</button>
-        <button class="btn ghost small" data-a="pdf">${icon('pdf')} PDF</button><button class="btn danger small" data-a="del">${icon('trash')}</button></div>`;
+        <button class="btn ghost small" data-a="pdf">${icon('pdf')} PDF</button><button class="btn ghost small" data-a="res">⚠️ Réserve</button><button class="btn danger small" data-a="del">${icon('trash')}</button></div>`;
     $$('[data-lt]', box).forEach(b => b.onclick = () => { cur = b.dataset.lt; render(); });
     bindMode();
     $$('[data-st]', box).forEach(b => b.onclick = () => { r.state = b.dataset.st; if (r.state === 'done' && !r.doneAt) r.doneAt = todayISO(); if (r.state !== 'done') delete r.doneAt; save(true); render(); });
@@ -439,6 +472,8 @@ function openAvLocal(loc, lotId, onChange, { onMove } = {}) {
     $('[data-a=move]', box).onclick = mv; const m2 = $('[data-a=move2]', box); if (m2) m2.onclick = mv;
     const ok = $('[data-a=okpos]', box); if (ok) ok.onclick = async () => { delete loc.checkIndice; await save(true); render(); };
     $('[data-a=pdf]', box).onclick = () => avReportDialog({ nivId: loc.nivId, lotId: cur, locIds: [loc.id] });
+    // v1.0.47 : réserve rattachée au local (le pin affiche ⚠ et le 100 % demande confirmation tant qu'elle est ouverte)
+    $('[data-a=res]', box).onclick = async () => { const t = await newTask({ localId: loc.id, title: `${loc.name}${niv.name ? ' · ' + niv.name : ''} · ${avLot(p, cur).name} : `, ...(loc.planId ? { planId: loc.planId, x: loc.x, y: loc.y } : {}) }); s.close(); await openTaskDetail(t); onChange && onChange(); };
     $('[data-a=del]', box).onclick = async () => { if (!await confirmBox(`Supprimer le local ${loc.name} et ses photos ?`)) return; for (const rr of Object.values(loc.lots || {})) for (const id of rr.photos || []) await DB.del('files', id); await DB.del('links', loc.id); clearTimeout(saveT); saveT = null; s.close(); onChange && onChange(); };
   }
   // v1.0.46 : onglets de la fiche — suivi par lot · étapes & photos (local technique) · journal (saisies quotidiennes)

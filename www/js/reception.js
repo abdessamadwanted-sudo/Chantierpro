@@ -406,6 +406,7 @@ ${isBeton(K) ? '' : `<td class="c">${esc(r.avec || '')}</td>`}
               <tr class="addrow"><td colspan="${NC}"><div class="addrow-in"><button data-a="add">${icon('plus')} Ajouter une ligne</button><button data-a="paste">${icon('edit')} Coller un texte</button><span class="hint-lp">Appui long sur une ligne pour la déplacer</span></div></td></tr>
             </tbody>
           </table>
+          ${!isBeton(K) && n && typeof openRecBox === 'function' ? `<div class="rec-dplans"><button data-a="dayplans">📚 Plans des ouvrages du jour <b>${n}</b>${icon('chevright')}</button><label><input type="checkbox" data-a="dpshow" ${(() => { try { return localStorage.getItem('plans.daybox') === '1'; } catch (e) { return false; } })() ? 'checked' : ''}> Afficher aussi dans Plans</label></div>` : ''}
           ${isBeton(K) ? '' : `<div class="pv-day">
             <div class="pv-h">${icon('report')} PV du jour <span>${(day.pvIds || []).length || ''}</span></div>
             <div class="thumbs" id="pvThumbs"></div>
@@ -516,7 +517,7 @@ ${isBeton(K) ? '' : `<td class="c">${esc(r.avec || '')}</td>`}
           const pq = e.target.closest('[data-pvq]'); if (pq) { const [ix, w] = pq.dataset.pvq.split('|'), r = day.rows[+ix];
             if (w === 'r') { const on = !pvRec(r); r.pvRecu = on; r.pvExist = false; r.pvRecuAt = on ? todayISO() : null; }   // reçu et livré sont indépendants
             else { r.pvLivre = !r.pvLivre; r.pvLivreAt = r.pvLivre ? todayISO() : null; }
-            try { navigator.vibrate && navigator.vibrate(12); } catch (x) {} await save(); toast(w === 'r' ? (pvRec(r) ? `PV reçu ✓ · ${r.element}` : `PV non reçu · ${r.element}`) : (r.pvLivre ? `PV livré au BET ✓ · ${r.element}` : `PV non livré · ${r.element}`)); return render(); } if (moveSel >= 0) { moveSel = +tr.dataset.i; return render(); }
+            try { navigator.vibrate && navigator.vibrate(12); } catch (x) {} await save(); if (w === 'r' && pvRec(r) && typeof avFromReception === 'function') setTimeout(() => avFromReception(p, r, K, day.date), 900); toast(w === 'r' ? (pvRec(r) ? `PV reçu ✓ · ${r.element}` : `PV non reçu · ${r.element}`) : (r.pvLivre ? `PV livré au BET ✓ · ${r.element}` : `PV non livré · ${r.element}`)); return render(); } if (moveSel >= 0) { moveSel = +tr.dataset.i; return render(); }
           $$('tbody tr.sel', el).forEach(x => x.classList.remove('sel')); tr.classList.add('sel'); selId = (day.rows[+tr.dataset.i] || {}).id || null;
           editRow(+tr.dataset.i); };
       });
@@ -529,6 +530,8 @@ ${isBeton(K) ? '' : `<td class="c">${esc(r.avec || '')}</td>`}
         const tr = $(`tbody tr[data-i="${j}"]`, el); tr && tr.scrollIntoView({ block: 'nearest' });
       });
       const shb = $('[data-a=share]', el); if (shb) shb.onclick = async () => { await save(); await shareDayMenu(p, day); render(); };
+      const dpl = $('[data-a=dayplans]', el); if (dpl) dpl.onclick = () => openRecBox(day.projectId);   // v1.0.47 : plans des ouvrages du jour, sous le tableau
+      const dps = $('[data-a=dpshow]', el); if (dps) dps.onchange = () => { try { localStorage.setItem('plans.daybox', dps.checked ? '1' : '0'); } catch (e) {} toast(dps.checked ? 'Affiché aussi en haut de Plans (les jours avec ouvrages)' : 'Retiré de Plans'); };
       $('[data-a=more]', el).onclick = async () => {
         const v = await menu('Tableau', [
           ...(!isBeton(K) ? [{ label: '📝 Fiches de contrôle (PV) de tous les ouvrages du jour', icon: 'pdf', value: 'pvgday' }, { label: 'Modèles de fiches (mes PDF)…', icon: 'upload', value: 'pvgtpl' }] : []),

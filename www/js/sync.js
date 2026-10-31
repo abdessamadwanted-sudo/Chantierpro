@@ -94,9 +94,22 @@ const Sync = (() => {
     const map = {};
     const put = (id, segs, name) => { if (id && !map[id]) map[id] = { segs: segs.map(s => clean(s)), name }; };
     const pj = (pid) => P[pid] || 'Projet';
+    // v1.0.47 : rangement « intelligent » (projets réorganisés ou nouveaux) : Plans / Zone / Niveau / NN Lot / Niveau_Lot_Ind-X_date
+    // (l'indice en vigueur seul, les anciens dans « _Anciens indices ») — chaque lot numéroté dans l'ordre des travaux
+    const FS = Object.fromEntries(folders.map(f => { const par = f.parentId && folders.find(x => x.id === f.parentId); return [f.id, par ? [par.name, f.name] : [f.name]]; }));
+    const v2 = (pid) => !!(PR[pid] && PR[pid].driveV2);
     for (const pl of plans) {
       // plan actuel dans le dossier du niveau ; anciens indices rangés à part (jamais écrasés)
       const old = !!pl.supersededBy, ind = pl.indice ? ` (ind ${pl.indice})` : '';
+      if (v2(pl.projectId)) {
+        const pr = PR[pl.projectId], lots = pr.planLots || [], li = lots.findIndex(l => l.id === pl.lotId), L = lots[li];
+        const fsg = FS[pl.folderId] || ['Sans niveau'], niv = (typeof nivOfFolder === 'function' && nivOfFolder(fsg[fsg.length - 1])) || fsg[fsg.length - 1];
+        const dir = [pj(pl.projectId), D.plans, ...fsg, ...(L ? [`${String(li + 1).padStart(2, '0')} ${L.name}`] : []), ...(old ? ['_Anciens indices'] : [])];
+        const dt = pl.indiceDate || new Date(pl.createdAt || Date.now()).toISOString().slice(0, 10);
+        const nm = clean(L ? `${niv}_${L.name}_Ind-${pl.indice || 'A'}_${dt}` : `${pl.name.replace(/ - p\d+$/, '')}_Ind-${pl.indice || 'A'}_${dt}`);
+        put(pl.pdfFileId, dir, nm); put(pl.dxfFileId, dir, nm); put(pl.dwgFileId, dir, nm); put(pl.fileId, [...dir, 'Aperçus'], nm);
+        continue;
+      }
       const base = old ? [pj(pl.projectId), D.plans, F[pl.folderId] || 'Sans dossier', 'Anciens indices'] : [pj(pl.projectId), D.plans, F[pl.folderId] || 'Sans dossier'];
       put(pl.pdfFileId, base, clean(pl.name.replace(/ - p\d+$/, '') + ind));
       put(pl.dxfFileId, base, clean(pl.name + ind));
@@ -112,7 +125,12 @@ const Sync = (() => {
       for (const z of l.zones || []) for (const pt of z.parts || []) for (const dd of pt.docs || []) if (dd.fileId) put(dd.fileId, [...base, 'Plans par ouvrage', z.name, pt.name], clean(dd.name));
       for (const [k, docs] of Object.entries(l.recDocs || {})) for (const dd of docs) if (dd.fileId) put(dd.fileId, [...base, 'Plans par ouvrage', (l.recNames || {})[k] || 'Ouvrage'], clean(dd.name));
       (l.photos || []).forEach((id, i) => put(id, [...base, 'Photos et notes', l.name || 'Pin'], `${clean(l.name || 'Photo')} - ${i + 1}`));
-      if (l.kind === 'local' && l.lots) { const pr = PR[l.projectId] || {}; for (const [lid, rr] of Object.entries(l.lots)) { const lot = (pr.lots || []).find(x => x.id === lid); (rr.photos || []).forEach((id, i) => put(id, [pj(l.projectId), '11 - Avancement', F[pl.folderId] || 'Sans dossier', lot ? lot.name : 'Lot', l.name || 'Local'], `${clean(l.name || 'Local')} - ${i + 1}`)); } }
+      if (l.kind === 'local' && l.lots) { const pr = PR[l.projectId] || {};
+        // v1.0.47 : Avancement / Zone / Niveau / Lot / Local (projets réorganisés)
+        const nv = v2(l.projectId) ? (pr.avNiveaux || []).find(n => n.id === l.nivId) : null, zn = nv ? ((l.zone && (pr.avZones || []).includes(l.zone)) ? l.zone : nv.zone || (pr.avZones || [])[0] || '') : '';
+        for (const [lid, rr] of Object.entries(l.lots)) { const lot = (pr.lots || []).find(x => x.id === lid); (rr.photos || []).forEach((id, i) => put(id, nv ? [pj(l.projectId), '11 - Avancement', ...(zn ? [zn] : []), nv.name, lot ? lot.name : 'Lot', l.name || 'Local'] : [pj(l.projectId), '11 - Avancement', F[pl.folderId] || 'Sans dossier', lot ? lot.name : 'Lot', l.name || 'Local'], `${clean(l.name || 'Local')} - ${i + 1}`)); }
+        if (nv) { for (const [eid, x] of Object.entries(l.etapes || {})) { const et = (pr.avEtapes || []).find(e => e.id === eid); (x.photos || []).forEach((id, i) => put(id, [pj(l.projectId), '11 - Avancement', ...(zn ? [zn] : []), nv.name, 'Étapes', l.name || 'Local'], `${clean(l.name || 'Local')} - ${et ? clean(et.name) : 'Étape'} ${i + 1}`)); }
+          for (const e of l.journal || []) (e.photos || []).forEach((id, i) => { const lot = (pr.lots || []).find(x => x.id === e.lot); put(id, [pj(l.projectId), '11 - Avancement', ...(zn ? [zn] : []), nv.name, lot ? lot.name : 'Lot', l.name || 'Local'], `${clean(l.name || 'Local')} - ${e.d} - ${i + 1}`); }); } }
       for (const n of l.notes || []) { const d = new Date(n.at).toISOString().slice(0, 10); (n.photos || []).forEach((id, i) => put(id, [...base, 'Photos et notes', l.name || 'Pin', 'Notes'], `Note ${d} - ${i + 1}`)); if (n.audio) put(n.audio, [...base, 'Photos et notes', l.name || 'Pin', 'Notes'], `Note vocale ${d}`); }
     }
     for (const d of recs) {
@@ -215,6 +233,8 @@ const Sync = (() => {
       // 1) envoyer les fichiers (photos, plans, PDF…) dans des dossiers rangés
       // v1.0.43 : résultats de l'envoi en arrière-plan (WorkManager) — les photos confiées au téléphone ne sont pas renvoyées ici
       if (typeof BgUp !== 'undefined' && BgUp.available()) { try { await BgUp.settle(); } catch (e) { console.warn('bgup settle', e); } }
+      // v1.0.47 : projets sans aucun fichier dans Drive → rangement intelligent directement (les autres : « Réorganiser Drive » avec aperçu)
+      try { const F0 = await DB.all('files'), inD = new Set(F0.filter(f => f.driveId).map(f => f.projectId)); for (const pr of await DB.all('projects')) if (pr.driveV2 == null && !inD.has(pr.id)) { pr.driveV2 = true; await DB.put('projects', pr); } } catch (e) { console.warn('v2', e); }
       const paths = await buildPaths();
       const files = await DB.all('files');
       const todo = !hasDrive() ? [] : files.filter(f => !f.bgq && !f.prep).filter(f => (f.blob && (!f.driveId || f.drivePath !== JSON.stringify(pathFor(f, paths)))) || (!f.blob && f.driveId && f.drivePath && f.drivePath !== JSON.stringify(pathFor(f, paths))));

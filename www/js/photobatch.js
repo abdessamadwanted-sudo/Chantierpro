@@ -43,6 +43,12 @@ function pbPath(f, D, P, moisDe, clean) {
 // v1.0.41 : organisation des dossiers Drive du projet — renommer / renuméroter les rubriques (déplace les fichiers, sans doublon)
 async function openDriveNames(p) {
   p = p || App.project; if (!p || typeof Sync === 'undefined' || !Sync.DIRS) return;
+  // v1.0.47 : rangement intelligent (Zone › Niveau › Lot › Indice / Date) — aperçu avant de déplacer les fichiers déjà dans Drive
+  const w = await menu('🗂 Dossiers Drive du projet', [
+    { label: p.driveV2 ? '✓ Rangement intelligent actif' : '✨ Réorganiser Drive (aperçu)', sub: 'Plans › Niveau › Lot › Niveau_Lot_Ind_date · anciens indices à part', icon: 'folder', value: 'v2' },
+    { label: 'Renommer / renuméroter les rubriques', icon: 'edit', value: 'names' }]);
+  if (w === 'v2') return driveReorg(p);
+  if (w !== 'names') return;
   const names = [...new Set([...Object.values(Sync.DIRS), 'Réserves', 'Rapports journaliers', 'Formulaires', '10 - Lots'])];
   const cur = p.driveNames || {};
   const r = await formSheet('🗂 Dossiers Drive du projet', [
@@ -54,4 +60,22 @@ async function openDriveNames(p) {
   else { const o = {}; names.forEach((n, i) => { const v = (r['n' + i] || '').trim(); if (v && v !== n) o[n] = v; }); if (Object.keys(o).length) p.driveNames = o; else delete p.driveNames; }
   await DB.put('projects', p); toast('Dossiers Drive enregistrés ✓ — rangement à la prochaine synchro');
   try { Sync.schedule(800); } catch (e) {}
+}
+
+// v1.0.47 : aperçu du rangement intelligent — rien n'est supprimé ni renvoyé : les fichiers déjà dans Drive sont seulement déplacés
+async function driveReorg(p) {
+  if (p.driveV2) { if (await confirmBox('Le rangement intelligent est actif. Revenir à l\'ancien rangement ? (les fichiers seront redéplacés)', 'Revenir')) { p.driveV2 = false; await DB.put('projects', p); try { Sync.schedule(800); } catch (e) {} toast('Ancien rangement rétabli à la prochaine synchro'); } return; }
+  const ld = loading('Préparation de l\'aperçu…'); let moves = [];
+  try {
+    const was = p.driveV2; p.driveV2 = true; await DB.put('projects', p);
+    const paths = await Sync.buildPaths(), files = (await DB.byProject('files', p.id)).filter(f => f.driveId);
+    for (const f of files) { const np = Sync.pathFor(f, paths), k = JSON.stringify(np); if (f.drivePath && f.drivePath !== k) moves.push({ f, np }); }
+    p.driveV2 = was; await DB.put('projects', p);
+  } finally { ld.close(); }
+  const by = {}; for (const m of moves) { const k = m.np.segs.slice(1).join(' › '); by[k] = (by[k] || 0) + 1; }
+  const L = Object.entries(by).sort((a, b) => a[0].localeCompare(b[0], 'fr', { numeric: true }));
+  const ok = await confirmBox(moves.length ? `${moves.length} fichier(s) déjà dans Drive seront déplacés (rien n'est supprimé ni renvoyé) :\n\n${L.slice(0, 18).map(([k, n]) => `• ${k} (${n})`).join('\n')}${L.length > 18 ? `\n… et ${L.length - 18} autre(s) dossier(s)` : ''}` : 'Aucun fichier à déplacer : les nouveaux fichiers seront rangés directement.', 'Réorganiser');
+  if (!ok) return;
+  p.driveV2 = true; await DB.put('projects', p); toast('Rangement intelligent activé ✓ — déplacement à la synchro');
+  try { Sync.schedule(500); } catch (e) {}
 }

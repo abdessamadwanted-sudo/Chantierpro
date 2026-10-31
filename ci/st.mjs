@@ -1095,6 +1095,91 @@ try {
   log('avancement de deux lots (pins coupés)', await A.pg.evaluate(() => [document.querySelectorAll('.av-ov path').length, !!document.querySelector('[data-a=twoimg]')])); await shot(A.pg, '213_deux_lots');
   await A.pg.evaluate(() => document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()));
   log('errors v1.0.46', v46);
+  // ---- v1.0.47 : plans A0 par tuiles, ordre des niveaux, lien Plans ↔ Avancement, zones par joints, Pro (choix, période, total, équipes), saisie intelligente, photos classées
+  const v47 = [];
+  const b47 = await A.pg.evaluate(async () => {
+    const o = {};
+    o.tiles = [typeof pdfPageToBlob, PDF_MAXSIDE, planNeedsHeal({ pdfFileId: 'x', w: 5000, h: 3535 }), planNeedsHeal({ pdfFileId: 'x', w: 4000, h: 2800 })];
+    o.order = ['R+1', 'RDC', 'SSL', '2-MEZZ', 'R+2', 'Terrasse', 'SS2'].map(n => ({ name: n })).sort((a, b) => avNivRank(a.name) - avNivRank(b.name)).map(x => x.name).join(',');
+    const p = App.project; o.lots = avLotsOrdered({ lots: [{ id: 'p', name: 'Peinture' }, { id: 'c', name: 'Chape' }, { id: 'm', name: 'Maçonnerie' }, { id: 'e', name: 'Enduit' }] }).map(l => l.name).join(',');
+    // lien Plans → Avancement : dossier « 3-R+2 » avec un plan général et un plan maçonnerie
+    const f = await DB.put('folders', { projectId: p.id, name: '3-R+2' }), base = await latestPlanOfSerie(p.id, p.avNiveaux[0].serieId);
+    const g = await DB.put('plans', { projectId: p.id, folderId: f.id, fileId: base.fileId, w: base.w, h: base.h, name: 'R+2 général', annotations: [], indice: 'A' });
+    const m = await DB.put('plans', { projectId: p.id, folderId: f.id, lotId: 'mac', fileId: base.fileId, w: base.w, h: base.h, name: 'R+2 maçonnerie', annotations: [], indice: 'B', indiceDate: '2026-10-20' });
+    await avSyncFromPlans(p, true); const n = p.avNiveaux.find(x => x.folderId === f.id), mac = p.lots.find(l => /ma[cç]on/i.test(l.name));
+    o.sync = n ? [n.name, n.serieId === planSerie(g), !!(n.lotPlan || {})[mac.id], (n.plans || []).length] : null;
+    const lp = n && await avLotPlan(p, n, mac.id); o.lotPlan = lp ? lp.plan.name : '';
+    // zones par joints : stade (secteurs) et bâtiment (bandes)
+    const T = [], C = [500, 400]; for (let k = 1; k <= 8; k++) { const a = (k - 1) * Math.PI / 4; T.push({ s: 'JD' + String(k).padStart(2, '0'), x: C[0] + 300 * Math.cos(a), y: C[1] + 300 * Math.sin(a), w: 30, h: 10 }); T.push({ s: 'JD ' + k, x: C[0] + 150 * Math.cos(a), y: C[1] + 150 * Math.sin(a), w: 30, h: 10 }); }
+    const J = avJointsOf(T), c = avJointsCenter(J, 1000, 800), R = avRadialZones(J, c, 1000, 800, 'zone', 1);
+    const S = avStripZones([{ k: 'JD01', n: 1, P: [[300, 10], [300, 700]] }, { k: 'JD02', n: 2, P: [[650, 10], [650, 700]] }], 1000, 800, 'joint', 1);
+    o.joints = [J.length, Math.abs(c[0] - 500) < 30 ? 50 : c[0], Math.abs(c[1] - 400) < 30 ? 40 : c[1], R.length, R[0].zone, avZoneAt({ zonePolys: R }, C[0] + 200 * Math.cos(Math.PI / 8), C[1] + 200 * Math.sin(Math.PI / 8)), S.length, avZoneAt({ zonePolys: S }, 500, 300)];
+    // saisie express
+    const { locaux, nivs } = await avData(p), pin = locaux.find(l => l.nivId === 'n1'), nv = nivs.find(x => x.id === 'n1');
+    const x = avParseLine(p, `${nv.name} ${mac.name.slice(0, 4)} ${pin.name} 80 6p`, nivs, locaux); o.express = x ? [x.loc && x.loc.id === pin.id, x.lot && x.lot.id, x.pct, x.eff, x.err] : null;
+    // lot terminé → plus d'alerte rouge ; retard en jours sinon
+    p.avPlan = p.avPlan || {}; p.avPlan['n1|' + mac.id] = { deb: avAddDays(todayISO(), -9), fin: avAddDays(todayISO(), -4) };
+    const L = locaux.filter(l => l.nivId === 'n1'), a1 = avLotPlanning(p, nv, mac, L); p.avPlan['n1|' + mac.id].done = avAddDays(todayISO(), -1); const a2 = avLotPlanning(p, nv, mac, L); delete p.avPlan['n1|' + mac.id].done; await DB.put('projects', p);
+    o.done = [a1.late, (a1.al[0] || [])[1], !!a2.finR, (a2.al[0] || [''])[0]];
+    o.period = ['today', 'week', 'total'].map(k => avPeriod({ pk: k }).l).join('|');
+    return o; });
+  log('v1.0.47 : tuiles A0, ordre, lien plans, joints, express, terminé', b47);
+  if (b47.tiles[0] !== 'function' || b47.tiles[1] !== 4096 || !b47.tiles[2] || b47.tiles[3]) v47.push('tuiles A0');
+  if (b47.order !== 'SS2,SSL,RDC,2-MEZZ,R+1,R+2,Terrasse') v47.push('ordre des niveaux');
+  if (b47.lots !== 'Maçonnerie,Enduit,Chape,Peinture') v47.push('ordre des lots');
+  if (!b47.sync || b47.sync[0] !== 'R+2' || !b47.sync[1] || !b47.sync[2] || b47.lotPlan !== 'R+2 maçonnerie') v47.push('lien Plans → Avancement');
+  if (b47.joints[0] !== 8 || b47.joints[1] !== 50 || b47.joints[2] !== 40 || b47.joints[3] !== 8 || b47.joints[4] !== 'Zone 1' || b47.joints[5] !== 'Zone 1' || b47.joints[6] !== 3 || b47.joints[7] !== 'Joint 2') v47.push('zones par joints');
+  if (!b47.express || !b47.express[0] || b47.express[2] !== 80 || b47.express[3] !== 6 || b47.express[4]) v47.push('saisie express');
+  if (b47.done[0] !== 4 || !/En retard de 4 j/.test(b47.done[1]) || !b47.done[2] || b47.done[3] !== 'o') v47.push('lot terminé / retard');
+  // Pro : barre de choix (listes déroulantes), période, total, équipes & sous-traitants
+  await A.pg.evaluate(async () => { const p = App.project; for (const t of [{ id: 't1', name: 'Sgtm', type: 'int', color: '#2563eb' }, { id: 't2', name: 'STE Atlas', type: 'st', soc: 'Atlas SARL', color: '#ea580c' }]) if (!avTeam(p, t.id)) avTeams(p).push(t);
+    const L = (await DB.byProject('links', p.id)).filter(l => l.kind === 'local' && l.nivId === 'n1'); const lot = p.lots[0];
+    for (const [i, l] of L.slice(0, 2).entries()) { avEntryOn(p, l, { d: todayISO(), lot: lot.id, pct: 50 + i * 25, eq: i ? 't2' : 't1', eff: 4 + i }); await DB.put('links', l); }
+    await DB.put('projects', p); document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.avTab = 'dash'; App.avF = null; try { localStorage.removeItem('avF.' + p.id); } catch (e) {} await renderSection(); });
+  await A.pg.waitForSelector('.avf-bar select[data-fk=pk]', { timeout: 8000 });
+  await A.pg.selectOption('.avf-bar select[data-fk=pk]', 'today'); await A.pg.waitForTimeout(400);
+  const pro47 = await A.pg.evaluate(() => ({ sel: [...document.querySelectorAll('.avf-bar select')].map(s => s.dataset.fk).join(','), scope: (document.querySelector('.avf-scope') || {}).textContent, gain: (document.querySelector('.avp-gain b') || {}).textContent,
+    total: !!document.querySelector('.avp-totr .avp-tot.big'), teams: document.querySelectorAll('.avte-c').length, st: !!document.querySelector('.avte-lg') && /Sous-traitant/.test(document.querySelector('.avte-lg').textContent) }));
+  log('Pro : choix, période, total, équipes', pro47); await shot(A.pg, '220_pro_choix_periode');
+  if (!/zone,niv,lot,eq.*pk/.test(pro47.sel) || !/Aujourd'hui/.test(pro47.scope) || !pro47.total || pro47.teams < 2 || !pro47.st) v47.push('Pro : barre de choix / équipes');
+  await A.pg.evaluate(() => { const t = document.querySelector('.avte-c'); t.scrollIntoView(); }); await A.pg.waitForTimeout(200); await shot(A.pg, '221_equipes_sous_traitants');
+  await A.pg.click('.avte-c'); await A.pg.waitForSelector('.avtf', { timeout: 5000 }); await shot(A.pg, '222_fiche_equipe');
+  log('fiche équipe', await A.pg.evaluate(() => [...document.querySelectorAll('.avtf-k b')].map(b => b.textContent).join(' | ')));
+  // tableau rapide : toucher une case → 25 %, enregistrer → journal
+  await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); openAvTable(App.project, { nivId: 'n1' }); });
+  await A.pg.waitForSelector('.avt td[data-c]', { timeout: 8000 });
+  const c47 = await A.pg.evaluate(() => { const td = [...document.querySelectorAll('.avt td[data-c]')].find(t => t.textContent.trim() === '0'); return td ? td.dataset.c : ''; });
+  await A.pg.click(`.avt td[data-c="${c47}"]`); await A.pg.waitForTimeout(200); await shot(A.pg, '223_tableau_rapide');
+  const t47a = await A.pg.evaluate(() => [document.querySelector('.avt-foot b').textContent, document.querySelector('.avt td.ch') ? document.querySelector('.avt td.ch').textContent.trim() : '']);
+  await A.pg.click('.avt-foot [data-a=save]'); await A.pg.waitForTimeout(600);
+  const t47 = await A.pg.evaluate(async (c) => { const [lid, lot] = c.split('|'), l = await DB.get('links', lid); const e = (l.journal || []).filter(x => x.lot === lot).pop(); return [e ? e.pct : null, e ? e.src : '', document.querySelector('.avt-foot b').textContent]; }, c47);
+  log('tableau rapide [modif, case, journal]', t47a, t47); if (t47a[0] !== '1' || t47a[1] !== '25' || t47[0] !== 25 || t47[1] !== 'tab' || t47[2] !== '0') v47.push('tableau rapide');
+  // visionneuse : plan du lot affiché, bouton comparer, sélection plusieurs pins
+  await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); const p = App.project, n = p.avNiveaux.find(x => x.name === 'R+2'); const mac = p.lots.find(l => /ma[cç]on/i.test(l.name)); openAvViewer(n.id, mac.id, () => {}); });
+  await A.pg.waitForSelector('.av-page .av-ov', { timeout: 8000 }); await A.pg.waitForTimeout(400);
+  const vw47 = await A.pg.evaluate(() => [document.querySelector('.av-page .tb-title').textContent.trim(), !!document.querySelector('.av-page [data-a=cmpq]'), !!document.querySelector('.av-page [data-a=sel]')]);
+  await A.pg.click('.av-page [data-a=sel]'); await A.pg.waitForTimeout(200);
+  const sl47 = await A.pg.evaluate(() => [!!document.querySelector('.av-legend [data-s=lasso]'), !!document.querySelector('.av-legend [data-s=go]')]); await shot(A.pg, '224_selection_pins');
+  log('visionneuse : plan du lot, comparer, sélection', vw47, sl47); if (!/R\+2/.test(vw47[0]) || !/ma[cç]onnerie/i.test(vw47[0]) || !vw47[1] || !sl47[0] || !sl47[1]) v47.push('visionneuse lot / sélection');
+  // Plans › lot › niveau : bloc avancement (lien direct, dates, terminé)
+  const lp47 = await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); const p = App.project, f = (await DB.byProject('folders', p.id)).find(x => x.name === '3-R+2'), L = planLots(p).find(l => l.id === 'mac');
+    const el = avLotPanelBlock(p, L, f, () => {}); el.id = 'lp47'; const host = document.createElement('div'); host.className = 'fullpage'; host.style.cssText = 'padding:16px;overflow:auto'; host.innerHTML = '<div class="lot-panel open" style="--c:#ef4444"></div>'; host.firstChild.appendChild(el); document.body.appendChild(host);
+    await new Promise(r => setTimeout(r, 900)); return [!!el.querySelector('details.lpa'), !!el.querySelector('[data-a=plan]'), !!el.querySelector('[data-a=done]'), !!el.querySelector('.lpa-dates'), (el.querySelector('.lpa-sum') || {}).textContent]; });
+  await shot(A.pg, '225_plans_lot_avancement'); log('Plans › lot : bloc avancement', lp47); if (!lp47.slice(0, 4).every(Boolean)) v47.push('bloc avancement dans Plans');
+  // Photos classées : « À classer » + groupes ; menu Réglages compact avec recherche
+  await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); const p = App.project, c = document.createElement('canvas'); c.width = 60; c.height = 120; c.getContext('2d').fillRect(0, 0, 30, 30);
+    const b = await new Promise(r => c.toBlob(r, 'image/jpeg')); await DB.put('files', { projectId: p.id, blob: b, mime: 'image/jpeg', name: 'Screenshot_2026.jpg', role: 'photo' }); App.section = 'photos'; await renderSection(); });
+  await A.pg.waitForSelector('.ph-todo', { timeout: 8000 }); await shot(A.pg, '226_photos_classees');
+  const ph47 = await A.pg.evaluate(() => [document.querySelector('.ph-todo summary small').textContent, !!document.querySelector('[data-a=classall]'), !!document.querySelector('[data-a=shots]'), typeof DR_GROUPS !== 'undefined' && DR_GROUPS[0][2].includes('photos')]);
+  log('photos classées [à classer, classer, captures, photos dans Chantier ?]', ph47); if (!+ph47[0] || !ph47[1] || !ph47[2] || ph47[3]) v47.push('photos classées');
+  await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); window.__gm = groupMenu('Réglages', [{ title: 'Compte', color: '#2563eb', items: Array.from({ length: 4 }, (_, i) => ({ label: 'Item ' + i, icon: 'edit', value: 'a' + i })) }, { title: 'Données', color: '#0ea5e9', items: [{ label: 'Drive', icon: 'cloud', value: 'd' }, { label: 'Stockage', icon: 'cloud', value: 's' }, { label: 'Corbeille', icon: 'trash', value: 't' }] }]); });
+  await A.pg.waitForSelector('.gm-sr input'); await A.pg.fill('.gm-sr input', 'corb'); await A.pg.waitForTimeout(150);
+  const gm47 = await A.pg.evaluate(() => [...document.querySelectorAll('.gm-i')].filter(b => b.style.display !== 'none').map(b => b.textContent.trim()));
+  await shot(A.pg, '227_menu_recherche'); log('menu compact : recherche', gm47); if (gm47.length !== 1 || !/Corbeille/.test(gm47[0])) v47.push('menu recherche');
+  const ot47 = await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); return null; });
+  void ot47;
+  await A.pg.evaluate(() => document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()));
+  log('errors v1.0.47', v47);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);
