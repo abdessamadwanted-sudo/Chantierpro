@@ -1078,6 +1078,22 @@ try {
   await A.pg.waitForSelector('.avc-page', { timeout: 8000 }); await A.pg.waitForTimeout(500); await shot(A.pg, '211_comparaison_plans');
   log('comparaison de plans (rideau)', await A.pg.evaluate(() => [!!document.querySelector('.avc-b'), document.querySelector('.avc-b').style.clipPath]));
   await A.pg.evaluate(() => document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()));
+  // planning des lots : dates prévues → alertes ; calage manuel 2 points ; avancement de deux lots
+  const pl46 = await A.pg.evaluate(async () => { const p = App.project, lot = p.lots[1], n2 = p.avNiveaux.find(n => n.id === 'n2'), n1 = p.avNiveaux.find(n => n.id === 'n1');
+    p.avPlan = { ['n1|' + p.lots[0].id]: { deb: avAddDays(todayISO(), -20), fin: avAddDays(todayISO(), -2) }, ['n2|' + lot.id]: { deb: avAddDays(todayISO(), -10), fin: avAddDays(todayISO(), 3) }, ['n1|' + p.lots[2].id]: { deb: avAddDays(todayISO(), -5), fin: avAddDays(todayISO(), 30) } }; await DB.put('projects', p);
+    const L = (await DB.byProject('links', p.id)).filter(l => l.kind === 'local');
+    const a = avLotPlanning(p, n1, p.lots[0], L.filter(l => l.nivId === 'n1')), b = avLotPlanning(p, n2, lot, L.filter(l => l.nivId === 'n2')), c = avLotPlanning(p, n1, p.lots[2], L.filter(l => l.nivId === 'n1'));
+    const m = avSim([0, 0], [100, 0], [10, 20], [10, 220]), q = avApply(m, 100, 0), back = avApply(avInv(m), 10, 220);
+    return { a: a.al.map(x => x[1]), b: b.al.map(x => x[1]), c: c.al.map(x => x[1]), sim: [Math.round(q[0]), Math.round(q[1]), Math.round(back[0]), Math.round(back[1])] }; });
+  log('planning des lots : alertes [lot fini en retard ?, fin proche, pas démarré] + calage 2 points', pl46);
+  if (!pl46.c.some(x => /Pas démarré/.test(x)) || !pl46.b.some(x => /Fin dans|rythme/.test(x)) || pl46.sim.join() !== '10,220,100,0') v46.push('planning / calage');
+  await A.pg.evaluate(async () => { App.avTab = 'dash'; App.avF = null; await renderSection(); }); await A.pg.waitForSelector('.avp-pt', { timeout: 8000 });
+  await A.pg.evaluate(() => document.querySelector('.avp-pt').scrollIntoView()); await A.pg.waitForTimeout(300); await shot(A.pg, '212_planning_des_lots');
+  log('planning : cases, alertes', await A.pg.evaluate(() => [document.querySelectorAll('.avp-pt td[data-pl]').length, document.querySelectorAll('.avp-al').length]));
+  await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); openAvViewer('n1', null, () => {}); }); await A.pg.waitForSelector('.av-page [data-a=plans]');
+  await A.pg.click('.av-page [data-a=plans]'); await A.pg.click('.opt:has-text("Avancement de deux lots")'); await A.pg.locator('.sheet .opt').first().click(); await A.pg.waitForTimeout(250); await A.pg.locator('.sheet .opt').first().click(); await A.pg.waitForTimeout(500);
+  log('avancement de deux lots (pins coupés)', await A.pg.evaluate(() => [document.querySelectorAll('.av-ov path').length, !!document.querySelector('[data-a=twoimg]')])); await shot(A.pg, '213_deux_lots');
+  await A.pg.evaluate(() => document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()));
   log('errors v1.0.46', v46);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {

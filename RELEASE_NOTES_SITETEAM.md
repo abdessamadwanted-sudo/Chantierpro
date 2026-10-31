@@ -23,4 +23,8 @@
 - Plusieurs plans par niveau (architecte, numérotation ANEP, chape, maçonnerie…), avec un plan par lot.
 - Calque ANEP sur le plan architecte : seuls les numéros propres à l'ANEP s'affichent (calage automatique par les textes communs). « Donner aux pins leur numéro ANEP » remplit le numéro de chaque local.
 - Comparaison de deux plans du même niveau (ex. chape architecte ↔ chape exécution) : rideau, transparence ou clignotement, calés automatiquement.
+- Comparaison entre lots du même niveau (ex. RDC : gros œuvre ↔ enduit, ou ↔ chape) : chaque lot a son plan. Calage automatique (textes communs : axes, joints) ou manuel (2 points touchés sur chaque plan, mémorisé). Le calage manuel sert aussi au calque ANEP.
+- Avancement de deux lots sur le même plan : chaque pin est coupé en deux (◐ lot 1, ◑ lot 2). Le nombre de locaux prêts pour le lot suivant s'affiche (ex. maçonnerie finie, enduit pas commencé). L'image se partage par WhatsApp.
+- Planning des lots, grand tableau niveaux × lots (par zone) avec, pour chaque case : %, début et fin prévus, début et fin réels (tirés des saisies) et date de fin prévue au rythme actuel.
+- Alertes : pas démarré, démarrage dans 7 jours, fin dépassée, fin dans 7 jours, retard prévu au rythme actuel, terminé dans les délais ou en retard. Les dates s'appliquent à un niveau, à une zone ou à tous les niveaux. Le planning et les alertes sont aussi dans le PDF.
 - Plans : zoom sans tremblement. La partie nette apparaît en fondu, et une marge autour de l'écran reste nette quand on déplace le plan.

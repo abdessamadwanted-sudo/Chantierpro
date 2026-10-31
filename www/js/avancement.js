@@ -263,6 +263,10 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
     $('.av-chips.lots', el).innerHTML = p.lots.map(l => { const s = avStats(st.locs, l.id); return `<button data-l="${l.id}" class="${st.lot === l.id ? 'on' : ''}" style="--c:${l.color}"><i></i>${esc(l.name)} <small>${s.pct}%</small></button>`; }).join('');
     $$('.av-chips.lots [data-l]', el).forEach(b => b.onclick = () => { st.lot = b.dataset.l; st.filter = null; drawUI(); });
     const s = avStats(st.locs, st.lot);
+    if (st.two) { const [la, lb] = st.two.map(id => avLot(p, id)), done = (id) => st.locs.filter(l => avIsDone(avStatus((l.lots || {})[id]))).length, gap = st.locs.filter(l => avIsDone(avStatus((l.lots || {})[la.id])) && avStatus((l.lots || {})[lb.id]) === 'todo').length;
+      $('.av-legend', el).innerHTML = `<span class="avt-l"><b style="color:${la.color}">◐ ${esc(la.name)}</b> ${done(la.id)}/${st.locs.length} · <b style="color:${lb.color}">◑ ${esc(lb.name)}</b> ${done(lb.id)}/${st.locs.length}${gap ? ` · <em>${gap} prêt(s) pour ${esc(lb.name)}</em>` : ''}</span><button data-a="twoimg">${icon('share')} Image</button>`;
+      $('[data-a=twoimg]', el).onclick = async () => { const ld = loading('Préparation de l\'image…'); try { const c = await avTwoLotsImage(p, plan, st.locs, la, lb, `${niv.name} — ${la.name} / ${lb.name}`); const b = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9)); ld.close(); await shareBlob(b, avFileName(`${p.name} ${niv.name} ${la.name}-${lb.name}`) + '.jpg'); } catch (e) { ld.close(); alertBox(e.message || String(e)); } };
+      const ab2 = $('[data-a=add]', el); ab2.classList.toggle('on', !!st.add); drawMarkers(); return; }
     $('.av-legend', el).innerHTML = Object.entries(AV_ST).filter(([k]) => s[k]).map(([k, [l, c]]) => `<button data-f="${k}" class="${st.filter === k ? 'on' : ''}"><i style="background:${c}"></i>${s[k]} ${l}</button>`).join('') || `<span class="muted">Touchez « + Local » puis le plan pour placer les locaux</span>`;
     $$('.av-legend [data-f]', el).forEach(b => b.onclick = () => { st.filter = st.filter === b.dataset.f ? null : b.dataset.f; drawUI(); });
     const ab = $('[data-a=add]', el); ab.classList.toggle('on', st.add || !!st.zdraw); ab.innerHTML = st.zdraw ? `${icon('check')} Terminer la zone` : st.add ? `${icon('check')} Terminer` : `${icon('plus')} Pin`;
@@ -286,7 +290,8 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
       return `<g transform="translate(${l.x},${l.y})" opacity="${dim ? 0.2 : 1}">
         ${l.checkIndice ? `<circle r="${R * 1.7}" fill="none" stroke="#f59e0b" stroke-width="${2.5 / s}" stroke-dasharray="${4 / s} ${3 / s}"/>` : ''}
         ${ltc ? `<circle r="${R * 1.45}" fill="none" stroke="${ltc}" stroke-width="${3.5 / s}"/>` : ''}
-        ${l.type === 'travail' ? `<rect x="${-R}" y="${-R * 0.75}" width="${R * 2}" height="${R * 1.5}" rx="${R * 0.3}" fill="${c}" stroke="#fff" stroke-width="${2.5 / s}"/>` : `<circle r="${R}" fill="${c}" stroke="#fff" stroke-width="${2.5 / s}"/>`}
+        ${st.two ? (() => { const [la, lb] = st.two.map(id => avLot(p, id)), ca = AV_ST[avStatus((l.lots || {})[la.id])][1], cb = AV_ST[avStatus((l.lots || {})[lb.id])][1];
+          return `<path d="M0,${-R} A${R},${R} 0 0 0 0,${R} Z" fill="${ca}"/><path d="M0,${-R} A${R},${R} 0 0 1 0,${R} Z" fill="${cb}"/><circle r="${R}" fill="none" stroke="#fff" stroke-width="${2.5 / s}"/><line y1="${-R}" y2="${R}" stroke="#fff" stroke-width="${2 / s}"/>`; })() : l.type === 'travail' ? `<rect x="${-R}" y="${-R * 0.75}" width="${R * 2}" height="${R * 1.5}" rx="${R * 0.3}" fill="${c}" stroke="#fff" stroke-width="${2.5 / s}"/>` : `<circle r="${R}" fill="${c}" stroke="#fff" stroke-width="${2.5 / s}"/>`}
         ${(l.journal || []).some(e => e.d === todayISO()) ? `<circle cx="${R * 0.85}" cy="${-R * 0.85}" r="${R * 0.38}" fill="#f59e0b" stroke="#fff" stroke-width="${1.5 / s}"/>` : ''}
         ${avIsDone(k) ? `<path d="M${-R * 0.45},0 L${-R * 0.1},${R * 0.38} L${R * 0.5},${-R * 0.35}" fill="none" stroke="#fff" stroke-width="${2.6 / s}" stroke-linecap="round"/>` : k === 'late' ? `<text y="${R * 0.42}" text-anchor="middle" font-size="${R * 1.3}" font-weight="700" fill="#fff" font-family="Arial">!</text>` : ''}
         ${showLbl ? `<text y="${R * 2.4}" text-anchor="middle" font-size="${12 / s}" font-weight="700" fill="#111" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="${3.5 / s}">${esc(l.name)}${l.anep ? ' · ' + esc(l.anep) : ''}</text>` : ''}</g>`;
@@ -322,7 +327,9 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
       ...((niv.zonePolys || []).length ? [{ label: `Zones dessinées (${niv.zonePolys.length})…`, icon: 'layers', value: 'zones' }] : []),
       { label: 'Importer les locaux du plan (textes du PDF)', icon: 'upload', value: 'imp' },
       { label: 'Plans du niveau (ANEP, chape, maçonnerie…)', icon: 'plans', value: 'plans' },
+      { label: 'Comparer deux lots (plans calés)', icon: 'swap', value: 'cmpl' },
       { label: 'Comparer deux plans du niveau', icon: 'swap', value: 'cmp' },
+      { label: st.two ? 'Arrêter la comparaison d\'avancement' : 'Avancement de deux lots (pins coupés en deux)', icon: 'layers', value: 'two' },
       ...(hasAnep ? [{ label: st.anep ? 'Masquer la numérotation ANEP' : 'Afficher la numérotation ANEP', icon: 'eye', value: 'anep' }, { label: 'Donner aux pins leur numéro ANEP', icon: 'edit', value: 'anepPins' }] : []),
       { label: 'Secteurs et zones…', icon: 'settings', value: 'sect' },
     ]);
@@ -331,6 +338,8 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
     if (v === 'imp') { const n = await avImportLocaux(p, niv, plan); if (n) await refresh(); }
     if (v === 'plans') await avNivPlansMenu(p, niv);
     if (v === 'cmp') avComparePlans(p, niv);
+    if (v === 'cmpl') avCompareLots(p, niv);
+    if (v === 'two') { if (st.two) st.two = null; else { const a = await menu('Lot de gauche ◐', p.lots.map(l => ({ label: l.name, swatch: l.color, value: l.id }))); if (!a) return; const b = await menu('Lot de droite ◑', p.lots.filter(l => l.id !== a).map(l => ({ label: l.name, swatch: l.color, value: l.id }))); if (!b) return; st.two = [a, b]; } drawUI(); }
     if (v === 'anep') { st.anep = !st.anep; if (st.anep && !st.anepL) { const ld = loading('Lecture de la numérotation ANEP…'); try { st.anepL = await avAnepLabels(p, niv, plan) || []; } finally { ld.close(); } if (!st.anepL.length) toast('Aucune numérotation propre au plan ANEP trouvée'); } drawUI(); }
     if (v === 'anepPins') { await avAnepToPins(p, niv, plan); await refresh(); }
     if (v === 'sect') { await avSecteursEdit(p); drawUI(); }

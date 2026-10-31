@@ -203,6 +203,7 @@ async function avProDash(root, p, nivs, locaux) {
       <div class="avp-mxw"><table class="avp-mx"><tr><th></th>${lots.map(l => `<th style="--c:${l.color}">${esc(l.name)}</th>`).join('')}<th>Total</th></tr>
       ${rows.map(r => `<tr><td class="avp-rh" data-row="${r.k}"${r.c ? ` style="box-shadow:inset 4px 0 0 ${r.c}"` : ''}><b>${esc(r.label)}</b><small>${esc(r.sub || '')} · ${r.L.length} pin(s)</small></td>${lots.map(lot => { const { s, c } = cell(r.L, lot);
         return `<td data-cell="${r.k}|${lot.id}"><div class="avp-cell" style="--p:${s.pct}%;--c:${c}"><b>${s.n ? s.pct + '%' : '—'}</b>${s.late ? `<i>${s.late}⚠</i>` : ''}</div></td>`; }).join('')}<td><b class="avp-tot">${avAvg(r.L, lots)}%</b></td></tr>`).join('') || `<tr><td colspan="${lots.length + 2}" class="muted">Aucun niveau dans ce filtre</td></tr>`}</table></div></div>
+    ${typeof avPlanningHTML === 'function' ? avPlanningHTML(p, nivs.filter(n => L.some(l => l.nivId === n.id) || (!F.zone && !F.sect && !F.lt && !F.eq && (!F.niv || n.id === F.niv))), L, lots) : ''}
     <div class="avp-card"><div class="avp-h">☀️ Aujourd'hui <span>${E.length}</span><button class="avp-lnk" data-a="jour">Saisir ›</button></div>
       ${E.length ? E.slice(0, 12).map(({ e, l, n }) => { const lot = avLot(p, e.lot), t = avTeam(p, e.eq); return `<div class="avp-today"><i style="background:${lot.color}"></i><span class="grow"><b>${esc(n ? n.name : '')} · ${esc(l.name)}</b><small>${esc(lot.name)}${t ? ' · ' + esc(t.name) : ''}${e.eff ? ' · ' + e.eff + ' pers.' : ''}</small></span><b>${e.pct}%</b></div>`; }).join('') : '<div class="muted avp-pad">Aucune saisie aujourd\'hui</div>'}</div>
     <div class="avp-card"><div class="avp-h">👷 Équipes (${F.per} j)<button class="avp-lnk" data-a="teams">Gérer ›</button></div>
@@ -222,6 +223,7 @@ async function avProDash(root, p, nivs, locaux) {
   const jb = $('[data-a=jour]', root); if (jb) jb.onclick = () => openAvJour(p);
   const tb = $('[data-a=teams]', root); if (tb) tb.onclick = async () => { await avTeamsMenu(p); redraw(); };
   $$('[data-x]', root).forEach(b => b.onclick = () => avProExport(b.dataset.x, p, nivs, locaux));
+  $$('[data-pl]', root).forEach(b => b.onclick = async () => { const [nid, lid] = b.dataset.pl.split('|'); if (await avPlanningEdit(p, nivs.find(n => n.id === nid), avLot(p, lid), nivs)) redraw(); });
 }
 async function avTeamsMenu(p) {
   for (;;) {
@@ -272,6 +274,8 @@ async function avProExport(kind, p, nivs, locaux) {
           doc.setTextColor(30, 30, 30); doc.setFont('helvetica', 'bold'); doc.text(`${avAvg(LL, lots)}%`, M + 40 + lots.length * cw + cw / 2, R.y + 5, { align: 'center' }); R.y += 7.5; }
         R.y += 4;
       }
+      if (typeof avLotPlanning === 'function') { const AL = []; for (const n of N) { const LL = L.filter(l => l.nivId === n.id); if (!LL.length) continue; for (const lot of lots) { const x = avLotPlanning(p, n, lot, LL); if (x.P.deb || x.P.fin || x.al.length) AL.push([n, lot, x]); } }
+        if (AL.length) { R.text('Planning des lots', { size: 12, bold: true, gap: 2 }); for (const [n, lot, x] of AL) R.text(`${avZoneOf(p, n)} · ${n.name} · ${lot.name} — ${x.s.pct} % · prévu ${x.P.deb ? fmtDate(x.P.deb) : '—'} → ${x.P.fin ? fmtDate(x.P.fin) : '—'}${x.debR ? ' · réel ' + fmtDate(x.debR) : ''}${x.finR ? ' → ' + fmtDate(x.finR) : x.prev ? ' · prévision ' + fmtDate(x.prev) : ''}${x.al.length ? ' · ' + x.al.map(a => a[1]).join(' ; ') : ''}`, { size: 8.8, gap: 0.5, color: x.al.some(a => a[0] === 'r') ? [200, 40, 40] : [30, 30, 30] }); R.y += 3; } }
       const TS = avTeamStats(p, L, F.per);
       if (TS.length) { R.text(`Équipes (${F.per} derniers jours)`, { size: 12, bold: true, gap: 2 }); for (const x of TS) R.text(`• ${x.t.name}${x.t.resp ? ' (' + x.t.resp + ')' : ''} — ${x.n} saisie(s), +${x.gain} pts, ${x.pins.size} pin(s)${x.effM ? ', ~' + x.effM + ' pers.' : ''}`, { size: 9.5, gap: 0.6 }); R.y += 3; }
       const E = L.flatMap(l => (l.journal || []).filter(e => e.d >= avAddDays(today, -6)).map(e => ({ e, l, n: nivs.find(n => n.id === l.nivId) }))).sort((a, b) => (b.e.d + b.e.t).localeCompare(a.e.d + a.e.t));
