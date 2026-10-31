@@ -557,7 +557,7 @@ async function renderPlans(root) {
     const add = document.createElement('div');
     add.className = App.planView === 'grid' ? 'ptile add' : 'prow';
     add.innerHTML = App.planView === 'grid' ? `${icon('plus')}<span>Ajouter un plan</span>` : `<span class="pic" style="color:var(--accent)">${icon('plus')}</span><div class="nm" style="color:var(--accent)">Ajouter un plan</div>`;
-    add.onclick = async () => { const sel = lotF ? lotSelOf(lotF.id) : ''; App.newPlanLot = sel || null; try { await addPlanTo(f.id === '_none' ? null : f.id, folders, root); } finally { App.newPlanLot = null; } if (sel) renderPlans(root); };   // le plan reste dans le lot ouvert
+    add.onclick = async () => { const sel = lotF ? lotSelOf(lotF.id) : ''; App.newPlanLot = sel && sel !== '__none' ? sel : null; try { await addPlanTo(f.id === '_none' ? null : f.id, folders, root); } finally { App.newPlanLot = null; } if (sel) renderPlans(root); };   // le plan reste dans le lot ouvert
     if (lotF && lotSelOf(lotF.id) && !list.length && ps.length) grid.insertAdjacentHTML('afterbegin', `<div class="lot-empty">Aucun plan de ce lot ici.</div>`);
     grid.appendChild(add);
   };

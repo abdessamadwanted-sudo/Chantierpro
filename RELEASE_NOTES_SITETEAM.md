@@ -1,5 +1,15 @@
+## SiteTeam : comparaison sur le même niveau, équerre stable, avancement par quantité
+- Comparer deux plans du MÊME niveau (lots, archi, ANEP…) : même écran que « Comparer deux niveaux » (rideau fluide, plan entier net), rideau seul ; seuls les plans de ce niveau sont proposés ; « Avec un autre niveau » à part. Calage à l'équerre comme entre deux niveaux (une fois par plan).
+- Calage à l'équerre : le plan reste immobile pendant qu'on tire l'équerre (plus de tremblement).
+- Plans : plus de bouton « Tous » dans la barre des lots — le premier lot qui a des plans est choisi ; « Sans lot » n'apparaît que s'il reste des plans sans lot.
+- Cartouche : les indices avec point ou tiret (PE02.5, DCE01…) sont reconnus → le dernier indice et sa date sont justes (avant : PE00 31/10/2025 au lieu de PE02.5 28/08/2026). Indice suivant proposé : PE02.5 → PE02.6.
+- Démarrage : logo vectoriel immobile (plus de tremblement), les trois casques se remplissent par le bas comme une batterie, un trait en dégradé fait le tour de l'écran au rythme du chargement, pourcentage affiché.
+- Pastille d'envoi des photos : anneau de progression (1/2…) au lieu d'une roue qui tourne sans arrêt.
+- Avancement par quantité : quantité totale du local par lot (m², ml, m³, unités, portes, kg) ; on saisit la quantité faite → % calculé (45 / 120 m² = 37 %). Dans la saisie du jour, la fiche du local et le tableau rapide (appui long › valeur). Total du lot en quantité dans son onglet.
+
 ## SiteTeam : correction urgente — vibrations en boucle et fermeture
 - Le rappel « Saisie d'avancement » de 17 h (v1.0.47) était programmé d'une façon qui, après 17 h, se redéclenchait sans arrêt sur certains téléphones (vibrations en continu, puis fermeture de l'application). Il est supprimé à l'ouverture et remplacé par une notification unique à 17 h, reprogrammée à chaque ouverture.
+- Le robot emploi utilisait le même type de rappel : corrigé aussi.
 - Mode secours : si l'application se ferme 2 fois de suite au démarrage, l'ouverture suivante se fait sans synchro ni envoi des photos et propose d'envoyer un rapport (dernières étapes + erreurs) par WhatsApp.
 
 ## SiteTeam : application plus fluide

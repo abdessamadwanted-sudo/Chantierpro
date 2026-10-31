@@ -950,11 +950,11 @@ try {
     const r = { mode: box.classList.contains('sel-mode'), n: box.querySelectorAll('.ph-sel').length, bar: !!document.getElementById('selBar') }; PhotoQ.endSel(); box.remove(); return r; });
   log('sélection multiple (appui long)', sel44); if (!sel44.mode || sel44.n !== 2 || !sel44.bar) v44.push('sélection multiple');
   // écran de démarrage : logo et têtes colorées
-  { const P = A.pg; await P.reload({ waitUntil: 'commit' }); await P.waitForSelector('#boot .hd', { timeout: 8000 }).catch(() => {}); await P.waitForTimeout(350); await shot(P, '186_demarrage_logo');
-    const bt = await P.evaluate(() => ({ heads: document.querySelectorAll('#boot .hd').length, on: document.querySelectorAll('#boot .hd.on').length, letters: document.querySelectorAll('#boot b span').length }));
+  { const P = A.pg; await P.reload({ waitUntil: 'commit' }); await P.waitForSelector('#boot .hb', { timeout: 8000 }).catch(() => {}); await P.waitForTimeout(350); await shot(P, '186_demarrage_logo');
+    const bt = await P.evaluate(() => ({ heads: document.querySelectorAll('#boot .hb').length, on: document.querySelectorAll('#bootb rect.p').length, letters: document.querySelectorAll('#boot b span').length }));
     log('démarrage : logo', bt); if (bt.heads !== 3 || bt.letters !== 8) v44.push('écran de démarrage');
     await P.waitForSelector('.home2', { timeout: 30000 }); await P.waitForTimeout(1500);
-    const stray = await P.evaluate(() => [...document.querySelectorAll('body *')].some(e => !e.children.length && /Ouverture…/.test(e.textContent))); log('démarrage : rien ne reste à l\'écran', !stray); if (stray) v44.push('texte du démarrage resté'); }
+    const stray = await P.evaluate(() => !!document.getElementById('boot') || !!document.getElementById('bootb') || [...document.querySelectorAll('body *:not(script)')].some(e => !e.children.length && /Ouverture…/.test(e.textContent))); log('démarrage : rien ne reste à l\'écran', !stray); if (stray) v44.push('texte du démarrage resté'); }
   log('errors v1.0.44', v44);
   // ---- v1.0.45 : accès sur code uniquement (côté application) + démarrage sans attendre le réseau
   const v45 = [];
@@ -1075,8 +1075,9 @@ try {
   log('visionneuse : zones dessinées, bouton plans', await A.pg.evaluate(() => [document.querySelectorAll('.av-ov polygon').length, !!document.querySelector('.av-page [data-a=plans]')])); await shot(A.pg, '210_plan_zones');
   await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); const p = App.project; window.__cmp = avComparePlans(p, p.avNiveaux.find(n => n.id === 'n2')); });
   await A.pg.waitForSelector('.sheet .opt'); await A.pg.locator('.sheet .opt').first().click(); await A.pg.waitForTimeout(300); await A.pg.locator('.sheet .opt').first().click();
-  await A.pg.waitForSelector('.avc-page', { timeout: 8000 }); await A.pg.waitForTimeout(500); await shot(A.pg, '211_comparaison_plans');
-  log('comparaison de plans (rideau)', await A.pg.evaluate(() => [!!document.querySelector('.avc-b'), document.querySelector('.avc-b').style.clipPath]));
+  // v1.0.50 : même écran que « Comparer deux niveaux » → d'abord le calage à l'équerre (une fois par plan)
+  await A.pg.waitForSelector('.fullpage.rl', { timeout: 8000 }); await A.pg.waitForTimeout(500); await shot(A.pg, '211_comparaison_plans_equerre');
+  log('comparaison de plans du même niveau → calage à l\'équerre', await A.pg.evaluate(() => [!!document.querySelector('.rl-ov'), !!document.querySelector('.rl-btns [data-b=fix]')]));
   await A.pg.evaluate(() => document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()));
   // planning des lots : dates prévues → alertes ; calage manuel 2 points ; avancement de deux lots
   const pl46 = await A.pg.evaluate(async () => { const p = App.project, lot = p.lots[1], n2 = p.avNiveaux.find(n => n.id === 'n2'), n1 = p.avNiveaux.find(n => n.id === 'n1');
@@ -1197,6 +1198,15 @@ try {
     const p = App.project; try { localStorage.removeItem('avRemN.' + p.id); } catch (e) {} p.avPlan = p.avPlan || {}; const n = p.avNiveaux[0], lot = p.lots[0]; const k = n.id + '|' + lot.id, keep = p.avPlan[k]; p.avPlan[k] = { deb: avAddDays(todayISO(), -2), fin: avAddDays(todayISO(), 10) };
     await avReminderNotif(p); p.avPlan[k] = keep; window.Capacitor.Plugins = old; const sc = got[0] && got[0].notifications[0].schedule; return sc ? { on: !!sc.on, at: !!sc.at, future: sc.at > new Date(), hour: new Date(sc.at).getHours() } : null; });
   log('rappel 17 h : une seule notification datée (jamais « on » répétitif)', nt48); if (!nt48 || nt48.on || !nt48.at || !nt48.future || nt48.hour !== 17) v48.push('rappel 17 h');
+  const q49 = await A.pg.evaluate(async () => { const p = App.project, L = (await DB.byProject('links', p.id)).find(l => l.kind === 'local'), lot = p.lots[0];
+    L.lots = L.lots || {}; const r = L.lots[lot.id] = L.lots[lot.id] || { state: 'todo', photos: [] }; r.qtot = 120; r.unit = 'm²'; L.journal = (L.journal || []).filter(e => e.lot !== lot.id);
+    const e1 = avEntryOn(p, L, { d: avAddDays(todayISO(), -1), lot: lot.id, pct: 0, qc: 45 }); const e2 = avEntryOn(p, L, { d: todayISO(), lot: lot.id, pct: 0, qc: 90 });
+    return [e1.pct, e2.pct, e2.qd, avQtyTxt(L, lot.id), typeof openStackView === 'function' && typeof avCompareSame === 'function']; });
+  log('quantités [% J-1, % J, qté du jour, texte] + comparaison même niveau', q49); if (q49[0] !== 38 || q49[1] !== 75 || q49[2] !== 45 || !/90 \/ 120 m² = 75 %/.test(q49[3]) || !q49[4]) v48.push('quantités');
+  const ct50 = await A.pg.evaluate(() => { const rows = [['APD00', '04/10/24'], ['DCE01', '20/03/25'], ['PE00', '31/10/25'], ['PE02.2', '17/04/26'], ['PE02.3', '07/05/26'], ['PE02.4', '31/07/26'], ['PE02.5', '28/08/26']];
+    const T = []; rows.forEach(([i, d], k) => { const y = 100 + k * 12; T.push({ s: i, x: 10, y, w: 30, h: 10 }, { s: d, x: 60, y, w: 40, h: 10 }, { s: 'RENDU ' + i, x: 120, y, w: 60, h: 10 }); });
+    const c = cartoucheFromTexts(T); return [c && c.indice, c && c.date, nextIndice('PE02.5'), nextIndice('DCE01'), nextIndice('B')]; });
+  log('cartouche : dernier indice et date [indice, date, suivants]', ct50); if (ct50.join() !== 'PE02.5,2026-08-28,PE02.6,DCE02,C') v48.push('cartouche');
   log('errors v1.0.48', v48);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {

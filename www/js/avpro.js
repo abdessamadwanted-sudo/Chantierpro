@@ -32,6 +32,17 @@ function avPctAt(loc, lotId, day) {
   const r = (loc.lots || {})[lotId]; if (r && r.state === 'done' && r.doneAt && r.doneAt > day) return 0;
   return avPct(r);
 }
+// v1.0.49 : avancement par quantité — chaque local a, pour chaque lot, une quantité totale (m², ml, unités…) ;
+// on saisit ce qui est fait (le jour, ou le cumul) et le % se calcule tout seul : 45 / 120 m² = 37 %
+const AV_UNITS = ['m²', 'ml', 'm³', 'u', 'portes', 'kg'];
+function avQtyDone(loc, lotId, day) {   // quantité cumulée faite à une date (dernière saisie avec quantité, sinon déduite du %)
+  const r = (loc.lots || {})[lotId] || {}, T = +r.qtot || 0; if (!T) return 0;
+  const S = avJSorted(loc, lotId).filter(e => e.d <= (day || todayISO()));
+  for (let i = S.length - 1; i >= 0; i--) if (S[i].qc != null) return +S[i].qc || 0;
+  return Math.round(T * avPctAt(loc, lotId, day || todayISO()) / 100 * 100) / 100;
+}
+const avQtyTxt = (loc, lotId) => { const r = (loc.lots || {})[lotId] || {}, T = +r.qtot || 0; if (!T) return ''; const q = avQtyDone(loc, lotId); return `${avFmtQ(q)} / ${avFmtQ(T)} ${r.unit || 'm²'} = ${Math.min(100, Math.round(q / T * 100))} %`; };
+const avFmtQ = (v) => (Math.round(+v * 100) / 100).toLocaleString('fr-FR');
 // une saisie du jour met aussi à jour l'état du lot dans le pin (même tableau que la fiche du local)
 function avApplyEntry(loc, e) {
   loc.lots = loc.lots || {}; const r = loc.lots[e.lot] = loc.lots[e.lot] || { state: 'todo', photos: [] };
@@ -52,20 +63,27 @@ async function avJourForm(p, loc, pre = {}) {
     { name: 'd', label: 'Date', type: 'date', value: pre.d || todayISO() },
     { name: 'lot', label: 'Lot', type: 'select', value: lot0, options: lots.map(l => ({ value: l.id, label: l.name })) },
     { name: 'eq', label: 'Équipe / responsable', type: 'select', value: pre.eq || ((loc.lots || {})[lot0] || {}).eq || '', options: [{ value: '', label: '—' }, ...teams.map(t => ({ value: t.id, label: `${t.name}${t.resp ? ' · ' + t.resp : ''}` })), { value: '__new', label: '➕ Nouvelle équipe…' }] },
-    { name: 'pct', label: 'Avancement atteint (%)', type: 'select', value: String(Math.min(100, Math.ceil((cur(lot0) + 1) / 5) * 5)), options: Array.from({ length: 21 }, (_, i) => ({ value: String(i * 5), label: `${i * 5} %${i * 5 === 100 ? ' — terminé' : ''}` })) },
+    { name: 'pct', label: 'Avancement atteint (%) — ou remplissez la quantité ci-dessous', type: 'select', value: String(Math.min(100, Math.ceil((cur(lot0) + 1) / 5) * 5)), options: Array.from({ length: 21 }, (_, i) => ({ value: String(i * 5), label: `${i * 5} %${i * 5 === 100 ? ' — terminé' : ''}` })) },
+    { name: 'qinfo', type: 'info', label: 'Par quantité', value: lots.map(l => { const t = avQtyTxt(loc, l.id); return t ? `${l.name} : ${t}` : ''; }).filter(Boolean).join('\n') || 'Indiquez la quantité totale du local (m², ml, nombre de portes…) : le % se calcule tout seul.' },
+    { name: 'qd', label: 'Quantité faite aujourd\'hui', type: 'number', value: '', placeholder: 'Ex : 24' },
+    { name: 'qtot', label: 'Quantité totale du local pour ce lot', type: 'number', value: ((loc.lots || {})[lot0] || {}).qtot || (loc.area || ''), placeholder: 'Ex : 120' },
+    { name: 'unit', label: 'Unité', type: 'select', value: ((loc.lots || {})[lot0] || {}).unit || 'm²', options: AV_UNITS.map(u => ({ value: u, label: u })) },
     { name: 'eff', label: 'Effectif (personnes)', type: 'number', value: pre.eff || '' },
-    { name: 'qty', label: 'Quantité réalisée (facultatif)', value: '', placeholder: 'Ex : 24 m², 3 portes' },
     { name: 'note', label: 'Note', type: 'textarea', value: '', placeholder: 'Ce qui a été fait, ce qui bloque…' },
   ], { okLabel: 'Enregistrer' });
   if (!r) return null;
   if (+r.pct >= 100 && typeof avCheckReserves === 'function' && !(await avCheckReserves(p, [{ loc, pct: 100 }])).length) return null;
   let eq = r.eq;
   if (eq === '__new') { const t = await avTeamForm(p); eq = t ? t.id : ''; }
-  const e = { id: DB.uid(), d: r.d || todayISO(), t: Date.now(), lot: r.lot, eq, pct: +r.pct || 0, eff: +r.eff || 0, qty: (r.qty || '').trim(), note: (r.note || '').trim(), photos: [], by: Team.ready() ? ((Team.me() || {}).name || '') : '' };
+  const e = { id: DB.uid(), d: r.d || todayISO(), t: Date.now(), lot: r.lot, eq, pct: +r.pct || 0, eff: +r.eff || 0, qty: '', note: (r.note || '').trim(), photos: [], by: Team.ready() ? ((Team.me() || {}).name || '') : '' };
   e.prev = avPctAt(loc, e.lot, avAddDays(e.d, -1));
+  // quantité : total du local mémorisé ; quantité du jour → cumul → % calculé
+  const R0 = (loc.lots = loc.lots || {})[e.lot] = loc.lots[e.lot] || { state: 'todo', photos: [] };
+  if (+r.qtot > 0) { R0.qtot = +r.qtot; R0.unit = r.unit || R0.unit || 'm²'; }
+  if (+r.qd > 0 && +R0.qtot > 0) { const prevC = avQtyDone(loc, e.lot, avAddDays(e.d, -1)); e.qd = +r.qd; e.qc = Math.min(+R0.qtot, prevC + e.qd); e.pct = Math.min(100, Math.round(e.qc / R0.qtot * 100)); e.qty = `${avFmtQ(e.qd)} ${R0.unit}`; }
   loc.journal = [...(loc.journal || []), e]; avApplyEntry(loc, e);
   await DB.put('links', loc); await DB.put('projects', p);
-  toast(`✓ ${loc.name} · ${avLot(p, e.lot).name} : ${e.pct} %`, { action: '📷 Photos', ms: 5000, onAction: async () => { const fs = await addPhotos(p.id, { local: loc.id, lot: e.lot, source: `${loc.name} · ${avLot(p, e.lot).name} · ${fmtDate(e.d)}` }); if (fs.length) { const L = await DB.get('links', loc.id); const x = (L.journal || []).find(z => z.id === e.id); if (x) { x.photos.push(...fs.map(f => f.id)); await DB.put('links', L); toast('Photos ajoutées ✓'); } } } });
+  toast(`✓ ${loc.name} · ${avLot(p, e.lot).name} : ${e.qc != null ? `${avFmtQ(e.qc)} / ${avFmtQ(R0.qtot)} ${R0.unit} = ` : ''}${e.pct} %`, { action: '📷 Photos', ms: 5000, onAction: async () => { const fs = await addPhotos(p.id, { local: loc.id, lot: e.lot, source: `${loc.name} · ${avLot(p, e.lot).name} · ${fmtDate(e.d)}` }); if (fs.length) { const L = await DB.get('links', loc.id); const x = (L.journal || []).find(z => z.id === e.id); if (x) { x.photos.push(...fs.map(f => f.id)); await DB.put('links', L); toast('Photos ajoutées ✓'); } } } });
   return e;
 }
 async function avTeamForm(p, t) {
