@@ -1193,6 +1193,10 @@ try {
     return { ms, pct: avPctAt(loc[0], 'A', avAddDays(t, -20)) };
   });
   log('v1.0.48 : tableau de bord 400 pins × 5 lots × 40 j [ms, % à J-20]', pf48); if (pf48.ms > 4000 || pf48.pct !== 45) v48.push('tableau de bord lent / % faux');
+  const nt48 = await A.pg.evaluate(async () => { const got = []; window.Capacitor = window.Capacitor || {}; const old = window.Capacitor.Plugins; window.Capacitor.Plugins = { ...(old || {}), LocalNotifications: { cancel: async () => {}, createChannel: async () => {}, schedule: async (o) => { got.push(o); } } };
+    const p = App.project; try { localStorage.removeItem('avRemN.' + p.id); } catch (e) {} p.avPlan = p.avPlan || {}; const n = p.avNiveaux[0], lot = p.lots[0]; const k = n.id + '|' + lot.id, keep = p.avPlan[k]; p.avPlan[k] = { deb: avAddDays(todayISO(), -2), fin: avAddDays(todayISO(), 10) };
+    await avReminderNotif(p); p.avPlan[k] = keep; window.Capacitor.Plugins = old; const sc = got[0] && got[0].notifications[0].schedule; return sc ? { on: !!sc.on, at: !!sc.at, future: sc.at > new Date(), hour: new Date(sc.at).getHours() } : null; });
+  log('rappel 17 h : une seule notification datée (jamais « on » répétitif)', nt48); if (!nt48 || nt48.on || !nt48.at || !nt48.future || nt48.hour !== 17) v48.push('rappel 17 h');
   log('errors v1.0.48', v48);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {

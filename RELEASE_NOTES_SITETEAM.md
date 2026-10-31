@@ -1,3 +1,7 @@
+## SiteTeam : correction urgente — vibrations en boucle et fermeture
+- Le rappel « Saisie d'avancement » de 17 h (v1.0.47) était programmé d'une façon qui, après 17 h, se redéclenchait sans arrêt sur certains téléphones (vibrations en continu, puis fermeture de l'application). Il est supprimé à l'ouverture et remplacé par une notification unique à 17 h, reprogrammée à chaque ouverture.
+- Mode secours : si l'application se ferme 2 fois de suite au démarrage, l'ouverture suivante se fait sans synchro ni envoi des photos et propose d'envoyer un rapport (dernières étapes + erreurs) par WhatsApp.
+
 ## SiteTeam : application plus fluide
 - Tableau de bord Avancement : calcul de l'historique beaucoup plus rapide (journal trié une seule fois par local et par lot).
 - Miniatures des plans de lot : une seule image décodée à la fois et miniatures gardées sur le téléphone (avant : tous les plans A0 décodés en même temps à chaque ouverture d'un onglet de lot → téléphone saturé).
