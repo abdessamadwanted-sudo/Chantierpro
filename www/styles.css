@@ -3373,3 +3373,9 @@ details.avp-sec[open] > summary { margin-bottom: 10px; }
 .gm-sr svg { width: 17px; height: 17px; color: var(--muted); } .gm-sr input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 14.5px; outline: none; }
 .gm-g.gm-t { display: flex; align-items: center; cursor: pointer; user-select: none; } .gm-g.gm-t::after { content: ''; margin-left: auto; width: 7px; height: 7px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); transition: transform .2s; margin-right: 6px; }
 .gm-g.gm-t.off::after { transform: rotate(-45deg); }
+/* v1.0.47 : ajustements */
+.avt-ctl select, .avt-ctl input { width: auto !important; max-width: 180px; }
+.avt-foot { padding-left: 76px; } .avt-foot .btn { width: auto; margin-left: auto; padding-left: 22px; padding-right: 22px; }
+body:has(.avt-page) #plansFab, body:has(.avc-page) #plansFab { display: none; }
+.lpa-h > .grow, .lp-av > .lpa-h > .grow { flex: 1; min-width: 0; }
+.ph-acts .btn { width: auto; }

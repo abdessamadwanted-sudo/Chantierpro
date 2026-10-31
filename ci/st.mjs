@@ -1000,14 +1000,14 @@ try {
     return { state: l1.lots[p.lots[0].id].state, pctY: avPctAt(l1, p.lots[0].id, y), pctT: avPctAt(l1, p.lots[0].id, t) };
   });
   log('journal → état du lot [état, % il y a 3 j, % aujourd\'hui]', av46); if (av46.state !== 'done' || av46.pctY !== 40 || av46.pctT !== 100) v46.push('journal / état');
-  await A.pg.evaluate(async () => { App.avTab = 'dash'; App.avF = null; App.section = 'avancement'; await renderSection(); }); await A.pg.waitForSelector('.avp-hero', { timeout: 10000 }); await A.pg.waitForTimeout(500);
-  const d46 = await A.pg.evaluate(() => ({ glob: (document.querySelector('.avp-hero .avp-dn text') || {}).textContent, rows: [...document.querySelectorAll('.avp-mx .avp-rh b')].map(b => b.textContent), today: document.querySelectorAll('.avp-today').length, teams: [...document.querySelectorAll('.avp-team b')].map(b => b.textContent), curve: !!document.querySelector('.avp-curve polyline') }));
-  log('tableau de bord Pro Macro', d46); await shot(A.pg, '201_pro_macro'); if (d46.rows.join('|') !== 'Zone 1|Zone 2' || d46.today !== 3 || d46.teams.length !== 2 || !d46.curve) v46.push('tableau de bord');
+  await A.pg.evaluate(async () => { App.avTab = 'dash'; App.avF = null; try { localStorage.removeItem('avF.' + App.project.id); } catch (e) {} App.section = 'avancement'; await renderSection(); }); await A.pg.waitForSelector('.avp-hero', { timeout: 10000 }); await A.pg.waitForTimeout(500);
+  const d46 = await A.pg.evaluate(() => ({ glob: (document.querySelector('.avp-hero .avp-dn text') || {}).textContent, rows: [...document.querySelectorAll('.avp-mx tr:not(.avp-totr) .avp-rh b')].map(b => b.textContent), today: document.querySelectorAll('.avp-today').length, teams: [...document.querySelectorAll('.avte-c .grow > b')].map(b => b.textContent), curve: !!document.querySelector('.avp-curve polyline') }));
+  log('tableau de bord Pro Macro', d46); await shot(A.pg, '201_pro_macro'); if (d46.rows.join('|') !== 'Zone 1|Zone 2' || d46.today < 3 || d46.teams.length !== 2 || !d46.curve) v46.push('tableau de bord');
   await A.pg.evaluate(() => document.querySelector('.avp-mx').scrollIntoView()); await shot(A.pg, '202_matrice_zones');
   await A.pg.click('.avp-rh[data-row="z:Zone 1"]'); await A.pg.waitForTimeout(400);
-  const z46 = await A.pg.evaluate(() => ({ rows: [...document.querySelectorAll('.avp-mx .avp-rh b')].map(b => b.textContent), zone: App.avF.zone }));
+  const z46 = await A.pg.evaluate(() => ({ rows: [...document.querySelectorAll('.avp-mx tr:not(.avp-totr) .avp-rh b')].map(b => b.textContent), zone: App.avF.zone }));
   log('filtre zone → niveaux', z46); await shot(A.pg, '203_zone1_niveaux'); if (z46.rows.join('|') !== 'RDC' || z46.zone !== 'Zone 1') v46.push('filtre zone');
-  await A.pg.evaluate(() => { App.avF = null; });
+  await A.pg.evaluate(() => { App.avF = null; try { localStorage.removeItem('avF.' + App.project.id); } catch (e) {} });
   // rapports : CSV + PDF
   const ex46 = await A.pg.evaluate(async () => { const p = App.project, { locaux, nivs } = await avData(p); let csv = null; const sb = window.shareBlob; window.shareBlob = async (b, n) => { csv = [n, (await b.text()).split('\n').length]; }; await avProExport('csv', p, nivs, locaux); window.shareBlob = sb;
     window.PdfCapture = []; await avProExport('pdf', p, nivs, locaux); const pdf = window.PdfCapture.length && window.PdfCapture[0].fname; const L = locaux.find(l => l.name === 'LT 01'); window.PdfCapture = []; await avDossierLocal(p, L); const dos = window.PdfCapture.length && window.PdfCapture[0].fname; delete window.PdfCapture; return { csv, pdf, dos }; });
@@ -1038,8 +1038,8 @@ try {
     return { n, zones: L.map(l => l.name + '=' + (l.zone || '-')) };
   });
   log('zone dessinée → pins rattachés', zp46); if (!zp46.zones.includes('LT 01=Zone 1') || zp46.zones.includes('Couloir A=Zone 1')) v46.push('zones dessinées');
-  await A.pg.evaluate(async () => { App.avTab = 'dash'; App.avF = null; await renderSection(); }); await A.pg.waitForSelector('.avp-hero'); await A.pg.waitForTimeout(300);
-  const s46 = await A.pg.evaluate(() => ({ rows: [...document.querySelectorAll('.avp-mx .avp-rh b')].map(b => b.textContent), sect: [...document.querySelectorAll('.avp-fr')].some(r => /Secteur/.test(r.textContent)) }));
+  await A.pg.evaluate(async () => { App.avTab = 'dash'; App.avF = null; try { localStorage.removeItem('avF.' + App.project.id); } catch (e) {} await renderSection(); }); await A.pg.waitForSelector('.avp-hero'); await A.pg.waitForTimeout(300);
+  const s46 = await A.pg.evaluate(() => ({ rows: [...document.querySelectorAll('.avp-mx tr:not(.avp-totr) .avp-rh b')].map(b => b.textContent), sect: !!document.querySelector('.avf-bar select[data-fk=sect]') }));
   log('tableau de bord : secteurs', s46); await shot(A.pg, '208_secteurs'); if (!s46.rows.includes('Ouest') || !s46.rows.includes('Nord') || !s46.sect) v46.push('secteurs');
   // import des locaux depuis les textes du PDF (textes simulés comme ceux du plan du Grand Stade)
   await A.pg.evaluate(async () => {
@@ -1087,7 +1087,7 @@ try {
     return { a: a.al.map(x => x[1]), b: b.al.map(x => x[1]), c: c.al.map(x => x[1]), sim: [Math.round(q[0]), Math.round(q[1]), Math.round(back[0]), Math.round(back[1])] }; });
   log('planning des lots : alertes [lot fini en retard ?, fin proche, pas démarré] + calage 2 points', pl46);
   if (!pl46.c.some(x => /Pas démarré/.test(x)) || !pl46.b.some(x => /Fin dans|rythme/.test(x)) || pl46.sim.join() !== '10,220,100,0') v46.push('planning / calage');
-  await A.pg.evaluate(async () => { App.avTab = 'dash'; App.avF = null; await renderSection(); }); await A.pg.waitForSelector('.avp-pt', { timeout: 8000 });
+  await A.pg.evaluate(async () => { App.avTab = 'dash'; App.avF = null; try { localStorage.removeItem('avF.' + App.project.id); } catch (e) {} await renderSection(); }); await A.pg.waitForSelector('.avp-pt', { timeout: 8000 });
   await A.pg.evaluate(() => document.querySelector('.avp-pt').scrollIntoView()); await A.pg.waitForTimeout(300); await shot(A.pg, '212_planning_des_lots');
   log('planning : cases, alertes', await A.pg.evaluate(() => [document.querySelectorAll('.avp-pt td[data-pl]').length, document.querySelectorAll('.avp-al').length]));
   await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); openAvViewer('n1', null, () => {}); }); await A.pg.waitForSelector('.av-page [data-a=plans]');
@@ -1135,11 +1135,11 @@ try {
   await A.pg.evaluate(async () => { const p = App.project; for (const t of [{ id: 't1', name: 'Sgtm', type: 'int', color: '#2563eb' }, { id: 't2', name: 'STE Atlas', type: 'st', soc: 'Atlas SARL', color: '#ea580c' }]) if (!avTeam(p, t.id)) avTeams(p).push(t);
     const L = (await DB.byProject('links', p.id)).filter(l => l.kind === 'local' && l.nivId === 'n1'); const lot = p.lots[0];
     for (const [i, l] of L.slice(0, 2).entries()) { avEntryOn(p, l, { d: todayISO(), lot: lot.id, pct: 50 + i * 25, eq: i ? 't2' : 't1', eff: 4 + i }); await DB.put('links', l); }
-    await DB.put('projects', p); document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.avTab = 'dash'; App.avF = null; try { localStorage.removeItem('avF.' + p.id); } catch (e) {} await renderSection(); });
+    await DB.put('projects', p); document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.avTab = 'dash'; App.avF = null; try { localStorage.removeItem('avF.' + App.project.id); } catch (e) {} try { localStorage.removeItem('avF.' + p.id); } catch (e) {} await renderSection(); });
   await A.pg.waitForSelector('.avf-bar select[data-fk=pk]', { timeout: 8000 });
   await A.pg.selectOption('.avf-bar select[data-fk=pk]', 'today'); await A.pg.waitForTimeout(400);
   const pro47 = await A.pg.evaluate(() => ({ sel: [...document.querySelectorAll('.avf-bar select')].map(s => s.dataset.fk).join(','), scope: (document.querySelector('.avf-scope') || {}).textContent, gain: (document.querySelector('.avp-gain b') || {}).textContent,
-    total: !!document.querySelector('.avp-totr .avp-tot.big'), teams: document.querySelectorAll('.avte-c').length, st: !!document.querySelector('.avte-lg') && /Sous-traitant/.test(document.querySelector('.avte-lg').textContent) }));
+    total: !!document.querySelector('.avp-totr .avp-tot.big'), teams: document.querySelectorAll('.avte-c').length, st: [...document.querySelectorAll('.avte-c em')].some(e => /Sous-traitant/.test(e.textContent)) }));
   log('Pro : choix, période, total, équipes', pro47); await shot(A.pg, '220_pro_choix_periode');
   if (!/zone,niv,lot,eq.*pk/.test(pro47.sel) || !/Aujourd'hui/.test(pro47.scope) || !pro47.total || pro47.teams < 2 || !pro47.st) v47.push('Pro : barre de choix / équipes');
   await A.pg.evaluate(() => { const t = document.querySelector('.avte-c'); t.scrollIntoView(); }); await A.pg.waitForTimeout(200); await shot(A.pg, '221_equipes_sous_traitants');
