@@ -150,12 +150,16 @@ function openEquerreSteps(plans, names, refPlan) {
         <text x="${Q.x + 150 * sn + 8}" y="${Q.y - 150 * c}" fill="#2563eb" paint-order="stroke" stroke="#fff" stroke-width="3">fil vertical</text></g>`;
       $$('[data-q]', ov).forEach(g => g.onpointerdown = (e) => dragEq(e, g.dataset.q));
     };
+    // v1.0.49 : pendant qu'on tire l'équerre, le plan est figé (aucun déplacement parasite) et le dessin suit l'écran (une image par rafraîchissement)
     const dragEq = (e, what) => {
       e.preventDefault(); e.stopPropagation(); const r = wrap.getBoundingClientRect(), off = [Q.x - (e.clientX - r.left), Q.y - (e.clientY - r.top)];
-      const mv = (ev) => { const X = ev.clientX - r.left, Y = ev.clientY - r.top;
+      const wasBlock = block.style.display; block.style.display = 'block'; try { e.target.setPointerCapture && e.target.setPointerCapture(e.pointerId); } catch (x) {}
+      let raf = 0, last = null;
+      const step1 = () => { raf = 0; if (!last) return; const [X, Y] = last;
         if (what === 'c') { Q.x = X + off[0]; Q.y = Y + off[1]; } else { let a = Math.atan2(Y - Q.y, X - Q.x); if (Math.abs(a * 180 / Math.PI) < 1.5) a = 0; Q.ang = a; }
         if (anchored) EQ[step] = { p: pz.toImg([Q.x, Q.y]), ang: Q.ang }; draw(); };
-      const upf = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', upf); window.removeEventListener('pointercancel', upf); };
+      const mv = (ev) => { ev.preventDefault(); last = [ev.clientX - r.left, ev.clientY - r.top]; if (!raf) raf = requestAnimationFrame(step1); };
+      const upf = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', upf); window.removeEventListener('pointercancel', upf); block.style.display = locked ? 'block' : wasBlock === 'block' ? 'block' : 'none'; };
       window.addEventListener('pointermove', mv); window.addEventListener('pointerup', upf); window.addEventListener('pointercancel', upf);
     };
     const setLock = (v) => { locked = v; block.style.display = v ? 'block' : 'none'; $('.rl-lockb', el).classList.toggle('on', v); $('.rl-pill', el).textContent = v ? '🔒 Plan fixe' : ''; $('.rl-pill', el).style.display = v ? '' : 'none'; };

@@ -1193,6 +1193,19 @@ try {
     return { ms, pct: avPctAt(loc[0], 'A', avAddDays(t, -20)) };
   });
   log('v1.0.48 : tableau de bord 400 pins × 5 lots × 40 j [ms, % à J-20]', pf48); if (pf48.ms > 4000 || pf48.pct !== 45) v48.push('tableau de bord lent / % faux');
+  const nt48 = await A.pg.evaluate(async () => { const got = []; window.Capacitor = window.Capacitor || {}; const old = window.Capacitor.Plugins; window.Capacitor.Plugins = { ...(old || {}), LocalNotifications: { cancel: async () => {}, createChannel: async () => {}, schedule: async (o) => { got.push(o); } } };
+    const p = App.project; try { localStorage.removeItem('avRemN.' + p.id); } catch (e) {} p.avPlan = p.avPlan || {}; const n = p.avNiveaux[0], lot = p.lots[0]; const k = n.id + '|' + lot.id, keep = p.avPlan[k]; p.avPlan[k] = { deb: avAddDays(todayISO(), -2), fin: avAddDays(todayISO(), 10) };
+    await avReminderNotif(p); p.avPlan[k] = keep; window.Capacitor.Plugins = old; const sc = got[0] && got[0].notifications[0].schedule; return sc ? { on: !!sc.on, at: !!sc.at, future: sc.at > new Date(), hour: new Date(sc.at).getHours() } : null; });
+  log('rappel 17 h : une seule notification datée (jamais « on » répétitif)', nt48); if (!nt48 || nt48.on || !nt48.at || !nt48.future || nt48.hour !== 17) v48.push('rappel 17 h');
+  const q49 = await A.pg.evaluate(async () => { const p = App.project, L = (await DB.byProject('links', p.id)).find(l => l.kind === 'local'), lot = p.lots[0];
+    L.lots = L.lots || {}; const r = L.lots[lot.id] = L.lots[lot.id] || { state: 'todo', photos: [] }; r.qtot = 120; r.unit = 'm²'; L.journal = (L.journal || []).filter(e => e.lot !== lot.id);
+    const e1 = avEntryOn(p, L, { d: avAddDays(todayISO(), -1), lot: lot.id, pct: 0, qc: 45 }); const e2 = avEntryOn(p, L, { d: todayISO(), lot: lot.id, pct: 0, qc: 90 });
+    return [e1.pct, e2.pct, e2.qd, avQtyTxt(L, lot.id), typeof openStackView === 'function' && typeof avCompareSame === 'function']; });
+  log('quantités [% J-1, % J, qté du jour, texte] + comparaison même niveau', q49); if (q49[0] !== 38 || q49[1] !== 75 || q49[2] !== 45 || !/90 \/ 120 m² = 75 %/.test(q49[3]) || !q49[4]) v48.push('quantités');
+  const ct50 = await A.pg.evaluate(() => { const rows = [['APD00', '04/10/24'], ['DCE01', '20/03/25'], ['PE00', '31/10/25'], ['PE02.2', '17/04/26'], ['PE02.3', '07/05/26'], ['PE02.4', '31/07/26'], ['PE02.5', '28/08/26']];
+    const T = []; rows.forEach(([i, d], k) => { const y = 100 + k * 12; T.push({ s: i, x: 10, y, w: 30, h: 10 }, { s: d, x: 60, y, w: 40, h: 10 }, { s: 'RENDU ' + i, x: 120, y, w: 60, h: 10 }); });
+    const c = cartoucheFromTexts(T); return [c && c.indice, c && c.date, nextIndice('PE02.5'), nextIndice('DCE01'), nextIndice('B')]; });
+  log('cartouche : dernier indice et date [indice, date, suivants]', ct50); if (ct50.join() !== 'PE02.5,2026-08-28,PE02.6,DCE02,C') v48.push('cartouche');
   log('errors v1.0.48', v48);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {

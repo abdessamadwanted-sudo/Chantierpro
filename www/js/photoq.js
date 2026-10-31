@@ -40,12 +40,15 @@ const PhotoQ = (() => {
 
   // ---------- pastille ----------
   let bgPend = 0, upMsg = '';
+  // v1.0.50 : pastille calme — anneau de progression (fait / total) au lieu d'une roue qui tourne sans arrêt
   function pill() {
     let el = document.getElementById('phPill');
     const prep = Math.max(0, total - done), n = prep + bgPend;
     if (!n && !upMsg) { if (el) el.remove(); return; }
     if (!el) { el = document.createElement('button'); el.id = 'phPill'; el.className = 'ph-pill'; el.onclick = detail; document.body.appendChild(el); }
-    el.innerHTML = `<span class="ph-spin"></span>${icon('upload')}<b>${n || ''}</b>${upMsg && !n ? `<small>${esc(upMsg)}</small>` : ''}`;
+    const m = /(\d+)\s*\/\s*(\d+)/.exec(upMsg || ''), a = m ? +m[1] : (total ? done : 0), t = m ? +m[2] : (total || n), f = t ? Math.max(.04, Math.min(1, a / t)) : .04, C = 2 * Math.PI * 9;
+    el.innerHTML = `<svg class="ph-ring" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" class="bg"/><circle cx="12" cy="12" r="9" class="fg" stroke-dasharray="${(C * f).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 12 12)"/><path d="M12 15.5V8.5M9 11.2 12 8.3l3 2.9" class="ar"/></svg>`
+      + `<b>${m ? `${a}/${t}` : n}</b><small>${prep ? 'préparation' : m || upMsg ? 'vers Drive' : 'en attente'}</small>`;
     el.title = `${prep} photo(s) en préparation · ${bgPend} en attente d'envoi`;
   }
   async function poll() {
@@ -119,4 +122,4 @@ const PhotoQ = (() => {
   bindLongPress();
   return { save, start, pill, poll, remove, purgeRefs, endSel, pending: () => Math.max(0, total - done) };
 })();
-setTimeout(() => { try { PhotoQ.start(); } catch (e) { console.warn('photoq', e); } }, 2500);
+setTimeout(() => { try { if (!window.__safe) PhotoQ.start(); } catch (e) { console.warn('photoq', e); } }, 2500);   // v1.0.48 : rien en arrière-plan en mode secours

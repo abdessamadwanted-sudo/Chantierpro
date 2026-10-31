@@ -94,8 +94,10 @@ async function lvsChanges(low, up, M) {
 }
 const lvsShort = (n) => { n = String(n || ''); if (n.length <= 16) return n; const t = n.split(/[-_ ]+/).filter(Boolean); return '…' + t.slice(-2).join('-'); };
 const lvsKey = (q) => `${Math.round((q.x + q.w / 2) / 20)},${Math.round((q.y + q.h / 2) / 20)}`;
-async function openStackView(chain) {
+async function openStackView(chain, opts = {}) {
   chain = [...chain];
+  // v1.0.49 : opts.same = nom du niveau → deux plans du MÊME niveau (lots, archi / ANEP…) : rideau seul, choix limité à ce niveau
+  const SAME = opts.same || '', sameList = opts.list || null;
   let hdSeq = 0, hdTick = 0, hdT = 0, k = 0, mode = 'curtain', M = null, show = 'up', split = .5, pz = null;
   const el = document.createElement('div'); el.className = 'fullpage av-page lvs';
   el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><div class="tb-title" style="flex:1"><b class="lvs-t"></b><span class="lvs-s"></span></div>
@@ -129,6 +131,7 @@ async function openStackView(chain) {
     const [low, up] = pair(); M = await lvsMap(low, up);
     $('.lvs-t', el).textContent = `${nm(k)} → ${nm(k + 1)}`; $('.lvs-s', el).textContent = `base ${nm(k)} · supérieur ${nm(k + 1)}`;
     $('[data-s=low]', swEl).textContent = `▼ ${nm(k)}`; $('[data-s=up]', swEl).textContent = `▲ ${nm(k + 1)}`; $('[data-side="0"]', el).innerHTML = `▼ ${esc(nm(k))} <i>⌄</i>`; $('[data-side="1"]', el).innerHTML = `▲ ${esc(nm(k + 1))} <i>⌄</i>`; $('.lvs-split .l', el).textContent = `◀ ${nm(k)}`; $('.lvs-split .r', el).textContent = `${nm(k + 1)} ▶`;
+    if (SAME) { $('.lvs-t', el).textContent = `${SAME} — ${nm(k)} ↔ ${nm(k + 1)}`; $('.lvs-s', el).textContent = 'Comparaison sur le même niveau · rideau'; }
     const [sl, su] = await Promise.all([lvsWarpURL(low, up, M), lvsLiteURL(up.fileId)]);
     if (view) view.remove(); view = document.createElement('div'); view.className = 'av-view lvs-vv'; $('.lvs-v', el).appendChild(view);
     const c = Math.cos(M.rot), s = Math.sin(M.rot);
@@ -168,7 +171,9 @@ async function openStackView(chain) {
     requestAnimationFrame(() => { pz.fit(); setMode(mode); clearTimeout(hdT); hdT = setTimeout(renderHD, 60); });
   };
   // toucher le niveau de gauche ou de droite : en choisir un autre (calé une fois à l'équerre, ensuite on change en un toucher)
-  $$('[data-side]', el).forEach(b => b.onclick = async (e) => { e.stopPropagation(); const i = +b.dataset.side, other = chain[1 - i], L = (await lvsLevels(other.p.projectId)).filter(x => x.p.id !== other.p.id);
+  $$('[data-side]', el).forEach(b => b.onclick = async (e) => { e.stopPropagation(); const i = +b.dataset.side, other = chain[1 - i], L = (sameList || await lvsLevels(other.p.projectId)).filter(x => x.p.id !== other.p.id);
+    if (SAME) { const v2 = await menu(`Plan ${i ? 'de droite' : 'de gauche'} · ${SAME}`, L.map(x => ({ label: `${x.niv || x.p.name}${x.p.lvRef ? '  📏' : '  (à caler)'}`, icon: 'plans', value: x.p.id, checked: x.p.id === chain[i].p.id }))); const x2 = L.find(y => y.p.id === v2); if (!x2) return;
+      if (!x2.p.lvRef && !(await openEquerreSteps([x2.p], [x2.niv || x2.p.name], other.p))) return; chain[i] = x2; return load(); }
     const v = await menu(i ? 'Niveau supérieur (à droite)' : 'Niveau de base (à gauche)', [...L.map(x => ({ label: `${x.niv ? x.niv + ' · ' : ''}${x.p.name}${x.p.lvRef ? '  📏' : '  (à caler)'}`, icon: 'layers', value: x.p.id, checked: x.p.id === chain[i].p.id })),
       { label: '📏 Caler plusieurs plans d\'avance…', icon: 'ruler', value: '__many' }]);
     if (!v) return;
@@ -223,6 +228,7 @@ async function openStackView(chain) {
       ld.close(); await sharePdf(doc, `Niveaux_${safeName(nm(0))}_${safeName(nm(chain.length - 1))}.pdf`);
     } catch (e) { ld.close(); alertBox('PDF impossible : ' + (e.message || e)); }
   };
+  if (SAME) { const md = $('.lvs-modes', el); if (md) md.style.display = 'none'; const cg = $('[data-a=chg]', el); if (cg) cg.style.display = 'none'; el.classList.add('lvs-same'); }
   splitEl.style.display = ''; setMode('curtain'); load();
 }
 // ouvrir directement une paire (depuis le briefing)

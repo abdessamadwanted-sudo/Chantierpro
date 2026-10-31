@@ -224,6 +224,7 @@ const Sync = (() => {
   // ---------- synchronisation ----------
   async function run({ quiet = false, force = false } = {}) {
     if (!enabled()) return;
+    if (window.__safe && !force) return;   // v1.0.48 : mode secours — pas de synchro automatique (« Synchroniser » à la main reste possible)
     if (running) { again = true; return; }
     if (navigator.onLine === false) { setStatus('error', 'Hors connexion'); return; }
     running = true; again = false;
