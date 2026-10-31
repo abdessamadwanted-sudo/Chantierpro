@@ -1075,8 +1075,9 @@ try {
   log('visionneuse : zones dessinées, bouton plans', await A.pg.evaluate(() => [document.querySelectorAll('.av-ov polygon').length, !!document.querySelector('.av-page [data-a=plans]')])); await shot(A.pg, '210_plan_zones');
   await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); const p = App.project; window.__cmp = avComparePlans(p, p.avNiveaux.find(n => n.id === 'n2')); });
   await A.pg.waitForSelector('.sheet .opt'); await A.pg.locator('.sheet .opt').first().click(); await A.pg.waitForTimeout(300); await A.pg.locator('.sheet .opt').first().click();
-  await A.pg.waitForSelector('.avc-page', { timeout: 8000 }); await A.pg.waitForTimeout(500); await shot(A.pg, '211_comparaison_plans');
-  log('comparaison de plans (rideau)', await A.pg.evaluate(() => [!!document.querySelector('.avc-b'), document.querySelector('.avc-b').style.clipPath]));
+  // v1.0.50 : même écran que « Comparer deux niveaux » → d'abord le calage à l'équerre (une fois par plan)
+  await A.pg.waitForSelector('.fullpage.rl', { timeout: 8000 }); await A.pg.waitForTimeout(500); await shot(A.pg, '211_comparaison_plans_equerre');
+  log('comparaison de plans du même niveau → calage à l\'équerre', await A.pg.evaluate(() => [!!document.querySelector('.rl-ov'), !!document.querySelector('.rl-btns [data-b=fix]')]));
   await A.pg.evaluate(() => document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()));
   // planning des lots : dates prévues → alertes ; calage manuel 2 points ; avancement de deux lots
   const pl46 = await A.pg.evaluate(async () => { const p = App.project, lot = p.lots[1], n2 = p.avNiveaux.find(n => n.id === 'n2'), n1 = p.avNiveaux.find(n => n.id === 'n1');
