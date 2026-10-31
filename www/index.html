@@ -44,8 +44,6 @@
   } catch (e) {} })();
   </script>
   <!-- scripts de l'application : chargés après le premier affichage, dans l'ordre -->
-  <script type="text/plain" data-src="lib/pdf.min.js"></script>
-  <script type="text/plain" data-src="lib/pdf-lib.min.js"></script>
   <script type="text/plain" data-src="js/db.js"></script>
   <script type="text/plain" data-src="js/ui.js"></script>
   <script type="text/plain" data-src="js/viewer.js"></script>
@@ -115,7 +113,6 @@
   <script type="text/plain" data-src="js/wizard.js"></script>
   <script type="text/plain" data-src="js/affectations.js"></script>
   <script type="text/plain" data-src="js/app.js"></script>
-  <script type="text/plain" data-src="vendor/jspdf.umd.min.js"></script>
   <script>
   (function () {
     var L = [].slice.call(document.querySelectorAll('script[data-src]')).map(function (e) { return e.getAttribute('data-src'); }), n = 0, bar = document.querySelector('#boot .bar i');
@@ -126,10 +123,15 @@
       e.onerror = function () { if (/pdf\.min/.test(src)) window.pdfjsLib = null; if (/pdf-lib/.test(src)) window.PDFLib = null; step(); }; e.onload = step; function step() { n++; if (bar) bar.style.width = Math.round(8 + 72 * n / L.length) + '%'; heads(0.15 + 0.7 * n / L.length); if (n === L.length) window.__tScripts = Date.now(); }
       document.body.appendChild(e); }); }
     requestAnimationFrame(function () { setTimeout(go, 0); });
+    // v1.0.45 : bibliothèques PDF lourdes (pdf.js, pdf-lib, jsPDF ≈ 1,2 Mo) chargées juste après l'accueil, sans retarder l'ouverture
+    var LATE = ['lib/pdf.min.js', 'lib/pdf-lib.min.js', 'vendor/jspdf.umd.min.js'], lateGo;
+    window.__late = new Promise(function (res) { lateGo = function () { var k = 0; LATE.forEach(function (src) { var e = document.createElement('script'); e.src = src; e.async = false;
+      e.onload = e.onerror = function () { if (/pdf\.min/.test(src) && !window.pdfjsLib) window.pdfjsLib = null; if (++k === LATE.length) res(); }; document.body.appendChild(e); }); }; });
+    function late() { if (late.done) return; late.done = true; (window.requestIdleCallback || setTimeout)(lateGo, { timeout: 1500 }); }
     // l'écran de démarrage disparaît dès que l'application affiche quelque chose (accueil, connexion, accueil animé…)
-    var done = false; function hide() { var b = document.getElementById('boot'); if (!b || done) return; done = true; if (bar) bar.style.width = '100%'; window.__tHome = Date.now(); heads(1); var lg = b.querySelector('.lg'); if (lg) lg.classList.add('ok'); setTimeout(function () { b.className += ' out'; setTimeout(function () { b.remove(); }, 380); }, 260); }
+    var done = false; function hide() { var b = document.getElementById('boot'); if (!b || done) return; done = true; if (bar) bar.style.width = '100%'; window.__tHome = Date.now(); heads(1); setTimeout(late, 600); var lg = b.querySelector('.lg'); if (lg) lg.classList.add('ok'); setTimeout(function () { b.className += ' out'; setTimeout(function () { b.remove(); }, 380); }, 260); }
     new MutationObserver(function (m, o) { if (document.querySelector('.home2, .tm-login, .st-onb, .splash, .st-gate, .fullpage, .sheet-bg')) { hide(); o.disconnect(); } }).observe(document.body, { childList: true, subtree: true });
-    setTimeout(hide, 30000);
+    setTimeout(hide, 30000); setTimeout(late, 8000);
   })();
   </script>
 </body>

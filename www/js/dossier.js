@@ -151,6 +151,7 @@ async function dpShare() {
 // CV A4 sobre : bandeau navy, colonne gauche (contact, compétences, langues), colonne droite (profil, expérience, formation, certifications)
 async function dpCv() {
   const d = Dossier.get(); if (!d.name || !d.titre) { toast('Indiquez d\'abord votre nom et votre titre'); return dpEditId(() => {}); }
+  if (!window.jspdf && window.__late) await window.__late;
   if (!window.jspdf) return alertBox('Module PDF indisponible');
   const ld = loading('Création du CV…');
   try {

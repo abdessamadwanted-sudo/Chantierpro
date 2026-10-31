@@ -335,6 +335,7 @@ const Sync = (() => {
     return cap[0];
   }
   async function syncDocs() {
+    if (!window.jspdf && window.__late) await window.__late;
     if (!window.jspdf) return;
     const projects = await DB.all('projects');
     for (const p of projects) {
