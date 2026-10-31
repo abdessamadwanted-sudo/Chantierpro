@@ -109,7 +109,7 @@ async function planSrc(pl, preferPdf) {
 // Rend une source en image (canvas). PDF : 1re page, résolution choisie.
 async function renderSource(src, maxPx = 2400, crop) {
   if (src.isPdf) {
-    pdfReady();
+    await pdfReadyA();
     const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(await src.blob.arrayBuffer()) }).promise;
     const page = await pdf.getPage(1), vp1 = page.getViewport({ scale: 1 });
     let scale = maxPx / Math.max(vp1.width, vp1.height), ox = 0, oy = 0, W = vp1.width, H = vp1.height;

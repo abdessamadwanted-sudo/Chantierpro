@@ -12,7 +12,7 @@ async function clIndex(c, onProg) {
   if (clIndexing[c.fileId]) return clIndexing[c.fileId];
   return clIndexing[c.fileId] = (async () => {
     try {
-      const f = await DB.get('files', c.fileId); if (!f || !f.blob || !pdfReady()) return null;
+      const f = await DB.get('files', c.fileId); if (!f || !f.blob || !(await pdfReadyA())) return null;
       const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(await f.blob.arrayBuffer()) }).promise;
       const pages = await pdfPagesText(pdf, onProg); await ClIdx.set(c.fileId, pages); return pages;
     } catch (e) { console.warn('index', e); return null; } finally { delete clIndexing[c.fileId]; }

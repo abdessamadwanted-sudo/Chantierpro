@@ -243,6 +243,7 @@ async function reservesReportDialog(preset = {}) {
 }
 
 async function buildReservesPdf(p, opt, progress) {
+  if (!window.jspdf && window.__late) await window.__late;
   if (!window.jspdf) throw new Error('Module PDF non chargé');
   const [allTasks, plans] = await Promise.all([DB.byProject('tasks', p.id), DB.byProject('plans', p.id)]);
   const since = opt.period === 'all' ? 0 : (opt.period === '1' ? new Date(todayISO()).getTime() : Date.now() - (+opt.period) * 864e5);

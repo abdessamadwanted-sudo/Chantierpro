@@ -187,7 +187,7 @@ async function openPlanViewer(plan, ctx) {
   const hd = $('.hd', el);
   let pdfPage = null, hdTimer = null, hdTask = null;
   async function loadPdfPage() {
-    if (!plan.pdfFileId || !pdfReady()) return null;
+    if (!plan.pdfFileId || !(await pdfReadyA())) return null;
     if (pdfPage) return pdfPage;
     try {
       const f = await DB.get('files', plan.pdfFileId);

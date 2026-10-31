@@ -956,6 +956,22 @@ try {
     await P.waitForSelector('.home2', { timeout: 30000 }); await P.waitForTimeout(1500);
     const stray = await P.evaluate(() => [...document.querySelectorAll('body *')].some(e => !e.children.length && /Ouverture…/.test(e.textContent))); log('démarrage : rien ne reste à l\'écran', !stray); if (stray) v44.push('texte du démarrage resté'); }
   log('errors v1.0.44', v44);
+  // ---- v1.0.45 : accès sur code uniquement (côté application) + démarrage sans attendre le réseau
+  const v45 = [];
+  await E.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.ws-dd').forEach(x => x.remove()); localStorage.setItem('team.appCfg', JSON.stringify({ inviteOnly: true })); Team.openSwitcher(); });
+  await E.pg.waitForSelector('.sheet [data-a=new]', { timeout: 8000 }).catch(() => {}); await E.pg.click('.sheet [data-a=new]').catch(() => {}); await E.pg.waitForSelector('.st-onb', { timeout: 8000 }).catch(() => {});
+  const ob = await E.pg.evaluate(() => ({ perso: !!document.querySelector('.st-onb [data-a=perso]'), create: !!document.querySelector('.st-onb [data-a=create]'), join: !!document.querySelector('.st-onb [data-a=join]'), txt: (document.querySelector('.st-onb p') || {}).textContent }));
+  log('code uniquement : choix à l\'inscription', ob); await shot(E.pg, '190_code_uniquement_inscription'); if (ob.perso || ob.create || !ob.join) v45.push('inscription sans code possible');
+  await E.pg.reload({ waitUntil: 'commit' }); await E.pg.waitForSelector('.st-gate, .home2', { timeout: 30000 }).catch(() => {}); await E.pg.waitForTimeout(800);
+  const gt = await E.pg.evaluate(() => ({ gate: !!document.querySelector('.st-gate'), title: (document.querySelector('.st-gate h1') || {}).textContent, code: !!document.querySelector('.st-gate [data-g=code]') }));
+  log('code uniquement : espace personnel bloqué', gt); await shot(E.pg, '191_code_uniquement_ecran'); if (!gt.gate || !gt.code) v45.push('espace personnel non bloqué');
+  await E.pg.evaluate(() => localStorage.setItem('team.appCfg', JSON.stringify({}))); await E.pg.reload({ waitUntil: 'commit' }); await E.pg.waitForSelector('.home2', { timeout: 30000 }).catch(() => {});
+  log('code uniquement désactivé : accès rétabli', await E.pg.evaluate(() => !!document.querySelector('.home2') && !document.querySelector('.st-gate')));
+  // démarrage : l'accueil s'affiche depuis le cache même si le réseau est très lent
+  { const P = A.pg; await P.route('http://127.0.0.1:8080/**', async r => { await new Promise(x => setTimeout(x, 6000)); r.continue().catch(() => {}); }).catch(() => {});
+    const t0 = Date.now(); await P.reload({ waitUntil: 'commit' }); await P.waitForSelector('.home2', { timeout: 30000 }).catch(() => {}); const ms = Date.now() - t0;
+    log('démarrage avec réseau lent (ms jusqu\'à l\'accueil)', ms); await P.unroute('http://127.0.0.1:8080/**').catch(() => {}); await P.waitForTimeout(1500); }
+  log('errors v1.0.45', v45);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);

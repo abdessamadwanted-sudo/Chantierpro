@@ -413,6 +413,14 @@ await t('équipe fichiers : REFUS hors équipe', () => assertFails(stg('no32').r
  await t('audit entreprise : REFUS de supprimer une ligne', () => assertFails(boss32.doc(a32).delete()));
  await t('audit entreprise : REFUS de falsifier l’auteur', () => assertFails(boss32.doc(a32 + 'x').set({ by: 'no32', at: firebase.firestore.FieldValue.serverTimestamp() })));
  await t('audit entreprise : REFUS de lecture par un membre', () => assertFails(no32.doc(a32).get()));
+// ---- v1.0.45 : accès sur code uniquement
+await t('accès libre : un compte crée son espace', () => assertSucceeds(other.collection('companies').doc('io-free').set({ name: 'Libre', ownerUid: OTHER.uid, kind: 'perso', plan: 'basic', planStatus: 'gratuit' })));
+await t('accès libre : REFUS de se donner « allowed »', () => assertFails(other.collection('companies').doc('io-allow').set({ name: 'X', ownerUid: OTHER.uid, kind: 'perso', plan: 'basic', planStatus: 'gratuit', allowed: true })));
+await env.withSecurityRulesDisabled(async (c) => { await c.firestore().collection('config').doc('app').set({ inviteOnly: true }, { merge: true }); });
+await t('code uniquement : REFUS de créer un espace sans le Super Admin', () => assertFails(other.collection('companies').doc('io-new').set({ name: 'Nouveau', ownerUid: OTHER.uid, kind: 'perso', plan: 'basic', planStatus: 'gratuit' })));
+await t('code uniquement : le Super Admin crée un espace', () => assertSucceeds(owner.collection('companies').doc('io-own').set({ name: 'Moi', ownerUid: OWNER.uid, kind: 'perso', plan: 'basic', planStatus: 'gratuit' })));
+await t('code uniquement : REFUS à un administrateur de s\'autoriser lui-même', () => assertFails(other.collection('companies').doc('io-free').update({ allowed: true })));
+await env.withSecurityRulesDisabled(async (c) => { await c.firestore().collection('config').doc('app').set({ inviteOnly: false }, { merge: true }); });
 log(`\n${fails ? fails + ' ÉCHEC(S)' : 'TOUT OK'} — ${out.length} vérifications`);
 fs.writeFileSync(O + '/rules-test.txt', out.join('\n') + '\n');
 await env.cleanup();

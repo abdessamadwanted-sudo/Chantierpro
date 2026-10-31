@@ -282,6 +282,8 @@ async function compressImage(file, max = 1600, quality = 0.82) {
   } finally { URL.revokeObjectURL(url); }
 }
 
+// v1.0.45 : pdf.js, pdf-lib et jsPDF se chargent juste après l'accueil (démarrage plus rapide) ; ceci attend la fin de ce chargement
+async function pdfReadyA() { try { if (!window.pdfjsLib && window.__late) await window.__late; } catch (e) {} return pdfReady(); }
 function pdfReady() {
   if (!window.pdfjsLib) return false;
   if (!pdfjsLib.GlobalWorkerOptions.workerSrc) pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
@@ -290,7 +292,7 @@ function pdfReady() {
 
 // Convertit chaque page d'un PDF en image (pour les plans)
 async function pdfToImages(file, maxSide = 3000, onPage) {
-  if (!pdfReady()) throw new Error('Lecteur PDF non disponible');
+  if (!(await pdfReadyA())) throw new Error('Lecteur PDF non disponible');
   const data = new Uint8Array(await file.arrayBuffer());
   const pdf = await pdfjsLib.getDocument({ data }).promise;
   const out = [];
@@ -409,7 +411,7 @@ async function pdfPagesText(pdf, onProg) {
 }
 // opts : { page: n (ouvrir à cette page), q: 'mot' (surligner + recherche) }
 async function showPdf(blob, caption = 'PDF', opts = {}) {
-  if (!pdfReady()) { toast('Lecteur PDF non disponible'); return; }
+  if (!(await pdfReadyA())) { toast('Lecteur PDF non disponible'); return; }
   const el = document.createElement('div');
   el.className = 'lightbox';
   el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1>${esc(caption)}</h1><button class="iconbtn" data-a="find">${icon('search')}</button></div>
