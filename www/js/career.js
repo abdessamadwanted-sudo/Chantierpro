@@ -205,7 +205,9 @@ async function careerRobotNotif(rb) {
     const perm = await LN.requestPermissions(); if (perm.display !== 'granted') return;
     try { await LN.createChannel({ id: 'rappels', name: 'Rappels de chantier', importance: 5, visibility: 1, vibration: true }); } catch (e) {}
     const [h, m] = (rb.time || '08:00').split(':').map(Number);
-    await LN.schedule({ notifications: [{ id: 1999000101, title: '🤖 Robot emploi', body: 'La tournée des offres du jour est prête — touchez pour la lancer', channelId: 'rappels', schedule: { on: { hour: h, minute: m }, allowWhileIdle: true }, extra: { action: 'jobrobot' } }] });
+    // v1.0.49 : notification datée (« at ») reprogrammée à chaque ouverture — « on » pouvait se redéclencher en boucle
+    const d = new Date(); d.setHours(h || 0, m || 0, 0, 0); if (d <= new Date()) d.setDate(d.getDate() + 1);
+    await LN.schedule({ notifications: [{ id: 1999000101, title: '🤖 Robot emploi', body: 'La tournée des offres du jour est prête — touchez pour la lancer', channelId: 'rappels', schedule: { at: d, allowWhileIdle: true }, extra: { action: 'jobrobot' } }] });
   } catch (e) { console.warn('robot', e); }
 }
 // ---------- suivi des candidatures ----------

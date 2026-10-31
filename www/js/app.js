@@ -1636,7 +1636,8 @@ async function openPlansQuick() {
   let crashN = 0; try { crashN = +localStorage.getItem('boot.crash') || 0; localStorage.setItem('boot.crash', String(crashN + 1)); } catch (e) {}
   window.__safe = crashN >= 2; bootTrail('démarrage' + (window.__safe ? ' (mode secours)' : ''));
   setTimeout(() => { try { localStorage.setItem('boot.crash', '0'); } catch (e) {} bootTrail('ouvert depuis 30 s ✓'); }, 30000);
-  try { const LN = window.Capacitor?.Plugins?.LocalNotifications; if (LN) LN.cancel({ notifications: [{ id: 1999000301 }] }).catch(() => {}); } catch (e) {}   // ancien rappel « on » (v1.0.47) retiré
+  try { const LN = window.Capacitor?.Plugins?.LocalNotifications; if (LN) LN.cancel({ notifications: [{ id: 1999000301 }, { id: 1999000101 }] }).catch(() => {}); } catch (e) {}   // anciens rappels « on » (boucle) retirés
+  setTimeout(() => { try { const C = typeof Career !== 'undefined' && Career.get(); if (C && C.robot && C.robot.on) careerRobotNotif(C.robot); } catch (e) {} }, 4000);   // robot emploi : reprogrammé (notification datée)
   // v1.0.36 : temps de démarrage mesuré (fichiers · connexion · accueil), visible dans le menu ⋮ › Application
   const tTeam0 = Date.now();
   Team.boot().catch(e => console.error('team', e)).finally(() => { const tTeam1 = Date.now(); Promise.resolve(renderHome()).finally(() => { try { const t0 = window.__t0 || tTeam0, ts = window.__tScripts || tTeam0, now = Date.now();
