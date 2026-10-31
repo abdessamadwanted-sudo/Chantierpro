@@ -273,15 +273,24 @@ const ST = (() => {
     const first = Team.isAdmin() ? (ORG_FIRST[(Team.orgType() || {}).k] || 'trav') : grpOf();
     const G = DR_GROUPS.slice().sort((a, b) => (b[0] === first) - (a[0] === first)).map(([g, l, ks]) => [g, l, ks.filter(ok)]).filter(g => g[2].length);
     const T = projTypeOf(p.type) || {};
+    // v1.0.46 : actions rapides en une rangée compacte, catégories dépliables (état mémorisé), rien sous le bouton « plans »
+    let opened = null; try { opened = JSON.parse(localStorage.getItem('ptools.open') || 'null'); } catch (e) {}
+    if (!Array.isArray(opened)) opened = G.length ? [G[0][0]] : [];
+    const QA = [
+      typeof openAvJour === 'function' && ok('avancement') ? ['avjour', 'trend', 'Avancement du jour', '#0d9488'] : null,
+      typeof pvCreate === 'function' && Team.canSection('forms') !== false ? ['newpv', 'form', 'Nouveau PV', '#2563eb'] : null,
+      typeof openPhotoBatch === 'function' ? ['pbatch', 'camera', 'Photos en masse', '#7c3aed'] : null,
+      typeof openDriveNames === 'function' ? ['dnames', 'folder', 'Dossiers Drive', '#ea580c'] : null,
+    ].filter(Boolean);
     root.innerHTML = `<div class="st-ptools-p">
       <div class="st-hd"><b>${esc(T.e || '🏗️')} ${esc(p.name)}</b><small>${esc(T.n || 'Projet')}${p.address ? ' · ' + esc(p.address) : ''}</small></div>
-      ${typeof pvCreate === 'function' && Team.canSection('forms') !== false ? `<button class="st-pb" data-a="newpv">${icon('form')}<span><b>Nouveau PV de réception</b><small>Check-list de votre service · mesures · verdict · réserves</small></span>${icon('chevright')}</button>` : ''}
-      ${typeof openPhotoBatch === 'function' ? `<button class="st-pb" data-a="pbatch">${icon('camera')}<span><b>Photos en masse</b><small>Plusieurs photos d'un coup · envoi en arrière-plan · rangées dans Drive</small></span>${icon('chevright')}</button>` : ''}
-      ${typeof openDriveNames === 'function' ? `<button class="st-pb" data-a="dnames">${icon('folder')}<span><b>Dossiers Drive du projet</b><small>Renommer, renuméroter les rubriques · fichiers déplacés sans doublon</small></span>${icon('chevright')}</button>` : ''}
-      ${G.map(([g, l, ks]) => `<div class="st-tcat" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}"><div class="st-tcat-h">${esc(l.replace(/^\S+\s/, ''))}<small>${ks.length}</small></div>
-        <div class="st-tgrid">${ks.map(k => `<button class="st-tool" data-tool="${k}" style="--c:${CAT_C[catOf(k)] || CAT_C[g] || 'var(--accent)'}"><i class="st-ico">${icon(SECTIONS[k].icon || 'grid')}</i><span>${esc(toolName(k))}</span></button>`).join('')}</div></div>`).join('')}
-      ${typeof espaceHome === 'function' && espaceHome() ? `<details class="st-tcat st-esp" style="--c:#3D5A80"><summary class="st-tcat-h">Espace métier</summary>${espaceHome()}</details>` : ''}
+      <div class="st-qa" style="--n:${QA.length}">${QA.map(([k, ic, l, c]) => `<button class="st-qa-b" data-a="${k}" style="--c:${c}"><i>${icon(ic)}</i><span>${l}</span></button>`).join('')}</div>
+      ${G.map(([g, l, ks]) => `<details class="st-tcat st-acc" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(l.replace(/^\S+\s/, ''))}<small>${ks.length}</small><i class="st-chev">${icon('chevdown')}</i></summary>
+        <div class="st-tgrid">${ks.map(k => `<button class="st-tool" data-tool="${k}" style="--c:${CAT_C[catOf(k)] || CAT_C[g] || 'var(--accent)'}"><i class="st-ico">${icon(SECTIONS[k].icon || 'grid')}</i><span>${esc(toolName(k))}</span></button>`).join('')}</div></details>`).join('')}
+      ${typeof espaceHome === 'function' && espaceHome() ? `<details class="st-tcat st-acc st-esp" style="--c:#3D5A80"><summary class="st-tcat-h">Espace métier<i class="st-chev">${icon('chevdown')}</i></summary>${espaceHome()}</details>` : ''}
     </div>`;
+    root.querySelectorAll('details.st-acc[data-g]').forEach(d => d.addEventListener('toggle', () => { const L = [...root.querySelectorAll('details.st-acc[data-g][open]')].map(x => x.dataset.g); try { localStorage.setItem('ptools.open', JSON.stringify(L)); } catch (e) {} }));
+    const avj = root.querySelector('[data-a=avjour]'); if (avj) avj.onclick = () => openAvJour(p);
     root.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { App.section = b.dataset.tool; App.search = ''; renderSection(); });
     const npv = root.querySelector('[data-a=newpv]'); if (npv) npv.onclick = async () => { const f = await pvCreate(p); if (f) { await openFormDetail(f); } };
     const pb = root.querySelector('[data-a=pbatch]'); if (pb) pb.onclick = () => openPhotoBatch(p);

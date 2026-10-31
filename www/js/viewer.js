@@ -129,7 +129,7 @@ async function openPlanViewer(plan, ctx) {
       <button class="iconbtn" data-a="more">${icon('more')}</button>
     </div>
     <div class="viewer">
-      <div class="stage"><img src="${src}" width="${W}" height="${H}"><canvas class="hd"></canvas><svg class="ov" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+      <div class="stage"><img src="${src}" width="${W}" height="${H}"><canvas class="hd"></canvas><canvas class="hd"></canvas><svg class="ov" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
         <g class="g-annots"></g><g class="g-preview"></g><g class="g-links"></g><g class="g-tasks"></g><g class="g-meas"></g></svg></div>
       <div class="tools"></div>
       <div class="loupe"><div class="lst"><img src="${src}" width="${W}" height="${H}"><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><g class="l-ann"></g><g class="l-prev"></g></svg></div><div class="cross"></div></div>
@@ -184,7 +184,19 @@ async function openPlanViewer(plan, ctx) {
   }
 
   // ---------- Rendu HD (plans PDF : redessin net de la zone visible) ----------
-  const hd = $('.hd', el);
+  // v1.0.46 : zoom sans tremblement — deux calques HD (double tampon), le nouveau apparaît en fondu par-dessus l'ancien,
+  // et la zone rendue déborde de l'écran (marge) pour qu'un petit déplacement ne montre pas l'image floue
+  const hdc = $$('.hd', el); let hdi = 0;
+  const hd = { style: { set display(v) { if (v === 'none') hdc.forEach(c => { c.style.display = 'none'; c.style.opacity = 0; }); } } };
+  function hdShow(src, left, top, w, h) {
+    const cur = hdc[hdi], nx = hdc[hdi ^ 1];
+    nx.width = src.width; nx.height = src.height; nx.getContext('2d').drawImage(src, 0, 0);
+    Object.assign(nx.style, { display: 'block', left: left + 'px', top: top + 'px', width: w + 'px', height: h + 'px', zIndex: 2, transition: 'none', opacity: 0 });
+    cur.style.zIndex = 1;
+    requestAnimationFrame(() => { nx.style.transition = 'opacity .16s ease-out'; nx.style.opacity = 1; setTimeout(() => { if (hdc[hdi] !== cur) { cur.style.opacity = 0; cur.style.display = 'none'; } }, 200); });
+    hdi ^= 1;
+  }
+  const HD_M = 0.25;   // marge rendue autour de l'écran (25 % de chaque côté)
   let pdfPage = null, hdTimer = null, hdTask = null;
   async function loadPdfPage() {
     if (!plan.pdfFileId || !(await pdfReadyA())) return null;
@@ -209,20 +221,20 @@ async function openPlanViewer(plan, ctx) {
     const C = await loadCad(); if (!C || g || !el.isConnected) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2.5), vw = viewer.clientWidth, vh = viewer.clientHeight, sc = st.scale, tx = st.tx, ty = st.ty;
     if (sc * dpr <= 1.05 && !C.hidden.length) { hd.style.display = 'none'; return; }
-    const c = document.createElement('canvas'); c.width = Math.round(vw * dpr); c.height = Math.round(vh * dpr);
+    const mx = Math.round(vw * HD_M), my = Math.round(vh * HD_M), RW = vw + 2 * mx, RH = vh + 2 * my;
+    const c = document.createElement('canvas'); c.width = Math.round(RW * dpr); c.height = Math.round(RH * dpr);
     const gg = c.getContext('2d'); gg.fillStyle = '#fff'; gg.fillRect(0, 0, c.width, c.height); gg.lineJoin = gg.lineCap = 'round';
-    const ix0 = -tx / sc, iy0 = -ty / sc, ix1 = (vw - tx) / sc, iy1 = (vh - ty) / sc;
+    const ix0 = (-tx - mx) / sc, iy0 = (-ty - my) / sc, ix1 = (vw + mx - tx) / sc, iy1 = (vh + my - ty) / sc;
     const clip = [C.x0 + ix0 / C.s, C.y1 - iy1 / C.s, C.x0 + ix1 / C.s, C.y1 - iy0 / C.s];
-    cadPaint(canvasDev(gg, sc * dpr), C.D, { color: 'screen', lwMode: 'col', plotAll: true, hidden: C.hidden }, { x0: C.x0, y1: C.y1, k: C.s, ox: tx / sc, oy: ty / sc, clip });
+    cadPaint(canvasDev(gg, sc * dpr), C.D, { color: 'screen', lwMode: 'col', plotAll: true, hidden: C.hidden }, { x0: C.x0, y1: C.y1, k: C.s, ox: (tx + mx) / sc, oy: (ty + my) / sc, clip });
     if (st.scale !== sc || st.tx !== tx || st.ty !== ty) return;
-    const ctx2 = hd.getContext('2d'); hd.width = c.width; hd.height = c.height; ctx2.drawImage(c, 0, 0);
-    Object.assign(hd.style, { display: 'block', left: ix0 + 'px', top: iy0 + 'px', width: (vw / sc) + 'px', height: (vh / sc) + 'px' });
+    hdShow(c, ix0, iy0, RW / sc, RH / sc);
   }
   function scheduleHD() {
     if (isCad) { clearTimeout(hdTimer); hdTimer = setTimeout(renderCadHD, 180); return; }
     if (!plan.pdfFileId) return;
     clearTimeout(hdTimer);
-    hdTimer = setTimeout(renderHD, 220);
+    hdTimer = setTimeout(renderHD, 140);
   }
   async function renderHD() {
     if (g || !el.isConnected) return scheduleHD();
@@ -233,16 +245,17 @@ async function openPlanViewer(plan, ctx) {
     const vw = viewer.clientWidth, vh = viewer.clientHeight;
     const r0 = W / page.getViewport({ scale: 1 }).width;
     const sc = st.scale, tx = st.tx, ty = st.ty;
-    const vp = page.getViewport({ scale: r0 * sc * dpr, offsetX: tx * dpr, offsetY: ty * dpr });
+    let mx = Math.round(vw * HD_M), my = Math.round(vh * HD_M);
+    if ((vw + 2 * mx) * (vh + 2 * my) * dpr * dpr > 16e6) { mx = my = 0; }   // limite mémoire des téléphones
+    const vp = page.getViewport({ scale: r0 * sc * dpr, offsetX: (tx + mx) * dpr, offsetY: (ty + my) * dpr });
     const c = document.createElement('canvas');
-    c.width = Math.round(vw * dpr); c.height = Math.round(vh * dpr);
+    c.width = Math.round((vw + 2 * mx) * dpr); c.height = Math.round((vh + 2 * my) * dpr);
     if (hdTask) { try { hdTask.cancel(); } catch (e) {} }
     hdTask = page.render({ canvasContext: c.getContext('2d'), viewport: vp, background: 'white' });
     try { await hdTask.promise; } catch (e) { return; }
     hdTask = null;
-    const ctx2 = hd.getContext('2d');
-    hd.width = c.width; hd.height = c.height; ctx2.drawImage(c, 0, 0);
-    Object.assign(hd.style, { display: 'block', left: (-tx / sc) + 'px', top: (-ty / sc) + 'px', width: (vw / sc) + 'px', height: (vh / sc) + 'px' });
+    if (st.scale !== sc || st.tx !== tx || st.ty !== ty) return scheduleHD();   // l'écran a bougé pendant le rendu : on recommence
+    hdShow(c, (-tx - mx) / sc, (-ty - my) / sc, (vw + 2 * mx) / sc, (vh + 2 * my) / sc);
   }
 
   // ---------- Mesures : distance, surface, périmètre, coordonnées (aimantation sur les extrémités des DWG/DXF) ----------

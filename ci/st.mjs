@@ -972,6 +972,65 @@ try {
     const t0 = Date.now(); await P.reload({ waitUntil: 'commit' }); await P.waitForSelector('.home2', { timeout: 30000 }).catch(() => {}); const ms = Date.now() - t0;
     log('démarrage avec réseau lent (ms jusqu\'à l\'accueil)', ms); await P.unroute('http://127.0.0.1:8080/**').catch(() => {}); await P.waitForTimeout(1500); }
   log('errors v1.0.45', v45);
+  // ---- v1.0.46 : outils du projet dépliables, avancement Pro Macro (zones, saisie du jour, équipes, tableau de bord, rapports), local technique
+  const v46 = [];
+  await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg,.ws-dd').forEach(x => x.remove()); localStorage.removeItem('ptools.open'); const p = (await DB.all('projects')).find(x => !x.deleted && Team.canProject(x.id)); await openProject(p, 'ptools'); });
+  await A.pg.waitForSelector('.st-ptools-p', { timeout: 10000 }); await A.pg.waitForTimeout(400);
+  const pt46 = await A.pg.evaluate(() => ({ qa: [...document.querySelectorAll('.st-qa-b span')].map(x => x.textContent), cats: document.querySelectorAll('.st-acc[data-g]').length, open: document.querySelectorAll('.st-acc[data-g][open]').length }));
+  log('outils du projet : actions rapides + catégories dépliables', pt46); await shot(A.pg, '200_outils_depliables'); if (!pt46.qa.length || pt46.open !== 1 || pt46.cats < 2) v46.push('outils du projet');
+  await A.pg.click('.st-acc[data-g]:not([open]) > summary'); await A.pg.waitForTimeout(250);
+  log('catégorie ouverte mémorisée', await A.pg.evaluate(() => JSON.parse(localStorage.getItem('ptools.open') || '[]').length));
+  // données : 2 zones, 2 niveaux avec plan, pins, équipes, journal
+  const av46 = await A.pg.evaluate(async () => {
+    const p = App.project; avLots(p);
+    const c = document.createElement('canvas'); c.width = 1200; c.height = 800; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 1200, 800); g.strokeStyle = '#333'; g.lineWidth = 6; g.strokeRect(50, 50, 1100, 700); g.beginPath(); g.moveTo(600, 50); g.lineTo(600, 750); g.stroke();
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9)); const f = await DB.put('files', { projectId: p.id, blob, mime: 'image/jpeg', name: 'plan.jpg', role: 'plan' });
+    const mk = async (name) => DB.put('plans', { projectId: p.id, fileId: f.id, w: 1200, h: 800, name, annotations: [], indice: 'A' });
+    const pl1 = await mk('RDC zone 1'), pl2 = await mk('R+1 zone 2');
+    p.avZones = ['Zone 1', 'Zone 2']; p.avNiveaux = [{ id: 'n1', name: 'RDC', serieId: planSerie(pl1), zone: 'Zone 1' }, { id: 'n2', name: 'R+1', serieId: planSerie(pl2), zone: 'Zone 2' }];
+    p.avTeams = [{ id: 't1', name: 'Équipe Rachid', resp: 'Rachid', color: '#2563eb', lot: p.lots[0].id }, { id: 't2', name: 'STE Atlas', resp: 'Karim', color: '#0d9488', lot: p.lots[1].id }];
+    await DB.put('projects', p);
+    const L1 = await DB.put('links', { projectId: p.id, planId: pl1.id, nivId: 'n1', kind: 'local', shape: 'point', x: 300, y: 300, name: 'LT 01', lots: {}, items: [] });
+    const L2 = await DB.put('links', { projectId: p.id, planId: pl1.id, nivId: 'n1', kind: 'local', shape: 'point', x: 800, y: 300, name: 'Couloir A', type: 'travail', lots: {}, items: [] });
+    const L3 = await DB.put('links', { projectId: p.id, planId: pl2.id, nivId: 'n2', kind: 'local', shape: 'point', x: 500, y: 500, name: 'LT 12', lots: {}, items: [] });
+    const t = todayISO(), y = avAddDays(t, -3);
+    const add = async (L, d, lot, eq, pct, eff) => { const e = { id: DB.uid(), d, t: Date.now() + Math.random(), lot, eq, pct, eff, photos: [], prev: avPctAt(L, lot, avAddDays(d, -1)) }; L.journal = [...(L.journal || []), e]; avApplyEntry(L, e); await DB.put('links', L); };
+    await add(L1, y, p.lots[0].id, 't1', 40, 4); await add(L1, t, p.lots[0].id, 't1', 100, 5); await add(L2, t, p.lots[0].id, 't1', 50, 3); await add(L3, t, p.lots[1].id, 't2', 30, 6);
+    const l1 = await DB.get('links', L1.id);
+    return { state: l1.lots[p.lots[0].id].state, pctY: avPctAt(l1, p.lots[0].id, y), pctT: avPctAt(l1, p.lots[0].id, t) };
+  });
+  log('journal → état du lot [état, % il y a 3 j, % aujourd\'hui]', av46); if (av46.state !== 'done' || av46.pctY !== 40 || av46.pctT !== 100) v46.push('journal / état');
+  await A.pg.evaluate(async () => { App.avTab = 'dash'; App.avF = null; App.section = 'avancement'; await renderSection(); }); await A.pg.waitForSelector('.avp-hero', { timeout: 10000 }); await A.pg.waitForTimeout(500);
+  const d46 = await A.pg.evaluate(() => ({ glob: (document.querySelector('.avp-hero .avp-dn text') || {}).textContent, rows: [...document.querySelectorAll('.avp-rh b')].map(b => b.textContent), today: document.querySelectorAll('.avp-today').length, teams: [...document.querySelectorAll('.avp-team b')].map(b => b.textContent), curve: !!document.querySelector('.avp-curve polyline') }));
+  log('tableau de bord Pro Macro', d46); await shot(A.pg, '201_pro_macro'); if (d46.rows.join('|') !== 'Zone 1|Zone 2' || d46.today !== 3 || d46.teams.length !== 2 || !d46.curve) v46.push('tableau de bord');
+  await A.pg.evaluate(() => document.querySelector('.avp-mx').scrollIntoView()); await shot(A.pg, '202_matrice_zones');
+  await A.pg.click('.avp-rh[data-row="z:Zone 1"]'); await A.pg.waitForTimeout(400);
+  const z46 = await A.pg.evaluate(() => ({ rows: [...document.querySelectorAll('.avp-rh b')].map(b => b.textContent), zone: App.avF.zone }));
+  log('filtre zone → niveaux', z46); await shot(A.pg, '203_zone1_niveaux'); if (z46.rows.join('|') !== 'RDC' || z46.zone !== 'Zone 1') v46.push('filtre zone');
+  await A.pg.evaluate(() => { App.avF = null; });
+  // rapports : CSV + PDF
+  const ex46 = await A.pg.evaluate(async () => { const p = App.project, { locaux, nivs } = await avData(p); let csv = null; const sb = window.shareBlob; window.shareBlob = async (b, n) => { csv = [n, (await b.text()).split('\n').length]; }; await avProExport('csv', p, nivs, locaux); window.shareBlob = sb;
+    window.PdfCapture = []; await avProExport('pdf', p, nivs, locaux); const pdf = window.PdfCapture.length && window.PdfCapture[0].fname; const L = locaux.find(l => l.name === 'LT 01'); window.PdfCapture = []; await avDossierLocal(p, L); const dos = window.PdfCapture.length && window.PdfCapture[0].fname; delete window.PdfCapture; return { csv, pdf, dos }; });
+  log('rapports [CSV, PDF, dossier du local]', ex46); if (!ex46.csv || ex46.csv[1] < 8 || !ex46.pdf || !ex46.dos) v46.push('rapports');
+  // saisie du jour depuis l'interface
+  await A.pg.evaluate(async () => { const p = App.project, L = (await DB.byProject('links', p.id)).find(l => l.name === 'LT 12'); window.__aj = avJourForm(p, L, { lot: p.lots[0].id }); });
+  await A.pg.waitForSelector('.sheet [name=pct]'); await shot(A.pg, '204_saisie_du_jour');
+  await A.pg.selectOption('.sheet [name=pct]', '60'); await A.pg.selectOption('.sheet [name=eq]', 't2'); await A.pg.fill('.sheet [name=eff]', '7'); await A.pg.click('.sheet [data-a=ok]'); await A.pg.waitForTimeout(600);
+  const j46 = await A.pg.evaluate(async () => { const p = App.project, L = (await DB.byProject('links', p.id)).find(l => l.name === 'LT 12'), r = L.lots[p.lots[0].id]; return { n: (L.journal || []).length, state: r.state, pct: r.pct, eq: r.eq }; });
+  log('saisie du jour (interface)', j46); if (j46.n !== 2 || j46.pct !== 60 || j46.eq !== 't2') v46.push('saisie du jour');
+  await A.pg.evaluate(() => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); openAvJour(App.project); }); await A.pg.waitForSelector('.avj-page .avj-row', { timeout: 8000 }); await A.pg.waitForTimeout(300);
+  log('page avancement du jour [lignes, zones]', await A.pg.evaluate(() => [document.querySelectorAll('.avj-row').length, document.querySelectorAll('.avj-z').length])); await shot(A.pg, '205_avancement_du_jour');
+  // fiche du local : étapes photo + type de chape
+  await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); const p = App.project, L = (await DB.byProject('links', p.id)).find(l => l.name === 'LT 01'); openAvLocal(L, p.lots[0].id, () => {}); });
+  await A.pg.waitForSelector('.avp-mode [data-md=et]'); await A.pg.click('.avp-mode [data-md=et]'); await A.pg.waitForSelector('.avp-etr');
+  await A.pg.click('.avp-etr [data-etok]'); await A.pg.waitForTimeout(300);
+  const et46 = await A.pg.evaluate(async () => { const p = App.project, L = (await DB.byProject('links', p.id)).find(l => l.name === 'LT 01'); return { etapes: [...document.querySelectorAll('.avp-etr b')].map(b => b.textContent), done: Object.values(L.etapes || {}).filter(x => x.done).length }; });
+  log('local technique : étapes', et46); await shot(A.pg, '206_local_etapes'); if (et46.etapes.length !== 4 || et46.done !== 1) v46.push('étapes du local');
+  await A.pg.click('.avp-mode [data-md=jr]'); await A.pg.waitForTimeout(250); await shot(A.pg, '207_local_journal');
+  await A.pg.evaluate(() => document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()));
+  // zoom du plan : deux calques HD (fondu)
+  log('plan : double calque HD', await A.pg.evaluate(async () => { const pl = (await DB.byProject('plans', App.project.id))[0]; openPlanViewer(pl, planCtx(() => {})); await new Promise(r => setTimeout(r, 900)); const n = document.querySelectorAll('.stage canvas.hd').length; document.querySelectorAll('.viewer, .fullpage').forEach(x => x.remove()); return n; }));
+  log('errors v1.0.46', v46);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);
