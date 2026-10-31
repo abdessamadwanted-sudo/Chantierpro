@@ -462,7 +462,7 @@ async function avReminderCheck(p) {
 }
 // notification quotidienne à 17 h (téléphone) tant que des lots sont en cours
 async function avReminderNotif(p) {
-  const LN = window.Capacitor?.Plugins?.LocalNotifications; if (!LN) return;
+  const LN = window.Capacitor?.Plugins?.LocalNotifications; if (!LN || window.__safe) return;
   try { const k = 'avRemN.' + p.id; if (localStorage.getItem(k) === todayISO()) return; localStorage.setItem(k, todayISO()); } catch (e) {}   // v1.0.48 : une fois par jour, pas à chaque affichage
   try {
     const today = todayISO(), on = (p.avNiveaux || []).some(n => avLots(p).some(lot => { const P = (p.avPlan || {})[n.id + '|' + lot.id]; return P && !P.done && P.deb && P.deb <= today && (!P.fin || avDaysBetween(P.fin, today) < 30); }));
