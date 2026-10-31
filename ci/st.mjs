@@ -1001,11 +1001,11 @@ try {
   });
   log('journal → état du lot [état, % il y a 3 j, % aujourd\'hui]', av46); if (av46.state !== 'done' || av46.pctY !== 40 || av46.pctT !== 100) v46.push('journal / état');
   await A.pg.evaluate(async () => { App.avTab = 'dash'; App.avF = null; App.section = 'avancement'; await renderSection(); }); await A.pg.waitForSelector('.avp-hero', { timeout: 10000 }); await A.pg.waitForTimeout(500);
-  const d46 = await A.pg.evaluate(() => ({ glob: (document.querySelector('.avp-hero .avp-dn text') || {}).textContent, rows: [...document.querySelectorAll('.avp-rh b')].map(b => b.textContent), today: document.querySelectorAll('.avp-today').length, teams: [...document.querySelectorAll('.avp-team b')].map(b => b.textContent), curve: !!document.querySelector('.avp-curve polyline') }));
+  const d46 = await A.pg.evaluate(() => ({ glob: (document.querySelector('.avp-hero .avp-dn text') || {}).textContent, rows: [...document.querySelectorAll('.avp-mx .avp-rh b')].map(b => b.textContent), today: document.querySelectorAll('.avp-today').length, teams: [...document.querySelectorAll('.avp-team b')].map(b => b.textContent), curve: !!document.querySelector('.avp-curve polyline') }));
   log('tableau de bord Pro Macro', d46); await shot(A.pg, '201_pro_macro'); if (d46.rows.join('|') !== 'Zone 1|Zone 2' || d46.today !== 3 || d46.teams.length !== 2 || !d46.curve) v46.push('tableau de bord');
   await A.pg.evaluate(() => document.querySelector('.avp-mx').scrollIntoView()); await shot(A.pg, '202_matrice_zones');
   await A.pg.click('.avp-rh[data-row="z:Zone 1"]'); await A.pg.waitForTimeout(400);
-  const z46 = await A.pg.evaluate(() => ({ rows: [...document.querySelectorAll('.avp-rh b')].map(b => b.textContent), zone: App.avF.zone }));
+  const z46 = await A.pg.evaluate(() => ({ rows: [...document.querySelectorAll('.avp-mx .avp-rh b')].map(b => b.textContent), zone: App.avF.zone }));
   log('filtre zone → niveaux', z46); await shot(A.pg, '203_zone1_niveaux'); if (z46.rows.join('|') !== 'RDC' || z46.zone !== 'Zone 1') v46.push('filtre zone');
   await A.pg.evaluate(() => { App.avF = null; });
   // rapports : CSV + PDF
@@ -1039,7 +1039,7 @@ try {
   });
   log('zone dessinée → pins rattachés', zp46); if (!zp46.zones.includes('LT 01=Zone 1') || zp46.zones.includes('Couloir A=Zone 1')) v46.push('zones dessinées');
   await A.pg.evaluate(async () => { App.avTab = 'dash'; App.avF = null; await renderSection(); }); await A.pg.waitForSelector('.avp-hero'); await A.pg.waitForTimeout(300);
-  const s46 = await A.pg.evaluate(() => ({ rows: [...document.querySelectorAll('.avp-rh b')].map(b => b.textContent), sect: [...document.querySelectorAll('.avp-fr')].some(r => /Secteur/.test(r.textContent)) }));
+  const s46 = await A.pg.evaluate(() => ({ rows: [...document.querySelectorAll('.avp-mx .avp-rh b')].map(b => b.textContent), sect: [...document.querySelectorAll('.avp-fr')].some(r => /Secteur/.test(r.textContent)) }));
   log('tableau de bord : secteurs', s46); await shot(A.pg, '208_secteurs'); if (!s46.rows.includes('Ouest') || !s46.rows.includes('Nord') || !s46.sect) v46.push('secteurs');
   // import des locaux depuis les textes du PDF (textes simulés comme ceux du plan du Grand Stade)
   await A.pg.evaluate(async () => {
