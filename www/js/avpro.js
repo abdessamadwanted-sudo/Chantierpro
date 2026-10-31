@@ -20,10 +20,15 @@ const avDayISO = (d) => d.toISOString().slice(0, 10);
 const avAddDays = (iso, k) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + k); return avDayISO(d); };
 
 // pourcentage d'un pin pour un lot à une date (journal d'abord, sinon l'état actuel)
+// v1.0.48 : journal trié une seule fois par pin et par lot (le tableau de bord appelait ce calcul des milliers de fois)
+const _avJC = new WeakMap();
+function avJSorted(loc, lotId) {
+  const J0 = loc.journal || []; let c = _avJC.get(J0); if (!c) { c = {}; _avJC.set(J0, c); }
+  return c[lotId] || (c[lotId] = J0.filter(e => e.lot === lotId).sort((a, b) => (a.d + (a.t || 0)).localeCompare(b.d + (b.t || 0))));
+}
 function avPctAt(loc, lotId, day) {
-  const J = (loc.journal || []).filter(e => e.lot === lotId && e.d <= day).sort((a, b) => (a.d + (a.t || 0)).localeCompare(b.d + (b.t || 0)));
-  if (J.length) return +J[J.length - 1].pct || 0;
-  if ((loc.journal || []).some(e => e.lot === lotId)) return 0;   // première saisie après cette date
+  const S = avJSorted(loc, lotId);
+  if (S.length) { let lo = 0, hi = S.length - 1, k = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (S[m].d <= day) { k = m; lo = m + 1; } else hi = m - 1; } return k >= 0 ? (+S[k].pct || 0) : 0; }   // 0 : première saisie après cette date
   const r = (loc.lots || {})[lotId]; if (r && r.state === 'done' && r.doneAt && r.doneAt > day) return 0;
   return avPct(r);
 }

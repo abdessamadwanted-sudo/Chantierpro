@@ -337,11 +337,15 @@ async function pdfPageToBlob(page, maxSide = PDF_MAXSIDE, onTile) {
 // v1.0.47 : plans importés avant (rendu d'un seul bloc jusqu'à 5000 px → parfois coupés) : l'image est refaite par tuiles,
 // les coordonnées du plan (pins, annotations) ne changent pas (plan.w / plan.h gardés, l'image est simplement étirée)
 const _planHealing = new Map();
-function planNeedsHeal(plan) { return !!(plan && plan.pdfFileId && !plan.imgV && (Math.max(plan.w, plan.h) > PDF_MAXSIDE || plan.w * plan.h > PDF_MAXPX)); }
+const _healTried = () => { try { return JSON.parse(localStorage.getItem('heal.tried') || '{}'); } catch (e) { return {}; } };
+function planNeedsHeal(plan) { return !!(plan && plan.pdfFileId && !plan.imgV && !_healTried()[plan.id] && (Math.max(plan.w, plan.h) > PDF_MAXSIDE || plan.w * plan.h > PDF_MAXPX)); }
+let _healQ = Promise.resolve();
 async function planHeal(plan) {
   if (!planNeedsHeal(plan)) return false;
   if (_planHealing.has(plan.id)) return _planHealing.get(plan.id);
-  const pr = (async () => {
+  // v1.0.48 : une seule tentative par plan (même en cas d'échec), un plan à la fois, lancée 4 s après l'ouverture (l'écran reste fluide)
+  try { const T = _healTried(); T[plan.id] = Date.now(); localStorage.setItem('heal.tried', JSON.stringify(T)); } catch (e) {}
+  const pr = (_healQ = _healQ.then(() => new Promise(r => setTimeout(r, 4000))).then(async () => {
     try {
       if (!(await pdfReadyA())) return false;
       const src = await DB.get('files', plan.pdfFileId), img = await DB.get('files', plan.fileId); if (!src || !src.blob || !img) return false;
@@ -352,7 +356,7 @@ async function planHeal(plan) {
       const pl = await DB.get('plans', plan.id) || plan; pl.imgV = 47; await DB.put('plans', pl); plan.imgV = 47;
       return true;
     } catch (e) { console.warn('heal', e); return false; } finally { _planHealing.delete(plan.id); }
-  })();
+  }));
   _planHealing.set(plan.id, pr); return pr;
 }
 

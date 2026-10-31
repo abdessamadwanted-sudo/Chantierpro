@@ -234,7 +234,7 @@ const Sync = (() => {
       // v1.0.43 : résultats de l'envoi en arrière-plan (WorkManager) — les photos confiées au téléphone ne sont pas renvoyées ici
       if (typeof BgUp !== 'undefined' && BgUp.available()) { try { await BgUp.settle(); } catch (e) { console.warn('bgup settle', e); } }
       // v1.0.47 : projets sans aucun fichier dans Drive → rangement intelligent directement (les autres : « Réorganiser Drive » avec aperçu)
-      try { const F0 = await DB.all('files'), inD = new Set(F0.filter(f => f.driveId).map(f => f.projectId)); for (const pr of await DB.all('projects')) if (pr.driveV2 == null && !inD.has(pr.id)) { pr.driveV2 = true; await DB.put('projects', pr); } } catch (e) { console.warn('v2', e); }
+      if (!window.__v2chk) try { window.__v2chk = 1; const F0 = await DB.all('files'), inD = new Set(F0.filter(f => f.driveId).map(f => f.projectId)); for (const pr of await DB.all('projects')) if (pr.driveV2 == null && !inD.has(pr.id)) { pr.driveV2 = true; await DB.put('projects', pr); } } catch (e) { console.warn('v2', e); }
       const paths = await buildPaths();
       const files = await DB.all('files');
       const todo = !hasDrive() ? [] : files.filter(f => !f.bgq && !f.prep).filter(f => (f.blob && (!f.driveId || f.drivePath !== JSON.stringify(pathFor(f, paths)))) || (!f.blob && f.driveId && f.drivePath && f.drivePath !== JSON.stringify(pathFor(f, paths))));
