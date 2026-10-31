@@ -1,6 +1,20 @@
-## SiteTeam : ouverture rapide, accès sur code uniquement
-- Ouverture beaucoup plus rapide, surtout avec une 4G faible sur chantier : l'accueil s'affiche tout de suite avec les données du téléphone. Le profil, l'organisation, les membres, les postes et les équipes projet se mettent à jour en arrière-plan.
-- Les bibliothèques PDF (≈ 1,2 Mo) se chargent juste après l'accueil, et non plus au démarrage.
-- Nouveau (Panneau d'administration › « Accès sur code uniquement ») : une personne qui installe l'application ne peut rien faire sans un code d'accès que vous lui donnez (Équipe › Codes d'accès). Les espaces personnels sont bloqués, sauf ceux que vous autorisez.
-- Pour arrêter quelqu'un : retirez-le de l'organisation, révoquez son code ou bloquez son compte.
-- Nouvelles règles Firestore : sans le Super Admin, aucun nouvel espace ne peut être créé quand l'accès sur code est activé. À publier dans la console Firebase.
+## SiteTeam : avancement « Pro Macro » par zone, niveau, lot et équipe ; outils du projet rangés ; zoom fluide
+- Outils du projet : actions rapides en une rangée (Avancement du jour, Nouveau PV, Photos en masse, Dossiers Drive). Les catégories se déplient au toucher, et l'application se souvient de celles que vous gardez ouvertes.
+- Avancement : zones (Zone 1, Zone 2…). Chaque niveau (SSL, MEZZ, RDC, R+1…) appartient à une zone.
+- Deux types de pins sur le plan : local technique (●) et zone de travail (▭ : façade, couloir, gaine…).
+- Saisie du jour sur chaque pin : lot, équipe/responsable, % atteint, effectif, quantité, note, photos. Elle met à jour l'avancement du lot et garde l'historique jour par jour. Une pastille orange sur le plan marque les pins saisis aujourd'hui.
+- « Avancement du jour » : toutes les saisies d'une journée par zone, avec effectif et équipes. Navigation jour par jour et partage WhatsApp.
+- Tableau de bord Pro Macro :
+  - anneau global et anneaux par lot ;
+  - progression sur 7, 30 ou 90 jours ;
+  - matrice zones × lots ou niveaux × lots en couleurs (toucher une zone pour descendre aux niveaux, toucher une case pour ouvrir le plan) ;
+  - saisies du jour ;
+  - classement des équipes (points gagnés, pins, effectif) ;
+  - filtres par zone, niveau, lot et équipe.
+- Rapports : PDF (barres par lot, matrice, équipes, journal sur 7 jours), Excel (état et journal), WhatsApp.
+- Local technique :
+  - étapes photo (Maçonnerie, Chape, Nettoyage, Porte provisoire), cochées et datées ;
+  - type de chape en couleur ;
+  - dossier complet en PDF (extrait du plan entouré, lots, étapes, photos, journal) à envoyer par WhatsApp ;
+  - listes modifiables : zones, équipes, étapes, types de chape.
+- Plans : zoom sans tremblement. La partie nette apparaît en fondu, et une marge autour de l'écran reste nette quand on déplace le plan.

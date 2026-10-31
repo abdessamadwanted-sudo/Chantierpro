@@ -51,25 +51,28 @@ function avStats(locs, lotId) {
 async function renderAvancement(root) {
   const p = App.project; avLots(p);
   const { locaux, nivs } = await avData(p);
+  if (typeof avZoneOf === 'function') nivs.sort((a, b) => avZones(p).indexOf(avZoneOf(p, a)) - avZones(p).indexOf(avZoneOf(p, b)));   // v1.0.46 : niveaux rangés par zone
   if (App.avTab && App.avTab !== 'dash' && !p.lots.find(l => l.id === App.avTab)) App.avTab = 'dash';
   App.avTab = App.avTab || 'dash';
   const tba = $('#tbActions');
   if (tba) {
-    tba.innerHTML = `<button class="iconbtn" data-a="avpdf" title="Rapport PDF">${icon('pdf')}</button><button class="iconbtn" data-a="avset" title="Lots et réglages">${icon('settings')}</button>`;
+    tba.innerHTML = `<button class="iconbtn" data-a="avjour" title="Avancement du jour">${icon('calendar')}</button><button class="iconbtn" data-a="avpdf" title="Rapport PDF">${icon('pdf')}</button><button class="iconbtn" data-a="avset" title="Lots et réglages">${icon('settings')}</button>`;
+    $('[data-a=avjour]').onclick = () => typeof openAvJour === 'function' && openAvJour(p);
     $('[data-a=avpdf]').onclick = () => avReportDialog({});
     $('[data-a=avset]').onclick = () => avSettings(root);
   }
-  const tabs = `<div class="av-tabs"><button data-t="dash" class="${App.avTab === 'dash' ? 'on' : ''}">📊 Tableau de bord</button>${p.lots.map(l => `<button data-t="${l.id}" class="${App.avTab === l.id ? 'on' : ''}" style="--c:${l.color}"><i></i>${esc(l.name)}</button>`).join('')}</div>`;
+  const tabs = `<div class="av-tabs"><button data-t="dash" class="${App.avTab === 'dash' ? 'on' : ''}">📊 Pro</button>${p.lots.map(l => `<button data-t="${l.id}" class="${App.avTab === l.id ? 'on' : ''}" style="--c:${l.color}"><i></i>${esc(l.name)}</button>`).join('')}</div>`;
   let body = '';
   if (!nivs.length) {
     body = `<div class="av-empty"><div class="ic">🏗️</div><b>Suivi d'avancement par lot</b>
       <ol><li>Ajoutez un <b>niveau</b> (plan R+1, RDC…) — PDF, image ou AutoCAD DXF.</li><li>Placez les <b>locaux</b> sur le plan (pins).</li><li>Pour chaque lot (${p.lots.map(l => esc(l.name)).join(', ')}), saisissez l'<b>engagement</b> avec le maître d'ouvrage, l'état et les photos.</li></ol>
       <button class="btn" data-a="addniv">${icon('plus')} Ajouter un niveau</button></div>`;
-  } else if (App.avTab === 'dash') body = avDashboardHTML(p, nivs, locaux);
+  } else if (App.avTab === 'dash') body = typeof avProDash === 'function' ? '<div class="avp-root"></div>' : avDashboardHTML(p, nivs, locaux);
   else {
     const lot = avLot(p, App.avTab);
-    body = `<div class="av-list">${nivs.map(n => { const locs = locaux.filter(l => l.nivId === n.id), s = avStats(locs, lot.id);
-      return `<div class="av-niv" data-niv="${n.id}"><div class="av-niv-h"><span class="av-niv-n">${esc(n.name)}</span>
+    const zh = (n, i) => typeof avZoneOf === 'function' && (i === 0 || avZoneOf(p, nivs[i - 1]) !== avZoneOf(p, n)) ? `<div class="av-zh">${esc(avZoneOf(p, n))}</div>` : '';
+    body = `<div class="av-list">${nivs.map((n, i) => { const locs = locaux.filter(l => l.nivId === n.id), s = avStats(locs, lot.id);
+      return `${zh(n, i)}<div class="av-niv" data-niv="${n.id}"><div class="av-niv-h"><span class="av-niv-n">${esc(n.name)}</span>
           <span class="grow"><b>${s.pct}%</b> <small>${s.fin}/${s.n} local(aux) terminé(s)${n.plan ? ` · plan ind. ${esc(planIndice(n.plan))}` : ' · <span style="color:var(--red)">plan manquant</span>'}</small></span>
           <button class="iconbtn sm" data-nmore="${n.id}">${icon('more')}</button></div>
         <div class="av-bar">${['done', 'donelate', 'progress', 'soon', 'late', 'todo'].map(k => s[k] ? `<i style="flex:${s[k]};background:${AV_ST[k][1]}"></i>` : '').join('') || '<i style="flex:1;background:var(--line)"></i>'}</div>
@@ -77,6 +80,7 @@ async function renderAvancement(root) {
       <button class="av-add" data-a="addniv">${icon('plus')} Ajouter un niveau</button></div>`;
   }
   root.innerHTML = tabs + body;
+  const pr = $('.avp-root', root); if (pr) avProDash(pr, p, nivs, locaux);
   $$('.av-tabs [data-t]', root).forEach(b => b.onclick = () => { App.avTab = b.dataset.t; renderAvancement(root); });
   $$('[data-a=addniv]', root).forEach(b => b.onclick = async () => { if (await avAddNiveau(p)) renderAvancement(root); });
   $$('[data-niv]', root).forEach(c => c.onclick = (e) => { if (e.target.closest('[data-nmore]')) return; const n = nivs.find(x => x.id === c.dataset.niv); openAvViewer(n.id, App.avTab, () => renderAvancement(root)); });
@@ -150,19 +154,23 @@ async function avAddNiveau(p) {
   const plan = await avPickOrImportPlan(p, 'Ajouter un niveau');
   if (!plan) return false;
   const guess = (String(plan.name).match(/\b(R\s*\+\s*\d+|RDC|SS\s*\d*|Sous[- ]sol\s*\d*|Mezz\w*|Terrasse)\b/i) || [])[1];
-  const r = await formSheet('Nom du niveau', [{ name: 'name', label: 'Niveau', value: guess ? guess.replace(/\s+/g, '').toUpperCase() : plan.name, placeholder: 'Ex : RDC, R+1, R+2…' }], { okLabel: 'Ajouter' });
+  const Z = typeof avZones === 'function' ? avZones(p) : null;
+  const r = await formSheet('Nom du niveau', [{ name: 'name', label: 'Niveau', value: guess ? guess.replace(/\s+/g, '').toUpperCase() : plan.name, placeholder: 'Ex : SSL, MEZZ, RDC, R+1…', list: ['SSL', 'SS1', 'MEZZ', 'RDC', 'R+1', 'R+2', 'R+3', 'Terrasse'] },
+    ...(Z ? [{ name: 'zone', label: 'Zone', type: 'select', value: App.avF && App.avF.zone || Z[0], options: [...Z.map(z => ({ value: z, label: z })), { value: '__new', label: '➕ Nouvelle zone…' }] }] : [])], { okLabel: 'Ajouter' });
   if (!r || !r.name) return false;
-  p.avNiveaux = p.avNiveaux || []; p.avNiveaux.push({ id: DB.uid(), name: r.name, serieId: planSerie(plan) });
+  let zone = r.zone; if (zone === '__new') { const z = await formSheet('Nouvelle zone', [{ name: 'z', label: 'Nom de la zone', value: `Zone ${Z.length + 1}` }], { okLabel: 'Ajouter' }); zone = z && z.z ? z.z.trim() : Z[0]; if (!Z.includes(zone)) Z.push(zone); }
+  p.avNiveaux = p.avNiveaux || []; p.avNiveaux.push({ id: DB.uid(), name: r.name, serieId: planSerie(plan), ...(zone ? { zone } : {}) });
   await DB.put('projects', p); toast('Niveau ajouté ✓');
   return true;
 }
 async function avNiveauMenu(p, nid, done) {
   const n = (p.avNiveaux || []).find(x => x.id === nid); if (!n) return;
   const i = p.avNiveaux.indexOf(n);
-  const v = await menu(n.name, [{ label: 'Renommer', icon: 'edit', value: 'ren' }, { label: 'Changer de plan', icon: 'plans', value: 'plan' },
+  const v = await menu(n.name, [{ label: 'Renommer', icon: 'edit', value: 'ren' }, ...(typeof avZones === 'function' ? [{ label: `Zone : ${avZoneOf(p, n)}`, icon: 'layers', value: 'zone' }] : []), { label: 'Changer de plan', icon: 'plans', value: 'plan' },
     ...(i > 0 ? [{ label: 'Monter', icon: 'chevup', value: 'up' }] : []), ...(i < p.avNiveaux.length - 1 ? [{ label: 'Descendre', icon: 'chevdown', value: 'down' }] : []),
     { label: 'Supprimer le niveau et ses locaux', icon: 'trash', danger: true, value: 'del' }]);
   if (v === 'ren') { const r = await formSheet('Renommer', [{ name: 'name', label: 'Niveau', value: n.name }]); if (r && r.name) n.name = r.name; }
+  if (v === 'zone') { const z = await menu('Zone du niveau', avZones(p).map(x => ({ label: x, value: x, checked: avZoneOf(p, n) === x }))); if (z) n.zone = z; }
   if (v === 'plan') { const pl = await avPickOrImportPlan(p, 'Nouveau plan du niveau'); if (pl) { n.serieId = planSerie(pl); toast('Pour une simple mise à jour du même plan, utilisez plutôt « Nouvel indice » (les locaux suivent)'); } }
   if (v === 'up' || v === 'down') { const j = v === 'up' ? i - 1 : i + 1; [p.avNiveaux[i], p.avNiveaux[j]] = [p.avNiveaux[j], p.avNiveaux[i]]; }
   if (v === 'del') { if (!await confirmBox(`Supprimer le niveau ${n.name} et tous ses locaux (le plan reste dans Plans) ?`)) return;
@@ -177,11 +185,17 @@ async function avSettings(root) {
   const v = await menu('Avancement — réglages', [
     ...p.lots.map(l => ({ label: `Lot : ${l.name}`, swatch: l.color, value: 'lot:' + l.id })),
     { label: 'Ajouter un lot (ex : Carrelage, Peinture…)', icon: 'plus', value: 'add' },
+    ...(typeof avZones === 'function' ? [{ label: `Zones (${avZones(p).join(', ')})`, icon: 'layers', value: 'zones' }, { label: `Équipes & responsables (${avTeams(p).length})`, icon: 'team', value: 'teams' },
+      { label: 'Étapes photo du local', icon: 'camera', value: 'etapes' }, { label: 'Types de chape (couleurs)', icon: 'fill', value: 'chapes' }] : []),
     { label: 'En-tête des rapports (société, logo)', icon: 'report', value: 'head' },
   ]);
   if (!v) return;
   if (v === 'add') { const r = await formSheet('Nouveau lot', [{ name: 'name', label: 'Nom du lot', placeholder: 'Ex : Carrelage' }], { okLabel: 'Ajouter' }); if (r && r.name) p.lots.push({ id: DB.uid(), name: r.name, color: AV_LOT_COLORS[p.lots.length % AV_LOT_COLORS.length] }); }
   if (v === 'head') await avHeaderSettings(p);
+  if (v === 'zones') await avListEdit(p, 'zone');
+  if (v === 'teams') await avTeamsMenu(p);
+  if (v === 'etapes') await avListEdit(p, 'etape');
+  if (v === 'chapes') await avListEdit(p, 'chape');
   if (v.startsWith('lot:')) {
     const lot = p.lots.find(l => 'lot:' + l.id === v), i = p.lots.indexOf(lot);
     const a = await menu(lot.name, [{ label: 'Renommer', icon: 'edit', value: 'ren' }, { label: 'Couleur', icon: 'fill', value: 'col' }, ...(i > 0 ? [{ label: 'Monter', icon: 'chevup', value: 'up' }] : []), { label: 'Supprimer le lot', icon: 'trash', danger: true, value: 'del' }]);
@@ -259,7 +273,8 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
       const k = avStatus((l.lots || {})[st.lot]), c = AV_ST[k][1], dim = st.filter && st.filter !== k;
       return `<g transform="translate(${l.x},${l.y})" opacity="${dim ? 0.2 : 1}">
         ${l.checkIndice ? `<circle r="${R * 1.7}" fill="none" stroke="#f59e0b" stroke-width="${2.5 / s}" stroke-dasharray="${4 / s} ${3 / s}"/>` : ''}
-        <circle r="${R}" fill="${c}" stroke="#fff" stroke-width="${2.5 / s}"/>
+        ${l.type === 'travail' ? `<rect x="${-R}" y="${-R * 0.75}" width="${R * 2}" height="${R * 1.5}" rx="${R * 0.3}" fill="${c}" stroke="#fff" stroke-width="${2.5 / s}"/>` : `<circle r="${R}" fill="${c}" stroke="#fff" stroke-width="${2.5 / s}"/>`}
+        ${(l.journal || []).some(e => e.d === todayISO()) ? `<circle cx="${R * 0.85}" cy="${-R * 0.85}" r="${R * 0.38}" fill="#f59e0b" stroke="#fff" stroke-width="${1.5 / s}"/>` : ''}
         ${avIsDone(k) ? `<path d="M${-R * 0.45},0 L${-R * 0.1},${R * 0.38} L${R * 0.5},${-R * 0.35}" fill="none" stroke="#fff" stroke-width="${2.6 / s}" stroke-linecap="round"/>` : k === 'late' ? `<text y="${R * 0.42}" text-anchor="middle" font-size="${R * 1.3}" font-weight="700" fill="#fff" font-family="Arial">!</text>` : ''}
         ${showLbl ? `<text y="${R * 2.4}" text-anchor="middle" font-size="${12 / s}" font-weight="700" fill="#111" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="${3.5 / s}">${esc(l.name)}</text>` : ''}</g>`;
     }).join('');
@@ -270,10 +285,12 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
     if (st.moving && !out) { const l = st.moving; l.x = x; l.y = y; delete l.checkIndice; await DB.put('links', l); st.moving = null; toast('Local déplacé ✓'); return refresh(); }
     if (st.add && !out) {
       const lot = lotObj();
-      const r = await formSheet('Nouveau local', [{ name: 'name', label: 'Nom du local', placeholder: 'Ex : Bureau 12, Salle 3, Sanitaires H…', value: avNextName(st.locs) },
+      const r = await formSheet('Nouveau pin', [{ name: 'type', label: 'Type', type: 'select', value: st.lastType || 'local', options: [{ value: 'local', label: '● Local technique (n° ANEP, étapes, photos)' }, { value: 'travail', label: '▭ Zone de travail (façade, couloir, gaine…)' }] },
+        { name: 'name', label: 'Nom / numéro', placeholder: 'Ex : LT 12, Local TGBT, Couloir B…', value: avNextName(st.locs) },
         { name: 'due', label: `Engagement ${lot.name} (date limite) — optionnel`, type: 'date' }], { okLabel: 'Placer' });
       if (!r || !r.name) return;
-      const loc = { projectId: p.id, planId: plan.id, nivId: niv.id, kind: 'local', shape: 'point', x, y, name: r.name, lots: {}, items: [] };
+      st.lastType = r.type;
+      const loc = { projectId: p.id, planId: plan.id, nivId: niv.id, kind: 'local', shape: 'point', x, y, name: r.name, lots: {}, items: [], ...(r.type === 'travail' ? { type: 'travail' } : {}) };
       if (r.due) loc.lots[lot.id] = { state: 'todo', due: r.due, photos: [] };
       await DB.put('links', loc); return refresh();
     }
@@ -328,12 +345,15 @@ function openAvLocal(loc, lotId, onChange, { onMove } = {}) {
   const s = sheet('<div class="av-loc"></div>', { title: `${loc.name}${niv.name ? ' · ' + niv.name : ''}` });
   s.onClose = () => { if (saveT) { clearTimeout(saveT); DB.put('links', loc).then(() => onChange && onChange()); } };
   const box = $('.av-loc', s.el);
+  let mode = 'lot';
   async function render() {
+    if (mode !== 'lot' && typeof avEtapesHTML === 'function') return renderX();
     const r = loc.lots[cur] = loc.lots[cur] || { state: 'todo', photos: [] }; r.photos = r.photos || [];
     const k = avStatus(r), files = await loadFiles(r.photos);
     const dueTxt = r.due ? (avIsDone(k) ? '' : avDaysTo(r.due) < 0 ? ` · en retard de ${-avDaysTo(r.due)} j` : avDaysTo(r.due) === 0 ? " · aujourd'hui" : ` · dans ${avDaysTo(r.due)} j`) : '';
     box.innerHTML = `
       ${loc.checkIndice ? `<div class="av-warn">⚠ Zone modifiée à l'indice ${esc(loc.checkIndice)} : vérifiez la position du local.<div><button class="btn small ghost" data-a="okpos">Position OK</button><button class="btn small" data-a="move2">Déplacer</button></div></div>` : ''}
+      ${typeof avEtapesHTML === 'function' ? modeBar() : ''}
       <div class="av-lt">${p.lots.map(l => { const kk = avStatus(loc.lots[l.id]); return `<button data-lt="${l.id}" class="${cur === l.id ? 'on' : ''}" style="--c:${l.color}">${esc(l.name)}<i style="background:${AV_ST[kk][1]}"></i></button>`; }).join('')}</div>
       <div class="av-badge" style="--c:${AV_ST[k][1]}">${k === 'late' ? `En retard de ${-avDaysTo(r.due)} j` : AV_ST[k][0] + dueTxt}</div>
       <div class="form">
@@ -347,6 +367,7 @@ function openAvLocal(loc, lotId, onChange, { onMove } = {}) {
       <div class="btnrow wrap"><button class="btn ghost small" data-a="ren">${icon('edit')} Renommer</button><button class="btn ghost small" data-a="move">${icon('move')} Déplacer</button>
         <button class="btn ghost small" data-a="pdf">${icon('pdf')} PDF</button><button class="btn danger small" data-a="del">${icon('trash')}</button></div>`;
     $$('[data-lt]', box).forEach(b => b.onclick = () => { cur = b.dataset.lt; render(); });
+    bindMode();
     $$('[data-st]', box).forEach(b => b.onclick = () => { r.state = b.dataset.st; if (r.state === 'done' && !r.doneAt) r.doneAt = todayISO(); if (r.state !== 'done') delete r.doneAt; save(true); render(); });
     $$('[data-in]', box).forEach(i => i.oninput = () => { r[i.dataset.in] = i.dataset.in === 'pct' ? +i.value : i.value; if (i.dataset.in === 'pct') $('[data-pctv]', box).textContent = i.value + '%'; save(); if (i.type === 'date') { save(true); render(); } });
     const add = $('[data-a=addphoto]', box); if (add) add.onclick = async () => { const fs = await addPhotos(p.id, { local: loc.id, lot: cur }); if (fs.length) { r.photos.push(...fs.map(f => f.id)); await save(true); render(); } };
@@ -358,6 +379,20 @@ function openAvLocal(loc, lotId, onChange, { onMove } = {}) {
     const ok = $('[data-a=okpos]', box); if (ok) ok.onclick = async () => { delete loc.checkIndice; await save(true); render(); };
     $('[data-a=pdf]', box).onclick = () => avReportDialog({ nivId: loc.nivId, lotId: cur, locIds: [loc.id] });
     $('[data-a=del]', box).onclick = async () => { if (!await confirmBox(`Supprimer le local ${loc.name} et ses photos ?`)) return; for (const rr of Object.values(loc.lots || {})) for (const id of rr.photos || []) await DB.del('files', id); await DB.del('links', loc.id); clearTimeout(saveT); saveT = null; s.close(); onChange && onChange(); };
+  }
+  // v1.0.46 : onglets de la fiche — suivi par lot · étapes & photos (local technique) · journal (saisies quotidiennes)
+  function modeBar() { return `<div class="avp-mode">${[['lot', '📊 Lots'], ['et', '📷 Étapes'], ['jr', `📅 Journal${(loc.journal || []).length ? ' ' + loc.journal.length : ''}`]].map(([k, l]) => `<button data-md="${k}" class="${mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+    <button class="btn small avp-jbtn" data-a="jour">${icon('plus')} Saisie du jour</button>`; }
+  function bindMode() {
+    $$('[data-md]', box).forEach(b => b.onclick = () => { mode = b.dataset.md; render(); });
+    const jb = $('[data-a=jour]', box); if (jb) jb.onclick = async () => { clearTimeout(saveT); saveT = null; await DB.put('links', loc); const e = await avJourForm(p, loc, { lot: cur }); if (e) { const L2 = await DB.get('links', loc.id); if (L2) Object.assign(loc, L2); onChange && onChange(); render(); } };
+  }
+  async function renderX() {
+    if (mode === 'et') { box.innerHTML = modeBar() + avEtapesHTML(p, loc); bindMode(); avEtapesBind(box, p, loc, save, render); return; }
+    const J = (loc.journal || []).slice().sort((a, b) => (b.d + b.t).localeCompare(a.d + a.t));
+    box.innerHTML = modeBar() + (J.length ? `<div class="avp-jl">${J.map(e => { const lot = avLot(p, e.lot), t = avTeam(p, e.eq); return `<div class="avp-je"><i style="background:${lot.color}"></i><span class="grow"><b>${esc(fmtDate(e.d))} · ${esc(lot.name)}</b><small>${e.prev != null ? e.prev + ' → ' : ''}${e.pct} %${t ? ' · ' + esc(t.name) : ''}${e.eff ? ' · ' + e.eff + ' pers.' : ''}${e.qty ? ' · ' + esc(e.qty) : ''}${e.photos && e.photos.length ? ' · 📷 ' + e.photos.length : ''}</small>${e.note ? `<em>${esc(e.note)}</em>` : ''}</span><button class="iconbtn sm" data-jdel="${e.id}">${icon('close')}</button></div>`; }).join('')}</div>` : '<div class="empty">Aucune saisie.<br>Touchez <b>Saisie du jour</b> : lot, équipe, %, effectif, photos.</div>');
+    bindMode();
+    $$('[data-jdel]', box).forEach(b => b.onclick = async () => { if (!await confirmBox('Supprimer cette saisie ?')) return; loc.journal = (loc.journal || []).filter(x => x.id !== b.dataset.jdel); await save(true); render(); });
   }
   render();
 }
