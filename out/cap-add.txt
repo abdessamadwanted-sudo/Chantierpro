@@ -1,0 +1,21 @@
+✔ Adding native android project in android in 24.84ms
+✔ add in 25.41ms
+✔ Copying web assets from www to android/app/src/main/assets/public in 136.76ms
+✔ Creating capacitor.config.json in android/app/src/main/assets in 302.27μs
+✔ copy android in 144.24ms
+✔ Updating Android plugins in 2.04ms
+[info] Found 8 Capacitor plugins for android:
+       @capacitor-community/file-opener@6.0.1
+       @capacitor/app@6.0.3
+       @capacitor/filesystem@6.0.4
+       @capacitor/share@6.0.4
+       @capacitor/local-notifications@6.1.3
+       send-intent@6.0.3
+       @capgo/capacitor-native-biometric@6.0.4
+       siteteam-gdrive-auth@1.0.0
+✔ update android in 28.90ms
+✔ Syncing Gradle in 197.25μs
+[success] android platform added!
+Follow the Developer Workflow guide to get building:
+https://capacitorjs.com/docs/basics/workflow
+exit 0

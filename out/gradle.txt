@@ -1,0 +1,13 @@
+Downloading https://services.gradle.org/distributions/gradle-8.2.1-all.zip
+..................10%..................20%...................30%..................40%...................50%..................60%..................70%...................80%..................90%...................100%
+Note: Some input files use unchecked or unsafe operations.
+Note: Recompile with -Xlint:unchecked for details.
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: /home/runner/work/Chantierpro/Chantierpro/node_modules/send-intent/android/src/main/java/de/mindlib/sendIntent/SendIntent.java uses unchecked or unsafe operations.
+Note: Recompile with -Xlint:unchecked for details.
+total 18684
+drwxr-xr-x 2 runner runner     4096 Oct 31 21:33 .
+drwxr-xr-x 3 runner runner     4096 Oct 31 21:33 ..
+-rw-r--r-- 1 runner runner 19119743 Oct 31 21:33 app-debug.apk
+-rw-r--r-- 1 runner runner      366 Oct 31 21:33 output-metadata.json
