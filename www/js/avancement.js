@@ -303,7 +303,7 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
   }
   function drawMarkers() {
     if (!pz) return;
-    const s = pz.st.s, R = 11 / s, showLbl = s / pz.st.fit > 1.6 || st.locs.length <= 25;
+    const TD = todayISO(), s = pz.st.s, R = 11 / s, showLbl = s / pz.st.fit > 1.6 || st.locs.length <= 25;
     const ZC = ['#2563eb', '#0d9488', '#7c3aed', '#ea580c', '#db2777', '#16a34a', '#0891b2', '#b45309'], zc = (z) => ZC[Math.abs([...String(z)].reduce((a, c) => a * 31 + c.charCodeAt(0), 7)) % ZC.length];
     const polys = (st.zprev ? st.zprev.polys : null) || (niv.zonePolys || []);
     const zonesSvg = polys.map(z0 => { const z = { ...z0, pts: z0.pts.map(q => T(q[0], q[1])) }, tl = z0.lp ? T(z0.lp[0], z0.lp[1]) : z.pts.slice().sort((a, b) => (a[0] + a[1]) - (b[0] + b[1]))[0], cx = tl[0] + (z0.lp ? 0 : 8 / s), cy = tl[1] + (z0.lp ? 0 : 20 / s);   // nom de la zone dans son coin (ou au milieu du secteur), sans masquer les pins
@@ -320,7 +320,7 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
         ${ltc ? `<circle r="${R * 1.45}" fill="none" stroke="${ltc}" stroke-width="${3.5 / s}"/>` : ''}
         ${st.two ? (() => { const [la, lb] = st.two.map(id => avLot(p, id)), ca = AV_ST[avStatus((l.lots || {})[la.id])][1], cb = AV_ST[avStatus((l.lots || {})[lb.id])][1];
           return `<path d="M0,${-R} A${R},${R} 0 0 0 0,${R} Z" fill="${ca}"/><path d="M0,${-R} A${R},${R} 0 0 1 0,${R} Z" fill="${cb}"/><circle r="${R}" fill="none" stroke="#fff" stroke-width="${2.5 / s}"/><line y1="${-R}" y2="${R}" stroke="#fff" stroke-width="${2 / s}"/>`; })() : l.type === 'travail' ? `<rect x="${-R}" y="${-R * 0.75}" width="${R * 2}" height="${R * 1.5}" rx="${R * 0.3}" fill="${c}" stroke="#fff" stroke-width="${2.5 / s}"/>` : `<circle r="${R}" fill="${c}" stroke="#fff" stroke-width="${2.5 / s}"/>`}
-        ${(l.journal || []).some(e => e.d === todayISO()) ? `<circle cx="${R * 0.85}" cy="${-R * 0.85}" r="${R * 0.38}" fill="#f59e0b" stroke="#fff" stroke-width="${1.5 / s}"/>` : ''}
+        ${(l.journal || []).some(e => e.d === TD) ? `<circle cx="${R * 0.85}" cy="${-R * 0.85}" r="${R * 0.38}" fill="#f59e0b" stroke="#fff" stroke-width="${1.5 / s}"/>` : ''}
         ${st.res && st.res.has(l.id) ? `<text x="${-R * 1.25}" y="${-R * 0.6}" font-size="${R * 1.1}" text-anchor="middle">⚠️</text>` : ''}
         ${avIsDone(k) ? `<path d="M${-R * 0.45},0 L${-R * 0.1},${R * 0.38} L${R * 0.5},${-R * 0.35}" fill="none" stroke="#fff" stroke-width="${2.6 / s}" stroke-linecap="round"/>` : k === 'late' ? `<text y="${R * 0.42}" text-anchor="middle" font-size="${R * 1.3}" font-weight="700" fill="#fff" font-family="Arial">!</text>` : ''}
         ${showLbl ? `<text y="${R * 2.4}" text-anchor="middle" font-size="${12 / s}" font-weight="700" fill="#111" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="${3.5 / s}">${esc(l.name)}${l.anep ? ' · ' + esc(l.anep) : ''}</text>` : ''}</g>`;
