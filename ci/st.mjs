@@ -1030,6 +1030,54 @@ try {
   await A.pg.evaluate(() => document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()));
   // zoom du plan : deux calques HD (fondu)
   log('plan : double calque HD', await A.pg.evaluate(async () => { const pl = (await DB.byProject('plans', App.project.id))[0]; openPlanViewer(pl, planCtx(() => {})); await new Promise(r => setTimeout(r, 900)); const n = document.querySelectorAll('.stage canvas.hd').length; document.querySelectorAll('.viewer, .fullpage').forEach(x => x.remove()); return n; }));
+  // ---- v1.0.46 (suite) : secteurs → zones dessinées (joints), import des locaux du PDF, types de local, calque ANEP, comparaison
+  const zp46 = await A.pg.evaluate(async () => {
+    const p = App.project, niv = p.avNiveaux.find(n => n.id === 'n1');
+    niv.zonePolys = [{ zone: 'Zone 1', pts: [[0, 0], [600, 0], [600, 800], [0, 800]] }]; p.avSecteurs = ['Ouest', 'Nord']; p.avZoneSect = { 'Zone 1': 'Ouest', 'Zone 2': 'Nord' }; await DB.put('projects', p);
+    const n = await avAssignZones(p, niv), L = (await DB.byProject('links', p.id)).filter(l => l.nivId === 'n1');
+    return { n, zones: L.map(l => l.name + '=' + (l.zone || '-')) };
+  });
+  log('zone dessinée → pins rattachés', zp46); if (!zp46.zones.includes('LT 01=Zone 1') || zp46.zones.includes('Couloir A=Zone 1')) v46.push('zones dessinées');
+  await A.pg.evaluate(async () => { App.avTab = 'dash'; App.avF = null; await renderSection(); }); await A.pg.waitForSelector('.avp-hero'); await A.pg.waitForTimeout(300);
+  const s46 = await A.pg.evaluate(() => ({ rows: [...document.querySelectorAll('.avp-rh b')].map(b => b.textContent), sect: [...document.querySelectorAll('.avp-fr')].some(r => /Secteur/.test(r.textContent)) }));
+  log('tableau de bord : secteurs', s46); await shot(A.pg, '208_secteurs'); if (!s46.rows.includes('Ouest') || !s46.rows.includes('Nord') || !s46.sect) v46.push('secteurs');
+  // import des locaux depuis les textes du PDF (textes simulés comme ceux du plan du Grand Stade)
+  await A.pg.evaluate(async () => {
+    window.__pt = window.planTexts; const T = [];
+    const lab = (x, y, a, b, m) => { T.push({ s: a, x, y, w: a.length * 7, h: 10 }); T.push({ s: b, x, y: y + 13, w: b.length * 7, h: 10 }); if (m) T.push({ s: m, x, y: y + 26, w: 50, h: 10 }); };
+    lab(100, 100, 'CORE 01', 'RISER LT', '10.23 m²'); lab(400, 100, 'CORE 02', 'RISER LT', '16.32 m²'); lab(700, 100, 'CORE 03', 'RISER PH', '');
+    lab(100, 500, 'CORE 04', 'RISER LT', '9.80 m²'); T.push({ s: 'A1', x: 50, y: 30, w: 14, h: 10 }, { s: 'A2', x: 300, y: 30, w: 14, h: 10 }, { s: 'JD01', x: 900, y: 30, w: 28, h: 10 });
+    window.planTexts = async () => T;
+    const p = App.project, niv = p.avNiveaux.find(n => n.id === 'n2'), plan = await latestPlanOfSerie(p.id, niv.serieId);
+    window.__imp = avImportLocaux(p, niv, plan);
+  });
+  await A.pg.waitForSelector('.avi [data-a=go]', { timeout: 8000 }); await shot(A.pg, '209_import_locaux');
+  const fam46 = await A.pg.evaluate(() => [...document.querySelectorAll('.avi-r b')].map(b => b.textContent));
+  await A.pg.click('.avi [data-a=go]'); await A.pg.waitForTimeout(800);
+  const im46 = await A.pg.evaluate(async () => { const n = await window.__imp; window.planTexts = window.__pt; const p = App.project; const L = (await DB.byProject('links', p.id)).filter(l => l.nivId === 'n2' && l.src === 'pdf');
+    return { n, names: L.map(l => l.name), areas: L.map(l => l.area || ''), typed: L.filter(l => l.ltype).length }; });
+  log('import des locaux [familles, pins]', fam46, im46); if (!fam46.includes('CORE') || im46.n !== 4 || !im46.areas.includes('16.32') || !im46.typed) v46.push('import des locaux');
+  // calque ANEP : seuls les numéros propres au plan ANEP, puis numérotation des pins
+  const an46 = await A.pg.evaluate(async () => {
+    const p = App.project, niv = p.avNiveaux.find(n => n.id === 'n2'), base = await latestPlanOfSerie(p.id, niv.serieId);
+    const ap = await DB.put('plans', { projectId: p.id, fileId: base.fileId, w: base.w, h: base.h, name: 'R+1 ANEP', annotations: [], indice: 'A' });
+    niv.plans = [{ id: 'pa', serieId: planSerie(ap), kind: 'anep', label: 'Numérotation ANEP' }]; await DB.put('projects', p);
+    const common = [{ s: 'A1', x: 50, y: 30, w: 14, h: 10 }, { s: 'JD01', x: 900, y: 30, w: 28, h: 10 }, { s: 'CORE 01', x: 100, y: 100, w: 49, h: 10 }];
+    const pt = window.planTexts, pm = window.planAlignMap; window.planTexts = async (pl) => pl.id === ap.id ? [...common, { s: 'R1-E-014', x: 110, y: 160, w: 60, h: 10 }, { s: 'R1-E-015', x: 410, y: 160, w: 60, h: 10 }] : common;
+    window.planAlignMap = async () => ({ sx: 1, sy: 1, ox: 0, oy: 0 });
+    const L = await avAnepLabels(p, niv, base); await avAnepToPins(p, niv, base); window.planTexts = pt; window.planAlignMap = pm;
+    const pins = (await DB.byProject('links', p.id)).filter(l => l.nivId === 'n2' && l.anep);
+    return { labels: L.map(t => t.s), pins: pins.map(l => l.name.split(' · ')[0] + '=' + l.anep) };
+  });
+  log('calque ANEP [numéros, pins numérotés]', an46); if (an46.labels.join() !== 'R1-E-014,R1-E-015' || !an46.pins.some(x => x.startsWith('CORE 01=R1-E-014'))) v46.push('calque ANEP');
+  // visionneuse : zone dessinée + pins colorés par type, puis comparaison
+  await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); openAvViewer('n1', null, () => {}); }); await A.pg.waitForSelector('.av-page .av-ov', { timeout: 8000 }); await A.pg.waitForTimeout(600);
+  log('visionneuse : zones dessinées, bouton plans', await A.pg.evaluate(() => [document.querySelectorAll('.av-ov polygon').length, !!document.querySelector('.av-page [data-a=plans]')])); await shot(A.pg, '210_plan_zones');
+  await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); const p = App.project; window.__cmp = avComparePlans(p, p.avNiveaux.find(n => n.id === 'n2')); });
+  await A.pg.waitForSelector('.sheet .opt'); await A.pg.locator('.sheet .opt').first().click(); await A.pg.waitForTimeout(300); await A.pg.locator('.sheet .opt').first().click();
+  await A.pg.waitForSelector('.avc-page', { timeout: 8000 }); await A.pg.waitForTimeout(500); await shot(A.pg, '211_comparaison_plans');
+  log('comparaison de plans (rideau)', await A.pg.evaluate(() => [!!document.querySelector('.avc-b'), document.querySelector('.avc-b').style.clipPath]));
+  await A.pg.evaluate(() => document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()));
   log('errors v1.0.46', v46);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {

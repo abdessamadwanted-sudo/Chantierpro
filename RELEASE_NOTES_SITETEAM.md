@@ -17,4 +17,10 @@
   - type de chape en couleur ;
   - dossier complet en PDF (extrait du plan entouré, lots, étapes, photos, journal) à envoyer par WhatsApp ;
   - listes modifiables : zones, équipes, étapes, types de chape.
+- Secteurs et zones : secteurs (Nord, Ouest…) découpés en zones par les joints (JD01 → JD02 = Zone 1 / Joint 1…). La zone se dessine sur le plan (coins touchés au doigt) : les pins à l'intérieur s'y rattachent, et la zone peut être recopiée sur les autres niveaux. Le tableau de bord descend secteur → zone → niveau.
+- Import automatique des locaux : les étiquettes du PDF (CORE 01, RISER LT, RISER PH, LT HVAC, SAS, LT ELEC…) deviennent des pins, avec leur nom et leur surface (m²). Vous choisissez les familles à importer. Testé sur le plan R+1 locaux techniques du Grand Stade : 55 CORE, 30 RISER LT, 22 RISER PH, 13 LT HVAC…
+- Types de local avec le code couleur des plant rooms : Disponible, Électrique, Technologie, Mécanique, Plomberie, Riser / gaine, Wet room. Anneau de couleur sur le pin, et filtre et matrice par type dans le tableau de bord.
+- Plusieurs plans par niveau (architecte, numérotation ANEP, chape, maçonnerie…), avec un plan par lot.
+- Calque ANEP sur le plan architecte : seuls les numéros propres à l'ANEP s'affichent (calage automatique par les textes communs). « Donner aux pins leur numéro ANEP » remplit le numéro de chaque local.
+- Comparaison de deux plans du même niveau (ex. chape architecte ↔ chape exécution) : rideau, transparence ou clignotement, calés automatiquement.
 - Plans : zoom sans tremblement. La partie nette apparaît en fondu, et une marge autour de l'écran reste nette quand on déplace le plan.

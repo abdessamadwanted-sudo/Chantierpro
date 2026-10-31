@@ -186,7 +186,8 @@ async function avSettings(root) {
     ...p.lots.map(l => ({ label: `Lot : ${l.name}`, swatch: l.color, value: 'lot:' + l.id })),
     { label: 'Ajouter un lot (ex : Carrelage, Peinture…)', icon: 'plus', value: 'add' },
     ...(typeof avZones === 'function' ? [{ label: `Zones (${avZones(p).join(', ')})`, icon: 'layers', value: 'zones' }, { label: `Équipes & responsables (${avTeams(p).length})`, icon: 'team', value: 'teams' },
-      { label: 'Étapes photo du local', icon: 'camera', value: 'etapes' }, { label: 'Types de chape (couleurs)', icon: 'fill', value: 'chapes' }] : []),
+      { label: 'Étapes photo du local', icon: 'camera', value: 'etapes' }, { label: 'Types de chape (couleurs)', icon: 'fill', value: 'chapes' },
+      ...(typeof avLocTypes === 'function' ? [{ label: 'Types de local (code couleur)', icon: 'fill', value: 'ltypes' }, { label: `Secteurs (${avSecteurs(p).join(', ') || 'aucun'})`, icon: 'layers', value: 'sect' }] : [])] : []),
     { label: 'En-tête des rapports (société, logo)', icon: 'report', value: 'head' },
   ]);
   if (!v) return;
@@ -196,6 +197,8 @@ async function avSettings(root) {
   if (v === 'teams') await avTeamsMenu(p);
   if (v === 'etapes') await avListEdit(p, 'etape');
   if (v === 'chapes') await avListEdit(p, 'chape');
+  if (v === 'ltypes') await avListEdit(p, 'ltype');
+  if (v === 'sect') await avSecteursEdit(p);
   if (v.startsWith('lot:')) {
     const lot = p.lots.find(l => 'lot:' + l.id === v), i = p.lots.indexOf(lot);
     const a = await menu(lot.name, [{ label: 'Renommer', icon: 'edit', value: 'ren' }, { label: 'Couleur', icon: 'fill', value: 'col' }, ...(i > 0 ? [{ label: 'Monter', icon: 'chevup', value: 'up' }] : []), { label: 'Supprimer le lot', icon: 'trash', danger: true, value: 'del' }]);
@@ -225,7 +228,7 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
   let plan = await latestPlanOfSerie(p.id, niv.serieId);
   if (!plan) return alertBox('Le plan de ce niveau est introuvable (supprimé ?). Utilisez « Changer de plan ».');
   if (!lotId || lotId === 'dash' || !p.lots.find(l => l.id === lotId)) lotId = p.lots[0].id;
-  const st = { lot: lotId, add: false, moving: null, locs: [], filter: null };
+  const st = { lot: lotId, add: false, moving: null, locs: [], filter: null, zdraw: null, anep: false, anepL: null };
   const el = document.createElement('div'); el.className = 'fullpage av-page';
   document.body.appendChild(el);
   let pz = null;
@@ -238,6 +241,7 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
     const src = await fileURL(plan.fileId), W = plan.w, H = plan.h;
     el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button>
         <div class="tb-title" style="flex:1"><b>${esc(niv.name)}</b><span>${esc(plan.name)} · ind. ${esc(planIndice(plan))}</span></div>
+        ${typeof avNivPlansMenu === 'function' ? `<button class="iconbtn" data-a="plans" title="Plans, zones, import">${icon('layers')}</button>` : ''}
         <button class="iconbtn" data-a="ind" title="Indices du plan">${icon('history')}</button>
         <button class="iconbtn" data-a="share" title="Partager">${icon('share')}</button>
         <button class="iconbtn" data-a="more">${icon('more')}</button></div>
@@ -245,8 +249,9 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
       <div class="av-view"><div class="av-stage"><img src="${src}" width="${W}" height="${H}"><svg class="av-ov" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"></svg></div><div class="av-hint"></div></div>
       <div class="av-bottom"><div class="av-legend"></div><button class="btn small av-addbtn" data-a="add">${icon('plus')} Local</button></div>`;
     $('[data-a=x]', el).onclick = close;
-    $('[data-a=add]', el).onclick = () => { st.add = !st.add; st.moving = null; drawUI(); };
+    $('[data-a=add]', el).onclick = async () => { if (st.zdraw) return finishZone(); st.add = !st.add; st.moving = null; drawUI(); };
     $('[data-a=share]', el).onclick = shareMenu;
+    const plb = $('[data-a=plans]', el); if (plb) plb.onclick = plansMenu;
     $('[data-a=more]', el).onclick = moreMenu;
     $('[data-a=ind]', el).onclick = () => planIndicesMenu(plan, { onNew: async (np) => { plan = np; await load(); await build(); }, onOpen: (old) => openPlanViewer(old, planCtx(() => {})) });
     pz = panZoom($('.av-view', el), $('.av-stage', el), W, H, { onTap, onChange: drawMarkers });
@@ -260,28 +265,37 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
     const s = avStats(st.locs, st.lot);
     $('.av-legend', el).innerHTML = Object.entries(AV_ST).filter(([k]) => s[k]).map(([k, [l, c]]) => `<button data-f="${k}" class="${st.filter === k ? 'on' : ''}"><i style="background:${c}"></i>${s[k]} ${l}</button>`).join('') || `<span class="muted">Touchez « + Local » puis le plan pour placer les locaux</span>`;
     $$('.av-legend [data-f]', el).forEach(b => b.onclick = () => { st.filter = st.filter === b.dataset.f ? null : b.dataset.f; drawUI(); });
-    const ab = $('[data-a=add]', el); ab.classList.toggle('on', st.add); ab.innerHTML = st.add ? `${icon('check')} Terminer` : `${icon('plus')} Local`;
+    const ab = $('[data-a=add]', el); ab.classList.toggle('on', st.add || !!st.zdraw); ab.innerHTML = st.zdraw ? `${icon('check')} Terminer la zone` : st.add ? `${icon('check')} Terminer` : `${icon('plus')} Pin`;
     const hint = $('.av-hint', el);
-    hint.textContent = st.moving ? `Touchez la nouvelle position de « ${st.moving.name} »` : st.add ? 'Touchez le plan pour placer un local (plusieurs à la suite)' : '';
+    hint.textContent = st.zdraw ? `Zone : touchez les coins (${st.zdraw.length} point(s)), puis « Terminer la zone »` : st.moving ? `Touchez la nouvelle position de « ${st.moving.name} »` : st.add ? 'Touchez le plan pour placer un pin (plusieurs à la suite)' : '';
     hint.style.display = hint.textContent ? '' : 'none';
     drawMarkers();
   }
   function drawMarkers() {
     if (!pz) return;
     const s = pz.st.s, R = 11 / s, showLbl = s / pz.st.fit > 1.6 || st.locs.length <= 25;
-    $('.av-ov', el).innerHTML = st.locs.map(l => {
+    const ZC = ['#2563eb', '#0d9488', '#7c3aed', '#ea580c', '#db2777', '#16a34a', '#0891b2', '#b45309'], zc = (z) => ZC[Math.abs([...String(z)].reduce((a, c) => a * 31 + c.charCodeAt(0), 7)) % ZC.length];
+    const zonesSvg = (niv.zonePolys || []).map(z => { const cx = z.pts.reduce((a, q) => a + q[0], 0) / z.pts.length, cy = z.pts.reduce((a, q) => a + q[1], 0) / z.pts.length;
+      return `<polygon points="${z.pts.map(q => q.join(',')).join(' ')}" fill="${zc(z.zone)}" fill-opacity=".10" stroke="${zc(z.zone)}" stroke-width="${2 / s}" stroke-dasharray="${8 / s} ${5 / s}"/><text x="${cx}" y="${cy}" text-anchor="middle" font-size="${16 / s}" font-weight="800" fill="${zc(z.zone)}" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="${4 / s}">${esc(z.zone)}</text>`; }).join('');
+    const drawSvg = st.zdraw && st.zdraw.length ? `<polyline points="${st.zdraw.map(q => q.join(',')).join(' ')}" fill="rgba(37,99,235,.12)" stroke="#2563eb" stroke-width="${2.5 / s}"/>${st.zdraw.map(q => `<circle cx="${q[0]}" cy="${q[1]}" r="${5 / s}" fill="#2563eb"/>`).join('')}` : '';
+    const anepSvg = st.anep && st.anepL ? st.anepL.map(t => `<text x="${t.x}" y="${t.y}" text-anchor="middle" font-size="${Math.max(t.h, 9 / s)}" font-weight="700" fill="#1d4ed8" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="${2.5 / s}">${esc(t.s)}</text>`).join('') : '';
+    const LT = typeof avLocTypes === 'function' ? avLocTypes(p) : [];
+    $('.av-ov', el).innerHTML = zonesSvg + anepSvg + drawSvg + st.locs.map(l => {
+      const ltc = l.ltype && (LT.find(t => t.id === l.ltype) || {}).color;
       const k = avStatus((l.lots || {})[st.lot]), c = AV_ST[k][1], dim = st.filter && st.filter !== k;
       return `<g transform="translate(${l.x},${l.y})" opacity="${dim ? 0.2 : 1}">
         ${l.checkIndice ? `<circle r="${R * 1.7}" fill="none" stroke="#f59e0b" stroke-width="${2.5 / s}" stroke-dasharray="${4 / s} ${3 / s}"/>` : ''}
+        ${ltc ? `<circle r="${R * 1.45}" fill="none" stroke="${ltc}" stroke-width="${3.5 / s}"/>` : ''}
         ${l.type === 'travail' ? `<rect x="${-R}" y="${-R * 0.75}" width="${R * 2}" height="${R * 1.5}" rx="${R * 0.3}" fill="${c}" stroke="#fff" stroke-width="${2.5 / s}"/>` : `<circle r="${R}" fill="${c}" stroke="#fff" stroke-width="${2.5 / s}"/>`}
         ${(l.journal || []).some(e => e.d === todayISO()) ? `<circle cx="${R * 0.85}" cy="${-R * 0.85}" r="${R * 0.38}" fill="#f59e0b" stroke="#fff" stroke-width="${1.5 / s}"/>` : ''}
         ${avIsDone(k) ? `<path d="M${-R * 0.45},0 L${-R * 0.1},${R * 0.38} L${R * 0.5},${-R * 0.35}" fill="none" stroke="#fff" stroke-width="${2.6 / s}" stroke-linecap="round"/>` : k === 'late' ? `<text y="${R * 0.42}" text-anchor="middle" font-size="${R * 1.3}" font-weight="700" fill="#fff" font-family="Arial">!</text>` : ''}
-        ${showLbl ? `<text y="${R * 2.4}" text-anchor="middle" font-size="${12 / s}" font-weight="700" fill="#111" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="${3.5 / s}">${esc(l.name)}</text>` : ''}</g>`;
+        ${showLbl ? `<text y="${R * 2.4}" text-anchor="middle" font-size="${12 / s}" font-weight="700" fill="#111" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="${3.5 / s}">${esc(l.name)}${l.anep ? ' · ' + esc(l.anep) : ''}</text>` : ''}</g>`;
     }).join('');
   }
   async function refresh() { await load(); if (el.isConnected) drawUI(); }
   async function onTap([x, y]) {
     const out = x < 0 || y < 0 || x > plan.w || y > plan.h;
+    if (st.zdraw) { if (!out) { st.zdraw.push([Math.round(x), Math.round(y)]); drawUI(); } return; }
     if (st.moving && !out) { const l = st.moving; l.x = x; l.y = y; delete l.checkIndice; await DB.put('links', l); st.moving = null; toast('Local déplacé ✓'); return refresh(); }
     if (st.add && !out) {
       const lot = lotObj();
@@ -291,6 +305,7 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
       if (!r || !r.name) return;
       st.lastType = r.type;
       const loc = { projectId: p.id, planId: plan.id, nivId: niv.id, kind: 'local', shape: 'point', x, y, name: r.name, lots: {}, items: [], ...(r.type === 'travail' ? { type: 'travail' } : {}) };
+      if (typeof avZoneAt === 'function') { const z = avZoneAt(niv, x, y); if (z) loc.zone = z; }
       if (r.due) loc.lots[lot.id] = { state: 'todo', due: r.due, photos: [] };
       await DB.put('links', loc); return refresh();
     }
@@ -298,6 +313,43 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
     const tol = 24 / pz.st.s; let best = null, bd = 1e9;
     for (const l of st.locs) { const d = Math.hypot(l.x - x, l.y - y); if (d < tol && d < bd) { bd = d; best = l; } }
     if (best) openAvLocal(best, st.lot, refresh, { onMove: (l) => { st.moving = l; st.add = false; drawUI(); } });
+  }
+  // v1.0.46 : plans du niveau, zones (joints) dessinées, import des locaux du PDF, calque ANEP, comparaison
+  async function plansMenu() {
+    const hasAnep = (niv.plans || []).some(x => x.kind === 'anep');
+    const v = await menu(`${niv.name} — plans & zones`, [
+      { label: 'Dessiner une zone (joint) sur le plan', icon: 'zone', value: 'zone' },
+      ...((niv.zonePolys || []).length ? [{ label: `Zones dessinées (${niv.zonePolys.length})…`, icon: 'layers', value: 'zones' }] : []),
+      { label: 'Importer les locaux du plan (textes du PDF)', icon: 'upload', value: 'imp' },
+      { label: 'Plans du niveau (ANEP, chape, maçonnerie…)', icon: 'plans', value: 'plans' },
+      { label: 'Comparer deux plans du niveau', icon: 'swap', value: 'cmp' },
+      ...(hasAnep ? [{ label: st.anep ? 'Masquer la numérotation ANEP' : 'Afficher la numérotation ANEP', icon: 'eye', value: 'anep' }, { label: 'Donner aux pins leur numéro ANEP', icon: 'edit', value: 'anepPins' }] : []),
+      { label: 'Secteurs et zones…', icon: 'settings', value: 'sect' },
+    ]);
+    if (v === 'zone') { st.zdraw = []; st.add = false; st.moving = null; drawUI(); toast('Touchez les coins de la zone sur le plan'); }
+    if (v === 'zones') { const i = await menu('Zones dessinées', niv.zonePolys.map((z, k) => ({ label: `${z.zone} (${z.pts.length} points)`, icon: 'trash', danger: true, value: String(k) }))); if (i != null && await confirmBox(`Effacer le dessin de la zone « ${niv.zonePolys[+i].zone} » ? (les pins gardent leur zone)`)) { niv.zonePolys.splice(+i, 1); await DB.put('projects', p); drawUI(); } }
+    if (v === 'imp') { const n = await avImportLocaux(p, niv, plan); if (n) await refresh(); }
+    if (v === 'plans') await avNivPlansMenu(p, niv);
+    if (v === 'cmp') avComparePlans(p, niv);
+    if (v === 'anep') { st.anep = !st.anep; if (st.anep && !st.anepL) { const ld = loading('Lecture de la numérotation ANEP…'); try { st.anepL = await avAnepLabels(p, niv, plan) || []; } finally { ld.close(); } if (!st.anepL.length) toast('Aucune numérotation propre au plan ANEP trouvée'); } drawUI(); }
+    if (v === 'anepPins') { await avAnepToPins(p, niv, plan); await refresh(); }
+    if (v === 'sect') { await avSecteursEdit(p); drawUI(); }
+  }
+  async function finishZone() {
+    const pts = st.zdraw; st.zdraw = null;
+    if (!pts || pts.length < 3) { toast('Il faut au moins 3 points'); return drawUI(); }
+    const Z = avZones(p), lab = (z) => avSectOf(p, z) ? `${avSectOf(p, z)} · ${z}` : z;
+    let z = await menu('Cette zone s\'appelle…', [...Z.map(x => ({ label: lab(x), icon: 'layers', value: x })), { label: '➕ Nouvelle zone (ex : Joint 3)…', value: '__new' }]);
+    if (z === '__new') { const r = await formSheet('Nouvelle zone', [{ name: 'z', label: 'Nom', value: `Zone ${Z.length + 1}`, placeholder: 'Ex : Zone 3, Joint 3 (JD03 → JD04)' }, ...(avSecteurs(p).length ? [{ name: 's', label: 'Secteur', type: 'select', options: [{ value: '', label: '—' }, ...avSecteurs(p).map(x => ({ value: x, label: x }))] }] : [])], { okLabel: 'Créer' });
+      z = r && r.z ? r.z.trim() : null; if (z && !Z.includes(z)) Z.push(z); if (z && r.s) { p.avZoneSect = p.avZoneSect || {}; p.avZoneSect[z] = r.s; } }
+    if (!z) return drawUI();
+    niv.zonePolys = niv.zonePolys || []; niv.zonePolys.push({ zone: z, pts });
+    await DB.put('projects', p); const n = await avAssignZones(p, niv); await refresh();
+    toast(`Zone « ${z} » enregistrée · ${n} pin(s) rattaché(s) ✓`);
+    if ((p.avNiveaux || []).length > 1 && await confirmBox(`Recopier cette zone sur les autres niveaux (même cadrage de plan) ?`, 'Recopier')) {
+      for (const o of p.avNiveaux) if (o.id !== niv.id) { o.zonePolys = (o.zonePolys || []).filter(q => q.zone !== z); o.zonePolys.push({ zone: z, pts: pts.map(q => q.slice()) }); await avAssignZones(p, o); }
+      await DB.put('projects', p); toast('Zone recopiée sur les autres niveaux ✓');
+    }
   }
   async function shareMenu() {
     const lot = lotObj();
@@ -381,10 +433,18 @@ function openAvLocal(loc, lotId, onChange, { onMove } = {}) {
     $('[data-a=del]', box).onclick = async () => { if (!await confirmBox(`Supprimer le local ${loc.name} et ses photos ?`)) return; for (const rr of Object.values(loc.lots || {})) for (const id of rr.photos || []) await DB.del('files', id); await DB.del('links', loc.id); clearTimeout(saveT); saveT = null; s.close(); onChange && onChange(); };
   }
   // v1.0.46 : onglets de la fiche — suivi par lot · étapes & photos (local technique) · journal (saisies quotidiennes)
-  function modeBar() { return `<div class="avp-mode">${[['lot', '📊 Lots'], ['et', '📷 Étapes'], ['jr', `📅 Journal${(loc.journal || []).length ? ' ' + loc.journal.length : ''}`]].map(([k, l]) => `<button data-md="${k}" class="${mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+  function infoChips() {
+    if (typeof avLocTypes !== 'function') return '';
+    const t = avLocTypes(p).find(x => x.id === loc.ltype), z = avPinZone(p, loc, niv);
+    return `<div class="avp-info"><button data-a="ltype" style="--c:${t ? t.color : 'var(--muted)'}"><i class="avp-sw"></i>${t ? esc(t.name) : 'Type de local'}</button><button data-a="lzone">${icon('layers')}${avSectOf(p, z) ? esc(avSectOf(p, z)) + ' · ' : ''}${esc(z)}</button>${loc.anep ? `<span>ANEP ${esc(loc.anep)}</span>` : ''}${loc.area ? `<span>${esc(loc.area)} m²</span>` : ''}</div>`;
+  }
+  function modeBar() { return `${infoChips()}<div class="avp-mode">${[['lot', '📊 Lots'], ['et', '📷 Étapes'], ['jr', `📅 Journal${(loc.journal || []).length ? ' ' + loc.journal.length : ''}`]].map(([k, l]) => `<button data-md="${k}" class="${mode === k ? 'on' : ''}">${l}</button>`).join('')}</div>
     <button class="btn small avp-jbtn" data-a="jour">${icon('plus')} Saisie du jour</button>`; }
   function bindMode() {
     $$('[data-md]', box).forEach(b => b.onclick = () => { mode = b.dataset.md; render(); });
+    const lt = $('[data-a=ltype]', box); if (lt) lt.onclick = async () => { const v = await menu('Type de local', [...avLocTypes(p).map(t => ({ label: t.name, swatch: t.color, value: t.id, checked: loc.ltype === t.id })), { label: 'Aucun', value: '__none' }, { label: 'Modifier la liste…', icon: 'edit', value: '__edit' }]);
+      if (!v) return; if (v === '__edit') { await avListEdit(p, 'ltype'); return render(); } loc.ltype = v === '__none' ? null : v; await save(true); render(); };
+    const lz = $('[data-a=lzone]', box); if (lz) lz.onclick = async () => { const v = await menu('Zone du pin', avZones(p).map(z => ({ label: avSectOf(p, z) ? `${avSectOf(p, z)} · ${z}` : z, value: z, checked: avPinZone(p, loc, niv) === z }))); if (v) { loc.zone = v; await save(true); render(); } };
     const jb = $('[data-a=jour]', box); if (jb) jb.onclick = async () => { clearTimeout(saveT); saveT = null; await DB.put('links', loc); const e = await avJourForm(p, loc, { lot: cur }); if (e) { const L2 = await DB.get('links', loc.id); if (L2) Object.assign(loc, L2); onChange && onChange(); render(); } };
   }
   async function renderX() {
