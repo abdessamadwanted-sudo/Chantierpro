@@ -8968,3 +8968,283 @@ D after delete: login screen 1
 A members after D delete ["Abdessamad Patron","Youssef Conducteur","Client MO","Sara BET"]
 D relogin Compte introuvable
 errors ["A console: Failed to load resource: the server responded with a status of 403 (Forbidden)","D console: Failed to load resource: the server responded with a status of 400 (Bad Request)"]
+services ouverts (test) 200
+packs ouverts (test) 200
+A offres organisation ["basic:🌱 Basic Organisation","business:🏢 Business","enterprise:🏛️ Enterprise"]
+A pack/type ["business","entreprise",17,true]
+A projet [["Grand stade Benslimane","equip","Ministère"]]
+A sync state <span style="color:#22c55e">✓ Synchronisé</span> <span style="color:var(--muted)">· 31/10 14:52</span>
+A poste Directeur de projet : admin auto / max droit [false,3]
+code conducteur CHMRSNCB
+code MO FE5GW2Z2
+B projects ["Grand stade Benslimane"]
+B tasks ["Enrobage insuffisant voile V12"]
+B receptions 1
+A sees task ["Enrobage insuffisant voile V12 (repris) / progress"]
+B self-admin denied OK: permission-denied
+B invite create denied OK: permission-denied
+C fab 0 projects ["Grand stade Benslimane"]
+C write task denied OK: permission-denied
+D items ["impl:demandee","cmd:demandee","rdt:","pt:"]
+D topo write cmd denied OK: permission-denied
+A items ["impl:implantee","cmd:demandee","rdt:","pt:","mat:","stock:"]
+B poste {"service":"trav","poste":"conduct","at":"2026-10-31","st":"conducteur"} C poste {"service":"mo","poste":"mo","at":"2026-10-31","st":"mo"} D poste {"service":"etu","poste":"topo","at":"2026-10-31","st":"cheftopo"}
+B tableau de bord []
+C sections finance/reception [false,false,false,true]
+A aperçu basic [false,false,false,false,true,false]
+A aperçu tiroir {"lock":0,"items":["dashboard","plans","tasks","photos","reports","avancement","lotsuivi","planning","docq","models3d","maquette","orgs","histo","settings"]}
+A sans aperçu [true,true]
+B peut créer un code false
+E packs proposés ["basic","pro"]
+E Basic = Free (sans poste) [true,"Espace Free"]
+E espace [true,"basic","Espace de Hamid Indep","proprietaire",true,null]
+E dashboard perso {"outils":false,"direction":false,"espaceDir":false,"stats":[],"tools":[],"role":"🆓 Free"}
+E profil / metier ["",false,true]
+E mon espace onglets ["Mon profil","Mon abonnement","Paramètres","Mon compte"]
+E abonnement ["Gratuit","Gratuit"]
+E outils basic [true,false,false]
+E limite projets 🔒 Le pack Basic est limité à 1 projet(s).
+Pour aller plus loin : Pro, Business, Enterprise.
+E limite résultat false
+F services proposés ["direction","metre","bim","doc","admin"]
+F espaces BET ["board","rdt"]
+E espaces basic []
+F interface BET ["bet","bet","bet",true,true,false,false,false]
+F postes proposés (services) ["Direction","Métré","Méthodes / Planning / BIM","Documentation","Administration & finance","Intervenants externes"]
+errors v1.0.14 []
+code BET CKJXBK9M
+F espace 2 ["BTP Test SARL","chantier_QKT6qDlLjclF2niQJeME",2,["Grand stade Benslimane"],"bet"]
+F retour espace 1 ["BET Structures","chantier",["Pont BET"]]
+errors v1.0.15 []
+logo [true,"url(#stl9c)"]
+logo connexion true
+G pro ["pro","Essai · 14 j",true]
+code collaborateur QRZ8AK3K
+C collaborateur ["Espace de Nadia Pro","collaborateur",false,true,["Lotissement Nadia"],2,0,false]
+C collaborateur : écriture d'une réserve sur un autre projet refusée denied OK: permission-denied
+code révoqué revoque
+errors v1.0.17 []
+services par défaut 200
+H services ouverts / fermés [["direction+","qualite+"],["travaux","ferraillage","centrale","materiel","topo","hse","metre","bim","doc","labo","admin","achats","magasin","rh","pointage","maintenance","methodes","etudes","contrats","transport"]]
+H service fermé reste fermé 0
+H organisation ["enterprise",["direction","qualite"]]
+H postes qualité proposés ["dirqualite","ingqualite","respqualite","techqualite","ctrlqualite"]
+H postes fermés (désactivés) 0
+code technicien qualité PCS447XQ
+H mission techqualite
+H gérer les postes true
+I tableau de bord ["techqualite",["• Réception ferraillage pile P2"],true]
+I peut valider son PV false
+H tuiles validation ["1À valider","0À corriger","0Brouillons","0Validés (7 j)"]
+I PV après validation ["valide",false,["soumis","valide"]]
+I PV validé en lecture seule true
+I modification serveur refusée denied OK: permission-denied
+H classements ["PAQ — Plan d'assurance qualité","Procédures","Plans de contrôle","Fiches techniques et agréments","PV de réception","Rapports d'essais labo","NC et actions correctives","Visas","Audits","Divers","Archives"]
+errors v1.0.18 []
+code partenaire RJXJSHG3
+F projet partenaire ["BET Structures",["Pont BET","Viaduc Oued Bouregreg"],"bet","Qualité Maroc SA"]
+F droits dans le projet [2,1,0,false]
+F lecture équipe du titulaire denied OK: permission-denied
+F modifier la fiche du projet refusé denied OK: permission-denied
+H reçoit la réserve du BET ["Avis BET : enrobage pile P2"]
+H organisations ["Qualité Maroc SA (vous)","BET Structures","Groupement Qualité Maroc – BET StructuresMandataire : BET Structures"]
+H historique ["AjoutRéserve / tâche · Avis BET : enrobage pile P2Sara BET · BET Structures · 14:55","PV validéFormulaire / PV · Réception ferraillage P2Karima Qualité · Qualité Maroc SA · 14:54","AjoutFormulaire / PV · Réception ferraillage P2Omar Technicien · Qualité Maroc SA · 14:54"]
+F voit le groupement ["Groupement Qualité Maroc – BET StructuresMandataire : BET Structures",true,true]
+types d'organisation ["entreprise","soustraitant","bet","archi","moa","bc","labo","topo","artisan","fournisseur","loueur","promoteur","formation"]
+errors v1.0.19 []
+stockage activé (Super Admin) 200
+stockage désactivé par défaut false
+stockage actif [true,true]
+H envoie un plan [true,33,[]]
+F reçoit le plan ["Plan de contrôle pile P2.pdf",true,"%PDF-1.4 plan de controle pile P2"]
+F envoie une note [true,true]
+H reçoit la note du BET ["Visa BET pile P2.pdf",true,"%PDF-1.4 visa BET"]
+A (autre organisation) : lecture refusée denied OK: storage/unauthorized
+F classements ["Plans de contrôle : 1 document(s)","Visas : 1 document(s)"]
+H supprime le plan → fichier retiré du cloud storage/object-not-found
+errors v1.0.20 []
+versions comparées [true,true,true]
+nouveaux services (entreprise) 9
+postes : finance et rang [2,3,1,2]
+valider suppose de voir [false,true,true]
+postes remplacés non proposés []
+écran version Version de l'application Version : développement Dernière version publiée : — État : pas encore vérifié Vérifier maintenant
+errors v1.0.23 []
+packs refermés (Basic seul) 200
+J packs : ouverts / sur demande [["basic"],["business","enterprise"]]
+J demande envoyée Demande envoyée ✓
+SiteTeam vous répond et active le pack « Business ».
+J refus serveur d'un pack fermé denied OK: permission-denied
+Super Admin : tous les packs ouverts [3,0]
+admin tableau de bord ["19 Comptes","12 Actifs (24 h)","12 Actifs (7 jours)","16 Organisations","7 Espaces personnels","9 Projets","1 Demandes en attente","1 Erreurs (7 jours)"]
+admin utilisateurs 19
+J après blocage ⛔ Compte bloqué
+J données refusées denied OK: permission-denied
+J après déblocage true
+H organisation suspendue ⏸ Organisation suspendue
+admin demandes ["Jamal Invité → 🏢 Business jamal@test.ma · — · 31 oct., 14:55 · « 12 utilisateurs, 3 chant"]
+H message accueil aucun
+H annonce reçue ["📣 Maintenance prévue"]
+H fonction coupée (finance) [true,true]
+admin erreurs ["Uncaught Error: Erreur de test SiteTeam 1.0.24"]
+G maintenance pas de maintenance
+errors v1.0.24 []
+code pack créé BUS-4D4NNV
+K pack par code ["business","essai","code"]
+K utilisation enregistrée [1,1]
+J passage par code ["enterprise","actif"]
+errors v1.0.27 []
+Super Admin : Pro choisissable [true,false]
+Super Admin : espace en Pro pro
+Super Admin : changement direct (sans demande) ["basic","actif"]
+packs rouverts (test) 200
+E accueil Free [true,false,"🆓 Free"]
+G Pro : poste choisi [false,"cheftopo"]
+menu ⋮ (groupes · rubriques) [["Administration","Outils","Données","Réglages","Application"],14]
+menu projet (groupes) ["🏗️ Chantier 9","✅ Qualité & sécurité 7","📐 Études & 3D 5","💰 Gestion & finance 6","👥 Projet & équipe 3","🧰 Outils & liens 7"]
+packs : haut de l'écran visible [true,true]
+errors v1.0.28 []
+Drive : sans plugin (web) → méthode avancée seule [false,true]
+Drive : connecté avec Google ["g","hamid@gmail.com",true,true,true,["https://www.googleapis.com/auth/drive.file"]]
+Drive : fichiers rangés ["SiteTeam/Villa Hamid/10 - Photos/2026-10 Octobre/photo.jpg (3000)"]
+Drive : photo envoyée [[true,true]]
+Drive : push/pull (base de synchro) ["t1:A,t2:B",0,true]
+Drive : envoi / lecture / gros fichier / contrôle [true,1234,true,["inexistant"],true]
+Drive : arborescence ["SiteTeam/Test/Autre/b.bin (1234)","SiteTeam/Test/plan.pdf (5242880)"]
+Drive : jeton expiré → renouvelé ["ok",true,2]
+Drive : dossiers en double fusionnés true
+Drive : écran connecté (sans bouton script) [false,false,true]
+Drive : déconnecté [null,null]
+errors v1.0.29 []
+Vue Direction (A, Business) ["moyenne","Vue Direction",4,true,true,false,true,4]
+Free (E) : pas de Vue Direction, barre du bas ["perso",false,["Projets","Pro","Mon espace","Réglages"]]
+fil d'Ariane [true,"BTP Test SARL › Réserves / Tâches",false]
+fil d'Ariane → tableau de bord true
+plusieurs postes (B) [1,true]
+liste équipe : postes affichés true
+anti-capture [true,true,true]
+anti-capture désactivé false
+Enterprise : serveur privé true
+poste verrouillé (membre B) ["conducteur",false]
+poste verrouillé (Pro G) ["cheftopo",false,"cheftopo"]
+tableau de bord service (B) ["Service Travaux",4,true,true]
+outil → projet ouvert true
+errors v1.0.30 []
+wizard : suggestions expliquées ["Soutènements — 2 sous-sol(s)","Rabattement de nappe — 2 sous-sol(s)","Étanchéité des parties enterrées — 2 sous-sol(s)","Désenfumage — sous-sol / parking couvert","Ascenseurs — R+6","Détection et alarme — R+6"]
+wizard : zones générées [20,"Bloc A · SS2","Bloc B · Terrasse"]
+wizard : étape services (entreprise moyenne) ["Services",true]
+wizard : projet créé ["TCM-01","grand",true,20,true,true]
+wizard : suggestion → lot coché true
+wizard : moteur [["Piscines, filtration et équipements de bien-être"],["RDC","R+1","R+2","Terrasse"]]
+errors v1.0.31 []
+onglets : accueil ["home",true,["Projets","Pro","Équipe","Réglages"]]
+onglets : projets ["home",2]
+outils : catégorie en boutons 1
+anti-capture activer / désactiver [[true,"Sur ce téléphone : 🔒 activé"],[false,"Sur ce téléphone : 🔓 désactivé",false]]
+organigramme : zoom + plein écran [true,true]
+errors v1.0.32 []
+Affectations : rappel des règles à la 1re ouverture true
+Affectations : début / fin / historique {"initial":[true,true,1],"ended":[0,"2026-10-31",1]}
+organigramme en Free [false,"org",true,true]
+E erreurs brutes (diagnostic) ["E console: Failed to load resource: the server responded with a status of 401 (Unauthorized)"]
+errors v1.0.33 []
+bibliothèque Travaux (conducteur) [lib, réception, bétonnage, réserves, poste qualité cumulé, finance] [true,true,true,true,true,false]
+bibliothèque Travaux seule [réception, bétonnage, rubrique bétonnage] [false,true,true]
+bibliothèque Qualité (technicien) [true,true,true]
+administrateur : aucune restriction [null,true]
+outils Travaux ["plans","tasks","photos","reports","avancement","lotsuivi","planning","reunions","reception","forms","constat","labo","docq","clauses","rfi","visa","calc","models3d","gestion","pointage","team","histo","org"]
+outils Qualité ["reception","forms","constat","labo","docq","clauses","plans","tasks","photos","reports","rfi","visa","histo"]
+réception côté Qualité ["reception",true]
+Mon dossier pro {"card":true,"score":90,"secs":7,"items":4,"cv":["CV_Rachid_Alami.pdf",1,true]}
+thème sombre (classe, cartes blanches) [true,[]]
+Basic : interface unique (diagnostic) ["grande",true,30]
+errors v1.0.34 []
+en-tête & accueil {"me":false,"ws":true,"aff":false,"kpis":0,"navBottom":0,"navBg":"rgb(255, 255, 255)","heroH":131}
+en-tête réduit au défilement [false,131]
+menu de l'espace ["switch"]
+outils : catégories au toucher {"tous":false,"cats":["trav","qual","etu","fin","org","esp"],"open":0,"espRepete":1}
+catégorie ouverte ["trav"]
+Lots & équipes {"lots":42,"real":23,"prev":33,"alertes":["Équipe ferrailleurs 2 : aucune saisie depuis 5 j"],"rend":12.5,"cartes":1}
+lot (plans) : plus d'attachement / décompte true
+codes délégués (diagnostic) [admin a autorisé, conducteur peut partager] [true,true]
+thème Classique : zones blanches 149_classique_org []
+thème Classique : zones blanches 150_classique_perso []
+errors v1.0.35 []
+démarrage [écran encore là, temps mesurés, jsPDF chargé, scripts différés] [false,{"total":2568,"scripts":256,"team":2276,"home":47,"at":1793458349947},"object",71]
+démarrage mesuré (navigateur de test) [ms avant l'écran de démarrage, ms jusqu'à l'accueil, écran retiré, temps enregistrés] [133,427,true,"{\"total\":349,\"scripts\":185,\"team\":121,\"home\":51,\"at\":1793458647792}"]
+en-tête : changements pendant le défilement (≤ 2 attendu) 0
+errors v1.0.36 []
+barre du bas ["home","pro","team","set"]
+projet ouvert sur ses outils [section, outils, catégories] ["ptools",30,6]
+outil ouvert depuis le projet plans
+Réglages = menu ⋮ [true,"Réglages"]
+errors v1.0.38 []
+lots par niveau [hauteur outils, cellules matrice, avancement, alertes] {"hauteurOutils":1070,"cellules":4,"avancement":60,"alertes":["Équipe ferrailleurs 2 : aucune saisie depuis 5 j","R+1 : terminé, réception à faire","R+2 : fin prévue dépassée (29/10/2026)","R+3 : aucune équipe affectée"]}
+sous-traitants : parties tenues ["📋 Installation de chantier","⚙️ Installation de chantier : 12,5 m² /pers./j","📋 Installation de chantier"]
+errors v1.0.40 []
+photos en masse : dossier Drive ["Grand stade Benslimane","02 - Réception ferraillage","2026-10 Octobre","2026-10-28","R+1","Voile V12"]
+photos en masse : bouton dans les outils du projet true
+dossiers Drive renommés ["Grand stade Benslimane","02 - PV Réception","2026-10 Octobre","2026-10-28"]
+errors v1.0.41 []
+PV : bouton dans les outils du projet true
+PV : modèles proposés 11
+PV ferraillage créé {"ref":"PV-FER-001","n":13,"mes":3,"secs":4}
+PV verdict tout conforme Conforme
+PV verdict réserve + enrobage 18 mm (< 25) {"v":"Non conforme","bad":1}
+PV réserves créées ["Diamètres conformes au plan — R+1 · Voiles V1 à V6","Enrobage mesuré hors tolérance (18 mm, attendu 25 à 60 mm) — R+1 · Voiles V1 à V6"]
+PV contre-visite [{"n":1,"mes":1,"t":"PV réception ferraillage (contre-visite)"}]
+statut avec réserve Conforme avec réserves
+PV liste : filtres ["2Tous","1En cours","0Réserves","1Non conf.","0Conformes"]
+PV PDF PV-FER-001_PV_reception_ferraillage_2026-10-31.pdf
+errors v1.0.42 []
+errors v1.0.43 []
+accueil v1.0.43 {"nav":["Projets","Pro","Équipe","Réglages"],"dir":false,"org":false,"cards":2,"title":"Mes projets"}
+réseau {"rows":5,"f":["Tous 5","Mon organisation 4","Intervenants 1"]}
+réseau : contact perso + WhatsApp {"me":true,"wa":true}
+réseau : recherche 2
+Équipe ["Organigramme & membres","Codes d'accès","Affectations","Tableau de bord","Réglages de l'organisation"]
+tableau de bord (Plus) true
+Mon dossier ouvert true
+errors v1.0.43 ui []
+Pro : onglets ["Mon dossier*","Réseau","Emploi"]
+Pro → Réseau [1,"Réseau"]
+Pro → Emploi : pages ouvertes 1
+Réglages : profil en tête, sans doublon {"card":true,"ws":false}
+menu espace (seulement les espaces) ["Ajouter ou rejoindre un espace"]
+carte projet (défaut direction, choix lots+rappels) {"def":["lots","pvv","res","rap"],"perso":["lots","rap"],"table":false,"cust":true}
+carte projet du conducteur B (travaux) ["lots","av","res","rap"]
+photos sans attente + suppression {"ms":20,"blocked":false,"pill":true,"prep":false,"small":true,"left":1,"gone":true}
+sélection multiple (appui long) {"mode":true,"n":2,"bar":true}
+démarrage : logo {"heads":3,"on":3,"letters":8}
+démarrage : rien ne reste à l'écran true
+errors v1.0.44 []
+code uniquement : choix à l'inscription {"perso":false,"create":false,"join":true,"txt":"SiteTeam est accessible sur invitation. Entrez le code d'accès donné par votre responsable."}
+code uniquement : espace personnel bloqué {"gate":true,"title":"🔑 Code d'accès nécessaire","code":true}
+code uniquement désactivé : accès rétabli true
+démarrage avec réseau lent (ms jusqu'à l'accueil) 2541
+errors v1.0.45 []
+outils du projet : actions rapides + catégories dépliables {"qa":["Avancement du jour","Nouveau PV","Photos en masse","Dossiers Drive"],"cats":5,"open":1}
+catégorie ouverte mémorisée 2
+journal → état du lot [état, % il y a 3 j, % aujourd'hui] {"state":"done","pctY":40,"pctT":100}
+tableau de bord Pro Macro {"glob":"20%","rows":["Zone 1","Zone 2"],"today":3,"teams":["Équipe Rachid","STE Atlas"],"curve":true}
+filtre zone → niveaux {"rows":["RDC"],"zone":"Zone 1"}
+rapports [CSV, PDF, dossier du local] {"csv":["Avancement Grand stade Benslimane 2026-10-31.csv",12],"pdf":"Avancement Grand stade Benslimane 2026-10-31.pdf","dos":"Dossier LT 01 RDC Grand stade Benslimane.pdf"}
+saisie du jour (interface) {"n":2,"state":"progress","pct":60,"eq":"t2"}
+page avancement du jour [lignes, zones] [4,2]
+local technique : étapes {"etapes":["Maçonnerie","Chape","Nettoyage","Porte provisoire"],"done":1}
+plan : double calque HD 2
+zone dessinée → pins rattachés {"n":1,"zones":["LT 01=Zone 1","Couloir A=-"]}
+tableau de bord : secteurs {"rows":["Ouest","Nord"],"sect":true}
+import des locaux [familles, pins] ["CORE"] {"n":4,"names":["CORE 02 · RISER LT","CORE 01 · RISER LT","CORE 04 · RISER LT","CORE 03 · RISER PH"],"areas":["16.32","10.23","9.80",""],"typed":4}
+calque ANEP [numéros, pins numérotés] {"labels":["R1-E-014","R1-E-015"],"pins":["CORE 02=R1-E-015","CORE 01=R1-E-014"]}
+visionneuse : zones dessinées, bouton plans [1,true]
+comparaison de plans (rideau) [true,"inset(0px 0px 0px 50%)"]
+planning des lots : alertes [lot fini en retard ?, fin proche, pas démarré] + calage 2 points {"a":["Fin dépassée de 2 j (75 %)"],"b":["Fin dans 3 j (6 %)","Au rythme actuel : fin le 16/11/2026 (13 j de retard)"],"c":["Pas démarré (prévu le 26/10/2026)"],"sim":[10,220,100,0]}
+planning : cases, alertes [6,4]
+avancement de deux lots (pins coupés) [5,true]
+errors v1.0.46 []
+D delete message Votre compte a été supprimé.
+D after delete: login screen 1
+A members after D delete ["Client MO","Sara BET","Abdessamad Patron","Youssef Conducteur"]
+D relogin Compte introuvable
+errors ["A console: Failed to load resource: the server responded with a status of 403 (Forbidden)","D console: Failed to load resource: the server responded with a status of 400 (Bad Request)"]
