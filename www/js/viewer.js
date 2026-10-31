@@ -106,6 +106,8 @@ async function openPlanViewer(plan, ctx) {
   const base = Math.max(W, H);
   if (!plan.annotations) plan.annotations = [];
   plan.lastOpened = Date.now(); DB.put('plans', plan);
+  // v1.0.47 : plan A0 coupé (ancien import) → image refaite par tuiles en arrière-plan, puis remplacée à l'écran
+  if (typeof planNeedsHeal === 'function' && planNeedsHeal(plan)) planHeal(plan).then(async ok => { if (!ok) return; const f2 = await DB.get('files', plan.fileId); const u = f2 ? BlobURL.get(f2.id, f2.blob) : ''; document.querySelectorAll('.fullpage .stage > img, .fullpage .loupe img').forEach(im => { if (im.getAttribute('src') === src) im.src = u; }); toast('Plan A0 : image complète ✓'); });
 
   const st = {
     scale: 1, tx: 0, ty: 0,

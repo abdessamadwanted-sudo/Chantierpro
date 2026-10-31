@@ -55,12 +55,14 @@ async function briefingData() {
   // échéances des lots, labo, stock
   const due = [], lab = [], stk = [];
   for (const p of ps) {
+    // v1.0.47 : alertes d'avancement des lots par niveau (retard, pas démarré, fin proche) — un lot « ✓ Terminé » ne s'affiche plus
+    try { if (typeof avAllAlerts === 'function' && (p.avNiveaux || []).length) for (const x of (await avAllAlerts(p)).slice(0, 12)) due.push({ pid: p.id, label: `${x.n.name} · ${x.lot.name}`, sub: x.a[1], late: x.a[0] === 'r' }); } catch (e) {}
     try { if (typeof lotDueList === 'function') for (const x of await lotDueList(p)) if ((x.di && x.di.d <= 7) || x.po.length) due.push({ pid: p.id, label: `${x.L.e} ${x.L.name} · ${x.f.name}`, sub: `${x.di ? x.di.txt : ''}${x.po.length ? ` · 🛑 ${x.po.length} point(s) d'arrêt` : ''}`, late: x.di && x.di.d < 0 }); } catch (e) {}
     const G = p.gs || {};
     for (const e of G.pre || []) for (const j of [7, 28]) { const d = new Date(e.date + 'T12:00:00'); d.setDate(d.getDate() + j); const iso = d.toISOString().slice(0, 10); if (iso <= today && !gsNum(e[j === 7 ? 'r7' : 'r28'])) lab.push({ pid: p.id, label: `${e.ouv || 'Béton'} · écrasement ${j} j`, sub: `${p.name} · prévu le ${fmtDate(iso)}`, late: iso < today }); }
     for (const a of G.art || []) { const q = (G.mv || []).filter(m => m.art === a.id).reduce((s, m) => s + gsNum(m.q), 0); if (a.seuil && q <= gsNum(a.seuil)) stk.push({ pid: p.id, label: a.nom, sub: `${p.name} · reste ${q} ${a.unite}` }); }
   }
-  if (due.length && see('avancement')) C.push({ k: 'due', e: '⏳', t: 'Échéances des lots', c: '#a855f7', n: due.length, items: due, alert: due.some(x => x.late) });
+  if (due.length && see('avancement')) C.push({ k: 'due', e: '⏳', t: 'Lots : retards & échéances', c: '#a855f7', n: due.length, items: due, alert: due.some(x => x.late) });
   if (lab.length && (see('labo') || see('gestion'))) C.push({ k: 'lab', e: '🧪', t: 'Labo : écrasements', c: '#06b6d4', n: lab.length, items: lab, alert: lab.some(x => x.late) });
   if (stk.length && see('gestion')) C.push({ k: 'stock', e: '📦', t: 'Stock bas', c: '#eab308', n: stk.length, items: stk });
   try { C.push(...regBriefCards(ps)); } catch (e) { console.warn('reg brief', e); }
@@ -113,7 +115,7 @@ function briefAction(card) {
     if (card.k === 'rap') { App.fromBrief = null; App.homeOpen = App.homeOpen || {}; App.homeOpen[pid] = true; App.homeRap = App.homeRap || {}; App.homeRap[pid] = true; return renderHome(); }
     if (card.k === 'tasks') return go('tasks', () => { App.taskFilter = 'open'; });
     if (card.k === 'rec') return briefGo(pid, async () => { const d = card.days.find(x => x.projectId === pid); App.section = 'reception'; await renderSection(); if (d) openReceptionDay(d); });
-    if (card.k === 'due') return go('dashboard');
+    if (card.k === 'due') return go('avancement', () => { App.avTab = 'dash'; });
     if (card.k === 'pt') return go('pointage', () => { App.ptDay = todayISO(); });
     if (card.k === 'plan') return go('planning');
     if (card.k === 'lab') return go(featOn('labo') && Org.can('labo', 'see') ? 'labo' : 'gestion', () => { App.gsTab = 'labo'; App.rgTab = App.rgTab || {}; App.rgTab.labo = 'epr'; });

@@ -287,11 +287,14 @@ const ST = (() => {
       <div class="st-qa" style="--n:${QA.length}">${QA.map(([k, ic, l, c]) => `<button class="st-qa-b" data-a="${k}" style="--c:${c}"><i>${icon(ic)}</i><span>${l}</span></button>`).join('')}</div>
       ${G.map(([g, l, ks]) => `<details class="st-tcat st-acc" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(l.replace(/^\S+\s/, ''))}<small>${ks.length}</small><i class="st-chev">${icon('chevdown')}</i></summary>
         <div class="st-tgrid">${ks.map(k => `<button class="st-tool" data-tool="${k}" style="--c:${CAT_C[catOf(k)] || CAT_C[g] || 'var(--accent)'}"><i class="st-ico">${icon(SECTIONS[k].icon || 'grid')}</i><span>${esc(toolName(k))}</span></button>`).join('')}</div></details>`).join('')}
+      <details class="st-tcat st-acc" data-g="outils" style="--c:#B7791F" ${opened.includes('outils') ? 'open' : ''}><summary class="st-tcat-h">Outils<small>3</small><i class="st-chev">${icon('chevdown')}</i></summary>
+        <div class="st-tgrid">${[['pdf', 'pdf', 'Outils PDF'], ['photo', 'camera', 'Studio photo'], ['board', 'brush', 'Tableau de dessin']].map(([k, ic, l]) => `<button class="st-tool" data-xtool="${k}" style="--c:#B7791F"><i class="st-ico">${icon(ic)}</i><span>${l}</span></button>`).join('')}</div></details>
       ${typeof espaceHome === 'function' && espaceHome() ? `<details class="st-tcat st-acc st-esp" style="--c:#3D5A80"><summary class="st-tcat-h">Espace métier<i class="st-chev">${icon('chevdown')}</i></summary>${espaceHome()}</details>` : ''}
     </div>`;
     root.querySelectorAll('details.st-acc[data-g]').forEach(d => d.addEventListener('toggle', () => { const L = [...root.querySelectorAll('details.st-acc[data-g][open]')].map(x => x.dataset.g); try { localStorage.setItem('ptools.open', JSON.stringify(L)); } catch (e) {} }));
     const avj = root.querySelector('[data-a=avjour]'); if (avj) avj.onclick = () => openAvJour(p);
     root.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { App.section = b.dataset.tool; App.search = ''; renderSection(); });
+    root.querySelectorAll('[data-xtool]').forEach(b => b.onclick = () => { const k = b.dataset.xtool; if (k === 'pdf') openPdfTools(); if (k === 'photo') photoStudioTool(); if (k === 'board') openBoardTool(); });
     const npv = root.querySelector('[data-a=newpv]'); if (npv) npv.onclick = async () => { const f = await pvCreate(p); if (f) { await openFormDetail(f); } };
     const pb = root.querySelector('[data-a=pbatch]'); if (pb) pb.onclick = () => openPhotoBatch(p);
     const dn = root.querySelector('[data-a=dnames]'); if (dn) dn.onclick = () => openDriveNames(p);
@@ -389,9 +392,10 @@ const ST = (() => {
         { label: 'Organigramme & membres', sub: (Team.members() || []).length + ' membre(s)', icon: 'team', value: 'org' },
         ...(Team.canInvite() ? [{ label: 'Codes d\'accès', sub: Team.isAdmin() ? 'inviter, approuver' : 'pour les personnes sous votre responsabilité', icon: 'share', value: 'inv' }] : []),
         ...(typeof Affectations !== 'undefined' && Affectations.active && Affectations.active() ? [{ label: 'Affectations', sub: 'équipe de chaque projet', icon: 'layers', value: 'aff' }] : [])] },
-      { title: 'Pilotage', color: '#0d9488', items: [{ label: 'Tableau de bord', sub: 'vue direction · service · à faire aujourd\'hui', icon: 'trend', value: 'dash' }] },
-      { title: '', color: '#64748b', items: Team.isAdmin() ? [{ label: 'Réglages de l\'organisation', sub: 'pack, services, Drive, sécurité', icon: 'settings', value: 'set' }] : [] },
+      { title: 'Pilotage', color: '#0d9488', items: [{ label: 'Tableau de bord', sub: 'vue direction · service · à faire aujourd\'hui', icon: 'trend', value: 'dash' }, ...(typeof briefingShow === 'function' ? [{ label: 'Briefing du jour', sub: 'alertes, rappels, PV à livrer, tâches', icon: 'calendar', value: 'brief' }] : [])] },
+      { title: 'Organisation', color: '#64748b', items: Team.isAdmin() ? [{ label: 'Réglages de l\'organisation', sub: 'pack, services, Drive, sécurité', icon: 'settings', value: 'set' }] : [] },
     ]);
+    if (v === 'brief') { const act = await briefingShow(); if (act) act(); }
     if (v === 'org' || v === 'inv' || v === 'set') Team.openCompany(v);
     if (v === 'aff') Affectations.open();
     if (v === 'dash') openDash();

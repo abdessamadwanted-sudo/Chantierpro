@@ -210,6 +210,15 @@ function groupMenu(title, groups, { head = '' } = {}) {
     let v = null;
     const s = sheet(`<div class="gm">${head}${groups.filter(g => g.items.length).map(g => `${g.title ? `<div class="gm-g">${esc(g.title)}</div>` : ''}<div class="gm-box">${g.items.map(it => `<button class="gm-i" ${it.value != null ? `data-v="${esc(it.value)}"` : 'disabled'}><span class="gm-ic" style="--c:${g.color}">${icon(it.icon)}</span><span class="grow"><b>${esc(it.label)}</b>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span>${it.value != null ? icon('chevright') : ''}</button>`).join('')}</div>`).join('')}</div>`, { title });
     $$('[data-v]', s.el).forEach(b => b.onclick = () => { v = b.dataset.v; s.close(); });
+    // v1.0.47 : menus compacts — recherche (dès 7 entrées) ; chaque groupe se replie (état mémorisé)
+    const gm = $('.gm', s.el), n = groups.reduce((a, g) => a + g.items.length, 0), key = 'gm.' + normQ(title);
+    if (gm) { gm.classList.add('gm-c');
+      let closed = {}; try { closed = JSON.parse(localStorage.getItem(key) || '{}'); } catch (e) {}
+      $$('.gm-g', gm).forEach(h => { const box = h.nextElementSibling; if (!box) return; const k = h.textContent; h.classList.add('gm-t'); if (closed[k]) { h.classList.add('off'); box.style.display = 'none'; }
+        h.onclick = () => { const off = !h.classList.toggle('off'); box.style.display = off ? '' : 'none'; closed[k] = !off; try { localStorage.setItem(key, JSON.stringify(closed)); } catch (e) {} }; });
+      if (n >= 7) { const sr = document.createElement('div'); sr.className = 'gm-sr'; sr.innerHTML = `${icon('search')}<input placeholder="Rechercher…">`; gm.prepend(sr);
+        $('input', sr).oninput = (e) => { const q = normQ(e.target.value); $$('.gm-i', gm).forEach(b => { b.style.display = !q || normQ(b.textContent).includes(q) ? '' : 'none'; });
+          $$('.gm-g', gm).forEach(h => { const box = h.nextElementSibling; if (!box) return; const any = [...box.querySelectorAll('.gm-i')].some(b => b.style.display !== 'none'); h.style.display = any ? '' : 'none'; box.style.display = any && (q || !h.classList.contains('off')) ? '' : 'none'; }); }; } }
     s.onClose = () => resolve(v);
   });
 }
@@ -299,18 +308,52 @@ async function pdfToImages(file, maxSide = 3000, onPage) {
   for (let p = 1; p <= pdf.numPages; p++) {
     if (onPage) onPage(p, pdf.numPages);
     const page = await pdf.getPage(p);
-    const vp1 = page.getViewport({ scale: 1 });
-    // haute résolution, limitée à ~16 Mpx (limite des canvas sur Android)
-    const scale = Math.min(8, maxSide / Math.max(vp1.width, vp1.height), Math.sqrt(16e6 / (vp1.width * vp1.height)));
-    const vp = page.getViewport({ scale });
-    const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
-    const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
-    await page.render({ canvasContext: ctx, viewport: vp }).promise;
-    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
-    c.width = c.height = 0; // libère la mémoire
-    out.push({ blob, w: Math.round(vp.width), h: Math.round(vp.height), page: p });
+    const r = await pdfPageToBlob(page, maxSide);
+    out.push({ ...r, page: p });
   }
   return out;
+}
+// v1.0.47 : rendu d'une page PDF par tuiles (plans A0) — jamais un seul gros rendu : le téléphone ne coupe plus le plan
+// (moitié blanche) ; côté max 4096 px et ~12 Mpx (limites sûres des canvas Android / Huawei)
+const PDF_MAXSIDE = 4096, PDF_MAXPX = 12e6, PDF_TILE = 1024;
+async function pdfPageToBlob(page, maxSide = PDF_MAXSIDE, onTile) {
+  const vp1 = page.getViewport({ scale: 1 });
+  const scale = Math.min(8, Math.min(maxSide, PDF_MAXSIDE) / Math.max(vp1.width, vp1.height), Math.sqrt(PDF_MAXPX / (vp1.width * vp1.height)));
+  const vp = page.getViewport({ scale }), W = Math.round(vp.width), H = Math.round(vp.height);
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+  const t = document.createElement('canvas'), nx = Math.ceil(W / PDF_TILE), ny = Math.ceil(H / PDF_TILE); let k = 0;
+  for (let ty = 0; ty < ny; ty++) for (let tx = 0; tx < nx; tx++) {
+    const x0 = tx * PDF_TILE, y0 = ty * PDF_TILE, tw = Math.min(PDF_TILE, W - x0), th = Math.min(PDF_TILE, H - y0);
+    t.width = tw; t.height = th; const g = t.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, tw, th);
+    try { await page.render({ canvasContext: g, viewport: vp, transform: [1, 0, 0, 1, -x0, -y0] }).promise; } catch (e) { console.warn('tuile', e); }
+    ctx.drawImage(t, x0, y0); k++; if (onTile) onTile(k, nx * ny);
+  }
+  t.width = t.height = 0;
+  const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
+  c.width = c.height = 0; // libère la mémoire
+  return { blob, w: W, h: H };
+}
+// v1.0.47 : plans importés avant (rendu d'un seul bloc jusqu'à 5000 px → parfois coupés) : l'image est refaite par tuiles,
+// les coordonnées du plan (pins, annotations) ne changent pas (plan.w / plan.h gardés, l'image est simplement étirée)
+const _planHealing = new Map();
+function planNeedsHeal(plan) { return !!(plan && plan.pdfFileId && !plan.imgV && (Math.max(plan.w, plan.h) > PDF_MAXSIDE || plan.w * plan.h > PDF_MAXPX)); }
+async function planHeal(plan) {
+  if (!planNeedsHeal(plan)) return false;
+  if (_planHealing.has(plan.id)) return _planHealing.get(plan.id);
+  const pr = (async () => {
+    try {
+      if (!(await pdfReadyA())) return false;
+      const src = await DB.get('files', plan.pdfFileId), img = await DB.get('files', plan.fileId); if (!src || !src.blob || !img) return false;
+      const doc = await pdfjsLib.getDocument({ data: new Uint8Array(await src.blob.arrayBuffer()) }).promise;
+      const page = await doc.getPage(plan.pdfPage || 1), r = await pdfPageToBlob(page);
+      try { doc.destroy(); } catch (e) {}
+      img.blob = r.blob; img.mime = 'image/jpeg'; img.w = r.w; img.h = r.h; BlobURL.drop(img.id); await DB.put('files', img);
+      const pl = await DB.get('plans', plan.id) || plan; pl.imgV = 47; await DB.put('plans', pl); plan.imgV = 47;
+      return true;
+    } catch (e) { console.warn('heal', e); return false; } finally { _planHealing.delete(plan.id); }
+  })();
+  _planHealing.set(plan.id, pr); return pr;
 }
 
 // Visionneuse photo plein écran

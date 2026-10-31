@@ -53,6 +53,7 @@ async function avJourForm(p, loc, pre = {}) {
     { name: 'note', label: 'Note', type: 'textarea', value: '', placeholder: 'Ce qui a été fait, ce qui bloque…' },
   ], { okLabel: 'Enregistrer' });
   if (!r) return null;
+  if (+r.pct >= 100 && typeof avCheckReserves === 'function' && !(await avCheckReserves(p, [{ loc, pct: 100 }])).length) return null;
   let eq = r.eq;
   if (eq === '__new') { const t = await avTeamForm(p); eq = t ? t.id : ''; }
   const e = { id: DB.uid(), d: r.d || todayISO(), t: Date.now(), lot: r.lot, eq, pct: +r.pct || 0, eff: +r.eff || 0, qty: (r.qty || '').trim(), note: (r.note || '').trim(), photos: [], by: Team.ready() ? ((Team.me() || {}).name || '') : '' };
@@ -66,6 +67,8 @@ async function avTeamForm(p, t) {
   avLots(p);
   const r = await formSheet(t ? 'Modifier l\'équipe' : 'Nouvelle équipe', [
     { name: 'name', label: 'Nom de l\'équipe / sous-traitant', value: t ? t.name : '', placeholder: 'Ex : Équipe Rachid, STE Atlas' },
+    { name: 'type', label: 'Type', type: 'select', value: t ? t.type || 'int' : 'int', options: [{ value: 'int', label: 'Équipe interne' }, { value: 'st', label: 'Sous-traitant' }, { value: 'tach', label: 'Tâcheron' }] },
+    { name: 'soc', label: 'Société (sous-traitant)', value: t ? t.soc || '' : '', placeholder: 'Ex : STE Atlas SARL' },
     { name: 'resp', label: 'Responsable', value: t ? t.resp || '' : '', placeholder: 'Ex : chef d\'équipe' },
     { name: 'tel', label: 'Téléphone', type: 'tel', value: t ? t.tel || '' : '' },
     { name: 'lot', label: 'Lot principal', type: 'select', value: t ? t.lot || '' : '', options: [{ value: '', label: '—' }, ...p.lots.map(l => ({ value: l.id, label: l.name }))] },
@@ -73,8 +76,8 @@ async function avTeamForm(p, t) {
   if (!r) return null;
   if (r.__danger) { p.avTeams = avTeams(p).filter(x => x !== t); await DB.put('projects', p); return null; }
   if (!r.name) return null;
-  if (t) Object.assign(t, { name: r.name.trim(), resp: r.resp.trim(), tel: r.tel.trim(), lot: r.lot });
-  else { t = { id: DB.uid(), name: r.name.trim(), resp: r.resp.trim(), tel: r.tel.trim(), lot: r.lot, color: AVP_TEAM_C[avTeams(p).length % AVP_TEAM_C.length] }; avTeams(p).push(t); }
+  if (t) Object.assign(t, { name: r.name.trim(), resp: r.resp.trim(), tel: r.tel.trim(), lot: r.lot, type: r.type || 'int', soc: (r.soc || '').trim() });
+  else { t = { id: DB.uid(), name: r.name.trim(), resp: r.resp.trim(), tel: r.tel.trim(), lot: r.lot, type: r.type || 'int', soc: (r.soc || '').trim(), color: AVP_TEAM_C[avTeams(p).length % AVP_TEAM_C.length] }; avTeams(p).push(t); }
   await DB.put('projects', p); return t;
 }
 
@@ -93,7 +96,7 @@ async function openAvJour(p, day) {
       <div class="content avj-c">
         <div class="avj-day"><button data-a="prev">‹</button><label><input type="date" value="${day}" data-a="d"><b>${day === todayISO() ? 'Aujourd\'hui' : esc(fmtDate(day))}</b></label><button data-a="next" ${day >= todayISO() ? 'disabled' : ''}>›</button></div>
         <div class="avj-k"><div><b>${E.length}</b><span>saisie(s)</span></div><div><b>${eff}</b><span>personnes</span></div><div><b>${teamsN}</b><span>équipe(s)</span></div><div><b>${Object.keys(byZ).length}</b><span>zone(s)</span></div></div>
-        <button class="btn avj-new" data-a="new">${icon('plus')} Nouvelle saisie</button>
+        <div class="avj-btns"><button class="btn avj-new" data-a="new">${icon('plus')} Saisie</button>${typeof openAvTable === 'function' ? `<button class="btn ghost" data-a="tab">${icon('grid')} Tableau rapide</button><button class="btn ghost" data-a="exp">⚡ Express</button>` : ''}</div>
         ${E.length ? Object.entries(byZ).map(([z, L]) => `<div class="avj-z"><div class="avj-zh">${esc(z)}<small>${L.length}</small></div>${L.sort((a, b) => (a.n.name + a.l.name).localeCompare(b.n.name + b.l.name, 'fr', { numeric: true })).map(({ e, l, n }) => { const lot = avLot(p, e.lot), t = avTeam(p, e.eq);
           return `<button class="avj-row" data-loc="${l.id}"><i style="background:${lot.color}"></i><span class="grow"><b>${esc(n.name)} · ${esc(l.name)}</b><small>${esc(lot.name)}${t ? ' · ' + esc(t.name) : ''}${e.eff ? ' · ' + e.eff + ' pers.' : ''}${e.qty ? ' · ' + esc(e.qty) : ''}${e.photos && e.photos.length ? ' · 📷 ' + e.photos.length : ''}</small>${e.note ? `<em>${esc(e.note)}</em>` : ''}</span>
             <span class="avj-p"><b>${e.pct}%</b>${e.prev != null && e.pct > e.prev ? `<small>+${e.pct - e.prev}</small>` : ''}</span></button>`; }).join('')}</div>`).join('')
@@ -106,6 +109,8 @@ async function openAvJour(p, day) {
     $('[data-a=new]', el).onclick = async () => { const loc = await avPickPin(p, nivs, locaux); if (loc && await avJourForm(p, loc, { d: day })) draw(); };
     $$('[data-loc]', el).forEach(b => b.onclick = async () => { const loc = locaux.find(l => l.id === b.dataset.loc); if (loc && await avJourForm(p, loc, { d: day })) draw(); });
     $('[data-a=share]', el).onclick = () => shareWhatsApp(avJourText(p, day, E));
+    const tb = $('[data-a=tab]', el); if (tb) tb.onclick = () => openAvTable(p, { onClose: draw });
+    const xb = $('[data-a=exp]', el); if (xb) xb.onclick = () => avExpress(p, draw);
   }
   draw();
   return el;
@@ -133,15 +138,7 @@ async function avPickPin(p, nivs, locaux) {
 }
 
 // ---------- tableau de bord « Pro Macro » ----------
-function avProFilter(p, nivs, locaux) {
-  const F = App.avF = App.avF || { sect: '', zone: '', niv: '', lot: '', eq: '', lt: '', per: 30, by: 'zone' };
-  const nv = (l) => nivs.find(n => n.id === l.nivId), pz = (l) => avPinZone(p, l, nv(l));
-  const N = nivs.filter(n => !F.niv || n.id === F.niv);
-  const L = locaux.filter(l => nv(l) && (!F.niv || l.nivId === F.niv) && (!F.zone || pz(l) === F.zone) && (!F.sect || avSectOf(p, pz(l)) === F.sect) && (!F.lt || l.ltype === F.lt)
-    && (!F.eq || Object.values(l.lots || {}).some(r => r.eq === F.eq) || (l.journal || []).some(e => e.eq === F.eq)));
-  const lots = avLots(p).filter(l => !F.lot || l.id === F.lot);
-  return { F, N, L, lots, pz };
-}
+// v1.0.47 : avProFilter / avProDash → av47.js (barre de choix, période, équipes & sous-traitants)
 const avAvg = (L, lots, day) => { let s = 0, n = 0; for (const l of L) for (const lot of lots) { s += day ? avPctAt(l, lot.id, day) : avPct((l.lots || {})[lot.id]); n++; } return n ? Math.round(s / n) : 0; };
 function avDonut(pct, color, size = 64, label = '') {
   const r = size / 2 - 6, C = 2 * Math.PI * r, o = C * (1 - pct / 100);
@@ -167,67 +164,9 @@ function avTeamStats(p, L, per) {
     t.n++; t.gain += Math.max(0, (+e.pct || 0) - (+e.prev || 0)); if (e.eff) { t.eff += +e.eff; t.effN++; } t.lots.add(e.lot); t.pins.add(l.id); if (e.d > t.last) t.last = e.d; }
   return Object.entries(T).map(([id, t]) => ({ id, t: avTeam(p, id) || { name: '?', color: '#64748b' }, ...t, effM: t.effN ? Math.round(t.eff / t.effN) : 0 })).sort((a, b) => b.gain - a.gain);
 }
-async function avProDash(root, p, nivs, locaux) {
-  const { F, N, L, lots, pz } = avProFilter(p, nivs, locaux), today = todayISO();
-  const glob = avAvg(L, lots), allZ = avZones(p).filter(z => locaux.some(l => pz(l) === z) || nivs.some(n => avZoneOf(p, n) === z)), SE = avSecteurs(p).filter(s => allZ.some(z => avSectOf(p, z) === s));
-  const zones = allZ.filter(z => !F.sect || avSectOf(p, z) === F.sect);
-  const E = L.flatMap(l => (l.journal || []).filter(e => e.d === today && (!F.lot || e.lot === F.lot) && (!F.eq || e.eq === F.eq)).map(e => ({ e, l, n: nivs.find(n => n.id === l.nivId) })));
-  const effT = E.reduce((a, x) => a + (+x.e.eff || 0), 0);
-  let late = 0, done = 0, pairs = 0; for (const l of L) for (const lot of lots) { const s = avStatus((l.lots || {})[lot.id]); pairs++; if (s === 'late') late++; if (avIsDone(s)) done++; }
-  const days = Array.from({ length: F.per }, (_, i) => avAddDays(today, i - F.per + 1)), series = days.map(d => ({ d, v: avAvg(L, lots, d) }));
-  const gain7 = series.length > 7 ? series[series.length - 1].v - series[series.length - 8].v : 0;
-  const TS = avTeamStats(p, L, F.per);
-  // lignes de la matrice : secteurs → zones (joints) → niveaux ; ou types de local
-  const rows = F.by === 'type' ? avLocTypes(p).map(t => ({ k: 't:' + t.id, label: t.name, sub: '', c: t.color, L: L.filter(l => l.ltype === t.id) })).filter(r => r.L.length)
-    : F.by === 'niv' || F.zone ? N.map(n => ({ k: 'n:' + n.id, label: n.name, sub: F.zone ? '' : [...new Set(L.filter(l => l.nivId === n.id).map(pz))].join(', '), L: L.filter(l => l.nivId === n.id) })).filter(r => r.L.length || !F.zone)
-    : SE.length && !F.sect ? [...SE.map(s => ({ k: 's:' + s, label: s, sub: `${allZ.filter(z => avSectOf(p, z) === s).length} zone(s)`, L: L.filter(l => avSectOf(p, pz(l)) === s) })), ...(L.some(l => !avSectOf(p, pz(l))) ? [{ k: 's:', label: 'Sans secteur', sub: '', L: L.filter(l => !avSectOf(p, pz(l))) }] : [])]
-    : zones.map(z => ({ k: 'z:' + z, label: z, sub: `${new Set(L.filter(l => pz(l) === z).map(l => l.nivId)).size} niv.`, L: L.filter(l => pz(l) === z) }));
-  const cell = (Ls, lot) => { const s = avStats(Ls, lot.id); return { s, c: s.late ? '#ef4444' : s.pct === 100 ? '#22c55e' : lot.color }; };
-  const chip = (k, v, l) => `<button class="avp-ch ${F[k] === v ? 'on' : ''}" data-f="${k}|${v}">${esc(l)}</button>`;
-  root.innerHTML = `<div class="avp">
-    <div class="avp-hero"><div class="avp-hero-l">${avDonut(glob, 'var(--accent)', 108, 'global')}</div>
-      <div class="avp-hero-r"><b>${esc([F.sect, F.zone].filter(Boolean).join(' · ') || 'Tout le projet')}${F.niv ? ' · ' + esc((nivs.find(n => n.id === F.niv) || {}).name || '') : ''}</b>
-        <div class="avp-k"><div><b>${done}/${pairs}</b><span>terminés</span></div><div class="${late ? 'r' : ''}"><b>${late}</b><span>en retard</span></div><div><b>${E.length}</b><span>saisies auj.</span></div><div><b>${effT}</b><span>pers. auj.</span></div></div>
-        <small class="${gain7 >= 0 ? 'up' : 'dn'}">${gain7 >= 0 ? '▲' : '▼'} ${Math.abs(gain7)} pts sur 7 jours</small></div></div>
-    <div class="avp-f">
-      ${SE.length ? `<div class="avp-fr"><span>Secteur</span>${chip('sect', '', 'Tous')}${SE.map(s => chip('sect', s, s)).join('')}</div>` : ''}
-      <div class="avp-fr"><span>Zone</span>${chip('zone', '', 'Toutes')}${zones.map(z => chip('zone', z, z)).join('')}</div>
-      <div class="avp-fr"><span>Niveau</span>${chip('niv', '', 'Tous')}${nivs.filter(n => !F.zone || locaux.some(l => l.nivId === n.id && pz(l) === F.zone) || avZoneOf(p, n) === F.zone).map(n => chip('niv', n.id, n.name)).join('')}</div>
-      ${locaux.some(l => l.ltype) ? `<div class="avp-fr"><span>Type</span>${chip('lt', '', 'Tous')}${avLocTypes(p).filter(t => locaux.some(l => l.ltype === t.id)).map(t => chip('lt', t.id, t.name)).join('')}</div>` : ''}
-      <div class="avp-fr"><span>Lot</span>${chip('lot', '', 'Tous')}${avLots(p).map(l => chip('lot', l.id, l.name)).join('')}</div>
-      ${avTeams(p).length ? `<div class="avp-fr"><span>Équipe</span>${chip('eq', '', 'Toutes')}${avTeams(p).map(t => chip('eq', t.id, t.name)).join('')}</div>` : ''}
-    </div>
-    <div class="avp-lots">${lots.map(lot => { const v = avAvg(L, [lot]); return `<button class="avp-lot" data-f="lot|${F.lot === lot.id ? '' : lot.id}">${avDonut(v, lot.color, 72)}<span>${esc(lot.name)}</span></button>`; }).join('')}</div>
-    <div class="avp-card"><div class="avp-h">📈 Évolution <span class="avp-seg">${[7, 30, 90].map(k => `<button class="${F.per === k ? 'on' : ''}" data-per="${k}">${k} j</button>`).join('')}</span></div>${avCurve(series)}</div>
-    <div class="avp-card"><div class="avp-h">🧱 ${({ s: 'Secteurs', z: 'Zones', n: 'Niveaux', t: 'Types de local' })[(rows[0] || { k: 'n' }).k[0]]} × lots <span class="avp-seg">${F.zone ? '' : `<button class="${F.by === 'zone' ? 'on' : ''}" data-by="zone">Zones</button>`}<button class="${F.by === 'niv' ? 'on' : ''}" data-by="niv">Niveaux</button>${locaux.some(l => l.ltype) ? `<button class="${F.by === 'type' ? 'on' : ''}" data-by="type">Types</button>` : ''}</span></div>
-      <div class="avp-mxw"><table class="avp-mx"><tr><th></th>${lots.map(l => `<th style="--c:${l.color}">${esc(l.name)}</th>`).join('')}<th>Total</th></tr>
-      ${rows.map(r => `<tr><td class="avp-rh" data-row="${r.k}"${r.c ? ` style="box-shadow:inset 4px 0 0 ${r.c}"` : ''}><b>${esc(r.label)}</b><small>${esc(r.sub || '')} · ${r.L.length} pin(s)</small></td>${lots.map(lot => { const { s, c } = cell(r.L, lot);
-        return `<td data-cell="${r.k}|${lot.id}"><div class="avp-cell" style="--p:${s.pct}%;--c:${c}"><b>${s.n ? s.pct + '%' : '—'}</b>${s.late ? `<i>${s.late}⚠</i>` : ''}</div></td>`; }).join('')}<td><b class="avp-tot">${avAvg(r.L, lots)}%</b></td></tr>`).join('') || `<tr><td colspan="${lots.length + 2}" class="muted">Aucun niveau dans ce filtre</td></tr>`}</table></div></div>
-    ${typeof avPlanningHTML === 'function' ? avPlanningHTML(p, nivs.filter(n => L.some(l => l.nivId === n.id) || (!F.zone && !F.sect && !F.lt && !F.eq && (!F.niv || n.id === F.niv))), L, lots) : ''}
-    <div class="avp-card"><div class="avp-h">☀️ Aujourd'hui <span>${E.length}</span><button class="avp-lnk" data-a="jour">Saisir ›</button></div>
-      ${E.length ? E.slice(0, 12).map(({ e, l, n }) => { const lot = avLot(p, e.lot), t = avTeam(p, e.eq); return `<div class="avp-today"><i style="background:${lot.color}"></i><span class="grow"><b>${esc(n ? n.name : '')} · ${esc(l.name)}</b><small>${esc(lot.name)}${t ? ' · ' + esc(t.name) : ''}${e.eff ? ' · ' + e.eff + ' pers.' : ''}</small></span><b>${e.pct}%</b></div>`; }).join('') : '<div class="muted avp-pad">Aucune saisie aujourd\'hui</div>'}</div>
-    <div class="avp-card"><div class="avp-h">👷 Équipes (${F.per} j)<button class="avp-lnk" data-a="teams">Gérer ›</button></div>
-      ${TS.length ? `<div class="avp-teams">${TS.map(x => `<button class="avp-team" data-f="eq|${F.eq === x.id ? '' : x.id}" style="--c:${x.t.color || '#64748b'}"><span class="avp-ta">${esc(dpIni(x.t.name))}</span><span class="grow"><b>${esc(x.t.name)}</b><small>${x.t.resp ? esc(x.t.resp) + ' · ' : ''}${x.n} saisie(s) · ${x.pins.size} pin(s)${x.effM ? ' · ~' + x.effM + ' pers.' : ''}</small><span class="avp-tb"><i style="width:${Math.min(100, x.gain / Math.max(1, TS[0].gain) * 100)}%"></i></span></span><em>+${x.gain}</em></button>`).join('')}</div>`
-        : `<div class="muted avp-pad">${avTeams(p).length ? 'Aucune saisie d\'équipe sur la période' : 'Ajoutez vos équipes et responsables, puis choisissez-les à chaque saisie'}</div>`}</div>
-    <div class="avp-card avp-exp"><div class="avp-h">📤 Rapports</div><div class="avp-ex">
-      <button data-x="pdf">${icon('pdf')}<span>PDF</span></button><button data-x="csv">${icon('sheet')}<span>Excel</span></button><button data-x="wa">${icon('share')}<span>WhatsApp</span></button><button data-x="plan">${icon('plans')}<span>Plans</span></button></div></div>
-  </div>`;
-  const redraw = () => avProDash(root, p, nivs, locaux);
-  $$('[data-f]', root).forEach(b => b.onclick = () => { const [k, v] = b.dataset.f.split('|'); F[k] = v; if (k === 'sect') { F.zone = ''; F.niv = ''; } if (k === 'zone') F.niv = ''; redraw(); });
-  $$('[data-per]', root).forEach(b => b.onclick = () => { F.per = +b.dataset.per; redraw(); });
-  $$('[data-by]', root).forEach(b => b.onclick = () => { F.by = b.dataset.by; redraw(); });
-  $$('[data-row]', root).forEach(b => b.onclick = () => { const [t, id] = b.dataset.row.split(/:(.*)/s);
-    if (t === 's') { F.sect = id; F.zone = ''; } else if (t === 'z') { F.zone = id; F.niv = ''; } else if (t === 't') F.lt = F.lt === id ? '' : id; else F.niv = F.niv === id ? '' : id; redraw(); });
-  $$('[data-cell]', root).forEach(c => c.onclick = () => { const [rk, lid] = c.dataset.cell.split('|'), [t, id] = rk.split(/:(.*)/s);
-    if (t === 's') { F.sect = id; F.lot = lid; redraw(); } else if (t === 'z') { F.zone = id; F.lot = lid; redraw(); } else if (t === 't') { F.lt = id; F.lot = lid; redraw(); } else openAvViewer(id, lid, () => renderAvancement(root.closest('#content') || root)); });
-  const jb = $('[data-a=jour]', root); if (jb) jb.onclick = () => openAvJour(p);
-  const tb = $('[data-a=teams]', root); if (tb) tb.onclick = async () => { await avTeamsMenu(p); redraw(); };
-  $$('[data-x]', root).forEach(b => b.onclick = () => avProExport(b.dataset.x, p, nivs, locaux));
-  $$('[data-pl]', root).forEach(b => b.onclick = async () => { const [nid, lid] = b.dataset.pl.split('|'); if (await avPlanningEdit(p, nivs.find(n => n.id === nid), avLot(p, lid), nivs)) redraw(); });
-}
 async function avTeamsMenu(p) {
   for (;;) {
-    const v = await menu('Équipes & responsables', [...avTeams(p).map(t => ({ label: `${t.name}${t.resp ? ' · ' + t.resp : ''}`, swatch: t.color, value: t.id })), { label: 'Ajouter une équipe', icon: 'plus', value: '__add' }]);
+    const v = await menu('Équipes & sous-traitants', [...avTeams(p).map(t => ({ label: `${t.name}${t.type === 'st' ? ' · sous-traitant' : t.type === 'tach' ? ' · tâcheron' : ''}${t.resp ? ' · ' + t.resp : ''}`, swatch: t.color, value: t.id })), { label: 'Ajouter une équipe', icon: 'plus', value: '__add' }]);
     if (!v) return; if (v === '__add') await avTeamForm(p); else await avTeamForm(p, avTeam(p, v));
   }
 }
@@ -276,8 +215,9 @@ async function avProExport(kind, p, nivs, locaux) {
       }
       if (typeof avLotPlanning === 'function') { const AL = []; for (const n of N) { const LL = L.filter(l => l.nivId === n.id); if (!LL.length) continue; for (const lot of lots) { const x = avLotPlanning(p, n, lot, LL); if (x.P.deb || x.P.fin || x.al.length) AL.push([n, lot, x]); } }
         if (AL.length) { R.text('Planning des lots', { size: 12, bold: true, gap: 2 }); for (const [n, lot, x] of AL) R.text(`${avZoneOf(p, n)} · ${n.name} · ${lot.name} — ${x.s.pct} % · prévu ${x.P.deb ? fmtDate(x.P.deb) : '—'} → ${x.P.fin ? fmtDate(x.P.fin) : '—'}${x.debR ? ' · réel ' + fmtDate(x.debR) : ''}${x.finR ? ' → ' + fmtDate(x.finR) : x.prev ? ' · prévision ' + fmtDate(x.prev) : ''}${x.al.length ? ' · ' + x.al.map(a => a[1]).join(' ; ') : ''}`, { size: 8.8, gap: 0.5, color: x.al.some(a => a[0] === 'r') ? [200, 40, 40] : [30, 30, 30] }); R.y += 3; } }
-      const TS = avTeamStats(p, L, F.per);
-      if (TS.length) { R.text(`Équipes (${F.per} derniers jours)`, { size: 12, bold: true, gap: 2 }); for (const x of TS) R.text(`• ${x.t.name}${x.t.resp ? ' (' + x.t.resp + ')' : ''} — ${x.n} saisie(s), +${x.gain} pts, ${x.pins.size} pin(s)${x.effM ? ', ~' + x.effM + ' pers.' : ''}`, { size: 9.5, gap: 0.6 }); R.y += 3; }
+      const PER = typeof avPeriod === 'function' ? avPeriod(F) : { a: avAddDays(today, -F.per + 1), b: today, l: `${F.per} derniers jours` };
+      const TS = typeof avTeamStats2 === 'function' ? avTeamStats2(p, L, lots, PER.a, PER.b) : avTeamStats(p, L, F.per);
+      if (TS.length) { R.text(`Équipes & sous-traitants — ${PER.l}`, { size: 12, bold: true, gap: 2 }); for (const x of TS) R.text(`• ${x.t.name}${typeof avTType === 'function' ? ' [' + avTType(x.t)[1] + ']' : ''}${x.t.resp ? ' (' + x.t.resp + ')' : ''} — part ${x.part != null ? x.part + ' %' : '?'}, +${x.pts != null ? avF1(x.pts) : x.gain} pts, ${x.n} saisie(s), ${x.pins.size} pin(s)${x.effM ? ', ~' + x.effM + ' pers./j' : ''}${x.jh ? ', ' + x.jh + ' jours-homme' : ''}${x.late ? ', ' + x.late + ' en retard' : ''}`, { size: 9.5, gap: 0.6 }); R.y += 3; }
       const E = L.flatMap(l => (l.journal || []).filter(e => e.d >= avAddDays(today, -6)).map(e => ({ e, l, n: nivs.find(n => n.id === l.nivId) }))).sort((a, b) => (b.e.d + b.e.t).localeCompare(a.e.d + a.e.t));
       if (E.length) { R.text('Journal des 7 derniers jours', { size: 12, bold: true, gap: 2 }); for (const { e, l, n } of E.slice(0, 80)) R.text(`${fmtDate(e.d)} · ${avPinZone(p, l, n)} · ${n ? n.name : ''} · ${l.name} — ${avLot(p, e.lot).name} ${e.prev != null ? e.prev + ' → ' : ''}${e.pct} %${avTeam(p, e.eq) ? ' · ' + avTeam(p, e.eq).name : ''}${e.eff ? ' · ' + e.eff + ' pers.' : ''}${e.note ? ' — ' + e.note : ''}`, { size: 8.8, gap: 0.5 }); }
       R.finish(); await sharePdf(doc, avFileName(`Avancement ${p.name} ${today}`) + '.pdf');

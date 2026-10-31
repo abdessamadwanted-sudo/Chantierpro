@@ -176,7 +176,8 @@ async function avComparePlans(p, niv, preA, preB) {
   try { C = await avPairMatrix(p, niv, A, Bx); } finally { ld.close(); }
   const el = document.createElement('div'); el.className = 'fullpage av-page avc-page'; document.body.appendChild(el);
   const unBack = pushBack(() => el.remove());
-  const [sa, sb] = await Promise.all([fileURL(A.plan.fileId), fileURL(Bx.plan.fileId)]), W = A.plan.w, H = A.plan.h;
+  const lite = (id) => typeof avLiteURL === 'function' ? avLiteURL(id, 3000) : fileURL(id);   // v1.0.47 : images allégées → comparaison rapide même en A0
+  const [sa, sb] = await Promise.all([lite(A.plan.fileId), lite(Bx.plan.fileId)]), W = A.plan.w, H = A.plan.h;
   let mode = 'rideau', v = 50, cal = null;   // cal = { pts: [[b,a],…], step }
   el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><div class="tb-title" style="flex:1"><b>${esc(niv.name)} — comparaison</b><span>${esc(A.label)} ↔ ${esc(Bx.label)}</span></div><button class="iconbtn" data-a="cal" title="Calage">${icon('move')}</button></div>
     <div class="av-view"><div class="av-stage avc-stage"><img class="avc-a" src="${sa}" width="${W}" height="${H}"><div class="avc-b"><img src="${sb}" width="${Bx.plan.w}" height="${Bx.plan.h}" style="position:absolute;left:0;top:0;transform-origin:0 0"></div><i class="avc-line"></i><svg class="avc-ov" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"></svg></div><div class="av-hint"></div></div>
@@ -224,37 +225,55 @@ function avLotPlanning(p, niv, lot, locs) {
   const P = ((p.avPlan || {})[niv.id + '|' + lot.id]) || {}, today = todayISO(), s = avStats(locs, lot.id);
   const J = locs.flatMap(l => (l.journal || []).filter(e => e.lot === lot.id && +e.pct > 0)).map(e => e.d).sort();
   const dones = locs.map(l => (l.lots || {})[lot.id]).filter(r => r && r.state === 'done').map(r => r.doneAt).filter(Boolean).sort();
-  const debR = J[0] || (s.pct > 0 ? dones[0] || '' : ''), finR = s.n && s.fin === s.n ? dones[dones.length - 1] || today : '';
+  // v1.0.47 : « ✓ Terminé » posé à la main (P.done) = le lot de ce niveau est fini, quelle que soit la saisie des pins
+  let debR = J[0] || (s.pct > 0 ? dones[0] || '' : ''), finR = P.done || (s.n && s.fin === s.n ? dones[dones.length - 1] || today : '');
+  if (P.done && !debR) debR = P.deb && P.deb <= P.done ? P.deb : P.done;
   let prev = '';
   if (!finR && debR && s.pct > 0 && s.pct < 100) { const el = Math.max(1, avDaysBetween(debR, today)), rate = s.pct / el; prev = avAddDays(today, Math.ceil((100 - s.pct) / rate)); }
   const al = [];
-  if (s.n && P.deb && !debR && today > P.deb) al.push(['r', `Pas démarré (prévu le ${fmtDate(P.deb)})`, 3]);
-  else if (s.n && P.deb && !debR && avDaysBetween(today, P.deb) <= 7) al.push(['y', `Démarre dans ${avDaysBetween(today, P.deb)} j`, 1]);
-  if (P.fin && !finR && today > P.fin) al.push(['r', `Fin dépassée de ${avDaysBetween(P.fin, today)} j (${s.pct} %)`, 4]);
-  else if (P.fin && !finR && avDaysBetween(today, P.fin) <= 7 && s.pct < 100) al.push(['y', `Fin dans ${avDaysBetween(today, P.fin)} j (${s.pct} %)`, 2]);
-  if (P.fin && prev && prev > P.fin && today <= P.fin) al.push(['o', `Au rythme actuel : fin le ${fmtDate(prev)} (${avDaysBetween(P.fin, prev)} j de retard)`, 2]);
-  if (finR && P.fin && finR <= P.fin) al.push(['g', `Terminé dans les délais (${fmtDate(finR)})`, 0]);
-  if (finR && P.fin && finR > P.fin) al.push(['o', `Terminé avec ${avDaysBetween(P.fin, finR)} j de retard`, 1]);
-  return { P, s, debR, finR, prev, al };
+  if (!finR) {   // toutes les alertes, la plus grave en premier (les écrans n'en montrent qu'une par lot et par niveau)
+    if (P.fin && today > P.fin) al.push(['r', `En retard de ${avDaysBetween(P.fin, today)} j · fin prévue le ${fmtDate(P.fin)}${s.n ? ` (${s.pct} %)` : ''}`, 4]);
+    if (P.deb && !debR && today > P.deb) al.push(['r', `Pas démarré · prévu le ${fmtDate(P.deb)} (${avDaysBetween(P.deb, today)} j)`, 3]);
+    if (P.fin && today <= P.fin && prev && prev > P.fin) al.push(['o', `Au rythme actuel : fin le ${fmtDate(prev)} (${avDaysBetween(P.fin, prev)} j de retard)`, 2]);
+    if (P.fin && today <= P.fin && avDaysBetween(today, P.fin) <= 7) al.push(['y', avDaysBetween(today, P.fin) === 0 ? `Fin prévue aujourd'hui${s.n ? ` (${s.pct} %)` : ''}` : `Fin dans ${avDaysBetween(today, P.fin)} j${s.n ? ` (${s.pct} %)` : ''}`, 1.5]);
+    if (P.deb && !debR && today <= P.deb && avDaysBetween(today, P.deb) <= 7) al.push(['y', avDaysBetween(today, P.deb) === 0 ? 'Démarre aujourd\'hui' : `Démarre dans ${avDaysBetween(today, P.deb)} j`, 1]);
+    al.sort((a, b) => b[2] - a[2]);
+  } else if (P.fin && finR > P.fin) al.push(['o', `Terminé le ${fmtDate(finR)} avec ${avDaysBetween(P.fin, finR)} j de retard`, 1]);
+  else if (P.fin || P.done) al.push(['g', `Terminé le ${fmtDate(finR)}${P.fin ? ' · dans les délais' : ''}`, 0]);
+  return { P, s, debR, finR, prev, al, late: !finR && P.fin && today > P.fin ? avDaysBetween(P.fin, today) : 0 };
+}
+// v1.0.47 : marquer un lot terminé sur un niveau (ou le rouvrir)
+async function avLotDone(p, niv, lot, on = true) {
+  p.avPlan = p.avPlan || {}; const k = niv.id + '|' + lot.id, P = p.avPlan[k] = p.avPlan[k] || {};
+  if (on) { const r = await formSheet(`✓ ${niv.name} · ${lot.name} terminé`, [{ name: 'd', label: 'Date de fin', type: 'date', value: todayISO() }], { okLabel: 'Terminé' }); if (!r) return false; P.done = r.d || todayISO(); }
+  else delete P.done;
+  await DB.put('projects', p); toast(on ? `✓ ${niv.name} · ${lot.name} terminé` : `${niv.name} · ${lot.name} rouvert`); return true;
+}
+// toutes les alertes de lots d'un projet (Plans, briefing, tableau de bord)
+async function avAllAlerts(p) {
+  const L = (await DB.byProject('links', p.id)).filter(l => l.kind === 'local'), out = [];
+  for (const n of p.avNiveaux || []) for (const lot of avLots(p)) { if (!(p.avPlan || {})[n.id + '|' + lot.id]) continue;
+    const x = avLotPlanning(p, n, lot, L.filter(l => l.nivId === n.id)), a = x.al[0]; if (a && a[0] !== 'g') out.push({ n, lot, a, x }); }
+  return out.sort((a, b) => b.a[2] - a.a[2] || (b.x.late || 0) - (a.x.late || 0));
 }
 const avDaysBetween = (a, b) => Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 864e5);
 async function avPlanningEdit(p, niv, lot, nivs) {
   const k = niv.id + '|' + lot.id, P = (p.avPlan || {})[k] || {};
-  const r = await formSheet(`📅 ${niv.name} · ${lot.name}`, [{ name: 'deb', label: 'Début prévu', type: 'date', value: P.deb || '' }, { name: 'fin', label: 'Fin prévue', type: 'date', value: P.fin || '' },
+  const r = await formSheet(`📅 ${niv.name} · ${lot.name}`, [{ name: 'deb', label: 'Début prévu', type: 'date', value: P.deb || '' }, { name: 'fin', label: 'Fin prévue', type: 'date', value: P.fin || '' }, { name: 'done', label: '✓ Terminé le (vide = pas encore fini)', type: 'date', value: P.done || '' },
     { name: 'all', label: 'Appliquer à', type: 'select', value: 'one', options: [{ value: 'one', label: `${niv.name} seulement` }, { value: 'zone', label: `Tous les niveaux de ${avZoneOf(p, niv)}` }, { value: 'all', label: 'Tous les niveaux' }] }], { okLabel: 'Enregistrer' });
   if (!r) return false;
   p.avPlan = p.avPlan || {};
-  for (const n of r.all === 'all' ? nivs : r.all === 'zone' ? nivs.filter(x => avZoneOf(p, x) === avZoneOf(p, niv)) : [niv]) p.avPlan[n.id + '|' + lot.id] = { deb: r.deb || '', fin: r.fin || '' };
+  for (const n of r.all === 'all' ? nivs : r.all === 'zone' ? nivs.filter(x => avZoneOf(p, x) === avZoneOf(p, niv)) : [niv]) { const o = p.avPlan[n.id + '|' + lot.id] = { ...(p.avPlan[n.id + '|' + lot.id] || {}), deb: r.deb || '', fin: r.fin || '' }; if (n === niv) { if (r.done) o.done = r.done; else delete o.done; } }
   await DB.put('projects', p); return true;
 }
 // grand tableau : niveaux (par zone) × lots — % · début → fin prévus · réel · prévision · alertes
-function avPlanningHTML(p, nivs, L, lots) {
+function avPlanningHTML(p, nivs, L, lots, opt = {}) {
   const AC = { r: '#ef4444', o: '#f97316', y: '#eab308', g: '#16a34a' }, all = [];
-  const rows = nivs.map(n => { const locs = L.filter(l => l.nivId === n.id); return { n, cells: lots.map(lot => { const x = avLotPlanning(p, n, lot, locs); x.al.forEach(a => all.push({ a, n, lot })); return { lot, x, locs }; }) }; });
+  const rows = nivs.map(n => { const locs = L.filter(l => l.nivId === n.id); return { n, cells: lots.map(lot => { const x = avLotPlanning(p, n, lot, locs); if (x.al[0]) all.push({ a: x.al[0], n, lot }); return { lot, x, locs }; }) }; });
   all.sort((a, b) => b.a[2] - a.a[2]);
   const dt = (d) => d ? fmtDate(d).slice(0, 5) : '—';
-  return `<div class="avp-card"><div class="avp-h">🚨 Alertes des lots <span>${all.filter(x => x.a[0] !== 'g').length}</span></div>
-      ${all.filter(x => x.a[0] !== 'g').slice(0, 20).map(({ a, n, lot }) => `<button class="avp-al" data-pl="${n.id}|${lot.id}" style="--c:${AC[a[0]]}"><i></i><span class="grow"><b>${esc(n.name)} · ${esc(lot.name)}</b><small>${esc(a[1])}</small></span></button>`).join('') || '<div class="muted avp-pad">Aucune alerte ✓ — indiquez les dates prévues dans le tableau ci-dessous</div>'}</div>
+  return `${opt.noAlerts ? '' : `<div class="avp-card"><div class="avp-h">🚨 Alertes des lots <span>${all.filter(x => x.a[0] !== 'g').length}</span></div>
+      ${all.filter(x => x.a[0] !== 'g').slice(0, 20).map(({ a, n, lot }) => `<button class="avp-al" data-pl="${n.id}|${lot.id}" style="--c:${AC[a[0]]}"><i></i><span class="grow"><b>${esc(n.name)} · ${esc(lot.name)}</b><small>${esc(a[1])}</small></span></button>`).join('') || '<div class="muted avp-pad">Aucune alerte ✓ — indiquez les dates prévues dans le tableau ci-dessous</div>'}</div>`}
     <div class="avp-card"><div class="avp-h">📅 Planning des lots <small class="muted">toucher une case pour les dates</small></div>
       <div class="avp-mxw"><table class="avp-pt"><tr><th></th>${lots.map(l => `<th style="--c:${l.color}">${esc(l.name)}</th>`).join('')}</tr>
       ${rows.map((r, i) => `${i === 0 || avZoneOf(p, nivs[i - 1]) !== avZoneOf(p, r.n) ? `<tr class="avp-pz"><td colspan="${lots.length + 1}">${esc(avZoneOf(p, r.n))}</td></tr>` : ''}<tr><td class="avp-rh"><b>${esc(r.n.name)}</b></td>${r.cells.map(({ lot, x }) => { const w = x.al.filter(a => a[0] !== 'g').sort((a, b) => b[2] - a[2])[0];
