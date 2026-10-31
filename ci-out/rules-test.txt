@@ -228,5 +228,10 @@ OK   audit entreprise : REFUS de modifier une ligne
 OK   audit entreprise : REFUS de supprimer une ligne
 OK   audit entreprise : REFUS de falsifier l’auteur
 OK   audit entreprise : REFUS de lecture par un membre
+OK   accès libre : un compte crée son espace
+OK   accès libre : REFUS de se donner « allowed »
+OK   code uniquement : REFUS de créer un espace sans le Super Admin
+OK   code uniquement : le Super Admin crée un espace
+OK   code uniquement : REFUS à un administrateur de s'autoriser lui-même
 
-TOUT OK — 230 vérifications
+TOUT OK — 235 vérifications
