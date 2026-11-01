@@ -1261,7 +1261,7 @@ try {
   const bUid53 = await B.pg.evaluate(() => firebase.auth().currentUser.uid);
   await A.pg.evaluate(async (u) => firebase.firestore().collection('companies').doc(Team.company().id).collection('members').doc(u).update({ until: firebase.firestore.Timestamp.fromMillis(Date.now() - 60000) }), bUid53);
   let g53 = ''; try { await B.pg.waitForSelector('.st-gate h1', { timeout: 20000 }); g53 = await B.pg.textContent('.st-gate h1'); } catch (e) {}
-  const den53 = await B.pg.evaluate(async () => { try { await firebase.firestore().collection('companies').doc(Team.company().id).get({ source: 'server' }); return 'lu'; } catch (e) { return e.code; } });
+  const den53 = await B.pg.evaluate(async () => { try { await firebase.firestore().collection('companies').doc(Team.company().id).collection('members').get({ source: 'server' }); return 'lu'; } catch (e) { return e.code; } });
   log('accès expiré : écran, lecture de l\'organisation', [g53, den53]); if (!/Accès terminé/.test(g53) || den53 !== 'permission-denied') v53.push('accès expiré');
   await A.pg.evaluate(async (u) => firebase.firestore().collection('companies').doc(Team.company().id).collection('members').doc(u).update({ until: firebase.firestore.Timestamp.fromMillis(Date.now() + 30 * 864e5) }), bUid53);
   await B.pg.waitForTimeout(2500); await B.pg.reload(); await B.pg.waitForSelector('.home2', { timeout: 30000 }).catch(() => v53.push('B pas revenu'));
