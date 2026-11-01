@@ -448,7 +448,7 @@ async function openPlanViewer(plan, ctx) {
     ['arrow', 'arrow', 'Flèche'], ['text', 'text', 'Texte'],
   ];
   const TOOLS = [
-    ['pan', 'hand', 'Déplacer'], ['pin', 'pin', 'Tâche'], ['link', 'link', 'Élément'], ['planlink', 'section', 'Lien plan / coupe'], ['plansbox', 'plans', 'Plans de l\'ouvrage'], ['photonote', 'camera', 'Photos / note'],
+    ['pan', 'hand', 'Déplacer'], ['pin', 'pin', 'Tâche'], ['link', 'link', 'Élément'], ['planlink', 'section', 'Lien plan / coupe'], ['plansbox', 'plans', 'Plans de l\'ouvrage'], ['photonote', 'camera', 'Pin photos (dossiers)'],
     ['draw', 'pen', 'Dessin'], ['select', 'cursor', 'Modifier'], ['erase', 'eraser', 'Gomme'],
   ];
   const shapeInfo = () => SHAPES.find(x => x[0] === st.shape) || SHAPES[0];
@@ -457,7 +457,7 @@ async function openPlanViewer(plan, ctx) {
   function hintText() {
     if (st.tool === 'pin') return 'Touchez pour placer une tâche';
     if (st.tool === 'link') return 'Touchez pour placer un élément';
-    if (st.tool === 'photonote') return 'Touchez pour placer un pin photos / note';
+    if (st.tool === 'photonote') return '📷 Touchez le plan pour placer un pin photos (dossiers : Porte provisoire, Brique, Nettoyage…)';
     if (st.tool === 'plansbox') return 'Touchez pour placer un pin « Plans » (zones → parties d\'ouvrage → PDF)';
     if (st.tool === 'planlink') return 'Touchez pour placer un lien (PDF de coupe, plan…)';
     if (st.tool === 'erase') return 'Touchez un dessin pour l\'effacer';
@@ -1002,11 +1002,15 @@ async function openPlanViewer(plan, ctx) {
       ...(plan.dwgFileId || plan.dxfFileId ? [{ label: 'Tracer en PDF vectoriel (A0 → A4, épaisseurs)', icon: 'pdf', value: 'plot' }] : []),
       ...(plan.dwgFileId ? [{ label: 'Exporter en DXF', icon: 'share', value: 'dxf' }] : []),
       ...(plan.pdfFileId ? [{ label: 'Diviser ce PDF (pages / plages)', icon: 'plans', value: 'split' }] : []),
+      { label: '📷 Pin photos (dossiers) : placer sur le plan', icon: 'camera', value: 'pn' },
+      ...(plan.pdfFileId ? [{ label: 'Refaire l\'image du plan (coupée / incomplète)', icon: 'undo', value: 'rebuild' }] : []),
       { label: 'Renommer', icon: 'edit', value: 'rename' },
       { label: 'Ajuster à l\'écran', icon: 'plans', value: 'fit' },
       { label: 'Supprimer le plan', icon: 'trash', danger: true, value: 'del' },
     ]);
     if (v === 'fit') fit();
+    if (v === 'pn') { st.tool = 'photonote'; st.toolsOpen = false; renderTools(); toast('📷 Touchez le plan à l\'endroit du pin photos'); }
+    if (v === 'rebuild' && await planRebuild(plan)) { const u = await fileURL(plan.fileId); el.querySelectorAll('.stage > img, .loupe img').forEach(im => { im.src = u; }); }
     if (v === 'lvl') compareMenu(plan);
     if (v === 'layers') cadLayers();
     if (v === 'find') cadFind();

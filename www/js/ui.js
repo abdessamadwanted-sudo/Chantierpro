@@ -360,12 +360,29 @@ async function planHeal(plan) {
   _planHealing.set(plan.id, pr); return pr;
 }
 
+// v1.0.54 : « Refaire l'image du plan » à la main (image coupée, moitié blanche) — depuis le PDF d'origine, par tuiles, coordonnées gardées
+async function planRebuild(plan) {
+  if (!plan || !plan.pdfFileId) { alertBox('Ce plan n\'a pas de PDF d\'origine sur le téléphone : réimportez-le (Mettre à jour le plan).'); return false; }
+  const ld = loading('Image du plan refaite depuis le PDF…');
+  try {
+    if (!(await pdfReadyA())) throw new Error('lecteur PDF indisponible');
+    const src = await DB.get('files', plan.pdfFileId), img = await DB.get('files', plan.fileId); if (!src || !src.blob || !img) throw new Error('PDF d\'origine introuvable');
+    const doc = await pdfjsLib.getDocument({ data: new Uint8Array(await src.blob.arrayBuffer()) }).promise;
+    const page = await doc.getPage(plan.pdfPage || 1), r = await pdfPageToBlob(page); try { doc.destroy(); } catch (e) {}
+    img.blob = r.blob; img.mime = 'image/jpeg'; img.w = r.w; img.h = r.h; BlobURL.drop(img.id); await DB.put('files', img);
+    const pl = await DB.get('plans', plan.id) || plan; pl.imgV = 54; await DB.put('plans', pl); plan.imgV = 54;
+    try { Object.keys(localStorage).filter(k => k.startsWith('th.' + plan.fileId)).forEach(k => localStorage.removeItem(k)); } catch (e) {}
+    ld.close(); toast('Image du plan refaite ✓'); return true;
+  } catch (e) { ld.close(); alertBox('Impossible : ' + (e.message || e)); return false; }
+}
+
 // Visionneuse photo plein écran
 function showImage(src, caption = '') { return showGallery([{ src, caption }], 0); }
 // Galerie plein écran façon téléphone : la photo suit le doigt, zoom à deux doigts / double appui, miniatures
 function showGallery(items, start = 0, opts = {}) {
   items = items.filter(x => x && x.src);
   // v1.0.44 : suppression possible partout où la photo est un fichier de l'application
+  document.querySelectorAll('.sheet-bg').forEach(x => x.classList.add('under-lb'));   // v1.0.54 : la galerie ouverte depuis une fiche passe devant elle (avant : visible seulement en fermant la fiche)
   if (!opts.onDelete && items.some(x => x.fileId) && typeof PhotoQ !== 'undefined') opts = { ...opts, onDelete: async (it) => { if (!it.fileId) { toast('Photo non supprimable ici'); return false; } return PhotoQ.remove([it.fileId], { ask: false }); } };
   if (!items.length) return;
   let i = Math.max(0, Math.min(start, items.length - 1)), dx = 0, zoom = 1, px = 0, py = 0;

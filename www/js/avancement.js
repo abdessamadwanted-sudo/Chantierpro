@@ -415,11 +415,20 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
     const v = await menu(`${niv.name} · ${lot.name}`, [
       { label: `Engagement ${lot.name} pour tous les locaux du niveau`, icon: 'calendar', value: 'bulk' },
       { label: 'Mettre à jour le plan (nouvel indice)', icon: 'upload', value: 'ind' },
+      { label: '📷 Pins photos (dossiers) de ce plan', icon: 'camera', value: 'pn' },
       { label: 'Ouvrir le plan complet (pins, dessins…)', icon: 'plans', value: 'open' },
+      ...(vplan.pdfFileId ? [{ label: 'Refaire l\'image du plan (coupée / incomplète)', icon: 'undo', value: 'rebuild' }] : []),
       { label: 'Ajuster à l\'écran', icon: 'expand', value: 'fit' },
     ]);
     if (v === 'fit') pz.fit();
     if (v === 'open') openPlanViewer(plan, planCtx(() => {}));
+    if (v === 'rebuild' && await planRebuild(vplan)) { await setView(st.lot); await build(); }
+    if (v === 'pn') {   // v1.0.54 : pins photos du plan affiché (plan du lot) : ouvrir un pin, ou en placer un nouveau
+      const pins = (await DB.byProject('links', p.id)).filter(x => x.kind === 'photonote' && x.planId === vplan.id);
+      const w = await menu(`📷 Pins photos · ${vplan.name}`, [...pins.map(x => ({ label: x.name, sub: `${typeof pnCount === 'function' ? pnCount(x) : (x.photos || []).length} photo(s)${(x.folders || []).length ? ' · ' + x.folders.map(d => d.name).slice(0, 3).join(' · ') : ''}`, icon: 'camera', value: x.id })), { label: '＋ Nouveau pin photos sur ce plan', icon: 'plus', value: '__new' }]);
+      if (w === '__new') { toast('📷 Touchez le plan à l\'endroit du pin photos'); await openPlanViewer(vplan, { ...planCtx(() => {}), startTool: 'photonote' }); }
+      else if (w) await openPhotoNote(pins.find(x => x.id === w), planCtx(() => {}));
+    }
     if (v === 'ind') { const np = await newPlanIndice(plan); if (np) { plan = np; await load(); await setView(st.lot); await build(); } }
     if (v === 'bulk') {
       if (!st.locs.length) return toast('Aucun local sur ce niveau');

@@ -100,9 +100,10 @@ function lotPanel(L, f, root) {
   $('[data-a=lm]', el).onclick = (e) => { e.stopPropagation(); lotMenu(L, root); };
   if (!open) return el;
   // v1.0.47 : lien direct vers l'avancement de CE lot sur CE niveau (alertes, dates, équipes, saisies, ✓ terminé)
-  { const sl = $('.lp-avslot', el); if (sl && typeof avLotPanelBlock === 'function') sl.replaceWith(avLotPanelBlock(p, L, f, redraw)); }
+  let avEl = null, pnEl = null;
+  { const sl = $('.lp-avslot', el); if (sl && typeof avLotPanelBlock === 'function') { avEl = avLotPanelBlock(p, L, f, redraw); sl.replaceWith(avEl); } }
   // v1.0.53 : pins photos du lot sur ce niveau (dossiers Porte provisoire, Brique, Nettoyage… ; PDF 4 photos par page)
-  { const ls = $('.lp-links', el); if (ls && typeof pnLotBlock === 'function') ls.before(pnLotBlock(p, L, f, redraw)); }
+  { const ls = $('.lp-links', el); if (ls && typeof pnLotBlock === 'function') { pnEl = pnLotBlock(p, L, f, redraw); ls.before(pnEl); } }
   $('.lp-det', el).ontoggle = (e) => { App.lotDet = e.target.open; };
   $$('[data-pt]', el).forEach(b => b.onclick = async () => { const v = D[b.dataset.pt] = D[b.dataset.pt] || {}; v.done = !v.done; v.at = v.done ? todayISO() : null; await save(); redraw(); });
   const addPt = async () => { const r = await formSheet(`Point de contrôle · ${L.name}`, [{ name: 't', label: 'Intitulé (ajouté à tous les niveaux)', placeholder: 'Ex : Réservations vérifiées' }], { okLabel: 'Ajouter' }); if (r && r.t) { L.points = L.points || []; L.points.push({ id: DB.uid(), t: r.t }); App.lotDet = true; await DB.put('projects', p); redraw(); } };
@@ -144,10 +145,29 @@ function lotPanel(L, f, root) {
       const k = await menu('Raccourci vers…', secs.map(([k2, S]) => ({ label: `${(SC_EMO && SC_EMO[k2]) || '📁'} ${S.label}`, value: k2 }))); if (!k) return;
       L.sc = L.sc || []; L.sc.push({ sec: k, label: SECTIONS[k].label.split(' (')[0] }); await DB.put('projects', p); toast('Raccourci ajouté (pour tous les niveaux) ✓'); redraw(); }
     if (v === 'doc') { const ds = await pbPickDocs(p.id); if (ds.length) { D._docs = [...docs, ...ds]; await save(); redraw(); } }
-    if (v === 'note') { App.lotDet = true; redraw(); setTimeout(() => { const t = document.querySelector(`.lot-panel.open textarea`); if (t) { t.focus(); t.scrollIntoView({ block: 'center' }); } }, 200); }
+    if (v === 'note') { App.lotDet = true; lpTabSet(L, 'pts'); redraw(); setTimeout(() => { const t = document.querySelector(`.lot-panel.open textarea`); if (t) { t.focus(); t.scrollIntoView({ block: 'center' }); } }, 200); }
   };
+  // v1.0.55 : fiche du lot rangée en boutons — une section ouverte à la fois (la fiche ne s'étire plus sur plusieurs écrans)
+  { const body = $('.lp-body', el); if (body) {
+    const q = (x) => $(x, body), links = [q('.lp-links'), q('.lp-docs')].filter(Boolean);
+    const T = [
+      ['av', '📊', 'Avancement', avEl ? [avEl] : [], ''],
+      ['ph', '📷', 'Photos', pnEl ? [pnEl] : [], ''],
+      ['due', '⏳', 'Échéance', [q('.lp-due')].filter(Boolean), di ? di.txt : 'non fixée', di && /late|r/.test(di.cls || '')],
+      ['pa', '🛑', 'Points d\'arrêt', [q('.lp-pa')].filter(Boolean), po ? `${po} ouvert(s)` : `${(L.pa || []).length}`, po > 0],
+      ['go', '🔗', 'Accès rapides', links, `${links[0] ? $$('button', links[0]).length - 1 : 0}`],
+      ['pts', '☑', 'Contrôle', [q('.lp-det:not(.lp-pa)')].filter(Boolean), `${done}/${(L.points || []).length}`],
+    ].filter(t => t[3].length);
+    const bar = document.createElement('div'); bar.className = 'lp-tabs';
+    const show = (k) => { T.forEach(t => t[3].forEach(n => { n.style.display = t[0] === k ? '' : 'none'; })); $$('button', bar).forEach(b => b.classList.toggle('on', b.dataset.lt === k)); };
+    bar.innerHTML = T.map(t => `<button data-lt="${t[0]}" class="${t[5] ? 'r' : ''}"><span class="e">${t[1]}</span>${esc(t[2])}${t[4] ? `<small>${esc(String(t[4]))}</small>` : ''}</button>`).join('');
+    $$('button', bar).forEach(b => b.onclick = () => { const k = lpTabOf(L) === b.dataset.lt ? '' : b.dataset.lt; lpTabSet(L, k); show(k); });
+    body.prepend(bar); show(lpTabOf(L));
+  } }
   return el;
 }
+const lpTabOf = (L) => { try { return (JSON.parse(localStorage.getItem('lp.tab') || '{}'))[L.id] || ''; } catch (e) { return ''; } };
+const lpTabSet = (L, k) => { try { const o = JSON.parse(localStorage.getItem('lp.tab') || '{}'); o[L.id] = k; localStorage.setItem('lp.tab', JSON.stringify(o)); } catch (e) {} };
 async function lotMenu(L, root) {
   const p = App.project, lots = planLots(p), i = lots.indexOf(L);
   const v = await menu(`${L.e} ${L.name}`, [{ label: 'Renommer / emoji', icon: 'edit', value: 'ren' }, { label: 'Couleur', icon: 'brush', value: 'col' }, { label: '← Déplacer à gauche', icon: 'back', value: 'l' }, { label: 'Déplacer à droite →', icon: 'chevright', value: 'r' }, { label: 'Points de contrôle…', icon: 'check', value: 'pts' }, { label: 'Supprimer le lot', icon: 'trash', danger: true, value: 'del' }]);

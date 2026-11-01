@@ -1627,6 +1627,7 @@ table.rec tr.pv-nl.sel td { background: #fbcfe8 !important; }
 .h2-quit { background: linear-gradient(145deg, #ef4444, #b91c1c) !important; color: #fff !important; border-radius: 50% !important; box-shadow: 0 4px 12px rgba(220,38,38,.45), inset 0 1px 0 rgba(255,255,255,.35); width: 38px !important; height: 38px !important; margin-left: 2px; }
 .splash.bye { background: radial-gradient(70% 50% at 50% 30%, rgba(220,38,38,.22), transparent 70%), var(--base, #0b1024); }
 body:has(.lightbox) .sheet-bg { z-index: 95; }
+body:has(.lightbox) .sheet-bg.under-lb { z-index: 60; }
 .rec-info .ksort { margin-right: 6px; }
 
 .dnav .dn-today { margin-left: 6px; padding: 6px 10px !important; width: auto !important; border-radius: 10px; font-size: 12.5px; font-weight: 700; background: #16a34a !important; color: #fff; white-space: nowrap; }
@@ -3413,3 +3414,23 @@ body:has(.avt-page) #plansFab, body:has(.avc-page) #plansFab { display: none; }
 .pns-th { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-top: 6px; }
 .pns-th img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; display: block; outline: 2px solid #2563eb; outline-offset: -2px; }
 .pns-th img.off { opacity: .25; outline-color: transparent; filter: grayscale(1); }
+
+/* v1.0.54 : suppression de photos choisies dans un dossier */
+.pnd-th { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.pnd-th img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; display: block; opacity: .55; outline: 2px solid transparent; outline-offset: -2px; }
+.pnd-th img.on { opacity: 1; outline-color: #ef4444; }
+
+/* v1.0.55 : fiche du lot (Plans) lisible et rangée : blocs clairs (texte sombre sur fond clair), sections en boutons */
+.lot-panel .lpa, .lot-panel .pnl { background: #fff !important; color: #142337 !important; --muted: #5B6B80; --line: #DDE4EE; border-color: color-mix(in srgb, var(--c) 30%, #DDE4EE) !important; }
+.lot-panel .lpa *, .lot-panel .pnl b, .lot-panel .pnl span { color: inherit; }
+.lot-panel .lpa small, .lot-panel .pnl small, .lot-panel .lpa-today { color: #5B6B80 !important; }
+.lot-panel .lpa-pct b { color: var(--c) !important; }
+.lot-panel .lpa-acts button { color: #142337 !important; background: color-mix(in srgb, var(--c) 10%, #fff) !important; }
+.lot-panel .lpa-acts button.on { background: #16a34a !important; color: #fff !important; }
+.lot-panel .pnl-l button { background: #F2F5F9 !important; color: #142337 !important; border-color: #DDE4EE !important; }
+.lot-panel .pnl .btn.ghost { color: #1F5FA8 !important; background: #EEF4FB !important; }
+.lp-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 2px 0 10px; }
+.lp-tabs button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 58px; padding: 7px 4px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--c) 28%, #DDE4EE); background: #fff; color: #142337; font: inherit; font-size: 12px; font-weight: 800; line-height: 1.15; text-align: center; }
+.lp-tabs button .e { font-size: 18px; } .lp-tabs button small { font-size: 10.5px; font-weight: 700; color: #5B6B80; }
+.lp-tabs button.on { background: var(--c); border-color: var(--c); color: #fff; } .lp-tabs button.on small { color: rgba(255,255,255,.85); }
+.lp-tabs button.r small { color: #dc2626; } .lp-tabs button.on.r small { color: #fff; }

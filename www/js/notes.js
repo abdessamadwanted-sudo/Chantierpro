@@ -87,8 +87,8 @@ function openPhotoNote(l, ctx = {}) {
       const tks = (await DB.byProject('tasks', l.projectId)).filter(t => t.pinId === l.id).sort((a, b) => (a.num || 0) - (b.num || 0));
       const fms = typeof formStats === 'function' ? (await DB.byProject('forms', l.projectId)).filter(f => f.pinId === l.id) : [];
       box.innerHTML = `<div class="pb-head" style="--c:${P.c}"><span class="pb-hic">${P.e || '📷'}</span><div class="grow"><b>${esc(l.name)}</b><small>${typeof pnCount === 'function' ? pnCount(l) : ph.length} photo(s) · ${l.notes.length} note(s)${l.createdAt ? ' · ' + fmtDate(new Date(l.createdAt).toISOString().slice(0, 10)) : ''}</small></div><button class="iconbtn" data-a="more">${icon('more')}</button></div>
-        <div class="pn-st"><button data-st="" class="${!l.state ? 'on' : ''}" style="--c:#f59e0b">⏳ À traiter</button><button data-st="done" class="${l.state === 'done' ? 'on' : ''}" style="--c:#22c55e">✅ Traité${l.doneAt ? ' le ' + fmtDate(l.doneAt) : ''}</button></div>
-        ${ph.length ? `<div class="pn-ph">${ph.map(p => `<div class="t"><img src="${p.src}" data-v="${p.id}"><button class="x" data-dp="${p.id}">×</button></div>`).join('')}</div>` : '<div class="pb-empty">Ajoutez des photos et des notes à cet endroit du plan.</div>'}
+
+        ${ph.length ? `<div class="pn-ph">${ph.map(p => `<div class="t"><img src="${p.src}" data-v="${p.id}"><button class="x" data-dp="${p.id}">×</button></div>`).join('')}</div>` : (l.folders || []).length ? '' : '<div class="pb-empty">Ajoutez des photos et des notes à cet endroit du plan.</div>'}
         ${typeof pnFoldersHTML === 'function' ? await pnFoldersHTML(l) : ''}
         <div class="btnrow" style="padding:0"><button class="btn small" data-a="ph">${icon('camera')} Photos</button><button class="btn small ghost" data-a="nt">${icon('edit')} Note</button>${ph.length || l.notes.length || (typeof pnCount === 'function' && pnCount(l)) ? `<button class="btn small ghost" data-a="sh" style="flex:none">${icon('share')}</button>` : ''}</div>
         ${l.notes.length ? `<div class="nt-list">${await notesHTML(l.notes)}</div>` : ''}
@@ -101,7 +101,7 @@ function openPhotoNote(l, ctx = {}) {
       $('[data-a=fm]', box).onclick = async () => { const tid = await menu('Nouveau formulaire', FORM_TEMPLATES.map(t => ({ label: t.title, icon: 'form', value: t.id }))); if (!tid) return; const T = FORM_TEMPLATES.find(x => x.id === tid);
         const f = await DB.put('forms', { projectId: l.projectId, pinId: l.id, templateId: T.id, title: T.title, location: l.name, date: todayISO(), inspector: '', notes: '', items: T.items.map(label => ({ label, res: null, comment: '' })), photoIds: [] }); await openFormDetail(f); draw(); };
       $$('[data-fm]', box).forEach(b => b.onclick = async () => { const f = await DB.get('forms', b.dataset.fm); if (f) await openFormDetail(f); draw(); });
-      $$('[data-st]', box).forEach(b => b.onclick = async () => { l.state = b.dataset.st || null; l.doneAt = l.state ? todayISO() : null; await save(); draw(); });
+      // v1.0.54 : plus de « À traiter / Traité » sur les pins photos
       $('[data-a=ph]', box).onclick = async () => { const recs = await addPhotos(l.projectId, { source: l.name }); if (recs.length) { l.photos.push(...recs.map(r => r.id)); await save(); draw(); } };
       $('[data-a=nt]', box).onclick = async () => { const n = await editNote(null, l.projectId); if (n) { l.notes.push(n); await save(); draw(); } };
       $$('[data-v]', box).forEach(img => img.onclick = () => showGallery(ph.map(p => ({ src: p.src })), ph.findIndex(p => p.id === img.dataset.v)));
