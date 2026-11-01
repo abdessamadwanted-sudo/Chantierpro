@@ -1236,6 +1236,48 @@ try {
   await shot(R52.pg, '52_retire');
   log('errors v1.0.52', [...v52, ...R52.errs]);
   await R52.ctx.close();
+  // ---- v1.0.53 : pins photos par dossiers (PDF 4 photos / page, barre des lots) + accès limité dans le temps + Centre de contrôle
+  const v53 = [];
+  const pn53 = await A.pg.evaluate(async () => {
+    document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove());
+    const p = App.project || (await DB.all('projects'))[0]; App.project = p;
+    const mk = async (c) => { const cv = document.createElement('canvas'); cv.width = 800; cv.height = 600; const g = cv.getContext('2d'); g.fillStyle = c; g.fillRect(0, 0, 800, 600); g.fillStyle = '#fff'; g.font = '80px Arial'; g.fillText('SiteTeam', 200, 320);
+      const b = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.8)); return (await DB.put('files', { projectId: p.id, blob: b, mime: 'image/jpeg', name: 'ph.jpg', createdAt: Date.now() })).id; };
+    const ids = []; for (let i = 0; i < 8; i++) ids.push(await mk(['#2563eb', '#16a34a', '#ef4444', '#f59e0b'][i % 4]));
+    const plan = (await DB.byProject('plans', p.id))[0];
+    const l = await DB.put('links', { projectId: p.id, planId: plan ? plan.id : null, kind: 'photonote', shape: 'point', x: 10, y: 10, name: 'Local technique Lt 13', photos: [], notes: [], items: [],
+      folders: [{ id: 'f1', name: 'Porte provisoire', photos: ids.slice(0, 6) }, { id: 'f2', name: 'Nettoyage', photos: ids.slice(6) }] });
+    const C = await pnContext(l), b = await pnPdf(C, l.name, l.folders.map(d => ({ name: d.name, photos: d.photos })), 4);
+    const txt = await b.text(), pages = (txt.match(/\/Type\s*\/Page[^s]/g) || []).length;
+    window.__pn = l.id; openPhotoNote(l, {}); await new Promise(r => setTimeout(r, 1200));
+    const sh = document.querySelector('.pn'); const folders = sh ? [...sh.querySelectorAll('.pnf .pnf-n b')].map(x => x.textContent) : [];
+    document.querySelectorAll('.sheet-bg').forEach(x => x.remove());
+    let lot = null; if (plan && plan.folderId) { const f = await DB.get('folders', plan.folderId), el = pnLotBlock(p, { id: plan.lotId || 'go', name: 'Gros œuvre' }, f, () => {}); document.body.appendChild(el); await new Promise(r => setTimeout(r, 800)); lot = el.textContent.includes('Local technique Lt 13'); el.remove(); }
+    return { pages, size: b.size, folders, count: pnCount(l), lot };
+  });
+  log('pins photos : PDF [pages pour 6+2 photos à 4/page], dossiers, total, barre du lot', pn53);
+  if (pn53.pages !== 3 || pn53.folders.join() !== 'Porte provisoire,Nettoyage' || pn53.count !== 8 || pn53.lot === false) v53.push('pins photos');
+  // accès d'un membre limité dans le temps : B (conducteur) expire → écran « Accès terminé » en direct + règles qui refusent ; puis prolongé
+  const bUid53 = await B.pg.evaluate(() => firebase.auth().currentUser.uid);
+  await A.pg.evaluate(async (u) => firebase.firestore().collection('companies').doc(Team.company().id).collection('members').doc(u).update({ until: firebase.firestore.Timestamp.fromMillis(Date.now() - 60000) }), bUid53);
+  let g53 = ''; try { await B.pg.waitForSelector('.st-gate h1', { timeout: 20000 }); g53 = await B.pg.textContent('.st-gate h1'); } catch (e) {}
+  const den53 = await B.pg.evaluate(async () => { try { await firebase.firestore().collection('companies').doc(Team.company().id).get({ source: 'server' }); return 'lu'; } catch (e) { return e.code; } });
+  log('accès expiré : écran, lecture de l\'organisation', [g53, den53]); if (!/Accès terminé/.test(g53) || den53 !== 'permission-denied') v53.push('accès expiré');
+  await A.pg.evaluate(async (u) => firebase.firestore().collection('companies').doc(Team.company().id).collection('members').doc(u).update({ until: firebase.firestore.Timestamp.fromMillis(Date.now() + 30 * 864e5) }), bUid53);
+  await B.pg.waitForTimeout(2500); await B.pg.reload(); await B.pg.waitForSelector('.home2', { timeout: 30000 }).catch(() => v53.push('B pas revenu'));
+  log('accès prolongé : B revient', await B.pg.evaluate(() => [!!document.querySelector('.st-gate'), !!document.querySelector('.home2')]));
+  // Centre de contrôle (Super Admin) : durée d'un espace personnel + journal
+  await SA.pg.goto('http://127.0.0.1:8765/admin.html?emu=1#acces'); await SA.pg.waitForSelector('#ccl', { timeout: 30000 }); await SA.pg.waitForTimeout(800); await shot(SA.pg, '53_centre_controle');
+  const cc1 = await SA.pg.evaluate(() => document.querySelectorAll('#ccl .cc-r').length);
+  if (cc1) { await SA.pg.click('#ccl .cc-r [data-dur="30"]'); await SA.pg.waitForTimeout(2000); }
+  const cc2 = await SA.pg.evaluate(() => [...document.querySelectorAll('#ccl .cc-r .pill')].map(x => x.textContent).slice(0, 3));
+  await SA.pg.goto('http://127.0.0.1:8765/admin.html?emu=1#acces/mem'); await SA.pg.waitForTimeout(2500); await shot(SA.pg, '53_centre_membres');
+  const cc3 = await SA.pg.evaluate(() => [document.querySelectorAll('#ccl .cc-r').length, (document.querySelector('#ccl') || {}).textContent.includes('🔑')]);
+  await SA.pg.goto('http://127.0.0.1:8765/admin.html?emu=1#acces/hist'); await SA.pg.waitForTimeout(2500);
+  const cc4 = await SA.pg.evaluate(() => (document.querySelector('#ccl') || {}).textContent || '');
+  log('Centre de contrôle [espaces perso, après +1 mois, membres, journal]', [cc1, cc2, cc3, /Accès espace personnel/.test(cc4)]);
+  if (!cc1 || !cc2.some(x => /Reste 3\d j/.test(x)) || !cc3[0] || !cc3[1] || !/Accès espace personnel/.test(cc4)) v53.push('centre de contrôle');
+  log('errors v1.0.53', v53);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);

@@ -3394,3 +3394,22 @@ body:has(.avt-page) #plansFab, body:has(.avc-page) #plansFab { display: none; }
 .ph-ring .ar { fill: none; stroke: #fff; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; animation: phUp 1.8s ease-in-out infinite; }
 @keyframes phUp { 0%, 100% { transform: translateY(.6px); opacity: .75; } 50% { transform: translateY(-.8px); opacity: 1; } }
 .ph-pill b { font-size: 13.5px; letter-spacing: .02em; } .ph-pill small { font-size: 11.5px; opacity: .75; }
+/* v1.0.53 : pins photos par dossiers + barre des lots + envoi modifiable */
+.pnf { border: 1px solid var(--line); border-radius: 14px; padding: 8px 10px; margin: 6px 0; background: var(--card); }
+.pnf-h { display: flex; align-items: center; gap: 6px; }
+.pnf-n { flex: 1; min-width: 0; text-align: left; background: none; border: 0; color: inherit; font: inherit; padding: 4px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pnf-n small { color: var(--muted); font-weight: 700; margin-left: 4px; }
+.pnf-th { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 6px; position: relative; }
+.pnf-th img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; display: block; }
+.pnf-more { position: absolute; right: 4px; bottom: 4px; background: rgba(0,0,0,.6); color: #fff; font-size: 12px; font-weight: 800; padding: 2px 8px; border-radius: 99px; }
+.pnf-e { color: var(--muted); font-size: 12.5px; padding: 6px 0 2px; }
+.pnl { margin: 8px 0; border: 1px solid var(--line); border-radius: 14px; padding: 8px 10px; background: var(--card); }
+.pnl-h { display: flex; align-items: center; gap: 8px; } .pnl-h span { flex: 1; font-weight: 800; font-size: 13.5px; }
+.pnl-l { display: flex; gap: 6px; overflow-x: auto; padding: 8px 0 2px; scrollbar-width: none; }
+.pnl-l button { flex: none; display: grid; text-align: left; gap: 2px; max-width: 220px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: inherit; font: inherit; }
+.pnl-l b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .pnl-l small { color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pnl-e { color: var(--muted); font-size: 12.5px; padding: 6px 0 2px; }
+.pns-g { border-top: 1px solid var(--line); padding-top: 8px; }
+.pns-th { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-top: 6px; }
+.pns-th img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; display: block; outline: 2px solid #2563eb; outline-offset: -2px; }
+.pns-th img.off { opacity: .25; outline-color: transparent; filter: grayscale(1); }

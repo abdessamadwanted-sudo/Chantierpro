@@ -26,6 +26,8 @@ const PLANS = {
 // packs ouverts au public : Basic seulement par défaut ; les autres s'ouvrent depuis le panneau d'administration (config/plans.<pack>.open).
 // Le Super Admin les voit et les choisit tous. Le serveur refuse la création d'un espace avec un pack fermé.
 let ST_SUPER = false;
+// v1.0.53 : date Firestore (Timestamp, ou copie du cache { seconds }) → millisecondes
+const tsMs = (t) => !t ? 0 : typeof t === 'number' ? t : t.toMillis ? t.toMillis() : t.seconds ? t.seconds * 1000 : 0;
 const planOpen = (P) => !!P && (P.k === 'basic' || (PLANS[P.k] || {}).open === true);
 // anciennes formules (avant v1.0.14) : « personnel » → Pro, « entreprise » → Enterprise (aucun outil perdu)
 const PLAN_ALIAS = { personnel: 'pro', entreprise: 'enterprise' };
@@ -265,7 +267,9 @@ service cloud.firestore {
     function memPath(cid) { return /databases/$(db)/documents/companies/$(cid)/members/$(request.auth.uid); }
     // compte bloqué par le Super Admin (users/{uid}.blocked) : plus aucun accès aux organisations, projets et fichiers
     function okUser() { return !exists(/databases/$(db)/documents/users/$(request.auth.uid)) || get(/databases/$(db)/documents/users/$(request.auth.uid)).data.get('blocked', false) != true; }
-    function isMem(cid) { return signed() && exists(memPath(cid)) && okUser(); }
+    // v1.0.53 : accès d'un membre limité dans le temps (members.until, posé par l'administrateur ou le Super Admin) — passé la date, plus d'accès
+    function memLive(cid) { return get(memPath(cid)).data.get('until', null) == null || get(memPath(cid)).data.until > request.time; }
+    function isMem(cid) { return signed() && exists(memPath(cid)) && okUser() && memLive(cid); }
     function mem(cid) { return get(memPath(cid)).data; }
     function isAdmin(cid) { return isMem(cid) && mem(cid).admin == true; }
     function lvl(cid, m) { return mem(cid).perms.get(m, 0); }
@@ -356,6 +360,10 @@ service cloud.firestore {
     match /{path=**}/projects/{pid} { allow read: if licOwner(); }
     match /{path=**}/members/{uid} { allow read: if licOwner(); }
     // erreurs de l'application : chacun envoie les siennes (sans données personnelles), le Super Admin les lit
+    // v1.0.53 : journal du Super Admin (Centre de contrôle) : lui seul l'écrit et le lit, sans modification ni suppression
+    match /adminLog/{id} {
+      allow read, create: if licOwner();
+    }
     match /errors/{id} {
       allow create: if signed() && request.resource.data.uid == request.auth.uid && request.resource.data.msg is string && request.resource.data.msg.size() <= 300
         && request.resource.data.keys().hasOnly(['uid', 'cid', 'msg', 'src', 'stack', 'ver', 'platform', 'at']);
@@ -459,11 +467,12 @@ service cloud.firestore {
       allow update: if (isAdmin(cid) && request.resource.data.get('plan', null) == resource.data.get('plan', null)
           && request.resource.data.get('planStatus', null) == resource.data.get('planStatus', null)
           && request.resource.data.get('trialEndsAt', null) == resource.data.get('trialEndsAt', null)
-          && request.resource.data.get('allowed', null) == resource.data.get('allowed', null)) || licOwner()
+          && request.resource.data.get('allowed', null) == resource.data.get('allowed', null)
+          && request.resource.data.get('accessUntil', null) == resource.data.get('accessUntil', null)) || licOwner()
         || (isAdmin(cid) && request.resource.data.get('packCode', null) != resource.data.get('packCode', null) && codePlanOk(request.resource.data));
 
       match /members/{uid} {
-        allow read: if isMem(cid) || licOwner();
+        allow read: if isMem(cid) || licOwner() || (signed() && uid == request.auth.uid);   // v1.0.53 : on lit toujours sa propre fiche (accès expiré → écran clair)
         allow create: if signed() && (isAdmin(cid) || (uid == request.auth.uid && (
           (get(/databases/$(db)/documents/companies/$(cid)).data.ownerUid == request.auth.uid)
           || (request.resource.data.invite is string
@@ -570,7 +579,7 @@ service firebase.storage {
       return c.get('teamsVersion', 0) != 1 || c.get('plan', 'basic') in ['basic', 'pro', 'personnel'] || mem(cid).admin == true || projectTeamOk(cid, pid);
     }
     function ownOk(cid, pid, n) {
-      return signed() && firestore.exists(memPath(cid)) && okUser() && live(cid) && (mem(cid).admin == true || mem(cid).allProjects == true || pid in mem(cid).projects) && teamAllowed(cid, pid) && lv(mem(cid).perms, n);
+      return signed() && firestore.exists(memPath(cid)) && okUser() && live(cid) && (mem(cid).get('until', null) == null || mem(cid).until > request.time) && (mem(cid).admin == true || mem(cid).allProjects == true || pid in mem(cid).projects) && teamAllowed(cid, pid) && lv(mem(cid).perms, n);
     }
     function partOk(cid, pid, n) {
       let o = firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('companyId', '');
@@ -858,6 +867,14 @@ const Team = (() => {
       return gateScreen('⬆️ Mise à jour obligatoire', `Cette version (${V}) n'est plus prise en charge. Installez la version ${C.minVersion} ou plus récente pour continuer. Vos données restent sur le téléphone.`, { update: true });
     // accès sur code uniquement : un espace personnel n'ouvre plus l'application (sauf autorisation du Super Admin) ; une organisation se rejoint par code
     if (inviteOnly() && S.company && !S.company.allowed && isPerso()) return gateCode();
+    // v1.0.53 : accès limité dans le temps — espace (Super Admin) ou membre (administrateur de l'organisation)
+    const ce = S.company && tsMs(S.company.accessUntil), me = S.me && !S.me.admin && tsMs(S.me.until), nm = S.company && S.company.name || 'cette organisation';
+    if (ce && Date.now() > ce) return gateScreen('⏳ Accès terminé', `L'accès à « ${nm} » a pris fin le ${new Date(ce).toLocaleDateString('fr-FR')}.\nVos données ne sont pas effacées. Pour prolonger : ${SUPPORT_EMAIL}`, { switcher: true, retry: true });
+    if (me && Date.now() > me) return gateScreen('⏳ Accès terminé', `Votre accès à « ${nm} » a pris fin le ${new Date(me).toLocaleDateString('fr-FR')}.\nDemandez à l'administrateur de l'organisation de le prolonger.`, { switcher: true, retry: true });
+    { const end = [ce, me].filter(x => x > Date.now()).sort((a, b) => a - b)[0];
+      if (end) { const d = Math.ceil((end - Date.now()) / 864e5), k = 'acc.warn.' + new Date().toISOString().slice(0, 10);
+        if (d <= 3) { try { if (!localStorage.getItem(k)) { localStorage.setItem(k, '1'); setTimeout(() => toast(`⏳ Votre accès à « ${nm} » se termine dans ${d} jour(s)`), 2500); } } catch (e) {} }
+        if (end - Date.now() < 2 ** 31 - 1) { clearTimeout(gate._t); gate._t = setTimeout(() => gate(), end - Date.now() + 1500); } } }
     if (S.company && S.company.planStatus === 'suspendu')
       return gateScreen('⏸ Organisation suspendue', `L'accès à « ${S.company.name || 'cette organisation'} » est suspendu par SiteTeam.\nVos données ne sont pas effacées. Contact : ${SUPPORT_EMAIL}`, { switcher: true });
   }
@@ -989,12 +1006,15 @@ const Team = (() => {
     return false;
   }
   const denied = (e) => !!e && e.code === 'permission-denied';
+  async function refreshMe() { try { const m = await withTimeout(fs.collection('companies').doc(S.cid).collection('members').doc(S.user.uid).get({ source: 'server' }), 15000); if (!m.exists) return false;
+    S.me = { uid: S.user.uid, ...m.data() }; LS.set('me', S.me); if (!S.company) S.company = LS.get('company') || { id: S.cid, name: '' }; return true; } catch (e) { return false; } }
   // pendant que l'application est ouverte : retrait, blocage ou suspension appliqués tout de suite (pas au prochain démarrage)
   let watched = null;
   function watchAccess() {
     if (watched === S.cid || isSuper() || !fs.collection('users').doc(S.user.uid).onSnapshot) return; watched = S.cid;
     const cid = S.cid, uid = S.user.uid; window.__stWatch = cid;
     fs.collection('companies').doc(cid).collection('members').doc(uid).onSnapshot(async (m) => {
+      if (m.exists && !m.metadata.fromCache && S.cid === cid) { const was = tsMs(S.me && S.me.until); S.me = { uid, ...m.data() }; LS.set('me', S.me); if (tsMs(S.me.until) !== was) gate(); return; }
       if (m.exists || m.metadata.fromCache || S.cid !== cid || leaving) return;
       let c = null; try { c = await fs.collection('companies').doc(cid).get(); } catch (e) {}
       await leftOrg(c); location.reload();
@@ -1028,7 +1048,7 @@ const Team = (() => {
     // v1.0.52 : même ouvert depuis le cache (réseau lent), un membre retiré est sorti dès que la réponse arrive
     if (quickC) cmReq.then(async ([c, m]) => { if (S.cid !== c.id) return; if (!m.exists) { await leftOrg(c); return location.reload(); }
       if (c.exists) { S.company = { id: c.id, ...c.data() }; S.me = { uid: S.user.uid, ...m.data() }; LS.set('company', S.company); LS.set('me', S.me); } })
-      .catch(async (e) => { const cid = S.cid; if (denied(e) && !(await stillMember(cid)) && S.cid === cid) { await leftOrg(null); location.reload(); } });
+      .catch(async (e) => { const cid = S.cid; if (!denied(e)) return; if (!(await stillMember(cid))) { if (S.cid === cid) { await leftOrg(null); location.reload(); } return; } if (await refreshMe()) gate(); });
     try {
       const [c, m] = await withTimeout(cmReq, quickC ? 900 : 15000);
       if (!m.exists) { await leftOrg(c); return loadMembership(); }
@@ -1036,6 +1056,7 @@ const Team = (() => {
       LS.set('company', S.company); LS.set('me', S.me);
     } catch (e) {
       if (denied(e) && !(await stillMember(S.cid))) { await leftOrg(null); return loadMembership(); }   // v1.0.52 : plus membre → les règles refusent la lecture
+      if (denied(e)) await refreshMe();   // v1.0.53 : membre dont l'accès a expiré : sa fiche dit pourquoi (écran « Accès terminé »)
       if (!S.me || S.me.uid !== S.user.uid) { await alertBox('Connexion impossible : ' + errMsg(e)); return loadMembership(); } }
     S.ready = true;
     watchAccess();
@@ -1908,11 +1929,12 @@ const Team = (() => {
         if (!isAdmin()) { if (m.managerUid !== S.user.uid) return showMember(m);
           const v2 = await menu(m.name || m.email, [{ label: 'Missions', sub: 'ce dont la personne est chargée', icon: 'file', value: 'mis' }, { label: 'Droits et projets (délégation)', sub: 'sans dépasser les vôtres', icon: 'edit', value: 'del' }, { label: 'Voir', icon: 'team', value: 'see' }]);
           if (v2 === 'see') showMember(m); if (v2 === 'mis' && await editMissions(m)) draw(); if (v2 === 'del' && await delegate(m, projects)) { await refreshMembers(); draw(); } return; }
-        const v = m.uid === S.user.uid ? 'edit' : await menu(m.name || m.email, [{ label: 'Poste, projets et droits', icon: 'edit', value: 'edit' }, { label: 'Missions', icon: 'file', value: 'mis' }, { label: 'Voir ses droits', icon: 'team', value: 'see' }, { label: 'Retirer de l\'entreprise', icon: 'trash', danger: true, value: 'del' }]);
+        const v = m.uid === S.user.uid ? 'edit' : await menu(m.name || m.email, [{ label: 'Poste, projets et droits', icon: 'edit', value: 'edit' }, { label: 'Missions', icon: 'file', value: 'mis' }, { label: 'Voir ses droits', icon: 'team', value: 'see' }, ...(m.admin ? [] : [{ label: 'Durée d\'accès', sub: tsMs(m.until) ? (tsMs(m.until) > Date.now() ? 'jusqu\'au ' + new Date(tsMs(m.until)).toLocaleDateString('fr-FR') : 'terminé') : 'illimitée', icon: 'calendar', value: 'dur' }]), { label: 'Retirer de l\'entreprise', icon: 'trash', danger: true, value: 'del' }]);
         if (v === 'see') showMember(m);
         if (v === 'mis' && await editMissions(m)) draw();
         if (v === 'edit' && await editMember(m, projects)) { await refreshMembers(); draw(); }
         if (v === 'del' && await removeMember(m)) { await refreshMembers(); draw(); }
+        if (v === 'dur' && await memberDuration(m)) { await refreshMembers(); draw(); }
       });
     };
     await refreshMembers(); draw();
@@ -2063,6 +2085,15 @@ const Team = (() => {
       toast('Enregistré ✓');
       return true;
     } catch (e) { alertBox(errMsg(e)); return false; }
+  }
+  // v1.0.53 : durée d'accès d'un membre (stagiaire, sous-traitant, visite) — passé la date, l'accès se ferme tout seul (règles + écran « Accès terminé »)
+  async function memberDuration(m) {
+    const cur = tsMs(m.until), D = 864e5;
+    const v = await menu(`Accès de ${m.name || m.email}${cur ? ' · ' + (cur > Date.now() ? 'jusqu\'au ' + new Date(cur).toLocaleDateString('fr-FR') : 'terminé') : ' · illimité'}`, [['7', '7 jours'], ['30', '1 mois'], ['90', '3 mois'], ['365', '1 an'], ['inf', 'Sans limite'], ['stop', 'Arrêter maintenant']].map(([k, l]) => ({ label: l, sub: ['inf', 'stop'].includes(k) ? '' : cur > Date.now() ? 'prolonge la date actuelle' : 'à partir d\'aujourd\'hui', icon: k === 'stop' ? 'close' : 'calendar', danger: k === 'stop', value: k })));
+    if (!v) return false;
+    const nu = v === 'inf' ? null : v === 'stop' ? Date.now() : Math.max(Date.now(), cur || 0) + (+v) * D;
+    try { await withTimeout(fs.collection('companies').doc(S.cid).collection('members').doc(m.uid).update({ until: nu ? firebase.firestore.Timestamp.fromMillis(nu) : firebase.firestore.FieldValue.delete() }));
+      toast(nu ? (v === 'stop' ? 'Accès arrêté ✓' : 'Accès jusqu\'au ' + new Date(nu).toLocaleDateString('fr-FR') + ' ✓') : 'Accès sans limite ✓'); return true; } catch (e) { alertBox(errMsg(e)); return false; }
   }
   async function removeMember(m) {
     if (!await confirmBox(`Retirer ${m.name || m.email} de l'entreprise ?`, 'Retirer')) return false;
