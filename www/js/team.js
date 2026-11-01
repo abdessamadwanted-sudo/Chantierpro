@@ -984,16 +984,16 @@ const Team = (() => {
   let watched = null;
   function watchAccess() {
     if (watched === S.cid || isSuper() || !fs.collection('users').doc(S.user.uid).onSnapshot) return; watched = S.cid;
-    const cid = S.cid, uid = S.user.uid;
+    const cid = S.cid, uid = S.user.uid; window.__stWatch = cid;
     fs.collection('companies').doc(cid).collection('members').doc(uid).onSnapshot(async (m) => {
       if (m.exists || m.metadata.fromCache || S.cid !== cid || leaving) return;
       let c = null; try { c = await fs.collection('companies').doc(cid).get(); } catch (e) {}
       await leftOrg(c); location.reload();
-    }, () => {});
+    }, (e) => console.warn('accès (membre)', e && e.code));
     fs.collection('users').doc(uid).onSnapshot((d) => { if (d.metadata.fromCache || !d.exists) return; const v = d.data(); LS.set('profile', v);
-      if (v.blocked === true) gateScreen('⛔ Compte bloqué', `Ce compte a été bloqué par SiteTeam.${v.blockedWhy ? '\nMotif : ' + v.blockedWhy : ''}\nPour toute question : ${SUPPORT_EMAIL}`, false); }, () => {});
+      if (v.blocked === true) gateScreen('⛔ Compte bloqué', `Ce compte a été bloqué par SiteTeam.${v.blockedWhy ? '\nMotif : ' + v.blockedWhy : ''}\nPour toute question : ${SUPPORT_EMAIL}`, false); }, (e) => console.warn('accès (profil)', e && e.code));
     fs.collection('companies').doc(cid).onSnapshot((c) => { if (c.metadata.fromCache || !c.exists || S.cid !== cid) return; const was = S.company && S.company.planStatus;
-      S.company = { ...(S.company || {}), id: c.id, ...c.data() }; LS.set('company', S.company); if (S.company.planStatus !== was || S.company.allowed === false) gate(); }, () => {});
+      S.company = { ...(S.company || {}), id: c.id, ...c.data() }; LS.set('company', S.company); if (S.company.planStatus !== was || S.company.allowed === false) gate(); }, (e) => console.warn('accès (organisation)', e && e.code));
   }
   async function loadMembership() {
     // profil + entreprise (cache local si hors connexion)
