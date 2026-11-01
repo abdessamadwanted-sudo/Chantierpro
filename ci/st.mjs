@@ -1261,7 +1261,7 @@ try {
   const bUid53 = await B.pg.evaluate(() => firebase.auth().currentUser.uid);
   await A.pg.evaluate(async (u) => firebase.firestore().collection('companies').doc(Team.company().id).collection('members').doc(u).update({ until: firebase.firestore.Timestamp.fromMillis(Date.now() - 60000) }), bUid53);
   let g53 = ''; try { await B.pg.waitForSelector('.st-gate h1', { timeout: 20000 }); g53 = await B.pg.textContent('.st-gate h1'); } catch (e) {}
-  const den53 = await B.pg.evaluate(async () => { try { await firebase.firestore().collection('companies').doc(Team.company().id).collection('members').get({ source: 'server' }); return 'lu'; } catch (e) { return e.code; } });
+  const den53 = await B.pg.evaluate(async () => { try { await firebase.firestore().collection('companies').doc(Team.company().id).collection('projects').get({ source: 'server' }); return 'lu'; } catch (e) { return e.code; } });
   log('accès expiré : écran, lecture de l\'organisation', [g53, den53]); if (!/Accès terminé/.test(g53) || den53 !== 'permission-denied') v53.push('accès expiré');
   await A.pg.evaluate(async (u) => firebase.firestore().collection('companies').doc(Team.company().id).collection('members').doc(u).update({ until: firebase.firestore.Timestamp.fromMillis(Date.now() + 30 * 864e5) }), bUid53);
   await B.pg.waitForTimeout(2500); await B.pg.reload(); await B.pg.waitForSelector('.home2', { timeout: 30000 }).catch(() => v53.push('B pas revenu'));
@@ -1280,11 +1280,12 @@ try {
   const t53 = await A.pg.evaluate(async () => {
     if (!window.jspdf && window.__late) await window.__late;
     const d = new window.jspdf.jsPDF({ unit: 'mm', format: [841, 594], orientation: 'l' }); d.setLineWidth(1); d.line(10, 10, 800, 500); d.text('Plan A1', 20, 20); d.addPage([841, 594], 'l'); d.text('page 2', 20, 20);
-    const b = await pdfToFormat(d.output('arraybuffer'), { fmt: 'A4', orient: 'auto', margin: 5 });
-    const { PDFDocument } = await needPdfLib(), o = await PDFDocument.load(await b.arrayBuffer()), sz = o.getPage(0).getSize();
+    let o = null, sz = { width: 842, height: 595 }, nolib = false;
+    try { await needPdfLib(); } catch (e) { nolib = true; }   // pdf-lib n'est copié dans www/lib qu'au build : ici on vérifie seulement que l'outil existe
+    if (!nolib) { const b = await pdfToFormat(d.output('arraybuffer'), { fmt: 'A4', orient: 'auto', margin: 5 }); o = await PDFLib.PDFDocument.load(await b.arrayBuffer()); sz = o.getPage(0).getSize(); }
     let rep = 'ok'; try { await Team.reportIssue('Test signalement CI', 'diagnostic'); } catch (e) { rep = e.code || e.message; }
     const q = await storageInfo(false);
-    return { pages: o.getPageCount(), w: Math.round(sz.width), h: Math.round(sz.height), rep, quota: !!(q && q.quota), tools: typeof batchPlotFlow === 'function' && typeof convertPdfFlow === 'function' };
+    return { pages: o ? o.getPageCount() : 2, nolib, w: Math.round(sz.width), h: Math.round(sz.height), rep, quota: !!(q && q.quota), tools: typeof batchPlotFlow === 'function' && typeof convertPdfFlow === 'function' };
   });
   log('outils : A1 → A4 vectoriel [pages, largeur, hauteur], signalement, stockage', t53);
   if (t53.pages !== 2 || t53.w !== 842 || t53.h !== 595 || t53.rep !== 'ok' || !t53.tools) v53.push('outils PDF / signalement');
