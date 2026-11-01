@@ -63,3 +63,6 @@
   .tm-auth-form input, .tm-auth-submit { transition: none; }
 }
 
+/* v1.0.55 : texte tapé toujours visible (thème clair : le texte sombre restait sur le fond sombre du champ en écrivant) */
+html .tm-auth-form input, html .tm-auth-form input:focus, html .tm-login .form input, html .tm-login .form input:focus { color: #fff !important; -webkit-text-fill-color: #fff; caret-color: #60a5fa; background: rgba(4,10,20,.55) !important; }
+html .tm-auth-form input:-webkit-autofill, html .tm-login input:-webkit-autofill { -webkit-text-fill-color: #fff !important; -webkit-box-shadow: 0 0 0 40px #0b1a2e inset !important; caret-color: #fff; }

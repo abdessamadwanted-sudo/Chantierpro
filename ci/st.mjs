@@ -1269,8 +1269,8 @@ try {
   // Centre de contrôle (Super Admin) : durée d'un espace personnel + journal
   await SA.pg.goto('http://127.0.0.1:8765/admin.html?emu=1#acces'); await SA.pg.waitForSelector('#ccl', { timeout: 30000 }); await SA.pg.waitForTimeout(800); await shot(SA.pg, '53_centre_controle');
   const cc1 = await SA.pg.evaluate(() => document.querySelectorAll('#ccl .cc-r').length);
-  if (cc1) { await SA.pg.click('#ccl .cc-r [data-dur="30"]'); await SA.pg.waitForTimeout(2000); }
-  const cc2 = await SA.pg.evaluate(() => [...document.querySelectorAll('#ccl .cc-r .pill')].map(x => x.textContent).slice(0, 3));
+  if (cc1) { await SA.pg.click('#ccl .cc-r [data-k^="o:"][data-dur="30"]'); await SA.pg.waitForTimeout(2000); }
+  const cc2 = await SA.pg.evaluate(() => [...document.querySelectorAll('#ccl .cc-r')].filter(r => r.querySelector('[data-k^="o:"]')).map(r => (r.querySelector('.pill') || {}).textContent).slice(0, 3));
   await SA.pg.goto('http://127.0.0.1:8765/admin.html?emu=1#acces/mem'); await SA.pg.waitForTimeout(2500); await shot(SA.pg, '53_centre_membres');
   const cc3 = await SA.pg.evaluate(() => [document.querySelectorAll('#ccl .cc-r').length, (document.querySelector('#ccl') || {}).textContent.includes('🔑')]);
   await SA.pg.goto('http://127.0.0.1:8765/admin.html?emu=1#acces/hist'); await SA.pg.waitForTimeout(2500);
@@ -1292,6 +1292,17 @@ try {
   log('v1.0.54 : refaire l\'image du plan + pins photos dans l\'avancement', await A.pg.evaluate(() => [typeof planRebuild === 'function', typeof pnCount === 'function']));
   if (!(await A.pg.evaluate(() => typeof planRebuild === 'function'))) v53.push('planRebuild');
   log('errors v1.0.53', v53);
+  // ---- v1.0.55 : Centre de contrôle › inscrit sans espace → le Super Admin crée son espace personnel avec une durée ; fiche du lot en boutons
+  const v55 = [];
+  await SA.pg.goto('http://127.0.0.1:8765/admin.html?emu=1#acces/perso'); await SA.pg.waitForSelector('#ccl', { timeout: 30000 }); await SA.pg.waitForTimeout(1200);
+  await SA.pg.fill('#q-cc', 'ami@test.ma'); await SA.pg.waitForTimeout(400); await shot(SA.pg, '55_sans_espace');
+  const ns55 = await SA.pg.evaluate(() => (document.querySelector('#ccl') || {}).textContent || '');
+  try { await SA.pg.click('#ccl [data-k^="n:"][data-dur="30"]'); await SA.pg.waitForSelector('dialog button:has-text("Créer")'); await SA.pg.click('dialog button:has-text("Créer")'); await SA.pg.waitForTimeout(2500); } catch (e) { v55.push('bouton créer son espace'); }
+  const cr55 = await SA.pg.evaluate(async () => { const db = firebase.firestore(), u = (await db.collection('users').where('email', '==', 'ami@test.ma').get()).docs[0]; if (!u) return null; const cid = u.data().companyId; if (!cid) return { cid: null };
+    const c = (await db.collection('companies').doc(cid).get()).data(), m = await db.collection('companies').doc(cid).collection('members').doc(u.id).get(); return { kind: c.kind, allowed: c.allowed, until: !!c.accessUntil, member: m.exists && m.data().admin }; });
+  log('créer son espace [sans espace listé, espace créé]', [/Sans espace/.test(ns55), cr55]);
+  if (!/Sans espace/.test(ns55) || !cr55 || cr55.kind !== 'perso' || !cr55.allowed || !cr55.until || !cr55.member) v55.push('créer son espace');
+  log('errors v1.0.55', v55);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);

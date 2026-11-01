@@ -3419,3 +3419,18 @@ body:has(.avt-page) #plansFab, body:has(.avc-page) #plansFab { display: none; }
 .pnd-th { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .pnd-th img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; display: block; opacity: .55; outline: 2px solid transparent; outline-offset: -2px; }
 .pnd-th img.on { opacity: 1; outline-color: #ef4444; }
+
+/* v1.0.55 : fiche du lot (Plans) lisible et rangée : blocs clairs (texte sombre sur fond clair), sections en boutons */
+.lot-panel .lpa, .lot-panel .pnl { background: #fff !important; color: #142337 !important; --muted: #5B6B80; --line: #DDE4EE; border-color: color-mix(in srgb, var(--c) 30%, #DDE4EE) !important; }
+.lot-panel .lpa *, .lot-panel .pnl b, .lot-panel .pnl span { color: inherit; }
+.lot-panel .lpa small, .lot-panel .pnl small, .lot-panel .lpa-today { color: #5B6B80 !important; }
+.lot-panel .lpa-pct b { color: var(--c) !important; }
+.lot-panel .lpa-acts button { color: #142337 !important; background: color-mix(in srgb, var(--c) 10%, #fff) !important; }
+.lot-panel .lpa-acts button.on { background: #16a34a !important; color: #fff !important; }
+.lot-panel .pnl-l button { background: #F2F5F9 !important; color: #142337 !important; border-color: #DDE4EE !important; }
+.lot-panel .pnl .btn.ghost { color: #1F5FA8 !important; background: #EEF4FB !important; }
+.lp-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 2px 0 10px; }
+.lp-tabs button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 58px; padding: 7px 4px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--c) 28%, #DDE4EE); background: #fff; color: #142337; font: inherit; font-size: 12px; font-weight: 800; line-height: 1.15; text-align: center; }
+.lp-tabs button .e { font-size: 18px; } .lp-tabs button small { font-size: 10.5px; font-weight: 700; color: #5B6B80; }
+.lp-tabs button.on { background: var(--c); border-color: var(--c); color: #fff; } .lp-tabs button.on small { color: rgba(255,255,255,.85); }
+.lp-tabs button.r small { color: #dc2626; } .lp-tabs button.on.r small { color: #fff; }

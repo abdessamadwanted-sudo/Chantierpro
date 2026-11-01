@@ -325,6 +325,7 @@ await t('blocage : le Super Admin bloque le compte', () => assertSucceeds(owner.
 await t('blocage : le compte bloqué perd l\'accès aux projets', () => assertFails(R6b(blk1).get()));
 await t('blocage : le compte bloqué perd l\'accès à l\'organisation', () => assertFails(blk1.collection('companies').doc('c6').get()));
 await t('blocage : REFUS que le Super Admin change autre chose que le blocage', () => assertFails(owner.collection('users').doc('blk1').update({ companyId: 'c9' })));
+await t('espace créé par le Super Admin : REFUS d\'ouvrir à quelqu\'un un espace qui n\'est pas le sien', () => assertFails(owner.collection('users').doc('blk1').update({ companyId: 'c9', workspaces: [] })));
 await t('blocage : le Super Admin débloque', async () => { await assertSucceeds(owner.collection('users').doc('blk1').update({ blocked: false })); await assertSucceeds(R6b(blk1).get()); });
 await t('profil : création par la personne (non bloqué)', () => assertSucceeds(nw1.collection('users').doc('nw1').set({ name: 'N1' })));
 await t('suspension : avant, le propriétaire lit ses réserves', () => assertSucceeds(own9.collection('companies').doc('c9').collection('projects').doc('p9').collection('m').doc('reserves').collection('r').doc('tasks__a').get()));
