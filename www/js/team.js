@@ -910,10 +910,17 @@ const Team = (() => {
     keys() { try { return Object.keys(localStorage).filter(k => k.startsWith('sync.') || k === 'team.pullAt'); } catch (e) { return []; } },
     save(cid) { if (!cid) return; const o = {}; WS.keys().forEach(k => { o[k] = WS.get(k); }); WS.put('ws.' + cid, JSON.stringify(o)); WS.keys().forEach(k => WS.put(k, null)); },
     restore(cid) { let o = {}; try { o = JSON.parse(WS.get('ws.' + cid) || '{}'); } catch (e) {} for (const [k, v] of Object.entries(o)) WS.put(k, v); },
+    // v1.0.52 : espace quitté (retiré par l'organisation) : sa base est effacée au prochain démarrage (aucune connexion ouverte dessus)
+    forget(cid) {
+      if (!cid) return; let L = []; try { L = JSON.parse(WS.get('st.dbPurge') || '[]'); } catch (e) {}
+      const n = WS.dbFor(cid); if (!L.includes(n)) L.push(n); WS.put('st.dbPurge', JSON.stringify(L)); WS.put('ws.' + cid, null);
+      if (WS.get('st.wsCid') === cid) { WS.keys().forEach(k => WS.put(k, null)); ['company', 'me', 'members', 'postes', 'shared', 'projectTeams'].forEach(LS.del); }
+    },
     // vrai = on recharge l'application pour ouvrir la base de cet espace
     bind(cid) {
       if (!WS.get('st.wsLegacy')) { WS.put('st.wsLegacy', cid); WS.put('st.wsCid', cid); }   // 1re ouverture : les données déjà présentes appartiennent à cet espace
       const cur = WS.get('st.wsCid');
+      try { const P = JSON.parse(WS.get('st.dbPurge') || '[]'), n = WS.dbFor(cid); if (P.includes(n)) WS.put('st.dbPurge', P.length > 1 ? JSON.stringify(P.filter(x => x !== n)) : null); } catch (e) {}   // espace rejoint à nouveau : on garde sa base
       if (cur !== cid) { WS.save(cur); WS.restore(cid); WS.put('st.wsCid', cid); ['company', 'me', 'members', 'postes', 'shared', 'projectTeams'].forEach(LS.del); }
       const want = WS.dbFor(cid);
       if ((WS.get('st.db') || 'chantier') !== want || (typeof DB !== 'undefined' && DB.name && DB.name() !== want)) {
@@ -960,6 +967,34 @@ const Team = (() => {
     $('[data-a=new]', sh.el).onclick = async () => { sh.close(); const ok = await onboardScreen({ add: true }); if (ok) { try { if (typeof Sync !== 'undefined' && Sync.enabled && Sync.enabled()) await Sync.run({ quiet: true }); } catch (e) {} location.reload(); } };
   }
 
+  // v1.0.52 : retiré d'une organisation → on quitte cet espace ET on efface ses données de ce téléphone (projets, plans, photos de l'organisation)
+  let leaving = false;
+  async function leftOrg(c) {
+    if (leaving) return; leaving = true;
+    const cid = S.cid, rest = (S.workspaces || []).filter(w => w.cid !== cid && !w.pending);
+    try { await withTimeout(fs.collection('users').doc(S.user.uid).set({ companyId: rest.length ? rest[0].cid : null, workspaces: rest }, { merge: true })); } catch (e) { console.warn('sortie', e); }
+    const nc = rest.length ? rest[0].cid : null; LS.set('profile', { ...(LS.get('profile') || {}), companyId: nc, workspaces: rest });
+    WS.forget(cid);
+    S.workspaces = rest;
+    await alertBox('Vous ne faites plus partie de « ' + ((c && c.exists && c.data().name) || (S.company && S.company.name) || 'cette organisation') + ' ».\nSes projets ont été retirés de ce téléphone.' + (rest.length ? '\nOuverture de « ' + rest[0].name + ' ».' : ''));
+    if (!nc) { WS.put('st.db', 'chantier_vide'); location.reload(); return new Promise(() => {}); }   // plus aucun espace : base vide tout de suite, l'ancienne est effacée au redémarrage
+    leaving = false;
+  }
+  // pendant que l'application est ouverte : retrait, blocage ou suspension appliqués tout de suite (pas au prochain démarrage)
+  let watched = null;
+  function watchAccess() {
+    if (watched === S.cid || isSuper() || !fs.collection('users').doc(S.user.uid).onSnapshot) return; watched = S.cid;
+    const cid = S.cid, uid = S.user.uid;
+    fs.collection('companies').doc(cid).collection('members').doc(uid).onSnapshot(async (m) => {
+      if (m.exists || m.metadata.fromCache || S.cid !== cid || leaving) return;
+      let c = null; try { c = await fs.collection('companies').doc(cid).get(); } catch (e) {}
+      await leftOrg(c); location.reload();
+    }, () => {});
+    fs.collection('users').doc(uid).onSnapshot((d) => { if (d.metadata.fromCache || !d.exists) return; const v = d.data(); LS.set('profile', v);
+      if (v.blocked === true) gateScreen('⛔ Compte bloqué', `Ce compte a été bloqué par SiteTeam.${v.blockedWhy ? '\nMotif : ' + v.blockedWhy : ''}\nPour toute question : ${SUPPORT_EMAIL}`, false); }, () => {});
+    fs.collection('companies').doc(cid).onSnapshot((c) => { if (c.metadata.fromCache || !c.exists || S.cid !== cid) return; const was = S.company && S.company.planStatus;
+      S.company = { ...(S.company || {}), id: c.id, ...c.data() }; LS.set('company', S.company); if (S.company.planStatus !== was || S.company.allowed === false) gate(); }, () => {});
+  }
   async function loadMembership() {
     // profil + entreprise (cache local si hors connexion)
     let prof = null;
@@ -968,7 +1003,7 @@ const Team = (() => {
     const pReq = fs.collection('users').doc(S.user.uid).get();
     // v1.0.45 : avec le cache, on n'attend presque pas le réseau (chantier, 4G faible) — la mise à jour arrive en arrière-plan
     try { const d = await withTimeout(pReq, quick ? 900 : 15000); prof = d.exists ? d.data() : {}; LS.set('profile', prof); }
-    catch (e) { if (quick) pReq.then(d => { if (d.exists) LS.set('profile', d.data()); }).catch(() => {}); prof = LS.get('profile'); if (!prof) { await alertBox('Connexion internet nécessaire pour la première ouverture.'); return loadMembership(); } }
+    catch (e) { if (quick) pReq.then(d => { if (d.exists) { LS.set('profile', d.data()); if (d.data().blocked === true && !isSuper()) location.reload(); } }).catch(() => {}); prof = LS.get('profile'); if (!prof) { await alertBox('Connexion internet nécessaire pour la première ouverture.'); return loadMembership(); } }
     if (prof.blocked === true && !isSuper()) return gateScreen('⛔ Compte bloqué', `Ce compte a été bloqué par SiteTeam.${prof.blockedWhy ? '\nMotif : ' + prof.blockedWhy : ''}\nPour toute question : ${SUPPORT_EMAIL}`, false);
     presence(prof);
     if (!prof.companyId) { await loadPlanCfg(); await onboardScreen(); return loadMembership(); }
@@ -980,19 +1015,17 @@ const Team = (() => {
     const cC = LS.get('company'), mC = LS.get('me'), quickC = !!(cC && cC.id === S.cid && mC && mC.uid === S.user.uid);
     if (quickC && (!S.me || S.me.uid !== S.user.uid)) { S.company = cC; S.me = mC; }
     const cmReq = Promise.all([fs.collection('companies').doc(S.cid).get(), fs.collection('companies').doc(S.cid).collection('members').doc(S.user.uid).get()]);
-    if (quickC) cmReq.then(([c, m]) => { if (c.exists && m.exists && S.cid === c.id) { S.company = { id: c.id, ...c.data() }; S.me = { uid: S.user.uid, ...m.data() }; LS.set('company', S.company); LS.set('me', S.me); } }).catch(() => {});
+    // v1.0.52 : même ouvert depuis le cache (réseau lent), un membre retiré est sorti dès que la réponse arrive
+    if (quickC) cmReq.then(async ([c, m]) => { if (S.cid !== c.id) return; if (!m.exists) { await leftOrg(c); return location.reload(); }
+      if (c.exists) { S.company = { id: c.id, ...c.data() }; S.me = { uid: S.user.uid, ...m.data() }; LS.set('company', S.company); LS.set('me', S.me); } }).catch(() => {});
     try {
       const [c, m] = await withTimeout(cmReq, quickC ? 900 : 15000);
-      if (!m.exists) {
-        const rest = S.workspaces.filter(w => w.cid !== S.cid);
-        await fs.collection('users').doc(S.user.uid).set({ companyId: rest.length ? rest[0].cid : null, workspaces: rest }, { merge: true });
-        await alertBox('Vous ne faites plus partie de « ' + ((c.exists && c.data().name) || 'cette organisation') + ' ».' + (rest.length ? '\nOuverture de « ' + rest[0].name + ' ».' : ''));
-        return loadMembership();
-      }
+      if (!m.exists) { await leftOrg(c); return loadMembership(); }
       S.company = { id: c.id, ...c.data() }; S.me = { uid: S.user.uid, ...m.data() };
       LS.set('company', S.company); LS.set('me', S.me);
     } catch (e) { if (!S.me || S.me.uid !== S.user.uid) { await alertBox('Connexion impossible : ' + errMsg(e)); return loadMembership(); } }
     S.ready = true;
+    watchAccess();
     if (LS.get('plansCfg')) loadPlanCfg().catch(() => {}); else await loadPlanCfg();   // v1.0.35 : configuration en arrière-plan si déjà connue
     // v1.0.45 : postes, projets partagés, équipes projet et membres — depuis le cache tout de suite, puis réseau en arrière-plan
     const rest = async () => { await loadPostes(); await loadShared(); try { await projectIds(); } catch (e) { console.warn('équipes projet', e); } await refreshMembers(); saveWorkspace(); };
@@ -2078,7 +2111,7 @@ const Team = (() => {
     if (!r || !r.pw) return;
     const ld = loading('Suppression du compte…');
     try {
-      const u = auth.currentUser;
+      const u = auth.currentUser; leaving = true;   // v1.0.52 : la suppression du compte n'est pas un « retrait » par l'organisation
       await withTimeout(u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email, r.pw)));
       if (!others.length) { try { await fs.collection('companies').doc(S.cid).update({ deleted: true, deletedAt: ts() }); } catch (e) { console.warn('company', e); } }
       await withTimeout(fs.collection('companies').doc(S.cid).collection('members').doc(u.uid).delete());
