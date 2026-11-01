@@ -1,3 +1,7 @@
+## SiteTeam : « accès sur code uniquement » sans faille au premier lancement
+- Nouveau compte : l'écran de création d'espace n'apparaît qu'après lecture des réglages SiteTeam ; réseau lent ou réglages illisibles → « Connexion nécessaire » (avant : la personne pouvait créer un espace Basic sans code).
+- À chaque ouverture, le contrôle d'accès est refait dès que les réglages sont à jour : un espace créé sans code est arrêté (écran « Code d'accès ») tant que le Super Admin ne l'autorise pas (Centre de contrôle).
+
 ## SiteTeam : créer l'espace d'un inscrit, fiche du lot en boutons, textes lisibles
 - Centre de contrôle › Espaces personnels : « 🆕 Inscrits sans espace » — touchez une durée (7 j, 1 mois…) pour créer son espace personnel, sans couper « Accès sur code uniquement ». La personne rouvre l'application et arrive dans son espace.
 - Plans › niveau › lot : la fiche est rangée en boutons (Avancement, Photos, Échéance, Points d'arrêt, Accès rapides, Contrôle) ; une section ouverte à la fois, gardée en mémoire.
