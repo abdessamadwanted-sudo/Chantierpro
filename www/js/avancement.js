@@ -91,11 +91,13 @@ async function renderAvancement(root) {
   $$('[data-a=addniv]', root).forEach(b => b.onclick = async () => { if (await avAddNiveau(p)) renderAvancement(root); });
   $$('[data-ncmp]', root).forEach(b => b.onclick = (e) => { e.stopPropagation(); const n = (p.avNiveaux || []).find(x => x.id === b.dataset.ncmp); if (n) avCompareQuick(p, n, App.avTab); });
   // v1.0.47 : chaque niveau montre le plan DE CE LOT (miniature, nom, indice) ; sinon le plan général et « ＋ Plan <lot> »
-  if (App.avTab !== 'dash' && typeof avLotPlan === 'function') (async () => { const lot = avLot(p, App.avTab);
+  if (App.avTab !== 'dash' && typeof avLotPlan === 'function') (async () => { const lot = avLot(p, App.avTab); let thN = 0;
     for (const n of nivs) { const pn = (p.avNiveaux || []).find(x => x.id === n.id); if (!pn) continue; let L = null; try { L = await avLotPlan(p, pn, lot.id); } catch (e) {} if (!L || !L.plan) continue;
       const lab = $(`[data-pl="${n.id}"]`, root); if (lab) lab.innerHTML = L.id !== 'main' ? `<b style="color:${lot.color}">Plan ${esc(lot.name)}</b> · ${esc(L.plan.name)} · ind. ${esc(planIndice(L.plan))}` : `Plan général · ind. ${esc(planIndice(L.plan))} <button class="av-addpl" data-addpl="${n.id}">＋ Plan ${esc(lot.name)}</button>`;
       const ab = lab && lab.querySelector('[data-addpl]'); if (ab) ab.onclick = async (e) => { e.stopPropagation(); if (await avAddLotPlan(p, pn, lot.id)) renderAvancement(root); };
-      const th = $(`[data-th="${n.id}"]`, root); if (th && typeof avLiteURL === 'function') avLiteURL(L.plan.fileId, 240).then(u => { if (u && th.isConnected) th.innerHTML = `<img src="${u}" alt="">`; }).catch(() => {}); } })();
+      // v1.0.51 : miniatures prudentes — déjà gardées : affichées tout de suite ; sinon au plus 2 nouvelles par affichage, au calme
+      const th = $(`[data-th="${n.id}"]`, root), ready = (() => { try { return !!localStorage.getItem('th.' + L.plan.fileId + '|240'); } catch (e) { return false; } })();
+      if (th && typeof avLiteURL === 'function' && (ready || ++thN <= 2)) { if (!ready) await new Promise(r => (window.requestIdleCallback || setTimeout)(r, { timeout: 800 })); if (!th.isConnected) return; avLiteURL(L.plan.fileId, 240).then(u => { if (u && th.isConnected) th.innerHTML = `<img src="${u}" alt="">`; }).catch(() => {}); } } })();
   $$('[data-niv]', root).forEach(c => c.onclick = (e) => { if (e.target.closest('[data-nmore],[data-ncmp],[data-addpl]')) return; const n = nivs.find(x => x.id === c.dataset.niv); openAvViewer(n.id, App.avTab, () => renderAvancement(root)); });
   $$('[data-nmore]', root).forEach(b => b.onclick = () => avNiveauMenu(p, b.dataset.nmore, () => renderAvancement(root)));
   $$('[data-cell]', root).forEach(c => c.onclick = () => { const [nid, lid] = c.dataset.cell.split('|'); openAvViewer(nid, lid, () => renderAvancement(root)); });
