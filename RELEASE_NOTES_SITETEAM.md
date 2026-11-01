@@ -1,3 +1,12 @@
+## SiteTeam : pin photos plus visible, image de plan à refaire
+- Visionneuse de plan : l'outil 📷 s'appelle « Pin photos (dossiers) » et le menu ⋮ propose « Pin photos (dossiers) : placer sur le plan ».
+- Avancement › ⋮ : « Pins photos (dossiers) de ce plan » — ouvrir un pin ou en placer un nouveau sur le plan du lot.
+- Plan coupé ou à moitié blanc : ⋮ › « Refaire l'image du plan » (depuis le PDF d'origine, pins et annotations gardés).
+- Pins photos : la photo touchée s'ouvre tout de suite devant la fiche (avant : seulement après l'avoir fermée), 🗑 pour supprimer la photo affichée, et ⋮ du dossier › « Supprimer des photos (choisir) ».
+- Pins photos : plus de « À traiter / Traité ».
+- Outils du projet : nouvelle tuile « DWG → PDF · plans » (tracer, plusieurs DWG en un PDF, changer le format, fusionner, diviser).
+- PDF des photos : photos centrées (une seule photo = pleine page), titre en gras et bien visible « Porte provisoire · Local 1 » sur chaque page.
+
 ## SiteTeam : pins photos par dossiers, Centre de contrôle des accès, outils PDF
 - Pins photos : dossiers nommés dans chaque pin (Porte provisoire, Brique, Nettoyage… ou votre nom), renommer, monter, supprimer ; les noms déjà utilisés sont proposés.
 - Plans › niveau › lot : bloc « 📷 Photos » avec les pins photos des plans de ce niveau et « + Pin photos » (ouvre le plan prêt à placer le pin).
