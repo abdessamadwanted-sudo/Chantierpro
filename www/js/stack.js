@@ -49,7 +49,8 @@ async function lvsChoosePair(L, startPlan) {
   return [base, up];
 }
 async function openLevelStack(startPlan) {
-  const pid = (startPlan && startPlan.projectId) || App.project.id, L = await lvsLevels(pid);
+  if (typeof Team !== 'undefined' && Team.featGate && !(await Team.featGate('cmp'))) return;   // v1.0.57 : fonction premium
+    const pid = (startPlan && startPlan.projectId) || App.project.id, L = await lvsLevels(pid);
   if (L.length < 2) return toast('Il faut au moins deux plans (deux niveaux)');
   const pr = await lvsChoosePair(L, startPlan); if (!pr) return;
   // calage à l'équerre : une fois par plan (enregistré dans le plan)
@@ -240,7 +241,8 @@ async function lvsOpenPair(lowId, upId) {
 }
 // ================= Bouton « Comparer » : deux niveaux ou deux indices =================
 async function compareMenu(plan) {
-  const v = await menu('Comparer', [{ label: '🏢 Comparer deux niveaux (R+3 ↔ R+4…)', icon: 'layers', value: 'niv' }, { label: '📑 Comparer deux indices (A ↔ B…)', icon: 'history', value: 'ind' }]);
+  if (typeof Team !== 'undefined' && Team.featGate && !(await Team.featGate('cmp'))) return;   // v1.0.57 : fonction premium
+    const v = await menu('Comparer', [{ label: '🏢 Comparer deux niveaux (R+3 ↔ R+4…)', icon: 'layers', value: 'niv' }, { label: '📑 Comparer deux indices (A ↔ B…)', icon: 'history', value: 'ind' }]);
   if (v === 'niv') return openLevelStack(plan);
   if (v === 'ind') return compareIndices(plan);
 }

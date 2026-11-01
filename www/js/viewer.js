@@ -1157,6 +1157,7 @@ async function sharePlanMenu(plan, { tasks = [], links = [] } = {}) {
   }
   if (v === 'dxf') return exportDxfOfPlan(plan);
   if (v === 'plot') return plotPlan(plan);
+  if (typeof Team !== 'undefined' && Team.featGate && !(await Team.featGate('plansend'))) return;   // v1.0.57 : fonction premium
   const fmt = plan.pdfFileId ? 'A3' : await menu('Format du PDF annoté', ['A0', 'A1', 'A2', 'A3', 'A4'].map(x => ({ label: x, value: x, checked: x === 'A3' })));
   if (!fmt) return;
   const ld = loading('Création du PDF annoté…');

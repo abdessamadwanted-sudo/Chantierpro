@@ -56,7 +56,7 @@
   const orgOf = (cid) => D.orgs.find(x => x.id === cid) || {};
 
   // ---------- écrans ----------
-  const TABS = [['dash', 'Tableau de bord'], ['acces', 'Centre de contrôle'], ['users', 'Utilisateurs'], ['orgs', 'Organisations'], ['reqs', 'Demandes'], ['codes', 'Codes pack'], ['ctrl', 'Contrôle de l\'app'], ['ann', 'Annonces'], ['err', 'Erreurs']];
+  const TABS = [['dash', 'Tableau de bord'], ['acces', 'Centre de contrôle'], ['packs', 'Packs & fonctions'], ['users', 'Utilisateurs'], ['orgs', 'Organisations'], ['reqs', 'Demandes'], ['codes', 'Codes pack'], ['ctrl', 'Contrôle de l\'app'], ['ann', 'Annonces'], ['err', 'Erreurs']];
   let tab = (location.hash || '').slice(1).split('/')[0]; if (!TABS.some(t => t[0] === tab)) tab = 'dash';
   function shell(user) {
     app.innerHTML = `<header><div class="hd"><div class="grow"><b>🛡 SiteTeam Admin</b><br><small>${esc(user.email)}</small></div>
@@ -72,7 +72,7 @@
   async function draw(force) {
     const M = $('#main'); if (!M) return;
     try { await load(force); } catch (e) { M.innerHTML = `<div class="card"><b>Impossible de charger les données</b><p class="muted">${esc(e.code === 'permission-denied' ? 'Accès refusé : publiez les dernières règles Firestore (application › Réglages › Copier les règles).' : (e.message || e))}</p></div>`; return; }
-    ({ dash, acces, users, orgs, reqs, codes, ctrl, ann, err })[tab](M);
+    ({ dash, acces, packs, users, orgs, reqs, codes, ctrl, ann, err })[tab](M);
   }
 
   function dash(M) {
@@ -170,6 +170,35 @@
     };
     $('#q-cc').oninput = draw1; draw1();
   }
+  // ---------- v1.0.57 : Packs & fonctions — ce que chaque pack ouvre (outils, fonctions premium, essai gratuit) ----------
+  const PK = () => Object.values(PLANS).map(P => ({ ...P, ...((D.cfg.plans || {})[P.k] || {}), k: P.k }));
+  const featsOf = (P) => P.feats == null || P.feats === '*' ? PREMIUM.map(x => x[0]) : P.feats;
+  const modsOf = (P) => P.modules === '*' ? MODS.map(x => x[0]) : (P.modules || []);
+  function packs(M) {
+    const L = PK();
+    const head = `<tr><th></th>${L.map(P => `<th>${esc(P.e || '')}<br>${esc(P.l)}</th>`).join('')}</tr>`;
+    const row = (kind, k, l) => `<tr><td>${esc(l)}</td>${L.map(P => `<td><input type="checkbox" data-${kind}="${P.k}|${k}" ${(kind === 'f' ? featsOf(P) : modsOf(P)).includes(k) ? 'checked' : ''}></td>`).join('')}</tr>`;
+    M.innerHTML = `<h2>Packs & fonctions</h2>
+      <div class="card pk-help"><b>Comment ça marche</b>
+        <ol><li><b>Cochez</b> ce que chaque pack ouvre. Ce qui n'est pas coché apparaît avec un 🔒 et un bouton « Demander un pack ».</li>
+        <li><b>Essai gratuit</b> : pendant N jours après la création de l'espace, toutes les fonctions premium sont ouvertes, puis elles se ferment seules.</li>
+        <li><b>Un espace en particulier</b> (offrir une fonction, ajouter ou retirer un outil) : onglet <b>Organisations</b> › l'espace › « Pour cet espace ».</li></ol>
+        <p class="muted">Vous (Super Admin) voyez toujours tout. Les changements arrivent à la prochaine ouverture de l'application.</p></div>
+      <div class="card"><h3>⭐ Fonctions premium</h3><div class="pk-t"><table>${head}${PREMIUM.map(([k, l]) => row('f', k, l)).join('')}
+        <tr class="pk-trial"><td>🎁 Essai gratuit (jours)</td>${L.map(P => `<td><input type="number" min="0" max="365" inputmode="numeric" data-tr="${P.k}" value="${+P.featTrial || 0}"></td>`).join('')}</tr></table></div></div>
+      <div class="card"><h3>🧰 Outils de chaque pack</h3><div class="pk-t"><table>${head}${MODS.filter(([k]) => k !== 'projet').map(([k, l]) => row('m', k, l.split(' (')[0])).join('')}</table></div></div>
+      <div class="btns pk-save"><button class="btn" data-a="pksave">Enregistrer</button><span class="muted">Basic sans essai et Pro avec 14 jours, par exemple.</span></div>`;
+    $('[data-a=pksave]', M).onclick = async () => {
+      const out = {};
+      for (const P of L) {
+        const f = $$(`[data-f^="${P.k}|"]`, M).filter(x => x.checked).map(x => x.dataset.f.split('|')[1]);
+        const m = $$(`[data-m^="${P.k}|"]`, M).filter(x => x.checked).map(x => x.dataset.m.split('|')[1]);
+        const allM = m.length >= MODS.length - 1;
+        out[P.k] = { feats: f.length === PREMIUM.length ? '*' : f, featTrial: Math.max(0, Math.min(365, +($(`[data-tr="${P.k}"]`, M).value) || 0)), modules: allM ? '*' : ['projet', ...m] };
+      }
+      try { await db.collection('config').doc('plans').set(out, { merge: true }); logA('Packs & fonctions', 'tous les packs', Object.entries(out).map(([k, v]) => `${k}: ${v.feats === '*' ? 'tout' : v.feats.length + ' fonction(s)'}${v.featTrial ? ', essai ' + v.featTrial + ' j' : ''}`).join(' · ')); toast('Enregistré ✓'); await draw(true); } catch (e) { fail(e); }
+    };
+  }
   function users(M) {
     const memOf = (uid) => D.members.filter(m => m.uid === uid);
     M.innerHTML = `<h2>Utilisateurs (${D.users.length})</h2><div class="card"><input id="q-users" type="search" placeholder="Rechercher : nom, e-mail…"><div id="ul"></div></div>`;
@@ -213,6 +242,12 @@
       <label>Pack<select name="plan">${Object.values(PLANS).map(P => `<option value="${P.k}" ${planOf(o.plan || 'enterprise').k === P.k ? 'selected' : ''}>${esc(PLAN_L(P.k))} · ${esc(planPrice(P))}</option>`).join('')}</select></label>
       <label>Statut<select name="st">${Object.entries(STATUS).map(([k, [l]]) => `<option value="${k}" ${o.planStatus === k ? 'selected' : ''}>${esc(l)}${k === 'essai' ? ' (14 jours de plus)' : ''}${k === 'suspendu' ? ' — bloque l\'accès aux projets' : ''}</option>`).join('')}</select></label>
       ${o.kind === 'perso' ? `<label class="ck"><input type="checkbox" name="allow" ${o.allowed ? 'checked' : ''}> Autoriser cet espace personnel (même en « accès sur code uniquement »)</label>` : ''}
+      <details class="pk-org"><summary>🎛 Pour cet espace : fonctions offertes et outils</summary>
+        <p class="muted">Au-dessus du pack. Fonction offerte : ouverte jusqu'à la date choisie.</p>
+        ${PREMIUM.map(([k, l]) => { const g = (o.featGrant || {})[k], u = ms(g); return `<label class="pk-l"><span>${esc(l)}</span><select name="fg_${k}"><option value="">Selon le pack</option>${[['7', '7 jours'], ['30', '1 mois'], ['90', '3 mois'], ['365', '1 an'], ['inf', 'Toujours']].map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}${g === true ? '<option value="keep" selected>Toujours (déjà offert)</option>' : u > Date.now() ? `<option value="keep" selected>Offert jusqu'au ${new Date(u).toLocaleDateString('fr-FR')}</option>` : ''}</select></label>`; }).join('')}
+        <p class="muted" style="margin-top:10px">Outils :</p>
+        ${MODS.filter(([k]) => k !== 'projet').map(([k, l]) => `<label class="pk-l"><span>${esc(l.split(' (')[0])}</span><select name="md_${k}"><option value="">Selon le pack</option><option value="on" ${(o.modsOn || []).includes(k) ? 'selected' : ''}>Oui</option><option value="off" ${(o.modsOff || []).includes(k) ? 'selected' : ''}>Non</option></select></label>`).join('')}
+      </details>
       <h3 style="margin-top:6px">Membres (${mem.length})</h3>${mem.map(m => `<div class="row"><div class="t grow"><b>${esc(m.name || m.email || m.uid)}</b><small>${esc(m.email || '')} · ${esc(tmRoleOf(m.role).l)}${m.admin ? ' · admin' : ''}</small></div></div>`).join('') || '<div class="empty">Aucun</div>'}`,
       [['Enregistrer', 'save'], ['Annonce à l\'organisation', 'ann', 'ghost'], ['Fermer', null, 'ghost']]);
     if (!r) return;
@@ -221,6 +256,9 @@
         if (r.st === 'suspendu' && o.planStatus !== 'suspendu' && !(await modal('Suspendre ?', `<p>« ${esc(o.name)} » n'aura plus accès à ses projets et fichiers. Rien n'est effacé ; vous pourrez rétablir l'accès.</p>`, [['Suspendre', 'ok', 'bad'], ['Annuler', null, 'ghost']]))) return;
         const extra = r.st === 'essai' ? { trialEndsAt: firebase.firestore.Timestamp.fromMillis(Date.now() + 14 * 864e5) } : {};
         if (o.kind === 'perso') extra.allowed = !!r.allow;
+        // v1.0.57 : fonctions offertes et outils de cet espace
+        const fg = {}; for (const [k] of PREMIUM) { const v = r['fg_' + k]; if (v === 'keep') fg[k] = (o.featGrant || {})[k]; else if (v === 'inf') fg[k] = true; else if (v) fg[k] = firebase.firestore.Timestamp.fromMillis(Date.now() + (+v) * 864e5); }
+        extra.featGrant = fg; extra.modsOn = MODS.map(x => x[0]).filter(k => r['md_' + k] === 'on'); extra.modsOff = MODS.map(x => x[0]).filter(k => r['md_' + k] === 'off');
         await db.collection('companies').doc(cid).update({ plan: r.plan, planStatus: r.st, ...extra }); toast('Enregistré ✓'); logA('Organisation modifiée', o.name || cid, `${r.plan} · ${r.st}${o.kind === 'perso' ? (r.allow ? ' · autorisé' : ' · non autorisé') : ''}`); draw(true);
       }
       if (r.v === 'ann') annForm({ cid, label: o.name || cid });

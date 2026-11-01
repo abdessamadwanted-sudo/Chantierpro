@@ -73,7 +73,8 @@ async function pnPickDelete(l, d, save, draw) {
 
 // ---------- envoi : on choisit les photos, le nom du PDF, puis PDF (4 grandes photos par page) ou photos ----------
 async function pnShare(l, opt = {}) {
-  const C = await pnContext(l), F = pnFolders(l);
+  if (typeof Team !== 'undefined' && Team.featGate && !(await Team.featGate('photopdf'))) return;   // v1.0.57 : fonction premium
+    const C = await pnContext(l), F = pnFolders(l);
   const groups = [...((l.photos || []).length ? [{ id: '_g', name: 'Général', photos: l.photos }] : []), ...F].filter(d => (d.photos || []).length && (!opt.only || d.id === opt.only));
   const notes = (l.notes || []).flatMap(n => n.photos || []); if (notes.length && !opt.only) groups.push({ id: '_n', name: 'Notes', photos: notes });
   if (!groups.length) return toast('Aucune photo à envoyer');

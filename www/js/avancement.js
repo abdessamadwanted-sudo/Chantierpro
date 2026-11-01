@@ -547,7 +547,8 @@ async function avPlanCanvas(p, plan, locs, lot, { title, maxSide = 2600, crop } 
 
 // ---------- Rapport PDF (sans aucune mention de l'application) ----------
 async function avReportDialog({ nivId, lotId, locIds }) {
-  const p = App.project; avLots(p);
+  if (typeof Team !== 'undefined' && Team.featGate && !(await Team.featGate('report'))) return;   // v1.0.57 : fonction premium
+    const p = App.project; avLots(p);
   const nivs = p.avNiveaux || []; if (!nivs.length) return toast('Ajoutez d\'abord un niveau');
   const r = locIds ? { niv: nivId, lot: lotId, flt: 'all', ph: 'yes' } : await formSheet('Rapport PDF', [
     { name: 'niv', label: 'Niveau', type: 'select', value: nivId || '__all', options: [{ value: '__all', label: 'Tous les niveaux' }, ...nivs.map(n => ({ value: n.id, label: n.name }))] },

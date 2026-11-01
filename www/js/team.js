@@ -154,6 +154,9 @@ const TM_SERVICES = [
 // services remplacés par des services plus précis (v1.0.21) : gardés pour les membres existants, plus proposés aux nouvelles organisations
 const SERVICES_LEGACY = ['logistique'];
 // modules (= droits) : projet (infos, rappels, constats, 3D…), plans, réserves, réception & bétonnage, photos, formulaires, rapports, constats, calculs, équipe, fichiers
+// v1.0.57 : fonctions premium, réglées par pack depuis le panneau (gratuites, payantes, période d'essai) et offertes à un espace
+const PREMIUM = [['cmp', 'Comparer plans, niveaux et indices'], ['pdf', 'Outils PDF (fusionner, diviser, changer le format)'], ['dwg', 'DWG / DXF → PDF (tracer, plusieurs DWG)'],
+  ['report', 'Générer les rapports PDF'], ['plansend', 'Envoyer un plan annoté'], ['photopdf', 'PDF des pins photos (4 photos / page)']];
 const MODS = [['projet', 'Projet (infos, rappels, 3D)'], ['plans', 'Plans & maquettes'], ['reserves', 'Réserves / tâches'], ['reception', 'Réception & bétonnage'], ['photos', 'Photos'],
   ['forms', 'Formulaires / PV'], ['rapports', 'Rapports journaliers'], ['constats', 'Constats / NC'], ['calc', 'Calculs & topo'], ['equipe', 'Équipe du projet'], ['files', 'Fichiers'],
   ['topo', 'Topographie (implantations, levés)'], ['centrale', 'Centrale à béton (commandes, BL)'], ['materiel', 'Matériel & stock'], ['pointage', 'Pointage & effectifs'], ['hse', 'HSE (sécurité)'],
@@ -274,7 +277,10 @@ service cloud.firestore {
     function isAdmin(cid) { return isMem(cid) && mem(cid).admin == true; }
     function lvl(cid, m) { return mem(cid).perms.get(m, 0); }
     // organisation suspendue par le Super Admin : ses projets ne sont plus accessibles (rien n'est effacé)
-    function live(cid) { return !exists(/databases/$(db)/documents/companies/$(cid)) || get(/databases/$(db)/documents/companies/$(cid)).data.get('planStatus', '') != 'suspendu'; }
+    // v1.0.57 : … et espace dont l'accès a pris fin (accessUntil), ou espace personnel non autorisé quand l'accès est « sur code uniquement »
+    function live(cid) { return !exists(/databases/$(db)/documents/companies/$(cid)) || coLive(get(/databases/$(db)/documents/companies/$(cid)).data); }
+    function coLive(c) { return c.get('planStatus', '') != 'suspendu' && (c.get('accessUntil', null) == null || c.accessUntil > request.time)
+      && (c.get('kind', '') != 'perso' || c.get('allowed', false) == true || licOwner() || !exists(/databases/$(db)/documents/config/app) || get(/databases/$(db)/documents/config/app).data.get('inviteOnly', false) != true); }
     function teamsOn(cid) { let c = co(cid); return c.get('teamsVersion', 0) == 1 && !(c.get('plan', 'basic') in ['basic', 'pro', 'personnel']); }
     function teamAllowed(cid, d) { return !teamsOn(cid) || isAdmin(cid) || d.get('teamEnabled', false) == false || request.auth.uid in d.get('teamUids', []); }
     function baseProj(cid, pid) { return (isAdmin(cid) || mem(cid).allProjects == true || pid in mem(cid).projects) && live(cid); }
@@ -472,7 +478,10 @@ service cloud.firestore {
           && request.resource.data.get('planStatus', null) == resource.data.get('planStatus', null)
           && request.resource.data.get('trialEndsAt', null) == resource.data.get('trialEndsAt', null)
           && request.resource.data.get('allowed', null) == resource.data.get('allowed', null)
-          && request.resource.data.get('accessUntil', null) == resource.data.get('accessUntil', null)) || licOwner()
+          && request.resource.data.get('accessUntil', null) == resource.data.get('accessUntil', null)
+          && request.resource.data.get('featGrant', null) == resource.data.get('featGrant', null)
+          && request.resource.data.get('modsOn', null) == resource.data.get('modsOn', null)
+          && request.resource.data.get('modsOff', null) == resource.data.get('modsOff', null)) || licOwner()
         || (isAdmin(cid) && request.resource.data.get('packCode', null) != resource.data.get('packCode', null) && codePlanOk(request.resource.data));
 
       match /members/{uid} {
@@ -659,6 +668,27 @@ const Team = (() => {
   };
   const canSection = (k) => { if (isOff(SECTION_MOD[k] || 'projet') || lvl(SECTION_MOD[k] || 'projet') < 1) return false; const L = svcLib(); return !L || L.has(k); };
   const isAdmin = () => !S.ready || !!(S.me && S.me.admin);
+  // v1.0.57 : fonction premium permise ? Super Admin : toujours · pack (config/plans.<k>.feats : '*' ou liste ; absent = tout permis)
+  // · offerte à cet espace (companies.featGrant.<k> : true ou date de fin) · essai du pack (featTrial jours depuis la création de l'espace)
+  function featInfo(k) {
+    if (isSuper() || !S.company) return { ok: true };
+    const P = myPlan(), F = P.feats, g = (S.company.featGrant || {})[k], now = Date.now();
+    if (F == null || F === '*' || (Array.isArray(F) && F.includes(k))) return { ok: true };
+    if (g === true || tsMs(g) > now) return { ok: true, grant: tsMs(g) || 0 };
+    const tr = +P.featTrial || 0, born = tsMs(S.company.createdAt) || now, end = born + tr * 864e5;
+    if (tr && end > now) return { ok: true, trial: end };
+    return { ok: false, trialEnded: tr ? end : 0 };
+  }
+  let featAsk = 0;
+  async function featGate(k) {
+    const i = featInfo(k); if (i.ok) return true;
+    if (Date.now() - featAsk < 1500) return false; featAsk = Date.now();
+    const L = (PREMIUM.find(x => x[0] === k) || [k, k])[1], up = Object.values(PLANS).filter(P => P.feats == null || P.feats === '*' || (Array.isArray(P.feats) && P.feats.includes(k))).map(P => P.l);
+    const v = await menu(`🔒 « ${L} » n'est pas inclus dans votre pack ${myPlan().l}${i.trialEnded ? ` (essai terminé le ${new Date(i.trialEnded).toLocaleDateString('fr-FR')})` : ''}.\nDisponible avec : ${up.join(', ') || '—'}.`,
+      [...(isAdmin() ? [{ label: 'Voir mon abonnement / demander un pack', icon: 'settings', value: 'plans' }] : []), { label: isAdmin() ? 'Fermer' : 'OK — demandez à votre administrateur', icon: 'check', value: 'ok' }]);
+    if (v === 'plans') openCompany(isPerso() ? 'abo' : 'set');
+    return false;
+  }
   const myPlan = () => planFor(planOf((S.company || {}).plan || PLAN_DEFAULT_COMPANY), (S.company || {}).kind === 'perso');
   // Super Admin SiteTeam (le même compte que le propriétaire des licences Chantier dans les règles)
   const SUPER_EMAIL = 'abdessamad.daga94@gmail.com';
@@ -1863,10 +1893,10 @@ const Team = (() => {
             <div class="btnrow" style="padding:0"><button class="btn ghost small" data-a="drive">${c && (c.url || c.mode === 'g') ? 'Réglages Drive' : 'Connecter Google Drive'}</button>${c && c.url ? '<button class="btn ghost small" data-a="share">Partager avec l\'équipe</button>' : ''}</div></div>
           <div class="tm-box"><b>📥 Importer depuis l'application Chantier</b><p>Récupère vos projets (tableaux, réserves, plans, photos…) depuis le code de connexion Drive de Chantier.</p>
             <button class="btn ghost small" data-a="import">Importer des projets</button></div>
-          <div class="tm-box"><b>🔒 Règles de sécurité Firestore</b><p>À coller une seule fois dans la console Firebase › Firestore Database › Règles › Publier.</p>
+          ${!isSuper() ? '' : `<div class="tm-box"><b>🔒 Règles de sécurité Firestore</b><p>À coller une seule fois dans la console Firebase › Firestore Database › Règles › Publier.</p>
             <button class="btn ghost small" data-a="rules">Copier les règles</button></div>
           <div class="tm-box"><b>🗂 Règles Cloud Storage (fichiers partagés)</b><p>À coller dans la console Firebase › Storage › Règles › Publier (accepter l'accès à Firestore si la console le demande).</p>
-            <button class="btn ghost small" data-a="srules">Copier les règles Storage</button></div>
+            <button class="btn ghost small" data-a="srules">Copier les règles Storage</button></div>`}
           <div class="tm-box"><b>🔒 Confidentialité de l'écran</b><p>Interdire les captures et l'enregistrement de l'écran pour tous les membres (l'application apparaît noire dans les applications récentes). Une photo de l'écran avec un autre téléphone reste possible.</p>
             <label class="tm-ck"><input type="checkbox" data-a="secure" ${(S.company || {}).secureScreen ? 'checked' : ''} ${appCfg().secureAll ? 'disabled' : ''}> Anti-capture d'écran${appCfg().secureAll ? ' (imposé par SiteTeam)' : ''}</label>
             <small data-secstate style="color:var(--muted)">Sur ce téléphone : ${secureOn() ? '🔒 activé' : '🔓 désactivé'}</small>
@@ -1885,8 +1915,8 @@ const Team = (() => {
           if (!L) return; try { await fs.collection('companies').doc(S.cid).update({ services: L }); S.company.services = L; LS.set('company', S.company); toast('Services enregistrés ✓'); draw(); } catch (e) { alertBox(errMsg(e)); } };
         const sh = $('[data-a=share]', body); if (sh) sh.onclick = shareDrive;
         $('[data-a=import]', body).onclick = () => importChantier();
-        $('[data-a=rules]', body).onclick = () => copyText(FIRESTORE_RULES);
-        $('[data-a=srules]', body).onclick = () => copyText(STORAGE_RULES);
+        // v1.0.57 : règles de sécurité visibles par le Super Admin seulement
+        { const r1 = $('[data-a=rules]', body), r2 = $('[data-a=srules]', body); if (r1) r1.onclick = () => copyText(FIRESTORE_RULES); if (r2) r2.onclick = () => copyText(STORAGE_RULES); }
         $('[data-a=ren]', body).onclick = async () => { const r = await formSheet('Entreprise', [{ name: 'n', label: 'Nom', value: S.company.name }]); if (r && r.n) { await fs.collection('companies').doc(S.cid).update({ name: r.n }); S.company.name = r.n; LS.set('company', S.company); draw(); } };
         { const pcb = $('[data-a=pcode]', body); if (pcb) pcb.onclick = () => applyPackCode(); }
         $('[data-a=planchange]', body).onclick = async () => { const L = offersFor(false).filter(x => x.k !== myPlan().k); const k = await menu('Quel pack demander ?', L.map(x => ({ label: `${x.e || ''} ${x.l} · ${planPrice(x)}`, value: x.k }))); if (k) requestPack(k, false); };
@@ -2311,7 +2341,7 @@ const Team = (() => {
     profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
     openProjectShares, claimShare, openPartners, renderHistory, sharedOf, joinWithCode,
     cloudOn, canCloud, cloudUpload, cloudDownload, cloudRemove, cloudCfg, storageRules: STORAGE_RULES,
-    appCfg, isOff, checkAnnonces, requestPack, logError, reportIssue, applyPackCode, isFree, askPoste,
+    appCfg, isOff, featInfo, featGate, checkAnnonces, requestPack, logError, reportIssue, applyPackCode, isFree, askPoste,
     ready: () => S.ready, me: () => S.me, uid: () => S.user && S.user.uid, company: () => S.company, members: () => S.members, rules: FIRESTORE_RULES,
   };
 })();
