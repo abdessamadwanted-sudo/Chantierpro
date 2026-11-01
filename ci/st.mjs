@@ -1289,6 +1289,8 @@ try {
   });
   log('outils : A1 → A4 vectoriel [pages, largeur, hauteur], signalement, stockage', t53);
   if (t53.pages !== 2 || t53.w !== 842 || t53.h !== 595 || t53.rep !== 'ok' || !t53.tools) v53.push('outils PDF / signalement');
+  log('v1.0.54 : refaire l\'image du plan + pins photos dans l\'avancement', await A.pg.evaluate(() => [typeof planRebuild === 'function', typeof pnCount === 'function']));
+  if (!(await A.pg.evaluate(() => typeof planRebuild === 'function'))) v53.push('planRebuild');
   log('errors v1.0.53', v53);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
