@@ -356,11 +356,15 @@
   }
 
   function err(M) {
-    const G = {}; D.errors.forEach(e => { const g = G[e.msg] || (G[e.msg] = { msg: e.msg, n: 0, vers: new Set(), users: new Set(), last: 0, src: e.src, stack: e.stack }); g.n++; if (e.ver) g.vers.add(e.ver); g.users.add(e.uid); g.last = Math.max(g.last, ms(e.at)); });
+    const SG = D.errors.filter(e => /^signalement/.test(e.src || '')).sort((a, b) => ms(b.at) - ms(a.at));   // v1.0.53 : « Signaler un problème »
+    const G = {}; D.errors.filter(e => !/^signalement/.test(e.src || '')).forEach(e => { const g = G[e.msg] || (G[e.msg] = { msg: e.msg, n: 0, vers: new Set(), users: new Set(), last: 0, src: e.src, stack: e.stack }); g.n++; if (e.ver) g.vers.add(e.ver); g.users.add(e.uid); g.last = Math.max(g.last, ms(e.at)); });
     const L = Object.values(G).sort((a, b) => b.last - a.last);
     M.innerHTML = `<h2>Erreurs de l'application (${D.errors.length})</h2><div class="card"><p class="muted">Envoyées automatiquement par les téléphones (message, fichier, version — sans données de chantier).</p>
       ${D.errors.length ? '<div class="btns"><button class="btn ghost" data-a="clear">Tout effacer</button></div>' : ''}</div>
       <div class="card">${L.length ? L.map((g, i) => `<div class="row" data-g="${i}"><div class="t grow"><b>${esc(g.msg)}</b><small>${g.n} fois · ${g.users.size} personne(s) · ${esc([...g.vers].join(', ') || '—')} · ${esc(ago(g.last))}</small></div></div>`).join('') : '<div class="empty">Aucune erreur 🎉</div>'}</div>`;
+    if (SG.length) { const c = document.createElement('div'); c.className = 'card'; c.innerHTML = `<h3>📣 Signalements (${SG.length})</h3>${SG.map((e, i) => `<div class="row" data-sg="${i}"><div class="t grow"><b>${esc(e.msg)}</b><small>${esc(String(e.src || '').replace(/^signalement · /, ''))} · ${esc(e.ver || '')} · ${esc(e.platform || '')}</small></div><span class="pill">${esc(ago(e.at))}</span></div>`).join('')}`;
+      const first = M.querySelector('.card'); first ? first.after(c) : M.appendChild(c);
+      $$('[data-sg]', c).forEach(r => r.onclick = () => { const e = SG[+r.dataset.sg]; modal('Signalement', `<p><b>${esc(e.msg)}</b></p><p class="muted">${esc(e.src || '')} · ${esc(dt(e.at))}</p><pre>${esc(e.stack || '')}</pre>`); }); }
     $$('[data-g]', M).forEach(r => r.onclick = () => { const g = L[+r.dataset.g]; modal('Erreur', `<pre>${esc(g.msg)}\n\n${esc(g.src || '')}\n${esc(g.stack || '')}</pre>`); });
     const c = $('[data-a=clear]', M); if (c) c.onclick = async () => { if (!(await modal('Effacer les erreurs ?', `<p>${D.errors.length} erreur(s) seront effacées.</p>`, [['Effacer', 'ok', 'bad'], ['Annuler', null, 'ghost']]))) return;
       try { for (let i = 0; i < D.errors.length; i += 400) { const b = db.batch(); D.errors.slice(i, i + 400).forEach(e => b.delete(db.collection('errors').doc(e.id))); await b.commit(); } toast('Effacées ✓'); draw(true); } catch (e) { fail(e); } };

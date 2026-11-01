@@ -908,6 +908,12 @@ const Team = (() => {
         ver: typeof APP_VERSION === 'string' ? APP_VERSION : '', platform: (window.Capacitor && Capacitor.getPlatform && Capacitor.getPlatform()) || 'web', at: ts() }).catch(() => {});
     } catch (e) {}
   }
+  // v1.0.53 : « Signaler un problème » : texte de la personne + diagnostic (version, téléphone, étapes, erreurs) → panneau (Erreurs › Signalements)
+  async function reportIssue(text, diag) {
+    if (!fs || !S.user) throw new Error('Connexion nécessaire');
+    await withTimeout(fs.collection('errors').add({ uid: S.user.uid, cid: S.cid || '', msg: String(text || '').slice(0, 300), src: 'signalement · ' + String((S.user.email || '') + ' ' + (S.company ? S.company.name || '' : '')).slice(0, 180),
+      stack: String(diag || '').slice(0, 4000), ver: typeof APP_VERSION === 'string' ? APP_VERSION : '', platform: (window.Capacitor && Capacitor.getPlatform && Capacitor.getPlatform()) || 'web', at: ts() }));
+  }
   window.addEventListener('error', (e) => logError(e.message, (e.filename || '') + ':' + (e.lineno || ''), e.error && e.error.stack));
   window.addEventListener('unhandledrejection', (e) => { const r = e.reason || {}; logError(r.message || String(r), 'promise', r.stack); });
   // ---------- validation des PV ----------
@@ -2297,7 +2303,7 @@ const Team = (() => {
     profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
     openProjectShares, claimShare, openPartners, renderHistory, sharedOf, joinWithCode,
     cloudOn, canCloud, cloudUpload, cloudDownload, cloudRemove, cloudCfg, storageRules: STORAGE_RULES,
-    appCfg, isOff, checkAnnonces, requestPack, logError, applyPackCode, isFree, askPoste,
+    appCfg, isOff, checkAnnonces, requestPack, logError, reportIssue, applyPackCode, isFree, askPoste,
     ready: () => S.ready, me: () => S.me, uid: () => S.user && S.user.uid, company: () => S.company, members: () => S.members, rules: FIRESTORE_RULES,
   };
 })();

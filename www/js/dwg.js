@@ -613,12 +613,88 @@ async function splitPdfFlow(onAdded, srcPlan) {
   }
 }
 
+// ---------- v1.0.53 : changer le format d'un PDF (A0 → A3, A1 → A4…) en gardant le vectoriel ----------
+function convCfg() { try { return JSON.parse(localStorage.getItem('conv.cfg') || '{}'); } catch (e) { return {}; } }
+async function pdfToFormat(bytes, o) {
+  const { PDFDocument } = await needPdfLib(), src = await PDFDocument.load(bytes, { ignoreEncryption: true }), out = await PDFDocument.create(), MM = 72 / 25.4;
+  const idx = o.pages && o.pages.length ? o.pages : src.getPageIndices();
+  const emb = await out.embedPages(idx.map(i => src.getPage(i)));
+  for (const e of emb) {
+    let [PW, PH] = PAPER[o.fmt] || PAPER.A3; const land = o.orient === 'l' || (o.orient !== 'p' && e.width >= e.height); if (!land) [PW, PH] = [PH, PW];
+    const W = PW * MM, H = PH * MM, M = (+o.margin || 0) * MM, k = Math.min((W - 2 * M) / e.width, (H - 2 * M) / e.height);
+    const pg = out.addPage([W, H]); pg.drawPage(e, { x: (W - e.width * k) / 2, y: (H - e.height * k) / 2, width: e.width * k, height: e.height * k });
+  }
+  return new Blob([await out.save()], { type: 'application/pdf' });
+}
+async function convertPdfFlow(onAdded) {
+  let bytes, name, pages = null;
+  const pid = App.project.id, plans = (await DB.byProject('plans', pid)).filter(p => p.pdfFileId && isCurrentPlan(p)).sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true }));
+  const v = await menu('Changer le format de quel PDF ?', [{ label: 'Un PDF du téléphone…', icon: 'upload', value: '__ph' }, ...plans.slice(0, 60).map(p => ({ label: p.name, icon: 'plans', value: p.id }))]);
+  if (!v) return;
+  if (v === '__ph') { const [f] = await pickFiles({ accept: 'application/pdf', multiple: false }); if (!f) return; bytes = await f.arrayBuffer(); name = f.name.replace(/\.pdf$/i, ''); }
+  else { const pl = plans.find(p => p.id === v), f = await DB.get('files', pl.pdfFileId); if (!f || !f.blob) return alertBox('PDF source introuvable'); bytes = await f.blob.arrayBuffer(); name = pl.name; pages = [(pl.pdfPage || 1) - 1]; }
+  const c = { fmt: 'A3', orient: 'auto', margin: 5, ...convCfg() };
+  const r = await formSheet(`Format de « ${name} »`, [
+    { name: 'fmt', label: 'Nouveau format', type: 'select', value: c.fmt, options: Object.keys(PAPER).map(k => ({ value: k, label: k })) },
+    { name: 'orient', label: 'Orientation', type: 'select', value: c.orient, options: [{ value: 'auto', label: 'Auto (comme le plan)' }, { value: 'l', label: 'Paysage' }, { value: 'p', label: 'Portrait' }] },
+    { name: 'margin', label: 'Marge (mm)', type: 'number', value: c.margin },
+    ...(pages ? [{ name: 'all', label: 'Pages', type: 'select', value: 'one', options: [{ value: 'one', label: 'Seulement la page de ce plan' }, { value: 'all', label: 'Tout le PDF d\'origine' }] }] : []),
+  ], { okLabel: 'Convertir' });
+  if (!r) return;
+  try { localStorage.setItem('conv.cfg', JSON.stringify({ fmt: r.fmt, orient: r.orient, margin: +r.margin || 0 })); } catch (e) {}
+  const ld = loading('Conversion (vectoriel conservé)…');
+  try { const blob = await pdfToFormat(bytes, { fmt: r.fmt, orient: r.orient, margin: +r.margin || 0, pages: r.all === 'all' ? null : pages }); ld.close(); await pdfResultMenu(blob, `${name} - ${r.fmt}`, r.fmt, onAdded); }
+  catch (e) { ld.close(); console.error(e); alertBox('Conversion impossible : ' + e.message); }
+}
+// ---------- v1.0.53 : plusieurs DWG → un seul PDF (rangé par niveau puis par lot), réglages du tracé gardés ----------
+async function batchPlotFlow(onAdded) {
+  const pid = App.project.id, [plans, folders] = await Promise.all([DB.byProject('plans', pid), DB.byProject('folders', pid)]);
+  const fname = (id) => { const f = folders.find(x => x.id === id); return f ? folderPath(f, folders) : 'Sans dossier'; };
+  const rank = (n) => typeof avNivRank === 'function' ? avNivRank(n) : 0, lotI = (id) => { const i = (typeof LOTS_DEF !== 'undefined' ? LOTS_DEF : []).findIndex(l => l.id === id); return i < 0 ? 99 : i; };
+  const cad = plans.filter(p => isCurrentPlan(p) && (p.dwgFileId || p.dxfFileId))
+    .sort((a, b) => rank(fname(a.folderId)) - rank(fname(b.folderId)) || fname(a.folderId).localeCompare(fname(b.folderId), 'fr', { numeric: true }) || lotI(a.lotId) - lotI(b.lotId) || a.name.localeCompare(b.name, 'fr', { numeric: true }));
+  const sel = new Set(cad.map(p => p.id)), phone = [];
+  const ok = await new Promise((resolve) => { let go = false;
+    const s = sheet(`<div class="bp"></div><button class="btn ghost" data-a="ph" style="width:100%;margin-top:8px">📱 Ajouter des DWG / DXF du téléphone</button><div class="bp-ph"></div>
+      <div class="btnrow"><button class="btn ghost" data-a="x">Annuler</button><button class="btn" data-a="ok">Régler et tracer</button></div>`, { title: 'Plusieurs DWG → un seul PDF (niveau › lot)',
+      onMount: (el) => {
+        const upd = () => { let last = ''; $('.bp', el).innerHTML = cad.length ? cad.map(p => { const g = fname(p.folderId), h = g !== last ? `<div class="mg-g">📁 ${esc(g)}</div>` : ''; last = g; return h + `<label class="tm-ck"><input type="checkbox" data-bp="${p.id}" ${sel.has(p.id) ? 'checked' : ''}> ${esc(p.name)}</label>`; }).join('') : '<p class="muted">Aucun plan AutoCAD dans le projet : ajoutez des fichiers du téléphone.</p>';
+          $('.bp-ph', el).innerHTML = phone.map(f => `<div class="mg-it on"><span class="grow">${esc(f.name)}</span></div>`).join('');
+          $$('[data-bp]', el).forEach(c => c.onchange = () => { c.checked ? sel.add(c.dataset.bp) : sel.delete(c.dataset.bp); }); };
+        $('[data-a=ph]', el).onclick = async () => { phone.push(...(await pickFiles({ accept: '*/*', multiple: true })).filter(f => /\.(dwg|dxf)$/i.test(f.name))); upd(); };
+        $('[data-a=x]', el).onclick = () => s.close();
+        $('[data-a=ok]', el).onclick = () => { if (!sel.size && !phone.length) return toast('Choisissez au moins un plan'); go = true; s.close(); };
+        upd(); } });
+    s.onClose = () => resolve(go); });
+  if (!ok) return;
+  const items = [...cad.filter(p => sel.has(p.id)).map(p => ({ plan: p, name: p.name })), ...phone.map(f => ({ file: f, name: f.name.replace(/\.[^.]+$/, '') }))];
+  const ld0 = loading('Lecture du premier plan…'); let D0;
+  try { D0 = items[0].plan ? await cadOfPlan(items[0].plan) : await cadReadPicked(items[0].file, ld0); } catch (e) { ld0.close(); return alertBox('Lecture impossible : ' + e.message); }
+  ld0.close(); const o = await plotDialog(D0, `${items.length} plan(s) — réglages pour tous`); if (!o) return;
+  const ld = loading('Tracé…'), { PDFDocument } = await needPdfLib(), out = await PDFDocument.create(), fails = [];
+  try {
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i]; ld.set(`Tracé ${i + 1}/${items.length} · ${it.name}`); await new Promise(r => setTimeout(r, 30));
+      try { const D = i === 0 ? D0 : it.plan ? await cadOfPlan(it.plan) : await cadReadPicked(it.file, ld); if (!D) throw new Error('pas de source AutoCAD');
+        const r = cadPlotPdf(D, { ...o, title: it.name, frames: i === 0 ? o.frames : cadFrames(D), hidden: i === 0 ? o.hidden : D._hidden || [] }), src = await PDFDocument.load(r.doc.output('arraybuffer'));
+        (await out.copyPages(src, src.getPageIndices())).forEach(pg => out.addPage(pg)); } catch (e) { console.warn('tracé', it.name, e); fails.push(it.name); }
+    }
+    if (!out.getPageCount()) throw new Error('aucun plan tracé');
+    const blob = new Blob([await out.save()], { type: 'application/pdf' }); ld.close();
+    if (fails.length) await alertBox(`Non tracés (${fails.length}) : ${fails.join(', ')}`);
+    const r = await formSheet('Nom du PDF', [{ name: 'n', label: 'Nom', value: `${App.project.name} - Plans ${o.fmt}` }], { okLabel: 'OK' });
+    await pdfResultMenu(blob, (r && r.n) || 'Plans', `${out.getPageCount()} pages ${o.fmt}`, onAdded);
+  } catch (e) { ld.close(); console.error(e); alertBox('Erreur : ' + e.message); }
+}
+
 // ---------- menu « Outils plans » ----------
 async function planToolsMenu(root) {
   const re = () => root && renderPlans(root);
   const v = await menu('Outils plans (AutoCAD / PDF)', [
     { label: 'DWG / DXF → PDF vectoriel (tracer : format, épaisseurs)', icon: 'pdf', value: 'plot' },
     { label: 'DWG → DXF (exporter / partager)', icon: 'share', value: 'dxf' },
+    { label: 'Plusieurs DWG → un seul PDF (rangé par niveau › lot)', icon: 'pdf', value: 'batch' },
+    { label: 'Changer le format d\'un PDF (A0 → A3, A1 → A4…)', icon: 'plans', value: 'conv' },
     { label: 'Fusionner des plans en un PDF', icon: 'layers', value: 'merge' },
     { label: 'Diviser un PDF (pages / plages)', icon: 'plans', value: 'split' },
     ...(typeof openPdfTools === 'function' ? [{ label: 'Atelier PDF (réordonner, supprimer, remplacer des pages)', icon: 'edit', value: 'atelier' }] : []),
@@ -641,6 +717,8 @@ async function planToolsMenu(root) {
     if (v === 'dxf') return shareBlob(new Blob([cadToDxf(D)], { type: 'application/dxf' }), safeName(base) + '.dxf');
     return plotCad(D, base, re);
   }
+  if (v === 'batch') return batchPlotFlow(re);
+  if (v === 'conv') return convertPdfFlow(re);
   if (v === 'merge') return mergePdfFlow(re);
   if (v === 'split') return splitPdfFlow(re);
 }

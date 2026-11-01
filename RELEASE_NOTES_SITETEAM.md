@@ -1,3 +1,14 @@
+## SiteTeam : pins photos par dossiers, Centre de contrôle des accès, outils PDF
+- Pins photos : dossiers nommés dans chaque pin (Porte provisoire, Brique, Nettoyage… ou votre nom), renommer, monter, supprimer ; les noms déjà utilisés sont proposés.
+- Plans › niveau › lot : bloc « 📷 Photos » avec les pins photos des plans de ce niveau et « + Pin photos » (ouvre le plan prêt à placer le pin).
+- Envoi : on choisit les dossiers et on retire des photos avant l'envoi, on écrit le nom du fichier et le titre ; PDF avec 4 grandes photos par page (ou 1, 2, 6), nom du pin et du dossier sur chaque page.
+- Tout PDF envoyé depuis le téléphone : on peut corriger son nom avant WhatsApp.
+- Centre de contrôle (panneau Super Admin) : espaces personnels avec durée d'accès (7 j, 1 mois, 3 mois, 1 an, illimité, arrêter), membres et projets avec leurs droits, historique des actions et des ouvertures.
+- Équipe › membre › « Durée d'accès » : l'accès se ferme seul à la date (règles + écran « Accès terminé »), rappel 3 jours avant.
+- Outils plans : plusieurs DWG → un seul PDF rangé par niveau puis par lot ; changer le format d'un PDF (A0 → A3, A1 → A4…) en gardant le vectoriel ; réglages gardés.
+- Réglages › Application : « Signaler un problème » (arrive dans le panneau avec le diagnostic) et « Stockage du téléphone » (alerte au-delà de 80 %).
+- Avancement : le plan se recadre quand son image est prête.
+
 ## SiteTeam : membre retiré = accès coupé tout de suite
 - « Retirer de l'entreprise » s'applique immédiatement sur le téléphone du membre, même application ouverte ou réseau lent (avant : le téléphone gardait l'accès grâce au cache).
 - Les projets, plans et photos de l'organisation sont effacés de son téléphone ; il revient à son propre espace (ou à la création d'un espace).

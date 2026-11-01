@@ -312,6 +312,8 @@ async function renderHome() {
       { title: 'Application', color: '#64748b', items: [
         ...(() => { try { const T = JSON.parse(localStorage.getItem('boot.t') || 'null'); return T ? [{ label: `⏱ Dernier démarrage : ${(T.total / 1000).toFixed(1)} s`, sub: `fichiers ${(T.scripts / 1000).toFixed(1)} s · connexion ${(T.team / 1000).toFixed(1)} s · accueil ${(T.home / 1000).toFixed(1)} s`, icon: 'calendar', value: 'boott' }] : []; } catch (e) { return []; } })(),
         { label: `Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}`, sub: 'mise à jour', icon: 'upload', value: 'ver' },
+        { label: 'Signaler un problème', sub: 'décrire ce qui ne va pas → équipe SiteTeam', icon: 'alert', value: 'report' },
+        { label: 'Stockage du téléphone', sub: 'place utilisée par SiteTeam', icon: 'disc', value: 'quota' },
         { label: 'Rapport de diagnostic', sub: 'démarrages, fermetures, erreurs → WhatsApp', icon: 'share', value: 'diag' }] },
     ], { head: Team.ready() ? ST.profileCardHTML() : '' });
     if (v === 'brief') { const act = await briefingShow(); if (act) act(); }
@@ -326,6 +328,8 @@ async function renderHome() {
     if (v === 'upd') checkUpdate(true);
     if (v === 'ver') showVersion();
     if (v === 'diag') safeModeInfo();
+    if (v === 'report') reportProblem();
+    if (v === 'quota') storageInfo(true);
     if (v === 'admin') location.href = 'admin.html' + (/[?&]emu=1/.test(location.search) ? '?emu=1' : '');
     if (v === 'look') { const w = await menu('Apparence', [{ label: 'Thèmes', icon: 'brush', value: 'theme' }, { label: 'Sons et effets', icon: 'disc', value: 'fx' }]); if (w === 'theme') chooseTheme(() => {}); if (w === 'fx') fxSettings(); }
     if (v === 'pdf') openPdfTools();
@@ -1645,7 +1649,7 @@ async function openPlansQuick() {
   // v1.0.36 : temps de démarrage mesuré (fichiers · connexion · accueil), visible dans le menu ⋮ › Application
   const tTeam0 = Date.now();
   Team.boot().catch(e => console.error('team', e)).finally(() => { const tTeam1 = Date.now(); Promise.resolve(renderHome()).finally(() => { try { const t0 = window.__t0 || tTeam0, ts = window.__tScripts || tTeam0, now = Date.now();
-      localStorage.setItem('boot.t', JSON.stringify({ total: now - t0, scripts: Math.max(0, ts - t0), team: tTeam1 - tTeam0, home: now - tTeam1, at: now })); } catch (e) {} bootTrail('accueil affiché'); if (window.__safe) setTimeout(safeModeInfo, 900); }); if (!window.__safe) Sync.start(); setTimeout(() => checkUpdate(false).catch(() => {}), 2500); try { dwgCrashCheck(); } catch (e) {} setTimeout(showWhatsNew, 1800); setTimeout(() => otaBoot().catch(() => {}), 1200); });
+      localStorage.setItem('boot.t', JSON.stringify({ total: now - t0, scripts: Math.max(0, ts - t0), team: tTeam1 - tTeam0, home: now - tTeam1, at: now })); } catch (e) {} bootTrail('accueil affiché'); if (window.__safe) setTimeout(safeModeInfo, 900); else setTimeout(storageWatch, 20000); }); if (!window.__safe) Sync.start(); setTimeout(() => checkUpdate(false).catch(() => {}), 2500); try { dwgCrashCheck(); } catch (e) {} setTimeout(showWhatsNew, 1800); setTimeout(() => otaBoot().catch(() => {}), 1200); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(false).catch(() => {}); });
   // hors ligne : petite pastille en haut
   const net = () => { let b = document.getElementById('offBadge'); if (navigator.onLine) { if (b) b.remove(); return; } if (!b) { b = document.createElement('div'); b.id = 'offBadge'; b.textContent = '⚡ Hors ligne'; b.onclick = () => toast('Pas d\'internet : les photos et fichiers de Drive se chargeront au retour du réseau'); document.body.appendChild(b); } };
@@ -1751,6 +1755,32 @@ function bootTrail(step) { try { const L = JSON.parse(localStorage.getItem('boot
   window.addEventListener('error', (e) => keep((e.message || 'erreur') + (e.filename ? ' @' + String(e.filename).split('/').pop() + ':' + e.lineno : '')));
   window.addEventListener('unhandledrejection', (e) => keep('promesse : ' + ((e.reason && (e.reason.message || e.reason)) || '?')));
 })();
+// v1.0.53 : « Signaler un problème » — envoyé au panneau d'administration avec le diagnostic (aucune donnée de chantier)
+async function diagText() {
+  let T = [], E = []; try { T = JSON.parse(localStorage.getItem('boot.trail') || '[]'); E = JSON.parse(localStorage.getItem('err.log') || '[]'); } catch (e) {}
+  try { const G = window.Capacitor?.Plugins?.GDriveAuth; if (G && G.lastCrash) { const r = await G.lastCrash({}); if (r && r.last) E.push('ANDROID ' + r.last); } } catch (e) {}
+  const q = await storageInfo(false).catch(() => null);
+  return `${navigator.userAgent}\nÉcran ${screen.width}×${screen.height} · mémoire ${navigator.deviceMemory || '?'} Go${q ? ` · stockage ${q.txt}` : ''}\nSection : ${App.section || '—'}${App.project ? ' · projet ' + App.project.name : ''}\n\nÉtapes :\n${T.slice(-12).join('\n')}\n\nErreurs :\n${E.slice(-10).join('\n') || '—'}`;
+}
+async function reportProblem() {
+  const r = await formSheet('Signaler un problème', [{ name: 't', label: 'Que se passe-t-il ? (écran, ce que vous faisiez)', type: 'textarea', placeholder: 'Ex : en ouvrant les plans du niveau R+2, l\'application se ferme…' }], { okLabel: 'Envoyer' });
+  if (!r || !String(r.t || '').trim()) return;
+  const ld = loading('Envoi…');
+  try { await Team.reportIssue(r.t.trim(), await diagText()); ld.close(); toast('Merci, c\'est envoyé ✓'); }
+  catch (e) { ld.close(); const v = await menu('Envoi impossible (pas de connexion ?)', [{ label: 'Envoyer par WhatsApp', icon: 'share', value: 'wa' }, { label: 'Annuler', icon: 'close', value: 'x' }]); if (v === 'wa') shareWhatsApp(`SiteTeam ${APP_VERSION} — problème :\n${r.t}\n\n${await diagText()}`); }
+}
+// v1.0.53 : alerte stockage — place utilisée par l'application (plans A0, photos) ; prévient une fois par jour au-delà de 80 %
+async function storageInfo(show) {
+  if (!navigator.storage || !navigator.storage.estimate) { if (show) alertBox('Information non disponible sur cet appareil.'); return null; }
+  const { usage = 0, quota = 0 } = await navigator.storage.estimate(), mo = (b) => b >= 1e9 ? (b / 1e9).toFixed(1) + ' Go' : Math.round(b / 1e6) + ' Mo', pct = quota ? Math.round(usage / quota * 100) : 0;
+  const o = { usage, quota, pct, txt: `${mo(usage)} / ${mo(quota)} (${pct} %)` };
+  if (show) { const v = await menu(`Stockage SiteTeam : ${o.txt}`, [{ label: pct >= 80 ? '⚠️ Presque plein : libérez de la place' : '✓ Place suffisante', sub: 'Les photos envoyées sur Drive peuvent être retirées du téléphone (Réglages › Photos › Libérer de la place)', icon: 'disc', value: 'x' }, ...(typeof openStorage === 'function' ? [{ label: 'Gérer le stockage et la synchro', icon: 'settings', value: 'st' }] : [])]); if (v === 'st') openStorage(); }
+  return o;
+}
+async function storageWatch() {
+  try { const k = 'quota.warn.' + new Date().toISOString().slice(0, 10); if (localStorage.getItem(k)) return; const o = await storageInfo(false); if (!o || o.pct < 80) return; localStorage.setItem(k, '1');
+    const v = await menu(`⚠️ Stockage presque plein : ${o.txt}`, [{ label: 'Voir le stockage', icon: 'disc', value: 'st' }, { label: 'Plus tard', icon: 'close', value: 'x' }]); if (v === 'st') storageInfo(true); } catch (e) {}
+}
 async function safeModeInfo() {
   let T = [], E = []; try { T = JSON.parse(localStorage.getItem('boot.trail') || '[]'); E = JSON.parse(localStorage.getItem('err.log') || '[]'); } catch (e) {}
   try { const G = window.Capacitor?.Plugins?.GDriveAuth; if (G && G.lastCrash) { const r = await G.lastCrash({}); if (r && r.last) E.push('ANDROID ' + r.last); } } catch (e) {}
