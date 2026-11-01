@@ -1,3 +1,10 @@
+## SiteTeam : créer l'espace d'un inscrit, fiche du lot en boutons, textes lisibles
+- Centre de contrôle › Espaces personnels : « 🆕 Inscrits sans espace » — touchez une durée (7 j, 1 mois…) pour créer son espace personnel, sans couper « Accès sur code uniquement ». La personne rouvre l'application et arrive dans son espace.
+- Plans › niveau › lot : la fiche est rangée en boutons (Avancement, Photos, Échéance, Points d'arrêt, Accès rapides, Contrôle) ; une section ouverte à la fois, gardée en mémoire.
+- Fiche du lot : textes des blocs Avancement et Photos lisibles (texte sombre sur fond clair).
+- Connexion : le texte tapé (e-mail, mot de passe) reste visible avec le thème clair.
+- Règles Firestore : le Super Admin peut créer l'espace personnel d'un compte (à publier).
+
 ## SiteTeam : pin photos plus visible, image de plan à refaire
 - Visionneuse de plan : l'outil 📷 s'appelle « Pin photos (dossiers) » et le menu ⋮ propose « Pin photos (dossiers) : placer sur le plan ».
 - Avancement › ⋮ : « Pins photos (dossiers) de ce plan » — ouvrir un pin ou en placer un nouveau sur le plan du lot.

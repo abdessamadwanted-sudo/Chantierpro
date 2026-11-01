@@ -353,7 +353,7 @@ service cloud.firestore {
       allow read: if (signed() && request.auth.uid == uid) || licOwner();
       allow create: if signed() && request.auth.uid == uid && request.resource.data.get('blocked', false) == false;
       allow update: if (signed() && request.auth.uid == uid && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['blocked', 'blockedAt', 'blockedWhy']))
-        || (licOwner() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['blocked', 'blockedAt', 'blockedWhy']));
+        || (licOwner() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['blocked', 'blockedAt', 'blockedWhy', 'companyId', 'workspaces']));
       allow delete: if signed() && request.auth.uid == uid;
     }
     // panneau d'administration (Super Admin) : vues globales en lecture
@@ -455,7 +455,8 @@ service cloud.firestore {
 
     match /companies/{cid} {
       // v1.0.45 : « accès sur code uniquement » (config/app.inviteOnly) — plus de nouvel espace sans le Super Admin ; « allowed » ne se donne que par lui
-      allow create: if signed() && request.resource.data.ownerUid == request.auth.uid
+      // v1.0.55 : le Super Admin peut créer l'espace personnel d'un compte (Centre de contrôle › « Créer son espace »)
+      allow create: if (licOwner() && request.resource.data.get('kind', '') == 'perso') || signed() && request.resource.data.ownerUid == request.auth.uid
         && (licOwner() || (request.resource.data.get('allowed', false) == false
           && (!exists(/databases/$(db)/documents/config/app) || get(/databases/$(db)/documents/config/app).data.get('inviteOnly', false) != true)))
         && ((request.resource.data.get('planStatus', 'essai') in ['essai', 'gratuit']
@@ -473,7 +474,7 @@ service cloud.firestore {
 
       match /members/{uid} {
         allow read: if isMem(cid) || licOwner() || (signed() && uid == request.auth.uid);   // v1.0.53 : on lit toujours sa propre fiche (accès expiré → écran clair)
-        allow create: if signed() && (isAdmin(cid) || (uid == request.auth.uid && (
+        allow create: if (licOwner() && get(/databases/$(db)/documents/companies/$(cid)).data.ownerUid == uid) || signed() && (isAdmin(cid) || (uid == request.auth.uid && (
           (get(/databases/$(db)/documents/companies/$(cid)).data.ownerUid == request.auth.uid)
           || (request.resource.data.invite is string
               && inv(request.resource.data.invite).get('kind', '') != 'partner'

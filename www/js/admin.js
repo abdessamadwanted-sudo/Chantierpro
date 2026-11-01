@@ -130,7 +130,10 @@
       if (sub === 'perso') {
         const L = perso.filter(o => { const u = userOf(o.ownerUid); return !q() || `${o.name} ${u.email || ''} ${u.name || ''}`.toLowerCase().includes(q()); })
           .sort((a, b) => (b.allowed ? 1 : 0) - (a.allowed ? 1 : 0) || ms(b.createdAt) - ms(a.createdAt));
-        box.innerHTML = `<p class="muted">Donnez l'accès à un espace personnel pour une durée : il se ferme tout seul à la date de fin (écran « Accès expiré »). Prolonger part de la date de fin actuelle.</p>` + (L.map(o => { const u = userOf(o.ownerUid), un = untilOf(o, 'accessUntil');
+        // v1.0.55 : comptes inscrits sans aucun espace (accès sur code uniquement) : le Super Admin leur crée leur espace personnel, avec une durée
+        const noSpace = D.users.filter(u => !D.members.some(m => m.uid === u.uid) && !u.blocked && (!q() || `${u.name || ''} ${u.email || ''}`.toLowerCase().includes(q()))).sort((a, b) => ms(b.lastSeen) - ms(a.lastSeen));
+        const nsHTML = noSpace.length ? `<h3 class="cc-o">🆕 Inscrits sans espace <small>${noSpace.length} — touchez une durée pour créer leur espace personnel</small></h3>` + noSpace.map(u => `<div class="cc-r"><div class="t grow"><b>${esc(u.name || u.email || u.uid)}</b><small>${esc(u.email || '—')} · inscrit ${esc(ago(u.lastSeen))}</small><div><span class="pill warn">Sans espace</span></div></div>${durBtns('n:' + u.uid).replace(/<button class="btn bad"[^>]*>Arrêter<\/button>/, '')}</div>`).join('') + '<h3 class="cc-o">👤 Espaces personnels</h3>' : '';
+        box.innerHTML = `<p class="muted">Donnez l'accès à un espace personnel pour une durée : il se ferme tout seul à la date de fin (écran « Accès expiré »). Prolonger part de la date de fin actuelle.</p>` + nsHTML + (L.map(o => { const u = userOf(o.ownerUid), un = untilOf(o, 'accessUntil');
           return `<div class="cc-r"><div class="t grow"><b>${esc(u.name || o.name || o.id)}</b><small>${esc(u.email || '—')} · ${esc(o.name || '')} · vu ${esc(ago(u.lastSeen))}</small><div>${o.allowed ? left(un) : '<span class="pill">Non autorisé</span>'}${o.planStatus === 'suspendu' ? ' <span class="pill bad">Suspendu</span>' : ''}</div></div>
             ${durBtns('o:' + o.id)}${u.email ? `<button class="btn ghost cc-wa" data-wa="${esc(o.id)}">WhatsApp</button>` : ''}</div>`; }).join('') || '<div class="empty">Aucun espace personnel</div>');
       } else if (sub === 'mem') {
@@ -145,7 +148,14 @@
       $$('[data-dur]', box).forEach(b => b.onclick = async () => {
         const [kind, a, c] = b.dataset.k.split(':'), k = b.dataset.dur, lbl = DUR.find(x => x[0] === k)[1];
         try {
-          if (kind === 'o') { const o = orgOf(a), u = userOf(o.ownerUid), nu = newUntil(k, untilOf(o, 'accessUntil'));
+          if (kind === 'n') { const u = userOf(a), nu = newUntil(k, 0), nm = (u.name || (u.email || '').split('@')[0] || 'moi').trim();
+            if (!(await modal('Créer son espace ?', `<p>Un espace personnel est créé pour <b>${esc(u.email || nm)}</b>, ouvert ${nu ? 'jusqu\'au ' + esc(new Date(nu).toLocaleDateString('fr-FR')) : 'sans limite'}.<br>La personne ferme puis rouvre l'application : elle arrive dans son espace.</p>`, [['Créer', 'ok'], ['Annuler', null, 'ghost']]))) return;
+            const ref = db.collection('companies').doc();
+            await ref.set({ name: `Espace de ${nm}`, ownerUid: a, plan: 'basic', planStatus: 'gratuit', kind: 'perso', orgType: 'independant', services: [], allowed: true, createdAt: ts(), ...(nu ? { accessUntil: firebase.firestore.Timestamp.fromMillis(nu) } : {}) });
+            await ref.collection('members').doc(a).set({ name: nm, email: u.email || '', role: ROLE_PROPRIO.k, service: 'perso', perms: Object.fromEntries(MODS.map(([m]) => [m, 4])), admin: true, allProjects: true, projects: [], managerUid: null, zone: '', createdAt: ts() });
+            await db.collection('users').doc(a).update({ companyId: ref.id, workspaces: [{ cid: ref.id, name: `Espace de ${nm}`, kind: 'perso', org: 'independant', role: ROLE_PROPRIO.k, plan: 'basic' }] });
+            logA('Espace personnel créé', u.email || nm, nu ? `${lbl} → ${new Date(nu).toLocaleDateString('fr-FR')}` : 'illimité');
+          } else if (kind === 'o') { const o = orgOf(a), u = userOf(o.ownerUid), nu = newUntil(k, untilOf(o, 'accessUntil'));
             if (k === 'stop' && !(await modal('Arrêter l\'accès ?', `<p>${esc(u.email || o.name)} n'ouvrira plus son espace (ses données restent).</p>`, [['Arrêter', 'ok', 'bad'], ['Annuler', null, 'ghost']]))) return;
             await db.collection('companies').doc(a).update({ allowed: true, accessUntil: nu ? firebase.firestore.Timestamp.fromMillis(nu) : firebase.firestore.FieldValue.delete() });
             logA(k === 'stop' ? 'Accès arrêté' : 'Accès espace personnel', u.email || o.name, k === 'stop' ? '' : nu ? `${lbl} → ${new Date(nu).toLocaleDateString('fr-FR')}` : 'illimité');
