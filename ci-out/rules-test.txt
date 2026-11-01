@@ -160,7 +160,7 @@ OK   blocage : REFUS par un autre compte
 OK   blocage : le Super Admin bloque le compte
 OK   blocage : le compte bloqué perd l'accès aux projets
 OK   blocage : le compte bloqué perd l'accès à l'organisation
-OK   blocage : REFUS que le Super Admin change autre chose que le blocage
+FAIL blocage : REFUS que le Super Admin change autre chose que le blocage :: Expected request to fail, but it succeeded.
 OK   blocage : le Super Admin débloque
 OK   profil : création par la personne (non bloqué)
 OK   suspension : avant, le propriétaire lit ses réserves
@@ -234,4 +234,4 @@ OK   code uniquement : REFUS de créer un espace sans le Super Admin
 OK   code uniquement : le Super Admin crée un espace
 OK   code uniquement : REFUS à un administrateur de s'autoriser lui-même
 
-TOUT OK — 235 vérifications
+1 ÉCHEC(S) — 235 vérifications
