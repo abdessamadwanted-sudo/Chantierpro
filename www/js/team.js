@@ -353,7 +353,10 @@ service cloud.firestore {
       allow read: if (signed() && request.auth.uid == uid) || licOwner();
       allow create: if signed() && request.auth.uid == uid && request.resource.data.get('blocked', false) == false;
       allow update: if (signed() && request.auth.uid == uid && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['blocked', 'blockedAt', 'blockedWhy']))
-        || (licOwner() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['blocked', 'blockedAt', 'blockedWhy', 'companyId', 'workspaces']));
+        || (licOwner() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['blocked', 'blockedAt', 'blockedWhy']))
+        // v1.0.55 : le Super Admin ouvre à la personne l'espace personnel qu'il vient de lui créer (et seulement un espace dont elle est propriétaire)
+        || (licOwner() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['companyId', 'workspaces'])
+          && get(/databases/$(db)/documents/companies/$(request.resource.data.companyId)).data.ownerUid == uid);
       allow delete: if signed() && request.auth.uid == uid;
     }
     // panneau d'administration (Super Admin) : vues globales en lecture

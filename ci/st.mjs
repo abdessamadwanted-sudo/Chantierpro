@@ -1269,7 +1269,7 @@ try {
   // Centre de contrôle (Super Admin) : durée d'un espace personnel + journal
   await SA.pg.goto('http://127.0.0.1:8765/admin.html?emu=1#acces'); await SA.pg.waitForSelector('#ccl', { timeout: 30000 }); await SA.pg.waitForTimeout(800); await shot(SA.pg, '53_centre_controle');
   const cc1 = await SA.pg.evaluate(() => document.querySelectorAll('#ccl .cc-r').length);
-  if (cc1) { await SA.pg.click('#ccl .cc-r [data-dur="30"]'); await SA.pg.waitForTimeout(2000); }
+  if (cc1) { await SA.pg.click('#ccl .cc-r [data-k^="o:"][data-dur="30"]'); await SA.pg.waitForTimeout(2000); }
   const cc2 = await SA.pg.evaluate(() => [...document.querySelectorAll('#ccl .cc-r .pill')].map(x => x.textContent).slice(0, 3));
   await SA.pg.goto('http://127.0.0.1:8765/admin.html?emu=1#acces/mem'); await SA.pg.waitForTimeout(2500); await shot(SA.pg, '53_centre_membres');
   const cc3 = await SA.pg.evaluate(() => [document.querySelectorAll('#ccl .cc-r').length, (document.querySelector('#ccl') || {}).textContent.includes('🔑')]);
