@@ -5,7 +5,8 @@ function weekRange(offset = 0, ref = new Date()) {
   const e = new Date(d); e.setDate(d.getDate() + 6); return { a: wkISO(d), b: wkISO(e) };
 }
 async function weeklyReportDialog() {
-  const p = App.project; const W0 = weekRange(0), W1 = weekRange(-1);
+  if (typeof Team !== 'undefined' && Team.featGate && !(await Team.featGate('report'))) return;   // v1.0.57 : fonction premium
+    const p = App.project; const W0 = weekRange(0), W1 = weekRange(-1);
   const v = await menu('Rapport hebdomadaire (PDF)', [
     { label: `Cette semaine · ${fmtDate(W0.a)} → ${fmtDate(W0.b)}`, icon: 'calendar', value: '0' },
     { label: `Semaine dernière · ${fmtDate(W1.a)} → ${fmtDate(W1.b)}`, icon: 'calendar', value: '-1' },

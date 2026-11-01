@@ -1,3 +1,11 @@
+## SiteTeam : Packs & fonctions — contrôle total de ce que chaque pack ouvre
+- Panneau d'administration › nouvel onglet « Packs & fonctions » : pour chaque pack, cochez les fonctions premium (comparer, outils PDF, DWG → PDF, rapports PDF, envoyer un plan annoté, PDF des pins photos) et les outils ; « Essai gratuit (jours) » par pack.
+- Organisations › un espace › « Pour cet espace » : offrir une fonction (7 j, 1 mois… ou toujours) et ajouter / retirer un outil, au-dessus du pack.
+- Dans l'application : une fonction non incluse affiche 🔒 avec le pack qui la contient et « Voir mon abonnement / demander un pack ».
+- Tracer en PDF : bouton « ⚡ Comme AutoCAD » (A0 pleine page, paysage, ajusté, couleurs, traits fins) et marges « Pleine page (full bleed) ».
+- Règles de sécurité visibles par le Super Admin seulement.
+- Serveur (règles à publier) : un espace dont l'accès a pris fin, ou un espace personnel non autorisé (accès sur code uniquement), n'ouvre plus ses projets ; un administrateur d'espace ne peut pas s'offrir de fonctions ni d'outils.
+
 ## SiteTeam : « accès sur code uniquement » sans faille au premier lancement
 - Nouveau compte : l'écran de création d'espace n'apparaît qu'après lecture des réglages SiteTeam ; réseau lent ou réglages illisibles → « Connexion nécessaire » (avant : la personne pouvait créer un espace Basic sans code).
 - À chaque ouverture, le contrôle d'accès est refait dès que les réglages sont à jour : un espace créé sans code est arrêté (écran « Code d'accès ») tant que le Super Admin ne l'autorise pas (Centre de contrôle).

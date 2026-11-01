@@ -396,7 +396,7 @@ function cadPlotPdf(D, o) {
   for (const A of areas) {
     const [x0, y0, x1, y1] = A, dw = x1 - x0, dh = y1 - y0;
     let [PW, PH] = PAPER[o.fmt] || PAPER.A3; const land = o.orient === 'l' || (o.orient !== 'p' && dw >= dh); if (!land) [PW, PH] = [PH, PW];
-    const M = o.margin ?? 8, aw = PW - 2 * M, ah = PH - 2 * M;
+    const M = o.margin == null || o.margin === '' ? 8 : +o.margin || 0, aw = PW - 2 * M, ah = PH - 2 * M;
     const k = o.scale === 'fit' ? Math.min(aw / dw, ah / dh) : (UNIT_MM[o.unit] || 1) / +o.scale;
     const nx = Math.max(1, Math.ceil(dw * k / aw - 1e-6)), ny = Math.max(1, Math.ceil(dh * k / ah - 1e-6));
     for (let ty = 0; ty < ny; ty++) for (let tx = 0; tx < nx; tx++) {
@@ -418,7 +418,7 @@ function cadPlotPdf(D, o) {
 function plotCfg() { try { return JSON.parse(localStorage.getItem('plot.cfg') || '{}'); } catch (e) { return {}; } }
 function plotDialog(D, title) {
   return new Promise((resolve) => {
-    const c = { fmt: 'A3', orient: 'auto', scale: 'fit', color: 'mono', lwMode: D.prims.some(p => p.lw != null) ? 'obj' : 'col', lwUni: .18, lwDef: .25, area: 'all', ...plotCfg() };
+    const c = { fmt: 'A3', orient: 'auto', scale: 'fit', margin: 8, color: 'mono', lwMode: D.prims.some(p => p.lw != null) ? 'obj' : 'col', lwUni: .18, lwDef: .25, area: 'all', ...plotCfg() };
     c.unit = c.unit && D.ins == null ? c.unit : insUnit(D.ins) || c.unit || 'mm';
     const p = App.project || {}, ctb = { ...CTB_DEF, ...(p.plotCtb || {}) };
     const frames = cadFrames(D), cols = {}, lays = Object.keys(D.layers).filter(n => D.layers[n].n).sort((a, b) => a.localeCompare(b, 'fr', { numeric: true }));
@@ -427,12 +427,14 @@ function plotDialog(D, title) {
     const hidden = new Set(D._hidden || []); let res = null;
     const opt = (n, v, l) => `<option value="${v}" ${String(c[n]) === String(v) ? 'selected' : ''}>${l}</option>`;
     const s = sheet(`<div class="form plot">
+      <button type="button" class="btn ghost small pl-acad" data-a="acad">⚡ Comme AutoCAD : A0 pleine page · paysage · ajusté · couleurs · traits fins</button>
       <div class="plot-prev"><canvas></canvas><small></small></div>
       <div class="plot-g">
         <label>Format<select name="fmt">${Object.keys(PAPER).map(f => opt('fmt', f, f)).join('')}</select></label>
         <label>Orientation<select name="orient">${opt('orient', 'auto', 'Auto')}${opt('orient', 'l', 'Paysage')}${opt('orient', 'p', 'Portrait')}</select></label>
         <label>Échelle<select name="scale">${opt('scale', 'fit', 'Ajuster à la feuille')}${[20, 25, 50, 75, 100, 125, 200, 250, 500, 1000].map(v => opt('scale', v, '1/' + v)).join('')}</select></label>
         <label class="pl-unit">Unité du dessin<select name="unit">${opt('unit', 'mm', 'mm')}${opt('unit', 'cm', 'cm')}${opt('unit', 'm', 'm')}</select></label>
+        <label>Marges<select name="margin">${opt('margin', 8, '8 mm')}${opt('margin', 0, 'Pleine page (full bleed)')}</select></label>
         <label>Zone<select name="area">${opt('area', 'all', 'Tout le dessin')}${frames.length ? opt('area', 'frames', `1 page par cadre (${frames.length} cadres)`) : ''}</select></label>
         <label>Couleurs<select name="color">${opt('color', 'mono', 'Noir (monochrome)')}${opt('color', 'color', 'Couleurs')}${opt('color', 'gray', 'Niveaux de gris')}</select></label>
         <label>Épaisseurs<select name="lwMode">${opt('lwMode', 'obj', 'Du dessin (lineweight)')}${opt('lwMode', 'col', 'Par couleur (table CTB)')}${opt('lwMode', 'uni', 'Uniforme')}</select></label>
@@ -444,13 +446,13 @@ function plotDialog(D, title) {
       <div class="btnrow"><button class="btn ghost" data-a="x">Annuler</button><button class="btn" data-a="ok">🖨 Créer le PDF</button></div></div>`, {
       title: `Tracer en PDF · ${title}`,
       onMount: (el) => {
-        const read = () => { $$('[name]', el).forEach(i => c[i.name] = i.value); $$('[data-ctb]', el).forEach(i => ctb[i.dataset.ctb] = +i.value || .18); c.ctb = ctb; c.hidden = $$('[data-ly]', el).filter(i => !i.checked).map(i => i.dataset.ly); c.plotAll = true; c.frames = frames; };
+        const read = () => { $$('[name]', el).forEach(i => c[i.name] = i.value); c.margin = +c.margin || 0; $$('[data-ctb]', el).forEach(i => ctb[i.dataset.ctb] = +i.value || .18); c.ctb = ctb; c.hidden = $$('[data-ly]', el).filter(i => !i.checked).map(i => i.dataset.ly); c.plotAll = true; c.frames = frames; };
         const vis = () => { $('.pl-unit', el).style.display = c.scale === 'fit' ? 'none' : ''; $('.pl-uni', el).style.display = c.lwMode === 'uni' ? '' : 'none'; $('.pl-def', el).style.display = c.lwMode === 'obj' ? '' : 'none'; $('.pl-ctb', el).style.display = c.lwMode === 'col' ? '' : 'none'; };
         let tm; const prev = () => { clearTimeout(tm); tm = setTimeout(() => {
           const cv = $('.plot-prev canvas', el), A = c.area === 'frames' && frames.length ? frames[0] : D.box, dw = A[2] - A[0], dh = A[3] - A[1];
           let [PW, PH] = PAPER[c.fmt]; if (!(c.orient === 'l' || (c.orient !== 'p' && dw >= dh))) [PW, PH] = [PH, PW];
           const sc = Math.min(560 / PW, 330 / PH); cv.width = PW * sc; cv.height = PH * sc; const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.lineCap = g.lineJoin = 'round';
-          const M = 8, aw = PW - 16, ah = PH - 16, k = c.scale === 'fit' ? Math.min(aw / dw, ah / dh) : (UNIT_MM[c.unit] || 1) / +c.scale;
+          const M = +c.margin || 0, aw = PW - 2 * M, ah = PH - 2 * M, k = c.scale === 'fit' ? Math.min(aw / dw, ah / dh) : (UNIT_MM[c.unit] || 1) / +c.scale;
           g.save(); g.beginPath(); g.rect(M * sc, M * sc, aw * sc, ah * sc); g.clip();
           const big = c.scale !== 'fit' && (dw * k > aw + 1e-6 || dh * k > ah + 1e-6);
           cadPaint(canvasDev(g, sc), D, { ...c, hidden: c.hidden }, { x0: A[0], y1: A[3], k, ox: big ? M : M + (aw - dw * k) / 2, oy: big ? M : M + (ah - dh * k) / 2, clip: big ? [A[0], A[3] - ah / k, A[0] + aw / k, A[3]] : A });
@@ -460,6 +462,9 @@ function plotDialog(D, title) {
         }, 120); };
         el.addEventListener('input', () => { read(); vis(); prev(); }); el.addEventListener('change', () => { read(); vis(); prev(); });
         read(); vis(); prev();
+        // v1.0.57 : réglages habituels d'AutoCAD (DWG To PDF.pc3, ISO full bleed A0, Display, Fit to paper, plot style None, sans épaisseurs objet)
+        $('[data-a=acad]', el).onclick = () => { const set = { fmt: 'A0', orient: 'l', scale: 'fit', margin: 0, area: 'all', color: 'color', lwMode: 'uni', lwUni: 0.13 };
+          for (const [k, v] of Object.entries(set)) { const i = $(`[name=${k}]`, el); if (i) i.value = String(v); } read(); vis(); prev(); toast('Réglages AutoCAD appliqués ✓'); };
         $('[data-a=x]', el).onclick = () => s.close();
         $('[data-a=ok]', el).onclick = async () => { read(); res = { ...c }; try { const { ctb: _, frames: __, hidden: ___, ...keep } = c; localStorage.setItem('plot.cfg', JSON.stringify(keep)); } catch (e) {} D._hidden = c.hidden; if (App.project) { App.project.plotCtb = ctb; DB.put('projects', App.project); } s.close(); };
       },
@@ -502,7 +507,8 @@ async function pdfResultMenu(blob, name, info, onAdded) {
 
 // ---------- actions ----------
 async function plotCad(D, name, onAdded) {
-  const o = await plotDialog(D, name); if (!o) return;
+  if (typeof Team !== 'undefined' && Team.featGate && !(await Team.featGate('dwg'))) return;   // v1.0.57 : fonction premium
+    const o = await plotDialog(D, name); if (!o) return;
   const ld = loading('Tracé du PDF vectoriel…');
   await new Promise(r => setTimeout(r, 50));
   let out;
@@ -517,7 +523,8 @@ async function plotPlan(plan, onAdded) {
   return plotCad(D, plan.name + (plan.indice && plan.indice !== 'A' ? ` (ind ${plan.indice})` : ''), onAdded);
 }
 async function exportDxfOfPlan(plan) {
-  const ld = loading('Création du DXF…');
+  if (typeof Team !== 'undefined' && Team.featGate && !(await Team.featGate('dwg'))) return;   // v1.0.57 : fonction premium
+    const ld = loading('Création du DXF…');
   try {
     if (!plan.dwgFileId && plan.dxfFileId) { const f = await DB.get('files', plan.dxfFileId); ld.close(); return shareBlob(f.blob, safeName(plan.name) + '.dxf'); }
     const D = await cadOfPlan(plan); ld.close();
@@ -541,7 +548,8 @@ async function planPdfBytes(plan) {
   return { bytes: doc.output('arraybuffer'), page: 0 };
 }
 async function mergePdfFlow(onAdded) {
-  const pid = App.project.id;
+  if (typeof Team !== 'undefined' && Team.featGate && !(await Team.featGate('pdf'))) return;   // v1.0.57 : fonction premium
+    const pid = App.project.id;
   const [plans, folders] = await Promise.all([DB.byProject('plans', pid), DB.byProject('folders', pid)]);
   const cur = plans.filter(isCurrentPlan).sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true })), fn = (id) => folderPath(folders.find(f => f.id === id), folders) || 'Sans dossier';
   const groups = {}; cur.forEach(p => (groups[fn(p.folderId)] = groups[fn(p.folderId)] || []).push(p));
@@ -582,7 +590,8 @@ async function mergePdfFlow(onAdded) {
 }
 const parseRanges = (s, n) => String(s || '').split(/[,;]+/).map(x => x.trim()).filter(Boolean).map(x => { const m = x.match(/^(\d+)\s*(?:-\s*(\d+))?$/); if (!m) return null; const a = Math.max(1, +m[1]), b = Math.min(n, m[2] ? +m[2] : a); return a <= b ? [a, b] : null; }).filter(Boolean);
 async function splitPdfFlow(onAdded, srcPlan) {
-  let bytes, name;
+  if (typeof Team !== 'undefined' && Team.featGate && !(await Team.featGate('pdf'))) return;   // v1.0.57 : fonction premium
+    let bytes, name;
   if (srcPlan) { const f = await DB.get('files', srcPlan.pdfFileId); if (!f || !f.blob) return alertBox('PDF source introuvable'); bytes = await f.blob.arrayBuffer(); name = srcPlan.name.replace(/ - p\d+$/, ''); }
   else {
     const pid = App.project.id, plans = (await DB.byProject('plans', pid)).filter(p => p.pdfFileId), seen = new Set(), srcs = plans.filter(p => !seen.has(p.pdfFileId) && seen.add(p.pdfFileId));
@@ -627,7 +636,8 @@ async function pdfToFormat(bytes, o) {
   return new Blob([await out.save()], { type: 'application/pdf' });
 }
 async function convertPdfFlow(onAdded) {
-  let bytes, name, pages = null;
+  if (typeof Team !== 'undefined' && Team.featGate && !(await Team.featGate('pdf'))) return;   // v1.0.57 : fonction premium
+    let bytes, name, pages = null;
   const pid = App.project.id, plans = (await DB.byProject('plans', pid)).filter(p => p.pdfFileId && isCurrentPlan(p)).sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true }));
   const v = await menu('Changer le format de quel PDF ?', [{ label: 'Un PDF du téléphone…', icon: 'upload', value: '__ph' }, ...plans.slice(0, 60).map(p => ({ label: p.name, icon: 'plans', value: p.id }))]);
   if (!v) return;
@@ -648,7 +658,8 @@ async function convertPdfFlow(onAdded) {
 }
 // ---------- v1.0.53 : plusieurs DWG → un seul PDF (rangé par niveau puis par lot), réglages du tracé gardés ----------
 async function batchPlotFlow(onAdded) {
-  const pid = App.project.id, [plans, folders] = await Promise.all([DB.byProject('plans', pid), DB.byProject('folders', pid)]);
+  if (typeof Team !== 'undefined' && Team.featGate && !(await Team.featGate('dwg'))) return;   // v1.0.57 : fonction premium
+    const pid = App.project.id, [plans, folders] = await Promise.all([DB.byProject('plans', pid), DB.byProject('folders', pid)]);
   const fname = (id) => { const f = folders.find(x => x.id === id); return f ? folderPath(f, folders) : 'Sans dossier'; };
   const rank = (n) => typeof avNivRank === 'function' ? avNivRank(n) : 0, lotI = (id) => { const i = (typeof LOTS_DEF !== 'undefined' ? LOTS_DEF : []).findIndex(l => l.id === id); return i < 0 ? 99 : i; };
   const cad = plans.filter(p => isCurrentPlan(p) && (p.dwgFileId || p.dxfFileId))

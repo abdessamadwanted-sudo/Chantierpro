@@ -172,7 +172,8 @@ async function avLotPlan(p, niv, lotId) { const L = await avNivPlans(p, niv), id
 
 // ---------- comparer deux plans du même niveau : rideau / transparence / clignotement, calage auto + manuel ----------
 async function avComparePlans(p, niv, preA, preB) {
-  const L = await avNivPlans(p, niv); if (L.length < 2 && !(preA && preB)) return toast('Ajoutez au moins un 2e plan à ce niveau (Plans du niveau › Ajouter)');
+  if (typeof Team !== 'undefined' && Team.featGate && !(await Team.featGate('cmp'))) return;   // v1.0.57 : fonction premium
+    const L = await avNivPlans(p, niv); if (L.length < 2 && !(preA && preB)) return toast('Ajoutez au moins un 2e plan à ce niveau (Plans du niveau › Ajouter)');
   const lotsOf = (x) => Object.entries(niv.lotPlan || {}).filter(([, id]) => id === x.id).map(([lid]) => avLot(p, lid).name).join(', ');
   const pick = async (t, ex) => { const id = await menu(t, L.filter(x => x.id !== ex).map(x => ({ label: `${x.label}${lotsOf(x) ? ' (' + lotsOf(x) + ')' : ''} · ${x.plan.name}`, icon: 'plans', value: x.id }))); return L.find(x => x.id === id); };
   const A = preA || await pick('Plan de base', null); if (!A) return; const Bx = preB || await pick('Comparer avec', A.id); if (!Bx) return;

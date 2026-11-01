@@ -224,7 +224,8 @@ const safeName = (s) => pt(s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/
 
 // ---------- Rapport des réserves ----------
 async function reservesReportDialog(preset = {}) {
-  const p = await DB.get('projects', App.project.id);
+  if (typeof Team !== 'undefined' && Team.featGate && !(await Team.featGate('report'))) return;   // v1.0.57 : fonction premium
+    const p = await DB.get('projects', App.project.id);
   const comps = p.companies || [];
   const r = await formSheet('Rapport PDF des réserves', [
     { name: 'company', label: 'Entreprise', type: 'select', value: preset.company || 'all',

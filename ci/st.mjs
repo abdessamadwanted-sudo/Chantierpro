@@ -1303,6 +1303,24 @@ try {
   log('créer son espace [sans espace listé, espace créé]', [/Sans espace/.test(ns55), cr55]);
   if (!/Sans espace/.test(ns55) || !cr55 || cr55.kind !== 'perso' || !cr55.allowed || !cr55.until || !cr55.member) v55.push('créer son espace');
   log('errors v1.0.55', v55);
+  // ---- v1.0.57 : Packs & fonctions — fonction premium fermée par pack, offerte à un espace ; écran du panneau
+  const v57 = [];
+  const eCid = await E.pg.evaluate(() => Team.company().id), ePlan = await E.pg.evaluate(() => Team.plan().k);
+  log('E : espace et pack', [eCid ? 'ok' : null, ePlan, await E.pg.evaluate(() => Team.featInfo('cmp').ok)]);
+  await SA.pg.goto('http://127.0.0.1:8765/admin.html?emu=1#packs'); await SA.pg.waitForSelector('[data-a=pksave]', { timeout: 30000 }); await SA.pg.waitForTimeout(600); await shot(SA.pg, '57_packs_fonctions');
+  const pk57 = await SA.pg.evaluate(() => [document.querySelectorAll('[data-f]').length, document.querySelectorAll('[data-m]').length, document.querySelectorAll('[data-tr]').length]);
+  await SA.pg.evaluate(async (k) => firebase.firestore().collection('config').doc('plans').set({ [k]: { feats: ['pdf'], featTrial: 0 } }, { merge: true }), ePlan);
+  await E.pg.reload(); await E.pg.waitForSelector('.home2', { timeout: 30000 }); await E.pg.waitForTimeout(2500);
+  const f1 = await E.pg.evaluate(() => [Team.featInfo('cmp').ok, Team.featInfo('pdf').ok]);
+  await SA.pg.evaluate(async (c) => firebase.firestore().collection('companies').doc(c).update({ featGrant: { cmp: true } }), eCid);
+  await E.pg.reload(); await E.pg.waitForSelector('.home2', { timeout: 30000 }); await E.pg.waitForTimeout(2500);
+  const f2 = await E.pg.evaluate(() => Team.featInfo('cmp').ok);
+  await SA.pg.evaluate(async (k) => firebase.firestore().collection('config').doc('plans').set({ [k]: { feats: '*', featTrial: 0 } }, { merge: true }), ePlan);
+  log('packs & fonctions [cases fonctions, outils, essai] · fermé par le pack [cmp, pdf] · offert', [pk57, f1, f2]);
+  if (!pk57[0] || !pk57[1] || !pk57[2] || f1[0] !== false || f1[1] !== true || f2 !== true) v57.push('fonctions premium');
+  const ac57 = await A.pg.evaluate(() => typeof batchPlotFlow === 'function' && /Comme AutoCAD/.test(plotDialog.toString()));
+  log('tracé : bouton « Comme AutoCAD »', ac57); if (!ac57) v57.push('préréglage AutoCAD');
+  log('errors v1.0.57', v57);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);

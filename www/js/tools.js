@@ -3,7 +3,8 @@
 // ================= Outils PDF : fusionner, diviser, modifier les pages =================
 // pdf-lib copie les pages telles quelles (qualité d'origine, texte et traits vectoriels conservés).
 async function openPdfTools() {
-  try { await needPdfLib(); } catch (e) {}
+  if (typeof Team !== 'undefined' && Team.featGate && !(await Team.featGate('pdf'))) return;   // v1.0.57 : fonction premium
+    try { await needPdfLib(); } catch (e) {}
   if (!window.PDFLib) return alertBox('Module PDF non disponible — mettez l\'application à jour.');
   const { PDFDocument } = PDFLib;
   const sources = [];          // { name, kind: 'pdf'|'image', bytes, mime, pdfjs? }

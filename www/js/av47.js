@@ -94,7 +94,8 @@ async function avAddLotPlan(p, niv, lotId) {
 
 // ---------- comparer (bouton ⇄) ----------
 async function avCompareQuick(p, niv, lotId) {
-  const L = await avNivPlans(p, niv);
+  if (typeof Team !== 'undefined' && Team.featGate && !(await Team.featGate('cmp'))) return;   // v1.0.57 : fonction premium
+    const L = await avNivPlans(p, niv);
   if (L.length < 2) { toast('Un seul plan sur ce niveau : ajoutez le plan à comparer'); if (await avAddLotPlan(p, niv, lotId)) return avCompareQuick(p, niv, lotId); return; }
   const lot = avLot(p, lotId), lp = await avLotPlan(p, niv, lotId), main = L[0];
   const others = (p.avNiveaux || []).filter(n => n.id !== niv.id);
@@ -114,7 +115,8 @@ async function avCompareQuick(p, niv, lotId) {
 }
 // comparer deux plans quelconques du projet (Outils › Plans)
 async function avCompareAnyPlans(p, folderId) {
-  const [plans, folders] = await Promise.all([DB.byProject('plans', p.id), DB.byProject('folders', p.id)]);
+  if (typeof Team !== 'undefined' && Team.featGate && !(await Team.featGate('cmp'))) return;   // v1.0.57 : fonction premium
+    const [plans, folders] = await Promise.all([DB.byProject('plans', p.id), DB.byProject('folders', p.id)]);
   const cur = plans.filter(isCurrentPlan), fn = (pl) => (folders.find(f => f.id === pl.folderId) || {}).name || 'Sans dossier';
   const lots = typeof planLots === 'function' ? planLots(p) : [], ln = (pl) => (lots.find(l => l.id === pl.lotId) || {}).name || '';
   // v1.0.49 : depuis un dossier de niveau → seulement les plans de CE niveau ; « autre niveau » = comparaison entre niveaux

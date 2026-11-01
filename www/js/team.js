@@ -478,7 +478,10 @@ service cloud.firestore {
           && request.resource.data.get('planStatus', null) == resource.data.get('planStatus', null)
           && request.resource.data.get('trialEndsAt', null) == resource.data.get('trialEndsAt', null)
           && request.resource.data.get('allowed', null) == resource.data.get('allowed', null)
-          && request.resource.data.get('accessUntil', null) == resource.data.get('accessUntil', null)) || licOwner()
+          && request.resource.data.get('accessUntil', null) == resource.data.get('accessUntil', null)
+          && request.resource.data.get('featGrant', null) == resource.data.get('featGrant', null)
+          && request.resource.data.get('modsOn', null) == resource.data.get('modsOn', null)
+          && request.resource.data.get('modsOff', null) == resource.data.get('modsOff', null)) || licOwner()
         || (isAdmin(cid) && request.resource.data.get('packCode', null) != resource.data.get('packCode', null) && codePlanOk(request.resource.data));
 
       match /members/{uid} {

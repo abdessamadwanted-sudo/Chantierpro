@@ -54,7 +54,8 @@ const ST = (() => {
     if (p) { const R = tmRoleOf(p.role); return R.admin ? 4 : (R.perms[mod] || 0); }
     return _lvl(mod);
   }
-  const planHas = (mod) => { const m = plan().modules; return m === '*' || !mod || m.includes(mod); };
+  // v1.0.57 : outils réglés pour CET espace par le Super Admin (companies.modsOn / modsOff), au-dessus du pack
+  const planHas = (mod) => { if (!mod) return true; const c = (Team.company && Team.company()) || {}; if (!(Team.isSuper && Team.isSuper())) { if ((c.modsOff || []).includes(mod)) return false; if ((c.modsOn || []).includes(mod)) return true; } const m = plan().modules; return m === '*' || m.includes(mod); };
   // fonction (Chantier) → module SiteTeam, d'après les rubriques
   const FEAT_MOD = {};
   for (const [sec, f] of Object.entries(SECTION_FEATURE)) if (!FEAT_MOD[f]) FEAT_MOD[f] = SECTION_MOD[sec] || 'projet';
