@@ -276,7 +276,7 @@ try {
   log('errors v1.0.17', [...G.errs, ...C.errs]);
   // ---- v1.0.18 : service Qualité — services fermés, organigramme qualité, missions, validation des PV, documentation
   log('services par défaut', await setSvcs(['direction', 'qualite', 'externe', 'perso']));
-  const R52 = await newUser('R52'); await signup(H.pg, 'Karima Qualité', 'karima@test.ma');
+  const H = await newUser('H'); await signup(H.pg, 'Karima Qualité', 'karima@test.ma');
   await H.pg.click('[data-a=create]'); await H.pg.waitForSelector('.st-offers'); await H.pg.click('[data-p=enterprise]'); await H.pg.waitForSelector('.st-orgs');
   await H.pg.click('[data-o=entreprise]'); await H.pg.waitForSelector('.st-svcs'); await shot(H.pg, '60_services_fermes');
   log('H services ouverts / fermés', await H.pg.evaluate(() => [[...document.querySelectorAll('.st-svcs [data-s]')].map(b => b.dataset.s + (b.classList.contains('on') ? '+' : '')), [...document.querySelectorAll('.st-svcs .lk')].map(b => b.dataset.lk)]));
