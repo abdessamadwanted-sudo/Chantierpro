@@ -6,14 +6,17 @@ const DP_SKILLS = ['Lecture de plans', 'Béton armé', 'Ferraillage', 'Coffrage'
 const DP_LANGS = ['Arabe', 'Français', 'Anglais', 'Amazigh', 'Espagnol', 'Allemand'];
 const DP_NIV = ['Notions', 'Intermédiaire', 'Courant', 'Bilingue / natif'];
 const DP_DISPO = [['ouvert', '🟢 Ouvert aux opportunités', '#18866B'], ['ecoute', '🟡 À l\'écoute', '#B7791F'], ['non', '⚪ Non disponible', '#64748b']];
+// v1.0.53 : un dossier par compte (deux comptes sur le même téléphone ne partagent plus le même profil) ; l'ancien dossier revient au premier compte qui l'ouvre
+const dpKey = () => { let uid = ''; try { uid = (firebase.auth().currentUser || {}).uid || ''; } catch (e) {} if (!uid) return 'dossier.pro';
+  try { const k = 'dossier.pro.' + uid; if (!localStorage.getItem(k) && localStorage.getItem('dossier.pro') && !localStorage.getItem('dossier.pro.owner')) { localStorage.setItem(k, localStorage.getItem('dossier.pro')); localStorage.setItem('dossier.pro.owner', uid); } return k; } catch (e) { return 'dossier.pro'; } };
 const Dossier = {
   get() {
-    let d = {}; try { d = JSON.parse(localStorage.getItem('dossier.pro') || '{}') || {}; } catch (e) {}
+    let d = {}; try { d = JSON.parse(localStorage.getItem(dpKey()) || '{}') || {}; } catch (e) {}
     const me = (typeof Team !== 'undefined' && Team.ready && Team.ready() && Team.me && Team.me()) || {};
     let mail = ''; try { mail = (firebase.auth().currentUser || {}).email || ''; } catch (e) {}
     return { name: me.name || '', titre: '', ville: '', tel: '', email: mail, linkedin: '', dispo: 'ecoute', about: '', exp: [], form: [], skills: [], certs: [], langs: [], photo: '', ...d };
   },
-  set(d) { try { localStorage.setItem('dossier.pro', JSON.stringify(d)); } catch (e) { toast('Mémoire du téléphone pleine'); } },
+  set(d) { try { localStorage.setItem(dpKey(), JSON.stringify(d)); } catch (e) { toast('Mémoire du téléphone pleine'); } },
   // complétude : 10 points, comme une fiche LinkedIn
   score(d) {
     const ok = [d.name, d.titre, d.ville, d.about, d.exp.length, d.form.length, d.skills.length >= 3, d.langs.length, d.tel || d.email, d.photo];
