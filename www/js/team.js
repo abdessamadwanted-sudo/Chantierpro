@@ -970,7 +970,7 @@ const Team = (() => {
   // v1.0.52 : retiré d'une organisation → on quitte cet espace ET on efface ses données de ce téléphone (projets, plans, photos de l'organisation)
   let leaving = false;
   async function leftOrg(c) {
-    if (leaving) return; leaving = true;
+    if (leaving) return new Promise(() => {}); leaving = true;   // déjà en cours (retrait vu par deux chemins) : on laisse le premier finir
     const cid = S.cid, rest = (S.workspaces || []).filter(w => w.cid !== cid && !w.pending);
     try { await withTimeout(fs.collection('users').doc(S.user.uid).set({ companyId: rest.length ? rest[0].cid : null, workspaces: rest }, { merge: true })); } catch (e) { console.warn('sortie', e); }
     const nc = rest.length ? rest[0].cid : null; LS.set('profile', { ...(LS.get('profile') || {}), companyId: nc, workspaces: rest });
@@ -980,6 +980,15 @@ const Team = (() => {
     if (!nc) { WS.put('st.db', 'chantier_vide'); location.reload(); return new Promise(() => {}); }   // plus aucun espace : base vide tout de suite, l'ancienne est effacée au redémarrage
     leaving = false;
   }
+  // retiré = le document membre n'existe plus, ou les règles refusent sa lecture (on n'est plus membre) — vérifié une 2e fois auprès du serveur
+  async function stillMember(cid) {
+    for (let i = 0; i < 2; i++) {
+      try { const m = await withTimeout(fs.collection('companies').doc(cid).collection('members').doc(S.user.uid).get({ source: 'server' }), 15000); return m.exists; }
+      catch (e) { if (!e || e.code !== 'permission-denied') return true; if (!i) await new Promise(r => setTimeout(r, 1500)); }
+    }
+    return false;
+  }
+  const denied = (e) => !!e && e.code === 'permission-denied';
   // pendant que l'application est ouverte : retrait, blocage ou suspension appliqués tout de suite (pas au prochain démarrage)
   let watched = null;
   function watchAccess() {
@@ -989,7 +998,8 @@ const Team = (() => {
       if (m.exists || m.metadata.fromCache || S.cid !== cid || leaving) return;
       let c = null; try { c = await fs.collection('companies').doc(cid).get(); } catch (e) {}
       await leftOrg(c); location.reload();
-    }, (e) => console.warn('accès (membre)', e && e.code));
+    }, async (e) => { console.warn('accès (membre)', e && e.code);
+      if (denied(e) && S.cid === cid && !leaving && !(await stillMember(cid))) { await leftOrg(null); location.reload(); } });
     fs.collection('users').doc(uid).onSnapshot((d) => { if (d.metadata.fromCache || !d.exists) return; const v = d.data(); LS.set('profile', v);
       if (v.blocked === true) gateScreen('⛔ Compte bloqué', `Ce compte a été bloqué par SiteTeam.${v.blockedWhy ? '\nMotif : ' + v.blockedWhy : ''}\nPour toute question : ${SUPPORT_EMAIL}`, false); }, (e) => console.warn('accès (profil)', e && e.code));
     fs.collection('companies').doc(cid).onSnapshot((c) => { if (c.metadata.fromCache || !c.exists || S.cid !== cid) return; const was = S.company && S.company.planStatus;
@@ -1017,13 +1027,16 @@ const Team = (() => {
     const cmReq = Promise.all([fs.collection('companies').doc(S.cid).get(), fs.collection('companies').doc(S.cid).collection('members').doc(S.user.uid).get()]);
     // v1.0.52 : même ouvert depuis le cache (réseau lent), un membre retiré est sorti dès que la réponse arrive
     if (quickC) cmReq.then(async ([c, m]) => { if (S.cid !== c.id) return; if (!m.exists) { await leftOrg(c); return location.reload(); }
-      if (c.exists) { S.company = { id: c.id, ...c.data() }; S.me = { uid: S.user.uid, ...m.data() }; LS.set('company', S.company); LS.set('me', S.me); } }).catch(() => {});
+      if (c.exists) { S.company = { id: c.id, ...c.data() }; S.me = { uid: S.user.uid, ...m.data() }; LS.set('company', S.company); LS.set('me', S.me); } })
+      .catch(async (e) => { const cid = S.cid; if (denied(e) && !(await stillMember(cid)) && S.cid === cid) { await leftOrg(null); location.reload(); } });
     try {
       const [c, m] = await withTimeout(cmReq, quickC ? 900 : 15000);
       if (!m.exists) { await leftOrg(c); return loadMembership(); }
       S.company = { id: c.id, ...c.data() }; S.me = { uid: S.user.uid, ...m.data() };
       LS.set('company', S.company); LS.set('me', S.me);
-    } catch (e) { if (!S.me || S.me.uid !== S.user.uid) { await alertBox('Connexion impossible : ' + errMsg(e)); return loadMembership(); } }
+    } catch (e) {
+      if (denied(e) && !(await stillMember(S.cid))) { await leftOrg(null); return loadMembership(); }   // v1.0.52 : plus membre → les règles refusent la lecture
+      if (!S.me || S.me.uid !== S.user.uid) { await alertBox('Connexion impossible : ' + errMsg(e)); return loadMembership(); } }
     S.ready = true;
     watchAccess();
     if (LS.get('plansCfg')) loadPlanCfg().catch(() => {}); else await loadPlanCfg();   // v1.0.35 : configuration en arrière-plan si déjà connue
