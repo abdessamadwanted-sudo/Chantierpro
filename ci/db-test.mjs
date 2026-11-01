@@ -34,7 +34,8 @@ const cases = [
   }],
   ['fermeture permanente → erreur claire après 3 essais (pas de boucle infinie)', async () => {
     const orig = IDBDatabase.prototype.transaction; let n = 0;
-    IDBDatabase.prototype.transaction = function (...a) { n++; this.close(); return orig.apply(this, a); };
+    // seules les transactions de ce test (magasin « tasks ») sont comptées et fermées : l'application qui démarre dans la même page peut écrire ailleurs en même temps
+    IDBDatabase.prototype.transaction = function (...a) { if ([].concat(a[0]).includes('tasks')) { n++; this.close(); } return orig.apply(this, a); };
     try { await DB.put('tasks', { projectId: 'x', title: 'jamais' }); return false; }
     catch (e) { return e.name === 'InvalidStateError' && n === 3; }
     finally { IDBDatabase.prototype.transaction = orig; }
