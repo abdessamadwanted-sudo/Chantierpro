@@ -111,7 +111,7 @@ async function openPlanViewer(plan, ctx) {
 
   const st = {
     scale: 1, tx: 0, ty: 0,
-    tool: 'pan', color: '#ff0000', textSize: 16,
+    tool: ctx && ctx.startTool ? ctx.startTool : 'pan', color: '#ff0000', textSize: 16,   // v1.0.53 : ouvert directement en mode « pin photos » depuis la barre des lots
     filters: { tasks: true, links: true, annots: true },
     tasks: [], links: [], undo: [], flyout: null, fitScale: 1,
     toolsOpen: true, shape: 'free', pend: null, sel: -1, hue: '#e53935', shade: 0, thick: 4,
@@ -392,7 +392,7 @@ async function openPlanViewer(plan, ctx) {
         ${m >= 0.25 ? `<text x="0" y="-21" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" font-family="Arial">${t.num}</text>` : ''}</g>`;
     }).join('');
     gLinks.innerHTML = st.links.filter(l => l.planId === plan.id).map(l => {
-      const n = showCount ? (l.kind === 'plansbox' ? plansboxCount(l) : l.kind === 'photonote' ? (l.photos || []).length + (l.notes || []).length : (l.items || []).length) : 0;
+      const n = showCount ? (l.kind === 'plansbox' ? plansboxCount(l) : l.kind === 'photonote' ? (typeof pnCount === 'function' ? pnCount(l) : (l.photos || []).length) + (l.notes || []).length : (l.items || []).length) : 0;
       const ls = 1 / st.scale;
       const [px, py] = linkXY(l);
       if (l.kind === 'planlink') return `<g transform="translate(${px},${py}) scale(${s})">

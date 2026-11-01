@@ -86,10 +86,11 @@ function openPhotoNote(l, ctx = {}) {
       for (const id of l.photos) { const f = await DB.get('files', id); if (f && f.blob) ph.push({ id, src: BlobURL.get(id, f.blob) }); }
       const tks = (await DB.byProject('tasks', l.projectId)).filter(t => t.pinId === l.id).sort((a, b) => (a.num || 0) - (b.num || 0));
       const fms = typeof formStats === 'function' ? (await DB.byProject('forms', l.projectId)).filter(f => f.pinId === l.id) : [];
-      box.innerHTML = `<div class="pb-head" style="--c:${P.c}"><span class="pb-hic">${P.e || '📷'}</span><div class="grow"><b>${esc(l.name)}</b><small>${ph.length} photo(s) · ${l.notes.length} note(s)${l.createdAt ? ' · ' + fmtDate(new Date(l.createdAt).toISOString().slice(0, 10)) : ''}</small></div><button class="iconbtn" data-a="more">${icon('more')}</button></div>
+      box.innerHTML = `<div class="pb-head" style="--c:${P.c}"><span class="pb-hic">${P.e || '📷'}</span><div class="grow"><b>${esc(l.name)}</b><small>${typeof pnCount === 'function' ? pnCount(l) : ph.length} photo(s) · ${l.notes.length} note(s)${l.createdAt ? ' · ' + fmtDate(new Date(l.createdAt).toISOString().slice(0, 10)) : ''}</small></div><button class="iconbtn" data-a="more">${icon('more')}</button></div>
         <div class="pn-st"><button data-st="" class="${!l.state ? 'on' : ''}" style="--c:#f59e0b">⏳ À traiter</button><button data-st="done" class="${l.state === 'done' ? 'on' : ''}" style="--c:#22c55e">✅ Traité${l.doneAt ? ' le ' + fmtDate(l.doneAt) : ''}</button></div>
         ${ph.length ? `<div class="pn-ph">${ph.map(p => `<div class="t"><img src="${p.src}" data-v="${p.id}"><button class="x" data-dp="${p.id}">×</button></div>`).join('')}</div>` : '<div class="pb-empty">Ajoutez des photos et des notes à cet endroit du plan.</div>'}
-        <div class="btnrow" style="padding:0"><button class="btn small" data-a="ph">${icon('camera')} Photos</button><button class="btn small ghost" data-a="nt">${icon('edit')} Note</button>${ph.length || l.notes.length ? `<button class="btn small ghost" data-a="sh" style="flex:none">${icon('share')}</button>` : ''}</div>
+        ${typeof pnFoldersHTML === 'function' ? await pnFoldersHTML(l) : ''}
+        <div class="btnrow" style="padding:0"><button class="btn small" data-a="ph">${icon('camera')} Photos</button><button class="btn small ghost" data-a="nt">${icon('edit')} Note</button>${ph.length || l.notes.length || (typeof pnCount === 'function' && pnCount(l)) ? `<button class="btn small ghost" data-a="sh" style="flex:none">${icon('share')}</button>` : ''}</div>
         ${l.notes.length ? `<div class="nt-list">${await notesHTML(l.notes)}</div>` : ''}
         <div class="nt-sec"><span>✅ Tâches${tks.length ? ` (${tks.filter(t => !['done', 'verified'].includes(t.status)).length} ouvertes / ${tks.length})` : ''}</span><button class="btn small ghost" data-a="tk">${icon('plus')} Tâche</button></div>
         ${tks.map(t => `<button class="pn-row" data-tk="${t.id}"><span class="dot" style="background:${(STATUS[t.status] || {}).color || '#888'}"></span><b>#${t.num || ''}</b><span class="grow">${esc(t.title || 'Sans titre')}</span><small>${esc((STATUS[t.status] || {}).label || '')}${t.assignee ? ' · ' + esc(t.assignee) : ''}${t.due ? ' · ' + fmtDate(t.due) : ''}</small></button>`).join('')}
@@ -105,12 +106,13 @@ function openPhotoNote(l, ctx = {}) {
       $('[data-a=nt]', box).onclick = async () => { const n = await editNote(null, l.projectId); if (n) { l.notes.push(n); await save(); draw(); } };
       $$('[data-v]', box).forEach(img => img.onclick = () => showGallery(ph.map(p => ({ src: p.src })), ph.findIndex(p => p.id === img.dataset.v)));
       $$('[data-dp]', box).forEach(b => b.onclick = async () => { if (!await confirmBox('Supprimer cette photo ?')) return; l.photos = l.photos.filter(id => id !== b.dataset.dp); await DB.del('files', b.dataset.dp); await save(); draw(); });
-      const sh = $('[data-a=sh]', box); if (sh) sh.onclick = () => { const txt = `*${l.name}*\n` + l.notes.map(n => `• ${n.text || ''}`).join('\n'); const ids = [...l.photos, ...l.notes.flatMap(n => n.photos || [])]; if (ids.length) sharePhotos(ids, txt, l.name); else openUrl('https://wa.me/?text=' + encodeURIComponent(txt)); };
+      if (typeof pnBindFolders === 'function') pnBindFolders(box, l, save, draw);
+      const sh = $('[data-a=sh]', box); if (sh && typeof pnShare === 'function') sh.onclick = () => pnShare(l); else if (sh) sh.onclick = () => { const txt = `*${l.name}*\n` + l.notes.map(n => `• ${n.text || ''}`).join('\n'); const ids = [...l.photos, ...l.notes.flatMap(n => n.photos || [])]; if (ids.length) sharePhotos(ids, txt, l.name); else openUrl('https://wa.me/?text=' + encodeURIComponent(txt)); };
       await bindNotes(box, l.notes, l.projectId, save, draw, { title: l.name });
       $('[data-a=more]', box).onclick = async () => { const v = await menu(l.name, [{ label: 'Renommer', icon: 'edit', value: 'ren' }, { label: 'Icône et couleur du pin', icon: 'pin', value: 'look' }, { label: 'Supprimer le pin', icon: 'trash', danger: true, value: 'del' }]);
         if (v === 'ren') { const r = await formSheet('Renommer', [{ name: 'n', label: 'Titre', value: l.name }]); if (r && r.n) { l.name = r.n; await save(); draw(); } }
         if (v === 'look') { await choosePinLook(l); draw(); }
-        if (v === 'del' && await confirmBox(`Supprimer « ${l.name} », ses photos et ses notes ?`)) { for (const id of [...l.photos, ...l.notes.flatMap(n => [...(n.photos || []), n.audio].filter(Boolean))]) await DB.del('files', id); await DB.del('links', l.id); s.close(); } };
+        if (v === 'del' && await confirmBox(`Supprimer « ${l.name} », ses photos et ses notes ?`)) { for (const id of [...l.photos, ...(l.folders || []).flatMap(d => d.photos || []), ...l.notes.flatMap(n => [...(n.photos || []), n.audio].filter(Boolean))]) await DB.del('files', id); await DB.del('links', l.id); s.close(); } };
     };
     draw();
   });
