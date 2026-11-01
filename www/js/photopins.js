@@ -44,14 +44,31 @@ function pnBindFolders(box, l, save, draw) {
   const ren = async (d) => { const r = await formSheet('Renommer le dossier', [{ name: 'n', label: 'Nom', value: d.name }]); if (r && r.n) { d.name = r.n.trim(); await save(); draw(); } };
   $$('[data-fren]', box).forEach(b => b.onclick = () => { const d = find(b.dataset.fren); if (d) ren(d); });
   $$('[data-fmore]', box).forEach(b => b.onclick = async () => { const d = find(b.dataset.fmore); if (!d) return; const i = F.indexOf(d);
-    const v = await menu(d.name, [{ label: 'Renommer', icon: 'edit', value: 'ren' }, { label: 'Envoyer ce dossier (PDF ou photos)', icon: 'share', value: 'sh' }, ...(i > 0 ? [{ label: 'Monter', icon: 'chevup', value: 'up' }] : []), { label: 'Supprimer le dossier et ses photos', icon: 'trash', danger: true, value: 'del' }]);
+    const v = await menu(d.name, [{ label: 'Renommer', icon: 'edit', value: 'ren' }, { label: 'Envoyer ce dossier (PDF ou photos)', icon: 'share', value: 'sh' }, ...((d.photos || []).length ? [{ label: 'Supprimer des photos (choisir)', icon: 'trash', value: 'pdel' }] : []), ...(i > 0 ? [{ label: 'Monter', icon: 'chevup', value: 'up' }] : []), { label: 'Supprimer le dossier et ses photos', icon: 'trash', danger: true, value: 'del' }]);
     if (v === 'ren') return ren(d);
     if (v === 'sh') return pnShare(l, { only: d.id });
+    if (v === 'pdel') return pnPickDelete(l, d, save, draw);
     if (v === 'up') { F.splice(i, 1); F.splice(i - 1, 0, d); await save(); draw(); }
     if (v === 'del' && await confirmBox(`Supprimer le dossier « ${d.name} » et ses ${(d.photos || []).length} photo(s) ?`)) { for (const id of d.photos || []) await DB.del('files', id); F.splice(i, 1); await save(); draw(); } });
   $$('[data-fv]', box).forEach(img => img.onclick = async () => { const [did, pid] = img.dataset.fv.split('|'), d = find(did); if (!d) return;
     const L = []; for (const id of d.photos) { const f = await DB.get('files', id); if (f && f.blob) L.push({ id, src: BlobURL.get(id, f.blob) }); }
-    showGallery(L.map(x => ({ src: x.src })), Math.max(0, L.findIndex(x => x.id === pid))); });
+    // v1.0.54 : galerie devant la fiche, avec 🗑 pour supprimer la photo affichée (elle sort aussi du dossier)
+    showGallery(L.map(x => ({ src: x.src, fileId: x.id, caption: d.name })), Math.max(0, L.findIndex(x => x.id === pid)), { onDelete: async (it) => { d.photos = d.photos.filter(id => id !== it.fileId); await DB.del('files', it.fileId); await save(); draw(); return true; } }); });
+}
+// v1.0.54 : supprimer seulement les photos choisies d'un dossier (pas tout le dossier)
+async function pnPickDelete(l, d, save, draw) {
+  const L = []; for (const id of d.photos || []) { const f = await DB.get('files', id); if (f && f.blob) L.push({ id, src: BlobURL.get(id, f.blob) }); }
+  const sel = new Set();
+  const ok = await new Promise((resolve) => { let go = false;
+    const s = sheet(`<div class="form"><p class="muted" style="margin:0">Touchez les photos à supprimer</p><div class="pnd-th">${L.map(x => `<img src="${x.src}" data-pk="${x.id}">`).join('')}</div>
+      <div class="btnrow" style="padding:0"><button class="btn ghost" data-a="all">Tout choisir</button><button class="btn danger" data-a="ok">Supprimer (0)</button></div></div>`, { title: `Supprimer des photos · ${d.name}`,
+      onMount: (el) => { const upd = () => { $$('[data-pk]', el).forEach(im => im.classList.toggle('on', sel.has(im.dataset.pk))); $('[data-a=ok]', el).textContent = `Supprimer (${sel.size})`; };
+        $$('[data-pk]', el).forEach(im => im.onclick = () => { const k = im.dataset.pk; sel.has(k) ? sel.delete(k) : sel.add(k); upd(); });
+        $('[data-a=all]', el).onclick = () => { if (sel.size === L.length) sel.clear(); else L.forEach(x => sel.add(x.id)); upd(); };
+        $('[data-a=ok]', el).onclick = () => { if (!sel.size) return toast('Aucune photo choisie'); go = true; s.close(); }; } });
+    s.onClose = () => resolve(go); });
+  if (!ok || !(await confirmBox(`Supprimer ${sel.size} photo(s) de « ${d.name} » ?`, 'Supprimer'))) return;
+  d.photos = d.photos.filter(id => !sel.has(id)); for (const id of sel) await DB.del('files', id); await save(); draw(); toast(`${sel.size} photo(s) supprimée(s) ✓`);
 }
 
 // ---------- envoi : on choisit les photos, le nom du PDF, puis PDF (4 grandes photos par page) ou photos ----------
@@ -100,27 +117,32 @@ async function pnPdf(C, title, G, per = 4, prog) {
   if (!window.jspdf && window.__late) await window.__late;
   if (!window.jspdf) throw new Error('module PDF indisponible');
   const { jsPDF } = window.jspdf, doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' }), W = 210, H = 297, M = 10;
-  const cols = per >= 4 ? 2 : 1, rows = per === 6 ? 3 : per === 1 ? 1 : 2, top = 30, cap = 6, gw = (W - 2 * M - (cols - 1) * 6) / cols, gh = (H - top - 14 - (rows - 1) * 6) / rows - cap;
+  const cols = per >= 4 ? 2 : 1, top = 37, cap = 6;
   const sub = [C.p && C.p.name, C.niv, C.lot && C.lot.name].filter(Boolean).join(' · '), date = fmtDate(todayISO());
   let first = true, n = 0; const total = G.reduce((a, g) => a + g.photos.length, 0);
   const head = (gname, cont) => {
     doc.setFillColor(15, 37, 64); doc.rect(0, 0, W, 22, 'F'); doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.text(String(title).slice(0, 70), M, 10);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.text(`${sub}${sub ? ' · ' : ''}${date}`.slice(0, 110), M, 16.5);
-    doc.setTextColor(15, 37, 64); doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.text(`${gname}${cont ? ' (suite)' : ''}`.slice(0, 80), M, 28 - 1);
+    doc.setFillColor(232, 240, 254); doc.rect(M, 23.5, W - 2 * M, 9, 'F'); doc.setTextColor(15, 37, 64); doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
+    doc.text(`${gname} · ${title}${cont ? ' (suite)' : ''}`.slice(0, 70), W / 2, 30, { align: 'center' });
   };
   for (const g of G) {
     for (let i = 0; i < g.photos.length; i += per) {
       if (!first) doc.addPage('a4', 'p'); first = false; head(g.name, i > 0);
       const chunk = g.photos.slice(i, i + per);
+      // v1.0.54 : photos centrées — la grille s'adapte au nombre de photos de la page (1 → pleine largeur, 2 → l'une sous l'autre, 3 → dernière centrée)
+      const nC = chunk.length, c2 = nC === 1 ? 1 : nC === 2 && cols === 2 ? 1 : cols, r2 = Math.ceil(nC / c2), aw = W - 2 * M, ah = H - top - 14;
+      const cw = (aw - (c2 - 1) * 6) / c2, ch = (ah - (r2 - 1) * 6) / r2 - cap;
       for (let j = 0; j < chunk.length; j++) {
         prog && prog(`Préparation du PDF… ${++n}/${total}`);
         const im = await pnImg(chunk[j]); if (!im) continue;
-        const cx = M + (j % cols) * (gw + 6), cy = top + Math.floor(j / cols) * (gh + cap + 6), k = Math.min(gw / im.w, gh / im.h), w = im.w * k, h = im.h * k;
+        const row = Math.floor(j / c2), inRow = Math.min(c2, nC - row * c2), x0 = M + (aw - (inRow * cw + (inRow - 1) * 6)) / 2;
+        const gw = cw, gh = ch, cx = x0 + (j % c2) * (cw + 6), cy = top + row * (ch + cap + 6), k = Math.min(gw / im.w, gh / im.h), w = im.w * k, h = im.h * k;
         doc.setDrawColor(220, 226, 236); doc.rect(cx, cy, gw, gh);
         doc.addImage(im.d, 'JPEG', cx + (gw - w) / 2, cy + (gh - h) / 2, w, h);
         doc.setTextColor(60, 70, 85); doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
-        doc.text(`${g.name} · ${i + j + 1}/${g.photos.length}${im.at ? ' · ' + fmtDate(new Date(im.at).toISOString().slice(0, 10)) : ''}`.slice(0, 80), cx, cy + gh + 4);
+        doc.text(`${g.name} · ${i + j + 1}/${g.photos.length}${im.at ? ' · ' + fmtDate(new Date(im.at).toISOString().slice(0, 10)) : ''}`.slice(0, 80), cx + gw / 2, cy + gh + 4, { align: 'center' });
       }
     }
   }

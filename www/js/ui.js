@@ -382,6 +382,7 @@ function showImage(src, caption = '') { return showGallery([{ src, caption }], 0
 function showGallery(items, start = 0, opts = {}) {
   items = items.filter(x => x && x.src);
   // v1.0.44 : suppression possible partout où la photo est un fichier de l'application
+  document.querySelectorAll('.sheet-bg').forEach(x => x.classList.add('under-lb'));   // v1.0.54 : la galerie ouverte depuis une fiche passe devant elle (avant : visible seulement en fermant la fiche)
   if (!opts.onDelete && items.some(x => x.fileId) && typeof PhotoQ !== 'undefined') opts = { ...opts, onDelete: async (it) => { if (!it.fileId) { toast('Photo non supprimable ici'); return false; } return PhotoQ.remove([it.fileId], { ask: false }); } };
   if (!items.length) return;
   let i = Math.max(0, Math.min(start, items.length - 1)), dx = 0, zoom = 1, px = 0, py = 0;
