@@ -81,7 +81,7 @@ async function pnShare(l, opt = {}) {
       const sel = () => groups.map(g => ({ name: g.name, photos: g.photos.filter(id => th[id] && !off.has(id)) })).filter(g => g.photos.length);
       $('[data-a=ph]', s.el).onclick = async () => { const G = sel(); if (!G.length) return toast('Aucune photo retenue'); const fn = avFileName(val('fn') || defName); s.close(); await sharePhotos(G.flatMap(g => g.photos), `*${val('tt') || l.name}*${C.niv ? ' · ' + C.niv : ''}\n${G.map(g => `📁 ${g.name} : ${g.photos.length}`).join('\n')}`, fn); };
       $('[data-a=pdf]', s.el).onclick = async () => { const G = sel(); if (!G.length) return toast('Aucune photo retenue'); const fn = avFileName(val('fn') || defName), tt = val('tt') || l.name, pp = +val('pp') || 4;
-        const ld = loading('Préparation du PDF…'); try { const b = await pnPdf(C, tt, G, pp, (t) => ld.set && ld.set(t)); ld.close(); s.close(); await shareBlob(b, fn.replace(/\.pdf$/i, '') + '.pdf'); } catch (e) { ld.close(); alertBox('PDF impossible : ' + (e.message || e)); } };
+        const ld = loading('Préparation du PDF…'); try { const b = await pnPdf(C, tt, G, pp, (t) => ld.set && ld.set(t)); ld.close(); s.close(); await shareBlob(b, fn.replace(/\.pdf$/i, '') + '.pdf', { ask: false }); } catch (e) { ld.close(); alertBox('PDF impossible : ' + (e.message || e)); } };
     };
     // les valeurs tapées restent quand on retire une photo
     let memo = {}; const keep = () => { for (const k of ['fn', 'tt', 'pp']) { const i = $(`[name=${k}]`, s.el); if (i) memo[k] = i.value; } setTimeout(() => { for (const [k, v] of Object.entries(memo)) { const i = $(`[name=${k}]`, s.el); if (i) i.value = v; } }, 0); };

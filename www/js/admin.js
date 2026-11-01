@@ -41,6 +41,8 @@
       db.collection('errors').orderBy('at', 'desc').limit(400).get().catch(() => ({ docs: [] })), db.collection('packRequests').orderBy('at', 'desc').limit(200).get().catch(() => ({ docs: [] })),
       db.collection('annonces').get().catch(() => ({ docs: [] })), db.collection('config').doc('plans').get(), db.collection('config').doc('services').get(), db.collection('config').doc('app').get(),
       db.collection('packCodes').get().catch(() => ({ docs: [] }))]);
+    const lg = await db.collection('adminLog').orderBy('at', 'desc').limit(200).get().catch(() => ({ docs: [] }));
+    D.log = lg.docs.map(d => ({ id: d.id, ...d.data() }));
     D.users = u.docs.map(d => ({ uid: d.id, ...d.data() }));
     D.orgs = c.docs.map(d => ({ id: d.id, ...d.data() }));
     D.members = m.docs.filter(d => d.ref.parent.parent && d.ref.parent.parent.parent.id === 'companies').map(d => ({ uid: d.id, cid: d.ref.parent.parent.id, ...d.data() }));
@@ -54,8 +56,8 @@
   const orgOf = (cid) => D.orgs.find(x => x.id === cid) || {};
 
   // ---------- écrans ----------
-  const TABS = [['dash', 'Tableau de bord'], ['users', 'Utilisateurs'], ['orgs', 'Organisations'], ['reqs', 'Demandes'], ['codes', 'Codes pack'], ['ctrl', 'Contrôle de l\'app'], ['ann', 'Annonces'], ['err', 'Erreurs']];
-  let tab = (location.hash || '').slice(1); if (!TABS.some(t => t[0] === tab)) tab = 'dash';
+  const TABS = [['dash', 'Tableau de bord'], ['acces', 'Centre de contrôle'], ['users', 'Utilisateurs'], ['orgs', 'Organisations'], ['reqs', 'Demandes'], ['codes', 'Codes pack'], ['ctrl', 'Contrôle de l\'app'], ['ann', 'Annonces'], ['err', 'Erreurs']];
+  let tab = (location.hash || '').slice(1).split('/')[0]; if (!TABS.some(t => t[0] === tab)) tab = 'dash';
   function shell(user) {
     app.innerHTML = `<header><div class="hd"><div class="grow"><b>🛡 SiteTeam Admin</b><br><small>${esc(user.email)}</small></div>
         <button class="btn ghost" data-a="reload" title="Actualiser">↻</button><a class="btn ghost" href="index.html${emu ? '?emu=1' : ''}">Application</a><button class="btn ghost" data-a="out">Sortir</button></div>
@@ -66,11 +68,11 @@
     draw();
   }
   // lien direct vers un onglet (admin.html#codes) : suivi aussi quand l'adresse change sans recharger
-  window.addEventListener('hashchange', () => { const t = (location.hash || '').slice(1); if (t !== tab && TABS.some(x => x[0] === t)) { tab = t; $$('nav [data-t]').forEach(x => x.classList.toggle('on', x.dataset.t === t)); draw(); } });
+  window.addEventListener('hashchange', () => { const t = (location.hash || '').slice(1).split('/')[0]; if (t === 'acces' && tab === 'acces') return draw(); if (t !== tab && TABS.some(x => x[0] === t)) { tab = t; $$('nav [data-t]').forEach(x => x.classList.toggle('on', x.dataset.t === t)); draw(); } });
   async function draw(force) {
     const M = $('#main'); if (!M) return;
     try { await load(force); } catch (e) { M.innerHTML = `<div class="card"><b>Impossible de charger les données</b><p class="muted">${esc(e.code === 'permission-denied' ? 'Accès refusé : publiez les dernières règles Firestore (application › Réglages › Copier les règles).' : (e.message || e))}</p></div>`; return; }
-    ({ dash, users, orgs, reqs, codes, ctrl, ann, err })[tab](M);
+    ({ dash, acces, users, orgs, reqs, codes, ctrl, ann, err })[tab](M);
   }
 
   function dash(M) {
@@ -98,6 +100,66 @@
       <p class="muted">Les comptes apparaissent avec leur e-mail et leur version à leur prochaine ouverture de l'application (version 1.0.24 ou plus récente).</p>`;
   }
 
+  // ---------- v1.0.53 : Centre de contrôle — accès des espaces personnels et des membres, avec durée ; historique ----------
+  const DAY = 864e5;
+  // journal du Super Admin : qui a fait quoi, sur qui, quand (lecture et écriture réservées au Super Admin)
+  const logA = (action, target, detail = '') => db.collection('adminLog').add({ at: ts(), by: (auth.currentUser || {}).email || '', action, target: target || '', detail: String(detail || '').slice(0, 300) }).catch(e => console.warn('journal', e));
+  const untilOf = (x, k) => ms(x && x[k]);
+  const left = (u) => { if (!u) return '<span class="pill ok">Illimité</span>'; const d = Math.ceil((u - Date.now()) / DAY); return d <= 0 ? `<span class="pill bad">Expiré le ${esc(new Date(u).toLocaleDateString('fr-FR'))}</span>` : `<span class="pill ${d <= 7 ? 'warn' : 'ok'}">Reste ${d} j · ${esc(new Date(u).toLocaleDateString('fr-FR'))}</span>`; };
+  const DUR = [['7', '7 j'], ['30', '1 mois'], ['90', '3 mois'], ['365', '1 an'], ['inf', 'Illimité'], ['stop', 'Arrêter']];
+  const durBtns = (key) => `<div class="cc-d">${DUR.map(([k, l]) => `<button class="btn ${k === 'stop' ? 'bad' : 'ghost'}" data-dur="${k}" data-k="${esc(key)}">${l}</button>`).join('')}</div>`;
+  // à partir de la date de fin actuelle si elle est encore à venir (prolonger), sinon d'aujourd'hui
+  const newUntil = (k, cur) => k === 'inf' ? null : k === 'stop' ? Date.now() : Math.max(Date.now(), cur || 0) + (+k) * DAY;
+  const permTxt = (m) => { const P = m.perms || {}; const L = MODS.filter(([k]) => (P[k] || 0) > 0).map(([k, l]) => `${l.split(' (')[0]} : ${LEVELS[P[k]] || P[k]}`); return L.length ? L.join(' · ') : 'aucun droit'; };
+  const projTxt = (m) => m.allProjects ? 'Tous les projets' : ((m.projects || []).map(id => (D.projects.find(p => p.id === id && p.cid === m.cid) || {}).name).filter(Boolean).join(', ') || 'aucun projet');
+  function acces(M) {
+    const perso = D.orgs.filter(o => o.kind === 'perso'), now = Date.now();
+    const mems = D.members.filter(m => { const o = orgOf(m.cid); return o.kind !== 'perso' && o.ownerUid !== m.uid; });
+    const soon = [...perso.filter(o => o.allowed && untilOf(o, 'accessUntil')), ...mems.filter(m => untilOf(m, 'until'))].filter(x => { const u = untilOf(x, 'accessUntil') || untilOf(x, 'until'); return u > now && u - now < 7 * DAY; }).length;
+    const sub = (location.hash.split('/')[1] || 'perso');
+    M.innerHTML = `<h2>Centre de contrôle</h2>
+      <div class="tiles"><div class="tile"><b>${perso.filter(o => o.allowed && (!untilOf(o, 'accessUntil') || untilOf(o, 'accessUntil') > now)).length}</b><small>Espaces perso actifs</small></div>
+        <div class="tile"><b>${mems.length}</b><small>Membres d'organisations</small></div><div class="tile"><b>${soon}</b><small>Accès qui finissent dans 7 j</small></div>
+        <div class="tile"><b>${D.cfg.app.inviteOnly ? 'Oui' : 'Non'}</b><small>Accès sur code uniquement</small></div></div>
+      <nav class="cc-tabs">${[['perso', '👤 Espaces personnels'], ['mem', '👥 Membres et projets'], ['hist', '🕘 Historique']].map(([k, l]) => `<button data-cc="${k}" class="${sub === k ? 'on' : ''}">${l}</button>`).join('')}</nav>
+      <div class="card" id="cc"><input id="q-cc" type="search" placeholder="Rechercher : nom, e-mail, organisation…"><div id="ccl"></div></div>`;
+    $$('[data-cc]', M).forEach(b => b.onclick = () => { location.hash = 'acces/' + b.dataset.cc; });
+    const q = () => ($('#q-cc').value || '').toLowerCase();
+    const draw1 = () => {
+      const box = $('#ccl');
+      if (sub === 'perso') {
+        const L = perso.filter(o => { const u = userOf(o.ownerUid); return !q() || `${o.name} ${u.email || ''} ${u.name || ''}`.toLowerCase().includes(q()); })
+          .sort((a, b) => (b.allowed ? 1 : 0) - (a.allowed ? 1 : 0) || ms(b.createdAt) - ms(a.createdAt));
+        box.innerHTML = `<p class="muted">Donnez l'accès à un espace personnel pour une durée : il se ferme tout seul à la date de fin (écran « Accès expiré »). Prolonger part de la date de fin actuelle.</p>` + (L.map(o => { const u = userOf(o.ownerUid), un = untilOf(o, 'accessUntil');
+          return `<div class="cc-r"><div class="t grow"><b>${esc(u.name || o.name || o.id)}</b><small>${esc(u.email || '—')} · ${esc(o.name || '')} · vu ${esc(ago(u.lastSeen))}</small><div>${o.allowed ? left(un) : '<span class="pill">Non autorisé</span>'}${o.planStatus === 'suspendu' ? ' <span class="pill bad">Suspendu</span>' : ''}</div></div>
+            ${durBtns('o:' + o.id)}${u.email ? `<button class="btn ghost cc-wa" data-wa="${esc(o.id)}">WhatsApp</button>` : ''}</div>`; }).join('') || '<div class="empty">Aucun espace personnel</div>');
+      } else if (sub === 'mem') {
+        const byOrg = {}; mems.filter(m => !q() || `${m.name || ''} ${m.email || ''} ${orgOf(m.cid).name || ''}`.toLowerCase().includes(q())).forEach(m => (byOrg[m.cid] = byOrg[m.cid] || []).push(m));
+        box.innerHTML = `<p class="muted">Ce que chaque membre voit et fait (droits par service) et sur quels projets. Les droits se modifient dans l'application : Équipe › la personne › « Poste, projets et droits ». Ici : la durée d'accès.</p>` + (Object.entries(byOrg).map(([cid, L]) => `<h3 class="cc-o">${esc(orgOf(cid).name || cid)} <small>${L.length} membre(s)</small></h3>` + L.map(m => `<div class="cc-r"><div class="t grow"><b>${esc(m.name || m.email || m.uid)}${m.admin ? ' <span class="pill acc">admin</span>' : ''}</b><small>${esc(m.email || '')} · ${esc(tmRoleOf(m.role).l)}</small>
+            <small>📁 ${esc(projTxt(m))}</small><small>🔑 ${esc(permTxt(m))}</small><div>${left(untilOf(m, 'until'))}</div></div>${m.admin ? '<small class="muted">Administrateur : accès sans fin</small>' : durBtns('m:' + cid + ':' + m.uid)}</div>`).join('')).join('') || '<div class="empty">Aucun membre</div>');
+      } else {
+        const seen = D.users.filter(u => ms(u.lastSeen)).sort((a, b) => ms(b.lastSeen) - ms(a.lastSeen)).slice(0, 40);
+        box.innerHTML = `<h3>Actions du Super Admin</h3>${(D.log || []).filter(x => !q() || JSON.stringify(x).toLowerCase().includes(q())).map(x => `<div class="row"><div class="t grow"><b>${esc(x.action)}</b><small>${esc(x.target)}${x.detail ? ' · ' + esc(x.detail) : ''}</small></div><span class="pill">${esc(dt(x.at))}</span></div>`).join('') || '<div class="empty">Rien pour l\'instant</div>'}
+          <h3 style="margin-top:14px">Dernières ouvertures de l'application</h3>${seen.filter(u => !q() || `${u.name || ''} ${u.email || ''}`.toLowerCase().includes(q())).map(u => `<div class="row"><div class="t grow"><b>${esc(u.name || u.email || u.uid)}</b><small>${esc(u.email || '')} · ${esc(u.appVersion || '—')}</small></div><span class="pill">${esc(ago(u.lastSeen))}</span></div>`).join('')}`;
+      }
+      $$('[data-dur]', box).forEach(b => b.onclick = async () => {
+        const [kind, a, c] = b.dataset.k.split(':'), k = b.dataset.dur, lbl = DUR.find(x => x[0] === k)[1];
+        try {
+          if (kind === 'o') { const o = orgOf(a), u = userOf(o.ownerUid), nu = newUntil(k, untilOf(o, 'accessUntil'));
+            if (k === 'stop' && !(await modal('Arrêter l\'accès ?', `<p>${esc(u.email || o.name)} n'ouvrira plus son espace (ses données restent).</p>`, [['Arrêter', 'ok', 'bad'], ['Annuler', null, 'ghost']]))) return;
+            await db.collection('companies').doc(a).update({ allowed: true, accessUntil: nu ? firebase.firestore.Timestamp.fromMillis(nu) : firebase.firestore.FieldValue.delete() });
+            logA(k === 'stop' ? 'Accès arrêté' : 'Accès espace personnel', u.email || o.name, k === 'stop' ? '' : nu ? `${lbl} → ${new Date(nu).toLocaleDateString('fr-FR')}` : 'illimité');
+          } else { const m = D.members.find(x => x.cid === a && x.uid === c), nu = newUntil(k, untilOf(m, 'until'));
+            await db.collection('companies').doc(a).collection('members').doc(c).update({ until: nu ? firebase.firestore.Timestamp.fromMillis(nu) : firebase.firestore.FieldValue.delete() });
+            logA(k === 'stop' ? 'Accès membre arrêté' : 'Accès membre', `${m.email || m.name} · ${orgOf(a).name || a}`, k === 'stop' ? '' : nu ? `${lbl} → ${new Date(nu).toLocaleDateString('fr-FR')}` : 'illimité'); }
+          toast(k === 'stop' ? 'Accès arrêté ✓' : `Accès : ${lbl} ✓`); await draw(true);
+        } catch (e) { fail(e); } });
+      $$('[data-wa]', box).forEach(b => b.onclick = () => { const o = orgOf(b.dataset.wa), u = userOf(o.ownerUid), un = untilOf(o, 'accessUntil');
+        const txt = `Bonjour ${u.name || ''},\nVotre accès à SiteTeam est ${o.allowed && (!un || un > Date.now()) ? 'activé' + (un ? ` jusqu'au ${new Date(un).toLocaleDateString('fr-FR')}` : '') : 'arrêté'}.\nOuvrez l'application avec ${u.email || 'votre e-mail'}.`;
+        window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank'); });
+    };
+    $('#q-cc').oninput = draw1; draw1();
+  }
   function users(M) {
     const memOf = (uid) => D.members.filter(m => m.uid === uid);
     M.innerHTML = `<h2>Utilisateurs (${D.users.length})</h2><div class="card"><input id="q-users" type="search" placeholder="Rechercher : nom, e-mail…"><div id="ul"></div></div>`;
@@ -119,7 +181,7 @@
       if (r.v === 'block' || r.v === 'unblock') {
         if (uid === (auth.currentUser || {}).uid) return toast('Impossible de bloquer votre propre compte');
         await db.collection('users').doc(uid).update(r.v === 'block' ? { blocked: true, blockedAt: ts(), blockedWhy: r.why || '' } : { blocked: false, blockedAt: null, blockedWhy: '' });
-        toast(r.v === 'block' ? 'Compte bloqué ✓' : 'Compte débloqué ✓'); draw(true);
+        toast(r.v === 'block' ? 'Compte bloqué ✓' : 'Compte débloqué ✓'); logA(r.v === 'block' ? 'Compte bloqué' : 'Compte débloqué', u.email || uid, r.why || ''); draw(true);
       }
       if (r.v === 'ann') annForm({ target: uid, label: u.email || u.name || uid });
     } catch (e) { fail(e); }
@@ -149,7 +211,7 @@
         if (r.st === 'suspendu' && o.planStatus !== 'suspendu' && !(await modal('Suspendre ?', `<p>« ${esc(o.name)} » n'aura plus accès à ses projets et fichiers. Rien n'est effacé ; vous pourrez rétablir l'accès.</p>`, [['Suspendre', 'ok', 'bad'], ['Annuler', null, 'ghost']]))) return;
         const extra = r.st === 'essai' ? { trialEndsAt: firebase.firestore.Timestamp.fromMillis(Date.now() + 14 * 864e5) } : {};
         if (o.kind === 'perso') extra.allowed = !!r.allow;
-        await db.collection('companies').doc(cid).update({ plan: r.plan, planStatus: r.st, ...extra }); toast('Enregistré ✓'); draw(true);
+        await db.collection('companies').doc(cid).update({ plan: r.plan, planStatus: r.st, ...extra }); toast('Enregistré ✓'); logA('Organisation modifiée', o.name || cid, `${r.plan} · ${r.st}${o.kind === 'perso' ? (r.allow ? ' · autorisé' : ' · non autorisé') : ''}`); draw(true);
       }
       if (r.v === 'ann') annForm({ cid, label: o.name || cid });
     } catch (e) { fail(e); }
@@ -261,7 +323,7 @@
         <label class="ck"><input type="checkbox" name="son" ${C.services.storage ? 'checked' : ''}> Envoi des fichiers activé (formule Blaze, alerte de budget et règles Storage en place)</label>
         <label>Taille maximale par fichier (Mo)<input name="smax" type="number" min="1" max="50" value="${esc(C.services.maxMb || 50)}"></label>
         <div class="btns"><button class="btn" data-a="sto">Enregistrer</button></div></div>`;
-    const val = (n) => $(`[name=${n}]`, M), save = async (doc, data, msg) => { try { await db.collection('config').doc(doc).set(data, { merge: true }); toast(msg || 'Enregistré ✓'); D.at = 0; } catch (e) { fail(e); } };
+    const val = (n) => $(`[name=${n}]`, M), save = async (doc, data, msg) => { try { await db.collection('config').doc(doc).set(data, { merge: true }); toast(msg || 'Enregistré ✓'); logA('Contrôle de l\'app', doc, msg || Object.keys(data).join(', ')); D.at = 0; } catch (e) { fail(e); } };
     $('[data-a=packs]', M).onclick = () => save('plans', Object.fromEntries($$('[data-pk]', M).filter(x => x.dataset.pk !== 'basic').map(x => [x.dataset.pk, { open: x.checked }])), 'Packs enregistrés ✓');
     $('[data-a=svcs]', M).onclick = () => save('services', { open: [...new Set(['direction', 'externe', 'perso', ...$$('[data-sv]', M).filter(x => x.checked).map(x => x.dataset.sv)])] }, 'Services enregistrés ✓');
     $('[data-a=off]', M).onclick = () => save('app', { off: $$('[data-off]', M).filter(x => x.checked).map(x => x.dataset.off) }, 'Fonctions enregistrées ✓');

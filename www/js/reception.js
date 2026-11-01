@@ -882,8 +882,13 @@ async function sendToSheets(p0, day) {
   finally { ld.close(); }
 }
 
-async function shareBlob(blob, fname) {
+async function shareBlob(blob, fname, opt = {}) {
   const P = window.Capacitor?.Plugins || {};
+  // v1.0.53 : avant d'envoyer un PDF (WhatsApp…), on peut corriger son nom (projet, niveau, lot, date)
+  if (P.Filesystem && P.Share && opt.ask !== false && /\.pdf$/i.test(fname || '') && typeof formSheet === 'function') {
+    const r = await formSheet('Nom du PDF', [{ name: 'n', label: 'Nom du fichier envoyé', value: String(fname).replace(/\.pdf$/i, '') }], { okLabel: 'Envoyer' });
+    if (!r) return; const n = String(r.n || '').replace(/[\\/:*?"<>|#]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 120); if (n) fname = n + '.pdf';
+  }
   if (P.Filesystem && P.Share) {
     const b64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(blob); });
     await P.Filesystem.writeFile({ path: fname, data: b64, directory: 'CACHE' });
