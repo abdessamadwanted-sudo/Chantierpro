@@ -17,7 +17,7 @@ service firebase.storage {
       return c.get('teamsVersion', 0) != 1 || c.get('plan', 'basic') in ['basic', 'pro', 'personnel'] || mem(cid).admin == true || projectTeamOk(cid, pid);
     }
     function ownOk(cid, pid, n) {
-      return signed() && firestore.exists(memPath(cid)) && okUser() && live(cid) && (mem(cid).admin == true || mem(cid).allProjects == true || pid in mem(cid).projects) && teamAllowed(cid, pid) && lv(mem(cid).perms, n);
+      return signed() && firestore.exists(memPath(cid)) && okUser() && live(cid) && (mem(cid).get('until', null) == null || mem(cid).until > request.time) && (mem(cid).admin == true || mem(cid).allProjects == true || pid in mem(cid).projects) && teamAllowed(cid, pid) && lv(mem(cid).perms, n);
     }
     function partOk(cid, pid, n) {
       let o = firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('companyId', '');

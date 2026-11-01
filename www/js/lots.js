@@ -101,6 +101,8 @@ function lotPanel(L, f, root) {
   if (!open) return el;
   // v1.0.47 : lien direct vers l'avancement de CE lot sur CE niveau (alertes, dates, équipes, saisies, ✓ terminé)
   { const sl = $('.lp-avslot', el); if (sl && typeof avLotPanelBlock === 'function') sl.replaceWith(avLotPanelBlock(p, L, f, redraw)); }
+  // v1.0.53 : pins photos du lot sur ce niveau (dossiers Porte provisoire, Brique, Nettoyage… ; PDF 4 photos par page)
+  { const ls = $('.lp-links', el); if (ls && typeof pnLotBlock === 'function') ls.before(pnLotBlock(p, L, f, redraw)); }
   $('.lp-det', el).ontoggle = (e) => { App.lotDet = e.target.open; };
   $$('[data-pt]', el).forEach(b => b.onclick = async () => { const v = D[b.dataset.pt] = D[b.dataset.pt] || {}; v.done = !v.done; v.at = v.done ? todayISO() : null; await save(); redraw(); });
   const addPt = async () => { const r = await formSheet(`Point de contrôle · ${L.name}`, [{ name: 't', label: 'Intitulé (ajouté à tous les niveaux)', placeholder: 'Ex : Réservations vérifiées' }], { okLabel: 'Ajouter' }); if (r && r.t) { L.points = L.points || []; L.points.push({ id: DB.uid(), t: r.t }); App.lotDet = true; await DB.put('projects', p); redraw(); } };

@@ -30,7 +30,9 @@ const GDrive = (() => {
     if (tokP && !interactive) return tokP;
     const p = plug(); if (!p) throw new Error('Connexion Google disponible dans l\'application Android');
     tokP = (async () => {
-      try { const r = await p.authorize({ interactive, scopes: [SCOPE] }); tok = r.accessToken; tokAt = Date.now(); return tok; }
+      // v1.0.53 : jamais d'attente sans fin (la pastille « 3/49 vers Drive » restait figée) : 40 s au plus sans fenêtre Google
+      const auth = p.authorize({ interactive, scopes: [SCOPE] });
+      try { const r = interactive ? await auth : await Promise.race([auth, sleep(40000).then(() => { throw Object.assign(new Error('Google ne répond pas (délai dépassé)'), { code: 'TIMEOUT' }); })]); tok = r.accessToken; tokAt = Date.now(); return tok; }
       catch (e) { const er = new Error(authMsg(e)); er.code = e && e.code; throw er; }
       finally { tokP = null; }
     })();
@@ -42,8 +44,11 @@ const GDrive = (() => {
   async function req(url, opt = {}, n = 0) {
     const t = await token(false);
     let r;
-    try { r = await fetch(url, { ...opt, headers: { ...(opt.headers || {}), Authorization: 'Bearer ' + t } }); }
-    catch (e) { if (n < 2) { await sleep(1200 * (n + 1)); return req(url, opt, n + 1); } throw new Error(navigator.onLine === false ? 'Hors connexion' : 'Connexion à Google Drive impossible'); }
+    // v1.0.53 : délai maximum par requête (réseau de chantier qui « gèle ») — 45 s, plus le temps d'envoyer le fichier à 20 Ko/s au pire
+    const sz = opt.body && opt.body.size || 0, ac = typeof AbortController === 'function' ? new AbortController() : null, tm = ac ? setTimeout(() => ac.abort(), 45000 + Math.round(sz / 20)) : null;
+    try { r = await fetch(url, { ...opt, ...(ac ? { signal: ac.signal } : {}), headers: { ...(opt.headers || {}), Authorization: 'Bearer ' + t } }); }
+    catch (e) { clearTimeout(tm); if (n < 2) { await sleep(1200 * (n + 1)); return req(url, opt, n + 1); } throw new Error(navigator.onLine === false ? 'Hors connexion' : 'Connexion à Google Drive impossible'); }
+    clearTimeout(tm);
     if (r.status === 401 && n < 1) { await dropToken(t); return req(url, opt, n + 1); }
     if ((r.status === 429 || r.status >= 500 || (r.status === 403 && /rate|quota/i.test(r.statusText))) && n < 3) { await sleep(1500 * (n + 1)); return req(url, opt, n + 1); }
     if (!r.ok) {

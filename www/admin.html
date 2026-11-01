@@ -47,7 +47,13 @@
     .bars { display: grid; gap: 6px; } .bars div { display: grid; grid-template-columns: 110px 1fr 40px; gap: 8px; align-items: center; font-size: 13px; }
     .bars i { display: block; height: 8px; border-radius: 4px; background: var(--accent); } .bars em { font-style: normal; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
     @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
-  </style>
+      /* v1.0.53 : Centre de contrôle */
+    nav.cc-tabs { padding: 0; }
+    .cc-r { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); min-width: 0; }
+    .cc-r:first-of-type { border-top: 0; } .cc-r .t { display: grid; gap: 3px; min-width: 200px; } .cc-r .t small { color: var(--muted); overflow-wrap: anywhere; }
+    .cc-d { display: flex; flex-wrap: wrap; gap: 6px; } .cc-d .btn { padding: 6px 10px; font-size: 12.5px; }
+    .cc-o { margin: 16px 0 2px; } .cc-o small { color: var(--muted); font-weight: 500; }
+</style>
 </head>
 <body>
   <div id="app"><div class="login"><b>SiteTeam Admin</b><p class="muted">Chargement…</p></div></div>

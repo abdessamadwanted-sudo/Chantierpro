@@ -283,6 +283,8 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
     $('[data-a=more]', el).onclick = moreMenu;
     $('[data-a=ind]', el).onclick = () => planIndicesMenu(plan, { onNew: async (np) => { plan = np; await load(); await setView(st.lot); await build(); }, onOpen: (old) => openPlanViewer(old, planCtx(() => {})) });
     pz = panZoom($('.av-view', el), $('.av-stage', el), W, H, { onTap, onChange: drawMarkers });
+    // v1.0.53 : recadrage quand l'image du plan est prête (plan lourd, changement de lot) — le plan remplit l'écran
+    { const im0 = $('.av-stage > img', el), pz0 = pz; if (im0 && !im0.complete) im0.addEventListener('load', () => { if (pz === pz0 && pz.st.s <= pz.st.fit * 1.01) pz.fit(); }, { once: true }); }
     requestAnimationFrame(() => { pz.fit(); if (focusLocId) { const l = st.locs.find(x => x.id === focusLocId); if (l) { const [fx, fy] = T(l.x, l.y); pz.zoomTo(fx - 60, fy - 60, 120, 120); setTimeout(() => openAvLocal(l, st.lot, refresh), 250); } focusLocId = null; } });
     drawUI();
   }
