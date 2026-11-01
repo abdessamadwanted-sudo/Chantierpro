@@ -8,6 +8,8 @@
 - Outils plans : plusieurs DWG → un seul PDF rangé par niveau puis par lot ; changer le format d'un PDF (A0 → A3, A1 → A4…) en gardant le vectoriel ; réglages gardés.
 - Réglages › Application : « Signaler un problème » (arrive dans le panneau avec le diagnostic) et « Stockage du téléphone » (alerte au-delà de 80 %).
 - Avancement : le plan se recadre quand son image est prête.
+- Google Drive : chaque échange a un délai maximum (plus de pastille « 3/49 vers Drive » figée ni d'icône Drive qui tourne sans fin) ; un fichier qui ne passe pas est repris à la synchro suivante.
+- Mon dossier pro : un profil par compte (deux comptes sur le même téléphone ne voient plus le même dossier).
 
 ## SiteTeam : membre retiré = accès coupé tout de suite
 - « Retirer de l'entreprise » s'applique immédiatement sur le téléphone du membre, même application ouverte ou réseau lent (avant : le téléphone gardait l'accès grâce au cache).
