@@ -3,6 +3,10 @@ const DB = (() => {
   // une base par espace de travail (Workspace Switcher) : le premier espace du téléphone garde « chantier » (données existantes),
   // les autres espaces ont la leur (« chantier_<organisation> ») — aucune donnée n'est déplacée ni mélangée
   const NAME = (() => { try { return localStorage.getItem('st.db') || 'chantier'; } catch (e) { return 'chantier'; } })();
+  // v1.0.52 : bases des espaces quittés (retiré d'une organisation) effacées ici, avant toute ouverture
+  try { const L = JSON.parse(localStorage.getItem('st.dbPurge') || '[]'), keep = L.filter(n => n === NAME);
+    L.filter(n => n !== NAME).forEach(n => { try { indexedDB.deleteDatabase(n); } catch (e) {} });
+    keep.length ? localStorage.setItem('st.dbPurge', JSON.stringify(keep)) : localStorage.removeItem('st.dbPurge'); } catch (e) {}
   const VERSION = 4;
   const STORES = ['projects', 'folders', 'plans', 'tasks', 'links', 'files', 'forms', 'reports', 'receptions', 'items', 'tomb'];  // tomb = suppressions à synchroniser
   let dbp = null;

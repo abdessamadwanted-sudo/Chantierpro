@@ -1208,6 +1208,34 @@ try {
     const c = cartoucheFromTexts(T); return [c && c.indice, c && c.date, nextIndice('PE02.5'), nextIndice('DCE01'), nextIndice('B')]; });
   log('cartouche : dernier indice et date [indice, date, suivants]', ct50); if (ct50.join() !== 'PE02.5,2026-08-28,PE02.6,DCE02,C') v48.push('cartouche');
   log('errors v1.0.48', v48);
+  // ---- v1.0.52 : membre retiré par l'organisation → sorti tout de suite (application ouverte) et projets de l'organisation effacés du téléphone
+  const v52 = [];
+  await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg,.st-gate').forEach(x => x.remove()); App.project = null; renderHome(); Team.openCompany('org'); }); await A.pg.waitForTimeout(1200);
+  await A.pg.click('.tm-page [data-a=invite]'); await A.pg.waitForTimeout(400);
+  await A.pg.fill('[data-f=name]', 'Ami test'); await A.pg.selectOption('[data-f=role]', 'mo');
+  await A.pg.click('.tm-form [data-a=ok]'); await A.pg.waitForSelector('.opt:has-text("Créer le code")', { timeout: 15000 }); await A.pg.click('.opt:has-text("Créer le code")');
+  await A.pg.waitForSelector('.opt:has-text("Fermer")', { timeout: 15000 }); await A.pg.waitForTimeout(400);
+  const code52 = (await A.pg.textContent('.sheet:has(.opt:has-text("Fermer")) h3')).split(':').pop().trim(); await A.pg.click('.opt:has-text("Fermer")');
+  const R52 = await newUser('R52'); await signup(R52.pg, 'Ami Retire', 'ami@test.ma');
+  const c52 = []; R52.pg.on('console', m => { if (/accès|sortie|watch/i.test(m.text())) c52.push(m.text().slice(0, 200)); });
+  await R52.pg.click('[data-a=join]'); await R52.pg.fill('[name=code]', code52); await R52.pg.click('.sheet [data-a=ok]');
+  await R52.pg.waitForSelector('[data-a=join-ok]', { timeout: 15000 }); await R52.pg.click('[data-a=join-ok]'); await R52.pg.waitForSelector('.home2', { timeout: 20000 });
+  await R52.pg.evaluate(() => Sync.run({ force: true })); await R52.pg.waitForTimeout(4000);
+  const h1 = await R52.pg.evaluate(async () => ({ uid: firebase.auth().currentUser.uid, cid: Team.company().id, db: DB.name(), n: (await DB.all('projects')).length }));
+  log('H dans l\'organisation [base, projets]', [h1.db, h1.n]); if (!h1.n) v52.push('H sans projet');
+  log('R52 surveillance', await R52.pg.evaluate(() => [window.__stWatch, Team.company().id]));
+  await R52.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove()));
+  log('A retire le membre', await A.pg.evaluate(async (u) => { const r = firebase.firestore().collection('companies').doc(Team.company().id).collection('members').doc(u); await r.delete(); return [(await r.get({ source: 'server' })).exists, Team.company().id]; }, h1.uid));
+  let msg52 = '';
+  try { await R52.pg.waitForSelector('.sheet h3:has-text("plus partie")', { timeout: 20000 }); msg52 = await R52.pg.textContent('.sheet h3:has-text("plus partie")'); await R52.pg.click('.opt:has-text("OK")'); } catch (e) { v52.push('pas de sortie en direct'); }
+  log('R52 console', c52);
+  log('H message de retrait', msg52); if (!/plus partie/.test(msg52)) v52.push('message de retrait');
+  await R52.pg.waitForSelector('.tm-choice', { timeout: 30000 }).catch(() => v52.push('pas de retour à l\'accueil'));
+  const h2 = await R52.pg.evaluate(async (old) => ({ db: DB.name(), bases: indexedDB.databases ? (await indexedDB.databases()).map(d => d.name) : null, cid: (await firebase.firestore().collection('users').doc(firebase.auth().currentUser.uid).get()).data().companyId || null, old }), h1.db);
+  log('H après retrait [base ouverte, bases du téléphone, espace]', h2); if (h2.db === h1.db || (h2.bases && h2.bases.includes(h1.db)) || h2.cid === h1.cid) v52.push('données de l\'organisation encore là');
+  await shot(R52.pg, '52_retire');
+  log('errors v1.0.52', [...v52, ...R52.errs]);
+  await R52.ctx.close();
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);

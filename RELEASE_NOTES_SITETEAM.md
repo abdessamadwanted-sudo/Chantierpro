@@ -1,3 +1,8 @@
+## SiteTeam : membre retiré = accès coupé tout de suite
+- « Retirer de l'entreprise » s'applique immédiatement sur le téléphone du membre, même application ouverte ou réseau lent (avant : le téléphone gardait l'accès grâce au cache).
+- Les projets, plans et photos de l'organisation sont effacés de son téléphone ; il revient à son propre espace (ou à la création d'un espace).
+- Compte bloqué ou organisation suspendue par le Super Admin : appliqué en direct, sans attendre le prochain démarrage.
+
 ## SiteTeam : fermetures au démarrage — nettoyage côté Android et diagnostic
 - Au lancement, avant même la page, l'application retire côté Android les anciens rappels (17 h, robot emploi) qui pouvaient se redéclencher en boucle et la faire fermer au bout de 20 s.
 - Diagnostic : un plantage Android (Java) ou un arrêt du moteur web (mémoire) est enregistré et ajouté au rapport. Réglages › Application › « Rapport de diagnostic » (WhatsApp) à tout moment.
