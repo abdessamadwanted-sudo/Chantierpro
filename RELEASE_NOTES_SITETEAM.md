@@ -4,6 +4,7 @@
 - Plan coupé ou à moitié blanc : ⋮ › « Refaire l'image du plan » (depuis le PDF d'origine, pins et annotations gardés).
 - Pins photos : la photo touchée s'ouvre tout de suite devant la fiche (avant : seulement après l'avoir fermée), 🗑 pour supprimer la photo affichée, et ⋮ du dossier › « Supprimer des photos (choisir) ».
 - Pins photos : plus de « À traiter / Traité ».
+- Outils du projet : nouvelle tuile « DWG → PDF · plans » (tracer, plusieurs DWG en un PDF, changer le format, fusionner, diviser).
 - PDF des photos : photos centrées (une seule photo = pleine page), titre en gras et bien visible « Porte provisoire · Local 1 » sur chaque page.
 
 ## SiteTeam : pins photos par dossiers, Centre de contrôle des accès, outils PDF
