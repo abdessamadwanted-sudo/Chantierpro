@@ -682,7 +682,7 @@ const Team = (() => {
     const so = LS.get('svcOpen'); if (Array.isArray(so)) SERVICES_OPEN = so;
     try { const [d, sv, ap] = await withTimeout(Promise.all([fs.collection('config').doc('plans').get(), fs.collection('config').doc('services').get(), fs.collection('config').doc('app').get().catch(() => null)]), 10000);
       if (d.exists) { LS.set('plansCfg', d.data()); applyPlanCfg(d.data()); }
-      if (ap) LS.set('appCfg', ap.exists ? ap.data() : {});
+      if (ap) { LS.set('appCfg', ap.exists ? ap.data() : {}); LS.set('appCfgAt', Date.now()); }
       if (sv.exists && Array.isArray(sv.data().open)) { SERVICES_OPEN = sv.data().open; LS.set('svcOpen', SERVICES_OPEN); }
       if (sv.exists) LS.set('cloud', { on: sv.data().storage === true, maxMb: +sv.data().maxMb || 50 }); } catch (e) { console.warn('plans cfg', e); }
   }
@@ -1046,7 +1046,10 @@ const Team = (() => {
     catch (e) { if (quick) pReq.then(d => { if (d.exists) { LS.set('profile', d.data()); if (d.data().blocked === true && !isSuper()) location.reload(); } }).catch(() => {}); prof = LS.get('profile'); if (!prof) { await alertBox('Connexion internet nécessaire pour la première ouverture.'); return loadMembership(); } }
     if (prof.blocked === true && !isSuper()) return gateScreen('⛔ Compte bloqué', `Ce compte a été bloqué par SiteTeam.${prof.blockedWhy ? '\nMotif : ' + prof.blockedWhy : ''}\nPour toute question : ${SUPPORT_EMAIL}`, false);
     presence(prof);
-    if (!prof.companyId) { await loadPlanCfg(); await onboardScreen(); return loadMembership(); }
+    // v1.0.57 : nouveau compte — on ne propose de créer un espace qu'après avoir lu les réglages du Super Admin (« accès sur code uniquement ») :
+    // réseau lent ou réglages illisibles → on ne laisse pas passer (avant : l'écran proposait « Espace personnel » et la personne entrait sans code)
+    if (!prof.companyId) { await loadPlanCfg(); if (!LS.get('appCfgAt') && !isSuper()) { await gateScreen('📶 Connexion nécessaire', 'Impossible de lire les réglages de SiteTeam. Vérifiez internet puis touchez « Réessayer ».', { retry: true }); }
+      await onboardScreen(); return loadMembership(); }
     S.workspaces = Array.isArray(prof.workspaces) ? prof.workspaces : [];
     S.profil = prof.profil || {};
     // espace de travail : chaque organisation a sa base locale ; si l'espace a changé (ici ou sur un autre téléphone), on bascule puis on recharge
@@ -1070,7 +1073,8 @@ const Team = (() => {
       if (!S.me || S.me.uid !== S.user.uid) { await alertBox('Connexion impossible : ' + errMsg(e)); return loadMembership(); } }
     S.ready = true;
     watchAccess();
-    if (LS.get('plansCfg')) loadPlanCfg().catch(() => {}); else await loadPlanCfg();   // v1.0.35 : configuration en arrière-plan si déjà connue
+    // v1.0.35 : configuration en arrière-plan si déjà connue — v1.0.57 : puis contrôle d'accès refait (« accès sur code uniquement » activé entre-temps)
+    if (LS.get('plansCfg')) loadPlanCfg().then(() => { try { gate(); } catch (e) {} }).catch(() => {}); else await loadPlanCfg();
     // v1.0.45 : postes, projets partagés, équipes projet et membres — depuis le cache tout de suite, puis réseau en arrière-plan
     const rest = async () => { await loadPostes(); await loadShared(); try { await projectIds(); } catch (e) { console.warn('équipes projet', e); } await refreshMembers(); saveWorkspace(); };
     const fast = quickC && Array.isArray(LS.get('members')) && LS.get('projectTeams');
