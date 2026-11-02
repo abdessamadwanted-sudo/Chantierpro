@@ -310,7 +310,9 @@ async function pdfToImages(file, maxSide = 3000, onPage) {
     const page = await pdf.getPage(p);
     const r = await pdfPageToBlob(page, maxSide);
     out.push({ ...r, page: p });
+    try { page.cleanup(); } catch (e) {}
   }
+  try { pdf.destroy(); } catch (e) {}
   return out;
 }
 // v1.0.47 : rendu d'une page PDF par tuiles (plans A0) — jamais un seul gros rendu : le téléphone ne coupe plus le plan
@@ -482,8 +484,10 @@ async function showPdf(blob, caption = 'PDF', opts = {}) {
     <div class="pdf-find" style="display:none"><input placeholder="Rechercher dans le document…"><span data-fc></span><button data-a="prev">‹</button><button data-a="next">›</button></div>
     <div class="pdf-pages"><div class="pdf-zoom"></div></div><div class="pdf-ind"><span data-pg></span><button data-a="fit">⤢</button></div>`;
   document.body.appendChild(el);
-  const unBack = pushBack(() => el.remove());
-  $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
+  // v1.0.59 : fermer le lecteur libère le PDF et les pages dessinées (mémoire)
+  const shut = () => { try { el.querySelectorAll('canvas').forEach(c => { c.width = 0; c.height = 0; }); } catch (e) {} el.remove(); setTimeout(() => { try { pdf && pdf.destroy(); } catch (e) {} }, 0); };
+  const unBack = pushBack(shut);
+  $('[data-a=x]', el).onclick = () => { unBack(); shut(); };
   const scroller = $('.pdf-pages', el), box = $('.pdf-zoom', el);
   let zk = 1, pinch = null, lastTap = 0, nPages = 0;
   const setZoom = (nk, mx, my) => {
