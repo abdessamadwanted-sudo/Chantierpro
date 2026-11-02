@@ -238,6 +238,8 @@ function bindLotDue(el, L, D, f, save, redraw) {
       { name: 'due', label: 'Date limite fixée', type: 'date', value: D._due || '' },
       { name: 'zone', label: 'Zone (optionnel)', value: D._dueZone || '', list: lotZonesList(p) },
       ...(D._due ? [{ name: 'done', label: 'État', type: 'select', value: D._dueDone ? 'o' : 'n', options: [{ value: 'n', label: '⏳ À faire' }, { value: 'o', label: '✓ Fait' }] }] : []),
+      { name: 'rem', label: '🔔 Rappel', type: 'select', value: D._dueRem || '', options: DUE_REM.map(([value, label]) => ({ value, label })) },
+      { name: 'hr', label: 'Heure du rappel (vide = heure par défaut)', type: 'time', value: D._dueHr || '' },
       { name: 'by', label: 'Fixée par', type: 'select', value: D._dueBy || 'MO', options: [['MO', 'Maître d\'ouvrage'], ['BET', 'BET'], ['BC', 'Bureau de contrôle'], ['Archi', 'Architecte'], ['Entreprise', 'Entreprise / planning interne']].map(([value, label]) => ({ value, label })) },
       { name: 'start', label: 'Début du lot (pour la barre de temps)', type: 'date', value: D._start || '' },
       { name: 'mo', label: 'Nom du maître d\'ouvrage (pour tout le projet)', value: p.mo || '', placeholder: 'Ex : SONARGES, ONEE, Commune…' },
@@ -247,13 +249,13 @@ function bindLotDue(el, L, D, f, save, redraw) {
     if (!r) return;
     if (r.__danger) { delete D._due; delete D._dueBy; delete D._dueObj; delete D._dueZone; delete D._dueDone; }
     else {
-      D._dueObj = (r.obj || '').trim(); D._dueZone = (r.zone || '').trim(); D._dueDone = r.done === 'o';
+      D._dueObj = (r.obj || '').trim(); D._dueZone = (r.zone || '').trim(); D._dueDone = r.done === 'o'; D._dueRem = r.rem || ''; D._dueHr = r.hr || '';
       if (D._due && r.due && r.due !== D._due) (D._dueHist = D._dueHist || []).push({ from: D._due, to: r.due, why: r.why || '', at: todayISO() });
       if (r.due && !D._due) D._dueSet = todayISO();
       D._due = r.due || null; D._dueBy = r.by; D._start = r.start || D._start || null;
       if ((r.mo || '') !== (p.mo || '')) { p.mo = r.mo; await DB.put('projects', p); }
     }
-    await save(); redraw();
+    await save(); redraw(); dueSchedule(p).catch(() => {});
   };
   // v1.0.65 : échéances / alertes supplémentaires
   const alForm = async (a) => {
@@ -264,11 +266,13 @@ function bindLotDue(el, L, D, f, save, redraw) {
       { name: 'zone', label: 'Zone (optionnel)', value: a ? a.zone || '' : '', list: lotZonesList(p) },
       { name: 'by', label: 'Demandé par (optionnel)', value: a ? a.by || '' : '', list: ['MO', 'BET', 'Bureau de contrôle', 'Architecte', 'Laboratoire', 'Entreprise'] },
       ...(a ? [{ name: 'done', label: 'État', type: 'select', value: a.done ? 'o' : 'n', options: [{ value: 'n', label: '⏳ À faire' }, { value: 'o', label: '✓ Fait' }] }] : []),
+      { name: 'rem', label: '🔔 Rappel', type: 'select', value: a ? a.rem || '' : '', options: DUE_REM.map(([value, label]) => ({ value, label })) },
+      { name: 'hr', label: 'Heure du rappel (vide = heure par défaut)', type: 'time', value: a ? a.hr || '' : '' },
     ], { okLabel: 'Enregistrer', danger: a ? 'Supprimer' : null });
     if (!r) return; D._al = D._al || [];
     if (r.__danger) D._al = D._al.filter(x => x.id !== a.id);
-    else { if (!r.d) return toast('Indiquez la date'); const o = a || { id: DB.uid(), at: todayISO() }; Object.assign(o, { obj: (r.obj || '').trim(), type: r.type, d: r.d, zone: (r.zone || '').trim(), by: (r.by || '').trim(), done: r.done === 'o', doneAt: r.done === 'o' ? (o.doneAt || todayISO()) : null }); if (!a) D._al.push(o); }
-    await save(); redraw();
+    else { if (!r.d) return toast('Indiquez la date'); const o = a || { id: DB.uid(), at: todayISO() }; Object.assign(o, { obj: (r.obj || '').trim(), type: r.type, d: r.d, zone: (r.zone || '').trim(), by: (r.by || '').trim(), done: r.done === 'o', doneAt: r.done === 'o' ? (o.doneAt || todayISO()) : null, rem: r.rem || '', hr: r.hr || '' }); if (!a) D._al.push(o); }
+    await save(); redraw(); dueSchedule(p).catch(() => {});
   };
   const aa = $('[data-a=aladd]', el); if (aa) aa.onclick = () => alForm(null);
   const at = $('[data-a=altab]', el); if (at) at.onclick = () => openDueTable(p, { niv: nivOfFolder(f.name) || f.name, lot: L.name });
@@ -318,7 +322,7 @@ async function openDueTable(p, pre = {}) {
       && (!F.q || `${r.a.obj} ${r.a.type} ${r.niv} ${r.L.name} ${r.a.zone} ${r.a.by}`.toLowerCase().includes(F.q.toLowerCase()))).sort((x, y) => (x.a.done - y.a.done) || x.a.d.localeCompare(y.a.d));
     const cnt = (k) => rows.filter(r => stOf(r) === k).length;
     const sel = (k, lab, L) => `<label class="avf-s ${F[k] ? 'on' : ''}"><small>${lab}</small><select data-f="${k}"><option value="">Tous</option>${L.map(x => { const [v, t] = Array.isArray(x) ? x : [x, x]; return `<option value="${esc(v)}" ${v === F[k] ? 'selected' : ''}>${esc(t)}</option>`; }).join('')}</select></label>`;
-    el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><div class="tb-title" style="flex:1"><b>Tableau des échéances</b><span>${esc(p.name)}${p.mo ? ' · ' + esc(p.mo) : ''}</span></div><button class="iconbtn" data-a="pdf">${icon('pdf')}</button></div>
+    el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><div class="tb-title" style="flex:1"><b>Tableau des échéances</b><span>${esc(p.name)}${p.mo ? ' · ' + esc(p.mo) : ''}</span></div><button class="iconbtn" data-a="notif" title="Notifications">🔔</button><button class="iconbtn" data-a="pdf">${icon('pdf')}</button></div>
       <div class="due-body">
         <div class="due-k">${['retard', 'bientot', 'ok', 'fait'].map(k => `<button data-st="${k}" class="${F.st === k ? 'on' : ''} ${k}"><b>${cnt(k)}</b><small>${ST[k][0]} ${ST[k][1]}</small></button>`).join('')}</div>
         <input class="due-q" type="search" placeholder="🔍 Objet, lot, zone…" value="${esc(F.q)}">
@@ -326,6 +330,7 @@ async function openDueTable(p, pre = {}) {
         <div class="due-l">${R.map((r, i) => `<button class="due-r ${stOf(r)}" data-i="${rows.indexOf(r)}"><span class="due-d">${r.a.done ? '✓' : esc(dueTxt(r.d))}</span><span class="grow"><b>${esc(r.a.obj || r.a.type)}</b><small>${esc(r.L.e || '')} ${esc(r.L.name)} · ${esc(r.niv)}${r.a.zone ? ' · ' + esc(r.a.zone) : ''} · ${esc(r.a.type)}${r.a.by ? ' · ' + esc(r.a.by) : ''}</small></span><em>${fmtDate(r.a.d)}</em></button>`).join('') || '<div class="empty">Aucune échéance pour ce choix.<br>Ajoutez-les dans Plans › niveau › lot › Échéance.</div>'}</div>
       </div>`;
     $('[data-a=x]', el).onclick = close;
+    $('[data-a=notif]', el).onclick = () => dueNotifSettings(p);
     $$('[data-f]', el).forEach(s => s.onchange = () => { F[s.dataset.f] = s.value; draw(); });
     $$('[data-st]', el).forEach(b => b.onclick = () => { F.st = F.st === b.dataset.st ? '' : b.dataset.st; draw(); });
     const qi = $('.due-q', el); let t; qi.oninput = () => { clearTimeout(t); t = setTimeout(() => { F.q = qi.value.trim(); draw(); setTimeout(() => { const q2 = $('.due-q', el); if (q2) { q2.focus(); q2.setSelectionRange(q2.value.length, q2.value.length); } }, 0); }, 350); };
@@ -345,4 +350,48 @@ async function openDueTable(p, pre = {}) {
     };
   };
   draw();
+}
+
+// ================= v1.0.67 : notifications des échéances / alertes sur le téléphone =================
+// Vous choisissez : activées ou non, l'heure, le rappel par défaut (le jour même, 1 j, 2 j, 3 j, 1 semaine avant), un rappel si la date est dépassée,
+// et quels types d'alertes ; chaque échéance peut avoir son propre rappel et sa propre heure. Notifications datées (« at »), jamais répétées automatiquement.
+const DUE_REM = [['', 'Par défaut'], ['none', 'Pas de rappel'], ['0', 'Le jour même'], ['1', '1 jour avant'], ['2', '2 jours avant'], ['3', '3 jours avant'], ['7', '1 semaine avant']];
+const dueNCfg = (p) => { let o = null; try { o = JSON.parse(localStorage.getItem('dueN.' + p.id) || 'null'); } catch (e) {} return { on: true, time: '08:00', before: '1', late: true, types: null, ...(o || {}) }; };
+const dueNSave = (p, o) => { try { localStorage.setItem('dueN.' + p.id, JSON.stringify(o)); } catch (e) {} };
+const dueNId = (s) => 1700000000 + (Math.abs([...String(s)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7)) % 90000000);
+async function dueSchedule(p) {
+  const LN = window.Capacitor?.Plugins?.LocalNotifications; if (!LN || window.__safe || !p) return 0;
+  const C = dueNCfg(p), key = 'dueN.ids.' + p.id; let old = []; try { old = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) {}
+  if (old.length) await LN.cancel({ notifications: old.map(id => ({ id })) }).catch(() => {});
+  if (!C.on) { try { localStorage.setItem(key, '[]'); } catch (e) {} return 0; }
+  const now = new Date(), N = [];
+  for (const f of await DB.byProject('folders', p.id)) for (const L of planLots(p)) { const D = (f.lotData || {})[L.id]; if (!D) continue;
+    for (const a of lotAlerts(D)) { if (a.done || !a.d) continue; if (C.types && !C.types.includes(a.main ? 'Échéance MO' : a.type)) continue;
+      const rem = a.main ? (D._dueRem || '') : (a.rem || ''); if (rem === 'none') continue;
+      const before = +(rem === '' ? C.before : rem) || 0, hm = ((a.main ? D._dueHr : a.hr) || C.time || '08:00').split(':').map(Number), niv = nivOfFolder(f.name) || f.name;
+      const what = `${a.obj || a.type} · ${L.name} · ${niv}${a.zone ? ' · ' + a.zone : ''}`;
+      const at = new Date(a.d + 'T00:00:00'); at.setDate(at.getDate() - before); at.setHours(hm[0] || 8, hm[1] || 0, 0, 0);
+      if (at > now) N.push({ id: dueNId(f.id + L.id + a.id + 'r'), title: before ? `⏳ Échéance dans ${before} j (${fmtDate(a.d)})` : `⏳ Échéance aujourd'hui`, body: what, at });
+      if (C.late) { const lt = new Date(a.d + 'T00:00:00'); lt.setDate(lt.getDate() + 1); lt.setHours(hm[0] || 8, hm[1] || 0, 0, 0); if (lt <= now) { lt.setTime(now.getTime()); lt.setDate(lt.getDate() + 1); lt.setHours(hm[0] || 8, hm[1] || 0, 0, 0); }
+        N.push({ id: dueNId(f.id + L.id + a.id + 'l'), title: `🔴 En retard (prévu le ${fmtDate(a.d)})`, body: what, at: lt }); } } }
+  N.sort((x, y) => x.at - y.at); const S = N.slice(0, 60);
+  try { if (S.length) await LN.schedule({ notifications: S.map(n => ({ id: n.id, title: n.title, body: n.body, channelId: 'rappels', extra: { action: 'due', pid: p.id }, schedule: { at: n.at, allowWhileIdle: true } })) }); localStorage.setItem(key, JSON.stringify(S.map(n => n.id))); } catch (e) { console.warn('dueN', e); }
+  return S.length;
+}
+async function dueNotifSettings(p) {
+  const C = dueNCfg(p), LN = window.Capacitor?.Plugins?.LocalNotifications;
+  const r = await formSheet('🔔 Notifications des échéances', [
+    { name: 'on', label: 'Notifications sur ce téléphone', type: 'select', value: C.on ? 'o' : 'n', options: [{ value: 'o', label: 'Activées' }, { value: 'n', label: 'Désactivées' }] },
+    { name: 'time', label: 'Heure des notifications', type: 'time', value: C.time },
+    { name: 'before', label: 'Rappel par défaut', type: 'select', value: C.before, options: DUE_REM.filter(([v]) => v !== '' && v !== 'none').map(([value, label]) => ({ value, label })) },
+    { name: 'late', label: 'Si la date est dépassée', type: 'select', value: C.late ? 'o' : 'n', options: [{ value: 'o', label: 'Me le rappeler (le lendemain)' }, { value: 'n', label: 'Rien' }] },
+  ], { okLabel: 'Enregistrer', intro: '<p class="muted" style="margin:0">Chaque échéance peut aussi avoir son propre rappel et sa propre heure (dans la fiche de l\'échéance).</p>' });
+  if (!r) return;
+  Object.assign(C, { on: r.on === 'o', time: r.time || '08:00', before: r.before || '1', late: r.late === 'o' });
+  // types d'alertes notifiées
+  const all = LOT_AL_TYPES.slice(); let T = new Set(C.types || all);
+  for (;;) { const v = await menu('Quelles alertes notifier ?', [...all.map(t => ({ label: t, value: t, checked: T.has(t) })), { label: '✓ Terminé', value: '__ok' }]); if (!v || v === '__ok') break; T.has(v) ? T.delete(v) : T.add(v); }
+  C.types = T.size === all.length ? null : [...T]; dueNSave(p, C);
+  if (C.on && LN) { try { const perm = await LN.requestPermissions(); if (perm.display !== 'granted') return alertBox('Autorisez les notifications de SiteTeam dans les réglages du téléphone.'); await LN.createChannel({ id: 'rappels', name: 'Rappels de chantier', importance: 5, visibility: 1, vibration: true }).catch(() => {}); } catch (e) {} }
+  const n = await dueSchedule(p); toast(C.on ? `🔔 ${n} notification(s) programmée(s)` : '🔕 Notifications des échéances désactivées');
 }

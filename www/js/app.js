@@ -353,6 +353,7 @@ async function renderHome() {
 }
 
 async function openProject(p, sec) {
+  try { App._dueS = App._dueS || new Set(); if (p && !App._dueS.has(p.id) && typeof dueSchedule === 'function') { App._dueS.add(p.id); setTimeout(() => dueSchedule(p).catch(() => {}), 4000); } } catch (e) {}   // v1.0.67 : notifications des échéances reprogrammées à l'ouverture du projet
   App.project = p; App.section = sec || 'plans';   // on arrive directement sur les plans (dossiers) App.search = ''; App.companyFilter = 'all'; App.taskFilter = 'all';
   p.updatedAt = Date.now(); await DB.put('projects', p);
   renderSection();
@@ -1663,7 +1664,8 @@ async function openPlansQuick() {
   // photos partagées depuis la galerie (Partager → Chantier)
   setTimeout(() => checkSharedIntent().catch(e => console.warn('share', e)), 300);
   // toucher la notification « photos sauvegardées » → proposer de libérer l'espace
-  try { const LN = window.Capacitor?.Plugins?.LocalNotifications; if (LN) LN.addListener('localNotificationActionPerformed', (a) => { if (a?.notification?.extra?.action === 'freephotos') setTimeout(freeOldPhotos, 600); if (a?.notification?.extra?.action === 'jobrobot') setTimeout(() => openCareer({ robot: true }), 600); }); } catch (e) {}
+  try { const LN = window.Capacitor?.Plugins?.LocalNotifications; if (LN) LN.addListener('localNotificationActionPerformed', (a) => { if (a?.notification?.extra?.action === 'freephotos') setTimeout(freeOldPhotos, 600); if (a?.notification?.extra?.action === 'jobrobot') setTimeout(() => openCareer({ robot: true }), 600);
+    if (a?.notification?.extra?.action === 'due') setTimeout(async () => { const p = await DB.get('projects', a.notification.extra.pid); if (p && typeof openDueTable === 'function') { await openProject(p, 'plans'); openDueTable(p); } }, 900); /* v1.0.67 : toucher la notification → tableau des échéances */ }); } catch (e) {}
   // message après une mise à jour
   try {
     const prev = localStorage.getItem('appVersion');
