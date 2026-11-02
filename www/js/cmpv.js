@@ -10,7 +10,7 @@ async function pdfDocOfFile(fileId) {
   const doc = await pdfjsLib.getDocument({ data: new Uint8Array(await f.blob.arrayBuffer()) }).promise;
   _pdfDocs.set(fileId, doc);
   // v1.0.47 : on ne garde que les 4 derniers PDF ouverts (plans A0 lourds en mémoire)
-  while (_pdfDocs.size > 4) { const k = _pdfDocs.keys().next().value, d = _pdfDocs.get(k); _pdfDocs.delete(k); try { d.destroy(); } catch (e) {} }
+  while (_pdfDocs.size > 2) { const k = _pdfDocs.keys().next().value, d = _pdfDocs.get(k); _pdfDocs.delete(k); try { d.destroy(); } catch (e) {} }
   return doc;
 }
 // page PDF d'un plan + k = pixels de l'image du plan par unité PDF
@@ -65,8 +65,8 @@ function cartoucheFromTexts(T) {
 async function cartoucheFromFile(file, pageNo = 1) {
   if (!(await pdfReadyA())) return null;
   const doc = await pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
-  const page = await doc.getPage(Math.min(pageNo, doc.numPages));
-  return cartoucheFromTexts(await pageTexts(page, 1));
+  try { const page = await doc.getPage(Math.min(pageNo, doc.numPages));
+    return cartoucheFromTexts(await pageTexts(page, 1)); } finally { try { doc.destroy(); } catch (e) {} }
 }
 async function cartoucheOfPlan(plan) { const T = await planTexts(plan); return cartoucheFromTexts(T); }
 

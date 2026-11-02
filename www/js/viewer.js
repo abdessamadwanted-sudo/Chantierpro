@@ -106,6 +106,7 @@ async function openPlanViewer(plan, ctx) {
   const base = Math.max(W, H);
   if (!plan.annotations) plan.annotations = [];
   plan.lastOpened = Date.now(); DB.put('plans', plan);
+  try { typeof bootTrail === 'function' && bootTrail('plan ouvert : ' + (plan.name || '') + ' (' + W + '×' + H + (plan.pdfFileId ? ', PDF' : '') + ', mémoire JS ' + (performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + ' Mo' : '?') + ')'); } catch (e) {}
   // v1.0.47 : plan A0 coupé (ancien import) → image refaite par tuiles en arrière-plan, puis remplacée à l'écran
   if (typeof planNeedsHeal === 'function' && planNeedsHeal(plan)) planHeal(plan).then(async ok => { if (!ok) return; const f2 = await DB.get('files', plan.fileId); const u = f2 ? BlobURL.get(f2.id, f2.blob) : ''; document.querySelectorAll('.fullpage .stage > img, .fullpage .loupe img').forEach(im => { if (im.getAttribute('src') === src) im.src = u; }); toast('Plan A0 : image complète ✓'); });
 
@@ -142,7 +143,10 @@ async function openPlanViewer(plan, ctx) {
   const viewer = $('.viewer', el), stage = $('.stage', el);
   const gAnn = $('.g-annots', el), gPrev = $('.g-preview', el), gLinks = $('.g-links', el), gTasks = $('.g-tasks', el);
 
-  const teardown = () => { window.removeEventListener('resize', fit); el.remove(); ctx.onClose && ctx.onClose(); };
+  // v1.0.59 : à la fermeture du plan on libère la mémoire (PDF ouvert dans pdf.js, calques HD, image décodée).
+  // Avant, chaque plan ouvert restait en mémoire → après quelques plans A0, Android fermait l'application.
+  const cleanups = []; let closed = false;
+  const teardown = () => { closed = true; try { typeof bootTrail === 'function' && bootTrail('plan fermé'); } catch (e) {} window.removeEventListener('resize', fit); cleanups.forEach(f => { try { f(); } catch (e) {} }); el.querySelectorAll('img').forEach(im => { try { im.removeAttribute('src'); } catch (e) {} }); el.remove(); ctx.onClose && ctx.onClose(); };
   const close = () => { unBack(); teardown(); };
   const unBack = pushBack(teardown);
   $('[data-a=back]', el).onclick = close;
@@ -199,7 +203,9 @@ async function openPlanViewer(plan, ctx) {
     hdi ^= 1;
   }
   const HD_M = 0.25;   // marge rendue autour de l'écran (25 % de chaque côté)
-  let pdfPage = null, hdTimer = null, hdTask = null;
+  let pdfPage = null, pdfDoc = null, hdTimer = null, hdTask = null;
+  const freeCanvas = c => { try { c.width = 0; c.height = 0; } catch (e) {} };
+  cleanups.push(() => { clearTimeout(hdTimer); if (hdTask) { try { hdTask.cancel(); } catch (e) {} } hdc.forEach(freeCanvas); if (pdfDoc) { try { pdfDoc.destroy(); } catch (e) {} } pdfDoc = pdfPage = null; });
   async function loadPdfPage() {
     if (!plan.pdfFileId || !(await pdfReadyA())) return null;
     if (pdfPage) return pdfPage;
@@ -207,7 +213,8 @@ async function openPlanViewer(plan, ctx) {
       const f = await DB.get('files', plan.pdfFileId);
       if (!f) return null;
       const doc = await pdfjsLib.getDocument({ data: new Uint8Array(await f.blob.arrayBuffer()) }).promise;
-      pdfPage = await doc.getPage(plan.pdfPage || 1);
+      if (closed) { try { doc.destroy(); } catch (e) {} return null; }
+      pdfDoc = doc; pdfPage = await doc.getPage(plan.pdfPage || 1);
     } catch (e) { console.error(e); }
     return pdfPage;
   }
@@ -229,8 +236,8 @@ async function openPlanViewer(plan, ctx) {
     const ix0 = (-tx - mx) / sc, iy0 = (-ty - my) / sc, ix1 = (vw + mx - tx) / sc, iy1 = (vh + my - ty) / sc;
     const clip = [C.x0 + ix0 / C.s, C.y1 - iy1 / C.s, C.x0 + ix1 / C.s, C.y1 - iy0 / C.s];
     cadPaint(canvasDev(gg, sc * dpr), C.D, { color: 'screen', lwMode: 'col', plotAll: true, hidden: C.hidden }, { x0: C.x0, y1: C.y1, k: C.s, ox: (tx + mx) / sc, oy: (ty + my) / sc, clip });
-    if (st.scale !== sc || st.tx !== tx || st.ty !== ty) return;
-    hdShow(c, ix0, iy0, RW / sc, RH / sc);
+    if (closed || st.scale !== sc || st.tx !== tx || st.ty !== ty) return freeCanvas(c);
+    hdShow(c, ix0, iy0, RW / sc, RH / sc); freeCanvas(c);
   }
   function scheduleHD() {
     if (isCad) { clearTimeout(hdTimer); hdTimer = setTimeout(renderCadHD, 180); return; }
@@ -239,6 +246,7 @@ async function openPlanViewer(plan, ctx) {
     hdTimer = setTimeout(renderHD, 140);
   }
   async function renderHD() {
+    if (closed) return;
     if (g || !el.isConnected) return scheduleHD();
     const dpr = Math.min(window.devicePixelRatio || 1, 3);
     if (st.scale * dpr <= 1.05) { hd.style.display = 'none'; return; } // l'image de base suffit
@@ -254,10 +262,11 @@ async function openPlanViewer(plan, ctx) {
     c.width = Math.round((vw + 2 * mx) * dpr); c.height = Math.round((vh + 2 * my) * dpr);
     if (hdTask) { try { hdTask.cancel(); } catch (e) {} }
     hdTask = page.render({ canvasContext: c.getContext('2d'), viewport: vp, background: 'white' });
-    try { await hdTask.promise; } catch (e) { return; }
+    try { await hdTask.promise; } catch (e) { freeCanvas(c); return; }
     hdTask = null;
-    if (st.scale !== sc || st.tx !== tx || st.ty !== ty) return scheduleHD();   // l'écran a bougé pendant le rendu : on recommence
-    hdShow(c, (-tx - mx) / sc, (-ty - my) / sc, (vw + 2 * mx) / sc, (vh + 2 * my) / sc);
+    if (closed) return freeCanvas(c);
+    if (st.scale !== sc || st.tx !== tx || st.ty !== ty) { freeCanvas(c); return scheduleHD(); }   // l'écran a bougé pendant le rendu : on recommence
+    hdShow(c, (-tx - mx) / sc, (-ty - my) / sc, (vw + 2 * mx) / sc, (vh + 2 * my) / sc); freeCanvas(c);
   }
 
   // ---------- Mesures : distance, surface, périmètre, coordonnées (aimantation sur les extrémités des DWG/DXF) ----------

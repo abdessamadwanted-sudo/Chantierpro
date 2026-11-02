@@ -1,3 +1,8 @@
+## SiteTeam : l'application ne se ferme plus après l'ouverture de plusieurs plans
+- Fermer un plan libère maintenant sa mémoire (PDF ouvert, calques nets du zoom, image du plan). Avant, chaque plan A0 ouvert restait en mémoire et, après quelques plans, Android fermait l'application (puis « mode secours »).
+- Même nettoyage pour le lecteur PDF, l'import de plans PDF et la lecture du cartouche ; le comparateur garde 2 PDF au lieu de 4.
+- Rapport de diagnostic : indique le plan ouvert (taille, mémoire) juste avant une fermeture.
+
 ## SiteTeam : Packs & fonctions — contrôle total de ce que chaque pack ouvre
 - Panneau d'administration › nouvel onglet « Packs & fonctions » : pour chaque pack, cochez les fonctions premium (comparer, outils PDF, DWG → PDF, rapports PDF, envoyer un plan annoté, PDF des pins photos) et les outils ; « Essai gratuit (jours) » par pack.
 - Organisations › un espace › « Pour cet espace » : offrir une fonction (7 j, 1 mois… ou toujours) et ajouter / retirer un outil, au-dessus du pack.
