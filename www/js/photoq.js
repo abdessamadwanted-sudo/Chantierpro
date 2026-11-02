@@ -23,6 +23,7 @@ const PhotoQ = (() => {
         const { id, hq } = Q.shift();
         try {
           const f = await DB.get('files', id); if (!f || !f.blob) { done++; continue; }
+          if (f.blob.size > 3145728 || Q.length % 10 === 0) try { typeof bootTrail === 'function' && bootTrail(`photo à préparer (${(f.blob.size / 1048576).toFixed(1)} Mo, reste ${Q.length})`); } catch (e) {}
           if (quality() !== 'orig' && !f._w && typeof compressImage === 'function' && /^image\//.test(f.mime || f.blob.type || '')) {
             const c = await compressImage(f.blob, hq ? 2400 : 2000, 0.86); if (c && c.blob && c.blob.size < f.blob.size) { f.blob = c.blob; f.mime = 'image/jpeg'; f.w = c.w; f.h = c.h; }
           }

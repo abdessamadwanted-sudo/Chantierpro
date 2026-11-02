@@ -221,6 +221,10 @@ const Sync = (() => {
   DB.peek = (store, id) => _get(store, id);   // lecture sans téléchargement depuis Drive
   async function usage() { let local = 0, n = 0, cloud = 0; for (const f of await DB.all('files')) { if (f.blob) { local += f.blob.size || 0; n++; } else if (f.driveId || f.sref) cloud++; } return { local, n, cloud }; }
 
+  // v1.0.62 : étapes de la synchro notées dans le rapport de diagnostic (pour savoir ce qui tournait si Android ferme l'application)
+  const T0 = Date.now();
+  const tr = (s) => { try { typeof bootTrail === 'function' && bootTrail('synchro : ' + s + (performance.memory ? ` [JS ${Math.round(performance.memory.usedJSHeapSize / 1048576)} Mo]` : '')); } catch (e) {} };
+  const mb = (f) => f && f.blob ? (f.blob.size / 1048576).toFixed(1) + ' Mo' : '';
   // ---------- synchronisation ----------
   async function run({ quiet = false, force = false } = {}) {
     if (!enabled()) return;
@@ -230,7 +234,7 @@ const Sync = (() => {
     running = true; again = false;
     let pulledCount = 0; const fails = []; fails0 = fails;
     try {
-      setStatus('sync', 'Synchronisation…');
+      setStatus('sync', 'Synchronisation…'); const early = Date.now() - T0 < 300000; if (early) tr('début');
       // 1) envoyer les fichiers (photos, plans, PDF…) dans des dossiers rangés
       // v1.0.43 : résultats de l'envoi en arrière-plan (WorkManager) — les photos confiées au téléphone ne sont pas renvoyées ici
       if (typeof BgUp !== 'undefined' && BgUp.available()) { try { await BgUp.settle(); } catch (e) { console.warn('bgup settle', e); } }
@@ -239,8 +243,8 @@ const Sync = (() => {
       const paths = await buildPaths();
       const files = await DB.all('files');
       const todo = !hasDrive() ? [] : files.filter(f => !f.bgq && !f.prep).filter(f => (f.blob && (!f.driveId || f.drivePath !== JSON.stringify(pathFor(f, paths)))) || (!f.blob && f.driveId && f.drivePath && f.drivePath !== JSON.stringify(pathFor(f, paths))));
-      let i = 0;
-      await pool(todo, 3, async (f) => {
+      let i = 0; if (todo.length) tr(`envoi de ${todo.length} fichier(s)`);
+      await pool(todo, 2, async (f) => {
         const pth = pathFor(f, paths), key = JSON.stringify(pth);
         let res = null;
         if (handoff && !f.driveId && f.role === 'photo') return;   // application passée en arrière-plan : le téléphone s'en charge
@@ -251,6 +255,7 @@ const Sync = (() => {
         try {
           if (f.driveId) { try { res = await lim(call('upload', { driveId: f.driveId, path: pth.segs, name: pth.name }), ms); } catch (e) { res = null; } }
           if (!res && !f.blob) return;
+          if (!res && f.blob && f.blob.size > 4194304) tr(`envoi ${f.name || f.role || 'fichier'} (${mb(f)})`);
           if (!res) res = await lim(call('upload', { path: pth.segs, name: pth.name, mime: f.mime || f.blob.type, blob: f.blob }), ms);
           f.driveId = res.id; f.drivePath = key;
           await DB.put('files', f);
@@ -304,8 +309,9 @@ const Sync = (() => {
       else if (pull.commit) pull.commit(); else LS.set('pullAt', pull.now);
       // 4) télécharger les fichiers manquants (plans d'abord)
       const missing = (!hasDrive() && !cloudOn()) ? [] : (await DB.all('files')).filter(f => ((hasDrive() && f.driveId) || inCloud(f)) && !f.blob && wantLocal(f)).sort((a, b) => (b.role === 'plan') - (a.role === 'plan'));
-      let j = 0;
-      await pool(missing, 4, async (f) => {
+      let j = 0; if (missing.length) tr(`téléchargement de ${missing.length} fichier(s)`);
+      // v1.0.62 : 2 téléchargements à la fois (avant 4 : plans A0 lourds en mémoire au démarrage)
+      await pool(missing, 2, async (f) => {
         try {
           if (inCloud(f)) f.blob = await Team.cloudDownload(f); else { const d = await Promise.race([call('download', { id: f.driveId }), new Promise((_, rej) => setTimeout(() => rej(new Error('délai dépassé')), 240000))]); f.blob = d.blob || fromB64(d.b64, f.mime || d.mime); }
           await DB.putRaw('files', f); pulledCount++; }
@@ -315,7 +321,9 @@ const Sync = (() => {
       // 4b) libérer l'espace du téléphone (fichiers déjà dans Drive)
       await freeSpace();
       // 5) documents lisibles dans Drive (PDF des tableaux, réserves, rapports)
-      if (hasDrive() && (force || Date.now() - LS.get('docsAt', 0) > 600000)) { await syncDocs(); LS.set('docsAt', Date.now()); }
+      // v1.0.62 : jamais dans les 3 premières minutes après l'ouverture (démarrage léger), et 3 PDF au plus par passage
+      if (hasDrive() && (force || (Date.now() - T0 > 180000 && Date.now() - LS.get('docsAt', 0) > 600000))) { tr('PDF des tableaux vers Drive'); const more = await syncDocs(force ? 99 : 3); if (!more) LS.set('docsAt', Date.now()); }
+      if (early) tr('terminée');
       st.last = Date.now(); LS.set('last', st.last);
       if (Date.now() - LS.get('chkAt', 0) > 7 * 864e5) weeklyCheck().catch(e => console.warn('check', e));
       LS.set('fails', fails.slice(0, 20));
@@ -358,7 +366,8 @@ const Sync = (() => {
     try { await fn(); } catch (e) { console.warn('pdf', e); } finally { window.PdfCapture = null; window.loading = L; window.alertBox = A; }
     return cap[0];
   }
-  async function syncDocs() {
+  async function syncDocs(max = 99) {
+    let made = 0, more = false;
     if (!window.jspdf && window.__late) await window.__late;
     if (!window.jspdf) return;
     const projects = await DB.all('projects');
@@ -380,12 +389,14 @@ const Sync = (() => {
       const todo = jobs.filter(j => !docs[j.key] || docs[j.key].sig !== j.sig);
       let n = 0;
       for (const j of todo) {
-        n++; setStatus('sync', `PDF dans Drive ${n}/${todo.length}`);
+        if (made >= max) { more = true; break; }
+        n++; made++; setStatus('sync', `PDF dans Drive ${n}/${todo.length}`); tr(`PDF ${j.name}`);
         const out = await capturePdf(j.make); if (!out) { fails0.push(`${j.name} : PDF non créé`); continue; }
         let res; try { res = await call('upload', { path: j.segs, name: j.name, mime: 'application/pdf', blob: out.blob }); } catch (e) { fails0.push(`${j.name} : ${e.message || e}`); continue; }
         const old = docs[j.key] && docs[j.key].id;
         if (old && old !== res.id) await call('push', { records: [{ _store: 'gen', id: j.key + ':' + Date.now(), driveId: old, _deleted: true, updatedAt: Date.now() }] });
         docs[j.key] = { id: res.id, sig: j.sig }; dirty = true;
+        { const cur = await _get('projects', p.id); if (cur) { cur.driveDocs = docs; await DB.put('projects', cur); } }   // gardé au fur et à mesure
       }
       // documents dont la source a été supprimée
       for (const k of Object.keys(docs)) if (!jobs.some(j => j.key === k)) {
@@ -393,7 +404,9 @@ const Sync = (() => {
         delete docs[k]; dirty = true;
       }
       if (dirty) { const cur = await _get('projects', p.id); if (cur) { cur.driveDocs = docs; await DB.put('projects', cur); } }
+      if (more) break;
     }
+    return more;
   }
 
   function schedule(ms = 4000) { if (!enabled()) return; clearTimeout(timer); timer = setTimeout(() => run(), ms); }
