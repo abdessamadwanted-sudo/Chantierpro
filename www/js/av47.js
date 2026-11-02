@@ -376,7 +376,7 @@ async function openAvTable(p, o = {}) {
       for (const lot of LC) for (const l of L) { const P = cellPhotos(l, lot); if (P.length) G.push({ title: lot.name, sub: `${l.name}${n ? ' · ' + n.name : ''}${S.zone ? ' · ' + S.zone : ''}`, files: P.map(id => ({ id })) }); }
       if (!G.length) return toast('Aucune photo sur ce niveau'); await phPdf(p, G, [n && n.name, S.zone, 'Avancement'].filter(Boolean).join(' - ')); };
     $('[data-a=x]', el).onclick = async () => { if (S.ch.size && !await confirmBox(`${S.ch.size} modification(s) non enregistrée(s). Quitter ?`, 'Quitter')) return; close(); };
-    $('[data-a=exp]', el).onclick = () => avExpress(p, () => { close(); openAvTable(p, { ...o, nivId: S.niv }); });
+    const ex = $('[data-a=exp]', el); if (ex) ex.onclick = () => avExpress(p, () => { close(); openAvTable(p, { ...o, nivId: S.niv }); });
     $$('[data-k]', el).forEach(i => i.onchange = async () => { const k = i.dataset.k;
       if ((k === 'niv' || k === 'd') && S.ch.size && !await confirmBox('Changer de niveau / de date annule les modifications non enregistrées.', 'Continuer')) return draw();
       S[k] = i.value; if (k === 'niv') { S.zone = ''; S.ch.clear(); } if (k === 'd') S.ch.clear(); if (k === 'niv' || k === 'zone' || k === 'd') draw(); });
