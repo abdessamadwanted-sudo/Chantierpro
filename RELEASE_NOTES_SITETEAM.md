@@ -1,3 +1,7 @@
+## SiteTeam : Photos — catégories Réception, Bétonnage, Non-conformités, Anomalies & traitement, lots
+- Liste « Catégorie » : ⚠️ Anomalies & traitement (anomalies, retours / réparations, non-conformités, réserves), Réception, Bétonnage, Non-conformités, Réserves, PV, puis chaque lot (Étanchéité, Maçonnerie, Local technique…).
+- Les photos des constats de non-conformité (Constats / NC) sont rangées dans « Non-conformités », avec « Ouvrir › ».
+
 ## SiteTeam : bons à remplir, tableau d'avancement en photos, outils déplaçables, nouveau design
 - Bons & modèles (Outils du projet › Outils) : ajoutez un bon en PDF ou en photo (recadrée et nettoyée) ; il reste comme modèle de référence. Chaque remplissage est une copie : cases placées une fois (date, ouvrage, noms…), texte n'importe où, stylo au doigt (bleu, noir, rouge, vert · fin, moyen, gras), gomme, annuler, zoom. Le PDF garde la qualité du modèle (écriture vectorielle, bien visible) ; documents remplis gardés, modifiables, dupliquables, partageables.
 - Tableau d'avancement : nouvelle vue 📷 — chaque case local × lot montre ses photos (nombre, dernière photo) ; toucher pour voir, ajouter ou faire le PDF ; « ＋ Colonne » pour ajouter Nettoyage, Chape, Porte provisoire… ; PDF de toutes les photos du niveau / de la zone.

@@ -713,9 +713,11 @@ async function avProDash(root, p, nivs, locaux) {
 // où est rangée chaque photo : pin / lot, réception, réserve, PV, rapport, photos en masse ; sinon « À classer »
 // v1.0.61 : index de TOUTES les photos du projet — catégorie (rubrique / dossier / lot), niveau, zone, source —
 // pins photos (dossiers Porte provisoire, Nettoyage…), locaux / avancement, réception, bétonnage, anomalies, retours, réserves, PV, rapports
-const PH_SRC = { pin: '📍 Locaux / avancement', pn: '📌 Pins photos', rec: '🔩 Réception', bet: '🧱 Bétonnage', anom: '⚠️ Anomalies', ret: '🔁 Retours / réparations', pvr: '📋 PV de réception', res: '🚩 Réserves', pv: '📋 PV', rap: '📝 Rapports', grp: '🏗️ Classées' };
+const PH_SRC = { pin: '📍 Locaux / avancement', pn: '📌 Pins photos', rec: '🔩 Réception', bet: '🧱 Bétonnage', anom: '⚠️ Anomalies', ret: '🔁 Retours / réparations', pvr: '📋 PV de réception', nc: '🛑 Non-conformités', res: '🚩 Réserves', pv: '📋 PV', rap: '📝 Rapports', grp: '🏗️ Classées' };
 const PH_ST = ['Photos ouvrage', 'Anomalie', 'Traitée', 'PV'];
-const PH_ICO = { pin: '📍', pn: '📌', rec: '🔩', bet: '🧱', anom: '⚠️', ret: '🔁', pvr: '📋', res: '🚩', pv: '📋', rap: '📝', grp: '🏗️' };
+const PH_CATP = ['Réception', 'Bétonnage', 'Non-conformités', 'Réserves', 'PV'];
+const PH_ANOM = '⚠️ Anomalies & traitement', phIsAnom = (g) => ['anom', 'ret', 'nc', 'res'].includes(g.k) || g.st === 'Anomalie' || g.st === 'Traitée';
+const PH_ICO = { pin: '📍', pn: '📌', rec: '🔩', bet: '🧱', anom: '⚠️', ret: '🔁', pvr: '📋', nc: '🛑', res: '🚩', pv: '📋', rap: '📝', grp: '🏗️' };
 async function phIndex(p) {
   const [links, recs, tasks, forms, reps, plans, folders] = await Promise.all(['links', 'receptions', 'tasks', 'forms', 'reports', 'plans', 'folders'].map(s => DB.byProject(s, p.id).catch(() => [])));
   const M = new Map(), put = (id, g) => { if (id && !M.has(id)) M.set(id, g); };
@@ -746,6 +748,8 @@ async function phIndex(p) {
     for (const id of d.pvIds || []) put(id, { k: 'pvr', cat: tp, st: 'PV', niv: '', nr: 99, z: '', label: `PV · ${tp}`, sub: fmtDate(d.date), go: { rec: d.id }, day: d.date }); }
   for (const t of tasks) { const l = t.localId && L.get(t.localId), o = l ? locOf(l) : { niv: t.niv || '', nr: avNivRank(t.niv), z: '' };
     for (const id of t.photoIds || []) put(id, { k: 'res', cat: 'Réserves', ...o, label: `#${t.num || ''} ${t.title || 'Réserve'}`, sub: `Réserve${l ? ' · ' + l.name : ''}`, go: { task: t.id } }); }
+  // v1.0.64 : constats de non-conformité (rubrique Constats / NC)
+  for (const c of p.constats || []) for (const it of c.items || []) for (const id of it.photoIds || []) put(id, { k: 'nc', cat: 'Non-conformités', st: 'Anomalie', niv: '', nr: 99, z: '', label: `${c.ref || 'Constat'}${it.probleme ? ' · ' + String(it.probleme).slice(0, 60) : ''}`, sub: `Non-conformité · ${it.gravite || ''} · ${fmtDate(c.date)}`, go: { sec: 'constat' }, day: c.date });
   for (const f of forms) for (const id of f.photoIds || []) put(id, { k: 'pv', cat: 'PV', z: '', niv: f.niv || '', nr: avNivRank(f.niv), label: f.title || 'PV', sub: `PV · ${fmtDate(f.date)}`, go: { form: f.id }, day: f.date });
   for (const r of reps) for (const id of r.photoIds || []) put(id, { k: 'rap', cat: 'Rapports', z: '', niv: '', nr: 99, label: `Rapport du ${fmtDate(r.date)}`, sub: 'Rapport journalier', go: { rep: r.id }, day: r.date });
   return M;
@@ -768,7 +772,7 @@ async function renderPhotosV2(root) {
   }
   const F = App.phF = Object.assign({ niv: '', z: '', cat: '', dos: '', st: '', src: '', per: '', q: '', mode: 'cat' }, App.phF || {});
   const uniq = (fn, sort) => { const v = [...new Set(E.map(fn).filter(Boolean))]; return sort ? v.sort(sort) : v.sort((a, b) => String(a).localeCompare(String(b), 'fr', { numeric: true })); };
-  const nivL = uniq(e => e.g.niv, (a, b) => avNivRank(a) - avNivRank(b)), zL = uniq(e => e.g.z), catL = uniq(e => e.g.top || e.g.cat), dosL = uniq(e => e.g.top && (!F.cat || (e.g.top || e.g.cat) === F.cat) ? e.g.cat : ''), srcL = uniq(e => e.g.k).map(k => [k, PH_SRC[k] || k]), stL = uniq(e => e.g.st, (a, b) => PH_ST.indexOf(a) - PH_ST.indexOf(b));
+  const nivL = uniq(e => e.g.niv, (a, b) => avNivRank(a) - avNivRank(b)), zL = uniq(e => e.g.z), catL = [...(E.some(e => phIsAnom(e.g)) ? [PH_ANOM] : []), ...uniq(e => e.g.top || e.g.cat, (a, b) => (PH_CATP.indexOf(a) + 1 || 99) - (PH_CATP.indexOf(b) + 1 || 99) || String(a).localeCompare(String(b), 'fr', { numeric: true }))], dosL = uniq(e => e.g.top && (!F.cat || (e.g.top || e.g.cat) === F.cat) ? e.g.cat : ''), srcL = uniq(e => e.g.k).map(k => [k, PH_SRC[k] || k]), stL = uniq(e => e.g.st, (a, b) => PH_ST.indexOf(a) - PH_ST.indexOf(b));
   const sel = (k, lab, L) => L.length ? `<label class="avf-s ${F[k] ? 'on' : ''}"><small>${lab}</small><select data-pf="${k}"><option value="">Tous</option>${L.map(x => { const [v, t] = Array.isArray(x) ? x : [x, x]; return `<option value="${esc(v)}" ${v === F[k] ? 'selected' : ''}>${esc(t)}</option>`; }).join('')}</select></label>` : '';
   const th = (f) => `<div class="ph" data-id="${f.id}"><img src="${BlobURL.get(f.id, f.blob)}" loading="lazy">${phIsShot(f) ? '<span class="tag">📱 capture</span>' : phIsDoc(f) ? '<span class="tag">📄 document ?</span>' : ''}</div>`;
   let opened = {}; try { opened = JSON.parse(localStorage.getItem('ph.open.' + pid) || '{}'); } catch (e) {}
@@ -786,7 +790,7 @@ async function renderPhotosV2(root) {
     ${!files.length ? '<div class="empty">Aucune photo.<br>Les photos se prennent dans chaque ouvrage, réception, réserve ou pin.</div>' : ''}`;
   let groups = [];
   const filtered = () => { const q = phNorm(F.q).split(/\s+/).filter(Boolean), lim = F.per ? Date.now() - (+F.per) * 864e5 : 0, d0 = lim ? new Date(lim).toISOString().slice(0, 10) : '';
-    return E.filter(e => (!F.niv || e.g.niv === F.niv) && (!F.z || e.g.z === F.z) && (!F.cat || (e.g.top || e.g.cat) === F.cat) && (!F.dos || e.g.cat === F.dos) && (!F.st || e.g.st === F.st) && (!F.src || e.g.k === F.src) && (!lim || (F.per === '1' ? e.day >= todayISO() : e.day >= d0)) && q.every(w => e.txt.includes(w))); };
+    return E.filter(e => (!F.niv || e.g.niv === F.niv) && (!F.z || e.g.z === F.z) && (!F.cat || (F.cat === PH_ANOM ? phIsAnom(e.g) : (e.g.top || e.g.cat) === F.cat)) && (!F.dos || e.g.cat === F.dos) && (!F.st || e.g.st === F.st) && (!F.src || e.g.k === F.src) && (!lim || (F.per === '1' ? e.day >= todayISO() : e.day >= d0)) && q.every(w => e.txt.includes(w))); };
   const draw = () => {
     const R = filtered(), G = new Map();
     for (const e of R) { const g = e.g;
@@ -797,7 +801,7 @@ async function renderPhotosV2(root) {
       const x = G.get(key); x.files.push(e.f); x.src.add(g.k); if (F.mode === 'date') x.cats = (x.cats || new Set()).add(g.cat); }
     groups = [...G.values()];
     if (F.mode === 'date') groups.sort((a, b) => b.sort.localeCompare(a.sort)).forEach(g => g.sub = [...g.cats].slice(0, 4).join(' · '));
-    else if (F.mode === 'cat') groups.sort((a, b) => a.sort.localeCompare(b.sort, 'fr', { numeric: true }) || (a.dos || '').localeCompare(b.dos || '', 'fr', { numeric: true }) || (a.nr - b.nr) || a.sub.localeCompare(b.sub, 'fr', { numeric: true }) || (PH_ST.indexOf(a.st) - PH_ST.indexOf(b.st)));
+    else if (F.mode === 'cat') groups.sort((a, b) => ((PH_CATP.indexOf(a.sort) + 1 || 99) - (PH_CATP.indexOf(b.sort) + 1 || 99)) || a.sort.localeCompare(b.sort, 'fr', { numeric: true }) || (a.dos || '').localeCompare(b.dos || '', 'fr', { numeric: true }) || (a.nr - b.nr) || a.sub.localeCompare(b.sub, 'fr', { numeric: true }) || (PH_ST.indexOf(a.st) - PH_ST.indexOf(b.st)));
     else groups.sort((a, b) => (a.nr - b.nr) || a.sort.localeCompare(b.sort, 'fr', { numeric: true }));
     const on = ['cat', 'dos', 'st', 'niv', 'z', 'src', 'per', 'q'].filter(k => F[k]).length;
     $('.ph-scope', root).innerHTML = `${R.length} photo(s) · ${groups.length} groupe(s)${on ? ` · <button class="linkbtn" data-a="clr">effacer les filtres</button>` : ''}`;
@@ -821,7 +825,8 @@ async function renderPhotosV2(root) {
       else if (g.rec) { App.section = 'reception'; await renderSection(); const d = await DB.get('receptions', g.rec); if (d && typeof openReceptionDay === 'function') openReceptionDay(d); }
       else if (g.task) { const t = await DB.get('tasks', g.task); if (t) openTaskDetail(t); }
       else if (g.form) { const f = await DB.get('forms', g.form); if (f) openFormDetail(f); }
-      else if (g.rep) { App.section = 'reports'; renderSection(); } };
+      else if (g.rep) { App.section = 'reports'; renderSection(); }
+      else if (g.sec) { App.section = g.sec; renderSection(); } };
   const bindList2 = () => {
     $$('[data-gpdf]', root).forEach(b => b.onclick = () => { const g = groups[+b.dataset.gpdf]; phPdf(p, [g], F.mode === 'cat' ? `${g.title}${g.sub ? ' - ' + g.sub : ''}` : g.title); });
     $$('[data-cpdf]', root).forEach(b => b.onclick = () => { const G = groups.filter(x => x.title === b.dataset.cpdf); phPdf(p, G, b.dataset.cpdf + (F.niv ? ' - ' + F.niv : '') + (F.z ? ' - ' + F.z : '')); });
