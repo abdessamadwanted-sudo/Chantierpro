@@ -421,6 +421,9 @@ await env.withSecurityRulesDisabled(async (c) => { await c.firestore().collectio
 await t('code uniquement : REFUS de créer un espace sans le Super Admin', () => assertFails(other.collection('companies').doc('io-new').set({ name: 'Nouveau', ownerUid: OTHER.uid, kind: 'perso', plan: 'basic', planStatus: 'gratuit' })));
 await t('code uniquement : le Super Admin crée un espace', () => assertSucceeds(owner.collection('companies').doc('io-own').set({ name: 'Moi', ownerUid: OWNER.uid, kind: 'perso', plan: 'basic', planStatus: 'gratuit' })));
 await t('code uniquement : REFUS à un administrateur de s\'autoriser lui-même', () => assertFails(other.collection('companies').doc('io-free').update({ allowed: true })));
+// v1.0.63 : le Super Admin règle les outils visibles (perms) et la durée d'accès d'un membre de n'importe quelle organisation
+await t('Super Admin : outils visibles d\'un membre (perms)', () => assertSucceeds(owner.collection('companies').doc('c2').collection('members').doc('chef2').update({ perms: { plans: 1, reserves: 0 } })));
+await t('Super Admin : REFUS de rendre un membre administrateur', () => assertFails(owner.collection('companies').doc('c2').collection('members').doc('chef2').update({ admin: true })));
 await env.withSecurityRulesDisabled(async (c) => { await c.firestore().collection('config').doc('app').set({ inviteOnly: false }, { merge: true }); });
 log(`\n${fails ? fails + ' ÉCHEC(S)' : 'TOUT OK'} — ${out.length} vérifications`);
 fs.writeFileSync(O + '/rules-test.txt', out.join('\n') + '\n');

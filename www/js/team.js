@@ -502,6 +502,8 @@ service cloud.firestore {
         allow update: if isAdmin(cid) || (isMem(cid) && uid != request.auth.uid && resource.data.get('managerUid', '') == request.auth.uid
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['perms', 'missions', 'projects', 'allProjects', 'zone'])
           && permsWithin(cid, request.resource.data.perms) && projWithin(cid, request.resource.data));
+        // v1.0.63 : le Super Admin règle la durée d'accès et les outils visibles de n'importe quel membre (rien d'autre)
+        allow update: if licOwner() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['until', 'perms']);
         allow delete: if isAdmin(cid) || (signed() && uid == request.auth.uid);
       }
       // demandes d'accès (codes « avec approbation ») : la personne dépose sa demande, un administrateur accepte ou refuse
