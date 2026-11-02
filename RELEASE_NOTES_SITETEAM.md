@@ -1,3 +1,11 @@
+## SiteTeam : Photos — tout regroupé par catégorie, niveau et zone, recherche et PDF au choix
+- Photos : toutes les photos du projet réunies — pins photos (Porte provisoire, Nettoyage, Brique…), locaux / avancement, réception, bétonnage, anomalies, retours / réparations, PV, réserves, rapports.
+- Barre de recherche (porte, chape, R+1, zone 4, anomalie…) et filtres : Catégorie, Niveau, Zone, Source, Période (aujourd'hui, 7 j, 30 j, 3 mois).
+- Regrouper par Catégorie (ex. Porte provisoire › MEZZ · Zone 4), par Emplacement ou par Date.
+- PDF : une catégorie entière (bouton à côté du titre), un seul groupe (niveau · zone), ou tout ce qui est filtré (bouton PDF en haut) ; nom du fichier et titre modifiables.
+- PDF plus beau : les catégories se suivent (plus de page presque vide pour 1 photo) et chaque photo garde sa forme (paysage large, portrait haut), en grand, sans cadre vide ni recadrage.
+- Les photos des dossiers des pins photos ne tombent plus dans « À classer ».
+
 ## SiteTeam : l'envoi des photos vers Drive ne reste plus figé
 - Un envoi bloqué (réseau de chantier qui gèle, réponse Google qui n'arrive pas, autorisation Google restée sans réponse) est abandonné après un délai et repris à la prochaine synchro : les autres photos continuent (avant : « 3/59 vers Drive » ne bougeait plus).
 - Si des photos n'ont pas pu partir, la pastille passe en « problème(s) de synchro — touchez pour voir » au lieu de tourner sans fin.

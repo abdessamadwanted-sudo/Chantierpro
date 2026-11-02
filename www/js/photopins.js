@@ -88,7 +88,7 @@ async function pnShare(l, opt = {}) {
       const n = groups.reduce((a, g) => a + g.photos.filter(id => th[id] && !off.has(id)).length, 0);
       $('.pns', s.el).innerHTML = `<label>Nom du fichier (WhatsApp)<input name="fn" value="${esc(defName)}"></label>
         <label>Titre en haut du PDF<input name="tt" value="${esc(l.name)}"></label>
-        <label>Photos par page<select name="pp"><option value="4" selected>4 grandes photos</option><option value="2">2 très grandes</option><option value="6">6 photos</option><option value="1">1 photo pleine page</option></select></label>
+        <label>Photos par page<select name="pp"><option value="4" selected>Grandes photos (≈ 4 par page)</option><option value="2">Très grandes (≈ 2 par page)</option><option value="6">Moyennes (≈ 6 par page)</option><option value="1">1 photo pleine page</option></select></label>
         <p class="muted" style="margin:0">Touchez une photo pour la retirer de l'envoi · ${n} photo(s) retenue(s)</p>
         ${groups.map(g => `<div class="pns-g"><label class="ck"><input type="checkbox" data-gk="${g.id}" ${g.photos.some(id => !off.has(id)) ? 'checked' : ''}> <b>📁 ${esc(g.name)}</b> <small>${g.photos.filter(id => th[id] && !off.has(id)).length}/${g.photos.filter(id => th[id]).length}</small></label>
           <div class="pns-th">${g.photos.filter(id => th[id]).map(id => `<img src="${th[id]}" data-tg="${id}" class="${off.has(id) ? 'off' : ''}">`).join('')}</div></div>`).join('')}
@@ -114,38 +114,58 @@ async function pnImg(id) {
   c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
   return { d: c.toDataURL('image/jpeg', 0.82), w: c.width, h: c.height, at: f.createdAt || f.at || null };
 }
+// v1.0.61 : mise en page « intelligente » — les rubriques se suivent (plus de page presque vide pour 1 photo),
+// chaque photo garde sa forme (paysage large, portrait haut) : rangées justifiées sur toute la largeur, sans cadre vide ni recadrage.
+// G = [{ name, sub?, photos: [ids] }] ; per = densité (1, 2, 4 ou 6 photos par page environ)
 async function pnPdf(C, title, G, per = 4, prog) {
   if (!window.jspdf && window.__late) await window.__late;
   if (!window.jspdf) throw new Error('module PDF indisponible');
   const { jsPDF } = window.jspdf, doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' }), W = 210, H = 297, M = 10;
-  const cols = per >= 4 ? 2 : 1, top = 37, cap = 6;
-  const sub = [C.p && C.p.name, C.niv, C.lot && C.lot.name].filter(Boolean).join(' · '), date = fmtDate(todayISO());
-  let first = true, n = 0; const total = G.reduce((a, g) => a + g.photos.length, 0);
-  const head = (gname, cont) => {
-    doc.setFillColor(15, 37, 64); doc.rect(0, 0, W, 22, 'F'); doc.setTextColor(255, 255, 255);
+  const top = 26, bottom = H - 12, aw = W - 2 * M, gap = 4, cap = 5, secH = 10;
+  const maxCols = per <= 2 ? 1 : per >= 6 ? 3 : 2, rowsPP = per <= 1 ? 1 : per >= 6 ? 3 : 2;
+  const rowH = (bottom - top - secH) / rowsPP - cap - gap;   // hauteur visée d'une rangée
+  const sub = C ? [C.p && C.p.name, C.niv, C.lot && C.lot.name].filter(Boolean).join(' · ') : '', date = fmtDate(todayISO());
+  const total = G.reduce((a, g) => a + g.photos.length, 0); let n = 0, y = top, page = 0;
+  const head = () => {
+    if (page++) doc.addPage('a4', 'p');
+    doc.setFillColor(15, 37, 64); doc.rect(0, 0, W, 21, 'F'); doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.text(String(title).slice(0, 70), M, 10);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.text(`${sub}${sub ? ' · ' : ''}${date}`.slice(0, 110), M, 16.5);
-    doc.setFillColor(232, 240, 254); doc.rect(M, 23.5, W - 2 * M, 9, 'F'); doc.setTextColor(15, 37, 64); doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
-    doc.text(`${gname} · ${title}${cont ? ' (suite)' : ''}`.slice(0, 70), W / 2, 30, { align: 'center' });
+    y = top;
   };
+  const secHead = (g, cont) => {
+    doc.setFillColor(232, 240, 254); doc.rect(M, y, aw, secH - 2, 'F'); doc.setFillColor(37, 99, 235); doc.rect(M, y, 1.6, secH - 2, 'F');
+    doc.setTextColor(15, 37, 64); doc.setFont('helvetica', 'bold'); doc.setFontSize(12.5);
+    const t = `${g.name}${cont ? ' (suite)' : ''}`, st = g.sub ? '  ·  ' + g.sub : '';
+    doc.text(t.slice(0, 60), M + 4, y + 5.6); if (st) { const tw = doc.getTextWidth(t.slice(0, 60)); doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(70, 85, 105); doc.text(st.slice(0, 70), M + 4 + tw, y + 5.6); }
+    y += secH;
+  };
+  head();
   for (const g of G) {
-    for (let i = 0; i < g.photos.length; i += per) {
-      if (!first) doc.addPage('a4', 'p'); first = false; head(g.name, i > 0);
-      const chunk = g.photos.slice(i, i + per);
-      // v1.0.54 : photos centrées — la grille s'adapte au nombre de photos de la page (1 → pleine largeur, 2 → l'une sous l'autre, 3 → dernière centrée)
-      const nC = chunk.length, c2 = nC === 1 ? 1 : nC === 2 && cols === 2 ? 1 : cols, r2 = Math.ceil(nC / c2), aw = W - 2 * M, ah = H - top - 14;
-      const cw = (aw - (c2 - 1) * 6) / c2, ch = (ah - (r2 - 1) * 6) / r2 - cap;
-      for (let j = 0; j < chunk.length; j++) {
-        prog && prog(`Préparation du PDF… ${++n}/${total}`);
-        const im = await pnImg(chunk[j]); if (!im) continue;
-        const row = Math.floor(j / c2), inRow = Math.min(c2, nC - row * c2), x0 = M + (aw - (inRow * cw + (inRow - 1) * 6)) / 2;
-        const gw = cw, gh = ch, cx = x0 + (j % c2) * (cw + 6), cy = top + row * (ch + cap + 6), k = Math.min(gw / im.w, gh / im.h), w = im.w * k, h = im.h * k;
-        doc.setDrawColor(220, 226, 236); doc.rect(cx, cy, gw, gh);
-        doc.addImage(im.d, 'JPEG', cx + (gw - w) / 2, cy + (gh - h) / 2, w, h);
-        doc.setTextColor(60, 70, 85); doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
-        doc.text(`${g.name} · ${i + j + 1}/${g.photos.length}${im.at ? ' · ' + fmtDate(new Date(im.at).toISOString().slice(0, 10)) : ''}`.slice(0, 80), cx + gw / 2, cy + gh + 4, { align: 'center' });
+    const ims = []; for (const id of g.photos) { prog && prog(`Préparation du PDF… ${++n}/${total}`); const im = await pnImg(id); if (im) ims.push(im); }
+    if (!ims.length) continue;
+    // rangées justifiées
+    const rows = []; let cur = [];
+    for (const im of ims) { cur.push(im); const sa = cur.reduce((a, x) => a + x.w / x.h, 0); if (cur.length >= maxCols || sa * rowH + (cur.length - 1) * gap >= aw) { rows.push(cur); cur = []; } }
+    if (cur.length) rows.push(cur);
+    if (y + secH + Math.min(rowH, 60) + cap > bottom && y > top) head();
+    secHead(g, false); let k = 0;
+    for (const r of rows) {
+      const sa = r.reduce((a, x) => a + x.w / x.h, 0), full = (aw - (r.length - 1) * gap) / sa;
+      let h = Math.min(rowH, full);
+      if (y + h + cap > bottom) { head(); secHead(g, true); }
+      h = Math.min(h, bottom - y - cap);
+      const rw = sa * h + (r.length - 1) * gap; let x = M + (aw - rw) / 2;
+      for (const im of r) {
+        const w = im.w / im.h * h; k++;
+        doc.addImage(im.d, 'JPEG', x, y, w, h); doc.setDrawColor(220, 226, 236); doc.rect(x, y, w, h);
+        doc.setTextColor(60, 70, 85); doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+        doc.text(`${g.name} · ${k}/${ims.length}${im.at ? ' · ' + fmtDate(new Date(im.at).toISOString().slice(0, 10)) : ''}`.slice(0, Math.max(20, Math.round(w * 0.55))), x + w / 2, y + h + 3.6, { align: 'center' });
+        x += w + gap;
       }
+      y += h + cap + gap;
     }
+    y += 2;
   }
   const N = doc.getNumberOfPages();
   for (let i = 1; i <= N; i++) { doc.setPage(i); doc.setTextColor(140, 150, 165); doc.setFontSize(8); doc.text(`SiteTeam · ${title}`.slice(0, 90), M, H - 6); doc.text(`${i} / ${N}`, W - M, H - 6, { align: 'right' }); }

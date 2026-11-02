@@ -1255,8 +1255,8 @@ try {
     let lot = null; if (plan && plan.folderId) { const f = await DB.get('folders', plan.folderId), el = pnLotBlock(p, { id: plan.lotId || 'go', name: 'Gros œuvre' }, f, () => {}); document.body.appendChild(el); await new Promise(r => setTimeout(r, 800)); lot = el.textContent.includes('Local technique Lt 13'); el.remove(); }
     return { pages, size: b.size, folders, count: pnCount(l), lot };
   });
-  log('pins photos : PDF [pages pour 6+2 photos à 4/page], dossiers, total, barre du lot', pn53);
-  if (pn53.pages !== 3 || pn53.folders.join() !== 'Porte provisoire,Nettoyage' || pn53.count !== 8 || pn53.lot === false) v53.push('pins photos');
+  log('pins photos : PDF [pages pour 6+2 photos à 4/page — v1.0.61 : rubriques qui se suivent → 2], dossiers, total, barre du lot', pn53);
+  if (pn53.pages !== 2 || pn53.folders.join() !== 'Porte provisoire,Nettoyage' || pn53.count !== 8 || pn53.lot === false) v53.push('pins photos');
   // accès d'un membre limité dans le temps : B (conducteur) expire → écran « Accès terminé » en direct + règles qui refusent ; puis prolongé
   const bUid53 = await B.pg.evaluate(() => firebase.auth().currentUser.uid);
   await A.pg.evaluate(async (u) => firebase.firestore().collection('companies').doc(Team.company().id).collection('members').doc(u).update({ until: firebase.firestore.Timestamp.fromMillis(Date.now() - 60000) }), bUid53);
@@ -1321,6 +1321,28 @@ try {
   const ac57 = await A.pg.evaluate(() => typeof batchPlotFlow === 'function' && /Comme AutoCAD/.test(plotDialog.toString()));
   log('tracé : bouton « Comme AutoCAD »', ac57); if (!ac57) v57.push('préréglage AutoCAD');
   log('errors v1.0.57', v57);
+  // ---- v1.0.61 : Photos — catégories (dossiers des pins photos, anomalies de réception), recherche, filtres, PDF par catégorie
+  const v61 = [];
+  const ph61 = await A.pg.evaluate(async () => {
+    document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove());
+    const p = App.project || (await DB.all('projects'))[0]; App.project = p;
+    const mk = async (w, h) => { const cv = document.createElement('canvas'); cv.width = w; cv.height = h; cv.getContext('2d').fillRect(0, 0, w / 2, h / 2); const b = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.8)); return (await DB.put('files', { projectId: p.id, blob: b, mime: 'image/jpeg', name: 'p.jpg', role: 'photo', createdAt: Date.now() })).id; };
+    const a1 = await mk(800, 600), a2 = await mk(600, 800), a3 = await mk(800, 600);
+    await DB.put('receptions', { projectId: p.id, type: 'Réception', date: todayISO(), rows: [{ id: 'r61', zone: '4', niv: 'R+1', element: 'Voile V12', photoIds: [a3], anomIds: [a2] }] });
+    const pin = (await DB.byProject('links', p.id)).find(x => x.kind === 'photonote'); pin.folders.push({ id: 'f61', name: 'Porte provisoire', photos: [a1] }); await DB.put('links', pin);
+    App.phF = null; App.section = 'photos'; await renderSection(); await new Promise(r => setTimeout(r, 900));
+    const cats = [...document.querySelectorAll('.ph-cat')].map(x => x.firstChild.textContent.trim());
+    const anomZ = [...document.querySelectorAll('.ph-g[data-gk^="cat|Anomalies"] summary b')].map(x => x.textContent);
+    const q = document.querySelector('[data-a=q]'); q.value = 'anomalie'; q.oninput(); await new Promise(r => setTimeout(r, 600));
+    const afterQ = document.querySelectorAll('.ph-list .ph-g').length, scope = document.querySelector('.ph-scope').textContent;
+    App.phF.q = ''; const b = await pnPdf({ p }, 'Test', [{ name: 'Porte provisoire', sub: 'MEZZ', photos: [a1, a2, a3] }, { name: 'Anomalies', sub: 'R+1 · Zone 4', photos: [a2] }], 4);
+    const txt = await b.text(), pages = (txt.match(/\/Type\s*\/Page[^s]/g) || []).length;
+    return { cats, anomZ, afterQ, scope, pages, pdf: typeof phPdf === 'function', search: !!q };
+  });
+  await shot(A.pg, '61_photos_categories'); log('Photos v1.0.61 [catégories, anomalie R+1·Zone 4, recherche « anomalie », pages PDF 3+1 photos = 2]', ph61);
+  if (!ph61.cats.includes('Porte provisoire') || !ph61.cats.includes('Anomalies') || ph61.anomZ[0] !== 'R+1 · Zone 4' || ph61.afterQ !== 1 || ph61.pages !== 2 || !ph61.pdf) v61.push('photos catégories / recherche / PDF');
+  await A.pg.evaluate(() => { App.phF = null; document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); });
+  log('errors v1.0.61', v61);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);
