@@ -730,7 +730,9 @@ async function phIndex(p) {
       for (const e of l.journal || []) for (const id of e.photos || []) put(id, g(avLot(p, e.lot).name)); }
     else if (l.kind === 'photonote') {   // pins photos : un dossier = une catégorie
       const pl = PL.get(l.planId), fo = pl && FO.get(pl.folderId), niv = fo ? ((typeof nivOfFolder === 'function' && nivOfFolder(fo.name)) || fo.name) : '';
-      const g = (cat) => ({ k: 'pn', cat, niv, nr: avNivRank(niv), z: '', label: `${niv ? niv + ' · ' : ''}${l.name || 'Pin photos'}`, sub: cat, go: { pn: l.id } });
+      // v1.0.63 : catégorie = le lot du plan où est le pin (Local technique, Chape…) ; le dossier (Porte provisoire…) est le sous-groupe
+      const LL = typeof planLots === 'function' ? planLots(p) : (typeof LOTS_DEF !== 'undefined' ? LOTS_DEF : []), lo = pl && pl.lotId ? LL.find(x => x.id === pl.lotId) : null, top = lo ? lo.name : (pl && pl.name) || 'Pins photos';
+      const g = (cat) => ({ k: 'pn', top, cat, niv, nr: avNivRank(niv), z: '', label: `${niv ? niv + ' · ' : ''}${l.name || 'Pin photos'}`, sub: cat, go: { pn: l.id } });
       for (const id of l.photos || []) put(id, g('Général'));
       for (const d of l.folders || []) for (const id of d.photos || []) put(id, g(d.name || 'Dossier'));
       for (const nt of l.notes || []) for (const id of nt.photos || []) put(id, g('Notes')); }
@@ -762,17 +764,17 @@ async function renderPhotosV2(root) {
     if (!g && f.local) { const l = await DB.get('links', f.local); if (l) { const n = (p.avNiveaux || []).find(x => x.id === l.nivId), cat = f.lot ? avLot(p, f.lot).name : 'Local';
       g = { k: 'pin', cat, niv: n ? n.name : '', nr: n ? avNivRank(n.name) : 99, z: n ? (avPinZone(p, l, n) ? 'Zone ' + avPinZone(p, l, n) : '') : '', label: `${n ? n.name + ' · ' : ''}${l.name}`, sub: cat, go: { pin: l.id, niv: l.nivId } }; } }
     if (!g) { todo.push(f); continue; }
-    E.push({ f, g, day: (g.day || new Date(f.createdAt || 0).toISOString().slice(0, 10)), txt: phNorm([g.cat, g.st, g.label, g.sub, g.niv, g.z, f.source, f.name].join(' ')) });
+    E.push({ f, g, day: (g.day || new Date(f.createdAt || 0).toISOString().slice(0, 10)), txt: phNorm([g.top, g.cat, g.st, g.label, g.sub, g.niv, g.z, f.source, f.name].join(' ')) });
   }
-  const F = App.phF = Object.assign({ niv: '', z: '', cat: '', st: '', src: '', per: '', q: '', mode: 'cat' }, App.phF || {});
+  const F = App.phF = Object.assign({ niv: '', z: '', cat: '', dos: '', st: '', src: '', per: '', q: '', mode: 'cat' }, App.phF || {});
   const uniq = (fn, sort) => { const v = [...new Set(E.map(fn).filter(Boolean))]; return sort ? v.sort(sort) : v.sort((a, b) => String(a).localeCompare(String(b), 'fr', { numeric: true })); };
-  const nivL = uniq(e => e.g.niv, (a, b) => avNivRank(a) - avNivRank(b)), zL = uniq(e => e.g.z), catL = uniq(e => e.g.cat), srcL = uniq(e => e.g.k).map(k => [k, PH_SRC[k] || k]), stL = uniq(e => e.g.st, (a, b) => PH_ST.indexOf(a) - PH_ST.indexOf(b));
+  const nivL = uniq(e => e.g.niv, (a, b) => avNivRank(a) - avNivRank(b)), zL = uniq(e => e.g.z), catL = uniq(e => e.g.top || e.g.cat), dosL = uniq(e => e.g.top && (!F.cat || (e.g.top || e.g.cat) === F.cat) ? e.g.cat : ''), srcL = uniq(e => e.g.k).map(k => [k, PH_SRC[k] || k]), stL = uniq(e => e.g.st, (a, b) => PH_ST.indexOf(a) - PH_ST.indexOf(b));
   const sel = (k, lab, L) => L.length ? `<label class="avf-s ${F[k] ? 'on' : ''}"><small>${lab}</small><select data-pf="${k}"><option value="">Tous</option>${L.map(x => { const [v, t] = Array.isArray(x) ? x : [x, x]; return `<option value="${esc(v)}" ${v === F[k] ? 'selected' : ''}>${esc(t)}</option>`; }).join('')}</select></label>` : '';
   const th = (f) => `<div class="ph" data-id="${f.id}"><img src="${BlobURL.get(f.id, f.blob)}" loading="lazy">${phIsShot(f) ? '<span class="tag">📱 capture</span>' : phIsDoc(f) ? '<span class="tag">📄 document ?</span>' : ''}</div>`;
   let opened = {}; try { opened = JSON.parse(localStorage.getItem('ph.open.' + pid) || '{}'); } catch (e) {}
   root.innerHTML = `<div class="pagehead"><h2>Photos</h2><p>${files.length} photo(s) · par catégorie, niveau et zone</p></div>
     <div class="ph-search"><input type="search" data-a="q" placeholder="🔍 Rechercher : porte, chape, R+1, zone 4, anomalie…" value="${esc(F.q)}"></div>
-    <div class="avf-bar ph-f">${sel('cat', 'Catégorie', catL)}${sel('st', 'État', stL)}${sel('niv', 'Niveau', nivL)}${sel('z', 'Zone', zL)}${sel('src', 'Source', srcL)}${sel('per', 'Période', [['1', 'Aujourd\'hui'], ['7', '7 jours'], ['30', '30 jours'], ['90', '3 mois']])}</div>
+    <div class="avf-bar ph-f">${sel('cat', 'Catégorie', catL)}${sel('dos', 'Dossier', dosL)}${sel('st', 'État', stL)}${sel('niv', 'Niveau', nivL)}${sel('z', 'Zone', zL)}${sel('src', 'Source', srcL)}${sel('per', 'Période', [['1', 'Aujourd\'hui'], ['7', '7 jours'], ['30', '30 jours'], ['90', '3 mois']])}</div>
     <div class="ph-bar"><div class="ph-seg">${[['cat', 'Catégorie'], ['lieu', 'Emplacement'], ['date', 'Date']].map(([v, t]) => `<button data-mode="${v}" class="${F.mode === v ? 'on' : ''}">${t}</button>`).join('')}</div>
       <button class="btn small" data-a="pdfall">${icon('pdf')} PDF</button></div>
     <div class="ph-scope muted"></div>
@@ -784,22 +786,22 @@ async function renderPhotosV2(root) {
     ${!files.length ? '<div class="empty">Aucune photo.<br>Les photos se prennent dans chaque ouvrage, réception, réserve ou pin.</div>' : ''}`;
   let groups = [];
   const filtered = () => { const q = phNorm(F.q).split(/\s+/).filter(Boolean), lim = F.per ? Date.now() - (+F.per) * 864e5 : 0, d0 = lim ? new Date(lim).toISOString().slice(0, 10) : '';
-    return E.filter(e => (!F.niv || e.g.niv === F.niv) && (!F.z || e.g.z === F.z) && (!F.cat || e.g.cat === F.cat) && (!F.st || e.g.st === F.st) && (!F.src || e.g.k === F.src) && (!lim || (F.per === '1' ? e.day >= todayISO() : e.day >= d0)) && q.every(w => e.txt.includes(w))); };
+    return E.filter(e => (!F.niv || e.g.niv === F.niv) && (!F.z || e.g.z === F.z) && (!F.cat || (e.g.top || e.g.cat) === F.cat) && (!F.dos || e.g.cat === F.dos) && (!F.st || e.g.st === F.st) && (!F.src || e.g.k === F.src) && (!lim || (F.per === '1' ? e.day >= todayISO() : e.day >= d0)) && q.every(w => e.txt.includes(w))); };
   const draw = () => {
     const R = filtered(), G = new Map();
     for (const e of R) { const g = e.g;
-      const key = F.mode === 'cat' ? `${g.cat}|${g.niv}|${g.z}|${g.st || ''}` : F.mode === 'date' ? e.day : `${g.k}|${g.label}|${g.sub || ''}`;
-      if (!G.has(key)) G.set(key, F.mode === 'cat' ? { key, ico: PH_ICO[g.k] || '📷', title: g.cat, sub: [g.niv, g.z, g.st].filter(Boolean).join(' · ') || 'Sans niveau', st: g.st || '', nr: g.nr, sort: g.cat, go: g.go, files: [], src: new Set() }
+      const key = F.mode === 'cat' ? `${g.top || g.cat}|${g.top ? g.cat : ''}|${g.niv}|${g.z}|${g.st || ''}` : F.mode === 'date' ? e.day : `${g.k}|${g.label}|${g.sub || ''}`;
+      if (!G.has(key)) G.set(key, F.mode === 'cat' ? { key, ico: g.top ? '📁' : (PH_ICO[g.k] || '📷'), title: g.top || g.cat, dos: g.top ? g.cat : '', sub: [g.top ? g.cat : '', g.niv, g.z, g.st].filter(Boolean).join(' · ') || 'Sans niveau', st: g.st || '', nr: g.nr, sort: g.top || g.cat, go: g.go, files: [], src: new Set() }
         : F.mode === 'date' ? { key, ico: '📅', title: fmtDate(e.day), sub: '', nr: 0, sort: e.day, go: g.go, files: [], src: new Set() }
         : { key, ico: PH_ICO[g.k] || '📷', title: g.label, sub: g.sub || '', nr: g.nr, sort: g.label, go: g.go, files: [], src: new Set() });
       const x = G.get(key); x.files.push(e.f); x.src.add(g.k); if (F.mode === 'date') x.cats = (x.cats || new Set()).add(g.cat); }
     groups = [...G.values()];
     if (F.mode === 'date') groups.sort((a, b) => b.sort.localeCompare(a.sort)).forEach(g => g.sub = [...g.cats].slice(0, 4).join(' · '));
-    else if (F.mode === 'cat') groups.sort((a, b) => a.sort.localeCompare(b.sort, 'fr', { numeric: true }) || (a.nr - b.nr) || a.sub.localeCompare(b.sub, 'fr', { numeric: true }) || (PH_ST.indexOf(a.st) - PH_ST.indexOf(b.st)));
+    else if (F.mode === 'cat') groups.sort((a, b) => a.sort.localeCompare(b.sort, 'fr', { numeric: true }) || (a.dos || '').localeCompare(b.dos || '', 'fr', { numeric: true }) || (a.nr - b.nr) || a.sub.localeCompare(b.sub, 'fr', { numeric: true }) || (PH_ST.indexOf(a.st) - PH_ST.indexOf(b.st)));
     else groups.sort((a, b) => (a.nr - b.nr) || a.sort.localeCompare(b.sort, 'fr', { numeric: true }));
-    const on = ['cat', 'st', 'niv', 'z', 'src', 'per', 'q'].filter(k => F[k]).length;
+    const on = ['cat', 'dos', 'st', 'niv', 'z', 'src', 'per', 'q'].filter(k => F[k]).length;
     $('.ph-scope', root).innerHTML = `${R.length} photo(s) · ${groups.length} groupe(s)${on ? ` · <button class="linkbtn" data-a="clr">effacer les filtres</button>` : ''}`;
-    const b = $('[data-a=clr]', root); if (b) b.onclick = () => { Object.assign(F, { niv: '', z: '', cat: '', st: '', src: '', per: '', q: '' }); renderPhotosV2(root); };
+    const b = $('[data-a=clr]', root); if (b) b.onclick = () => { Object.assign(F, { niv: '', z: '', cat: '', dos: '', st: '', src: '', per: '', q: '' }); renderPhotosV2(root); };
     let lastCat = null;
     $('.ph-list', root).innerHTML = groups.map((g, i) => { const k = F.mode + '|' + g.key, hdr = F.mode === 'cat' && g.title !== lastCat ? `<div class="ph-cat">${esc(g.title)}<small>${groups.filter(x => x.title === g.title).reduce((a, x) => a + x.files.length, 0)}</small><button class="ph-catpdf" data-cpdf="${esc(g.title)}">${icon('pdf')} PDF</button></div>` : ''; lastCat = g.title;
       return `${hdr}<details class="ph-g" data-gk="${esc(k)}" ${opened[k] || F.q ? 'open' : ''}><summary><span>${g.ico}</span><span class="grow"><b>${esc(F.mode === 'cat' ? g.sub : g.title)}</b><small>${esc(F.mode === 'cat' ? [...g.src].map(s => (PH_SRC[s] || s).replace(/^\S+\s/, '')).join(' · ') : g.sub)}</small></span><small>${g.files.length}</small></summary>
@@ -827,10 +829,10 @@ async function renderPhotosV2(root) {
   const bindThumbs = (box) => $$('.ph[data-id]', box).forEach(t => t.onclick = () => { const grid = t.parentElement, A = all(), L = [...grid.querySelectorAll('.ph[data-id]')].map(x => A.find(f => f.id === x.dataset.id)).filter(Boolean);
     showGallery(L.map(f => ({ src: BlobURL.get(f.id, f.blob), caption: `${f.source || (M.get(f.id) || {}).label || 'Photo'} · ${fmtDateTime(f.createdAt)}`, fileId: f.id })), L.findIndex(f => f.id === t.dataset.id), { onDelete: async (it) => { const ok = await PhotoQ.remove([it.fileId], { ask: false }); if (ok) setTimeout(() => renderPhotosV2(root), 300); return ok; },
       onOpen: (it) => { const g = M.get(it.fileId); if (g && g.go) phGo(g.go); else toast('Photo à classer : pas de fiche'); } }); });
-  $$('[data-pf]', root).forEach(s => s.onchange = () => { F[s.dataset.pf] = s.value; s.closest('.avf-s').classList.toggle('on', !!s.value); draw(); });
+  $$('[data-pf]', root).forEach(s => s.onchange = () => { F[s.dataset.pf] = s.value; if (s.dataset.pf === 'cat') { F.dos = ''; return renderPhotosV2(root); } s.closest('.avf-s').classList.toggle('on', !!s.value); draw(); });
   $$('[data-mode]', root).forEach(b => b.onclick = () => { F.mode = b.dataset.mode; $$('[data-mode]', root).forEach(x => x.classList.toggle('on', x === b)); draw(); });
   let qt; const qi = $('[data-a=q]', root); qi.oninput = () => { clearTimeout(qt); qt = setTimeout(() => { F.q = qi.value.trim(); draw(); }, 250); };
-  $('[data-a=pdfall]', root).onclick = () => { if (!groups.length) return toast('Aucune photo'); const t = [F.cat, F.niv, F.z].filter(Boolean).join(' - ') || 'Photos'; phPdf(p, groups, t); };
+  $('[data-a=pdfall]', root).onclick = () => { if (!groups.length) return toast('Aucune photo'); const t = [F.cat, F.dos, F.niv, F.z].filter(Boolean).join(' - ') || 'Photos'; phPdf(p, groups, t); };
   const td = $('.ph-todo .photo-grid', root); if (td) bindThumbs(td);
   draw();
   const selIds = () => [...root.querySelectorAll('.ph-todo .ph-sel')].map(x => x.dataset.id);
