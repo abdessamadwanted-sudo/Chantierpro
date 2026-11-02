@@ -1382,6 +1382,10 @@ try {
   log('v1.0.65 [% pondéré 25 / simple 50, échéance la plus urgente, tableau anomalies, tableau échéances, N&B, fonctions]', t65);
   if (t65.w !== 25 || t65.u !== 50 || t65.di !== 'Plan à recevoir' || t65.n !== 2 || t65.al !== 3 || !t65.an.page || t65.an.rows < 1 || t65.an.k !== 4 || !t65.due || !t65.bw || t65.fns !== 'function,function,function') v65.push('v1.0.65');
   log('errors v1.0.65', v65);
+  const t66 = await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.phF = null; App.section = 'photos'; await renderSection(); await new Promise(r => setTimeout(r, 800));
+    const cats = [...document.querySelectorAll('[data-pf=cat] option')].map(o => o.value), loc = document.querySelectorAll('[data-loc]').length; return { cats: cats.length, gros: cats.some(c => /gros/i.test(c)), loc, fn: typeof phLocate }; });
+  log('v1.0.66 [catégories = lots, boutons « Sur le plan », phLocate]', t66); if (!t66.gros || t66.fn !== 'function') v65.push('v1.0.66');
+  log('errors v1.0.66', t66.gros && t66.fn === 'function' ? [] : ['v1.0.66']);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);

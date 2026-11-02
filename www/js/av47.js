@@ -732,15 +732,16 @@ async function phIndex(p) {
   const locOf = (l) => { const n = nivs.find(x => x.id === l.nivId); return { niv: n ? n.name : '', nr: n ? avNivRank(n.name) : 99, z: n ? zz(avPinZone(p, l, n)) : '' }; };
   for (const l of links) {
     if (l.kind === 'local') { const o = locOf(l);
-      const g = (cat) => ({ k: 'pin', cat, ...o, label: `${o.niv ? o.niv + ' · ' : ''}${l.name}`, sub: cat, go: { pin: l.id, niv: l.nivId } });
-      for (const [lid, r] of Object.entries(l.lots || {})) for (const id of r.photos || []) put(id, g(avLot(p, lid).name));
-      for (const [eid, x] of Object.entries(l.etapes || {})) for (const id of x.photos || []) put(id, g(((avEtapes(p).find(e => e.id === eid)) || {}).name || 'Étape'));
-      for (const e of l.journal || []) for (const id of e.photos || []) put(id, g(avLot(p, e.lot).name)); }
+      // v1.0.66 : catégorie = le lot ; sous-dossier = Avancement (ou le dossier choisi : Nettoyage…)
+      const g = (top, cat) => ({ k: 'pin', top, cat, ...o, label: `${o.niv ? o.niv + ' · ' : ''}${l.name}`, sub: top, go: { pin: l.id, niv: l.nivId }, loc: { pin: l.id, niv: l.nivId } });
+      for (const [lid, r] of Object.entries(l.lots || {})) for (const id of r.photos || []) put(id, g(avLot(p, lid).name, 'Photos'));
+      for (const [eid, x] of Object.entries(l.etapes || {})) for (const id of x.photos || []) put(id, g('Avancement', ((avEtapes(p).find(e => e.id === eid)) || {}).name || 'Étape'));
+      for (const e of l.journal || []) for (const id of e.photos || []) put(id, g(avLot(p, e.lot).name, 'Avancement')); }
     else if (l.kind === 'photonote') {   // pins photos : un dossier = une catégorie
       const pl = PL.get(l.planId), fo = pl && FO.get(pl.folderId), niv = l.niv || (fo ? ((typeof nivOfFolder === 'function' && nivOfFolder(fo.name)) || fo.name) : '');
       // v1.0.63 : catégorie = le lot du plan où est le pin (Local technique, Chape…) ; le dossier (Porte provisoire…) est le sous-groupe
-      const LL = typeof planLots === 'function' ? planLots(p) : (typeof LOTS_DEF !== 'undefined' ? LOTS_DEF : []), lid = l.lotId || (pl && pl.lotId), lo = lid ? LL.find(x => x.id === lid) : null, top = lo ? lo.name : (pl && pl.name) || 'Pins photos';
-      const g = (cat) => ({ k: 'pn', top, cat, niv, nr: avNivRank(niv), z: '', label: `${niv ? niv + ' · ' : ''}${l.name || 'Pin photos'}`, sub: cat, go: { pn: l.id } });
+      const LL = typeof planLots === 'function' ? planLots(p) : (typeof LOTS_DEF !== 'undefined' ? LOTS_DEF : []), lid = l.lotId || (pl && pl.lotId), lo = (lid ? LL.find(x => x.id === lid) : null) || (pl ? LL.find(x => phK(pl.name).includes(phK(x.name)) && phK(x.name).length > 2) : null), top = lo ? lo.name : 'Pins photos';   // v1.0.66 : toujours un lot (plan « Chape mezz » → Chape)
+      const g = (cat) => ({ k: 'pn', top, cat, niv, nr: avNivRank(niv), z: '', label: `${niv ? niv + ' · ' : ''}${l.name || 'Pin photos'}`, sub: cat, go: { pn: l.id }, loc: { pn: l.id } });
       for (const id of l.photos || []) put(id, g('Général'));
       for (const d of l.folders || []) for (const id of d.photos || []) put(id, g(d.name || 'Dossier'));
       for (const nt of l.notes || []) for (const id of nt.photos || []) put(id, g('Notes')); }
@@ -760,6 +761,14 @@ async function phIndex(p) {
   for (const r of reps) for (const id of r.photoIds || []) put(id, { k: 'rap', cat: 'Rapports', z: '', niv: '', nr: 99, label: `Rapport du ${fmtDate(r.date)}`, sub: 'Rapport journalier', go: { rep: r.id }, day: r.date });
   return M;
 }
+// v1.0.66 : montrer l'endroit exact sur le plan (pin photos ou local d'avancement)
+async function phLocate(loc, back) {
+  if (!loc) return;
+  if (loc.pn) { const l = await DB.get('links', loc.pn); const pl = l && l.planId && await DB.get('plans', l.planId); if (!pl) return toast('Plan introuvable');
+    const [x, y] = l.shape === 'zone' ? [l.x + l.w / 2, l.y + l.h / 2] : [l.x, l.y];
+    return openPlanViewer(pl, { ...(typeof planCtx === 'function' ? planCtx(() => back && back()) : {}), focus: { x, y } }); }
+  if (loc.pin) { const l = await DB.get('links', loc.pin); if (!l) return; if (l.global || l.x == null) return toast('Quantité globale : pas d\'endroit précis sur le plan'); return openAvViewer(l.nivId, null, () => back && back(), l.id); }
+}
 const phIsShot = (f) => /screenshot|capture|screen|scr_/i.test(f.name || '');
 const phIsDoc = (f) => /\b(bon|bl|pv|plan|scan|doc|facture|devis|fiche)\b/i.test(String(f.name || '').replace(/[_\-.]/g, ' '));
 const phK = (s) => phNorm(s).replace(/[^a-z0-9+]/g, '');
@@ -770,18 +779,19 @@ async function renderPhotosV2(root) {
   const M = await phIndex(p), E = [], todo = [];
   for (const f of files) {
     let g = M.get(f.id);
-    if (!g && f.grp) { const gg = f.grp, cat = gg.lot || ({ rec: 'Réception', bet: 'Bétonnage', res: 'Réserves', rap: 'Rapports', ph: 'Photos générales' })[gg.dest] || 'Photos';
-      g = { k: 'grp', cat, niv: gg.niv || '', nr: avNivRank(gg.niv), z: '', label: `${gg.niv ? gg.niv + ' · ' : ''}${gg.ouv || ({ rec: 'Réception ferraillage', bet: 'Bétonnage', res: 'Réserves', rap: 'Rapports', lot: 'Lot & niveau', ph: 'Photos générales' })[gg.dest] || 'Photos'}`, sub: `${gg.lot ? gg.lot + ' · ' : ''}${fmtDate(gg.date)}`, day: gg.date }; }
+    if (!g && f.grp) { const gg = f.grp, top = gg.lot || ({ rec: 'Réception', bet: 'Bétonnage', res: 'Réserves', rap: 'Rapports', ph: 'Photos générales' })[gg.dest] || 'Photos', cat = gg.ouv || 'Photos';
+      g = { k: 'grp', top, cat, niv: gg.niv || '', nr: avNivRank(gg.niv), z: '', label: `${gg.niv ? gg.niv + ' · ' : ''}${gg.ouv || ({ rec: 'Réception ferraillage', bet: 'Bétonnage', res: 'Réserves', rap: 'Rapports', lot: 'Lot & niveau', ph: 'Photos générales' })[gg.dest] || 'Photos'}`, sub: `${gg.lot ? gg.lot + ' · ' : ''}${fmtDate(gg.date)}`, day: gg.date }; }
     if (!g && f.local) { const l = await DB.get('links', f.local); if (l) { const n = (p.avNiveaux || []).find(x => x.id === l.nivId), cat = f.lot ? avLot(p, f.lot).name : 'Local';
-      g = { k: 'pin', cat, niv: n ? n.name : '', nr: n ? avNivRank(n.name) : 99, z: n ? (avPinZone(p, l, n) ? 'Zone ' + avPinZone(p, l, n) : '') : '', label: `${n ? n.name + ' · ' : ''}${l.name}`, sub: cat, go: { pin: l.id, niv: l.nivId } }; } }
+      g = { k: 'pin', top: cat, cat: 'Photos', niv: n ? n.name : '', nr: n ? avNivRank(n.name) : 99, z: n ? (avPinZone(p, l, n) ? 'Zone ' + avPinZone(p, l, n) : '') : '', label: `${n ? n.name + ' · ' : ''}${l.name}`, sub: cat, go: { pin: l.id, niv: l.nivId }, loc: { pin: l.id, niv: l.nivId } }; } }
     if (!g) { todo.push(f); continue; }
-    if (f.phCat && g.k === 'pin' && !g.top) g = { ...g, top: g.cat, cat: f.phCat };   // v1.0.65 : dossier d'une case (Avancement, Nettoyage…) = sous-groupe
+    if (f.phCat && g.k === 'pin') g = { ...g, top: g.top || g.cat, cat: f.phCat };   // v1.0.65 : dossier d'une case (Avancement, Nettoyage…) = sous-groupe
     E.push({ f, g, day: (g.day || new Date(f.createdAt || 0).toISOString().slice(0, 10)), txt: phNorm([g.top, g.cat, g.st, g.label, g.sub, g.niv, g.z, f.source, f.name].join(' ')) });
   }
   { const C = new Map(); for (const e of E) if (e.g.niv) { const k = phK(e.g.niv); if (!C.has(k)) C.set(k, e.g.niv); e.g = { ...e.g, niv: C.get(k) }; } }
   const F = App.phF = Object.assign({ niv: '', z: '', cat: '', dos: '', st: '', src: '', per: '', q: '', mode: 'cat' }, App.phF || {});
   const uniq = (fn, sort) => { const v = [...new Set(E.map(fn).filter(Boolean))]; return sort ? v.sort(sort) : v.sort((a, b) => String(a).localeCompare(String(b), 'fr', { numeric: true })); };
-  const nivL = uniq(e => e.g.niv, (a, b) => avNivRank(a) - avNivRank(b)), zL = uniq(e => e.g.z), catL = [...(E.some(e => phIsAnom(e.g)) ? [PH_ANOM] : []), ...uniq(e => e.g.top || e.g.cat, (a, b) => (PH_CATP.indexOf(a) + 1 || 99) - (PH_CATP.indexOf(b) + 1 || 99) || String(a).localeCompare(String(b), 'fr', { numeric: true }))], dosL = uniq(e => e.g.top && (!F.cat || (e.g.top || e.g.cat) === F.cat) ? e.g.cat : ''), srcL = uniq(e => e.g.k).map(k => [k, PH_SRC[k] || k]), stL = uniq(e => e.g.st, (a, b) => PH_ST.indexOf(a) - PH_ST.indexOf(b));
+  const nivL = uniq(e => e.g.niv, (a, b) => avNivRank(a) - avNivRank(b)), zL = uniq(e => e.g.z), catL = [...(E.some(e => phIsAnom(e.g)) ? [PH_ANOM] : []), ...[...new Set([...E.map(e => e.g.top || e.g.cat), ...(typeof planLots === 'function' ? planLots(p).map(l => l.name) : []), ...avLotsOrdered(p).map(l => l.name)])].filter((v, i, a) => v && a.findIndex(x => phK(x) === phK(v)) === i).sort( (a, b) => (PH_CATP.indexOf(a) + 1 || 99) - (PH_CATP.indexOf(b) + 1 || 99) || String(a).localeCompare(String(b), 'fr', { numeric: true }))], dosL = uniq(e => e.g.top && (!F.cat || phK(e.g.top || e.g.cat) === phK(F.cat)) ? e.g.cat : ''), srcL = uniq(e => e.g.k).map(k => [k, PH_SRC[k] || k]), stL = uniq(e => e.g.st, (a, b) => PH_ST.indexOf(a) - PH_ST.indexOf(b));
+  if (F.cat && F.cat !== PH_ANOM && !catL.some(c => phK(c) === phK(F.cat))) F.cat = '';
   const sel = (k, lab, L) => L.length ? `<label class="avf-s ${F[k] ? 'on' : ''}"><small>${lab}</small><select data-pf="${k}"><option value="">Tous</option>${L.map(x => { const [v, t] = Array.isArray(x) ? x : [x, x]; return `<option value="${esc(v)}" ${(k === 'niv' || k === 'cat' ? F[k] && phK(v) === phK(F[k]) : v === F[k]) ? 'selected' : ''}>${esc(t)}</option>`; }).join('')}</select></label>` : '';
   const th = (f) => `<div class="ph" data-id="${f.id}"><img src="${BlobURL.get(f.id, f.blob)}" loading="lazy">${phIsShot(f) ? '<span class="tag">📱 capture</span>' : phIsDoc(f) ? '<span class="tag">📄 document ?</span>' : ''}</div>`;
   let opened = {}; try { opened = JSON.parse(localStorage.getItem('ph.open.' + pid) || '{}'); } catch (e) {}
@@ -807,7 +817,7 @@ async function renderPhotosV2(root) {
       if (!G.has(key)) G.set(key, F.mode === 'cat' ? { key, ico: g.top ? '📁' : (PH_ICO[g.k] || '📷'), title: g.top || g.cat, dos: g.top ? g.cat : '', sub: [g.top ? g.cat : '', g.niv, g.z, g.st].filter(Boolean).join(' · ') || 'Sans niveau', st: g.st || '', nr: g.nr, sort: g.top || g.cat, go: g.go, files: [], src: new Set() }
         : F.mode === 'date' ? { key, ico: '📅', title: fmtDate(e.day), sub: '', nr: 0, sort: e.day, go: g.go, files: [], src: new Set() }
         : { key, ico: PH_ICO[g.k] || '📷', title: g.label, sub: g.sub || '', nr: g.nr, sort: g.label, go: g.go, files: [], src: new Set() });
-      const x = G.get(key); x.files.push(e.f); x.src.add(g.k); if (F.mode === 'date') x.cats = (x.cats || new Set()).add(g.cat); }
+      const x = G.get(key); x.files.push(e.f); x.src.add(g.k); if (g.loc) { x.locs = x.locs || new Map(); const lk = g.loc.pn || g.loc.pin; if (!x.locs.has(lk)) x.locs.set(lk, { ...g.loc, label: g.label }); } if (F.mode === 'date') x.cats = (x.cats || new Set()).add(g.cat); }
     groups = [...G.values()];
     if (F.mode === 'date') groups.sort((a, b) => b.sort.localeCompare(a.sort)).forEach(g => g.sub = [...g.cats].slice(0, 4).join(' · '));
     else if (F.mode === 'cat') groups.sort((a, b) => ((PH_CATP.indexOf(a.sort) + 1 || 99) - (PH_CATP.indexOf(b.sort) + 1 || 99)) || a.sort.localeCompare(b.sort, 'fr', { numeric: true }) || (a.dos || '').localeCompare(b.dos || '', 'fr', { numeric: true }) || (a.nr - b.nr) || a.sub.localeCompare(b.sub, 'fr', { numeric: true }) || (PH_ST.indexOf(a.st) - PH_ST.indexOf(b.st)));
@@ -818,7 +828,7 @@ async function renderPhotosV2(root) {
     let lastCat = null;
     $('.ph-list', root).innerHTML = groups.map((g, i) => { const k = F.mode + '|' + g.key, hdr = F.mode === 'cat' && g.title !== lastCat ? `<div class="ph-cat">${esc(g.title)}<small>${groups.filter(x => x.title === g.title).reduce((a, x) => a + x.files.length, 0)}</small><button class="ph-catpdf" data-cpdf="${esc(g.title)}">${icon('pdf')} PDF</button></div>` : ''; lastCat = g.title;
       return `${hdr}<details class="ph-g" data-gk="${esc(k)}" ${opened[k] || F.q ? 'open' : ''}><summary><span>${g.ico}</span><span class="grow"><b>${esc(F.mode === 'cat' ? g.sub : g.title)}</b><small>${esc(F.mode === 'cat' ? [...g.src].map(s => (PH_SRC[s] || s).replace(/^\S+\s/, '')).join(' · ') : g.sub)}</small></span><small>${g.files.length}</small></summary>
-      <div class="ph-gact">${g.go ? `<button class="ph-go" data-go="${i}">${g.go.rec ? 'Ouvrir le tableau ›' : 'Ouvrir ›'}</button>` : ''}<button class="ph-go" data-gpdf="${i}">${icon('pdf')} PDF</button></div><div class="photo-grid">${g.files.map(th).join('')}</div></details>`; }).join('')
+      <div class="ph-gact">${g.locs && g.locs.size ? `<button class="ph-go ph-loc" data-loc="${i}">📍 Sur le plan</button>` : ''}${g.go ? `<button class="ph-go" data-go="${i}">${g.go.rec ? 'Ouvrir le tableau ›' : 'Ouvrir ›'}</button>` : ''}<button class="ph-go" data-gpdf="${i}">${icon('pdf')} PDF</button></div><div class="photo-grid">${g.files.map(th).join('')}</div></details>`; }).join('')
       || (files.length ? '<div class="empty">Aucune photo ne correspond.</div>' : '');
     bindList(); bindList2();
   };
@@ -827,6 +837,9 @@ async function renderPhotosV2(root) {
     $$('.ph-list details.ph-g[data-gk]', root).forEach(d => d.addEventListener('toggle', () => { opened[d.dataset.gk] = d.open; try { localStorage.setItem('ph.open.' + pid, JSON.stringify(opened)); } catch (e) {} }));
     bindThumbs($('.ph-list', root));
     $$('[data-go]', root).forEach(b => b.onclick = () => phGo(groups[+b.dataset.go].go));
+    $$('[data-loc]', root).forEach(b => b.onclick = async () => { const L = [...groups[+b.dataset.loc].locs.values()]; let x = L[0];
+      if (L.length > 1) { const k = await menu('Quel endroit ?', L.map((y, j) => ({ label: y.label, icon: 'pin', value: String(j) }))); if (k == null) return; x = L[+k]; }
+      phLocate(x, () => renderPhotosV2(root)); });
   };
   const phGo = async (g) => { if (!g) return;
       if (g.pin) { const l = await DB.get('links', g.pin); if (l) openAvViewer(l.nivId, null, () => renderPhotosV2(root), l.id); }
@@ -842,6 +855,7 @@ async function renderPhotosV2(root) {
   };
   const bindThumbs = (box) => $$('.ph[data-id]', box).forEach(t => t.onclick = () => { const grid = t.parentElement, A = all(), L = [...grid.querySelectorAll('.ph[data-id]')].map(x => A.find(f => f.id === x.dataset.id)).filter(Boolean);
     showGallery(L.map(f => ({ src: BlobURL.get(f.id, f.blob), caption: `${f.source || (M.get(f.id) || {}).label || 'Photo'} · ${fmtDateTime(f.createdAt)}`, fileId: f.id })), L.findIndex(f => f.id === t.dataset.id), { onDelete: async (it) => { const ok = await PhotoQ.remove([it.fileId], { ask: false }); if (ok) setTimeout(() => renderPhotosV2(root), 300); return ok; },
+      onLocate: (it) => { const g = M.get(it.fileId) || ((E.find(e => e.f.id === it.fileId) || {}).g); if (g && g.loc) phLocate(g.loc, () => renderPhotosV2(root)); else toast('Cette photo n\'est pas placée sur un plan'); },
       onOpen: (it) => { const g = M.get(it.fileId); if (g && g.go) phGo(g.go); else toast('Photo à classer : pas de fiche'); } }); });
   $$('[data-pf]', root).forEach(s => s.onchange = () => { F[s.dataset.pf] = s.value; if (s.dataset.pf === 'cat') { F.dos = ''; return renderPhotosV2(root); } s.closest('.avf-s').classList.toggle('on', !!s.value); draw(); });
   $$('[data-mode]', root).forEach(b => b.onclick = () => { F.mode = b.dataset.mode; $$('[data-mode]', root).forEach(x => x.classList.toggle('on', x === b)); draw(); });

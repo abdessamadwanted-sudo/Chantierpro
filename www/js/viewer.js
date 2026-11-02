@@ -1071,7 +1071,13 @@ async function openPlanViewer(plan, ctx) {
   renderTools();
   renderAnnots();
   await reloadData();
-  requestAnimationFrame(fit);
+  requestAnimationFrame(() => { fit();
+    // v1.0.66 : ouvert « sur le plan » depuis une photo / un pin : zoom sur l'endroit exact, avec un cercle qui clignote
+    if (ctx.focus && ctx.focus.x != null) { const vw = viewer.clientWidth, vh = viewer.clientHeight; st.scale = Math.min(st.fitScale * 40, Math.max(st.fitScale * 5, Math.min(vw, vh) / (Math.max(W, H) / 12)));
+      st.tx = vw / 2 - ctx.focus.x * st.scale; st.ty = vh / 2 - ctx.focus.y * st.scale; applyT();
+      const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle'); ring.setAttribute('cx', ctx.focus.x); ring.setAttribute('cy', ctx.focus.y); ring.setAttribute('r', 60 / st.scale); ring.setAttribute('fill', 'none'); ring.setAttribute('stroke', '#facc15'); ring.setAttribute('stroke-width', 6 / st.scale); ring.setAttribute('class', 'focus-ring');
+      $('.ov', el).appendChild(ring); setTimeout(() => ring.remove(), 4200); }
+  });
   // v1.0.63 : le clavier (titre d'un pin…) change seulement la hauteur → on garde le zoom ; on recadre seulement si la largeur change (rotation)
   let lastW = window.innerWidth; onResize = () => { if (Math.abs(window.innerWidth - lastW) < 2) { applyT(); return; } lastW = window.innerWidth; fit(); };
   window.addEventListener('resize', onResize);
