@@ -168,13 +168,13 @@ function lotPanel(L, f, root) {
     const T = [
       ['av', '📊', 'Avancement', avEl ? [avEl] : [], ''],
       ['ph', '📷', 'Photos', pnEl ? [pnEl] : [], ''],
-      ['due', '⏳', 'Échéance', [q('.lp-due')].filter(Boolean), di ? di.txt : 'non fixée', di && /late|r/.test(di.cls || '')],
+      ['due', '⏳', 'Échéance', [q('.lp-due'), q('.lp-als')].filter(Boolean), di ? di.txt : 'non fixée', di && /late|r/.test(di.cls || '')],
       ['pa', '🛑', 'Points d\'arrêt', [q('.lp-pa')].filter(Boolean), po ? `${po} ouvert(s)` : `${(L.pa || []).length}`, po > 0],
       ['go', '🔗', 'Accès rapides', links, `${links[0] ? $$('button', links[0]).length - 1 : 0}`],
       ['pts', '☑', 'Contrôle', [q('.lp-det:not(.lp-pa)')].filter(Boolean), `${done}/${(L.points || []).length}`],
     ].filter(t => t[3].length);
     const bar = document.createElement('div'); bar.className = 'lp-tabs';
-    const show = (k) => { T.forEach(t => t[3].forEach(n => { n.style.display = t[0] === k ? '' : 'none'; })); $$('button', bar).forEach(b => b.classList.toggle('on', b.dataset.lt === k)); };
+    const show = (k) => { T.forEach(t => t[3].forEach(n => { n.style.display = t[0] === k ? '' : 'none'; n.classList.toggle('lp-hide', t[0] !== k); })); $$('button', bar).forEach(b => b.classList.toggle('on', b.dataset.lt === k)); };
     bar.innerHTML = T.map(t => `<button data-lt="${t[0]}" class="${t[5] ? 'r' : ''}"><span class="e">${t[1]}</span>${esc(t[2])}${t[4] ? `<small>${esc(String(t[4]))}</small>` : ''}</button>`).join('');
     $$('button', bar).forEach(b => b.onclick = () => { const k = lpTabOf(L) === b.dataset.lt ? '' : b.dataset.lt; lpTabSet(L, k); show(k); });
     body.prepend(bar); show(lpTabOf(L));

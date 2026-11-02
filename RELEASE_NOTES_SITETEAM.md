@@ -1,6 +1,7 @@
 ## SiteTeam : Photos rangées par lot, sous-dossiers, « 📍 Sur le plan »
 - Photos › Catégorie : la liste montre les lots du projet (Gros œuvre, Maçonnerie, Chape, Local technique…) plus Réception, Bétonnage, Non-conformités, Anomalies ; les dossiers (Nettoyage, Porte provisoire…) sont des sous-dossiers dans chaque lot (filtre « Dossier »). Un pin posé sur le plan « Chape mezz » est rangé dans Chape.
 - Réception, Bétonnage et Anomalies sont trois catégories séparées (toujours dans la liste) : Réception / Bétonnage = photos des ouvrages ; Anomalies = photos des anomalies et de leur traitement, rangées en sous-dossiers Réception / Bétonnage.
+- Fiche du lot plus courte : une seule section à la fois (Avancement, Photos, Échéance + ses alertes, Points d'arrêt, Accès rapides, Contrôle) — avant, la liste des échéances et la grille des accès rapides restaient affichées.
 - « 📍 Sur le plan » : sur chaque groupe de photos, dans la galerie, et à côté de chaque pin photos d'un lot — le plan s'ouvre zoomé à l'endroit exact, avec un cercle jaune qui clignote.
 
 ## SiteTeam : liens intelligents niveau + lot, quantités Global, échéances, anomalies, plan noir et blanc
