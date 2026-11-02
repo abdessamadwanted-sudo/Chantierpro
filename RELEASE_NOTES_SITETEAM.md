@@ -1,5 +1,6 @@
 ## SiteTeam : rappel d'échéance du jour qui n'était pas reçu
 - Échéance aujourd'hui avec une heure déjà passée : la notification « dans 1 minute » est gardée avec son heure et reprogrammée jusqu'à ce qu'elle parte (avant, la reprogrammation suivante l'annulait sans la remettre). Changer l'heure ou le rappel d'une échéance en reprogramme une nouvelle.
+- 🔔 Réglages : « Choisir une sonnerie du téléphone » (sonneries, alarmes, notifications, ou silencieux) pour les rappels d'échéances, retour à la sonnerie par défaut, et accès aux réglages Android du canal (vibration, écran verrouillé).
 - Tableau des échéances : chaque ligne montre la prochaine notification programmée (🔔 date et heure).
 
 ## SiteTeam : les notifications des échéances arrivent vraiment

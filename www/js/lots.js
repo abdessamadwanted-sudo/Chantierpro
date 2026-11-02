@@ -358,7 +358,8 @@ async function openDueTable(p, pre = {}) {
 // Vous choisissez : activées ou non, l'heure, le rappel par défaut (le jour même, 1 j, 2 j, 3 j, 1 semaine avant), un rappel si la date est dépassée,
 // et quels types d'alertes ; chaque échéance peut avoir son propre rappel et sa propre heure. Notifications datées (« at »), jamais répétées automatiquement.
 const DUE_REM = [['', 'Par défaut'], ['none', 'Pas de rappel'], ['0', 'Le jour même'], ['1', '1 jour avant'], ['2', '2 jours avant'], ['3', '3 jours avant'], ['7', '1 semaine avant']];
-const dueNCfg = (p) => { let o = null; try { o = JSON.parse(localStorage.getItem('dueN.' + p.id) || 'null'); } catch (e) {} return { on: true, time: '08:00', before: '1', late: true, types: null, ...(o || {}) }; };
+const dueNCfg = (p) => { let o = null; try { o = JSON.parse(localStorage.getItem('dueN.' + p.id) || 'null'); } catch (e) {} return { on: true, time: '08:00', before: '1', late: true, types: null, ch: '', snd: '', sndT: '', ...(o || {}) }; };
+const dueNCh = (C) => C.ch || 'rappels';   // v1.0.69 : canal avec la sonnerie choisie
 const dueNSave = (p, o) => { try { localStorage.setItem('dueN.' + p.id, JSON.stringify(o)); } catch (e) {} };
 // v1.0.69 : rappel « dans 1 minute » mémorisé avec son heure : reprogrammé tant qu'il n'est pas passé (avant : annulé par la reprogrammation suivante)
 const dueNOnce = (p, id) => { try { const v = (JSON.parse(localStorage.getItem('dueN.once.' + p.id) || '{}'))[id]; return v && v.slice(0, 10) === todayISO() ? new Date(v) : null; } catch (e) { return null; } };
@@ -387,7 +388,7 @@ async function dueSchedule(p) {
   // v1.0.68 : canal « Rappels de chantier » créé et autorisation demandée avant de programmer (sinon Android n'affiche rien)
   try { const ps = await LN.checkPermissions().catch(() => null); if (!ps || ps.display !== 'granted') await LN.requestPermissions().catch(() => {}); await LN.createChannel({ id: 'rappels', name: 'Rappels de chantier', description: 'Échéances et rappels', importance: 5, visibility: 1, vibration: true, lights: true }).catch(() => {}); } catch (e) {}
   for (const n of S) if (n.once) dueNMark(p, n.once, n.at);
-  try { if (S.length) await LN.schedule({ notifications: S.map(n => ({ id: n.id, title: n.title, body: n.body, channelId: 'rappels', extra: { action: 'due', pid: p.id }, schedule: { at: n.at, allowWhileIdle: true } })) }); localStorage.setItem(key, JSON.stringify(S.map(n => n.id))); } catch (e) { console.warn('dueN', e); }
+  try { if (S.length) await LN.schedule({ notifications: S.map(n => ({ id: n.id, title: n.title, body: n.body, channelId: dueNCh(C), extra: { action: 'due', pid: p.id }, schedule: { at: n.at, allowWhileIdle: true } })) }); localStorage.setItem(key, JSON.stringify(S.map(n => n.id))); } catch (e) { console.warn('dueN', e); }
   return S.length;
 }
 async function dueNotifSettings(p) {
@@ -397,13 +398,18 @@ async function dueNotifSettings(p) {
     { name: 'time', label: 'Heure des notifications', type: 'time', value: C.time },
     { name: 'before', label: 'Rappel par défaut', type: 'select', value: C.before, options: DUE_REM.filter(([v]) => v !== '' && v !== 'none').map(([value, label]) => ({ value, label })) },
     { name: 'late', label: 'Si la date est dépassée', type: 'select', value: C.late ? 'o' : 'n', options: [{ value: 'o', label: 'Me le rappeler (le lendemain)' }, { value: 'n', label: 'Rien' }] },
+    { name: 'snd', label: `🎵 Sonnerie : ${C.sndT || 'par défaut du téléphone'}`, type: 'select', value: 'k', options: [{ value: 'k', label: 'Garder' }, { value: 'pick', label: '🎵 Choisir une sonnerie du téléphone…' }, { value: 'def', label: 'Sonnerie par défaut' }, { value: 'set', label: '⚙️ Réglages Android (vibration, écran verrouillé…)' }] },
     { name: 'test', label: 'Essai', type: 'select', value: 'n', options: [{ value: 'n', label: '—' }, { value: 'o', label: '🔔 M\'envoyer une notification d\'essai (dans 10 secondes)' }] },
   ], { okLabel: 'Enregistrer', intro: '<p class="muted" style="margin:0">Chaque échéance peut aussi avoir son propre rappel et sa propre heure (dans la fiche de l\'échéance).</p>' });
   if (!r) return;
+  const G = window.Capacitor?.Plugins?.GDriveAuth;
+  if (r.snd === 'pick') { if (!G || !G.pickSound) toast('Choix de sonnerie : mettez à jour l\'application'); else { try { const s = await G.pickSound({ current: C.snd || '' }); C.ch = s.channel; C.snd = s.uri; C.sndT = s.title; dueNSave(p, C); toast(`🎵 Sonnerie : ${s.title}`); } catch (e) { if (!/CANCEL/i.test(String(e && (e.code || e.message)))) alertBox('Sonnerie : ' + (e.message || e)); } } }
+  if (r.snd === 'def') { C.ch = ''; C.snd = ''; C.sndT = ''; dueNSave(p, C); }
+  if (r.snd === 'set' && G && G.openNotifSettings) { try { await G.openNotifSettings({ channel: dueNCh(C) }); } catch (e) {} }
   if (r.test === 'o' && LN) { try { const perm = await LN.requestPermissions(); if (perm.display !== 'granted') return alertBox('Notifications refusées : Réglages du téléphone › Applications › SiteTeam › Notifications › Autoriser.');
     await LN.createChannel({ id: 'rappels', name: 'Rappels de chantier', importance: 5, visibility: 1, vibration: true }).catch(() => {});
-    await LN.schedule({ notifications: [{ id: 1699999999, title: '🔔 Essai SiteTeam', body: 'Les notifications des échéances fonctionnent sur ce téléphone ✓', channelId: 'rappels', schedule: { at: new Date(Date.now() + 10000), allowWhileIdle: true } }] }); toast('Notification d\'essai dans 10 secondes — fermez l\'application pour la voir'); } catch (e) { alertBox('Essai impossible : ' + (e.message || e)); } }
-  Object.assign(C, { on: r.on === 'o', time: r.time || '08:00', before: r.before || '1', late: r.late === 'o' });
+    await LN.schedule({ notifications: [{ id: 1699999999, title: '🔔 Essai SiteTeam', body: `Les notifications des échéances fonctionnent ✓ · ${C.sndT || 'sonnerie par défaut'}`, channelId: dueNCh(C), schedule: { at: new Date(Date.now() + 10000), allowWhileIdle: true } }] }); toast('Notification d\'essai dans 10 secondes — fermez l\'application pour la voir'); } catch (e) { alertBox('Essai impossible : ' + (e.message || e)); } }
+  Object.assign(C, dueNCfg(p), { on: r.on === 'o', time: r.time || '08:00', before: r.before || '1', late: r.late === 'o' });
   // types d'alertes notifiées
   const all = LOT_AL_TYPES.slice(); let T = new Set(C.types || all);
   for (;;) { const v = await menu('Quelles alertes notifier ?', [...all.map(t => ({ label: t, value: t, checked: T.has(t) })), { label: '✓ Terminé', value: '__ok' }]); if (!v || v === '__ok') break; T.has(v) ? T.delete(v) : T.add(v); }
