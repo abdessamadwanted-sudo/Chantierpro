@@ -685,63 +685,123 @@ async function avProDash(root, p, nivs, locaux) {
 
 // ---------- photos : classement (Photos du projet) ----------
 // où est rangée chaque photo : pin / lot, réception, réserve, PV, rapport, photos en masse ; sinon « À classer »
+// v1.0.61 : index de TOUTES les photos du projet — catégorie (rubrique / dossier / lot), niveau, zone, source —
+// pins photos (dossiers Porte provisoire, Nettoyage…), locaux / avancement, réception, bétonnage, anomalies, retours, réserves, PV, rapports
+const PH_SRC = { pin: '📍 Locaux / avancement', pn: '📌 Pins photos', rec: '🔩 Réception', bet: '🧱 Bétonnage', anom: '⚠️ Anomalies', ret: '🔁 Retours / réparations', pvr: '📋 PV de réception', res: '🚩 Réserves', pv: '📋 PV', rap: '📝 Rapports', grp: '🏗️ Classées' };
+const PH_ICO = { pin: '📍', pn: '📌', rec: '🔩', bet: '🧱', anom: '⚠️', ret: '🔁', pvr: '📋', res: '🚩', pv: '📋', rap: '📝', grp: '🏗️' };
 async function phIndex(p) {
-  const [links, recs, tasks, forms, reps] = await Promise.all(['links', 'receptions', 'tasks', 'forms', 'reports'].map(s => DB.byProject(s, p.id).catch(() => [])));
+  const [links, recs, tasks, forms, reps, plans, folders] = await Promise.all(['links', 'receptions', 'tasks', 'forms', 'reports', 'plans', 'folders'].map(s => DB.byProject(s, p.id).catch(() => [])));
   const M = new Map(), put = (id, g) => { if (id && !M.has(id)) M.set(id, g); };
-  const nivs = p.avNiveaux || [];
+  const nivs = p.avNiveaux || [], L = new Map(links.map(l => [l.id, l])), PL = new Map(plans.map(x => [x.id, x])), FO = new Map(folders.map(x => [x.id, x]));
+  const zz = (z) => z ? (/^zone/i.test(String(z)) ? String(z) : 'Zone ' + z) : '';
+  const locOf = (l) => { const n = nivs.find(x => x.id === l.nivId); return { niv: n ? n.name : '', nr: n ? avNivRank(n.name) : 99, z: n ? zz(avPinZone(p, l, n)) : '' }; };
   for (const l of links) {
-    if (l.kind === 'local') { const n = nivs.find(x => x.id === l.nivId), z = n ? avPinZone(p, l, n) : '';
-      const g = (lotN) => ({ k: 'pin', z, niv: n ? n.name : '', nr: n ? avNivRank(n.name) : 99, lot: lotN, label: `${n ? n.name + ' · ' : ''}${l.name}`, sub: lotN, go: { pin: l.id, niv: l.nivId } });
+    if (l.kind === 'local') { const o = locOf(l);
+      const g = (cat) => ({ k: 'pin', cat, ...o, label: `${o.niv ? o.niv + ' · ' : ''}${l.name}`, sub: cat, go: { pin: l.id, niv: l.nivId } });
       for (const [lid, r] of Object.entries(l.lots || {})) for (const id of r.photos || []) put(id, g(avLot(p, lid).name));
       for (const [eid, x] of Object.entries(l.etapes || {})) for (const id of x.photos || []) put(id, g(((avEtapes(p).find(e => e.id === eid)) || {}).name || 'Étape'));
       for (const e of l.journal || []) for (const id of e.photos || []) put(id, g(avLot(p, e.lot).name)); }
-    else for (const id of l.photos || []) put(id, { k: 'pin', z: '', niv: '', nr: 99, lot: '', label: l.name || 'Élément du plan', sub: 'Plan', go: { link: l.id } });
+    else if (l.kind === 'photonote') {   // pins photos : un dossier = une catégorie
+      const pl = PL.get(l.planId), fo = pl && FO.get(pl.folderId), niv = fo ? ((typeof nivOfFolder === 'function' && nivOfFolder(fo.name)) || fo.name) : '';
+      const g = (cat) => ({ k: 'pn', cat, niv, nr: avNivRank(niv), z: '', label: `${niv ? niv + ' · ' : ''}${l.name || 'Pin photos'}`, sub: cat, go: { pn: l.id } });
+      for (const id of l.photos || []) put(id, g('Général'));
+      for (const d of l.folders || []) for (const id of d.photos || []) put(id, g(d.name || 'Dossier'));
+      for (const nt of l.notes || []) for (const id of nt.photos || []) put(id, g('Notes')); }
+    else for (const id of l.photos || []) put(id, { k: 'pin', cat: 'Plans', niv: '', nr: 99, z: '', label: l.name || 'Élément du plan', sub: 'Plan', go: { link: l.id } });
   }
-  for (const d of recs) for (const r of d.rows || []) for (const id of [...(r.photoIds || []), ...(r.anomIds || []), ...(r.retourIds || [])]) put(id, { k: 'rec', z: r.zone ? 'Zone ' + r.zone : '', niv: r.niv || '', nr: avNivRank(r.niv), lot: d.type === 'Bétonnage' ? 'Bétonnage' : 'Réception', label: `${r.niv ? r.niv + ' · ' : ''}${r.element || 'Ouvrage'}`, sub: `${d.type === 'Bétonnage' ? 'Bétonnage' : 'Réception'} · ${fmtDate(d.date)}`, go: { rec: d.id } });
-  for (const t of tasks) for (const id of t.photoIds || []) put(id, { k: 'res', z: '', niv: '', nr: 99, lot: 'Réserves', label: `#${t.num || ''} ${t.title || 'Réserve'}`, sub: 'Réserve', go: { task: t.id } });
-  for (const f of forms) for (const id of f.photoIds || []) put(id, { k: 'pv', z: '', niv: f.niv || '', nr: avNivRank(f.niv), lot: 'PV', label: f.title || 'PV', sub: `PV · ${fmtDate(f.date)}`, go: { form: f.id } });
-  for (const r of reps) for (const id of r.photoIds || []) put(id, { k: 'rap', z: '', niv: '', nr: 99, lot: 'Rapports', label: `Rapport du ${fmtDate(r.date)}`, sub: 'Rapport journalier', go: { rep: r.id } });
+  for (const d of recs) { const bet = d.type === 'Bétonnage', tp = bet ? 'Bétonnage' : 'Réception';
+    for (const r of d.rows || []) { const base = { niv: r.niv || '', nr: avNivRank(r.niv), z: zz(r.zone), label: `${r.niv ? r.niv + ' · ' : ''}${r.element || 'Ouvrage'}`, go: { rec: d.id }, day: d.date };
+      for (const id of r.photoIds || []) put(id, { ...base, k: bet ? 'bet' : 'rec', cat: tp, sub: `${tp} · ${fmtDate(d.date)}` });
+      for (const id of r.anomIds || []) put(id, { ...base, k: 'anom', cat: 'Anomalies', sub: `Anomalie · ${tp} · ${fmtDate(d.date)}` });
+      for (const id of r.retourIds || []) put(id, { ...base, k: 'ret', cat: 'Retours / réparations', sub: `Retour · ${fmtDate(d.date)}` }); }
+    for (const id of d.pvIds || []) put(id, { k: 'pvr', cat: 'PV de réception', niv: '', nr: 99, z: '', label: `PV · ${tp}`, sub: fmtDate(d.date), go: { rec: d.id }, day: d.date }); }
+  for (const t of tasks) { const l = t.localId && L.get(t.localId), o = l ? locOf(l) : { niv: t.niv || '', nr: avNivRank(t.niv), z: '' };
+    for (const id of t.photoIds || []) put(id, { k: 'res', cat: 'Réserves', ...o, label: `#${t.num || ''} ${t.title || 'Réserve'}`, sub: `Réserve${l ? ' · ' + l.name : ''}`, go: { task: t.id } }); }
+  for (const f of forms) for (const id of f.photoIds || []) put(id, { k: 'pv', cat: 'PV', z: '', niv: f.niv || '', nr: avNivRank(f.niv), label: f.title || 'PV', sub: `PV · ${fmtDate(f.date)}`, go: { form: f.id }, day: f.date });
+  for (const r of reps) for (const id of r.photoIds || []) put(id, { k: 'rap', cat: 'Rapports', z: '', niv: '', nr: 99, label: `Rapport du ${fmtDate(r.date)}`, sub: 'Rapport journalier', go: { rep: r.id }, day: r.date });
   return M;
 }
 const phIsShot = (f) => /screenshot|capture|screen|scr_/i.test(f.name || '');
 const phIsDoc = (f) => /\b(bon|bl|pv|plan|scan|doc|facture|devis|fiche)\b/i.test(String(f.name || '').replace(/[_\-.]/g, ' '));
+const phNorm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 async function renderPhotosV2(root) {
   const p = App.project, pid = p.id;
   const files = (await DB.byProject('files', pid)).filter(f => f.role === 'photo').sort((a, b) => b.createdAt - a.createdAt);
-  const M = await phIndex(p), G = new Map(), todo = [];
+  const M = await phIndex(p), E = [], todo = [];
   for (const f of files) {
     let g = M.get(f.id);
-    if (!g && f.grp) { const gg = f.grp; g = { k: 'grp', z: '', niv: gg.niv || '', nr: avNivRank(gg.niv), lot: gg.lot || ({ rec: 'Réception', bet: 'Bétonnage', res: 'Réserves', rap: 'Rapports', ph: 'Photos' })[gg.dest] || '', label: `${gg.niv ? gg.niv + ' · ' : ''}${gg.ouv || ({ rec: 'Réception ferraillage', bet: 'Bétonnage', res: 'Réserves', rap: 'Rapports', lot: 'Lot & niveau', ph: 'Photos générales' })[gg.dest] || 'Photos'}`, sub: `${gg.lot ? gg.lot + ' · ' : ''}${fmtDate(gg.date)}` }; }
-    if (!g && f.local) { const l = await DB.get('links', f.local); if (l) { const n = (p.avNiveaux || []).find(x => x.id === l.nivId); g = { k: 'pin', z: '', niv: n ? n.name : '', nr: n ? avNivRank(n.name) : 99, lot: f.lot ? avLot(p, f.lot).name : '', label: `${n ? n.name + ' · ' : ''}${l.name}`, sub: f.lot ? avLot(p, f.lot).name : '', go: { pin: l.id, niv: l.nivId } }; } }
+    if (!g && f.grp) { const gg = f.grp, cat = gg.lot || ({ rec: 'Réception', bet: 'Bétonnage', res: 'Réserves', rap: 'Rapports', ph: 'Photos générales' })[gg.dest] || 'Photos';
+      g = { k: 'grp', cat, niv: gg.niv || '', nr: avNivRank(gg.niv), z: '', label: `${gg.niv ? gg.niv + ' · ' : ''}${gg.ouv || ({ rec: 'Réception ferraillage', bet: 'Bétonnage', res: 'Réserves', rap: 'Rapports', lot: 'Lot & niveau', ph: 'Photos générales' })[gg.dest] || 'Photos'}`, sub: `${gg.lot ? gg.lot + ' · ' : ''}${fmtDate(gg.date)}`, day: gg.date }; }
+    if (!g && f.local) { const l = await DB.get('links', f.local); if (l) { const n = (p.avNiveaux || []).find(x => x.id === l.nivId), cat = f.lot ? avLot(p, f.lot).name : 'Local';
+      g = { k: 'pin', cat, niv: n ? n.name : '', nr: n ? avNivRank(n.name) : 99, z: n ? (avPinZone(p, l, n) ? 'Zone ' + avPinZone(p, l, n) : '') : '', label: `${n ? n.name + ' · ' : ''}${l.name}`, sub: cat, go: { pin: l.id, niv: l.nivId } }; } }
     if (!g) { todo.push(f); continue; }
-    const key = g.k + '|' + g.label + '|' + (g.sub || ''); if (!G.has(key)) G.set(key, { ...g, files: [] }); G.get(key).files.push(f);
+    E.push({ f, g, day: (g.day || new Date(f.createdAt || 0).toISOString().slice(0, 10)), txt: phNorm([g.cat, g.label, g.sub, g.niv, g.z, f.source, f.name].join(' ')) });
   }
-  const F = App.phF = App.phF || { niv: '', lot: '' };
-  const groups = [...G.values()].filter(g => (!F.niv || g.niv === F.niv) && (!F.lot || g.lot === F.lot)).sort((a, b) => (a.nr - b.nr) || String(a.niv).localeCompare(String(b.niv), 'fr', { numeric: true }) || a.label.localeCompare(b.label, 'fr', { numeric: true }));
-  const nivL = [...new Set([...G.values()].map(g => g.niv).filter(Boolean))].sort((a, b) => avNivRank(a) - avNivRank(b)), lotL = [...new Set([...G.values()].map(g => g.lot).filter(Boolean))];
+  const F = App.phF = Object.assign({ niv: '', z: '', cat: '', src: '', per: '', q: '', mode: 'cat' }, App.phF || {});
+  const uniq = (fn, sort) => { const v = [...new Set(E.map(fn).filter(Boolean))]; return sort ? v.sort(sort) : v.sort((a, b) => String(a).localeCompare(String(b), 'fr', { numeric: true })); };
+  const nivL = uniq(e => e.g.niv, (a, b) => avNivRank(a) - avNivRank(b)), zL = uniq(e => e.g.z), catL = uniq(e => e.g.cat), srcL = uniq(e => e.g.k).map(k => [k, PH_SRC[k] || k]);
+  const sel = (k, lab, L) => L.length ? `<label class="avf-s ${F[k] ? 'on' : ''}"><small>${lab}</small><select data-pf="${k}"><option value="">Tous</option>${L.map(x => { const [v, t] = Array.isArray(x) ? x : [x, x]; return `<option value="${esc(v)}" ${v === F[k] ? 'selected' : ''}>${esc(t)}</option>`; }).join('')}</select></label>` : '';
   const th = (f) => `<div class="ph" data-id="${f.id}"><img src="${BlobURL.get(f.id, f.blob)}" loading="lazy">${phIsShot(f) ? '<span class="tag">📱 capture</span>' : phIsDoc(f) ? '<span class="tag">📄 document ?</span>' : ''}</div>`;
   let opened = {}; try { opened = JSON.parse(localStorage.getItem('ph.open.' + pid) || '{}'); } catch (e) {}
-  const KE = { pin: '📍', rec: '🔩', res: '⚠️', pv: '📋', rap: '📝', grp: '🏗️' };
-  root.innerHTML = `<div class="pagehead"><h2>Photos</h2><p>${files.length} photo(s) · classées par niveau, ouvrage et lot</p></div>
-    ${nivL.length || lotL.length ? `<div class="avf-bar ph-f">${nivL.length ? `<label class="avf-s ${F.niv ? 'on' : ''}"><small>Niveau</small><select data-pf="niv"><option value="">Tous</option>${nivL.map(n => `<option ${n === F.niv ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>` : ''}${lotL.length ? `<label class="avf-s ${F.lot ? 'on' : ''}"><small>Lot / rubrique</small><select data-pf="lot"><option value="">Tous</option>${lotL.map(n => `<option ${n === F.lot ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>` : ''}</div>` : ''}
-    ${todo.length ? `<details class="ph-g ph-todo" open><summary><span>📥</span><b>À classer</b><small>${todo.length}</small></summary>
+  root.innerHTML = `<div class="pagehead"><h2>Photos</h2><p>${files.length} photo(s) · par catégorie, niveau et zone</p></div>
+    <div class="ph-search"><input type="search" data-a="q" placeholder="🔍 Rechercher : porte, chape, R+1, zone 4, anomalie…" value="${esc(F.q)}"></div>
+    <div class="avf-bar ph-f">${sel('cat', 'Catégorie', catL)}${sel('niv', 'Niveau', nivL)}${sel('z', 'Zone', zL)}${sel('src', 'Source', srcL)}${sel('per', 'Période', [['1', 'Aujourd\'hui'], ['7', '7 jours'], ['30', '30 jours'], ['90', '3 mois']])}</div>
+    <div class="ph-bar"><div class="ph-seg">${[['cat', 'Catégorie'], ['lieu', 'Emplacement'], ['date', 'Date']].map(([v, t]) => `<button data-mode="${v}" class="${F.mode === v ? 'on' : ''}">${t}</button>`).join('')}</div>
+      <button class="btn small" data-a="pdfall">${icon('pdf')} PDF</button></div>
+    <div class="ph-scope muted"></div>
+    ${todo.length ? `<details class="ph-g ph-todo"${F.q || F.cat || F.src ? '' : ' open'}><summary><span>📥</span><b>À classer</b><small>${todo.length}</small></summary>
       <p class="muted ph-help">Appui long sur une photo pour en choisir plusieurs, puis <b>Classer vers…</b> ou <b>Supprimer</b>.${todo.some(phIsShot) ? ' Les « captures » d\'écran peuvent sûrement être supprimées.' : ''}</p>
       <div class="ph-acts"><button class="btn small" data-a="classall">${icon('folder')} Classer vers…</button>${todo.some(phIsShot) ? '<button class="btn small danger" data-a="shots">Supprimer les captures</button>' : ''}</div>
       <div class="photo-grid">${todo.map(th).join('')}</div></details>` : ''}
-    ${groups.map((g, i) => { const k = g.k + '|' + g.label + '|' + (g.sub || ''); return `<details class="ph-g" data-gk="${esc(k)}" ${opened[k] ? 'open' : ''}><summary><span>${KE[g.k] || '📷'}</span><span class="grow"><b>${esc(g.label)}</b><small>${esc(g.sub || '')}</small></span><small>${g.files.length}</small></summary>
-      ${g.go ? `<button class="ph-go" data-go="${i}">Ouvrir ›</button>` : ''}<div class="photo-grid">${g.files.map(th).join('')}</div></details>`; }).join('')}
+    <div class="ph-list"></div>
     ${!files.length ? '<div class="empty">Aucune photo.<br>Les photos se prennent dans chaque ouvrage, réception, réserve ou pin.</div>' : ''}`;
-  const all = [...todo, ...groups.flatMap(g => g.files)];
-  $$('[data-pf]', root).forEach(s => s.onchange = () => { F[s.dataset.pf] = s.value; renderPhotosV2(root); });
-  $$('details.ph-g[data-gk]', root).forEach(d => d.addEventListener('toggle', () => { opened[d.dataset.gk] = d.open; try { localStorage.setItem('ph.open.' + pid, JSON.stringify(opened)); } catch (e) {} }));
-  $$('.ph[data-id]', root).forEach(t => t.onclick = () => { const box = t.parentElement, L = [...box.querySelectorAll('.ph[data-id]')].map(x => all.find(f => f.id === x.dataset.id)).filter(Boolean);
+  let groups = [];
+  const filtered = () => { const q = phNorm(F.q).split(/\s+/).filter(Boolean), lim = F.per ? Date.now() - (+F.per) * 864e5 : 0, d0 = lim ? new Date(lim).toISOString().slice(0, 10) : '';
+    return E.filter(e => (!F.niv || e.g.niv === F.niv) && (!F.z || e.g.z === F.z) && (!F.cat || e.g.cat === F.cat) && (!F.src || e.g.k === F.src) && (!lim || (F.per === '1' ? e.day >= todayISO() : e.day >= d0)) && q.every(w => e.txt.includes(w))); };
+  const draw = () => {
+    const R = filtered(), G = new Map();
+    for (const e of R) { const g = e.g;
+      const key = F.mode === 'cat' ? `${g.cat}|${g.niv}|${g.z}` : F.mode === 'date' ? e.day : `${g.k}|${g.label}|${g.sub || ''}`;
+      if (!G.has(key)) G.set(key, F.mode === 'cat' ? { key, ico: PH_ICO[g.k] || '📷', title: g.cat, sub: [g.niv, g.z].filter(Boolean).join(' · ') || 'Sans niveau', nr: g.nr, sort: g.cat, files: [], src: new Set() }
+        : F.mode === 'date' ? { key, ico: '📅', title: fmtDate(e.day), sub: '', nr: 0, sort: e.day, files: [], src: new Set() }
+        : { key, ico: PH_ICO[g.k] || '📷', title: g.label, sub: g.sub || '', nr: g.nr, sort: g.label, go: g.go, files: [], src: new Set() });
+      const x = G.get(key); x.files.push(e.f); x.src.add(g.k); if (F.mode === 'date') x.cats = (x.cats || new Set()).add(g.cat); }
+    groups = [...G.values()];
+    if (F.mode === 'date') groups.sort((a, b) => b.sort.localeCompare(a.sort)).forEach(g => g.sub = [...g.cats].slice(0, 4).join(' · '));
+    else if (F.mode === 'cat') groups.sort((a, b) => a.sort.localeCompare(b.sort, 'fr', { numeric: true }) || (a.nr - b.nr) || a.sub.localeCompare(b.sub, 'fr', { numeric: true }));
+    else groups.sort((a, b) => (a.nr - b.nr) || a.sort.localeCompare(b.sort, 'fr', { numeric: true }));
+    const on = ['cat', 'niv', 'z', 'src', 'per', 'q'].filter(k => F[k]).length;
+    $('.ph-scope', root).innerHTML = `${R.length} photo(s) · ${groups.length} groupe(s)${on ? ` · <button class="linkbtn" data-a="clr">effacer les filtres</button>` : ''}`;
+    const b = $('[data-a=clr]', root); if (b) b.onclick = () => { Object.assign(F, { niv: '', z: '', cat: '', src: '', per: '', q: '' }); renderPhotosV2(root); };
+    let lastCat = null;
+    $('.ph-list', root).innerHTML = groups.map((g, i) => { const k = F.mode + '|' + g.key, hdr = F.mode === 'cat' && g.title !== lastCat ? `<div class="ph-cat">${esc(g.title)}<small>${groups.filter(x => x.title === g.title).reduce((a, x) => a + x.files.length, 0)}</small><button class="ph-catpdf" data-cpdf="${esc(g.title)}">${icon('pdf')} PDF</button></div>` : ''; lastCat = g.title;
+      return `${hdr}<details class="ph-g" data-gk="${esc(k)}" ${opened[k] || F.q ? 'open' : ''}><summary><span>${g.ico}</span><span class="grow"><b>${esc(F.mode === 'cat' ? g.sub : g.title)}</b><small>${esc(F.mode === 'cat' ? [...g.src].map(s => (PH_SRC[s] || s).replace(/^\S+\s/, '')).join(' · ') : g.sub)}</small></span><small>${g.files.length}</small></summary>
+      <div class="ph-gact">${g.go ? `<button class="ph-go" data-go="${i}">Ouvrir ›</button>` : ''}<button class="ph-go" data-gpdf="${i}">${icon('pdf')} PDF</button></div><div class="photo-grid">${g.files.map(th).join('')}</div></details>`; }).join('')
+      || (files.length ? '<div class="empty">Aucune photo ne correspond.</div>' : '');
+    bindList();
+  };
+  const all = () => [...todo, ...E.map(e => e.f)];
+  const bindList = () => {
+    $$('.ph-list details.ph-g[data-gk]', root).forEach(d => d.addEventListener('toggle', () => { opened[d.dataset.gk] = d.open; try { localStorage.setItem('ph.open.' + pid, JSON.stringify(opened)); } catch (e) {} }));
+    bindThumbs($('.ph-list', root));
+    $$('[data-go]', root).forEach(b => b.onclick = async () => { const g = groups[+b.dataset.go].go;
+      if (g.pin) { const l = await DB.get('links', g.pin); if (l) openAvViewer(l.nivId, null, () => renderPhotosV2(root), l.id); }
+      else if (g.pn) { const l = await DB.get('links', g.pn); if (l) { await openPhotoNote(l, typeof planCtx === 'function' ? planCtx(() => {}) : {}); renderPhotosV2(root); } }
+      else if (g.rec) { App.section = 'reception'; await renderSection(); const d = await DB.get('receptions', g.rec); if (d && typeof openReceptionDay === 'function') openReceptionDay(d); }
+      else if (g.task) { const t = await DB.get('tasks', g.task); if (t) openTaskDetail(t); }
+      else if (g.form) { const f = await DB.get('forms', g.form); if (f) openFormDetail(f); }
+      else if (g.rep) { App.section = 'reports'; renderSection(); } });
+    $$('[data-gpdf]', root).forEach(b => b.onclick = () => { const g = groups[+b.dataset.gpdf]; phPdf(p, [g], F.mode === 'cat' ? `${g.title}${g.sub ? ' - ' + g.sub : ''}` : g.title); });
+    $$('[data-cpdf]', root).forEach(b => b.onclick = () => { const G = groups.filter(x => x.title === b.dataset.cpdf); phPdf(p, G, b.dataset.cpdf + (F.niv ? ' - ' + F.niv : '') + (F.z ? ' - ' + F.z : '')); });
+  };
+  const bindThumbs = (box) => $$('.ph[data-id]', box).forEach(t => t.onclick = () => { const grid = t.parentElement, A = all(), L = [...grid.querySelectorAll('.ph[data-id]')].map(x => A.find(f => f.id === x.dataset.id)).filter(Boolean);
     showGallery(L.map(f => ({ src: BlobURL.get(f.id, f.blob), caption: `${f.source || (M.get(f.id) || {}).label || 'Photo'} · ${fmtDateTime(f.createdAt)}`, fileId: f.id })), L.findIndex(f => f.id === t.dataset.id), { onDelete: async (it) => { const ok = await PhotoQ.remove([it.fileId], { ask: false }); if (ok) setTimeout(() => renderPhotosV2(root), 300); return ok; } }); });
-  $$('[data-go]', root).forEach(b => b.onclick = async () => { const g = groups[+b.dataset.go].go;
-    if (g.pin) { const l = await DB.get('links', g.pin); if (l) openAvViewer(l.nivId, null, () => renderPhotosV2(root), l.id); }
-    else if (g.rec) { App.section = 'reception'; await renderSection(); const d = await DB.get('receptions', g.rec); if (d && typeof openReceptionDay === 'function') openReceptionDay(d); }
-    else if (g.task) { const t = await DB.get('tasks', g.task); if (t) openTaskDetail(t); }
-    else if (g.form) { const f = await DB.get('forms', g.form); if (f) openFormDetail(f); }
-    else if (g.rep) { App.section = 'reports'; renderSection(); } });
+  $$('[data-pf]', root).forEach(s => s.onchange = () => { F[s.dataset.pf] = s.value; s.closest('.avf-s').classList.toggle('on', !!s.value); draw(); });
+  $$('[data-mode]', root).forEach(b => b.onclick = () => { F.mode = b.dataset.mode; $$('[data-mode]', root).forEach(x => x.classList.toggle('on', x === b)); draw(); });
+  let qt; const qi = $('[data-a=q]', root); qi.oninput = () => { clearTimeout(qt); qt = setTimeout(() => { F.q = qi.value.trim(); draw(); }, 250); };
+  $('[data-a=pdfall]', root).onclick = () => { if (!groups.length) return toast('Aucune photo'); const t = [F.cat, F.niv, F.z].filter(Boolean).join(' - ') || 'Photos'; phPdf(p, groups, t); };
+  const td = $('.ph-todo .photo-grid', root); if (td) bindThumbs(td);
+  draw();
   const selIds = () => [...root.querySelectorAll('.ph-todo .ph-sel')].map(x => x.dataset.id);
   const ca = $('[data-a=classall]', root); if (ca) ca.onclick = async () => { let ids = selIds(); if (!ids.length) ids = todo.map(f => f.id); if (await phClassify(p, ids)) { if (typeof PhotoQ !== 'undefined') PhotoQ.endSel(); renderPhotosV2(root); } };
   const sh = $('[data-a=shots]', root); if (sh) sh.onclick = async () => { if (await PhotoQ.remove(todo.filter(phIsShot).map(f => f.id))) renderPhotosV2(root); };
@@ -756,6 +816,19 @@ async function renderPhotosV2(root) {
     if (v === 'batch') { await openPhotoBatch(p); renderPhotosV2(root); }
     if (v === 'pin') { const { locaux, nivs } = await avData(p); const loc = await avPickPin(p, nivs, locaux); if (!loc) return; const lid = await menu('Lot', avLotsOrdered(p).map(l => ({ label: l.name, swatch: l.color, value: l.id }))); if (!lid) return;
       const fs = await addPhotos(pid, { local: loc.id, lot: lid, source: `${loc.name} · ${avLot(p, lid).name}` }); if (fs.length) { const L2 = await DB.get('links', loc.id); L2.lots = L2.lots || {}; const r = L2.lots[lid] = L2.lots[lid] || { state: 'todo', photos: [] }; r.photos = [...(r.photos || []), ...fs.map(f => f.id)]; await DB.put('links', L2); renderPhotosV2(root); } } });
+}
+// v1.0.61 : PDF des photos choisies (filtres actuels, une catégorie, ou un groupe) — nom du fichier modifiable, mise en page soignée
+async function phPdf(p, groups, what) {
+  if (typeof Team !== 'undefined' && Team.featGate && !(await Team.featGate('photopdf'))) return;
+  const n = groups.reduce((a, g) => a + g.files.length, 0); if (!n) return toast('Aucune photo');
+  const dt = todayISO().split('-').reverse().join('-'), defName = avFileName([p.name, what, dt].filter(Boolean).join(' - '));
+  const r = await formSheet(`PDF · ${n} photo(s)`, [{ name: 'fn', label: 'Nom du fichier (WhatsApp)', value: defName }, { name: 'tt', label: 'Titre en haut du PDF', value: what || 'Photos' },
+    { name: 'pp', label: 'Taille des photos', type: 'select', value: '4', options: [{ value: '4', label: 'Grandes (≈ 4 par page)' }, { value: '2', label: 'Très grandes (≈ 2 par page)' }, { value: '6', label: 'Moyennes (≈ 6 par page)' }, { value: '1', label: '1 photo pleine page' }] }], { okLabel: 'Créer le PDF' });
+  if (!r) return;
+  const G = groups.map(g => ({ name: g.title, sub: g.sub, photos: g.files.map(f => f.id) }));
+  const ld = loading('Préparation du PDF…');
+  try { const b = await pnPdf({ p }, r.tt || what || 'Photos', G, +r.pp || 4, (t) => ld.set && ld.set(t)); ld.close(); await shareBlob(b, avFileName(r.fn || defName).replace(/\.pdf$/i, '') + '.pdf', { ask: false }); }
+  catch (e) { ld.close(); alertBox('PDF impossible : ' + (e.message || e)); }
 }
 // classer des photos : pin + lot (avancement), ouvrage (niveau, rubrique), réserve
 async function phClassify(p, ids) {

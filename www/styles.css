@@ -3440,3 +3440,20 @@ body:has(.avt-page) #plansFab, body:has(.avc-page) #plansFab { display: none; }
 /* v1.0.60 : une seule pastille d'envoi — la petite roue en haut à droite se cache quand la pastille « vers Drive » est affichée, et tourne plus calmement */
 body:has(#phPill) .sync-pill.sync { display: none !important; }
 .sync-pill.sync .spin { animation-duration: 1.6s; }
+
+/* v1.0.61 : Photos — recherche, filtres avancés, regroupement, PDF */
+.ph-search { padding: 0 12px 4px; }
+.ph-search input { width: 100%; min-height: 44px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); color: var(--text); padding: 0 14px; font-size: 15px; }
+.ph-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px 6px; }
+.ph-bar .btn { width: auto; }
+.ph-seg { display: inline-flex; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 3px; gap: 2px; }
+.ph-seg button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 700; padding: 7px 11px; border-radius: 9px; }
+.ph-seg button.on { background: var(--accent); color: #fff; }
+.ph-scope { margin: 0 14px 8px; font-size: 12.5px; }
+.ph-scope .linkbtn { border: 0; background: none; color: var(--accent); font: inherit; font-weight: 700; padding: 0; text-decoration: underline; }
+.ph-cat { display: flex; align-items: center; gap: 8px; margin: 14px 14px 6px; font-size: 16px; font-weight: 800; color: var(--text); }
+.ph-cat small { padding: 1px 8px; border-radius: 99px; background: var(--card2); color: var(--muted); font-size: 11.5px; font-weight: 700; }
+.ph-cat .ph-catpdf { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); background: var(--card); color: var(--accent); border-radius: 10px; padding: 5px 10px; font: inherit; font-size: 12.5px; font-weight: 700; }
+.ph-cat .ph-catpdf svg, .ph-gact svg { width: 15px; height: 15px; }
+.ph-gact { display: flex; justify-content: flex-end; gap: 6px; padding: 0 12px 6px; }
+.ph-gact .ph-go { float: none; margin: 0; display: inline-flex; align-items: center; gap: 4px; border: 0; }
