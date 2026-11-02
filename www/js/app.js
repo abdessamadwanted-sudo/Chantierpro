@@ -1749,7 +1749,7 @@ function openMaquette(m) {
 }
 
 // ---------- v1.0.48 : journal de démarrage et des erreurs (diagnostic des fermetures) ----------
-function bootTrail(step) { try { const L = JSON.parse(localStorage.getItem('boot.trail') || '[]'); L.push(new Date().toTimeString().slice(0, 8) + ' ' + String(step).slice(0, 120)); localStorage.setItem('boot.trail', JSON.stringify(L.slice(-25))); } catch (e) {} }
+function bootTrail(step) { try { const L = JSON.parse(localStorage.getItem('boot.trail') || '[]'); L.push(new Date().toTimeString().slice(0, 8) + ' ' + String(step).slice(0, 120)); localStorage.setItem('boot.trail', JSON.stringify(L.slice(-40))); } catch (e) {} }
 (() => {
   const keep = (m) => { try { const L = JSON.parse(localStorage.getItem('err.log') || '[]'); L.push(new Date().toISOString().slice(5, 19).replace('T', ' ') + ' ' + String(m).slice(0, 220)); localStorage.setItem('err.log', JSON.stringify(L.slice(-20))); } catch (e) {} };
   window.addEventListener('error', (e) => keep((e.message || 'erreur') + (e.filename ? ' @' + String(e.filename).split('/').pop() + ':' + e.lineno : '')));
@@ -1784,7 +1784,7 @@ async function storageWatch() {
 async function safeModeInfo() {
   let T = [], E = []; try { T = JSON.parse(localStorage.getItem('boot.trail') || '[]'); E = JSON.parse(localStorage.getItem('err.log') || '[]'); } catch (e) {}
   try { const G = window.Capacitor?.Plugins?.GDriveAuth; if (G && G.lastCrash) { const r = await G.lastCrash({}); if (r && r.last) E.push('ANDROID ' + r.last); } } catch (e) {}
-  const txt = `SiteTeam ${typeof APP_VERSION !== 'undefined' ? APP_VERSION : ''} — ${window.__safe ? 'mode secours' : 'diagnostic'}\n${navigator.userAgent}\n\nDernières étapes :\n${T.slice(-15).join('\n')}\n\nErreurs :\n${E.slice(-10).join('\n') || '—'}`;
+  const txt = `SiteTeam ${typeof APP_VERSION !== 'undefined' ? APP_VERSION : ''} — ${window.__safe ? 'mode secours' : 'diagnostic'}\n${navigator.userAgent}\n\nDernières étapes :\n${T.slice(-30).join('\n')}\n\nErreurs :\n${E.slice(-10).join('\n') || '—'}`;
   const v = await menu(window.__safe ? '🛟 Mode secours' : 'Rapport de diagnostic', [{ label: window.__safe ? 'L\'application s\'est fermée plusieurs fois au démarrage : synchro et envoi des photos sont arrêtés pour cette ouverture. Vos données sont intactes.' : 'Dernières étapes et erreurs de l\'application (aucune donnée de chantier).', value: 'x' },
     { label: 'Envoyer le rapport (WhatsApp)', icon: 'share', value: 'wa' }, { label: 'Continuer', icon: 'check', value: 'ok' }]);
   if (v === 'wa') shareWhatsApp(txt);

@@ -1,3 +1,8 @@
+## SiteTeam : démarrage plus léger, rapport de diagnostic plus précis
+- Les PDF des tableaux (réception, réserves avec photos, rapports) ne sont plus créés pour Drive dans les 3 premières minutes après l'ouverture, et 3 au plus à la fois : le démarrage reste léger.
+- 2 fichiers à la fois (au lieu de 3 à 4) pour l'envoi et le téléchargement avec Drive : moins de mémoire avec les plans A0.
+- Rapport de diagnostic : il note ce que faisait la synchro (envoi, téléchargement, PDF, taille du fichier, mémoire) et la préparation des photos — si Android ferme l'application, on voit sur quoi.
+
 ## SiteTeam : Photos — tout regroupé par catégorie, niveau et zone, recherche et PDF au choix
 - Photos : toutes les photos du projet réunies — pins photos (Porte provisoire, Nettoyage, Brique…), locaux / avancement, réception, bétonnage, anomalies, retours / réparations, PV, réserves, rapports.
 - Barre de recherche (porte, chape, R+1, zone 4, anomalie…) et filtres : Catégorie, Niveau, Zone, Source, Période (aujourd'hui, 7 j, 30 j, 3 mois).
