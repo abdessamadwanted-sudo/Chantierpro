@@ -5,6 +5,8 @@
 - Photos : Réception et Bétonnage séparent Photos ouvrage / Anomalie / Traitée (+ filtre « État ») ; bouton « Ouvrir le tableau › » ; dans la galerie, 👁 ouvre la fiche d'où vient la photo.
 - Outils du projet : appui long sur un outil (ou « Organiser ») pour le déplacer vers une autre catégorie (ex. Réception & Bétonnage → Chantier) — le menu ☰ suit le même rangement.
 - Nouveau design des Outils du projet : actions rapides en couleurs, catégories teintées, pictogrammes pleins et lisibles.
+- Panneau d'administration › Centre de contrôle : bouton « 🎛 Ce qu'il voit » sur chaque utilisateur — espace personnel : outils oui / non et fonctions offertes ; membre d'une organisation : pour chaque outil Aucun accès (masqué) / Voir / Modifier / Valider / Administrer, avec « Tout masquer », « Tout en lecture », « Tout modifier » (règles Firestore à publier).
+- Packs & fonctions : le nom de chaque ligne reste visible quand on fait défiler le tableau sur le côté.
 - Plans A0 : fini le plan qui clignote ou devient noir — l'écran utilise une image allégée (la netteté au zoom vient du PDF / DWG), la loupe ne charge l'image que si on s'en sert, les calques nets sont limités et vidés après usage.
 - Plans : le clavier (titre d'un pin, d'une note) ne remet plus le zoom à zéro.
 
