@@ -2,7 +2,12 @@ package com.siteteam.gdriveauth;
 
 import android.app.Activity;
 import android.app.AlarmManager;
+import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.media.AudioAttributes;
+import android.media.RingtoneManager;
+import android.net.Uri;
+import android.provider.Settings;
 import android.app.PendingIntent;
 import android.content.ComponentName;
 import android.content.Context;
@@ -47,10 +52,13 @@ public class GDriveAuthPlugin extends Plugin {
     private static final String DRIVE_FILE = "https://www.googleapis.com/auth/drive.file";
     private ActivityResultLauncher<IntentSenderRequest> consent;
     private PluginCall pending;
+    private ActivityResultLauncher<Intent> ringPick;
+    private PluginCall ringCall;
 
     @Override
     public void load() {
         consent = getActivity().registerForActivityResult(new ActivityResultContracts.StartIntentSenderForResult(), this::onConsent);
+        ringPick = getActivity().registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), this::onRing);
         final Context ctx = getContext();
         // v1.0.51 : au démarrage, AVANT la page web — on retire côté Android les anciens rappels programmés avec « on »
         // (v1.0.47 : rappel 17 h, robot emploi) qui pouvaient se redéclencher en boucle et bloquer l'application
@@ -94,6 +102,59 @@ public class GDriveAuthPlugin extends Plugin {
             SharedPreferences sp = ctx.getSharedPreferences("NOTIFICATION_STORE", Context.MODE_PRIVATE);
             sp.edit().remove("1999000301").remove("1999000101").commit();
         } catch (Throwable ignored) { }
+    }
+
+    // v1.0.69 : choisir la sonnerie des rappels (sonneries du téléphone) → un canal de notification avec ce son
+    @PluginMethod
+    public void pickSound(PluginCall call) {
+        try {
+            Intent i = new Intent(RingtoneManager.ACTION_RINGTONE_PICKER);
+            i.putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_NOTIFICATION | RingtoneManager.TYPE_ALARM | RingtoneManager.TYPE_RINGTONE);
+            i.putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, true);
+            i.putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true);
+            i.putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Sonnerie des rappels SiteTeam");
+            String cur = call.getString("current", "");
+            if (cur != null && !cur.isEmpty()) i.putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, Uri.parse(cur));
+            if (ringCall != null) ringCall.reject("Remplacée", "REPLACED");
+            ringCall = call;
+            ringPick.launch(i);
+        } catch (Throwable e) { call.reject("Choix de sonnerie impossible : " + e.getMessage()); }
+    }
+    private void onRing(ActivityResult r) {
+        PluginCall c = ringCall; ringCall = null; if (c == null) return;
+        try {
+            if (r.getResultCode() != Activity.RESULT_OK || r.getData() == null) { c.reject("Annulé", "CANCELED"); return; }
+            Uri u = r.getData().getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI);
+            String id = "rap_" + Math.abs((u == null ? "silence" : u.toString()).hashCode());
+            if (Build.VERSION.SDK_INT >= 26) {
+                NotificationManager nm = (NotificationManager) getContext().getSystemService(Context.NOTIFICATION_SERVICE);
+                NotificationChannel ch = new NotificationChannel(id, "Rappels de chantier", NotificationManager.IMPORTANCE_HIGH);
+                ch.setDescription("Échéances et rappels SiteTeam");
+                ch.enableVibration(true); ch.enableLights(true);
+                AudioAttributes aa = new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
+                ch.setSound(u, aa);
+                if (nm != null) nm.createNotificationChannel(ch);
+            }
+            String title = "Silencieux";
+            if (u != null) { try { title = RingtoneManager.getRingtone(getContext(), u).getTitle(getContext()); } catch (Throwable ignored) { title = "Sonnerie choisie"; } }
+            JSObject o = new JSObject(); o.put("channel", id); o.put("uri", u == null ? "" : u.toString()); o.put("title", title);
+            c.resolve(o);
+        } catch (Throwable e) { c.reject("Sonnerie : " + e.getMessage()); }
+    }
+    // réglages Android du canal (son, vibration, écran verrouillé…)
+    @PluginMethod
+    public void openNotifSettings(PluginCall call) {
+        try {
+            Intent i;
+            String ch = call.getString("channel", "");
+            if (Build.VERSION.SDK_INT >= 26 && ch != null && !ch.isEmpty()) { i = new Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS); i.putExtra(Settings.EXTRA_CHANNEL_ID, ch); }
+            else if (Build.VERSION.SDK_INT >= 26) i = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+            else { i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS); i.setData(Uri.parse("package:" + getContext().getPackageName())); }
+            if (Build.VERSION.SDK_INT >= 26) i.putExtra(Settings.EXTRA_APP_PACKAGE, getContext().getPackageName());
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(i);
+            call.resolve();
+        } catch (Throwable e) { call.reject("Réglages impossibles : " + e.getMessage()); }
     }
 
     @PluginMethod
