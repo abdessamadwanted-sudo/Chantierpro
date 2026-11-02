@@ -60,6 +60,10 @@
     .pk-t td { padding: 8px 6px; border-top: 1px solid var(--line); text-align: center; } .pk-t td:first-child { text-align: left; font-weight: 600; }
     .pk-t input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--accent); } .pk-t input[type=number] { width: 64px; text-align: center; }
     .pk-trial td { background: var(--chip); }
+    /* v1.0.63 : nom de la ligne toujours visible quand le tableau défile sur le côté */
+    .pk-t td:first-child, .pk-t th:first-child { position: sticky; left: 0; z-index: 2; background: var(--card); color: var(--text); min-width: 120px; max-width: 46vw; white-space: normal; box-shadow: 6px 0 8px -8px rgba(0,0,0,.25); }
+    .pk-trial td:first-child { background: var(--chip); }
+    .cc-see { margin-top: 6px; } .cc-see-all { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 4px; } .cc-see-all .btn { padding: 6px 10px; font-size: 12.5px; }
     .pk-save { position: sticky; bottom: 0; background: var(--bg); padding: 10px 0; align-items: center; }
     .pk-org { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-top: 8px; } .pk-org summary { font-weight: 700; cursor: pointer; }
     .pk-l { display: flex; align-items: center; gap: 8px; justify-content: space-between; margin: 6px 0; font-size: 13px; } .pk-l span { flex: 1; } .pk-l select { width: auto; max-width: 55%; }

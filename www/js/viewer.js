@@ -103,6 +103,9 @@ async function openPlanViewer(plan, ctx) {
   const file = await DB.get('files', plan.fileId);
   const src = file ? BlobURL.get(file.id, file.blob) : '';
   const W = plan.w, H = plan.h;
+  // v1.0.63 : plan A0 très grand (ex. 4756 × 3364) — à l'écran une image allégée (3200 px) ; la netteté au zoom vient du rendu PDF / DWG.
+  // Avant, l'image complète (≈ 64 Mo décodée, deux fois avec la loupe) saturait la mémoire graphique : plan qui clignote, écran noir.
+  const lite = !!file && Math.max(W, H) > 3600 && !!(plan.pdfFileId || plan.dwgFileId || plan.dxfFileId) && typeof avLiteURL === 'function';
   const base = Math.max(W, H);
   if (!plan.annotations) plan.annotations = [];
   plan.lastOpened = Date.now(); DB.put('plans', plan);
@@ -132,21 +135,23 @@ async function openPlanViewer(plan, ctx) {
       <button class="iconbtn" data-a="more">${icon('more')}</button>
     </div>
     <div class="viewer">
-      <div class="stage"><img src="${src}" width="${W}" height="${H}"><canvas class="hd"></canvas><canvas class="hd"></canvas><svg class="ov" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+      <div class="stage"><img src="${lite ? '' : src}" width="${W}" height="${H}"><canvas class="hd"></canvas><canvas class="hd"></canvas><svg class="ov" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
         <g class="g-annots"></g><g class="g-preview"></g><g class="g-links"></g><g class="g-tasks"></g><g class="g-meas"></g></svg></div>
       <div class="tools"></div>
-      <div class="loupe"><div class="lst"><img src="${src}" width="${W}" height="${H}"><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><g class="l-ann"></g><g class="l-prev"></g></svg></div><div class="cross"></div></div>
+      <div class="loupe"><div class="lst"><img data-lsrc="1" width="${W}" height="${H}"><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><g class="l-ann"></g><g class="l-prev"></g></svg></div><div class="cross"></div></div>
     </div>
     <div class="viewer-bottom"><span class="vb-info"></span></div>`;
   document.body.appendChild(el);
 
   const viewer = $('.viewer', el), stage = $('.stage', el);
+  let baseURL = src;
+  if (lite) { const im0 = $('.stage > img', el); avLiteURL(file.id, 3200).then(u => { if (!el.isConnected) return; baseURL = u || src; im0.src = baseURL; }).catch(() => { im0.src = src; }); }
   const gAnn = $('.g-annots', el), gPrev = $('.g-preview', el), gLinks = $('.g-links', el), gTasks = $('.g-tasks', el);
 
   // v1.0.59 : à la fermeture du plan on libère la mémoire (PDF ouvert dans pdf.js, calques HD, image décodée).
   // Avant, chaque plan ouvert restait en mémoire → après quelques plans A0, Android fermait l'application.
-  const cleanups = []; let closed = false;
-  const teardown = () => { closed = true; try { typeof bootTrail === 'function' && bootTrail('plan fermé'); } catch (e) {} window.removeEventListener('resize', fit); cleanups.forEach(f => { try { f(); } catch (e) {} }); el.querySelectorAll('img').forEach(im => { try { im.removeAttribute('src'); } catch (e) {} }); el.remove(); ctx.onClose && ctx.onClose(); };
+  const cleanups = []; let closed = false, onResize = () => {};
+  const teardown = () => { closed = true; try { typeof bootTrail === 'function' && bootTrail('plan fermé'); } catch (e) {} window.removeEventListener('resize', onResize); cleanups.forEach(f => { try { f(); } catch (e) {} }); el.querySelectorAll('img').forEach(im => { try { im.removeAttribute('src'); } catch (e) {} }); el.remove(); ctx.onClose && ctx.onClose(); };
   const close = () => { unBack(); teardown(); };
   const unBack = pushBack(teardown);
   $('[data-a=back]', el).onclick = close;
@@ -199,7 +204,7 @@ async function openPlanViewer(plan, ctx) {
     nx.width = src.width; nx.height = src.height; nx.getContext('2d').drawImage(src, 0, 0);
     Object.assign(nx.style, { display: 'block', left: left + 'px', top: top + 'px', width: w + 'px', height: h + 'px', zIndex: 2, transition: 'none', opacity: 0 });
     cur.style.zIndex = 1;
-    requestAnimationFrame(() => { nx.style.transition = 'opacity .16s ease-out'; nx.style.opacity = 1; setTimeout(() => { if (hdc[hdi] !== cur) { cur.style.opacity = 0; cur.style.display = 'none'; } }, 200); });
+    requestAnimationFrame(() => { nx.style.transition = 'opacity .16s ease-out'; nx.style.opacity = 1; setTimeout(() => { if (hdc[hdi] !== cur) { cur.style.opacity = 0; cur.style.display = 'none'; cur.width = cur.height = 0; } }, 220); });   // v1.0.63 : l'ancien calque est vidé (mémoire)
     hdi ^= 1;
   }
   const HD_M = 0.25;   // marge rendue autour de l'écran (25 % de chaque côté)
@@ -228,7 +233,7 @@ async function openPlanViewer(plan, ctx) {
   // DWG / DXF : la zone visible est redessinée en vectoriel → traits et textes nets à tous les zooms
   async function renderCadHD() {
     const C = await loadCad(); if (!C || g || !el.isConnected) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2.5), vw = viewer.clientWidth, vh = viewer.clientHeight, sc = st.scale, tx = st.tx, ty = st.ty;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2), vw = viewer.clientWidth, vh = viewer.clientHeight, sc = st.scale, tx = st.tx, ty = st.ty;
     if (sc * dpr <= 1.05 && !C.hidden.length) { hd.style.display = 'none'; return; }
     const mx = Math.round(vw * HD_M), my = Math.round(vh * HD_M), RW = vw + 2 * mx, RH = vh + 2 * my;
     const c = document.createElement('canvas'); c.width = Math.round(RW * dpr); c.height = Math.round(RH * dpr);
@@ -248,15 +253,15 @@ async function openPlanViewer(plan, ctx) {
   async function renderHD() {
     if (closed) return;
     if (g || !el.isConnected) return scheduleHD();
-    const dpr = Math.min(window.devicePixelRatio || 1, 3);
-    if (st.scale * dpr <= 1.05) { hd.style.display = 'none'; return; } // l'image de base suffit
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);   // v1.0.63 : 2 au lieu de 3 (P30 Pro) — net, et 2 fois moins de mémoire
+    if (st.scale * dpr <= (lite ? 0.75 : 1.05)) { hd.style.display = 'none'; return; } // l'image de base suffit
     const page = await loadPdfPage();
     if (!page) return;
     const vw = viewer.clientWidth, vh = viewer.clientHeight;
     const r0 = W / page.getViewport({ scale: 1 }).width;
     const sc = st.scale, tx = st.tx, ty = st.ty;
     let mx = Math.round(vw * HD_M), my = Math.round(vh * HD_M);
-    if ((vw + 2 * mx) * (vh + 2 * my) * dpr * dpr > 16e6) { mx = my = 0; }   // limite mémoire des téléphones
+    if ((vw + 2 * mx) * (vh + 2 * my) * dpr * dpr > 9e6) { mx = my = 0; }   // limite mémoire des téléphones
     const vp = page.getViewport({ scale: r0 * sc * dpr, offsetX: (tx + mx) * dpr, offsetY: (ty + my) * dpr });
     const c = document.createElement('canvas');
     c.width = Math.round((vw + 2 * mx) * dpr); c.height = Math.round((vh + 2 * my) * dpr);
@@ -372,6 +377,7 @@ async function openPlanViewer(plan, ctx) {
     const r = viewer.getBoundingClientRect();
     const [x, y] = toImg(cx, cy);
     const Z = st.scale * 2.5, R = 65;
+    const li = $('img[data-lsrc]', lst); if (li && !li.getAttribute('src')) li.src = baseURL;   // v1.0.63 : image de la loupe chargée seulement si on s'en sert
     lst.style.transform = `translate(${R - x * Z}px,${R - y * Z}px) scale(${Z})`;
     lPrev.innerHTML = gPend.innerHTML + gPrev.innerHTML;   // la polyligne en cours et le trait sous le doigt
     if (loupe.style.display !== 'block' || lAnnV !== annV) { lAnn.innerHTML = gAnn.innerHTML; lAnnV = annV; loupe.style.display = 'block'; }
@@ -1048,7 +1054,9 @@ async function openPlanViewer(plan, ctx) {
   renderAnnots();
   await reloadData();
   requestAnimationFrame(fit);
-  window.addEventListener('resize', fit);
+  // v1.0.63 : le clavier (titre d'un pin…) change seulement la hauteur → on garde le zoom ; on recadre seulement si la largeur change (rotation)
+  let lastW = window.innerWidth; onResize = () => { if (Math.abs(window.innerWidth - lastW) < 2) { applyT(); return; } lastW = window.innerWidth; fit(); };
+  window.addEventListener('resize', onResize);
 }
 
 // ---------- Apparence des pins d'éléments : emoji + couleur selon le contenu (ou choix manuel) ----------

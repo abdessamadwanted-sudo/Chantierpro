@@ -3457,3 +3457,62 @@ body:has(#phPill) .sync-pill.sync { display: none !important; }
 .ph-cat .ph-catpdf svg, .ph-gact svg { width: 15px; height: 15px; }
 .ph-gact { display: flex; justify-content: flex-end; gap: 6px; padding: 0 12px 6px; }
 .ph-gact .ph-go { float: none; margin: 0; display: inline-flex; align-items: center; gap: 4px; border: 0; }
+
+/* v1.0.63 : tableau d'avancement — vue photos, colonnes ajoutables */
+.avt-seg { display: inline-flex; background: rgba(255,255,255,.1); border-radius: 10px; padding: 2px; margin-right: 4px; }
+.avt-seg button { border: 0; background: transparent; color: #cbd5e1; font: inherit; font-weight: 800; font-size: 14px; padding: 6px 11px; border-radius: 8px; }
+.avt-seg button.on { background: #fff; color: #0f172a; }
+.avt td.avt-ph { position: relative; width: 78px; min-width: 78px; height: 70px; padding: 3px; vertical-align: middle; }
+.avt td.avt-ph img { width: 72px; height: 56px; object-fit: cover; border-radius: 8px; display: block; margin: 0 auto; background: var(--card2); }
+.avt td.avt-ph small { position: absolute; top: 5px; right: 6px; background: rgba(15,23,42,.8); color: #fff; font-size: 11px; font-weight: 800; padding: 0 6px; border-radius: 99px; }
+.avt td.avt-ph span { color: var(--muted); font-size: 13px; }
+.avt td.avt-ph i { display: block; font-style: normal; font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+.avt th.avt-add { min-width: 70px; color: var(--accent); font-size: 18px; font-weight: 800; cursor: pointer; }
+.avt th.avt-add small { display: block; font-size: 10.5px; }
+
+/* ================= v1.0.63 : Outils du projet — design vif et soigné ================= */
+.st-ptools-p { gap: 14px !important; padding-left: 4px !important; padding-right: 4px !important; }
+.st-ptools-p .st-hd { align-items: center !important; margin: 2px 4px 0 !important; }
+.st-ptools-p .st-hd b { font-size: 18px !important; font-weight: 800; letter-spacing: -.01em; }
+.st-ptools-p .st-org { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 99px; padding: 6px 12px; font: inherit; font-size: 12px; font-weight: 700; }
+.st-ptools-p .st-org svg.i { width: 14px; height: 14px; }
+/* actions rapides : cartes dégradées colorées */
+.st-ptools-p .st-qa { gap: 8px !important; margin: 0 !important; }
+.st-ptools-p .st-qa-b { position: relative; overflow: hidden; border: 0 !important; color: #fff !important; padding: 12px 4px 10px !important; border-radius: 18px !important;
+  background: linear-gradient(150deg, color-mix(in srgb, var(--c) 92%, #fff 8%), color-mix(in srgb, var(--c) 70%, #000 30%)) !important; box-shadow: 0 8px 18px -10px var(--c) !important; }
+.st-ptools-p .st-qa-b::after { content: ''; position: absolute; right: -18px; top: -18px; width: 54px; height: 54px; border-radius: 50%; background: rgba(255,255,255,.14); }
+.st-ptools-p .st-qa-b i { background: rgba(255,255,255,.2) !important; box-shadow: none !important; width: 38px !important; height: 38px !important; }
+.st-ptools-p .st-qa-b span { color: #fff !important; font-size: 11.5px; font-weight: 800; text-shadow: 0 1px 2px rgba(0,0,0,.25); }
+/* catégories : cartes teintées de leur couleur */
+.st-ptools-p .st-tcat { padding: 12px 10px 12px !important; border-radius: 22px !important; border: 1px solid color-mix(in srgb, var(--c) 30%, var(--line)) !important;
+  background: linear-gradient(170deg, color-mix(in srgb, var(--c) 16%, var(--card)) 0%, var(--card) 55%) !important; box-shadow: 0 10px 24px -18px color-mix(in srgb, var(--c) 80%, #000) !important; }
+.st-ptools-p .st-tcat-h { font-size: 15px !important; font-weight: 800 !important; margin: 0 2px 10px !important; color: var(--text) !important; }
+.st-ptools-p .st-tcat-h::before { width: 10px !important; height: 10px !important; border-radius: 50% !important; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 25%, transparent); }
+.st-ptools-p .st-tcat-h small { background: color-mix(in srgb, var(--c) 22%, transparent) !important; color: color-mix(in srgb, var(--c) 70%, #fff) !important; padding: 1px 9px; border-radius: 99px; font-weight: 800 !important; }
+.st-ptools-p details.st-acc:not([open]) { padding-bottom: 2px !important; }
+.st-ptools-p details.st-acc:not([open]) .st-tcat-h { margin-bottom: 2px !important; }
+.st-ptools-p .st-tgrid { gap: 8px !important; }
+/* tuiles : pastille pleine en dégradé, icône blanche, libellé net */
+.st-ptools-p .st-tool { background: color-mix(in srgb, var(--c) 7%, var(--card)) !important; border: 1px solid color-mix(in srgb, var(--c) 18%, var(--line)) !important; border-radius: 16px !important;
+  padding: 11px 3px 9px !important; gap: 7px !important; box-shadow: none !important; transition: transform .12s, background .12s; }
+.st-ptools-p .st-tool:active { transform: scale(.95); background: color-mix(in srgb, var(--c) 18%, var(--card)) !important; }
+.st-ptools-p .st-tool .st-ico { width: 40px !important; height: 40px !important; border-radius: 13px !important;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--c) 85%, #fff 15%), color-mix(in srgb, var(--c) 80%, #000 20%)) !important; box-shadow: 0 6px 14px -6px var(--c); }
+.st-ptools-p .st-tool .st-ico svg.i { width: 20px !important; height: 20px !important; color: #fff !important; stroke-width: 2.1; }
+.st-ptools-p .st-tool span { font-size: 11px !important; font-weight: 700 !important; color: var(--text) !important; }
+.st-ptools-p .st-thint2 { text-align: center; color: var(--muted); font-size: 11.5px; margin: -4px 0 0; }
+
+/* v1.0.63 : comparer — choix du plan par Lot et Niveau */
+.lvc { display: grid; gap: 10px; padding-bottom: 8px; }
+.lvc-f { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.lvc-f label { display: flex; flex-direction: column; gap: 3px; padding: 7px 10px; border-radius: 14px; border: 1px solid var(--line); background: var(--card2); }
+.lvc-f small { font-size: 10.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.lvc-f select { border: 0; background: transparent; color: var(--text); font: inherit; font-weight: 700; font-size: 14px; padding: 0; }
+.lvc-f select option { background: var(--card); color: var(--text); }
+.lvc-l { display: grid; gap: 6px; max-height: 52vh; overflow-y: auto; }
+.lvc-h { margin: 6px 4px 0; font-weight: 800; font-size: 13px; color: var(--accent); } .lvc-h small { color: var(--muted); font-weight: 700; }
+.lvc-r { display: flex; align-items: center; gap: 10px; text-align: left; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); color: var(--text); font: inherit; }
+.lvc-r.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.lvc-r b { display: block; font-size: 14px; } .lvc-r small { color: var(--muted); font-size: 12px; }
+.lvc-r i { font-style: normal; font-size: 11.5px; color: var(--muted); white-space: nowrap; } .lvc-r i.ok { color: #22c55e; }
+.lvc-many { width: 100%; }
