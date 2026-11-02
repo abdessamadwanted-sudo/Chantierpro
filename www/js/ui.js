@@ -152,10 +152,10 @@ function menu(title, options) {
 }
 
 // Formulaire rapide : fields = [{name,label,type,value,options,placeholder}]
-function formSheet(title, fields, { okLabel = 'Enregistrer', danger } = {}) {
+function formSheet(title, fields, { okLabel = 'Enregistrer', danger, intro } = {}) {
   return new Promise((resolve) => {
     let result = null;
-    const body = `<div class="form">${fields.map(f => {
+    const body = `<div class="form">${intro || ''}${fields.map(f => {
       const v = esc(f.value ?? '');
       if (f.type === 'info') return `<div class="fs-info"><b>${esc(f.label)}</b><div>${v.replace(/\n/g, '<br>')}</div></div>`;
       let input;

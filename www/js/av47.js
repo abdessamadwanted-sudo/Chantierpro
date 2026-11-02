@@ -404,6 +404,7 @@ async function openAvTable(p, o = {}) {
   async function photoCell(l, lot) {
     const P = cellPhotos(l, lot), add = async () => { const fs = await addPhotos(p.id, { local: l.id, lot: lot.id, source: `${l.name} · ${lot.name}` }); if (!fs.length) return;
       const fresh = await DB.get('links', l.id); fresh.lots = fresh.lots || {}; const r = fresh.lots[lot.id] = fresh.lots[lot.id] || { state: 'todo', photos: [] }; r.photos = [...(r.photos || []), ...fs.map(f => f.id)]; await DB.put('links', fresh); Object.assign(l, fresh); draw(); };
+    if (typeof avCellDossier === 'function') return avCellDossier(p, l, lot, () => draw());   // v1.0.65 : la case s'ouvre comme un dossier
     if (!P.length) return add();
     const v = await menu(`${l.name} · ${lot.name}`, [{ label: `Voir les photos (${P.length})`, icon: 'eye', value: 'v' }, { label: 'Ajouter des photos', icon: 'camera', value: 'a' }, { label: 'PDF de ces photos', icon: 'pdf', value: 'p' }]);
     if (v === 'a') return add();
@@ -535,10 +536,11 @@ function avLotPanelBlock(p, L, f, redraw) {
       <button class="lpa-dates" data-a="dates"><span><small>Début prévu</small><b>${x.P.deb ? fmtDate(x.P.deb) : '—'}</b></span><span><small>Fin prévue</small><b>${x.P.fin ? fmtDate(x.P.fin) : '—'}</b></span><span><small>${x.finR ? 'Terminé' : x.prev ? 'Prévision' : 'Réel'}</small><b>${x.finR ? fmtDate(x.finR) : x.prev ? fmtDate(x.prev) : x.debR ? 'depuis ' + fmtDate(x.debR) : '—'}</b></span>${icon('edit')}</button>
       ${Object.keys(TT).length ? `<div class="lpa-eq">${Object.entries(TT).map(([id, t]) => { const tm = avTeam(p, id) || { name: '?', color: '#64748b' }; return `<span style="--c:${tm.color}"><i>${esc(dpIni(tm.name))}</i><b>${esc(tm.name)}</b><small>${t.eff ? t.eff + ' pers. · ' : ''}${t.last === today ? 'auj.' : fmtDate(t.last).slice(0, 5)}</small></span>`; }).join('')}</div>` : ''}
       <div class="lpa-today">☀️ ${tod.length ? `${tod.length} saisie(s) aujourd'hui : ${tod.slice(0, 4).map(z => `${esc(z.l.name)} ${z.e.pct}%`).join(' · ')}` : 'Aucune saisie aujourd\'hui'}</div>
-      <div class="lpa-acts"><button data-a="plan">${icon('plans')} Plan + pins${lp && lp.id !== 'main' ? '' : ' (général)'}</button><button data-a="tab">${icon('grid')} Saisie</button><button data-a="done" class="${x.finR ? 'on' : ''}">${icon('check')} ${x.P.done ? 'Terminé ✓' : 'Terminé'}</button><button data-a="pdf">${icon('pdf')} PDF</button></div>`;
+      <div class="lpa-acts"><button data-a="plan">${icon('plans')} Plan + pins${lp && lp.id !== 'main' ? '' : ' (général)'}</button><button data-a="tab">${icon('grid')} Saisie</button><button data-a="qty">📏 Quantités${s.qt ? ` <small>${avFmtQ(s.qd)}/${avFmtQ(s.qt)} ${esc(s.unit)}</small>` : ''}</button><button data-a="done" class="${x.finR ? 'on' : ''}">${icon('check')} ${x.P.done ? 'Terminé ✓' : 'Terminé'}</button><button data-a="pdf">${icon('pdf')} PDF</button></div>`;
     $('[data-a=dates]', box).onclick = async () => { if (await avPlanningEdit(p, niv, lot, p.avNiveaux)) redraw && redraw(); };
     $('[data-a=plan]', box).onclick = () => openAvViewer(niv.id, lot.id, () => redraw && redraw());
     $('[data-a=tab]', box).onclick = () => openAvTable(p, { nivId: niv.id, lotId: lot.id, onClose: () => redraw && redraw() });
+    const qb = $('[data-a=qty]', box); if (qb) qb.onclick = () => avQtyDialog(p, niv.id, lot.id, () => redraw && redraw());
     $('[data-a=done]', box).onclick = async () => { if (await avLotDone(p, niv, lot, !x.P.done)) redraw && redraw(); };
     $('[data-a=pdf]', box).onclick = () => avReportDialog({ nivId: niv.id, lotId: lot.id });
   })().catch(e => { console.warn('lpav', e); $('.lpa-b', box).innerHTML = '<div class="muted">Avancement indisponible</div>'; });
@@ -684,7 +686,7 @@ async function avProDash(root, p, nivs, locaux) {
     ${sec('mx', '📊 Total · matrice & planning', `${glob}%`, `<div class="avp-h2"><span class="avp-seg">${F.zone ? '' : `<button class="${F.by === 'zone' ? 'on' : ''}" data-by="zone">Zones</button>`}<button class="${F.by === 'niv' ? 'on' : ''}" data-by="niv">Niveaux</button>${locaux.some(l => l.ltype) ? `<button class="${F.by === 'type' ? 'on' : ''}" data-by="type">Types</button>` : ''}</span></div>
       <div class="avp-mxw"><table class="avp-mx"><tr><th></th><th class="avp-tc">Total</th>${lots.map(l => `<th style="--c:${l.color}">${esc(l.name)}</th>`).join('')}</tr>
       ${rows.map(r => `<tr><td class="avp-rh" data-row="${r.k}"${r.c ? ` style="box-shadow:inset 4px 0 0 ${r.c}"` : ''}><b>${esc(r.label)}</b><small>${esc(r.sub || '')} · ${r.L.length} pin(s)</small></td><td class="avp-tc"><b class="avp-tot">${avAvg(r.L, lots)}%</b></td>${lots.map(lot => { const s = avStats(r.L, lot.id), c = s.late ? '#ef4444' : s.pct === 100 ? '#22c55e' : lot.color;
-        return `<td data-cell="${r.k}|${lot.id}"><div class="avp-cell" style="--p:${s.pct}%;--c:${c}"><b>${s.n ? s.pct + '%' : '—'}</b>${s.late ? `<i>${s.late}⚠</i>` : ''}</div></td>`; }).join('')}</tr>`).join('') || `<tr><td colspan="${lots.length + 2}" class="muted">Aucun niveau dans ce choix</td></tr>`}
+        return `<td data-cell="${r.k}|${lot.id}"><div class="avp-cell" style="--p:${s.pct}%;--c:${c}"><b>${s.n ? s.pct + '%' : '—'}</b>${s.qt ? `<small class="avp-q">${avFmtQ(s.qd)}/${avFmtQ(s.qt)} ${esc(s.unit)}</small>` : ''}${s.late ? `<i>${s.late}⚠</i>` : ''}</div></td>`; }).join('')}</tr>`).join('') || `<tr><td colspan="${lots.length + 2}" class="muted">Aucun niveau dans ce choix</td></tr>`}
       ${rows.length ? `<tr class="avp-totr"><td class="avp-rh"><b>TOTAL</b><small>${L.length} pin(s)</small></td><td class="avp-tc"><b class="avp-tot big">${glob}%</b></td>${lots.map(lot => `<td><div class="avp-cell" style="--p:${avAvg(L, [lot])}%;--c:${lot.color}"><b>${avAvg(L, [lot])}%</b></div></td>`).join('')}</tr>` : ''}</table></div>
       ${typeof avPlanningHTML === 'function' ? avPlanningHTML(p, N.filter(n => L.some(l => l.nivId === n.id) || (!F.zone && !F.sect && !F.lt && !F.eq)), L, lots, { noAlerts: true }) : ''}`, true)}
     <div class="avp-card avp-exp"><div class="avp-h">📤 Rapports <small class="muted">${esc(per.l)}</small></div><div class="avp-ex">
@@ -702,7 +704,11 @@ async function avProDash(root, p, nivs, locaux) {
   $$('[data-row]', root).forEach(b => b.onclick = () => { const [t, id] = b.dataset.row.split(/:(.*)/s);
     if (t === 's') { F.sect = id; F.zone = ''; F.niv = ''; } else if (t === 'z') { F.zone = id; F.niv = ''; } else if (t === 't') F.lt = F.lt === id ? '' : id; else F.niv = F.niv === id ? '' : id; redraw(); });
   $$('[data-cell]', root).forEach(c => c.onclick = () => { const [rk, lid] = c.dataset.cell.split('|'), [t, id] = rk.split(/:(.*)/s);
-    if (t === 's') { F.sect = id; F.lot = lid; redraw(); } else if (t === 'z') { F.zone = id; F.lot = lid; redraw(); } else if (t === 't') { F.lt = id; F.lot = lid; redraw(); } else openAvViewer(id, lid, () => renderAvancement(root.closest('#content') || root)); });
+    if (t === 's') { F.sect = id; F.lot = lid; redraw(); } else if (t === 'z') { F.zone = id; F.lot = lid; redraw(); } else if (t === 't') { F.lt = id; F.lot = lid; redraw(); } else (async () => {   // v1.0.65 : niveau × lot → saisie de quantité, plan, saisie rapide
+      const v = await menu(`${(nivs.find(n => n.id === id) || {}).name || ''} · ${avLot(p, lid).name}`, [{ label: '📏 Quantités : Global et fait aujourd\'hui', value: 'q' }, { label: '🗺️ Plan + pins', value: 'v' }, { label: '▦ Tableau rapide (saisie %)', value: 't' }]);
+      if (v === 'q') avQtyDialog(p, id, lid, async () => { const d = await avData(p); avProDash(root, p, d.nivs, d.locaux); });
+      if (v === 'v') openAvViewer(id, lid, () => renderAvancement(root.closest('#content') || root));
+      if (v === 't') openAvTable(p, { nivId: id, lotId: lid, onClose: () => renderAvancement(root.closest('#content') || root) }); })(); });
   const tb = $('[data-a=teams]', root); if (tb) tb.onclick = async () => { await avTeamsMenu(p); redraw(); };
   $$('[data-x]', root).forEach(b => b.onclick = () => avProExport(b.dataset.x, p, nivs, locaux));
   $$('[data-pl]', root).forEach(b => b.onclick = async () => { const [nid, lid] = b.dataset.pl.split('|'); if (await avPlanningEdit(p, nivs.find(n => n.id === nid), avLot(p, lid), nivs)) redraw(); });
@@ -731,9 +737,9 @@ async function phIndex(p) {
       for (const [eid, x] of Object.entries(l.etapes || {})) for (const id of x.photos || []) put(id, g(((avEtapes(p).find(e => e.id === eid)) || {}).name || 'Étape'));
       for (const e of l.journal || []) for (const id of e.photos || []) put(id, g(avLot(p, e.lot).name)); }
     else if (l.kind === 'photonote') {   // pins photos : un dossier = une catégorie
-      const pl = PL.get(l.planId), fo = pl && FO.get(pl.folderId), niv = fo ? ((typeof nivOfFolder === 'function' && nivOfFolder(fo.name)) || fo.name) : '';
+      const pl = PL.get(l.planId), fo = pl && FO.get(pl.folderId), niv = l.niv || (fo ? ((typeof nivOfFolder === 'function' && nivOfFolder(fo.name)) || fo.name) : '');
       // v1.0.63 : catégorie = le lot du plan où est le pin (Local technique, Chape…) ; le dossier (Porte provisoire…) est le sous-groupe
-      const LL = typeof planLots === 'function' ? planLots(p) : (typeof LOTS_DEF !== 'undefined' ? LOTS_DEF : []), lo = pl && pl.lotId ? LL.find(x => x.id === pl.lotId) : null, top = lo ? lo.name : (pl && pl.name) || 'Pins photos';
+      const LL = typeof planLots === 'function' ? planLots(p) : (typeof LOTS_DEF !== 'undefined' ? LOTS_DEF : []), lid = l.lotId || (pl && pl.lotId), lo = lid ? LL.find(x => x.id === lid) : null, top = lo ? lo.name : (pl && pl.name) || 'Pins photos';
       const g = (cat) => ({ k: 'pn', top, cat, niv, nr: avNivRank(niv), z: '', label: `${niv ? niv + ' · ' : ''}${l.name || 'Pin photos'}`, sub: cat, go: { pn: l.id } });
       for (const id of l.photos || []) put(id, g('Général'));
       for (const d of l.folders || []) for (const id of d.photos || []) put(id, g(d.name || 'Dossier'));
@@ -756,6 +762,7 @@ async function phIndex(p) {
 }
 const phIsShot = (f) => /screenshot|capture|screen|scr_/i.test(f.name || '');
 const phIsDoc = (f) => /\b(bon|bl|pv|plan|scan|doc|facture|devis|fiche)\b/i.test(String(f.name || '').replace(/[_\-.]/g, ' '));
+const phK = (s) => phNorm(s).replace(/[^a-z0-9+]/g, '');
 const phNorm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 async function renderPhotosV2(root) {
   const p = App.project, pid = p.id;
@@ -768,12 +775,14 @@ async function renderPhotosV2(root) {
     if (!g && f.local) { const l = await DB.get('links', f.local); if (l) { const n = (p.avNiveaux || []).find(x => x.id === l.nivId), cat = f.lot ? avLot(p, f.lot).name : 'Local';
       g = { k: 'pin', cat, niv: n ? n.name : '', nr: n ? avNivRank(n.name) : 99, z: n ? (avPinZone(p, l, n) ? 'Zone ' + avPinZone(p, l, n) : '') : '', label: `${n ? n.name + ' · ' : ''}${l.name}`, sub: cat, go: { pin: l.id, niv: l.nivId } }; } }
     if (!g) { todo.push(f); continue; }
+    if (f.phCat && g.k === 'pin' && !g.top) g = { ...g, top: g.cat, cat: f.phCat };   // v1.0.65 : dossier d'une case (Avancement, Nettoyage…) = sous-groupe
     E.push({ f, g, day: (g.day || new Date(f.createdAt || 0).toISOString().slice(0, 10)), txt: phNorm([g.top, g.cat, g.st, g.label, g.sub, g.niv, g.z, f.source, f.name].join(' ')) });
   }
+  { const C = new Map(); for (const e of E) if (e.g.niv) { const k = phK(e.g.niv); if (!C.has(k)) C.set(k, e.g.niv); e.g = { ...e.g, niv: C.get(k) }; } }
   const F = App.phF = Object.assign({ niv: '', z: '', cat: '', dos: '', st: '', src: '', per: '', q: '', mode: 'cat' }, App.phF || {});
   const uniq = (fn, sort) => { const v = [...new Set(E.map(fn).filter(Boolean))]; return sort ? v.sort(sort) : v.sort((a, b) => String(a).localeCompare(String(b), 'fr', { numeric: true })); };
   const nivL = uniq(e => e.g.niv, (a, b) => avNivRank(a) - avNivRank(b)), zL = uniq(e => e.g.z), catL = [...(E.some(e => phIsAnom(e.g)) ? [PH_ANOM] : []), ...uniq(e => e.g.top || e.g.cat, (a, b) => (PH_CATP.indexOf(a) + 1 || 99) - (PH_CATP.indexOf(b) + 1 || 99) || String(a).localeCompare(String(b), 'fr', { numeric: true }))], dosL = uniq(e => e.g.top && (!F.cat || (e.g.top || e.g.cat) === F.cat) ? e.g.cat : ''), srcL = uniq(e => e.g.k).map(k => [k, PH_SRC[k] || k]), stL = uniq(e => e.g.st, (a, b) => PH_ST.indexOf(a) - PH_ST.indexOf(b));
-  const sel = (k, lab, L) => L.length ? `<label class="avf-s ${F[k] ? 'on' : ''}"><small>${lab}</small><select data-pf="${k}"><option value="">Tous</option>${L.map(x => { const [v, t] = Array.isArray(x) ? x : [x, x]; return `<option value="${esc(v)}" ${v === F[k] ? 'selected' : ''}>${esc(t)}</option>`; }).join('')}</select></label>` : '';
+  const sel = (k, lab, L) => L.length ? `<label class="avf-s ${F[k] ? 'on' : ''}"><small>${lab}</small><select data-pf="${k}"><option value="">Tous</option>${L.map(x => { const [v, t] = Array.isArray(x) ? x : [x, x]; return `<option value="${esc(v)}" ${(k === 'niv' || k === 'cat' ? F[k] && phK(v) === phK(F[k]) : v === F[k]) ? 'selected' : ''}>${esc(t)}</option>`; }).join('')}</select></label>` : '';
   const th = (f) => `<div class="ph" data-id="${f.id}"><img src="${BlobURL.get(f.id, f.blob)}" loading="lazy">${phIsShot(f) ? '<span class="tag">📱 capture</span>' : phIsDoc(f) ? '<span class="tag">📄 document ?</span>' : ''}</div>`;
   let opened = {}; try { opened = JSON.parse(localStorage.getItem('ph.open.' + pid) || '{}'); } catch (e) {}
   root.innerHTML = `<div class="pagehead"><h2>Photos</h2><p>${files.length} photo(s) · par catégorie, niveau et zone</p></div>
@@ -790,7 +799,7 @@ async function renderPhotosV2(root) {
     ${!files.length ? '<div class="empty">Aucune photo.<br>Les photos se prennent dans chaque ouvrage, réception, réserve ou pin.</div>' : ''}`;
   let groups = [];
   const filtered = () => { const q = phNorm(F.q).split(/\s+/).filter(Boolean), lim = F.per ? Date.now() - (+F.per) * 864e5 : 0, d0 = lim ? new Date(lim).toISOString().slice(0, 10) : '';
-    return E.filter(e => (!F.niv || e.g.niv === F.niv) && (!F.z || e.g.z === F.z) && (!F.cat || (F.cat === PH_ANOM ? phIsAnom(e.g) : (e.g.top || e.g.cat) === F.cat)) && (!F.dos || e.g.cat === F.dos) && (!F.st || e.g.st === F.st) && (!F.src || e.g.k === F.src) && (!lim || (F.per === '1' ? e.day >= todayISO() : e.day >= d0)) && q.every(w => e.txt.includes(w))); };
+    return E.filter(e => (!F.niv || phK(e.g.niv) === phK(F.niv)) && (!F.z || e.g.z === F.z) && (!F.cat || (F.cat === PH_ANOM ? phIsAnom(e.g) : phK(e.g.top || e.g.cat) === phK(F.cat))) && (!F.dos || e.g.cat === F.dos) && (!F.st || e.g.st === F.st) && (!F.src || e.g.k === F.src) && (!lim || (F.per === '1' ? e.day >= todayISO() : e.day >= d0)) && q.every(w => e.txt.includes(w))); };
   const draw = () => {
     const R = filtered(), G = new Map();
     for (const e of R) { const g = e.g;

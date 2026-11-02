@@ -1366,6 +1366,22 @@ try {
   await shot(A.pg, '63_outils_projet'); log('v1.0.63 [tableau photos, PDF bon rempli, Réception déplacée dans Chantier, tuile Bons]', t63);
   if (!t63.tab || typeof t63.tab === 'string' || !(t63.tab.ph > 0 || t63.tab.empty) || !t63.tab.add || (t63.pdf !== 'nolib' && (!t63.pdf.grew || t63.pdf.pages !== 1)) || !t63.moved || !t63.notQual || !t63.bons || t63.fns !== 'function,function') v63.push('v1.0.63');
   log('errors v1.0.63', v63);
+  // ---- v1.0.65 : % pondéré par quantités, échéances multiples, tableaux anomalies / échéances, noir et blanc, dossier d'une case
+  const v65 = [];
+  const t65 = await A.pg.evaluate(async () => {
+    document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); const p = App.project;
+    const l1 = { lots: { X: { state: 'done', qtot: 100 } }, journal: [] }, l2 = { lots: { X: { state: 'todo', qtot: 300 } }, journal: [] }, l3 = { lots: { X: { state: 'todo' } }, journal: [] };
+    const w = avAvg([l1, l2], [{ id: 'X' }]), u = avAvg([l1, l3], [{ id: 'X' }]);
+    const D = { _due: '2020-01-01', _dueObj: 'Coulage', _al: [{ id: 'a', d: '2019-06-01', obj: 'Plan à recevoir', type: 'Rappel' }, { id: 'b', d: '2018-01-01', obj: 'Fait', type: 'Rappel', done: true }] };
+    const di = dueInfo(D), al = lotAlerts(D).length;
+    await openAnomalies(p); await new Promise(r => setTimeout(r, 700)); const an = { page: !!document.querySelector('.an-page'), rows: document.querySelectorAll('.an-r').length, k: document.querySelectorAll('.an-k button').length };
+    document.querySelectorAll('.fullpage').forEach(x => x.remove());
+    await openDueTable(p); await new Promise(r => setTimeout(r, 400)); const due = !!document.querySelector('.due-page'); document.querySelectorAll('.fullpage').forEach(x => x.remove());
+    return { w, u, di: di && di.a.obj, n: di && di.n, al, an, due, bw: typeof PLAN_BW_FILTER === 'string' && typeof planVersionAsk === 'function', fns: [typeof avQtyDialog, typeof avCellDossier, typeof avGlobalPin].join() };
+  });
+  log('v1.0.65 [% pondéré 25 / simple 50, échéance la plus urgente, tableau anomalies, tableau échéances, N&B, fonctions]', t65);
+  if (t65.w !== 25 || t65.u !== 50 || t65.di !== 'Plan à recevoir' || t65.n !== 2 || t65.al !== 3 || !t65.an.page || t65.an.rows < 1 || t65.an.k !== 4 || !t65.due || !t65.bw || t65.fns !== 'function,function,function') v65.push('v1.0.65');
+  log('errors v1.0.65', v65);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);

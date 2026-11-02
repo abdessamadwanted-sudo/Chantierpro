@@ -1,3 +1,14 @@
+## SiteTeam : liens intelligents niveau + lot, quantités Global, échéances, anomalies, plan noir et blanc
+- Plans : les dessins (ligne, polyligne…) restent toujours visibles au-dessus du rendu net du plan ; zoom au pincement sans carrés noirs.
+- Plan noir et blanc : bouton ◐ (plan et plan d'avancement) — le plan passe en gris, vos dessins, pins et couleurs d'avancement ressortent. Partager : « Couleurs d'origine », « Noir et blanc » ou « Les deux (2 fichiers) ».
+- Plans › niveau › lot : chaque bouton s'ouvre sur CE niveau et CE lot — Avancement (tableau de bord filtré), Photos (« Toutes les photos · MEZZ · Chape »), Suivi du lot · équipes (le bon lot), Réserves, et nouveau « Suivi des anomalies ». Un pin photos posé depuis un lot garde ce niveau et ce lot.
+- Accès rapides rangés en grille (Contrôle · Suivi · Qualité · Rubriques).
+- Avancement par quantités : « 📏 Quantités » — quantité globale (m², m³, ml, nombre…) par niveau × lot (ou zone), quantité faite chaque jour, équipe, effectif → %, reste, rythme / jour, fin estimée. Les tableaux pondèrent par les quantités (un grand niveau pèse plus) et affichent « fait / Global ».
+- Échéances : objet (de quoi il s'agit), zone, état fait ; plusieurs échéances / alertes par lot et niveau (type : Échéance MO, Réception, Livraison, Point d'arrêt, Essai, Plan à recevoir, Rappel). Le badge et le briefing montrent la plus urgente avec son objet.
+- Tableau des échéances (Outils du projet › Outils, ou depuis un lot) : en retard / bientôt / à venir / fait, filtres niveau, lot, zone, type, recherche, PDF ; toucher une ligne ouvre le lot.
+- Tableau des anomalies (Outils du projet › Outils, ou « Suivi des anomalies » d'un lot) : réception, bétonnage, non-conformités, réserves — photo de l'anomalie et après traitement, statut ouverte / en cours / traitée, délai, filtres, recherche, PDF avec photos, Excel ; ajouter la photo de traitement et marquer traitée en un geste.
+- Tableau photos : chaque case s'ouvre comme un dossier — photos rangées par catégorie (Avancement, Nettoyage, Avant / Après travaux, Anomalie…), ajout avec catégorie, choisir, déplacer, supprimer, envoyer en PDF ou en photos.
+
 ## SiteTeam : Photos — catégories Réception, Bétonnage, Non-conformités, Anomalies & traitement, lots
 - Liste « Catégorie » : ⚠️ Anomalies & traitement (anomalies, retours / réparations, non-conformités, réserves), Réception, Bétonnage, Non-conformités, Réserves, PV, puis chaque lot (Étanchéité, Maçonnerie, Local technique…).
 - Les photos des constats de non-conformité (Constats / NC) sont rangées dans « Non-conformités », avec « Ouvrir › ».

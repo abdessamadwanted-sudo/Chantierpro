@@ -23,7 +23,13 @@ const PA_TPL = {
   carr: [['a', 'Validation du calepinage et des échantillons'], ['c', 'Planéité et pente du support'], ['c', 'Joints et plinthes']],
 };
 const PA_BY = ['Maître d\'ouvrage', 'BET', 'Bureau de contrôle', 'Laboratoire', 'Topographe', 'Entreprise', 'Architecte'];
-const dueInfo = (D) => { if (!D || !D._due) return null; const d = Math.round((new Date(D._due + 'T12:00:00') - new Date(todayISO() + 'T12:00:00')) / 864e5); return { d, cls: d < 0 ? 'late' : d <= 7 ? 'soon' : 'ok', txt: d < 0 ? `Retard ${-d} j` : d === 0 ? 'Aujourd\'hui' : `J-${d}` }; };
+const dueDays = (iso) => Math.round((new Date(iso + 'T12:00:00') - new Date(todayISO() + 'T12:00:00')) / 864e5);
+const dueTxt = (d) => d < 0 ? `Retard ${-d} j` : d === 0 ? 'Aujourd\'hui' : `J-${d}`;
+// v1.0.65 : plusieurs échéances / alertes par lot et niveau (objet, type, zone) — la plus urgente non faite donne le badge
+const lotZonesList = (p) => [...new Set([...(typeof avZones === 'function' ? avZones(p) : []), ...String(p.zones || '').split('\n').map(x => x.trim()).filter(Boolean)])];
+const LOT_AL_TYPES = ['Échéance MO', 'Réception', 'Livraison', 'Point d\'arrêt', 'Essai / labo', 'Plan à recevoir', 'Rappel'];
+const lotAlerts = (D) => { if (!D) return []; const A = (D._al || []).filter(a => a.d).map(a => ({ ...a, main: false })); if (D._due) A.unshift({ id: '_main', d: D._due, obj: D._dueObj || '', type: 'Échéance ' + (D._dueBy || 'MO'), by: D._dueBy || 'MO', zone: D._dueZone || '', done: !!D._dueDone, main: true }); return A; };
+const dueInfo = (D) => { const A = lotAlerts(D).filter(a => !a.done).sort((a, b) => a.d.localeCompare(b.d)); if (!A.length) return null; const a = A[0], d = dueDays(a.d); return { d, a, n: A.length, cls: d < 0 ? 'late' : d <= 7 ? 'soon' : 'ok', txt: dueTxt(d) }; };
 const paOpen = (L, D) => (L.pa || []).filter(x => x.k === 'a' && ((D.pa || {})[x.id] || {}).st !== 'ok');
 const lotStarted = (L, D) => !!(D._due || D._start || Object.keys(D).some(k => !k.startsWith('_') && k !== 'pa' && (D[k] || {}).done) || Object.values(D.pa || {}).some(v => v.st));
 function planLots(p) {
@@ -80,14 +86,18 @@ function lotPanel(L, f, root) {
     <div class="lp-avslot"></div>
     ${lotDueHTML(L, D, f)}
     ${lotPaHTML(L, D)}
-    <div class="lp-links">
-      ${L.id === 'go' ? `<button data-go="rec">🔩 Réception ferraillage${niv ? ' · ' + esc(niv) : ''}</button><button data-go="bet">🧱 Bétonnage${niv ? ' · ' + esc(niv) : ''}</button><button data-go="dec">⏱️ Suivi décoffrage</button>` : ''}
-      ${av ? `<button data-go="av">📊 Avancement ${esc(L.name)}</button>` : ''}
-      <button data-go="tasks">⚠️ Réserves${niv ? ' · ' + esc(niv) : ''}</button>
-      <button data-go="suivi">📊 Suivi du lot · équipes</button>
-      ${(L.rub || []).map(R => `<button data-rub="${R.id}">${esc(R.e)} ${esc(R.name)}${(((f.lotData || {})[L.id] || {})._rub || {})[R.id] && f.lotData[L.id]._rub[R.id].length ? ` <small>${f.lotData[L.id]._rub[R.id].length}</small>` : ''}</button>`).join('')}
-      <button data-a="rubnew" class="lp-rubnew">＋ Rubrique</button>
-      ${sc.map((x, i) => `<button data-sc="${i}">${SC_EMO && SC_EMO[x.sec] ? SC_EMO[x.sec] + ' ' : '🔗 '}${esc(x.label)}</button>`).join('')}
+    <div class="lp-links lp-grid">
+      ${L.id === 'go' ? `<div class="lp-gh">Contrôle</div><button data-go="rec"><i>🔩</i><span>Réception ferraillage<small>${esc(niv || 'tous niveaux')}</small></span></button><button data-go="bet"><i>🧱</i><span>Bétonnage<small>${esc(niv || 'tous niveaux')}</small></span></button><button data-go="dec"><i>⏱️</i><span>Suivi décoffrage<small>${esc(niv || '')}</small></span></button>` : ''}
+      <div class="lp-gh">Suivi</div>
+      ${av ? `<button data-go="av"><i>📊</i><span>Avancement<small>${esc(L.name)}${niv ? ' · ' + esc(niv) : ''}</small></span></button>` : ''}
+      <button data-go="suivi"><i>👷</i><span>Suivi du lot · équipes<small>${esc(L.name)}</small></span></button>
+      <button data-go="anom"><i>🚨</i><span>Suivi des anomalies<small>${esc(L.name)}${niv ? ' · ' + esc(niv) : ''}</small></span></button>
+      <div class="lp-gh">Qualité</div>
+      <button data-go="tasks"><i>⚠️</i><span>Réserves<small>${esc(niv || 'tous niveaux')}</small></span></button>
+      ${(L.rub || []).length || sc.length ? '<div class="lp-gh">Rubriques & raccourcis</div>' : ''}
+      ${(L.rub || []).map(R => `<button data-rub="${R.id}"><i>${esc(R.e)}</i><span>${esc(R.name)}<small>${(((f.lotData || {})[L.id] || {})._rub || {})[R.id] && f.lotData[L.id]._rub[R.id].length ? f.lotData[L.id]._rub[R.id].length + ' ligne(s)' : 'tableau'}</small></span></button>`).join('')}
+      ${sc.map((x, i) => `<button data-sc="${i}"><i>${SC_EMO && SC_EMO[x.sec] ? SC_EMO[x.sec] : '🔗'}</i><span>${esc(x.label)}<small>raccourci</small></span></button>`).join('')}
+      <button data-a="rubnew" class="lp-rubnew"><i>＋</i><span>Rubrique<small>tableau + Excel</small></span></button>
     </div>
     ${docs.length ? `<div class="lp-docs">${docs.map((d, i) => `<div class="lp-doc"><button class="grow" data-doc="${i}">${icon(d.url && !d.fileId ? 'drive' : d.planId ? 'plans' : 'pdf')}<span>${esc(d.name)}</span></button><button class="iconbtn sm" data-docm="${i}">${icon('more')}</button></div>`).join('')}</div>` : ''}
     <details class="lp-det" ${App.lotDet ? 'open' : ''}><summary>☑ Points de contrôle ${done}/${(L.points || []).length} · notes</summary>
@@ -114,9 +124,14 @@ function lotPanel(L, f, root) {
     const g = b.dataset.go;
     if (g === 'rec' || g === 'bet') { const k = g === 'rec' ? 'Ferraillage' : 'Bétonnage'; App.recNiv = App.recNiv || {}; App.recNiv[k] = niv; App.section = g === 'rec' ? 'reception' : 'beton'; return renderSection(); }
     if (g === 'dec') return openDecof(p);
-    if (g === 'av') { App.avTab = av.id; App.section = 'avancement'; return renderSection(); }
+    // v1.0.65 : chaque raccourci s'ouvre sur CE niveau et CE lot
+    const nv = typeof avNivOfFolder === 'function' ? avNivOfFolder(p, f) : null;
+    if (g === 'av') { App.avTab = 'dash'; App.avF = { ...(App.avF && App.avF._p === p.id ? App.avF : { sect: '', zone: '', eq: '', lt: '', pk: 'total', from: '', to: '', by: 'niv', ts: 'gain' }), _p: p.id, niv: nv ? nv.id : '', lot: av.id, zone: '', sect: '' }; App.section = 'avancement'; return renderSection(); }
     if (g === 'tasks') { App.section = 'tasks'; App.search = niv || ''; return renderSection(); }
-    if (g === 'suivi') { App.section = 'lotsuivi'; return renderSection(); }   // v1.0.35 : attachements / décomptes → Gestion & finance
+    if (g === 'anom') return typeof openAnomalies === 'function' ? openAnomalies(p, { niv: niv || '', lot: L.name }) : null;
+    if (g === 'suivi') { const SL = typeof lsLots === 'function' ? lsLots(p) : [], m = SL.find(x => x.id === 'p:' + L.id) || SL.find(x => normQ(x.name) === normQ(L.name));
+      if (m && typeof lsOpenLot === 'function') return lsOpenLot(p, m, () => redraw());
+      App.section = 'lotsuivi'; return renderSection(); }
   });
   $$('[data-gs]', el).forEach(b => b.onclick = () => { App.gsTab = b.dataset.gs; App.gsLot = b.dataset.gs === 'stock' ? '' : L.id; App.section = 'gestion'; renderSection(); });
   $$('[data-sc]', el).forEach(b => { const x = sc[+b.dataset.sc]; b.onclick = () => { if (!SECTIONS[x.sec]) return toast('Section introuvable'); App.section = x.sec; App.search = x.q || ''; renderSection(); };
@@ -197,9 +212,14 @@ function lotDueHTML(L, D, f) {
   const pa = L.pa || [], paOk = pa.filter(x => ((D.pa || {})[x.id] || {}).st === 'ok').length;
   const prog = nP + pa.length ? Math.round((done + paOk) / (nP + pa.length) * 100) : 0;
   let tp = 0; if (D._due) { const a = new Date((D._start || D._dueSet || todayISO()) + 'T12:00:00'), b = new Date(D._due + 'T12:00:00'), n = new Date(todayISO() + 'T12:00:00'); tp = b > a ? Math.max(0, Math.min(100, Math.round((n - a) / (b - a) * 100))) : 100; }
-  if (!di) return `<button class="lp-due none" data-a="due">⏳ <span class="grow">Échéance ${esc(D._dueBy || 'du maître d\'ouvrage')} <small>non fixée · toucher pour la fixer</small></span>${icon('plus')}</button>`;
-  return `<button class="lp-due ${di.cls}" data-a="due"><span class="lp-dd">${di.txt}</span><span class="grow"><b>Échéance ${esc(D._dueBy || 'MO')} · ${fmtDate(D._due)}</b><small>${esc(p.mo || 'Maître d\'ouvrage : toucher pour le nommer')}${(D._dueHist || []).length ? ` · modifiée ${(D._dueHist || []).length} fois` : ''}</small>
-    <span class="lp-bars"><span><i style="width:${tp}%"></i></span><em>temps ${tp}%</em><span class="pr"><i style="width:${prog}%"></i></span><em>fait ${prog}%</em></span></span></button>`;
+  const extra = (D._al || []).slice().sort((a, b) => (a.done - b.done) || String(a.d).localeCompare(String(b.d)));
+  const alHTML = `<div class="lp-als">${extra.map(a => { const d = dueDays(a.d), c = a.done ? 'done' : d < 0 ? 'late' : d <= 7 ? 'soon' : 'ok';
+      return `<button class="lp-al ${c}" data-al="${a.id}"><span class="lp-ald">${a.done ? '✓' : esc(dueTxt(d))}</span><span class="grow"><b>${esc(a.obj || a.type)}</b><small>${esc(a.type)} · ${fmtDate(a.d)}${a.zone ? ' · ' + esc(a.zone) : ''}${a.by ? ' · ' + esc(a.by) : ''}</small></span></button>`; }).join('')}
+    <div class="lp-al-acts"><button class="lp-al add" data-a="aladd">${icon('plus')} Échéance / alerte</button><button class="lp-al add" data-a="altab">📋 Tableau des échéances</button></div></div>`;
+  if (!D._due) return `<button class="lp-due none" data-a="due">⏳ <span class="grow">Échéance ${esc(D._dueBy || 'du maître d\'ouvrage')} <small>non fixée · toucher pour la fixer</small></span>${icon('plus')}</button>${alHTML}`;
+  const dm = dueDays(D._due), cm = D._dueDone ? 'ok' : dm < 0 ? 'late' : dm <= 7 ? 'soon' : 'ok';
+  return `<button class="lp-due ${cm}" data-a="due"><span class="lp-dd">${D._dueDone ? '✓ Fait' : dueTxt(dm)}</span><span class="grow"><b>${D._dueObj ? esc(D._dueObj) : 'Échéance ' + esc(D._dueBy || 'MO')} · ${fmtDate(D._due)}</b><small>${D._dueObj ? 'Échéance ' + esc(D._dueBy || 'MO') + ' · ' : ''}${esc(p.mo || 'Maître d\'ouvrage : toucher pour le nommer')}${D._dueZone ? ' · ' + esc(D._dueZone) : ''}${(D._dueHist || []).length ? ` · modifiée ${(D._dueHist || []).length} fois` : ''}</small>
+    <span class="lp-bars"><span><i style="width:${tp}%"></i></span><em>temps ${tp}%</em><span class="pr"><i style="width:${prog}%"></i></span><em>fait ${prog}%</em></span></span></button>${alHTML}`;
 }
 function lotPaHTML(L, D) {
   const pa = L.pa || [], st = D.pa || {};
@@ -214,7 +234,10 @@ function bindLotDue(el, L, D, f, save, redraw) {
   const pd = $('.lp-pa', el); if (pd) pd.ontoggle = (e) => { App.lotPaDet = e.target.open; };
   $('[data-a=due]', el).onclick = async () => {
     const r = await formSheet(`Échéance · ${L.name} · ${f.name}`, [
+      { name: 'obj', label: 'Objet (de quoi s\'agit-il ?)', value: D._dueObj || '', placeholder: 'Ex : Coulage dalle zone 4, Livraison local technique' },
       { name: 'due', label: 'Date limite fixée', type: 'date', value: D._due || '' },
+      { name: 'zone', label: 'Zone (optionnel)', value: D._dueZone || '', list: lotZonesList(p) },
+      ...(D._due ? [{ name: 'done', label: 'État', type: 'select', value: D._dueDone ? 'o' : 'n', options: [{ value: 'n', label: '⏳ À faire' }, { value: 'o', label: '✓ Fait' }] }] : []),
       { name: 'by', label: 'Fixée par', type: 'select', value: D._dueBy || 'MO', options: [['MO', 'Maître d\'ouvrage'], ['BET', 'BET'], ['BC', 'Bureau de contrôle'], ['Archi', 'Architecte'], ['Entreprise', 'Entreprise / planning interne']].map(([value, label]) => ({ value, label })) },
       { name: 'start', label: 'Début du lot (pour la barre de temps)', type: 'date', value: D._start || '' },
       { name: 'mo', label: 'Nom du maître d\'ouvrage (pour tout le projet)', value: p.mo || '', placeholder: 'Ex : SONARGES, ONEE, Commune…' },
@@ -222,8 +245,9 @@ function bindLotDue(el, L, D, f, save, redraw) {
       ...((D._dueHist || []).length ? [{ name: '_h', type: 'info', label: 'Historique', value: D._dueHist.map(h => `${fmtDate(h.from)} → ${fmtDate(h.to)}${h.why ? ' (' + h.why + ')' : ''} · le ${fmtDate(h.at)}`).join('\n') }] : []),
     ], { okLabel: 'Enregistrer', danger: D._due ? 'Retirer l\'échéance' : null });
     if (!r) return;
-    if (r.__danger) { delete D._due; delete D._dueBy; }
+    if (r.__danger) { delete D._due; delete D._dueBy; delete D._dueObj; delete D._dueZone; delete D._dueDone; }
     else {
+      D._dueObj = (r.obj || '').trim(); D._dueZone = (r.zone || '').trim(); D._dueDone = r.done === 'o';
       if (D._due && r.due && r.due !== D._due) (D._dueHist = D._dueHist || []).push({ from: D._due, to: r.due, why: r.why || '', at: todayISO() });
       if (r.due && !D._due) D._dueSet = todayISO();
       D._due = r.due || null; D._dueBy = r.by; D._start = r.start || D._start || null;
@@ -231,6 +255,24 @@ function bindLotDue(el, L, D, f, save, redraw) {
     }
     await save(); redraw();
   };
+  // v1.0.65 : échéances / alertes supplémentaires
+  const alForm = async (a) => {
+    const r = await formSheet(a ? 'Échéance / alerte' : `Nouvelle échéance · ${L.name} · ${f.name}`, [
+      { name: 'obj', label: 'Objet', value: a ? a.obj : '', placeholder: 'Ex : Réception réservations R+1 zone 2' },
+      { name: 'type', label: 'Type', type: 'select', value: a ? a.type : LOT_AL_TYPES[0], options: LOT_AL_TYPES.map(x => ({ value: x, label: x })) },
+      { name: 'd', label: 'Date', type: 'date', value: a ? a.d : '' },
+      { name: 'zone', label: 'Zone (optionnel)', value: a ? a.zone || '' : '', list: lotZonesList(p) },
+      { name: 'by', label: 'Demandé par (optionnel)', value: a ? a.by || '' : '', list: ['MO', 'BET', 'Bureau de contrôle', 'Architecte', 'Laboratoire', 'Entreprise'] },
+      ...(a ? [{ name: 'done', label: 'État', type: 'select', value: a.done ? 'o' : 'n', options: [{ value: 'n', label: '⏳ À faire' }, { value: 'o', label: '✓ Fait' }] }] : []),
+    ], { okLabel: 'Enregistrer', danger: a ? 'Supprimer' : null });
+    if (!r) return; D._al = D._al || [];
+    if (r.__danger) D._al = D._al.filter(x => x.id !== a.id);
+    else { if (!r.d) return toast('Indiquez la date'); const o = a || { id: DB.uid(), at: todayISO() }; Object.assign(o, { obj: (r.obj || '').trim(), type: r.type, d: r.d, zone: (r.zone || '').trim(), by: (r.by || '').trim(), done: r.done === 'o', doneAt: r.done === 'o' ? (o.doneAt || todayISO()) : null }); if (!a) D._al.push(o); }
+    await save(); redraw();
+  };
+  const aa = $('[data-a=aladd]', el); if (aa) aa.onclick = () => alForm(null);
+  const at = $('[data-a=altab]', el); if (at) at.onclick = () => openDueTable(p, { niv: nivOfFolder(f.name) || f.name, lot: L.name });
+  $$('[data-al]', el).forEach(b => b.onclick = () => alForm((D._al || []).find(x => x.id === b.dataset.al)));
   const addPa = async (k) => { const r = await formSheet(k === 'a' ? '🛑 Point d\'arrêt' : '⚠️ Point critique', [{ name: 't', label: 'Intitulé (ajouté à tous les niveaux)', placeholder: k === 'a' ? 'Ex : Réception ferraillage avant bétonnage' : 'Ex : Enrobage' }], { okLabel: 'Ajouter' }); if (r && r.t) { L.pa = L.pa || []; L.pa.push({ id: DB.uid(), k, t: r.t }); await DB.put('projects', p); App.lotPaDet = true; redraw(); } };
   $('[data-a=addpa]', el).onclick = () => addPa('a');
   $('[data-a=addpc]', el).onclick = () => addPa('c');
@@ -257,4 +299,50 @@ async function lotDueList(p) {
   for (const f of await DB.byProject('folders', p.id)) for (const L of planLots(p)) { const D = (f.lotData || {})[L.id]; if (!D) continue; const di = dueInfo(D), po = paOpen(L, D);
     if (di || (lotStarted(L, D) && po.length)) out.push({ f, L, D, di, po }); }
   return out.sort((a, b) => (a.di ? a.di.d : 9999) - (b.di ? b.di.d : 9999));
+}
+
+// ================= v1.0.65 : Tableau des échéances (tous niveaux, zones, lots, types) =================
+async function openDueTable(p, pre = {}) {
+  p = p || App.project; if (!p) return;
+  const rows = [];
+  for (const f of await DB.byProject('folders', p.id)) for (const L of planLots(p)) { const D = (f.lotData || {})[L.id]; if (!D) continue;
+    for (const a of lotAlerts(D)) rows.push({ f, L, a, niv: nivOfFolder(f.name) || f.name, d: dueDays(a.d) }); }
+  const F = { niv: pre.niv || '', lot: pre.lot || '', zone: '', type: '', st: '', q: '' };
+  const el = document.createElement('div'); el.className = 'fullpage due-page'; document.body.appendChild(el);
+  const unBack = pushBack(() => el.remove()); const close = () => { unBack(); el.remove(); };
+  const stOf = (r) => r.a.done ? 'fait' : r.d < 0 ? 'retard' : r.d <= 7 ? 'bientot' : 'ok';
+  const ST = { retard: ['🔴', 'En retard'], bientot: ['🟠', 'Bientôt (≤ 7 j)'], ok: ['🟢', 'À venir'], fait: ['✓', 'Fait'] };
+  const uniq = (fn) => [...new Set(rows.map(fn).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), 'fr', { numeric: true }));
+  const draw = () => {
+    const R = rows.filter(r => (!F.niv || r.niv === F.niv) && (!F.lot || r.L.name === F.lot) && (!F.zone || (r.a.zone || '') === F.zone) && (!F.type || r.a.type === F.type) && (!F.st || stOf(r) === F.st)
+      && (!F.q || `${r.a.obj} ${r.a.type} ${r.niv} ${r.L.name} ${r.a.zone} ${r.a.by}`.toLowerCase().includes(F.q.toLowerCase()))).sort((x, y) => (x.a.done - y.a.done) || x.a.d.localeCompare(y.a.d));
+    const cnt = (k) => rows.filter(r => stOf(r) === k).length;
+    const sel = (k, lab, L) => `<label class="avf-s ${F[k] ? 'on' : ''}"><small>${lab}</small><select data-f="${k}"><option value="">Tous</option>${L.map(x => { const [v, t] = Array.isArray(x) ? x : [x, x]; return `<option value="${esc(v)}" ${v === F[k] ? 'selected' : ''}>${esc(t)}</option>`; }).join('')}</select></label>`;
+    el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><div class="tb-title" style="flex:1"><b>Tableau des échéances</b><span>${esc(p.name)}${p.mo ? ' · ' + esc(p.mo) : ''}</span></div><button class="iconbtn" data-a="pdf">${icon('pdf')}</button></div>
+      <div class="due-body">
+        <div class="due-k">${['retard', 'bientot', 'ok', 'fait'].map(k => `<button data-st="${k}" class="${F.st === k ? 'on' : ''} ${k}"><b>${cnt(k)}</b><small>${ST[k][0]} ${ST[k][1]}</small></button>`).join('')}</div>
+        <input class="due-q" type="search" placeholder="🔍 Objet, lot, zone…" value="${esc(F.q)}">
+        <div class="avf-bar">${sel('niv', 'Niveau', uniq(r => r.niv))}${sel('lot', 'Lot', uniq(r => r.L.name))}${sel('zone', 'Zone', uniq(r => r.a.zone))}${sel('type', 'Type', uniq(r => r.a.type))}</div>
+        <div class="due-l">${R.map((r, i) => `<button class="due-r ${stOf(r)}" data-i="${rows.indexOf(r)}"><span class="due-d">${r.a.done ? '✓' : esc(dueTxt(r.d))}</span><span class="grow"><b>${esc(r.a.obj || r.a.type)}</b><small>${esc(r.L.e || '')} ${esc(r.L.name)} · ${esc(r.niv)}${r.a.zone ? ' · ' + esc(r.a.zone) : ''} · ${esc(r.a.type)}${r.a.by ? ' · ' + esc(r.a.by) : ''}</small></span><em>${fmtDate(r.a.d)}</em></button>`).join('') || '<div class="empty">Aucune échéance pour ce choix.<br>Ajoutez-les dans Plans › niveau › lot › Échéance.</div>'}</div>
+      </div>`;
+    $('[data-a=x]', el).onclick = close;
+    $$('[data-f]', el).forEach(s => s.onchange = () => { F[s.dataset.f] = s.value; draw(); });
+    $$('[data-st]', el).forEach(b => b.onclick = () => { F.st = F.st === b.dataset.st ? '' : b.dataset.st; draw(); });
+    const qi = $('.due-q', el); let t; qi.oninput = () => { clearTimeout(t); t = setTimeout(() => { F.q = qi.value.trim(); draw(); setTimeout(() => { const q2 = $('.due-q', el); if (q2) { q2.focus(); q2.setSelectionRange(q2.value.length, q2.value.length); } }, 0); }, 350); };
+    $$('[data-i]', el).forEach(b => b.onclick = () => { const r = rows[+b.dataset.i]; close(); App.lotSel = App.lotSel || {}; App.lotSel[r.f.id] = r.L.id; App.openFolders = App.openFolders || {}; App.openFolders[r.f.id] = true; App.scrollFolder = r.f.id; lotOpenSet(r.L, true); lpTabSet(r.L, 'due'); App.section = 'plans'; App.search = ''; renderSection(); });
+    $('[data-a=pdf]', el).onclick = async () => {
+      if (!window.jspdf && window.__late) await window.__late; if (!window.jspdf) return toast('Module PDF indisponible');
+      const { jsPDF } = window.jspdf, doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' }), W = 297, M = 10; let y = 18;
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.text(`Tableau des échéances · ${p.name}`.slice(0, 90), M, 12); doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.text(fmtDate(todayISO()), W - M, 12, { align: 'right' });
+      const C = [[M, 'État'], [M + 24, 'Objet'], [M + 104, 'Lot'], [M + 144, 'Niveau'], [M + 170, 'Zone'], [M + 196, 'Type'], [M + 236, 'Date']];
+      const head = () => { doc.setFillColor(15, 37, 64); doc.rect(M, y - 4.5, W - 2 * M, 7, 'F'); doc.setTextColor(255); doc.setFont('helvetica', 'bold'); C.forEach(([x, t]) => doc.text(t, x + 1, y)); doc.setTextColor(30); doc.setFont('helvetica', 'normal'); y += 7; };
+      head();
+      for (const r of R) { if (y > 195) { doc.addPage(); y = 14; head(); } const s = stOf(r); doc.setTextColor(...(s === 'retard' ? [200, 30, 30] : s === 'bientot' ? [217, 119, 6] : s === 'fait' ? [22, 128, 61] : [40, 40, 40]));
+        doc.text(r.a.done ? 'Fait' : dueTxt(r.d), C[0][0] + 1, y); doc.setTextColor(30);
+        [[1, r.a.obj || r.a.type, 46], [2, r.L.name, 22], [3, r.niv, 14], [4, r.a.zone || '—', 14], [5, r.a.type, 22], [6, fmtDate(r.a.d), 18]].forEach(([i, t, n]) => doc.text(String(t).slice(0, n), C[i][0] + 1, y));
+        doc.setDrawColor(226); doc.line(M, y + 2, W - M, y + 2); y += 7; }
+      await shareBlob(doc.output('blob'), avFileName(`Échéances ${p.name} ${todayISO()}`) + '.pdf');
+    };
+  };
+  draw();
 }

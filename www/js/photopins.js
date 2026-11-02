@@ -177,16 +177,19 @@ function pnLotBlock(p, L, f, redraw) {
   const el = document.createElement('div'); el.className = 'pnl';
   (async () => {
     const plans = (await DB.byProject('plans', p.id)).filter(x => x.folderId === f.id && !x.archived && (x.lotId === L.id || !x.lotId));
-    const ids = new Set(plans.map(x => x.id)), pins = (await DB.byProject('links', p.id)).filter(x => x.kind === 'photonote' && ids.has(x.planId));
+    const ids = new Set(plans.map(x => x.id)), pins = (await DB.byProject('links', p.id)).filter(x => x.kind === 'photonote' && ids.has(x.planId) && (!x.lotId || x.lotId === L.id));
+    const nivN = (typeof nivOfFolder === 'function' && nivOfFolder(f.name)) || f.name;
     el.innerHTML = `<div class="pnl-h"><span>📷 Photos · ${esc(L.name)}</span><button class="btn small ghost" data-a="pnnew">${icon('plus')} Pin photos</button></div>
+      <button class="pnl-all" data-a="pnall">🖼️ Toutes les photos · ${esc(nivN)} · ${esc(L.name)} <span>›</span></button>
       ${pins.length ? `<div class="pnl-l">${pins.map(x => `<button data-pn="${x.id}"><b>${esc(x.name)}</b><small>${pnFolders(x).length ? pnFolders(x).map(d => esc(d.name)).slice(0, 3).join(' · ') + ' · ' : ''}${pnCount(x)} photo(s)</small></button>`).join('')}</div>` : '<div class="pnl-e">Placez un pin photos sur un plan de ce niveau (Porte provisoire, Brique, Nettoyage…).</div>'}`;
+    $('[data-a=pnall]', el).onclick = () => { App.phF = { niv: nivN, cat: L.name, z: '', dos: '', st: '', src: '', per: '', q: '', mode: 'cat' }; App.section = 'photos'; renderSection(); };   // v1.0.65 : Photos déjà filtrées sur ce niveau + ce lot
     $$('[data-pn]', el).forEach(b => b.onclick = async () => { const x = pins.find(y => y.id === b.dataset.pn); await openPhotoNote(x, typeof planCtx === 'function' ? planCtx(() => {}) : {}); redraw(); });
     $('[data-a=pnnew]', el).onclick = async () => {
       const L2 = plans.filter(x => x.lotId === L.id).length ? plans.filter(x => x.lotId === L.id) : plans;
       if (!L2.length) return toast('Ajoutez d\'abord un plan à ce niveau');
       const id = L2.length === 1 ? L2[0].id : await menu('Sur quel plan ?', L2.map(x => ({ label: x.name, icon: 'plans', value: x.id }))); if (!id) return;
       const pl = L2.find(x => x.id === id); toast('Touchez le plan à l\'endroit du pin photos');
-      await openPlanViewer(pl, { ...(typeof planCtx === 'function' ? planCtx(() => {}) : {}), startTool: 'photonote' }); redraw();
+      await openPlanViewer(pl, { ...(typeof planCtx === 'function' ? planCtx(() => {}) : {}), startTool: 'photonote', tag: { lotId: L.id, niv: (typeof nivOfFolder === 'function' && nivOfFolder(f.name)) || f.name } }); redraw();
     };
   })();
   return el;
