@@ -44,6 +44,10 @@ function avStats(locs, lotId) {
   const o = { n: locs.length, late: 0, soon: 0, done: 0, progress: 0, todo: 0, donelate: 0, pct: 0 };
   for (const l of locs) { const r = (l.lots || {})[lotId]; o[avStatus(r)]++; o.pct += avPct(r); }
   o.pct = o.n ? Math.round(o.pct / o.n) : 0; o.fin = o.done + o.donelate;
+  // v1.0.65 : quantités (Global) → % pondéré, et totaux fait / prévu
+  const Q = locs.map(l => +((l.lots || {})[lotId] || {}).qtot || 0);
+  if (locs.length && Q.every(q => q > 0)) { const T = Q.reduce((a, b) => a + b, 0), D = locs.reduce((a, l, i) => a + (typeof avQtyDone === 'function' ? avQtyDone(l, lotId) : Q[i] * avPct((l.lots || {})[lotId]) / 100), 0);
+    o.pct = Math.min(100, Math.round(D / T * 100)); o.qt = T; o.qd = Math.round(D * 100) / 100; o.unit = ((locs[0].lots || {})[lotId] || {}).unit || ''; }
   return o;
 }
 
@@ -269,6 +273,7 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
         ${typeof avComparePlans === 'function' ? `<button class="iconbtn" data-a="cmpq" title="Comparer deux plans">${icon('swap')}</button>` : ''}
         ${typeof avNivPlansMenu === 'function' ? `<button class="iconbtn" data-a="plans" title="Plans, zones, import">${icon('layers')}</button>` : ''}
         <button class="iconbtn" data-a="ind" title="Indices du plan">${icon('history')}</button>
+        <button class="iconbtn pbw-b" data-a="bw" title="Plan noir et blanc">◐</button>
         <button class="iconbtn" data-a="share" title="Partager">${icon('share')}</button>
         <button class="iconbtn" data-a="more">${icon('more')}</button></div>
       <div class="av-chips lots"></div>
@@ -278,7 +283,7 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
     const cq = $('[data-a=cmpq]', el); if (cq) cq.onclick = () => avCompareQuick(p, niv, st.lot);
     $('[data-a=sel]', el).onclick = () => { st.sel = st.sel ? null : new Set(); st.add = false; st.moving = null; st.lasso = null; drawUI(); };
     $('[data-a=add]', el).onclick = async () => { if (st.zdraw) return finishZone(); st.add = !st.add; st.moving = null; drawUI(); };
-    $('[data-a=share]', el).onclick = shareMenu;
+    $('[data-a=share]', el).onclick = shareMenu; planBWBind(el);
     const plb = $('[data-a=plans]', el); if (plb) plb.onclick = plansMenu;
     $('[data-a=more]', el).onclick = moreMenu;
     $('[data-a=ind]', el).onclick = () => planIndicesMenu(plan, { onNew: async (np) => { plan = np; await load(); await setView(st.lot); await build(); }, onOpen: (old) => openPlanViewer(old, planCtx(() => {})) });
@@ -317,7 +322,7 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
     const zd = (st.zdraw || []).map(q => T(q[0], q[1])), drawSvg = zd.length ? `<polyline points="${zd.map(q => q.join(',')).join(' ')}" fill="rgba(37,99,235,.12)" stroke="#2563eb" stroke-width="${2.5 / s}"/>${zd.map(q => `<circle cx="${q[0]}" cy="${q[1]}" r="${5 / s}" fill="#2563eb"/>`).join('')}` : '';
     const anepSvg = st.anep && st.anepL ? st.anepL.map(t => { const [ax, ay] = T(t.x, t.y); return `<text x="${ax}" y="${ay}" text-anchor="middle" font-size="${Math.max(t.h, 9 / s)}" font-weight="700" fill="#1d4ed8" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="${2.5 / s}">${esc(t.s)}</text>`; }).join('') : '';
     const LT = typeof avLocTypes === 'function' ? avLocTypes(p) : [];
-    $('.av-ov', el).innerHTML = zonesSvg + anepSvg + drawSvg + st.locs.map(l => {
+    $('.av-ov', el).innerHTML = zonesSvg + anepSvg + drawSvg + st.locs.filter(l => !l.global && l.x != null).map(l => {
       const ltc = l.ltype && (LT.find(t => t.id === l.ltype) || {}).color;
       const k = avStatus((l.lots || {})[st.lot]), c = AV_ST[k][1], dim = st.filter && st.filter !== k, [px, py] = T(l.x, l.y), sel = st.sel && st.sel.has(l.id);
       return `<g transform="translate(${px},${py})" opacity="${dim ? 0.2 : 1}">
@@ -406,7 +411,7 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
       { label: 'Rapport PDF (plan + photos + dates)', icon: 'pdf', value: 'pdf' },
       { label: 'Rapport PDF — tous les lots de ce niveau', icon: 'pdf', value: 'pdfall' },
     ]);
-    if (v === 'img') { const ld = loading('Préparation de l\'image…'); try { const c = await avPlanCanvas(p, plan, st.locs, lot, { title: `${niv.name} — ${lot.name}`, maxSide: 3000 }); const b = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9)); ld.close(); await shareBlob(b, avFileName(`${p.name} ${niv.name} ${lot.name}`) + '.jpg'); } catch (e) { ld.close(); alertBox(e.message || String(e)); } }
+    if (v === 'img') { const ver = await planVersionAsk(); if (!ver) return; const ld = loading('Préparation de l\'image…'); try { const L = []; for (const bw of ver) { const c = await avPlanCanvas(p, plan, st.locs, lot, { title: `${niv.name} — ${lot.name}`, maxSide: 3000, bw }); const b = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9)); c.width = c.height = 0; L.push({ b, n: avFileName(`${p.name} ${niv.name} ${lot.name}${bw ? ' NB' : ''}`) + '.jpg' }); } ld.close(); if (L.length > 1 && typeof shareBlobs === 'function') await shareBlobs(L); else await shareBlob(L[0].b, L[0].n); } catch (e) { ld.close(); alertBox(e.message || String(e)); } }
     if (v === 'pdf') avReportDialog({ nivId: niv.id, lotId: lot.id });
     if (v === 'pdfall') avReportDialog({ nivId: niv.id, lotId: '__all' });
   }
@@ -518,7 +523,7 @@ function openAvLocal(loc, lotId, onChange, { onMove } = {}) {
 }
 
 // ---------- Dessin du plan coloré (partage image + PDF) ----------
-async function avPlanCanvas(p, plan, locs, lot, { title, maxSide = 2600, crop } = {}) {
+async function avPlanCanvas(p, plan, locs, lot, { title, maxSide = 2600, crop, bw } = {}) {
   const img = await loadImage(await fileURL(plan.fileId));
   const k = Math.min(1, maxSide / Math.max(plan.w, plan.h));
   const [cx, cy, cw, ch] = crop || [0, 0, plan.w, plan.h];
@@ -526,7 +531,9 @@ async function avPlanCanvas(p, plan, locs, lot, { title, maxSide = 2600, crop } 
   const head = title ? Math.round(Math.max(56, W * 0.035)) : 0, foot = title ? Math.round(Math.max(44, W * 0.026)) : 0;
   const c = document.createElement('canvas'); c.width = W; c.height = H + head + foot;
   const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+  if (bw) g.filter = PLAN_BW_FILTER;   // v1.0.65 : plan en noir et blanc, les couleurs d'avancement ressortent
   g.drawImage(img, cx * img.naturalWidth / plan.w, cy * img.naturalHeight / plan.h, cw * img.naturalWidth / plan.w, ch * img.naturalHeight / plan.h, 0, head, W, H);
+  g.filter = 'none';
   const R = crop ? Math.max(14, W / 40) : Math.max(9, Math.max(W, H) / 150), fs = Math.round(R * 1.15);
   for (const l of locs) {
     const x = (l.x - cx) * k, y = (l.y - cy) * k + head; if (x < -R || y < head - R || x > W + R || y > H + head + R) continue;

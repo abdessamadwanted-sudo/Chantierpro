@@ -162,7 +162,12 @@ async function avPickPin(p, nivs, locaux) {
 
 // ---------- tableau de bord « Pro Macro » ----------
 // v1.0.47 : avProFilter / avProDash → av47.js (barre de choix, période, équipes & sous-traitants)
-const avAvg = (L, lots, day) => { let s = 0, n = 0; for (const l of L) for (const lot of lots) { s += day ? avPctAt(l, lot.id, day) : avPct((l.lots || {})[lot.id]); n++; } return n ? Math.round(s / n) : 0; };
+// v1.0.65 : moyenne intelligente — dans un même lot, quand tous les locaux ont une quantité (Global, m², m³…), le % est pondéré par les quantités
+// (un grand niveau pèse plus qu'un petit) ; plusieurs lots : moyenne des lots
+const avAvg = (L, lots, day) => { if (lots.length > 1) { const V = lots.map(lot => ({ lot, n: L.length })).filter(x => x.n); return V.length ? Math.round(V.reduce((a, x) => a + avAvg(L, [x.lot], day), 0) / V.length) : 0; }
+  const lot = lots[0]; if (!lot || !L.length) return 0; const pc = (l) => day ? avPctAt(l, lot.id, day) : avPct((l.lots || {})[lot.id]);
+  const Q = L.map(l => +((l.lots || {})[lot.id] || {}).qtot || 0); if (Q.every(q => q > 0)) { const T = Q.reduce((a, b) => a + b, 0); return Math.round(L.reduce((a, l, i) => a + Q[i] * pc(l), 0) / T); }
+  return Math.round(L.reduce((a, l) => a + pc(l), 0) / L.length); };
 function avDonut(pct, color, size = 64, label = '') {
   const r = size / 2 - 6, C = 2 * Math.PI * r, o = C * (1 - pct / 100);
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" class="avp-dn"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="var(--line)" stroke-width="7"/>
