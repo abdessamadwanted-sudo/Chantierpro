@@ -3535,7 +3535,8 @@ body:has(#phPill) .sync-pill.sync { display: none !important; }
 .pnl-all span { margin-left: auto; font-size: 18px; color: #64748b; }
 
 /* v1.0.65 : accès rapides du lot en grille rangée */
-.lp-links.lp-grid { display: grid !important; grid-template-columns: 1fr 1fr; gap: 7px; }
+.lp-links.lp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.lp-body .lp-hide { display: none !important; }   /* v1.0.66 : une seule section du lot à la fois */
 .lp-grid .lp-gh { grid-column: 1 / -1; font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: rgba(15,23,42,.55); margin: 6px 2px 0; }
 .lp-grid > button { display: flex !important; align-items: center; gap: 8px; text-align: left; min-height: 54px; padding: 8px 10px !important; border-radius: 14px !important; background: #fff !important; border: 1px solid color-mix(in srgb, var(--c, #64748b) 28%, #e2e8f0) !important; color: #0f172a !important; font-size: 13px !important; font-weight: 700; box-shadow: 0 1px 2px rgba(15,23,42,.05); }
 .lp-grid > button i { font-style: normal; font-size: 20px; width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 10px; background: color-mix(in srgb, var(--c, #64748b) 14%, #fff); }
@@ -3578,3 +3579,11 @@ body:has(#phPill) .sync-pill.sync { display: none !important; }
 .avd-t { position: relative; padding: 0; border: 0; border-radius: 10px; overflow: hidden; aspect-ratio: 1; background: var(--card2); }
 .avd-t img { width: 100%; height: 100%; object-fit: cover; display: block; } .avd-t small { position: absolute; left: 4px; bottom: 4px; background: rgba(0,0,0,.55); color: #fff; font-size: 10px; padding: 1px 5px; border-radius: 6px; }
 .avd-t.on { outline: 3px solid var(--accent); } .avd-t.on::after { content: '✓'; position: absolute; top: 4px; right: 4px; background: var(--accent); color: #fff; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; }
+
+/* v1.0.66 : endroit montré sur le plan */
+.focus-ring { animation: fRing 1s ease-in-out 4; transform-box: fill-box; transform-origin: center; }
+@keyframes fRing { 0%, 100% { opacity: 1; } 50% { opacity: .15; } }
+/* v1.0.66 : pin du lot + bouton « sur le plan » */
+.pnl-it { display: inline-flex; flex: none; gap: 3px; align-items: stretch; }
+.pnl-l .pnl-loc { display: grid; place-items: center; padding: 0 10px !important; font-size: 17px; }
+.ph-loc { color: #ca8a04 !important; }

@@ -181,8 +181,9 @@ function pnLotBlock(p, L, f, redraw) {
     const nivN = (typeof nivOfFolder === 'function' && nivOfFolder(f.name)) || f.name;
     el.innerHTML = `<div class="pnl-h"><span>📷 Photos · ${esc(L.name)}</span><button class="btn small ghost" data-a="pnnew">${icon('plus')} Pin photos</button></div>
       <button class="pnl-all" data-a="pnall">🖼️ Toutes les photos · ${esc(nivN)} · ${esc(L.name)} <span>›</span></button>
-      ${pins.length ? `<div class="pnl-l">${pins.map(x => `<button data-pn="${x.id}"><b>${esc(x.name)}</b><small>${pnFolders(x).length ? pnFolders(x).map(d => esc(d.name)).slice(0, 3).join(' · ') + ' · ' : ''}${pnCount(x)} photo(s)</small></button>`).join('')}</div>` : '<div class="pnl-e">Placez un pin photos sur un plan de ce niveau (Porte provisoire, Brique, Nettoyage…).</div>'}`;
+      ${pins.length ? `<div class="pnl-l">${pins.map(x => `<span class="pnl-it"><button data-pn="${x.id}"><b>${esc(x.name)}</b><small>${pnFolders(x).length ? pnFolders(x).map(d => esc(d.name)).slice(0, 3).join(' · ') + ' · ' : ''}${pnCount(x)} photo(s)</small></button><button class="pnl-loc" data-pnloc="${x.id}" title="Voir sur le plan">📍</button></span>`).join('')}</div>` : '<div class="pnl-e">Placez un pin photos sur un plan de ce niveau (Porte provisoire, Brique, Nettoyage…).</div>'}`;
     $('[data-a=pnall]', el).onclick = () => { App.phF = { niv: nivN, cat: L.name, z: '', dos: '', st: '', src: '', per: '', q: '', mode: 'cat' }; App.section = 'photos'; renderSection(); };   // v1.0.65 : Photos déjà filtrées sur ce niveau + ce lot
+    $$('[data-pnloc]', el).forEach(b => b.onclick = () => typeof phLocate === 'function' && phLocate({ pn: b.dataset.pnloc }, redraw));   // v1.0.66 : endroit exact sur le plan
     $$('[data-pn]', el).forEach(b => b.onclick = async () => { const x = pins.find(y => y.id === b.dataset.pn); await openPhotoNote(x, typeof planCtx === 'function' ? planCtx(() => {}) : {}); redraw(); });
     $('[data-a=pnnew]', el).onclick = async () => {
       const L2 = plans.filter(x => x.lotId === L.id).length ? plans.filter(x => x.lotId === L.id) : plans;
