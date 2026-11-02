@@ -18,11 +18,11 @@
   let toastT; const toast = (m) => { const t = $('#toast'); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 2600); };
   const fail = (e) => { console.error(e); toast('Erreur : ' + (e.code === 'permission-denied' ? 'accès refusé (règles Firestore publiées ?)' : (e.message || e))); };
   // fenêtre (dialog) : html + boutons ; renvoie la valeur du bouton choisi et les champs
-  function modal(title, html, buttons = [['Fermer', null, 'ghost']]) {
+  function modal(title, html, buttons = [['Fermer', null, 'ghost']], onMount) {
     return new Promise((resolve) => {
       const d = document.createElement('dialog');
       d.innerHTML = `<h3>${esc(title)}</h3><div class="mb">${html}</div><div class="btns" style="margin-top:14px">${buttons.map(([l, v, c], i) => `<button class="btn ${c || ''}" data-i="${i}">${esc(l)}</button>`).join('')}</div>`;
-      document.body.appendChild(d); d.showModal();
+      document.body.appendChild(d); d.showModal(); if (onMount) try { onMount(d); } catch (e) {}
       const vals = () => Object.fromEntries($$('[name]', d).map(x => [x.name, x.type === 'checkbox' ? x.checked : x.value.trim()]));
       $$('[data-i]', d).forEach(b => b.onclick = () => { const v = buttons[+b.dataset.i][1], f = vals(); d.close(); d.remove(); resolve(v == null ? null : { v, ...f }); });
       d.addEventListener('cancel', () => { d.remove(); resolve(null); });
@@ -135,16 +135,19 @@
         const nsHTML = noSpace.length ? `<h3 class="cc-o">🆕 Inscrits sans espace <small>${noSpace.length} — touchez une durée pour créer leur espace personnel</small></h3>` + noSpace.map(u => `<div class="cc-r"><div class="t grow"><b>${esc(u.name || u.email || u.uid)}</b><small>${esc(u.email || '—')} · inscrit ${esc(ago(u.lastSeen))}</small><div><span class="pill warn">Sans espace</span></div></div>${durBtns('n:' + u.uid).replace(/<button class="btn bad"[^>]*>Arrêter<\/button>/, '')}</div>`).join('') + '<h3 class="cc-o">👤 Espaces personnels</h3>' : '';
         box.innerHTML = `<p class="muted">Donnez l'accès à un espace personnel pour une durée : il se ferme tout seul à la date de fin (écran « Accès expiré »). Prolonger part de la date de fin actuelle.</p>` + nsHTML + (L.map(o => { const u = userOf(o.ownerUid), un = untilOf(o, 'accessUntil');
           return `<div class="cc-r"><div class="t grow"><b>${esc(u.name || o.name || o.id)}</b><small>${esc(u.email || '—')} · ${esc(o.name || '')} · vu ${esc(ago(u.lastSeen))}</small><div>${o.allowed ? left(un) : '<span class="pill">Non autorisé</span>'}${o.planStatus === 'suspendu' ? ' <span class="pill bad">Suspendu</span>' : ''}</div></div>
-            ${durBtns('o:' + o.id)}${u.email ? `<button class="btn ghost cc-wa" data-wa="${esc(o.id)}">WhatsApp</button>` : ''}</div>`; }).join('') || '<div class="empty">Aucun espace personnel</div>');
+            ${durBtns('o:' + o.id)}<button class="btn ghost cc-see" data-see="${esc(o.id)}">🎛 Ce qu'il voit</button>${u.email ? `<button class="btn ghost cc-wa" data-wa="${esc(o.id)}">WhatsApp</button>` : ''}</div>`; }).join('') || '<div class="empty">Aucun espace personnel</div>');
       } else if (sub === 'mem') {
         const byOrg = {}; mems.filter(m => !q() || `${m.name || ''} ${m.email || ''} ${orgOf(m.cid).name || ''}`.toLowerCase().includes(q())).forEach(m => (byOrg[m.cid] = byOrg[m.cid] || []).push(m));
         box.innerHTML = `<p class="muted">Ce que chaque membre voit et fait (droits par service) et sur quels projets. Les droits se modifient dans l'application : Équipe › la personne › « Poste, projets et droits ». Ici : la durée d'accès.</p>` + (Object.entries(byOrg).map(([cid, L]) => `<h3 class="cc-o">${esc(orgOf(cid).name || cid)} <small>${L.length} membre(s)</small></h3>` + L.map(m => `<div class="cc-r"><div class="t grow"><b>${esc(m.name || m.email || m.uid)}${m.admin ? ' <span class="pill acc">admin</span>' : ''}</b><small>${esc(m.email || '')} · ${esc(tmRoleOf(m.role).l)}</small>
-            <small>📁 ${esc(projTxt(m))}</small><small>🔑 ${esc(permTxt(m))}</small><div>${left(untilOf(m, 'until'))}</div></div>${m.admin ? '<small class="muted">Administrateur : accès sans fin</small>' : durBtns('m:' + cid + ':' + m.uid)}</div>`).join('')).join('') || '<div class="empty">Aucun membre</div>');
+            <small>📁 ${esc(projTxt(m))}</small><small>🔑 ${esc(permTxt(m))}</small><div>${left(untilOf(m, 'until'))}</div></div>${m.admin ? '<small class="muted">Administrateur : accès sans fin</small>' : durBtns('m:' + cid + ':' + m.uid)}<button class="btn ghost cc-see" data-msee="${esc(cid + ':' + m.uid)}">🎛 Ce qu'il voit</button></div>`).join('')).join('') || '<div class="empty">Aucun membre</div>');
       } else {
         const seen = D.users.filter(u => ms(u.lastSeen)).sort((a, b) => ms(b.lastSeen) - ms(a.lastSeen)).slice(0, 40);
         box.innerHTML = `<h3>Actions du Super Admin</h3>${(D.log || []).filter(x => !q() || JSON.stringify(x).toLowerCase().includes(q())).map(x => `<div class="row"><div class="t grow"><b>${esc(x.action)}</b><small>${esc(x.target)}${x.detail ? ' · ' + esc(x.detail) : ''}</small></div><span class="pill">${esc(dt(x.at))}</span></div>`).join('') || '<div class="empty">Rien pour l\'instant</div>'}
           <h3 style="margin-top:14px">Dernières ouvertures de l'application</h3>${seen.filter(u => !q() || `${u.name || ''} ${u.email || ''}`.toLowerCase().includes(q())).map(u => `<div class="row"><div class="t grow"><b>${esc(u.name || u.email || u.uid)}</b><small>${esc(u.email || '')} · ${esc(u.appVersion || '—')}</small></div><span class="pill">${esc(ago(u.lastSeen))}</span></div>`).join('')}`;
       }
+      // v1.0.63 : par utilisateur — ce qu'il voit (outils, fonctions)
+      $$('[data-see]', box).forEach(b => b.onclick = () => orgCard(b.dataset.see, { open: true }));
+      $$('[data-msee]', box).forEach(b => b.onclick = () => { const [cid, uid] = b.dataset.msee.split(':'); memberSee(cid, uid); });
       $$('[data-dur]', box).forEach(b => b.onclick = async () => {
         const [kind, a, c] = b.dataset.k.split(':'), k = b.dataset.dur, lbl = DUR.find(x => x[0] === k)[1];
         try {
@@ -236,13 +239,26 @@
       $$('[data-o]', $('#ol')).forEach(r => r.onclick = () => orgCard(r.dataset.o)); };
     $('#q-orgs').oninput = list; $('#f-orgs').onchange = list; list();
   }
-  async function orgCard(cid) {
+  // v1.0.63 : outils visibles d'un membre (droits par outil : aucun accès = l'outil n'apparaît pas)
+  async function memberSee(cid, uid) {
+    const m = D.members.find(x => x.cid === cid && x.uid === uid); if (!m) return;
+    const P = m.perms || {}, L = MODS.filter(([k]) => k !== 'projet');
+    const r = await modal(`🎛 ${m.name || m.email || uid}`, `<p class="muted">${esc(orgOf(cid).name || cid)} · Choisissez pour chaque outil : <b>Aucun accès</b> (il ne le voit pas), Voir, Modifier, Valider ou Administrer. Le pack de l'espace limite toujours ce qui est possible.</p>
+      <div class="cc-see-all"><button type="button" class="btn ghost" data-all="0">Tout masquer</button><button type="button" class="btn ghost" data-all="1">Tout en lecture</button><button type="button" class="btn ghost" data-all="2">Tout modifier</button></div>
+      ${L.map(([k, l]) => `<label class="pk-l"><span>${esc(l.split(' (')[0])}</span><select name="pm_${k}">${LEVELS.map((t, i) => `<option value="${i}" ${(+P[k] || 0) === i ? 'selected' : ''}>${i === 0 ? '🚫 ' : ''}${esc(t)}</option>`).join('')}</select></label>`).join('')}`,
+      [['Enregistrer', 'save'], ['Fermer', null, 'ghost']], (el) => { $$('[data-all]', el).forEach(b => b.onclick = () => $$('select[name^=pm_]', el).forEach(s => { s.value = b.dataset.all; })); });
+    if (!r || r.v !== 'save') return;
+    const perms = { ...P }; for (const [k] of L) perms[k] = +r['pm_' + k] || 0;
+    try { await db.collection('companies').doc(cid).collection('members').doc(uid).update({ perms }); toast('Enregistré ✓ (à la prochaine ouverture de l\'application)'); logA('Droits d\'un membre', `${m.email || m.name} · ${orgOf(cid).name || cid}`, L.filter(([k]) => !perms[k]).map(([, l]) => l.split(' (')[0]).join(', ') ? 'masqué : ' + L.filter(([k]) => !perms[k]).map(([, l]) => l.split(' (')[0]).join(', ') : 'tout visible'); await draw(true); }
+    catch (e) { fail(e); }
+  }
+  async function orgCard(cid, opt = {}) {
     const o = orgOf(cid), mem = D.members.filter(m => m.cid === cid), own = userOf(o.ownerUid);
     const r = await modal(o.name || cid, `<div class="kv"><span>Type</span><b>${o.kind === 'perso' ? 'Espace personnel' : esc(orgTypeOf(o.orgType || 'entreprise').l)}</b><span>Créée</span><b>${esc(dt(o.createdAt))}</b><span>Propriétaire</span><b>${esc(own.email || own.name || o.ownerUid || '—')}</b>${o.trialEndsAt ? `<span>Fin d'essai</span><b>${esc(dt(o.trialEndsAt))}</b>` : ''}</div>
       <label>Pack<select name="plan">${Object.values(PLANS).map(P => `<option value="${P.k}" ${planOf(o.plan || 'enterprise').k === P.k ? 'selected' : ''}>${esc(PLAN_L(P.k))} · ${esc(planPrice(P))}</option>`).join('')}</select></label>
       <label>Statut<select name="st">${Object.entries(STATUS).map(([k, [l]]) => `<option value="${k}" ${o.planStatus === k ? 'selected' : ''}>${esc(l)}${k === 'essai' ? ' (14 jours de plus)' : ''}${k === 'suspendu' ? ' — bloque l\'accès aux projets' : ''}</option>`).join('')}</select></label>
       ${o.kind === 'perso' ? `<label class="ck"><input type="checkbox" name="allow" ${o.allowed ? 'checked' : ''}> Autoriser cet espace personnel (même en « accès sur code uniquement »)</label>` : ''}
-      <details class="pk-org"><summary>🎛 Pour cet espace : fonctions offertes et outils</summary>
+      <details class="pk-org" ${opt.open ? 'open' : ''}><summary>🎛 Pour cet espace : fonctions offertes et outils</summary>
         <p class="muted">Au-dessus du pack. Fonction offerte : ouverte jusqu'à la date choisie.</p>
         ${PREMIUM.map(([k, l]) => { const g = (o.featGrant || {})[k], u = ms(g); return `<label class="pk-l"><span>${esc(l)}</span><select name="fg_${k}"><option value="">Selon le pack</option>${[['7', '7 jours'], ['30', '1 mois'], ['90', '3 mois'], ['365', '1 an'], ['inf', 'Toujours']].map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}${g === true ? '<option value="keep" selected>Toujours (déjà offert)</option>' : u > Date.now() ? `<option value="keep" selected>Offert jusqu'au ${new Date(u).toLocaleDateString('fr-FR')}</option>` : ''}</select></label>`; }).join('')}
         <p class="muted" style="margin-top:10px">Outils :</p>
