@@ -1,3 +1,8 @@
+## SiteTeam : les notifications des échéances arrivent vraiment
+- Le canal « Rappels de chantier » est créé et l'autorisation demandée avant de programmer (avant, sans ce réglage, Android n'affichait rien).
+- Échéance proche : si l'heure du rappel « avant » est déjà passée, le rappel arrive le jour même à l'heure choisie ; échéance aujourd'hui avec heure passée → notification dans 1 minute (une fois par jour).
+- 🔔 Réglages : « Notification d'essai dans 10 secondes » et liste des notifications programmées (date, heure, titre) ; rappel du réglage batterie Huawei.
+
 ## SiteTeam : Photos sans fermeture de l'application
 - Notifications des échéances sur le téléphone (même application fermée) : Tableau des échéances › 🔔 — activées ou non, heure, rappel par défaut (le jour même, 1, 2, 3 jours ou 1 semaine avant), rappel si la date est dépassée, types d'alertes à notifier. Chaque échéance peut avoir son propre rappel et son heure. Toucher la notification ouvre le tableau des échéances.
 - Photos, dossiers des pins photos, dossier d'une case et tableau photos : les miniatures sont des images légères (≈ 360 px), préparées une à une et seulement quand elles apparaissent à l'écran. Avant, ouvrir plusieurs groupes décodait chaque photo entière (12 Mpx) et Android pouvait fermer l'application.

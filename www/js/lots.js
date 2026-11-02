@@ -358,6 +358,8 @@ async function openDueTable(p, pre = {}) {
 const DUE_REM = [['', 'Par défaut'], ['none', 'Pas de rappel'], ['0', 'Le jour même'], ['1', '1 jour avant'], ['2', '2 jours avant'], ['3', '3 jours avant'], ['7', '1 semaine avant']];
 const dueNCfg = (p) => { let o = null; try { o = JSON.parse(localStorage.getItem('dueN.' + p.id) || 'null'); } catch (e) {} return { on: true, time: '08:00', before: '1', late: true, types: null, ...(o || {}) }; };
 const dueNSave = (p, o) => { try { localStorage.setItem('dueN.' + p.id, JSON.stringify(o)); } catch (e) {} };
+const dueNSent = (p, id) => { try { return (JSON.parse(localStorage.getItem('dueN.sent.' + p.id) || '{}'))[id] === todayISO(); } catch (e) { return false; } };
+const dueNMark = (p, id) => { try { const o = JSON.parse(localStorage.getItem('dueN.sent.' + p.id) || '{}'); o[id] = todayISO(); localStorage.setItem('dueN.sent.' + p.id, JSON.stringify(o)); } catch (e) {} };
 const dueNId = (s) => 1700000000 + (Math.abs([...String(s)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7)) % 90000000);
 async function dueSchedule(p) {
   const LN = window.Capacitor?.Plugins?.LocalNotifications; if (!LN || window.__safe || !p) return 0;
@@ -371,10 +373,17 @@ async function dueSchedule(p) {
       const before = +(rem === '' ? C.before : rem) || 0, hm = ((a.main ? D._dueHr : a.hr) || C.time || '08:00').split(':').map(Number), niv = nivOfFolder(f.name) || f.name;
       const what = `${a.obj || a.type} · ${L.name} · ${niv}${a.zone ? ' · ' + a.zone : ''}`;
       const at = new Date(a.d + 'T00:00:00'); at.setDate(at.getDate() - before); at.setHours(hm[0] || 8, hm[1] || 0, 0, 0);
+      // v1.0.68 : si l'heure du rappel « avant » est déjà passée, rappel le jour même à l'heure choisie ; échéance aujourd'hui et heure passée → dans 1 minute
+      const atDay = new Date(a.d + 'T00:00:00'); atDay.setHours(hm[0] || 8, hm[1] || 0, 0, 0);
       if (at > now) N.push({ id: dueNId(f.id + L.id + a.id + 'r'), title: before ? `⏳ Échéance dans ${before} j (${fmtDate(a.d)})` : `⏳ Échéance aujourd'hui`, body: what, at });
+      else if (before && atDay > now) N.push({ id: dueNId(f.id + L.id + a.id + 'r'), title: `⏳ Échéance aujourd'hui`, body: what, at: atDay });
+      else if (a.d === todayISO() && !dueNSent(p, a.id)) N.push({ id: dueNId(f.id + L.id + a.id + 'r'), title: `⏳ Échéance aujourd'hui`, body: what, at: new Date(now.getTime() + 60000), once: a.id });
       if (C.late) { const lt = new Date(a.d + 'T00:00:00'); lt.setDate(lt.getDate() + 1); lt.setHours(hm[0] || 8, hm[1] || 0, 0, 0); if (lt <= now) { lt.setTime(now.getTime()); lt.setDate(lt.getDate() + 1); lt.setHours(hm[0] || 8, hm[1] || 0, 0, 0); }
         N.push({ id: dueNId(f.id + L.id + a.id + 'l'), title: `🔴 En retard (prévu le ${fmtDate(a.d)})`, body: what, at: lt }); } } }
   N.sort((x, y) => x.at - y.at); const S = N.slice(0, 60);
+  // v1.0.68 : canal « Rappels de chantier » créé et autorisation demandée avant de programmer (sinon Android n'affiche rien)
+  try { const ps = await LN.checkPermissions().catch(() => null); if (!ps || ps.display !== 'granted') await LN.requestPermissions().catch(() => {}); await LN.createChannel({ id: 'rappels', name: 'Rappels de chantier', description: 'Échéances et rappels', importance: 5, visibility: 1, vibration: true, lights: true }).catch(() => {}); } catch (e) {}
+  for (const n of S) if (n.once) dueNMark(p, n.once);
   try { if (S.length) await LN.schedule({ notifications: S.map(n => ({ id: n.id, title: n.title, body: n.body, channelId: 'rappels', extra: { action: 'due', pid: p.id }, schedule: { at: n.at, allowWhileIdle: true } })) }); localStorage.setItem(key, JSON.stringify(S.map(n => n.id))); } catch (e) { console.warn('dueN', e); }
   return S.length;
 }
@@ -385,13 +394,20 @@ async function dueNotifSettings(p) {
     { name: 'time', label: 'Heure des notifications', type: 'time', value: C.time },
     { name: 'before', label: 'Rappel par défaut', type: 'select', value: C.before, options: DUE_REM.filter(([v]) => v !== '' && v !== 'none').map(([value, label]) => ({ value, label })) },
     { name: 'late', label: 'Si la date est dépassée', type: 'select', value: C.late ? 'o' : 'n', options: [{ value: 'o', label: 'Me le rappeler (le lendemain)' }, { value: 'n', label: 'Rien' }] },
+    { name: 'test', label: 'Essai', type: 'select', value: 'n', options: [{ value: 'n', label: '—' }, { value: 'o', label: '🔔 M\'envoyer une notification d\'essai (dans 10 secondes)' }] },
   ], { okLabel: 'Enregistrer', intro: '<p class="muted" style="margin:0">Chaque échéance peut aussi avoir son propre rappel et sa propre heure (dans la fiche de l\'échéance).</p>' });
   if (!r) return;
+  if (r.test === 'o' && LN) { try { const perm = await LN.requestPermissions(); if (perm.display !== 'granted') return alertBox('Notifications refusées : Réglages du téléphone › Applications › SiteTeam › Notifications › Autoriser.');
+    await LN.createChannel({ id: 'rappels', name: 'Rappels de chantier', importance: 5, visibility: 1, vibration: true }).catch(() => {});
+    await LN.schedule({ notifications: [{ id: 1699999999, title: '🔔 Essai SiteTeam', body: 'Les notifications des échéances fonctionnent sur ce téléphone ✓', channelId: 'rappels', schedule: { at: new Date(Date.now() + 10000), allowWhileIdle: true } }] }); toast('Notification d\'essai dans 10 secondes — fermez l\'application pour la voir'); } catch (e) { alertBox('Essai impossible : ' + (e.message || e)); } }
   Object.assign(C, { on: r.on === 'o', time: r.time || '08:00', before: r.before || '1', late: r.late === 'o' });
   // types d'alertes notifiées
   const all = LOT_AL_TYPES.slice(); let T = new Set(C.types || all);
   for (;;) { const v = await menu('Quelles alertes notifier ?', [...all.map(t => ({ label: t, value: t, checked: T.has(t) })), { label: '✓ Terminé', value: '__ok' }]); if (!v || v === '__ok') break; T.has(v) ? T.delete(v) : T.add(v); }
   C.types = T.size === all.length ? null : [...T]; dueNSave(p, C);
   if (C.on && LN) { try { const perm = await LN.requestPermissions(); if (perm.display !== 'granted') return alertBox('Autorisez les notifications de SiteTeam dans les réglages du téléphone.'); await LN.createChannel({ id: 'rappels', name: 'Rappels de chantier', importance: 5, visibility: 1, vibration: true }).catch(() => {}); } catch (e) {} }
-  const n = await dueSchedule(p); toast(C.on ? `🔔 ${n} notification(s) programmée(s)` : '🔕 Notifications des échéances désactivées');
+  const n = await dueSchedule(p);
+  if (!C.on) return toast('🔕 Notifications des échéances désactivées');
+  let L = []; try { const pend = await LN.getPending(); L = (pend.notifications || []).filter(x => x.id >= 1700000000 && x.id < 1790000000).map(x => x.schedule && x.schedule.at ? `• ${new Date(x.schedule.at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} — ${x.title}` : '').filter(Boolean); } catch (e) {}
+  alertBox(`🔔 ${n} notification(s) programmée(s)${L.length ? '\n\n' + L.slice(0, 12).join('\n') : ''}\n\nSur Huawei : Réglages › Batterie › Lancement d'applications › SiteTeam › Gérer manuellement (activer les 3 options), sinon le téléphone peut bloquer les rappels.`);
 }
