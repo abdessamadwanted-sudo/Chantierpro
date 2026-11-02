@@ -245,10 +245,13 @@ const Sync = (() => {
         let res = null;
         if (handoff && !f.driveId && f.role === 'photo') return;   // application passée en arrière-plan : le téléphone s'en charge
         inflight.add(f.id);
+        // v1.0.60 : un envoi bloqué ne fige plus toute la file (avant : « 3/59 vers Drive » ne bougeait plus)
+        const lim = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('délai dépassé, nouvel essai à la prochaine synchro')), ms))]);
+        const ms = 150000 + Math.round(((f.blob && f.blob.size) || 0) / 20);
         try {
-          if (f.driveId) { try { res = await call('upload', { driveId: f.driveId, path: pth.segs, name: pth.name }); } catch (e) { res = null; } }
+          if (f.driveId) { try { res = await lim(call('upload', { driveId: f.driveId, path: pth.segs, name: pth.name }), ms); } catch (e) { res = null; } }
           if (!res && !f.blob) return;
-          if (!res) res = await call('upload', { path: pth.segs, name: pth.name, mime: f.mime || f.blob.type, blob: f.blob });
+          if (!res) res = await lim(call('upload', { path: pth.segs, name: pth.name, mime: f.mime || f.blob.type, blob: f.blob }), ms);
           f.driveId = res.id; f.drivePath = key;
           await DB.put('files', f);
         } catch (e) { fails.push(`${pth.name} : ${e.message || e}`); }
@@ -304,7 +307,7 @@ const Sync = (() => {
       let j = 0;
       await pool(missing, 4, async (f) => {
         try {
-          if (inCloud(f)) f.blob = await Team.cloudDownload(f); else { const d = await call('download', { id: f.driveId }); f.blob = d.blob || fromB64(d.b64, f.mime || d.mime); }
+          if (inCloud(f)) f.blob = await Team.cloudDownload(f); else { const d = await Promise.race([call('download', { id: f.driveId }), new Promise((_, rej) => setTimeout(() => rej(new Error('délai dépassé')), 240000))]); f.blob = d.blob || fromB64(d.b64, f.mime || d.mime); }
           await DB.putRaw('files', f); pulledCount++; }
         catch (e) { console.warn('download', f.id, e); }
         finally { j++; setStatus('sync', `Téléchargement ${j}/${missing.length}`); }

@@ -1,3 +1,8 @@
+## SiteTeam : l'envoi des photos vers Drive ne reste plus figé
+- Un envoi bloqué (réseau de chantier qui gèle, réponse Google qui n'arrive pas, autorisation Google restée sans réponse) est abandonné après un délai et repris à la prochaine synchro : les autres photos continuent (avant : « 3/59 vers Drive » ne bougeait plus).
+- Si des photos n'ont pas pu partir, la pastille passe en « problème(s) de synchro — touchez pour voir » au lieu de tourner sans fin.
+- Une seule pastille d'envoi : la petite roue en haut à droite se cache quand « vers Drive » est affichée en bas.
+
 ## SiteTeam : l'application ne se ferme plus après l'ouverture de plusieurs plans
 - Fermer un plan libère maintenant sa mémoire (PDF ouvert, calques nets du zoom, image du plan). Avant, chaque plan A0 ouvert restait en mémoire et, après quelques plans, Android fermait l'application (puis « mode secours »).
 - Même nettoyage pour le lecteur PDF, l'import de plans PDF et la lecture du cartouche ; le comparateur garde 2 PDF au lieu de 4.

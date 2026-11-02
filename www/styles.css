@@ -3436,3 +3436,7 @@ body:has(.avt-page) #plansFab, body:has(.avc-page) #plansFab { display: none; }
 .lp-tabs button.r small { color: #dc2626; } .lp-tabs button.on.r small { color: #fff; }
 /* v1.0.57 : tracé — bouton « Comme AutoCAD » */
 .plot .pl-acad { width: 100%; margin: 0 0 10px; justify-content: center; font-weight: 800; }
+
+/* v1.0.60 : une seule pastille d'envoi — la petite roue en haut à droite se cache quand la pastille « vers Drive » est affichée, et tourne plus calmement */
+body:has(#phPill) .sync-pill.sync { display: none !important; }
+.sync-pill.sync .spin { animation-duration: 1.6s; }
