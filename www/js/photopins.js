@@ -22,15 +22,16 @@ async function pnContext(l) {
 async function pnFoldersHTML(l) {
   const F = pnFolders(l); let h = '';
   for (const d of F) {
-    const th = []; for (const id of (d.photos || []).slice(0, 8)) { const f = await DB.get('files', id); if (f && f.blob) th.push({ id, src: BlobURL.get(id, f.blob) }); }
+    const th = (d.photos || []).slice(0, 8).map(id => ({ id }));   // v1.0.67 : miniatures légères, chargées à l'écran
     h += `<div class="pnf" data-fd="${d.id}"><div class="pnf-h"><button class="pnf-n" data-fren="${d.id}">📁 <b>${esc(d.name)}</b> <small>${(d.photos || []).length}</small></button>
       <button class="iconbtn sm" data-fadd="${d.id}" title="Ajouter des photos">${icon('camera')}</button><button class="iconbtn sm" data-fmore="${d.id}">${icon('more')}</button></div>
-      ${th.length ? `<div class="pnf-th">${th.map(t => `<img src="${t.src}" data-fv="${d.id}|${t.id}">`).join('')}${(d.photos || []).length > 8 ? `<span class="pnf-more">+${d.photos.length - 8}</span>` : ''}</div>` : '<div class="pnf-e">Aucune photo — touchez 📷</div>'}</div>`;
+      ${th.length ? `<div class="pnf-th">${th.map(t => `<img data-th="${t.id}" data-fv="${d.id}|${t.id}" alt="">`).join('')}${(d.photos || []).length > 8 ? `<span class="pnf-more">+${d.photos.length - 8}</span>` : ''}</div>` : '<div class="pnf-e">Aucune photo — touchez 📷</div>'}</div>`;
   }
   return `<div class="nt-sec"><span>📁 Dossiers photos${F.length ? ` (${F.length})` : ''}</span><button class="btn small ghost" data-a="fnew">${icon('plus')} Dossier</button></div>${h}`;
 }
 function pnBindFolders(box, l, save, draw) {
   const F = pnFolders(l), find = (id) => F.find(d => d.id === id);
+  if (typeof lazyThumbs === 'function') lazyThumbs(box);
   const nb = $('[data-a=fnew]', box); if (nb) nb.onclick = async () => {
     const L = await pnPresets(l.projectId), have = new Set(F.map(d => d.name));
     const v = await menu('Nouveau dossier photos', [...L.filter(n => !have.has(n)).slice(0, 14).map(n => ({ label: n, icon: 'folder', value: 'n:' + n })), { label: 'Autre nom…', icon: 'edit', value: 'own' }]);
