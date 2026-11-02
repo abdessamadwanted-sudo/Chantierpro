@@ -1333,7 +1333,7 @@ try {
     App.phF = null; App.section = 'photos'; await renderSection(); await new Promise(r => setTimeout(r, 900));
     const cats = [...document.querySelectorAll('.ph-cat')].map(x => x.firstChild.textContent.trim());
     const subs = [...document.querySelectorAll('.ph-list .ph-g summary b')].map(x => x.textContent);
-    const anomZ = [...document.querySelectorAll('.ph-g[data-gk="cat|Réception||R+1|Zone 4|Anomalie"] summary b')].map(x => x.textContent);
+    const anomZ = [...document.querySelectorAll('.ph-g[data-gk="cat|Anomalies|Réception|R+1|Zone 4|Anomalie"] summary b')].map(x => x.textContent);
     const q = document.querySelector('[data-a=q]'); q.value = 'anomalie'; q.oninput(); await new Promise(r => setTimeout(r, 600));
     const afterQ = document.querySelectorAll('.ph-list .ph-g').length, scope = document.querySelector('.ph-scope').textContent;
     App.phF.q = ''; const b = await pnPdf({ p }, 'Test', [{ name: 'Porte provisoire', sub: 'MEZZ', photos: [a1, a2, a3] }, { name: 'Anomalies', sub: 'R+1 · Zone 4', photos: [a2] }], 4);
@@ -1341,7 +1341,7 @@ try {
     return { cats, subs, anomZ, afterQ, scope, pages, pdf: typeof phPdf === 'function', search: !!q };
   });
   await shot(A.pg, '61_photos_categories'); log('Photos v1.0.61/63 [catégories, Réception › R+1·Zone 4·Anomalie, recherche « anomalie », pages PDF 3+1 photos = 2]', ph61);
-  if (!ph61.subs.some(x => x.startsWith('Porte provisoire')) || !ph61.cats.includes('Réception') || ph61.anomZ[0] !== 'R+1 · Zone 4 · Anomalie' || ph61.afterQ !== 1 || ph61.pages !== 2 || !ph61.pdf) v61.push('photos catégories / recherche / PDF');
+  if (!ph61.subs.some(x => x.startsWith('Porte provisoire')) || !ph61.cats.includes('Réception') || ph61.anomZ[0] !== 'Réception · R+1 · Zone 4 · Anomalie' || ph61.afterQ !== 1 || ph61.pages !== 2 || !ph61.pdf) v61.push('photos catégories / recherche / PDF');
   await A.pg.evaluate(() => { App.phF = null; document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); });
   log('errors v1.0.61', v61);
   // ---- v1.0.63 : tableau d'avancement en photos (+ colonne), bons à remplir, outils déplaçables

@@ -721,8 +721,8 @@ async function avProDash(root, p, nivs, locaux) {
 // pins photos (dossiers Porte provisoire, Nettoyage…), locaux / avancement, réception, bétonnage, anomalies, retours, réserves, PV, rapports
 const PH_SRC = { pin: '📍 Locaux / avancement', pn: '📌 Pins photos', rec: '🔩 Réception', bet: '🧱 Bétonnage', anom: '⚠️ Anomalies', ret: '🔁 Retours / réparations', pvr: '📋 PV de réception', nc: '🛑 Non-conformités', res: '🚩 Réserves', pv: '📋 PV', rap: '📝 Rapports', grp: '🏗️ Classées' };
 const PH_ST = ['Photos ouvrage', 'Anomalie', 'Traitée', 'PV'];
-const PH_CATP = ['Réception', 'Bétonnage', 'Non-conformités', 'Réserves', 'PV'];
-const PH_ANOM = '⚠️ Anomalies & traitement', phIsAnom = (g) => ['anom', 'ret', 'nc', 'res'].includes(g.k) || g.st === 'Anomalie' || g.st === 'Traitée';
+const PH_CATP = ['Réception', 'Bétonnage', 'Anomalies', 'Non-conformités', 'Réserves', 'PV'];
+const PH_ANOM = 'Anomalies', phIsAnom = (g) => ['anom', 'ret'].includes(g.k);
 const PH_ICO = { pin: '📍', pn: '📌', rec: '🔩', bet: '🧱', anom: '⚠️', ret: '🔁', pvr: '📋', nc: '🛑', res: '🚩', pv: '📋', rap: '📝', grp: '🏗️' };
 async function phIndex(p) {
   const [links, recs, tasks, forms, reps, plans, folders] = await Promise.all(['links', 'receptions', 'tasks', 'forms', 'reports', 'plans', 'folders'].map(s => DB.byProject(s, p.id).catch(() => [])));
@@ -750,8 +750,8 @@ async function phIndex(p) {
   for (const d of recs) { const bet = d.type === 'Bétonnage', tp = bet ? 'Bétonnage' : 'Réception';
     for (const r of d.rows || []) { const base = { niv: r.niv || '', nr: avNivRank(r.niv), z: zz(r.zone), label: `${r.niv ? r.niv + ' · ' : ''}${r.element || 'Ouvrage'}`, go: { rec: d.id }, day: d.date };
       for (const id of r.photoIds || []) put(id, { ...base, k: bet ? 'bet' : 'rec', cat: tp, st: 'Photos ouvrage', sub: `${tp} · ${fmtDate(d.date)}` });
-      for (const id of r.anomIds || []) put(id, { ...base, k: 'anom', cat: tp, st: 'Anomalie', sub: `Anomalie · ${tp} · ${fmtDate(d.date)}` });
-      for (const id of r.retourIds || []) put(id, { ...base, k: 'ret', cat: tp, st: 'Traitée', sub: `Traitée (retour) · ${tp} · ${fmtDate(d.date)}` }); }
+      for (const id of r.anomIds || []) put(id, { ...base, k: 'anom', top: 'Anomalies', cat: tp, st: 'Anomalie', sub: `Anomalie · ${tp} · ${fmtDate(d.date)}` });
+      for (const id of r.retourIds || []) put(id, { ...base, k: 'ret', top: 'Anomalies', cat: tp, st: 'Traitée', sub: `Traitée (retour) · ${tp} · ${fmtDate(d.date)}` }); }
     for (const id of d.pvIds || []) put(id, { k: 'pvr', cat: tp, st: 'PV', niv: '', nr: 99, z: '', label: `PV · ${tp}`, sub: fmtDate(d.date), go: { rec: d.id }, day: d.date }); }
   for (const t of tasks) { const l = t.localId && L.get(t.localId), o = l ? locOf(l) : { niv: t.niv || '', nr: avNivRank(t.niv), z: '' };
     for (const id of t.photoIds || []) put(id, { k: 'res', cat: 'Réserves', ...o, label: `#${t.num || ''} ${t.title || 'Réserve'}`, sub: `Réserve${l ? ' · ' + l.name : ''}`, go: { task: t.id } }); }
@@ -790,7 +790,7 @@ async function renderPhotosV2(root) {
   { const C = new Map(); for (const e of E) if (e.g.niv) { const k = phK(e.g.niv); if (!C.has(k)) C.set(k, e.g.niv); e.g = { ...e.g, niv: C.get(k) }; } }
   const F = App.phF = Object.assign({ niv: '', z: '', cat: '', dos: '', st: '', src: '', per: '', q: '', mode: 'cat' }, App.phF || {});
   const uniq = (fn, sort) => { const v = [...new Set(E.map(fn).filter(Boolean))]; return sort ? v.sort(sort) : v.sort((a, b) => String(a).localeCompare(String(b), 'fr', { numeric: true })); };
-  const nivL = uniq(e => e.g.niv, (a, b) => avNivRank(a) - avNivRank(b)), zL = uniq(e => e.g.z), catL = [...(E.some(e => phIsAnom(e.g)) ? [PH_ANOM] : []), ...[...new Set([...E.map(e => e.g.top || e.g.cat), ...(typeof planLots === 'function' ? planLots(p).map(l => l.name) : []), ...avLotsOrdered(p).map(l => l.name)])].filter((v, i, a) => v && a.findIndex(x => phK(x) === phK(v)) === i).sort( (a, b) => (PH_CATP.indexOf(a) + 1 || 99) - (PH_CATP.indexOf(b) + 1 || 99) || String(a).localeCompare(String(b), 'fr', { numeric: true }))], dosL = uniq(e => e.g.top && (!F.cat || phK(e.g.top || e.g.cat) === phK(F.cat)) ? e.g.cat : ''), srcL = uniq(e => e.g.k).map(k => [k, PH_SRC[k] || k]), stL = uniq(e => e.g.st, (a, b) => PH_ST.indexOf(a) - PH_ST.indexOf(b));
+  const nivL = uniq(e => e.g.niv, (a, b) => avNivRank(a) - avNivRank(b)), zL = uniq(e => e.g.z), catL = [...[...new Set(['Réception', 'Bétonnage', 'Anomalies', 'Non-conformités', ...E.map(e => e.g.top || e.g.cat), ...(typeof planLots === 'function' ? planLots(p).map(l => l.name) : []), ...avLotsOrdered(p).map(l => l.name)])].filter((v, i, a) => v && a.findIndex(x => phK(x) === phK(v)) === i).sort( (a, b) => (PH_CATP.indexOf(a) + 1 || 99) - (PH_CATP.indexOf(b) + 1 || 99) || String(a).localeCompare(String(b), 'fr', { numeric: true }))], dosL = uniq(e => e.g.top && (!F.cat || phK(e.g.top || e.g.cat) === phK(F.cat)) ? e.g.cat : ''), srcL = uniq(e => e.g.k).map(k => [k, PH_SRC[k] || k]), stL = uniq(e => e.g.st, (a, b) => PH_ST.indexOf(a) - PH_ST.indexOf(b));
   if (F.cat && F.cat !== PH_ANOM && !catL.some(c => phK(c) === phK(F.cat))) F.cat = '';
   const sel = (k, lab, L) => L.length ? `<label class="avf-s ${F[k] ? 'on' : ''}"><small>${lab}</small><select data-pf="${k}"><option value="">Tous</option>${L.map(x => { const [v, t] = Array.isArray(x) ? x : [x, x]; return `<option value="${esc(v)}" ${(k === 'niv' || k === 'cat' ? F[k] && phK(v) === phK(F[k]) : v === F[k]) ? 'selected' : ''}>${esc(t)}</option>`; }).join('')}</select></label>` : '';
   const th = (f) => `<div class="ph" data-id="${f.id}"><img src="${BlobURL.get(f.id, f.blob)}" loading="lazy">${phIsShot(f) ? '<span class="tag">📱 capture</span>' : phIsDoc(f) ? '<span class="tag">📄 document ?</span>' : ''}</div>`;
