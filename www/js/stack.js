@@ -9,6 +9,25 @@ async function lvsLevels(projectId) {
   return plans.filter(p => p.fileId && (typeof isCurrentPlan !== 'function' || isCurrentPlan(p))).map(p => { const n = niv(p); return { p, niv: n, rank: rank(n || p.name), label: `${n ? n + ' · ' : ''}${p.name}` }; })
     .sort((a, b) => (a.rank ?? 50) - (b.rank ?? 50) || a.label.localeCompare(b.label, 'fr', { numeric: true }));
 }
+// v1.0.63 : choisir l'autre plan par listes déroulantes Lot et Niveau (ex. Local technique · R+1) au lieu d'une longue liste
+function lvsChoose(title, L, cur, prefLot) {
+  const p = App.project, LL = typeof planLots === 'function' && p ? planLots(p) : (typeof LOTS_DEF !== 'undefined' ? LOTS_DEF : []);
+  const lotOf = (x) => { const l = x.p.lotId && LL.find(y => y.id === x.p.lotId); return l ? l.name : 'Sans lot'; };
+  const lots = [...new Set(L.map(lotOf))].sort((a, b) => a.localeCompare(b, 'fr')), nivs = [...new Set(L.map(x => x.niv || 'Sans niveau'))];
+  const F = { lot: prefLot && lots.includes(prefLot) ? prefLot : '', niv: '' };
+  return new Promise((resolve) => { let res = null;
+    const s = sheet(`<div class="lvc"><div class="lvc-f"><label><small>Lot</small><select data-f="lot"><option value="">Tous les lots</option>${lots.map(x => `<option ${x === F.lot ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
+      <label><small>Niveau</small><select data-f="niv"><option value="">Tous les niveaux</option>${nivs.map(x => `<option>${esc(x)}</option>`).join('')}</select></label></div><div class="lvc-l"></div>
+      <button class="btn ghost lvc-many" data-many>📏 Caler plusieurs plans d'avance…</button></div>`, { title });
+    s.onClose = () => resolve(res);
+    const draw = () => { const R = L.filter(x => (!F.lot || lotOf(x) === F.lot) && (!F.niv || (x.niv || 'Sans niveau') === F.niv)), G = new Map();
+      for (const x of R) { const k = x.niv || 'Sans niveau'; if (!G.has(k)) G.set(k, []); G.get(k).push(x); }
+      $('.lvc-l', s.el).innerHTML = R.length ? [...G.entries()].map(([n, xs]) => `<div class="lvc-h">${esc(n)} <small>${xs.length}</small></div>` + xs.map(x => `<button class="lvc-r ${x.p.id === cur ? 'on' : ''}" data-id="${x.p.id}"><span class="grow"><b>${esc(x.p.name)}</b><small>${esc(lotOf(x))}</small></span>${x.p.lvRef ? '<i class="ok">📏 calé</i>' : '<i>à caler</i>'}</button>`).join('')).join('') : '<div class="empty">Aucun plan pour ce choix</div>';
+      $$('[data-id]', s.el).forEach(b => b.onclick = () => { res = b.dataset.id; s.close(); }); };
+    $$('[data-f]', s.el).forEach(sel => sel.onchange = () => { F[sel.dataset.f] = sel.value; draw(); });
+    $('[data-many]', s.el).onclick = () => { res = '__many'; s.close(); };
+    draw(); });
+}
 // feuille de choix avec interrupteurs (plusieurs niveaux)
 function lvsPick(title, items, pre, { sub, multi = true, okLabel = 'Suivant ›', extra } = {}) {
   return new Promise((resolve) => {
@@ -175,8 +194,8 @@ async function openStackView(chain, opts = {}) {
   $$('[data-side]', el).forEach(b => b.onclick = async (e) => { e.stopPropagation(); const i = +b.dataset.side, other = chain[1 - i], L = (sameList || await lvsLevels(other.p.projectId)).filter(x => x.p.id !== other.p.id);
     if (SAME) { const v2 = await menu(`Plan ${i ? 'de droite' : 'de gauche'} · ${SAME}`, L.map(x => ({ label: `${x.niv || x.p.name}${x.p.lvRef ? '  📏' : '  (à caler)'}`, icon: 'plans', value: x.p.id, checked: x.p.id === chain[i].p.id }))); const x2 = L.find(y => y.p.id === v2); if (!x2) return;
       if (!x2.p.lvRef && !(await openEquerreSteps([x2.p], [x2.niv || x2.p.name], other.p))) return; chain[i] = x2; return load(); }
-    const v = await menu(i ? 'Niveau supérieur (à droite)' : 'Niveau de base (à gauche)', [...L.map(x => ({ label: `${x.niv ? x.niv + ' · ' : ''}${x.p.name}${x.p.lvRef ? '  📏' : '  (à caler)'}`, icon: 'layers', value: x.p.id, checked: x.p.id === chain[i].p.id })),
-      { label: '📏 Caler plusieurs plans d\'avance…', icon: 'ruler', value: '__many' }]);
+    const LL0 = typeof planLots === 'function' && App.project ? planLots(App.project) : [], ol = other.p.lotId && LL0.find(y => y.id === other.p.lotId);
+    const v = await lvsChoose(i ? 'Niveau supérieur (à droite)' : 'Niveau de base (à gauche)', L, chain[i].p.id, ol ? ol.name : '');
     if (!v) return;
     if (v === '__many') { const todo = L.filter(x => !x.p.lvRef); if (!todo.length) return toast('Tous les plans sont déjà calés ✓');
       const sel = await lvsPick('Plans à caler', todo, [], { sub: `Calage à l'équerre sur les mêmes fils que ${esc(nm(1 - i))}. Ensuite vous changez de niveau en un toucher.`, okLabel: 'Caler ›' }); if (!sel) return;

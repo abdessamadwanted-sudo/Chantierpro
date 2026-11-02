@@ -3501,3 +3501,18 @@ body:has(#phPill) .sync-pill.sync { display: none !important; }
 .st-ptools-p .st-tool .st-ico svg.i { width: 20px !important; height: 20px !important; color: #fff !important; stroke-width: 2.1; }
 .st-ptools-p .st-tool span { font-size: 11px !important; font-weight: 700 !important; color: var(--text) !important; }
 .st-ptools-p .st-thint2 { text-align: center; color: var(--muted); font-size: 11.5px; margin: -4px 0 0; }
+
+/* v1.0.63 : comparer — choix du plan par Lot et Niveau */
+.lvc { display: grid; gap: 10px; padding-bottom: 8px; }
+.lvc-f { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.lvc-f label { display: flex; flex-direction: column; gap: 3px; padding: 7px 10px; border-radius: 14px; border: 1px solid var(--line); background: var(--card2); }
+.lvc-f small { font-size: 10.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.lvc-f select { border: 0; background: transparent; color: var(--text); font: inherit; font-weight: 700; font-size: 14px; padding: 0; }
+.lvc-f select option { background: var(--card); color: var(--text); }
+.lvc-l { display: grid; gap: 6px; max-height: 52vh; overflow-y: auto; }
+.lvc-h { margin: 6px 4px 0; font-weight: 800; font-size: 13px; color: var(--accent); } .lvc-h small { color: var(--muted); font-weight: 700; }
+.lvc-r { display: flex; align-items: center; gap: 10px; text-align: left; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); color: var(--text); font: inherit; }
+.lvc-r.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.lvc-r b { display: block; font-size: 14px; } .lvc-r small { color: var(--muted); font-size: 12px; }
+.lvc-r i { font-style: normal; font-size: 11.5px; color: var(--muted); white-space: nowrap; } .lvc-r i.ok { color: #22c55e; }
+.lvc-many { width: 100%; }
