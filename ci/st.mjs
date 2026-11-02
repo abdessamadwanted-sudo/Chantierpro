@@ -1333,7 +1333,7 @@ try {
     App.phF = null; App.section = 'photos'; await renderSection(); await new Promise(r => setTimeout(r, 900));
     const cats = [...document.querySelectorAll('.ph-cat')].map(x => x.firstChild.textContent.trim());
     const subs = [...document.querySelectorAll('.ph-list .ph-g summary b')].map(x => x.textContent);
-    const anomZ = [...document.querySelectorAll('.ph-g[data-gk="cat|Réception|R+1|Zone 4|Anomalie"] summary b')].map(x => x.textContent);
+    const anomZ = [...document.querySelectorAll('.ph-g[data-gk="cat|Réception||R+1|Zone 4|Anomalie"] summary b')].map(x => x.textContent);
     const q = document.querySelector('[data-a=q]'); q.value = 'anomalie'; q.oninput(); await new Promise(r => setTimeout(r, 600));
     const afterQ = document.querySelectorAll('.ph-list .ph-g').length, scope = document.querySelector('.ph-scope').textContent;
     App.phF.q = ''; const b = await pnPdf({ p }, 'Test', [{ name: 'Porte provisoire', sub: 'MEZZ', photos: [a1, a2, a3] }, { name: 'Anomalies', sub: 'R+1 · Zone 4', photos: [a2] }], 4);
