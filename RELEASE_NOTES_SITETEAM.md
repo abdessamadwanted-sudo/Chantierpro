@@ -1,3 +1,10 @@
+## SiteTeam : bons à remplir, tableau d'avancement en photos, outils déplaçables, nouveau design
+- Bons & modèles (Outils du projet › Outils) : ajoutez un bon en PDF ou en photo (recadrée et nettoyée) ; il reste comme modèle de référence. Chaque remplissage est une copie : cases placées une fois (date, ouvrage, noms…), texte n'importe où, stylo au doigt (bleu, noir, rouge, vert · fin, moyen, gras), gomme, annuler, zoom. Le PDF garde la qualité du modèle (écriture vectorielle, bien visible) ; documents remplis gardés, modifiables, dupliquables, partageables.
+- Tableau d'avancement : nouvelle vue 📷 — chaque case local × lot montre ses photos (nombre, dernière photo) ; toucher pour voir, ajouter ou faire le PDF ; « ＋ Colonne » pour ajouter Nettoyage, Chape, Porte provisoire… ; PDF de toutes les photos du niveau / de la zone.
+- Photos : Réception et Bétonnage séparent Photos ouvrage / Anomalie / Traitée (+ filtre « État ») ; bouton « Ouvrir le tableau › » ; dans la galerie, 👁 ouvre la fiche d'où vient la photo.
+- Outils du projet : appui long sur un outil (ou « Organiser ») pour le déplacer vers une autre catégorie (ex. Réception & Bétonnage → Chantier) — le menu ☰ suit le même rangement.
+- Nouveau design des Outils du projet : actions rapides en couleurs, catégories teintées, pictogrammes pleins et lisibles.
+
 ## SiteTeam : démarrage plus léger, rapport de diagnostic plus précis
 - Les PDF des tableaux (réception, réserves avec photos, rapports) ne sont plus créés pour Drive dans les 3 premières minutes après l'ouverture, et 3 au plus à la fois : le démarrage reste léger.
 - 2 fichiers à la fois (au lieu de 3 à 4) pour l'envoi et le téléchargement avec Drive : moins de mémoire avec les plans A0.

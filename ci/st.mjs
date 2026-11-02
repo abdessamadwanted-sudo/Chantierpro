@@ -1332,17 +1332,39 @@ try {
     const pin = (await DB.byProject('links', p.id)).find(x => x.kind === 'photonote'); pin.folders.push({ id: 'f61', name: 'Porte provisoire', photos: [a1] }); await DB.put('links', pin);
     App.phF = null; App.section = 'photos'; await renderSection(); await new Promise(r => setTimeout(r, 900));
     const cats = [...document.querySelectorAll('.ph-cat')].map(x => x.firstChild.textContent.trim());
-    const anomZ = [...document.querySelectorAll('.ph-g[data-gk^="cat|Anomalies"] summary b')].map(x => x.textContent);
+    const anomZ = [...document.querySelectorAll('.ph-g[data-gk="cat|Réception|R+1|Zone 4|Anomalie"] summary b')].map(x => x.textContent);
     const q = document.querySelector('[data-a=q]'); q.value = 'anomalie'; q.oninput(); await new Promise(r => setTimeout(r, 600));
     const afterQ = document.querySelectorAll('.ph-list .ph-g').length, scope = document.querySelector('.ph-scope').textContent;
     App.phF.q = ''; const b = await pnPdf({ p }, 'Test', [{ name: 'Porte provisoire', sub: 'MEZZ', photos: [a1, a2, a3] }, { name: 'Anomalies', sub: 'R+1 · Zone 4', photos: [a2] }], 4);
     const txt = await b.text(), pages = (txt.match(/\/Type\s*\/Page[^s]/g) || []).length;
     return { cats, anomZ, afterQ, scope, pages, pdf: typeof phPdf === 'function', search: !!q };
   });
-  await shot(A.pg, '61_photos_categories'); log('Photos v1.0.61 [catégories, anomalie R+1·Zone 4, recherche « anomalie », pages PDF 3+1 photos = 2]', ph61);
-  if (!ph61.cats.includes('Porte provisoire') || !ph61.cats.includes('Anomalies') || ph61.anomZ[0] !== 'R+1 · Zone 4' || ph61.afterQ !== 1 || ph61.pages !== 2 || !ph61.pdf) v61.push('photos catégories / recherche / PDF');
+  await shot(A.pg, '61_photos_categories'); log('Photos v1.0.61/63 [catégories, Réception › R+1·Zone 4·Anomalie, recherche « anomalie », pages PDF 3+1 photos = 2]', ph61);
+  if (!ph61.cats.includes('Porte provisoire') || !ph61.cats.includes('Réception') || ph61.anomZ[0] !== 'R+1 · Zone 4 · Anomalie' || ph61.afterQ !== 1 || ph61.pages !== 2 || !ph61.pdf) v61.push('photos catégories / recherche / PDF');
   await A.pg.evaluate(() => { App.phF = null; document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); });
   log('errors v1.0.61', v61);
+  // ---- v1.0.63 : tableau d'avancement en photos (+ colonne), bons à remplir, outils déplaçables
+  const v63 = [];
+  const t63 = await A.pg.evaluate(async () => {
+    document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); const p = App.project;
+    let tab = null; try { const el = await openAvTable(p, { view: 'ph' }); await new Promise(r => setTimeout(r, 500)); tab = el ? { ph: el.querySelectorAll('td.avt-ph').length, add: !!el.querySelector('th.avt-add'), title: (el.querySelector('.tb-title b') || {}).textContent, empty: !!el.querySelector('.empty') } : null; } catch (e) { tab = 'ERR ' + e.message; }
+    document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove());
+    let nolib = false; try { await needPdfLib(); } catch (e) { nolib = true; }
+    let pdf = 'nolib';
+    if (!nolib) { const c = document.createElement('canvas'); c.width = 600; c.height = 800; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 600, 800); g.fillStyle = '#000'; g.fillRect(50, 50, 500, 4);
+      const f = new File([await new Promise(r => c.toBlob(r, 'image/jpeg'))], 'bon.jpg', { type: 'image/jpeg' }), b = await bnImageToPdf(f);
+      const tpl = { id: 't', name: 'Bon', fields: [{ id: 'a', k: 'libre', x: 40, y: 40, w: 200, h: 20 }, { id: 'b', k: 'coche', x: 300, y: 40, w: 20, h: 20 }] };
+      const out = await bnMakePdf(b, tpl, { vals: { a: 'Voile V12 R+1', b: true }, items: [{ pg: 0, x: 60, y: 200, s: 14, c: '#1d3fbf', t: 'Zone 4\nبيتون' }], strokes: [{ pg: 0, c: '#111827', w: 3.4, pts: [[50, 300], [200, 340], [300, 300]] }] });
+      const d = await PDFLib.PDFDocument.load(await out.arrayBuffer()); pdf = { pages: d.getPageCount(), grew: out.size > b.size }; }
+    localStorage.setItem('dr.ord', JSON.stringify({ g: ['trav', 'qual', 'etu', 'fin', 'org'], k: { trav: ['reception'] } }));
+    App.section = 'ptools'; await renderSection(); await new Promise(r => setTimeout(r, 600));
+    const moved = !!document.querySelector('.st-tcat[data-g="trav"] [data-tool="reception"]'), notQual = !document.querySelector('.st-tcat[data-g="qual"] [data-tool="reception"]'), bons = !!document.querySelector('[data-xtool="bons"]');
+    localStorage.removeItem('dr.ord');
+    return { tab, pdf, moved, notQual, bons, fns: [typeof openBons, typeof bnFill].join() };
+  });
+  await shot(A.pg, '63_outils_projet'); log('v1.0.63 [tableau photos, PDF bon rempli, Réception déplacée dans Chantier, tuile Bons]', t63);
+  if (!t63.tab || typeof t63.tab === 'string' || !(t63.tab.ph > 0 || t63.tab.empty) || !t63.tab.add || (t63.pdf !== 'nolib' && (!t63.pdf.grew || t63.pdf.pages !== 1)) || !t63.moved || !t63.notQual || !t63.bons || t63.fns !== 'function,function') v63.push('v1.0.63');
+  log('errors v1.0.63', v63);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);

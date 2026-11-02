@@ -252,10 +252,16 @@ const ST = (() => {
   // L'ordre suit le service (membres) ou le type d'organisation (BET / architecte → Études ; labo / contrôle → Qualité).
   const ORG_FIRST = { bet: 'etu', archi: 'etu', labo: 'qual', bc: 'qual', moa: 'org' };
   const CAT_IC = { trav: 'hard', qual: 'shield', etu: 'ruler', fin: 'sheet', org: 'team', esp: 'grid', all: 'grid' };
+  function stGroups(first) {
+    const placed = new Set(DR_GROUPS.flatMap(g => g[2])), base = DR_GROUPS.map(g => g[0] === 'trav' ? [g[0], g[1], [...g[2], ...Object.keys(SECTIONS).filter(k => !placed.has(k))]] : g);
+    const ordered = (() => { try { return !!localStorage.getItem('dr.ord'); } catch (e) { return false; } })();
+    const L = typeof drLayout === 'function' ? drLayout(base) : base;
+    return ordered ? L : L.slice().sort((a, b) => (b[0] === first) - (a[0] === first));
+  }
   function toolsHTML() {
     if (!ready() || perso() || Team.isCollab() || typeof DR_GROUPS === 'undefined') return '';
     const first = Team.isAdmin() ? (ORG_FIRST[(Team.orgType() || {}).k] || 'trav') : grpOf(), ok = (k) => secShown(k) && k !== 'dashboard' && sectionOn(k) && Team.canSection(k);
-    let G = DR_GROUPS.slice().sort((a, b) => (b[0] === first) - (a[0] === first)).map(([g, l, ks]) => [g, l, ks.filter(ok)]).filter(g => g[2].length);
+    let G = stGroups(first).map(([g, l, ks]) => [g, l, ks.filter(ok)]).filter(g => g[2].length);
     if (Team.taille() === 'petite') G = G.length ? [['all', 'Outils essentiels', G.flatMap(g => g[2])]] : [];
     const esp = typeof espaceHome === 'function' ? espaceHome() : '';
     if (!G.length && !esp) return '';
@@ -272,7 +278,8 @@ const ST = (() => {
     const p = App.project; if (!p) return;
     const ok = (k) => secShown(k) && k !== 'dashboard' && k !== 'ptools' && sectionOn(k) && Team.canSection(k);
     const first = Team.isAdmin() ? (ORG_FIRST[(Team.orgType() || {}).k] || 'trav') : grpOf();
-    const G = DR_GROUPS.slice().sort((a, b) => (b[0] === first) - (a[0] === first)).map(([g, l, ks]) => [g, l, ks.filter(ok)]).filter(g => g[2].length);
+    // v1.0.63 : l'ordre et les groupes choisis par l'utilisateur (appui long sur un outil → déplacer vers une autre catégorie)
+    const G = stGroups(first).map(([g, l, ks]) => [g, l, ks.filter(ok)]).filter(g => g[2].length);
     const T = projTypeOf(p.type) || {};
     // v1.0.46 : actions rapides en une rangée compacte, catégories dépliables (état mémorisé), rien sous le bouton « plans »
     let opened = null; try { opened = JSON.parse(localStorage.getItem('ptools.open') || 'null'); } catch (e) {}
@@ -284,18 +291,26 @@ const ST = (() => {
       typeof openDriveNames === 'function' ? ['dnames', 'folder', 'Dossiers Drive', '#ea580c'] : null,
     ].filter(Boolean);
     root.innerHTML = `<div class="st-ptools-p">
-      <div class="st-hd"><b>${esc(T.e || '🏗️')} ${esc(p.name)}</b><small>${esc(T.n || 'Projet')}${p.address ? ' · ' + esc(p.address) : ''}</small></div>
+      <div class="st-hd"><b>${esc(T.e || '🏗️')} ${esc(p.name)}</b><small>${esc(T.n || 'Projet')}${p.address ? ' · ' + esc(p.address) : ''}</small><button class="st-org" data-a="orgtools" title="Organiser les outils">${icon('grid')} Organiser</button></div>
       <div class="st-qa" style="--n:${QA.length}">${QA.map(([k, ic, l, c]) => `<button class="st-qa-b" data-a="${k}" style="--c:${c}"><i>${icon(ic)}</i><span>${l}</span></button>`).join('')}</div>
       ${G.map(([g, l, ks]) => `<details class="st-tcat st-acc" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(l.replace(/^\S+\s/, ''))}<small>${ks.length}</small><i class="st-chev">${icon('chevdown')}</i></summary>
         <div class="st-tgrid">${ks.map(k => `<button class="st-tool" data-tool="${k}" style="--c:${CAT_C[catOf(k)] || CAT_C[g] || 'var(--accent)'}"><i class="st-ico">${icon(SECTIONS[k].icon || 'grid')}</i><span>${esc(toolName(k))}</span></button>`).join('')}</div></details>`).join('')}
-      <details class="st-tcat st-acc" data-g="outils" style="--c:#B7791F" ${opened.includes('outils') ? 'open' : ''}><summary class="st-tcat-h">Outils<small>3</small><i class="st-chev">${icon('chevdown')}</i></summary>
-        <div class="st-tgrid">${[['dwg', 'layers', 'DWG → PDF · plans'], ['pdf', 'pdf', 'Outils PDF'], ['photo', 'camera', 'Studio photo'], ['board', 'brush', 'Tableau de dessin']].map(([k, ic, l]) => `<button class="st-tool" data-xtool="${k}" style="--c:#B7791F"><i class="st-ico">${icon(ic)}</i><span>${l}</span></button>`).join('')}</div></details>
+      <details class="st-tcat st-acc" data-g="outils" style="--c:#B7791F" ${opened.includes('outils') ? 'open' : ''}><summary class="st-tcat-h">Outils<small>5</small><i class="st-chev">${icon('chevdown')}</i></summary>
+        <div class="st-tgrid">${[['bons', 'form', 'Bons & modèles à remplir'], ['dwg', 'layers', 'DWG → PDF · plans'], ['pdf', 'pdf', 'Outils PDF'], ['photo', 'camera', 'Studio photo'], ['board', 'brush', 'Tableau de dessin']].map(([k, ic, l]) => `<button class="st-tool" data-xtool="${k}" style="--c:#B7791F"><i class="st-ico">${icon(ic)}</i><span>${l}</span></button>`).join('')}</div></details>
+      <p class="st-thint2">Appui long sur un outil : le déplacer vers une autre catégorie</p>
       ${typeof espaceHome === 'function' && espaceHome() ? `<details class="st-tcat st-acc st-esp" style="--c:#3D5A80"><summary class="st-tcat-h">Espace métier<i class="st-chev">${icon('chevdown')}</i></summary>${espaceHome()}</details>` : ''}
     </div>`;
     root.querySelectorAll('details.st-acc[data-g]').forEach(d => d.addEventListener('toggle', () => { const L = [...root.querySelectorAll('details.st-acc[data-g][open]')].map(x => x.dataset.g); try { localStorage.setItem('ptools.open', JSON.stringify(L)); } catch (e) {} }));
     const avj = root.querySelector('[data-a=avjour]'); if (avj) avj.onclick = () => openAvJour(p);
     root.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { App.section = b.dataset.tool; App.search = ''; renderSection(); });
-    root.querySelectorAll('[data-xtool]').forEach(b => b.onclick = () => { const k = b.dataset.xtool; if (k === 'dwg' && typeof planToolsMenu === 'function') planToolsMenu(null); if (k === 'pdf') openPdfTools(); if (k === 'photo') photoStudioTool(); if (k === 'board') openBoardTool(); });
+    root.querySelectorAll('[data-xtool]').forEach(b => b.onclick = () => { const k = b.dataset.xtool; if (k === 'dwg' && typeof planToolsMenu === 'function') planToolsMenu(null); if (k === 'pdf') openPdfTools(); if (k === 'photo') photoStudioTool(); if (k === 'board') openBoardTool(); if (k === 'bons' && typeof openBons === 'function') openBons(p); });
+    // v1.0.63 : appui long (ou ⋮) sur un outil → monter, descendre, déplacer vers une autre catégorie
+    root.querySelectorAll('[data-tool]').forEach(b => { let t = null, lp = false;
+      b.addEventListener('pointerdown', () => { lp = false; clearTimeout(t); t = setTimeout(() => { lp = true; try { navigator.vibrate && navigator.vibrate(15); } catch (e) {} if (typeof drMove === 'function') drMove(b.dataset.tool, () => renderProjectTools(root)); }, 550); });
+      ['pointerup', 'pointerleave', 'pointercancel', 'pointermove'].forEach(ev => b.addEventListener(ev, (e) => { if (ev === 'pointermove' && Math.abs(e.movementX) + Math.abs(e.movementY) < 4) return; clearTimeout(t); }));
+      b.addEventListener('click', (e) => { if (lp) { e.stopImmediatePropagation(); e.preventDefault(); lp = false; } }, true);
+      b.oncontextmenu = (e) => e.preventDefault(); });
+    const org = root.querySelector('[data-a=orgtools]'); if (org) org.onclick = async () => { const k = await menu('Quel outil déplacer ?', G.flatMap(([g, l, ks]) => ks.map(x => ({ label: `${toolName(x)}  ·  ${l.replace(/^\S+\s/, '')}`, icon: SECTIONS[x].icon || 'grid', value: x })))); if (k) drMove(k, () => renderProjectTools(root)); };
     const npv = root.querySelector('[data-a=newpv]'); if (npv) npv.onclick = async () => { const f = await pvCreate(p); if (f) { await openFormDetail(f); } };
     const pb = root.querySelector('[data-a=pbatch]'); if (pb) pb.onclick = () => openPhotoBatch(p);
     const dn = root.querySelector('[data-a=dnames]'); if (dn) dn.onclick = () => openDriveNames(p);
