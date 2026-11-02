@@ -1,3 +1,7 @@
+## SiteTeam : Photos sans fermeture de l'application
+- Notifications des échéances sur le téléphone (même application fermée) : Tableau des échéances › 🔔 — activées ou non, heure, rappel par défaut (le jour même, 1, 2, 3 jours ou 1 semaine avant), rappel si la date est dépassée, types d'alertes à notifier. Chaque échéance peut avoir son propre rappel et son heure. Toucher la notification ouvre le tableau des échéances.
+- Photos, dossiers des pins photos, dossier d'une case et tableau photos : les miniatures sont des images légères (≈ 360 px), préparées une à une et seulement quand elles apparaissent à l'écran. Avant, ouvrir plusieurs groupes décodait chaque photo entière (12 Mpx) et Android pouvait fermer l'application.
+
 ## SiteTeam : Photos rangées par lot, sous-dossiers, « 📍 Sur le plan »
 - Photos › Catégorie : la liste montre les lots du projet (Gros œuvre, Maçonnerie, Chape, Local technique…) plus Réception, Bétonnage, Non-conformités, Anomalies ; les dossiers (Nettoyage, Porte provisoire…) sont des sous-dossiers dans chaque lot (filtre « Dossier »). Un pin posé sur le plan « Chape mezz » est rangé dans Chape.
 - Réception, Bétonnage et Anomalies sont trois catégories séparées (toujours dans la liste) : Réception / Bétonnage = photos des ouvrages ; Anomalies = photos des anomalies et de leur traitement, rangées en sous-dossiers Réception / Bétonnage.

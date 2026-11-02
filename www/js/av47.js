@@ -366,7 +366,7 @@ async function openAvTable(p, o = {}) {
         : '<div class="empty">Aucun pin sur ce niveau.<br>Placez les locaux sur le plan (Avancement › niveau › + Pin) ou importez-les du PDF.</div>'}</div>
       ${S.view === 'ph' ? `<div class="avt-foot"><small>Touchez une case : voir / ajouter des photos · ＋ Colonne : nouvelle colonne (Nettoyage, Chape…)</small></div>` : `<div class="avt-foot"><span><b>${S.ch.size}</b> modification(s)</span><small>Toucher : 0 › 25 › 50 › 75 › 100 · appui long : valeur, historique</small><button class="btn" data-a="save" ${S.ch.size ? '' : 'disabled'}>${icon('check')} Enregistrer</button></div>`}`;
     // v1.0.63 : vue photos — miniatures chargées après l'affichage, colonnes ajoutables, PDF
-    $$('img[data-fid]', el).forEach(async im => { try { const f = await DB.get('files', im.dataset.fid); if (f && (f.blob || f.driveId)) im.src = BlobURL.get(f.id, f.blob); } catch (e) {} });
+    $$('img[data-fid]', el).forEach(async im => { try { const u = await avLiteURL(im.dataset.fid, 240); if (u) im.src = u; } catch (e) {} });   // v1.0.67 : miniature légère
     $$('[data-view]', el).forEach(b => b.onclick = async () => { if (b.dataset.view === S.view) return; if (S.ch.size && !await confirmBox(`${S.ch.size} modification(s) non enregistrée(s). Changer de vue ?`, 'Changer')) return; S.ch.clear(); S.view = b.dataset.view; try { localStorage.setItem('avt.view', S.view); } catch (e) {} draw(); });
     const ac = $('[data-a=addcol]', el); if (ac) ac.onclick = async () => {
       const r = await formSheet('Nouvelle colonne', [{ name: 'n', label: 'Nom', placeholder: 'Ex : Nettoyage, Chape, Porte provisoire' }, { name: 'c', label: 'Couleur', type: 'select', value: '#0ea5e9', options: [['#0ea5e9', 'Bleu'], ['#22c55e', 'Vert'], ['#f59e0b', 'Orange'], ['#ef4444', 'Rouge'], ['#8b5cf6', 'Violet'], ['#64748b', 'Gris']].map(([value, label]) => ({ value, label })) }], { okLabel: 'Ajouter' });
@@ -769,6 +769,13 @@ async function phLocate(loc, back) {
     return openPlanViewer(pl, { ...(typeof planCtx === 'function' ? planCtx(() => back && back()) : {}), focus: { x, y } }); }
   if (loc.pin) { const l = await DB.get('links', loc.pin); if (!l) return; if (l.global || l.x == null) return toast('Quantité globale : pas d\'endroit précis sur le plan'); return openAvViewer(l.nivId, null, () => back && back(), l.id); }
 }
+function lazyThumbs(box) {
+  if (!box) return; const L = $$('img[data-th]', box); if (!L.length) return;
+  const load = (im) => { if (im._l) return; im._l = 1; avLiteURL(im.dataset.th, 360).then(u => { if (u) im.src = u; else DB.peek ? DB.peek('files', im.dataset.th).then(f => { if (f && !f.blob && f.driveId) im.src = BlobURL.get(f.id, null); }) : 0; }).catch(() => {}); };
+  if (!('IntersectionObserver' in window)) return L.forEach(load);
+  const io = new IntersectionObserver((en) => en.forEach(e => { if (e.isIntersecting) { load(e.target); io.unobserve(e.target); } }), { rootMargin: '300px 0px' });
+  L.forEach(im => io.observe(im));
+}
 const phIsShot = (f) => /screenshot|capture|screen|scr_/i.test(f.name || '');
 const phIsDoc = (f) => /\b(bon|bl|pv|plan|scan|doc|facture|devis|fiche)\b/i.test(String(f.name || '').replace(/[_\-.]/g, ' '));
 const phK = (s) => phNorm(s).replace(/[^a-z0-9+]/g, '');
@@ -793,7 +800,8 @@ async function renderPhotosV2(root) {
   const nivL = uniq(e => e.g.niv, (a, b) => avNivRank(a) - avNivRank(b)), zL = uniq(e => e.g.z), catL = [...[...new Set(['Réception', 'Bétonnage', 'Anomalies', 'Non-conformités', ...E.map(e => e.g.top || e.g.cat), ...(typeof planLots === 'function' ? planLots(p).map(l => l.name) : []), ...avLotsOrdered(p).map(l => l.name)])].filter((v, i, a) => v && a.findIndex(x => phK(x) === phK(v)) === i).sort( (a, b) => (PH_CATP.indexOf(a) + 1 || 99) - (PH_CATP.indexOf(b) + 1 || 99) || String(a).localeCompare(String(b), 'fr', { numeric: true }))], dosL = uniq(e => e.g.top && (!F.cat || phK(e.g.top || e.g.cat) === phK(F.cat)) ? e.g.cat : ''), srcL = uniq(e => e.g.k).map(k => [k, PH_SRC[k] || k]), stL = uniq(e => e.g.st, (a, b) => PH_ST.indexOf(a) - PH_ST.indexOf(b));
   if (F.cat && F.cat !== PH_ANOM && !catL.some(c => phK(c) === phK(F.cat))) F.cat = '';
   const sel = (k, lab, L) => L.length ? `<label class="avf-s ${F[k] ? 'on' : ''}"><small>${lab}</small><select data-pf="${k}"><option value="">Tous</option>${L.map(x => { const [v, t] = Array.isArray(x) ? x : [x, x]; return `<option value="${esc(v)}" ${(k === 'niv' || k === 'cat' ? F[k] && phK(v) === phK(F[k]) : v === F[k]) ? 'selected' : ''}>${esc(t)}</option>`; }).join('')}</select></label>` : '';
-  const th = (f) => `<div class="ph" data-id="${f.id}"><img src="${BlobURL.get(f.id, f.blob)}" loading="lazy">${phIsShot(f) ? '<span class="tag">📱 capture</span>' : phIsDoc(f) ? '<span class="tag">📄 document ?</span>' : ''}</div>`;
+  // v1.0.67 : miniatures légères (≈ 360 px), chargées seulement à l'écran, une à la fois — avant, chaque miniature décodait la photo entière (12 Mpx) → Android fermait l'application
+  const th = (f) => `<div class="ph" data-id="${f.id}"><img data-th="${f.id}" alt="">${phIsShot(f) ? '<span class="tag">📱 capture</span>' : phIsDoc(f) ? '<span class="tag">📄 document ?</span>' : ''}</div>`;
   let opened = {}; try { opened = JSON.parse(localStorage.getItem('ph.open.' + pid) || '{}'); } catch (e) {}
   root.innerHTML = `<div class="pagehead"><h2>Photos</h2><p>${files.length} photo(s) · par catégorie, niveau et zone</p></div>
     <div class="ph-search"><input type="search" data-a="q" placeholder="🔍 Rechercher : porte, chape, R+1, zone 4, anomalie…" value="${esc(F.q)}"></div>
@@ -835,7 +843,7 @@ async function renderPhotosV2(root) {
   const all = () => [...todo, ...E.map(e => e.f)];
   const bindList = () => {
     $$('.ph-list details.ph-g[data-gk]', root).forEach(d => d.addEventListener('toggle', () => { opened[d.dataset.gk] = d.open; try { localStorage.setItem('ph.open.' + pid, JSON.stringify(opened)); } catch (e) {} }));
-    bindThumbs($('.ph-list', root));
+    bindThumbs($('.ph-list', root)); lazyThumbs($('.ph-list', root));
     $$('[data-go]', root).forEach(b => b.onclick = () => phGo(groups[+b.dataset.go].go));
     $$('[data-loc]', root).forEach(b => b.onclick = async () => { const L = [...groups[+b.dataset.loc].locs.values()]; let x = L[0];
       if (L.length > 1) { const k = await menu('Quel endroit ?', L.map((y, j) => ({ label: y.label, icon: 'pin', value: String(j) }))); if (k == null) return; x = L[+k]; }
@@ -861,7 +869,7 @@ async function renderPhotosV2(root) {
   $$('[data-mode]', root).forEach(b => b.onclick = () => { F.mode = b.dataset.mode; $$('[data-mode]', root).forEach(x => x.classList.toggle('on', x === b)); draw(); });
   let qt; const qi = $('[data-a=q]', root); qi.oninput = () => { clearTimeout(qt); qt = setTimeout(() => { F.q = qi.value.trim(); draw(); }, 250); };
   $('[data-a=pdfall]', root).onclick = () => { if (!groups.length) return toast('Aucune photo'); const t = [F.cat, F.dos, F.niv, F.z].filter(Boolean).join(' - ') || 'Photos'; phPdf(p, groups, t); };
-  const td = $('.ph-todo .photo-grid', root); if (td) bindThumbs(td);
+  const td = $('.ph-todo .photo-grid', root); if (td) { bindThumbs(td); lazyThumbs(td); }
   draw();
   const selIds = () => [...root.querySelectorAll('.ph-todo .ph-sel')].map(x => x.dataset.id);
   const ca = $('[data-a=classall]', root); if (ca) ca.onclick = async () => { let ids = selIds(); if (!ids.length) ids = todo.map(f => f.id); if (await phClassify(p, ids)) { if (typeof PhotoQ !== 'undefined') PhotoQ.endSel(); renderPhotosV2(root); } };

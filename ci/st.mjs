@@ -1385,6 +1385,8 @@ try {
   const t66 = await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.phF = null; App.section = 'photos'; await renderSection(); await new Promise(r => setTimeout(r, 800));
     const cats = [...document.querySelectorAll('[data-pf=cat] option')].map(o => o.value), loc = document.querySelectorAll('[data-loc]').length; return { cats: cats.length, gros: cats.some(c => /gros/i.test(c)), loc, fn: typeof phLocate }; });
   log('v1.0.66 [catégories = lots, boutons « Sur le plan », phLocate]', t66); if (!t66.gros || t66.fn !== 'function') v65.push('v1.0.66');
+  const t67 = await A.pg.evaluate(async () => { const p = App.project, c = dueNCfg(p); return { c: [c.on, c.time, c.before, c.late].join(), s: await dueSchedule(p), id: dueNId('x') > 1.6e9 && dueNId('x') < 2147483647, th: typeof lazyThumbs }; });
+  log('v1.0.67 [notifications : réglages par défaut, sans plugin → 0, id valide, miniatures légères]', t67); log('errors v1.0.67', (t67.c !== 'true,08:00,1,true' || t67.s !== 0 || !t67.id || t67.th !== 'function') ? ['v1.0.67'] : []);
   log('errors v1.0.66', t66.gros && t66.fn === 'function' ? [] : ['v1.0.66']);
   // ---- v1.0.15 : tablette et ordinateur
   for (const [w, h, n] of [[820, 1180, '45_tablette'], [1280, 800, '46_desktop']]) {
