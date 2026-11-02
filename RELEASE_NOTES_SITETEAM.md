@@ -1,3 +1,11 @@
+## SiteTeam : bibliothèque métier unifiée et organigramme complet
+- Basic et Pro : une bibliothèque unique qui adapte automatiquement son contenu au pack, au service et aux droits de l'utilisateur.
+- Accès direct depuis les outils du projet et depuis Team Hub / Mon espace.
+- Recherche et filtres par service, avec regroupement clair des outils disponibles et indication des fonctions Pro.
+- Organigramme global hiérarchique complété, avec vue par service, responsables, collaborateurs directs, statistiques et recherche.
+- Les bibliothèques et l'organigramme restent cohérents sur téléphone, tablette et ordinateur.
+- Correction visuelle du sélecteur Hiérarchie / Services dans l'organigramme.
+
 ## SiteTeam : rappel d'échéance du jour qui n'était pas reçu
 - Échéance aujourd'hui avec une heure déjà passée : la notification « dans 1 minute » est gardée avec son heure et reprogrammée jusqu'à ce qu'elle parte (avant, la reprogrammation suivante l'annulait sans la remettre). Changer l'heure ou le rappel d'une échéance en reprogramme une nouvelle.
 - 🔔 Réglages : « Choisir une sonnerie du téléphone » (sonneries, alarmes, notifications, ou silencieux) pour les rappels d'échéances, retour à la sonnerie par défaut, et accès aux réglages Android du canal (vibration, écran verrouillé).
