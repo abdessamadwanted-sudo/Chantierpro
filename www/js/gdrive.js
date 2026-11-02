@@ -27,7 +27,8 @@ const GDrive = (() => {
   }
   async function token(interactive = false, force = false) {
     if (tok && !force && Date.now() - tokAt < 40 * 60000) return tok;
-    if (tokP && !interactive) return tokP;
+    // v1.0.60 : une demande Google avec fenêtre restée sans réponse ne bloque plus tous les envois (pastille « 3/59 vers Drive » figée)
+    if (tokP && !interactive) return Promise.race([tokP, sleep(40000).then(() => { throw Object.assign(new Error('Google ne répond pas (délai dépassé)'), { code: 'TIMEOUT' }); })]);
     const p = plug(); if (!p) throw new Error('Connexion Google disponible dans l\'application Android');
     tokP = (async () => {
       // v1.0.53 : jamais d'attente sans fin (la pastille « 3/49 vers Drive » restait figée) : 40 s au plus sans fenêtre Google
@@ -58,7 +59,8 @@ const GDrive = (() => {
     }
     return r;
   }
-  const json = async (url, opt) => (await req(url, opt)).json();
+  // v1.0.60 : la lecture de la réponse a aussi un délai maximum (réseau qui gèle après l'envoi)
+  const json = async (url, opt) => { const r = await req(url, opt); return Promise.race([r.json(), sleep(60000).then(() => { throw new Error('Google Drive ne répond pas (délai dépassé)'); })]); };
   const patch = (url, body) => json(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
   const qs = (s) => String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
   function multipart(meta, blob, type) {
@@ -73,8 +75,7 @@ const GDrive = (() => {
     const s = await req(`${UP}/files?uploadType=resumable&fields=id${extra}`, { method: 'POST', headers: { 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': type, 'X-Upload-Content-Length': String(blob.size) }, body: JSON.stringify(meta) });
     const loc = s.headers.get('Location') || s.headers.get('location');
     if (!loc) return json(`${UP}/files?uploadType=multipart&fields=id${extra}`, multipart(meta, blob, type));   // en-tête non lisible : envoi en une fois
-    const r = await req(loc, { method: 'PUT', headers: { 'Content-Type': type }, body: blob });
-    return r.json();
+    return json(loc, { method: 'PUT', headers: { 'Content-Type': type }, body: blob });
   }
   async function list(q, fields = 'id,name,mimeType,parents') {
     const out = []; let page = '';
@@ -191,7 +192,7 @@ const GDrive = (() => {
   }
   async function download(id) {
     const r = await req(`${API}/files/${id}?alt=media`);
-    const blob = await r.blob();
+    const blob = await Promise.race([r.blob(), sleep(180000).then(() => { throw new Error('Téléchargement Drive : délai dépassé'); })]);
     return { ok: true, mime: blob.type, blob };
   }
   async function check(ids) {

@@ -33,7 +33,7 @@ const BgUp = (() => {
   // relit les résultats du téléphone : identifiants Drive des photos envoyées, reprise par l'application en cas d'échec
   async function settle() {
     if (!plug()) return last;
-    let st; try { st = await plug().status(); } catch (e) { return last; }
+    let st; try { st = await Promise.race([plug().status(), new Promise((_, rej) => setTimeout(() => rej(new Error('status')), 15000))]); } catch (e) { return last; }
     const pend = new Set(st.pendingIds || []), done = st.done || [], ack = [];
     const byId = new Map(done.map(d => [d.id, d]));
     const mine = (await DB.all('files')).filter(f => f.bgq);
