@@ -1,3 +1,6 @@
+## SiteTeam : le plan s'ouvre de nouveau normalement
+- Retrait du bouton ◐ « Plan noir et blanc » (visionneuse et Avancement) et du choix de version à l'export : le PDF annoté et l'image du plan sortent toujours en couleurs d'origine. Ce réglage pouvait réduire la visionneuse à une petite case (seul l'en-tête restait visible) ou fermer l'application sur les grands plans A0.
+
 ## SiteTeam : bibliothèque métier unifiée et organigramme complet
 - Basic et Pro : une bibliothèque unique qui adapte automatiquement son contenu au pack, au service et aux droits de l'utilisateur.
 - Accès direct depuis les outils du projet et depuis Team Hub / Mon espace.

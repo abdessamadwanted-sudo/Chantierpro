@@ -1377,7 +1377,7 @@ try {
     await openAnomalies(p); await new Promise(r => setTimeout(r, 700)); const an = { page: !!document.querySelector('.an-page'), rows: document.querySelectorAll('.an-r').length, k: document.querySelectorAll('.an-k button').length };
     document.querySelectorAll('.fullpage').forEach(x => x.remove());
     await openDueTable(p); await new Promise(r => setTimeout(r, 400)); const due = !!document.querySelector('.due-page'); document.querySelectorAll('.fullpage').forEach(x => x.remove());
-    return { w, u, di: di && di.a.obj, n: di && di.n, al, an, due, bw: typeof PLAN_BW_FILTER === 'string' && typeof planVersionAsk === 'function', fns: [typeof avQtyDialog, typeof avCellDossier, typeof avGlobalPin].join() };
+    return { w, u, di: di && di.a.obj, n: di && di.n, al, an, due, bw: typeof PLAN_BW_FILTER === 'undefined' && typeof planBW === 'undefined' && !document.querySelector('[data-a=bw]'), fns: [typeof avQtyDialog, typeof avCellDossier, typeof avGlobalPin].join() };
   });
   log('v1.0.65 [% pondéré 25 / simple 50, échéance la plus urgente, tableau anomalies, tableau échéances, N&B, fonctions]', t65);
   if (t65.w !== 25 || t65.u !== 50 || t65.di !== 'Plan à recevoir' || t65.n !== 2 || t65.al !== 3 || !t65.an.page || t65.an.rows < 1 || t65.an.k !== 4 || !t65.due || !t65.bw || t65.fns !== 'function,function,function') v65.push('v1.0.65');

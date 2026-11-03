@@ -3598,8 +3598,6 @@ body:has(#phPill) .sync-pill.sync { display: none !important; }
 .stage { backface-visibility: hidden; }
 
 /* v1.0.65 : plan noir et blanc (affichage) — seuls le plan et son rendu net passent en gris ; dessins, pins, avancement gardent leurs couleurs */
-.pbw .stage > img, .pbw .stage canvas.hd, .pbw .lst > img, .pbw .av-stage > img { filter: grayscale(1) contrast(1.15) brightness(1.04); }
-.iconbtn.pbw-b { font-size: 20px; font-weight: 800; } .iconbtn.pbw-b.on { color: #facc15; }
 
 /* v1.0.65 : quantités (Global) */
 .avq-sum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 4px; }
