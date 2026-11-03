@@ -1,3 +1,7 @@
+## SiteTeam : Photos — un pin = un dossier
+- Photos : chaque pin photos est un seul dossier (à son nom, avec le niveau) ; ses dossiers (Nettoyage, Porte provisoire…) sont des sous-dossiers à l'intérieur — plus de groupes séparés.
+- « Sur le plan » : le plan s'ouvre zoomé avec un pin 3D rouge (bille et tige) planté à l'endroit exact.
+
 ## SiteTeam : le plan s'ouvre de nouveau normalement
 - Photos : « Toutes les photos » depuis un plan s'ouvre déjà filtrée sur ce lot et ce niveau — un niveau est reconnu quelle que soit son écriture (0-SSL / Sous-sol, 1-MEZZ / Mezzanine…) ; si le lot n'a aucune photo à ce niveau, un message clair et « Voir tous les niveaux ».
 - Photos : 📍 « Plan du niveau » (groupe ou photo ouverte) pour les photos sans pin (réception, bétonnage, anomalies…) : ouvre le plan du même niveau et du même lot ; les photos avec pin gardent le zoom sur l'endroit exact.

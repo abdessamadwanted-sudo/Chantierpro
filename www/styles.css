@@ -3665,3 +3665,9 @@ body:has(#phPill) .sync-pill.sync { display: none !important; }
 /* v1.0.71 : 📍 dans le tableau Réception / Bétonnage */
 table.rec td.el .rc-pin { border: 0; background: transparent; font-size: 15px; line-height: 1; padding: 2px 4px; margin-left: 6px; opacity: .45; border-radius: 6px; vertical-align: middle; }
 table.rec td.el .rc-pin.on { opacity: 1; background: rgba(220, 38, 38, .12); }
+
+/* v1.0.72 : un pin photos = un dossier, ses dossiers = sous-dossiers ; pin 3D sur le plan */
+.ph-sub { display: flex; align-items: center; gap: 6px; padding: 8px 12px 4px; font-size: 13px; color: var(--muted, #94a3b8); }
+.ph-sub b { color: var(--fg, inherit); font-weight: 700; }
+.ph-sub small { margin-left: auto; opacity: .8; }
+.focus-pin { pointer-events: none; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .35)); }
