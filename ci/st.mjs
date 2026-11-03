@@ -1332,7 +1332,7 @@ try {
     const pin = (await DB.byProject('links', p.id)).find(x => x.kind === 'photonote'); pin.folders.push({ id: 'f61', name: 'Porte provisoire', photos: [a1] }); await DB.put('links', pin);
     App.phF = null; App.section = 'photos'; await renderSection(); await new Promise(r => setTimeout(r, 900));
     const cats = [...document.querySelectorAll('.ph-cat')].map(x => x.firstChild.textContent.trim());
-    const subs = [...document.querySelectorAll('.ph-list .ph-g summary b')].map(x => x.textContent);
+    const subs = [...document.querySelectorAll('.ph-list .ph-g summary b, .ph-list .ph-sub b')].map(x => x.textContent);   // v1.0.72 : dossiers du pin = sous-dossiers
     const anomZ = [...document.querySelectorAll('.ph-g[data-gk="cat|Anomalies|Réception|R+1|Zone 4|Anomalie"] summary b')].map(x => x.textContent);
     const q = document.querySelector('[data-a=q]'); q.value = 'anomalie'; q.oninput(); await new Promise(r => setTimeout(r, 600));
     const afterQ = document.querySelectorAll('.ph-list .ph-g').length, scope = document.querySelector('.ph-scope').textContent;
