@@ -138,7 +138,12 @@ async function renderHome() {
   App.homeFocus = null;   // plus de page intermédiaire : la liste des chantiers, un toucher = on entre
   App.project = null;
   BackStack.length = 0;
-  const projects = (await DB.all('projects')).filter(p => Team.canProject(p.id)).sort((a, b) => b.updatedAt - a.updatedAt);
+  const allP = await DB.all('projects');
+  let projects = allP.filter(p => App.showAllP || Team.canProject(p.id)).sort((a, b) => b.updatedAt - a.updatedAt);
+  // v1.0.73 : projets sur le téléphone mais masqués par le contrôle d'accès (connexion / compte non confirmé) → jamais « disparus » sans explication
+  if (!projects.length && allP.length) { try { bootTrail(`projets masqués : ${allP.length} · équipe prête ${Team.ready()} · admin ${Team.isAdmin()}`); } catch (e) {}
+    setTimeout(async () => { if (App.project || App.showAllP) return; const v = await menu(`🔒 ${allP.length} projet(s) sont sur ce téléphone mais ne s'affichent pas\n(accès au compte non confirmé). Vos données sont intactes.`, [{ label: `Afficher mes ${allP.length} projet(s) quand même`, icon: 'eye', value: 'all' }, { label: 'Réessayer la connexion', icon: 'refresh', value: 'retry' }, { label: 'Envoyer le rapport (WhatsApp)', icon: 'share', value: 'diag' }, { label: 'Fermer', icon: 'check', value: 'x' }]);
+      if (v === 'all') { App.showAllP = true; renderHome(); } else if (v === 'retry') { try { await Team.boot(); } catch (e) {} renderHome(); } else if (v === 'diag') safeModeInfo(); }, 700); }
   const [allTasks, allRecs, allLinks, allForms] = await Promise.all([DB.all('tasks'), DB.all('receptions'), DB.all('links'), DB.all('forms').catch(() => [])]);
   const meUid = Team.ready() ? Team.uid() : '';
   const HB = homeBlocks(), fRec = featOn('reception') && (HB.has('rec') || HB.has('pv')), fTasks = featOn('tasks') && HB.has('res'), fAv = featOn('avancement') && HB.has('av'), fLots = HB.has('lots') && typeof lsState === 'function', fPvv = HB.has('pvv'), fRap = HB.has('rap');
