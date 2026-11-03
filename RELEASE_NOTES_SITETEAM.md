@@ -1,3 +1,10 @@
+## SiteTeam : le plan s'ouvre de nouveau normalement
+- Photos : « Toutes les photos » depuis un plan s'ouvre déjà filtrée sur ce lot et ce niveau — un niveau est reconnu quelle que soit son écriture (0-SSL / Sous-sol, 1-MEZZ / Mezzanine…) ; si le lot n'a aucune photo à ce niveau, un message clair et « Voir tous les niveaux ».
+- Photos : 📍 « Plan du niveau » (groupe ou photo ouverte) pour les photos sans pin (réception, bétonnage, anomalies…) : ouvre le plan du même niveau et du même lot ; les photos avec pin gardent le zoom sur l'endroit exact.
+- Réception / Bétonnage : 📍 directement sur chaque ligne du tableau — ouvre le plan du niveau de la ligne (direct s'il n'y en a qu'un), on touche la partie d'ouvrage pour placer le pin ; retouchez 📍 pour voir, déplacer ou retirer. Pin rouge ⚠️ = anomalie ouverte, vert ✅ = traitée ; mis à jour automatiquement avec la réserve levée / réparation.
+- Tableau des anomalies : action 📍 « Voir / Placer sur un plan » (réception, bétonnage, non-conformité ; réserve : ouvre le pin sur le plan). Les photos d'une ligne placée ouvrent le plan avec zoom exact sur son pin.
+- Retrait du bouton ◐ « Plan noir et blanc » (visionneuse et Avancement) et du choix de version à l'export : le PDF annoté et l'image du plan sortent toujours en couleurs d'origine. Ce réglage pouvait réduire la visionneuse à une petite case (seul l'en-tête restait visible) ou fermer l'application sur les grands plans A0.
+
 ## SiteTeam : bibliothèque métier unifiée et organigramme complet
 - Basic et Pro : une bibliothèque unique qui adapte automatiquement son contenu au pack, au service et aux droits de l'utilisateur.
 - Accès direct depuis les outils du projet et depuis Team Hub / Mon espace.

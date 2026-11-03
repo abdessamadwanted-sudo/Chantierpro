@@ -10,12 +10,12 @@ async function anCollect(p) {
   for (const d of recs) { const bet = d.type === 'Bétonnage';
     (d.rows || []).forEach((r, i) => { if (!r.element || !(r.status === 'reserve' || (r.anomIds || []).length)) return;
       const st = r.liftedAt ? 'traitee' : (r.retourIds || []).length ? 'cours' : 'ouverte';
-      R.push({ k: 'rec:' + d.id + ':' + (r.id || i), src: bet ? 'Bétonnage' : 'Réception', date: d.date, niv: r.niv || '', zone: r.zone ? 'Zone ' + r.zone : '', lot: 'Gros œuvre', el: r.element, desc: r.obs || '', ph: (r.anomIds || [])[0] || (r.photoIds || [])[0] || '', phT: (r.retourIds || [])[0] || '', st, doneAt: r.liftedAt || '', resp: r.avec || '', delay: days(d.date, r.liftedAt), ref: { rec: d.id, row: r.id || i } }); }); }
+      R.push({ k: 'rec:' + d.id + ':' + (r.id || i), src: bet ? 'Bétonnage' : 'Réception', date: d.date, niv: r.niv || '', zone: r.zone ? 'Zone ' + r.zone : '', lot: 'Gros œuvre', el: r.element, desc: r.obs || '', ph: (r.anomIds || [])[0] || (r.photoIds || [])[0] || '', phT: (r.retourIds || [])[0] || '', st, doneAt: r.liftedAt || '', resp: r.avec || '', delay: days(d.date, r.liftedAt), ref: { rec: d.id, row: r.id || i }, pin: !!r.pinId }); }); }
   for (const c of p.constats || []) (c.items || []).forEach((it, i) => { const st = it.done ? 'traitee' : (it.solution || '').trim() ? 'cours' : 'ouverte';
-    R.push({ k: 'nc:' + c.id + ':' + (it.id || i), src: 'Non-conformité', date: c.date, niv: it.niv || '', zone: it.loc || c.lieu || '', lot: c.lot || '', el: c.ref || 'Constat', desc: it.probleme || '', sol: it.solution || '', ph: (it.photoIds || [])[0] || '', phT: (it.retourIds || [])[0] || '', st, doneAt: it.doneAt || '', resp: c.entreprise || '', grav: it.gravite || '', delay: days(c.date, it.doneAt), ref: { nc: c.id, item: it.id || i } }); });
+    R.push({ k: 'nc:' + c.id + ':' + (it.id || i), src: 'Non-conformité', date: c.date, niv: it.niv || '', zone: it.loc || c.lieu || '', lot: c.lot || '', el: c.ref || 'Constat', desc: it.probleme || '', sol: it.solution || '', ph: (it.photoIds || [])[0] || '', phT: (it.retourIds || [])[0] || '', st, doneAt: it.doneAt || '', resp: c.entreprise || '', grav: it.gravite || '', delay: days(c.date, it.doneAt), ref: { nc: c.id, item: it.id || i }, pin: !!it.pinId }); });
   for (const t of tasks) { const l = t.localId && L.get(t.localId), lifted = typeof isLifted === 'function' ? isLifted(t) : t.status === 'done';
     const comp = typeof companyOf === 'function' ? companyOf(p, t.companyId) : null, d0 = t.date || (t.createdAt ? new Date(t.createdAt).toISOString().slice(0, 10) : '');
-    R.push({ k: 'res:' + t.id, src: 'Réserve', date: d0, niv: t.niv || (l ? nivN(l.nivId) : ''), zone: t.zone || (l ? l.zone || '' : ''), lot: t.lotName || (t.lot && typeof avLot === 'function' ? avLot(p, t.lot).name : '') || '', el: `#${t.num || ''} ${l ? l.name : ''}`.trim(), desc: t.title || '', ph: (t.photoIds || [])[0] || '', phT: (t.liftPhotoIds || [])[0] || '', st: lifted ? 'traitee' : t.status === 'progress' ? 'cours' : 'ouverte', doneAt: lifted ? (t.liftedAt || (t.updatedAt ? new Date(t.updatedAt).toISOString().slice(0, 10) : '')) : '', resp: comp ? comp.name : '', delay: days(d0, lifted ? (t.liftedAt || '') || today : ''), ref: { task: t.id } }); }
+    R.push({ k: 'res:' + t.id, src: 'Réserve', date: d0, niv: t.niv || (l ? nivN(l.nivId) : ''), zone: t.zone || (l ? l.zone || '' : ''), lot: t.lotName || (t.lot && typeof avLot === 'function' ? avLot(p, t.lot).name : '') || '', el: `#${t.num || ''} ${l ? l.name : ''}`.trim(), desc: t.title || '', ph: (t.photoIds || [])[0] || '', phT: (t.liftPhotoIds || [])[0] || '', st: lifted ? 'traitee' : t.status === 'progress' ? 'cours' : 'ouverte', doneAt: lifted ? (t.liftedAt || (t.updatedAt ? new Date(t.updatedAt).toISOString().slice(0, 10) : '')) : '', resp: comp ? comp.name : '', delay: days(d0, lifted ? (t.liftedAt || '') || today : ''), ref: { task: t.id }, pin: !!(t.planId && t.x != null) }); }
   return R.sort((a, b) => (a.st === 'traitee') - (b.st === 'traitee') || String(b.date).localeCompare(String(a.date)));
 }
 async function openAnomalies(p, pre = {}) {
@@ -37,7 +37,7 @@ async function openAnomalies(p, pre = {}) {
         <input class="due-q" type="search" placeholder="🔍 Élément, description, zone, entreprise…" value="${esc(F.q)}">
         <div class="avf-bar">${sel('niv', 'Niveau', uniq(r => r.niv))}${sel('zone', 'Zone', uniq(r => r.zone))}${sel('lot', 'Lot', uniq(r => r.lot))}${sel('src', 'Type', [...new Set(R.map(r => r.src))])}</div>
         <div class="an-l">${S.map(r => `<button class="an-r ${r.st}" data-k="${esc(r.k)}"><span class="an-ph"><img data-ph="${r.ph}" alt="">${r.phT ? `<img class="t" data-ph="${r.phT}" alt="">` : ''}</span>
-          <span class="grow"><b>${esc(r.el)}${r.desc ? ' — ' + esc(r.desc) : ''}</b><small>${esc(r.src)} · ${fmtDate(r.date)}${r.niv ? ' · ' + esc(r.niv) : ''}${r.zone ? ' · ' + esc(r.zone) : ''}${r.lot ? ' · ' + esc(r.lot) : ''}${r.resp ? ' · ' + esc(r.resp) : ''}</small>
+          <span class="grow"><b>${esc(r.el)}${r.desc ? ' — ' + esc(r.desc) : ''}</b><small>${r.pin ? '📍 ' : ''}${esc(r.src)} · ${fmtDate(r.date)}${r.niv ? ' · ' + esc(r.niv) : ''}${r.zone ? ' · ' + esc(r.zone) : ''}${r.lot ? ' · ' + esc(r.lot) : ''}${r.resp ? ' · ' + esc(r.resp) : ''}</small>
           <i class="an-st" style="--c:${AN_ST[r.st][2]}">${AN_ST[r.st][0]} ${AN_ST[r.st][1]}${r.st === 'traitee' ? ` le ${fmtDate(r.doneAt)} · ${r.delay} j` : ` · depuis ${r.delay} j`}</i></span></button>`).join('') || '<div class="empty">Aucune anomalie pour ce choix 👍</div>'}</div></div>`;
     $$('img[data-ph]', el).forEach(async im => { const u = await thumb(im.dataset.ph); if (u) im.src = u; else im.remove(); });
     $('[data-a=x]', el).onclick = close;
@@ -54,7 +54,7 @@ async function openAnomalies(p, pre = {}) {
 }
 async function anRow(p, r, refresh, closeAll) {
   if (!r) return;
-  const v = await menu(`${r.el}${r.desc ? ' — ' + r.desc.slice(0, 50) : ''}`, [{ label: 'Ouvrir la fiche', icon: 'eye', value: 'open' }, ...(r.ph || r.phT ? [{ label: 'Voir les photos', icon: 'image', value: 'ph' }] : []),
+  const v = await menu(`${r.el}${r.desc ? ' — ' + r.desc.slice(0, 50) : ''}`, [{ label: 'Ouvrir la fiche', icon: 'eye', value: 'open' }, ...(r.ph || r.phT ? [{ label: 'Voir les photos', icon: 'image', value: 'ph' }] : []), { label: r.pin ? '📍 Voir sur le plan' : '📍 Placer sur un plan', icon: 'pin', value: 'loc' },
     ...(r.st !== 'traitee' ? [{ label: '📷 Photo après traitement', icon: 'camera', value: 'phT' }, { label: '✓ Marquer traitée aujourd\'hui', icon: 'check', value: 'done' }] : [{ label: 'Rouvrir (pas traitée)', icon: 'undo', value: 'reopen' }])]);
   if (!v) return;
   if (v === 'open') { closeAll();
@@ -62,11 +62,12 @@ async function anRow(p, r, refresh, closeAll) {
     else if (r.ref.task) { const t = await DB.get('tasks', r.ref.task); if (t) openTaskDetail(t); }
     else { App.section = 'constat'; renderSection(); } return; }
   if (v === 'ph') { const L = []; for (const id of [r.ph, r.phT].filter(Boolean)) { const f = await DB.get('files', id); if (f) L.push({ src: BlobURL.get(f.id, f.blob), fileId: f.id, caption: id === r.phT ? 'Après traitement' : 'Anomalie' }); } return showGallery(L, 0); }
+  if (v === 'loc') return anLocate(p, r, refresh, closeAll);
   const now = todayISO();
   if (r.ref.rec) { const d = await DB.get('receptions', r.ref.rec); const row = d && (d.rows || []).find((x, i) => (x.id || i) === r.ref.row); if (!row) return toast('Ligne introuvable');
     if (v === 'phT') { const fs = await addPhotos(p.id, { source: `Traitement · ${row.element}` }); if (!fs.length) return; row.retourIds = [...(row.retourIds || []), ...fs.map(f => f.id)]; }
     if (v === 'done') row.liftedAt = now; if (v === 'reopen') row.liftedAt = null;
-    await DB.put('receptions', d); }
+    await DB.put('receptions', d); await recPinSync(row); }
   else if (r.ref.task) { const t = await DB.get('tasks', r.ref.task); if (!t) return;
     if (v === 'phT') { const fs = await addPhotos(p.id, { source: `Levée · #${t.num || ''}` }); if (!fs.length) return; t.liftPhotoIds = [...(t.liftPhotoIds || []), ...fs.map(f => f.id)]; t.photoIds = [...(t.photoIds || []), ...fs.map(f => f.id)]; if (t.status === 'open') t.status = 'progress'; }
     if (v === 'done') { t.status = 'done'; t.liftedAt = now; } if (v === 'reopen') { t.status = 'open'; t.liftedAt = null; }
@@ -74,8 +75,26 @@ async function anRow(p, r, refresh, closeAll) {
   else if (r.ref.nc) { const pr = await DB.get('projects', p.id), c = (pr.constats || []).find(x => x.id === r.ref.nc), it = c && (c.items || []).find((x, i) => (x.id || i) === r.ref.item); if (!it) return;
     if (v === 'phT') { const fs = await addPhotos(p.id, { source: `Traitement · ${c.ref || 'NC'}` }); if (!fs.length) return; it.retourIds = [...(it.retourIds || []), ...fs.map(f => f.id)]; }
     if (v === 'done') { it.done = true; it.doneAt = now; } if (v === 'reopen') { it.done = false; it.doneAt = null; }
-    await DB.put('projects', pr); Object.assign(p, pr); }
+    await DB.put('projects', pr); Object.assign(p, pr); if (it.pinId) { const L = await DB.get('links', it.pinId); if (L) { L.recLifted = !!it.done; await DB.put('links', L); } } }
   toast('✓ Enregistré'); refresh();
+}
+// v1.0.71 : 📍 de l'anomalie — voir / placer sur le plan du même niveau (réception, bétonnage, non-conformité) ou ouvrir la réserve
+async function anLocate(p, r, refresh, closeAll) {
+  if (r.ref.rec) { const d = await DB.get('receptions', r.ref.rec); const row = d && (d.rows || []).find((x, i) => (x.id || i) === r.ref.row); if (!row) return toast('Ligne introuvable');
+    closeAll(); return recPinFlow(d, row, typeof kindOf === 'function' ? kindOf(d) : d.type, { save: () => DB.put('receptions', d), refresh }); }
+  if (r.ref.task) { const t = await DB.get('tasks', r.ref.task); const pl = t && t.planId && t.x != null && await DB.get('plans', t.planId); if (!pl) return toast('Cette réserve n\'est pas placée sur un plan');
+    closeAll(); return openPlanViewer(pl, { ...(typeof planCtx === 'function' ? planCtx(() => {}) : {}), focus: { x: t.x, y: t.y } }); }
+  if (r.ref.nc) { const pr = await DB.get('projects', p.id), c = (pr.constats || []).find(x => x.id === r.ref.nc), it = c && (c.items || []).find((x, i) => (x.id || i) === r.ref.item); if (!it) return toast('Constat introuvable');
+    const L = it.pinId ? await DB.get('links', it.pinId) : null;
+    if (L) { const v = await menu(r.el, [{ label: 'Voir sur le plan', icon: 'plans', value: 'open' }, { label: 'Changer l\u2019emplacement', icon: 'pin', value: 'move' }, { label: 'Retirer du plan', icon: 'trash', danger: true, value: 'del' }]); if (!v) return;
+      if (v === 'del') { await DB.del('links', L.id); it.pinId = null; await DB.put('projects', pr); Object.assign(p, pr); return refresh(); }
+      if (v === 'open') { const pl = await DB.get('plans', L.planId); if (!pl) return toast('Plan supprimé'); closeAll(); return openPlanViewer(pl, { ...(typeof planCtx === 'function' ? planCtx(() => {}) : {}), focus: { x: L.x, y: L.y } }); } }
+    const pl = await pickPlanFor(p.id, it.niv || r.niv); if (!pl) return; closeAll(); toast('📍 Touchez le plan à l\u2019endroit de la non-conformité');
+    return openPlanViewer(pl, { ...(typeof planCtx === 'function' ? planCtx(() => {}) : {}), place: { label: r.el, onPlace: async (x, y, plan) => {
+      if (L) await DB.del('links', L.id);
+      const nl = await DB.put('links', { projectId: p.id, planId: plan.id, kind: 'recpin', shape: 'point', x, y, name: String(r.el).slice(0, 60), ncRef: { c: c.id, item: it.id || null }, recKind: 'Non-conformité', recLifted: !!it.done, niv: it.niv || '', items: [] });
+      const pr2 = await DB.get('projects', p.id), c2 = (pr2.constats || []).find(x => x.id === c.id), it2 = c2 && (c2.items || []).find((y, i) => (y.id || i) === r.ref.item); if (it2) { it2.pinId = nl.id; await DB.put('projects', pr2); Object.assign(p, pr2); }
+      toast('📍 Placé sur le plan ✓'); } } }); }
 }
 async function anPdf(p, S, scope) {
   if (!window.jspdf && window.__late) await window.__late; if (!window.jspdf) return toast('Module PDF indisponible');

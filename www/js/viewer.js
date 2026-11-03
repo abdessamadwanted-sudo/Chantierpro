@@ -34,19 +34,6 @@ function cloudPath(x1, y1, x2, y2, bump) {
   return d + 'Z';
 }
 
-// ================= v1.0.65 : plan en noir et blanc (affichage + export) — les dessins et couleurs d'avancement ressortent =================
-const PLAN_BW_FILTER = 'grayscale(1) contrast(1.15) brightness(1.04)';
-const planBW = () => { try { return localStorage.getItem('plan.bw') === '1'; } catch (e) { return false; } };
-function planBWBind(el) {
-  const apply = () => { el.classList.toggle('pbw', planBW()); const b = $('[data-a=bw]', el); if (b) b.classList.toggle('on', planBW()); };
-  const b = $('[data-a=bw]', el); if (b) b.onclick = () => { try { localStorage.setItem('plan.bw', planBW() ? '0' : '1'); } catch (e) {} apply(); toast(planBW() ? '◐ Plan en noir et blanc' : '🎨 Plan en couleurs d\'origine'); };
-  apply();
-}
-// version du plan à envoyer : [false] couleurs, [true] noir et blanc, [false, true] les deux
-async function planVersionAsk() {
-  const v = await menu('Quelle version du plan ?', [{ label: '🎨 Couleurs d\'origine + dessins', value: 'c', checked: !planBW() }, { label: '◐ Noir et blanc + dessins (les couleurs ressortent)', value: 'b', checked: planBW() }, { label: '📎 Les deux (2 fichiers)', value: 'cb' }]);
-  return v === 'c' ? [false] : v === 'b' ? [true] : v === 'cb' ? [false, true] : null;
-}
 function annotSVG(a) {
   const sw = a.sw;
   const common = `stroke="${a.color}" stroke-width="${sw}" fill="none" stroke-linecap="round" stroke-linejoin="round"`;
@@ -144,7 +131,6 @@ async function openPlanViewer(plan, ctx) {
     <div class="topbar">
       <button class="iconbtn" data-a="back">${icon('back')}</button>
       <h1>${esc(plan.name)}${plan.supersededBy ? ' <span class="ind-tag old">ancien</span>' : ''}</h1>
-      <button class="iconbtn pbw-b" data-a="bw" title="Plan noir et blanc">◐</button>
       <button class="iconbtn" data-a="filters">${icon('eye')}</button>
       <button class="iconbtn" data-a="more">${icon('more')}</button>
     </div>
@@ -168,7 +154,7 @@ async function openPlanViewer(plan, ctx) {
   const teardown = () => { closed = true; try { typeof bootTrail === 'function' && bootTrail('plan fermé'); } catch (e) {} window.removeEventListener('resize', onResize); cleanups.forEach(f => { try { f(); } catch (e) {} }); el.querySelectorAll('img').forEach(im => { try { im.removeAttribute('src'); } catch (e) {} }); el.remove(); ctx.onClose && ctx.onClose(); };
   const close = () => { unBack(); teardown(); };
   const unBack = pushBack(teardown);
-  $('[data-a=back]', el).onclick = close; planBWBind(el);
+  $('[data-a=back]', el).onclick = close;
   if (!ctx.place && typeof planIndiceBar === 'function') planIndiceBar(el, plan, ctx, close).catch(() => {});
   // mode « placer un ouvrage » : un appui sur le plan donne l'emplacement
   if (ctx.place) { const pb = document.createElement('div'); pb.className = 'place-ban'; pb.innerHTML = `<span>📍 Touchez l\u2019emplacement de <b>${esc(ctx.place.label)}</b></span><button>Annuler</button>`; el.appendChild(pb); pb.querySelector('button').onclick = close; }
@@ -938,6 +924,7 @@ async function openPlanViewer(plan, ctx) {
     }
     const hit = aimed ? null : hitMarker(x, y);
     if (hit && hit.kind === 'recpin' && st.tool !== 'select') {
+      if (hit.obj.ncRef) { if (typeof openAnomalies === 'function') openAnomalies(App.project, {}); return; }
       const d = await DB.get('receptions', hit.obj.recDay);
       if (!d) return toast('Ce tableau a été supprimé');
       await openReceptionDay(d, { focus: hit.obj.recRow }); await reloadData(); return;
@@ -1093,7 +1080,9 @@ const PIN_EMOJIS = ['📐', '🔩', '✂️', '📷', '📄', '📝', '🧊', '�
 const PIN_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#7c3aed', '#ea580c', '#0891b2', '#ca8a04', '#db2777', '#475569', '#0f766e', '#1e3a8a', '#111827'];
 function pinLook(l) {
   if (l.kind === 'plansbox') return { e: l.emoji || '📚', c: l.pinColor || '#1e3a8a' };
-  if (l.kind === 'recpin') return { e: l.recKind === 'Bétonnage' ? '🧱' : '🔩', c: ({ ok: '#16a34a', reserve: '#f59e0b', pending: '#64748b', progress: '#2563eb' })[l.recStatus] || '#64748b' };
+  if (l.kind === 'recpin') { if (l.recKind === 'Non-conformité') return l.recLifted ? { e: '✅', c: '#16a34a' } : { e: '⚠️', c: '#dc2626' };
+    if (l.recStatus === 'reserve') return l.recLifted ? { e: '✅', c: '#16a34a' } : { e: '⚠️', c: '#dc2626' };   // v1.0.71 : rouge = anomalie ouverte, vert = traitée
+    return { e: l.recKind === 'Bétonnage' ? '🧱' : '🔩', c: ({ ok: '#16a34a', pending: '#64748b', progress: '#2563eb' })[l.recStatus] || '#64748b' }; }
   if (l.kind === 'photonote') return l.state === 'done' ? { e: '✅', c: '#16a34a' } : { e: l.emoji || '📷', c: l.pinColor || '#0d9488' };
   if (l.emoji) return { e: l.emoji, c: l.pinColor || l.color || '#2563eb' };
   const cats = [...new Set((l.items || []).map(i => i.kind === 'url' && !LINK_CATS.some(c => c.key === i.cat) ? 'url' : i.cat))];
@@ -1145,9 +1134,9 @@ function annotPdfDraw(pg, a, ox, oy, s, font) {
     case 'text': { const t = String(a.text || '').replace(/[^\x20-\xFF]/g, ''); if (t && font) pg.drawText(t, { x: ox + p[0] * s, y: oy - p[1] * s, size: (a.fs || 24) * s, font, color: col }); return; }
   }
 }
-async function annotatedPlanPdf(plan, tasks, links, fmt, { bw } = {}) {
+async function annotatedPlanPdf(plan, tasks, links, fmt) {
   // 1) plan PDF d'origine : la page reste vectorielle, les dessins sont écrits en vectoriel par-dessus (nets au zoom, sur WhatsApp aussi)
-  if (plan.pdfFileId && !bw) {
+  if (plan.pdfFileId) {
     const f = await DB.get('files', plan.pdfFileId);
     if (f && f.blob) { try {
       await needPdfLib();
@@ -1170,13 +1159,8 @@ async function annotatedPlanPdf(plan, tasks, links, fmt, { bw } = {}) {
   }
   // 2) DWG / DXF / image : rendu haute définition + annotations, mis en page sur le format choisi
   let base;
-  if (plan.dwgFileId || plan.dxfFileId) { const D = await cadOfPlan(plan); base = cadRaster(D, bw ? 5000 : 7000, { hidden: plan.hiddenLayers || [] }).canvas; }
-  else if (bw && plan.pdfFileId && await pdfReadyA()) {   // v1.0.65 : page PDF rendue nette (≈ 4200 px) pour la version noir et blanc
-    const f = await DB.get('files', plan.pdfFileId), doc = await pdfjsLib.getDocument({ data: new Uint8Array(await f.blob.arrayBuffer()) }).promise, page = await doc.getPage(plan.pdfPage || 1), v1 = page.getViewport({ scale: 1 });
-    const vp = page.getViewport({ scale: 4200 / Math.max(v1.width, v1.height) }); base = document.createElement('canvas'); base.width = Math.round(vp.width); base.height = Math.round(vp.height);
-    await page.render({ canvasContext: base.getContext('2d'), viewport: vp, background: 'white' }).promise; try { doc.destroy(); } catch (e) {}
-  } else { const f = await DB.get('files', plan.fileId); base = document.createElement('canvas'); const im = await loadImage(BlobURL.get(f.id, f.blob)); base.width = im.naturalWidth; base.height = im.naturalHeight; base.getContext('2d').drawImage(im, 0, 0); }
-  if (bw) { const c2 = document.createElement('canvas'); c2.width = base.width; c2.height = base.height; const g2 = c2.getContext('2d'); g2.fillStyle = '#fff'; g2.fillRect(0, 0, c2.width, c2.height); g2.filter = PLAN_BW_FILTER; g2.drawImage(base, 0, 0); g2.filter = 'none'; base.width = base.height = 0; base = c2; }
+  if (plan.dwgFileId || plan.dxfFileId) { const D = await cadOfPlan(plan); base = cadRaster(D, 7000, { hidden: plan.hiddenLayers || [] }).canvas; }
+  else { const f = await DB.get('files', plan.fileId); base = document.createElement('canvas'); const im = await loadImage(BlobURL.get(f.id, f.blob)); base.width = im.naturalWidth; base.height = im.naturalHeight; base.getContext('2d').drawImage(im, 0, 0); }
   const ov = await planOverlayCanvas(plan, tasks, links, base.width); base.getContext('2d').drawImage(ov, 0, 0, base.width, base.height);
   const { jsPDF } = window.jspdf; let [PW, PH] = PAPER[fmt] || PAPER.A3; const land = base.width >= base.height; if (!land) [PW, PH] = [PH, PW];
   const doc = new jsPDF({ orientation: land ? 'l' : 'p', unit: 'mm', format: [PW, PH], compress: true });
@@ -1204,11 +1188,9 @@ async function sharePlanMenu(plan, { tasks = [], links = [] } = {}) {
   if (v === 'dxf') return exportDxfOfPlan(plan);
   if (v === 'plot') return plotPlan(plan);
   if (typeof Team !== 'undefined' && Team.featGate && !(await Team.featGate('plansend'))) return;   // v1.0.57 : fonction premium
-  const ver = await planVersionAsk(); if (!ver) return;
-  const fmt = plan.pdfFileId && !ver.includes(true) ? 'A3' : await menu('Format du PDF annoté', ['A0', 'A1', 'A2', 'A3', 'A4'].map(x => ({ label: x, value: x, checked: x === 'A3' })));
+  const fmt = plan.pdfFileId ? 'A3' : await menu('Format du PDF annoté', ['A0', 'A1', 'A2', 'A3', 'A4'].map(x => ({ label: x, value: x, checked: x === 'A3' })));
   if (!fmt) return;
   const ld = loading('Création du PDF annoté…');
-  try { const L = []; for (const bw of ver) L.push({ b: await annotatedPlanPdf(plan, tasks, links, fmt, { bw }), n: nm + (bw ? '_annote_NB' : '_annote') + '.pdf' }); ld.close();
-    if (L.length > 1 && typeof shareBlobs === 'function') await shareBlobs(L); else await shareBlob(L[0].b, L[0].n); }
+  try { const b = await annotatedPlanPdf(plan, tasks, links, fmt); ld.close(); await shareBlob(b, nm + '_annote.pdf'); }
   catch (e) { ld.close(); console.error(e); alertBox('Erreur : ' + (e.message || e)); }
 }

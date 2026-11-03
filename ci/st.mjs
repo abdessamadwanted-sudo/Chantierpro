@@ -1377,7 +1377,7 @@ try {
     await openAnomalies(p); await new Promise(r => setTimeout(r, 700)); const an = { page: !!document.querySelector('.an-page'), rows: document.querySelectorAll('.an-r').length, k: document.querySelectorAll('.an-k button').length };
     document.querySelectorAll('.fullpage').forEach(x => x.remove());
     await openDueTable(p); await new Promise(r => setTimeout(r, 400)); const due = !!document.querySelector('.due-page'); document.querySelectorAll('.fullpage').forEach(x => x.remove());
-    return { w, u, di: di && di.a.obj, n: di && di.n, al, an, due, bw: typeof PLAN_BW_FILTER === 'string' && typeof planVersionAsk === 'function', fns: [typeof avQtyDialog, typeof avCellDossier, typeof avGlobalPin].join() };
+    return { w, u, di: di && di.a.obj, n: di && di.n, al, an, due, bw: typeof PLAN_BW_FILTER === 'undefined' && typeof planBW === 'undefined' && !document.querySelector('[data-a=bw]'), fns: [typeof avQtyDialog, typeof avCellDossier, typeof avGlobalPin].join() };
   });
   log('v1.0.65 [% pondéré 25 / simple 50, échéance la plus urgente, tableau anomalies, tableau échéances, N&B, fonctions]', t65);
   if (t65.w !== 25 || t65.u !== 50 || t65.di !== 'Plan à recevoir' || t65.n !== 2 || t65.al !== 3 || !t65.an.page || t65.an.rows < 1 || t65.an.k !== 4 || !t65.due || !t65.bw || t65.fns !== 'function,function,function') v65.push('v1.0.65');
@@ -1388,6 +1388,10 @@ try {
   const t67 = await A.pg.evaluate(async () => { const p = App.project, c = dueNCfg(p); return { c: [c.on, c.time, c.before, c.late].join(), s: await dueSchedule(p), id: dueNId('x') > 1.6e9 && dueNId('x') < 2147483647, th: typeof lazyThumbs }; });
   log('v1.0.67 [notifications : réglages par défaut, sans plugin → 0, id valide, miniatures légères]', t67); log('errors v1.0.67', (t67.c !== 'true,08:00,1,true' || t67.s !== 0 || !t67.id || t67.th !== 'function') ? ['v1.0.67'] : []);
   log('errors v1.0.66', t66.gros && t66.fn === 'function' ? [] : ['v1.0.66']);
+  const t71 = await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.phF = { niv: '1-MEZZ', cat: 'Local technique', z: '', dos: '', st: '', src: '', per: '', q: '', mode: 'cat' }; App.section = 'photos'; await renderSection(); await new Promise(r => setTimeout(r, 700));
+    return { same: [phNK('0-SSL') === phNK('Sous-sol'), phNK('1-MEZZ') === phNK('Mezzanine'), phNK('R+1') === phNK('1-R+1'), phNK('R+1') !== phNK('R+2')].join(), fn: typeof phNivPlan, page: !!document.querySelector('.ph-search'), bw: typeof planBW, bwb: !!document.querySelector('[data-a=bw]'), viewers: document.querySelectorAll('.viewer, .fullpage').length, pins: [typeof recPinFlow, typeof recPinSync, typeof anLocate, pinLook({ kind: 'recpin', recStatus: 'reserve' }).c, pinLook({ kind: 'recpin', recStatus: 'reserve', recLifted: true }).c, pinLook({ kind: 'recpin', recKind: 'Non-conformité' }).c].join() }; });
+  log('v1.0.71 [niveau reconnu quelle que soit l\'écriture, 📍 plan du niveau, ◐ retiré, filtre lot + niveau]', t71);
+  log('errors v1.0.71', (t71.same !== 'true,true,true,true' || t71.fn !== 'function' || t71.pins !== 'function,function,function,#dc2626,#16a34a,#dc2626' || !t71.page || t71.bw !== 'undefined' || t71.bwb) ? ['v1.0.71'] : []);
   // ---- v1.0.45 : bibliothèque unifiée Basic / Pro + organigramme global / par service
   const v45lib = [];
   const lib45 = await A.pg.evaluate(() => {

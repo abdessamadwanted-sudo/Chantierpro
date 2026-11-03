@@ -3598,8 +3598,6 @@ body:has(#phPill) .sync-pill.sync { display: none !important; }
 .stage { backface-visibility: hidden; }
 
 /* v1.0.65 : plan noir et blanc (affichage) — seuls le plan et son rendu net passent en gris ; dessins, pins, avancement gardent leurs couleurs */
-.pbw .stage > img, .pbw .stage canvas.hd, .pbw .lst > img, .pbw .av-stage > img { filter: grayscale(1) contrast(1.15) brightness(1.04); }
-.iconbtn.pbw-b { font-size: 20px; font-weight: 800; } .iconbtn.pbw-b.on { color: #facc15; }
 
 /* v1.0.65 : quantités (Global) */
 .avq-sum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 4px; }
@@ -3663,3 +3661,7 @@ body:has(#phPill) .sync-pill.sync { display: none !important; }
 .pnl-it { display: inline-flex; flex: none; gap: 3px; align-items: stretch; }
 .pnl-l .pnl-loc { display: grid; place-items: center; padding: 0 10px !important; font-size: 17px; }
 .ph-loc { color: #ca8a04 !important; }
+
+/* v1.0.71 : 📍 dans le tableau Réception / Bétonnage */
+table.rec td.el .rc-pin { border: 0; background: transparent; font-size: 15px; line-height: 1; padding: 2px 4px; margin-left: 6px; opacity: .45; border-radius: 6px; vertical-align: middle; }
+table.rec td.el .rc-pin.on { opacity: 1; background: rgba(220, 38, 38, .12); }
