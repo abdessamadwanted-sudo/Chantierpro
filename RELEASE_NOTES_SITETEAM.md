@@ -1,5 +1,6 @@
 ## SiteTeam : Photos — un pin = un dossier
 - Photos : chaque pin photos est un seul dossier (à son nom, avec le niveau) ; ses dossiers (Nettoyage, Porte provisoire…) sont des sous-dossiers à l'intérieur — plus de groupes séparés.
+- Réception / Bétonnage : le bouton 📍 « Placer cet ouvrage sur le plan » est maintenant sous le champ Élément, y compris dans « Nouvelle ligne » (la ligne est enregistrée puis le plan s'ouvre).
 - « Sur le plan » : le plan s'ouvre zoomé avec un pin 3D rouge (bille et tige) planté à l'endroit exact.
 
 ## SiteTeam : le plan s'ouvre de nouveau normalement
