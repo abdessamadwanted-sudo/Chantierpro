@@ -1,3 +1,6 @@
+## SiteTeam : projets jamais « disparus » sans explication
+- Si des projets sont sur le téléphone mais masqués par le contrôle d'accès (compte / connexion non confirmés), l'application le dit : « N projet(s) sont sur ce téléphone », avec « Afficher mes projets quand même », « Réessayer la connexion » et l'envoi du rapport (la cause est notée dans le journal de démarrage).
+
 ## SiteTeam : Photos — un pin = un dossier
 - Photos : chaque pin photos est un seul dossier (à son nom, avec le niveau) ; ses dossiers (Nettoyage, Porte provisoire…) sont des sous-dossiers à l'intérieur — plus de groupes séparés.
 - Réception / Bétonnage : le bouton 📍 « Placer cet ouvrage sur le plan » est maintenant sous le champ Élément, y compris dans « Nouvelle ligne » (la ligne est enregistrée puis le plan s'ouvre).
