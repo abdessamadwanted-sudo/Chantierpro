@@ -576,6 +576,7 @@ ${isBeton(K) ? '' : `<td class="c">${esc(r.avec || '')}</td>`}
             <label>Niveau<input name="niv" list="dl-niv" value="${esc(r.niv)}" placeholder="R+5"></label></div>
           <datalist id="dl-niv">${NIVEAUX.map(n => `<option value="${n}">`).join('')}</datalist>
           <label>Élément<input name="element" value="${esc(r.element)}" placeholder="Ex : Voile CR 77 Axe D2"></label>
+          <button type="button" class="btn ghost small rc-place" data-a="place">📍 ${r.pinId ? 'Voir sur le plan / déplacer' : 'Placer cet ouvrage sur le plan'}</button>
           <div class="fld">Indice coffrage<div class="ind-dt"><input name="indCof" value="${esc(r.indCof || '')}" placeholder="P1" maxlength="8"><input name="indCofD" type="date" value="${esc(r.indCofD || '')}"></div></div>
           <div class="fld">Indice ferraillage<div class="ind-dt"><input name="indFer" value="${esc(r.indFer || '')}" placeholder="P1" maxlength="8"><input name="indFerD" type="date" value="${esc(r.indFerD || '')}"></div></div>
           ${isBeton(K) ? `<label>Classe béton<input name="classe" list="dl-classe" value="${esc(r.classe || '')}" placeholder="Ex : B30"></label><datalist id="dl-classe">${CLASSES.map(c => `<option value="${c}">`).join('')}</datalist>
@@ -590,7 +591,6 @@ ${isBeton(K) ? '' : `<td class="c">${esc(r.avec || '')}</td>`}
             ${fold('anomIds', `⚠️ ${isBeton(K) ? 'Défauts' : 'Anomalies'}`, anoms)}
             ${fold('retourIds', `✅ ${isBeton(K) ? 'Réparation des défauts' : 'Réparation des anomalies'}`, retours, r.status === 'reserve' || anoms.length || r.liftedAt ? `<button type="button" class="btn ${r.liftedAt ? 'ghost' : ''} small" data-a="lift" style="align-self:flex-start;margin-top:8px">${icon('check')} ${r.liftedAt ? `${isBeton(K) ? 'Réparé' : 'Réserve levée'} le ${recDateLabel(r.liftedAt)} (annuler)` : (isBeton(K) ? 'Marquer comme réparé' : 'Marquer la réserve comme levée')}</button>` : '')}
           </div>
-          ${!isNew ? `<button type="button" class="btn ghost small bon-btn" data-a="place">📍 ${r.pinId ? 'Voir sur le plan / déplacer' : 'Placer sur un plan'}</button>` : ''}
           ${!isNew ? `<button type="button" class="btn ghost small bon-btn" data-a="bon">📝 ${r.bon ? 'Bon de bétonnage (voir / modifier)' : 'Bon de bétonnage'}</button>` : ''}
           ${!isNew && !isBeton(K) ? `<button type="button" class="btn ghost small cp-btn" data-a="cpb">${icon('calendar')} Copier vers le programme de bétonnage</button>` : ''}
           ${[...photos, ...anoms, ...retours].some(x => x.blob) && !isNew ? `<button type="button" class="btn ghost small fr-btn" data-a="free">☁ Libérer ${[...photos, ...anoms, ...retours].filter(x => x.blob).length} photo(s) du téléphone</button>` : ''}${[...photos, ...anoms, ...retours].some(x => !x.blob && x.freed) ? `<div class="fr-mini">☁ ${[...photos, ...anoms, ...retours].filter(x => !x.blob && x.freed).length} photo(s) uniquement dans Drive</div>` : ''}

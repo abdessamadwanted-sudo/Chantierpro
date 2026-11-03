@@ -1062,6 +1062,9 @@ async function openPlanViewer(plan, ctx) {
     // v1.0.66 : ouvert « sur le plan » depuis une photo / un pin : zoom sur l'endroit exact, avec un cercle qui clignote
     if (ctx.focus && ctx.focus.x != null) { const vw = viewer.clientWidth, vh = viewer.clientHeight; st.scale = Math.min(st.fitScale * 40, Math.max(st.fitScale * 5, Math.min(vw, vh) / (Math.max(W, H) / 12)));
       st.tx = vw / 2 - ctx.focus.x * st.scale; st.ty = vh / 2 - ctx.focus.y * st.scale; applyT();
+      { const NS = 'http://www.w3.org/2000/svg', k = 1 / st.scale, gp = document.createElementNS(NS, 'g'); gp.setAttribute('class', 'focus-pin'); gp.setAttribute('transform', `translate(${ctx.focus.x} ${ctx.focus.y}) scale(${k})`);   // v1.0.72 : pin 3D rouge à l'endroit exact (bille + tige)
+        gp.innerHTML = '<defs><radialGradient id="fpg" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#ff8a8a"/><stop offset=".45" stop-color="#e11d2e"/><stop offset="1" stop-color="#7f0f1a"/></radialGradient><linearGradient id="fps" x1="0" x2="1"><stop offset="0" stop-color="#e5e7eb"/><stop offset=".5" stop-color="#9ca3af"/><stop offset="1" stop-color="#4b5563"/></linearGradient></defs><ellipse cx="2" cy="1" rx="9" ry="3.5" fill="rgba(0,0,0,.35)"/><rect x="-2.6" y="-40" width="5.2" height="40" rx="2.4" fill="url(#fps)"/><circle cx="0" cy="-52" r="17" fill="url(#fpg)" stroke="rgba(0,0,0,.35)" stroke-width="1"/><ellipse cx="-6" cy="-58" rx="5.5" ry="4" fill="rgba(255,255,255,.65)"/>';
+        $('.ov', el).appendChild(gp); }
       const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle'); ring.setAttribute('cx', ctx.focus.x); ring.setAttribute('cy', ctx.focus.y); ring.setAttribute('r', 60 / st.scale); ring.setAttribute('fill', 'none'); ring.setAttribute('stroke', '#facc15'); ring.setAttribute('stroke-width', 6 / st.scale); ring.setAttribute('class', 'focus-ring');
       $('.ov', el).appendChild(ring); setTimeout(() => ring.remove(), 4200); }
   });

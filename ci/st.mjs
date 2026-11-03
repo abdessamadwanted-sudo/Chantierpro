@@ -1332,7 +1332,7 @@ try {
     const pin = (await DB.byProject('links', p.id)).find(x => x.kind === 'photonote'); pin.folders.push({ id: 'f61', name: 'Porte provisoire', photos: [a1] }); await DB.put('links', pin);
     App.phF = null; App.section = 'photos'; await renderSection(); await new Promise(r => setTimeout(r, 900));
     const cats = [...document.querySelectorAll('.ph-cat')].map(x => x.firstChild.textContent.trim());
-    const subs = [...document.querySelectorAll('.ph-list .ph-g summary b')].map(x => x.textContent);
+    const subs = [...document.querySelectorAll('.ph-list .ph-g summary b, .ph-list .ph-sub b')].map(x => x.textContent);   // v1.0.72 : dossiers du pin = sous-dossiers
     const anomZ = [...document.querySelectorAll('.ph-g[data-gk="cat|Anomalies|Réception|R+1|Zone 4|Anomalie"] summary b')].map(x => x.textContent);
     const q = document.querySelector('[data-a=q]'); q.value = 'anomalie'; q.oninput(); await new Promise(r => setTimeout(r, 600));
     const afterQ = document.querySelectorAll('.ph-list .ph-g').length, scope = document.querySelector('.ph-scope').textContent;
@@ -1391,6 +1391,8 @@ try {
   const t71 = await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.phF = { niv: '1-MEZZ', cat: 'Local technique', z: '', dos: '', st: '', src: '', per: '', q: '', mode: 'cat' }; App.section = 'photos'; await renderSection(); await new Promise(r => setTimeout(r, 700));
     return { same: [phNK('0-SSL') === phNK('Sous-sol'), phNK('1-MEZZ') === phNK('Mezzanine'), phNK('R+1') === phNK('1-R+1'), phNK('R+1') !== phNK('R+2')].join(), fn: typeof phNivPlan, page: !!document.querySelector('.ph-search'), bw: typeof planBW, bwb: !!document.querySelector('[data-a=bw]'), viewers: document.querySelectorAll('.viewer, .fullpage').length, pins: [typeof recPinFlow, typeof recPinSync, typeof anLocate, pinLook({ kind: 'recpin', recStatus: 'reserve' }).c, pinLook({ kind: 'recpin', recStatus: 'reserve', recLifted: true }).c, pinLook({ kind: 'recpin', recKind: 'Non-conformité' }).c].join() }; });
   log('v1.0.71 [niveau reconnu quelle que soit l\'écriture, 📍 plan du niveau, ◐ retiré, filtre lot + niveau]', t71);
+  const t72 = await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.phF = null; App.section = 'photos'; await renderSection(); await new Promise(r => setTimeout(r, 700)); const css = [...document.styleSheets].some(ss => { try { return [...ss.cssRules].some(r => /\.ph-sub/.test(r.selectorText || '')); } catch (e) { return false; } }); return { page: !!document.querySelector('.ph-search'), css }; });
+  log('v1.0.72 [pin photos = un dossier + sous-dossiers, pin 3D]', t72); log('errors v1.0.72', t72.page && t72.css ? [] : ['v1.0.72']);
   log('errors v1.0.71', (t71.same !== 'true,true,true,true' || t71.fn !== 'function' || t71.pins !== 'function,function,function,#dc2626,#16a34a,#dc2626' || !t71.page || t71.bw !== 'undefined' || t71.bwb) ? ['v1.0.71'] : []);
   // ---- v1.0.45 : bibliothèque unifiée Basic / Pro + organigramme global / par service
   const v45lib = [];
