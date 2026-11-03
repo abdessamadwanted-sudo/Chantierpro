@@ -748,7 +748,7 @@ async function phIndex(p) {
     else for (const id of l.photos || []) put(id, { k: 'pin', cat: 'Plans', niv: '', nr: 99, z: '', label: l.name || 'Élément du plan', sub: 'Plan', go: { link: l.id } });
   }
   for (const d of recs) { const bet = d.type === 'Bétonnage', tp = bet ? 'Bétonnage' : 'Réception';
-    for (const r of d.rows || []) { const base = { niv: r.niv || '', nr: avNivRank(r.niv), z: zz(r.zone), label: `${r.niv ? r.niv + ' · ' : ''}${r.element || 'Ouvrage'}`, go: { rec: d.id }, day: d.date };
+    for (const r of d.rows || []) { const base = { niv: r.niv || '', nr: avNivRank(r.niv), z: zz(r.zone), label: `${r.niv ? r.niv + ' · ' : ''}${r.element || 'Ouvrage'}`, go: { rec: d.id }, day: d.date, ...(r.pinId ? { loc: { lk: r.pinId } } : {}) };
       for (const id of r.photoIds || []) put(id, { ...base, k: bet ? 'bet' : 'rec', cat: tp, st: 'Photos ouvrage', sub: `${tp} · ${fmtDate(d.date)}` });
       for (const id of r.anomIds || []) put(id, { ...base, k: 'anom', top: 'Anomalies', cat: tp, st: 'Anomalie', sub: `Anomalie · ${tp} · ${fmtDate(d.date)}` });
       for (const id of r.retourIds || []) put(id, { ...base, k: 'ret', top: 'Anomalies', cat: tp, st: 'Traitée', sub: `Traitée (retour) · ${tp} · ${fmtDate(d.date)}` }); }
@@ -765,6 +765,9 @@ async function phIndex(p) {
 async function phLocate(loc, back) {
   if (!loc) return;
   if (loc.pn) { const l = await DB.get('links', loc.pn); const pl = l && l.planId && await DB.get('plans', l.planId); if (!pl) return toast('Plan introuvable');
+    const [x, y] = l.shape === 'zone' ? [l.x + l.w / 2, l.y + l.h / 2] : [l.x, l.y];
+    return openPlanViewer(pl, { ...(typeof planCtx === 'function' ? planCtx(() => back && back()) : {}), focus: { x, y } }); }
+  if (loc.lk) { const l = await DB.get('links', loc.lk); const pl = l && l.planId && await DB.get('plans', l.planId); if (!pl) return toast('Pin introuvable');   // v1.0.71 : pin d'ouvrage (réception, bétonnage, anomalie)
     const [x, y] = l.shape === 'zone' ? [l.x + l.w / 2, l.y + l.h / 2] : [l.x, l.y];
     return openPlanViewer(pl, { ...(typeof planCtx === 'function' ? planCtx(() => back && back()) : {}), focus: { x, y } }); }
   if (loc.pin) { const l = await DB.get('links', loc.pin); if (!l) return; if (l.global || l.x == null) return toast('Quantité globale : pas d\'endroit précis sur le plan'); return openAvViewer(l.nivId, null, () => back && back(), l.id); }
@@ -838,7 +841,7 @@ async function renderPhotosV2(root) {
       if (!G.has(key)) G.set(key, F.mode === 'cat' ? { key, ico: g.top ? '📁' : (PH_ICO[g.k] || '📷'), title: g.top || g.cat, dos: g.top ? g.cat : '', sub: [g.top ? g.cat : '', g.niv, g.z, g.st].filter(Boolean).join(' · ') || 'Sans niveau', st: g.st || '', nr: g.nr, sort: g.top || g.cat, go: g.go, files: [], src: new Set() }
         : F.mode === 'date' ? { key, ico: '📅', title: fmtDate(e.day), sub: '', nr: 0, sort: e.day, go: g.go, files: [], src: new Set() }
         : { key, ico: PH_ICO[g.k] || '📷', title: g.label, sub: g.sub || '', nr: g.nr, sort: g.label, go: g.go, files: [], src: new Set() });
-      const x = G.get(key); x.files.push(e.f); x.src.add(g.k); if (g.loc) { x.locs = x.locs || new Map(); const lk = g.loc.pn || g.loc.pin; if (!x.locs.has(lk)) x.locs.set(lk, { ...g.loc, label: g.label }); } if (F.mode === 'date') x.cats = (x.cats || new Set()).add(g.cat); }
+      const x = G.get(key); x.files.push(e.f); x.src.add(g.k); if (g.loc) { x.locs = x.locs || new Map(); const lk = g.loc.pn || g.loc.pin || g.loc.lk; if (!x.locs.has(lk)) x.locs.set(lk, { ...g.loc, label: g.label }); } if (F.mode === 'date') x.cats = (x.cats || new Set()).add(g.cat); }
     groups = [...G.values()];
     if (F.mode === 'date') groups.sort((a, b) => b.sort.localeCompare(a.sort)).forEach(g => g.sub = [...g.cats].slice(0, 4).join(' · '));
     else if (F.mode === 'cat') groups.sort((a, b) => ((PH_CATP.indexOf(a.sort) + 1 || 99) - (PH_CATP.indexOf(b.sort) + 1 || 99)) || a.sort.localeCompare(b.sort, 'fr', { numeric: true }) || (a.dos || '').localeCompare(b.dos || '', 'fr', { numeric: true }) || (a.nr - b.nr) || a.sub.localeCompare(b.sub, 'fr', { numeric: true }) || (PH_ST.indexOf(a.st) - PH_ST.indexOf(b.st)));

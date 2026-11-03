@@ -924,6 +924,7 @@ async function openPlanViewer(plan, ctx) {
     }
     const hit = aimed ? null : hitMarker(x, y);
     if (hit && hit.kind === 'recpin' && st.tool !== 'select') {
+      if (hit.obj.ncRef) { if (typeof openAnomalies === 'function') openAnomalies(App.project, {}); return; }
       const d = await DB.get('receptions', hit.obj.recDay);
       if (!d) return toast('Ce tableau a été supprimé');
       await openReceptionDay(d, { focus: hit.obj.recRow }); await reloadData(); return;
@@ -1079,7 +1080,9 @@ const PIN_EMOJIS = ['📐', '🔩', '✂️', '📷', '📄', '📝', '🧊', '�
 const PIN_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#7c3aed', '#ea580c', '#0891b2', '#ca8a04', '#db2777', '#475569', '#0f766e', '#1e3a8a', '#111827'];
 function pinLook(l) {
   if (l.kind === 'plansbox') return { e: l.emoji || '📚', c: l.pinColor || '#1e3a8a' };
-  if (l.kind === 'recpin') return { e: l.recKind === 'Bétonnage' ? '🧱' : '🔩', c: ({ ok: '#16a34a', reserve: '#f59e0b', pending: '#64748b', progress: '#2563eb' })[l.recStatus] || '#64748b' };
+  if (l.kind === 'recpin') { if (l.recKind === 'Non-conformité') return l.recLifted ? { e: '✅', c: '#16a34a' } : { e: '⚠️', c: '#dc2626' };
+    if (l.recStatus === 'reserve') return l.recLifted ? { e: '✅', c: '#16a34a' } : { e: '⚠️', c: '#dc2626' };   // v1.0.71 : rouge = anomalie ouverte, vert = traitée
+    return { e: l.recKind === 'Bétonnage' ? '🧱' : '🔩', c: ({ ok: '#16a34a', pending: '#64748b', progress: '#2563eb' })[l.recStatus] || '#64748b' }; }
   if (l.kind === 'photonote') return l.state === 'done' ? { e: '✅', c: '#16a34a' } : { e: l.emoji || '📷', c: l.pinColor || '#0d9488' };
   if (l.emoji) return { e: l.emoji, c: l.pinColor || l.color || '#2563eb' };
   const cats = [...new Set((l.items || []).map(i => i.kind === 'url' && !LINK_CATS.some(c => c.key === i.cat) ? 'url' : i.cat))];

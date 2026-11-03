@@ -396,7 +396,7 @@ function openReceptionDay(day, opts = {}) {
             </thead>
             <tbody>
               ${day.rows.map((r, i) => `<tr data-i="${i}" class="st-${r.status} ${moveSel === i ? 'moving' : ''} ${selId && r.id === selId ? 'sel' : ''} ${!isBeton(K) && r.element && r.status !== 'pending' && !r.pvLivre ? 'pv-nl' : ''}">
-                <td class="c">${esc(r.zone)}</td><td class="c">${esc(r.niv)}</td><td class="el">${esc(r.element)}</td>${isBeton(K) ? `<td class="c">${esc(r.classe || '')}</td>` : `<td class="c pvc">${pvCell(r, i)}</td><td class="c ix">${r.repFrom ? '<span class="rep-b">✗ Reporté</span>' : ''}${indCell(r.indCof, r.indCofD)}</td><td class="c ix">${indCell(r.indFer, r.indFerD)}</td>`}
+                <td class="c">${esc(r.zone)}</td><td class="c">${esc(r.niv)}</td><td class="el">${esc(r.element)}${r.element ? `<button class="rc-pin ${r.pinId ? 'on' : ''}" data-rpin="${i}" title="${r.pinId ? 'Voir sur le plan' : 'Placer sur le plan'}">📍</button>` : ''}</td>${isBeton(K) ? `<td class="c">${esc(r.classe || '')}</td>` : `<td class="c pvc">${pvCell(r, i)}</td><td class="c ix">${r.repFrom ? '<span class="rep-b">✗ Reporté</span>' : ''}${indCell(r.indCof, r.indCofD)}</td><td class="c ix">${indCell(r.indFer, r.indFerD)}</td>`}
                 <td class="c">${r.status === 'ok' ? '' : `<span class="rs" style="background:${(REC_STATUS[r.status] || REC_STATUS.pending).color}">${r.status === 'reserve' ? resLabel(K) : r.status === 'progress' ? 'En cours' : 'Attente'}</span>`}${r.status === 'reserve' && r.liftedAt ? `<br><span class="rs" style="background:#16a34a;margin-top:4px">${liftLabel(K)} ${recDateLabel(r.liftedAt).slice(0, 5)}</span>` : ''}</td>
 ${isBeton(K) ? '' : `<td class="c">${esc(r.avec || '')}</td>`}
                 <td class="ob">${esc(r.obs)}</td>
@@ -514,6 +514,7 @@ ${isBeton(K) ? '' : `<td class="c">${esc(r.avec || '')}</td>`}
         ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => tr.addEventListener(ev, () => clearTimeout(t)));
         tr.addEventListener('pointermove', (e) => { if (Math.abs(e.movementY) + Math.abs(e.movementX) > 3) clearTimeout(t); });
         tr.onclick = async (e) => { if (lp) return;
+          const rp = e.target.closest('[data-rpin]'); if (rp) { e.stopPropagation(); const r0 = day.rows[+rp.dataset.rpin]; if (r0) await recPinFlow(day, r0, K, { save, refresh: () => render() }); return; }   // v1.0.71 : 📍 directement dans le tableau
           const pq = e.target.closest('[data-pvq]'); if (pq) { const [ix, w] = pq.dataset.pvq.split('|'), r = day.rows[+ix];
             if (w === 'r') { const on = !pvRec(r); r.pvRecu = on; r.pvExist = false; r.pvRecuAt = on ? todayISO() : null; }   // reçu et livré sont indépendants
             else { r.pvLivre = !r.pvLivre; r.pvLivreAt = r.pvLivre ? todayISO() : null; }
@@ -601,21 +602,8 @@ ${isBeton(K) ? '' : `<td class="c">${esc(r.avec || '')}</td>`}
         Thumbs.fill(f);
         $$('[data-fold]', f).forEach(b => b.onclick = (e) => { e.preventDefault(); const k = b.dataset.fold; phOpen.has(k) ? phOpen.delete(k) : phOpen.add(k); draw(); });
         const plc = $('[data-a=place]', f); if (plc) plc.onclick = async (e) => {
-          e.preventDefault(); if (!await commit()) return;
-          const L = r.pinId ? await DB.get('links', r.pinId) : null;
-          if (L) {
-            const v = await menu(r.element, [{ label: 'Ouvrir le plan', icon: 'plans', value: 'open' }, { label: 'Changer l\u2019emplacement', icon: 'pin', value: 'move' }, { label: 'Retirer du plan', icon: 'trash', danger: true, value: 'del' }]);
-            if (!v) return;
-            if (v === 'open') { const pl = await DB.get('plans', L.planId); if (!pl) return toast('Plan supprimé'); s.close(); return openPlanViewer(pl, planCtx(() => {})); }
-            if (v === 'del') { await DB.del('links', L.id); r.pinId = null; await commit(); return draw(); }
-          }
-          const pl = await pickPlanFor(day.projectId, r.niv); if (!pl) return;
-          s.close();
-          openPlanViewer(pl, { ...planCtx(() => render()), place: { label: r.element, onPlace: async (x, y, plan) => {
-            if (L) await DB.del('links', L.id);
-            const nl = await DB.put('links', { projectId: day.projectId, planId: plan.id, kind: 'recpin', shape: 'point', x, y, name: recPinName(r), recDay: day.id, recRow: r.id, recStatus: r.status, recKind: K, items: [] });
-            r.pinId = nl.id; await save(); toast('📍 Placé sur le plan ✓');
-          } } });
+          e.preventDefault(); if (!await commit()) return; s.close();
+          await recPinFlow(day, r, K, { save, refresh: () => render() });
         };
         const bnb = $('[data-a=bon]', f); if (bnb) bnb.onclick = async (e) => { e.preventDefault(); if (!await commit()) return; const cfg = bonCfg(p); const b = r.bon ? { ...r.bon, sig: { ...(r.bon.sig || {}) } } : bonFromRow(r, day.date, cfg);
           const idx = day.rows.indexOf(r) >= 0 ? day.rows.indexOf(r) : i; s.close();   // la fiche se ferme pour laisser le bon s'afficher par-dessus
@@ -661,7 +649,7 @@ ${isBeton(K) ? '' : `<td class="c">${esc(r.avec || '')}</td>`}
           if (!r.element.trim()) { toast('Écrivez l\'élément'); return false; }
           if (isNew) day.rows.push(r); else day.rows[i] = r;
           await save();
-          if (r.pinId) { const L = await DB.get('links', r.pinId); if (L && (L.recStatus !== r.status || L.name !== recPinName(r))) { L.recStatus = r.status; L.name = recPinName(r); await DB.put('links', L); } }
+          await recPinSync(r);
           return true;
         };
         $('[data-a=cancel]', f).onclick = () => s.close();
@@ -1060,6 +1048,29 @@ function openDecof(p) {
 }
 
 // ---------- Ouvrage placé sur un plan ----------
+// v1.0.71 : pin de l'ouvrage (réception / bétonnage / anomalies) — placé sur le plan du même niveau ; rouge = anomalie ouverte, vert = traitée
+async function recPinSync(r) {
+  if (!r || !r.pinId) return; const L = await DB.get('links', r.pinId); if (!L) return;
+  const lifted = !!r.liftedAt, nm = recPinName(r);
+  if (L.recStatus !== r.status || !!L.recLifted !== lifted || L.name !== nm) { Object.assign(L, { recStatus: r.status, recLifted: lifted, name: nm }); await DB.put('links', L); }
+}
+async function recPinFlow(day, r, K, { save, refresh } = {}) {
+  const L = r.pinId ? await DB.get('links', r.pinId) : null;
+  if (r.pinId && !L) r.pinId = null;
+  if (L) {
+    const v = await menu(r.element, [{ label: 'Voir sur le plan', icon: 'plans', value: 'open' }, { label: 'Changer l\u2019emplacement', icon: 'pin', value: 'move' }, { label: 'Retirer du plan', icon: 'trash', danger: true, value: 'del' }]);
+    if (!v) return;
+    if (v === 'open') { const pl = await DB.get('plans', L.planId); if (!pl) return toast('Plan supprimé'); const [x, y] = L.shape === 'zone' ? [L.x + L.w / 2, L.y + L.h / 2] : [L.x, L.y]; return openPlanViewer(pl, { ...planCtx(() => refresh && refresh()), focus: { x, y } }); }
+    if (v === 'del') { await DB.del('links', L.id); r.pinId = null; if (save) await save(); return refresh && refresh(); }
+  }
+  const pl = await pickPlanFor(day.projectId, r.niv); if (!pl) return;
+  toast('📍 Touchez le plan à l\u2019endroit de « ' + (r.element || 'l\u2019ouvrage') + ' »');
+  return openPlanViewer(pl, { ...planCtx(() => refresh && refresh()), place: { label: r.element, onPlace: async (x, y, plan) => {
+    if (L) await DB.del('links', L.id);
+    const nl = await DB.put('links', { projectId: day.projectId, planId: plan.id, kind: 'recpin', shape: 'point', x, y, name: recPinName(r), recDay: day.id, recRow: r.id, recStatus: r.status, recLifted: !!r.liftedAt, recKind: K, niv: r.niv || '', items: [] });
+    r.pinId = nl.id; if (save) await save(); toast('📍 Placé sur le plan ✓');
+  } } });
+}
 const recPinName = (r) => `${r.zone ? 'Z' + r.zone + ' · ' : ''}${r.element || ''}`.slice(0, 60);
 async function pickPlanFor(projectId, niv) {
   const [plans, folders] = await Promise.all([DB.byProject('plans', projectId), DB.byProject('folders', projectId)]);
@@ -1069,6 +1080,7 @@ async function pickPlanFor(projectId, niv) {
   const score = (p) => (n && normQ(`${F[p.folderId] || ''} ${p.name}`).includes(n) ? 0 : 1);
   cur.sort((a, b) => score(a) - score(b) || (F[a.folderId] || '').localeCompare(F[b.folderId] || '', 'fr', { numeric: true }) || a.name.localeCompare(b.name, 'fr', { numeric: true }));
   if (!cur.length) { toast('Aucun plan dans ce projet'); return null; }
+  { const best = n ? cur.filter(p => !score(p)) : []; if (best.length === 1) return best[0]; }   // v1.0.71 : un seul plan pour ce niveau → direct
   const id = await menu(`Sur quel plan${niv ? ' (' + niv + ')' : ''} ?`, cur.slice(0, 40).map(p => ({ label: `${score(p) ? '' : '⭐ '}${F[p.folderId] ? F[p.folderId] + ' › ' : ''}${p.name}`, icon: 'plans', value: p.id })));
   return cur.find(p => p.id === id) || null;
 }

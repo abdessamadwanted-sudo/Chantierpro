@@ -3661,3 +3661,7 @@ body:has(#phPill) .sync-pill.sync { display: none !important; }
 .pnl-it { display: inline-flex; flex: none; gap: 3px; align-items: stretch; }
 .pnl-l .pnl-loc { display: grid; place-items: center; padding: 0 10px !important; font-size: 17px; }
 .ph-loc { color: #ca8a04 !important; }
+
+/* v1.0.71 : 📍 dans le tableau Réception / Bétonnage */
+table.rec td.el .rc-pin { border: 0; background: transparent; font-size: 15px; line-height: 1; padding: 2px 4px; margin-left: 6px; opacity: .45; border-radius: 6px; vertical-align: middle; }
+table.rec td.el .rc-pin.on { opacity: 1; background: rgba(220, 38, 38, .12); }
