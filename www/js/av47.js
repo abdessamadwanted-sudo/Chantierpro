@@ -769,6 +769,17 @@ async function phLocate(loc, back) {
     return openPlanViewer(pl, { ...(typeof planCtx === 'function' ? planCtx(() => back && back()) : {}), focus: { x, y } }); }
   if (loc.pin) { const l = await DB.get('links', loc.pin); if (!l) return; if (l.global || l.x == null) return toast('Quantité globale : pas d\'endroit précis sur le plan'); return openAvViewer(l.nivId, null, () => back && back(), l.id); }
 }
+// v1.0.71 : photo sans pin (réception, bétonnage, anomalie…) → plan du même niveau et du même lot (jamais un plan au hasard)
+async function phNivPlan(p, g, back) {
+  if (!g || !g.niv) return toast('Cette photo n\'a pas de niveau');
+  const [folders, plans] = await Promise.all(['folders', 'plans'].map(s => DB.byProject(s, p.id).catch(() => [])));
+  const nk = phNK(g.niv), ids = new Set(folders.filter(f => phNK((typeof nivOfFolder === 'function' && nivOfFolder(f.name)) || f.name) === nk).map(f => f.id));
+  const L = plans.filter(x => ids.has(x.folderId) && !x.archived && !x.supersededBy); if (!L.length) return toast('Aucun plan pour ce niveau');
+  const LL = typeof planLots === 'function' ? planLots(p) : [], lk = phK(g.top || ''), lotOf = (x) => { const l = LL.find(y => y.id === x.lotId); return l ? phK(l.name) : ''; };
+  const best = (lk && L.filter(x => lotOf(x) && (lotOf(x) === lk || lotOf(x).includes(lk) || lk.includes(lotOf(x))))) || [], C = best.length ? best : L.filter(x => !x.lotId).length ? L.filter(x => !x.lotId) : L;
+  let pl = C[0]; if (C.length > 1) { const k = await menu(`Plans · ${g.niv}`, C.map((x, i) => ({ label: x.name, icon: 'plans', value: String(i) }))); if (k == null) return; pl = C[+k]; }
+  return openPlanViewer(pl, typeof planCtx === 'function' ? planCtx(() => back && back()) : {});
+}
 function lazyThumbs(box) {
   if (!box) return; const L = $$('img[data-th]', box); if (!L.length) return;
   const load = (im) => { if (im._l) return; im._l = 1; avLiteURL(im.dataset.th, 360).then(u => { if (u) im.src = u; else DB.peek ? DB.peek('files', im.dataset.th).then(f => { if (f && !f.blob && f.driveId) im.src = BlobURL.get(f.id, null); }) : 0; }).catch(() => {}); };
@@ -778,6 +789,8 @@ function lazyThumbs(box) {
 }
 const phIsShot = (f) => /screenshot|capture|screen|scr_/i.test(f.name || '');
 const phIsDoc = (f) => /\b(bon|bl|pv|plan|scan|doc|facture|devis|fiche)\b/i.test(String(f.name || '').replace(/[_\-.]/g, ' '));
+// v1.0.71 : un niveau est reconnu quel que soit son écriture (0-SSL, SSL, Sous-sol… / 1-MEZZ, Mezzanine…)
+const phNK = (n) => { const r = avNivRank(n); return r !== 50 ? 'r' + r : avNivKey(n); };
 const phK = (s) => phNorm(s).replace(/[^a-z0-9+]/g, '');
 const phNorm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 async function renderPhotosV2(root) {
@@ -794,12 +807,12 @@ async function renderPhotosV2(root) {
     if (f.phCat && g.k === 'pin') g = { ...g, top: g.top || g.cat, cat: f.phCat };   // v1.0.65 : dossier d'une case (Avancement, Nettoyage…) = sous-groupe
     E.push({ f, g, day: (g.day || new Date(f.createdAt || 0).toISOString().slice(0, 10)), txt: phNorm([g.top, g.cat, g.st, g.label, g.sub, g.niv, g.z, f.source, f.name].join(' ')) });
   }
-  { const C = new Map(); for (const e of E) if (e.g.niv) { const k = phK(e.g.niv); if (!C.has(k)) C.set(k, e.g.niv); e.g = { ...e.g, niv: C.get(k) }; } }
+  { const C = new Map(); for (const e of E) if (e.g.niv) { const k = phNK(e.g.niv); if (!C.has(k)) C.set(k, e.g.niv); e.g = { ...e.g, niv: C.get(k) }; } }
   const F = App.phF = Object.assign({ niv: '', z: '', cat: '', dos: '', st: '', src: '', per: '', q: '', mode: 'cat' }, App.phF || {});
   const uniq = (fn, sort) => { const v = [...new Set(E.map(fn).filter(Boolean))]; return sort ? v.sort(sort) : v.sort((a, b) => String(a).localeCompare(String(b), 'fr', { numeric: true })); };
   const nivL = uniq(e => e.g.niv, (a, b) => avNivRank(a) - avNivRank(b)), zL = uniq(e => e.g.z), catL = [...[...new Set(['Réception', 'Bétonnage', 'Anomalies', 'Non-conformités', ...E.map(e => e.g.top || e.g.cat), ...(typeof planLots === 'function' ? planLots(p).map(l => l.name) : []), ...avLotsOrdered(p).map(l => l.name)])].filter((v, i, a) => v && a.findIndex(x => phK(x) === phK(v)) === i).sort( (a, b) => (PH_CATP.indexOf(a) + 1 || 99) - (PH_CATP.indexOf(b) + 1 || 99) || String(a).localeCompare(String(b), 'fr', { numeric: true }))], dosL = uniq(e => e.g.top && (!F.cat || phK(e.g.top || e.g.cat) === phK(F.cat)) ? e.g.cat : ''), srcL = uniq(e => e.g.k).map(k => [k, PH_SRC[k] || k]), stL = uniq(e => e.g.st, (a, b) => PH_ST.indexOf(a) - PH_ST.indexOf(b));
   if (F.cat && F.cat !== PH_ANOM && !catL.some(c => phK(c) === phK(F.cat))) F.cat = '';
-  const sel = (k, lab, L) => L.length ? `<label class="avf-s ${F[k] ? 'on' : ''}"><small>${lab}</small><select data-pf="${k}"><option value="">Tous</option>${L.map(x => { const [v, t] = Array.isArray(x) ? x : [x, x]; return `<option value="${esc(v)}" ${(k === 'niv' || k === 'cat' ? F[k] && phK(v) === phK(F[k]) : v === F[k]) ? 'selected' : ''}>${esc(t)}</option>`; }).join('')}</select></label>` : '';
+  const sel = (k, lab, L) => L.length ? `<label class="avf-s ${F[k] ? 'on' : ''}"><small>${lab}</small><select data-pf="${k}"><option value="">Tous</option>${L.map(x => { const [v, t] = Array.isArray(x) ? x : [x, x]; return `<option value="${esc(v)}" ${(k === 'niv' ? F[k] && phNK(v) === phNK(F[k]) : k === 'cat' ? F[k] && phK(v) === phK(F[k]) : v === F[k]) ? 'selected' : ''}>${esc(t)}</option>`; }).join('')}</select></label>` : '';
   // v1.0.67 : miniatures légères (≈ 360 px), chargées seulement à l'écran, une à la fois — avant, chaque miniature décodait la photo entière (12 Mpx) → Android fermait l'application
   const th = (f) => `<div class="ph" data-id="${f.id}"><img data-th="${f.id}" alt="">${phIsShot(f) ? '<span class="tag">📱 capture</span>' : phIsDoc(f) ? '<span class="tag">📄 document ?</span>' : ''}</div>`;
   let opened = {}; try { opened = JSON.parse(localStorage.getItem('ph.open.' + pid) || '{}'); } catch (e) {}
@@ -817,7 +830,7 @@ async function renderPhotosV2(root) {
     ${!files.length ? '<div class="empty">Aucune photo.<br>Les photos se prennent dans chaque ouvrage, réception, réserve ou pin.</div>' : ''}`;
   let groups = [];
   const filtered = () => { const q = phNorm(F.q).split(/\s+/).filter(Boolean), lim = F.per ? Date.now() - (+F.per) * 864e5 : 0, d0 = lim ? new Date(lim).toISOString().slice(0, 10) : '';
-    return E.filter(e => (!F.niv || phK(e.g.niv) === phK(F.niv)) && (!F.z || e.g.z === F.z) && (!F.cat || (F.cat === PH_ANOM ? phIsAnom(e.g) : phK(e.g.top || e.g.cat) === phK(F.cat))) && (!F.dos || e.g.cat === F.dos) && (!F.st || e.g.st === F.st) && (!F.src || e.g.k === F.src) && (!lim || (F.per === '1' ? e.day >= todayISO() : e.day >= d0)) && q.every(w => e.txt.includes(w))); };
+    return E.filter(e => (!F.niv || phNK(e.g.niv) === phNK(F.niv)) && (!F.z || e.g.z === F.z) && (!F.cat || (F.cat === PH_ANOM ? phIsAnom(e.g) : phK(e.g.top || e.g.cat) === phK(F.cat))) && (!F.dos || e.g.cat === F.dos) && (!F.st || e.g.st === F.st) && (!F.src || e.g.k === F.src) && (!lim || (F.per === '1' ? e.day >= todayISO() : e.day >= d0)) && q.every(w => e.txt.includes(w))); };
   const draw = () => {
     const R = filtered(), G = new Map();
     for (const e of R) { const g = e.g;
@@ -832,12 +845,13 @@ async function renderPhotosV2(root) {
     else groups.sort((a, b) => (a.nr - b.nr) || a.sort.localeCompare(b.sort, 'fr', { numeric: true }));
     const on = ['cat', 'dos', 'st', 'niv', 'z', 'src', 'per', 'q'].filter(k => F[k]).length;
     $('.ph-scope', root).innerHTML = `${R.length} photo(s) · ${groups.length} groupe(s)${on ? ` · <button class="linkbtn" data-a="clr">effacer les filtres</button>` : ''}`;
+    const an = $('[data-a=allniv]', root); if (an) an.onclick = () => { F.niv = ''; F.z = ''; renderPhotosV2(root); };
     const b = $('[data-a=clr]', root); if (b) b.onclick = () => { Object.assign(F, { niv: '', z: '', cat: '', dos: '', st: '', src: '', per: '', q: '' }); renderPhotosV2(root); };
     let lastCat = null;
     $('.ph-list', root).innerHTML = groups.map((g, i) => { const k = F.mode + '|' + g.key, hdr = F.mode === 'cat' && g.title !== lastCat ? `<div class="ph-cat">${esc(g.title)}<small>${groups.filter(x => x.title === g.title).reduce((a, x) => a + x.files.length, 0)}</small><button class="ph-catpdf" data-cpdf="${esc(g.title)}">${icon('pdf')} PDF</button></div>` : ''; lastCat = g.title;
       return `${hdr}<details class="ph-g" data-gk="${esc(k)}" ${opened[k] || F.q ? 'open' : ''}><summary><span>${g.ico}</span><span class="grow"><b>${esc(F.mode === 'cat' ? g.sub : g.title)}</b><small>${esc(F.mode === 'cat' ? [...g.src].map(s => (PH_SRC[s] || s).replace(/^\S+\s/, '')).join(' · ') : g.sub)}</small></span><small>${g.files.length}</small></summary>
-      <div class="ph-gact">${g.locs && g.locs.size ? `<button class="ph-go ph-loc" data-loc="${i}">📍 Sur le plan</button>` : ''}${g.go ? `<button class="ph-go" data-go="${i}">${g.go.rec ? 'Ouvrir le tableau ›' : 'Ouvrir ›'}</button>` : ''}<button class="ph-go" data-gpdf="${i}">${icon('pdf')} PDF</button></div><div class="photo-grid">${g.files.map(th).join('')}</div></details>`; }).join('')
-      || (files.length ? '<div class="empty">Aucune photo ne correspond.</div>' : '');
+      <div class="ph-gact">${g.locs && g.locs.size ? `<button class="ph-go ph-loc" data-loc="${i}">📍 Sur le plan</button>` : g.niv ? `<button class="ph-go ph-loc" data-nloc="${i}">📍 Plan du niveau</button>` : ''}${g.go ? `<button class="ph-go" data-go="${i}">${g.go.rec ? 'Ouvrir le tableau ›' : 'Ouvrir ›'}</button>` : ''}<button class="ph-go" data-gpdf="${i}">${icon('pdf')} PDF</button></div><div class="photo-grid">${g.files.map(th).join('')}</div></details>`; }).join('')
+      || (files.length ? `<div class="empty">${F.cat && F.niv ? `Aucune photo pour <b>${esc(F.cat)}</b> · <b>${esc(F.niv)}</b>.` : 'Aucune photo ne correspond.'}${F.niv ? '<div style="margin-top:10px"><button class="btn small" data-a="allniv">Voir tous les niveaux</button></div>' : ''}</div>` : '');
     bindList(); bindList2();
   };
   const all = () => [...todo, ...E.map(e => e.f)];
@@ -858,12 +872,13 @@ async function renderPhotosV2(root) {
       else if (g.rep) { App.section = 'reports'; renderSection(); }
       else if (g.sec) { App.section = g.sec; renderSection(); } };
   const bindList2 = () => {
+    $$('[data-nloc]', root).forEach(b => b.onclick = () => { const x = groups[+b.dataset.nloc]; phNivPlan(p, { niv: (x.sub.split(' · ').find(t => phNK(t) === phNK(F.niv || t)) || (x.files[0] && (M.get(x.files[0].id) || {}).niv)), top: x.title }, () => renderPhotosV2(root)); });
     $$('[data-gpdf]', root).forEach(b => b.onclick = () => { const g = groups[+b.dataset.gpdf]; phPdf(p, [g], F.mode === 'cat' ? `${g.title}${g.sub ? ' - ' + g.sub : ''}` : g.title); });
     $$('[data-cpdf]', root).forEach(b => b.onclick = () => { const G = groups.filter(x => x.title === b.dataset.cpdf); phPdf(p, G, b.dataset.cpdf + (F.niv ? ' - ' + F.niv : '') + (F.z ? ' - ' + F.z : '')); });
   };
   const bindThumbs = (box) => $$('.ph[data-id]', box).forEach(t => t.onclick = () => { const grid = t.parentElement, A = all(), L = [...grid.querySelectorAll('.ph[data-id]')].map(x => A.find(f => f.id === x.dataset.id)).filter(Boolean);
     showGallery(L.map(f => ({ src: BlobURL.get(f.id, f.blob), caption: `${f.source || (M.get(f.id) || {}).label || 'Photo'} · ${fmtDateTime(f.createdAt)}`, fileId: f.id })), L.findIndex(f => f.id === t.dataset.id), { onDelete: async (it) => { const ok = await PhotoQ.remove([it.fileId], { ask: false }); if (ok) setTimeout(() => renderPhotosV2(root), 300); return ok; },
-      onLocate: (it) => { const g = M.get(it.fileId) || ((E.find(e => e.f.id === it.fileId) || {}).g); if (g && g.loc) phLocate(g.loc, () => renderPhotosV2(root)); else toast('Cette photo n\'est pas placée sur un plan'); },
+      onLocate: (it) => { const g = M.get(it.fileId) || ((E.find(e => e.f.id === it.fileId) || {}).g); if (g && g.loc) phLocate(g.loc, () => renderPhotosV2(root)); else if (g && g.niv) phNivPlan(p, g, () => renderPhotosV2(root)); else toast('Cette photo n\'est pas placée sur un plan'); },
       onOpen: (it) => { const g = M.get(it.fileId); if (g && g.go) phGo(g.go); else toast('Photo à classer : pas de fiche'); } }); });
   $$('[data-pf]', root).forEach(s => s.onchange = () => { F[s.dataset.pf] = s.value; if (s.dataset.pf === 'cat') { F.dos = ''; return renderPhotosV2(root); } s.closest('.avf-s').classList.toggle('on', !!s.value); draw(); });
   $$('[data-mode]', root).forEach(b => b.onclick = () => { F.mode = b.dataset.mode; $$('[data-mode]', root).forEach(x => x.classList.toggle('on', x === b)); draw(); });

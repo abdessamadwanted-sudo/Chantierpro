@@ -1388,6 +1388,10 @@ try {
   const t67 = await A.pg.evaluate(async () => { const p = App.project, c = dueNCfg(p); return { c: [c.on, c.time, c.before, c.late].join(), s: await dueSchedule(p), id: dueNId('x') > 1.6e9 && dueNId('x') < 2147483647, th: typeof lazyThumbs }; });
   log('v1.0.67 [notifications : réglages par défaut, sans plugin → 0, id valide, miniatures légères]', t67); log('errors v1.0.67', (t67.c !== 'true,08:00,1,true' || t67.s !== 0 || !t67.id || t67.th !== 'function') ? ['v1.0.67'] : []);
   log('errors v1.0.66', t66.gros && t66.fn === 'function' ? [] : ['v1.0.66']);
+  const t71 = await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.phF = { niv: '1-MEZZ', cat: 'Local technique', z: '', dos: '', st: '', src: '', per: '', q: '', mode: 'cat' }; App.section = 'photos'; await renderSection(); await new Promise(r => setTimeout(r, 700));
+    return { same: [phNK('0-SSL') === phNK('Sous-sol'), phNK('1-MEZZ') === phNK('Mezzanine'), phNK('R+1') === phNK('1-R+1'), phNK('R+1') !== phNK('R+2')].join(), fn: typeof phNivPlan, page: !!document.querySelector('.ph-search'), bw: typeof planBW, bwb: !!document.querySelector('[data-a=bw]'), viewers: document.querySelectorAll('.viewer, .fullpage').length }; });
+  log('v1.0.71 [niveau reconnu quelle que soit l\'écriture, 📍 plan du niveau, ◐ retiré, filtre lot + niveau]', t71);
+  log('errors v1.0.71', (t71.same !== 'true,true,true,true' || t71.fn !== 'function' || !t71.page || t71.bw !== 'undefined' || t71.bwb) ? ['v1.0.71'] : []);
   // ---- v1.0.45 : bibliothèque unifiée Basic / Pro + organigramme global / par service
   const v45lib = [];
   const lib45 = await A.pg.evaluate(() => {
