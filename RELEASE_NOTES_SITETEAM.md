@@ -1,3 +1,6 @@
+## SiteTeam : v1.0.81
+- Plan : le pin 3D de focus (ouvert depuis le tableau) a la même taille que les autres pins et suit le zoom ; il disparaît après quelques secondes, le pin permanent reste.
+
 ## SiteTeam : v1.0.80
 - Lots : le bandeau ne montre plus que le lot choisi ; « ▾ Lots » ouvre la liste (lots, Sans lot, ＋ Nouveau lot). Toucher le lot choisi ouvre aussi la liste.
 
