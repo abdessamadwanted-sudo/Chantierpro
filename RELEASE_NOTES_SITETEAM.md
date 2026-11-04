@@ -1,3 +1,7 @@
+## SiteTeam : lots par niveau
+- Barre des lots : recherche de lot (apparaît dès 5 lots).
+- En choisissant un lot ou en ouvrant son panneau, la page reste à la même place (plus de remontée puis redescente).
+
 ## SiteTeam : pin photo sur le plan
 - Les pins des photos : pointe rouge avec une icône appareil photo (plus de cercle autour), chiffre si plusieurs photos ; ils restent lisibles quand on dézoome (taille minimale).
 

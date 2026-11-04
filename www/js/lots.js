@@ -57,11 +57,15 @@ function lotBarInto(card, f, ps, root) {
       return `<button class="lot-c ${sel === l.id ? 'on' : ''}" data-l="${l.id}" style="--c:${l.c};--t:${tint(l.c, .16)}">${l.e} ${esc(l.name)}${cnt(l.id) ? ` <small>${cnt(l.id)}</small>` : ''}${po ? `<i class="lc-pa">🛑${po}</i>` : ''}${di && di.cls !== 'ok' ? `<i class="lc-due ${di.cls}">⏳</i>` : ''}${avB(l)}</button>`; }).join('')
     + (nNo ? `<button class="lot-c ${sel === '__none' ? 'on' : ''}" data-l="__none" style="--c:#64748b">📄 Sans lot <small>${nNo}</small></button>` : '')
     + `<button class="lot-c add" data-l="__add">＋</button>`;
+  // v1.0.77 : recherche de lot dans la barre (apparaît dès 5 lots)
+  if (lots.length >= 5) { const q = document.createElement('input'); q.type = 'search'; q.className = 'lot-q'; q.placeholder = '🔍 Chercher un lot'; q.setAttribute('aria-label', 'Chercher un lot'); bar.prepend(q);
+    q.oninput = () => { const t = q.value.trim().toLowerCase(); $$('.lot-c', bar).forEach(b => { const ok = !t || (b.textContent || '').toLowerCase().includes(t) || b.classList.contains('on') || b.classList.contains('add'); b.style.display = ok ? '' : 'none'; }); };
+    q.onclick = (e) => e.stopPropagation(); }
   const head = $('.folder-head', card); head.after(bar);
   $$('[data-l]', bar).forEach(b => {
     b.onclick = async () => {
       if (b.dataset.l === '__add') { const r = await formSheet('Nouveau lot', [{ name: 'n', label: 'Nom', placeholder: 'Ex : Faux plafond' }, { name: 'e', label: 'Emoji', value: '🔧' }], { okLabel: 'Ajouter' }); if (r && r.n) { lots.push({ id: DB.uid(), name: r.n, e: r.e || '🔧', c: ['#0ea5e9', '#22c55e', '#f97316', '#8b5cf6', '#e11d48'][lots.length % 5], points: [] }); await DB.put('projects', p); renderPlans(root); } return; }
-      App.lotSel = App.lotSel || {}; App.lotSel[f.id] = b.dataset.l; App.scrollFolder = f.id; renderPlans(root);
+      App.lotSel = App.lotSel || {}; App.lotSel[f.id] = b.dataset.l; App.keepScrollY = ($('#content') || {}).scrollTop || 0; renderPlans(root);   // v1.0.77 : on reste à la même place (pas de saut)
     };
     if (b.dataset.l && b.dataset.l !== '__add' && b.dataset.l !== '__none') b.oncontextmenu = (e) => { e.preventDefault(); lotMenu(lots.find(l => l.id === b.dataset.l), root); };
   });
@@ -106,7 +110,7 @@ function lotPanel(L, f, root) {
     <label class="lp-note">Notes ${esc(L.name)} · ${esc(f.name)}<textarea placeholder="Remarques, besoins, matériel…">${esc(D._note || '')}</textarea></label></details>
     <button class="lp-plus" data-a="plus">${icon('plus')} Ajouter dans ${esc(L.name)}</button></div>`}`;
   const save = () => DB.put('folders', f), redraw = () => renderPlans(root);
-  $('[data-a=tog]', el).onclick = (e) => { if (e.target.closest('[data-a=lm]')) return; lotOpenSet(L, !open); App.scrollFolder = f.id; redraw(); };
+  $('[data-a=tog]', el).onclick = (e) => { if (e.target.closest('[data-a=lm]')) return; lotOpenSet(L, !open); App.keepScrollY = ($('#content') || {}).scrollTop || 0; redraw(); };
   $('[data-a=lm]', el).onclick = (e) => { e.stopPropagation(); lotMenu(L, root); };
   if (!open) return el;
   // v1.0.47 : lien direct vers l'avancement de CE lot sur CE niveau (alertes, dates, équipes, saisies, ✓ terminé)

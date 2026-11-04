@@ -617,7 +617,8 @@ async function renderPlans(root) {
       if (sopen) fillPlans($('.plan-grid, .plan-rows', el), sps, sf, lotF);
     }
   }
-  if (App.scrollFolder) { const fid = App.scrollFolder; App.scrollFolder = null; const c = box.querySelector(`[data-fid="${fid}"]`); if (c) requestAnimationFrame(() => c.scrollIntoView({ block: 'start', behavior: 'smooth' })); }
+  if (App.keepScrollY != null) { const y = App.keepScrollY; App.keepScrollY = null; App.scrollFolder = null; const c0 = $('#content'); if (c0) { c0.scrollTop = y; requestAnimationFrame(() => { c0.scrollTop = y; }); } }   // v1.0.77 : garder la position quand on choisit un lot
+  else if (App.scrollFolder) { const fid = App.scrollFolder; App.scrollFolder = null; const c = box.querySelector(`[data-fid="${fid}"]`); if (c) requestAnimationFrame(() => c.scrollIntoView({ block: 'start', behavior: 'smooth' })); }
   $('[data-a=fold]').onclick = () => { groups.forEach(g => { App.openFolders[g.f.id] = !anyOpen; g.subs.forEach(sg => App.openFolders[sg.f.id] = !anyOpen); }); renderPlans(root); };
   $('[data-a=view]').onclick = () => { App.planView = App.planView === 'grid' ? 'list' : 'grid'; try { localStorage.setItem('planView', App.planView); } catch (e) {} renderPlans(root); };
   $('[data-a=recent]').onclick = async () => {
