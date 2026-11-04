@@ -1397,6 +1397,8 @@ try {
   log('v1.0.74 [sauvegarde complète Drive : fonctions présentes]', t74); log('errors v1.0.74', Object.values(t74).every(x => x === 'function') ? [] : ['v1.0.74']);
   const t75 = await A.pg.evaluate(() => ({ viewer: typeof openPlanViewer }));
   log('v1.0.75 [chargement plan %, connexion sans suggestions]', t75);
+  const t76 = await A.pg.evaluate(() => ({ pin: typeof photoPinSVG === 'function' ? photoPinSVG(2).includes('#dc2626') : false }));
+  log('v1.0.76 [pin photo rouge]', t76);
   log('errors v1.0.71', (t71.same !== 'true,true,true,true' || t71.fn !== 'function' || t71.pins !== 'function,function,function,#dc2626,#16a34a,#dc2626' || !t71.page || t71.bw !== 'undefined' || t71.bwb) ? ['v1.0.71'] : []);
   // ---- v1.0.45 : bibliothèque unifiée Basic / Pro + organigramme global / par service
   const v45lib = [];
