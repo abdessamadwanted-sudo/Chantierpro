@@ -1466,7 +1466,8 @@ async function renderSettings(root) {
       <div class="card" style="margin:0;padding:16px">
         <div style="font-weight:600;margin-bottom:6px">Sauvegarde manuelle (fichier)</div>
         <div style="color:var(--muted);font-size:14px;line-height:1.5;margin-bottom:12px">Crée un fichier <b>.chantier</b> avec tout le projet (plans, pins, tâches, photos, formulaires, rapports). Enregistrez-le dans Google Drive ou envoyez-le sur WhatsApp. Pour le récupérer : accueil → ⋮ → Restaurer une sauvegarde.</div>
-        <button class="btn" data-a="backup" style="width:100%">${icon('share')} Sauvegarder ce projet</button>
+        <button class="btn" data-a="backupdrive" style="width:100%">${icon('share')} Sauvegarder dans Drive (même fichier)</button>
+        <button class="btn ghost" data-a="backup" style="width:100%;margin-top:8px">${icon('share')} Envoyer / enregistrer le fichier</button>
         <button class="btn ghost" data-a="pfiche" style="width:100%;margin-top:8px">${icon('file')} Fiche projet (essentiel + avancé)</button>
         ${Team.ready() && Team.isPerso() ? `<button class="btn ghost" data-a="pcollab" style="width:100%;margin-top:8px">${icon('team')} Inviter un collaborateur${Team.plan().k === 'pro' ? '' : ' · avec Pro'}</button>` : ''}
         <button class="btn ghost" data-a="pfeat" style="width:100%;margin-top:8px">${icon('grid')} Type de projet & fonctions du projet${p.type && projTypeOf(p.type) ? ' · ' + projTypeOf(p.type).e : ''}</button>
@@ -1490,6 +1491,22 @@ async function renderSettings(root) {
       await Backup.exportProject(p.id, (i, n) => ld.set(`Sauvegarde… ${i}/${n}`));
       p.lastBackup = Date.now(); await DB.put('projects', p);
     } catch (e) { console.error(e); alertBox('Erreur de sauvegarde : ' + (e.message || e)); }
+    finally { ld.close(); }
+  };
+  // v1.0.79 : sauvegarde Drive d'un projet → toujours le même fichier (mis à jour, jamais dupliqué)
+  $('[data-a=backupdrive]', root).onclick = async () => {
+    if (!GDrive.available()) { alertBox('Connectez d\'abord Google Drive (Paramètres › Google Drive).'); return; }
+    const ld = loading('Préparation de la sauvegarde…');
+    try {
+      await Backup.exportProject(p.id, (i, n) => ld.set(`Sauvegarde… ${i}/${n}`), {
+        drive: async (blob, proj) => {
+          ld.set('Envoi vers Drive…');
+          const safe = (proj.name || 'projet').replace(/[^\wÀ-ſ؀-ۿ -]+/g, '').trim().replace(/\s+/g, '_').slice(0, 40) || 'projet';
+          const r = await GDrive.projectSave(`Sauvegarde_${safe}_${String(proj.id).slice(-6)}.chantier.zip`, blob);
+          toast(r.created ? 'Sauvegarde créée dans Drive' : 'Sauvegarde mise à jour dans Drive');
+        } });
+      p.lastBackup = Date.now(); await DB.put('projects', p);
+    } catch (e) { console.error(e); alertBox('Erreur de sauvegarde Drive : ' + (e.message || e)); }
     finally { ld.close(); }
   };
   $('[data-a=del]', root).onclick = async () => {
