@@ -22,7 +22,7 @@ const Backup = (() => {
   // Archive .zip (données JSON + fichiers bruts, sans base64) écrite par morceaux : rapide, légère en mémoire,
   // puis la feuille « Partager » (WhatsApp, Drive, Gmail…) s'ouvre directement.
   const u8ToB64 = (u8) => blobToB64(new Blob([u8]));
-  async function exportProject(projectId, onProgress) {
+  async function exportProject(projectId, onProgress, opts = {}) {
     const project = await DB.get('projects', projectId);
     await loadScript('vendor/fflate.min.js');
     const all = [];
@@ -56,6 +56,14 @@ const Backup = (() => {
       e.push(new Uint8Array(await b.arrayBuffer()), true); await flush();
     }
     zip.end(); await flush(true);
+    // v1.0.79 : envoi direct vers Drive (même fichier mis à jour) au lieu du partage
+    if (opts.drive) {
+      let blob;
+      if (fs) { const rd = await fs.readFile({ path: fname, directory: 'CACHE' }); const bin = atob(rd.data), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); blob = new Blob([u8], { type: 'application/zip' }); }
+      else blob = new Blob(outParts, { type: 'application/zip' });
+      await opts.drive(blob, project);
+      return fname;
+    }
     if (fs) {
       const { uri } = await fs.getUri({ path: fname, directory: 'CACHE' });
       const share = SHARE();

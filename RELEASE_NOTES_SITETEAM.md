@@ -1,3 +1,7 @@
+## SiteTeam : v1.0.79
+- Paramètres du projet : « Sauvegarder dans Drive (même fichier) » met à jour toujours le même fichier du projet dans SiteTeam / Sauvegardes / Projets, au lieu de créer un nouveau fichier.
+- « Envoyer / enregistrer le fichier » garde l'envoi (WhatsApp, email…) en un seul geste.
+
 ## SiteTeam : v1.0.78
 - Tableaux Réception / Bétonnage / Anomalies : colonne 📍 dédiée (le bouton n'est plus dans la cellule de l'élément).
 - Sur le plan, un point réception/bétonnage est un pin rouge simple (plus d'emoji), qui grandit et rétrécit avec le zoom comme le pin photo.

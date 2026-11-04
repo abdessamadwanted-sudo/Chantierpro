@@ -250,15 +250,20 @@ const GDrive = (() => {
 
   // ---------- v1.0.74 : sauvegarde complète unique « SiteTeam / Sauvegardes » (mise à jour, jamais dupliquée) ----------
   const BK_NAME = 'SiteTeam-sauvegarde-complete.chantier.zip';
-  async function backupFind() {
-    const folder = await path(['Sauvegardes']);
-    const l = await list(`name='${qs(BK_NAME)}' and '${folder}' in parents and trashed=false`, 'id,name,size,modifiedTime');
+  // v1.0.79 : recherche / écriture d'un fichier nommé dans un sous-dossier (toujours le MÊME fichier, mis à jour)
+  async function fileFind(name, sub) {
+    const folder = await path(sub);
+    const l = await list(`name='${qs(name)}' and '${folder}' in parents and trashed=false`, 'id,name,size,modifiedTime');
     return { folder, file: l[0] || null };
   }
+  async function backupFind() { return fileFind(BK_NAME, ['Sauvegardes']); }
   async function backupInfo() { return (await backupFind()).file; }
-  async function backupSave(blob) {
-    const { folder, file } = await backupFind();
-    if (!file) { const r = await create({ name: BK_NAME, parents: [folder], mimeType: 'application/zip' }, blob, 'application/zip'); return { id: r.id, created: true, size: blob.size }; }
+  async function backupSave(blob) { return fileSave(BK_NAME, ['Sauvegardes'], blob); }
+  // v1.0.79 : une sauvegarde par projet, dans SiteTeam / Sauvegardes / Projets
+  async function projectSave(name, blob) { return fileSave(name, ['Sauvegardes', 'Projets'], blob); }
+  async function fileSave(name, sub, blob) {
+    const { folder, file } = await fileFind(name, sub);
+    if (!file) { const r = await create({ name, parents: [folder], mimeType: 'application/zip' }, blob, 'application/zip'); return { id: r.id, created: true, size: blob.size }; }
     if (blob.size <= 4 * 1048576) await req(`${UP}/files/${file.id}?uploadType=media&fields=id`, { method: 'PATCH', headers: { 'Content-Type': 'application/zip' }, body: blob });
     else {
       const s = await req(`${UP}/files/${file.id}?uploadType=resumable&fields=id`, { method: 'PATCH', headers: { 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': 'application/zip', 'X-Upload-Content-Length': String(blob.size) }, body: '{}' });
@@ -269,5 +274,5 @@ const GDrive = (() => {
   }
   async function backupGet(id) { return download(id); }
 
-  return { available, connect, call, forget, SCOPE, _reset: reset, backupInfo, backupSave, backupGet };
+  return { available, connect, call, forget, SCOPE, _reset: reset, backupInfo, backupSave, backupGet, projectSave };
 })();
