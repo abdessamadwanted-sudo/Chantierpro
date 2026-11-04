@@ -1403,6 +1403,8 @@ try {
   log('v1.0.77 [barre des lots, position conservée]', t77);
   const t78 = await A.pg.evaluate(() => ({ red: typeof redPinSVG === 'undefined' ? 'x' : 'ok', lots: typeof lotBarInto === 'function' }));
   log('v1.0.78 [pin 📍 colonne, pin rouge plan, choix de lot, intensité]', t78); log('errors v1.0.78', t78.lots ? [] : ['v1.0.78']);
+  const t80 = await A.pg.evaluate(() => ({ lots: typeof lotBarInto === 'function' }));
+  log('v1.0.80 [lots en liste déroulante]', t80); log('errors v1.0.80', t80.lots ? [] : ['v1.0.80']);
   const t79 = await A.pg.evaluate(() => ({ proj: typeof GDrive.projectSave, file: typeof Backup.exportProject }));
   log('v1.0.79 [sauvegarde projet Drive : même fichier]', t79); log('errors v1.0.79', t79.proj === 'function' && t79.file === 'function' ? [] : ['v1.0.79']);
   log('errors v1.0.71', (t71.same !== 'true,true,true,true' || t71.fn !== 'function' || t71.pins !== 'function,function,function,#dc2626,#16a34a,#dc2626' || !t71.page || t71.bw !== 'undefined' || t71.bwb) ? ['v1.0.71'] : []);
