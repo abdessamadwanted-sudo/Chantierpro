@@ -1196,8 +1196,8 @@ const Team = (() => {
             <div class="seg tm-seg" role="tablist" aria-label="Mode de connexion"><button data-m="in" role="tab" aria-selected="${mode === 'in'}" class="${mode === 'in' ? 'on' : ''}">Se connecter</button><button data-m="up" role="tab" aria-selected="${mode === 'up'}" class="${mode === 'up' ? 'on' : ''}">Créer un compte</button></div>
             <div class="form tm-auth-form">
               ${mode === 'up' ? `<label>Nom et prénom<input name="name" autocomplete="name" placeholder="Ex : Abdessamad El Amrani"></label>` : ''}
-              <label>Adresse e-mail<input name="email" type="email" autocomplete="email" inputmode="email" placeholder="vous@entreprise.com"></label>
-              <label>Mot de passe<div class="tm-pw"><input name="pw" type="password" autocomplete="${mode === 'up' ? 'new-password' : 'current-password'}" placeholder="6 caractères minimum"><button type="button" data-a="showpw" aria-label="Afficher le mot de passe">Afficher</button></div></label>
+              <label>Adresse e-mail<input name="email" type="email" autocomplete="${mode === 'up' ? 'email' : 'off'}" autocapitalize="none" inputmode="email" placeholder="vous@entreprise.com"></label>
+              <label>Mot de passe<div class="tm-pw"><input name="pw" type="password" autocomplete="${mode === 'up' ? 'new-password' : 'off'}" data-lpw="1" placeholder="6 caractères minimum"><button type="button" data-a="showpw" aria-label="Afficher le mot de passe">Afficher</button></div></label>
               <button class="btn tm-auth-submit" data-a="go">${mode === 'up' ? 'Créer mon compte' : 'Se connecter'} <span>→</span></button>
               ${mode === 'in' ? '<button class="linkbtn" data-a="reset">Mot de passe oublié ?</button>' : '<small class="tm-auth-note">En créant un compte, vous pourrez utiliser un code d’invitation pour rejoindre votre équipe.</small>'}
             </div>

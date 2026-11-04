@@ -142,9 +142,15 @@ async function openPlanViewer(plan, ctx) {
     </div>
     <div class="viewer-bottom"><span class="vb-info"></span></div>`;
   document.body.appendChild(el);
-
+  // v1.0.74 : barre de chargement avec pourcentage RÉEL (lecture du fichier du plan), disparaît dès que le plan s'affiche
+  const pl = document.createElement('div'); pl.className = 'plan-load'; pl.innerHTML = '<div class="pl-t">Chargement du plan…</div><div class="pl-bar"><i></i></div><div class="pl-p">0%</div>'; el.appendChild(pl);
+  const setPL = (p, t) => { if (!pl.isConnected) return; pl.querySelector('i').style.width = Math.max(2, Math.min(100, p)) + '%'; pl.querySelector('.pl-p').textContent = Math.round(p) + '%'; if (t) pl.querySelector('.pl-t').textContent = t; };
+  const hidePL = () => { pl.remove(); };
+  const plTimer = setTimeout(hidePL, 30000);   // sécurité : jamais de voile bloquant plus de 30 s
+  const readWithPL = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onprogress = (e) => { if (e.lengthComputable) setPL(e.loaded / e.total * 100, 'Lecture du plan…'); }; r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsArrayBuffer(blob); });
   const viewer = $('.viewer', el), stage = $('.stage', el);
   let baseURL = src;
+  { const im0 = $('.stage > img', el); if (im0) { im0.addEventListener('load', () => { clearTimeout(plTimer); hidePL(); }, { once: true }); im0.addEventListener('error', () => { clearTimeout(plTimer); hidePL(); }, { once: true }); } }
   if (lite) { const im0 = $('.stage > img', el); avLiteURL(file.id, 3200).then(u => { if (!el.isConnected) return; baseURL = u || src; im0.src = baseURL; }).catch(() => { im0.src = src; }); }
   const gAnn = $('.g-annots', el), gPrev = $('.g-preview', el), gLinks = $('.g-links', el), gTasks = $('.g-tasks', el);
 
@@ -217,7 +223,7 @@ async function openPlanViewer(plan, ctx) {
     try {
       const f = await DB.get('files', plan.pdfFileId);
       if (!f) return null;
-      const doc = await pdfjsLib.getDocument({ data: new Uint8Array(await f.blob.arrayBuffer()) }).promise;
+      const doc = await pdfjsLib.getDocument({ data: new Uint8Array(await readWithPL(f.blob)) }).promise;
       if (closed) { try { doc.destroy(); } catch (e) {} return null; }
       pdfDoc = doc; pdfPage = await doc.getPage(plan.pdfPage || 1);
     } catch (e) { console.error(e); }

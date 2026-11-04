@@ -3672,3 +3672,10 @@ table.rec td.el .rc-pin.on { opacity: 1; background: rgba(220, 38, 38, .12); }
 .ph-sub small { margin-left: auto; opacity: .8; }
 .focus-pin { pointer-events: none; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .35)); }
 .rc-place { width: 100%; margin: -4px 0 8px; justify-content: center; }
+
+/* v1.0.74 : chargement du plan (pourcentage réel pendant la lecture du fichier) */
+.plan-load { position: absolute; left: 50%; top: 40%; transform: translateX(-50%); width: min(260px, 70vw); padding: 14px 16px; border-radius: 14px; background: rgba(15, 23, 42, .92); color: #fff; text-align: center; z-index: 50; box-shadow: 0 8px 24px rgba(0, 0, 0, .35); }
+.plan-load .pl-t { font-weight: 700; font-size: 14px; margin-bottom: 10px; }
+.plan-load .pl-bar { height: 8px; border-radius: 6px; background: rgba(255, 255, 255, .15); overflow: hidden; }
+.plan-load .pl-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #60a5fa, #2563eb); transition: width .15s linear; }
+.plan-load .pl-p { margin-top: 8px; font-size: 13px; opacity: .85; font-variant-numeric: tabular-nums; }

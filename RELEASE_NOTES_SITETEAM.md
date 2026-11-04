@@ -1,3 +1,7 @@
+## SiteTeam : chargement du plan avec pourcentage, connexion
+- Ouverture d'un plan : barre de chargement avec le **pourcentage réel** de lecture du fichier (il disparaît dès que le plan s'affiche, et au plus tard après 30 s).
+- Connexion : Android ne propose plus les adresses Google enregistrées dans le champ e-mail en mode « Se connecter », ni le mot de passe enregistré (création de compte inchangée).
+
 ## SiteTeam : sauvegarde complète dans Google Drive (un seul fichier)
 - Une seule sauvegarde complète de tous les projets, dans **Mon Drive › SiteTeam › Sauvegardes** (fichier « SiteTeam-sauvegarde-complete.chantier.zip »), mise à jour à chaque fois : plus de fichier en double.
 - Automatique : au plus une fois toutes les 12 h, si Google Drive est connecté. Manuelle : ⋮ › « Sauvegarde complète dans Drive ».
