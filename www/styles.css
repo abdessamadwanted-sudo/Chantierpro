@@ -3682,3 +3682,11 @@ table.rec td.el .rc-pin.on { opacity: 1; background: rgba(220, 38, 38, .12); }
 
 /* v1.0.77 : recherche de lot dans la barre des lots */
 .lot-bar .lot-q { flex: 0 0 auto; width: 150px; height: 34px; border-radius: 10px; border: 1px solid var(--line, #d7dee9); padding: 0 10px; font-size: 13px; background: var(--card, #fff); color: inherit; margin-right: 6px; }
+
+/* v1.0.78 : choix de lot (liste) + colonne 📍 dédiée */
+.lot-bar .lot-pickbtn { flex: 0 0 auto; }
+.lot-pick { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0 4px; }
+.lot-pick .lp-i { border: 1px solid var(--line, #d7dee9); background: var(--card, #fff); color: inherit; border-radius: 10px; padding: 7px 10px; font-size: 13px; }
+.lot-pick .lp-i.on { border-color: #0d9488; box-shadow: inset 0 0 0 1px #0d9488; font-weight: 700; }
+.lot-pick .lp-i small { opacity: .7; }
+table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-left: 2px; padding-right: 2px; }

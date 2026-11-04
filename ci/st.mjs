@@ -1401,6 +1401,8 @@ try {
   log('v1.0.76 [pin photo rouge]', t76);
   const t77 = await A.pg.evaluate(() => ({ keep: typeof renderPlans === 'function' && typeof lotBarInto === 'function' }));
   log('v1.0.77 [barre des lots, position conservée]', t77);
+  const t78 = await A.pg.evaluate(() => ({ red: typeof redPinSVG === 'undefined' ? 'x' : 'ok', lots: typeof lotBarInto === 'function' }));
+  log('v1.0.78 [pin 📍 colonne, pin rouge plan, choix de lot, intensité]', t78); log('errors v1.0.78', t78.lots ? [] : ['v1.0.78']);
   log('errors v1.0.71', (t71.same !== 'true,true,true,true' || t71.fn !== 'function' || t71.pins !== 'function,function,function,#dc2626,#16a34a,#dc2626' || !t71.page || t71.bw !== 'undefined' || t71.bwb) ? ['v1.0.71'] : []);
   // ---- v1.0.45 : bibliothèque unifiée Basic / Pro + organigramme global / par service
   const v45lib = [];
