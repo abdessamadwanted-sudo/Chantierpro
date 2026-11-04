@@ -306,6 +306,7 @@ async function renderHome() {
       // v1.0.47 : Outils PDF / Studio photo / Tableau de dessin → Outils du projet ; Briefing → Équipe › Pilotage
       { title: 'Données', color: '#0ea5e9', items: [
         { label: 'Stockage & sauvegarde', sub: 'libérer · Google Drive · .zip', icon: 'cloud', value: 'stock' },
+        { label: '☁ Sauvegarde complète dans Drive', sub: 'tous les projets, un seul fichier mis à jour', icon: 'drive', value: 'cloudsave' },
         ...(typeof BgUp !== 'undefined' && BgUp.available() ? [{ label: 'Envoi en arrière-plan', sub: 'photos vers Drive, même application fermée · Wi-Fi · batterie', icon: 'upload', value: 'bgup' }] : []),
         { label: 'Restaurer une sauvegarde', sub: 'fichier .zip ou .chantier', icon: 'undo', value: 'restore' },
         { label: 'Corbeille', sub: 'supprimés depuis 30 jours', icon: 'trash', value: 'trash' }] },
@@ -326,6 +327,7 @@ async function renderHome() {
     if (v === 'packs') openPacks();
     if (v === 'restore') restoreBackup();
     if (v === 'stock') openStorage();
+    if (v === 'cloudsave') cloudSaveAll(false);
     if (v === 'bgup') BgUp.openSettings();
     if (v === 'team') openMyTeam();
     if (v === 'pin') setPinDialog();
@@ -1520,6 +1522,9 @@ async function quickLink(id, editOnly = false) {
 
 // ---------- Restauration ----------
 async function restoreBackup() {
+  const v = await menu('Restaurer', [{ label: '☁ Depuis Google Drive (sauvegarde complète)', icon: 'drive', value: 'drive' }, { label: 'Depuis un fichier (.zip / .chantier)', icon: 'undo', value: 'file' }]);
+  if (v === 'drive') return restoreFromDrive();
+  if (v !== 'file') return;
   const files = await pickFiles({ accept: '*/*', multiple: false });
   if (!files.length) return;
   const ld = loading('Restauration…');
@@ -1530,6 +1535,47 @@ async function restoreBackup() {
   } catch (e) {
     ld.close(); console.error(e); alertBox('Restauration impossible : ' + (e.message || e));
   }
+}
+
+// v1.0.74 : sauvegarde complète unique dans Google Drive (SiteTeam / Sauvegardes) — mise à jour, jamais dupliquée
+async function cloudSaveAll(auto = false) {
+  if (!GDrive.available() || !Sync.enabled()) { if (!auto) alertBox('Connectez d\'abord Google Drive (Paramètres › Google Drive).'); return false; }
+  // garde-fou : on n'écrase jamais la sauvegarde Drive avec MOINS de projets sans confirmation
+  const n = (await DB.all('projects')).length, prev = (() => { try { return (JSON.parse(localStorage.getItem('bk.cloud') || 'null') || {}).n || 0; } catch (e) { return 0; } })();
+  if (n < prev) { if (auto) return false; const ok = await confirmBox(`Ce téléphone a ${n} projet(s), la sauvegarde Drive en a ${prev}. La remplacer quand même ?`, 'Remplacer'); if (!ok) return false; }
+  const ld = auto ? null : loading('Sauvegarde Drive…');
+  try {
+    const blob = await Backup.buildAllBlob((i, n2) => ld && ld.set(`Sauvegarde Drive… ${i}/${n2}`));
+    const r = await GDrive.backupSave(blob);
+    try { localStorage.setItem('bk.cloud', JSON.stringify({ at: Date.now(), size: blob.size, id: r.id, n })); } catch (e) {}
+    ld && ld.close(); if (!auto) toast('☁ Sauvegarde complète mise à jour dans Drive ✓');
+    return true;
+  } catch (e) {
+    ld && ld.close(); console.warn('cloud save', e);
+    if (!auto) alertBox('Sauvegarde Drive impossible : ' + (e.message || e));
+    return false;
+  }
+}
+// sauvegarde automatique : au plus une fois toutes les 12 h, seulement si Drive est connecté et qu'il y a des projets
+function cloudAutoCheck() {
+  try { const L = JSON.parse(localStorage.getItem('bk.cloud') || 'null'); if (L && Date.now() - L.at < 12 * 3600e3) return; } catch (e) {}
+  if (!window.__safe) cloudSaveAll(true);
+}
+async function restoreFromDrive() {
+  if (!GDrive.available() || !Sync.enabled()) return alertBox('Connectez d\'abord Google Drive (Paramètres › Google Drive), puis réessayez.');
+  const ld = loading('Recherche de la sauvegarde…');
+  let info = null;
+  try { info = await GDrive.backupInfo(); } catch (e) { ld.close(); return alertBox('Drive inaccessible : ' + (e.message || e)); }
+  ld.close();
+  if (!info) return alertBox('Aucune sauvegarde complète dans Drive (dossier SiteTeam / Sauvegardes) pour ce compte Google.');
+  const ok = await confirmBox(`Restaurer la sauvegarde du ${fmtDateTime(info.modifiedTime ? Date.parse(info.modifiedTime) : Date.now())} (${Math.round((+info.size || 0) / 1048576)} Mo) ? Les projets déjà présents sur ce téléphone seront remplacés.`, 'Restaurer');
+  if (!ok) return;
+  const ld2 = loading('Restauration depuis Drive…');
+  try {
+    const dl = await GDrive.backupGet(info.id);
+    await Backup.importFile(dl.blob, (n) => ld2.set(`Restauration… ${n} éléments`), { replaceAll: true });
+    ld2.close(); toast('✓ Projets restaurés depuis Drive'); renderHome();
+  } catch (e) { ld2.close(); console.error(e); alertBox('Restauration impossible : ' + (e.message || e)); }
 }
 
 // ---------- Retour : bouton Android + glisser du bord gauche vers la droite ----------
@@ -1657,6 +1703,7 @@ async function openPlansQuick() {
   Team.boot().catch(e => console.error('team', e)).finally(() => { const tTeam1 = Date.now(); Promise.resolve(renderHome()).finally(() => { try { const t0 = window.__t0 || tTeam0, ts = window.__tScripts || tTeam0, now = Date.now();
       localStorage.setItem('boot.t', JSON.stringify({ total: now - t0, scripts: Math.max(0, ts - t0), team: tTeam1 - tTeam0, home: now - tTeam1, at: now })); } catch (e) {} bootTrail('accueil affiché'); if (window.__safe) setTimeout(safeModeInfo, 900); else setTimeout(storageWatch, 20000); }); if (!window.__safe) Sync.start(); setTimeout(() => checkUpdate(false).catch(() => {}), 2500); try { dwgCrashCheck(); } catch (e) {} setTimeout(showWhatsNew, 1800); setTimeout(() => otaBoot().catch(() => {}), 1200); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(false).catch(() => {}); });
+  setTimeout(() => { try { cloudAutoCheck(); } catch (e) {} }, 120000);   // v1.0.74 : sauvegarde complète Drive (au plus toutes les 12 h)
   // hors ligne : petite pastille en haut
   const net = () => { let b = document.getElementById('offBadge'); if (navigator.onLine) { if (b) b.remove(); return; } if (!b) { b = document.createElement('div'); b.id = 'offBadge'; b.textContent = '⚡ Hors ligne'; b.onclick = () => toast('Pas d\'internet : les photos et fichiers de Drive se chargeront au retour du réseau'); document.body.appendChild(b); } };
   window.addEventListener('online', () => { net(); toast('✓ Connexion rétablie'); try { Sync.schedule(1500); } catch (e) {} }); window.addEventListener('offline', net); net();

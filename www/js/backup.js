@@ -97,7 +97,7 @@ const Backup = (() => {
     ctx.blob = (n, type) => { const r = fflate.unzipSync(u8, { filter: (f) => f.name === n })[n]; return r ? new Blob([r], { type }) : null; };
     for (const l of new TextDecoder().decode(d).split('\n')) if (l.trim()) yield l;
   }
-  async function importFile(file, onProgress) {
+  async function importFile(file, onProgress, { replaceAll = false } = {}) {
     let header = null, project = null, n = 0;
     const db = DB, ctx = {};
     const sig = new Uint8Array(await file.slice(0, 2).arrayBuffer()), isZip = sig[0] === 0x50 && sig[1] === 0x4b;
@@ -113,8 +113,7 @@ const Backup = (() => {
         project = obj.d;
         const existing = await db.get('projects', project.id);
         if (existing) {
-          const ok = await confirmBox(`« ${project.name} » existe déjà sur ce téléphone. Le remplacer par la sauvegarde ?`, 'Remplacer');
-          if (!ok) return null;
+          if (!replaceAll) { const ok = await confirmBox(`« ${project.name} » existe déjà sur ce téléphone. Le remplacer par la sauvegarde ?`, 'Remplacer'); if (!ok) return null; }
           await db.deleteProject(project.id);
         }
         await db.put('projects', project);
@@ -129,5 +128,33 @@ const Backup = (() => {
     return project;
   }
 
-  return { exportProject, importFile };
+  // v1.0.74 : sauvegarde COMPLÈTE de tous les projets dans un seul fichier (pour Google Drive, mise à jour à chaque fois)
+  async function buildAllBlob(onProgress) {
+    await loadScript('vendor/fflate.min.js');
+    const projects = await DB.all('projects');
+    if (!projects.length) throw new Error('Aucun projet sur ce téléphone : la sauvegarde Drive existante est conservée');
+    const lines = [JSON.stringify({ app: 'chantier', v: 2, date: Date.now(), name: 'Tous les projets (' + projects.length + ')' })];
+    const blobs = [];
+    for (const p of projects) {
+      lines.push(JSON.stringify({ s: 'projects', d: p }));
+      for (const st of STORES) for (const r of await DB.byProject(st, p.id)) {
+        const o = { ...r };
+        if (o.blob instanceof Blob) { const n = `f/${st}_${o.id}`; blobs.push([n, o.blob]); o.blob = { __zip: n, type: o.blob.type || o.mime || '' }; }
+        lines.push(JSON.stringify({ s: st, d: o }));
+      }
+    }
+    const parts = [];
+    const zip = new fflate.Zip((e, chunk) => { if (e) throw e; if (chunk && chunk.length) parts.push(chunk); });
+    const head = new fflate.ZipDeflate('donnees.jsonl', { level: 6 }); zip.add(head);
+    head.push(new TextEncoder().encode(lines.join('\n') + '\n'), true);
+    for (let i = 0; i < blobs.length; i++) {
+      onProgress && onProgress(i + 1, blobs.length);
+      const [n, b] = blobs[i], e = new fflate.ZipPassThrough(n); zip.add(e);
+      e.push(new Uint8Array(await b.arrayBuffer()), true);
+    }
+    zip.end();
+    return new Blob(parts, { type: 'application/zip' });
+  }
+
+  return { exportProject, importFile, buildAllBlob };
 })();

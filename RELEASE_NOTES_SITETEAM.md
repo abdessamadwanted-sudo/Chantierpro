@@ -1,3 +1,9 @@
+## SiteTeam : sauvegarde complète dans Google Drive (un seul fichier)
+- Une seule sauvegarde complète de tous les projets, dans **Mon Drive › SiteTeam › Sauvegardes** (fichier « SiteTeam-sauvegarde-complete.chantier.zip »), mise à jour à chaque fois : plus de fichier en double.
+- Automatique : au plus une fois toutes les 12 h, si Google Drive est connecté. Manuelle : ⋮ › « Sauvegarde complète dans Drive ».
+- Garde-fou : la sauvegarde Drive n'est jamais remplacée automatiquement par une version qui a moins de projets ; en manuel, une confirmation est demandée.
+- Restauration : « Restaurer une sauvegarde » › « Depuis Google Drive » (remplace les projets du téléphone par la sauvegarde complète).
+
 ## SiteTeam : projets jamais « disparus » sans explication
 - Si des projets sont sur le téléphone mais masqués par le contrôle d'accès (compte / connexion non confirmés), l'application le dit : « N projet(s) sont sur ce téléphone », avec « Afficher mes projets quand même », « Réessayer la connexion » et l'envoi du rapport (la cause est notée dans le journal de démarrage).
 
