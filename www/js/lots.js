@@ -53,28 +53,29 @@ function lotBarInto(card, f, ps, root) {
   const cnt = (id) => ps.filter(x => x.lotId === id).length, nNo = ps.filter(x => !x.lotId).length;
   const avB = (L) => { try { return typeof avLotBadge === 'function' && App._avLinks ? avLotBadge(p, L, f, App._avLinks) : ''; } catch (e) { return ''; } };
   const bar = document.createElement('div'); bar.className = 'lot-bar';
-  bar.innerHTML = lots.map(l => { const D = (f.lotData || {})[l.id] || {}, di = dueInfo(D), po = lotStarted(l, D) ? paOpen(l, D).length : 0;
-      return `<button class="lot-c ${sel === l.id ? 'on' : ''}" data-l="${l.id}" style="--c:${l.c};--t:${tint(l.c, .16)}">${l.e} ${esc(l.name)}${cnt(l.id) ? ` <small>${cnt(l.id)}</small>` : ''}${po ? `<i class="lc-pa">🛑${po}</i>` : ''}${di && di.cls !== 'ok' ? `<i class="lc-due ${di.cls}">⏳</i>` : ''}${avB(l)}</button>`; }).join('')
-    + (nNo ? `<button class="lot-c ${sel === '__none' ? 'on' : ''}" data-l="__none" style="--c:#64748b">📄 Sans lot <small>${nNo}</small></button>` : '')
-    + `<button class="lot-c add" data-l="__add">＋</button>`;
-  // v1.0.78 : plus de barre de recherche ; une liste de choix (☰) apparaît dès 5 lots
-  if (lots.length >= 5) { const t = document.createElement('button'); t.type = 'button'; t.className = 'lot-c lot-pickbtn'; t.textContent = `☰ Choisir un lot (${lots.length})`;
-    t.onclick = (e) => { e.stopPropagation(); const old = $('.lot-pick', card); if (old) { old.remove(); return; }
-      const list = document.createElement('div'); list.className = 'lot-pick';
-      list.innerHTML = lots.map(l => `<button type="button" class="lp-i ${sel === l.id ? 'on' : ''}" data-lp="${l.id}">${l.e} ${esc(l.name)}${cnt(l.id) ? ` <small>${cnt(l.id)}</small>` : ''}</button>`).join('')
-        + (nNo ? `<button type="button" class="lp-i ${sel === '__none' ? 'on' : ''}" data-lp="__none">📄 Sans lot <small>${nNo}</small></button>` : '');
-      list.querySelectorAll('[data-lp]').forEach(x => x.onclick = () => { App.lotSel = App.lotSel || {}; App.lotSel[f.id] = x.dataset.lp; App.keepScrollY = ($('#content') || {}).scrollTop || 0; renderPlans(root); });
-      bar.after(list); };
-    bar.prepend(t); }
+  // v1.0.80 : les lots ne sont plus alignés dans le bandeau ; on n'affiche que le lot choisi + une liste déroulante
+  const lotBtn = (l) => { const D = (f.lotData || {})[l.id] || {}, di = dueInfo(D), po = lotStarted(l, D) ? paOpen(l, D).length : 0;
+    return `<button class="lot-c on" data-l="${l.id}" style="--c:${l.c};--t:${tint(l.c, .16)}">${l.e} ${esc(l.name)}${cnt(l.id) ? ` <small>${cnt(l.id)}</small>` : ''}${po ? `<i class="lc-pa">🛑${po}</i>` : ''}${di && di.cls !== 'ok' ? `<i class="lc-due ${di.cls}">⏳</i>` : ''}${avB(l)}</button>`; };
+  const curL = lots.find(l => l.id === sel);
+  const curHtml = curL ? lotBtn(curL) : sel === '__none' ? `<button class="lot-c on" data-l="__none" style="--c:#64748b">📄 Sans lot <small>${nNo}</small></button>` : '';
+  bar.innerHTML = curHtml + `<button type="button" class="lot-c lot-pickbtn">▾ Lots (${lots.length})</button>`;
+  const pickBtn = bar.querySelector('.lot-pickbtn');
+  pickBtn.onclick = (e) => { e.stopPropagation(); const old = $('.lot-pick', card); if (old) { old.remove(); return; }
+    const list = document.createElement('div'); list.className = 'lot-pick';
+    list.innerHTML = lots.map(l => `<button type="button" class="lp-i ${sel === l.id ? 'on' : ''}" data-lp="${l.id}" style="--c:${l.c}">${l.e} ${esc(l.name)}${cnt(l.id) ? ` <small>${cnt(l.id)}</small>` : ''}</button>`).join('')
+      + (nNo ? `<button type="button" class="lp-i ${sel === '__none' ? 'on' : ''}" data-lp="__none">📄 Sans lot <small>${nNo}</small></button>` : '')
+      + `<button type="button" class="lp-i add" data-lp="__add">＋ Nouveau lot</button>`;
+    list.querySelectorAll('[data-lp]').forEach(x => {
+      x.onclick = async () => {
+        if (x.dataset.lp === '__add') { const r = await formSheet('Nouveau lot', [{ name: 'n', label: 'Nom', placeholder: 'Ex : Faux plafond' }, { name: 'e', label: 'Emoji', value: '🔧' }], { okLabel: 'Ajouter' }); if (r && r.n) { lots.push({ id: DB.uid(), name: r.n, e: r.e || '🔧', c: ['#0ea5e9', '#22c55e', '#f97316', '#8b5cf6', '#e11d48'][lots.length % 5], points: [] }); await DB.put('projects', p); renderPlans(root); } return; }
+        App.lotSel = App.lotSel || {}; App.lotSel[f.id] = x.dataset.lp; App.keepScrollY = ($('#content') || {}).scrollTop || 0; renderPlans(root);
+      };
+      const L = lots.find(l => l.id === x.dataset.lp); if (L) x.oncontextmenu = (e) => { e.preventDefault(); lotMenu(L, root); };
+    });
+    bar.after(list); };
   const head = $('.folder-head', card); head.after(bar);
-  $$('[data-l]', bar).forEach(b => {
-    b.onclick = async () => {
-      if (b.dataset.l === '__add') { const r = await formSheet('Nouveau lot', [{ name: 'n', label: 'Nom', placeholder: 'Ex : Faux plafond' }, { name: 'e', label: 'Emoji', value: '🔧' }], { okLabel: 'Ajouter' }); if (r && r.n) { lots.push({ id: DB.uid(), name: r.n, e: r.e || '🔧', c: ['#0ea5e9', '#22c55e', '#f97316', '#8b5cf6', '#e11d48'][lots.length % 5], points: [] }); await DB.put('projects', p); renderPlans(root); } return; }
-      App.lotSel = App.lotSel || {}; App.lotSel[f.id] = b.dataset.l; App.keepScrollY = ($('#content') || {}).scrollTop || 0; renderPlans(root);   // v1.0.77 : on reste à la même place (pas de saut)
-    };
-    if (b.dataset.l && b.dataset.l !== '__add' && b.dataset.l !== '__none') b.oncontextmenu = (e) => { e.preventDefault(); lotMenu(lots.find(l => l.id === b.dataset.l), root); };
-  });
-  const on = bar.querySelector('.lot-c.on'); if (on) requestAnimationFrame(() => on.scrollIntoView({ inline: 'center', block: 'nearest' }));
+  $$('[data-l]', bar).forEach(b => { if (b.dataset.l && b.dataset.l !== '__none') b.oncontextmenu = (e) => { e.preventDefault(); lotMenu(lots.find(l => l.id === b.dataset.l), root); }; });
+  bar.querySelectorAll('[data-l]').forEach(b => b.onclick = (e) => pickBtn.onclick(e));   // toucher le lot choisi ouvre la liste
   if (sel) { const L = lots.find(l => l.id === sel); if (L) bar.after(lotPanel(L, f, root)); }
 }
 const lotFilter = (ps, f) => { const s = lotSelDefault(f, ps); return s === '__none' ? ps.filter(p => !p.lotId) : s ? ps.filter(p => p.lotId === s) : ps; };
