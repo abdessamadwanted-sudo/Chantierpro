@@ -248,5 +248,26 @@ const GDrive = (() => {
   async function connect() { reset(); await token(true, true); return ping(); }
   function forget() { reset(); tok = null; tokAt = 0; LS.del('root'); }
 
-  return { available, connect, call, forget, SCOPE, _reset: reset };
+  // ---------- v1.0.74 : sauvegarde complète unique « SiteTeam / Sauvegardes » (mise à jour, jamais dupliquée) ----------
+  const BK_NAME = 'SiteTeam-sauvegarde-complete.chantier.zip';
+  async function backupFind() {
+    const folder = await path(['Sauvegardes']);
+    const l = await list(`name='${qs(BK_NAME)}' and '${folder}' in parents and trashed=false`, 'id,name,size,modifiedTime');
+    return { folder, file: l[0] || null };
+  }
+  async function backupInfo() { return (await backupFind()).file; }
+  async function backupSave(blob) {
+    const { folder, file } = await backupFind();
+    if (!file) { const r = await create({ name: BK_NAME, parents: [folder], mimeType: 'application/zip' }, blob, 'application/zip'); return { id: r.id, created: true, size: blob.size }; }
+    if (blob.size <= 4 * 1048576) await req(`${UP}/files/${file.id}?uploadType=media&fields=id`, { method: 'PATCH', headers: { 'Content-Type': 'application/zip' }, body: blob });
+    else {
+      const s = await req(`${UP}/files/${file.id}?uploadType=resumable&fields=id`, { method: 'PATCH', headers: { 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': 'application/zip', 'X-Upload-Content-Length': String(blob.size) }, body: '{}' });
+      const loc = s.headers.get('Location') || s.headers.get('location'); if (!loc) throw new Error('Envoi Drive : réponse incomplète');
+      await json(loc, { method: 'PUT', headers: { 'Content-Type': 'application/zip' }, body: blob });
+    }
+    return { id: file.id, created: false, size: blob.size };
+  }
+  async function backupGet(id) { return download(id); }
+
+  return { available, connect, call, forget, SCOPE, _reset: reset, backupInfo, backupSave, backupGet };
 })();

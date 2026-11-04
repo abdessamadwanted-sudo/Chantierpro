@@ -1393,6 +1393,8 @@ try {
   log('v1.0.71 [niveau reconnu quelle que soit l\'écriture, 📍 plan du niveau, ◐ retiré, filtre lot + niveau]', t71);
   const t72 = await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.phF = null; App.section = 'photos'; await renderSection(); await new Promise(r => setTimeout(r, 700)); const css = [...document.styleSheets].some(ss => { try { return [...ss.cssRules].some(r => /\.ph-sub/.test(r.selectorText || '')); } catch (e) { return false; } }); return { page: !!document.querySelector('.ph-search'), css }; });
   log('v1.0.72 [pin photos = un dossier + sous-dossiers, pin 3D]', t72); log('errors v1.0.72', t72.page && t72.css ? [] : ['v1.0.72']);
+  const t74 = await A.pg.evaluate(() => ({ build: typeof Backup.buildAllBlob, save: typeof GDrive.backupSave, info: typeof GDrive.backupInfo, get: typeof GDrive.backupGet, restore: typeof restoreFromDrive, auto: typeof cloudAutoCheck, cloud: typeof cloudSaveAll }));
+  log('v1.0.74 [sauvegarde complète Drive : fonctions présentes]', t74); log('errors v1.0.74', Object.values(t74).every(x => x === 'function') ? [] : ['v1.0.74']);
   log('errors v1.0.71', (t71.same !== 'true,true,true,true' || t71.fn !== 'function' || t71.pins !== 'function,function,function,#dc2626,#16a34a,#dc2626' || !t71.page || t71.bw !== 'undefined' || t71.bwb) ? ['v1.0.71'] : []);
   // ---- v1.0.45 : bibliothèque unifiée Basic / Pro + organigramme global / par service
   const v45lib = [];
