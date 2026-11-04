@@ -406,6 +406,11 @@ async function openPlanViewer(plan, ctx) {
       <rect x="-8" y="-33" width="16" height="11" rx="2" fill="#fff"/><rect x="-3" y="-35" width="6" height="3" rx="1" fill="#fff"/><circle cx="0" cy="-27.5" r="3.4" fill="#dc2626"/>
       ${n ? `<circle cx="13" cy="-36" r="7" fill="#111" stroke="#fff" stroke-width="1.2"/><text x="13" y="-32.5" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" font-family="Arial">${n}</text>` : ''}`;
   }
+  function redPinSVG(n) {
+    return `<path d="M0,0 C-4,-10 -13,-14 -13,-27 A13,13 0 1 1 13,-27 C13,-14 4,-10 0,0Z" fill="#dc2626" stroke="#fff" stroke-width="2"/>
+      <circle cx="0" cy="-27" r="4.5" fill="#fff"/>
+      ${n ? `<circle cx="13" cy="-36" r="7" fill="#111" stroke="#fff" stroke-width="1.2"/><text x="13" y="-32.5" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" font-family="Arial">${n}</text>` : ''}`;
+  }
   function renderMarkers() {
     const m = pinM();
     const s = m / st.scale;
@@ -430,6 +435,8 @@ async function openPlanViewer(plan, ctx) {
         <rect x="-17" y="-17" width="34" height="34" rx="9" fill="${P.c}" stroke="#fff" stroke-width="2.4"/><text x="0" y="6.5" text-anchor="middle" font-size="18">${P.e}</text>
         ${n ? `<circle cx="16" cy="-16" r="9" fill="#111" stroke="#fff" stroke-width="1.5"/><text x="16" y="-12" text-anchor="middle" font-size="11" font-weight="700" fill="#fff" font-family="Arial">${n}</text>` : ''}
         ${showLabel ? `<text x="0" y="32" text-anchor="middle" font-size="12" fill="${P.c}" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`; }
+      if (l.kind === 'recpin') return `<g transform="translate(${px},${py}) scale(${Math.max(0.3, m) / st.scale})">${redPinSVG(0)}
+        ${showLabel ? `<text x="0" y="16" text-anchor="middle" font-size="12" fill="#b91c1c" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`;
       if (l.kind === 'photonote') return `<g transform="translate(${px},${py}) scale(${Math.max(0.3, m) / st.scale})">${photoPinSVG(n)}
         ${showLabel ? `<text x="0" y="16" text-anchor="middle" font-size="12" fill="#b91c1c" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`;
       const P = pinLook(l);
@@ -562,8 +569,8 @@ async function openPlanViewer(plan, ctx) {
       </div>
       <div class="pb-colors">${HUES.map(c => `<button class="sw2 ${c === hue ? 'on' : ''}" data-c="${c}" style="background:${c}"></button>`).join('')}</div>
       <div class="pb-sliders">
-        <label><span>Intensité</span><input type="range" min="-100" max="100" step="5" value="${Math.round(shade * 100)}" data-r="shade"
-          style="background:linear-gradient(90deg, ${shadeHex(hue, -1)}, ${hue}, ${shadeHex(hue, 1)})"></label>
+        <label><span>Intensité</span><input type="range" min="0" max="100" step="5" value="${Math.round(-Math.min(0, shade) * 100)}" data-r="shade"
+          style="background:linear-gradient(90deg, ${hue}, ${shadeHex(hue, -1)})"></label>
         ${isText ? `<label><span>Taille</span><input type="range" min="6" max="40" value="${tsize}" data-r="ts"></label>`
           : `<label><span>Épaisseur</span><input type="range" min="1" max="16" value="${thick}" data-r="thick"></label>`}
       </div>`;
@@ -574,7 +581,7 @@ async function openPlanViewer(plan, ctx) {
     });
     $$('[data-r]', bar).forEach(r => r.oninput = () => {
       const v = +r.value, k = r.dataset.r;
-      if (k === 'shade') { if (selA) apply(a => { a.hue = a.hue || a.color; a.shade = v / 100; }); else st.shade = v / 100; }
+      if (k === 'shade') { if (selA) apply(a => { a.hue = a.hue || a.color; a.shade = -v / 100; }); else st.shade = -v / 100; }   // v1.0.78 : une seule direction, couleur → pâle
       if (k === 'thick') { if (selA) apply(a => { a.sw = base * v / 1600; }); else st.thick = v; }
       if (k === 'ts') { if (selA) apply(a => { a.fs = v * base / 500; }); else st.textSize = v; }
       const pv = $('.pb-prev span', bar); pv.style.background = selA ? selA.color : st.color;

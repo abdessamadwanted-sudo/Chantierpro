@@ -332,7 +332,7 @@ function openReceptionDay(day, opts = {}) {
         const R = pz.w.getBoundingClientRect(), mx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - R.left, my = (e.touches[0].clientY + e.touches[1].clientY) / 2 - R.top;
         RZ = nz; el.style.setProperty('--rz', RZ.toFixed(3)); pz.w.scrollLeft = (pz.w.scrollLeft + mx) * k - mx; pz.w.scrollTop = (pz.w.scrollTop + my) * k - my; }, { passive: false });
       el.addEventListener('touchend', (e) => { if (pz && e.touches.length < 2) { pz = null; try { localStorage.setItem('rec.zoom', RZ.toFixed(3)); } catch (er) {} } }); }
-    const NC = isBeton(K) ? 10 : 12;
+    const NC = isBeton(K) ? 11 : 13;   // v1.0.78 : colonne 📍 dédiée
     let NAMES = [];
     DB.byProject('receptions', day.projectId).then(l => { NAMES = [...new Set(l.flatMap(d => d.rows.map(r => (r.avec || '').trim()).filter(Boolean)))]; });
     const [PH1, PH2] = photoLabels(K);
@@ -392,11 +392,11 @@ function openReceptionDay(day, opts = {}) {
         <div class="rec-wrap">
           <table class="rec">
             <thead>
-              <tr><th>Zone</th><th>NIV</th><th class="el">${recColHead(K)}</th>${isBeton(K) ? '<th>Classe béton</th>' : '<th class="pvh">PV</th><th class="ix">Ind. coff.</th><th class="ix">Ind. fer.</th>'}<th>Statut</th>${isBeton(K) ? '' : '<th>Réceptionné avec</th>'}<th class="ob">Observation</th><th>${PH1}</th><th>${PH2}</th><th>Croquis</th>${isBeton(K) ? '<th>Décoffrage</th>' : ''}</tr>
+              <tr><th>Zone</th><th>NIV</th><th class="el">${recColHead(K)}</th><th class="pinh" title="Placer sur le plan">📍</th>${isBeton(K) ? '<th>Classe béton</th>' : '<th class="pvh">PV</th><th class="ix">Ind. coff.</th><th class="ix">Ind. fer.</th>'}<th>Statut</th>${isBeton(K) ? '' : '<th>Réceptionné avec</th>'}<th class="ob">Observation</th><th>${PH1}</th><th>${PH2}</th><th>Croquis</th>${isBeton(K) ? '<th>Décoffrage</th>' : ''}</tr>
             </thead>
             <tbody>
               ${day.rows.map((r, i) => `<tr data-i="${i}" class="st-${r.status} ${moveSel === i ? 'moving' : ''} ${selId && r.id === selId ? 'sel' : ''} ${!isBeton(K) && r.element && r.status !== 'pending' && !r.pvLivre ? 'pv-nl' : ''}">
-                <td class="c">${esc(r.zone)}</td><td class="c">${esc(r.niv)}</td><td class="el">${esc(r.element)}${r.element ? `<button class="rc-pin ${r.pinId ? 'on' : ''}" data-rpin="${i}" title="${r.pinId ? 'Voir sur le plan' : 'Placer sur le plan'}">📍</button>` : ''}</td>${isBeton(K) ? `<td class="c">${esc(r.classe || '')}</td>` : `<td class="c pvc">${pvCell(r, i)}</td><td class="c ix">${r.repFrom ? '<span class="rep-b">✗ Reporté</span>' : ''}${indCell(r.indCof, r.indCofD)}</td><td class="c ix">${indCell(r.indFer, r.indFerD)}</td>`}
+                <td class="c">${esc(r.zone)}</td><td class="c">${esc(r.niv)}</td><td class="el">${esc(r.element)}</td><td class="c pinc">${r.element ? `<button class="rc-pin ${r.pinId ? 'on' : ''}" data-rpin="${i}" title="${r.pinId ? 'Voir sur le plan' : 'Placer sur le plan'}">📍</button>` : ''}</td>${isBeton(K) ? `<td class="c">${esc(r.classe || '')}</td>` : `<td class="c pvc">${pvCell(r, i)}</td><td class="c ix">${r.repFrom ? '<span class="rep-b">✗ Reporté</span>' : ''}${indCell(r.indCof, r.indCofD)}</td><td class="c ix">${indCell(r.indFer, r.indFerD)}</td>`}
                 <td class="c">${r.status === 'ok' ? '' : `<span class="rs" style="background:${(REC_STATUS[r.status] || REC_STATUS.pending).color}">${r.status === 'reserve' ? resLabel(K) : r.status === 'progress' ? 'En cours' : 'Attente'}</span>`}${r.status === 'reserve' && r.liftedAt ? `<br><span class="rs" style="background:#16a34a;margin-top:4px">${liftLabel(K)} ${recDateLabel(r.liftedAt).slice(0, 5)}</span>` : ''}</td>
 ${isBeton(K) ? '' : `<td class="c">${esc(r.avec || '')}</td>`}
                 <td class="ob">${esc(r.obs)}</td>

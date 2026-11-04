@@ -57,10 +57,15 @@ function lotBarInto(card, f, ps, root) {
       return `<button class="lot-c ${sel === l.id ? 'on' : ''}" data-l="${l.id}" style="--c:${l.c};--t:${tint(l.c, .16)}">${l.e} ${esc(l.name)}${cnt(l.id) ? ` <small>${cnt(l.id)}</small>` : ''}${po ? `<i class="lc-pa">🛑${po}</i>` : ''}${di && di.cls !== 'ok' ? `<i class="lc-due ${di.cls}">⏳</i>` : ''}${avB(l)}</button>`; }).join('')
     + (nNo ? `<button class="lot-c ${sel === '__none' ? 'on' : ''}" data-l="__none" style="--c:#64748b">📄 Sans lot <small>${nNo}</small></button>` : '')
     + `<button class="lot-c add" data-l="__add">＋</button>`;
-  // v1.0.77 : recherche de lot dans la barre (apparaît dès 5 lots)
-  if (lots.length >= 5) { const q = document.createElement('input'); q.type = 'search'; q.className = 'lot-q'; q.placeholder = '🔍 Chercher un lot'; q.setAttribute('aria-label', 'Chercher un lot'); bar.prepend(q);
-    q.oninput = () => { const t = q.value.trim().toLowerCase(); $$('.lot-c', bar).forEach(b => { const ok = !t || (b.textContent || '').toLowerCase().includes(t) || b.classList.contains('on') || b.classList.contains('add'); b.style.display = ok ? '' : 'none'; }); };
-    q.onclick = (e) => e.stopPropagation(); }
+  // v1.0.78 : plus de barre de recherche ; une liste de choix (☰) apparaît dès 5 lots
+  if (lots.length >= 5) { const t = document.createElement('button'); t.type = 'button'; t.className = 'lot-c lot-pickbtn'; t.textContent = `☰ Choisir un lot (${lots.length})`;
+    t.onclick = (e) => { e.stopPropagation(); const old = $('.lot-pick', card); if (old) { old.remove(); return; }
+      const list = document.createElement('div'); list.className = 'lot-pick';
+      list.innerHTML = lots.map(l => `<button type="button" class="lp-i ${sel === l.id ? 'on' : ''}" data-lp="${l.id}">${l.e} ${esc(l.name)}${cnt(l.id) ? ` <small>${cnt(l.id)}</small>` : ''}</button>`).join('')
+        + (nNo ? `<button type="button" class="lp-i ${sel === '__none' ? 'on' : ''}" data-lp="__none">📄 Sans lot <small>${nNo}</small></button>` : '');
+      list.querySelectorAll('[data-lp]').forEach(x => x.onclick = () => { App.lotSel = App.lotSel || {}; App.lotSel[f.id] = x.dataset.lp; App.keepScrollY = ($('#content') || {}).scrollTop || 0; renderPlans(root); });
+      bar.after(list); };
+    bar.prepend(t); }
   const head = $('.folder-head', card); head.after(bar);
   $$('[data-l]', bar).forEach(b => {
     b.onclick = async () => {

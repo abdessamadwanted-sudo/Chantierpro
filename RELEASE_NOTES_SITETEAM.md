@@ -1,3 +1,10 @@
+## SiteTeam : v1.0.78
+- Tableaux Réception / Bétonnage / Anomalies : colonne 📍 dédiée (le bouton n'est plus dans la cellule de l'élément).
+- Sur le plan, un point réception/bétonnage est un pin rouge simple (plus d'emoji), qui grandit et rétrécit avec le zoom comme le pin photo.
+- Barre des lots : recherche supprimée ; bouton « ☰ Choisir un lot » (liste) dès 5 lots.
+- Intensité du dessin : une seule direction, de la couleur (à gauche) vers une couleur pâle (à droite).
+- Non fait dans cette version : séparation des tableaux photos par lot (besoin d'un champ lot), poteaux absents du PDF partagé, suppression d'espace, optimisation du démarrage (mémoire des plans R+2).
+
 ## SiteTeam : lots par niveau
 - Barre des lots : recherche de lot (apparaît dès 5 lots).
 - En choisissant un lot ou en ouvrant son panneau, la page reste à la même place (plus de remontée puis redescente).
