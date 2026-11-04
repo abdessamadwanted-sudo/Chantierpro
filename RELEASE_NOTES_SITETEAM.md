@@ -1,3 +1,6 @@
+## SiteTeam : pin photo sur le plan
+- Les pins des photos : pointe rouge avec une icône appareil photo (plus de cercle autour), chiffre si plusieurs photos ; ils restent lisibles quand on dézoome (taille minimale).
+
 ## SiteTeam : chargement du plan avec pourcentage, connexion
 - Ouverture d'un plan : barre de chargement avec le **pourcentage réel** de lecture du fichier (il disparaît dès que le plan s'affiche, et au plus tard après 30 s).
 - Connexion : Android ne propose plus les adresses Google enregistrées dans le champ e-mail en mode « Se connecter », ni le mot de passe enregistré (création de compte inchangée).

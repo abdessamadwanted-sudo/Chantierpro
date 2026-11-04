@@ -400,6 +400,12 @@ async function openPlanViewer(plan, ctx) {
     gAnn.style.display = st.filters.annots ? '' : 'none';
     gAnn.innerHTML = plan.annotations.map(annotSVG).join('');
   }
+  // v1.0.75 : pin photo = pointe rouge avec une icône appareil photo (sans cercle autour) ; un chiffre si plusieurs photos
+  function photoPinSVG(n) {
+    return `<path d="M0,0 C-4,-10 -13,-14 -13,-27 A13,13 0 1 1 13,-27 C13,-14 4,-10 0,0Z" fill="#dc2626" stroke="#fff" stroke-width="2"/>
+      <rect x="-8" y="-33" width="16" height="11" rx="2" fill="#fff"/><rect x="-3" y="-35" width="6" height="3" rx="1" fill="#fff"/><circle cx="0" cy="-27.5" r="3.4" fill="#dc2626"/>
+      ${n ? `<circle cx="13" cy="-36" r="7" fill="#111" stroke="#fff" stroke-width="1.2"/><text x="13" y="-32.5" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" font-family="Arial">${n}</text>` : ''}`;
+  }
   function renderMarkers() {
     const m = pinM();
     const s = m / st.scale;
@@ -424,6 +430,8 @@ async function openPlanViewer(plan, ctx) {
         <rect x="-17" y="-17" width="34" height="34" rx="9" fill="${P.c}" stroke="#fff" stroke-width="2.4"/><text x="0" y="6.5" text-anchor="middle" font-size="18">${P.e}</text>
         ${n ? `<circle cx="16" cy="-16" r="9" fill="#111" stroke="#fff" stroke-width="1.5"/><text x="16" y="-12" text-anchor="middle" font-size="11" font-weight="700" fill="#fff" font-family="Arial">${n}</text>` : ''}
         ${showLabel ? `<text x="0" y="32" text-anchor="middle" font-size="12" fill="${P.c}" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`; }
+      if (l.kind === 'photonote') return `<g transform="translate(${px},${py}) scale(${Math.max(0.3, m) / st.scale})">${photoPinSVG(n)}
+        ${showLabel ? `<text x="0" y="16" text-anchor="middle" font-size="12" fill="#b91c1c" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`;
       const P = pinLook(l);
       return `<g transform="translate(${px},${py}) scale(${s})">${linkPin(P.c, n, P.e)}
         ${showLabel ? `<text x="0" y="16" text-anchor="middle" font-size="12" fill="${P.c}" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`;
