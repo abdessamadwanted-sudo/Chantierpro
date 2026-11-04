@@ -3679,3 +3679,6 @@ table.rec td.el .rc-pin.on { opacity: 1; background: rgba(220, 38, 38, .12); }
 .plan-load .pl-bar { height: 8px; border-radius: 6px; background: rgba(255, 255, 255, .15); overflow: hidden; }
 .plan-load .pl-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #60a5fa, #2563eb); transition: width .15s linear; }
 .plan-load .pl-p { margin-top: 8px; font-size: 13px; opacity: .85; font-variant-numeric: tabular-nums; }
+
+/* v1.0.77 : recherche de lot dans la barre des lots */
+.lot-bar .lot-q { flex: 0 0 auto; width: 150px; height: 34px; border-radius: 10px; border: 1px solid var(--line, #d7dee9); padding: 0 10px; font-size: 13px; background: var(--card, #fff); color: inherit; margin-right: 6px; }
