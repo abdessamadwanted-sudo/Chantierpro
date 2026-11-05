@@ -576,7 +576,9 @@ async function renderPlans(root) {
     grid.appendChild(add);
   };
   const gridHTML = () => App.planView === 'grid' ? `<div class="plan-grid fw"></div>` : `<div class="plan-rows"></div>`;
-  for (const { f, plans: ps, subs } of groups) {
+  for (let { f, plans: ps, subs } of groups) {
+    // v1.0.85 : un sous-dossier créé dans un lot n'apparaît que dans ce lot (sans lot = partout)
+    if (f.id !== '_none') { const cl = lotSelDefault(f, ps.concat(...subs.map(s => s.plans))); subs = subs.filter(s => !s.f.lotId || s.f.lotId === cl); }
     const open = q ? true : App.openFolders[f.id];
     const card = document.createElement('div');
     const fc = FOLDER_COLORS.find(x => x.k === f.color) || FOLDER_COLORS[0];
@@ -599,7 +601,7 @@ async function renderPlans(root) {
     const lotF = f.id !== '_none' ? f : null;
     const grid = $('.fbody > .plan-grid, .fbody > .plan-rows', card);
     if (grid) fillPlans(grid, ps, f, lotF);
-    const sb = $('[data-a=addsub]', card); if (sb) sb.onclick = () => newFolder(root, f);
+    const sb = $('[data-a=addsub]', card); if (sb) sb.onclick = () => { const cl = f.id !== '_none' ? lotSelDefault(f, ps.concat(...subs.map(s => s.plans))) : null; newFolder(root, f, cl); };
     const ap = $('[data-a=addplan]', card); if (ap) ap.onclick = () => addPlanTo(f.id, folders, root);
     const sbox = $('.subfs', card);
     for (const { f: sf, plans: sps } of subs) {
@@ -656,11 +658,12 @@ function folderPath(f, folders, sep = ' › ') {
   const par = f.parentId && (folders || []).find(x => x.id === f.parentId);
   return par ? `${par.name}${sep}${f.name}` : f.name;
 }
-async function newFolder(root, parent) {
+async function newFolder(root, parent, lotId) {
   const pid = App.project.id;
   const r = await formSheet(parent ? `Sous-dossier dans « ${parent.name} »` : 'Nouveau dossier (niveau)', [{ name: 'name', label: parent ? 'Nom du sous-dossier' : 'Nom du dossier / niveau', placeholder: parent ? 'Ex : Plancher, Poteaux + voiles, Coffrage…' : 'Ex : NIV R+3, Sous-sol, Fondations…' }], { okLabel: 'Créer' });
   if (!r || !r.name) return;
-  const f = await DB.put('folders', { projectId: pid, name: r.name.trim(), parentId: parent ? parent.id : null, color: parent ? parent.color : undefined });
+  const lotOk = parent && lotId && planLots(App.project).some(l => l.id === lotId) ? lotId : null;   // v1.0.85 : sous-dossier limité au lot choisi
+  const f = await DB.put('folders', { projectId: pid, name: r.name.trim(), parentId: parent ? parent.id : null, color: parent ? parent.color : undefined, ...(lotOk ? { lotId: lotOk } : {}) });
   App.openFolders = App.openFolders || {}; App.openFolders[f.id] = true; if (parent) App.openFolders[parent.id] = true;
   App.scrollFolder = f.id;
   await renderPlans(root);
