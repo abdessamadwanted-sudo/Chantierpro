@@ -2067,10 +2067,10 @@ const Team = (() => {
   // formulaire commun : rôle, responsable, projets, zone, droits
   function memberForm(title, o, projects, okLabel) {
     return new Promise((resolve) => {
-      const lim = !isAdmin(), P = myPlan(), svcs = companyServices().filter(x => !o.service || x.k === o.service), mine = S.me || {};
+      const lim = !isAdmin(), P = myPlan(), svcs = companyServices().filter(x => !o.scopeSvc || x.k === o.scopeSvc), mine = S.me || {};
       const cap = (pp) => lim ? Object.fromEntries(MODS.map(([m]) => [m, Math.min(+pp[m] || 0, (mine.perms || {})[m] || 0)])) : pp;
       if (lim && !mine.allProjects) { projects = projects.filter(p => (mine.projects || []).includes(p.id)); if (o.allProjects) { o = { ...o, allProjects: false }; } }
-      const roles = allRoles().filter(r => !(lim && r.admin) && (!ROLE_LEGACY[r.k] || r.k === o.role) && (!o.service || r.s === o.service));   // v1.0.93 : depuis un service, on ne propose que les postes de ce service
+      const roles = allRoles().filter(r => !(lim && r.admin) && (!ROLE_LEGACY[r.k] || r.k === o.role) && (!o.scopeSvc || r.s === o.scopeSvc));   // v1.0.93 : depuis un service, on ne propose que les postes de ce service
       // le poste PROPOSE des droits, plafonnés à « Valider » : « Administrer » et le statut d'administrateur se donnent à part, avec confirmation
       const tpl = (k) => cap(Object.fromEntries(MODS.map(([m]) => [m, Math.min(tmRoleOf(k).perms[m] || 0, 3)])));
       if (!o.role) o = { ...o, role: (roles.find(r => svcOpen(r.s) && svcs.some(x => x.k === r.s) && r.k === 'techqualite') || roles.find(r => svcOpen(r.s) && svcs.some(x => x.k === r.s) && !r.admin) || roles[0]).k };
@@ -2124,7 +2124,7 @@ const Team = (() => {
     if (!canInvite()) return null;
     if (!(await checkLimit('users'))) return null;
     const projects = (await DB.all('projects')).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    const o = await memberForm('Inviter un membre', { withName: true, allProjects: true, service: service || '' }, projects, 'Continuer');
+    const o = await memberForm('Inviter un membre', { withName: true, allProjects: true, scopeSvc: service || '' }, projects, 'Continuer');
     if (!o) return null;
     // récapitulatif : ce que la personne pourra voir et faire, avant de créer le code
     const R = tmRoleOf(o.role), on = MODS.filter(([m]) => (o.perms[m] || 0) > 0), pn = (id) => (projects.find(p => p.id === id) || {}).name || '?';
