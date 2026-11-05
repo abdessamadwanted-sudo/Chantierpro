@@ -521,7 +521,9 @@ async function renderPlans(root) {
   const allPlans = plans.slice(); plans.length = 0; plans.push(...allPlans.filter(isCurrentPlan));   // seulement le dernier indice de chaque plan
   const indTag = (p) => p.indice && p.indice !== 'A' || p.prevId ? ` <span class="ind-tag">Ind. ${esc(planIndice(p))}</span>` : '';
   const q = App.search.toLowerCase();
-  const shown = plans.filter(p => !q || fuzzyHas(p.name, q));
+  // v1.0.87 : recherche d'un lot (ex. « Chape ») = ses plans dans tous les niveaux ; un niveau (ex. « R+3 ») = son dossier
+  const lotHit = q ? planLots(App.project).filter(l => fuzzyHas(l.name, q)).map(l => l.id) : [];
+  const shown = plans.filter(p => !q || fuzzyHas(p.name, q) || (lotHit.length && lotHit.includes(p.lotId)));
   const openCount = (planId) => tasks.filter(t => t.planId === planId && t.status !== 'verified').length;
   App.openFolders = App.openFolders || {};
 
