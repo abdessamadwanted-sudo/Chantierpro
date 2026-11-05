@@ -1,3 +1,6 @@
+## SiteTeam : v1.0.92
+- Services : la Documentation passe sous Qualité, et l'Administration & finance passe sous Travaux (postes Responsable documentation, Agent documentation, Responsable administratif & financier, Comptable / RH). Le sélecteur de poste n'affiche plus les services vides.
+
 ## SiteTeam : v1.0.91
 - Panneau d'administration : onglets réordonnés (Demandes juste après le tableau de bord, puis Centre de contrôle, Utilisateurs, Organisations, Packs, Codes, Contrôle de l'app, Annonces, Erreurs).
 
