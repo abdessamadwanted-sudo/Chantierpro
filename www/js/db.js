@@ -12,7 +12,7 @@ const DB = (() => {
   let dbp = null;
   // Erreurs passagères de connexion (connexion fermée par le système, transaction inactive) : on rouvre et on réessaie.
   // Jamais pour un manque d'espace (QuotaExceededError) ni une donnée invalide (DataError, DataCloneError…).
-  const RETRY = new Set(['InvalidStateError', 'TransactionInactiveError', 'UnknownError']);
+  const RETRY = new Set(['InvalidStateError', 'TransactionInactiveError', 'UnknownError', 'AbortError']);   // v1.0.82 : « transaction was aborted » = AbortError
 
   function open() {
     if (dbp) return dbp;
