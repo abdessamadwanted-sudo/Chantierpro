@@ -1,3 +1,6 @@
+## SiteTeam : v1.0.86
+- Depuis le tableau (📍), le plan s'ouvre sur le lieu avec un seul pin : un gros pin « aiguille » qui suit le zoom et disparaît à la fermeture du plan. Le pin permanent n'est pas affiché en même temps à cet endroit.
+
 ## SiteTeam : v1.0.85
 - Sous-dossier créé dans un lot (avec « ＋ sous-dossier » du niveau) : il n'apparaît que dans ce lot. Les anciens sous-dossiers restent visibles partout.
 
