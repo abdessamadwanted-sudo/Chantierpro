@@ -127,7 +127,8 @@ const Splash = (() => {
   function bye() {
     if (document.querySelector('.splash')) return;
     const name = LS('userName') || '';
-    try { if (typeof Sync !== 'undefined' && Sync.enabled()) Sync.run({ quiet: true }).catch(() => {}); } catch (e) {}
+    // v1.0.82 : la synchro de démarrage attend 2 min et se reporte si la mémoire JS est haute (sinon mode secours)
+    try { if (typeof Sync !== 'undefined' && Sync.enabled()) { const go = (n) => setTimeout(() => { try { const hm = performance.memory && performance.memory.usedJSHeapSize; if (hm && hm > 110 * 1048576 && n < 5) return go(n + 1); Sync.run({ quiet: true }).catch(() => {}); } catch (e) {} }, 120000); go(0); } } catch (e) {}
     const el = document.createElement('div'); el.className = 'splash bye';
     el.innerHTML = `<div class="by-in"><div class="by-pw">${icon('power')}</div><div class="by-t"></div><small class="by-s">À demain sur le chantier</small></div>`;
     document.body.appendChild(el);

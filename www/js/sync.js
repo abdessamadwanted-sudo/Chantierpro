@@ -244,7 +244,8 @@ const Sync = (() => {
       const files = await DB.all('files');
       const todo = !hasDrive() ? [] : files.filter(f => !f.bgq && !f.prep).filter(f => (f.blob && (!f.driveId || f.drivePath !== JSON.stringify(pathFor(f, paths)))) || (!f.blob && f.driveId && f.drivePath && f.drivePath !== JSON.stringify(pathFor(f, paths))));
       let i = 0; if (todo.length) tr(`envoi de ${todo.length} fichier(s)`);
-      await pool(todo, 2, async (f) => {
+      // v1.0.83 : un fichier à la fois (moins de pointes de mémoire) ; le blob est relâché après envoi
+      await pool(todo, 1, async (f) => {
         const pth = pathFor(f, paths), key = JSON.stringify(pth);
         let res = null;
         if (handoff && !f.driveId && f.role === 'photo') return;   // application passée en arrière-plan : le téléphone s'en charge
@@ -259,6 +260,7 @@ const Sync = (() => {
           if (!res) res = await lim(call('upload', { path: pth.segs, name: pth.name, mime: f.mime || f.blob.type, blob: f.blob }), ms);
           f.driveId = res.id; f.drivePath = key;
           await DB.put('files', f);
+          if (f.blob && f.blob.size > 1048576) { f.blob = null; await new Promise(r => setTimeout(r, 300)); }   // libère la mémoire (rechargé depuis Drive si besoin)
         } catch (e) { fails.push(`${pth.name} : ${e.message || e}`); }
         finally { inflight.delete(f.id); i++; setStatus('sync', `Envoi vers Drive ${i}/${todo.length}`); }
       });
