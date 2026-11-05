@@ -1,3 +1,6 @@
+## SiteTeam : v1.0.80
+- Lots : le bandeau ne montre plus que le lot choisi ; « ▾ Lots » ouvre la liste (lots, Sans lot, ＋ Nouveau lot). Toucher le lot choisi ouvre aussi la liste.
+
 ## SiteTeam : v1.0.79
 - Paramètres du projet : « Sauvegarder dans Drive (même fichier) » met à jour toujours le même fichier du projet dans SiteTeam / Sauvegardes / Projets, au lieu de créer un nouveau fichier.
 - « Envoyer / enregistrer le fichier » garde l'envoi (WhatsApp, email…) en un seul geste.
