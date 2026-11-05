@@ -1,3 +1,6 @@
+## SiteTeam : v1.0.93
+- Organigramme, vue « Par service » : bouton ＋ dans chaque service pour ajouter une personne directement dans ce service. Le choix du poste ne propose alors que les postes de ce service (ex. Qualité).
+
 ## SiteTeam : v1.0.92
 - Services : la Documentation passe sous Qualité, et l'Administration & finance passe sous Travaux (postes Responsable documentation, Agent documentation, Responsable administratif & financier, Comptable / RH). Le sélecteur de poste n'affiche plus les services vides.
 
