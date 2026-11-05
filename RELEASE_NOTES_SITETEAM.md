@@ -1,6 +1,7 @@
-## SiteTeam : v1.0.82
+## SiteTeam : v1.0.82 et v1.0.83
 - Démarrage : la synchronisation attend 2 minutes après l'ouverture, et se reporte si la mémoire est pleine (moins de redémarrages et de mode secours).
 - Base locale : les erreurs « transaction was aborted » sont réessayées automatiquement.
+- Synchro : les fichiers partent un par un, et les gros fichiers sont libérés de la mémoire après envoi (moins de redémarrages).
 - Non fait ici : réduction de la résolution des plans PDF (à valider sur téléphone).
 
 ## SiteTeam : v1.0.81
