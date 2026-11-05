@@ -1,3 +1,6 @@
+## SiteTeam : v1.0.91
+- Panneau d'administration : onglets réordonnés (Demandes juste après le tableau de bord, puis Centre de contrôle, Utilisateurs, Organisations, Packs, Codes, Contrôle de l'app, Annonces, Erreurs).
+
 ## SiteTeam : v1.0.90
 - Sauvegarde d'un projet : les plans et photos sont inclus dans le fichier (et non plus seulement leurs adresses Drive). Si des fichiers ne sont pas encore téléchargés, la sauvegarde l'indique au lieu de créer un fichier incomplet.
 
