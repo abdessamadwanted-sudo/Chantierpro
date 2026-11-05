@@ -1,3 +1,9 @@
+## SiteTeam : v1.0.85
+- Sous-dossier créé dans un lot (avec « ＋ sous-dossier » du niveau) : il n'apparaît que dans ce lot. Les anciens sous-dossiers restent visibles partout.
+
+## SiteTeam : v1.0.84
+- Synchro Drive : les fichiers déjà envoyés sont mémorisés à part, donc la synchro ne repart plus de zéro.
+
 ## SiteTeam : v1.0.82 et v1.0.83
 - Démarrage : la synchronisation attend 2 minutes après l'ouverture, et se reporte si la mémoire est pleine (moins de redémarrages et de mode secours).
 - Base locale : les erreurs « transaction was aborted » sont réessayées automatiquement.
