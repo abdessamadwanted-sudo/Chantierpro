@@ -1849,6 +1849,7 @@ const Team = (() => {
       $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
       $$('[data-t]', el).forEach(b => b.onclick = () => { tab = b.dataset.t; draw(); });
       const inv = $('[data-a=invite]', el); if (inv) inv.onclick = () => inviteFlow().then(c => { if (c) { tab = 'inv'; draw(); } });
+      $$('[data-addsvc]', el).forEach(b => b.onclick = (e) => { e.stopPropagation(); inviteFlow(b.dataset.addsvc).then(c => { if (c) { tab = 'inv'; draw(); } }); });   // v1.0.93 : ajouter une personne directement dans un service
       const body = $('.tm-body', el);
       const av = (m) => `<span class="tm-av" style="background:${serviceOf(m.service).c}">${esc(String(m.name || m.email || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase())}</span>`;
       const card = (m, withService = false) => { const sv = serviceOf(m.service || tmRoleOf(m.role).s), reports = M.filter(x => x.managerUid === m.uid).length;
@@ -1870,7 +1871,7 @@ const Team = (() => {
           ${canPostes && !perso ? `<button class="btn ghost small" data-a="postes">${icon('settings')} Gérer les postes</button>` : ''}</div></div>`;
         const content = orgMode === 'tree'
           ? `<div class="tm-orglegend"><span><i></i>Responsable</span><span>Le chiffre indique le nombre de collaborateurs directs</span></div><div class="tm-orgtree">${tree(M, true)}</div>`
-          : svcUsed.map(s => { const L = M.filter(m => (m.service || tmRoleOf(m.role).s) === s.k); return `<section class="tm-svc"><div class="tm-svc-h" style="--c:${s.c}"><i></i>${esc(s.l)}<span>${L.length}</span></div>${tree(L)}</section>`; }).join('');
+          : svcUsed.map(s => { const L = M.filter(m => (m.service || tmRoleOf(m.role).s) === s.k); return `<section class="tm-svc"><div class="tm-svc-h" style="--c:${s.c}"><i></i>${esc(s.l)}<span>${L.length}</span>${canInvite() ? `<button class="tm-svc-add" data-addsvc="${s.k}" title="Ajouter une personne à ce service">＋</button>` : ''}</div>${tree(L)}</section>`; }).join('');
         body.innerHTML = M.length ? toolbar + content : '<div class="empty">Aucun membre.</div>';
         $$('[data-om]', body).forEach(b => b.onclick = () => { orgMode = b.dataset.om; draw(); });
         const q = $('[data-orgq]', body); if (q) q.oninput = () => { const s = q.value.trim().toLowerCase(); $$('.tm-node', body).forEach(n => { n.hidden = !!s && !($('[data-search]', n).dataset.search || '').includes(s); }); };
@@ -2066,10 +2067,10 @@ const Team = (() => {
   // formulaire commun : rôle, responsable, projets, zone, droits
   function memberForm(title, o, projects, okLabel) {
     return new Promise((resolve) => {
-      const lim = !isAdmin(), P = myPlan(), svcs = companyServices(), mine = S.me || {};
+      const lim = !isAdmin(), P = myPlan(), svcs = companyServices().filter(x => !o.scopeSvc || x.k === o.scopeSvc), mine = S.me || {};
       const cap = (pp) => lim ? Object.fromEntries(MODS.map(([m]) => [m, Math.min(+pp[m] || 0, (mine.perms || {})[m] || 0)])) : pp;
       if (lim && !mine.allProjects) { projects = projects.filter(p => (mine.projects || []).includes(p.id)); if (o.allProjects) { o = { ...o, allProjects: false }; } }
-      const roles = allRoles().filter(r => !(lim && r.admin) && (!ROLE_LEGACY[r.k] || r.k === o.role));
+      const roles = allRoles().filter(r => !(lim && r.admin) && (!ROLE_LEGACY[r.k] || r.k === o.role) && (!o.scopeSvc || r.s === o.scopeSvc));   // v1.0.93 : depuis un service, on ne propose que les postes de ce service
       // le poste PROPOSE des droits, plafonnés à « Valider » : « Administrer » et le statut d'administrateur se donnent à part, avec confirmation
       const tpl = (k) => cap(Object.fromEntries(MODS.map(([m]) => [m, Math.min(tmRoleOf(k).perms[m] || 0, 3)])));
       if (!o.role) o = { ...o, role: (roles.find(r => svcOpen(r.s) && svcs.some(x => x.k === r.s) && r.k === 'techqualite') || roles.find(r => svcOpen(r.s) && svcs.some(x => x.k === r.s) && !r.admin) || roles[0]).k };
@@ -2119,11 +2120,11 @@ const Team = (() => {
       };
     });
   }
-  async function inviteFlow() {
+  async function inviteFlow(service = '') {
     if (!canInvite()) return null;
     if (!(await checkLimit('users'))) return null;
     const projects = (await DB.all('projects')).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    const o = await memberForm('Inviter un membre', { withName: true, allProjects: true }, projects, 'Continuer');
+    const o = await memberForm('Inviter un membre', { withName: true, allProjects: true, scopeSvc: service || '' }, projects, 'Continuer');
     if (!o) return null;
     // récapitulatif : ce que la personne pourra voir et faire, avant de créer le code
     const R = tmRoleOf(o.role), on = MODS.filter(([m]) => (o.perms[m] || 0) > 0), pn = (id) => (projects.find(p => p.id === id) || {}).name || '?';
