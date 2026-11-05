@@ -1,3 +1,7 @@
+## SiteTeam : v1.0.89
+- Réordonnancement par appui long : correction (le menu de sélection du téléphone ne bloque plus le glisser).
+- Bouton « Organiser » retiré de la page des outils du projet.
+
 ## SiteTeam : v1.0.88
 - Outils du projet : appui long sur une catégorie puis glisser pour la monter ou la descendre ; même chose pour un outil à l'intérieur d'une catégorie. L'ordre est gardé.
 
