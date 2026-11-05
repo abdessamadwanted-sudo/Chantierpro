@@ -201,9 +201,9 @@ const TM_ROLES = [
   ['mo', "Maître d'ouvrage", 'externe', '1111111101111001'], ['mod', "Maître d'ouvrage délégué", 'externe', '1111111101111001'], ['architecte', 'Architecte', 'externe', '1221101101110000'],
   ['bet', "BET (bureau d'études)", 'externe', '1221111211111001'], ['bcontrole', 'Bureau de contrôle', 'externe', '1121111201111001'], ['labo', 'Laboratoire', 'externe', '1001220000102000'],
   ['soustraitant', 'Sous-traitant', 'externe', '1120201001211011'],
-  ['respdoc', 'Responsable documentation', 'doc', '2311131101300000'], ['agentdoc', 'Agent documentation', 'doc', '1211121101200000'],
+  ['respdoc', 'Responsable documentation', 'qualite', '2311131101300000'], ['agentdoc', 'Agent documentation', 'qualite', '1211121101200000'],
   ['resplabo', 'Responsable laboratoire', 'labo', '2113232221202001'], ['techlabo', 'Technicien laboratoire', 'labo', '1112221121201001'],
-  ['respadmin', 'Responsable administratif & financier', 'admin', '2110111012200131'], ['comptable', 'Comptable / RH', 'admin', '1000011011200120'],
+  ['respadmin', 'Responsable administratif & financier', 'travaux', '2110111012200131'], ['comptable', 'Comptable / RH', 'travaux', '1000011011200120'],
 ].map(([k, l, s, p, adm]) => ({ k, l, s, perms: Object.fromEntries(MODS.map(([m], i) => [m, +p[i] || 0])), admin: !!adm }));
 // module « finance » (ajouté avec les outils de Chantier) : accès par défaut selon le poste (les administrateurs ont tout)
 { const FIN = { dirqualite: 1, respadmin: 3, comptable: 2, dirtravaux: 3, conducteur: 1, condferraillage: 1, metreur: 3, respmateriel: 1, resppointage: 1, mo: 1, mod: 1, bet: 1,
@@ -1367,7 +1367,7 @@ const Team = (() => {
           return;
         }
         el.innerHTML = `<div class="tm-lg-in">${steps(3, tot())}<h1>Votre service et votre poste</h1><p>L'application s'adapte à votre poste : tableau de bord, outils et recommandations. Ce n'est pas un droit dans une organisation.</p>
-          <div class="form"><label>Service › poste<select name="role">${TM_SERVICES.filter(s => s.k !== 'direction' && !SERVICES_LEGACY.includes(s.k)).map(sv => `<optgroup label="${esc(sv.l)}">${TM_ROLES.filter(r => r.s === sv.k && !ROLE_LEGACY[r.k]).map(r => `<option value="${r.k}" ${r.k === 'conducteur' ? 'selected' : ''}>${esc(r.l)}</option>`).join('')}</optgroup>`).join('')}</select></label>
+          <div class="form"><label>Service › poste<select name="role">${TM_SERVICES.filter(s => s.k !== 'direction' && !SERVICES_LEGACY.includes(s.k) && TM_ROLES.some(r => r.s === s.k && !ROLE_LEGACY[r.k])).map(sv => `<optgroup label="${esc(sv.l)}">${TM_ROLES.filter(r => r.s === sv.k && !ROLE_LEGACY[r.k]).map(r => `<option value="${r.k}" ${r.k === 'conducteur' ? 'selected' : ''}>${esc(r.l)}</option>`).join('')}</optgroup>`).join('')}</select></label>
           <label>Spécialités (facultatif)<input name="spec" placeholder="Ex : ferraillage, gros œuvre"></label>
           <label>Votre nom<input name="me" value="${esc(auth.currentUser.displayName || '')}"></label>
           <button class="btn" data-a="go">Créer mon espace</button></div>
