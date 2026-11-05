@@ -56,7 +56,7 @@
   const orgOf = (cid) => D.orgs.find(x => x.id === cid) || {};
 
   // ---------- écrans ----------
-  const TABS = [['dash', 'Tableau de bord'], ['acces', 'Centre de contrôle'], ['packs', 'Packs & fonctions'], ['users', 'Utilisateurs'], ['orgs', 'Organisations'], ['reqs', 'Demandes'], ['codes', 'Codes pack'], ['ctrl', 'Contrôle de l\'app'], ['ann', 'Annonces'], ['err', 'Erreurs']];
+  const TABS = [['dash', 'Tableau de bord'], ['reqs', 'Demandes'], ['acces', 'Centre de contrôle'], ['users', 'Utilisateurs'], ['orgs', 'Organisations'], ['packs', 'Packs & fonctions'], ['codes', 'Codes pack'], ['ctrl', 'Contrôle de l\'app'], ['ann', 'Annonces'], ['err', 'Erreurs']];   // v1.0.91 : ordre par usage (demandes juste après le tableau de bord, puis comptes, puis packs, puis réglages)
   let tab = (location.hash || '').slice(1).split('/')[0]; if (!TABS.some(t => t[0] === tab)) tab = 'dash';
   function shell(user) {
     app.innerHTML = `<header><div class="hd"><div class="grow"><b>🛡 SiteTeam Admin</b><br><small>${esc(user.email)}</small></div>
