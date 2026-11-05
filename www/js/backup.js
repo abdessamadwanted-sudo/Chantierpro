@@ -26,7 +26,15 @@ const Backup = (() => {
     const project = await DB.get('projects', projectId);
     await loadScript('vendor/fflate.min.js');
     const all = [];
-    for (const s of STORES) for (const r of await DB.byProject(s, projectId)) all.push([s, r]);
+    // v1.0.90 : une sauvegarde doit contenir les fichiers eux-mêmes (plans, photos), pas seulement leurs adresses Drive
+    const missing = [];
+    for (const s of STORES) for (const r of await DB.byProject(s, projectId)) {
+      let x = r;
+      if (s === 'files' && !(x.blob instanceof Blob) && (x.driveId || x.sref)) { try { const g = await DB.get('files', x.id); if (g && g.blob instanceof Blob) x = g; } catch (e) {} }
+      if (s === 'files' && !(x.blob instanceof Blob) && (x.driveId || x.sref)) missing.push(x.name || x.id);
+      all.push([s, x]);
+    }
+    if (missing.length) throw new Error(`${missing.length} fichier(s) pas encore téléchargé(s) depuis Drive. Vérifiez la connexion Drive, attendez la synchro, puis réessayez.`);
     const safe = project.name.replace(/[^\wÀ-ſ؀-ۿ -]+/g, '').trim().replace(/\s+/g, '_').slice(0, 40) || 'projet';
     const fname = `Sauvegarde_${safe}_${todayISO()}.chantier.zip`;
     const lines = [JSON.stringify({ app: 'chantier', v: 2, date: Date.now(), name: project.name }), JSON.stringify({ s: 'projects', d: project })];

@@ -1,3 +1,6 @@
+## SiteTeam : v1.0.90
+- Sauvegarde d'un projet : les plans et photos sont inclus dans le fichier (et non plus seulement leurs adresses Drive). Si des fichiers ne sont pas encore téléchargés, la sauvegarde l'indique au lieu de créer un fichier incomplet.
+
 ## SiteTeam : v1.0.89
 - Réordonnancement par appui long : correction (le menu de sélection du téléphone ne bloque plus le glisser).
 - Bouton « Organiser » retiré de la page des outils du projet.
