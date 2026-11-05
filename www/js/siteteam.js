@@ -311,6 +311,41 @@ const ST = (() => {
       ['pointerup', 'pointerleave', 'pointercancel', 'pointermove'].forEach(ev => b.addEventListener(ev, (e) => { if (ev === 'pointermove' && Math.abs(e.movementX) + Math.abs(e.movementY) < 4) return; clearTimeout(t); }));
       b.addEventListener('click', (e) => { if (lp) { e.stopImmediatePropagation(); e.preventDefault(); lp = false; } }, true);
       b.oncontextmenu = (e) => e.preventDefault(); });
+    // v1.0.88 : appui long puis glisser pour réordonner les catégories et les outils (ordre gardé dans dr.ord)
+    const dragBind = (el, handle, siblingsOf, keyOf, onDrop) => {
+      let t = null, sx = 0, sy = 0, drag = false, suppress = false, pid = null;
+      const end = () => { clearTimeout(t); t = null; if (drag) { drag = false; el.classList.remove('st-dragging'); el.style.transform = ''; el.style.opacity = ''; el.style.zIndex = ''; } };
+      handle.addEventListener('pointerdown', (e) => {
+        sx = e.clientX; sy = e.clientY; pid = e.pointerId; clearTimeout(t);
+        t = setTimeout(() => { t = null; drag = true; suppress = true; try { handle.setPointerCapture(pid); } catch (er) {} el.classList.add('st-dragging'); el.style.opacity = '.7'; el.style.zIndex = '5'; try { navigator.vibrate && navigator.vibrate(15); } catch (er) {} }, 450);
+      });
+      handle.addEventListener('pointermove', (e) => {
+        if (!drag) { if (t && Math.hypot(e.clientX - sx, e.clientY - sy) > 10) { clearTimeout(t); t = null; } return; }
+        el.style.transform = `translateY(${e.clientY - sy}px)`;
+      });
+      const up = (e) => {
+        if (!drag) { clearTimeout(t); t = null; return; }
+        const sib = siblingsOf(), me = sib.indexOf(el), cy = el.getBoundingClientRect().top + el.getBoundingClientRect().height / 2;
+        let idx = sib.filter((x, i) => i !== me && (() => { const r = x.getBoundingClientRect(); return r.top + r.height / 2 < cy; })()).length;
+        end();
+        if (idx !== me) { const keys = sib.map(keyOf), k = keys.splice(me, 1)[0]; keys.splice(idx, 0, k); onDrop(keys); }
+        else renderProjectTools(root);
+      };
+      handle.addEventListener('pointerup', up);
+      handle.addEventListener('pointercancel', () => { end(); clearTimeout(t); t = null; });
+      handle.addEventListener('pointerleave', () => { if (!drag) { clearTimeout(t); t = null; } });
+      handle.addEventListener('click', (e) => { if (suppress) { e.stopImmediatePropagation(); e.preventDefault(); suppress = false; } }, true);
+    };
+    const catEls = () => [...root.querySelectorAll('details.st-acc[data-g]')].filter(d => d.dataset.g !== 'outils');
+    catEls().forEach(d => {
+      const sum = d.querySelector('summary'); if (!sum) return;
+      dragBind(d, sum, catEls, (x) => x.dataset.g, (keys) => { const O = drOrd() || {}; O.g = keys; drOrdSet(O); renderProjectTools(root); });
+    });
+    catEls().forEach(d => {
+      const grid = d.querySelector('.st-tgrid'); if (!grid) return;
+      const tools = () => [...grid.querySelectorAll('[data-tool]')];
+      tools().forEach(btn => dragBind(btn, btn, tools, (x) => x.dataset.tool, (keys) => { const O = drOrd() || {}; O.k = O.k || {}; O.k[d.dataset.g] = keys; drOrdSet(O); renderProjectTools(root); }));
+    });
     const org = root.querySelector('[data-a=orgtools]'); if (org) org.onclick = async () => { const k = await menu('Quel outil déplacer ?', G.flatMap(([g, l, ks]) => ks.map(x => ({ label: `${toolName(x)}  ·  ${l.replace(/^\S+\s/, '')}`, icon: SECTIONS[x].icon || 'grid', value: x })))); if (k) drMove(k, () => renderProjectTools(root)); };
     const npv = root.querySelector('[data-a=newpv]'); if (npv) npv.onclick = async () => { const f = await pvCreate(p); if (f) { await openFormDetail(f); } };
     const lib = root.querySelector('[data-a=library]'); if (lib) lib.onclick = () => openServiceLibrary({ project: p });

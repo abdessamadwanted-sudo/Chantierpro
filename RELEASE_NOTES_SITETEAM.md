@@ -1,3 +1,6 @@
+## SiteTeam : v1.0.88
+- Outils du projet : appui long sur une catégorie puis glisser pour la monter ou la descendre ; même chose pour un outil à l'intérieur d'une catégorie. L'ordre est gardé.
+
 ## SiteTeam : v1.0.86
 - Depuis le tableau (📍), le plan s'ouvre sur le lieu avec un seul pin : un gros pin « aiguille » qui suit le zoom et disparaît à la fermeture du plan. Le pin permanent n'est pas affiché en même temps à cet endroit.
 
