@@ -242,6 +242,8 @@ const Sync = (() => {
       if (!window.__v2chk) try { window.__v2chk = 1; const F0 = await DB.all('files'), inD = new Set(F0.filter(f => f.driveId).map(f => f.projectId)); for (const pr of await DB.all('projects')) if (pr.driveV2 == null && !inD.has(pr.id)) { pr.driveV2 = true; await DB.put('projects', pr); } } catch (e) { console.warn('v2', e); }
       const paths = await buildPaths();
       const files = await DB.all('files');
+      // v1.0.84 : fichiers déjà envoyés (mémorisés à part, légers) : on ne les renvoie pas même si l'écriture de la base a échoué
+      try { const sm = JSON.parse(localStorage.getItem('sync.sent') || '{}'); for (const f of files) { const x = sm[f.id]; if (x && !f.driveId) { f.driveId = x.d; f.drivePath = x.p; } } } catch (e) {}
       const todo = !hasDrive() ? [] : files.filter(f => !f.bgq && !f.prep).filter(f => (f.blob && (!f.driveId || f.drivePath !== JSON.stringify(pathFor(f, paths)))) || (!f.blob && f.driveId && f.drivePath && f.drivePath !== JSON.stringify(pathFor(f, paths))));
       let i = 0; if (todo.length) tr(`envoi de ${todo.length} fichier(s)`);
       // v1.0.83 : un fichier à la fois (moins de pointes de mémoire) ; le blob est relâché après envoi
@@ -259,6 +261,7 @@ const Sync = (() => {
           if (!res && f.blob && f.blob.size > 4194304) tr(`envoi ${f.name || f.role || 'fichier'} (${mb(f)})`);
           if (!res) res = await lim(call('upload', { path: pth.segs, name: pth.name, mime: f.mime || f.blob.type, blob: f.blob }), ms);
           f.driveId = res.id; f.drivePath = key;
+          try { const sm = JSON.parse(localStorage.getItem('sync.sent') || '{}'); sm[f.id] = { d: res.id, p: key }; localStorage.setItem('sync.sent', JSON.stringify(sm)); } catch (e) {}
           await DB.put('files', f);
           if (f.blob && f.blob.size > 1048576) { f.blob = null; await new Promise(r => setTimeout(r, 300)); }   // libère la mémoire (rechargé depuis Drive si besoin)
         } catch (e) { fails.push(`${pth.name} : ${e.message || e}`); }
