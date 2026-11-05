@@ -291,7 +291,7 @@ const ST = (() => {
       typeof openDriveNames === 'function' ? ['dnames', 'folder', 'Dossiers Drive', '#ea580c'] : null,
     ].filter(Boolean);
     root.innerHTML = `<div class="st-ptools-p">
-      <div class="st-hd"><b>${esc(T.e || '🏗️')} ${esc(p.name)}</b><small>${esc(T.n || 'Projet')}${p.address ? ' · ' + esc(p.address) : ''}</small><button class="st-org" data-a="orgtools" title="Organiser les outils">${icon('grid')} Organiser</button></div>
+      <div class="st-hd"><b>${esc(T.e || '🏗️')} ${esc(p.name)}</b><small>${esc(T.n || 'Projet')}${p.address ? ' · ' + esc(p.address) : ''}</small></div>
       <button class="st-pb st-pb-lib" data-a="library">${icon('grid')}<span><b>Bibliothèque métier</b><small>Outils réunis et classés selon votre service · pack ${esc(plan().l)}</small></span>${icon('chevright')}</button>
       <div class="st-qa" style="--n:${QA.length}">${QA.map(([k, ic, l, c]) => `<button class="st-qa-b" data-a="${k}" style="--c:${c}"><i>${icon(ic)}</i><span>${l}</span></button>`).join('')}</div>
       ${G.map(([g, l, ks]) => `<details class="st-tcat st-acc" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(l.replace(/^\S+\s/, ''))}<small>${ks.length}</small><i class="st-chev">${icon('chevdown')}</i></summary>
@@ -315,6 +315,8 @@ const ST = (() => {
     const dragBind = (el, handle, siblingsOf, keyOf, onDrop) => {
       let t = null, sx = 0, sy = 0, drag = false, suppress = false, pid = null;
       const end = () => { clearTimeout(t); t = null; if (drag) { drag = false; el.classList.remove('st-dragging'); el.style.transform = ''; el.style.opacity = ''; el.style.zIndex = ''; } };
+      handle.style.webkitTouchCallout = 'none'; handle.style.userSelect = 'none'; handle.style.webkitUserSelect = 'none';
+      handle.addEventListener('contextmenu', (e) => e.preventDefault());
       handle.addEventListener('pointerdown', (e) => {
         sx = e.clientX; sy = e.clientY; pid = e.pointerId; clearTimeout(t);
         t = setTimeout(() => { t = null; drag = true; suppress = true; try { handle.setPointerCapture(pid); } catch (er) {} el.classList.add('st-dragging'); el.style.opacity = '.7'; el.style.zIndex = '5'; try { navigator.vibrate && navigator.vibrate(15); } catch (er) {} }, 450);
@@ -346,7 +348,6 @@ const ST = (() => {
       const tools = () => [...grid.querySelectorAll('[data-tool]')];
       tools().forEach(btn => dragBind(btn, btn, tools, (x) => x.dataset.tool, (keys) => { const O = drOrd() || {}; O.k = O.k || {}; O.k[d.dataset.g] = keys; drOrdSet(O); renderProjectTools(root); }));
     });
-    const org = root.querySelector('[data-a=orgtools]'); if (org) org.onclick = async () => { const k = await menu('Quel outil déplacer ?', G.flatMap(([g, l, ks]) => ks.map(x => ({ label: `${toolName(x)}  ·  ${l.replace(/^\S+\s/, '')}`, icon: SECTIONS[x].icon || 'grid', value: x })))); if (k) drMove(k, () => renderProjectTools(root)); };
     const npv = root.querySelector('[data-a=newpv]'); if (npv) npv.onclick = async () => { const f = await pvCreate(p); if (f) { await openFormDetail(f); } };
     const lib = root.querySelector('[data-a=library]'); if (lib) lib.onclick = () => openServiceLibrary({ project: p });
     const pb = root.querySelector('[data-a=pbatch]'); if (pb) pb.onclick = () => openPhotoBatch(p);
