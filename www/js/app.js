@@ -697,6 +697,7 @@ async function folderMenu(f, root) {
     { label: 'Renommer', icon: 'edit', value: 'rename' },
     ...(hasSubs ? [] : [{ label: isSub ? 'Déplacer vers un autre niveau…' : 'Mettre dans un niveau…', icon: 'layers', value: 'move' }]),
     ...(isSub ? [] : [{ label: 'Couleur', icon: 'fill', value: 'color' }]),
+    ...(isSub ? [] : [{ label: 'Type de niveau' + (f.disc ? ' · ' + discLabel(f) : ''), icon: 'layers', value: 'disc' }]),
     { label: 'Supprimer le dossier', icon: 'trash', danger: true, value: 'del' }]);
   if (v === 'add') { App.openFolders[f.id] = true; if (f.parentId) App.openFolders[f.parentId] = true; return addPlanTo(f.id, all, root); }
   if (v === 'cmp') return avCompareAnyPlans(App.project, f.id);
@@ -707,6 +708,13 @@ async function folderMenu(f, root) {
     f.parentId = to === '_top' ? null : to; await DB.put('folders', f);
     if (f.parentId) App.openFolders[f.parentId] = true; App.openFolders[f.id] = true;
     return renderPlans(root);
+  }
+  if (v === 'disc') {   // v1.0.97 : type de niveau (Architecture, Structure…) ; « Autre » = nom libre
+    const k = await menu('Type de niveau', [...DISCIPLINES.map(d => ({ label: d.l, value: d.k, checked: f.disc === d.k })), { label: 'Autre (nom libre)…', value: '_free', checked: f.disc === '_free' }, { label: 'Aucun', value: '', checked: !f.disc }]);
+    if (k === null || k === undefined) return;
+    if (k === '_free') { const r = await formSheet('Type de niveau', [{ name: 'n', label: 'Nom du type', value: f.discName || '' }]); if (!r || !r.n) return; f.disc = '_free'; f.discName = r.n; }
+    else { f.disc = k; f.discName = ''; }
+    await DB.put('folders', f); renderPlans(root); return;
   }
   if (v === 'color') {
     const c = await menu('Couleur du dossier', FOLDER_COLORS.map(x => ({ label: x.l, value: x.k, swatch: x.c, checked: (f.color || 'nuit') === x.k })));
