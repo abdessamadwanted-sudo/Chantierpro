@@ -1,3 +1,6 @@
+## SiteTeam : v1.0.94
+- Équipe du projet : bouton « ＋ Tout un service » : affecte d'un coup tous les membres d'un service (Travaux, Qualité…) au projet, chacun avec son poste. Les membres déjà affectés sont sautés.
+
 ## SiteTeam : v1.0.93
 - Organigramme, vue « Par service » : bouton ＋ dans chaque service pour ajouter une personne directement dans ce service. Le choix du poste ne propose alors que les postes de ce service (ex. Qualité).
 

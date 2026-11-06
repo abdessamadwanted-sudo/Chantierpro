@@ -13,9 +13,10 @@ const Affectations = (() => {
     async function draw() {
       const p = projects.find(p => p.id === chosen);
       const members = Team.members(), byId = id => members.find(m => m.uid === id) || { name: 'Ancien membre' };
-      box.innerHTML = `<div class="form"><label>Projet<select data-aff-project><option value="">Tous les projets</option>${projects.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select></label><p class="muted">L'équipe projet est distincte des membres de l'organisation. Les affectations terminées restent dans l'historique.</p>${(p ? [p] : projects).map(p => `<section class="tm-box"><b>${esc(p.name)}</b>${p.teamEnabled ? '' : '<p>Équipe ouverte : accès historique conservé.</p>'}${current(p).length ? current(p).map(a => `<div class="aff-row"><span><b>${esc(byId(a.uid).name || byId(a.uid).email)}</b><small>${esc(tmRoleOf(a.role).l)} · depuis le ${esc(a.debut)}</small></span>${Team.isAdmin() ? `<button class="btn ghost small" data-aff-end="${esc(p.id)}|${esc(a.id)}">Terminer / transférer</button>` : ''}</div>`).join('') : '<p class="muted">Aucune affectation nominative.</p>'}${Team.isAdmin() ? `<button class="btn small" data-aff-add="${esc(p.id)}">${p.teamEnabled ? 'Affecter / remplacer' : 'Définir l’équipe du projet'}</button>` : ''}<details><summary>Historique des affectations</summary>${(p.affectations || []).filter(a => a.fin).map(a => `<p>${esc(byId(a.uid).name || byId(a.uid).email)} · ${esc(tmRoleOf(a.role).l)} · ${esc(a.debut)} → ${esc(a.fin)}</p>`).join('') || '<p>Aucune affectation terminée.</p>'}</details></section>`).join('') || '<div class="empty">Aucun projet accessible.</div>'}</div>`;
+      box.innerHTML = `<div class="form"><label>Projet<select data-aff-project><option value="">Tous les projets</option>${projects.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select></label><p class="muted">L'équipe projet est distincte des membres de l'organisation. Les affectations terminées restent dans l'historique.</p>${(p ? [p] : projects).map(p => `<section class="tm-box"><b>${esc(p.name)}</b>${p.teamEnabled ? '' : '<p>Équipe ouverte : accès historique conservé.</p>'}${current(p).length ? current(p).map(a => `<div class="aff-row"><span><b>${esc(byId(a.uid).name || byId(a.uid).email)}</b><small>${esc(tmRoleOf(a.role).l)} · depuis le ${esc(a.debut)}</small></span>${Team.isAdmin() ? `<button class="btn ghost small" data-aff-end="${esc(p.id)}|${esc(a.id)}">Terminer / transférer</button>` : ''}</div>`).join('') : '<p class="muted">Aucune affectation nominative.</p>'}${Team.isAdmin() ? `<button class="btn small" data-aff-add="${esc(p.id)}">${p.teamEnabled ? 'Affecter / remplacer' : 'Définir l’équipe du projet'}</button><button class="btn ghost small" data-aff-svc="${esc(p.id)}">＋ Tout un service</button>` : ''}<details><summary>Historique des affectations</summary>${(p.affectations || []).filter(a => a.fin).map(a => `<p>${esc(byId(a.uid).name || byId(a.uid).email)} · ${esc(tmRoleOf(a.role).l)} · ${esc(a.debut)} → ${esc(a.fin)}</p>`).join('') || '<p>Aucune affectation terminée.</p>'}</details></section>`).join('') || '<div class="empty">Aucun projet accessible.</div>'}</div>`;
       const sel = $('[data-aff-project]', box); sel.value = chosen || ''; sel.onchange = () => { chosen = sel.value; draw(); };
       $$('[data-aff-add]', box).forEach(b => b.onclick = () => add(projects.find(p => p.id === b.dataset.affAdd)));
+      $$('[data-aff-svc]', box).forEach(b => b.onclick = () => addService(projects.find(p => p.id === b.dataset.affSvc)));
       $$('[data-aff-end]', box).forEach(b => b.onclick = () => finish(...b.dataset.affEnd.split('|')));
     }
     async function save(p, list, action, who, target = null) {
@@ -27,6 +28,18 @@ const Affectations = (() => {
         toast('Affectation enregistrée ✓'); await draw();
       } catch (e) { alertBox(e.message || 'Enregistrement impossible'); }
       finally { ld.close(); }
+    }
+    // v1.0.94 : affecter d'un coup tous les membres d'un service (poste = poste de chaque membre), ceux déjà affectés sont sautés
+    async function addService(p) {
+      if (!p) return;
+      const svcs = Team.companyServices().filter(sv => Team.members().some(m => (m.service || tmRoleOf(m.role).s) === sv.k));
+      const k = await menu('Service à affecter · ' + p.name, svcs.map(sv => ({ label: sv.l + ' (' + Team.members().filter(m => (m.service || tmRoleOf(m.role).s) === sv.k).length + ')', value: sv.k })));
+      if (!k) return;
+      const today = todayISO(), mine = Team.members().filter(m => (m.service || tmRoleOf(m.role).s) === k && !current(p).some(a => a.uid === m.uid));
+      if (!mine.length) return toast('Tous les membres de ce service sont déjà affectés');
+      if (!p.teamEnabled && !await confirmBox('Définir une équipe nominative ? Les membres non affectés perdront l’accès à ce projet. Les administrateurs conservent leur accès. Les autres projets et les données passées sont conservés.', 'Définir l’équipe')) return;
+      const list = [...(p.affectations || []), ...mine.map(m => ({ id: DB.uid(), uid: m.uid, role: m.role, debut: today, fin: null }))];
+      await save(p, list, 'affectation', k);
     }
     async function add(p) {
       const r = await formSheet('Affecter un membre · ' + p.name, [
