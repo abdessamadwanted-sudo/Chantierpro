@@ -1,3 +1,8 @@
+## SiteTeam : v1.0.97
+- Comparer deux plans : tous les lots sont visibles (plus de lot présélectionné qui cachait les autres), et le niveau du plan courant passe en premier.
+- Chaque niveau peut recevoir un type : Architecture (ARCH), Structure (STR), VRD, CFO, CFA, PLB, CVC, SSI, CM, ETA, PAY, SYN, ou un nom libre. Menu du dossier : « Type de niveau ». Le type s'affiche dans la comparaison.
+- Liste des lots (« ▾ Lots ») affichée verticalement.
+
 ## SiteTeam : v1.0.96
 - Stabilité : les boutons qui ne trouvaient pas leur élément faisaient planter le démarrage (« Cannot set properties of null »). Ils sont maintenant protégés.
 - Contrôle automatique avant chaque APK : un garde-fou refuse toute nouvelle écriture non protégée de ce type (échec du test « Garde-fous »).
