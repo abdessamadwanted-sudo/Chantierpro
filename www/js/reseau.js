@@ -49,13 +49,13 @@ async function openReseau() {
           : `<div class="empty">${L.length ? 'Aucun contact trouvé.' : 'Votre réseau se remplit tout seul avec les membres de votre organisation, les intervenants et les entreprises de vos projets.<br>Ajoutez aussi vos contacts avec <b>+</b>.'}</div>`}
         <div class="rs-soon"><b>🚀 Bientôt</b><span>Profils publics SiteTeam, recherche de professionnels BTP par métier et par ville, messages entre comptes.</span></div>
       </div>`;
-    $('[data-a=back]', el).onclick = () => { unBack(); el.remove(); };
+    ($('[data-a=back]', el)||{}).onclick = () => { unBack(); el.remove(); };
     const qi = $('[data-q]', el); qi.oninput = () => { q = qi.value.trim().toLowerCase(); const pos = qi.selectionStart; draw(); const n2 = $('[data-q]', el); n2.focus(); try { n2.setSelectionRange(pos, pos); } catch (e) {} };
     $$('[data-f]', el).forEach(b => b.onclick = () => { flt = b.dataset.f; draw(); });
-    $('[data-a=dossier]', el).onclick = async () => { await openDossier(); L = await rsCollect(); draw(); };
-    $('[data-a=share]', el).onclick = () => { if (typeof dpShare === 'function') dpShare(); };
-    $('[data-a=invite]', el).onclick = () => shareWhatsApp(`Je suis sur SiteTeam, l'application des professionnels du BTP (projets, PV, réserves, équipes, emploi). Rejoins-moi : https://abdessamadwanted-sudo.github.io/Chantierpro/siteteam/`);
-    $('[data-a=add]', el).onclick = () => edit(null);
+    ($('[data-a=dossier]', el)||{}).onclick = async () => { await openDossier(); L = await rsCollect(); draw(); };
+    ($('[data-a=share]', el)||{}).onclick = () => { if (typeof dpShare === 'function') dpShare(); };
+    ($('[data-a=invite]', el)||{}).onclick = () => shareWhatsApp(`Je suis sur SiteTeam, l'application des professionnels du BTP (projets, PV, réserves, équipes, emploi). Rejoins-moi : https://abdessamadwanted-sudo.github.io/Chantierpro/siteteam/`);
+    ($('[data-a=add]', el)||{}).onclick = () => edit(null);
     $$('.rs-row', el).forEach(r => r.onclick = (e) => { if (e.target.closest('a')) return; const c = V[+r.dataset.i]; if (c.src === 'me') edit(c.idx); else if (c.contact || c.sub) alertBox(`${c.name}\n${c.sub || ''}${c.contact ? '\n' + c.contact : ''}${c.email ? '\n' + c.email : ''}`); });
   };
   async function edit(idx) {

@@ -243,7 +243,7 @@ async function regJoinPv(p, x) {
   if (!L.length) return toast('Aucun PV reçu en attente de livraison');
   await new Promise((res) => {
     const s = sheet(`<div class="rg-pv">${L.map((o, i) => `<label class="bn-i"><input type="checkbox" data-i="${i}" checked><span>${esc(fmtDate(o.d.date))} · ${esc(o.r.niv ? o.r.niv + ' · ' : '')}${esc(o.r.element)}</span></label>`).join('')}</div><button class="btn" style="width:100%;margin-top:10px" data-ok>Ajouter au bordereau</button>`, { title: `PV à joindre · ${L.length}` });
-    $('[data-ok]', s.el).onclick = async () => { const pick = $$('[data-i]', s.el).filter(c => c.checked).map(c => L[+c.dataset.i]);
+    ($('[data-ok]', s.el)||{}).onclick = async () => { const pick = $$('[data-i]', s.el).filter(c => c.checked).map(c => L[+c.dataset.i]);
       x.docs = [String(x.docs || '').trim(), ...pick.map(o => `PV de réception ferraillage — ${o.r.niv ? o.r.niv + ' · ' : ''}${o.r.element} (${fmtDate(o.d.date)})`)].filter(Boolean).join('\n');
       const ds = new Set(); pick.forEach(o => { o.r.pvLivre = true; o.r.pvLivreAt = x.date || todayISO(); ds.add(o.d); }); for (const d of ds) await DB.put('receptions', d);
       toast(`${pick.length} PV marqué(s) livré(s) ✓`); s.close(); };

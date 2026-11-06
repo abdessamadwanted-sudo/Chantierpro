@@ -159,14 +159,14 @@ function scanDocuments(files) {
     }
     $$('[data-f]', el).forEach(b => b.onclick = () => { filter = b.dataset.f; try { localStorage.setItem('scan.filter', filter); } catch (e) {} drawOv(); toast(b.textContent + ' — appliqué à l\'enregistrement'); });
     const rotV = () => { cv.style.transition = 'transform .25s'; cv.style.transform = `rotate(${D().rot * 90}deg)`; };
-    $('[data-a=rot]', el).onclick = () => { D().rot = (D().rot + 1) % 4; rotV(); };
-    $('[data-a=rotl]', el).onclick = () => { D().rot = (D().rot + 3) % 4; rotV(); };
-    $('[data-a=full]', el).onclick = () => { const b = D().bmp; D().quad = [[0, 0], [b.width, 0], [b.width, b.height], [0, b.height]]; drawOv(); };
-    $('[data-a=auto]', el).onclick = () => { D().quad = scanDetect(D().bmp); drawOv(); };
-    $('[data-a=prev]', el).onclick = () => { if (i > 0) { i--; layout(); } };
-    $('[data-a=next]', el).onclick = () => { if (i < docs.length - 1) { i++; layout(); } };
-    $('[data-a=x]', el).onclick = async () => { if (await confirmBox('Garder les photos sans recadrage ?', 'Sans recadrage')) { unBack(); el.remove(); resolve(files); } };
-    $('[data-a=ok]', el).onclick = async () => {
+    ($('[data-a=rot]', el)||{}).onclick = () => { D().rot = (D().rot + 1) % 4; rotV(); };
+    ($('[data-a=rotl]', el)||{}).onclick = () => { D().rot = (D().rot + 3) % 4; rotV(); };
+    ($('[data-a=full]', el)||{}).onclick = () => { const b = D().bmp; D().quad = [[0, 0], [b.width, 0], [b.width, b.height], [0, b.height]]; drawOv(); };
+    ($('[data-a=auto]', el)||{}).onclick = () => { D().quad = scanDetect(D().bmp); drawOv(); };
+    ($('[data-a=prev]', el)||{}).onclick = () => { if (i > 0) { i--; layout(); } };
+    ($('[data-a=next]', el)||{}).onclick = () => { if (i < docs.length - 1) { i++; layout(); } };
+    ($('[data-a=x]', el)||{}).onclick = async () => { if (await confirmBox('Garder les photos sans recadrage ?', 'Sans recadrage')) { unBack(); el.remove(); resolve(files); } };
+    ($('[data-a=ok]', el)||{}).onclick = async () => {
       if (i < docs.length - 1) { i++; layout(); return; }
       const ld2 = loading('Traitement…'), out = [];
       try {

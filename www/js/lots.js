@@ -116,8 +116,8 @@ function lotPanel(L, f, root) {
     <label class="lp-note">Notes ${esc(L.name)} · ${esc(f.name)}<textarea placeholder="Remarques, besoins, matériel…">${esc(D._note || '')}</textarea></label></details>
     <button class="lp-plus" data-a="plus">${icon('plus')} Ajouter dans ${esc(L.name)}</button></div>`}`;
   const save = () => DB.put('folders', f), redraw = () => renderPlans(root);
-  $('[data-a=tog]', el).onclick = (e) => { if (e.target.closest('[data-a=lm]')) return; lotOpenSet(L, !open); App.keepScrollY = ($('#content') || {}).scrollTop || 0; redraw(); };
-  $('[data-a=lm]', el).onclick = (e) => { e.stopPropagation(); lotMenu(L, root); };
+  ($('[data-a=tog]', el)||{}).onclick = (e) => { if (e.target.closest('[data-a=lm]')) return; lotOpenSet(L, !open); App.keepScrollY = ($('#content') || {}).scrollTop || 0; redraw(); };
+  ($('[data-a=lm]', el)||{}).onclick = (e) => { e.stopPropagation(); lotMenu(L, root); };
   if (!open) return el;
   // v1.0.47 : lien direct vers l'avancement de CE lot sur CE niveau (alertes, dates, équipes, saisies, ✓ terminé)
   let avEl = null, pnEl = null;
@@ -127,7 +127,7 @@ function lotPanel(L, f, root) {
   $('.lp-det', el).ontoggle = (e) => { App.lotDet = e.target.open; };
   $$('[data-pt]', el).forEach(b => b.onclick = async () => { const v = D[b.dataset.pt] = D[b.dataset.pt] || {}; v.done = !v.done; v.at = v.done ? todayISO() : null; await save(); redraw(); });
   const addPt = async () => { const r = await formSheet(`Point de contrôle · ${L.name}`, [{ name: 't', label: 'Intitulé (ajouté à tous les niveaux)', placeholder: 'Ex : Réservations vérifiées' }], { okLabel: 'Ajouter' }); if (r && r.t) { L.points = L.points || []; L.points.push({ id: DB.uid(), t: r.t }); App.lotDet = true; await DB.put('projects', p); redraw(); } };
-  $('[data-a=addpt]', el).onclick = addPt;
+  ($('[data-a=addpt]', el)||{}).onclick = addPt;
   const ta = $('textarea', el); ta.oninput = () => { D._note = ta.value; clearTimeout(ta._t); ta._t = setTimeout(save, 500); };
   bindLotDue(el, L, D, f, save, redraw);
   $$('[data-go]', el).forEach(b => b.onclick = async () => {
@@ -151,7 +151,7 @@ function lotPanel(L, f, root) {
     let t = null; b.addEventListener('touchstart', () => { t = setTimeout(() => { t = 'done'; rubMenu(p, L, R, redraw); }, 550); }, { passive: true });
     b.addEventListener('touchend', (e) => { if (t === 'done') e.preventDefault(); clearTimeout(t); t = null; }); b.addEventListener('touchmove', () => { clearTimeout(t); t = null; }, { passive: true });
     b.oncontextmenu = (e) => { e.preventDefault(); rubMenu(p, L, R, redraw); }; });
-  $('[data-a=rubnew]', el).onclick = async () => { const R = await rubNew(p, L); if (R) { await rubOpen(p, L, f, R); redraw(); } };
+  ($('[data-a=rubnew]', el)||{}).onclick = async () => { const R = await rubNew(p, L); if (R) { await rubOpen(p, L, f, R); redraw(); } };
   $$('[data-doc]', el).forEach(b => b.onclick = () => pbOpenDoc(docs[+b.dataset.doc], { projectId: p.id }, planCtx(() => {})));
   $$('[data-docm]', el).forEach(b => b.onclick = async () => { const i = +b.dataset.docm, d = docs[i];
     const v = await menu(d.name, [{ label: 'Ouvrir', icon: 'pdf', value: 'open' }, { label: 'Renommer', icon: 'edit', value: 'ren' }, { label: 'Monter', icon: 'chevup', value: 'up' }, { label: 'Retirer', icon: 'trash', danger: true, value: 'del' }]);
@@ -160,7 +160,7 @@ function lotPanel(L, f, root) {
     if (v === 'up' && i > 0) { [docs[i - 1], docs[i]] = [docs[i], docs[i - 1]]; await save(); redraw(); }
     if (v === 'del' && await confirmBox('Retirer ce document ?')) { if (d.fileId) await DB.del('files', d.fileId); docs.splice(i, 1); await save(); redraw(); } });
   // ＋ Ajouter : ce qu'il faut dans ce lot
-  $('[data-a=plus]', el).onclick = async () => {
+  ($('[data-a=plus]', el)||{}).onclick = async () => {
     const v = await menu(`Ajouter dans ${L.e} ${L.name}`, [{ label: '☑ Point de contrôle (tous les niveaux)', icon: 'check', value: 'pt' }, { label: '🛑 Point d\'arrêt', icon: 'close', value: 'pa' }, { label: '⚠️ Point critique', icon: 'ask', value: 'pc' },
       { label: '🗂 Nouvelle rubrique (tableau + Excel)', icon: 'grid', value: 'rub' }, { label: '🔗 Raccourci vers une section', icon: 'layers', value: 'sc' }, { label: `📄 Document / plan (${f.name})`, icon: 'pdf', value: 'doc' }, { label: '📝 Note', icon: 'edit', value: 'note' }]);
     if (v === 'pt') addPt();
@@ -242,7 +242,7 @@ function lotPaHTML(L, D) {
 function bindLotDue(el, L, D, f, save, redraw) {
   const p = App.project;
   const pd = $('.lp-pa', el); if (pd) pd.ontoggle = (e) => { App.lotPaDet = e.target.open; };
-  $('[data-a=due]', el).onclick = async () => {
+  ($('[data-a=due]', el)||{}).onclick = async () => {
     const r = await formSheet(`Échéance · ${L.name} · ${f.name}`, [
       { name: 'obj', label: 'Objet (de quoi s\'agit-il ?)', value: D._dueObj || '', placeholder: 'Ex : Coulage dalle zone 4, Livraison local technique' },
       { name: 'due', label: 'Date limite fixée', type: 'date', value: D._due || '' },
@@ -288,8 +288,8 @@ function bindLotDue(el, L, D, f, save, redraw) {
   const at = $('[data-a=altab]', el); if (at) at.onclick = () => openDueTable(p, { niv: nivOfFolder(f.name) || f.name, lot: L.name });
   $$('[data-al]', el).forEach(b => b.onclick = () => alForm((D._al || []).find(x => x.id === b.dataset.al)));
   const addPa = async (k) => { const r = await formSheet(k === 'a' ? '🛑 Point d\'arrêt' : '⚠️ Point critique', [{ name: 't', label: 'Intitulé (ajouté à tous les niveaux)', placeholder: k === 'a' ? 'Ex : Réception ferraillage avant bétonnage' : 'Ex : Enrobage' }], { okLabel: 'Ajouter' }); if (r && r.t) { L.pa = L.pa || []; L.pa.push({ id: DB.uid(), k, t: r.t }); await DB.put('projects', p); App.lotPaDet = true; redraw(); } };
-  $('[data-a=addpa]', el).onclick = () => addPa('a');
-  $('[data-a=addpc]', el).onclick = () => addPa('c');
+  ($('[data-a=addpa]', el)||{}).onclick = () => addPa('a');
+  ($('[data-a=addpc]', el)||{}).onclick = () => addPa('c');
   const tp = $('[data-a=tplpa]', el); if (tp) tp.onclick = async () => { L.pa = L.pa || []; let n = 0; for (const [k, t] of PA_TPL[L.id]) if (!L.pa.some(x => normQ(x.t) === normQ(t))) { L.pa.push({ id: DB.uid(), k, t }); n++; } await DB.put('projects', p); App.lotPaDet = true; toast(`${n} point(s) ajouté(s) pour tous les niveaux`); redraw(); };
   $$('[data-pa]', el).forEach(b => b.onclick = async () => {
     const x = (L.pa || []).find(y => y.id === b.dataset.pa); if (!x) return; D.pa = D.pa || {}; const v = D.pa[x.id] = D.pa[x.id] || {};
@@ -341,13 +341,13 @@ async function openDueTable(p, pre = {}) {
         <div class="avf-bar">${sel('niv', 'Niveau', uniq(r => r.niv))}${sel('lot', 'Lot', uniq(r => r.L.name))}${sel('zone', 'Zone', uniq(r => r.a.zone))}${sel('type', 'Type', uniq(r => r.a.type))}</div>
         <div class="due-l">${R.map((r, i) => `<button class="due-r ${stOf(r)}" data-i="${rows.indexOf(r)}"><span class="due-d">${r.a.done ? '✓' : esc(dueTxt(r.d))}</span><span class="grow"><b>${esc(r.a.obj || r.a.type)}</b><small>${esc(r.L.e || '')} ${esc(r.L.name)} · ${esc(r.niv)}${r.a.zone ? ' · ' + esc(r.a.zone) : ''} · ${esc(r.a.type)}${r.a.by ? ' · ' + esc(r.a.by) : ''}</small></span><em>${fmtDate(r.a.d)}${nxOf(r) ? `<br>🔔 ${nxOf(r).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}</em></button>`).join('') || '<div class="empty">Aucune échéance pour ce choix.<br>Ajoutez-les dans Plans › niveau › lot › Échéance.</div>'}</div>
       </div>`;
-    $('[data-a=x]', el).onclick = close;
-    $('[data-a=notif]', el).onclick = () => dueNotifSettings(p);
+    ($('[data-a=x]', el)||{}).onclick = close;
+    ($('[data-a=notif]', el)||{}).onclick = () => dueNotifSettings(p);
     $$('[data-f]', el).forEach(s => s.onchange = () => { F[s.dataset.f] = s.value; draw(); });
     $$('[data-st]', el).forEach(b => b.onclick = () => { F.st = F.st === b.dataset.st ? '' : b.dataset.st; draw(); });
     const qi = $('.due-q', el); let t; qi.oninput = () => { clearTimeout(t); t = setTimeout(() => { F.q = qi.value.trim(); draw(); setTimeout(() => { const q2 = $('.due-q', el); if (q2) { q2.focus(); q2.setSelectionRange(q2.value.length, q2.value.length); } }, 0); }, 350); };
     $$('[data-i]', el).forEach(b => b.onclick = () => { const r = rows[+b.dataset.i]; close(); App.lotSel = App.lotSel || {}; App.lotSel[r.f.id] = r.L.id; App.openFolders = App.openFolders || {}; App.openFolders[r.f.id] = true; App.scrollFolder = r.f.id; lotOpenSet(r.L, true); lpTabSet(r.L, 'due'); App.section = 'plans'; App.search = ''; renderSection(); });
-    $('[data-a=pdf]', el).onclick = async () => {
+    ($('[data-a=pdf]', el)||{}).onclick = async () => {
       if (!window.jspdf && window.__late) await window.__late; if (!window.jspdf) return toast('Module PDF indisponible');
       const { jsPDF } = window.jspdf, doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' }), W = 297, M = 10; let y = 18;
       doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.text(`Tableau des échéances · ${p.name}`.slice(0, 90), M, 12); doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.text(fmtDate(todayISO()), W - M, 12, { align: 'right' });

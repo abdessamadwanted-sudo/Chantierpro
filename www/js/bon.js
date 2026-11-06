@@ -152,15 +152,15 @@ function bonAddPerson(p, role) {
     c.onpointerdown = (e) => { e.preventDefault(); c.setPointerCapture(e.pointerId); drawing = true; last = pos(e); };
     c.onpointermove = (e) => { if (!drawing) return; const q = pos(e); g.beginPath(); g.moveTo(...last); g.lineTo(...q); g.stroke(); last = q; dirty = true; };
     c.onpointerup = c.onpointercancel = () => { drawing = false; };
-    $('[data-a=clr]', s.el).onclick = () => { g.clearRect(0, 0, W, H); dirty = false; };
-    $('[data-a=ph]', s.el).onclick = async () => {
+    ($('[data-a=clr]', s.el)||{}).onclick = () => { g.clearRect(0, 0, W, H); dirty = false; };
+    ($('[data-a=ph]', s.el)||{}).onclick = async () => {
       const [f] = await pickFiles({ accept: 'image/*' }); if (!f) return;
       const im = await loadImage(URL.createObjectURL(f)); const k = Math.min(1, 900 / Math.max(im.width, im.height));
       const t = document.createElement('canvas'); t.width = im.width * k; t.height = im.height * k; t.getContext('2d').drawImage(im, 0, 0, t.width, t.height);
       const ink = bonInk(t); if (!ink) return toast('Signature non détectée');
       g.clearRect(0, 0, W, H); const kk = Math.min(W / ink.width, H / ink.height); g.drawImage(ink, (W - ink.width * kk) / 2, (H - ink.height * kk) / 2, ink.width * kk, ink.height * kk); dirty = true;
     };
-    $('[data-a=ok]', s.el).onclick = async () => {
+    ($('[data-a=ok]', s.el)||{}).onclick = async () => {
       const name = $('[name=n]', s.el).value.trim(); if (!name) return toast('Écrivez le nom');
       let sigId = null;
       if (dirty) {
@@ -193,7 +193,7 @@ async function bonImportSig(p, role) {
       <button class="btn" data-a="ok">${icon('check')} Enregistrer</button></div>`, { title: `Signature · ${BON_ROLES[ri][2]}` });
     if (nameInk) $('[data-n]', s.el).src = nameInk.toDataURL('image/png'); $('[data-s]', s.el).src = sigInk.toDataURL('image/png');
     s.onClose = () => resolve(null);
-    $('[data-a=ok]', s.el).onclick = async () => {
+    ($('[data-a=ok]', s.el)||{}).onclick = async () => {
       if (!$('[data-a=agree]', s.el).checked) return toast('Cochez l\'accord de la personne');
       const name = $('[name=n]', s.el).value.trim() || 'Signature';
       const put = async (cv, nm) => (await DB.put('files', { projectId: p.id, blob: await new Promise(r => cv.toBlob(r, 'image/png')), mime: 'image/png', role: 'sig', name: nm })).id;
@@ -267,20 +267,20 @@ function openBon(p, bon, onSave, onDelete) {
       if (onSave) await onSave(bon);
       if (!quiet) toast('Bon enregistré ✓');
     };
-    $('[data-a=save]', el).onclick = async () => { await save(); close(); };
+    ($('[data-a=save]', el)||{}).onclick = async () => { await save(); close(); };
     const share = async () => { await save(true); await sharePhotos([bon.fileId], `Demande de bétonnage — ${[bon.area, bon.zone ? 'Zone ' + bon.zone : '', bon.ouvrage, bon.partie].filter(Boolean).join(' · ')} — ${fmtDate(bon.date)}`, 'Bon de bétonnage'); };
-    $('[data-a=wa]', el).onclick = share; $('[data-a=share]', el).onclick = share;
-    $('[data-a=x]', el).onclick = async () => { if (dirty && await confirmBox('Enregistrer le bon ?', 'Enregistrer')) await save(); close(); };
+    ($('[data-a=wa]', el)||{}).onclick = share; ($('[data-a=share]', el)||{}).onclick = share;
+    ($('[data-a=x]', el)||{}).onclick = async () => { if (dirty && await confirmBox('Enregistrer le bon ?', 'Enregistrer')) await save(); close(); };
     const delBon = async () => { if (!await confirmBox('Supprimer ce bon de bétonnage (aussi dans Drive) ?', 'Supprimer')) return; if (bon.fileId) { await DB.del('files', bon.fileId).catch(() => {}); BlobURL.drop(bon.fileId); } await onDelete(bon); dirty = false; toast('Bon supprimé'); unBack(); el.remove(); resolve(null); };
     const dbb = $('[data-a=delbon]', el); if (dbb) dbb.onclick = delBon;
-    $('[data-a=more]', el).onclick = async () => {
+    ($('[data-a=more]', el)||{}).onclick = async () => {
       const v = await menu('Bon', [{ label: 'PDF du bon', icon: 'pdf', value: 'pdf' }, { label: 'Nom du chantier sur le bon', icon: 'edit', value: 'title' }, ...(onDelete && (bon.fileId || bon.at) ? [{ label: 'Supprimer ce bon', icon: 'trash', danger: true, value: 'del' }] : [])]);
       if (v === 'del') return delBon();
       if (v === 'title') { const r = await formSheet('Nom du chantier', [{ name: 't', label: 'Sous le titre du bon', value: cfg.title }]); if (r) { cfg.title = r.t || ''; await DB.put('projects', p); draw(); } }
       if (v === 'pdf') { await save(true); await bonsPdf(p, [bon], `Bon ${bon.ouvrage || ''}`); }
     };
     const view = () => { if (img.src) showGallery([{ src: img.src, caption: `Bon de bétonnage · ${[bon.ouvrage, bon.partie].filter(Boolean).join(' · ')}` }], 0); };
-    $('[data-a=view]', el).onclick = view;
+    ($('[data-a=view]', el)||{}).onclick = view;
     sigs(); await draw();
     if (bon.fileId || bon.at) view();   // bon déjà fait : on l'affiche directement (fermer = revenir pour modifier)
   });
@@ -318,7 +318,7 @@ async function bonBox(p, day, box, save, rerender) {
     ${list.length ? `<div class="fc-list">${list.map((x, k) => `<div class="fc-r ok" data-bk="${k}"><div class="grow"><b>${esc(x.label)}</b><small>${x.i < 0 ? 'bon libre' : 'depuis le tableau'}${x.b.date ? ' · ' + fmtDate(x.b.date) : ''}</small></div>
       <button data-bx="open" title="Voir / modifier">${icon('edit')}</button><button data-bx="del" class="d" title="Supprimer">${icon('trash')}</button></div>`).join('')}</div>` : '<div class="fc-none">Aucun bon pour ce jour</div>'}
     <div class="fc-act"><button class="btn" data-bn="new">＋ Nouveau bon (à remplir)</button>${list.length ? `<button class="btn ghost" data-bn="pdf">${icon('pdf')} PDF des bons (6 par page)</button>` : ''}</div>`}`;
-  $('[data-bn=tog]', box).onclick = () => { try { localStorage.setItem('bn.open', open ? '0' : '1'); } catch (e) {} rerender(); };
+  ($('[data-bn=tog]', box)||{}).onclick = () => { try { localStorage.setItem('bn.open', open ? '0' : '1'); } catch (e) {} rerender(); };
   const onSaveOf = (x) => async (bb) => { if (x.i >= 0) day.rows[x.i].bon = bb; else { const j = day.bons.findIndex(b => b.id === bb.id); if (j >= 0) day.bons[j] = bb; else day.bons.push(bb); } await save(); };
   const onDelOf = (x) => async (bb) => { if (x.i >= 0) day.rows[x.i].bon = null; else day.bons = day.bons.filter(b => b.id !== bb.id); await save(); };
   $$('[data-bn=new]', box).forEach(b => b.onclick = async () => { const cfg = bonCfg(p), nb = { id: DB.uid(), date: day.date, area: '', zone: '', ouvrage: '', partie: '', type: '', sig: { ...(cfg.last || {}) } };

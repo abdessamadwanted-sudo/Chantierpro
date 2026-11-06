@@ -168,7 +168,7 @@ async function pvBetPage(fromBrief, keep) {
       if (!App.project || App.project.id !== x.pid) { const pj = await DB.get('projects', x.pid); if (pj) { App.project = pj; App.section = 'reception'; App.search = ''; await renderSection(); } }   // sans les rappels d'ouverture du projet
       const d = await DB.get('receptions', did); if (d) await openReceptionDay(d, { focus: rid });
       const again = await pvBetPage(fromBrief, { filt, open: [...open], scroll: sc }); });
-    $('[data-all]', el).onclick = async () => {
+    ($('[data-all]', el)||{}).onclick = async () => {
       const ds = [...new Set(items.filter(x => !x.liv).map(x => x.date))].sort(); const r = await formSheet('Marquer livrés au BET', [{ name: 'd', label: 'Tous les PV jusqu\'au (inclus)', type: 'date', value: ds[0] }], { okLabel: 'Marquer livrés' });
       if (!r || !r.d) return; const L2 = items.filter(x => !x.liv && x.date <= r.d); if (!L2.length) return toast('Aucun PV avant cette date');
       if (!await confirmBox(`Marquer ${L2.length} PV comme livrés au BET (jusqu'au ${fmtDate(r.d)}) ?`, 'Marquer livrés')) return;
@@ -228,7 +228,7 @@ function briefingShow(opts = {}) {
       $$('[data-n]', box).forEach(c => c.onchange = () => { const N = BriefNotes.get(); N[+c.dataset.n].done = c.checked; BriefNotes.set(N); c.closest('.bn-i').classList.toggle('done', c.checked); });
       $$('[data-nd]', box).forEach(b => b.onclick = (e) => { e.preventDefault(); const N = BriefNotes.get(); N.splice(+b.dataset.nd, 1); BriefNotes.set(N); box.innerHTML = drawNotes(); bindNotes(); });
       const inp = $('.bn-add input', box), add = () => { const t = inp.value.trim(); if (!t) return; const N = BriefNotes.get(); N.push({ t, done: false, at: todayISO() }); BriefNotes.set(N); box.innerHTML = drawNotes(); bindNotes(); $('.bn-add input', box).focus(); };
-      $('.bn-add button', box).onclick = add; inp.onkeydown = (e) => { if (e.key === 'Enter') add(); }; };
+      ($('.bn-add button', box)||{}).onclick = add; inp.onkeydown = (e) => { if (e.key === 'Enter') add(); }; };
     bindNotes();
     // les notes cochées depuis plus d'un jour disparaissent
     BriefNotes.set(BriefNotes.get().filter(x => !(x.done && x.doneAt && x.doneAt < todayISO())).map(x => x.done && !x.doneAt ? { ...x, doneAt: todayISO() } : x));
@@ -244,8 +244,8 @@ function briefingShow(opts = {}) {
       try { b.animate([{ transform: 'scale(1)', filter: 'brightness(1)' }, { transform: 'scale(.96)', filter: 'brightness(1.25)' }, { transform: 'scale(1.02)', filter: 'brightness(1.1)' }], { duration: 240, easing: 'ease-out', fill: 'forwards' }); } catch (e) {}
       setTimeout(() => done(async () => { App.fromBrief = fb; await act(); }), 230);
     });
-    $('.bf-cust', el).onclick = async () => { const ok = await briefCustomize(cards); if (ok) { done(async () => { const a = await briefingShow({ scroll: body.scrollTop, pid: opts.pid }); if (a) a(); }); } };
-    $('.bf-enter', el).onclick = () => done(null);
+    ($('.bf-cust', el)||{}).onclick = async () => { const ok = await briefCustomize(cards); if (ok) { done(async () => { const a = await briefingShow({ scroll: body.scrollTop, pid: opts.pid }); if (a) a(); }); } };
+    ($('.bf-enter', el)||{}).onclick = () => done(null);
   });
 }
 
@@ -262,7 +262,7 @@ function briefCustomize() {
       <button class="btn ft-ok" data-ok>Enregistrer</button></div></div>`, { title: 'Cartes du briefing' });
     $$('[data-h]', s.el).forEach(b => b.onclick = () => { const k = b.dataset.h, i = C.hide.indexOf(k); i >= 0 ? C.hide.splice(i, 1) : C.hide.push(k); b.classList.toggle('on', i >= 0); });
     $$('[data-sc]', s.el).forEach(b => b.onclick = () => { const k = b.dataset.sc, i = C.sc.indexOf(k); i >= 0 ? C.sc.splice(i, 1) : C.sc.push(k); b.classList.toggle('on', i < 0); });
-    $('[data-ok]', s.el).onclick = () => { BriefCfg.set(C); ok = true; s.close(); };
+    ($('[data-ok]', s.el)||{}).onclick = () => { BriefCfg.set(C); ok = true; s.close(); };
     s.onClose = () => resolve(ok);
   });
 }

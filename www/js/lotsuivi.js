@@ -103,17 +103,17 @@ function lsOpenLot(p, l, back) {
             ${e.mis ? `<p>${esc(e.mis)}</p>` : ''}</button>`; }).join('') || '<div class="ls-empty">Ajoutez les équipes internes, sous-traitants ou tâcherons qui travaillent sur ce lot.</div>'}
         <button class="btn" data-a="addeq" style="width:100%;margin-top:6px">${icon('plus')} Équipe / sous-traitant</button>
       </div>`;
-    $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); back && back(); };
-    $('[data-a=dates]', el).onclick = async () => { const r = await formSheet('Dates du lot', [{ name: 'deb', label: 'Début prévu', type: 'date', value: D.deb || '' }, { name: 'fin', label: 'Fin prévue', type: 'date', value: D.fin || '' }], { okLabel: 'Enregistrer' }); if (r) { if (r.fin && r.deb && r.fin < r.deb) return toast('La fin doit être après le début'); D.deb = r.deb; D.fin = r.fin; await save(); draw(); } };
-    $('[data-a=zones]', el).onclick = async () => {
+    ($('[data-a=x]', el)||{}).onclick = () => { unBack(); el.remove(); back && back(); };
+    ($('[data-a=dates]', el)||{}).onclick = async () => { const r = await formSheet('Dates du lot', [{ name: 'deb', label: 'Début prévu', type: 'date', value: D.deb || '' }, { name: 'fin', label: 'Fin prévue', type: 'date', value: D.fin || '' }], { okLabel: 'Enregistrer' }); if (r) { if (r.fin && r.deb && r.fin < r.deb) return toast('La fin doit être après le début'); D.deb = r.deb; D.fin = r.fin; await save(); draw(); } };
+    ($('[data-a=zones]', el)||{}).onclick = async () => {
       if (!zonesAll.length) { const r = await formSheet('Zones du lot', [{ name: 'z', label: 'Zones (séparées par des virgules)', value: (D.zones || []).join(', '), placeholder: 'Ex : Bloc A, Bloc B, R+1' }], { okLabel: 'Enregistrer' }); if (r) { D.zones = r.z.split(',').map(x => x.trim()).filter(Boolean); await save(); draw(); } return; }
       const sel = new Set(D.zones || []);
       for (;;) { const v = await menu('Zones du lot', [...zonesAll.map(z => ({ label: z, value: z, checked: sel.has(z) })), { label: '✓ Terminé', value: '__ok' }]); if (!v || v === '__ok') break; sel.has(v) ? sel.delete(v) : sel.add(v); }
       D.zones = zonesAll.filter(z => sel.has(z)); await save(); draw(); };
-    $('[data-a=av]', el).onclick = async () => { const r = await formSheet('Avancement du lot', [{ name: 'av', label: 'Avancement réalisé (%) — vide = calculé depuis les équipes', type: 'number', value: D.av ?? '' }], { okLabel: 'Enregistrer' }); if (r) { D.av = r.av === '' ? null : Math.max(0, Math.min(100, +r.av)); await save(); draw(); } };
-    $('[data-a=resp]', el).onclick = async () => { const r = await formSheet('Responsable du lot', [{ name: 'resp', label: 'Nom', value: D.resp || '', list: (p.team || []).map(m => m.name).filter(Boolean) }], { okLabel: 'Enregistrer' }); if (r) { D.resp = r.resp; await save(); draw(); } };
-    $('[data-a=addeq]', el).onclick = async () => { const e = await lsEqForm(p, null); if (e) { D.eq.push(e); await save(); draw(); } };
-    $('[data-a=niv]', el).onclick = async () => { const r = await formSheet('Niveaux du projet', [{ name: 'n', label: 'Un niveau par ligne (communs à tous les lots)', type: 'textarea', value: lsNiv(p).join('\n') }], { okLabel: 'Enregistrer' });
+    ($('[data-a=av]', el)||{}).onclick = async () => { const r = await formSheet('Avancement du lot', [{ name: 'av', label: 'Avancement réalisé (%) — vide = calculé depuis les équipes', type: 'number', value: D.av ?? '' }], { okLabel: 'Enregistrer' }); if (r) { D.av = r.av === '' ? null : Math.max(0, Math.min(100, +r.av)); await save(); draw(); } };
+    ($('[data-a=resp]', el)||{}).onclick = async () => { const r = await formSheet('Responsable du lot', [{ name: 'resp', label: 'Nom', value: D.resp || '', list: (p.team || []).map(m => m.name).filter(Boolean) }], { okLabel: 'Enregistrer' }); if (r) { D.resp = r.resp; await save(); draw(); } };
+    ($('[data-a=addeq]', el)||{}).onclick = async () => { const e = await lsEqForm(p, null); if (e) { D.eq.push(e); await save(); draw(); } };
+    ($('[data-a=niv]', el)||{}).onclick = async () => { const r = await formSheet('Niveaux du projet', [{ name: 'n', label: 'Un niveau par ligne (communs à tous les lots)', type: 'textarea', value: lsNiv(p).join('\n') }], { okLabel: 'Enregistrer' });
       if (r) { const L = r.n.split('\n').map(x => x.trim()).filter(Boolean); if (L.length) { p.lsNiv = L; await save(); draw(); } } };
     const pvb = $('[data-a=pv]', el); if (pvb) pvb.onclick = async () => { const nv = await menu('PV de réception · niveau', [...lsNiv(p).map(n => ({ label: n, value: n })), { label: 'Sans niveau', value: '-' }]); if (!nv) return;
       const f = await pvCreate(p, { lotId: l.id, niv: nv === '-' ? '' : nv }); if (f) { await openFormDetail(f); draw(); } };
@@ -176,8 +176,8 @@ function lsOpenEq(p, l, D, e, save, redraw) {
       ${Object.keys(cons).length ? `<div class="ls-cons"><b>Consommation cumulée</b>${Object.entries(cons).map(([k, v]) => `<span>${esc(k)} : <b>${lsFmt(v)}</b></span>`).join('')}</div>` : ''}
       <div class="btnrow" style="padding:0;margin:10px 0"><button class="btn" data-a="jour">${icon('plus')} Saisie du jour</button><button class="btn ghost" data-a="edit">${icon('edit')} Fiche</button>${e.tel ? `<button class="btn ghost" data-a="tel">${icon('phone')}</button>` : ''}</div>
       <div class="ls-j">${J.map((x, i) => `<button class="ls-jr" data-j="${i}"><b>${fmtDate(x.d)}</b><span>${x.eff || '—'} pers. · ${lsFmt(+x.q)} ${esc(e.u || '')}${lsRend(x) != null ? ` · <em>${lsFmt(lsRend(x))}/pers.</em>` : ''}${x.av != null && x.av !== '' ? ` · ${x.av}%` : ''}</span>${x.n ? `<small>${esc(x.n)}</small>` : ''}</button>`).join('') || '<div class="ls-empty">Aucune saisie. Chaque jour : effectif, quantité réalisée, consommation → le rendement se calcule seul.</div>'}</div>`;
-    $('[data-a=jour]', box).onclick = () => lsJour(e, null, async () => { await save(); draw(); redraw(); });
-    $('[data-a=edit]', box).onclick = async () => { const n = await lsEqForm(p, e); if (!n) return; if (n.__del) { if (!(await confirmBox(`Retirer ${e.nom} de ce lot ?`, 'Retirer'))) return; D.eq = D.eq.filter(x => x !== e); await save(); s.close(); redraw(); return; } Object.assign(e, n); await save(); draw(); redraw(); };
+    ($('[data-a=jour]', box)||{}).onclick = () => lsJour(e, null, async () => { await save(); draw(); redraw(); });
+    ($('[data-a=edit]', box)||{}).onclick = async () => { const n = await lsEqForm(p, e); if (!n) return; if (n.__del) { if (!(await confirmBox(`Retirer ${e.nom} de ce lot ?`, 'Retirer'))) return; D.eq = D.eq.filter(x => x !== e); await save(); s.close(); redraw(); return; } Object.assign(e, n); await save(); draw(); redraw(); };
     const tb = $('[data-a=tel]', box); if (tb) tb.onclick = () => openUrl('tel:' + e.tel.replace(/\s/g, ''));
     $$('[data-j]', box).forEach(b => b.onclick = () => lsJour(e, J[+b.dataset.j], async () => { await save(); draw(); redraw(); }));
   };

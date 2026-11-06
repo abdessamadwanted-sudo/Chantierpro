@@ -149,14 +149,14 @@ function editGroups(m) {
       $$('[data-del]', s.el).forEach(b => b.onclick = () => { G.splice(+b.dataset.del, 1); draw(); });
       $$('[data-draw]', s.el).forEach(b => b.onclick = async () => { const g = G[+b.dataset.draw]; const r = await drawBarShape({ path: g.path, dia: g.dia }); if (r) { g.path = r.pts; g.dims = r.dims; draw(); } });
     };
-    $('[data-a=add]', s.el).onclick = async () => {
+    ($('[data-a=add]', s.el)||{}).onclick = async () => {
       const role = await menu('Quelles barres ?', Object.entries(E.roles).map(([k, [l]]) => ({ label: l, icon: 'plus', value: k }))); if (!role) return;
       const g = { id: DB.uid(), role, dia: 10, nb: role === 'long' || role === 'att' ? 4 : 0, esp: 20, start: 0, len: +(m.elem.L || m.elem.Lx || m.elem.H || 100), rec: 0, ret: 0, pb: 30, ph: 30 };
       if (role === 'forme') { const r = await drawBarShape({ dia: 12 }); if (!r) return; g.path = r.pts; g.dims = r.dims; g.nb = 1; g.dia = 12; }
       G.push(g); draw();
     };
-    $('[data-a=c]', s.el).onclick = () => s.close();
-    $('[data-a=ok]', s.el).onclick = () => { m.groups = G; m.bars = ferElemBars(m); s.onClose = null; s.close(); resolve(true); };
+    ($('[data-a=c]', s.el)||{}).onclick = () => s.close();
+    ($('[data-a=ok]', s.el)||{}).onclick = () => { m.groups = G; m.bars = ferElemBars(m); s.onClose = null; s.close(); resolve(true); };
     draw();
   });
 }
@@ -236,10 +236,10 @@ function drawBarShape({ path = null, dia = 12 } = {}) {
     cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
     $$('[data-s]', el).forEach(b => b.onclick = () => { snap = +b.dataset.s; $$('[data-s]', el).forEach(x => x.classList.toggle('on', x === b)); });
     $('[data-dia]', el).onchange = (e) => { dia = +e.target.value; draw(); list(); };
-    $('[data-a=undo]', el).onclick = () => { segs.pop(); draw(); list(); };
+    ($('[data-a=undo]', el)||{}).onclick = () => { segs.pop(); draw(); list(); };
     function fin(r, fromBack) { if (!fromBack) unBack(); window.removeEventListener('resize', fit); el.remove(); resolve(r); }
-    $('[data-a=x]', el).onclick = () => fin(null);
-    $('[data-a=ok]', el).onclick = () => { if (!segs.length) return toast('Dessinez d\'abord la barre'); const P = pts().map(p => [+p[0].toFixed(1), +p[1].toFixed(1)]);
+    ($('[data-a=x]', el)||{}).onclick = () => fin(null);
+    ($('[data-a=ok]', el)||{}).onclick = () => { if (!segs.length) return toast('Dessinez d\'abord la barre'); const P = pts().map(p => [+p[0].toFixed(1), +p[1].toFixed(1)]);
       fin({ pts: P, dia, dims: segs.map((s, i) => `${String.fromCharCode(65 + i)}=${Math.round(s.len)}`).join(' '), long: Math.round(segs.reduce((a, s) => a + s.len, 0)) }); };
     window.addEventListener('resize', fit); requestAnimationFrame(() => { fit(); list(); });
   });

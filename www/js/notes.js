@@ -23,11 +23,11 @@ function editNote(n, projectId, opts = {}) {
       const E = $('.nt-ed', s.el), keep = () => { x.text = $('[name=text]', E).value; x.check = $('[name=check]', E).value.split('\n').map(t => t.trim()).filter(Boolean).map(t => ({ t, done: (x.check.find(c => c.t === t) || {}).done || false })); const ps = $('[name=partId]', E); if (ps) x.partId = ps.value || null; x.pinned = $('[data-pin]', E).checked; };
       if (x.audio) { const f = await DB.get('files', x.audio); const a = $('[data-au]', E); if (f && f.blob && a) a.src = BlobURL.get(f.id, f.blob); }
       $$('[data-tag]', E).forEach(b => b.onclick = () => { keep(); x.tag = b.dataset.tag; draw(); });
-      $('[data-a=ph]', E).onclick = async () => { keep(); const recs = await addPhotos(projectId, { source: 'Note' }); if (recs.length) { x.photos.push(...recs.map(r => r.id)); draw(); } };
+      ($('[data-a=ph]', E)||{}).onclick = async () => { keep(); const recs = await addPhotos(projectId, { source: 'Note' }); if (recs.length) { x.photos.push(...recs.map(r => r.id)); draw(); } };
       $$('[data-dp]', E).forEach(b => b.onclick = (e) => { e.preventDefault(); keep(); x.photos = x.photos.filter(id => id !== b.dataset.dp); draw(); });
       $$('[data-v]', E).forEach(img => img.onclick = () => showGallery(ph.map(p => ({ src: p.src })), ph.findIndex(p => p.id === img.dataset.v)));
       const ad = $('[data-a=audel]', E); if (ad) ad.onclick = () => { keep(); x.audio = null; draw(); };
-      $('[data-a=rec]', E).onclick = async () => {
+      ($('[data-a=rec]', E)||{}).onclick = async () => {
         keep();
         if (rec && rec.state === 'recording') { rec.stop(); return; }
         try {
@@ -37,8 +37,8 @@ function editNote(n, projectId, opts = {}) {
           rec.start(); draw(); toast('🎤 Enregistrement… touchez « Arrêter »');
         } catch (e) { alertBox('Micro indisponible : autorisez le micro pour l\'application (Paramètres du téléphone › Applications › SiteTeam › Autorisations).'); }
       };
-      $('[data-a=c]', E).onclick = () => s.close();
-      $('[data-a=ok]', E).onclick = () => { keep(); if (!x.text.trim() && !x.photos.length && !x.check.length && !x.audio) return toast('Note vide'); x.editedAt = Date.now(); s.onClose = null; s.close(); resolve(x); };
+      ($('[data-a=c]', E)||{}).onclick = () => s.close();
+      ($('[data-a=ok]', E)||{}).onclick = () => { keep(); if (!x.text.trim() && !x.photos.length && !x.check.length && !x.audio) return toast('Note vide'); x.editedAt = Date.now(); s.onClose = null; s.close(); resolve(x); };
     };
     draw();
   });
@@ -96,20 +96,20 @@ function openPhotoNote(l, ctx = {}) {
         ${tks.map(t => `<button class="pn-row" data-tk="${t.id}"><span class="dot" style="background:${(STATUS[t.status] || {}).color || '#888'}"></span><b>#${t.num || ''}</b><span class="grow">${esc(t.title || 'Sans titre')}</span><small>${esc((STATUS[t.status] || {}).label || '')}${t.assignee ? ' · ' + esc(t.assignee) : ''}${t.due ? ' · ' + fmtDate(t.due) : ''}</small></button>`).join('')}
         <div class="nt-sec"><span>📋 Formulaires${fms.length ? ` (${fms.length})` : ''}</span><button class="btn small ghost" data-a="fm">${icon('plus')} Formulaire</button></div>
         ${fms.map(f => { const st = formStats(f); return `<button class="pn-row" data-fm="${f.id}"><span class="dot" style="background:${st.color}"></span><span class="grow">${esc(f.title)}</span><small>${st.answered}/${st.n} · ${fmtDate(f.date)}</small></button>`; }).join('')}`;
-      $('[data-a=tk]', box).onclick = async () => { const t = await newTask({ pinId: l.id, planRef: l.planId, title: l.name }); await openTaskDetail(t); draw(); };
+      ($('[data-a=tk]', box)||{}).onclick = async () => { const t = await newTask({ pinId: l.id, planRef: l.planId, title: l.name }); await openTaskDetail(t); draw(); };
       $$('[data-tk]', box).forEach(b => b.onclick = async () => { const t = await DB.get('tasks', b.dataset.tk); if (t) await openTaskDetail(t); draw(); });
-      $('[data-a=fm]', box).onclick = async () => { const tid = await menu('Nouveau formulaire', FORM_TEMPLATES.map(t => ({ label: t.title, icon: 'form', value: t.id }))); if (!tid) return; const T = FORM_TEMPLATES.find(x => x.id === tid);
+      ($('[data-a=fm]', box)||{}).onclick = async () => { const tid = await menu('Nouveau formulaire', FORM_TEMPLATES.map(t => ({ label: t.title, icon: 'form', value: t.id }))); if (!tid) return; const T = FORM_TEMPLATES.find(x => x.id === tid);
         const f = await DB.put('forms', { projectId: l.projectId, pinId: l.id, templateId: T.id, title: T.title, location: l.name, date: todayISO(), inspector: '', notes: '', items: T.items.map(label => ({ label, res: null, comment: '' })), photoIds: [] }); await openFormDetail(f); draw(); };
       $$('[data-fm]', box).forEach(b => b.onclick = async () => { const f = await DB.get('forms', b.dataset.fm); if (f) await openFormDetail(f); draw(); });
       // v1.0.54 : plus de « À traiter / Traité » sur les pins photos
-      $('[data-a=ph]', box).onclick = async () => { const recs = await addPhotos(l.projectId, { source: l.name }); if (recs.length) { l.photos.push(...recs.map(r => r.id)); await save(); draw(); } };
-      $('[data-a=nt]', box).onclick = async () => { const n = await editNote(null, l.projectId); if (n) { l.notes.push(n); await save(); draw(); } };
+      ($('[data-a=ph]', box)||{}).onclick = async () => { const recs = await addPhotos(l.projectId, { source: l.name }); if (recs.length) { l.photos.push(...recs.map(r => r.id)); await save(); draw(); } };
+      ($('[data-a=nt]', box)||{}).onclick = async () => { const n = await editNote(null, l.projectId); if (n) { l.notes.push(n); await save(); draw(); } };
       $$('[data-v]', box).forEach(img => img.onclick = () => showGallery(ph.map(p => ({ src: p.src })), ph.findIndex(p => p.id === img.dataset.v)));
       $$('[data-dp]', box).forEach(b => b.onclick = async () => { if (!await confirmBox('Supprimer cette photo ?')) return; l.photos = l.photos.filter(id => id !== b.dataset.dp); await DB.del('files', b.dataset.dp); await save(); draw(); });
       if (typeof pnBindFolders === 'function') pnBindFolders(box, l, save, draw);
       const sh = $('[data-a=sh]', box); if (sh && typeof pnShare === 'function') sh.onclick = () => pnShare(l); else if (sh) sh.onclick = () => { const txt = `*${l.name}*\n` + l.notes.map(n => `• ${n.text || ''}`).join('\n'); const ids = [...l.photos, ...l.notes.flatMap(n => n.photos || [])]; if (ids.length) sharePhotos(ids, txt, l.name); else openUrl('https://wa.me/?text=' + encodeURIComponent(txt)); };
       await bindNotes(box, l.notes, l.projectId, save, draw, { title: l.name });
-      $('[data-a=more]', box).onclick = async () => { const v = await menu(l.name, [{ label: 'Renommer', icon: 'edit', value: 'ren' }, { label: 'Icône et couleur du pin', icon: 'pin', value: 'look' }, { label: 'Supprimer le pin', icon: 'trash', danger: true, value: 'del' }]);
+      ($('[data-a=more]', box)||{}).onclick = async () => { const v = await menu(l.name, [{ label: 'Renommer', icon: 'edit', value: 'ren' }, { label: 'Icône et couleur du pin', icon: 'pin', value: 'look' }, { label: 'Supprimer le pin', icon: 'trash', danger: true, value: 'del' }]);
         if (v === 'ren') { const r = await formSheet('Renommer', [{ name: 'n', label: 'Titre', value: l.name }]); if (r && r.n) { l.name = r.n; await save(); draw(); } }
         if (v === 'look') { await choosePinLook(l); draw(); }
         if (v === 'del' && await confirmBox(`Supprimer « ${l.name} », ses photos et ses notes ?`)) { for (const id of [...l.photos, ...(l.folders || []).flatMap(d => d.photos || []), ...l.notes.flatMap(n => [...(n.photos || []), n.audio].filter(Boolean))]) await DB.del('files', id); await DB.del('links', l.id); s.close(); } };

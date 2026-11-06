@@ -325,8 +325,8 @@ async function renderOrg(root) {
     if (z === 'in') pz.zoomAt(ctr(), pz.st.s * 1.35); if (z === 'out') pz.zoomAt(ctr(), pz.st.s / 1.35); if (z === 'fit') pz.fit();
     if (z === 'full') { const og = $('.og', root); og.classList.toggle('full'); b.textContent = og.classList.contains('full') ? '✕' : '⛶'; setTimeout(() => pz.fit(), 60); } });
   $$('.og-zc', root).forEach(x => ['pointerdown', 'pointerup'].forEach(ev => x.addEventListener(ev, e => e.stopPropagation())));
-  if (canE) $('[data-a=add]', root).onclick = () => orgEditMember(p, null, save, redraw);
-  $('[data-a=exp]', root).onclick = async () => {
+  if (canE) ($('[data-a=add]', root)||{}).onclick = () => orgEditMember(p, null, save, redraw);
+  ($('[data-a=exp]', root)||{}).onclick = async () => {
     const v = await menu('Organigramme', [{ label: 'PDF (A4 / A3 paysage)', icon: 'pdf', value: 'pdf' }, { label: 'Image (WhatsApp)', icon: 'image', value: 'png' }]); if (!v) return;
     const ld = loading('Création…');
     try { const { canvas, W, H } = await orgImage(p, collapsed);

@@ -107,7 +107,7 @@ async function openKind(kind, opts = {}) {
         return `<button class="es-row" data-id="${x.id}">${S ? `<i class="es-dot" style="background:${S[2]}"></i>` : `<span class="es-ic">${icon(K.ic)}</span>`}<span class="grow"><b>${esc(K.t(x))}</b><small>${esc(K.s(x))}</small>${x.resp ? `<small class="es-who">👤 ${esc(memberName(x.resp))}</small>` : ''}</span>${S ? `<em style="--c:${S[2]}">${S[1]}</em>` : ''}</button>`; }).join('')
         : `<div class="empty">${pid ? 'Rien pour le moment.' + (L >= 2 ? '<br>Touchez <b>+</b> pour ajouter.' : '') : 'Aucun projet accessible.'}</div>`}</div>
       ${kind === 'stock' && list.length ? '' : ''}`;
-    $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
+    ($('[data-a=x]', el)||{}).onclick = () => { unBack(); el.remove(); };
     const ps = $('[data-pid]', el); if (ps) ps.onchange = () => { pid = ps.value; localStorage.setItem('es.pid', pid); draw(); };
     $('.search input', el).oninput = (e) => { q = e.target.value; clearTimeout(el._t); el._t = setTimeout(() => { draw().then(() => { const i = $('.search input', el); i.focus(); i.setSelectionRange(q.length, q.length); }); }, 300); };
     $$('[data-f]', el).forEach(b => b.onclick = () => { filt = b.dataset.f; draw(); });
@@ -238,5 +238,5 @@ async function openBoardEquipes() {
       <div class="eb-kpi"><div><b>${tot.eff}</b><span>présents</span></div><div><b>${nf(tot.m3, 0)}</b><span>m³ (7 j)</span></div><div><b>${tot.imp}</b><span>implantations</span></div></div></div>
       ${heads.length ? heads.map(card).join('') : '<div class="empty">Aucun conducteur dans l\'équipe pour le moment.</div>'}
       <div class="cr-none" style="margin-top:10px">Les chiffres viennent du pointage, des fiches de rendement, des commandes béton et du matériel affecté de chaque conducteur et de son équipe (organigramme).</div></div>`;
-  $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
+  ($('[data-a=x]', el)||{}).onclick = () => { unBack(); el.remove(); };
 }

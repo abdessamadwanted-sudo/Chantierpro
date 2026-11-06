@@ -219,7 +219,7 @@ async function openLevelCompare(low, up, opts = {}) {
   document.body.appendChild(el);
   const unBack = pushBack(() => el.remove());
   const close = () => { unBack(); el.remove(); };
-  $('[data-a=x]', el).onclick = close;
+  ($('[data-a=x]', el)||{}).onclick = close;
   const view = $('.av-view', el), stage = $('.av-stage', el), ov = $('.lv-ov', el), tip = $('.lv-tip', el);
   const pxB = (x, y) => B.toPx(x, y), poly = (P) => P.map(q => pxB(q[0], q[1]).map(v => v.toFixed(1)).join(',')).join(' ');
   const vis = () => R.filter(r => !hide.has(r.st) && (tf === 'all' || r.type === tf));
@@ -245,7 +245,7 @@ async function openLevelCompare(low, up, opts = {}) {
     $('.lv-leg', el).innerHTML = `${['new', 'stop', 'mod', 'cont'].map(st => `<button data-s="${st}" class="${hide.has(st) ? 'off' : ''}"><i style="background:${LV_S[st][1]}"></i>${st === 'new' ? 'Nouveau en ' + esc(iB) : st === 'stop' ? 'S\'arrête en ' + esc(iA) : LV_S[st][0]}</button>`).join('')}<button class="btn small" data-a="list">Liste des changements</button>`;
     $$('[data-t]', el).forEach(b => b.onclick = () => { tf = b.dataset.t; counts(); draw(); });
     $$('[data-s]', el).forEach(b => b.onclick = () => { hide.has(b.dataset.s) ? hide.delete(b.dataset.s) : hide.add(b.dataset.s); counts(); draw(); });
-    $('[data-a=list]', el).onclick = list;
+    ($('[data-a=list]', el)||{}).onclick = list;
   };
   const showTip = (r) => { pick = r; tip.innerHTML = r ? `<b style="color:${LV_S[r.st][1]}">${LV_S[r.st][0]}</b> · ${esc(LV_T[r.type][0])}${r.label ? ' ' + esc(r.label) : ''}<br><small>${esc(r.txt || r.dims || '')}</small>` : ''; tip.style.display = r ? 'block' : 'none'; draw(); };
   const zoomTo = (r) => { const q = bbox(r); pz.zoomTo(q.x - q.w, q.y - q.h, q.w * 3 + 40, q.h * 3 + 40); showTip(r); };
@@ -259,8 +259,8 @@ async function openLevelCompare(low, up, opts = {}) {
       R = lvMatch(A, B, T, m); calStep = 0; hide.add('cont'); counts(); draw(); return toast('Calage appliqué ✓'); }
     const r = near(vis(), r => r.b || r.a); showTip(r);
   };
-  $('[data-a=cal]', el).onclick = () => { calStep = 1; hide.clear(); hide.add('new'); hide.add('cont'); counts(); draw(); toast(`Calage : touchez un élément de ${iA} (en rouge)`); };
-  $('[data-a=img]', el).onclick = () => openPlanCompare(low, up, { levels: true, la: iA, lb: iB });
+  ($('[data-a=cal]', el)||{}).onclick = () => { calStep = 1; hide.clear(); hide.add('new'); hide.add('cont'); counts(); draw(); toast(`Calage : touchez un élément de ${iA} (en rouge)`); };
+  ($('[data-a=img]', el)||{}).onclick = () => openPlanCompare(low, up, { levels: true, la: iA, lb: iB });
   const list = () => {
     const G = Object.keys(LV_T).map(t => [t, R.filter(r => r.type === t && r.st !== 'cont')]).filter(g => g[1].length);
     if (!G.length) return toast('Aucun changement de structure');
@@ -269,7 +269,7 @@ async function openLevelCompare(low, up, opts = {}) {
       ${L.sort((a, b) => ['mod', 'new', 'stop'].indexOf(a.st) - ['mod', 'new', 'stop'].indexOf(b.st)).map(r => `<button class="cmp-it" data-r="${R.indexOf(r)}"><span class="k" style="background:${LV_S[r.st][1]}">${num.indexOf(r) >= 0 ? num.indexOf(r) + 1 : '•'}</span><span class="grow"><b>${esc(LV_S[r.st][0])}${r.label ? ' · ' + esc(r.label) : ''}</b><small>${esc(r.txt || r.dims || '')}</small></span></button>`).join('')}`).join('')}</div>`, { title: `Changements ${iA} → ${iB}` });
     $$('[data-r]', s.el).forEach(b => b.onclick = () => { const r = R[+b.dataset.r]; s.close(); if (hide.has(r.st)) { hide.delete(r.st); counts(); } if (tf !== 'all' && tf !== r.type) { tf = 'all'; counts(); } zoomTo(r); });
   };
-  $('[data-a=share]', el).onclick = async () => {
+  ($('[data-a=share]', el)||{}).onclick = async () => {
     const v = await menu('Partager', [{ label: 'PDF (plan + liste des changements)', icon: 'pdf', value: 'pdf' }, { label: 'Excel (liste)', icon: 'grid', value: 'xls' }]); if (!v) return;
     const rows = R.filter(r => r.st !== 'cont').map(r => [LV_T[r.type][0], r.label || '', LV_S[r.st][0], r.txt || r.dims || '']);
     const ld2 = loading('Création…');

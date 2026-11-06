@@ -107,7 +107,7 @@ function gsRendTab(box, p, G, save, redraw) {
     if (!f) return; if (f.__danger) G.rend = G.rend.filter(x => x !== r); else { f.u = (GS_TACHES.find(t => t[0] === f.tache) || [, 'u'])[1]; if (r) Object.assign(r, f); else G.rend.push({ id: DB.uid(), ...f }); }
     G.rend.sort((a, b) => (a.date || '').localeCompare(b.date || '')); await save(); redraw();
   };
-  $('[data-a=add]', box).onclick = () => edit(null);
+  ($('[data-a=add]', box)||{}).onclick = () => edit(null);
   $$('[data-r]', box).forEach(b => b.onclick = () => edit(G.rend.find(x => x.id === b.dataset.r)));
 }
 
@@ -140,9 +140,9 @@ function gsBpuTab(box, p, G, save, redraw) {
       ${B.map(it => `<tr data-bpu="${it.id}"><td>${esc(it.n || '')}</td><td class="l"><b>${esc(it.des)}</b>${!gsLotSel() && it.lot ? `<small>${esc(gsLotName(p, it.lot))}</small>` : ''}</td><td>${esc(it.u || '')}</td><td>${gsF(gsNum(it.pu))}</td><td>${gsF(gsNum(it.qm))}</td><td><b>${gsF(gsNum(it.qm) * gsNum(it.pu))}</b></td></tr>`).join('')}
       </tbody><tfoot><tr><td colspan="5" class="l">Total HT</td><td><b>${gsF(marche)}</b></td></tr></tfoot></table></div>` : '<div class="gs-empty">Saisissez les prix du marché : n°, désignation, lot, unité, prix unitaire, quantité.</div>'}`;
   gsBindLots(box, redraw);
-  $('[data-a=add]', box).onclick = () => gsEditBpu(p, G, null, save, redraw);
+  ($('[data-a=add]', box)||{}).onclick = () => gsEditBpu(p, G, null, save, redraw);
   $$('[data-bpu]', box).forEach(b => b.onclick = () => gsEditBpu(p, G, G.bpu.find(x => x.id === b.dataset.bpu), save, redraw));
-  $('[data-a=xls]', box).onclick = async () => { const b = await xlsxBlob([{ name: 'BPU', head: 0, total: true, widths: [8, 50, 18, 8, 14, 14, 16], rows: [['N°', 'Désignation', 'Lot', 'U', 'PU HT', 'Q. marché', 'Montant HT'], ...B.map(it => [it.n || '', it.des, gsLotName(p, it.lot).replace(/^\S+ /, ''), it.u || '', gsNum(it.pu), gsNum(it.qm), gsNum(it.qm) * gsNum(it.pu)]), ['', 'TOTAL', '', '', '', '', marche]] }]); shareBlob(b, `BPU_${safeName(p.name)}.xlsx`); };
+  ($('[data-a=xls]', box)||{}).onclick = async () => { const b = await xlsxBlob([{ name: 'BPU', head: 0, total: true, widths: [8, 50, 18, 8, 14, 14, 16], rows: [['N°', 'Désignation', 'Lot', 'U', 'PU HT', 'Q. marché', 'Montant HT'], ...B.map(it => [it.n || '', it.des, gsLotName(p, it.lot).replace(/^\S+ /, ''), it.u || '', gsNum(it.pu), gsNum(it.qm), gsNum(it.qm) * gsNum(it.pu)]), ['', 'TOTAL', '', '', '', '', marche]] }]); shareBlob(b, `BPU_${safeName(p.name)}.xlsx`); };
 }
 function gsAttTab(box, p, G, save, redraw) {
   const s = gsLotSel(), A = G.att.filter(a => !s || a.lot === s || Object.keys(a.q || {}).some(id => (G.bpu.find(x => x.id === id) || {}).lot === s)).slice().reverse();
@@ -225,13 +225,13 @@ function gsLaboTab(box, p, G, save, redraw) {
     await save();
     if (!e && r.date) gsLaboNotif(p, r).catch(() => {});
     redraw(); };
-  $('[data-a=addpre]', box).onclick = () => editPre(null);
+  ($('[data-a=addpre]', box)||{}).onclick = () => editPre(null);
   $$('[data-pre]', box).forEach(b => b.onclick = () => editPre(G.pre.find(x => x.id === b.dataset.pre)));
   const editVis = async (v) => {
     const r = await formSheet(v ? 'Visite' : 'Nouvelle visite', [{ name: 'date', label: 'Date', type: 'date', value: v ? v.date : t }, { name: 'qui', label: 'Qui', type: 'select', value: v ? v.qui : GS_WHO[0], options: GS_WHO }, { name: 'obj', label: 'Objet', value: v ? v.obj : '', placeholder: 'Ex : réception ferraillage R+3, implantation' },
       { name: 'obs', label: 'Observations', type: 'textarea', value: v ? v.obs : '' }, { name: 'suite', label: 'Suite à donner', value: v ? v.suite : '' }, { name: 'st', label: 'Statut', type: 'select', value: v ? v.st || 'w' : 'w', options: [{ value: 'w', label: '⏳ En cours' }, { value: 'ok', label: '✅ Soldé' }] }], { okLabel: 'Enregistrer', danger: v ? 'Supprimer' : null });
     if (!r) return; if (r.__danger) G.vis = G.vis.filter(x => x !== v); else if (v) Object.assign(v, r); else G.vis.push({ id: DB.uid(), ...r }); G.vis.sort((a, b) => (a.date || '').localeCompare(b.date || '')); await save(); redraw(); };
-  $('[data-a=addvis]', box).onclick = () => editVis(null);
+  ($('[data-a=addvis]', box)||{}).onclick = () => editVis(null);
   $$('[data-vis]', box).forEach(b => b.onclick = () => editVis(G.vis.find(x => x.id === b.dataset.vis)));
 }
 async function gsLaboNotif(p, e) {

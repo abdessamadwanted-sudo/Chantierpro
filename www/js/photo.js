@@ -56,13 +56,13 @@ function openPhotoStudio({ blob, name = 'photo', fileId = null } = {}) {
     // appui long : comparer avec l'original
     let ht = null; stage.addEventListener('pointerdown', () => { ht = setTimeout(() => { ht = 'on'; draw(true); }, 300); });
     const rel = () => { if (ht === 'on') draw(); clearTimeout(ht); ht = null; }; stage.addEventListener('pointerup', rel); stage.addEventListener('pointercancel', rel); stage.addEventListener('pointerleave', rel);
-    $('[data-a=rotl]', el).onclick = async () => { const c = document.createElement('canvas'); c.width = src.height; c.height = src.width; const g = c.getContext('2d'); g.translate(c.width / 2, c.height / 2); g.rotate(-Math.PI / 2); g.drawImage(src, -src.width / 2, -src.height / 2); src = await createImageBitmap(c); draw(); };
-    $('[data-a=crop]', el).onclick = async () => { const c0 = document.createElement('canvas'); c0.width = src.width; c0.height = src.height; c0.getContext('2d').drawImage(src, 0, 0);
+    ($('[data-a=rotl]', el)||{}).onclick = async () => { const c = document.createElement('canvas'); c.width = src.height; c.height = src.width; const g = c.getContext('2d'); g.translate(c.width / 2, c.height / 2); g.rotate(-Math.PI / 2); g.drawImage(src, -src.width / 2, -src.height / 2); src = await createImageBitmap(c); draw(); };
+    ($('[data-a=crop]', el)||{}).onclick = async () => { const c0 = document.createElement('canvas'); c0.width = src.width; c0.height = src.height; c0.getContext('2d').drawImage(src, 0, 0);
       const f0 = new File([await new Promise(r => c0.toBlob(r, 'image/jpeg', .95))], 'p.jpg', { type: 'image/jpeg' }); let keep = null; try { keep = localStorage.getItem('scan.filter'); localStorage.setItem('scan.filter', 'orig'); } catch (e) {}
       const out = await scanDocuments([f0]); try { if (keep != null) localStorage.setItem('scan.filter', keep); } catch (e) {}
       if (out && out[0]) { src = await scanLoad(out[0]); draw(); } };
-    $('[data-a=x]', el).onclick = async () => { if (JSON.stringify(P) === JSON.stringify(PS_DEF) || await confirmBox('Quitter sans enregistrer ?', 'Quitter')) done(null); };
-    $('[data-a=ok]', el).onclick = async () => { if (busy) return; busy = true; const ld = loading('Enregistrement…');
+    ($('[data-a=x]', el)||{}).onclick = async () => { if (JSON.stringify(P) === JSON.stringify(PS_DEF) || await confirmBox('Quitter sans enregistrer ?', 'Quitter')) done(null); };
+    ($('[data-a=ok]', el)||{}).onclick = async () => { if (busy) return; busy = true; const ld = loading('Enregistrement…');
       try { const out = psRender(src, P, 2400), b = await new Promise(r => out.toBlob(r, 'image/jpeg', .9));
         if (fileId) { const f = await DB.get('files', fileId); if (f) { f.blob = b; f.mime = 'image/jpeg'; f.w = out.width; f.h = out.height; f.driveId = null; f.drivePath = null; BlobURL.drop(fileId); if (window.Thumbs) Thumbs.drop(fileId); await DB.put('files', f); } }
         ld.close(); toast('Photo améliorée ✓'); done(b); } catch (e) { ld.close(); busy = false; alertBox('Impossible : ' + (e.message || e)); } };

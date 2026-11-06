@@ -76,7 +76,7 @@ function openPlansBox(l, ctx = {}) {
         ${l.recSrc ? '' : l.zones.length < PB_MAX ? `<button class="btn ghost small pb-addz" data-a="addz">${icon('plus')} Zone</button>` : '<div class="pb-max">10 zones maximum</div>'}
         <div class="nt-sec"><span>📝 Notes${l.notes.length ? ` (${l.notes.length})` : ''}</span><button class="btn small ghost" data-a="addnote">${icon('plus')} Note</button></div>
         <div class="nt-list">${await notesHTML(q ? l.notes.filter(n => fuzzyHas(`${n.text} ${(n.check || []).map(c => c.t).join(' ')}`, q)) : l.notes, { parts: partsAll() })}</div>`;
-      $('[data-a=addnote]', box).onclick = async () => { const n = await editNote(null, l.projectId, { parts: partsAll() }); if (n) { l.notes.push(n); await save(); draw(); } };
+      ($('[data-a=addnote]', box)||{}).onclick = async () => { const n = await editNote(null, l.projectId, { parts: partsAll() }); if (n) { l.notes.push(n); await save(); draw(); } };
       await bindNotes(box, l.notes, l.projectId, save, draw, { parts: partsAll(), title: l.name });
       const si = $('.pb-search input', box); if (si) si.oninput = (e) => { q = e.target.value.trim(); clearTimeout(s._t); s._t = setTimeout(() => { draw().then(() => { const n = $('.pb-search input', box); if (n) { n.focus(); n.setSelectionRange(q.length, q.length); } }); }, 250); };
       $$('[data-z]', box).forEach(h => h.onclick = (e) => { if (e.target.closest('[data-zm]')) return; const z = l.zones[+h.dataset.z]; openZ.has(z.id) ? openZ.delete(z.id) : openZ.add(z.id); draw(); });
@@ -116,7 +116,7 @@ function openPlansBox(l, ctx = {}) {
         if (v === 'del' && await confirmBox(`Retirer « ${p.name} » de ce jour ?`)) { const d = l.curDate || todayISO(); l.recExtra[d] = (l.recExtra[d] || []).filter(x => normQ(`${x.niv || ''}|${x.element}`) !== p.key); await pbFromRec(l); await save(); draw(); } });
       const arb = $('[data-a=addrec]', box); if (arb) arb.onclick = async () => { if (await pbAddRecPart(l)) { await pbFromRec(l); l.zones.forEach(z => openZ.add(z.id)); await save(); draw(); } };
       const rsb = $('[data-a=recsrc]', box); if (rsb) rsb.onclick = async () => { if (await pbChooseRec(l)) { await save(); await pbFromRec(l); draw(); } };
-      $('[data-a=more]', box).onclick = async () => { const v = await menu(l.name, [{ label: l.recSrc ? 'Programme de réception lié…' : 'Remplir depuis le programme de réception…', icon: 'calendar', value: 'rec' }, { label: 'Renommer le pin', icon: 'edit', value: 'ren' }, { label: 'Icône et couleur du pin', icon: 'pin', value: 'look' }, { label: 'Supprimer le pin', icon: 'trash', danger: true, value: 'del' }]);
+      ($('[data-a=more]', box)||{}).onclick = async () => { const v = await menu(l.name, [{ label: l.recSrc ? 'Programme de réception lié…' : 'Remplir depuis le programme de réception…', icon: 'calendar', value: 'rec' }, { label: 'Renommer le pin', icon: 'edit', value: 'ren' }, { label: 'Icône et couleur du pin', icon: 'pin', value: 'look' }, { label: 'Supprimer le pin', icon: 'trash', danger: true, value: 'del' }]);
         if (v === 'rec') { if (await pbChooseRec(l)) { await save(); if (l.recSrc) await pbFromRec(l); draw(); } }
         if (v === 'ren') rename(l, 'Nom du pin'); if (v === 'look') { await choosePinLook(l); draw(); }
         if (v === 'del' && await confirmBox(`Supprimer le pin « ${l.name} » et ses ${plansboxCount(l)} plan(s) ?`)) { for (const z of l.zones) for (const p of z.parts || []) for (const d of p.docs || []) if (d.fileId) await DB.del('files', d.fileId); await DB.del('links', l.id); s.close(); } };

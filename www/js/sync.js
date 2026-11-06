@@ -593,7 +593,7 @@ function doPost(e) {
         ${c.mode === 'g' ? '' : `${GDrive.available() ? `<button class="btn" data-a="gnew">G&nbsp; Passer à la connexion Google (sans script)</button>` : ''}<button class="btn ghost" data-a="script">${icon('file')} Copier le code du script</button>`}
         <button class="btn danger" data-a="off">Déconnecter cet appareil</button>
       </div>`, { title: 'Synchronisation Google Drive' });
-      $('[data-a=now]', s.el).onclick = async () => { await run({ force: true }); diag(); };
+      ($('[data-a=now]', s.el)||{}).onclick = async () => { await run({ force: true }); diag(); };
       async function diag() {
         const files = await DB.all('files'), projects = await DB.all('projects'), recs = await DB.all('receptions');
         const withBlob = files.filter(f => f.blob), sent = withBlob.filter(f => f.driveId).length;
@@ -610,7 +610,7 @@ function doPost(e) {
       const showUse = async () => { const u = await usage(); const e = $('[data-use]', s.el); if (e) e.innerHTML = `📱 Sur le téléphone : <b>${mb(u.local)}</b> (${u.n} fichiers) · ☁ seulement dans Drive : <b>${u.cloud}</b>`; };
       const ks = $('[data-keep]', s.el); ks.value = keepMode();
       ks.onchange = async () => { LS.set('keep', ks.value); const fr = await freeSpace(); showUse(); toast(fr ? `${mb(fr)} libérés ✓` : 'Enregistré ✓'); };
-      $('[data-a=free]', s.el).onclick = async () => { const ld = loading('Libération…'); const fr = await freeSpace(); ld.close(); showUse(); toast(fr ? `${mb(fr)} libérés ✓` : 'Rien à libérer (fichiers pas encore envoyés ?)'); };
+      ($('[data-a=free]', s.el)||{}).onclick = async () => { const ld = loading('Libération…'); const fr = await freeSpace(); ld.close(); showUse(); toast(fr ? `${mb(fr)} libérés ✓` : 'Rien à libérer (fichiers pas encore envoyés ?)'); };
       showUse();
       const o = $('[data-a=open]', s.el); if (o) o.onclick = () => openUrl(c.folder);
       const cd = $('[data-a=code]', s.el); if (cd) cd.onclick = () => copy(codeOf(c));
@@ -620,10 +620,10 @@ function doPost(e) {
         const ld = loading('Connexion à Google…'); try { await connectGoogle(); ld.close(); s.close(); toast('☁ Google Drive connecté ✓'); } catch (e) { ld.close(); alertBox('Connexion impossible : ' + (e.message || e)); } };
       if (c.mode !== 'g') scriptVer().then(v => { const u = $('[data-upd]', s.el); if (!u || v >= SCRIPT_VER) return;
         u.innerHTML = `<div class="sync-warn"><b>⚠️ Mettre à jour le script Google (une fois)</b><br>Nécessaire pour fusionner les dossiers en double et ne plus en créer.<br><b>1.</b> Copiez le nouveau code ci-dessous.<br><b>2.</b> Sur script.google.com, ouvrez votre projet « SiteTeam », effacez tout et collez.<br><b>3.</b> <b>Déployer → Gérer les déploiements → ✏️ Modifier → Version : Nouvelle version → Déployer</b> (le lien reste le même).</div><button class="btn small" data-a="copy3">${icon('file')} Copier le nouveau code</button>`;
-        $('[data-a=copy3]', u).onclick = () => copy(script(c.key)); });
-      $('[data-a=dedupe]', s.el).onclick = async () => { if ((await scriptVer()) < SCRIPT_VER) return alertBox('Mettez d\'abord à jour le script Google (encadré ci-dessus).'); const ld = loading('Fusion des dossiers en double…'); try { const r = await call('dedupe', {}); toast(r.merged ? `${r.merged} dossier(s) en double fusionné(s) ✓` : 'Aucun dossier en double ✓'); } catch (e) { alertBox(String(e.message || e)); } finally { ld.close(); } };
-      $('[data-a=check]', s.el).onclick = async () => { const ld = loading('Vérification dans Drive…'); try { await weeklyCheck(true); } catch (e) { alertBox(String(e.message || e)); } finally { ld.close(); } };
-      $('[data-a=off]', s.el).onclick = async () => { if (await confirmBox('Déconnecter Google Drive sur cet appareil ? (les données restent sur l\'appareil et dans Drive)')) { disconnect(); s.close(); toast('Déconnecté'); } };
+        ($('[data-a=copy3]', u)||{}).onclick = () => copy(script(c.key)); });
+      ($('[data-a=dedupe]', s.el)||{}).onclick = async () => { if ((await scriptVer()) < SCRIPT_VER) return alertBox('Mettez d\'abord à jour le script Google (encadré ci-dessus).'); const ld = loading('Fusion des dossiers en double…'); try { const r = await call('dedupe', {}); toast(r.merged ? `${r.merged} dossier(s) en double fusionné(s) ✓` : 'Aucun dossier en double ✓'); } catch (e) { alertBox(String(e.message || e)); } finally { ld.close(); } };
+      ($('[data-a=check]', s.el)||{}).onclick = async () => { const ld = loading('Vérification dans Drive…'); try { await weeklyCheck(true); } catch (e) { alertBox(String(e.message || e)); } finally { ld.close(); } };
+      ($('[data-a=off]', s.el)||{}).onclick = async () => { if (await confirmBox('Déconnecter Google Drive sur cet appareil ? (les données restent sur l\'appareil et dans Drive)')) { disconnect(); s.close(); toast('Déconnecté'); } };
       return;
     }
     let key = LS.get('pendingKey'); if (!key) { key = newKey(); LS.set('pendingKey', key); }
@@ -663,8 +663,8 @@ function doPost(e) {
     };
     let tab = 'new';
     $$('[data-tab]', s.el).forEach(b => b.onclick = () => { tab = b.dataset.tab; $$('[data-tab]', s.el).forEach(x => x.classList.toggle('on', x === b)); $$('[data-pane]', s.el).forEach(p => p.style.display = p.dataset.pane === tab ? '' : 'none'); });
-    $('[data-a=copy]', s.el).onclick = () => copy(script(key));
-    $('[data-a=ok]', s.el).onclick = async () => {
+    ($('[data-a=copy]', s.el)||{}).onclick = () => copy(script(key));
+    ($('[data-a=ok]', s.el)||{}).onclick = async () => {
       const v = tab === 'new' ? $('[name=url]', s.el).value : $('[name=code]', s.el).value;
       const ld = loading('Connexion à Google Drive…');
       try { await connect(v, tab === 'new' ? key : ''); ld.close(); LS.del('pendingKey'); s.close(); toast('☁ Google Drive connecté ✓'); if (!App.project) renderHome(); }

@@ -25,7 +25,7 @@ function lvsChoose(title, L, cur, prefLot) {
       $('.lvc-l', s.el).innerHTML = R.length ? [...G.entries()].map(([n, xs]) => `<div class="lvc-h">${esc(n)} <small>${xs.length}</small></div>` + xs.map(x => `<button class="lvc-r ${x.p.id === cur ? 'on' : ''}" data-id="${x.p.id}"><span class="grow"><b>${esc(x.p.name)}</b><small>${esc(lotOf(x))}</small></span>${x.p.lvRef ? '<i class="ok">📏 calé</i>' : '<i>à caler</i>'}</button>`).join('')).join('') : '<div class="empty">Aucun plan pour ce choix</div>';
       $$('[data-id]', s.el).forEach(b => b.onclick = () => { res = b.dataset.id; s.close(); }); };
     $$('[data-f]', s.el).forEach(sel => sel.onchange = () => { F[sel.dataset.f] = sel.value; draw(); });
-    $('[data-many]', s.el).onclick = () => { res = '__many'; s.close(); };
+    ($('[data-many]', s.el)||{}).onclick = () => { res = '__many'; s.close(); };
     draw(); });
 }
 // feuille de choix avec interrupteurs (plusieurs niveaux)
@@ -38,7 +38,7 @@ function lvsPick(title, items, pre, { sub, multi = true, okLabel = 'Suivant ›'
     const sync = () => $$('[data-id]', s.el).forEach(b => b.classList.toggle('on', on.has(b.dataset.id)));
     $$('[data-id]', s.el).forEach(b => b.onclick = () => { const id = b.dataset.id; if (!multi) on.clear(); on.has(id) ? on.delete(id) : on.add(id); sync(); });
     const all = $('[data-all]', s.el); if (all) all.onclick = () => { items.forEach(it => on.add(it.p.id)); sync(); };
-    $('[data-ok]', s.el).onclick = () => { if (!on.size) return toast('Choisissez au moins un plan'); res = items.filter(it => on.has(it.p.id)); s.close(); };
+    ($('[data-ok]', s.el)||{}).onclick = () => { if (!on.size) return toast('Choisissez au moins un plan'); res = items.filter(it => on.has(it.p.id)); s.close(); };
     s.onClose = () => resolve(res);
   });
 }
@@ -127,7 +127,7 @@ async function openStackView(chain, opts = {}) {
     <div class="lvs-bar"><div class="lvs-nav"><button class="btn small ghost" data-a="chg">⇅ Changer les niveaux</button><span class="lvs-tip">Touchez le plan : réserve / RFI</span></div></div>`;
   document.body.appendChild(el);
   const unBack = pushBack(() => close()); const close = () => { clearTimeout(hdT); hdSeq++; el.remove(); };
-  $('[data-a=x]', el).onclick = () => { unBack(); close(); };
+  ($('[data-a=x]', el)||{}).onclick = () => { unBack(); close(); };
   const wrap = $('.lvs-wrap', el), splitEl = $('.lvs-split', el), pill = $('.lvs-pill', el), swEl = $('.lvs-sw', el);
   let imgLow, imgUp, ov, view;
   const pair = () => [chain[k].p, chain[k + 1].p], nm = (i) => chain[i].niv || lvsShort(chain[i].p.name);
@@ -203,10 +203,10 @@ async function openStackView(chain, opts = {}) {
     const x = L.find(y => y.p.id === v); if (!x) return;
     if (!x.p.lvRef && !(await openEquerreSteps([x.p], [x.niv || x.p.name], other.p))) return;
     chain[i] = x; load(); });
-  $('[data-a=chg]', el).onclick = async () => { const L = await lvsLevels(chain[0].p.projectId), pr = await lvsChoosePair(L, chain[0].p); if (!pr) return;
+  ($('[data-a=chg]', el)||{}).onclick = async () => { const L = await lvsLevels(chain[0].p.projectId), pr = await lvsChoosePair(L, chain[0].p); if (!pr) return;
     const todo = pr.filter(x => !x.p.lvRef); if (todo.length && !(await openEquerreSteps(todo.map(x => x.p), todo.map(x => x.niv || x.p.name), pr[0].p))) return;
     chain = pr; k = 0; load(); };
-  $('[data-a=cal]', el).onclick = async () => { const [low, up] = pair(); if (await openEquerreSteps([low, up], [nm(k), nm(k + 1)], low)) load(); };
+  ($('[data-a=cal]', el)||{}).onclick = async () => { const [low, up] = pair(); if (await openEquerreSteps([low, up], [nm(k), nm(k + 1)], low)) load(); };
   // toucher le plan : réserve ou RFI à cet endroit
   const where = (q) => { const [, up] = pair(), cx = (q.x + q.w / 2) / up.w, cy = (q.y + q.h / 2) / up.h; return `${cy < .34 ? 'en haut' : cy > .66 ? 'en bas' : 'au milieu'}${cx < .34 ? ' à gauche' : cx > .66 ? ' à droite' : ''}`; };
   const crop = async (q) => {   // photo de la zone sur les deux niveaux, côte à côte
@@ -229,7 +229,7 @@ async function openStackView(chain, opts = {}) {
       L2.push(it); await DB.put('projects', p); regOpen(p, 'rfi', it, null); }
   };
   // PDF : à gauche le niveau du dessous (calé), à droite celui du dessus
-  $('[data-a=share]', el).onclick = async () => {
+  ($('[data-a=share]', el)||{}).onclick = async () => {
     const ld = loading('Création du PDF…');
     try {
       const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a3', orientation: 'landscape' }), PW = doc.internal.pageSize.getWidth(), PH = doc.internal.pageSize.getHeight();

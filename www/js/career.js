@@ -79,7 +79,7 @@ async function openCareer(opts = {}) {
         </div>`, false)}
       </div>`;
     $('.cr-body', el).scrollTop = keep;
-    $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
+    ($('[data-a=x]', el)||{}).onclick = () => { unBack(); el.remove(); };
     $$('[data-tg]', el).forEach(b => b.onclick = () => { const k = b.dataset.tg; const g = b.closest('[data-grp]');
       if (k === 'robot') { const box = $('.cr-rcfg', el), o = box.style.display === 'none'; crSetOpen('robot', o); box.style.display = o ? '' : 'none'; if (o) careerRobotInline(box, draw); return; }
       const o = !g.classList.contains('open'); g.classList.toggle('open', o); crSetOpen(k, o); });
@@ -98,9 +98,9 @@ async function openCareer(opts = {}) {
     dd('loc').onchange = () => { C.loc = dd('loc').value; Career.set(C); draw(); };
     dd('ct').onchange = () => { C.ct = dd('ct').value; Career.set(C); draw(); };
     dd('x').onchange = () => { C.x = dd('x').value.trim(); Career.set(C); draw(); };
-    $('[data-a=tour]', el).onclick = () => careerTour(draw);
-    $('[data-a=addapp]', el).onclick = () => careerApp(null, draw);
-    $('[data-a=clip]', el).onclick = async () => { let u = ''; try { u = (await navigator.clipboard.readText() || '').trim(); } catch (e) {} careerApp(null, draw, /^https?:\/\//.test(u) ? { url: u, st: 'saved' } : { st: 'saved' }); };
+    ($('[data-a=tour]', el)||{}).onclick = () => careerTour(draw);
+    ($('[data-a=addapp]', el)||{}).onclick = () => careerApp(null, draw);
+    ($('[data-a=clip]', el)||{}).onclick = async () => { let u = ''; try { u = (await navigator.clipboard.readText() || '').trim(); } catch (e) {} careerApp(null, draw, /^https?:\/\//.test(u) ? { url: u, st: 'saved' } : { st: 'saved' }); };
     // cartes : toucher = ouvrir ; glisser → étape suivante ; glisser ← archiver
     $$('[data-app]', el).forEach(c => { const inner = $('.cr-cin', c); let sx = 0, sy = 0, dx = 0, on = false, h = null;
       c.addEventListener('touchstart', e => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; dx = 0; on = true; h = null; inner.style.transition = 'none'; }, { passive: true });
@@ -110,10 +110,10 @@ async function openCareer(opts = {}) {
         if (dx > 90) { if (a.arch) a.arch = false; else { const i = CAREER_ST.findIndex(x => x[0] === a.st); if (i >= 0 && i < CAREER_ST.length - 2) { a.st = CAREER_ST[i + 1][0]; if (a.st === 'sent') a.at = todayISO(); } } Career.set(C); toast((CAREER_ST.find(x => x[0] === a.st) || [])[1] || '✓'); draw(); }
         else if (dx < -90) { a.arch = !a.arch; Career.set(C); toast(a.arch ? '🗄 Archivée' : 'Restaurée'); draw(); } });
       c.onclick = (e) => { if (h) return; const ou = e.target.closest('[data-ou]'); if (ou) return openUrl(ou.dataset.ou); careerApp(c.dataset.app, draw); }; });
-    $('[data-a=addsite]', el).onclick = async () => { const r = await formSheet('Ajouter un site', [{ name: 'n', label: 'Nom', placeholder: 'Ex : Bayt, Marocannonces, site d\'une entreprise…' }, { name: 'u', label: 'Lien', type: 'url', placeholder: 'https://…' }], { okLabel: 'Ajouter' });
+    ($('[data-a=addsite]', el)||{}).onclick = async () => { const r = await formSheet('Ajouter un site', [{ name: 'n', label: 'Nom', placeholder: 'Ex : Bayt, Marocannonces, site d\'une entreprise…' }, { name: 'u', label: 'Lien', type: 'url', placeholder: 'https://…' }], { okLabel: 'Ajouter' });
       if (r && r.u) { C.sites.push({ n: r.n || r.u.replace(/^https?:\/\/(www\.)?/, '').split('/')[0], url: /^https?:/.test(r.u) ? r.u : 'https://' + r.u }); Career.set(C); draw(); } };
-    $('[data-a=drive]', el).onclick = async () => { const r = await formSheet('Dossier Drive', [{ name: 'u', label: 'Lien du dossier Drive (Partager › Copier le lien)', type: 'url', value: C.drive, placeholder: 'https://drive.google.com/drive/folders/…' }], { okLabel: 'Enregistrer' }); if (r) { C.drive = r.u; Career.set(C); draw(); } };
-    $('[data-a=adddoc]', el).onclick = async () => {
+    ($('[data-a=drive]', el)||{}).onclick = async () => { const r = await formSheet('Dossier Drive', [{ name: 'u', label: 'Lien du dossier Drive (Partager › Copier le lien)', type: 'url', value: C.drive, placeholder: 'https://drive.google.com/drive/folders/…' }], { okLabel: 'Enregistrer' }); if (r) { C.drive = r.u; Career.set(C); draw(); } };
+    ($('[data-a=adddoc]', el)||{}).onclick = async () => {
       const cat = await menu('Quel document ?', CAREER_DOCS.map(c => ({ label: c, icon: 'file', value: c }))); if (!cat) return;
       const files = await pickFiles({ accept: 'application/pdf,image/*,.doc,.docx', multiple: true }); if (!files.length) return;
       for (const f of files) await DB.put('files', { projectId: CAREER_PID, blob: f, mime: mimeFromName(f.name, f.type), name: f.name, role: 'career', cat });
@@ -145,7 +145,7 @@ function careerRobotInline(box, onDone) {
     <button class="btn small" data-a="ok" style="width:100%">Enregistrer</button></div>`;
   let on = !!rb.on;
   $$('[data-on]', box).forEach(b => b.onclick = () => { on = b.dataset.on === '1'; $$('[data-on]', box).forEach(x => x.classList.toggle('on', x === b)); });
-  $('[data-a=ok]', box).onclick = async () => {
+  ($('[data-a=ok]', box)||{}).onclick = async () => {
     rb.on = on; rb.time = $('[name=time]', box).value || '08:00';
     rb.postes = $$('[data-p]', box).filter(i => i.checked).map(i => i.dataset.p); rb.locs = $$('[data-l]', box).filter(i => i.checked).map(i => i.dataset.l);
     if (!rb.locs.length) rb.locs = [C.loc];
@@ -189,8 +189,8 @@ function careerRobotCfg(onDone) {
     <div class="btnrow"><button class="btn ghost" data-a="c">Annuler</button><button class="btn" data-a="ok">Enregistrer</button></div></div>`, { title: '⚙ Robot emploi' });
   let on = !!rb.on;
   $$('[data-on]', s.el).forEach(b => b.onclick = () => { on = b.dataset.on === '1'; $$('[data-on]', s.el).forEach(x => x.classList.toggle('on', x === b)); });
-  $('[data-a=c]', s.el).onclick = () => s.close();
-  $('[data-a=ok]', s.el).onclick = async () => {
+  ($('[data-a=c]', s.el)||{}).onclick = () => s.close();
+  ($('[data-a=ok]', s.el)||{}).onclick = async () => {
     rb.on = on; rb.time = $('[name=time]', s.el).value || '08:00';
     rb.postes = $$('[data-p]', s.el).filter(i => i.checked).map(i => i.dataset.p); rb.locs = $$('[data-l]', s.el).filter(i => i.checked).map(i => i.dataset.l);
     if (!rb.locs.length) rb.locs = [C.loc];

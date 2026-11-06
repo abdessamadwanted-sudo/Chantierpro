@@ -49,8 +49,8 @@ async function openBons(p) {
         <h3 class="bn-h">Documents remplis <small>${D.length}</small></h3>
         ${D.length ? `<div class="bn-list">${D.map(d => `<button class="bn-doc" data-d="${d.id}"><i>✍️</i><span><b>${esc(d.name)}</b><small>${esc((T.find(t => t.id === d.tplId) || {}).name || 'Modèle supprimé')} · ${fmtDateTime(d.at)}</small></span></button>`).join('')}</div>` : '<div class="empty">Rien encore.</div>'}
       </div>`;
-    $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
-    $('[data-a=new]', el).onclick = async () => { const t = await bnNewTpl(p); draw(); if (t && await bnAsk(`Remplir « ${t.name} » maintenant ?`, 'Remplir')) { await bnFill(p, t); draw(); } };
+    ($('[data-a=x]', el)||{}).onclick = () => { unBack(); el.remove(); };
+    ($('[data-a=new]', el)||{}).onclick = async () => { const t = await bnNewTpl(p); draw(); if (t && await bnAsk(`Remplir « ${t.name} » maintenant ?`, 'Remplir')) { await bnFill(p, t); draw(); } };
     $$('[data-t]', el).forEach(b => b.onclick = async () => { const t = bnTpls(p).find(x => x.id === b.dataset.t); if (!t) return;
       const v = await menu(t.name, [{ label: 'Remplir une copie', icon: 'edit', value: 'f' }, { label: 'Placer / modifier les cases', icon: 'grid', value: 'ed' }, { label: 'Voir le modèle', icon: 'eye', value: 'see' }, { label: 'Renommer', icon: 'edit', value: 'ren' }, { label: 'Supprimer le modèle', icon: 'trash', danger: true, value: 'del' }]);
       if (v === 'f') await bnFill(p, t);
@@ -104,7 +104,7 @@ async function bnFill(p, tpl, doc0) {
     let S = 1;   // pixels écran par point PDF
     const close = (v) => { unBack(); canv.forEach(c => { c.width = c.height = 0; }); try { pdf.destroy(); } catch (e) {} el.remove(); resolve(v); };
     const unBack = pushBack(async () => { el.remove(); try { pdf.destroy(); } catch (e) {} resolve(null); });
-    $('[data-a=x]', el).onclick = async () => { if (dirty && !await bnAsk('Quitter sans créer le PDF ? Ce que vous avez écrit sera perdu.', 'Quitter', 'Continuer à écrire')) return; close(null); };
+    ($('[data-a=x]', el)||{}).onclick = async () => { if (dirty && !await bnAsk('Quitter sans créer le PDF ? Ce que vous avez écrit sera perdu.', 'Quitter', 'Continuer à écrire')) return; close(null); };
     const layout = async () => {
       S = (Math.min(window.innerWidth, 1000) - 16) * Z / sizes[0][0]; const dpr = Math.min(2.5, window.devicePixelRatio || 1);
       wrap.innerHTML = sizes.map(([w, h], i) => `<div class="bn-page" data-pg="${i}" style="width:${w * S}px;height:${h * S}px"><canvas></canvas><svg viewBox="0 0 ${w} ${h}"></svg><div class="bn-layer"></div></div>`).join('');
@@ -163,9 +163,9 @@ async function bnFill(p, tpl, doc0) {
     $$('[data-tool]', el).forEach(b => b.onclick = () => { tool = b.dataset.tool; if (tool === 'text') toast('Touchez la feuille là où écrire'); if (tool === 'pen') toast('Écrivez au doigt · ✋ pour défiler'); paint(); });
     $$('[data-col]', el).forEach(b => b.onclick = () => { color = b.dataset.col; try { localStorage.setItem('bn.c', color); } catch (e) {} paint(); });
     $$('[data-w]', el).forEach(b => b.onclick = () => { wid = +b.dataset.w; try { localStorage.setItem('bn.w', wid); } catch (e) {} paint(); });
-    $('[data-a=undo]', el).onclick = () => { const s = undo.pop(); if (!s) return toast('Rien à annuler'); const o = JSON.parse(s); st.items = o.items; st.strokes = o.strokes; paint(); };
+    ($('[data-a=undo]', el)||{}).onclick = () => { const s = undo.pop(); if (!s) return toast('Rien à annuler'); const o = JSON.parse(s); st.items = o.items; st.strokes = o.strokes; paint(); };
     $$('[data-z]', el).forEach(b => b.onclick = () => { const cy = (wrap.scrollTop + wrap.clientHeight / 2) / S; Z = Math.max(1, Math.min(3.5, Z * (b.dataset.z === '1' ? 1.35 : 1 / 1.35))); layout(); wrap.scrollTop = cy * S - wrap.clientHeight / 2; });
-    $('[data-a=ok]', el).onclick = async () => {
+    ($('[data-a=ok]', el)||{}).onclick = async () => {
       const dt = todayISO().split('-').reverse().join('-'), first = Object.values(st.vals).find(v => typeof v === 'string' && v.trim() && !/^\d{2}\/\d{2}\/\d{4}$/.test(v)) || '';
       const r = await formSheet('Créer le PDF', [{ name: 'n', label: 'Nom du fichier', value: (doc0 && doc0.name) || avFileName([tpl.name, first, dt].filter(Boolean).join(' - ')) }], { okLabel: 'Créer' }); if (!r) return;
       const ld = loading('Écriture du PDF…');

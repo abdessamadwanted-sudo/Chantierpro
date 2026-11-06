@@ -151,7 +151,7 @@ function openPvDetail(form) {
           </div>
         </div></div>`;
       const ct2 = $('.content', el); if (ct2 && keep) ct2.scrollTop = keep; if (sc) window.scrollTo(0, sc);
-      $('[data-a=back]', el).onclick = () => { unBack(); finish(); };
+      ($('[data-a=back]', el)||{}).onclick = () => { unBack(); finish(); };
       $$('input[name], textarea[name], select[name]', el).forEach(i => i.oninput = i.onchange = () => { form[i.name] = i.value; save(); });
       ST.vBind(el, form, async () => { await flush(); render(); });
       $$('.sigbox', el).forEach(b => signaturePad(b, form[b.dataset.sig], (v) => { form[b.dataset.sig] = v; save(); }));
@@ -164,20 +164,20 @@ function openPvDetail(form) {
       $$('.pv-m', el).forEach(row => {
         const m = form.mes[+row.dataset.m], inp = $('[data-v]', row);
         inp.onchange = () => { m.v = inp.value.trim(); save(); render(); };
-        $('[data-tol]', row).onclick = async () => { const r = await formSheet('Tolérance · ' + m.l, [{ name: 'min', label: `Minimum (${m.u || ''})`, value: m.min ?? '', type: 'text' }, { name: 'max', label: `Maximum (${m.u || ''})`, value: m.max ?? '', type: 'text' }, { name: 'i', type: 'info', label: 'Astuce', value: 'Laissez vide pour « pas de limite ». Les valeurs viennent du CPS / des plans : adaptez-les à votre projet.' }]); if (!r) return; m.min = r.min.trim(); m.max = r.max.trim(); save(); render(); };
+        ($('[data-tol]', row)||{}).onclick = async () => { const r = await formSheet('Tolérance · ' + m.l, [{ name: 'min', label: `Minimum (${m.u || ''})`, value: m.min ?? '', type: 'text' }, { name: 'max', label: `Maximum (${m.u || ''})`, value: m.max ?? '', type: 'text' }, { name: 'i', type: 'info', label: 'Astuce', value: 'Laissez vide pour « pas de limite ». Les valeurs viennent du CPS / des plans : adaptez-les à votre projet.' }]); if (!r) return; m.min = r.min.trim(); m.max = r.max.trim(); save(); render(); };
       });
       const all = $('[data-a=allok]', el); if (all) all.onclick = () => { form.items.forEach(it => { if (!it.res) it.res = 'ok'; }); save(); render(); };
-      $('[data-a=additem]', el).onclick = async () => {
+      ($('[data-a=additem]', el)||{}).onclick = async () => {
         const r = await formSheet('Point de contrôle', [{ name: 'label', label: 'Libellé' }, { name: 'sec', label: 'Rubrique', value: secs[secs.length - 1] || '', list: secs }], { okLabel: 'Ajouter' });
         if (r && r.label) { form.items.push({ sec: r.sec || 'Points de contrôle', label: r.label, res: null, comment: '' }); save(); render(); }
       };
-      $('[data-a=addphoto]', el).onclick = async () => { const recs = await addPhotos(form.projectId, { source: form.ref || form.title }); if (recs.length) { form.photoIds.push(...recs.map(r => r.id)); save(); render(); } };
+      ($('[data-a=addphoto]', el)||{}).onclick = async () => { const recs = await addPhotos(form.projectId, { source: form.ref || form.title }); if (recs.length) { form.photoIds.push(...recs.map(r => r.id)); save(); render(); } };
       $$('.thumbs .t[data-id]', el).forEach(t => t.onclick = async (e) => {
         const id = t.dataset.id;
         if (e.target.closest('[data-del]')) { if (await confirmBox('Supprimer cette photo ?')) { form.photoIds = form.photoIds.filter(x => x !== id); await DB.del('files', id); save(); render(); } return; }
         showGallery(photos.map(f => ({ src: BlobURL.get(f.id, f.blob), caption: form.ref || form.title })), photos.findIndex(p => p.id === id));
       });
-      $('[data-a=pdf]', el).onclick = async () => { await flush(); formPdf(form); };
+      ($('[data-a=pdf]', el)||{}).onclick = async () => { await flush(); formPdf(form); };
       const rb = $('[data-a=res]', el); if (rb) rb.onclick = async () => { await flush(); const n = await pvMakeReserves(form); toast(`${n} réserve(s) créée(s) ✓ — voir Réserves`); render(); };
       const cv = $('[data-a=cv]', el); if (cv) cv.onclick = async () => {
         await flush();
@@ -187,14 +187,14 @@ function openPvDetail(form) {
         if (!f2) return; f2.title = form.title + ' (contre-visite)'; await DB.put('forms', f2);
         unBack(); el.remove(); await openPvDetail(f2); resolve();
       };
-      $('[data-a=share]', el).onclick = () => {
+      ($('[data-a=share]', el)||{}).onclick = () => {
         const mark = { ok: '✅', nok: '❌', res: '🟠', na: '➖' };
         shareWhatsApp(`*${project.name}*\n*${form.ref ? form.ref + ' · ' : ''}${form.title}*\n${[form.niv, form.location].filter(Boolean).join(' · ')}\nDate : ${fmtDate(form.date)}${form.inspector ? ' · ' + form.inspector : ''}\nRésultat : *${s.status}*\n\n` +
           form.items.filter(it => it.res && it.res !== 'ok' || it.comment).map(it => `${mark[it.res] || '⬜'} ${it.label}${it.comment ? ' — ' + it.comment : ''}`).join('\n') +
           (form.mes.some(m => pvNum(m.v) != null) ? '\n\n' + form.mes.filter(m => pvNum(m.v) != null).map(m => `${pvMesOk(m) ? '✅' : '❌'} ${m.l} : ${m.v} ${m.u || ''} (${pvTol(m)})`).join('\n') : '') +
           (form.notes ? `\n\nObservations : ${form.notes}` : ''));
       };
-      $('[data-a=more]', el).onclick = async () => {
+      ($('[data-a=more]', el)||{}).onclick = async () => {
         const v = await menu(form.ref || form.title, [{ label: 'Générer le PV (PDF)', icon: 'report', value: 'pdf' }, { label: 'Supprimer le PV', icon: 'trash', danger: true, value: 'del' }]);
         if (v === 'pdf') { await flush(); return formPdf(form); }
         if (v === 'del' && await confirmBox('Supprimer ce PV ?')) { clearTimeout(saveT); for (const id of form.photoIds) await DB.del('files', id); await DB.del('forms', form.id); unBack(); el.remove(); resolve(); }

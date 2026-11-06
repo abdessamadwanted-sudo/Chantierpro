@@ -29,13 +29,13 @@ async function openCalcTool(k) {
   const el = document.createElement('div'); el.className = 'fullpage calcpage'; document.body.appendChild(el);
   const unBack = pushBack(() => el.remove());
   el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="back">${icon('back')}</button><h1 style="flex:1">${tool.t}</h1><span class="ct-tools"></span></div><div class="calc-body"></div>`;
-  $('[data-a=back]', el).onclick = () => { unBack(); el.remove(); };
+  ($('[data-a=back]', el)||{}).onclick = () => { unBack(); el.remove(); };
   const body = $('.calc-body', el), tb = $('.ct-tools', el);
   let project = App.project ? await DB.get('projects', App.project.id) : null;
   const store = () => { if (!project) return {}; project.calc = project.calc || {}; return project.calc; };
   let saveT = null;
   const persist = () => { if (!project) return; clearTimeout(saveT); saveT = setTimeout(async () => { const cur = await DB.get('projects', project.id); cur.calc = project.calc; await DB.put('projects', cur); project = cur; }, 400); };
-  const share = (text) => { tb.innerHTML = `<button class="iconbtn" data-a="sh">${icon('share')}</button>`; $('[data-a=sh]', tb).onclick = () => shareText(text()); };
+  const share = (text) => { tb.innerHTML = `<button class="iconbtn" data-a="sh">${icon('share')}</button>`; ($('[data-a=sh]', tb)||{}).onclick = () => shareText(text()); };
   const TOOLS = { metre, beton, acier, calc, pente, niv, pts, conv };
   TOOLS[k]();
 
@@ -72,9 +72,9 @@ async function openCalcTool(k) {
         });
       });
       $$('[data-del]', body).forEach(b => b.onclick = () => { S.metre.splice(+b.dataset.del, 1); if (!S.metre.length) S.metre.push({ id: DB.uid(), des: '', shape: 'rect', n: '1' }); persist(); draw(); });
-      $('[data-a=add]', body).onclick = () => { const l = S.metre[S.metre.length - 1] || {}; S.metre.push({ id: DB.uid(), des: '', shape: l.shape || 'rect', a: '', b: '', c: '', n: '1' }); persist(); draw(); setTimeout(() => $$('.mt-des', body).pop()?.focus(), 50); };
-      $('[data-a=clear]', body).onclick = async () => { if (await confirmBox('Effacer toutes les lignes du métré ?')) { S.metre = [{ id: DB.uid(), des: '', shape: 'rect', n: '1' }]; persist(); draw(); } };
-      $('[data-a=tobeton]', body).onclick = () => { App._calcVol = String(+(totals()['m³'] || 0).toFixed(3)).replace('.', ','); unBack(); el.remove(); openCalcTool('beton'); };
+      ($('[data-a=add]', body)||{}).onclick = () => { const l = S.metre[S.metre.length - 1] || {}; S.metre.push({ id: DB.uid(), des: '', shape: l.shape || 'rect', a: '', b: '', c: '', n: '1' }); persist(); draw(); setTimeout(() => $$('.mt-des', body).pop()?.focus(), 50); };
+      ($('[data-a=clear]', body)||{}).onclick = async () => { if (await confirmBox('Effacer toutes les lignes du métré ?')) { S.metre = [{ id: DB.uid(), des: '', shape: 'rect', n: '1' }]; persist(); draw(); } };
+      ($('[data-a=tobeton]', body)||{}).onclick = () => { App._calcVol = String(+(totals()['m³'] || 0).toFixed(3)).replace('.', ','); unBack(); el.remove(); openCalcTool('beton'); };
       upTot();
     }
     draw();
@@ -131,7 +131,7 @@ async function openCalcTool(k) {
         $$('[data-f]', rowEl).forEach(i => i[i.tagName === 'SELECT' ? 'onchange' : 'oninput'] = () => { r[i.dataset.f] = i.value; persist(); $('[data-res]', rowEl).textContent = `${fmtN(kg(r), 1)} kg`; $('.mt-res span', rowEl).textContent = `${fmtN(kgm(r.d), 3)} kg/m`; upT(); }); });
       $('[data-g=chute]', body).oninput = (e) => { S.chute = e.target.value; persist(); upT(); };
       $$('[data-del]', body).forEach(b => b.onclick = () => { S.acier.splice(+b.dataset.del, 1); if (!S.acier.length) S.acier.push({ id: DB.uid(), d: '12' }); persist(); draw(); });
-      $('[data-a=add]', body).onclick = () => { S.acier.push({ id: DB.uid(), des: '', d: (S.acier[S.acier.length - 1] || {}).d || '12', n: '', l: '' }); persist(); draw(); };
+      ($('[data-a=add]', body)||{}).onclick = () => { S.acier.push({ id: DB.uid(), des: '', d: (S.acier[S.acier.length - 1] || {}).d || '12', n: '', l: '' }); persist(); draw(); };
       upT();
     }
     draw();
@@ -199,7 +199,7 @@ async function openCalcTool(k) {
       $$('[data-g]', body).forEach(i => i.onchange = () => { N[i.dataset.g] = i.value; persist(); draw(); });
       $$('.nv-row', body).forEach(rowEl => { const r = N.rows[+rowEl.dataset.i]; $$('[data-f]', rowEl).forEach(i => i.onchange = () => { r[i.dataset.f] = i.value; persist(); draw(); }); });
       $$('[data-del]', body).forEach(b => b.onclick = () => { const i = +b.dataset.del; if (i) { N.rows.splice(i, 1); persist(); draw(); } });
-      $('[data-a=add]', body).onclick = () => { N.rows.push({ pt: '', ar: '', av: '' }); persist(); draw(); setTimeout(() => $$('.nv-row input[data-f=av]', body).pop()?.focus(), 50); };
+      ($('[data-a=add]', body)||{}).onclick = () => { N.rows.push({ pt: '', ar: '', av: '' }); persist(); draw(); setTimeout(() => $$('.nv-row input[data-f=av]', body).pop()?.focus(), 50); };
     }
     draw();
   }
@@ -234,7 +234,7 @@ async function openCalcTool(k) {
       $$('[data-s]', body).forEach(s => s.onchange = () => { sel[s.dataset.s] = +s.value; draw(); });
       $$('.pt-row', body).forEach(rowEl => { const p = L[+rowEl.dataset.i]; $$('[data-f]', rowEl).forEach(i => i.onchange = () => { p[i.dataset.f] = i.value; persist(); draw(); }); });
       $$('[data-del]', body).forEach(b => b.onclick = () => { if (L.length > 1) { L.splice(+b.dataset.del, 1); for (const k in sel) sel[k] = Math.min(sel[k], L.length - 1); persist(); draw(); } });
-      $('[data-a=add]', body).onclick = () => { L.push({ n: 'P' + L.length, x: '', y: '', z: '' }); persist(); draw(); };
+      ($('[data-a=add]', body)||{}).onclick = () => { L.push({ n: 'P' + L.length, x: '', y: '', z: '' }); persist(); draw(); };
     }
     draw();
   }

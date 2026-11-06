@@ -32,8 +32,8 @@ async function ftEditor(p, tpl) {
     document.body.appendChild(el);
     const unBack = pushBack(() => done(false)); let saved = false;
     const done = async (ok) => { if (ok) { await DB.put('projects', p); saved = true; } el.remove(); resolve(saved); };
-    $('[data-a=x]', el).onclick = () => { unBack(); done(false); };
-    $('[data-a=ok]', el).onclick = () => { unBack(); done(true); toast('Modèle enregistré ✓'); };
+    ($('[data-a=x]', el)||{}).onclick = () => { unBack(); done(false); };
+    ($('[data-a=ok]', el)||{}).onclick = () => { unBack(); done(true); toast('Modèle enregistré ✓'); };
     const pg = $('.ft-page', el), cv = $('canvas', pg), boxes = $('.ft-boxes', pg);
     let Z = 1.6, S = 1, rt = null;   // zoom de l'éditeur (－ / ＋) pour placer les cases précisément
     const layout = () => { const W = Math.min(window.innerWidth - 16, 900) * Z; S = W / tpl.W; const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -65,7 +65,7 @@ async function ftEditor(p, tpl) {
       if (v === 'del') tpl.fields.splice(i, 1);
       draw();
     };
-    $('[data-a=add]', el).onclick = async () => {
+    ($('[data-a=add]', el)||{}).onclick = async () => {
       const k = await menu('Quelle case ?', FT_FIELDS.map(([k2, l]) => ({ label: l + (tpl.fields.some(f => f.k === k2 && k2 !== 'coche' && k2 !== 'libre') ? '  ✓' : ''), value: k2 }))); if (!k) return;
       let label = ''; if (k === 'coche' || k === 'libre') { const r = await formSheet(k === 'coche' ? 'Coche' : 'Texte libre', [{ name: 'l', label: 'Nom (ex : Conforme · ligne 1)', value: '' }]); if (!r) return; label = r.l; }
       const wrap = $('.ft-wrap', el), top = (wrap.scrollTop + wrap.clientHeight / 2) / S - 10, left = (wrap.scrollLeft + wrap.clientWidth / 2) / S;
@@ -73,7 +73,7 @@ async function ftEditor(p, tpl) {
       tpl.fields.push({ id: DB.uid(), k, label, x: Math.max(0, Math.min(tpl.W - sz[0], left - sz[0] / 2)), y: Math.max(0, Math.min(tpl.H - sz[1], top)), w: sz[0], h: sz[1], align: 'center' }); draw();
       toast('Glissez la case à sa place, coin ◢ pour la taille');
     };
-    $('[data-a=test]', el).onclick = async () => { const ld = loading('Essai…'); try { const day = { date: todayISO() }, r = { element: 'Plancher Axe D3*D4 fil H*K', niv: 'R+5', zone: '3', indFer: 'PE00', indCof: 'PE01' }; const b = await ftMake(p, tpl, ftDefaults(p, day, r, tpl), 'essai'); ld.close(); openFileRecord({ blob: b, mime: 'application/pdf', name: 'essai.pdf' }, 'Essai'); } catch (e) { ld.close(); alertBox('Essai impossible : ' + (e.message || e)); } };
+    ($('[data-a=test]', el)||{}).onclick = async () => { const ld = loading('Essai…'); try { const day = { date: todayISO() }, r = { element: 'Plancher Axe D3*D4 fil H*K', niv: 'R+5', zone: '3', indFer: 'PE00', indCof: 'PE01' }; const b = await ftMake(p, tpl, ftDefaults(p, day, r, tpl), 'essai'); ld.close(); openFileRecord({ blob: b, mime: 'application/pdf', name: 'essai.pdf' }, 'Essai'); } catch (e) { ld.close(); alertBox('Essai impossible : ' + (e.message || e)); } };
     draw();
   });
 }
@@ -204,7 +204,7 @@ async function fcBox(p, day, box, save, rerender) {
       ${f ? `<button data-fx="open" title="Ouvrir">${icon('eye')}</button><button data-fx="edit" title="Modifier">${icon('edit')}</button><button data-fx="del" class="d" title="Supprimer">${icon('trash')}</button>` : `<button data-fx="edit" title="Remplir puis écrire">${icon('edit')}</button><button data-fx="gen" class="g">✍️ Écrire</button>`}</div>`; }).join('')}</div>
     <div class="fc-act"><button class="btn" data-fc="all">✍️ ${done ? (miss ? `Écrire les ${miss} manquante(s)…` : 'Réécrire toutes les fiches') : `Écrire toutes les fiches (${rows.length})`}</button>${done ? `<button class="btn ghost" data-fc="pdf">${icon('pdf')} Un seul PDF (${done})</button>` : ''}</div>`
     : '<div class="fc-none">Ajoutez des ouvrages dans le tableau pour écrire leurs fiches</div>'}`}`;
-  $('[data-fc=tog]', box).onclick = () => { try { localStorage.setItem('fc.open', open ? '0' : '1'); } catch (e) {} rerender(); };
+  ($('[data-fc=tog]', box)||{}).onclick = () => { try { localStorage.setItem('fc.open', open ? '0' : '1'); } catch (e) {} rerender(); };
   const mb = $('[data-fc=model]', box); if (mb) mb.onclick = async () => { if (await fcModelMenu(p)) rerender(); };
   $$('[data-fx]', box).forEach(b => b.onclick = async (e) => {
     e.stopPropagation(); const r = day.rows[+b.closest('[data-fi]').dataset.fi], k = b.dataset.fx;
