@@ -52,6 +52,9 @@ const DISCIPLINES = [
   { k: 'CVC', l: 'CVC' }, { k: 'SSI', l: 'Sécurité incendie (SSI)' }, { k: 'CM', l: 'Charpente métallique (CM)' },
   { k: 'ETA', l: 'Étanchéité (ETA)' }, { k: 'PAY', l: 'Aménagement / paysage (PAY)' }, { k: 'SYN', l: 'Synthèse (SYN)' },
 ];
+// v1.0.101 : types de lots = types fixes + types ajoutés par le projet (p.lotTypes)
+const typesOf = (p) => [...DISCIPLINES, ...((p && p.lotTypes) || [])];
+const typeLab = (k, p) => (typesOf(p || App.project).find(d => d.k === k) || { l: k }).l;
 const discLabel = (f) => !f || !f.disc ? '' : f.disc === '_free' ? (f.discName || 'Autre') : ((DISCIPLINES.find(d => d.k === f.disc) || {}).l || f.disc);
 const tint = (c, a) => c + Math.round(a * 255).toString(16).padStart(2, '0');
 
@@ -71,9 +74,12 @@ function lotBarInto(card, f, ps, root) {
   pickBtn.onclick = (e) => { e.stopPropagation(); const old = $('.lot-pick', card); if (old) { old.remove(); return; }
     const list = document.createElement('div'); list.className = 'lot-pick';
     // v1.0.98 : lots groupés par catégorie (Structure, Architecture…), dans l'ordre des disciplines
-    const cats = [...DISCIPLINES.map(d => d.k), ''];
+    const types = typesOf(p), tsel = ((App.lotType = App.lotType || {})[f.id]) || '';
+    const tchips = `<div class="lp-types"><button type="button" class="lp-t ${!tsel ? 'on' : ''}" data-tp="">Tous les types</button>` + types.map(t => `<button type="button" class="lp-t ${tsel === t.k ? 'on' : ''}" data-tp="${esc(t.k)}">${esc(t.l)}</button>`).join('') + `<button type="button" class="lp-t add" data-tp="__add">＋ Type</button></div>`;
+    const LLs = tsel ? lots.filter(l => (l.cat || '') === tsel) : lots;
+    const cats = tsel ? [tsel] : [...DISCIPLINES.map(d => d.k), ''];
     const btn = (l) => `<button type="button" class="lp-i ${sel === l.id ? 'on' : ''}" data-lp="${l.id}" style="--c:${l.c}">${l.e} ${esc(l.name)}${cnt(l.id) ? ` <small>${cnt(l.id)}</small>` : ''}</button>`;
-    list.innerHTML = `<button type="button" class="lp-i ${sel === '__all' ? 'on' : ''}" data-lp="__all">📚 Tous les lots <small>${ps.length}</small></button>` + cats.map(k => { const xs = lots.filter(l => (l.cat || '') === k); if (!xs.length) return ''; const lab = k ? (DISCIPLINES.find(d => d.k === k) || { l: k }).l : 'Sans catégorie'; return `<div class="lp-cat">${esc(lab)}</div>` + xs.map(btn).join(''); }).join('')
+    list.innerHTML = tchips + `<button type="button" class="lp-i ${sel === '__all' ? 'on' : ''}" data-lp="__all">📚 Tous les lots <small>${ps.length}</small></button>` + cats.map(k => { const xs = LLs.filter(l => (l.cat || '') === k); if (!xs.length) return ''; const lab = k ? typeLab(k, p) : 'Sans catégorie'; return `<div class="lp-cat">${esc(lab)}</div>` + xs.map(btn).join(''); }).join('')
       + (nNo ? `<button type="button" class="lp-i ${sel === '__none' ? 'on' : ''}" data-lp="__none">📄 Sans lot <small>${nNo}</small></button>` : '')
       + `<button type="button" class="lp-i add" data-lp="__add">＋ Nouveau lot</button>`;
     list.querySelectorAll('[data-lp]').forEach(x => {
@@ -83,8 +89,13 @@ function lotBarInto(card, f, ps, root) {
       };
       const L = lots.find(l => l.id === x.dataset.lp); if (L) x.oncontextmenu = (e) => { e.preventDefault(); lotMenu(L, root); };
     });
+    list.querySelectorAll('[data-tp]').forEach(b => b.onclick = async (e) => { e.stopPropagation(); const k = b.dataset.tp;
+      if (k === '__add') { const r = await formSheet('Nouveau type de lot', [{ name: 'n', label: 'Nom du type', placeholder: 'Ex : Second œuvre' }], { okLabel: 'Ajouter' }); if (!r || !r.n) return;
+        p.lotTypes = p.lotTypes || []; const nk = 'T' + DB.uid(); p.lotTypes.push({ k: nk, l: r.n }); await DB.put('projects', p); App.lotType[f.id] = nk; App.reopenPick = f.id; renderPlans(root); return; }
+      App.lotType[f.id] = k; App.reopenPick = f.id; renderPlans(root); });
     bar.after(list); };
   const head = $('.folder-head', card); head.after(bar);
+  if (App.reopenPick === f.id) { App.reopenPick = null; setTimeout(() => pickBtn.onclick({ stopPropagation() {} }), 0); }
   $$('[data-l]', bar).forEach(b => { if (b.dataset.l && b.dataset.l !== '__none') b.oncontextmenu = (e) => { e.preventDefault(); lotMenu(lots.find(l => l.id === b.dataset.l), root); }; });
   bar.querySelectorAll('[data-l]').forEach(b => b.onclick = (e) => pickBtn.onclick(e));   // toucher le lot choisi ouvre la liste
   if (sel) { const L = lots.find(l => l.id === sel); if (L) bar.after(lotPanel(L, f, root)); }
@@ -206,9 +217,9 @@ const lpTabOf = (L) => { try { return (JSON.parse(localStorage.getItem('lp.tab')
 const lpTabSet = (L, k) => { try { const o = JSON.parse(localStorage.getItem('lp.tab') || '{}'); o[L.id] = k; localStorage.setItem('lp.tab', JSON.stringify(o)); } catch (e) {} };
 async function lotMenu(L, root) {
   const p = App.project, lots = planLots(p), i = lots.indexOf(L);
-  const v = await menu(`${L.e} ${L.name}`, [{ label: 'Renommer / emoji', icon: 'edit', value: 'ren' }, { label: 'Couleur', icon: 'brush', value: 'col' }, { label: 'Catégorie' + (L.cat ? ' · ' + (DISCIPLINES.find(d => d.k === L.cat) || { l: L.cat }).l : ''), icon: 'layers', value: 'cat' }, { label: '← Déplacer à gauche', icon: 'back', value: 'l' }, { label: 'Déplacer à droite →', icon: 'chevright', value: 'r' }, { label: 'Points de contrôle…', icon: 'check', value: 'pts' }, { label: 'Supprimer le lot', icon: 'trash', danger: true, value: 'del' }]);
+  const v = await menu(`${L.e} ${L.name}`, [{ label: 'Renommer / emoji', icon: 'edit', value: 'ren' }, { label: 'Couleur', icon: 'brush', value: 'col' }, { label: 'Catégorie' + (L.cat ? ' · ' + typeLab(L.cat, App.project) : ''), icon: 'layers', value: 'cat' }, { label: '← Déplacer à gauche', icon: 'back', value: 'l' }, { label: 'Déplacer à droite →', icon: 'chevright', value: 'r' }, { label: 'Points de contrôle…', icon: 'check', value: 'pts' }, { label: 'Supprimer le lot', icon: 'trash', danger: true, value: 'del' }]);
   if (v === 'ren') { const r = await formSheet('Lot', [{ name: 'n', label: 'Nom', value: L.name }, { name: 'e', label: 'Emoji', value: L.e }]); if (r && r.n) { L.name = r.n; L.e = r.e || L.e; } }
-  if (v === 'cat') { const k = await menu('Catégorie du lot', [...DISCIPLINES.map(d => ({ label: d.l, value: d.k, checked: L.cat === d.k })), { label: 'Aucune', value: '', checked: !L.cat }]); if (k !== null && k !== undefined) L.cat = k; }
+  if (v === 'cat') { const k = await menu('Catégorie du lot', [...typesOf(App.project).map(d => ({ label: d.l, value: d.k, checked: L.cat === d.k })), { label: 'Aucune', value: '', checked: !L.cat }]); if (k !== null && k !== undefined) L.cat = k; }
   if (v === 'col') { const c = await menu('Couleur', ['#f59e0b', '#ef4444', '#a855f7', '#06b6d4', '#3b82f6', '#eab308', '#14b8a6', '#b45309', '#ec4899', '#64748b', '#22c55e', '#0ea5e9'].map(c => ({ label: c, swatch: c, value: c }))); if (c) L.c = c; }
   if ((v === 'l' && i > 0) || (v === 'r' && i < lots.length - 1)) { const j = v === 'l' ? i - 1 : i + 1; [lots[i], lots[j]] = [lots[j], lots[i]]; }
   if (v === 'pts') { const id = await menu('Supprimer un point ?', (L.points || []).map(x => ({ label: x.t, icon: 'trash', value: x.id }))); if (id && await confirmBox('Supprimer ce point de tous les niveaux ?')) L.points = L.points.filter(x => x.id !== id); }
