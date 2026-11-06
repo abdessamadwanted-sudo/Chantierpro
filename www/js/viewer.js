@@ -804,12 +804,16 @@ async function openPlanViewer(plan, ctx) {
     ptrs.set(e.pointerId, [e.clientX, e.clientY]);
     if (!g) return;
     if (g.type === 'pinch' && ptrs.size >= 2) {
+      // v1.0.95 : on ne garde que la dernière position et on applique le zoom une fois par image (évite le tremblement)
       const [a, b] = [...ptrs.values()];
-      const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
-      const cx = (a[0] + b[0]) / 2, cy = (a[1] + b[1]) / 2;
-      st.tx += cx - g.cx; st.ty += cy - g.cy;
-      zoomAt(cx, cy, d / g.d);
-      g.d = d; g.cx = cx; g.cy = cy;
+      g.next = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), cx: (a[0] + b[0]) / 2, cy: (a[1] + b[1]) / 2 };
+      if (!g.raf) g.raf = requestAnimationFrame(() => {
+        g.raf = null;
+        const n = g.next; if (!n || g.type !== 'pinch' || !g.d) return;
+        st.tx += n.cx - g.cx; st.ty += n.cy - g.cy;
+        zoomAt(n.cx, n.cy, n.d / g.d);
+        g.d = n.d; g.cx = n.cx; g.cy = n.cy; g.next = null;
+      });
       return;
     }
     if (g.type !== 'one') return;
