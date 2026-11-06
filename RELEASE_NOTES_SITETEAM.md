@@ -1,3 +1,6 @@
+## SiteTeam : v1.0.95
+- Plan : zoom à deux doigts plus fluide (le zoom est appliqué une fois par image au lieu de chaque mouvement du doigt).
+
 ## SiteTeam : v1.0.94
 - Équipe du projet : bouton « ＋ Tout un service » : affecte d'un coup tous les membres d'un service (Travaux, Qualité…) au projet, chacun avec son poste. Les membres déjà affectés sont sautés.
 
