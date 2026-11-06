@@ -284,7 +284,7 @@ async function renderHome() {
   const q = $('[data-a=quit]'); { let t = null, lp = false;   // toucher = au revoir et fermer ; appui long = verrouiller / code PIN
     q.addEventListener('pointerdown', () => { lp = false; t = setTimeout(() => { lp = true; powerMenu(); }, 550); });
     ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => q.addEventListener(ev, () => clearTimeout(t)));
-    q.onclick = () => { if (!lp) Splash.bye(); }; }
+    q.onclick = async () => { if (!lp && await confirmBox('Fermer SiteTeam ?', 'Fermer')) Splash.bye(); }; }   // v1.0.100 : confirmation avant de fermer
   const sn = $('[data-a=syncnow]'); if (sn) sn.onclick = () => { sn.classList.add('spinning'); Sync.run({ force: true }).finally(() => sn.classList.remove('spinning')); };
   $$('[data-addrap]').forEach(b => b.onclick = () => addRappel(b.dataset.addrap));
   $$('[data-rapok]').forEach(b => b.onclick = async () => { const [pid, id] = b.dataset.rapok.split('|'); const p = await DB.get('projects', pid); const x = (p.rappels || []).find(r => r.id === id); if (x) { x.done = true; cancelNotif(x); await DB.put('projects', p); toast('Rappel terminé ✓'); renderHome(); } });
@@ -584,7 +584,7 @@ async function renderPlans(root) {
   let lastDk = null; const anyTyped = groups.some(g => g.f.disc);
   for (let { f, plans: ps, subs } of groups) {
     // v1.0.99 : titre centré entre les groupes ; « Sans type » pour les niveaux sans type (si d'autres en ont un)
-    { const dk = f.disc || ''; if (dk !== lastDk) { lastDk = dk; const lab = dk ? discLabel(f) : (anyTyped ? 'Sans type' : ''); if (lab && box) box.insertAdjacentHTML('beforeend', `<div class="plan-sec">${esc(lab)}</div>`); } }
+    // v1.0.100 : le type s'affiche dans la carte du niveau (plus de titres entre les groupes)
     // v1.0.85 : un sous-dossier créé dans un lot n'apparaît que dans ce lot (sans lot = partout)
     if (f.id !== '_none') { const cl = lotSelDefault(f, ps.concat(...subs.map(s => s.plans))); subs = subs.filter(s => !s.f.lotId || s.f.lotId === cl); }
     const open = q ? true : App.openFolders[f.id];
@@ -593,7 +593,7 @@ async function renderPlans(root) {
     const nAll = ps.length + subs.reduce((a, s) => a + s.plans.length, 0);
     card.className = 'card fcard' + (open ? ' open' : ''); card.dataset.fid = f.id; card.style.setProperty('--fc', fc.c);
     card.innerHTML = `<div class="folder-head ${f.color ? '' : 'th-fold'}" style="${f.color || !document.documentElement.classList.contains('glass') ? `background:${fc.c}` : ''}"><span class="fh-ic">📁</span>
-      <div class="grow"><div class="title">${esc(f.name)}</div><div class="sub">${subs.length ? `${subs.length} dossier${subs.length > 1 ? 's' : ''} · ` : ''}${nAll} plan${nAll > 1 ? 's' : ''}</div></div>
+      <div class="grow"><div class="title">${esc(f.name)}${f.disc ? ` <span class="disc-tag">${esc(discLabel(f))}</span>` : ''}</div><div class="sub">${subs.length ? `${subs.length} dossier${subs.length > 1 ? 's' : ''} · ` : ''}${nAll} plan${nAll > 1 ? 's' : ''}</div></div>
       ${f.id !== '_none' ? `<button class="iconbtn" data-more>${icon('more')}</button>` : ''}
       <span class="fh-chev" style="transform:rotate(${open ? 180 : 0}deg)">${icon('chevdown')}</span></div>
       ${open ? `<div class="fbody">${subs.length ? '<div class="subfs"></div>' : ''}${ps.length || !subs.length ? gridHTML() : ''}${f.id !== '_none' && !q ? `<div class="fb-actions">${subs.length ? `<button class="fb-btn" data-a="addplan">${icon('plus')} Plan ici</button>` : ''}<button class="fb-btn" data-a="addsub">${icon('folder')} Sous-dossier</button></div>` : ''}</div>` : ''}`;
@@ -1703,7 +1703,8 @@ async function openPlansQuick() {
 (function init() {
   // Bouton retour Android
   const capApp = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
-  if (capApp) capApp.addListener('backButton', () => { if (!navBack()) capApp.exitApp(); });
+  let backArmed = 0;   // v1.0.100 : sans rien à annuler, il faut deux appuis rapprochés pour fermer
+  if (capApp) capApp.addListener('backButton', () => { if (navBack()) return; if (Date.now() - backArmed < 2000) return capApp.exitApp(); backArmed = Date.now(); toast('Appuyez encore pour fermer'); });
   initSwipeBack();
   initPlansButton();
   // glisser depuis le bord gauche vers la droite = ouvrir le menu
