@@ -578,7 +578,12 @@ async function renderPlans(root) {
     grid.appendChild(add);
   };
   const gridHTML = () => App.planView === 'grid' ? `<div class="plan-grid fw"></div>` : `<div class="plan-rows"></div>`;
+  // v1.0.98 : niveaux regroupés par type (ARCH, STR…), avec un titre à chaque changement de type
+  const dRank = (g) => { const k = g.f.disc || ''; const i = DISCIPLINES.findIndex(d => d.k === k); return i >= 0 ? i : k ? 98 : 99; };
+  groups.sort((a, b) => dRank(a) - dRank(b));
+  let lastDk = null;
   for (let { f, plans: ps, subs } of groups) {
+    { const dk = f.disc || ''; if (dk !== lastDk) { lastDk = dk; if (dk && box) box.insertAdjacentHTML('beforeend', `<div class="lp-cat" style="margin:14px 4px 4px">${esc(discLabel(f))}</div>`); } }
     // v1.0.85 : un sous-dossier créé dans un lot n'apparaît que dans ce lot (sans lot = partout)
     if (f.id !== '_none') { const cl = lotSelDefault(f, ps.concat(...subs.map(s => s.plans))); subs = subs.filter(s => !s.f.lotId || s.f.lotId === cl); }
     const open = q ? true : App.openFolders[f.id];

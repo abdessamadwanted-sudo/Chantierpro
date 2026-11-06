@@ -1,3 +1,7 @@
+## SiteTeam : v1.0.98
+- Lots : menu du lot → « Catégorie » (Structure, Architecture, etc.). La liste des lots est regroupée par catégorie.
+- Plans : les niveaux sont regroupés par type (ARCH, STR…) avec un titre à chaque groupe.
+
 ## SiteTeam : v1.0.97
 - Comparer deux plans : tous les lots sont visibles (plus de lot présélectionné qui cachait les autres), et le niveau du plan courant passe en premier.
 - Chaque niveau peut recevoir un type : Architecture (ARCH), Structure (STR), VRD, CFO, CFA, PLB, CVC, SSI, CM, ETA, PAY, SYN, ou un nom libre. Menu du dossier : « Type de niveau ». Le type s'affiche dans la comparaison.
