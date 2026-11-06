@@ -411,7 +411,7 @@ const ST = (() => {
           }).join('')}</div></section>`).join('')}
           ${P.k === 'basic' ? `<button class="st-libupgrade" data-a="upgrade"><span>⭐</span><span><b>Débloquer la bibliothèque par service</b><small>Avec ${upgrade}, les outils et recommandations s'adaptent à votre métier.</small></span>${icon('chevright')}</button>` : ''}
         </div>`;
-      $('[data-a=back]', el).onclick = close;
+      ($('[data-a=back]', el)||{}).onclick = close;
       $$('[data-svc]', el).forEach(b => b.onclick = () => { svc = b.dataset.svc; draw(); });
       const up = $('[data-a=upgrade]', el); if (up) up.onclick = () => Team.openCompany(perso() ? 'abo' : 'set');
       $$('[data-lib]', el).forEach(b => b.onclick = async () => {
@@ -457,7 +457,7 @@ const ST = (() => {
     </div>`;
     document.body.appendChild(el);
     const close = () => { el.remove(); unB(); }, unB = pushBack(() => el.remove());
-    $('.ws-bg', el).onclick = close;
+    ($('.ws-bg', el)||{}).onclick = close;
     $$('[data-wsw]', el).forEach(b => b.onclick = () => { close(); Team.switchTo(b.dataset.wsw); });
     $$('[data-wm]', el).forEach(b => b.onclick = () => { const k = b.dataset.wm; close();
       if (k === 'switch') return Team.openSwitcher();
@@ -748,7 +748,7 @@ const ST = (() => {
     root.innerHTML = `<div class="pagehead"><button class="linkbtn" data-a="up">← Tous les classements</button><h2>${C[2]} ${esc(C[1])}</h2></div>
       ${L.length ? `<div class="list">${L.map(f => `<div class="row" data-id="${f.id}"><span>${icon('file')}</span><div class="grow"><div class="title">${esc(f.name || 'Document')}</div><div class="sub">${new Date(f.updatedAt || Date.now()).toLocaleDateString('fr-FR')}${f.archived ? ' · archivé' : ''}</div></div></div>`).join('')}</div>`
         : `<div class="empty">Aucun document ici.${canW && cat !== 'archive' ? '<br>Appuyez sur <b>+</b> pour ajouter un PDF, une photo, un Word ou un Excel.' : ''}</div>`}`;
-    $('[data-a=up]', root).onclick = () => { App.docCat = null; renderDocs(root); };
+    ($('[data-a=up]', root)||{}).onclick = () => { App.docCat = null; renderDocs(root); };
     $$('.row[data-id]', root).forEach(r => r.onclick = async () => { const f = L.find(x => x.id === r.dataset.id);
       const v = await menu(f.name || 'Document', [{ label: 'Ouvrir', icon: 'file', value: 'open' }, ...(canW ? [{ label: f.archived ? 'Sortir des archives' : 'Archiver', icon: 'folder', value: 'arc' }, { label: 'Changer de classement', icon: 'edit', value: 'mv' }, { label: 'Supprimer', icon: 'trash', danger: true, value: 'del' }] : [])]);
       if (v === 'open') return openFileRecord(f, f.name);

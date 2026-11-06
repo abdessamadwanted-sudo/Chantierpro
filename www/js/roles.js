@@ -126,7 +126,7 @@ function lockScreen() {
         }
         draw();
       });
-      $('[data-a=forgot]', el).onclick = async () => {
+      ($('[data-a=forgot]', el)||{}).onclick = async () => {
         const st = Lic.get() || {};
         if (st.mode === 'user') {   // licence : on prouve son identité avec son code de licence
           const r = await formSheet('Code PIN oublié', [{ name: 'c', label: 'Votre code de licence (CH-XXXX-XXXX)' }], { okLabel: 'Retirer le PIN' });

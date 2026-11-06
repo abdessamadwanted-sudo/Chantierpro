@@ -80,7 +80,7 @@ const Wizard = (() => {
       bind();
     }
     function bind() {
-      $('[data-a=wzback]', W).onclick = () => { read(); if (st.i) { st.i--; draw(); } else s.close(); };
+      ($('[data-a=wzback]', W)||{}).onclick = () => { read(); if (st.i) { st.i--; draw(); } else s.close(); };
       $$('[data-f]', W).forEach(b => b.onclick = async () => { const F = ST0.find(x => x.k === b.dataset.f); let t = F.types[0];
         if (F.types.length > 1) { t = await menu(F.l, F.types.map(k => projTypeOf(k)).filter(Boolean).map(X => ({ label: `${X.e} ${X.n}`, value: X.k }))); if (!t) return; }
         if (st.type !== t) { st.type = t; st.lotsInit = false; st.sugDone = false; st.lots = new Set(); st.zonesTouched = false; } st.i = 1; draw(); });

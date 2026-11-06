@@ -47,7 +47,7 @@ function attachSharedPhotos(files) {
             <div class="ib-rows">${rows.map(({ r, i }) => `<button class="ib-row" data-i="${i}"><span class="ib-z">${esc(r.zone || '–')}</span><span class="ib-n">${esc(r.niv || '')}</span><span class="grow">${esc(r.element)}</span><span class="ib-c">${(r.photoIds || []).length + (r.retourIds || []).length ? '📷 ' + ((r.photoIds || []).length + (r.retourIds || []).length) : ''}</span></button>`).join('') || '<div class="cr-none">Aucun ouvrage trouvé.</div>'}</div>` : ''}
           <button class="btn ghost small" data-a="gen" style="margin-top:10px">${icon('camera')} Photos du projet (sans ouvrage)</button>
         </div>`;
-      $('[data-a=x]', el).onclick = () => done();
+      ($('[data-a=x]', el)||{}).onclick = () => done();
       const ps = $('[data-pid]', el); if (ps) ps.onchange = () => { pid = ps.value; localStorage.setItem('inbox.pid', pid); dayId = null; draw(); };
       $$('[data-k]', el).forEach(b => b.onclick = () => { kind = b.dataset.k; localStorage.setItem('inbox.kind', kind); dayId = null; draw(); });
       const ds = $('[data-day]', el); if (ds) ds.onchange = () => { dayId = ds.value; draw(); };
@@ -69,7 +69,7 @@ function attachSharedPhotos(files) {
         else { r.photoIds = [...(r.photoIds || []), ...recs.map(x => x.id)]; if (v === 'res') r.status = 'reserve'; }
         await DB.put('receptions', day); done(`${recs.length} photo(s) ajoutée(s) à « ${r.element} » ✓`);
       });
-      $('[data-a=gen]', el).onclick = async () => { const recs = await save({ source: 'Partage galerie' }); done(`${recs.length} photo(s) ajoutée(s) aux photos du projet ✓`); };
+      ($('[data-a=gen]', el)||{}).onclick = async () => { const recs = await save({ source: 'Partage galerie' }); done(`${recs.length} photo(s) ajoutée(s) aux photos du projet ✓`); };
     };
     draw();
   });
@@ -128,9 +128,9 @@ async function freeFilesUI(ids, title = 'Photos') {
       <div class="fr-note">Elles restent dans <b>Google Drive</b> (dossier de l'ouvrage). Une miniature reste dans l'application ; la photo complète se télécharge si vous l'ouvrez.</div>
       <button class="btn" data-fa="go" ${sel.size ? '' : 'disabled'}>☁ Libérer ${sel.size} photo(s) · ${mb.toFixed(1)} Mo</button>`;
     $$('[data-f]', box).forEach(b => b.onclick = () => { sel.has(b.dataset.f) ? sel.delete(b.dataset.f) : sel.add(b.dataset.f); draw(); });
-    $('[data-fa=all]', box).onclick = () => { ok.forEach(f => sel.add(f.id)); draw(); };
-    $('[data-fa=none]', box).onclick = () => { sel.clear(); draw(); };
-    $('[data-fa=go]', box).onclick = async () => {
+    ($('[data-fa=all]', box)||{}).onclick = () => { ok.forEach(f => sel.add(f.id)); draw(); };
+    ($('[data-fa=none]', box)||{}).onclick = () => { sel.clear(); draw(); };
+    ($('[data-fa=go]', box)||{}).onclick = async () => {
       const l2 = loading('Libération…'); let n = 0, freed = 0;
       try { for (const f of ok.filter(x => sel.has(x.id))) { try { await Thumbs.get(f.id); } catch (e) {} freed += f.blob.size || 0; f.blob = null; f.freed = true; f.freedAt = Date.now(); delete f.lastUsed; BlobURL.drop(f.id); await DB.putRaw('files', f); n++; } }
       finally { l2.close(); }

@@ -295,7 +295,7 @@ async function openPlanCompare(oldPlan, newPlan) {
       <button class="btn small" data-a="list">${D.rects.length} modification(s)</button></div>`;
   document.body.appendChild(el);
   const unBack = pushBack(() => el.remove());
-  $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
+  ($('[data-a=x]', el)||{}).onclick = () => { unBack(); el.remove(); };
   const view = $('.av-view', el), stage = $('.av-stage', el), img = $('img', stage), ov = $('.av-ov', el);
   const drawBoxes = (s) => {
     const lw = 2.5 / s, fs = 14 / s;
@@ -306,12 +306,12 @@ async function openPlanCompare(oldPlan, newPlan) {
   requestAnimationFrame(pz.fit);
   const setMode = (m) => { mode = m; img.src = m === 'old' ? srcOld : m === 'new' ? srcNew : diffURL; $$('[data-m]', el).forEach(b => b.classList.toggle('on', b.dataset.m === mode || (b.dataset.m === 'box' && boxes))); };
   $$('[data-m]', el).forEach(b => b.onclick = () => { if (b.dataset.m === 'box') { boxes = !boxes; drawBoxes(pz.st.s); setMode(mode); } else setMode(b.dataset.m); });
-  $('[data-a=list]', el).onclick = async () => {
+  ($('[data-a=list]', el)||{}).onclick = async () => {
     if (!D.rects.length) return toast('Aucune modification détectée');
     const i = await menu('Modifications détectées', D.rects.map((q, i) => ({ label: `Zone ${i + 1}`, icon: 'zone', value: String(i) })));
     if (i != null) { const q = D.rects[+i]; pz.zoomTo(q.x, q.y, q.w, q.h); }
   };
-  $('[data-a=share]', el).onclick = async () => {
+  ($('[data-a=share]', el)||{}).onclick = async () => {
     const c = document.createElement('canvas'); c.width = D.W; c.height = D.H + 60; const g = c.getContext('2d');
     g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(D.canvas, 0, 60);
     g.fillStyle = '#111'; g.font = 'bold 26px Arial'; g.fillText(`${newPlan.name} — indice ${planIndice(oldPlan)} → ${planIndice(newPlan)}`, 16, 38);

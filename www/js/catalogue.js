@@ -162,7 +162,7 @@ function openProjectCatalogue(p) {
         <button class="btn" data-a="save" style="margin-top:14px">${icon('check')} Enregistrer (${sel.size} lot(s))</button>`;
       $$('[data-model]', wrap).forEach(b => b.onclick = () => { for (const [f, l] of CAT_MODELS[b.dataset.model]) sel.add(f + '|' + l); draw(); });
       $$('input[data-f]', wrap).forEach(c => c.onchange = () => { const k = c.dataset.f + '|' + c.dataset.l; c.checked ? sel.add(k) : sel.delete(k); const btn = $('[data-a=save]', wrap); if (btn) btn.textContent = `Enregistrer (${sel.size} lot(s))`; });
-      $('[data-a=save]', wrap).onclick = () => { p.catLots = [...sel].map(k => k.split('|')); s.close(); };
+      ($('[data-a=save]', wrap)||{}).onclick = () => { p.catLots = [...sel].map(k => k.split('|')); s.close(); };
     };
     draw();
     s.onClose = () => resolve(p.catLots || []);

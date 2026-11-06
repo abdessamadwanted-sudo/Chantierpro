@@ -289,13 +289,13 @@ async function renderHome() {
   $$('[data-addrap]').forEach(b => b.onclick = () => addRappel(b.dataset.addrap));
   $$('[data-rapok]').forEach(b => b.onclick = async () => { const [pid, id] = b.dataset.rapok.split('|'); const p = await DB.get('projects', pid); const x = (p.rappels || []).find(r => r.id === id); if (x) { x.done = true; cancelNotif(x); await DB.put('projects', p); toast('Rappel terminé ✓'); renderHome(); } });
   $$('[data-rapdel]').forEach(b => b.onclick = async () => { const [pid, id] = b.dataset.rapdel.split('|'); const p = await DB.get('projects', pid); const x = (p.rappels || []).find(r => r.id === id); p.rappels = (p.rappels || []).filter(r => r.id !== id); if (x) cancelNotif(x); await DB.put('projects', p); renderHome(); });
-  $('[data-a=sync]').onclick = () => Sync.openSyncSettings();
+  ($('[data-a=sync]')||{}).onclick = () => Sync.openSyncSettings();
   const askName = async () => { const r = await formSheet('Votre prénom', [{ name: 'n', label: 'Comment vous appeler ?', value: uname, placeholder: 'Ex : Abdessamad' }], { okLabel: 'Enregistrer' }); if (r) { try { localStorage.setItem('userName', (r.n || '').trim()); localStorage.setItem('askedName', '1'); } catch (e) {} renderHome(); } };
-  $('[data-a=uname]').onclick = askName;
+  ($('[data-a=uname]')||{}).onclick = askName;
   const rb = $('[data-a=role]'); if (rb) rb.onclick = async () => { const v = await menu('Mon profil (couleur et titre)', ROLES.map(x => ({ label: `${x.e} ${x.n}`, value: x.k, swatch: ROLE_COLORS[x.k], checked: x.k === myRole() }))); if (v) { try { localStorage.setItem('myRole', v); } catch (e) {} renderHome(); } };
   try { if (!uname && !localStorage.getItem('askedName')) { localStorage.setItem('askedName', '1'); setTimeout(askName, 600); } } catch (e) {}
   { const mo = $('[data-a=msgoff]'); if (mo) mo.onclick = () => { const M = Team.appCfg().message || {}; try { localStorage.setItem('st.msgOff', String(M.id || M.text)); } catch (e) {} mo.closest('.st-msg').remove(); }; }
-  $('[data-a=homemore]').onclick = async () => {
+  ($('[data-a=homemore]')||{}).onclick = async () => {
         // menu ⋮ : 6 groupes courts, sans doublon (déconnexion et prénom sont dans « Mon compte », la langue dans Réglages, la version ouvre la mise à jour)
         // v1.0.44 : profil en tête des Réglages ; l'espace se change par le menu « Sgtm ⌄ », l'organisation est dans l'onglet Équipe (pas de doublon)
         const v = await groupMenu('Réglages', [
@@ -426,7 +426,7 @@ async function renderSection() {
         : (Team.ready() && (Team.company() || {}).name ? `<div class="tb-title"><b>${esc(App.project.name)}</b><span class="tb-crumb"><a data-a="crumb">${esc(Team.company().name)}</a> › ${esc(s.label || '')}</span></div><button class="iconbtn" data-a="home">${icon('home')}</button>` : `<h1>${esc(App.project.name)}</h1><button class="iconbtn" data-a="home">${icon('home')}</button>`)}
     </div>
     <div class="content" id="content"></div>`;
-  $('[data-a=drawer]').onclick = openDrawer;
+  ($('[data-a=drawer]')||{}).onclick = openDrawer;
   const hb = $('[data-a=home]'); if (hb) hb.onclick = renderHome;
   const cr = $('[data-a=crumb]'); if (cr) cr.onclick = (e) => { e.stopPropagation(); renderHome(); };
   await s.render($('#content'));
@@ -491,7 +491,7 @@ async function openDrawer(opts = {}) {
   };
   const te = e => { d.style.overflowY = ''; if (dir !== 'h') return; const dx = e.changedTouches[0].clientX - dsx, v = -dx / Math.max(1, Date.now() - dst); if (-dx > W() * 0.25 || v > 0.3) close(); else setP(W(), true); };
   [d, bg].forEach(x => { x.addEventListener('touchstart', ts, { passive: true }); x.addEventListener('touchmove', tm, { passive: false }); x.addEventListener('touchend', te, { passive: true }); x.addEventListener('touchcancel', te, { passive: true }); });
-  $('[data-home]', d).onclick = () => { close(); renderHome(); };
+  ($('[data-home]', d)||{}).onclick = () => { close(); renderHome(); };
   const dcb = $('[data-company]', d); if (dcb) dcb.onclick = () => { close(); Team.openCompany(); };
   drawerGroupsBind(d, close);
   const rt = $('[data-rtog]', d); if (rt) rt.onclick = (e) => { e.stopPropagation(); resOpen = !resOpen; try { localStorage.setItem('dr.res', resOpen ? '1' : '0'); } catch (x) {} $('.dr-sub', d).style.display = resOpen ? '' : 'none'; rt.querySelector('i').style.transform = `rotate(${resOpen ? 180 : 0}deg)`; };
@@ -592,7 +592,7 @@ async function renderPlans(root) {
       <span class="fh-chev" style="transform:rotate(${open ? 180 : 0}deg)">${icon('chevdown')}</span></div>
       ${open ? `<div class="fbody">${subs.length ? '<div class="subfs"></div>' : ''}${ps.length || !subs.length ? gridHTML() : ''}${f.id !== '_none' && !q ? `<div class="fb-actions">${subs.length ? `<button class="fb-btn" data-a="addplan">${icon('plus')} Plan ici</button>` : ''}<button class="fb-btn" data-a="addsub">${icon('folder')} Sous-dossier</button></div>` : ''}</div>` : ''}`;
     box.appendChild(card);
-    $('.folder-head', card).onclick = (e) => {
+    ($('.folder-head', card)||{}).onclick = (e) => {
       if (e.target.closest('[data-more]')) return;
       App.openFolders[f.id] = !open; renderPlans(root);
     };
@@ -616,16 +616,16 @@ async function renderPlans(root) {
         <span class="sf-chev" style="transform:rotate(${sopen ? 180 : 0}deg)">${icon('chevdown')}</span></div>
         ${sopen ? gridHTML() : ''}`;
       sbox.appendChild(el);
-      $('.subf-head', el).onclick = (e) => { if (e.target.closest('[data-more]')) return; App.openFolders[sf.id] = !sopen; renderPlans(root); };
-      $('[data-more]', el).onclick = () => folderMenu(sf, root);
+      ($('.subf-head', el)||{}).onclick = (e) => { if (e.target.closest('[data-more]')) return; App.openFolders[sf.id] = !sopen; renderPlans(root); };
+      ($('[data-more]', el)||{}).onclick = () => folderMenu(sf, root);
       if (sopen) fillPlans($('.plan-grid, .plan-rows', el), sps, sf, lotF);
     }
   }
   if (App.keepScrollY != null) { const y = App.keepScrollY; App.keepScrollY = null; App.scrollFolder = null; const c0 = $('#content'); if (c0) { c0.scrollTop = y; requestAnimationFrame(() => { c0.scrollTop = y; }); } }   // v1.0.77 : garder la position quand on choisit un lot
   else if (App.scrollFolder) { const fid = App.scrollFolder; App.scrollFolder = null; const c = box.querySelector(`[data-fid="${fid}"]`); if (c) requestAnimationFrame(() => c.scrollIntoView({ block: 'start', behavior: 'smooth' })); }
-  $('[data-a=fold]').onclick = () => { groups.forEach(g => { App.openFolders[g.f.id] = !anyOpen; g.subs.forEach(sg => App.openFolders[sg.f.id] = !anyOpen); }); renderPlans(root); };
-  $('[data-a=view]').onclick = () => { App.planView = App.planView === 'grid' ? 'list' : 'grid'; try { localStorage.setItem('planView', App.planView); } catch (e) {} renderPlans(root); };
-  $('[data-a=recent]').onclick = async () => {
+  ($('[data-a=fold]')||{}).onclick = () => { groups.forEach(g => { App.openFolders[g.f.id] = !anyOpen; g.subs.forEach(sg => App.openFolders[sg.f.id] = !anyOpen); }); renderPlans(root); };
+  ($('[data-a=view]')||{}).onclick = () => { App.planView = App.planView === 'grid' ? 'list' : 'grid'; try { localStorage.setItem('planView', App.planView); } catch (e) {} renderPlans(root); };
+  ($('[data-a=recent]')||{}).onclick = async () => {
     const rec = plans.filter(p => p.lastOpened).sort((a, b) => b.lastOpened - a.lastOpened).slice(0, 8);
     if (!rec.length) return toast('Aucun plan ouvert récemment');
     const id = await menu('Plans récents', rec.map(p => ({ label: `${p.name} · ${fmtDateTime(p.lastOpened)}`, icon: 'plans', value: p.id })));
@@ -943,7 +943,7 @@ function openLinkDetail(link) {
       };
       $$('[data-add]', box).forEach(b => b.onclick = () => addItem(cats().find(c => c.key === b.dataset.add)));
       $$('[data-rmcat]', box).forEach(b => b.onclick = async () => { project.extraCats = (project.extraCats || []).filter(c => c.key !== b.dataset.rmcat); await DB.put('projects', project); render(); });
-      $('[data-a=newcat]', box).onclick = async () => {
+      ($('[data-a=newcat]', box)||{}).onclick = async () => {
         const existing = new Set(cats().map(c => c.label));
         const v = await menu('Nouvelle rubrique', [...EXTRA_CAT_SUGGEST.filter(x => !existing.has(x)).map(x => ({ label: x, icon: 'hard', value: x })), { label: 'Autre nom…', icon: 'edit', value: '__other' }]);
         let label = v;
@@ -953,7 +953,7 @@ function openLinkDetail(link) {
         project.extraCats = [...(project.extraCats || []), { key, label }];
         await DB.put('projects', project); openCats.add(key); render();
       };
-      $('[data-a=more]', box).onclick = async () => {
+      ($('[data-a=more]', box)||{}).onclick = async () => {
         const v = await menu(link.name, [
           { label: 'Renommer', icon: 'edit', value: 'rename' },
           { label: 'Icône et couleur du pin', icon: 'pin', value: 'look' },
@@ -1103,7 +1103,7 @@ async function renderTasks(root) {
     : `<div class="empty">Rien ici.<br>Créez une réserve avec <b>+</b> ou placez un pin sur un plan.</div>`}`;
   $$('[data-f]', root).forEach(b => b.onclick = () => { App.taskFilter = b.dataset.f; renderTasks(root); });
   $$('[data-co]', root).forEach(b => b.onclick = () => { App.companyFilter = b.dataset.co; renderTasks(root); });
-  $('[data-a=pdf]', root).onclick = () => reservesReportDialog({ company: App.companyFilter });
+  ($('[data-a=pdf]', root)||{}).onclick = () => reservesReportDialog({ company: App.companyFilter });
   $$('.row[data-id]', root).forEach(r => r.onclick = async () => { await openTaskDetail(tasks.find(t => t.id === r.dataset.id)); renderTasks(root); });
   const inp = $('.search input', root);
   inp.oninput = () => { App.search = inp.value; clearTimeout(inp._t); inp._t = setTimeout(() => renderTasks(root).then(() => { const i = $('.search input', root); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }), 300); };
@@ -1158,7 +1158,7 @@ function openTaskDetail(task) {
         <datalist id="dl-team">${team.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
         <datalist id="dl-cat">${CATEGORIES.map(n => `<option value="${esc(n)}">`).join('')}</datalist>`;
 
-      $('[data-a=back]', el).onclick = async () => { unBack(); await flush(); done(); };
+      ($('[data-a=back]', el)||{}).onclick = async () => { unBack(); await flush(); done(); };
       $$('input[name]:not([name=_comment]), textarea[name]', el).forEach(i => i.oninput = () => { task[i.name] = i.value; save(); });
       $$('[data-kind]', el).forEach(b => b.onclick = (e) => { e.preventDefault(); task.kind = b.dataset.kind; save(); render(); });
       $('[name=_company]', el).onchange = async (e) => {
@@ -1176,7 +1176,7 @@ function openTaskDetail(task) {
         log(`Statut : ${STATUS[task.status].label} → ${STATUS[b.dataset.st].label}`); task.status = b.dataset.st; save(); render();
       });
       $$('[data-pr]', el).forEach(b => b.onclick = (e) => { e.preventDefault(); task.priority = +b.dataset.pr; save(); render(); });
-      $('[data-a=addphoto]', el).onclick = async (e) => {
+      ($('[data-a=addphoto]', el)||{}).onclick = async (e) => {
         e.preventDefault();
         const recs = await addPhotos(pid, { source: `Tâche #${task.num}` });
         if (recs.length) { task.photoIds.push(...recs.map(r => r.id)); log(`${recs.length} photo(s) ajoutée(s)`); await DB.put('tasks', task); render(); }
@@ -1190,17 +1190,17 @@ function openTaskDetail(task) {
         }
         showGallery(photos.map(f => ({ src: BlobURL.get(f.id, f.blob), caption: `Tâche #${task.num}` })), photos.findIndex(p => p.id === id));
       });
-      $('[data-a=comment]', el).onclick = (e) => {
+      ($('[data-a=comment]', el)||{}).onclick = (e) => {
         e.preventDefault(); const i = $('[name=_comment]', el);
         if (i.value.trim()) { log('💬 ' + i.value.trim()); save(); render(); }
       };
       const pb = $('[data-a=plan]', el);
       if (pb) pb.onclick = async (e) => { e.preventDefault(); await flush(); openPlanViewer(await DB.get('plans', plan.id), planCtx(() => {})); };
-      $('[data-a=share]', el).onclick = () => shareWhatsApp(
+      ($('[data-a=share]', el)||{}).onclick = () => shareWhatsApp(
         `*${project.name}*\n${KINDS[task.kind]} #${task.num} : ${task.title}\n` + (companyOf(project, task.companyId) ? `Entreprise : ${companyOf(project, task.companyId).name}\n` : '') + `Statut : ${STATUS[task.status].label} · Priorité ${task.priority}\n` +
         (task.assignee ? `Responsable : ${task.assignee}\n` : '') + (task.due ? `Échéance : ${fmtDate(task.due)}\n` : '') +
         (plan ? `Plan : ${plan.name}\n` : '') + (task.description ? `\n${task.description}` : ''));
-      $('[data-a=more]', el).onclick = async () => {
+      ($('[data-a=more]', el)||{}).onclick = async () => {
         const v = await menu(`Tâche #${task.num}`, [{ label: 'Supprimer la tâche', icon: 'trash', danger: true, value: 'del' }]);
         if (v === 'del' && await confirmBox('Supprimer cette tâche ?')) {
           clearTimeout(saveT);
@@ -1290,21 +1290,21 @@ function openFormDetail(form) {
           <div class="fld">Signature de l'entreprise<div class="sigbox" data-sig="sigEnt"></div></div>
           <button class="btn" data-a="pdf">${icon('report')} Générer le PV (PDF)</button>
         </div></div>`;
-      $('[data-a=back]', el).onclick = () => { unBack(); finish(); };
+      ($('[data-a=back]', el)||{}).onclick = () => { unBack(); finish(); };
       $$('input[name], textarea[name], select[name]', el).forEach(i => i.oninput = i.onchange = () => { form[i.name] = i.value; save(); });
       ST.vBind(el, form, async () => { clearTimeout(saveT); await DB.put('forms', form); render(); });
       $$('.sigbox', el).forEach(b => signaturePad(b, form[b.dataset.sig], (v) => { form[b.dataset.sig] = v; save(); }));
-      $('[data-a=pdf]', el).onclick = async () => { clearTimeout(saveT); await DB.put('forms', form); formPdf(form); };
+      ($('[data-a=pdf]', el)||{}).onclick = async () => { clearTimeout(saveT); await DB.put('forms', form); formPdf(form); };
       $$('.check-item', el).forEach(ci => {
         const it = form.items[+ci.dataset.i];
         $$('[data-r]', ci).forEach(b => b.onclick = () => { it.res = it.res === b.dataset.r ? null : b.dataset.r; save(); render(); });
         const c = $('[data-c]', ci); if (c) c.oninput = () => { it.comment = c.value; save(); };
       });
-      $('[data-a=additem]', el).onclick = async () => {
+      ($('[data-a=additem]', el)||{}).onclick = async () => {
         const r = await formSheet('Point de contrôle', [{ name: 'label', label: 'Libellé' }], { okLabel: 'Ajouter' });
         if (r && r.label) { form.items.push({ label: r.label, res: null, comment: '' }); save(); render(); }
       };
-      $('[data-a=addphoto]', el).onclick = async () => {
+      ($('[data-a=addphoto]', el)||{}).onclick = async () => {
         const recs = await addPhotos(form.projectId, { source: form.title });
         if (recs.length) { form.photoIds.push(...recs.map(r => r.id)); save(); render(); }
       };
@@ -1313,13 +1313,13 @@ function openFormDetail(form) {
         if (e.target.closest('[data-del]')) { if (await confirmBox('Supprimer cette photo ?')) { form.photoIds = form.photoIds.filter(x => x !== id); await DB.del('files', id); save(); render(); } return; }
         showGallery(photos.map(f => ({ src: BlobURL.get(f.id, f.blob), caption: form.title })), photos.findIndex(p => p.id === id));
       });
-      $('[data-a=share]', el).onclick = () => {
+      ($('[data-a=share]', el)||{}).onclick = () => {
         const mark = { ok: '✅', nok: '❌', na: '➖' };
         shareWhatsApp(`*${project.name}*\n*${form.title}*${form.location ? ' — ' + form.location : ''}\nDate : ${fmtDate(form.date)}${form.inspector ? ' · ' + form.inspector : ''}\nRésultat : *${s.status}*\n\n` +
           form.items.map((it, i) => `${mark[it.res] || '⬜'} ${i + 1}. ${it.label}${it.comment ? ' — ' + it.comment : ''}`).join('\n') +
           (form.notes ? `\n\nObservations : ${form.notes}` : ''));
       };
-      $('[data-a=more]', el).onclick = async () => {
+      ($('[data-a=more]', el)||{}).onclick = async () => {
         const v = await menu(form.title, [{ label: 'Générer le PV (PDF)', icon: 'report', value: 'pdf' }, { label: 'Supprimer le formulaire', icon: 'trash', danger: true, value: 'del' }]);
         if (v === 'pdf') { clearTimeout(saveT); await DB.put('forms', form); return formPdf(form); }
         if (v === 'del' && await confirmBox('Supprimer ce formulaire ?')) {
@@ -1372,13 +1372,13 @@ function openReportDetail(rep) {
           <label>Problèmes / observations<textarea name="issues" style="min-height:60px">${esc(rep.issues)}</textarea></label>
           <label>Photos</label>${thumbsHTML(photos)}
         </div></div>`;
-      $('[data-a=back]', el).onclick = () => { unBack(); finish(); };
+      ($('[data-a=back]', el)||{}).onclick = () => { unBack(); finish(); };
       // v1.0.47 : les saisies d'avancement du jour (lots, %, équipes, effectif) sont reprises dans le rapport
       const avd = $('[data-a=avday]', el); if (avd) avd.onclick = async () => { const t = await avDayText(project, rep.date); if (!t) return toast('Aucune saisie d\'avancement ce jour'); rep.works = (rep.works ? rep.works.trim() + '\n\n' : '') + t;
         const { locaux } = await avData(project); const eff = {}; for (const l of locaux) for (const e of l.journal || []) if (e.d === rep.date && e.eq) eff[e.eq] = Math.max(eff[e.eq] || 0, +e.eff || 0); const n = Object.values(eff).reduce((a, b) => a + b, 0); if (n && !+rep.workers) rep.workers = String(n);
         save(); render(); toast('Avancement du jour ajouté ✓'); };
       $$('[name]', el).forEach(i => i.oninput = i.onchange = () => { rep[i.name] = i.value; save(); if (i.name === 'date') $('h1', el).textContent = 'Rapport du ' + fmtDate(rep.date); });
-      $('[data-a=addphoto]', el).onclick = async () => {
+      ($('[data-a=addphoto]', el)||{}).onclick = async () => {
         const recs = await addPhotos(rep.projectId, { source: 'Rapport ' + fmtDate(rep.date) });
         if (recs.length) { rep.photoIds.push(...recs.map(r => r.id)); save(); render(); }
       };
@@ -1387,12 +1387,12 @@ function openReportDetail(rep) {
         if (e.target.closest('[data-del]')) { if (await confirmBox('Supprimer cette photo ?')) { rep.photoIds = rep.photoIds.filter(x => x !== id); await DB.del('files', id); save(); render(); } return; }
         showGallery(photos.map(f => ({ src: BlobURL.get(f.id, f.blob), caption: 'Rapport' })), photos.findIndex(p => p.id === id));
       });
-      $('[data-a=share]', el).onclick = () => shareWhatsApp(
+      ($('[data-a=share]', el)||{}).onclick = () => shareWhatsApp(
         `*${project.name}*\n*Rapport journalier du ${fmtDate(rep.date)}*\nMétéo : ${rep.weather}${rep.temp ? ` (${rep.temp}°C)` : ''}\n` +
         (rep.workers ? `Effectif : ${rep.workers} ouvriers\n` : '') + (rep.equipment ? `Engins : ${rep.equipment}\n` : '') +
         (rep.works ? `\n*Travaux réalisés :*\n${rep.works}\n` : '') + (rep.deliveries ? `\n*Livraisons :*\n${rep.deliveries}\n` : '') +
         (rep.issues ? `\n*Problèmes :*\n${rep.issues}` : ''));
-      $('[data-a=more]', el).onclick = async () => {
+      ($('[data-a=more]', el)||{}).onclick = async () => {
         const v = await menu('Rapport', [{ label: 'Rapport PDF', icon: 'report', value: 'pdf' }, { label: 'Supprimer le rapport', icon: 'trash', danger: true, value: 'del' }]);
         if (v === 'pdf') { clearTimeout(saveT); await DB.put('reports', rep); return dailyPdf(rep); }
         if (v === 'del' && await confirmBox('Supprimer ce rapport ?')) {
@@ -1444,8 +1444,8 @@ async function renderTeam(root) {
     if (v === 'pdf') reservesReportDialog({ company: c.id });
     if (v === 'edit') { await editCompany(p, c); renderTeam(root); }
   });
-  $('[data-a=addco]', root).onclick = async () => { await editCompany(p); renderTeam(root); };
-  $('[data-a=addm]', root).onclick = () => edit(null);
+  ($('[data-a=addco]', root)||{}).onclick = async () => { await editCompany(p); renderTeam(root); };
+  ($('[data-a=addm]', root)||{}).onclick = () => edit(null);
   const extsh = $('[data-a=extshare]', root); if (extsh) extsh.onclick = () => Team.openProjectShares(p);
   const ptn = $('[data-a=partners]', root); if (ptn) ptn.onclick = () => Team.openPartners(p);
   fab(root, async () => {
@@ -1482,15 +1482,15 @@ async function renderSettings(root) {
       <button class="btn danger" data-a="del">${icon('trash')} Supprimer le projet</button>
       <p style="color:var(--muted);font-size:13px;line-height:1.5">Les données sont enregistrées sur l'appareil (fonctionne sans internet). Avec Google Drive connecté, tout est aussi copié dans votre Drive et partagé entre téléphone et PC : après une réinstallation, reconnectez Drive avec votre code de connexion pour tout récupérer.<br>Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}</p>
     </div>`;
-  $('[data-a=sync]', root).onclick = () => Sync.openSyncSettings();
-  $('[data-a=stock]', root).onclick = () => openStorage();
-  $('[data-a=pfeat]', root).onclick = () => projectFeaturesDialog(p);
-  $('[data-a=pfiche]', root).onclick = () => ST.projectFiche(p);
+  ($('[data-a=sync]', root)||{}).onclick = () => Sync.openSyncSettings();
+  ($('[data-a=stock]', root)||{}).onclick = () => openStorage();
+  ($('[data-a=pfeat]', root)||{}).onclick = () => projectFeaturesDialog(p);
+  ($('[data-a=pfiche]', root)||{}).onclick = () => ST.projectFiche(p);
   const pcb = $('[data-a=pcollab]', root); if (pcb) pcb.onclick = () => Team.collabFlow(p);
   const wb = $('[data-a=welcome]', root); if (wb) wb.onclick = () => orgOnboard(true);
   fxPanel($('[data-fxbox]', root));
-  $('[data-a=save]', root).onclick = async () => { p.name = $('[name=name]', root).value.trim() || p.name; p.address = $('[name=address]', root).value.trim(); p.pdfTitle = $('[name=pdfTitle]', root).value.trim(); p.mo = $('[name=mo]', root).value.trim(); await DB.put('projects', p); toast('Enregistré ✓'); renderSection(); };
-  $('[data-a=backup]', root).onclick = async () => {
+  ($('[data-a=save]', root)||{}).onclick = async () => { p.name = $('[name=name]', root).value.trim() || p.name; p.address = $('[name=address]', root).value.trim(); p.pdfTitle = $('[name=pdfTitle]', root).value.trim(); p.mo = $('[name=mo]', root).value.trim(); await DB.put('projects', p); toast('Enregistré ✓'); renderSection(); };
+  ($('[data-a=backup]', root)||{}).onclick = async () => {
     const ld = loading('Préparation de la sauvegarde…');
     try {
       await Backup.exportProject(p.id, (i, n) => ld.set(`Sauvegarde… ${i}/${n}`));
@@ -1499,7 +1499,7 @@ async function renderSettings(root) {
     finally { ld.close(); }
   };
   // v1.0.79 : sauvegarde Drive d'un projet → toujours le même fichier (mis à jour, jamais dupliqué)
-  $('[data-a=backupdrive]', root).onclick = async () => {
+  ($('[data-a=backupdrive]', root)||{}).onclick = async () => {
     if (!GDrive.available()) { alertBox('Connectez d\'abord Google Drive (Paramètres › Google Drive).'); return; }
     const ld = loading('Préparation de la sauvegarde…');
     try {
@@ -1514,7 +1514,7 @@ async function renderSettings(root) {
     } catch (e) { console.error(e); alertBox('Erreur de sauvegarde Drive : ' + (e.message || e)); }
     finally { ld.close(); }
   };
-  $('[data-a=del]', root).onclick = async () => {
+  ($('[data-a=del]', root)||{}).onclick = async () => {
     if (await confirmBox(`Supprimer « ${p.name} » et toutes ses données ?`)) { await DB.deleteProject(p.id); renderHome(); }
   };
 }
@@ -1680,7 +1680,7 @@ async function openPlansQuick() {
   el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1 style="flex:1">Plans</h1></div>
     <div class="search" style="margin:10px 16px 4px">${icon('search')}<input placeholder="Rechercher un plan…"></div>
     <div class="pq-body"></div>`;
-  $('[data-a=x]', el).onclick = close;
+  ($('[data-a=x]', el)||{}).onclick = close;
   $('.search input', el).oninput = (e) => { q = e.target.value.trim().toLowerCase(); render(); };
   render();
 }
@@ -1819,9 +1819,9 @@ function openMaquette(m) {
     <iframe src="${esc(m.url)}" allow="fullscreen; xr-spatial-tracking" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe></div>`;
   document.body.appendChild(el);
   const unBack = pushBack(() => el.remove());
-  $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
-  $('[data-a=out]', el).onclick = () => openUrl(m.url);
-  $('[data-a=reload]', el).onclick = () => { const f = $('iframe', el); f.src = m.url; };
+  ($('[data-a=x]', el)||{}).onclick = () => { unBack(); el.remove(); };
+  ($('[data-a=out]', el)||{}).onclick = () => openUrl(m.url);
+  ($('[data-a=reload]', el)||{}).onclick = () => { const f = $('iframe', el); f.src = m.url; };
   $('iframe', el).onload = () => { const l = $('.m3-load', el); if (l) l.style.display = 'none'; };
 }
 

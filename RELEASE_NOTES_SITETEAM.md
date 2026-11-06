@@ -1,3 +1,7 @@
+## SiteTeam : v1.0.96
+- Stabilité : les boutons qui ne trouvaient pas leur élément faisaient planter le démarrage (« Cannot set properties of null »). Ils sont maintenant protégés.
+- Contrôle automatique avant chaque APK : un garde-fou refuse toute nouvelle écriture non protégée de ce type (échec du test « Garde-fous »).
+
 ## SiteTeam : v1.0.95
 - Plan : zoom à deux doigts plus fluide (le zoom est appliqué une fois par image au lieu de chaque mouvement du doigt).
 

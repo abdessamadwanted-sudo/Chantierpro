@@ -171,8 +171,8 @@ function formSheet(title, fields, { okLabel = 'Enregistrer', danger, intro } = {
       title,
       onMount: (el) => {
         const first = $('input,textarea', el); if (first && !first.value) setTimeout(() => first.focus(), 250);
-        $('[data-a=cancel]', el).onclick = () => s.close();
-        $('[data-a=ok]', el).onclick = () => {
+        ($('[data-a=cancel]', el)||{}).onclick = () => s.close();
+        ($('[data-a=ok]', el)||{}).onclick = () => {
           result = {}; $$('[name]', el).forEach(i => result[i.name] = i.value.trim()); s.close();
         };
         const d = $('[data-a=danger]', el); if (d) d.onclick = () => { result = { __danger: true }; s.close(); };
@@ -395,7 +395,7 @@ function showGallery(items, start = 0, opts = {}) {
     ${items.length > 1 ? `<div class="g2-strip">${items.map((it, k) => `<button data-k="${k}"><img data-k="${k}" alt=""></button>`).join('')}</div>` : ''}`;
   document.body.appendChild(el);
   const unBack = pushBack(() => el.remove());
-  $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
+  ($('[data-a=x]', el)||{}).onclick = () => { unBack(); el.remove(); };
   const glc = $('[data-a=gloc]', el); if (glc) glc.onclick = () => { const it = items[i]; unBack(); el.remove(); opts.onLocate(it); };
   const gop = $('[data-a=gopen]', el); if (gop) gop.onclick = () => { const it = items[i]; unBack(); el.remove(); opts.onOpen(it); };   // v1.0.63 : ouvrir la fiche d'où vient la photo
   const gfx = $('[data-a=gfx]', el); if (gfx) gfx.onclick = async () => { const it = items[i]; if (!it || !it.fileId) return toast('Photo non modifiable ici'); const f = await DB.get('files', it.fileId); if (!f || !f.blob) return toast('Photo seulement dans Drive : ouvrez-la d\'abord');
@@ -489,7 +489,7 @@ async function showPdf(blob, caption = 'PDF', opts = {}) {
   // v1.0.59 : fermer le lecteur libère le PDF et les pages dessinées (mémoire)
   const shut = () => { try { el.querySelectorAll('canvas').forEach(c => { c.width = 0; c.height = 0; }); } catch (e) {} el.remove(); setTimeout(() => { try { pdf && pdf.destroy(); } catch (e) {} }, 0); };
   const unBack = pushBack(shut);
-  $('[data-a=x]', el).onclick = () => { unBack(); shut(); };
+  ($('[data-a=x]', el)||{}).onclick = () => { unBack(); shut(); };
   const scroller = $('.pdf-pages', el), box = $('.pdf-zoom', el);
   let zk = 1, pinch = null, lastTap = 0, nPages = 0;
   const setZoom = (nk, mx, my) => {
@@ -504,7 +504,7 @@ async function showPdf(blob, caption = 'PDF', opts = {}) {
   scroller.addEventListener('touchmove', (e) => { if (!pinch || e.touches.length !== 2) return; e.preventDefault(); const [a, b] = e.touches; setZoom(pinch.k * Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) / pinch.d, pinch.mx, pinch.my); }, { passive: false });
   scroller.addEventListener('touchend', (e) => { if (e.touches.length < 2) pinch = null; }, { passive: true });
   scroller.addEventListener('wheel', (e) => { if (!e.ctrlKey) return; e.preventDefault(); const r = scroller.getBoundingClientRect(); setZoom(zk * (e.deltaY < 0 ? 1.15 : 0.87), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
-  $('[data-a=fit]', el).onclick = () => setZoom(1); $('[data-a=fit]', el).style.display = 'none';
+  ($('[data-a=fit]', el)||{}).onclick = () => setZoom(1); $('[data-a=fit]', el).style.display = 'none';
   const cs = () => [...box.querySelectorAll('canvas')];
   const pgInd = () => { const c = cs(); if (!c.length) return; const mid = scroller.scrollTop + scroller.clientHeight / 3; let n = 1; c.forEach((x, j) => { if (x.offsetTop <= mid) n = j + 1; }); $('[data-pg]', el).textContent = `Page ${n} / ${nPages}`; };
   scroller.addEventListener('scroll', pgInd, { passive: true });
@@ -539,10 +539,10 @@ async function showPdf(blob, caption = 'PDF', opts = {}) {
     if (!texts) { $('[data-fc]', fb).textContent = '…'; texts = (await pdfPagesText(pdf)).map(normTxt); }
     hits = texts.map((t, i) => t.includes(q) ? i + 1 : 0).filter(Boolean); show();
   };
-  $('[data-a=find]', el).onclick = () => { fb.style.display = fb.style.display === 'none' ? '' : 'none'; if (fb.style.display === '') fi.focus(); };
+  ($('[data-a=find]', el)||{}).onclick = () => { fb.style.display = fb.style.display === 'none' ? '' : 'none'; if (fb.style.display === '') fi.focus(); };
   fi.onkeydown = (e) => { if (e.key === 'Enter') find(); }; let ft; fi.oninput = () => { clearTimeout(ft); ft = setTimeout(find, 500); };
-  $('[data-a=next]', fb).onclick = () => { if (hits.length) { hi = (hi + 1) % hits.length; show(); } };
-  $('[data-a=prev]', fb).onclick = () => { if (hits.length) { hi = (hi - 1 + hits.length) % hits.length; show(); } };
+  ($('[data-a=next]', fb)||{}).onclick = () => { if (hits.length) { hi = (hi + 1) % hits.length; show(); } };
+  ($('[data-a=prev]', fb)||{}).onclick = () => { if (hits.length) { hi = (hi - 1 + hits.length) % hits.length; show(); } };
   if (opts.q) { fb.style.display = ''; fi.value = opts.q; find().then(() => { if (opts.page) { const k = hits.indexOf(opts.page); if (k >= 0) { hi = k; show(); } } }); }
 }
 

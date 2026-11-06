@@ -55,11 +55,11 @@ async function avCellDossier(p, l, lot, onChange) {
         ${selMode && sel.size ? `<div class="avd-bar"><button class="btn small ghost" data-a="mv">📁 Changer de catégorie</button><button class="btn small danger" data-a="del">${icon('trash')} Supprimer</button></div>` : ''}
         ${L.length ? [...G.entries()].map(([c, xs]) => `<div class="avd-h">${esc(c)} <small>${xs.length}</small></div><div class="avd-g">${xs.map(x => `<button class="avd-t ${sel.has(x.f.id) ? 'on' : ''}" data-id="${x.f.id}"><img data-th="${x.f.id}" alt=""><small>${fmtDate(new Date(x.f.createdAt || Date.now()).toISOString().slice(0, 10)).slice(0, 5)}</small></button>`).join('')}</div>`).join('') : '<div class="empty">Aucune photo. Touchez « Photos » pour en ajouter.</div>'}`;
       if (typeof lazyThumbs === 'function') lazyThumbs($('.avd', s.el));
-      $('[data-a=add]', s.el).onclick = async () => { const c = await menu('Catégorie des photos', AVD_CATS.map(x => ({ label: x, value: x }))); if (!c) return;
+      ($('[data-a=add]', s.el)||{}).onclick = async () => { const c = await menu('Catégorie des photos', AVD_CATS.map(x => ({ label: x, value: x }))); if (!c) return;
         const fs = await addPhotos(p.id, { local: l.id, lot: lot.id, source: `${l.name} · ${lot.name} · ${c}`, phCat: c }); if (!fs.length) return;
         for (const f of fs) { const r = await DB.get('files', f.id); if (r && r.phCat !== c) { r.phCat = c; await DB.put('files', r); } }
         const fresh = await DB.get('links', l.id); fresh.lots = fresh.lots || {}; const rr = fresh.lots[lot.id] = fresh.lots[lot.id] || { state: 'todo', photos: [] }; rr.photos = [...(rr.photos || []), ...fs.map(f => f.id)]; await DB.put('links', fresh); Object.assign(l, fresh); onChange && onChange(); draw(); };
-      $('[data-a=sel]', s.el).onclick = () => { selMode = !selMode; if (!selMode) sel.clear(); draw(); };
+      ($('[data-a=sel]', s.el)||{}).onclick = () => { selMode = !selMode; if (!selMode) sel.clear(); draw(); };
       const sd = $('[data-a=send]', s.el); if (sd) sd.onclick = async () => { const chosen = selMode && sel.size ? L.filter(x => sel.has(x.f.id)) : L; const v = await menu(`Envoyer ${chosen.length} photo(s)`, [{ label: '📄 PDF (rangé par catégorie)', value: 'pdf' }, { label: '🖼️ Les photos', value: 'ph' }]); if (!v) return;
         if (v === 'ph') return sharePhotos(chosen.map(x => x.f.id), `*${l.name} · ${lot.name}*`, avFileName(`${l.name} ${lot.name}`));
         const G2 = new Map(); for (const x of chosen) { if (!G2.has(x.cat)) G2.set(x.cat, []); G2.get(x.cat).push(x.f); }

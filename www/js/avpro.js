@@ -125,13 +125,13 @@ async function openAvJour(p, day) {
             <span class="avj-p"><b>${e.pct}%</b>${e.prev != null && e.pct > e.prev ? `<small>+${e.pct - e.prev}</small>` : ''}</span></button>`; }).join('')}</div>`).join('')
           : '<div class="empty">Aucune saisie ce jour.<br>Touchez <b>Nouvelle saisie</b> : zone → niveau → local ou zone de travail.</div>'}
       </div>`;
-    $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
-    $('[data-a=prev]', el).onclick = () => { day = avAddDays(day, -1); draw(); };
-    $('[data-a=next]', el).onclick = () => { if (day < todayISO()) { day = avAddDays(day, 1); draw(); } };
+    ($('[data-a=x]', el)||{}).onclick = () => { unBack(); el.remove(); };
+    ($('[data-a=prev]', el)||{}).onclick = () => { day = avAddDays(day, -1); draw(); };
+    ($('[data-a=next]', el)||{}).onclick = () => { if (day < todayISO()) { day = avAddDays(day, 1); draw(); } };
     $('[data-a=d]', el).onchange = (ev) => { if (ev.target.value) { day = ev.target.value; draw(); } };
-    $('[data-a=new]', el).onclick = async () => { const loc = await avPickPin(p, nivs, locaux); if (loc && await avJourForm(p, loc, { d: day })) draw(); };
+    ($('[data-a=new]', el)||{}).onclick = async () => { const loc = await avPickPin(p, nivs, locaux); if (loc && await avJourForm(p, loc, { d: day })) draw(); };
     $$('[data-loc]', el).forEach(b => b.onclick = async () => { const loc = locaux.find(l => l.id === b.dataset.loc); if (loc && await avJourForm(p, loc, { d: day })) draw(); });
-    $('[data-a=share]', el).onclick = () => shareWhatsApp(avJourText(p, day, E));
+    ($('[data-a=share]', el)||{}).onclick = () => shareWhatsApp(avJourText(p, day, E));
     const tb = $('[data-a=tab]', el); if (tb) tb.onclick = () => openAvTable(p, { onClose: draw });
     const xb = $('[data-a=exp]', el); if (xb) xb.onclick = () => avExpress(p, draw);
   }

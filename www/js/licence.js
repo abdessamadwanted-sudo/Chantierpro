@@ -80,8 +80,8 @@ function licLock(kind) {
     el.innerHTML = `<div class="lic-in"><div class="lic-ic">${ic}</div><h1>${t}</h1><p>${m}</p>
       <button class="btn" data-a="retry">${icon('undo')} Réessayer</button><button class="linkbtn" data-a="other">J'ai un autre code</button></div>`;
     document.body.appendChild(el);
-    $('[data-a=retry]', el).onclick = async () => { const ld = loading('Vérification…'); el.remove(); ld.close(); await licVerify(true); if (!document.querySelector('.lic-lock')) { toast('Licence valable ✓'); renderHome(); } };
-    $('[data-a=other]', el).onclick = async () => { el.remove(); await licActivateScreen(true); location.reload(); };
+    ($('[data-a=retry]', el)||{}).onclick = async () => { const ld = loading('Vérification…'); el.remove(); ld.close(); await licVerify(true); if (!document.querySelector('.lic-lock')) { toast('Licence valable ✓'); renderHome(); } };
+    ($('[data-a=other]', el)||{}).onclick = async () => { el.remove(); await licActivateScreen(true); location.reload(); };
   });
 }
 
@@ -95,7 +95,7 @@ function licActivateScreen(again) {
       <button class="btn" data-a="go">Activer</button></div>
       <button class="linkbtn" data-a="owner">Je suis le propriétaire de l'application</button></div>`;
     document.body.appendChild(el);
-    $('[data-a=go]', el).onclick = async () => {
+    ($('[data-a=go]', el)||{}).onclick = async () => {
       const code = $('[name=code]', el).value.toUpperCase().replace(/[^A-Z0-9-]/g, '').replace(/^CH(?!-)/, 'CH-');
       if (code.length < 8) return toast('Code incomplet');
       const ld = loading('Vérification du code…');
@@ -116,7 +116,7 @@ function licActivateScreen(again) {
         el.remove(); toast('Application activée ✓'); resolve();
       } catch (e) { ld.close(); alertBox(e.message || String(e)); }
     };
-    $('[data-a=owner]', el).onclick = async () => { if (await licOwnerLogin()) { Lic.set({ mode: 'owner' }); el.remove(); toast('Bienvenue ✓'); resolve(); } };
+    ($('[data-a=owner]', el)||{}).onclick = async () => { if (await licOwnerLogin()) { Lic.set({ mode: 'owner' }); el.remove(); toast('Bienvenue ✓'); resolve(); } };
     void again;
   });
 }
@@ -126,7 +126,7 @@ function licNotice(L) {
     const s = sheet(`<div class="form"><div class="lic-note">🤝 <b>Partage de suivi</b><br>Les projets créés avec cette licence sont partagés en lecture seule avec <b>${esc(L.ownerName || 'le titulaire de la licence')}</b>, pour le suivi du travail.</div>
       <button class="btn" data-a="ok">OK</button></div>`, { title: 'Activation' });
     s.onClose = () => resolve(false);
-    $('[data-a=ok]', s.el).onclick = () => { s.onClose = null; s.close(); resolve(true); };
+    ($('[data-a=ok]', s.el)||{}).onclick = () => { s.onClose = null; s.close(); resolve(true); };
   });
 }
 
@@ -168,8 +168,8 @@ async function openLicences() {
   let list = [];
   const draw = async () => {
     el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><h1 style="flex:1;font-size:17px">Licences</h1><button class="btn small" data-a="new" style="flex:none">${icon('plus')} Nouvelle</button></div><div class="lic-list"><div class="empty">Chargement…</div></div>`;
-    $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
-    $('[data-a=new]', el).onclick = () => newLic();
+    ($('[data-a=x]', el)||{}).onclick = () => { unBack(); el.remove(); };
+    ($('[data-a=new]', el)||{}).onclick = () => newLic();
     list = [];
     try { const q = await licTimeout(fs.collection('licences').where('ownerUid', '==', user.uid).get()); list = q.docs.map(d => ({ code: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
       const bl = await licOwnerBlock(); if (bl) list.filter(x => x.block !== bl).forEach(x => { x.block = bl; fs.collection('licences').doc(x.code).update({ block: bl }).catch(() => {}); }); }
@@ -303,9 +303,9 @@ async function openSuivi(L) {
         <div class="lic-sub">☁ Firebase : ${docs.length - nTh} élément(s) · ${nTh} miniature(s) · ≈ ${kb > 1024 ? (kb / 1024).toFixed(1) + ' Mo' : kb + ' Ko'} <button class="linkbtn" data-a="purge">Effacer les miniatures > 30 j</button></div>${projects.map(p => {
         const nRec = (recs.receptions || []).filter(r => r.projectId === p.id).length, nRes = (recs.tasks || []).filter(t => t.projectId === p.id).length;
         return `<button class="lic-row" data-p="${p.id}"><span class="lic-av">${esc((p.name || '?')[0])}</span><span class="grow"><b>${esc(p.name)}</b><small>${nRec} tableau(x) · ${nRes} réserve(s)</small></span>${icon('chevright')}</button>`; }).join('') || '<div class="empty">Aucun projet pour le moment.</div>'}</div>`;
-      $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
+      ($('[data-a=x]', el)||{}).onclick = () => { unBack(); el.remove(); };
       $$('[data-p]', el).forEach(b => b.onclick = () => { pid = b.dataset.p; draw(); });
-      $('[data-a=purge]', el).onclick = async () => { const lim = Date.now() - 30 * 864e5, ld = loading('Nettoyage…'); let n = 0;
+      ($('[data-a=purge]', el)||{}).onclick = async () => { const lim = Date.now() - 30 * 864e5, ld = loading('Nettoyage…'); let n = 0;
         try { const q = await licTimeout(fs.collection('licences').doc(L.code).collection('suivi').where('updatedAt', '<', lim).get(), 60000); const th = q.docs.filter(d => d.data().store === 'thumb'); for (let i = 0; i < th.length; i += 400) { const b = fs.batch(); th.slice(i, i + 400).forEach(d => b.delete(d.ref)); await b.commit(); n += th.slice(i, i + 400).length; } }
         catch (e) { ld.close(); return alertBox(e.message || String(e)); } ld.close(); toast(`${n} miniature(s) effacée(s)`); };
       return;
@@ -327,7 +327,7 @@ async function openSuivi(L) {
     if (tab === 'rap') body = reps.map(r => `<div class="sv-day"><div class="sv-dh"><b>${fmtDate(r.date)}</b></div><div class="sv-txt">${esc([r.travaux, r.problemes, r.obs].filter(Boolean).join('\n')).replace(/\n/g, '<br>') || '—'}</div></div>`).join('') + ((P.rappels || []).length ? `<div class="sv-dh"><b>Rappels</b></div>${P.rappels.map(x => `<div class="sv-row"><span class="grow">${x.done ? '✅' : '🔔'} ${esc(x.text)}<small>${x.at ? fmtDate(x.at.slice(0, 10)) : ''}</small></span></div>`).join('')}` : '') || '<div class="empty">Aucun rapport.</div>';
     if (tab === 'ph') body = photoIds.length ? `<div class="sv-ph">${photoIds.map(id => `<img src="${thumbs[id].data}" data-ph="${id}">`).join('')}</div><div class="lic-sub">Miniatures — les photos complètes sont dans son Google Drive.</div>` : '<div class="empty">Aucune photo.</div>';
     el.innerHTML = head + `<div class="tm-tabs">${[['av', 'Avancement'], ['rec', 'Réception & bétonnage'], ['res', 'Réserves'], ['rap', 'Rapports & rappels'], ['ph', 'Photos']].map(([k, l]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div><div class="lic-list">${body}</div>`;
-    $('[data-a=x]', el).onclick = () => { pid = null; draw(); };
+    ($('[data-a=x]', el)||{}).onclick = () => { pid = null; draw(); };
     $$('[data-t]', el).forEach(b => b.onclick = () => { tab = b.dataset.t; draw(); });
     $$('[data-ph]', el).forEach(img => img.onclick = () => showGallery(photoIds.map(id => ({ src: thumbs[id].data })), photoIds.indexOf(img.dataset.ph)));
   };

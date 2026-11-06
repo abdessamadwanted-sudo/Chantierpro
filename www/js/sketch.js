@@ -92,11 +92,11 @@ function openSketch({ title = 'Croquis', data = null, projectId = null, board = 
     $$('[data-c]', el).forEach(b => b.onclick = () => pickColor(b.dataset.c));
     $('[data-cc]', el).oninput = (e) => { pickColor(e.target.value); $('.sk-pick', el).style.background = e.target.value; };
     $('[data-w]', el).oninput = (e) => setW(+e.target.value);
-    $('[data-dash]', el).onclick = (e) => { dash = dash === 'solid' ? 'dash' : dash === 'dash' ? 'dot' : 'solid'; e.currentTarget.textContent = { solid: '━━', dash: '╍╍', dot: '┈┈' }[dash]; toast({ solid: 'Trait continu', dash: 'Tirets', dot: 'Pointillés' }[dash]); };
-    $('[data-a=undo]', el).onclick = () => { if (st.strokes.length) { redo.push(st.strokes.pop()); redraw(); } };
-    $('[data-a=redo]', el).onclick = () => { if (redo.length) { st.strokes.push(redo.pop()); redraw(); } };
-    $('[data-a=clear]', el).onclick = async () => { if (st.strokes.length && await confirmBox('Tout effacer ?', 'Effacer')) { redo.push(...st.strokes.reverse()); st.strokes = []; redraw(); } };
-    $('[data-a=bg]', el).onclick = async () => {
+    ($('[data-dash]', el)||{}).onclick = (e) => { dash = dash === 'solid' ? 'dash' : dash === 'dash' ? 'dot' : 'solid'; e.currentTarget.textContent = { solid: '━━', dash: '╍╍', dot: '┈┈' }[dash]; toast({ solid: 'Trait continu', dash: 'Tirets', dot: 'Pointillés' }[dash]); };
+    ($('[data-a=undo]', el)||{}).onclick = () => { if (st.strokes.length) { redo.push(st.strokes.pop()); redraw(); } };
+    ($('[data-a=redo]', el)||{}).onclick = () => { if (redo.length) { st.strokes.push(redo.pop()); redraw(); } };
+    ($('[data-a=clear]', el)||{}).onclick = async () => { if (st.strokes.length && await confirmBox('Tout effacer ?', 'Effacer')) { redo.push(...st.strokes.reverse()); st.strokes = []; redraw(); } };
+    ($('[data-a=bg]', el)||{}).onclick = async () => {
       const plans = projectId ? await DB.byProject('plans', projectId) : [];
       const v = await menu('Fond', [
         { label: 'Blanc', icon: 'file', value: 'white' }, { label: 'Quadrillé', icon: 'grid', value: 'grid' }, { label: 'Points', icon: 'grid', value: 'dots' },
@@ -109,8 +109,8 @@ function openSketch({ title = 'Croquis', data = null, projectId = null, board = 
       await loadBg();
     };
     async function done(result, fromBack) { if (!fromBack) unBack(); window.removeEventListener('resize', fit); el.remove(); resolve(result); }
-    $('[data-a=close]', el).onclick = async () => { if (!st.strokes.length || await confirmBox('Quitter sans enregistrer ?', 'Quitter')) done(null); };
-    $('[data-a=save]', el).onclick = async () => {
+    ($('[data-a=close]', el)||{}).onclick = async () => { if (!st.strokes.length || await confirmBox('Quitter sans enregistrer ?', 'Quitter')) done(null); };
+    ($('[data-a=save]', el)||{}).onclick = async () => {
       const out = document.createElement('canvas'); out.width = W; out.height = H;
       const g = out.getContext('2d'); g.drawImage(cbg, 0, 0); g.drawImage(cink, 0, 0);
       const blob = await new Promise(r => out.toBlob(r, 'image/jpeg', 0.9));

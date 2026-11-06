@@ -463,10 +463,10 @@ function plotDialog(D, title) {
         el.addEventListener('input', () => { read(); vis(); prev(); }); el.addEventListener('change', () => { read(); vis(); prev(); });
         read(); vis(); prev();
         // v1.0.57 : réglages habituels d'AutoCAD (DWG To PDF.pc3, ISO full bleed A0, Display, Fit to paper, plot style None, sans épaisseurs objet)
-        $('[data-a=acad]', el).onclick = () => { const set = { fmt: 'A0', orient: 'l', scale: 'fit', margin: 0, area: 'all', color: 'color', lwMode: 'uni', lwUni: 0.13 };
+        ($('[data-a=acad]', el)||{}).onclick = () => { const set = { fmt: 'A0', orient: 'l', scale: 'fit', margin: 0, area: 'all', color: 'color', lwMode: 'uni', lwUni: 0.13 };
           for (const [k, v] of Object.entries(set)) { const i = $(`[name=${k}]`, el); if (i) i.value = String(v); } read(); vis(); prev(); toast('Réglages AutoCAD appliqués ✓'); };
-        $('[data-a=x]', el).onclick = () => s.close();
-        $('[data-a=ok]', el).onclick = async () => { read(); res = { ...c }; try { const { ctb: _, frames: __, hidden: ___, ...keep } = c; localStorage.setItem('plot.cfg', JSON.stringify(keep)); } catch (e) {} D._hidden = c.hidden; if (App.project) { App.project.plotCtb = ctb; DB.put('projects', App.project); } s.close(); };
+        ($('[data-a=x]', el)||{}).onclick = () => s.close();
+        ($('[data-a=ok]', el)||{}).onclick = async () => { read(); res = { ...c }; try { const { ctb: _, frames: __, hidden: ___, ...keep } = c; localStorage.setItem('plot.cfg', JSON.stringify(keep)); } catch (e) {} D._hidden = c.hidden; if (App.project) { App.project.plotCtb = ctb; DB.put('projects', App.project); } s.close(); };
       },
     });
     s.onClose = () => resolve(res);
@@ -563,9 +563,9 @@ async function mergePdfFlow(onAdded) {
       onMount: (el) => {
         const upd = () => { $$('.mg-it', el).forEach(b => { const i = order.indexOf(b.dataset.id); b.classList.toggle('on', i >= 0); $('i', b).textContent = i >= 0 ? i + 1 : ''; }); $('.mg-ph', el).innerHTML = phone.map((f, i) => `<div class="mg-it on"><i>${order.length + i + 1}</i><span class="grow">${esc(f.name)}</span></div>`).join(''); $('[data-a=ok]', el).textContent = `Fusionner (${order.length + phone.length})`; };
         $$('.mg-it', el).forEach(b => b.onclick = () => { const i = order.indexOf(b.dataset.id); if (i >= 0) order.splice(i, 1); else order.push(b.dataset.id); upd(); });
-        $('[data-a=ph]', el).onclick = async () => { phone.push(...(await pickFiles({ accept: 'application/pdf', multiple: true }))); upd(); };
-        $('[data-a=x]', el).onclick = () => s.close();
-        $('[data-a=ok]', el).onclick = () => { if (order.length + phone.length < 1) return toast('Choisissez au moins un plan'); ok = true; s.close(); };
+        ($('[data-a=ph]', el)||{}).onclick = async () => { phone.push(...(await pickFiles({ accept: 'application/pdf', multiple: true }))); upd(); };
+        ($('[data-a=x]', el)||{}).onclick = () => s.close();
+        ($('[data-a=ok]', el)||{}).onclick = () => { if (order.length + phone.length < 1) return toast('Choisissez au moins un plan'); ok = true; s.close(); };
         upd();
       },
     });
@@ -672,9 +672,9 @@ async function batchPlotFlow(onAdded) {
         const upd = () => { let last = ''; $('.bp', el).innerHTML = cad.length ? cad.map(p => { const g = fname(p.folderId), h = g !== last ? `<div class="mg-g">📁 ${esc(g)}</div>` : ''; last = g; return h + `<label class="tm-ck"><input type="checkbox" data-bp="${p.id}" ${sel.has(p.id) ? 'checked' : ''}> ${esc(p.name)}</label>`; }).join('') : '<p class="muted">Aucun plan AutoCAD dans le projet : ajoutez des fichiers du téléphone.</p>';
           $('.bp-ph', el).innerHTML = phone.map(f => `<div class="mg-it on"><span class="grow">${esc(f.name)}</span></div>`).join('');
           $$('[data-bp]', el).forEach(c => c.onchange = () => { c.checked ? sel.add(c.dataset.bp) : sel.delete(c.dataset.bp); }); };
-        $('[data-a=ph]', el).onclick = async () => { phone.push(...(await pickFiles({ accept: '*/*', multiple: true })).filter(f => /\.(dwg|dxf)$/i.test(f.name))); upd(); };
-        $('[data-a=x]', el).onclick = () => s.close();
-        $('[data-a=ok]', el).onclick = () => { if (!sel.size && !phone.length) return toast('Choisissez au moins un plan'); go = true; s.close(); };
+        ($('[data-a=ph]', el)||{}).onclick = async () => { phone.push(...(await pickFiles({ accept: '*/*', multiple: true })).filter(f => /\.(dwg|dxf)$/i.test(f.name))); upd(); };
+        ($('[data-a=x]', el)||{}).onclick = () => s.close();
+        ($('[data-a=ok]', el)||{}).onclick = () => { if (!sel.size && !phone.length) return toast('Choisissez au moins un plan'); go = true; s.close(); };
         upd(); } });
     s.onClose = () => resolve(go); });
   if (!ok) return;

@@ -146,13 +146,13 @@ async function renderTce(root) {
   const FIELDS = [{ name: 'lot', label: 'Lot', list: TCE_LOTS }, { name: 'ent', label: 'Entreprise / sous-traitant', list: [...new Set([...comps.map(c => c.name), ...(p.st || []).map(x => x.nom).filter(Boolean)])] }, { name: 'tel', label: 'Téléphone', type: 'tel' }, { name: 'm', label: 'Montant du marché HT (DH)', type: 'number' },
     { name: 'deb', label: 'Début prévu', type: 'date' }, { name: 'fin', label: 'Fin prévue', type: 'date' }, { name: 'finR', label: 'Fin réelle', type: 'date' }, { name: 'av', label: 'Avancement (%)', type: 'number' },
     { name: 'st', label: 'Statut', type: 'select', options: TCE_ST.filter(x => x[0] !== 'ret').map(([value, label]) => ({ value, label })), value: 'nd' }, { name: 'note', label: 'Notes', type: 'textarea' }];
-  $('[data-a=add]', root).onclick = () => finEdit(T.lots, null, 'Lot TCE', FIELDS, save, redraw);
+  ($('[data-a=add]', root)||{}).onclick = () => finEdit(T.lots, null, 'Lot TCE', FIELDS, save, redraw);
   if (!orgEdit('tce')) $$('.fn-add, [data-ed], [data-av], [data-a=tpl]', root).forEach(b => b.style.display = 'none');
   $$('[data-ed]', root).forEach(b => b.onclick = () => finEdit(T.lots, T.lots.find(x => x.id === b.dataset.ed), 'Lot TCE', FIELDS, save, redraw));
   $$('[data-av]', root).forEach(b => b.onclick = async () => { const L = T.lots.find(x => x.id === b.dataset.av); const r = await formSheet(`Avancement · ${L.lot}`, [{ name: 'v', label: 'Avancement (%)', type: 'number', value: L.av || '' }, { name: 'n', label: 'Commentaire', placeholder: 'Ex : 2e couche R+3 terminée' }], { okLabel: 'Enregistrer' });
     if (!r) return; L.av = Math.max(0, Math.min(100, fN(r.v))); (L.hist = L.hist || []).push({ d: todayISO(), v: L.av, n: r.n }); if (L.av >= 100 && L.st !== 'rec') { L.st = 'fin'; L.finR = L.finR || todayISO(); } else if (L.av > 0 && L.st === 'nd') L.st = 'ec'; await save(); redraw(); });
   const tp = $('[data-a=tpl]', root); if (tp) tp.onclick = async () => { T.lots = TCE_LOTS.map(lot => ({ id: DB.uid(), lot, st: 'nd', av: 0 })); await save(); toast('Lots chargés ✓ — supprimez ceux qui ne concernent pas le projet'); redraw(); };
-  $('[data-a=xls]', root).onclick = async () => {
+  ($('[data-a=xls]', root)||{}).onclick = async () => {
     const ld = loading('Création du fichier Excel…');
     try {
       const b = await xlsxBlob([{ name: 'TCE', head: 0, total: true, widths: [30, 26, 16, 16, 12, 12, 12, 12, 14, 10, 30],

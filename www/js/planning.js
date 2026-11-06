@@ -46,7 +46,7 @@ async function renderPlanning(root) {
   const ad = $('[data-a=add]', root); if (ad) ad.onclick = () => edit(null);
   $$('[data-t]', root).forEach(r => r.onclick = () => canE ? edit(P.tasks.find(t => t.id === r.dataset.t)) : null);
   const tc = $('[data-a=tce]', root); if (tc) tc.onclick = async () => { let n = 0; for (const L of p.tce.lots) { if (P.tasks.some(t => t.lotId === L.id)) continue; P.tasks.push({ id: DB.uid(), lotId: L.id, nom: L.lot, grp: L.lot, deb: L.deb || '', fin: L.fin || '', finR: L.finR || '', av: String(fN(L.av)) }); n++; } await save(); toast(`${n} lot(s) importé(s)`); redraw(); };
-  $('[data-a=more]', root).onclick = async () => {
+  ($('[data-a=more]', root)||{}).onclick = async () => {
     const v = await menu('Planning', [...(canE ? [{ label: `Fin du marché (contractuelle)${P.finM ? ' · ' + fmtDate(P.finM) : ''}`, icon: 'calendar', value: 'fin' }] : []), { label: 'Export Excel', icon: 'grid', value: 'xls' }, { label: 'Avenants & ordres de service (délais)', icon: 'sign', value: 'av' }]);
     if (v === 'fin') { const r = await formSheet('Fin du marché', [{ name: 'd', label: 'Date de fin contractuelle (sans avenants)', type: 'date', value: P.finM || '' }]); if (r) { P.finM = r.d; await save(); redraw(); } }
     if (v === 'av') { App.section = 'avenants'; renderSection(); }
@@ -72,7 +72,7 @@ async function renderPointage(root) {
     <div class="rg-b" style="padding:0 12px">${canE ? `<button class="fn-add" data-a="addw">${icon('plus')} Ouvrier</button>${act.length && !val ? `<button class="btn ghost small" data-a="all">Tous présents</button>` : ''}` : ''}<button class="btn ghost small" data-a="week">Semaine</button><button class="btn ghost small" data-a="xls">${icon('grid')} Excel du mois</button>${canV && act.length ? `<button class="btn ghost small" data-a="val">${val ? 'Annuler la validation' : '✍️ Valider la semaine'}</button>` : ''}</div>
   </div>`;
   $$('[data-d]', root).forEach(b => b.onclick = () => { App.ptDay = dAdd(day, +b.dataset.d); redraw(); });
-  $('[data-a=day]', root).onclick = async () => { const r = await formSheet('Jour', [{ name: 'd', label: 'Date', type: 'date', value: day }]); if (r && r.d) { App.ptDay = r.d; redraw(); } };
+  ($('[data-a=day]', root)||{}).onclick = async () => { const r = await formSheet('Jour', [{ name: 'd', label: 'Date', type: 'date', value: day }]); if (r && r.d) { App.ptDay = r.d; redraw(); } };
   $$('[data-tg]', root).forEach(g => !g.classList.contains('ro') && $$('[data-v]', g).forEach(b => b.onclick = async () => { P.d[day] = P.d[day] || {}; const cur = String(P.d[day][g.dataset.tg] ?? ''); if (cur === b.dataset.v) delete P.d[day][g.dataset.tg]; else P.d[day][g.dataset.tg] = b.dataset.v; await save(); redraw(); }));
   const WF = [{ name: 'nom', label: 'Nom' }, { name: 'fn', label: 'Fonction', list: ['Maçon', 'Ferrailleur', 'Coffreur', 'Manœuvre', 'Chef d\'équipe', 'Électricien', 'Plombier', 'Peintre', 'Carreleur', 'Conducteur d\'engin', 'Grutier', 'Gardien'] }, { name: 'tarif', label: 'Salaire journalier (DH)', type: 'number' }, { name: 'eq', label: 'Équipe / sous-traitant', list: [...new Set([...P.w.map(w => w.eq).filter(Boolean), ...(p.st || []).map(s => s.nom)])] }, { name: 'tel', label: 'Téléphone', type: 'tel' }];
   const editW = async (w) => { const r = await formSheet(w ? w.nom : 'Nouvel ouvrier', WF.map(f => ({ ...f, value: w ? w[f.name] ?? '' : '' })), { okLabel: 'Enregistrer', danger: w ? 'Retirer (ne plus pointer)' : null }); if (!r) return; if (r.__danger) w.off = true; else w ? Object.assign(w, r) : P.w.push({ id: DB.uid(), ...r }); await save(); redraw(); };
@@ -80,11 +80,11 @@ async function renderPointage(root) {
   $$('[data-w]', root).forEach(b => b.onclick = () => canE && editW(P.w.find(w => w.id === b.dataset.w)));
   const al = $('[data-a=all]', root); if (al) al.onclick = async () => { P.d[day] = P.d[day] || {}; act.forEach(w => { if (P.d[day][w.id] == null) P.d[day][w.id] = '1'; }); await save(); redraw(); };
   const vb = $('[data-a=val]', root); if (vb) vb.onclick = async () => { if (val) delete P.val[wk]; else P.val[wk] = { by: myName(), poste: Org.label(), at: todayISO() }; await save(); redraw(); };
-  $('[data-a=week]', root).onclick = () => { const ds = Array.from({ length: 7 }, (_, i) => dAdd(wk, i));
+  ($('[data-a=week]', root)||{}).onclick = () => { const ds = Array.from({ length: 7 }, (_, i) => dAdd(wk, i));
     sheet(`<div class="pt-wk"><table><tr><th></th>${ds.map(d => `<th>${new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'narrow' })}<br>${d.slice(8)}</th>`).join('')}<th>Σ</th></tr>
       ${act.map(w => { const vs = ds.map(d => fN((P.d[d] || {})[w.id])); return `<tr><td>${esc(w.nom)}</td>${vs.map(v => `<td class="${v === 1 ? 'p' : v ? 'h' : ''}">${v === 1 ? '✓' : v ? '½' : ''}</td>`).join('')}<td><b>${gsF(vs.reduce((a, b) => a + b, 0), 1)}</b></td></tr>`; }).join('')}</table>
       <p><b>Coût de la semaine : ${fDH(ptCost(p, ds[0], ds[6]))}</b></p></div>`, { title: `Semaine du ${fmtDate(wk)}` }); };
-  $('[data-a=xls]', root).onclick = async () => { const mo = day.slice(0, 7), ds = Object.keys(P.d).filter(d => d.startsWith(mo)).sort(), ld = loading('Excel…');
+  ($('[data-a=xls]', root)||{}).onclick = async () => { const mo = day.slice(0, 7), ds = Object.keys(P.d).filter(d => d.startsWith(mo)).sort(), ld = loading('Excel…');
     try { const all = Array.from({ length: new Date(+mo.slice(0, 4), +mo.slice(5, 7), 0).getDate() }, (_, i) => `${mo}-${String(i + 1).padStart(2, '0')}`);
       const rows = P.w.filter(w => !w.off || ds.some(d => (P.d[d] || {})[w.id])).map(w => { const vs = all.map(d => fN((P.d[d] || {})[w.id])), j = vs.reduce((a, b) => a + b, 0); return [w.nom, w.fn || '', w.eq || '', ...vs.map(v => v || ''), j, fN(w.tarif), j * fN(w.tarif)]; });
       const tot = ['TOTAL', '', '', ...all.map(() => ''), rows.reduce((s, r) => s + r[r.length - 3], 0), '', rows.reduce((s, r) => s + r[r.length - 1], 0)];

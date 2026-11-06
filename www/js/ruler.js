@@ -20,7 +20,7 @@ function openRulerCalage(low, up, opts = {}) {
     document.body.appendChild(el);
     let done = false; const finish = (v) => { if (done) return; done = true; unBack(); el.remove(); resolve(v); };
     const unBack = pushBack(() => { done = true; el.remove(); resolve(null); });
-    $('[data-a=x]', el).onclick = () => finish(null);
+    ($('[data-a=x]', el)||{}).onclick = () => finish(null);
     const wrap = $('.rl-wrap', el), ov = $('.rl-ov', el), block = $('.rl-block', el);
     let step = 0, anchored = false, locked = false, pz = null, view = null;
     const pts = [[], []];
@@ -61,7 +61,7 @@ function openRulerCalage(low, up, opts = {}) {
       const upf = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', upf); window.removeEventListener('pointercancel', upf); };
       window.addEventListener('pointermove', mv); window.addEventListener('pointerup', upf); window.addEventListener('pointercancel', upf);
     };
-    $('[data-a=mode]', el).onclick = () => { mode = mode === 'eq' ? 'pts' : 'eq'; anchored = false; EQ[step] = null; pts[step] = []; $('.rl-mode', el).textContent = mode === 'eq' ? '①②' : '✚'; toast(mode === 'eq' ? 'Équerre : un croisement + la direction des fils' : '2 croisements : mesure aussi l\'échelle'); ui(); draw(); };
+    ($('[data-a=mode]', el)||{}).onclick = () => { mode = mode === 'eq' ? 'pts' : 'eq'; anchored = false; EQ[step] = null; pts[step] = []; $('.rl-mode', el).textContent = mode === 'eq' ? '①②' : '✚'; toast(mode === 'eq' ? 'Équerre : un croisement + la direction des fils' : '2 croisements : mesure aussi l\'échelle'); ui(); draw(); };
     // glisser une poignée ① ou ② (le plan ne bouge pas)
     const drag = (e, i) => {
       e.preventDefault(); e.stopPropagation(); const r = wrap.getBoundingClientRect(), off = [H[i].x - (e.clientX - r.left), H[i].y - (e.clientY - r.top)];
@@ -70,8 +70,8 @@ function openRulerCalage(low, up, opts = {}) {
       window.addEventListener('pointermove', mv); window.addEventListener('pointerup', upf); window.addEventListener('pointercancel', upf);
     };
     const setLock = (v) => { locked = v; block.style.display = v ? 'block' : 'none'; $('.rl-lockb', el).classList.toggle('on', v); $('.rl-pill', el).textContent = v ? '🔒 Plan fixe' : ''; $('.rl-pill', el).style.display = v ? '' : 'none'; };
-    $('[data-a=lock]', el).onclick = () => setLock(!locked);
-    $('[data-a=reset]', el).onclick = () => { anchored = false; pts[step] = []; EQ[step] = null; resetRuler(); ui(); draw(); };
+    ($('[data-a=lock]', el)||{}).onclick = () => setLock(!locked);
+    ($('[data-a=reset]', el)||{}).onclick = () => { anchored = false; pts[step] = []; EQ[step] = null; resetRuler(); ui(); draw(); };
     // charge le plan de l'étape : la règle garde sa place à l'écran
     const load = (i) => {
       if (view) view.remove(); view = document.createElement('div'); view.className = 'av-view rl-v'; $('.rl-view', el).appendChild(view);
@@ -129,7 +129,7 @@ function openEquerreSteps(plans, names, refPlan) {
     document.body.appendChild(el);
     let done = false; const finish = (v) => { if (done) return; done = true; unBack(); el.remove(); resolve(v); };
     const unBack = pushBack(() => { done = true; el.remove(); resolve(null); });
-    $('[data-a=x]', el).onclick = () => finish(null);
+    ($('[data-a=x]', el)||{}).onclick = () => finish(null);
     const wrap = $('.rl-wrap', el), ov = $('.rl-ov', el), block = $('.rl-block', el), N = plans.length;
     let step = 0, anchored = false, locked = false, pz = null, view = null;
     const Q = { x: 0, y: 0, ang: 0 }, EQ = plans.map(() => null);
@@ -163,8 +163,8 @@ function openEquerreSteps(plans, names, refPlan) {
       window.addEventListener('pointermove', mv); window.addEventListener('pointerup', upf); window.addEventListener('pointercancel', upf);
     };
     const setLock = (v) => { locked = v; block.style.display = v ? 'block' : 'none'; $('.rl-lockb', el).classList.toggle('on', v); $('.rl-pill', el).textContent = v ? '🔒 Plan fixe' : ''; $('.rl-pill', el).style.display = v ? '' : 'none'; };
-    $('[data-a=lock]', el).onclick = () => setLock(!locked);
-    $('[data-a=reset]', el).onclick = () => { anchored = false; EQ[step] = null; resetRuler(); ui(); draw(); };
+    ($('[data-a=lock]', el)||{}).onclick = () => setLock(!locked);
+    ($('[data-a=reset]', el)||{}).onclick = () => { anchored = false; EQ[step] = null; resetRuler(); ui(); draw(); };
     // le plan arrive : on le cadre de façon que le repère (s'il existe) tombe sous l'équerre
     const load = (i) => {
       if (view) view.remove(); view = document.createElement('div'); view.className = 'av-view rl-v'; $('.rl-view', el).appendChild(view);

@@ -85,8 +85,8 @@ async function pvReminder(p, force) {
     <div class="pvrem">${zones.map(g => `<div class="pz">Zone ${esc(g.z)}</div>${g.l.map(({ d, r }) => { const n = daysSince(d.date);
       return `<div class="pr"><div class="grow"><b>${r.niv ? esc(r.niv) + ' — ' : ''}${esc(r.element)}</b><small>Réceptionné le ${fmtDate(d.date)}${r.avec ? ' avec ' + esc(r.avec) : ''}</small></div><span class="age ${n >= 3 ? 'late' : ''}">${n ? n + ' j' : 'auj.'}</span></div>`; }).join('')}`).join('')}</div>
     <div class="btnrow" style="padding:0;margin-top:12px"><button class="btn ghost" data-a="later">Plus tard</button><button class="btn" data-a="see">Voir et cocher</button></div>`);
-  $('[data-a=later]', s.el).onclick = () => s.close();
-  $('[data-a=see]', s.el).onclick = () => { s.close(); goMissingPv(); };
+  ($('[data-a=later]', s.el)||{}).onclick = () => s.close();
+  ($('[data-a=see]', s.el)||{}).onclick = () => { s.close(); goMissingPv(); };
 }
 
 // envoi des photos (+ texte) : les photos libérées du téléphone sont reprises dans Drive avant l'envoi
@@ -147,7 +147,7 @@ async function renderReceptions(root, kind = 'Ferraillage') {
   const sb = document.createElement('div'); sb.className = 'sharebar';
   sb.innerHTML = `<button data-sb>${icon('share')} Partager ${isBeton(kind) ? 'le bétonnage' : 'la réception'}…</button>`;
   root.appendChild(sb);
-  $('[data-sb]', sb).onclick = async () => {
+  ($('[data-sb]', sb)||{}).onclick = async () => {
     if (!all.length) return toast('Aucun tableau');
     const d = await menu('Quel jour ?', all.slice(0, 12).map(x => ({ label: `${fmtDate(x.date)} · ${x.rows.filter(r => r.element).length} élément(s)`, icon: 'calendar', value: x.id })));
     if (d) shareDayMenu(p, all.find(x => x.id === d));
@@ -237,14 +237,14 @@ ${!isBeton(kind) ? `<button class="btn ghost small cp-bet" data-cp="${i}" title=
             <div class="nm"><div style="font-size:16px">${fmtDate(d.date)}</div><div style="font-size:13px;color:var(--muted);margin-top:2px">${n} élément(s)${tag ? ' · ' + tag : ''}${rs ? ` · <span style="color:${isBeton(kind) ? '#3b82f6' : '#f59e0b'}">${rs} ${isBeton(kind) ? 'en cours' : 'réserve(s)'}</span>` : ''}${d.syncedAt ? ' · ☁' : ''}</div></div>${icon('chevright')}</div>`;
         }).join('')}</div>` : ''}`;
       body.appendChild(card);
-      $('.folder-head', card).onclick = () => { App.openMonths[key] = !open; renderReceptions(root, kind); };
+      ($('.folder-head', card)||{}).onclick = () => { App.openMonths[key] = !open; renderReceptions(root, kind); };
       $$('.prow[data-id]', card).forEach(r => r.onclick = async () => { await openReceptionDay(ds.find(d => d.id === r.dataset.id)); renderReceptions(root, kind); });
     }
   }
   const dcb = $('[data-a=decof]', root); if (dcb) dcb.onclick = async () => { await openDecof(p); renderReceptions(root, kind); };
   const inp = $('.search input', root);
   inp.oninput = () => { App.recSearch[kind] = inp.value; clearTimeout(inp._t); inp._t = setTimeout(() => renderReceptions(root, kind).then(() => { const i = $('.search input', root); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }), 250); };
-  $('[data-a=sync]').onclick = () => sheetsSetup();
+  ($('[data-a=sync]')||{}).onclick = () => sheetsSetup();
   fab(root, async () => {
     const t0 = todayISO();
     const pick = await menu(isBeton(kind) ? 'Nouveau programme de bétonnage' : 'Nouveau tableau de réception', [
@@ -442,7 +442,7 @@ ${isBeton(K) ? '' : `<td class="c">${esc(r.avec || '')}</td>`}
           toast(`${recs.length} PV ajouté(s) ✓`); render(); mergeSoon();   // le PDF du jour se met à jour en arrière-plan
           if (typeof pvSmartCheck === 'function') pvSmartCheck(p, day, recs, () => { save(); render(); });
         };
-        $('[data-a=addpv]', box).onclick = () => addPv();
+        ($('[data-a=addpv]', box)||{}).onclick = () => addPv();
         const mb = $('[data-a=mergepv]', box); if (mb) mb.onclick = async () => { const ld = loading('Création du PDF…'); try { await pvQ; await mergePv(); await save(); toast('PV fusionnés en un PDF ✓'); } finally { ld.close(); } render(); };
         const sp = $('[data-a=splitpv]', box); if (sp) sp.onclick = async () => { if (!await confirmBox('Séparer le PDF ? Les photos des PV redeviennent séparées.', 'Séparer')) return; await DB.del('files', day.pvPdfId); day.pvPdfId = null; await save(); render(); };
         const op = $('[data-a=openpvpdf]', box); if (op) op.onclick = async () => { await pvQ; const f = await DB.get('files', day.pvPdfId); if (f) showPdf(f.blob, `PV du ${fmtDate(day.date)}`); };
@@ -455,27 +455,27 @@ ${isBeton(K) ? '' : `<td class="c">${esc(r.avec || '')}</td>`}
           const gl = document.querySelector('.gallery [data-a=x]'); if (gl) { const o = gl.onclick; gl.onclick = () => { o(); render(); }; }
         });
       })();
-      $('[data-a=back]', el).onclick = () => { unBack(); finish(); };
+      ($('[data-a=back]', el)||{}).onclick = () => { unBack(); finish(); };
       $$('[data-dn]', el).forEach(b => b.onclick = () => goDay(+b.dataset.dn));
       const tdb = $('[data-a=today]', el); if (tdb) tdb.onclick = async () => {
         await save(); await loadSibs(); let t = SIBS.find(d => d.date === todayISO());
         if (!t) { if (!await confirmBox(`Pas encore de tableau ${isBeton(K) ? 'de bétonnage' : 'de réception'} aujourd'hui. Le créer ?`, 'Créer')) return; t = await DB.put('receptions', { projectId: day.projectId, date: todayISO(), type: isBeton(K) ? 'Bétonnage' : 'Ferraillage', rows: [] }); await loadSibs(); }
         const dir = t.date > day.date ? 1 : -1; day = (await DB.get('receptions', t.id)) || t; moveSel = -1;
         el.classList.remove('slide-l', 'slide-r'); void el.offsetWidth; el.classList.add(dir > 0 ? 'slide-l' : 'slide-r'); render(); };
-      $('[data-ks]', el).onclick = async () => {
+      ($('[data-ks]', el)||{}).onclick = async () => {
         let o = otherKind();
         if (!o) { if (!await confirmBox(`Pas encore de ${isBeton(K) ? 'réception' : 'programme de bétonnage'} le ${fmtDate(day.date)}. Le créer ?`, 'Créer')) return; o = await DB.put('receptions', { projectId: day.projectId, date: day.date, type: isBeton(K) ? 'Ferraillage' : 'Bétonnage', rows: [] }); }
         await save(); unBack(); el.remove(); resolve();
         App.section = isBeton(K) ? 'reception' : 'beton'; renderSection();
         setTimeout(() => openReceptionDay(o), 50);
       };
-      $('[data-a=add]', el).onclick = () => editRow(null);
-      $('[data-a=undo]', el).onclick = undo; $('[data-a=redo]', el).onclick = redo;
-      $('[data-a=sort]', el).onclick = async () => {   // zone croissante, puis niveau du plus haut au plus bas
+      ($('[data-a=add]', el)||{}).onclick = () => editRow(null);
+      ($('[data-a=undo]', el)||{}).onclick = undo; ($('[data-a=redo]', el)||{}).onclick = redo;
+      ($('[data-a=sort]', el)||{}).onclick = async () => {   // zone croissante, puis niveau du plus haut au plus bas
         const zn = (r) => { const z = parseFloat(String(r.zone || '').replace(',', '.')); return isNaN(z) ? 1e9 : z; };
         day.rows.sort((a, b) => (!a.element - !b.element) || zn(a) - zn(b) || String(a.zone || '').localeCompare(String(b.zone || ''), 'fr', { numeric: true }) || nivRank(b.niv) - nivRank(a.niv) || String(a.element || '').localeCompare(String(b.element || ''), 'fr', { numeric: true }));
         moveSel = -1; await save(); render(); toast('Trié par zone puis niveau ✓'); };
-      $('[data-a=paste]', el).onclick = async () => {
+      ($('[data-a=paste]', el)||{}).onclick = async () => {
         const r = await formSheet('Coller un texte', [{ name: 'txt', label: 'Collez le message (WhatsApp, notes…) — une ligne par ouvrage', type: 'textarea', placeholder: 'Zone 11\nR+5 Voile CR 75\nR+5 Poutre C21 B30\nZone 12 R+2 Poteau CR 26' }], { okLabel: 'Analyser' });
         if (!r || !r.txt) return;
         const rows = parseRecText(r.txt, K);
@@ -490,11 +490,11 @@ ${isBeton(K) ? '' : `<td class="c">${esc(r.avec || '')}</td>`}
           <div class="muted" style="font-size:12.5px;margin:8px 0">Touchez une case pour la corriger avant d'ajouter. ✕ = supprimer la ligne.</div>
           <div class="btnrow" style="padding:0"><button class="btn ghost" data-a="c">Annuler</button><button class="btn" data-a="ok">${icon('check')} Ajouter <span class="ps-n">${rows.length}</span> ligne(s)</button></div>`, { title: `${rows.length} ouvrage(s) reconnu(s) — vérifiez` });
         const list = $('.ps-list', sh.el), cnt = () => { $('.ps-n', sh.el).textContent = $$('.ps-ed', list).length; };
-        const wire = (row) => { $('[data-del]', row).onclick = () => { row.remove(); cnt(); }; if (bet) row.classList.add('b'); };
+        const wire = (row) => { ($('[data-del]', row)||{}).onclick = () => { row.remove(); cnt(); }; if (bet) row.classList.add('b'); };
         $$('.ps-ed', list).forEach(wire);
-        $('[data-a=addl]', sh.el).onclick = () => { const last = $$('.ps-ed', list).pop(); const t = document.createElement('div'); t.innerHTML = rowHTML({ zone: last ? $('[data-f=zone]', last).value : '', niv: last ? $('[data-f=niv]', last).value : '' }); const row = t.firstElementChild; list.appendChild(row); wire(row); cnt(); $('[data-f=element]', row).focus(); };
-        $('[data-a=c]', sh.el).onclick = () => sh.close();
-        $('[data-a=ok]', sh.el).onclick = async () => {
+        ($('[data-a=addl]', sh.el)||{}).onclick = () => { const last = $$('.ps-ed', list).pop(); const t = document.createElement('div'); t.innerHTML = rowHTML({ zone: last ? $('[data-f=zone]', last).value : '', niv: last ? $('[data-f=niv]', last).value : '' }); const row = t.firstElementChild; list.appendChild(row); wire(row); cnt(); $('[data-f=element]', row).focus(); };
+        ($('[data-a=c]', sh.el)||{}).onclick = () => sh.close();
+        ($('[data-a=ok]', sh.el)||{}).onclick = async () => {
           const final = $$('.ps-ed', list).map(row => { const v = (f) => { const i = $(`[data-f=${f}]`, row); return i ? i.value.trim() : ''; }; return { zone: v('zone'), niv: v('niv'), element: v('element'), classe: v('classe'), st: row.dataset.st }; }).filter(x => x.element);
           if (!final.length) return toast('Aucune ligne');
           for (const x of final) day.rows.push({ id: DB.uid(), zone: x.zone, niv: x.niv, element: x.element, classe: x.classe || '', avec: '', pvRecu: false, status: x.st || (bet ? 'progress' : 'pending'), obs: '', photoIds: [], retourIds: [] });
@@ -533,7 +533,7 @@ ${isBeton(K) ? '' : `<td class="c">${esc(r.avec || '')}</td>`}
       const shb = $('[data-a=share]', el); if (shb) shb.onclick = async () => { await save(); await shareDayMenu(p, day); render(); };
       const dpl = $('[data-a=dayplans]', el); if (dpl) dpl.onclick = () => openRecBox(day.projectId);   // v1.0.47 : plans des ouvrages du jour, sous le tableau
       const dps = $('[data-a=dpshow]', el); if (dps) dps.onchange = () => { try { localStorage.setItem('plans.daybox', dps.checked ? '1' : '0'); } catch (e) {} toast(dps.checked ? 'Affiché aussi en haut de Plans (les jours avec ouvrages)' : 'Retiré de Plans'); };
-      $('[data-a=more]', el).onclick = async () => {
+      ($('[data-a=more]', el)||{}).onclick = async () => {
         const v = await menu('Tableau', [
           ...(!isBeton(K) ? [{ label: '📝 Fiches de contrôle (PV) de tous les ouvrages du jour', icon: 'pdf', value: 'pvgday' }, { label: 'Modèles de fiches (mes PDF)…', icon: 'upload', value: 'pvgtpl' }] : []),
           { label: 'Changer la date', icon: 'calendar', value: 'date' },
@@ -628,7 +628,7 @@ ${isBeton(K) ? '' : `<td class="c">${esc(r.avec || '')}</td>`}
           }
         });
         if (r.croquisId) { const cf = await DB.get('files', r.croquisId); const ti = $('.sk-thumb', f); if (cf && ti) { ti.src = BlobURL.get(cf.id, cf.blob); ti.onclick = () => showImage(ti.src, `Croquis · ${r.element}`); } }
-        $('[data-a=sketch]', f).onclick = async () => {
+        ($('[data-a=sketch]', f)||{}).onclick = async () => {
           const res = await openSketch({ title: `Croquis · ${r.element || 'ouvrage'}`, data: r.croquis || null, projectId: day.projectId });
           if (!res) return;
           if (r.croquisId) { await DB.del('files', r.croquisId); BlobURL.drop(r.croquisId); }
@@ -652,8 +652,8 @@ ${isBeton(K) ? '' : `<td class="c">${esc(r.avec || '')}</td>`}
           await recPinSync(r);
           return true;
         };
-        $('[data-a=cancel]', f).onclick = () => s.close();
-        $('[data-a=ok]', f).onclick = async () => { if (await commit()) { s.close(); render(); } };
+        ($('[data-a=cancel]', f)||{}).onclick = () => s.close();
+        ($('[data-a=ok]', f)||{}).onclick = async () => { if (await commit()) { s.close(); render(); } };
         const om = $('[data-a=okmore]', f); if (om) om.onclick = async () => { if (await commit()) { s.close(); render(); editRow(null); } };
         const wa = $('[data-a=wa]', f); if (wa) wa.onclick = async () => { if (await commit()) shareRow(p, day, r); };
         const pvb = $('[data-a=pvgen]', f); if (pvb) pvb.onclick = async () => { if (await commit()) { await ficheMenu(p, day, r, save); draw(); } };
@@ -836,13 +836,13 @@ async function sheetsSetup() {
     <label>URL de l'application Web (Apps Script)<input name="url" type="url" value="${esc(p.sheetsUrl || '')}" placeholder="https://script.google.com/macros/s/…/exec"></label>
     <div class="btnrow" style="padding:0"><button class="btn ghost" data-a="cancel">Fermer</button><button class="btn" data-a="ok">Enregistrer</button></div>
   </div>`, { title: 'Liaison Google Sheets' });
-  $('[data-a=copy]', s.el).onclick = async () => {
+  ($('[data-a=copy]', s.el)||{}).onclick = async () => {
     const code = sheetsScript(sid);
     try { await navigator.clipboard.writeText(code); toast('Code copié ✓'); }
     catch (e) { const ta = document.createElement('textarea'); ta.value = code; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); toast('Code copié ✓'); }
   };
-  $('[data-a=cancel]', s.el).onclick = () => s.close();
-  $('[data-a=ok]', s.el).onclick = async () => { p.sheetsUrl = $('[name=url]', s.el).value.trim(); await DB.put('projects', p); App.project = p; s.close(); toast(p.sheetsUrl ? 'Liaison enregistrée ✓' : 'Liaison supprimée'); };
+  ($('[data-a=cancel]', s.el)||{}).onclick = () => s.close();
+  ($('[data-a=ok]', s.el)||{}).onclick = async () => { p.sheetsUrl = $('[name=url]', s.el).value.trim(); await DB.put('projects', p); App.project = p; s.close(); toast(p.sheetsUrl ? 'Liaison enregistrée ✓' : 'Liaison supprimée'); };
 }
 
 async function sendToSheets(p0, day) {
@@ -955,8 +955,8 @@ async function shareDayMenu(p, day) {
           const sh = sheet(`<div>${rows.map((r, j) => `<label class="selrow"><input type="checkbox" data-j="${j}"><span>${(REC_STATUS[r.status] || REC_STATUS.pending).mark} ${esc([r.zone && 'Zone ' + r.zone, r.niv].filter(Boolean).join(' · '))} — ${esc(r.element)}</span></label>`).join('')}</div>
             <div class="btnrow"><button class="btn ghost" data-a="c">Annuler</button><button class="btn" data-a="s">${icon('share')} Envoyer</button></div>`, { title: 'Choisir les ouvrages' });
           $$('[data-j]', sh.el).forEach(cb => cb.onchange = () => cb.checked ? sel.add(+cb.dataset.j) : sel.delete(+cb.dataset.j));
-          $('[data-a=c]', sh.el).onclick = () => sh.close();
-          $('[data-a=s]', sh.el).onclick = () => { if (!sel.size) return toast('Cochez au moins un ouvrage'); sh.close(); shareWhatsApp(recMessage(p, day, [...sel].map(j => rows[j]))); };
+          ($('[data-a=c]', sh.el)||{}).onclick = () => sh.close();
+          ($('[data-a=s]', sh.el)||{}).onclick = () => { if (!sel.size) return toast('Cochez au moins un ouvrage'); sh.close(); shareWhatsApp(recMessage(p, day, [...sel].map(j => rows[j]))); };
         }
         if (v === 'pdf') receptionPdf(p, day);
         if (v === 'pv') { const f = day.pvPdfId && await DB.get('files', day.pvPdfId); if (f) shareBlob(f.blob, `PV_${safeName(recTitle(K))}_${day.date}.pdf`); else sharePhotos(day.pvIds, `PV — ${recTitle(K)} du ${fmtDate(day.date)}`); }
@@ -976,9 +976,9 @@ function pickRows(rows, title) {
         <div class="pk-list">${rows.map((r, i) => `<button type="button" class="pk-r ${sel.has(i) ? 'on' : ''}" data-i="${i}"><i>${sel.has(i) ? '☑' : '☐'}</i><span class="z">${esc(r.zone || '–')}</span><span class="n">${esc(r.niv || '')}</span><span class="grow">${esc(r.element)}</span></button>`).join('')}</div>
         <button class="btn" data-pa="ok" ${sel.size ? '' : 'disabled'}>${icon('check')} Copier ${sel.size} ouvrage(s)</button>`;
       $$('[data-i]', box).forEach(b => b.onclick = () => { const i = +b.dataset.i; sel.has(i) ? sel.delete(i) : sel.add(i); draw(); });
-      $('[data-pa=all]', box).onclick = () => { rows.forEach((_, i) => sel.add(i)); draw(); };
-      $('[data-pa=none]', box).onclick = () => { sel.clear(); draw(); };
-      $('[data-pa=ok]', box).onclick = () => { const out = rows.filter((_, i) => sel.has(i)); s.onClose = null; s.close(); resolve(out); };
+      ($('[data-pa=all]', box)||{}).onclick = () => { rows.forEach((_, i) => sel.add(i)); draw(); };
+      ($('[data-pa=none]', box)||{}).onclick = () => { sel.clear(); draw(); };
+      ($('[data-pa=ok]', box)||{}).onclick = () => { const out = rows.filter((_, i) => sel.has(i)); s.onClose = null; s.close(); resolve(out); };
     };
     draw();
   });
@@ -1038,8 +1038,8 @@ function openDecof(p) {
           <div class="sub">Bétonné le ${fmtDate(d.date)}${r.zone ? ' · Zone ' + esc(r.zone) : ''}${r.niv ? ' · ' + esc(r.niv) : ''}${r.classe ? ' · ' + esc(r.classe) : ''}</div>
           <div class="dcf-row">${decofCell(p, d, r)}</div></div><button class="btn small" data-ok="${i}">Décoffré</button></div>`).join('')}</div>`
         : '<div class="empty">Aucun élément à suivre.<br>Le suivi démarre quand un plancher / une poutre / une dalle est « bétonné » dans le programme de bétonnage.</div>'}</div>`;
-      $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); resolve(); };
-      $('[data-a=cfg]', el).onclick = async () => { const r = await formSheet('Délais de décoffrage (jours)', [{ name: 'v', label: 'Séparés par des virgules', value: D.join(', '), placeholder: '7, 15, 28' }], { okLabel: 'Enregistrer' }); if (r) { const v = String(r.v || '').split(/[,; ]+/).map(x => parseInt(x, 10)).filter(x => x > 0).sort((a, b) => a - b); p.decofDays = v.length ? v : DECOF_DEF; await DB.put('projects', p); draw(); } };
+      ($('[data-a=x]', el)||{}).onclick = () => { unBack(); el.remove(); resolve(); };
+      ($('[data-a=cfg]', el)||{}).onclick = async () => { const r = await formSheet('Délais de décoffrage (jours)', [{ name: 'v', label: 'Séparés par des virgules', value: D.join(', '), placeholder: '7, 15, 28' }], { okLabel: 'Enregistrer' }); if (r) { const v = String(r.v || '').split(/[,; ]+/).map(x => parseInt(x, 10)).filter(x => x > 0).sort((a, b) => a - b); p.decofDays = v.length ? v : DECOF_DEF; await DB.put('projects', p); draw(); } };
       $$('[data-ok]', el).forEach(b => b.onclick = async (e) => { e.stopPropagation(); const { d, r } = L[+b.dataset.ok]; r.decofAt = todayISO(); await DB.put('receptions', d); toast('Décoffré ✓'); draw(); });
       $$('.dcf-it', el).forEach(rw => rw.onclick = async (e) => { if (e.target.closest('[data-ok]')) return; const { d, r } = L[+rw.dataset.i]; await openReceptionDay(d, { focus: r.id }); draw(); });
     };

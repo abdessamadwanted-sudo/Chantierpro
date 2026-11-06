@@ -160,7 +160,7 @@ async function openPlanViewer(plan, ctx) {
   const teardown = () => { closed = true; try { typeof bootTrail === 'function' && bootTrail('plan fermé'); } catch (e) {} window.removeEventListener('resize', onResize); cleanups.forEach(f => { try { f(); } catch (e) {} }); el.querySelectorAll('img').forEach(im => { try { im.removeAttribute('src'); } catch (e) {} }); el.remove(); ctx.onClose && ctx.onClose(); };
   const close = () => { unBack(); teardown(); };
   const unBack = pushBack(teardown);
-  $('[data-a=back]', el).onclick = close;
+  ($('[data-a=back]', el)||{}).onclick = close;
   if (!ctx.place && typeof planIndiceBar === 'function') planIndiceBar(el, plan, ctx, close).catch(() => {});
   // mode « placer un ouvrage » : un appui sur le plan donne l'emplacement
   if (ctx.place) { const pb = document.createElement('div'); pb.className = 'place-ban'; pb.innerHTML = `<span>📍 Touchez l\u2019emplacement de <b>${esc(ctx.place.label)}</b></span><button>Annuler</button>`; el.appendChild(pb); pb.querySelector('button').onclick = close; }
@@ -540,12 +540,12 @@ async function openPlanViewer(plan, ctx) {
       bar.innerHTML = `<div class="pb-row"><span class="pb-t" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${icon(kind === 'task' ? 'pin' : kind === 'planlink' ? 'section' : 'link')} ${esc(label)}</span>
         <button class="pb" data-p="open">${icon('edit')}<span>Modifier</span></button><button class="pb danger" data-p="delpin">${icon('trash')}</button><button class="pb ok" data-p="unsel">${icon('check')}</button></div>
         <div class="muted" style="font-size:12px">Glissez le pin pour le déplacer</div>`;
-      $('[data-p=unsel]', bar).onclick = () => { st.selPin = null; renderSel(); renderTools(); };
-      $('[data-p=open]', bar).onclick = async () => {
+      ($('[data-p=unsel]', bar)||{}).onclick = () => { st.selPin = null; renderSel(); renderTools(); };
+      ($('[data-p=open]', bar)||{}).onclick = async () => {
         if (kind === 'task') await ctx.openTask(obj); else if (kind === 'planlink') await editPlanLink(obj); else if (kind === 'plansbox') await openPlansBox(obj, ctx); else if (kind === 'photonote') await openPhotoNote(obj, ctx); else await ctx.openLink(obj);
         st.selPin = null; await reloadData(); renderSel(); renderTools();
       };
-      $('[data-p=delpin]', bar).onclick = async () => {
+      ($('[data-p=delpin]', bar)||{}).onclick = async () => {
         if (!await confirmBox(kind === 'task' ? 'Retirer cette tâche du plan ? (la tâche reste dans la liste)' : 'Supprimer ce pin et ses documents ?')) return;
         if (kind === 'task') { obj.planId = null; obj.x = obj.y = null; await DB.put('tasks', obj); }
         else { for (const it of obj.items || []) if (it.fileId) await DB.del('files', it.fileId); for (const z of obj.zones || []) for (const pt of z.parts || []) for (const dd of pt.docs || []) if (dd.fileId) await DB.del('files', dd.fileId); for (const id of [...(obj.photos || []), ...(obj.notes || []).flatMap(n => [...(n.photos || []), n.audio].filter(Boolean))]) await DB.del('files', id); if (obj.fileId) await DB.del('files', obj.fileId); await DB.del('links', obj.id); }
@@ -1022,7 +1022,7 @@ async function openPlanViewer(plan, ctx) {
   }
 
   // ---------- Menus ----------
-  $('[data-a=filters]', el).onclick = async () => {
+  ($('[data-a=filters]', el)||{}).onclick = async () => {
     const v = await menu('Filtres', [
       { label: 'Tâches', icon: 'pin', checked: st.filters.tasks, value: 'tasks' },
       { label: 'Liens / éléments', icon: 'link', checked: st.filters.links, value: 'links' },
@@ -1040,7 +1040,7 @@ async function openPlanViewer(plan, ctx) {
   };
   const openIndMenu = () => planIndicesMenu(plan, { onNew: (np) => { close(); openPlanViewer(np, ctx); }, onOpen: (p2) => { if (p2.id !== plan.id) { close(); openPlanViewer(p2, ctx); } } });
 
-  $('[data-a=more]', el).onclick = async () => {
+  ($('[data-a=more]', el)||{}).onclick = async () => {
     const v = await menu(plan.name, [
       { label: 'Mettre à jour le plan (nouvel indice)', icon: 'upload', value: 'indice' },
       { label: 'Indices : historique · comparer', icon: 'history', value: 'indmenu' },

@@ -71,12 +71,12 @@ function rubOpen(p, L, f, R) {
           <tbody>${rows.map((r, i) => `<tr data-i="${i}"><td class="n">${i + 1}</td>${R.cols.map(c => `<td class="${c.t}">${esc(rubFmt(c, r[c.k]))}${c.t === 'num' && /%/.test(c.l) && r[c.k] !== '' && r[c.k] != null ? `<i class="rub-bar" style="--v:${Math.max(0, Math.min(100, +r[c.k]))}%"></i>` : ''}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${R.cols.length + 1}" class="rub-none">Aucune ligne — touchez « ＋ Ajouter une ligne »</td></tr>`}</tbody>
           ${nums.length && rows.length ? `<tfoot><tr><td>Σ</td>${R.cols.map(c => `<td class="${c.t}">${c.t === 'num' ? tot[nums.indexOf(c)] : ''}</td>`).join('')}</tr></tfoot>` : ''}</table></div>
           <button class="btn rub-add" data-a="add">${icon('plus')} Ajouter une ligne</button></div>`;
-      $('[data-a=x]', el).onclick = close;
-      $('[data-a=add]', el).onclick = async () => { const o = await rubEdit(R, null, R.name); if (o && o !== 'del') { o.id = DB.uid(); rows.push(o); await save(); draw(); } };
+      ($('[data-a=x]', el)||{}).onclick = close;
+      ($('[data-a=add]', el)||{}).onclick = async () => { const o = await rubEdit(R, null, R.name); if (o && o !== 'del') { o.id = DB.uid(); rows.push(o); await save(); draw(); } };
       $$('tr[data-i]', el).forEach(tr => tr.onclick = async () => { const i = +tr.dataset.i, o = await rubEdit(R, rows[i], `${R.name} · ligne ${i + 1}`); if (!o) return; if (o === 'del') { if (!await confirmBox('Supprimer cette ligne ?')) return; rows.splice(i, 1); } else rows[i] = { ...rows[i], ...o }; await save(); draw(); });
-      $('[data-a=xls]', el).onclick = async () => { const b = await xlsxBlob([{ name: R.name.slice(0, 28) || 'Rubrique', head: 0, widths: [6, ...R.cols.map(c => c.t === 'text' ? 34 : 14)], rows: [['N°', ...R.cols.map(c => c.l)], ...rows.map((r, i) => [i + 1, ...R.cols.map(c => c.t === 'num' ? (r[c.k] === '' ? '' : +r[c.k]) : rubFmt(c, r[c.k]))])] }]);
+      ($('[data-a=xls]', el)||{}).onclick = async () => { const b = await xlsxBlob([{ name: R.name.slice(0, 28) || 'Rubrique', head: 0, widths: [6, ...R.cols.map(c => c.t === 'text' ? 34 : 14)], rows: [['N°', ...R.cols.map(c => c.l)], ...rows.map((r, i) => [i + 1, ...R.cols.map(c => c.t === 'num' ? (r[c.k] === '' ? '' : +r[c.k]) : rubFmt(c, r[c.k]))])] }]);
         shareBlob(b, `${safeName(R.name)}_${safeName(f.name)}.xlsx`); };
-      $('[data-a=more]', el).onclick = async () => {
+      ($('[data-a=more]', el)||{}).onclick = async () => {
         const v = await menu(R.name, [{ label: 'Exporter en Excel', icon: 'grid', value: 'xls' }, { label: 'Importer depuis Excel (.xlsx)', icon: 'upload', value: 'imp' }, { label: 'Renommer / colonnes…', icon: 'edit', value: 'cfg' }]);
         if (v === 'xls') $('[data-a=xls]', el).click();
         if (v === 'cfg') { await rubMenu(p, L, R); if (!rubList(L).includes(R)) return close(); draw(); }

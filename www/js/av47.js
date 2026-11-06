@@ -200,7 +200,7 @@ async function avAutoZones(p, niv, plan, V) {
     st.zhint = `Aperçu : ${st.zprev.polys.length} zone(s)${r.mode === 'radial' ? ' · « Centre » pour le déplacer' : ''}`; V.redraw(); drawBar(); };
   const drawBar = () => {
     bar.innerHTML = `<button data-z="x">${icon('close')} Annuler</button>${r.mode === 'radial' && st.zprev ? `<button data-z="c">${icon('move')} Centre</button>` : ''}${r.src === 'tap' && !st.zprev ? '' : `<button data-z="ok" class="pri" ${st.zprev && st.zprev.polys.length ? '' : 'disabled'}>${icon('check')} Valider</button>`}${r.src === 'tap' && !st.zprev ? `<button data-z="fin" class="pri" ${J.length >= 2 ? '' : 'disabled'}>${icon('check')} Aperçu (${J.length})</button>` : ''}`;
-    $('[data-z=x]', bar).onclick = end;
+    ($('[data-z=x]', bar)||{}).onclick = end;
     const cb = $('[data-z=c]', bar); if (cb) cb.onclick = () => { st.zhint = 'Touchez le nouveau centre'; V.redraw(); st.zpick = ([x, y]) => { C = [x, y]; st.zpick = null; build(); }; };
     const fb = $('[data-z=fin]', bar); if (fb) fb.onclick = () => { st.zpick = null; build(); };
     const ok = $('[data-z=ok]', bar); if (ok) ok.onclick = () => validate();
@@ -305,10 +305,10 @@ function avSelBar(el, p, niv, st, ctx) {
       st.lasso = false; ov.remove(); ctx.redraw(); });
   }
   if (!st.lasso && ov) ov.remove();
-  $('[data-s=lasso]', lg).onclick = () => { st.lasso = !st.lasso; ctx.redraw(); };
-  $('[data-s=all]', lg).onclick = () => { st.locs.forEach(l => st.sel.add(l.id)); ctx.redraw(); };
+  ($('[data-s=lasso]', lg)||{}).onclick = () => { st.lasso = !st.lasso; ctx.redraw(); };
+  ($('[data-s=all]', lg)||{}).onclick = () => { st.locs.forEach(l => st.sel.add(l.id)); ctx.redraw(); };
   const nb = $('[data-s=none]', lg); if (nb) nb.onclick = () => { st.sel.clear(); ctx.redraw(); };
-  $('[data-s=go]', lg).onclick = async () => { const L = st.locs.filter(l => st.sel.has(l.id)); if (!L.length) return; if (await avBulkJour(p, L, st.lot)) { st.sel = null; st.lasso = false; const o = $('.av-lasso', el); if (o) o.remove(); await ctx.refresh(); } };
+  ($('[data-s=go]', lg)||{}).onclick = async () => { const L = st.locs.filter(l => st.sel.has(l.id)); if (!L.length) return; if (await avBulkJour(p, L, st.lot)) { st.sel = null; st.lasso = false; const o = $('.av-lasso', el); if (o) o.remove(); await ctx.refresh(); } };
 }
 async function avBulkJour(p, L, lotId) {
   const lots = avLotsOrdered(p), teams = avTeams(p), my = avMyLots(p);
@@ -375,7 +375,7 @@ async function openAvTable(p, o = {}) {
     const pd = $('[data-a=pdf]', el); if (pd) pd.onclick = async () => { const n = nivs.find(x => x.id === S.niv), G = [];
       for (const lot of LC) for (const l of L) { const P = cellPhotos(l, lot); if (P.length) G.push({ title: lot.name, sub: `${l.name}${n ? ' · ' + n.name : ''}${S.zone ? ' · ' + S.zone : ''}`, files: P.map(id => ({ id })) }); }
       if (!G.length) return toast('Aucune photo sur ce niveau'); await phPdf(p, G, [n && n.name, S.zone, 'Avancement'].filter(Boolean).join(' - ')); };
-    $('[data-a=x]', el).onclick = async () => { if (S.ch.size && !await confirmBox(`${S.ch.size} modification(s) non enregistrée(s). Quitter ?`, 'Quitter')) return; close(); };
+    ($('[data-a=x]', el)||{}).onclick = async () => { if (S.ch.size && !await confirmBox(`${S.ch.size} modification(s) non enregistrée(s). Quitter ?`, 'Quitter')) return; close(); };
     const ex = $('[data-a=exp]', el); if (ex) ex.onclick = () => avExpress(p, () => { close(); openAvTable(p, { ...o, nivId: S.niv }); });
     $$('[data-k]', el).forEach(i => i.onchange = async () => { const k = i.dataset.k;
       if ((k === 'niv' || k === 'd') && S.ch.size && !await confirmBox('Changer de niveau / de date annule les modifications non enregistrées.', 'Continuer')) return draw();
@@ -512,7 +512,7 @@ function avLotPanelBlock(p, L, f, redraw) {
   let open = false; try { open = localStorage.getItem('lpav.open') !== '0'; } catch (e) {}
   if (!niv || !lot) {
     box.innerHTML = `<div class="lpa-h"><span>📊</span><span class="grow"><b>Avancement ${esc(L.name)}</b><small>${!niv ? 'Ce niveau n\'est pas encore suivi dans Avancement' : 'Ce lot n\'est pas encore suivi dans Avancement'}</small></span><button class="btn small" data-a="link">Relier</button></div>`;
-    $('[data-a=link]', box).onclick = async () => {
+    ($('[data-a=link]', box)||{}).onclick = async () => {
       if (!lot) { p.avLotSkip = (p.avLotSkip || []).filter(x => x !== normQ(L.name)); avLots(p).push({ id: DB.uid(), name: L.name, color: L.c, fromPlans: L.id }); }
       if (!niv) { const ps = (await DB.byProject('plans', p.id)).filter(x => x.folderId === f.id && isCurrentPlan(x)); if (!ps.length) { await DB.put('projects', p); return toast('Ajoutez d\'abord un plan dans ce dossier'); }
         const base = ps.find(x => !x.lotId) || ps.find(x => x.lotId === 'go') || ps[0], nn = nivOfFolder(f.name) || f.name;
@@ -537,12 +537,12 @@ function avLotPanelBlock(p, L, f, redraw) {
       ${Object.keys(TT).length ? `<div class="lpa-eq">${Object.entries(TT).map(([id, t]) => { const tm = avTeam(p, id) || { name: '?', color: '#64748b' }; return `<span style="--c:${tm.color}"><i>${esc(dpIni(tm.name))}</i><b>${esc(tm.name)}</b><small>${t.eff ? t.eff + ' pers. · ' : ''}${t.last === today ? 'auj.' : fmtDate(t.last).slice(0, 5)}</small></span>`; }).join('')}</div>` : ''}
       <div class="lpa-today">☀️ ${tod.length ? `${tod.length} saisie(s) aujourd'hui : ${tod.slice(0, 4).map(z => `${esc(z.l.name)} ${z.e.pct}%`).join(' · ')}` : 'Aucune saisie aujourd\'hui'}</div>
       <div class="lpa-acts"><button data-a="plan">${icon('plans')} Plan + pins${lp && lp.id !== 'main' ? '' : ' (général)'}</button><button data-a="tab">${icon('grid')} Saisie</button><button data-a="qty">📏 Quantités${s.qt ? ` <small>${avFmtQ(s.qd)}/${avFmtQ(s.qt)} ${esc(s.unit)}</small>` : ''}</button><button data-a="done" class="${x.finR ? 'on' : ''}">${icon('check')} ${x.P.done ? 'Terminé ✓' : 'Terminé'}</button><button data-a="pdf">${icon('pdf')} PDF</button></div>`;
-    $('[data-a=dates]', box).onclick = async () => { if (await avPlanningEdit(p, niv, lot, p.avNiveaux)) redraw && redraw(); };
-    $('[data-a=plan]', box).onclick = () => openAvViewer(niv.id, lot.id, () => redraw && redraw());
-    $('[data-a=tab]', box).onclick = () => openAvTable(p, { nivId: niv.id, lotId: lot.id, onClose: () => redraw && redraw() });
+    ($('[data-a=dates]', box)||{}).onclick = async () => { if (await avPlanningEdit(p, niv, lot, p.avNiveaux)) redraw && redraw(); };
+    ($('[data-a=plan]', box)||{}).onclick = () => openAvViewer(niv.id, lot.id, () => redraw && redraw());
+    ($('[data-a=tab]', box)||{}).onclick = () => openAvTable(p, { nivId: niv.id, lotId: lot.id, onClose: () => redraw && redraw() });
     const qb = $('[data-a=qty]', box); if (qb) qb.onclick = () => avQtyDialog(p, niv.id, lot.id, () => redraw && redraw());
-    $('[data-a=done]', box).onclick = async () => { if (await avLotDone(p, niv, lot, !x.P.done)) redraw && redraw(); };
-    $('[data-a=pdf]', box).onclick = () => avReportDialog({ nivId: niv.id, lotId: lot.id });
+    ($('[data-a=done]', box)||{}).onclick = async () => { if (await avLotDone(p, niv, lot, !x.P.done)) redraw && redraw(); };
+    ($('[data-a=pdf]', box)||{}).onclick = () => avReportDialog({ nivId: niv.id, lotId: lot.id });
   })().catch(e => { console.warn('lpav', e); $('.lpa-b', box).innerHTML = '<div class="muted">Avancement indisponible</div>'; });
   return box;
 }
@@ -598,8 +598,8 @@ async function avTeamFiche(p, id, nivs, L, lots, per) {
     <div class="btnrow"><button class="btn ghost" data-a="wa">${icon('share')} WhatsApp</button><button class="btn" data-a="pdf">${icon('pdf')} Rapport PDF</button></div></div>`, { title: `👷 ${t.name}` });
   (async () => { for (const sp of $$('[data-ph]', s.el)) { const f = await DB.get('files', sp.dataset.ph); if (f && f.blob) { sp.innerHTML = `<img src="${BlobURL.get(f.id, f.blob)}">`; sp.onclick = async () => { const fs = await loadFiles(ph); showGallery(fs.map(f2 => ({ src: BlobURL.get(f2.id, f2.blob), caption: t.name, fileId: f2.id })), fs.findIndex(f2 => f2.id === f.id)); }; } } })();
   const txt = () => `*${p.name}* — ${t.name} (${tt[1]})\n${per.l}\nPart : *${x.part} %* · +${avF1(x.pts)} pts · ${x.effM} pers./j · ${x.jh} jours-homme · rendement ${avF1(x.rend)}${x.late ? ` · ⚠ ${x.late} en retard` : ''}\n\n` + x.E.slice(0, 30).map(({ e, l }) => `• ${fmtDate(e.d)} ${(nivs.find(n => n.id === l.nivId) || {}).name || ''} · ${l.name} — ${avLot(p, e.lot).name} ${e.pct} %`).join('\n');
-  $('[data-a=wa]', s.el).onclick = () => shareWhatsApp(txt());
-  $('[data-a=pdf]', s.el).onclick = async () => { const ld = loading('Rapport…'); try { if (!window.jspdf && window.__late) await window.__late; const R = newDoc('Rapport équipe', p), { doc } = R; void doc;
+  ($('[data-a=wa]', s.el)||{}).onclick = () => shareWhatsApp(txt());
+  ($('[data-a=pdf]', s.el)||{}).onclick = async () => { const ld = loading('Rapport…'); try { if (!window.jspdf && window.__late) await window.__late; const R = newDoc('Rapport équipe', p), { doc } = R; void doc;
     R.text(`${t.name} — ${tt[1]}`, { size: 17, bold: true, gap: 1 }); R.text(`${per.l}${t.soc ? ' · ' + t.soc : ''}${t.resp ? ' · ' + t.resp : ''}`, { size: 10, color: [90, 90, 90], gap: 4 });
     R.text(`Part de l'avancement : ${x.part} % · +${avF1(x.pts)} pts · effectif moyen ${x.effM} · ${x.jh} jours-homme · rendement ${avF1(x.rend)} · ${x.late} en retard${x.m2 ? ' · ' + Math.round(x.m2) + ' m²' : ''}`, { size: 11, bold: true, gap: 3 });
     for (const { e, l } of x.E) R.text(`${fmtDate(e.d)} · ${(nivs.find(n => n.id === l.nivId) || {}).name || ''} · ${l.name} — ${avLot(p, e.lot).name} ${e.prev != null ? e.prev + ' → ' : ''}${e.pct} %${e.eff ? ' · ' + e.eff + ' pers.' : ''}${e.note ? ' — ' + e.note : ''}`, { size: 9, gap: 0.4 });
@@ -887,7 +887,7 @@ async function renderPhotosV2(root) {
   $$('[data-pf]', root).forEach(s => s.onchange = () => { F[s.dataset.pf] = s.value; if (s.dataset.pf === 'cat') { F.dos = ''; return renderPhotosV2(root); } s.closest('.avf-s').classList.toggle('on', !!s.value); draw(); });
   $$('[data-mode]', root).forEach(b => b.onclick = () => { F.mode = b.dataset.mode; $$('[data-mode]', root).forEach(x => x.classList.toggle('on', x === b)); draw(); });
   let qt; const qi = $('[data-a=q]', root); qi.oninput = () => { clearTimeout(qt); qt = setTimeout(() => { F.q = qi.value.trim(); draw(); }, 250); };
-  $('[data-a=pdfall]', root).onclick = () => { if (!groups.length) return toast('Aucune photo'); const t = [F.cat, F.dos, F.niv, F.z].filter(Boolean).join(' - ') || 'Photos'; phPdf(p, groups, t); };
+  ($('[data-a=pdfall]', root)||{}).onclick = () => { if (!groups.length) return toast('Aucune photo'); const t = [F.cat, F.dos, F.niv, F.z].filter(Boolean).join(' - ') || 'Photos'; phPdf(p, groups, t); };
   const td = $('.ph-todo .photo-grid', root); if (td) { bindThumbs(td); lazyThumbs(td); }
   draw();
   const selIds = () => [...root.querySelectorAll('.ph-todo .ph-sel')].map(x => x.dataset.id);

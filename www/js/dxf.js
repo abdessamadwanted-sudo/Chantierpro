@@ -94,7 +94,7 @@ async function openDxfPlan(m) {
     const el = planPage(m.name); el.classList.add('dxfpage');
     const unBack = pushBack(() => fin(true));
     function fin(fromBack) { if (!fromBack) unBack(); el.remove(); resolve(); }
-    $('[data-a=x]', el).onclick = () => fin();
+    ($('[data-a=x]', el)||{}).onclick = () => fin();
     let S = planStage(el, R.canvas), mode = null, tr = [], pick = null;
     const lw = () => 3 / S.scale();
     const draw = () => {

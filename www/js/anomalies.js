@@ -40,15 +40,15 @@ async function openAnomalies(p, pre = {}) {
           <span class="grow"><b>${esc(r.el)}${r.desc ? ' — ' + esc(r.desc) : ''}</b><small>${r.pin ? '📍 ' : ''}${esc(r.src)} · ${fmtDate(r.date)}${r.niv ? ' · ' + esc(r.niv) : ''}${r.zone ? ' · ' + esc(r.zone) : ''}${r.lot ? ' · ' + esc(r.lot) : ''}${r.resp ? ' · ' + esc(r.resp) : ''}</small>
           <i class="an-st" style="--c:${AN_ST[r.st][2]}">${AN_ST[r.st][0]} ${AN_ST[r.st][1]}${r.st === 'traitee' ? ` le ${fmtDate(r.doneAt)} · ${r.delay} j` : ` · depuis ${r.delay} j`}</i></span></button>`).join('') || '<div class="empty">Aucune anomalie pour ce choix 👍</div>'}</div></div>`;
     $$('img[data-ph]', el).forEach(async im => { const u = await thumb(im.dataset.ph); if (u) im.src = u; else im.remove(); });
-    $('[data-a=x]', el).onclick = close;
+    ($('[data-a=x]', el)||{}).onclick = close;
     $$('[data-f]', el).forEach(s => s.onchange = () => { F[s.dataset.f] = s.value; draw(); });
     $$('[data-st]', el).forEach(b => b.onclick = () => { F.st = F.st === b.dataset.st ? '' : b.dataset.st; draw(); });
     const qi = $('.due-q', el); let t; qi.oninput = () => { clearTimeout(t); t = setTimeout(async () => { F.q = qi.value.trim(); await draw(); const q2 = $('.due-q', el); if (q2) { q2.focus(); q2.setSelectionRange(q2.value.length, q2.value.length); } }, 350); };
     $$('[data-k]', el).forEach(b => b.onclick = () => anRow(p, R.find(r => r.k === b.dataset.k), async () => { R = await anCollect(p); draw(); }, close));
-    $('[data-a=csv]', el).onclick = () => { const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    ($('[data-a=csv]', el)||{}).onclick = () => { const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
       const csv = '﻿' + [['Type', 'Date', 'Niveau', 'Zone', 'Lot', 'Élément', 'Description', 'Responsable', 'Statut', 'Traitée le', 'Délai (j)'].join(';'), ...shown().map(r => [r.src, fmtDate(r.date), r.niv, r.zone, r.lot, r.el, r.desc, r.resp, AN_ST[r.st][1], r.doneAt ? fmtDate(r.doneAt) : '', r.delay].map(q).join(';'))].join('\n');
       shareBlob(new Blob([csv], { type: 'text/csv' }), avFileName(`Anomalies ${p.name} ${todayISO()}`) + '.csv'); };
-    $('[data-a=pdf]', el).onclick = () => anPdf(p, shown(), [F.niv, F.lot, F.zone].filter(Boolean).join(' · '));
+    ($('[data-a=pdf]', el)||{}).onclick = () => anPdf(p, shown(), [F.niv, F.lot, F.zone].filter(Boolean).join(' · '));
   };
   draw();
 }

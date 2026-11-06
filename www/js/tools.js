@@ -108,7 +108,7 @@ async function openPdfTools() {
             <div class="pt-act"><button data-l="${i}" ${i ? '' : 'disabled'}>◀</button><button data-ro="${i}" title="Tourner">⟳</button>${sources[pg.s].kind === 'image' ? `<button data-fx="${i}" title="Améliorer la photo">✨</button>` : `<button data-r="${i}" title="Remplacer">⇄</button>`}<button data-d="${i}" class="d">✕</button><button data-rt="${i}" ${i < pages.length - 1 ? '' : 'disabled'}>▶</button></div></div>`).join('')}</div>
         <div class="pt-foot"><button class="btn ghost" data-a="split">${icon('layers')} Diviser</button><button class="btn" data-a="go">${icon('check')} ${pages.length > 1 ? 'Fusionner' : 'Générer'} (${pages.length} p.)</button></div>`}
       </div>`;
-    $('[data-a=x]', el).onclick = close;
+    ($('[data-a=x]', el)||{}).onclick = close;
     $$('[data-a=add]', el).forEach(b => b.onclick = add);
     const nm = $('[data-a=name]', el); if (nm) nm.oninput = () => { name = nm.value; };
     const g = $('[data-a=go]', el); if (g) g.onclick = generate;
@@ -239,7 +239,7 @@ function openConstat(id) {
           <button class="btn" data-a="add" style="width:100%">${icon('plus')} Ajouter un point de non-conformité</button>
           ${c.items.length ? `<button class="btn ghost" data-a="pdf2" style="width:100%;margin-top:10px">${icon('pdf')} Générer le PDF du constat</button>` : ''}
         </div>`;
-      $('[data-a=back]', el).onclick = () => { unBack(); finish(); };
+      ($('[data-a=back]', el)||{}).onclick = () => { unBack(); finish(); };
       $$('[data-h]', el).forEach(i => i.oninput = () => { c[i.dataset.h] = i.value; save(); });
       const sug = (i) => {
         const it = c.items[i], box = $(`[data-sug="${i}"]`, el); if (!box) return;
@@ -259,7 +259,7 @@ function openConstat(id) {
         showGallery(it.photoIds.filter(x => photos[x]).map(x => ({ src: photos[x], caption: it.probleme || 'Constat', fileId: x })), it.photoIds.indexOf(fid));
       });
       $$('[data-del]', el).forEach(b => b.onclick = async () => { if (await confirmBox('Supprimer ce point ?')) { c.items.splice(+b.dataset.del, 1); save(); draw(); } });
-      $('[data-a=add]', el).onclick = async () => {
+      ($('[data-a=add]', el)||{}).onclick = async () => {
         const it = { id: DB.uid(), gravite: 'majeure', loc: c.lieu || '', probleme: '', solution: '', photoIds: [] };
         c.items.push(it); save();
         const recs = await addPhotos(pr.id, { source: `Constat ${c.ref || ''}` });
@@ -267,8 +267,8 @@ function openConstat(id) {
         save(); await draw(); $$('.cst-item').pop()?.scrollIntoView({ block: 'start' });
       };
       const pdfGo = async () => { clearTimeout(saveT); const cur = await DB.get('projects', pr.id); cur.constats[cur.constats.findIndex(x => x.id === id)] = C(); await DB.put('projects', cur); pr = cur; constatPdf(pr, C()); };
-      $('[data-a=pdf]', el).onclick = pdfGo; const p2 = $('[data-a=pdf2]', el); if (p2) p2.onclick = pdfGo;
-      $('[data-a=more]', el).onclick = async () => {
+      ($('[data-a=pdf]', el)||{}).onclick = pdfGo; const p2 = $('[data-a=pdf2]', el); if (p2) p2.onclick = pdfGo;
+      ($('[data-a=more]', el)||{}).onclick = async () => {
         const v = await menu(c.ref || 'Constat', [{ label: 'Générer le PDF', icon: 'pdf', value: 'pdf' }, { label: 'Supprimer ce constat', icon: 'trash', danger: true, value: 'del' }]);
         if (v === 'pdf') pdfGo();
         if (v === 'del' && await confirmBox('Supprimer ce constat ?')) { clearTimeout(saveT); const cur = await DB.get('projects', pr.id); cur.constats = cur.constats.filter(x => x.id !== id); await DB.put('projects', cur); unBack(); finish(); }

@@ -66,12 +66,12 @@ async function openDossier() {
         <p class="dp-priv">🔒 Ce profil reste sur votre téléphone. Il n'est partagé que si vous envoyez le CV ou le profil.</p>
       </div>`;
     $('.dp-body', el).scrollTop = keep;
-    $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
-    $('[data-a=id]', el).onclick = () => dpEditId(draw);
-    $('[data-a=photo]', el).onclick = () => dpPhoto(draw);
-    $('[data-a=cv]', el).onclick = () => dpCv();
-    $('[data-a=share]', el).onclick = () => dpShare();
-    $('[data-a=career]', el).onclick = () => { if (typeof openCareer === 'function') openCareer(); };
+    ($('[data-a=x]', el)||{}).onclick = () => { unBack(); el.remove(); };
+    ($('[data-a=id]', el)||{}).onclick = () => dpEditId(draw);
+    ($('[data-a=photo]', el)||{}).onclick = () => dpPhoto(draw);
+    ($('[data-a=cv]', el)||{}).onclick = () => dpCv();
+    ($('[data-a=share]', el)||{}).onclick = () => dpShare();
+    ($('[data-a=career]', el)||{}).onclick = () => { if (typeof openCareer === 'function') openCareer(); };
     $$('[data-edit]', el).forEach(b => b.onclick = () => b.dataset.edit === 'about' ? dpAbout(draw) : dpContact(draw));
     $$('[data-add]', el).forEach(b => b.onclick = () => dpAdd(b.dataset.add, null, draw));
     $$('[data-it]', el).forEach(b => b.onclick = () => { const [k, id] = b.dataset.it.split(':'); dpAdd(k, id, draw); });

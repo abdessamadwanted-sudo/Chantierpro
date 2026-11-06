@@ -83,9 +83,9 @@ async function renderDashboard(root) {
   $$('.crow', root).forEach(r => r.onclick = () => goTasks('all', r.dataset.c));
   const pvm = $('[data-a=pvmiss]', root); if (pvm) pvm.onclick = () => goMissingPv();
   $$('[data-dk]', root).forEach(b => b.onclick = () => { App.section = b.dataset.dk; renderSection(); });
-  $('[data-a=addco]', root).onclick = async () => { if (await editCompany(App.project)) renderDashboard(root); };
-  $('[data-a=pdf]', root).onclick = () => reservesReportDialog();
-  $('[data-a=wk]', root).onclick = () => weeklyReportDialog();
+  ($('[data-a=addco]', root)||{}).onclick = async () => { if (await editCompany(App.project)) renderDashboard(root); };
+  ($('[data-a=pdf]', root)||{}).onclick = () => reservesReportDialog();
+  ($('[data-a=wk]', root)||{}).onclick = () => weeklyReportDialog();
   $$('.log [data-t]', root).forEach(d => d.onclick = async () => { await openTaskDetail(tasks.find(t => t.id === d.dataset.t)); renderDashboard(root); });
 }
 
@@ -108,7 +108,7 @@ function signaturePad(container, value, onChange) {
   });
   const end = () => { if (!drawing) return; drawing = false; if (dirty) onChange(c.toDataURL('image/png')); };
   c.addEventListener('pointerup', end); c.addEventListener('pointercancel', end);
-  $('button', container).onclick = () => { paintBg(); dirty = false; onChange(''); };
+  ($('button', container)||{}).onclick = () => { paintBg(); dirty = false; onChange(''); };
 }
 
 // ---------- PDF : outils ----------

@@ -23,6 +23,8 @@ jobs:
         with: { distribution: temurin, java-version: 17 }
       - name: Syntaxe JavaScript
         run: for f in www/js/*.js; do node --check "$f" || exit 1; done
+      - name: Garde-fous (éléments DOM sans vérification)
+        run: node ci/guards.mjs
       - name: Outils de test
         run: npm i -g firebase-tools@13 && npm i --no-save playwright@1.47.2 @firebase/rules-unit-testing@3 firebase@10.14.1 && npx playwright install --with-deps chromium
       - name: Règles Firestore et Storage (extraites de team.js)

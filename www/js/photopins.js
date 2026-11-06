@@ -65,8 +65,8 @@ async function pnPickDelete(l, d, save, draw) {
       <div class="btnrow" style="padding:0"><button class="btn ghost" data-a="all">Tout choisir</button><button class="btn danger" data-a="ok">Supprimer (0)</button></div></div>`, { title: `Supprimer des photos · ${d.name}`,
       onMount: (el) => { const upd = () => { $$('[data-pk]', el).forEach(im => im.classList.toggle('on', sel.has(im.dataset.pk))); $('[data-a=ok]', el).textContent = `Supprimer (${sel.size})`; };
         $$('[data-pk]', el).forEach(im => im.onclick = () => { const k = im.dataset.pk; sel.has(k) ? sel.delete(k) : sel.add(k); upd(); });
-        $('[data-a=all]', el).onclick = () => { if (sel.size === L.length) sel.clear(); else L.forEach(x => sel.add(x.id)); upd(); };
-        $('[data-a=ok]', el).onclick = () => { if (!sel.size) return toast('Aucune photo choisie'); go = true; s.close(); }; } });
+        ($('[data-a=all]', el)||{}).onclick = () => { if (sel.size === L.length) sel.clear(); else L.forEach(x => sel.add(x.id)); upd(); };
+        ($('[data-a=ok]', el)||{}).onclick = () => { if (!sel.size) return toast('Aucune photo choisie'); go = true; s.close(); }; } });
     s.onClose = () => resolve(go); });
   if (!ok || !(await confirmBox(`Supprimer ${sel.size} photo(s) de « ${d.name} » ?`, 'Supprimer'))) return;
   d.photos = d.photos.filter(id => !sel.has(id)); for (const id of sel) await DB.del('files', id); await save(); draw(); toast(`${sel.size} photo(s) supprimée(s) ✓`);
@@ -98,8 +98,8 @@ async function pnShare(l, opt = {}) {
       $$('[data-gk]', s.el).forEach(c => c.onchange = () => { const g = groups.find(x => x.id === c.dataset.gk); g.photos.forEach(id => c.checked ? off.delete(id) : off.add(id)); keep(); drawS(); });
       const val = (k) => ($(`[name=${k}]`, s.el) || {}).value || '';
       const sel = () => groups.map(g => ({ name: g.name, photos: g.photos.filter(id => th[id] && !off.has(id)) })).filter(g => g.photos.length);
-      $('[data-a=ph]', s.el).onclick = async () => { const G = sel(); if (!G.length) return toast('Aucune photo retenue'); const fn = avFileName(val('fn') || defName); s.close(); await sharePhotos(G.flatMap(g => g.photos), `*${val('tt') || l.name}*${C.niv ? ' · ' + C.niv : ''}\n${G.map(g => `📁 ${g.name} : ${g.photos.length}`).join('\n')}`, fn); };
-      $('[data-a=pdf]', s.el).onclick = async () => { const G = sel(); if (!G.length) return toast('Aucune photo retenue'); const fn = avFileName(val('fn') || defName), tt = val('tt') || l.name, pp = +val('pp') || 4;
+      ($('[data-a=ph]', s.el)||{}).onclick = async () => { const G = sel(); if (!G.length) return toast('Aucune photo retenue'); const fn = avFileName(val('fn') || defName); s.close(); await sharePhotos(G.flatMap(g => g.photos), `*${val('tt') || l.name}*${C.niv ? ' · ' + C.niv : ''}\n${G.map(g => `📁 ${g.name} : ${g.photos.length}`).join('\n')}`, fn); };
+      ($('[data-a=pdf]', s.el)||{}).onclick = async () => { const G = sel(); if (!G.length) return toast('Aucune photo retenue'); const fn = avFileName(val('fn') || defName), tt = val('tt') || l.name, pp = +val('pp') || 4;
         const ld = loading('Préparation du PDF…'); try { const b = await pnPdf(C, tt, G, pp, (t) => ld.set && ld.set(t)); ld.close(); s.close(); await shareBlob(b, fn.replace(/\.pdf$/i, '') + '.pdf', { ask: false }); } catch (e) { ld.close(); alertBox('PDF impossible : ' + (e.message || e)); } };
     };
     // les valeurs tapées restent quand on retire une photo
@@ -183,10 +183,10 @@ function pnLotBlock(p, L, f, redraw) {
     el.innerHTML = `<div class="pnl-h"><span>📷 Photos · ${esc(L.name)}</span><button class="btn small ghost" data-a="pnnew">${icon('plus')} Pin photos</button></div>
       <button class="pnl-all" data-a="pnall">🖼️ Toutes les photos · ${esc(nivN)} · ${esc(L.name)} <span>›</span></button>
       ${pins.length ? `<div class="pnl-l">${pins.map(x => `<span class="pnl-it"><button data-pn="${x.id}"><b>${esc(x.name)}</b><small>${pnFolders(x).length ? pnFolders(x).map(d => esc(d.name)).slice(0, 3).join(' · ') + ' · ' : ''}${pnCount(x)} photo(s)</small></button><button class="pnl-loc" data-pnloc="${x.id}" title="Voir sur le plan">📍</button></span>`).join('')}</div>` : '<div class="pnl-e">Placez un pin photos sur un plan de ce niveau (Porte provisoire, Brique, Nettoyage…).</div>'}`;
-    $('[data-a=pnall]', el).onclick = () => { App.phF = { niv: nivN, cat: L.name, z: '', dos: '', st: '', src: '', per: '', q: '', mode: 'cat' }; App.section = 'photos'; renderSection(); };   // v1.0.65 : Photos déjà filtrées sur ce niveau + ce lot
+    ($('[data-a=pnall]', el)||{}).onclick = () => { App.phF = { niv: nivN, cat: L.name, z: '', dos: '', st: '', src: '', per: '', q: '', mode: 'cat' }; App.section = 'photos'; renderSection(); };   // v1.0.65 : Photos déjà filtrées sur ce niveau + ce lot
     $$('[data-pnloc]', el).forEach(b => b.onclick = () => typeof phLocate === 'function' && phLocate({ pn: b.dataset.pnloc }, redraw));   // v1.0.66 : endroit exact sur le plan
     $$('[data-pn]', el).forEach(b => b.onclick = async () => { const x = pins.find(y => y.id === b.dataset.pn); await openPhotoNote(x, typeof planCtx === 'function' ? planCtx(() => {}) : {}); redraw(); });
-    $('[data-a=pnnew]', el).onclick = async () => {
+    ($('[data-a=pnnew]', el)||{}).onclick = async () => {
       const L2 = plans.filter(x => x.lotId === L.id).length ? plans.filter(x => x.lotId === L.id) : plans;
       if (!L2.length) return toast('Ajoutez d\'abord un plan à ce niveau');
       const id = L2.length === 1 ? L2[0].id : await menu('Sur quel plan ?', L2.map(x => ({ label: x.name, icon: 'plans', value: x.id }))); if (!id) return;

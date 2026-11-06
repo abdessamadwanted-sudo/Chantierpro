@@ -35,7 +35,7 @@ async function renderModels3D(root, filter) {
     : `<div class="empty">Aucun modèle 3D.<br>Appuyez sur <b>+</b> : coffrage tracé sur un plan, ou ferraillage lu depuis le plan PDF.</div>`}`;
   $$('.row[data-id]', root).forEach(r => r.onclick = async () => { await openAnyModel(list.find(m => m.id === r.dataset.id)); renderModels3D(root, filter); });
   $$('.row[data-pt]', root).forEach(r => r.onclick = async () => { const P = PT.find(x => x.id === r.dataset.pt); if (P) await ptOpen(p, P); renderModels3D(root, filter); });
-  $('[data-a=pt3]', root).onclick = async () => { const P = await ptNew(p); if (P) await ptOpen(p, P); renderModels3D(root, filter); };
+  ($('[data-a=pt3]', root)||{}).onclick = async () => { const P = await ptNew(p); if (P) await ptOpen(p, P); renderModels3D(root, filter); };
   fab(root, async () => { const m = await newModelFlow(); if (m) { await openAnyModel(m); renderModels3D(root, filter); } });
 }
 
@@ -169,7 +169,7 @@ function traceOnPlan(src) {
   return new Promise(async (resolve) => {
     const el = planPage(`Coffrage · ${src.name}`);
     const unBack = pushBack(() => { el.remove(); resolve(null); });
-    $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); resolve(null); };
+    ($('[data-a=x]', el)||{}).onclick = () => { unBack(); el.remove(); resolve(null); };
     const ld = loading('Ouverture du plan…'); let canvas; try { canvas = await renderSource(src, 3000); } finally { ld.close(); }
     const S = planStage(el, canvas);
     let step = 'cal', cal = [], mpp = 0, poly = [];
@@ -227,15 +227,15 @@ function ocrNomenclature(src) {
   return new Promise(async (resolve) => {
     const el = planPage(`Nomenclature · ${src.name}`);
     const unBack = pushBack(() => { el.remove(); resolve(null); });
-    $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); resolve(null); };
+    ($('[data-a=x]', el)||{}).onclick = () => { unBack(); el.remove(); resolve(null); };
     const ld = loading('Ouverture du plan…'); let canvas; try { canvas = await renderSource(src, 2600); } finally { ld.close(); }
     const S = planStage(el, canvas);
     let rect = null;
     $('.ps-step', el).innerHTML = `<b>Encadrez le tableau des barres</b> (Rep. · Dia. · Nb · Long. · Forme) : appuyez sur « Encadrer » puis glissez le doigt. Zoom à 2 doigts.`;
     $('.ps-bar', el).innerHTML = `<button data-b="sel">▭ Encadrer</button><button data-b="go" class="ok" disabled>🔍 Lire le tableau</button>`;
     const draw = () => { const g = S.g; g.clearRect(0, 0, S.ov.width, S.ov.height); if (!rect) return; g.fillStyle = 'rgba(37,99,235,.15)'; g.strokeStyle = '#2563eb'; g.lineWidth = 3 / S.scale(); g.fillRect(rect.x, rect.y, rect.w, rect.h); g.strokeRect(rect.x, rect.y, rect.w, rect.h); };
-    $('[data-b=sel]', el).onclick = (e) => { e.target.classList.toggle('on'); S.drag = e.target.classList.contains('on') ? (a, b, end) => { rect = { x: Math.min(a[0], b[0]), y: Math.min(a[1], b[1]), w: Math.abs(b[0] - a[0]), h: Math.abs(b[1] - a[1]) }; draw(); if (end) { $('[data-b=go]', el).disabled = false; $('[data-b=sel]', el).classList.remove('on'); S.drag = null; } } : null; };
-    $('[data-b=go]', el).onclick = async () => {
+    ($('[data-b=sel]', el)||{}).onclick = (e) => { e.target.classList.toggle('on'); S.drag = e.target.classList.contains('on') ? (a, b, end) => { rect = { x: Math.min(a[0], b[0]), y: Math.min(a[1], b[1]), w: Math.abs(b[0] - a[0]), h: Math.abs(b[1] - a[1]) }; draw(); if (end) { $('[data-b=go]', el).disabled = false; $('[data-b=sel]', el).classList.remove('on'); S.drag = null; } } : null; };
+    ($('[data-b=go]', el)||{}).onclick = async () => {
       if (!rect || rect.w < 20) return toast('Encadrez d\'abord le tableau');
       const crop = { x: rect.x / canvas.width, y: rect.y / canvas.height, w: rect.w / canvas.width, h: rect.h / canvas.height };
       const ld2 = loading('Lecture du tableau… (quelques secondes)');
@@ -293,9 +293,9 @@ function editBars(bars, title) {
       $$('[data-del]', s.el).forEach(x => x.onclick = () => { bars.splice(+x.dataset.del, 1); draw(); });
       $$('[data-draw]', s.el).forEach(x => x.onclick = async () => { const b = bars[+x.dataset.draw]; const r = await drawBarShape({ path: b.path, dia: b.dia }); if (r) { b.path = r.pts; b.dims = r.dims; b.long = r.long; b.dia = r.dia; b.code = 'dessin'; draw(); } });
     };
-    $('[data-a=add]', s.el).onclick = () => { bars.push({ rep: String(bars.length + 1).padStart(3, '0'), dia: 12, nb: 1, long: 100, code: '0.00', dims: '', place: '' }); draw(); };
-    $('[data-a=c]', s.el).onclick = () => s.close();
-    $('[data-a=ok]', s.el).onclick = () => { s.onClose = null; s.close(); resolve(bars); };
+    ($('[data-a=add]', s.el)||{}).onclick = () => { bars.push({ rep: String(bars.length + 1).padStart(3, '0'), dia: 12, nb: 1, long: 100, code: '0.00', dims: '', place: '' }); draw(); };
+    ($('[data-a=c]', s.el)||{}).onclick = () => s.close();
+    ($('[data-a=ok]', s.el)||{}).onclick = () => { s.onClose = null; s.close(); resolve(bars); };
     draw();
   });
 }
@@ -327,7 +327,7 @@ async function openModel(m) {
         <button class="iconbtn" data-a="snap" title="Capture">${icon('camera')}</button><button class="iconbtn" data-a="more">${icon('more')}</button></div>
       <div class="v3-stage"><div class="v3-views"><button data-v="3d">3D</button><button data-v="top">Dessus</button><button data-v="front">Face</button><button data-v="side">Côté</button></div><button class="v3-full" data-a="full" title="Plein écran">${icon('expand')}</button></div>
       <div class="v3-panel"></div>`;
-    $('[data-a=x]', el).onclick = () => { unBack(); close(); };
+    ($('[data-a=x]', el)||{}).onclick = () => { unBack(); close(); };
     const stage = $('.v3-stage', el);
     const T = THREE;
     const scene = new T.Scene(); scene.background = new T.Color('#e9edf2');
@@ -387,11 +387,11 @@ async function openModel(m) {
       const v = await menu(z.name, M3D_STATUS.map(s => ({ label: s.l, swatch: C[s.k], value: s.k, checked: (z.status || 'todo') === s.k }))); if (!v) return;
       z.status = v; await saveModel(m.projectId, m); grp.children.forEach(o => { if (o.userData.zone === z) o.material.color.set(C[v]); }); b.querySelector('i').style.background = C[v]; b.querySelector('span').textContent = M3D_STATUS.find(s => s.k === v).l; });
     const gb = $('[data-a=groups]', el); if (gb) gb.onclick = async () => { if (await editGroups(m)) { await saveModel(m.projectId, m); unBack(); close(); openModel(m); } };
-    $('[data-a=full]', el).onclick = () => { el.classList.toggle('v3full'); $('[data-a=full]', el).innerHTML = icon(el.classList.contains('v3full') ? 'shrink' : 'expand'); };
+    ($('[data-a=full]', el)||{}).onclick = () => { el.classList.toggle('v3full'); $('[data-a=full]', el).innerHTML = icon(el.classList.contains('v3full') ? 'shrink' : 'expand'); };
     const eb = $('[data-a=editbars]', el); if (eb) eb.onclick = async () => { const r = await editBars(m.bars.map(x => ({ ...x })), 'Repères'); if (r) { m.bars = r; autoPlace(m); await saveModel(m.projectId, m); unBack(); close(); openModel(m); } };
     const mb = $('[data-a=member]', el); if (mb) mb.onclick = async () => { if (await editMember(m)) { await saveModel(m.projectId, m); unBack(); close(); openModel(m); } };
-    $('[data-a=snap]', el).onclick = () => { renderer.render(scene, cam); renderer.domElement.toBlob(b => shareBlob(b, `${safeName(m.name)}_3D.png`), 'image/png'); };
-    $('[data-a=more]', el).onclick = async () => {
+    ($('[data-a=snap]', el)||{}).onclick = () => { renderer.render(scene, cam); renderer.domElement.toBlob(b => shareBlob(b, `${safeName(m.name)}_3D.png`), 'image/png'); };
+    ($('[data-a=more]', el)||{}).onclick = async () => {
       const v = await menu(m.name, [{ label: 'Renommer', icon: 'edit', value: 'ren' }, { label: 'Couleurs des états', icon: 'fill', value: 'col' }, ...(m.type === 'coffrage' ? [{ label: 'Hauteur / épaisseur', icon: 'ruler', value: 'h' }] : []), ...(m.mode === 'elem' ? [{ label: 'Nomenclature (repères)', icon: 'rows', value: 'nom' }] : []), { label: 'Supprimer', icon: 'trash', danger: true, value: 'del' }]);
       if (v === 'nom') { await editBars(m.bars.map(x => ({ ...x })), 'Nomenclature calculée'); }
       if (v === 'ren') { const r = await formSheet('Renommer', [{ name: 'n', label: 'Nom', value: m.name }]); if (r && r.n) { m.name = r.n; await saveModel(m.projectId, m); $('h1', el).textContent = m.name; } }

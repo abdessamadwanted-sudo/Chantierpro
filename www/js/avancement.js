@@ -63,10 +63,10 @@ async function renderAvancement(root) {
   const tba = $('#tbActions');
   if (tba) {
     tba.innerHTML = `${typeof openAvTable === 'function' ? `<button class="iconbtn" data-a="avtab" title="Tableau rapide">${icon('grid')}</button>` : ''}<button class="iconbtn" data-a="avjour" title="Avancement du jour">${icon('calendar')}</button><button class="iconbtn" data-a="avpdf" title="Rapport PDF">${icon('pdf')}</button><button class="iconbtn" data-a="avset" title="Lots et réglages">${icon('settings')}</button>`;
-    $('[data-a=avjour]').onclick = () => typeof openAvJour === 'function' && openAvJour(p);
+    ($('[data-a=avjour]')||{}).onclick = () => typeof openAvJour === 'function' && openAvJour(p);
     const avt = $('[data-a=avtab]'); if (avt) avt.onclick = () => openAvTable(p, { lotId: App.avTab !== 'dash' ? App.avTab : '', onClose: () => renderAvancement(root) });
-    $('[data-a=avpdf]').onclick = () => avReportDialog({});
-    $('[data-a=avset]').onclick = () => avSettings(root);
+    ($('[data-a=avpdf]')||{}).onclick = () => avReportDialog({});
+    ($('[data-a=avset]')||{}).onclick = () => avSettings(root);
   }
   const tabs = `<div class="av-tabs"><button data-t="dash" class="${App.avTab === 'dash' ? 'on' : ''}">📊 Pro</button>${(typeof avLotsOrdered === 'function' ? avLotsOrdered(p) : p.lots).map(l => `<button data-t="${l.id}" class="${App.avTab === l.id ? 'on' : ''}" style="--c:${l.color}"><i></i>${esc(l.name)}</button>`).join('')}</div>`;
   let body = '';
@@ -278,14 +278,14 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
       <div class="av-chips lots"></div>
       <div class="av-view"><div class="av-stage"><img src="${src}" width="${W}" height="${H}"><svg class="av-ov" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"></svg></div><div class="av-hint"></div></div>
       <div class="av-bottom"><div class="av-legend"></div><button class="btn small ghost av-selbtn" data-a="sel" title="Sélection de plusieurs pins">${icon('check')}</button><button class="btn small av-addbtn" data-a="add">${icon('plus')} Pin</button></div>`;
-    $('[data-a=x]', el).onclick = close;
+    ($('[data-a=x]', el)||{}).onclick = close;
     const cq = $('[data-a=cmpq]', el); if (cq) cq.onclick = () => avCompareQuick(p, niv, st.lot);
-    $('[data-a=sel]', el).onclick = () => { st.sel = st.sel ? null : new Set(); st.add = false; st.moving = null; st.lasso = null; drawUI(); };
-    $('[data-a=add]', el).onclick = async () => { if (st.zdraw) return finishZone(); st.add = !st.add; st.moving = null; drawUI(); };
-    $('[data-a=share]', el).onclick = shareMenu;
+    ($('[data-a=sel]', el)||{}).onclick = () => { st.sel = st.sel ? null : new Set(); st.add = false; st.moving = null; st.lasso = null; drawUI(); };
+    ($('[data-a=add]', el)||{}).onclick = async () => { if (st.zdraw) return finishZone(); st.add = !st.add; st.moving = null; drawUI(); };
+    ($('[data-a=share]', el)||{}).onclick = shareMenu;
     const plb = $('[data-a=plans]', el); if (plb) plb.onclick = plansMenu;
-    $('[data-a=more]', el).onclick = moreMenu;
-    $('[data-a=ind]', el).onclick = () => planIndicesMenu(plan, { onNew: async (np) => { plan = np; await load(); await setView(st.lot); await build(); }, onOpen: (old) => openPlanViewer(old, planCtx(() => {})) });
+    ($('[data-a=more]', el)||{}).onclick = moreMenu;
+    ($('[data-a=ind]', el)||{}).onclick = () => planIndicesMenu(plan, { onNew: async (np) => { plan = np; await load(); await setView(st.lot); await build(); }, onOpen: (old) => openPlanViewer(old, planCtx(() => {})) });
     pz = panZoom($('.av-view', el), $('.av-stage', el), W, H, { onTap, onChange: drawMarkers });
     // v1.0.53 : recadrage quand l'image du plan est prête (plan lourd, changement de lot) — le plan remplit l'écran
     { const im0 = $('.av-stage > img', el), pz0 = pz; if (im0 && !im0.complete) im0.addEventListener('load', () => { if (pz === pz0 && pz.st.s <= pz.st.fit * 1.01) pz.fit(); }, { once: true }); }
@@ -301,7 +301,7 @@ async function openAvViewer(nivId, lotId, onClose, focusLocId) {
     if (st.sel) { avSelBar(el, p, niv, st, { T, pz, redraw: drawUI, refresh }); drawMarkers(); return; }
     if (st.two) { const [la, lb] = st.two.map(id => avLot(p, id)), done = (id) => st.locs.filter(l => avIsDone(avStatus((l.lots || {})[id]))).length, gap = st.locs.filter(l => avIsDone(avStatus((l.lots || {})[la.id])) && avStatus((l.lots || {})[lb.id]) === 'todo').length;
       $('.av-legend', el).innerHTML = `<span class="avt-l"><b style="color:${la.color}">◐ ${esc(la.name)}</b> ${done(la.id)}/${st.locs.length} · <b style="color:${lb.color}">◑ ${esc(lb.name)}</b> ${done(lb.id)}/${st.locs.length}${gap ? ` · <em>${gap} prêt(s) pour ${esc(lb.name)}</em>` : ''}</span><button data-a="twoimg">${icon('share')} Image</button>`;
-      $('[data-a=twoimg]', el).onclick = async () => { const ld = loading('Préparation de l\'image…'); try { const c = await avTwoLotsImage(p, plan, st.locs, la, lb, `${niv.name} — ${la.name} / ${lb.name}`); const b = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9)); ld.close(); await shareBlob(b, avFileName(`${p.name} ${niv.name} ${la.name}-${lb.name}`) + '.jpg'); } catch (e) { ld.close(); alertBox(e.message || String(e)); } };
+      ($('[data-a=twoimg]', el)||{}).onclick = async () => { const ld = loading('Préparation de l\'image…'); try { const c = await avTwoLotsImage(p, plan, st.locs, la, lb, `${niv.name} — ${la.name} / ${lb.name}`); const b = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9)); ld.close(); await shareBlob(b, avFileName(`${p.name} ${niv.name} ${la.name}-${lb.name}`) + '.jpg'); } catch (e) { ld.close(); alertBox(e.message || String(e)); } };
       const ab2 = $('[data-a=add]', el); ab2.classList.toggle('on', !!st.add); drawMarkers(); return; }
     $('.av-legend', el).innerHTML = Object.entries(AV_ST).filter(([k]) => s[k]).map(([k, [l, c]]) => `<button data-f="${k}" class="${st.filter === k ? 'on' : ''}"><i style="background:${c}"></i>${s[k]} ${l}</button>`).join('') || `<span class="muted">Touchez « + Pin » puis le plan pour placer les locaux</span>`;
     $$('.av-legend [data-f]', el).forEach(b => b.onclick = () => { st.filter = st.filter === b.dataset.f ? null : b.dataset.f; drawUI(); });
@@ -487,14 +487,14 @@ function openAvLocal(loc, lotId, onChange, { onMove } = {}) {
     const add = $('[data-a=addphoto]', box); if (add) add.onclick = async () => { const fs = await addPhotos(p.id, { local: loc.id, lot: cur }); if (fs.length) { r.photos.push(...fs.map(f => f.id)); await save(true); render(); } };
     $$('.thumbs .t[data-id]', box).forEach(t => t.onclick = (e) => { if (e.target.closest('[data-del]')) return; const i = files.findIndex(f => f.id === t.dataset.id); showGallery(files.map(f => ({ src: BlobURL.get(f.id, f.blob), caption: `${loc.name} · ${avLot(p, cur).name} · ${fmtDateTime(f.createdAt)}` })), i); });
     $$('[data-del]', box).forEach(b => b.onclick = async (e) => { e.stopPropagation(); if (!await confirmBox('Supprimer cette photo ?')) return; r.photos = r.photos.filter(x => x !== b.dataset.del); await DB.del('files', b.dataset.del); await save(true); render(); });
-    $('[data-a=ren]', box).onclick = async () => { const x = await formSheet('Renommer', [{ name: 'n', label: 'Nom du local', value: loc.name }]); if (x && x.n) { loc.name = x.n; await save(true); $('h3', s.el).textContent = loc.name; } };
+    ($('[data-a=ren]', box)||{}).onclick = async () => { const x = await formSheet('Renommer', [{ name: 'n', label: 'Nom du local', value: loc.name }]); if (x && x.n) { loc.name = x.n; await save(true); $('h3', s.el).textContent = loc.name; } };
     const mv = () => { s.close(); if (onMove) onMove(loc); };
-    $('[data-a=move]', box).onclick = mv; const m2 = $('[data-a=move2]', box); if (m2) m2.onclick = mv;
+    ($('[data-a=move]', box)||{}).onclick = mv; const m2 = $('[data-a=move2]', box); if (m2) m2.onclick = mv;
     const ok = $('[data-a=okpos]', box); if (ok) ok.onclick = async () => { delete loc.checkIndice; await save(true); render(); };
-    $('[data-a=pdf]', box).onclick = () => avReportDialog({ nivId: loc.nivId, lotId: cur, locIds: [loc.id] });
+    ($('[data-a=pdf]', box)||{}).onclick = () => avReportDialog({ nivId: loc.nivId, lotId: cur, locIds: [loc.id] });
     // v1.0.47 : réserve rattachée au local (le pin affiche ⚠ et le 100 % demande confirmation tant qu'elle est ouverte)
-    $('[data-a=res]', box).onclick = async () => { const t = await newTask({ localId: loc.id, title: `${loc.name}${niv.name ? ' · ' + niv.name : ''} · ${avLot(p, cur).name} : `, ...(loc.planId ? { planId: loc.planId, x: loc.x, y: loc.y } : {}) }); s.close(); await openTaskDetail(t); onChange && onChange(); };
-    $('[data-a=del]', box).onclick = async () => { if (!await confirmBox(`Supprimer le local ${loc.name} et ses photos ?`)) return; for (const rr of Object.values(loc.lots || {})) for (const id of rr.photos || []) await DB.del('files', id); await DB.del('links', loc.id); clearTimeout(saveT); saveT = null; s.close(); onChange && onChange(); };
+    ($('[data-a=res]', box)||{}).onclick = async () => { const t = await newTask({ localId: loc.id, title: `${loc.name}${niv.name ? ' · ' + niv.name : ''} · ${avLot(p, cur).name} : `, ...(loc.planId ? { planId: loc.planId, x: loc.x, y: loc.y } : {}) }); s.close(); await openTaskDetail(t); onChange && onChange(); };
+    ($('[data-a=del]', box)||{}).onclick = async () => { if (!await confirmBox(`Supprimer le local ${loc.name} et ses photos ?`)) return; for (const rr of Object.values(loc.lots || {})) for (const id of rr.photos || []) await DB.del('files', id); await DB.del('links', loc.id); clearTimeout(saveT); saveT = null; s.close(); onChange && onChange(); };
   }
   // v1.0.46 : onglets de la fiche — suivi par lot · étapes & photos (local technique) · journal (saisies quotidiennes)
   function infoChips() {

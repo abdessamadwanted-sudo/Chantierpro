@@ -243,7 +243,7 @@ async function openPlanCompare(oldPlan, newPlan, opts = {}) {
       <button class="btn small" data-a="list">${LV ? 'Voir les changements' : `${D.rects.length} zone(s)${TX.length ? ' · ' + TX.length + ' texte(s)' : ''}`}</button></div>`;
   document.body.appendChild(el);
   const unBack = pushBack(() => el.remove());
-  $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); try { URL.revokeObjectURL(diffURL); hd.width = hd.height = 0; } catch (e) {} };
+  ($('[data-a=x]', el)||{}).onclick = () => { unBack(); el.remove(); try { URL.revokeObjectURL(diffURL); hd.width = hd.height = 0; } catch (e) {} };
   const view = $('.av-view', el), stage = $('.av-stage', el), img = $('img', stage), ov = $('.av-ov', el), hd = $('.cmp-hd', el);
   hd.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;display:none';
   let focusI = -1;
@@ -296,7 +296,7 @@ async function openPlanCompare(oldPlan, newPlan, opts = {}) {
   requestAnimationFrame(pz.fit);
   const setMode = (m) => { mode = m; last = null; hd.style.display = 'none'; img.src = m === 'old' ? srcOld : m === 'new' ? srcNew : diffURL; $$('[data-m]', el).forEach(b => b.classList.toggle('on', b.dataset.m === mode || (b.dataset.m === 'box' && boxes))); clearTimeout(hdT); hdT = setTimeout(renderHD, 50); };
   $$('[data-m]', el).forEach(b => b.onclick = () => { if (b.dataset.m === 'box') { boxes = !boxes; drawBoxes(pz.st.s); setMode(mode); } else setMode(b.dataset.m); });
-  $('[data-a=list]', el).onclick = () => {
+  ($('[data-a=list]', el)||{}).onclick = () => {
     if (LV) {   // liste sans comptage : où regarder sur le plan
       if (!D.rects.length) return toast('Aucun changement de structure détecté ✓');
       const where = (q) => { const cx = (q.x + q.w / 2) / W, cy = (q.y + q.h / 2) / H; return `${cy < .34 ? 'en haut' : cy > .66 ? 'en bas' : 'au milieu'}${cx < .34 ? ' à gauche' : cx > .66 ? ' à droite' : cy >= .34 && cy <= .66 ? '' : ' au centre'}`; };
@@ -310,7 +310,7 @@ async function openPlanCompare(oldPlan, newPlan, opts = {}) {
     $$('[data-t]', s.el).forEach(b => b.onclick = () => { const c = TX[+b.dataset.t]; focusI = +b.dataset.t; s.close(); pz.zoomTo(c.x - c.h * 3, c.y - c.h * 3, c.w + c.h * 6, c.h * 7); });
     $$('[data-z]', s.el).forEach(b => b.onclick = () => { const q = D.rects[+b.dataset.z]; focusI = -1; s.close(); pz.zoomTo(q.x, q.y, q.w, q.h); });
   };
-  $('[data-a=sens]', el).onclick = async () => {
+  ($('[data-a=sens]', el)||{}).onclick = async () => {
     const v = await menu('Sensibilité de la détection', [{ label: 'Tout (même les petits détails)', value: '0.45', checked: sens === 0.45 }, { label: 'Normale', value: '1', checked: sens === 1 }, { label: 'Seulement les grosses modifications', value: '2', checked: sens === 2 }]);
     if (!v) return; sens = +v; try { localStorage.setItem('cmp.sens', v); } catch (e) {}
     const l2 = loading('Recherche des modifications…'); try { D = await planDiff(oldPlan, newPlan, LV ? 2600 : 2000, { map: M, sens, struct: LV }); } finally { l2.close(); }
@@ -329,7 +329,7 @@ async function openPlanCompare(oldPlan, newPlan, opts = {}) {
     try { URL.revokeObjectURL(diffURL); } catch (e) {} diffURL = URL.createObjectURL(await new Promise(r => D.canvas.toBlob(r, 'image/png'))); D.canvas.width = D.canvas.height = 0;
     $('[data-a=list]', el).textContent = LV ? 'Voir les changements' : `${D.rects.length} zone(s)${TX.length ? ' · ' + TX.length + ' texte(s)' : ''}`; setMode('diff'); drawBoxes(pz.st.s); toast('Recalé ✓');
   };
-  $('[data-a=share]', el).onclick = async () => {
+  ($('[data-a=share]', el)||{}).onclick = async () => {
     const l3 = loading('Préparation…');
     try {
       const k = Math.min(1, 3200 / Math.max(W, H)), ow = Math.round(W * k), oh = Math.round(H * k);

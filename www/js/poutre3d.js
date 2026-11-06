@@ -261,14 +261,14 @@ async function ptOpen(p, P) {
       $('[data-a=cut]', el).oninput = (e) => { cutX = +e.target.value; $('[data-a=cutv]', el).textContent = Math.round(cutX) + ' cm'; $('.pt-coupe', el).innerHTML = ptCoupeSVG(P, cutX); placeCut(); };
       $$('[data-hide]', el).forEach(b2 => b2.onclick = () => { const k = +b2.dataset.hide; hidden.has(k) ? hidden.delete(k) : hidden.add(k); rebuild(); panel(); });
       $$('[data-bi]', el).forEach(b2 => b2.onclick = async () => { if (await ptEditBar(P, P.bars[+b2.dataset.bi])) { await save(); rebuild(); panel(); } });
-      $('[data-a=addbar]', el).onclick = async () => { if (await ptEditBar(P, null)) { await save(); rebuild(); panel(); } };
-      $('[data-a=dims]', el).onclick = async () => { if (await ptEditMain(P)) { await save(); $('h1', el).textContent = P.name || 'Poutre'; rebuild(); view('3d'); panel(); } };
+      ($('[data-a=addbar]', el)||{}).onclick = async () => { if (await ptEditBar(P, null)) { await save(); rebuild(); panel(); } };
+      ($('[data-a=dims]', el)||{}).onclick = async () => { if (await ptEditMain(P)) { await save(); $('h1', el).textContent = P.name || 'Poutre'; rebuild(); view('3d'); panel(); } };
     };
     $$('[data-v]', el).forEach(b2 => b2.onclick = () => { if (b2.dataset.v === 'solid') { solid = !solid; b2.classList.toggle('on', solid); return rebuild(); } view(b2.dataset.v); });
-    $('[data-a=x]', el).onclick = () => { unBack(); close(); };
-    $('[data-a=full]', el).onclick = () => { el.classList.toggle('full'); $('[data-a=full]', el).textContent = el.classList.contains('full') ? '✕' : '⛶'; setTimeout(fitR, 60); };
-    $('[data-a=snap]', el).onclick = () => { renderer.render(scene, cam); renderer.domElement.toBlob(bl => shareBlob(bl, `${safeName(P.name || 'poutre')}_3D.png`), 'image/png'); };
-    $('[data-a=more]', el).onclick = async () => {
+    ($('[data-a=x]', el)||{}).onclick = () => { unBack(); close(); };
+    ($('[data-a=full]', el)||{}).onclick = () => { el.classList.toggle('full'); $('[data-a=full]', el).textContent = el.classList.contains('full') ? '✕' : '⛶'; setTimeout(fitR, 60); };
+    ($('[data-a=snap]', el)||{}).onclick = () => { renderer.render(scene, cam); renderer.domElement.toBlob(bl => shareBlob(bl, `${safeName(P.name || 'poutre')}_3D.png`), 'image/png'); };
+    ($('[data-a=more]', el)||{}).onclick = async () => {
       const v = await menu(P.name || 'Poutre', [{ label: 'Dimensions et répartition', icon: 'edit', value: 'dims' }, { label: 'Ajouter une position', icon: 'plus', value: 'add' }, { label: 'Fiche PDF (3D + coupe + nomenclature)', icon: 'pdf', value: 'pdf' }, ...(P.pdfFileId ? [{ label: 'Voir le plan d\'origine', icon: 'plans', value: 'src' }] : []), { label: 'Supprimer la poutre', icon: 'trash', danger: true, value: 'del' }]);
       if (v === 'dims') $('[data-a=dims]', el).click(); if (v === 'add') $('[data-a=addbar]', el).click();
       if (v === 'src') { const f = await DB.get('files', P.pdfFileId); if (f) openFileRecord(f, f.name); }

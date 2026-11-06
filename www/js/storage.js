@@ -30,7 +30,7 @@ async function openStorage() {
   const unBack = pushBack(() => el.remove()), close = () => { unBack(); el.remove(); };
   const draw = async () => {
     el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><h1 style="flex:1;font-size:18px">Stockage & sauvegarde</h1></div><div class="st-body"><div class="empty">Calcul…</div></div>`;
-    $('[data-a=x]', el).onclick = close;
+    ($('[data-a=x]', el)||{}).onclick = close;
     const S = await storageStats(), on = Sync.enabled(), body = $('.st-body', el);
     const usage = S.est && S.est.usage, quota = S.est && S.est.quota;
     const photosDrive = S.files.filter(f => f._cat === 'photo' && f.blob && f.driveId && f.drivePath);

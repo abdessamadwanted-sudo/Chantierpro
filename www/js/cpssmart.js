@@ -151,5 +151,5 @@ function clFiche(F, onSearch) {
     <div class="clf-t">${F.rows.map(([a, b]) => `<div><span>${esc(a)}</span><b>${esc(b)}</b></div>`).join('')}</div>
     <div class="clf-w">Repères usuels de chantier : c'est le <b>CPS / CCTP du marché</b> qui fait foi.</div>
     <button class="btn" data-a="s" style="width:100%">${icon('search')} Voir ce que dit le CPS</button></div>`, { title: 'Fiche technique' });
-  $('[data-a=s]', s.el).onclick = () => { s.close(); onSearch(F.q); };
+  ($('[data-a=s]', s.el)||{}).onclick = () => { s.close(); onSearch(F.q); };
 }

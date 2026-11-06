@@ -107,7 +107,7 @@ async function avImportLocaux(p, niv, plan) {
       ${F.map(([k, L], i) => `<label class="avi-r"><input type="checkbox" data-i="${i}" ${AVP_KEEP.test(k) ? 'checked' : ''}><span class="grow"><b>${esc(k)}</b><small>${L.length} · ex : ${esc(L.slice(0, 3).map(b => b.name).join(' / ')).slice(0, 90)}</small></span>
         <select data-t="${i}"><option value="">Type…</option>${types.map(t => `<option value="${t.id}" ${guessType(k) === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></label>`).join('')}
       <button class="btn" data-a="go">Placer les locaux</button></div>`, { title: '📥 Importer les locaux du plan' });
-    $('[data-a=go]', s.el).onclick = () => { out = F.map(([k, L], i) => ({ k, L, on: $(`[data-i="${i}"]`, s.el).checked, t: $(`[data-t="${i}"]`, s.el).value })).filter(x => x.on); s.close(); };
+    ($('[data-a=go]', s.el)||{}).onclick = () => { out = F.map(([k, L], i) => ({ k, L, on: $(`[data-i="${i}"]`, s.el).checked, t: $(`[data-t="${i}"]`, s.el).value })).filter(x => x.on); s.close(); };
     s.onClose = () => resolve(out);
   });
   if (!sel || !sel.length) return 0;
@@ -209,10 +209,10 @@ async function avComparePlans(p, niv, preA, preB) {
     apply();
   };
   const pz = panZoom($('.av-view', el), stage, W, H, { onTap, onChange: () => { if (cal) apply(); } }); requestAnimationFrame(() => pz.fit());
-  $('[data-a=x]', el).onclick = () => { clearInterval(blinkT); unBack(); el.remove(); };
+  ($('[data-a=x]', el)||{}).onclick = () => { clearInterval(blinkT); unBack(); el.remove(); };
   $('[data-a=v]', el).oninput = (e) => { v = +e.target.value; apply(); };
   $$('[data-m]', el).forEach(b => b.onclick = () => { mode = b.dataset.m; $$('[data-m]', el).forEach(x => x.classList.toggle('on', x === b)); apply(); });
-  $('[data-a=cal]', el).onclick = async () => { const w = await menu('Calage des deux plans', [{ label: 'Caler à la main (2 points)', icon: 'move', value: 'man' }, { label: 'Calage automatique (textes communs)', icon: 'undo', value: 'auto' }]);
+  ($('[data-a=cal]', el)||{}).onclick = async () => { const w = await menu('Calage des deux plans', [{ label: 'Caler à la main (2 points)', icon: 'move', value: 'man' }, { label: 'Calage automatique (textes communs)', icon: 'undo', value: 'auto' }]);
     if (w === 'man') { cal = { step: 'a', done: [], a: null }; apply(); }
     if (w === 'auto') { if (niv.cal) { delete niv.cal[A.serieId + '>' + Bx.serieId]; await DB.put('projects', p); } const ld2 = loading('Calage automatique…'); try { C = { m: avMat(await planAlignMap(Bx.plan, A.plan)), manual: false }; } finally { ld2.close(); } setM(); apply(); } };
   Object.assign(bx.style, { position: 'absolute', left: 0, top: 0, width: W + 'px', height: H + 'px', overflow: 'hidden' });

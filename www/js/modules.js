@@ -50,7 +50,7 @@ function featToggles(title, state, keys, { sub } = {}) {
     const w = $('.ft-w', s.el), bind = () => { w.innerHTML = body();
       $$('[data-k]', w).forEach(b => b.onclick = () => { const k = b.dataset.k; f[k] = f[k] === false; b.classList.toggle('on', f[k] !== false); $('.ft-all span', w).textContent = `${keys.filter(k => f[k] !== false).length} / ${keys.length}`; try { navigator.vibrate && navigator.vibrate(8); } catch (e) {} });
       $$('[data-all]', w).forEach(b => b.onclick = () => { keys.forEach(k => f[k] = b.dataset.all === '1'); bind(); });
-      $('[data-ok]', w).onclick = () => { res = f; s.close(); }; };
+      ($('[data-ok]', w)||{}).onclick = () => { res = f; s.close(); }; };
     bind(); s.onClose = () => resolve(res);
   });
 }
@@ -151,8 +151,8 @@ function showUpdate(latest, notes = '') {
     <p><b>Nouvelle version ${esc(latest)}</b> disponible (vous avez ${esc(APP_VERSION)}).</p>${news}
     <p class="muted">Installez-la <b>par-dessus</b> l'application : <b>ne la désinstallez pas</b>. Vos projets, plans, photos et réglages restent sur le téléphone.</p>
     <div class="btnrow"><button class="btn ghost" data-a="later">Plus tard</button><button class="btn" data-a="go">${icon('upload')} Mettre à jour</button></div></div>`, { title: 'Mise à jour' });
-  $('[data-a=later]', s.el).onclick = () => s.close();
-  $('[data-a=go]', s.el).onclick = () => { s.close(); installUpdate(); };
+  ($('[data-a=later]', s.el)||{}).onclick = () => s.close();
+  ($('[data-a=go]', s.el)||{}).onclick = () => { s.close(); installUpdate(); };
 }
 
 // ---------- Mise à jour rapide (sans réinstaller) : paquet web téléchargé puis chargé à la place de celui de l'APK ----------

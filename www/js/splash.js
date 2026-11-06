@@ -162,8 +162,8 @@ const Splash = (() => {
     const sync = () => { $$('[data-g]', s.el).forEach(g => $$('button', g).forEach(b => b.classList.toggle('on', b.dataset.v === st[g.dataset.g]))); $$('[data-show]', s.el).forEach(x => x.style.display = x.dataset.show === st.mode ? '' : 'none'); };
     $$('[data-g] button', s.el).forEach(b => b.onclick = () => { st[b.parentElement.dataset.g] = b.dataset.v; sync(); });
     const read = () => { const o = { ...S, m: { ...S.m }, e: { ...S.e }, mode: st.mode, rest: st.rest }; $$('[data-k]', s.el).forEach(i => { const [a, b] = i.dataset.k.split('.'), v = i.type === 'checkbox' ? i.checked : i.value; if (b) o[a][b] = v; else o[a] = v; }); return o; };
-    $('[data-a=ok]', s.el).onclick = () => { LS('splash.sched', JSON.stringify(read())); LS('splash.off', '0'); s.close(); toast('Écran d\'ouverture enregistré ✓'); };
-    $('[data-a=see]', s.el).onclick = () => { const o = read(); forceSound = o.mode === 'time' ? !!(inWin(o.m) ? o.m.sound : inWin(o.e) ? o.e.sound : false) : o.sound !== false; s.close(); show(true).then(() => { forceSound = null; }); };
+    ($('[data-a=ok]', s.el)||{}).onclick = () => { LS('splash.sched', JSON.stringify(read())); LS('splash.off', '0'); s.close(); toast('Écran d\'ouverture enregistré ✓'); };
+    ($('[data-a=see]', s.el)||{}).onclick = () => { const o = read(); forceSound = o.mode === 'time' ? !!(inWin(o.m) ? o.m.sound : inWin(o.e) ? o.e.sound : false) : o.sound !== false; s.close(); show(true).then(() => { forceSound = null; }); };
     sync();
   }
   const label = () => { const S = sched(); return S.mode === 'off' ? 'désactivé' : S.mode === 'time' ? 'selon l\'heure' : (S.sound !== false ? 'animé + son' : 'animé, sans son'); };
