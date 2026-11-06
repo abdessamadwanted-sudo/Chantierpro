@@ -45,6 +45,14 @@ function lotSelDefault(f, ps) {
   App.lotSel[f.id] = d; return d;
 }
 const nivOfFolder = (name) => { const m = String(name || '').replace(/_/g, ' ').replace(/niveau|niv\.?(?=\s*[rR\d])/gi, ' ').match(/\b(R\s?\+\s?\d+|RDC|SSL|SS\s?\d?|Mezz\w*|Terrasse|Fondations?)\b/i); return m ? m[1].replace(/\s+/g, '').replace(/^mezz\w*/i, 'Mezz') : ''; };
+// v1.0.97 : disciplines d'un niveau (plans d'exécution)
+const DISCIPLINES = [
+  { k: 'ARCH', l: 'Architecture (ARCH)' }, { k: 'STR', l: 'Structure / béton armé (STR)' }, { k: 'VRD', l: 'VRD' },
+  { k: 'CFO', l: 'Électricité CFO' }, { k: 'CFA', l: 'Électricité CFA' }, { k: 'PLB', l: 'Plomberie / sanitaire (PLB)' },
+  { k: 'CVC', l: 'CVC' }, { k: 'SSI', l: 'Sécurité incendie (SSI)' }, { k: 'CM', l: 'Charpente métallique (CM)' },
+  { k: 'ETA', l: 'Étanchéité (ETA)' }, { k: 'PAY', l: 'Aménagement / paysage (PAY)' }, { k: 'SYN', l: 'Synthèse (SYN)' },
+];
+const discLabel = (f) => !f || !f.disc ? '' : f.disc === '_free' ? (f.discName || 'Autre') : ((DISCIPLINES.find(d => d.k === f.disc) || {}).l || f.disc);
 const tint = (c, a) => c + Math.round(a * 255).toString(16).padStart(2, '0');
 
 // barre de lots + panneau du lot choisi, insérés dans la carte du dossier
