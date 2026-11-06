@@ -1,3 +1,6 @@
+## SiteTeam : v1.0.99
+- Plans : le titre du type de niveau (Architecture, Structure…) est centré entre les groupes. Les niveaux sans type sont sous « Sans type ».
+
 ## SiteTeam : v1.0.98
 - Lots : menu du lot → « Catégorie » (Structure, Architecture, etc.). La liste des lots est regroupée par catégorie.
 - Plans : les niveaux sont regroupés par type (ARCH, STR…) avec un titre à chaque groupe.
