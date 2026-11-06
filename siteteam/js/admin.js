@@ -62,8 +62,8 @@
     app.innerHTML = `<header><div class="hd"><div class="grow"><b>🛡 SiteTeam Admin</b><br><small>${esc(user.email)}</small></div>
         <button class="btn ghost" data-a="reload" title="Actualiser">↻</button><a class="btn ghost" href="index.html${emu ? '?emu=1' : ''}">Application</a><button class="btn ghost" data-a="out">Sortir</button></div>
       <nav>${TABS.map(([k, l]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}">${esc(l)}</button>`).join('')}</nav></header><main id="main"><div class="empty">Chargement…</div></main>`;
-    $('[data-a=out]').onclick = () => auth.signOut();
-    $('[data-a=reload]').onclick = () => draw(true);
+    ($('[data-a=out]')||{}).onclick = () => auth.signOut();
+    ($('[data-a=reload]')||{}).onclick = () => draw(true);
     $$('nav [data-t]').forEach(b => b.onclick = () => { tab = b.dataset.t; location.hash = tab; $$('nav [data-t]').forEach(x => x.classList.toggle('on', x === b)); draw(); });
     draw();
   }
@@ -191,7 +191,7 @@
         <tr class="pk-trial"><td>🎁 Essai gratuit (jours)</td>${L.map(P => `<td><input type="number" min="0" max="365" inputmode="numeric" data-tr="${P.k}" value="${+P.featTrial || 0}"></td>`).join('')}</tr></table></div></div>
       <div class="card"><h3>🧰 Outils de chaque pack</h3><div class="pk-t"><table>${head}${MODS.filter(([k]) => k !== 'projet').map(([k, l]) => row('m', k, l.split(' (')[0])).join('')}</table></div></div>
       <div class="btns pk-save"><button class="btn" data-a="pksave">Enregistrer</button><span class="muted">Basic sans essai et Pro avec 14 jours, par exemple.</span></div>`;
-    $('[data-a=pksave]', M).onclick = async () => {
+    ($('[data-a=pksave]', M)||{}).onclick = async () => {
       const out = {};
       for (const P of L) {
         const f = $$(`[data-f^="${P.k}|"]`, M).filter(x => x.checked).map(x => x.dataset.f.split('|')[1]);
@@ -334,7 +334,7 @@
       <div class="card">${L.length ? L.map(c => `<div class="row" data-c="${esc(c.code)}"><div class="t grow"><b>${esc(c.code)}</b><small>${esc(codeTxt(c))}${c.note ? ' · ' + esc(c.note) : ''}${c.expiresAt ? ' · valable jusqu\'au ' + esc(dt(c.expiresAt)) : ''}</small></div>
         <span class="pill ${c.status !== 'valide' ? 'bad' : (c.uses || 0) >= c.maxUses ? '' : 'ok'}">${c.status !== 'valide' ? 'Annulé' : (c.uses || 0) >= c.maxUses ? 'Utilisé' : 'Valide'}</span></div>`).join('') : '<div class="empty">Aucun code</div>'}</div>`;
     const v = (n) => $(`[name=${n}]`, M).value;
-    $('[data-a=mk]', M).onclick = async () => {
+    ($('[data-a=mk]', M)||{}).onclick = async () => {
       try { const code = await makeCode({ plan: v('plan'), days: v('days'), maxUses: v('max'), validDays: v('valid'), note: v('note').trim() }); D.at = 0; await load(true); codes(M); codeCard(code); }
       catch (e) { fail(e); }
     };
@@ -388,15 +388,15 @@
         <label>Taille maximale par fichier (Mo)<input name="smax" type="number" min="1" max="50" value="${esc(C.services.maxMb || 50)}"></label>
         <div class="btns"><button class="btn" data-a="sto">Enregistrer</button></div></div>`;
     const val = (n) => $(`[name=${n}]`, M), save = async (doc, data, msg) => { try { await db.collection('config').doc(doc).set(data, { merge: true }); toast(msg || 'Enregistré ✓'); logA('Contrôle de l\'app', doc, msg || Object.keys(data).join(', ')); D.at = 0; } catch (e) { fail(e); } };
-    $('[data-a=packs]', M).onclick = () => save('plans', Object.fromEntries($$('[data-pk]', M).filter(x => x.dataset.pk !== 'basic').map(x => [x.dataset.pk, { open: x.checked }])), 'Packs enregistrés ✓');
-    $('[data-a=svcs]', M).onclick = () => save('services', { open: [...new Set(['direction', 'externe', 'perso', ...$$('[data-sv]', M).filter(x => x.checked).map(x => x.dataset.sv)])] }, 'Services enregistrés ✓');
-    $('[data-a=off]', M).onclick = () => save('app', { off: $$('[data-off]', M).filter(x => x.checked).map(x => x.dataset.off) }, 'Fonctions enregistrées ✓');
-    $('[data-a=ver]', M).onclick = () => { const v = val('minv').value.trim(); if (v && !/^\d+\.\d+\.\d+$/.test(v)) return toast('Version au format X.Y.Z (ex : 1.0.24)');
+    ($('[data-a=packs]', M)||{}).onclick = () => save('plans', Object.fromEntries($$('[data-pk]', M).filter(x => x.dataset.pk !== 'basic').map(x => [x.dataset.pk, { open: x.checked }])), 'Packs enregistrés ✓');
+    ($('[data-a=svcs]', M)||{}).onclick = () => save('services', { open: [...new Set(['direction', 'externe', 'perso', ...$$('[data-sv]', M).filter(x => x.checked).map(x => x.dataset.sv)])] }, 'Services enregistrés ✓');
+    ($('[data-a=off]', M)||{}).onclick = () => save('app', { off: $$('[data-off]', M).filter(x => x.checked).map(x => x.dataset.off) }, 'Fonctions enregistrées ✓');
+    ($('[data-a=ver]', M)||{}).onclick = () => { const v = val('minv').value.trim(); if (v && !/^\d+\.\d+\.\d+$/.test(v)) return toast('Version au format X.Y.Z (ex : 1.0.24)');
       save('app', { minVersion: v, maintenance: { on: val('mon').checked, text: val('mtext').value.trim() } }); };
-    $('[data-a=inv]', M).onclick = () => save('app', { inviteOnly: val('inv').checked }, val('inv').checked ? 'Accès sur code uniquement ✓' : 'Accès libre ✓');
-    $('[data-a=sec]', M).onclick = () => save('app', { secureAll: val('secall').checked }, val('secall').checked ? 'Anti-capture imposé ✓' : 'Anti-capture libre ✓');
-    $('[data-a=msg]', M).onclick = () => save('app', { message: { on: val('gon').checked, level: val('glev').value, text: val('gtext').value.trim(), id: String(Date.now()) } });
-    $('[data-a=sto]', M).onclick = () => save('services', { storage: val('son').checked, maxMb: Math.min(50, Math.max(1, +val('smax').value || 50)) });
+    ($('[data-a=inv]', M)||{}).onclick = () => save('app', { inviteOnly: val('inv').checked }, val('inv').checked ? 'Accès sur code uniquement ✓' : 'Accès libre ✓');
+    ($('[data-a=sec]', M)||{}).onclick = () => save('app', { secureAll: val('secall').checked }, val('secall').checked ? 'Anti-capture imposé ✓' : 'Anti-capture libre ✓');
+    ($('[data-a=msg]', M)||{}).onclick = () => save('app', { message: { on: val('gon').checked, level: val('glev').value, text: val('gtext').value.trim(), id: String(Date.now()) } });
+    ($('[data-a=sto]', M)||{}).onclick = () => save('services', { storage: val('son').checked, maxMb: Math.min(50, Math.max(1, +val('smax').value || 50)) });
   }
 
   async function annForm(pre = {}) {
@@ -414,7 +414,7 @@
     const L = [...D.annonces].sort((a, b) => ms(b.at) - ms(a.at));
     M.innerHTML = `<h2>Annonces</h2><div class="card"><p class="muted">Elles s'affichent dans l'application (et en notification sur le téléphone) à la prochaine ouverture.</p><div class="btns"><button class="btn" data-a="new">Nouvelle annonce</button></div></div>
       <div class="card">${L.length ? L.map(x => `<div class="row" data-n="${esc(x.id)}"><div class="t grow"><b>${esc(x.title || 'SiteTeam')}</b><small>${x.target === 'all' ? 'Tout le monde' : esc(userOf(x.target).email || x.target)} · ${esc(dt(x.at))} · ${esc((x.text || '').slice(0, 90))}</small></div><span class="pill">Supprimer</span></div>`).join('') : '<div class="empty">Aucune annonce générale</div>'}</div>`;
-    $('[data-a=new]', M).onclick = () => annForm();
+    ($('[data-a=new]', M)||{}).onclick = () => annForm();
     $$('[data-n]', M).forEach(r => r.onclick = async () => { if (!(await modal('Supprimer l\'annonce ?', '<p>Elle ne s\'affichera plus pour ceux qui ne l\'ont pas encore vue.</p>', [['Supprimer', 'ok', 'bad'], ['Annuler', null, 'ghost']]))) return;
       try { await db.collection('annonces').doc(r.dataset.n).delete(); toast('Supprimée ✓'); draw(true); } catch (e) { fail(e); } });
   }
@@ -443,7 +443,7 @@
   }
   auth.onAuthStateChanged((u) => {
     if (!u) return login();
-    if ((u.email || '').toLowerCase() !== SUPER) { app.innerHTML = `<div class="login"><b>Accès réservé</b><p class="muted">Ce panneau est réservé au Super Admin SiteTeam (${esc(u.email || '')}).</p><button class="btn ghost" id="lo">Se déconnecter</button><a class="muted" href="index.html${emu ? '?emu=1' : ''}">← Retour à l'application</a></div>`; $('#lo').onclick = () => auth.signOut(); return; }
+    if ((u.email || '').toLowerCase() !== SUPER) { app.innerHTML = `<div class="login"><b>Accès réservé</b><p class="muted">Ce panneau est réservé au Super Admin SiteTeam (${esc(u.email || '')}).</p><button class="btn ghost" id="lo">Se déconnecter</button><a class="muted" href="index.html${emu ? '?emu=1' : ''}">← Retour à l'application</a></div>`; ($('#lo')||{}).onclick = () => auth.signOut(); return; }
     shell(u);
   });
   window.__admin = { load, D };

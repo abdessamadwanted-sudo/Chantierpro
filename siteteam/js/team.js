@@ -1022,8 +1022,8 @@ const Team = (() => {
         if (st === 'acceptee') { sh.close(); return switchTo(cid); }
         if (st === 'refusee') { sh.close(); const L2 = (S.workspaces || []).filter(x => x.cid !== cid); await fs.collection('users').doc(S.user.uid).set({ workspaces: L2 }, { merge: true }); S.workspaces = L2; return alertBox('Votre demande a été refusée par l\'organisation.'); }
         toast('Toujours en attente d\'approbation'); } catch (e) { alertBox(errMsg(e)); } });
-    $('[data-a=join]', sh.el).onclick = async () => { sh.close(); const cid = await joinWithCode(); if (cid) switchTo(cid); };
-    $('[data-a=new]', sh.el).onclick = async () => { sh.close(); const ok = await onboardScreen({ add: true }); if (ok) { try { if (typeof Sync !== 'undefined' && Sync.enabled && Sync.enabled()) await Sync.run({ quiet: true }); } catch (e) {} location.reload(); } };
+    ($('[data-a=join]', sh.el)||{}).onclick = async () => { sh.close(); const cid = await joinWithCode(); if (cid) switchTo(cid); };
+    ($('[data-a=new]', sh.el)||{}).onclick = async () => { sh.close(); const ok = await onboardScreen({ add: true }); if (ok) { try { if (typeof Sync !== 'undefined' && Sync.enabled && Sync.enabled()) await Sync.run({ quiet: true }); } catch (e) {} location.reload(); } };
   }
 
   // v1.0.52 : retiré d'une organisation → on quitte cet espace ET on efface ses données de ce téléphone (projets, plans, photos de l'organisation)
@@ -1205,7 +1205,7 @@ const Team = (() => {
           </div></main>
         </div>`;
         $$('[data-m]', el).forEach(b => b.onclick = () => { mode = b.dataset.m; draw(); });
-        $('[data-a=go]', el).onclick = go;
+        ($('[data-a=go]', el)||{}).onclick = go;
         const pw = $('[name=pw]', el), show = $('[data-a=showpw]', el);
         show.onclick = () => { const visible = pw.type === 'text'; pw.type = visible ? 'password' : 'text'; show.textContent = visible ? 'Afficher' : 'Masquer'; show.setAttribute('aria-label', visible ? 'Afficher le mot de passe' : 'Masquer le mot de passe'); };
         $$('input', el).forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') go(); }));
@@ -1245,8 +1245,8 @@ const Team = (() => {
           ${I.needsApproval ? '<small class="muted">⏳ Un administrateur de l\'organisation doit accepter votre demande avant l\'accès.</small>' : ''}
           <div class="btnrow" style="padding:0"><button class="btn ghost" data-a="no">Annuler</button><button class="btn" data-a="join-ok">Rejoindre</button></div></div>`, { title: 'Confirmer le code' });
       sh.onClose = () => resolve(false);
-      $('[data-a=no]', sh.el).onclick = () => sh.close();
-      $('[data-a=join-ok]', sh.el).onclick = () => { sh.onClose = null; sh.close(); resolve(true); };
+      ($('[data-a=no]', sh.el)||{}).onclick = () => sh.close();
+      ($('[data-a=join-ok]', sh.el)||{}).onclick = () => { sh.onClose = null; sh.close(); resolve(true); };
     });
   }
   async function joinWithCode() {
@@ -1303,9 +1303,9 @@ const Team = (() => {
           ${opt.add ? '<button class="linkbtn" data-a="cancel">← Retour à mon espace</button>' : `<button class="linkbtn" data-a="out">Se déconnecter (${esc(auth.currentUser.email || '')})</button>`}</div>`;
         const out = $('[data-a=out]', el); if (out) out.onclick = async () => { await auth.signOut(); LS.del('me'); LS.del('cid'); location.reload(); };
         const cc = $('[data-a=cancel]', el); if (cc) cc.onclick = () => { el.remove(); resolve(false); };
-        if (!io) { $('[data-a=perso]', el).onclick = () => { W.espace = 'perso'; W.org = 'independant'; stepPlan(); };
-          $('[data-a=create]', el).onclick = () => { W.espace = 'org'; stepPlan(); }; }
-        $('[data-a=join]', el).onclick = join;
+        if (!io) { ($('[data-a=perso]', el)||{}).onclick = () => { W.espace = 'perso'; W.org = 'independant'; stepPlan(); };
+          ($('[data-a=create]', el)||{}).onclick = () => { W.espace = 'org'; stepPlan(); }; }
+        ($('[data-a=join]', el)||{}).onclick = join;
       }
       // 2 · formule
       function stepPlan() {
@@ -1318,7 +1318,7 @@ const Team = (() => {
           <button class="linkbtn" data-a="back">← Retour</button></div>`;
         $$('[data-p]', el).forEach(b => b.onclick = () => { W.plan = b.dataset.p; W.espace === 'perso' ? stepMetier() : stepOrg(); });
         $$('[data-req]', el).forEach(b => b.onclick = () => requestPack(b.dataset.req, perso));
-        $('[data-a=pcode]', el).onclick = async () => { const C = await askPackCode(); if (!C) return; W.code = C; W.plan = C.plan; toast(`Code accepté : ${codeLabel(C)} ✓`); W.espace === 'perso' ? stepMetier() : stepOrg(); };
+        ($('[data-a=pcode]', el)||{}).onclick = async () => { const C = await askPackCode(); if (!C) return; W.code = C; W.plan = C.plan; toast(`Code accepté : ${codeLabel(C)} ✓`); W.espace === 'perso' ? stepMetier() : stepOrg(); };
         back(stepEspace);
       }
       // 3 · type d'organisation (= interface)
@@ -1352,7 +1352,7 @@ const Team = (() => {
         $$('[data-tpl]', el).forEach(b => b.onclick = () => { const full = orgTypeOf(W.org).svcs.filter(svcOpen); W.svcs = b.dataset.tpl === 'petite' ? full.slice(0, 3) : [...full]; if (maxS && W.svcs.length > maxS) { W.svcs = W.svcs.slice(0, maxS); toast(`Pack ${planOf(W.plan).l} : ${maxS} services au maximum`); }
           $$('[data-s]', el).forEach(x => x.classList.toggle('on', W.svcs.includes(x.dataset.s))); $$('[data-tpl]', el).forEach(x => x.classList.toggle('on', x === b)); });
         back(stepOrg);
-        $('[data-a=go]', el).onclick = () => { const cn = $('[name=cname]', el).value.trim(); if (!cn) return toast('Tapez le nom de l\'organisation');
+        ($('[data-a=go]', el)||{}).onclick = () => { const cn = $('[name=cname]', el).value.trim(); if (!cn) return toast('Tapez le nom de l\'organisation');
           const rs = $('[name=role]', el); create({ name: cn, me: $('[name=me]', el).value.trim(), role: rs ? rs.value : T.owner }); };
       }
       // espace personnel : le métier choisit l'interface
@@ -1363,7 +1363,7 @@ const Team = (() => {
             <div class="form"><label>Votre nom<input name="me" value="${esc(auth.currentUser.displayName || '')}"></label><button class="btn" data-a="go">Créer mon espace Free</button></div>
             <button class="linkbtn" data-a="back">← Retour</button></div>`;
           back(stepPlan);
-          $('[data-a=go]', el).onclick = () => { const me = $('[name=me]', el).value.trim() || auth.currentUser.displayName || ''; create({ name: `Espace de ${me || 'moi'}`, me, metier: '', spec: '' }); };
+          ($('[data-a=go]', el)||{}).onclick = () => { const me = $('[name=me]', el).value.trim() || auth.currentUser.displayName || ''; create({ name: `Espace de ${me || 'moi'}`, me, metier: '', spec: '' }); };
           return;
         }
         el.innerHTML = `<div class="tm-lg-in">${steps(3, tot())}<h1>Votre service et votre poste</h1><p>L'application s'adapte à votre poste : tableau de bord, outils et recommandations. Ce n'est pas un droit dans une organisation.</p>
@@ -1373,7 +1373,7 @@ const Team = (() => {
           <button class="btn" data-a="go">Créer mon espace</button></div>
           <button class="linkbtn" data-a="back">← Retour</button></div>`;
         back(stepPlan);
-        $('[data-a=go]', el).onclick = () => { const me = $('[name=me]', el).value.trim() || auth.currentUser.displayName || ''; create({ name: `Espace de ${me || 'moi'}`, me, metier: $('[name=role]', el).value, spec: $('[name=spec]', el).value.trim() }); };
+        ($('[data-a=go]', el)||{}).onclick = () => { const me = $('[name=me]', el).value.trim() || auth.currentUser.displayName || ''; create({ name: `Espace de ${me || 'moi'}`, me, metier: $('[name=role]', el).value, spec: $('[name=spec]', el).value.trim() }); };
       }
       async function create(r) {
         const ld = loading(W.espace === 'perso' ? 'Création de votre espace…' : 'Création de l\'organisation…');
@@ -1534,8 +1534,8 @@ const Team = (() => {
         <div class="fld">Outils et niveau</div>${mods.map(m => `<label class="tm-pl"><span>${esc(MOD_LABEL(m))}</span><select data-cm="${m}"><option value="0">Aucun accès</option><option value="1" ${def[m] === 1 ? 'selected' : ''}>Voir</option><option value="2" ${def[m] === 2 ? 'selected' : ''}>Modifier</option></select></label>`).join('')}
         <div class="btnrow" style="padding:0"><button class="btn ghost" data-a="c">Annuler</button><button class="btn" data-a="ok">Créer le code</button></div></div>`, { title: 'Inviter un collaborateur' });
       sh.onClose = () => resolve(null);
-      $('[data-a=c]', sh.el).onclick = () => sh.close();
-      $('[data-a=ok]', sh.el).onclick = () => { const perms = Object.fromEntries(MODS.map(([m]) => [m, 0])); $$('[data-cm]', sh.el).forEach(x => { perms[x.dataset.cm] = Math.min(2, +x.value); });
+      ($('[data-a=c]', sh.el)||{}).onclick = () => sh.close();
+      ($('[data-a=ok]', sh.el)||{}).onclick = () => { const perms = Object.fromEntries(MODS.map(([m]) => [m, 0])); $$('[data-cm]', sh.el).forEach(x => { perms[x.dataset.cm] = Math.min(2, +x.value); });
         if (!perms.projet) perms.projet = 1; sh.onClose = null; sh.close(); resolve({ name: $('[data-f=name]', sh.el).value.trim(), perms }); };
     });
     if (!r) return;
@@ -1586,8 +1586,8 @@ const Team = (() => {
       const E = s.el, f = (k) => $(`[data-f=${k}]`, E);
       f('entity').value = o.entity || 'entreprise';
       $$('[data-op]', E).forEach(c => c.checked = !!ops0[c.dataset.op]);
-      $('[data-a=c]', E).onclick = () => s.close();
-      $('[data-a=ok]', E).onclick = () => {
+      ($('[data-a=c]', E)||{}).onclick = () => s.close();
+      ($('[data-a=ok]', E)||{}).onclick = () => {
         const out = { entity: f('entity').value, label: f('label').value.trim(), contact: f('contact').value.trim(), scope: f('scope').value.trim(), dueDate: f('dueDate').value,
           ops: Object.fromEntries($$('[data-op]', E).map(c => [c.dataset.op, c.checked])) };
         if (!out.label) return alertBox('Indiquez le nom de l\'entreprise ou de la personne.');
@@ -1633,7 +1633,7 @@ const Team = (() => {
         <div class="list" style="margin-top:12px">${L.map(x => `<div class="tm-inv" data-code="${esc(x.code)}"><b class="tm-code">${esc(x.code)}</b><span class="grow">${esc(x.label || shareEntityLabel(x.entity))}
           <small>${esc(shareEntityLabel(x.entity))}${x.dueDate ? ' · jusqu\'au ' + esc(x.dueDate) : ''}${x.used ? ' · utilisé par ' + esc(x.usedByName || '?') : ' · pas encore utilisé'}${(x.responses || []).length ? ' · ' + x.responses.length + ' réponse(s)' : ''}</small></span>
           <button class="iconbtn sm" data-sh="${esc(x.code)}">${icon('share')}</button><button class="iconbtn sm" data-del="${esc(x.code)}">${icon('trash')}</button></div>`).join('') || '<div class="empty">Aucun partage externe pour ce projet.</div>'}</div>`;
-      $('[data-a=add]', wrap).onclick = async () => { if (await shareFlow(p)) draw(); };
+      ($('[data-a=add]', wrap)||{}).onclick = async () => { if (await shareFlow(p)) draw(); };
       $$('[data-sh]', wrap).forEach(b => b.onclick = () => { const x = L.find(i => i.code === b.dataset.sh); if (x) shareMsg(x.code, x); });
       $$('[data-del]', wrap).forEach(b => b.onclick = async () => { if (await revokeShare(b.dataset.del)) draw(); });
       $$('[data-code]', wrap).forEach(r => r.onclick = (e) => { if (e.target.closest('[data-sh],[data-del]')) return; const x = L.find(i => i.code === r.dataset.code); if (x) viewShareLog(x); });
@@ -1696,8 +1696,8 @@ const Team = (() => {
       s.onClose = () => resolve(null);
       const role = $('[data-f=role]', s.el);
       role.onchange = () => { const D = PARTNER_DEF[role.value] || {}; $$('[data-pm]', s.el).forEach(x => { x.value = String(D[x.dataset.pm] || 0); }); };
-      $('[data-a=c]', s.el).onclick = () => s.close();
-      $('[data-a=ok]', s.el).onclick = () => {
+      ($('[data-a=c]', s.el)||{}).onclick = () => s.close();
+      ($('[data-a=ok]', s.el)||{}).onclick = () => {
         const mods = { projet: 1 }; $$('[data-pm]', s.el).forEach(x => { const v = Math.min(2, +x.value || 0); if (v) mods[x.dataset.pm] = v; });
         if (Object.keys(mods).length < 2) return alertBox('Choisissez au moins un module à partager.');
         const lb = $('[data-f=label]', s.el); s.onClose = null; s.close(); resolve({ role: role.value, label: lb ? lb.value.trim() : '', mods });
@@ -1732,8 +1732,8 @@ const Team = (() => {
         <p class="muted" style="font-size:12.5px">Vos membres verront ce projet dans « ${esc(S.company.name)} », selon leurs propres droits. Votre équipe, votre organigramme et vos autres projets restent privés.</p>
         <div class="btnrow" style="padding:0"><button class="btn ghost" data-a="no">Annuler</button><button class="btn" data-a="pj-ok">Rejoindre le projet</button></div>`, { title: 'Projet partenaire' });
       sh.onClose = () => resolve(false);
-      $('[data-a=no]', sh.el).onclick = () => sh.close();
-      $('[data-a=pj-ok]', sh.el).onclick = () => { sh.onClose = null; sh.close(); resolve(true); };
+      ($('[data-a=no]', sh.el)||{}).onclick = () => sh.close();
+      ($('[data-a=pj-ok]', sh.el)||{}).onclick = () => { sh.onClose = null; sh.close(); resolve(true); };
     });
     if (!ok) return null;
     const ld = loading('Connexion au projet…');
@@ -1846,7 +1846,7 @@ const Team = (() => {
           ${canInvite() ? `<button class="btn small" data-a="invite" style="flex:none">${icon('plus')} Inviter</button>` : ''}</div>
         <div class="tm-tabs">${tabs.map(([k, l]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
         <div class="tm-body"></div>`;
-      $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
+      ($('[data-a=x]', el)||{}).onclick = () => { unBack(); el.remove(); };
       $$('[data-t]', el).forEach(b => b.onclick = () => { tab = b.dataset.t; draw(); });
       const inv = $('[data-a=invite]', el); if (inv) inv.onclick = () => inviteFlow().then(c => { if (c) { tab = 'inv'; draw(); } });
       $$('[data-addsvc]', el).forEach(b => b.onclick = (e) => { e.stopPropagation(); inviteFlow(b.dataset.addsvc).then(c => { if (c) { tab = 'inv'; draw(); } }); });   // v1.0.93 : ajouter une personne directement dans un service
@@ -1921,24 +1921,24 @@ const Team = (() => {
             <small data-secstate style="color:var(--muted)">Sur ce téléphone : ${secureOn() ? '🔒 activé' : '🔓 désactivé'}</small>
             ${appCfg().secureAll && isSuper() ? '<button class="btn ghost small" data-a="secall-off">Lever l\'anti-capture imposé à tous</button>' : ''}</div>
           <div class="tm-box"><b>🏢 Entreprise</b><button class="btn ghost small" data-a="ren">Renommer l'entreprise</button></div></div>`;
-        $('[data-a=drive]', body).onclick = () => Sync.openSyncSettings();
+        ($('[data-a=drive]', body)||{}).onclick = () => Sync.openSyncSettings();
         const sc = $('[data-a=secure]', body); if (sc) sc.onchange = async () => { try { await fs.collection('companies').doc(S.cid).update({ secureScreen: sc.checked }); S.company.secureScreen = sc.checked; LS.set('company', S.company); secureApply(); const ss = $('[data-secstate]', body); if (ss) ss.textContent = 'Sur ce téléphone : ' + (secureOn() ? '🔒 activé' : '🔓 désactivé'); toast(sc.checked ? 'Anti-capture activé ✓' : 'Anti-capture désactivé ✓'); } catch (e) { sc.checked = !sc.checked; alertBox(errMsg(e)); } };
         const so = $('[data-a=secall-off]', body); if (so) so.onclick = async () => { try { await fs.collection('config').doc('app').set({ secureAll: false }, { merge: true }); LS.set('appCfg', { ...appCfg(), secureAll: false }); secureApply(); toast('Anti-capture levé pour tous ✓'); draw(); } catch (e) { alertBox(errMsg(e)); } };
         const sup = $('[data-a=super]', body); if (sup) sup.onclick = () => superConsole();
         const adm = $('[data-a=admin]', body); if (adm) adm.onclick = () => { location.href = 'admin.html' + (/[?&]emu=1/.test(location.search) ? '?emu=1' : ''); };
-        $('[data-a=catalog]', body).onclick = () => openCatalogue();
+        ($('[data-a=catalog]', body)||{}).onclick = () => openCatalogue();
         const ot = $('[data-a=otype]', body); if (ot) ot.onclick = async () => {
           const k = await menu('Type d\'organisation', ORG_TYPES.map(t => ({ label: `${t.e} ${t.l}`, value: t.k, checked: t.k === T.k })));
           if (!k || k === T.k) return; try { await fs.collection('companies').doc(S.cid).update({ orgType: k }); S.company.orgType = k; LS.set('company', S.company); toast('Interface mise à jour ✓'); draw(); } catch (e) { alertBox(errMsg(e)); } };
         const sv = $('[data-a=svcs]', body); if (sv) sv.onclick = async () => { const L = await pickServices(Array.isArray(S.company.services) ? S.company.services : TM_SERVICES.map(x => x.k));
           if (!L) return; try { await fs.collection('companies').doc(S.cid).update({ services: L }); S.company.services = L; LS.set('company', S.company); toast('Services enregistrés ✓'); draw(); } catch (e) { alertBox(errMsg(e)); } };
         const sh = $('[data-a=share]', body); if (sh) sh.onclick = shareDrive;
-        $('[data-a=import]', body).onclick = () => importChantier();
+        ($('[data-a=import]', body)||{}).onclick = () => importChantier();
         // v1.0.57 : règles de sécurité visibles par le Super Admin seulement
         { const r1 = $('[data-a=rules]', body), r2 = $('[data-a=srules]', body); if (r1) r1.onclick = () => copyText(FIRESTORE_RULES); if (r2) r2.onclick = () => copyText(STORAGE_RULES); }
-        $('[data-a=ren]', body).onclick = async () => { const r = await formSheet('Entreprise', [{ name: 'n', label: 'Nom', value: S.company.name }]); if (r && r.n) { await fs.collection('companies').doc(S.cid).update({ name: r.n }); S.company.name = r.n; LS.set('company', S.company); draw(); } };
+        ($('[data-a=ren]', body)||{}).onclick = async () => { const r = await formSheet('Entreprise', [{ name: 'n', label: 'Nom', value: S.company.name }]); if (r && r.n) { await fs.collection('companies').doc(S.cid).update({ name: r.n }); S.company.name = r.n; LS.set('company', S.company); draw(); } };
         { const pcb = $('[data-a=pcode]', body); if (pcb) pcb.onclick = () => applyPackCode(); }
-        $('[data-a=planchange]', body).onclick = async () => { const L = offersFor(false).filter(x => x.k !== myPlan().k); const k = await menu('Quel pack demander ?', L.map(x => ({ label: `${x.e || ''} ${x.l} · ${planPrice(x)}`, value: x.k }))); if (k) requestPack(k, false); };
+        ($('[data-a=planchange]', body)||{}).onclick = async () => { const L = offersFor(false).filter(x => x.k !== myPlan().k); const k = await menu('Quel pack demander ?', L.map(x => ({ label: `${x.e || ''} ${x.l} · ${planPrice(x)}`, value: x.k }))); if (k) requestPack(k, false); };
       }
       if (tab === 'prof') {
         const F = S.profil || {}, M2 = metierOf(F.metier);
@@ -1953,7 +1953,7 @@ const Team = (() => {
           <label>Téléphone (facultatif)<input data-f="telephone" type="tel" value="${esc(F.telephone || '')}"></label>
           <label>Confidentialité<select data-f="visibilite"><option value="prive" ${F.visibilite !== 'orgs' ? 'selected' : ''}>Privé : visible par moi seulement</option><option value="orgs" ${F.visibilite === 'orgs' ? 'selected' : ''}>Visible par les organisations dont je suis membre</option></select></label>
           <button class="btn" data-a="psave">Enregistrer mon profil</button></div>`;
-        $('[data-a=psave]', body).onclick = async () => {
+        ($('[data-a=psave]', body)||{}).onclick = async () => {
           const v = {}; $$('[data-f]', body).forEach(x => { v[x.dataset.f] = x.value.trim(); }); v.experience = v.experience === '' ? null : +v.experience;
           try { await withTimeout(fs.collection('users').doc(S.user.uid).set({ profil: v }, { merge: true })); S.profil = { ...S.profil, ...v }; LS.set('profile', { ...(LS.get('profile') || {}), profil: S.profil }); toast('Profil enregistré ✓'); try { if (typeof ST !== 'undefined') ST.refreshRole(); } catch (e) {} } catch (e) { alertBox(errMsg(e)); }
         };
@@ -1979,11 +1979,11 @@ const Team = (() => {
           <button class="btn ghost" data-a="name">${icon('edit')} Modifier mon nom</button>
           <button class="btn danger" data-a="out">Se déconnecter</button>
           <button class="linkbtn tm-delacc" data-a="delacc">Supprimer mon compte…</button>`;
-        $('[data-a=out]', body).onclick = logout;
-        $('[data-a=delacc]', body).onclick = deleteAccount;
-        $('[data-a=claim]', body).onclick = async () => { await claimShare(); draw(); };
+        ($('[data-a=out]', body)||{}).onclick = logout;
+        ($('[data-a=delacc]', body)||{}).onclick = deleteAccount;
+        ($('[data-a=claim]', body)||{}).onclick = async () => { await claimShare(); draw(); };
         $$('[data-shcode]', body).forEach(r => r.onclick = () => { const x = mine.find(i => i.code === r.dataset.shcode); if (x) viewSharedAccess(x.code, x); });
-        $('[data-a=name]', body).onclick = async () => { const r = await formSheet('Mon nom', [{ name: 'n', label: 'Nom et prénom', value: S.me.name || '' }]); if (r && r.n) { try { await auth.currentUser.updateProfile({ displayName: r.n }); if (isAdmin()) await fs.collection('companies').doc(S.cid).collection('members').doc(S.user.uid).update({ name: r.n }); S.me.name = r.n; LS.set('me', S.me); toast('Enregistré ✓'); draw(); } catch (e) { alertBox(errMsg(e)); } } };
+        ($('[data-a=name]', body)||{}).onclick = async () => { const r = await formSheet('Mon nom', [{ name: 'n', label: 'Nom et prénom', value: S.me.name || '' }]); if (r && r.n) { try { await auth.currentUser.updateProfile({ displayName: r.n }); if (isAdmin()) await fs.collection('companies').doc(S.cid).collection('members').doc(S.user.uid).update({ name: r.n }); S.me.name = r.n; LS.set('me', S.me); toast('Enregistré ✓'); draw(); } catch (e) { alertBox(errMsg(e)); } } };
       }
       const pb = $('[data-a=postes]', body); if (pb) pb.onclick = () => managePostes().then(draw);
       $$('[data-uid]', body).forEach(b => b.onclick = async () => {
@@ -2026,8 +2026,8 @@ const Team = (() => {
         <div class="fld">Projets</div>${projects.filter(p => S.me.allProjects || (S.me.projects || []).includes(p.id)).map(p => `<label class="tm-ck"><input type="checkbox" data-dp="${p.id}" ${m.allProjects || (m.projects || []).includes(p.id) ? 'checked' : ''}> ${esc(p.name)}</label>`).join('')}
         <div class="btnrow" style="padding:0"><button class="btn ghost" data-a="c">Annuler</button><button class="btn" data-a="ok">Enregistrer</button></div></div>`, { title: `Délégation · ${m.name || m.email}` });
       sh.onClose = () => resolve(null);
-      $('[data-a=c]', sh.el).onclick = () => sh.close();
-      $('[data-a=ok]', sh.el).onclick = () => { const np = { ...P }; $$('[data-dm]', sh.el).forEach(x => { np[x.dataset.dm] = Math.min(+x.value, mine[x.dataset.dm] || 0); });
+      ($('[data-a=c]', sh.el)||{}).onclick = () => sh.close();
+      ($('[data-a=ok]', sh.el)||{}).onclick = () => { const np = { ...P }; $$('[data-dm]', sh.el).forEach(x => { np[x.dataset.dm] = Math.min(+x.value, mine[x.dataset.dm] || 0); });
         sh.onClose = null; sh.close(); resolve({ perms: np, projects: $$('[data-dp]', sh.el).filter(x => x.checked).map(x => x.dataset.dp) }); };
     });
     if (!r) return false;
@@ -2111,9 +2111,9 @@ const Team = (() => {
         const k = await menu('Poste supplémentaire', L.map(r => ({ label: `${(svcs.find(x => x.k === r.s) || {}).l || ''} › ${r.l}`, value: r.k }))); if (!k) return; st.postes.push(k); if (!st.custom) st.perms = tplAll(); drawX(); pedit(); };
       f('role').onchange = () => { st.role = f('role').value; st.postes = st.postes.filter(k => k !== st.role); st.perms = tplAll(); drawX(); pedit(); };
       $('[data-admin]', E).onchange = async (e) => { if (e.target.checked && !st.admin) { const ok = await confirmBox('Donner le statut Administrateur ?\nLa personne pourra gérer les membres, les codes d\'accès, les droits et les réglages de l\'organisation.', 'Donner le statut'); e.target.checked = ok; } st.admin = e.target.checked; };
-      $('[data-a=perms]', E).onclick = () => { const pe = $('.tm-pedit', E); pe.hidden = !pe.hidden; pedit(); };
-      $('[data-a=c]', E).onclick = () => s.close();
-      $('[data-a=ok]', E).onclick = () => {
+      ($('[data-a=perms]', E)||{}).onclick = () => { const pe = $('.tm-pedit', E); pe.hidden = !pe.hidden; pedit(); };
+      ($('[data-a=c]', E)||{}).onclick = () => s.close();
+      ($('[data-a=ok]', E)||{}).onclick = () => {
         const out = { name: f('name') ? f('name').value.trim() : undefined, role: f('role').value, managerUid: f('managerUid').value || null, zone: f('zone').value.trim(), allProjects: st.allProjects, projects: st.allProjects ? [] : st.projects, admin: !lim && $('[data-admin]', E).checked, canInvite: !lim && $('[data-caninv]', E).checked, perms: cap(st.perms), postes: st.postes };
         if (!out.allProjects && !out.projects.length && !confirm('Aucun projet coché : la personne ne verra aucun projet. Continuer ?')) return;
         s.onClose = null; s.close(); resolve(out);
@@ -2183,8 +2183,8 @@ const Team = (() => {
     const pick = await new Promise((res) => {
       const s = sheet(`<div class="form">${projs.map(p => `<label class="tm-ck"><input type="checkbox" data-p="${p.id}" checked> ${esc(p.name)}</label>`).join('')}
         <div class="btnrow" style="padding:0"><button class="btn ghost" data-a="c">Annuler</button><button class="btn" data-a="ok">Importer</button></div></div>`, { title: 'Projets à importer' });
-      s.onClose = () => res(null); $('[data-a=c]', s.el).onclick = () => s.close();
-      $('[data-a=ok]', s.el).onclick = () => { const ids = $$('[data-p]', s.el).filter(c => c.checked).map(c => c.dataset.p); s.onClose = null; s.close(); res(ids); };
+      s.onClose = () => res(null); ($('[data-a=c]', s.el)||{}).onclick = () => s.close();
+      ($('[data-a=ok]', s.el)||{}).onclick = () => { const ids = $$('[data-p]', s.el).filter(c => c.checked).map(c => c.dataset.p); s.onClose = null; s.close(); res(ids); };
     });
     if (!pick || !pick.length) return;
     const cur = Sync.cfg(), sameDrive = cur && cur.url === old.url;
@@ -2254,8 +2254,8 @@ const Team = (() => {
       $$('[data-s]', sh.el).forEach(b => b.onclick = () => { const k = b.dataset.s;
         if (!L.includes(k) && maxS && L.filter(x => x !== 'externe').length >= maxS) return toast(`Pack ${myPlan().l} : ${maxS} services au maximum`);
         L = L.includes(k) ? L.filter(x => x !== k) : [...L, k]; b.classList.toggle('on'); });
-      $('[data-a=c]', sh.el).onclick = () => sh.close();
-      $('[data-a=ok]', sh.el).onclick = () => { sh.onClose = null; sh.close(); resolve(L); };
+      ($('[data-a=c]', sh.el)||{}).onclick = () => sh.close();
+      ($('[data-a=ok]', sh.el)||{}).onclick = () => { sh.onClose = null; sh.close(); resolve(L); };
     });
   }
 
@@ -2268,7 +2268,7 @@ const Team = (() => {
     const draw = async () => {
       el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><h1 style="flex:1;font-size:17px">🛡 Super Admin SiteTeam</h1></div>
         <div class="tm-tabs"><button data-t="packs" class="${tab === 'packs' ? 'on' : ''}">Packs & limites</button><button data-t="orgs" class="${tab === 'orgs' ? 'on' : ''}">Organisations</button><button data-t="cloud" class="${tab === 'cloud' ? 'on' : ''}">Stockage</button></div><div class="tm-body"></div>`;
-      $('[data-a=x]', el).onclick = () => { unBack(); el.remove(); };
+      ($('[data-a=x]', el)||{}).onclick = () => { unBack(); el.remove(); };
       $$('[data-t]', el).forEach(b => b.onclick = () => { tab = b.dataset.t; draw(); });
       const body = $('.tm-body', el);
       if (tab === 'packs') {
@@ -2284,8 +2284,8 @@ const Team = (() => {
             <label class="tm-ck"><input type="checkbox" data-c="on" ${C.on ? 'checked' : ''}> Activer l'envoi des fichiers</label>
             <label>Taille maximale par fichier (Mo)<input type="number" inputmode="numeric" min="1" max="50" data-c="max" value="${C.maxMb || 50}"></label>
             <div class="btnrow" style="padding:0"><button class="btn" data-a="csave">Enregistrer</button><button class="btn ghost small" data-a="crules">Copier les règles Storage</button></div></div>`;
-        $('[data-a=crules]', body).onclick = () => copyText(STORAGE_RULES);
-        $('[data-a=csave]', body).onclick = async () => {
+        ($('[data-a=crules]', body)||{}).onclick = () => copyText(STORAGE_RULES);
+        ($('[data-a=csave]', body)||{}).onclick = async () => {
           const v = { storage: $('[data-c=on]', body).checked, maxMb: Math.min(50, Math.max(1, +$('[data-c=max]', body).value || 50)) };
           if (v.storage && !C.on && !await confirmBox('Activer l\'envoi des fichiers vers Firebase Storage ?\nVérifiez que la formule Blaze, l\'alerte de budget et les règles Storage sont en place.', 'Activer')) return;
           try { await withTimeout(fs.collection('config').doc('services').set(v, { merge: true })); LS.set('cloud', { on: v.storage, maxMb: v.maxMb }); toast(v.storage ? 'Fichiers partagés activés ✓' : 'Fichiers partagés désactivés'); draw(); }
@@ -2326,8 +2326,8 @@ const Team = (() => {
       sh.onClose = () => resolve(false);
       const E = sh.el, sync = () => $$('[data-m]', E).forEach(c => { c.disabled = $('[data-all]', E).checked; });
       sync(); $('[data-all]', E).onchange = sync;
-      $('[data-a=c]', E).onclick = () => sh.close();
-      $('[data-a=ok]', E).onclick = async () => {
+      ($('[data-a=c]', E)||{}).onclick = () => sh.close();
+      ($('[data-a=ok]', E)||{}).onclick = async () => {
         const n = (k) => { const v = $(`[data-n=${k}]`, E).value.trim(); return v === '' ? null : Math.max(0, +v || 0); };
         const v = { l: $('[data-f=l]', E).value.trim() || P.l, for: $('[data-f=for]', E).value.trim(), e: P.e || '', period: P.period || 'mois',
           price: n('price'), users: n('users') || 0, extraUserPrice: n('extraUserPrice'), projects: n('projects') || 0, storageGb: n('storageGb') || 0,
