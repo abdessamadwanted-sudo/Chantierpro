@@ -1,3 +1,6 @@
+## SiteTeam : v1.0.101
+- Plan : correction d'une erreur (« Cannot set properties of null (setting 'raf') ») qui pouvait apparaître si on levait les doigts juste après un zoom à deux doigts.
+
 ## SiteTeam : v1.0.100
 - Plans : le type du niveau (Architecture, Structure…) s'affiche dans la carte du niveau.
 - Fermeture : le bouton Quitter demande une confirmation ; le bouton retour demande deux appuis pour fermer (un appui accidentel ne ferme plus l'application).

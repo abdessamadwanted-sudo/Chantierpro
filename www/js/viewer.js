@@ -807,13 +807,15 @@ async function openPlanViewer(plan, ctx) {
       // v1.0.95 : on ne garde que la dernière position et on applique le zoom une fois par image (évite le tremblement)
       const [a, b] = [...ptrs.values()];
       g.next = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), cx: (a[0] + b[0]) / 2, cy: (a[1] + b[1]) / 2 };
-      if (!g.raf) g.raf = requestAnimationFrame(() => {
-        g.raf = null;
-        const n = g.next; if (!n || g.type !== 'pinch' || !g.d) return;
-        st.tx += n.cx - g.cx; st.ty += n.cy - g.cy;
-        zoomAt(n.cx, n.cy, n.d / g.d);
-        g.d = n.d; g.cx = n.cx; g.cy = n.cy; g.next = null;
-      });
+      // v1.0.101 : la mise à jour différée garde son propre objet (le doigt peut être levé avant l'image suivante)
+      if (!g.raf) { const G = g; G.raf = requestAnimationFrame(() => {
+        G.raf = null;
+        if (g !== G) return;
+        const n = G.next; if (!n || G.type !== 'pinch' || !G.d) return;
+        st.tx += n.cx - G.cx; st.ty += n.cy - G.cy;
+        zoomAt(n.cx, n.cy, n.d / G.d);
+        G.d = n.d; G.cx = n.cx; G.cy = n.cy; G.next = null;
+      }); }
       return;
     }
     if (g.type !== 'one') return;
