@@ -1,3 +1,7 @@
+## SiteTeam : v1.0.100
+- Plans : le type du niveau (Architecture, Structure…) s'affiche dans la carte du niveau.
+- Fermeture : le bouton Quitter demande une confirmation ; le bouton retour demande deux appuis pour fermer (un appui accidentel ne ferme plus l'application).
+
 ## SiteTeam : v1.0.99
 - Plans : le titre du type de niveau (Architecture, Structure…) est centré entre les groupes. Les niveaux sans type sont sous « Sans type ».
 
