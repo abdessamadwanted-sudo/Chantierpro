@@ -70,7 +70,10 @@ function lotBarInto(card, f, ps, root) {
   const pickBtn = bar.querySelector('.lot-pickbtn');
   pickBtn.onclick = (e) => { e.stopPropagation(); const old = $('.lot-pick', card); if (old) { old.remove(); return; }
     const list = document.createElement('div'); list.className = 'lot-pick';
-    list.innerHTML = lots.map(l => `<button type="button" class="lp-i ${sel === l.id ? 'on' : ''}" data-lp="${l.id}" style="--c:${l.c}">${l.e} ${esc(l.name)}${cnt(l.id) ? ` <small>${cnt(l.id)}</small>` : ''}</button>`).join('')
+    // v1.0.98 : lots groupés par catégorie (Structure, Architecture…), dans l'ordre des disciplines
+    const cats = [...DISCIPLINES.map(d => d.k), ''];
+    const btn = (l) => `<button type="button" class="lp-i ${sel === l.id ? 'on' : ''}" data-lp="${l.id}" style="--c:${l.c}">${l.e} ${esc(l.name)}${cnt(l.id) ? ` <small>${cnt(l.id)}</small>` : ''}</button>`;
+    list.innerHTML = cats.map(k => { const xs = lots.filter(l => (l.cat || '') === k); if (!xs.length) return ''; const lab = k ? (DISCIPLINES.find(d => d.k === k) || { l: k }).l : 'Sans catégorie'; return `<div class="lp-cat">${esc(lab)}</div>` + xs.map(btn).join(''); }).join('')
       + (nNo ? `<button type="button" class="lp-i ${sel === '__none' ? 'on' : ''}" data-lp="__none">📄 Sans lot <small>${nNo}</small></button>` : '')
       + `<button type="button" class="lp-i add" data-lp="__add">＋ Nouveau lot</button>`;
     list.querySelectorAll('[data-lp]').forEach(x => {
@@ -203,8 +206,9 @@ const lpTabOf = (L) => { try { return (JSON.parse(localStorage.getItem('lp.tab')
 const lpTabSet = (L, k) => { try { const o = JSON.parse(localStorage.getItem('lp.tab') || '{}'); o[L.id] = k; localStorage.setItem('lp.tab', JSON.stringify(o)); } catch (e) {} };
 async function lotMenu(L, root) {
   const p = App.project, lots = planLots(p), i = lots.indexOf(L);
-  const v = await menu(`${L.e} ${L.name}`, [{ label: 'Renommer / emoji', icon: 'edit', value: 'ren' }, { label: 'Couleur', icon: 'brush', value: 'col' }, { label: '← Déplacer à gauche', icon: 'back', value: 'l' }, { label: 'Déplacer à droite →', icon: 'chevright', value: 'r' }, { label: 'Points de contrôle…', icon: 'check', value: 'pts' }, { label: 'Supprimer le lot', icon: 'trash', danger: true, value: 'del' }]);
+  const v = await menu(`${L.e} ${L.name}`, [{ label: 'Renommer / emoji', icon: 'edit', value: 'ren' }, { label: 'Couleur', icon: 'brush', value: 'col' }, { label: 'Catégorie' + (L.cat ? ' · ' + (DISCIPLINES.find(d => d.k === L.cat) || { l: L.cat }).l : ''), icon: 'layers', value: 'cat' }, { label: '← Déplacer à gauche', icon: 'back', value: 'l' }, { label: 'Déplacer à droite →', icon: 'chevright', value: 'r' }, { label: 'Points de contrôle…', icon: 'check', value: 'pts' }, { label: 'Supprimer le lot', icon: 'trash', danger: true, value: 'del' }]);
   if (v === 'ren') { const r = await formSheet('Lot', [{ name: 'n', label: 'Nom', value: L.name }, { name: 'e', label: 'Emoji', value: L.e }]); if (r && r.n) { L.name = r.n; L.e = r.e || L.e; } }
+  if (v === 'cat') { const k = await menu('Catégorie du lot', [...DISCIPLINES.map(d => ({ label: d.l, value: d.k, checked: L.cat === d.k })), { label: 'Aucune', value: '', checked: !L.cat }]); if (k !== null && k !== undefined) L.cat = k; }
   if (v === 'col') { const c = await menu('Couleur', ['#f59e0b', '#ef4444', '#a855f7', '#06b6d4', '#3b82f6', '#eab308', '#14b8a6', '#b45309', '#ec4899', '#64748b', '#22c55e', '#0ea5e9'].map(c => ({ label: c, swatch: c, value: c }))); if (c) L.c = c; }
   if ((v === 'l' && i > 0) || (v === 'r' && i < lots.length - 1)) { const j = v === 'l' ? i - 1 : i + 1; [lots[i], lots[j]] = [lots[j], lots[i]]; }
   if (v === 'pts') { const id = await menu('Supprimer un point ?', (L.points || []).map(x => ({ label: x.t, icon: 'trash', value: x.id }))); if (id && await confirmBox('Supprimer ce point de tous les niveaux ?')) L.points = L.points.filter(x => x.id !== id); }
