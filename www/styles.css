@@ -3694,4 +3694,5 @@ table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-
 /* v1.0.80 : lots en liste déroulante (le bandeau ne montre que le lot choisi) */
 .lot-pick .lp-i { border-left: 4px solid var(--c, #94a3b8); }
 .lot-pick .lp-i.add { border-style: dashed; }
+.plan-sec { text-align: center; font-weight: 700; font-size: 14px; margin: 18px auto 8px; padding: 6px 14px; border-radius: 999px; background: var(--card, #fff); border: 1px solid var(--line, #d7dee9); width: fit-content; max-width: 92%; }
 .lot-pick .lp-cat { font-size: 12px; font-weight: 700; opacity: .7; margin-top: 6px; }   /* v1.0.98 : titre de catégorie */
