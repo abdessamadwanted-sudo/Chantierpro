@@ -73,26 +73,32 @@ function lotBarInto(card, f, ps, root) {
   const pickBtn = bar.querySelector('.lot-pickbtn');
   pickBtn.onclick = (e) => { e.stopPropagation(); const old = $('.lot-pick', card); if (old) { old.remove(); return; }
     const list = document.createElement('div'); list.className = 'lot-pick';
-    // v1.0.98 : lots groupés par catégorie (Structure, Architecture…), dans l'ordre des disciplines
-    const types = typesOf(p), tsel = ((App.lotType = App.lotType || {})[f.id]) || '';
-    const tchips = `<div class="lp-types"><button type="button" class="lp-t ${!tsel ? 'on' : ''}" data-tp="">Tous les types</button>` + types.map(t => `<button type="button" class="lp-t ${tsel === t.k ? 'on' : ''}" data-tp="${esc(t.k)}">${esc(t.l)}</button>`).join('') + `<button type="button" class="lp-t add" data-tp="__add">＋ Type</button></div>`;
-    const LLs = tsel ? lots.filter(l => (l.cat || '') === tsel) : lots;
-    const cats = tsel ? [tsel] : [...DISCIPLINES.map(d => d.k), ''];
+    // v1.0.101 : lots en accordéon par type (« Tous » + chaque type + « Sans catégorie »)
+    const types = typesOf(p);
+    App.lotAcc = App.lotAcc || {};
+    const curCat = ((lots.find(l => l.id === sel)) || {}).cat || '';
+    const accKey = (k) => f.id + ':' + k;
+    const isOpen = (k) => App.lotAcc[accKey(k)] !== undefined ? !!App.lotAcc[accKey(k)] : (k === curCat && sel !== '__all' && sel !== '__none');
     const btn = (l) => `<button type="button" class="lp-i ${sel === l.id ? 'on' : ''}" data-lp="${l.id}" style="--c:${l.c}">${l.e} ${esc(l.name)}${cnt(l.id) ? ` <small>${cnt(l.id)}</small>` : ''}</button>`;
-    list.innerHTML = tchips + `<button type="button" class="lp-i ${sel === '__all' ? 'on' : ''}" data-lp="__all">📚 Tous les lots <small>${ps.length}</small></button>` + cats.map(k => { const xs = LLs.filter(l => (l.cat || '') === k); if (!xs.length) return ''; const lab = k ? typeLab(k, p) : 'Sans catégorie'; return `<div class="lp-cat">${esc(lab)}</div>` + xs.map(btn).join(''); }).join('')
-      + (nNo ? `<button type="button" class="lp-i ${sel === '__none' ? 'on' : ''}" data-lp="__none">📄 Sans lot <small>${nNo}</small></button>` : '')
-      + `<button type="button" class="lp-i add" data-lp="__add">＋ Nouveau lot</button>`;
-    list.querySelectorAll('[data-lp]').forEach(x => {
-      x.onclick = async () => {
-        if (x.dataset.lp === '__add') { const r = await formSheet('Nouveau lot', [{ name: 'n', label: 'Nom', placeholder: 'Ex : Faux plafond' }, { name: 'e', label: 'Emoji', value: '🔧' }], { okLabel: 'Ajouter' }); if (r && r.n) { lots.push({ id: DB.uid(), name: r.n, e: r.e || '🔧', c: ['#0ea5e9', '#22c55e', '#f97316', '#8b5cf6', '#e11d48'][lots.length % 5], points: [] }); await DB.put('projects', p); renderPlans(root); } return; }
-        App.lotSel = App.lotSel || {}; App.lotSel[f.id] = x.dataset.lp; App.keepScrollY = ($('#content') || {}).scrollTop || 0; renderPlans(root);
-      };
-      const L = lots.find(l => l.id === x.dataset.lp); if (L) x.oncontextmenu = (e) => { e.preventDefault(); lotMenu(L, root); };
-    });
-    list.querySelectorAll('[data-tp]').forEach(b => b.onclick = async (e) => { e.stopPropagation(); const k = b.dataset.tp;
-      if (k === '__add') { const r = await formSheet('Nouveau type de lot', [{ name: 'n', label: 'Nom du type', placeholder: 'Ex : Second œuvre' }], { okLabel: 'Ajouter' }); if (!r || !r.n) return;
-        p.lotTypes = p.lotTypes || []; const nk = 'T' + DB.uid(); p.lotTypes.push({ k: nk, l: r.n }); await DB.put('projects', p); App.lotType[f.id] = nk; App.reopenPick = f.id; renderPlans(root); return; }
-      App.lotType[f.id] = k; App.reopenPick = f.id; renderPlans(root); });
+    const sec = (k, lab, xs) => { const op = isOpen(k);
+      return `<button type="button" class="lp-acc ${op ? 'open' : ''}" data-acc="${esc(k)}"><span>${op ? '▾' : '▸'} ${esc(lab)}</span><small>${xs.length}</small></button>` + (op ? `<div class="lp-body">${xs.length ? xs.map(btn).join('') : '<div class="lp-empty">Aucun lot dans ce type</div>'}</div>` : ''); };
+    const draw = () => {
+      const noCat = lots.filter(l => !l.cat);
+      list.innerHTML = sec('__all', 'Tous les lots', lots) + types.map(t => sec(t.k, t.l, lots.filter(l => (l.cat || '') === t.k))).join('') + (noCat.length ? sec('', 'Sans catégorie', noCat) : '')
+        + (nNo ? `<button type="button" class="lp-i ${sel === '__none' ? 'on' : ''}" data-lp="__none">📄 Sans lot <small>${nNo}</small></button>` : '')
+        + `<div class="lp-foot"><button type="button" class="lp-i add" data-lp="__add">＋ Nouveau lot</button><button type="button" class="lp-i add" data-lp="__addtype">＋ Nouveau type</button></div>`;
+      list.querySelectorAll('[data-acc]').forEach(b => b.onclick = (e) => { e.stopPropagation(); const k = b.dataset.acc; App.lotAcc[accKey(k)] = !isOpen(k); draw(); });
+      list.querySelectorAll('[data-lp]').forEach(x => {
+        x.onclick = async (e) => { e.stopPropagation();
+          if (x.dataset.lp === '__addtype') { const r = await formSheet('Nouveau type de lot', [{ name: 'n', label: 'Nom du type', placeholder: 'Ex : Second œuvre' }], { okLabel: 'Ajouter' }); if (!r || !r.n) return;
+            p.lotTypes = p.lotTypes || []; p.lotTypes.push({ k: 'T' + DB.uid(), l: r.n }); await DB.put('projects', p); renderPlans(root); return; }
+          if (x.dataset.lp === '__add') { const r = await formSheet('Nouveau lot', [{ name: 'n', label: 'Nom', placeholder: 'Ex : Faux plafond' }, { name: 'e', label: 'Emoji', value: '🔧' }], { okLabel: 'Ajouter' }); if (r && r.n) { lots.push({ id: DB.uid(), name: r.n, e: r.e || '🔧', c: ['#0ea5e9', '#22c55e', '#f97316', '#8b5cf6', '#e11d48'][lots.length % 5], points: [] }); await DB.put('projects', p); renderPlans(root); } return; }
+          App.lotSel = App.lotSel || {}; App.lotSel[f.id] = x.dataset.lp; App.keepScrollY = ($('#content') || {}).scrollTop || 0; renderPlans(root);
+        };
+        const L = lots.find(l => l.id === x.dataset.lp); if (L) x.oncontextmenu = (e) => { e.preventDefault(); lotMenu(L, root); };
+      });
+    };
+    draw();
     bar.after(list); };
   const head = $('.folder-head', card); head.after(bar);
   if (App.reopenPick === f.id) { App.reopenPick = null; setTimeout(() => pickBtn.onclick({ stopPropagation() {} }), 0); }
