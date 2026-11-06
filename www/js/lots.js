@@ -40,7 +40,7 @@ const lotSelOf = (fid) => (App.lotSel || {})[fid] || '';
 // v1.0.50 : plus de « Tous » — un lot est toujours choisi (le 1er qui a des plans) ; « Sans lot » seulement s'il reste des plans sans lot
 function lotSelDefault(f, ps) {
   App.lotSel = App.lotSel || {}; const cur = App.lotSel[f.id], lots = planLots(App.project);
-  if (cur && (cur === '__none' ? ps.some(x => !x.lotId) : lots.some(l => l.id === cur))) return cur;
+  if (cur && (cur === '__all' || (cur === '__none' ? ps.some(x => !x.lotId) : lots.some(l => l.id === cur)))) return cur;   // v1.0.98 : « Tous les lots »
   const L = lots.find(l => ps.some(x => x.lotId === l.id)); const d = L ? L.id : ps.some(x => !x.lotId) ? '__none' : (lots[0] || {}).id || '';
   App.lotSel[f.id] = d; return d;
 }
@@ -65,7 +65,7 @@ function lotBarInto(card, f, ps, root) {
   const lotBtn = (l) => { const D = (f.lotData || {})[l.id] || {}, di = dueInfo(D), po = lotStarted(l, D) ? paOpen(l, D).length : 0;
     return `<button class="lot-c on" data-l="${l.id}" style="--c:${l.c};--t:${tint(l.c, .16)}">${l.e} ${esc(l.name)}${cnt(l.id) ? ` <small>${cnt(l.id)}</small>` : ''}${po ? `<i class="lc-pa">🛑${po}</i>` : ''}${di && di.cls !== 'ok' ? `<i class="lc-due ${di.cls}">⏳</i>` : ''}${avB(l)}</button>`; };
   const curL = lots.find(l => l.id === sel);
-  const curHtml = curL ? lotBtn(curL) : sel === '__none' ? `<button class="lot-c on" data-l="__none" style="--c:#64748b">📄 Sans lot <small>${nNo}</small></button>` : '';
+  const curHtml = curL ? lotBtn(curL) : sel === '__all' ? `<button class="lot-c on" data-l="__all" style="--c:#334155">📚 Tous les lots <small>${ps.length}</small></button>` : sel === '__none' ? `<button class="lot-c on" data-l="__none" style="--c:#64748b">📄 Sans lot <small>${nNo}</small></button>` : '';
   bar.innerHTML = curHtml + `<button type="button" class="lot-c lot-pickbtn">▾ Lots (${lots.length})</button>`;
   const pickBtn = bar.querySelector('.lot-pickbtn');
   pickBtn.onclick = (e) => { e.stopPropagation(); const old = $('.lot-pick', card); if (old) { old.remove(); return; }
@@ -73,7 +73,7 @@ function lotBarInto(card, f, ps, root) {
     // v1.0.98 : lots groupés par catégorie (Structure, Architecture…), dans l'ordre des disciplines
     const cats = [...DISCIPLINES.map(d => d.k), ''];
     const btn = (l) => `<button type="button" class="lp-i ${sel === l.id ? 'on' : ''}" data-lp="${l.id}" style="--c:${l.c}">${l.e} ${esc(l.name)}${cnt(l.id) ? ` <small>${cnt(l.id)}</small>` : ''}</button>`;
-    list.innerHTML = cats.map(k => { const xs = lots.filter(l => (l.cat || '') === k); if (!xs.length) return ''; const lab = k ? (DISCIPLINES.find(d => d.k === k) || { l: k }).l : 'Sans catégorie'; return `<div class="lp-cat">${esc(lab)}</div>` + xs.map(btn).join(''); }).join('')
+    list.innerHTML = `<button type="button" class="lp-i ${sel === '__all' ? 'on' : ''}" data-lp="__all">📚 Tous les lots <small>${ps.length}</small></button>` + cats.map(k => { const xs = lots.filter(l => (l.cat || '') === k); if (!xs.length) return ''; const lab = k ? (DISCIPLINES.find(d => d.k === k) || { l: k }).l : 'Sans catégorie'; return `<div class="lp-cat">${esc(lab)}</div>` + xs.map(btn).join(''); }).join('')
       + (nNo ? `<button type="button" class="lp-i ${sel === '__none' ? 'on' : ''}" data-lp="__none">📄 Sans lot <small>${nNo}</small></button>` : '')
       + `<button type="button" class="lp-i add" data-lp="__add">＋ Nouveau lot</button>`;
     list.querySelectorAll('[data-lp]').forEach(x => {
@@ -89,7 +89,7 @@ function lotBarInto(card, f, ps, root) {
   bar.querySelectorAll('[data-l]').forEach(b => b.onclick = (e) => pickBtn.onclick(e));   // toucher le lot choisi ouvre la liste
   if (sel) { const L = lots.find(l => l.id === sel); if (L) bar.after(lotPanel(L, f, root)); }
 }
-const lotFilter = (ps, f) => { const s = lotSelDefault(f, ps); return s === '__none' ? ps.filter(p => !p.lotId) : s ? ps.filter(p => p.lotId === s) : ps; };
+const lotFilter = (ps, f) => { const s = lotSelDefault(f, ps); return s === '__all' ? ps : s === '__none' ? ps.filter(p => !p.lotId) : s ? ps.filter(p => p.lotId === s) : ps; };
 
 // panneau du lot : replié par défaut (une ligne), on l'ouvre au toucher ; « ＋ Ajouter » pour y mettre ce qu'il faut
 const lotOpenK = (L) => { try { return (JSON.parse(localStorage.getItem('lot.open') || '{}'))[L.id]; } catch (e) { return false; } };
