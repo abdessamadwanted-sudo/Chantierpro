@@ -1,3 +1,7 @@
+## SiteTeam : v1.0.102
+- Lots : le bandeau ne montre plus qu'un bouton « Lots ▾ » ; la liste par type s'ouvre dessous.
+- Glisser à gauche / à droite dans un dossier : lot suivant / précédent (« Tous les lots » compris).
+
 ## SiteTeam : v1.0.101
 - Plan : correction d'une erreur (« Cannot set properties of null (setting 'raf') ») qui pouvait apparaître si on levait les doigts juste après un zoom à deux doigts.
 - Lots : la liste des lots est en accordéon par type (Architecture, Structure…) : touchez un type pour voir ses lots. « Tous les lots » affiche tout. « ＋ Nouveau type » ajoute un type personnalisé.
