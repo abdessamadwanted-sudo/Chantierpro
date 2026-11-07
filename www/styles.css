@@ -3739,3 +3739,7 @@ table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-
 .lot-tbox small { font-size: 12px; background: rgba(255,255,255,.18); padding: 1px 8px; border-radius: 8px; color: #e2e8f0; }
 .lot-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 6px 0 4px; }
 .lot-chips::-webkit-scrollbar { display: none; }
+
+/* v1.0.116 : type de niveau dans l'en-tête */
+.fh-type { max-width: 42%; margin-inline-start: 6px; background: rgba(255,255,255,.16); color: #fff; border: 1px solid rgba(255,255,255,.35); border-radius: 8px; padding: 4px 6px; font-size: 12px; }
+.fh-type option { color: #0f172a; background: #fff; }
