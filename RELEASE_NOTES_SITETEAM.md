@@ -1,3 +1,8 @@
+## SiteTeam : v1.0.114
+
+- Raccourcis du haut : l'appui long fonctionne aussi sur les raccourcis ajoutés (ex. Réception & Bétonnage) et affiche les options de déplacement.
+- Catégories : deux taps rapprochés ne referment plus tout ; l'appui long sur le titre ouvre Monter / Descendre.
+
 ## SiteTeam : v1.0.113
 
 - Lots & plans : la grande boîte « Tous les types » est retirée. Les types sont dans la bande du niveau ; le bouton ＋ ouvre la liste complète (ajouter un type, afficher les vides).
