@@ -1,3 +1,6 @@
+## SiteTeam : v1.0.103
+- Lots : « Tous les types (TOUT) » en tête, avec une couleur à part. Dans chaque type (et dans Tous), le bouton « Voir tous les plans » affiche les plans de ce type ou de tous les lots.
+
 ## SiteTeam : v1.0.102
 - Lots : le bandeau ne montre plus qu'un bouton « Lots ▾ » ; la liste par type s'ouvre dessous.
 - Glisser à gauche / à droite dans un dossier : lot suivant / précédent (« Tous les lots » compris).
