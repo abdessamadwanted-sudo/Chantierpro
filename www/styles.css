@@ -3741,5 +3741,3 @@ table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-
 .lot-chips::-webkit-scrollbar { display: none; }
 
 /* v1.0.116 : type de niveau dans l'en-tête */
-.fh-type { max-width: 36%; min-width: 0; margin-inline-start: 6px; background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.28); border-radius: 6px; padding: 2px 5px; font-size: 11px; line-height: 18px; height: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.fh-type option { color: #0f172a; background: #fff; }
