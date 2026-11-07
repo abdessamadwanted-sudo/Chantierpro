@@ -592,24 +592,16 @@ async function renderPlans(root) {
     const fc = FOLDER_COLORS.find(x => x.k === f.color) || FOLDER_COLORS[0];
     const nAll = ps.length + subs.reduce((a, s) => a + s.plans.length, 0);
     card.className = 'card fcard' + (open ? ' open' : ''); card.dataset.fid = f.id; card.style.setProperty('--fc', fc.c);
-    // v1.0.116 : liste déroulante des types dans l'en-tête du niveau (choisir un type filtre les lots et les plans)
-    const tyOpts = (() => { if (f.id === '_none' || q || typeof typesOf !== 'function') return ''; const all = ps.concat(...subs.map(s => s.plans)), LL = planLots(App.project), hT = f.hiddenTypes || [];
-      const catOf = (x) => { const L = LL.find(l => l.id === x.lotId); return L ? (L.cat || '') : ''; }, cur = (App.lotSel || {})[f.id] || '__all';
-      const opt = (v, lab) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${esc(lab)}</option>`;
-      return `<select class="fh-type" data-typesel aria-label="Type de niveau">${opt('__all', `TOUT (${all.length})`)}${typesOf(App.project).filter(tt => !hT.includes(tt.k)).map(tt => opt('T:' + tt.k, `${typeLab(tt.k, App.project).replace(/\s*\([^)]*\)$/, '')} (${all.filter(x => catOf(x) === tt.k).length})`)).join('')}${all.some(x => !x.lotId) ? opt('__none', `Sans lot (${all.filter(x => !x.lotId).length})`) : ''}</select>`; })();
     card.innerHTML = `<div class="folder-head ${f.color ? '' : 'th-fold'}" style="${f.color || !document.documentElement.classList.contains('glass') ? `background:${fc.c}` : ''}"><span class="fh-ic">📁</span>
       <div class="grow"><div class="title">${esc(f.name)}${f.disc ? ` <span class="disc-tag">${esc(discLabel(f))}</span>` : ''}</div><div class="sub">${subs.length ? `${subs.length} dossier${subs.length > 1 ? 's' : ''} · ` : ''}${nAll} plan${nAll > 1 ? 's' : ''}</div></div>
-      ${tyOpts}
       ${f.id !== '_none' ? `<button class="iconbtn" data-more>${icon('more')}</button>` : ''}
       <span class="fh-chev" style="transform:rotate(${open ? 180 : 0}deg)">${icon('chevdown')}</span></div>
       ${open ? `<div class="fbody">${subs.length ? '<div class="subfs"></div>' : ''}${ps.length || !subs.length ? gridHTML() : ''}${f.id !== '_none' && !q ? `<div class="fb-actions">${subs.length ? `<button class="fb-btn" data-a="addplan">${icon('plus')} Plan ici</button>` : ''}<button class="fb-btn" data-a="addsub">${icon('folder')} Sous-dossier</button></div>` : ''}</div>` : ''}`;
     box.appendChild(card);
     ($('.folder-head', card)||{}).onclick = (e) => {
-      if (e.target.closest('[data-more], [data-typesel]')) return;
+      if (e.target.closest('[data-more]')) return;
       App.openFolders[f.id] = !open; renderPlans(root);
     };
-    const ts = $('[data-typesel]', card);
-    if (ts) { ts.onclick = (e) => e.stopPropagation(); ts.onchange = () => { App.lotSel = App.lotSel || {}; App.lotSel[f.id] = ts.value; App.keepScrollY = ($('#content') || {}).scrollTop || 0; renderPlans(root); }; }
     const more = $('[data-more]', card);
     if (more) more.onclick = () => folderMenu(f, root);
     if (!open) continue;

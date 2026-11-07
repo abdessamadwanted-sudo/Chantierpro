@@ -1,3 +1,7 @@
+## SiteTeam : v1.0.120
+
+- Plans : la liste des types dans l'en-tête de chaque niveau est retirée (en-tête d'origine). Le filtrage par type reste accessible depuis la barre des lots du niveau.
+
 ## SiteTeam : v1.0.119
 
 - Plans : la liste des types de niveau revient au style d'origine (rectangle à coins doux), en plus petit.
