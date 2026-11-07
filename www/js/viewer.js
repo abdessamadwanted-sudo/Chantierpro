@@ -1152,10 +1152,13 @@ async function planOverlayCanvas(plan, tasks, links, outW, noAnn) {
 // dessins du plan écrits en vectoriel dans le PDF (nets à tout zoom, comme le plan)
 function annotPdfDraw(pg, a, ox, oy, s, font) {
   const { rgb } = PDFLib, hx = String(a.color || '#e11d48').replace('#', ''), n = parseInt(hx.length === 3 ? hx.split('').map(c => c + c).join('') : hx.slice(0, 6), 16) || 0;
-  const col = rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255), sw = (a.sw || 3) * s, P = a.pts || [], [p, q] = P;
+  const col = rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
+  // v1.0.108 : le contour garde la couleur de la palette (comme à l'écran), le remplissage prend l'intensité
+  const hl = String(a.hue || a.color || '#e11d48').replace('#', ''), nl = parseInt(hl.length === 3 ? hl.split('').map(c => c + c).join('') : hl.slice(0, 6), 16) || 0;
+  const lc = rgb(((nl >> 16) & 255) / 255, ((nl >> 8) & 255) / 255, (nl & 255) / 255), sw = (a.sw || 3) * s, P = a.pts || [], [p, q] = P;
   const path = (d, o) => pg.drawSvgPath(d, { x: ox, y: oy, scale: s, borderLineCap: PDFLib.LineCapStyle.Round, ...o });
   const line = (pts, closed) => 'M' + pts.map(t => t[0] + ' ' + t[1]).join(' L') + (closed ? ' Z' : '');
-  const stroke = { borderColor: col, borderWidth: sw / s };
+  const stroke = { borderColor: lc, borderWidth: sw / s };
   switch (a.type) {
     case 'pen': case 'poly': return P.length > 1 && path(line(P), stroke);
     case 'line': return path(line([p, q]), stroke);
@@ -1165,7 +1168,7 @@ function annotPdfDraw(pg, a, ox, oy, s, font) {
       return path(`M${cx - rx} ${cy} A${rx} ${ry} 0 1 0 ${cx + rx} ${cy} A${rx} ${ry} 0 1 0 ${cx - rx} ${cy} Z`, a.type === 'disc' ? { color: col, opacity: .8, borderColor: col, borderWidth: sw / s / 2 } : stroke); }
     case 'cloud': return path(cloudPath(p[0], p[1], q[0], q[1], (a.sw || 3) * 6), stroke);
     case 'arrow': { const ang = Math.atan2(q[1] - p[1], q[0] - p[0]), h = (a.sw || 3) * 5, a1 = [q[0] - h * Math.cos(ang - 0.45), q[1] - h * Math.sin(ang - 0.45)], a2 = [q[0] - h * Math.cos(ang + 0.45), q[1] - h * Math.sin(ang + 0.45)];
-      path(line([p, q]), stroke); return path(line([q, a1, a2], true), { color: col, borderColor: col, borderWidth: sw / s }); }
+      path(line([p, q]), stroke); return path(line([q, a1, a2], true), { color: lc, borderColor: lc, borderWidth: sw / s }); }
     case 'text': { const t = String(a.text || '').replace(/[^\x20-\xFF]/g, ''); if (t && font) pg.drawText(t, { x: ox + p[0] * s, y: oy - p[1] * s, size: (a.fs || 24) * s, font, color: col }); return; }
   }
 }
