@@ -83,18 +83,13 @@ function lotBarInto(card, f, ps, root) {
     const accKey = (k) => f.id + ':' + k;
     const isOpen = (k) => App.lotAcc[accKey(k)] !== undefined ? !!App.lotAcc[accKey(k)] : (k === curCat && sel !== '__all' && sel !== '__none');
     const btn = (l) => `<button type="button" class="lp-i ${sel === l.id ? 'on' : ''}" data-lp="${l.id}" style="--c:${l.c}">${l.e} ${esc(l.name)}${cnt(l.id) ? ` <small>${cnt(l.id)}</small>` : ''}</button>`;
-    // v1.0.105 : « Tous » contient des sous-menus par type ; les lots sont en grille compacte
-    const tsec = (k, lab, xs, nested) => { const op = isOpen(nested), viewK = 'T:' + k;
-      return `<button type="button" class="lp-acc sub ${op ? 'open' : ''}" data-acc="${esc(nested)}"><span>${op ? '▾' : '▸'} ${esc(lab)}</span><small>${xs.length}</small></button>` + (op ? `<div class="lp-body"><button type="button" class="lp-i view ${sel === viewK ? 'on' : ''}" data-lp="${viewK}">▦ Voir tous les plans</button><div class="lp-grid">${xs.length ? xs.map(btn).join('') : '<div class="lp-empty">Aucun lot dans ce type</div>'}</div></div>` : ''); };
-    const sec = (k, lab, xs, cls = '') => { const op = isOpen(k), viewK = k === '__all' ? '__all' : k ? 'T:' + k : '';
-      const inner = k === '__all' ? types.map(t => tsec(t.k, t.l, lots.filter(l => (l.cat || '') === t.k), 'all/' + t.k)).join('') : `<div class="lp-grid">${xs.length ? xs.map(btn).join('') : '<div class="lp-empty">Aucun lot dans ce type</div>'}</div>`;
-      return `<button type="button" class="lp-acc ${cls} ${op ? 'open' : ''}" data-acc="${esc(k)}"><span>${op ? '▾' : '▸'} ${esc(lab)}</span><small>${xs.length}</small></button>` + (op ? `<div class="lp-body">${viewK ? `<button type="button" class="lp-i view ${sel === viewK ? 'on' : ''}" data-lp="${viewK}">▦ Voir tous les plans (${xs.length} lot${xs.length > 1 ? 's' : ''})</button>` : ''}${inner}</div>` : ''); };
+    // v1.0.106 : une seule liste à plat des types (fixée en haut) ; les plans du type choisi s'affichent dessous
     const draw = () => {
-      const noCat = lots.filter(l => !l.cat);
-      list.innerHTML = sec('__all', 'Tous les types (TOUT)', lots, 'all') + types.map(t => sec(t.k, t.l, lots.filter(l => (l.cat || '') === t.k))).join('') + (noCat.length ? sec('', 'Sans catégorie', noCat) : '')
-        + (nNo ? `<button type="button" class="lp-i ${sel === '__none' ? 'on' : ''}" data-lp="__none">📄 Sans lot <small>${nNo}</small></button>` : '')
+      const opt = (v, lab, n, cls = '') => `<button type="button" class="lp-type ${cls} ${sel === v ? 'on' : ''}" data-lp="${v}"><span>${lab}</span><small>${n}</small></button>`;
+      list.innerHTML = opt('__all', '📚 Tous les types (TOUT)', lots.length, 'all')
+        + types.map(t => opt('T:' + t.k, esc(t.l), lots.filter(l => (l.cat || '') === t.k).length)).join('')
+        + (nNo ? opt('__none', '📄 Sans lot', nNo) : '')
         + `<div class="lp-foot"><button type="button" class="lp-i add" data-lp="__add">＋ Nouveau lot</button><button type="button" class="lp-i add" data-lp="__addtype">＋ Nouveau type</button></div>`;
-      list.querySelectorAll('[data-acc]').forEach(b => b.onclick = (e) => { e.stopPropagation(); const k = b.dataset.acc; App.lotAcc[accKey(k)] = !isOpen(k); draw(); });
       list.querySelectorAll('[data-lp]').forEach(x => {
         x.onclick = async (e) => { e.stopPropagation();
           if (x.dataset.lp === '__addtype') { const r = await formSheet('Nouveau type de lot', [{ name: 'n', label: 'Nom du type', placeholder: 'Ex : Second œuvre' }], { okLabel: 'Ajouter' }); if (!r || !r.n) return;
@@ -102,7 +97,6 @@ function lotBarInto(card, f, ps, root) {
           if (x.dataset.lp === '__add') { const r = await formSheet('Nouveau lot', [{ name: 'n', label: 'Nom', placeholder: 'Ex : Faux plafond' }, { name: 'e', label: 'Emoji', value: '🔧' }], { okLabel: 'Ajouter' }); if (r && r.n) { lots.push({ id: DB.uid(), name: r.n, e: r.e || '🔧', c: ['#0ea5e9', '#22c55e', '#f97316', '#8b5cf6', '#e11d48'][lots.length % 5], points: [] }); await DB.put('projects', p); renderPlans(root); } return; }
           App.lotSel = App.lotSel || {}; App.lotSel[f.id] = x.dataset.lp; App.keepScrollY = ($('#content') || {}).scrollTop || 0; renderPlans(root);
         };
-        const L = lots.find(l => l.id === x.dataset.lp); if (L) x.oncontextmenu = (e) => { e.preventDefault(); lotMenu(L, root); };
       });
     };
     draw();
