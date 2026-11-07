@@ -1,3 +1,9 @@
+## SiteTeam : v1.0.109
+
+- Outils du projet : « Plans » est dans les raccourcis du haut (premier à gauche) et n'est plus dans la catégorie Chantier.
+- « Dossiers Drive » est retiré des raccourcis du haut (la fonction reste disponible ailleurs).
+- Appui long sur un raccourci : déplacer à gauche / à droite, masquer, ou réafficher tous les raccourcis. Ce réglage est gardé sur cet appareil.
+
 ## SiteTeam : v1.0.107
 - Plans : par défaut, un niveau affiche tous ses plans (« Tous les types »). Les compteurs comptent les plans (et non les lots).
 

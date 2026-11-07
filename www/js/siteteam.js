@@ -279,17 +279,18 @@ const ST = (() => {
     const ok = (k) => secShown(k) && k !== 'dashboard' && k !== 'ptools' && sectionOn(k) && Team.canSection(k);
     const first = Team.isAdmin() ? (ORG_FIRST[(Team.orgType() || {}).k] || 'trav') : grpOf();
     // v1.0.63 : l'ordre et les groupes choisis par l'utilisateur (appui long sur un outil → déplacer vers une autre catégorie)
-    const G = stGroups(first).map(([g, l, ks]) => [g, l, ks.filter(ok)]).filter(g => g[2].length);
+    const G = stGroups(first).map(([g, l, ks]) => [g, l, ks.filter(ok).filter(k => !(k === 'plans' && g === 'trav'))]).filter(g => g[2].length);   // v1.0.109 : « Plans » est dans le raccourci du haut
     const T = projTypeOf(p.type) || {};
     // v1.0.46 : actions rapides en une rangée compacte, catégories dépliables (état mémorisé), rien sous le bouton « plans »
     let opened = null; try { opened = JSON.parse(localStorage.getItem('ptools.open') || 'null'); } catch (e) {}
     if (!Array.isArray(opened)) opened = G.length ? [G[0][0]] : [];
-    const QA = [
-      typeof openAvJour === 'function' && ok('avancement') ? ['avjour', 'trend', 'Avancement du jour', '#0d9488'] : null,
-      typeof pvCreate === 'function' && Team.canSection('forms') !== false ? ['newpv', 'form', 'Nouveau PV', '#2563eb'] : null,
-      typeof openPhotoBatch === 'function' ? ['pbatch', 'camera', 'Photos en masse', '#7c3aed'] : null,
-      typeof openDriveNames === 'function' ? ['dnames', 'folder', 'Dossiers Drive', '#ea580c'] : null,
-    ].filter(Boolean);
+    // v1.0.109 : raccourcis du haut = ordre et masquage choisis (appui long) ; Plans en premier par défaut
+    const qaSpec = { plansqa: ['plansqa', (SECTIONS.plans || {}).icon || 'layers', 'Plans', '#4f46e5'], avjour: ['avjour', 'trend', 'Avancement du jour', '#0d9488'], newpv: ['newpv', 'form', 'Nouveau PV', '#2563eb'], pbatch: ['pbatch', 'camera', 'Photos en masse', '#7c3aed'] };
+    const qaAvail = { plansqa: ok('plans'), avjour: typeof openAvJour === 'function' && ok('avancement'), newpv: typeof pvCreate === 'function' && Team.canSection('forms') !== false, pbatch: typeof openPhotoBatch === 'function' };
+    let qaOrd = [], qaHid = []; try { qaOrd = JSON.parse(localStorage.getItem('qa.ord') || '[]'); qaHid = JSON.parse(localStorage.getItem('qa.hid') || '[]'); } catch (e) {}
+    const qaKeys = [...qaOrd.filter(k => qaSpec[k]), ...Object.keys(qaSpec).filter(k => !qaOrd.includes(k))];
+    const QA = qaKeys.filter(k => qaAvail[k] && !qaHid.includes(k)).map(k => qaSpec[k]);
+    const qaSave = (ord, hid) => { try { localStorage.setItem('qa.ord', JSON.stringify(ord)); localStorage.setItem('qa.hid', JSON.stringify(hid)); } catch (e) {} };
     root.innerHTML = `<div class="st-ptools-p">
       <div class="st-hd"><b>${esc(T.e || '🏗️')} ${esc(p.name)}</b><small>${esc(T.n || 'Projet')}${p.address ? ' · ' + esc(p.address) : ''}</small></div>
       <button class="st-pb st-pb-lib" data-a="library">${icon('grid')}<span><b>Bibliothèque métier</b><small>Outils réunis et classés selon votre service · pack ${esc(plan().l)}</small></span>${icon('chevright')}</button>
@@ -351,7 +352,21 @@ const ST = (() => {
     const npv = root.querySelector('[data-a=newpv]'); if (npv) npv.onclick = async () => { const f = await pvCreate(p); if (f) { await openFormDetail(f); } };
     const lib = root.querySelector('[data-a=library]'); if (lib) lib.onclick = () => openServiceLibrary({ project: p });
     const pb = root.querySelector('[data-a=pbatch]'); if (pb) pb.onclick = () => openPhotoBatch(p);
-    const dn = root.querySelector('[data-a=dnames]'); if (dn) dn.onclick = () => openDriveNames(p);
+    const pl = root.querySelector('[data-a=plansqa]'); if (pl) pl.onclick = () => { App.section = 'plans'; App.search = ''; renderSection(); };
+    // appui long sur un raccourci : gauche / droite / masquer / tout réafficher
+    root.querySelectorAll('[data-a]').forEach(b => { const k = b.dataset.a; if (!qaSpec[k]) return; let tm = null, lp = false;
+      b.addEventListener('pointerdown', () => { lp = false; clearTimeout(tm); tm = setTimeout(async () => { lp = true; try { navigator.vibrate && navigator.vibrate(15); } catch (e) {}
+        const cur = qaKeys.filter(x => qaAvail[x]), i = cur.indexOf(k), hidAny = qaHid.length > 0;
+        const v = await menu(qaSpec[k][2], [...(i > 0 ? [{ label: '← Déplacer à gauche', icon: 'back', value: 'l' }] : []), ...(i < cur.length - 1 ? [{ label: 'Déplacer à droite →', icon: 'chevright', value: 'r' }] : []), { label: 'Masquer ce raccourci', icon: 'trash', danger: true, value: 'hide' }, ...(hidAny ? [{ label: 'Réafficher tous les raccourcis', icon: 'check', value: 'show' }] : [])]);
+        if (!v) return;
+        let ord = [...qaKeys], hid = [...qaHid];
+        if (v === 'l' || v === 'r') { const j = v === 'l' ? i - 1 : i + 1, a = ord.indexOf(cur[i]), c = ord.indexOf(cur[j]); [ord[a], ord[c]] = [ord[c], ord[a]]; }
+        if (v === 'hide') hid.push(k);
+        if (v === 'show') hid = [];
+        qaSave(ord, hid); renderProjectTools(root); }, 500); });
+      ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => b.addEventListener(ev, () => clearTimeout(tm)));
+      b.addEventListener('click', (e) => { if (lp) { e.stopImmediatePropagation(); e.preventDefault(); lp = false; } }, true);
+      b.oncontextmenu = (e) => e.preventDefault(); });
     if (typeof espaceBind === 'function') espaceBind(root);
   }
 
