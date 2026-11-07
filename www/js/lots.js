@@ -69,7 +69,8 @@ function lotBarInto(card, f, ps, root) {
     return `<button class="lot-c on" data-l="${l.id}" style="--c:${l.c};--t:${tint(l.c, .16)}">${l.e} ${esc(l.name)}${cnt(l.id) ? ` <small>${cnt(l.id)}</small>` : ''}${po ? `<i class="lc-pa">🛑${po}</i>` : ''}${di && di.cls !== 'ok' ? `<i class="lc-due ${di.cls}">⏳</i>` : ''}${avB(l)}</button>`; };
   const curL = lots.find(l => l.id === sel);
   const curHtml = curL ? lotBtn(curL) : sel === '__all' ? `<button class="lot-c on" data-l="__all" style="--c:#334155">📚 Tous les lots <small>${ps.length}</small></button>` : sel === '__none' ? `<button class="lot-c on" data-l="__none" style="--c:#64748b">📄 Sans lot <small>${nNo}</small></button>` : '';
-  bar.innerHTML = curHtml + `<button type="button" class="lot-c lot-pickbtn">▾ Lots (${lots.length})</button>`;
+  // v1.0.102 : une seule commande « Lots ▾ » sur le bandeau ; la liste (par type) s'ouvre dessous
+  bar.innerHTML = `<button type="button" class="lot-c lot-pickbtn">▾ Lots (${lots.length})</button>`;
   const pickBtn = bar.querySelector('.lot-pickbtn');
   pickBtn.onclick = (e) => { e.stopPropagation(); const old = $('.lot-pick', card); if (old) { old.remove(); return; }
     const list = document.createElement('div'); list.className = 'lot-pick';
@@ -101,6 +102,14 @@ function lotBarInto(card, f, ps, root) {
     draw();
     bar.after(list); };
   const head = $('.folder-head', card); head.after(bar);
+  // v1.0.102 : glisser à gauche / à droite dans le dossier = lot suivant / précédent (« Tous » compris)
+  if (!card._swipe) { card._swipe = true; let x0 = null, y0 = 0;
+    card.addEventListener('touchstart', (e) => { if (e.touches.length !== 1 || e.target.closest('.lot-pick, .lot-panel')) { x0 = null; return; } x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+    card.addEventListener('touchend', (e) => { if (x0 == null) return; const t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0; x0 = null;
+      if (Math.abs(dx) < 70 || Math.abs(dy) > 40) return;
+      const LL = planLots(App.project), cur = lotSelDefault(f, ps), idx = LL.findIndex(l => l.id === cur), n = LL.length; if (!n) return;
+      const ni = cur === '__all' ? (dx < 0 ? 0 : n - 1) : (((idx < 0 ? 0 : idx) + (dx < 0 ? 1 : -1)) % n + n) % n;
+      App.lotSel = App.lotSel || {}; App.lotSel[f.id] = LL[ni].id; App.keepScrollY = ($('#content') || {}).scrollTop || 0; renderPlans(root); }, { passive: true }); }
   if (App.reopenPick === f.id) { App.reopenPick = null; setTimeout(() => pickBtn.onclick({ stopPropagation() {} }), 0); }
   $$('[data-l]', bar).forEach(b => { if (b.dataset.l && b.dataset.l !== '__none') b.oncontextmenu = (e) => { e.preventDefault(); lotMenu(lots.find(l => l.id === b.dataset.l), root); }; });
   bar.querySelectorAll('[data-l]').forEach(b => b.onclick = (e) => pickBtn.onclick(e));   // toucher le lot choisi ouvre la liste
