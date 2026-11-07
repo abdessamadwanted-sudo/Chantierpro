@@ -1,3 +1,7 @@
+## SiteTeam : v1.0.104
+- Lots : « Tous les types (TOUT) » contient un sous-menu par type. Les lots sont en grille compacte (deux colonnes).
+- Démarrage : la synchro automatique ne se lance plus dans les premières secondes (elle attend 60 s, écran visible). Cela évite les fermetures et le « mode secours » observés au démarrage. « Synchroniser » reste disponible à tout moment.
+
 ## SiteTeam : v1.0.103
 - Lots : le bouton du bandeau du niveau affiche l'endroit choisi (type, « Tous » ou lot) ; la liste s'ouvre juste dessous.
 - Lots : « Tous les types (TOUT) » en tête, avec une couleur à part. Dans chaque type (et dans Tous), le bouton « Voir tous les plans » affiche les plans de ce type ou de tous les lots.
