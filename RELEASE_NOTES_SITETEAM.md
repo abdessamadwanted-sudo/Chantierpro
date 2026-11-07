@@ -1,3 +1,7 @@
+## SiteTeam : v1.0.116
+
+- Plans : dans l'en-tête de chaque niveau, une liste déroulante des types (TOUT, types, Sans lot) avec le nombre de plans. Le choix filtre les lots et les plans du niveau.
+
 ## SiteTeam : v1.0.115
 
 - Lots & plans : retour à l'affichage précédent (grande boîte « Tous les types » avec sa liste, sans la bande des types du niveau).
