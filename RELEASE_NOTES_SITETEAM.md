@@ -1,3 +1,9 @@
+## SiteTeam : v1.0.112
+
+- Lots & plans : bande horizontale des types (TOUT + types qui ont des plans, avec leur nombre). Les types vides restent dans la liste complète.
+- Outils du projet : bouton ＋ Ajouter un raccourci (n'importe quelle section) ; appui long sur un raccourci pour le ranger.
+- Outils du projet : appui long sur le titre d'une catégorie pour la monter ou la descendre.
+
 ## SiteTeam : v1.0.109
 
 - Outils du projet : « Plans » est dans les raccourcis du haut (premier à gauche) et n'est plus dans la catégorie Chantier.

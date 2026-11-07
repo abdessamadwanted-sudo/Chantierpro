@@ -279,7 +279,11 @@ const ST = (() => {
     const ok = (k) => secShown(k) && k !== 'dashboard' && k !== 'ptools' && sectionOn(k) && Team.canSection(k);
     const first = Team.isAdmin() ? (ORG_FIRST[(Team.orgType() || {}).k] || 'trav') : grpOf();
     // v1.0.63 : l'ordre et les groupes choisis par l'utilisateur (appui long sur un outil → déplacer vers une autre catégorie)
-    const G = stGroups(first).map(([g, l, ks]) => [g, l, ks.filter(ok).filter(k => !(k === 'plans' && g === 'trav'))]).filter(g => g[2].length);   // v1.0.109 : « Plans » est dans le raccourci du haut
+    const G0 = stGroups(first).map(([g, l, ks]) => [g, l, ks.filter(ok).filter(k => !(k === 'plans' && g === 'trav'))]).filter(g => g[2].length);   // v1.0.109 : « Plans » est dans le raccourci du haut
+    // v1.0.112 : ordre des catégories choisi (appui long sur le titre : monter / descendre)
+    let grpOrd = []; try { grpOrd = JSON.parse(localStorage.getItem('grp.ord') || '[]'); } catch (e) {}
+    const gBase = G0.map(x => x[0]), gKeys = [...grpOrd.filter(g => gBase.includes(g)), ...gBase.filter(g => !grpOrd.includes(g))];
+    const G = gKeys.map(g => G0.find(x => x[0] === g));
     const T = projTypeOf(p.type) || {};
     // v1.0.46 : actions rapides en une rangée compacte, catégories dépliables (état mémorisé), rien sous le bouton « plans »
     let opened = null; try { opened = JSON.parse(localStorage.getItem('ptools.open') || 'null'); } catch (e) {}
@@ -288,13 +292,17 @@ const ST = (() => {
     const qaSpec = { plansqa: ['plansqa', (SECTIONS.plans || {}).icon || 'layers', 'Plans', '#4f46e5'], avjour: ['avjour', 'trend', 'Avancement du jour', '#0d9488'], newpv: ['newpv', 'form', 'Nouveau PV', '#2563eb'], pbatch: ['pbatch', 'camera', 'Photos en masse', '#7c3aed'] };
     const qaAvail = { plansqa: ok('plans'), avjour: typeof openAvJour === 'function' && ok('avancement'), newpv: typeof pvCreate === 'function' && Team.canSection('forms') !== false, pbatch: typeof openPhotoBatch === 'function' };
     let qaOrd = [], qaHid = []; try { qaOrd = JSON.parse(localStorage.getItem('qa.ord') || '[]'); qaHid = JSON.parse(localStorage.getItem('qa.hid') || '[]'); } catch (e) {}
-    const qaKeys = [...qaOrd.filter(k => qaSpec[k]), ...Object.keys(qaSpec).filter(k => !qaOrd.includes(k))];
-    const QA = qaKeys.filter(k => qaAvail[k] && !qaHid.includes(k)).map(k => qaSpec[k]);
-    const qaSave = (ord, hid) => { try { localStorage.setItem('qa.ord', JSON.stringify(ord)); localStorage.setItem('qa.hid', JSON.stringify(hid)); } catch (e) {} };
+    // v1.0.112 : sections ajoutées par l'utilisateur (bouton ＋) ; chaque raccourci garde son ordre
+    let qaAdd = []; try { qaAdd = JSON.parse(localStorage.getItem('qa.add') || '[]'); } catch (e) {}
+    const qaSpecOf = (k) => qaSpec[k] || (qaAdd.includes(k) && SECTIONS[k] ? [k, SECTIONS[k].icon || 'grid', toolName(k), '#334155'] : null);
+    const qaAvailOf = (k) => (k in qaAvail) ? qaAvail[k] : (qaAdd.includes(k) && ok(k));
+    const qaKeys = [...qaOrd.filter(k => qaSpecOf(k)), ...[...Object.keys(qaSpec), ...qaAdd].filter(k => !qaOrd.includes(k))];
+    const QA = qaKeys.filter(k => qaAvailOf(k) && !qaHid.includes(k)).map(k => qaSpecOf(k));
+    const qaSave = (ord, hid, add) => { try { localStorage.setItem('qa.ord', JSON.stringify(ord)); localStorage.setItem('qa.hid', JSON.stringify(hid)); if (add) localStorage.setItem('qa.add', JSON.stringify(add)); } catch (e) {} };
     root.innerHTML = `<div class="st-ptools-p">
       <div class="st-hd"><b>${esc(T.e || '🏗️')} ${esc(p.name)}</b><small>${esc(T.n || 'Projet')}${p.address ? ' · ' + esc(p.address) : ''}</small></div>
       <button class="st-pb st-pb-lib" data-a="library">${icon('grid')}<span><b>Bibliothèque métier</b><small>Outils réunis et classés selon votre service · pack ${esc(plan().l)}</small></span>${icon('chevright')}</button>
-      <div class="st-qa" style="--n:${QA.length}">${QA.map(([k, ic, l, c]) => `<button class="st-qa-b" data-a="${k}" style="--c:${c}"><i>${icon(ic)}</i><span>${l}</span></button>`).join('')}</div>
+      <div class="st-qa" style="--n:${QA.length + 1}">${QA.map(([k, ic, l, c]) => `<button class="st-qa-b" data-a="${k}" style="--c:${c}"><i>${icon(ic)}</i><span>${l}</span></button>`).join('')}<button class="st-qa-b st-qa-add" data-a="qaadd" style="--c:#475569"><i>${icon('plus')}</i><span>Ajouter</span></button></div>
       ${G.map(([g, l, ks]) => `<details class="st-tcat st-acc" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(l.replace(/^\S+\s/, ''))}<small>${ks.length}</small><i class="st-chev">${icon('chevdown')}</i></summary>
         <div class="st-tgrid">${ks.map(k => `<button class="st-tool" data-tool="${k}" style="--c:${CAT_C[catOf(k)] || CAT_C[g] || 'var(--accent)'}"><i class="st-ico">${icon(SECTIONS[k].icon || 'grid')}</i><span>${esc(toolName(k))}</span></button>`).join('')}</div></details>`).join('')}
       <details class="st-tcat st-acc" data-g="outils" style="--c:#B7791F" ${opened.includes('outils') ? 'open' : ''}><summary class="st-tcat-h">Outils<small>7</small><i class="st-chev">${icon('chevdown')}</i></summary>
@@ -353,10 +361,25 @@ const ST = (() => {
     const lib = root.querySelector('[data-a=library]'); if (lib) lib.onclick = () => openServiceLibrary({ project: p });
     const pb = root.querySelector('[data-a=pbatch]'); if (pb) pb.onclick = () => openPhotoBatch(p);
     const pl = root.querySelector('[data-a=plansqa]'); if (pl) pl.onclick = () => { App.section = 'plans'; App.search = ''; renderSection(); };
+    // v1.0.112 : ＋ → choisir n'importe quelle section pour le raccourci du haut
+    root.querySelectorAll('.st-qa-b').forEach(b => { const k = b.dataset.a; if (k && qaAdd.includes(k)) b.onclick = () => { App.section = k; App.search = ''; renderSection(); }; });
+    const qaAddB = root.querySelector('[data-a=qaadd]'); if (qaAddB) qaAddB.onclick = async () => {
+      const opts = Object.keys(SECTIONS).filter(k => k !== 'dashboard' && ok(k) && !qaKeys.includes(k)).map(k => ({ value: k, label: toolName(k) }));
+      if (!opts.length) { toast('Toutes les sections sont déjà en raccourci'); return; }
+      const r = await formSheet('Ajouter un raccourci', [{ name: 'k', label: 'Section', type: 'select', value: opts[0].value, options: opts }], { okLabel: 'Ajouter' });
+      if (!r || !r.k) return; const add = [...qaAdd, r.k]; qaSave([...qaKeys, r.k], qaHid, add); renderProjectTools(root); };
+    // v1.0.112 : appui long sur le titre d'une catégorie → monter / descendre
+    root.querySelectorAll('details.st-acc[data-g] > summary').forEach(sm => { const g = sm.parentElement.dataset.g; let tm = null, lp = false;
+      sm.addEventListener('pointerdown', () => { lp = false; clearTimeout(tm); tm = setTimeout(async () => { lp = true; try { navigator.vibrate && navigator.vibrate(15); } catch (e) {}
+        const cur = G.map(x => x[0]), i = cur.indexOf(g); const v = await menu(String(sm.textContent || g).replace(/\d+$/, '').trim(), [...(i > 0 ? [{ label: '↑ Monter', icon: 'back', value: 'u' }] : []), ...(i < cur.length - 1 ? [{ label: '↓ Descendre', icon: 'chevdown', value: 'd' }] : [])]);
+        if (!v) return; const o = [...cur], j = v === 'u' ? i - 1 : i + 1; [o[i], o[j]] = [o[j], o[i]];
+        try { localStorage.setItem('grp.ord', JSON.stringify(o)); } catch (e) {} renderProjectTools(root); }, 550); });
+      ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => sm.addEventListener(ev, () => clearTimeout(tm)));
+      sm.addEventListener('click', (e) => { if (lp) { e.preventDefault(); e.stopImmediatePropagation(); lp = false; } }, true); });
     // appui long sur un raccourci : gauche / droite / masquer / tout réafficher
-    root.querySelectorAll('[data-a]').forEach(b => { const k = b.dataset.a; if (!qaSpec[k]) return; let tm = null, lp = false;
+    root.querySelectorAll('.st-qa-b:not(.st-qa-add)').forEach(b => { const k = b.dataset.a; if (!qaSpecOf(k)) return; let tm = null, lp = false;
       b.addEventListener('pointerdown', () => { lp = false; clearTimeout(tm); tm = setTimeout(async () => { lp = true; try { navigator.vibrate && navigator.vibrate(15); } catch (e) {}
-        const cur = qaKeys.filter(x => qaAvail[x]), i = cur.indexOf(k), hidAny = qaHid.length > 0;
+        const cur = qaKeys.filter(x => qaAvailOf(x)), i = cur.indexOf(k), hidAny = qaHid.length > 0;
         const v = await menu(qaSpec[k][2], [...(i > 0 ? [{ label: '← Déplacer à gauche', icon: 'back', value: 'l' }] : []), ...(i < cur.length - 1 ? [{ label: 'Déplacer à droite →', icon: 'chevright', value: 'r' }] : []), { label: 'Masquer ce raccourci', icon: 'trash', danger: true, value: 'hide' }, ...(hidAny ? [{ label: 'Réafficher tous les raccourcis', icon: 'check', value: 'show' }] : [])]);
         if (!v) return;
         let ord = [...qaKeys], hid = [...qaHid];
