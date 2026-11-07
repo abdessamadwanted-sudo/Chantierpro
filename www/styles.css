@@ -3739,11 +3739,3 @@ table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-
 .lot-tbox small { font-size: 12px; background: rgba(255,255,255,.18); padding: 1px 8px; border-radius: 8px; color: #e2e8f0; }
 .lot-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 6px 0 4px; }
 .lot-chips::-webkit-scrollbar { display: none; }
-
-/* v1.0.112 : bande horizontale des types (TOUT + types qui ont des plans) */
-.lot-types { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 4px 0; }
-.lot-types::-webkit-scrollbar { display: none; }
-.lot-tt { flex: 0 0 auto; border: 1px solid #334155; background: #1e293b; color: #e2e8f0; border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 600; white-space: nowrap; }
-.lot-tt.on { background: #e2e8f0; color: #0f172a; border-color: #e2e8f0; }
-.lot-tt small { opacity: .7; margin-left: 4px; }
-.lot-tt.lot-more { border-style: dashed; color: #93c5fd; font-size: 16px; padding: 4px 14px; }

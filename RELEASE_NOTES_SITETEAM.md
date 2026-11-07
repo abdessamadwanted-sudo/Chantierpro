@@ -1,3 +1,7 @@
+## SiteTeam : v1.0.115
+
+- Lots & plans : retour à l'affichage précédent (grande boîte « Tous les types » avec sa liste, sans la bande des types du niveau).
+
 ## SiteTeam : v1.0.114
 
 - Raccourcis du haut : l'appui long fonctionne aussi sur les raccourcis ajoutés (ex. Réception & Bétonnage) et affiche les options de déplacement.
