@@ -1,3 +1,7 @@
+## SiteTeam : v1.0.118
+
+- Plans : la liste déroulante des types dans l'en-tête de chaque niveau est plus discrète (plus petite, pilule translucide, flèche fine), pour garder le design d'origine.
+
 ## SiteTeam : v1.0.117
 
 - Stabilité : la synchronisation automatique attend 100 secondes après le lancement de l'application (la synchronisation manuelle reste immédiate).
