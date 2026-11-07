@@ -70,7 +70,9 @@ function lotBarInto(card, f, ps, root) {
   const curL = lots.find(l => l.id === sel);
   const curHtml = curL ? lotBtn(curL) : sel === '__all' ? `<button class="lot-c on" data-l="__all" style="--c:#334155">📚 Tous les lots <small>${ps.length}</small></button>` : sel === '__none' ? `<button class="lot-c on" data-l="__none" style="--c:#64748b">📄 Sans lot <small>${nNo}</small></button>` : '';
   // v1.0.102 : une seule commande « Lots ▾ » sur le bandeau ; la liste (par type) s'ouvre dessous
-  bar.innerHTML = `<button type="button" class="lot-c lot-pickbtn">▾ Lots (${lots.length})</button>`;
+  // v1.0.104 : le bouton du bandeau affiche l'endroit où vous êtes (type ou lot), la liste s'ouvre juste en dessous
+  const where = sel && sel.startsWith('T:') ? typeLab(sel.slice(2), p) : sel === '__all' ? 'Tous les types (TOUT)' : sel === '__none' ? 'Sans lot' : curL ? `${curL.e} ${curL.name}${curL.cat ? ' · ' + typeLab(curL.cat, p) : ''}` : 'Lots';
+  bar.innerHTML = `<button type="button" class="lot-c lot-pickbtn">▾ ${esc(where)} <small>${lots.length}</small></button>`;
   const pickBtn = bar.querySelector('.lot-pickbtn');
   pickBtn.onclick = (e) => { e.stopPropagation(); const old = $('.lot-pick', card); if (old) { old.remove(); return; }
     const list = document.createElement('div'); list.className = 'lot-pick';
