@@ -226,9 +226,12 @@ const Sync = (() => {
   const tr = (s) => { try { typeof bootTrail === 'function' && bootTrail('synchro : ' + s + (performance.memory ? ` [JS ${Math.round(performance.memory.usedJSHeapSize / 1048576)} Mo]` : '')); } catch (e) {} };
   const mb = (f) => f && f.blob ? (f.blob.size / 1048576).toFixed(1) + ' Mo' : '';
   // ---------- synchronisation ----------
+  let bootHeld = false;
   async function run({ quiet = false, force = false } = {}) {
     if (!enabled()) return;
     if (window.__safe && !force) return;   // v1.0.48 : mode secours — pas de synchro automatique (« Synchroniser » à la main reste possible)
+    // v1.0.116 : pas de synchro automatique pendant les 100 premières secondes (la mémoire est encore chargée par l'accueil)
+    if (!force && performance.now() < 100000) { if (!bootHeld) { bootHeld = true; setTimeout(() => { bootHeld = false; run({ quiet: true }); }, 100000 - performance.now()); } return; }
     if (running) { again = true; return; }
     if (navigator.onLine === false) { setStatus('error', 'Hors connexion'); return; }
     running = true; again = false;

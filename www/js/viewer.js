@@ -262,11 +262,12 @@ async function openPlanViewer(plan, ctx) {
   async function renderHD() {
     if (closed) return;
     if (g || !el.isConnected) return scheduleHD();
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);   // v1.0.63 : 2 au lieu de 3 (P30 Pro) — net, et 2 fois moins de mémoire
+    let dpr = Math.min(window.devicePixelRatio || 1, 2);   // v1.0.63 : 2 au lieu de 3 (P30 Pro) — net, et 2 fois moins de mémoire
     if (st.scale * dpr <= (lite ? 0.75 : 1.05)) { hd.style.display = 'none'; return; } // l'image de base suffit
     const page = await loadPdfPage();
     if (!page) return;
     const vw = viewer.clientWidth, vh = viewer.clientHeight;
+    dpr = Math.max(0.5, Math.min(dpr, 2048 / Math.max(vw, vh, 1)));   // v1.0.116 : limite de 2048 px de côté (mémoire du téléphone)
     const r0 = W / page.getViewport({ scale: 1 }).width;
     const sc = st.scale, tx = st.tx, ty = st.ty;
     let mx = Math.round(vw * HD_M), my = Math.round(vh * HD_M);
