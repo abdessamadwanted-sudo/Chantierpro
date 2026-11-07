@@ -420,7 +420,8 @@ const Sync = (() => {
     DB.onChange = (s) => { schedule(); if (typeof licOnChange === 'function') licOnChange(s); };
     if (!enabled()) return;
     setStatus('ok');
-    setTimeout(() => (window.requestIdleCallback || setTimeout)(() => run({ quiet: true }), { timeout: 3000 }), 2500);
+    // v1.0.104 : synchro de démarrage après 60 s (et seulement si l'écran est visible) : la lancer tout de suite faisait planter le démarrage
+    setTimeout(() => (window.requestIdleCallback || setTimeout)(() => { if (document.visibilityState === 'visible') run({ quiet: true }); }, { timeout: 3000 }), 60000);
     clearInterval(autoT); autoT = setInterval(() => { if (document.visibilityState === 'visible') run({ quiet: false }); }, 120000);
     if (start.done) return; start.done = true;
     document.addEventListener('visibilitychange', () => {
