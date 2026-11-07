@@ -1,3 +1,7 @@
+## SiteTeam : v1.0.119
+
+- Plans : la liste des types de niveau revient au style d'origine (rectangle à coins doux), en plus petit.
+
 ## SiteTeam : v1.0.118
 
 - Plans : la liste déroulante des types dans l'en-tête de chaque niveau est plus discrète (plus petite, pilule translucide, flèche fine), pour garder le design d'origine.
