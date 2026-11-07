@@ -1,3 +1,8 @@
+## SiteTeam : v1.0.113
+
+- Lots & plans : la grande boîte « Tous les types » est retirée. Les types sont dans la bande du niveau ; le bouton ＋ ouvre la liste complète (ajouter un type, afficher les vides).
+- Appui long sur un type de la bande : le retirer de ce niveau seulement.
+
 ## SiteTeam : v1.0.112
 
 - Lots & plans : bande horizontale des types (TOUT + types qui ont des plans, avec leur nombre). Les types vides restent dans la liste complète.
