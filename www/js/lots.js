@@ -40,7 +40,7 @@ const lotSelOf = (fid) => (App.lotSel || {})[fid] || '';
 // v1.0.50 : plus de « Tous » — un lot est toujours choisi (le 1er qui a des plans) ; « Sans lot » seulement s'il reste des plans sans lot
 function lotSelDefault(f, ps) {
   App.lotSel = App.lotSel || {}; const cur = App.lotSel[f.id], lots = planLots(App.project);
-  if (cur && (cur === '__all' || (cur === '__none' ? ps.some(x => !x.lotId) : lots.some(l => l.id === cur)))) return cur;   // v1.0.98 : « Tous les lots »
+  if (cur && (cur === '__all' || (typeof cur === 'string' && cur.startsWith('T:')) || (cur === '__none' ? ps.some(x => !x.lotId) : lots.some(l => l.id === cur)))) return cur;   // v1.0.98 : « Tous les lots »
   const L = lots.find(l => ps.some(x => x.lotId === l.id)); const d = L ? L.id : ps.some(x => !x.lotId) ? '__none' : (lots[0] || {}).id || '';
   App.lotSel[f.id] = d; return d;
 }
@@ -70,7 +70,9 @@ function lotBarInto(card, f, ps, root) {
   const curL = lots.find(l => l.id === sel);
   const curHtml = curL ? lotBtn(curL) : sel === '__all' ? `<button class="lot-c on" data-l="__all" style="--c:#334155">📚 Tous les lots <small>${ps.length}</small></button>` : sel === '__none' ? `<button class="lot-c on" data-l="__none" style="--c:#64748b">📄 Sans lot <small>${nNo}</small></button>` : '';
   // v1.0.102 : une seule commande « Lots ▾ » sur le bandeau ; la liste (par type) s'ouvre dessous
-  bar.innerHTML = `<button type="button" class="lot-c lot-pickbtn">▾ Lots (${lots.length})</button>`;
+  // v1.0.104 : le bouton du bandeau affiche l'endroit où vous êtes (type ou lot), la liste s'ouvre juste en dessous
+  const where = sel && sel.startsWith('T:') ? typeLab(sel.slice(2), p) : sel === '__all' ? 'Tous les types (TOUT)' : sel === '__none' ? 'Sans lot' : curL ? `${curL.e} ${curL.name}${curL.cat ? ' · ' + typeLab(curL.cat, p) : ''}` : 'Lots';
+  bar.innerHTML = `<button type="button" class="lot-c lot-pickbtn">▾ ${esc(where)} <small>${lots.length}</small></button>`;
   const pickBtn = bar.querySelector('.lot-pickbtn');
   pickBtn.onclick = (e) => { e.stopPropagation(); const old = $('.lot-pick', card); if (old) { old.remove(); return; }
     const list = document.createElement('div'); list.className = 'lot-pick';
@@ -81,11 +83,11 @@ function lotBarInto(card, f, ps, root) {
     const accKey = (k) => f.id + ':' + k;
     const isOpen = (k) => App.lotAcc[accKey(k)] !== undefined ? !!App.lotAcc[accKey(k)] : (k === curCat && sel !== '__all' && sel !== '__none');
     const btn = (l) => `<button type="button" class="lp-i ${sel === l.id ? 'on' : ''}" data-lp="${l.id}" style="--c:${l.c}">${l.e} ${esc(l.name)}${cnt(l.id) ? ` <small>${cnt(l.id)}</small>` : ''}</button>`;
-    const sec = (k, lab, xs) => { const op = isOpen(k);
-      return `<button type="button" class="lp-acc ${op ? 'open' : ''}" data-acc="${esc(k)}"><span>${op ? '▾' : '▸'} ${esc(lab)}</span><small>${xs.length}</small></button>` + (op ? `<div class="lp-body">${xs.length ? xs.map(btn).join('') : '<div class="lp-empty">Aucun lot dans ce type</div>'}</div>` : ''); };
+    const sec = (k, lab, xs, cls = '') => { const op = isOpen(k), viewK = k === '__all' ? '__all' : k ? 'T:' + k : '';
+      return `<button type="button" class="lp-acc ${cls} ${op ? 'open' : ''}" data-acc="${esc(k)}"><span>${op ? '▾' : '▸'} ${esc(lab)}</span><small>${xs.length}</small></button>` + (op ? `<div class="lp-body">${viewK ? `<button type="button" class="lp-i view ${sel === viewK ? 'on' : ''}" data-lp="${viewK}">▦ Voir tous les plans (${xs.length} lot${xs.length > 1 ? 's' : ''})</button>` : ''}${xs.length ? xs.map(btn).join('') : '<div class="lp-empty">Aucun lot dans ce type</div>'}</div>` : ''); };
     const draw = () => {
       const noCat = lots.filter(l => !l.cat);
-      list.innerHTML = sec('__all', 'Tous les lots', lots) + types.map(t => sec(t.k, t.l, lots.filter(l => (l.cat || '') === t.k))).join('') + (noCat.length ? sec('', 'Sans catégorie', noCat) : '')
+      list.innerHTML = sec('__all', 'Tous les types (TOUT)', lots, 'all') + types.map(t => sec(t.k, t.l, lots.filter(l => (l.cat || '') === t.k))).join('') + (noCat.length ? sec('', 'Sans catégorie', noCat) : '')
         + (nNo ? `<button type="button" class="lp-i ${sel === '__none' ? 'on' : ''}" data-lp="__none">📄 Sans lot <small>${nNo}</small></button>` : '')
         + `<div class="lp-foot"><button type="button" class="lp-i add" data-lp="__add">＋ Nouveau lot</button><button type="button" class="lp-i add" data-lp="__addtype">＋ Nouveau type</button></div>`;
       list.querySelectorAll('[data-acc]').forEach(b => b.onclick = (e) => { e.stopPropagation(); const k = b.dataset.acc; App.lotAcc[accKey(k)] = !isOpen(k); draw(); });
@@ -115,7 +117,7 @@ function lotBarInto(card, f, ps, root) {
   bar.querySelectorAll('[data-l]').forEach(b => b.onclick = (e) => pickBtn.onclick(e));   // toucher le lot choisi ouvre la liste
   if (sel) { const L = lots.find(l => l.id === sel); if (L) bar.after(lotPanel(L, f, root)); }
 }
-const lotFilter = (ps, f) => { const s = lotSelDefault(f, ps); return s === '__all' ? ps : s === '__none' ? ps.filter(p => !p.lotId) : s ? ps.filter(p => p.lotId === s) : ps; };
+const lotFilter = (ps, f) => { const s = lotSelDefault(f, ps); if (s && s.startsWith('T:')) { const k = s.slice(2), ids = planLots(App.project).filter(l => (l.cat || '') === k).map(l => l.id); return ps.filter(p => ids.includes(p.lotId)); } return s === '__all' ? ps : s === '__none' ? ps.filter(p => !p.lotId) : s ? ps.filter(p => p.lotId === s) : ps; };
 
 // panneau du lot : replié par défaut (une ligne), on l'ouvre au toucher ; « ＋ Ajouter » pour y mettre ce qu'il faut
 const lotOpenK = (L) => { try { return (JSON.parse(localStorage.getItem('lot.open') || '{}'))[L.id]; } catch (e) { return false; } };

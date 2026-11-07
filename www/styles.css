@@ -3714,3 +3714,8 @@ table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-
 .lot-pick .lp-empty { font-size: 12px; opacity: .7; padding: 6px 2px; }
 .lot-pick .lp-foot { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .lot-pick .lp-foot .lp-i { flex: 1 1 auto; }
+
+/* v1.0.103 : « Tous les types (TOUT) » en tête, couleur à part ; bouton « voir les plans » */
+.lot-pick .lp-acc.all { background: #1e293b; color: #f8fafc; border: 1px solid #334155; border-left: 4px solid #64748b; }
+.lot-pick .lp-acc.all small { color: #cbd5e1; }
+.lot-pick .lp-i.view { font-weight: 700; border-style: dashed; }
