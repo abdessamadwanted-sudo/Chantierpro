@@ -177,12 +177,15 @@ function gsDecTab(box, p, G, save, redraw) {
       ${rows.map(x => `<tr><td>${esc(x.it.n || '')}</td><td class="l"><b>${esc(x.it.des)}</b></td><td>${esc(x.it.u || '')}</td><td>${gsF(gsNum(x.it.pu))}</td><td>${gsF(x.pr)}</td><td class="${x.m ? 'hi' : ''}">${gsF(x.m)}</td><td>${gsF(x.c)}</td><td><b>${gsF(x.mc)}</b></td></tr>`).join('')}</tbody></table></div>
     <div class="gt-tot"><div><span>Cumul des travaux HT</span><b>${gsDH(cumHT)}</b></div><div><span>À déduire : décomptes précédents</span><b>${gsDH(prevHT)}</b></div><div class="s"><span>Montant du décompte HT</span><b>${gsDH(ht)}</b></div>
       <div><span>Retenue de garantie <button class="gt-pc" data-a="rg">${gsF(rgP)} %</button></span><b>- ${gsDH(rg)}</b></div><div><span>TVA <button class="gt-pc" data-a="tva">${gsF(tvaP)} %</button></span><b>${gsDH(tva)}</b></div><div class="s n"><span>Net à payer TTC</span><b>${gsDH(net)}</b></div></div>
-    <div class="gt-acts"><button class="btn" data-a="sit">${icon('pdf')} Établir le décompte n° ${G.sit.length + 1} (PDF)</button><button class="btn ghost" data-a="xls">${icon('grid')} Excel</button></div>` : '<div class="gs-empty">Il faut le BPU et des attachements.</div>'}
+    <div class="gt-acts"><button class="btn" data-a="sit">${icon('pdf')} Établir le décompte n° ${G.sit.length + 1} (PDF)</button><button class="btn ghost" data-a="xls">${icon('grid')} Excel</button><button class="btn ghost" data-a="tpl">🎨 Mon modèle</button>${p.gsTpl ? `<button class="btn" data-a="tplpdf">📄 Export avec mon modèle</button>` : ''}</div>` : '<div class="gs-empty">Il faut le BPU et des attachements.</div>'}
     ${G.sit.length ? `<div class="gs-h"><b>Décomptes établis</b></div><div class="gt-w"><table class="gt"><thead><tr><th>N°</th><th>Date</th><th>Cumul HT</th><th>Net TTC</th></tr></thead><tbody>${G.sit.slice().reverse().map(s => `<tr><td>${s.n}</td><td>${fmtDate(s.date)}</td><td>${gsF(s.cum)}</td><td><b>${gsF(s.ttc)}</b></td></tr>`).join('')}</tbody></table></div>` : ''}`;
   gsBindLots(box, redraw);
   const pc = (k, lbl) => { const b = $(`[data-a=${k}]`, box); if (b) b.onclick = async () => { const r = await formSheet(lbl, [{ name: 'v', label: `${lbl} (%)`, type: 'number', value: k === 'rg' ? rgP : tvaP }], { okLabel: 'OK' }); if (r) { p[k === 'rg' ? 'gsRg' : 'gsTva'] = gsNum(r.v); await save(); redraw(); } }; };
   pc('rg', 'Retenue de garantie'); pc('tva', 'TVA');
   const xb = $('[data-a=xls]', box); if (xb) xb.onclick = async () => { const b = await xlsxBlob([{ name: 'Décompte', head: 0, widths: [8, 46, 8, 12, 12, 12, 12, 16], rows: [['N°', 'Désignation', 'U', 'PU', 'Q. préc.', 'Q. mois', 'Q. cumul', 'Montant cumul HT'], ...rows.map(x => [x.it.n || '', x.it.des, x.it.u || '', gsNum(x.it.pu), x.pr, x.m, x.c, x.mc]), [], ['', 'Cumul des travaux HT', '', '', '', '', '', cumHT], ['', 'Décomptes précédents', '', '', '', '', '', prevHT], ['', 'Montant du décompte HT', '', '', '', '', '', ht], ['', `Retenue de garantie ${rgP} %`, '', '', '', '', '', -rg], ['', `TVA ${tvaP} %`, '', '', '', '', '', tva], ['', 'Net à payer TTC', '', '', '', '', '', net]] }]); shareBlob(b, `Decompte_${G.sit.length + 1}_${safeName(p.name)}.xlsx`); };
+  // v1.0.110 : modèle personnalisé — titre, colonnes (dans l'ordre choisi), note ; export PDF avec les mêmes calculs
+  const tb = $('[data-a=tpl]', box); if (tb) tb.onclick = () => gsTplEdit(p, save, redraw);
+  const tp = $('[data-a=tplpdf]', box); if (tp) tp.onclick = () => gsTplPdf(p, G, B, prev, save, redraw);
   const sb = $('[data-a=sit]', box); if (sb) sb.onclick = async () => {
     const r = await formSheet(`Décompte n° ${G.sit.length + 1}`, [{ name: 'date', label: 'Arrêté au', type: 'date', value: todayISO() }, { name: 'ent', label: 'Entreprise', value: p.gsEnt || '' }], { okLabel: 'Créer le PDF' });
     if (!r) return; p.gsEnt = r.ent;
@@ -204,6 +207,44 @@ function gsDecTab(box, p, G, save, redraw) {
     G.sit.push({ id: DB.uid(), n, date: r.date, cum: cH, ht: h, ttc, lot: gsLotSel() }); await save();
     await sharePdf(doc, `Decompte_${n}_${safeName(p.name)}.pdf`); redraw();
   };
+}
+// ---------- 🎨 Modèle personnalisé de décompte (v1.0.110) ----------
+const GS_TPL_COLS = { n: ['N°', 11], des: ['Désignation', 50], u: ['U', 9], pu: ['PU HT', 18], qp: ['Q. préc.', 17], qm: ['Q. mois', 17], qc: ['Q. cumul', 17], mt: ['Montant cumul', 24], mm: ['Montant mois', 24] };
+const GS_TPL_DEF = 'n,des,u,pu,qm,qc,mt';
+async function gsTplEdit(p, save, redraw) {
+  const cur = p.gsTpl || {};
+  const r = await formSheet('Mon modèle de décompte', [
+    { name: 'title', label: 'Titre du document', value: cur.title || 'Décompte des travaux' },
+    { name: 'cols', label: 'Colonnes, dans l\'ordre (n, des, u, pu, qp, qm, qc, mt, mm)', value: cur.cols || GS_TPL_DEF, placeholder: 'n,des,u,pu,qm,qc,mt' },
+    { name: 'note', label: 'Note en bas du document', value: cur.note || '' }], { okLabel: 'Enregistrer' });
+  if (!r) return;
+  p.gsTpl = { title: r.title || 'Décompte des travaux', cols: r.cols || GS_TPL_DEF, note: r.note || '' };
+  await save(); redraw(); toast('Modèle enregistré ✓');
+}
+async function gsTplPdf(p, G, B, prev, save, redraw) {
+  const T = p.gsTpl || {}, keys = String(T.cols || GS_TPL_DEF).split(',').map(s => s.trim()).filter(k => GS_TPL_COLS[k]);
+  if (!keys.length) { toast('Le modèle n’a aucune colonne valide'); return; }
+  const rgP = p.gsRg ?? 10, tvaP = p.gsTva ?? 20;
+  const R2 = B.map(it => { const c = gsCum(G, it.id), pr = prev ? gsCum(G, it.id, prev.date) : 0, pu = gsNum(it.pu); return { it, c, pr, m: c - pr, mc: c * pu, mm: (c - pr) * pu }; });
+  const cH = R2.reduce((s, x) => s + x.mc, 0), pH = R2.reduce((s, x) => s + x.pr * gsNum(x.it.pu), 0), h = cH - pH, g = h * rgP / 100, t2 = (h - g) * tvaP / 100, ttc = h - g + t2;
+  const n = G.sit.length + 1, C = newDoc(T.title || 'Décompte', p), { doc, M, W } = C;
+  C.text(`${T.title || 'Décompte des travaux'} n° ${n}`, { size: 16, bold: true, gap: 0 });
+  C.text(`${p.pdfTitle || p.name}${p.mo ? ' · Maître d\'ouvrage : ' + p.mo : ''}${p.gsEnt ? ' · Entreprise : ' + p.gsEnt : ''}`, { size: 9, gap: 3 });
+  // largeurs : la désignation prend la place restante
+  const tot = W - 2 * M, sumW = keys.reduce((s, k) => s + GS_TPL_COLS[k][1], 0), cw = keys.map(k => GS_TPL_COLS[k][1] * tot / sumW), rh = 6.2;
+  const head = () => { C.need(rh + 2); doc.setFillColor(30, 41, 59); doc.rect(M, C.y, tot, rh, 'F'); doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(7.8); let x = M; keys.forEach((k, i) => { doc.text(pt(GS_TPL_COLS[k][0]), x + 1.5, C.y + 4.2); x += cw[i]; }); C.y += rh; };
+  head();
+  const val = (x, k) => ({ n: x.it.n || '', des: x.it.des || '', u: x.it.u || '', pu: gsF(gsNum(x.it.pu)), qp: gsF(x.pr), qm: gsF(x.m), qc: gsF(x.c), mt: gsF(x.mc), mm: gsF(x.mm) })[k];
+  R2.forEach((x, i) => { if (C.y + rh > C.H - 40) { doc.addPage(); C.header(); head(); } if (i % 2) { doc.setFillColor(246, 248, 251); doc.rect(M, C.y, tot, rh, 'F'); }
+    doc.setTextColor(30); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.8); let xx = M;
+    keys.forEach((k, j) => { doc.text(doc.splitTextToSize(pt(String(val(x, k))), cw[j] - 2.5)[0] || '', xx + 1.5, C.y + 4.2); xx += cw[j]; }); C.y += rh; });
+  C.y += 4;
+  const line = (l, v, b) => { C.need(7); doc.setFont('helvetica', b ? 'bold' : 'normal'); doc.setFontSize(b ? 11 : 10); doc.setTextColor(20); doc.text(pt(l), W - M - 80, C.y + 4); doc.text(pt(v), W - M, C.y + 4, { align: 'right' }); C.y += 6.5; };
+  line('Cumul des travaux HT', gsDH(cH)); line('À déduire : décomptes précédents', gsDH(pH)); line('Montant HT', gsDH(h), true); line(`Retenue de garantie ${rgP} %`, '- ' + gsDH(g)); line(`TVA ${tvaP} %`, gsDH(t2)); line('Net à payer TTC', gsDH(ttc), true);
+  if (T.note) { C.y += 6; C.text(T.note, { size: 9, gap: 0 }); }
+  C.finish();
+  // l'export ne crée pas de décompte officiel (il n'est pas enregistré dans l'historique)
+  await sharePdf(doc, `${safeName(T.title || 'Decompte')}_${n}_${safeName(p.name)}.pdf`); redraw();
 }
 // ---------- 🧪 Labo (éprouvettes) · visites BET / BC / topo ----------
 function gsLaboTab(box, p, G, save, redraw) {
