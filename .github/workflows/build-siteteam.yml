@@ -41,7 +41,9 @@ jobs:
 
       - name: Set app version (+ cache-busting of web files)
         run: |
-          V=1.0.${{ github.run_number }}
+          # version = premier titre de RELEASE_NOTES_SITETEAM.md (même numéro partout : app, release, notes)
+          V=$(grep -m1 -oE '1\.0\.[0-9]+' RELEASE_NOTES_SITETEAM.md); test -n "$V" || { echo 'version introuvable'; exit 1; }
+          echo "SITE_VERSION=$V" >> "$GITHUB_ENV"
           sed -i "s/__APP_VERSION__/$V/" www/js/app.js
           # empreinte de la partie native : si elle ne change pas, la mise à jour se fait sans réinstaller (paquet web)
           NID=$(cat package.json capacitor.config.json keystore/debug.keystore ci/signing.sh .github/workflows/build-siteteam.yml assets/* $(find native -type f | sort) 2>/dev/null | sha1sum | cut -c1-16)
@@ -59,7 +61,7 @@ jobs:
 
       - name: Android versionCode / versionName (real update for Android)
         run: |
-          sed -i -E "s/versionCode [0-9]+/versionCode ${{ github.run_number }}/; s/versionName \"[^\"]*\"/versionName \"1.0.${{ github.run_number }}\"/" android/app/build.gradle
+          sed -i -E "s/versionCode [0-9]+/versionCode ${{ github.run_number }}/; s/versionName \"[^\"]*\"/versionName \"$SITE_VERSION\"/" android/app/build.gradle
           grep -n "version" android/app/build.gradle
 
       - name: Keep the chosen theme (no Android auto dark mode)
@@ -138,9 +140,9 @@ jobs:
       - name: Publish release (download link for the phone)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: siteteam-v1.0.${{ github.run_number }}
+          tag_name: siteteam-v${{ env.SITE_VERSION }}
           target_commitish: ${{ github.sha }}
-          name: SiteTeam v1.0.${{ github.run_number }}
+          name: SiteTeam v${{ env.SITE_VERSION }}
           body_path: RELEASE_NOTES_SITETEAM.md
           files: |
             SiteTeam.apk
