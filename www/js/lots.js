@@ -41,7 +41,7 @@ const lotSelOf = (fid) => (App.lotSel || {})[fid] || '';
 function lotSelDefault(f, ps) {
   App.lotSel = App.lotSel || {}; const cur = App.lotSel[f.id], lots = planLots(App.project);
   if (cur && (cur === '__all' || (typeof cur === 'string' && cur.startsWith('T:')) || (cur === '__none' ? ps.some(x => !x.lotId) : lots.some(l => l.id === cur)))) return cur;   // v1.0.98 : « Tous les lots »
-  const L = lots.find(l => ps.some(x => x.lotId === l.id)); const d = L ? L.id : ps.some(x => !x.lotId) ? '__none' : (lots[0] || {}).id || '';
+  const d = '__all';   // v1.0.107 : par défaut, tous les plans du niveau
   App.lotSel[f.id] = d; return d;
 }
 const nivOfFolder = (name) => { const m = String(name || '').replace(/_/g, ' ').replace(/niveau|niv\.?(?=\s*[rR\d])/gi, ' ').match(/\b(R\s?\+\s?\d+|RDC|SSL|SS\s?\d?|Mezz\w*|Terrasse|Fondations?)\b/i); return m ? m[1].replace(/\s+/g, '').replace(/^mezz\w*/i, 'Mezz') : ''; };
@@ -72,7 +72,7 @@ function lotBarInto(card, f, ps, root) {
   // v1.0.102 : une seule commande « Lots ▾ » sur le bandeau ; la liste (par type) s'ouvre dessous
   // v1.0.104 : le bouton du bandeau affiche l'endroit où vous êtes (type ou lot), la liste s'ouvre juste en dessous
   const where = sel && sel.startsWith('T:') ? typeLab(sel.slice(2), p) : sel === '__all' ? 'Tous les types (TOUT)' : sel === '__none' ? 'Sans lot' : curL ? `${curL.e} ${curL.name}${curL.cat ? ' · ' + typeLab(curL.cat, p) : ''}` : 'Lots';
-  bar.innerHTML = `<button type="button" class="lot-c lot-pickbtn">▾ ${esc(where)} <small>${lots.length}</small></button>`;
+  bar.innerHTML = `<button type="button" class="lot-c lot-pickbtn">▾ ${esc(where)} <small>${ps.length}</small></button>`;
   const pickBtn = bar.querySelector('.lot-pickbtn');
   pickBtn.onclick = (e) => { e.stopPropagation(); const old = $('.lot-pick', card); if (old) { old.remove(); return; }
     const list = document.createElement('div'); list.className = 'lot-pick';
@@ -85,9 +85,10 @@ function lotBarInto(card, f, ps, root) {
     const btn = (l) => `<button type="button" class="lp-i ${sel === l.id ? 'on' : ''}" data-lp="${l.id}" style="--c:${l.c}">${l.e} ${esc(l.name)}${cnt(l.id) ? ` <small>${cnt(l.id)}</small>` : ''}</button>`;
     // v1.0.106 : une seule liste à plat des types (fixée en haut) ; les plans du type choisi s'affichent dessous
     const draw = () => {
+      const nOf = (k) => ps.filter(p => { const L = lots.find(l => l.id === p.lotId); return L && (L.cat || '') === k; }).length;
       const opt = (v, lab, n, cls = '') => `<button type="button" class="lp-type ${cls} ${sel === v ? 'on' : ''}" data-lp="${v}"><span>${lab}</span><small>${n}</small></button>`;
-      list.innerHTML = opt('__all', '📚 Tous les types (TOUT)', lots.length, 'all')
-        + types.map(t => opt('T:' + t.k, esc(t.l), lots.filter(l => (l.cat || '') === t.k).length)).join('')
+      list.innerHTML = opt('__all', '📚 Tous les types (TOUT)', ps.length, 'all')
+        + types.map(t => opt('T:' + t.k, esc(t.l), nOf(t.k))).join('')
         + (nNo ? opt('__none', '📄 Sans lot', nNo) : '')
         + `<div class="lp-foot"><button type="button" class="lp-i add" data-lp="__add">＋ Nouveau lot</button><button type="button" class="lp-i add" data-lp="__addtype">＋ Nouveau type</button></div>`;
       list.querySelectorAll('[data-lp]').forEach(x => {

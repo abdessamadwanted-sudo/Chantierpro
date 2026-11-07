@@ -1,3 +1,6 @@
+## SiteTeam : v1.0.107
+- Plans : par défaut, un niveau affiche tous ses plans (« Tous les types »). Les compteurs comptent les plans (et non les lots).
+
 ## SiteTeam : v1.0.106
 - Lots : le menu du niveau est une liste simple des types (Tous les types, Architecture, Structure…). Le type choisi affiche ses plans sous le bandeau. Plus de sous-menus imbriqués.
 
