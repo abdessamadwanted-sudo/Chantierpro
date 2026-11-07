@@ -80,19 +80,7 @@ function lotBarInto(card, f, ps, root) {
   // boîte fixe : ouvre / ferme la liste des types dessous
   const box = document.createElement('button'); box.type = 'button'; box.className = 'lot-tbox';
   box.innerHTML = `<span>▾ ${esc(where)}</span><small>${cntTop}</small>`;
-  // v1.0.113 : la grande boîte « Tous les types » est retirée ; les types sont dans la bande du niveau
-  // v1.0.112 : bande horizontale des types qui ont des plans (TOUT en premier) ; les types vides restent dans la liste complète
-  const shownT = typesVis(f, p).filter(t2 => nOfType(t2.k) > 0 || tk === t2.k);
-  const strip = document.createElement('div'); strip.className = 'lot-types';
-  strip.innerHTML = `<button type="button" class="lot-tt ${sel === '__all' ? 'on' : ''}" data-lp="__all">📚 TOUT <small>${ps.length}</small></button>` + shownT.map(t2 => `<button type="button" class="lot-tt ${tk === t2.k && sel !== '__all' ? 'on' : ''}" data-lp="T:${t2.k}">${esc(typeLab(t2.k, p).replace(/\s*\([^)]*\)$/, ''))} <small>${nOfType(t2.k)}</small></button>`).join('') + `<button type="button" class="lot-tt lot-more" data-lp="__more">＋</button>`;
-  strip.querySelectorAll('[data-lp]').forEach(b => { if (b.dataset.lp === '__more') { b.onclick = (e) => { e.stopPropagation(); box.onclick(e); }; return; }
-    b.onclick = (e) => { e.stopPropagation(); App.lotSel = App.lotSel || {}; App.lotSel[f.id] = b.dataset.lp; App.keepScrollY = ($('#content') || {}).scrollTop || 0; renderPlans(root); };
-    // appui long sur un type : le retirer de ce niveau seulement
-    if (b.dataset.lp.startsWith('T:')) b.oncontextmenu = async (e) => { e.preventDefault(); e.stopPropagation();
-      const k = b.dataset.lp.slice(2), tt = typesOf(p).find(d => d.k === k) || { l: k };
-      const v = await menu(tt.l, [{ label: 'Retirer ce type de ce niveau', icon: 'trash', danger: true, value: 'hide' }]);
-      if (v !== 'hide') return; f.hiddenTypes = [...hiddenT(f), k]; if (tk === k) App.lotSel[f.id] = '__all'; await DB.put('folders', f); renderPlans(root); }; });
-  bar.appendChild(strip);
+  bar.appendChild(box);
   // rangée des lots du type choisi (ou de tous les lots pour TOUT)
   const chipOf = (l, on) => { const D = (f.lotData || {})[l.id] || {}, di = dueInfo(D), po = lotStarted(l, D) ? paOpen(l, D).length : 0;
     return `<button type="button" class="lot-c ${on ? 'on' : ''}" data-lp="${l.id}" style="--c:${l.c};--t:${tint(l.c, .16)}">${l.e} ${esc(l.name)}${cnt(l.id) ? ` <small>${cnt(l.id)}</small>` : ''}${po ? `<i class="lc-pa">🛑${po}</i>` : ''}${di && di.cls !== 'ok' ? `<i class="lc-due ${di.cls}">⏳</i>` : ''}${avB(l)}</button>`; };
@@ -130,7 +118,7 @@ function lotBarInto(card, f, ps, root) {
       });
     };
     draw();
-    strip.after(list); };
+    box.after(list); };
   // lot : appui long = menu (retirer de ce niveau)
   chips.querySelectorAll('[data-lp]').forEach(b => { const L = lots.find(l => l.id === b.dataset.lp); if (L) b.oncontextmenu = (e) => { e.preventDefault(); lotMenu(L, root, f); }; });
   // ajout d'un lot : rangé dans le type affiché
@@ -144,7 +132,7 @@ function lotBarInto(card, f, ps, root) {
     card.addEventListener('touchend', (e) => { if (x0 == null) return; const t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0; x0 = null;
       if (Math.abs(dx) < 70 || Math.abs(dy) > 40) return;
       const pp = App.project, LL = lotsVis(f, planLots(pp)), cur = lotSelDefault(f, ps);
-      const seq = ['__all', ...typesVis(f, pp).filter(t2 => ps.some(x => { const L = LL.find(l => l.id === x.lotId); return L && (L.cat || '') === t2.k; }) || cur === 'T:' + t2.k).map(t2 => 'T:' + t2.k)], n = seq.length;
+      const seq = ['__all', ...typesVis(f, pp).map(t2 => 'T:' + t2.k)], n = seq.length;
       const key = cur === '__all' ? '__all' : cur === '__none' ? '' : 'T:' + selTypeKey(cur, LL);
       const idx = seq.indexOf(key);
       const ni = idx < 0 ? (dx < 0 ? 0 : n - 1) : ((idx + (dx < 0 ? 1 : -1)) % n + n) % n;
