@@ -1,4 +1,5 @@
 ## SiteTeam : v1.0.104
+- Lots : « Tous les types (TOUT) » contient un sous-menu par type. Les lots sont en grille compacte (deux colonnes).
 - Démarrage : la synchro automatique ne se lance plus dans les premières secondes (elle attend 60 s, écran visible). Cela évite les fermetures et le « mode secours » observés au démarrage. « Synchroniser » reste disponible à tout moment.
 
 ## SiteTeam : v1.0.103

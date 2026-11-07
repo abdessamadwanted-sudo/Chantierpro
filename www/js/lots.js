@@ -83,8 +83,12 @@ function lotBarInto(card, f, ps, root) {
     const accKey = (k) => f.id + ':' + k;
     const isOpen = (k) => App.lotAcc[accKey(k)] !== undefined ? !!App.lotAcc[accKey(k)] : (k === curCat && sel !== '__all' && sel !== '__none');
     const btn = (l) => `<button type="button" class="lp-i ${sel === l.id ? 'on' : ''}" data-lp="${l.id}" style="--c:${l.c}">${l.e} ${esc(l.name)}${cnt(l.id) ? ` <small>${cnt(l.id)}</small>` : ''}</button>`;
+    // v1.0.105 : « Tous » contient des sous-menus par type ; les lots sont en grille compacte
+    const tsec = (k, lab, xs, nested) => { const op = isOpen(nested), viewK = 'T:' + k;
+      return `<button type="button" class="lp-acc sub ${op ? 'open' : ''}" data-acc="${esc(nested)}"><span>${op ? '▾' : '▸'} ${esc(lab)}</span><small>${xs.length}</small></button>` + (op ? `<div class="lp-body"><button type="button" class="lp-i view ${sel === viewK ? 'on' : ''}" data-lp="${viewK}">▦ Voir tous les plans</button><div class="lp-grid">${xs.length ? xs.map(btn).join('') : '<div class="lp-empty">Aucun lot dans ce type</div>'}</div></div>` : ''); };
     const sec = (k, lab, xs, cls = '') => { const op = isOpen(k), viewK = k === '__all' ? '__all' : k ? 'T:' + k : '';
-      return `<button type="button" class="lp-acc ${cls} ${op ? 'open' : ''}" data-acc="${esc(k)}"><span>${op ? '▾' : '▸'} ${esc(lab)}</span><small>${xs.length}</small></button>` + (op ? `<div class="lp-body">${viewK ? `<button type="button" class="lp-i view ${sel === viewK ? 'on' : ''}" data-lp="${viewK}">▦ Voir tous les plans (${xs.length} lot${xs.length > 1 ? 's' : ''})</button>` : ''}${xs.length ? xs.map(btn).join('') : '<div class="lp-empty">Aucun lot dans ce type</div>'}</div>` : ''); };
+      const inner = k === '__all' ? types.map(t => tsec(t.k, t.l, lots.filter(l => (l.cat || '') === t.k), 'all/' + t.k)).join('') : `<div class="lp-grid">${xs.length ? xs.map(btn).join('') : '<div class="lp-empty">Aucun lot dans ce type</div>'}</div>`;
+      return `<button type="button" class="lp-acc ${cls} ${op ? 'open' : ''}" data-acc="${esc(k)}"><span>${op ? '▾' : '▸'} ${esc(lab)}</span><small>${xs.length}</small></button>` + (op ? `<div class="lp-body">${viewK ? `<button type="button" class="lp-i view ${sel === viewK ? 'on' : ''}" data-lp="${viewK}">▦ Voir tous les plans (${xs.length} lot${xs.length > 1 ? 's' : ''})</button>` : ''}${inner}</div>` : ''); };
     const draw = () => {
       const noCat = lots.filter(l => !l.cat);
       list.innerHTML = sec('__all', 'Tous les types (TOUT)', lots, 'all') + types.map(t => sec(t.k, t.l, lots.filter(l => (l.cat || '') === t.k))).join('') + (noCat.length ? sec('', 'Sans catégorie', noCat) : '')

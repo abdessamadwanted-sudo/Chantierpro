@@ -3719,3 +3719,10 @@ table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-
 .lot-pick .lp-acc.all { background: #1e293b; color: #f8fafc; border: 1px solid #334155; border-left: 4px solid #64748b; }
 .lot-pick .lp-acc.all small { color: #cbd5e1; }
 .lot-pick .lp-i.view { font-weight: 700; border-style: dashed; }
+
+/* v1.0.105 : lots plus compacts, sous-menus par type dans « Tous » */
+.lot-pick .lp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.lot-pick .lp-grid .lp-i { font-size: 12px; padding: 6px 8px; }
+.lot-pick .lp-acc { padding: 8px 10px; font-size: 13px; margin-top: 4px; }
+.lot-pick .lp-acc.sub { background: var(--card, #fff); font-size: 12.5px; }
+.lot-pick .lp-body { gap: 6px; padding: 4px 0 6px 8px; }
