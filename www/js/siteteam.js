@@ -283,7 +283,7 @@ const ST = (() => {
     // v1.0.112 : ordre des catégories choisi (appui long sur le titre : monter / descendre)
     let grpOrd = []; try { grpOrd = JSON.parse(localStorage.getItem('grp.ord') || '[]'); } catch (e) {}
     const gBase = G0.map(x => x[0]), gKeys = [...grpOrd.filter(g => gBase.includes(g)), ...gBase.filter(g => !grpOrd.includes(g))];
-    const G = gKeys.map(g => G0.find(x => x[0] === g));
+    const G = gKeys.map(g => G0.find(x => x[0] === g)).filter(Boolean);
     const T = projTypeOf(p.type) || {};
     // v1.0.46 : actions rapides en une rangée compacte, catégories dépliables (état mémorisé), rien sous le bouton « plans »
     let opened = null; try { opened = JSON.parse(localStorage.getItem('ptools.open') || 'null'); } catch (e) {}
@@ -297,7 +297,7 @@ const ST = (() => {
     const qaSpecOf = (k) => qaSpec[k] || (qaAdd.includes(k) && SECTIONS[k] ? [k, SECTIONS[k].icon || 'grid', toolName(k), '#334155'] : null);
     const qaAvailOf = (k) => (k in qaAvail) ? qaAvail[k] : (qaAdd.includes(k) && ok(k));
     const qaKeys = [...qaOrd.filter(k => qaSpecOf(k)), ...[...Object.keys(qaSpec), ...qaAdd].filter(k => !qaOrd.includes(k))];
-    const QA = qaKeys.filter(k => qaAvailOf(k) && !qaHid.includes(k)).map(k => qaSpecOf(k));
+    const QA = qaKeys.filter(k => qaAvailOf(k) && !qaHid.includes(k)).map(k => qaSpecOf(k)).filter(Boolean);
     const qaSave = (ord, hid, add) => { try { localStorage.setItem('qa.ord', JSON.stringify(ord)); localStorage.setItem('qa.hid', JSON.stringify(hid)); if (add) localStorage.setItem('qa.add', JSON.stringify(add)); } catch (e) {} };
     root.innerHTML = `<div class="st-ptools-p">
       <div class="st-hd"><b>${esc(T.e || '🏗️')} ${esc(p.name)}</b><small>${esc(T.n || 'Projet')}${p.address ? ' · ' + esc(p.address) : ''}</small></div>

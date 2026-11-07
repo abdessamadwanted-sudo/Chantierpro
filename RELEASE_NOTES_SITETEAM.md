@@ -1,3 +1,10 @@
+## SiteTeam : v1.0.117
+
+- Stabilité : la synchronisation automatique attend 100 secondes après le lancement de l'application (la synchronisation manuelle reste immédiate).
+- Mémoire : le rendu HD des plans est limité à 2048 px de côté, pour éviter la fermeture de l'application sur les grands plans.
+- Mode secours : activé après 3 redémarrages rapprochés (au lieu de 2).
+- Correction de l'erreur « Cannot read properties of undefined (reading '2') » dans le menu des outils du projet.
+
 ## SiteTeam : v1.0.116
 
 - Plans : dans l'en-tête de chaque niveau, une liste déroulante des types (TOUT, types, Sans lot) avec le nombre de plans. Le choix filtre les lots et les plans du niveau.

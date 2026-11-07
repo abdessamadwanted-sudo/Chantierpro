@@ -1738,7 +1738,7 @@ async function openPlansQuick() {
   // v1.0.48 : mode secours — si l'application s'est fermée 2 fois de suite pendant le démarrage (moins de 30 s),
   // la prochaine ouverture se fait sans synchro ni envoi des photos, et montre les dernières étapes / erreurs pour le diagnostic
   let crashN = 0; try { crashN = +localStorage.getItem('boot.crash') || 0; localStorage.setItem('boot.crash', String(crashN + 1)); } catch (e) {}
-  window.__safe = crashN >= 2; bootTrail('démarrage' + (window.__safe ? ' (mode secours)' : ''));
+  window.__safe = crashN >= 3; /* v1.0.116 : 3 redémarrages rapprochés (au lieu de 2) */ bootTrail('démarrage' + (window.__safe ? ' (mode secours)' : ''));
   // v1.0.51 : dernier plantage côté Android (Java ou moteur web) → journal des erreurs
   setTimeout(async () => { try { const G = window.Capacitor?.Plugins?.GDriveAuth; if (!G || !G.lastCrash) return; const r = await G.lastCrash({ clear: true }); if (r && r.last) { const L = JSON.parse(localStorage.getItem('err.log') || '[]'); L.push('ANDROID ' + r.last.slice(0, 400)); localStorage.setItem('err.log', JSON.stringify(L.slice(-20))); } } catch (e) {} }, 1500);
   setTimeout(() => { try { localStorage.setItem('boot.crash', '0'); } catch (e) {} bootTrail('ouvert depuis 30 s ✓'); }, 30000);
