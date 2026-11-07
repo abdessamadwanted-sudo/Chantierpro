@@ -36,14 +36,16 @@ function cloudPath(x1, y1, x2, y2, bump) {
 
 function annotSVG(a) {
   const sw = a.sw;
-  const common = `stroke="${a.color}" stroke-width="${sw}" fill="none" stroke-linecap="round" stroke-linejoin="round"`;
+  // v1.0.108 : le contour garde la couleur de la palette ; l'intensité ne change que le remplissage
+  const ln = a.hue || a.color;
+  const common = `stroke="${ln}" stroke-width="${sw}" fill="none" stroke-linecap="round" stroke-linejoin="round"`;
   const [p, q] = a.pts;
   switch (a.type) {
     case 'pen': case 'poly': return `<polyline points="${a.pts.map(pt => pt.join(',')).join(' ')}" ${common}/>`;
     case 'rect': return `<rect x="${Math.min(p[0], q[0])}" y="${Math.min(p[1], q[1])}" width="${Math.abs(q[0] - p[0])}" height="${Math.abs(q[1] - p[1])}" ${common}/>`;
-    case 'polygon': return `<polygon points="${a.pts.map(pt => pt.join(',')).join(' ')}" fill="${a.color}" fill-opacity=".55" stroke="${a.color}" stroke-width="${sw}" stroke-linejoin="round"/>`;
-    case 'disc': { const r = Math.hypot(q[0] - p[0], q[1] - p[1]); return `<circle cx="${p[0]}" cy="${p[1]}" r="${r}" fill="${a.color}" fill-opacity=".8" stroke="${a.color}" stroke-width="${sw / 2}"/>`; }
-    case 'box': return `<rect x="${Math.min(p[0], q[0])}" y="${Math.min(p[1], q[1])}" width="${Math.abs(q[0] - p[0])}" height="${Math.abs(q[1] - p[1])}" fill="${a.color}" fill-opacity=".8" stroke="${a.color}" stroke-width="${sw / 2}"/>`;
+    case 'polygon': return `<polygon points="${a.pts.map(pt => pt.join(',')).join(' ')}" fill="${a.color}" fill-opacity=".55" stroke="${ln}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+    case 'disc': { const r = Math.hypot(q[0] - p[0], q[1] - p[1]); return `<circle cx="${p[0]}" cy="${p[1]}" r="${r}" fill="${a.color}" fill-opacity=".8" stroke="${ln}" stroke-width="${sw / 2}"/>`; }
+    case 'box': return `<rect x="${Math.min(p[0], q[0])}" y="${Math.min(p[1], q[1])}" width="${Math.abs(q[0] - p[0])}" height="${Math.abs(q[1] - p[1])}" fill="${a.color}" fill-opacity=".8" stroke="${ln}" stroke-width="${sw / 2}"/>`;
     case 'ellipse': return `<ellipse cx="${(p[0] + q[0]) / 2}" cy="${(p[1] + q[1]) / 2}" rx="${Math.abs(q[0] - p[0]) / 2}" ry="${Math.abs(q[1] - p[1]) / 2}" ${common}/>`;
     case 'cloud': return `<path d="${cloudPath(p[0], p[1], q[0], q[1], sw * 6)}" ${common}/>`;
     case 'line': return `<line x1="${p[0]}" y1="${p[1]}" x2="${q[0]}" y2="${q[1]}" ${common}/>`;
@@ -51,7 +53,7 @@ function annotSVG(a) {
       const ang = Math.atan2(q[1] - p[1], q[0] - p[0]), h = sw * 5;
       const a1 = [q[0] - h * Math.cos(ang - 0.45), q[1] - h * Math.sin(ang - 0.45)];
       const a2 = [q[0] - h * Math.cos(ang + 0.45), q[1] - h * Math.sin(ang + 0.45)];
-      return `<line x1="${p[0]}" y1="${p[1]}" x2="${q[0]}" y2="${q[1]}" ${common}/><polygon points="${q.join(',')} ${a1.join(',')} ${a2.join(',')}" fill="${a.color}" stroke="${a.color}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+      return `<line x1="${p[0]}" y1="${p[1]}" x2="${q[0]}" y2="${q[1]}" ${common}/><polygon points="${q.join(',')} ${a1.join(',')} ${a2.join(',')}" fill="${a.color}" stroke="${ln}" stroke-width="${sw}" stroke-linejoin="round"/>`;
     }
     case 'text': return `<text x="${p[0]}" y="${p[1]}" fill="${a.color}" font-size="${a.fs}" font-family="Arial, sans-serif" font-weight="600" paint-order="stroke" stroke="rgba(255,255,255,.7)" stroke-width="${a.fs / 8}">${esc(a.text)}</text>`;
   }
@@ -115,7 +117,7 @@ async function openPlanViewer(plan, ctx) {
 
   const st = {
     scale: 1, tx: 0, ty: 0,
-    tool: ctx && ctx.startTool ? ctx.startTool : 'pan', color: '#ff0000', textSize: 16,   // v1.0.53 : ouvert directement en mode « pin photos » depuis la barre des lots
+    tool: ctx && ctx.startTool ? ctx.startTool : 'pan', color: '#ff0000', textSize: 8,   // v1.0.53 : ouvert directement en mode « pin photos » depuis la barre des lots
     filters: { tasks: true, links: true, annots: true },
     tasks: [], links: [], undo: [], flyout: null, fitScale: 1,
     toolsOpen: true, shape: 'free', pend: null, sel: -1, hue: '#e53935', shade: 0, thick: 4,
@@ -572,9 +574,9 @@ async function openPlanViewer(plan, ctx) {
       </div>
       <div class="pb-colors">${HUES.map(c => `<button class="sw2 ${c === hue ? 'on' : ''}" data-c="${c}" style="background:${c}"></button>`).join('')}</div>
       <div class="pb-sliders">
-        <label><span>Intensité</span><input type="range" min="0" max="100" step="5" value="${Math.round(-Math.min(0, shade) * 100)}" data-r="shade"
-          style="background:linear-gradient(90deg, ${hue}, ${shadeHex(hue, -1)})"></label>
-        ${isText ? `<label><span>Taille</span><input type="range" min="6" max="40" value="${tsize}" data-r="ts"></label>`
+        <label><span>Intensité</span><input type="range" min="0" max="100" step="5" value="${Math.round(100 - Math.max(0, shade) * 100)}" data-r="shade"
+          style="background:linear-gradient(90deg, ${shadeHex(hue, 1)}, ${hue})"></label>
+        ${isText ? `<label><span>Taille</span><input type="range" min="4" max="16" value="${tsize}" data-r="ts"></label>`
           : `<label><span>Épaisseur</span><input type="range" min="1" max="16" value="${thick}" data-r="thick"></label>`}
       </div>`;
     const apply = (fn) => { if (selA) { if (!bar._undo) { pushUndo(); bar._undo = true; } fn(selA); selA.color = shadeHex(selA.hue || selA.color, selA.shade || 0); renderAnnots(); saveAnnots(); renderSel(); } };
@@ -584,7 +586,7 @@ async function openPlanViewer(plan, ctx) {
     });
     $$('[data-r]', bar).forEach(r => r.oninput = () => {
       const v = +r.value, k = r.dataset.r;
-      if (k === 'shade') { if (selA) apply(a => { a.hue = a.hue || a.color; a.shade = -v / 100; }); else st.shade = -v / 100; }   // v1.0.78 : une seule direction, couleur → pâle
+      if (k === 'shade') { const sh = (100 - v) / 100; if (selA) apply(a => { a.hue = a.hue || a.color; a.shade = sh; }); else st.shade = sh; }   // v1.0.78 : une seule direction, couleur → pâle
       if (k === 'thick') { if (selA) apply(a => { a.sw = base * v / 1600; }); else st.thick = v; }
       if (k === 'ts') { if (selA) apply(a => { a.fs = v * base / 500; }); else st.textSize = v; }
       const pv = $('.pb-prev span', bar); pv.style.background = selA ? selA.color : st.color;
