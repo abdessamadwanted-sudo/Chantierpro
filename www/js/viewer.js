@@ -36,14 +36,16 @@ function cloudPath(x1, y1, x2, y2, bump) {
 
 function annotSVG(a) {
   const sw = a.sw;
-  const common = `stroke="${a.color}" stroke-width="${sw}" fill="none" stroke-linecap="round" stroke-linejoin="round"`;
+  // v1.0.108 : le contour garde la couleur de la palette ; l'intensité ne change que le remplissage
+  const ln = a.hue || a.color;
+  const common = `stroke="${ln}" stroke-width="${sw}" fill="none" stroke-linecap="round" stroke-linejoin="round"`;
   const [p, q] = a.pts;
   switch (a.type) {
     case 'pen': case 'poly': return `<polyline points="${a.pts.map(pt => pt.join(',')).join(' ')}" ${common}/>`;
     case 'rect': return `<rect x="${Math.min(p[0], q[0])}" y="${Math.min(p[1], q[1])}" width="${Math.abs(q[0] - p[0])}" height="${Math.abs(q[1] - p[1])}" ${common}/>`;
-    case 'polygon': return `<polygon points="${a.pts.map(pt => pt.join(',')).join(' ')}" fill="${a.color}" fill-opacity=".55" stroke="${a.color}" stroke-width="${sw}" stroke-linejoin="round"/>`;
-    case 'disc': { const r = Math.hypot(q[0] - p[0], q[1] - p[1]); return `<circle cx="${p[0]}" cy="${p[1]}" r="${r}" fill="${a.color}" fill-opacity=".8" stroke="${a.color}" stroke-width="${sw / 2}"/>`; }
-    case 'box': return `<rect x="${Math.min(p[0], q[0])}" y="${Math.min(p[1], q[1])}" width="${Math.abs(q[0] - p[0])}" height="${Math.abs(q[1] - p[1])}" fill="${a.color}" fill-opacity=".8" stroke="${a.color}" stroke-width="${sw / 2}"/>`;
+    case 'polygon': return `<polygon points="${a.pts.map(pt => pt.join(',')).join(' ')}" fill="${a.color}" fill-opacity=".55" stroke="${ln}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+    case 'disc': { const r = Math.hypot(q[0] - p[0], q[1] - p[1]); return `<circle cx="${p[0]}" cy="${p[1]}" r="${r}" fill="${a.color}" fill-opacity=".8" stroke="${ln}" stroke-width="${sw / 2}"/>`; }
+    case 'box': return `<rect x="${Math.min(p[0], q[0])}" y="${Math.min(p[1], q[1])}" width="${Math.abs(q[0] - p[0])}" height="${Math.abs(q[1] - p[1])}" fill="${a.color}" fill-opacity=".8" stroke="${ln}" stroke-width="${sw / 2}"/>`;
     case 'ellipse': return `<ellipse cx="${(p[0] + q[0]) / 2}" cy="${(p[1] + q[1]) / 2}" rx="${Math.abs(q[0] - p[0]) / 2}" ry="${Math.abs(q[1] - p[1]) / 2}" ${common}/>`;
     case 'cloud': return `<path d="${cloudPath(p[0], p[1], q[0], q[1], sw * 6)}" ${common}/>`;
     case 'line': return `<line x1="${p[0]}" y1="${p[1]}" x2="${q[0]}" y2="${q[1]}" ${common}/>`;
@@ -51,7 +53,7 @@ function annotSVG(a) {
       const ang = Math.atan2(q[1] - p[1], q[0] - p[0]), h = sw * 5;
       const a1 = [q[0] - h * Math.cos(ang - 0.45), q[1] - h * Math.sin(ang - 0.45)];
       const a2 = [q[0] - h * Math.cos(ang + 0.45), q[1] - h * Math.sin(ang + 0.45)];
-      return `<line x1="${p[0]}" y1="${p[1]}" x2="${q[0]}" y2="${q[1]}" ${common}/><polygon points="${q.join(',')} ${a1.join(',')} ${a2.join(',')}" fill="${a.color}" stroke="${a.color}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+      return `<line x1="${p[0]}" y1="${p[1]}" x2="${q[0]}" y2="${q[1]}" ${common}/><polygon points="${q.join(',')} ${a1.join(',')} ${a2.join(',')}" fill="${a.color}" stroke="${ln}" stroke-width="${sw}" stroke-linejoin="round"/>`;
     }
     case 'text': return `<text x="${p[0]}" y="${p[1]}" fill="${a.color}" font-size="${a.fs}" font-family="Arial, sans-serif" font-weight="600" paint-order="stroke" stroke="rgba(255,255,255,.7)" stroke-width="${a.fs / 8}">${esc(a.text)}</text>`;
   }
@@ -115,10 +117,10 @@ async function openPlanViewer(plan, ctx) {
 
   const st = {
     scale: 1, tx: 0, ty: 0,
-    tool: ctx && ctx.startTool ? ctx.startTool : 'pan', color: '#ff0000', textSize: 16,   // v1.0.53 : ouvert directement en mode « pin photos » depuis la barre des lots
+    tool: ctx && ctx.startTool ? ctx.startTool : 'pan', color: '#ff0000', textSize: 8,   // v1.0.53 : ouvert directement en mode « pin photos » depuis la barre des lots
     filters: { tasks: true, links: true, annots: true },
     tasks: [], links: [], undo: [], flyout: null, fitScale: 1,
-    toolsOpen: true, shape: 'free', pend: null, sel: -1, hue: '#e53935', shade: 0, thick: 4,
+    toolsOpen: true, shape: 'free', pend: null, sel: -1, hue: '#e53935', shade: -0.5, thick: 4,
     pinSize: (() => { try { return +localStorage.getItem('pinSize') || 1; } catch (e) { return 1; } })(),
   };
   // Taille des pins : proportionnelle au zoom (petits quand on dézoome, limités quand on zoome)
@@ -492,7 +494,7 @@ async function openPlanViewer(plan, ctx) {
   ];
   const shapeInfo = () => SHAPES.find(x => x[0] === st.shape) || SHAPES[0];
   const TWO_PT = ['line', 'rect', 'ellipse', 'cloud', 'arrow', 'disc', 'box'];
-  Object.defineProperty(st, 'color', { get: () => shadeHex(st.hue, st.shade), set: (v) => { st.hue = v; st.shade = 0; }, configurable: true });
+  Object.defineProperty(st, 'color', { get: () => shadeHex(st.hue, st.shade), set: (v) => { st.hue = v; st.shade = -0.5; }, configurable: true });
   function hintText() {
     if (st.tool === 'pin') return 'Touchez pour placer une tâche';
     if (st.tool === 'link') return 'Touchez pour placer un élément';
@@ -572,9 +574,9 @@ async function openPlanViewer(plan, ctx) {
       </div>
       <div class="pb-colors">${HUES.map(c => `<button class="sw2 ${c === hue ? 'on' : ''}" data-c="${c}" style="background:${c}"></button>`).join('')}</div>
       <div class="pb-sliders">
-        <label><span>Intensité</span><input type="range" min="0" max="100" step="5" value="${Math.round(-Math.min(0, shade) * 100)}" data-r="shade"
-          style="background:linear-gradient(90deg, ${hue}, ${shadeHex(hue, -1)})"></label>
-        ${isText ? `<label><span>Taille</span><input type="range" min="6" max="40" value="${tsize}" data-r="ts"></label>`
+        <label><span>Intensité</span><input type="range" min="0" max="100" step="1" value="${Math.round((Math.max(-0.5, Math.min(0.8, shade)) + 0.5) / 1.3 * 100)}" data-r="shade"
+          style="background:linear-gradient(90deg, ${shadeHex(hue, -0.5)}, ${shadeHex(hue, 0.8)})"></label>
+        ${isText ? `<label><span>Taille</span><input type="range" min="4" max="16" value="${tsize}" data-r="ts"></label>`
           : `<label><span>Épaisseur</span><input type="range" min="1" max="16" value="${thick}" data-r="thick"></label>`}
       </div>`;
     const apply = (fn) => { if (selA) { if (!bar._undo) { pushUndo(); bar._undo = true; } fn(selA); selA.color = shadeHex(selA.hue || selA.color, selA.shade || 0); renderAnnots(); saveAnnots(); renderSel(); } };
@@ -584,7 +586,7 @@ async function openPlanViewer(plan, ctx) {
     });
     $$('[data-r]', bar).forEach(r => r.oninput = () => {
       const v = +r.value, k = r.dataset.r;
-      if (k === 'shade') { if (selA) apply(a => { a.hue = a.hue || a.color; a.shade = -v / 100; }); else st.shade = -v / 100; }   // v1.0.78 : une seule direction, couleur → pâle
+      if (k === 'shade') { const sh = -0.5 + v / 100 * 1.3; if (selA) apply(a => { a.hue = a.hue || a.color; a.shade = sh; }); else st.shade = sh; }   // v1.0.78 : une seule direction, couleur → pâle
       if (k === 'thick') { if (selA) apply(a => { a.sw = base * v / 1600; }); else st.thick = v; }
       if (k === 'ts') { if (selA) apply(a => { a.fs = v * base / 500; }); else st.textSize = v; }
       const pv = $('.pb-prev span', bar); pv.style.background = selA ? selA.color : st.color;
@@ -1150,10 +1152,13 @@ async function planOverlayCanvas(plan, tasks, links, outW, noAnn) {
 // dessins du plan écrits en vectoriel dans le PDF (nets à tout zoom, comme le plan)
 function annotPdfDraw(pg, a, ox, oy, s, font) {
   const { rgb } = PDFLib, hx = String(a.color || '#e11d48').replace('#', ''), n = parseInt(hx.length === 3 ? hx.split('').map(c => c + c).join('') : hx.slice(0, 6), 16) || 0;
-  const col = rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255), sw = (a.sw || 3) * s, P = a.pts || [], [p, q] = P;
+  const col = rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
+  // v1.0.108 : le contour garde la couleur de la palette (comme à l'écran), le remplissage prend l'intensité
+  const hl = String(a.hue || a.color || '#e11d48').replace('#', ''), nl = parseInt(hl.length === 3 ? hl.split('').map(c => c + c).join('') : hl.slice(0, 6), 16) || 0;
+  const lc = rgb(((nl >> 16) & 255) / 255, ((nl >> 8) & 255) / 255, (nl & 255) / 255), sw = (a.sw || 3) * s, P = a.pts || [], [p, q] = P;
   const path = (d, o) => pg.drawSvgPath(d, { x: ox, y: oy, scale: s, borderLineCap: PDFLib.LineCapStyle.Round, ...o });
   const line = (pts, closed) => 'M' + pts.map(t => t[0] + ' ' + t[1]).join(' L') + (closed ? ' Z' : '');
-  const stroke = { borderColor: col, borderWidth: sw / s };
+  const stroke = { borderColor: lc, borderWidth: sw / s };
   switch (a.type) {
     case 'pen': case 'poly': return P.length > 1 && path(line(P), stroke);
     case 'line': return path(line([p, q]), stroke);
@@ -1163,7 +1168,7 @@ function annotPdfDraw(pg, a, ox, oy, s, font) {
       return path(`M${cx - rx} ${cy} A${rx} ${ry} 0 1 0 ${cx + rx} ${cy} A${rx} ${ry} 0 1 0 ${cx - rx} ${cy} Z`, a.type === 'disc' ? { color: col, opacity: .8, borderColor: col, borderWidth: sw / s / 2 } : stroke); }
     case 'cloud': return path(cloudPath(p[0], p[1], q[0], q[1], (a.sw || 3) * 6), stroke);
     case 'arrow': { const ang = Math.atan2(q[1] - p[1], q[0] - p[0]), h = (a.sw || 3) * 5, a1 = [q[0] - h * Math.cos(ang - 0.45), q[1] - h * Math.sin(ang - 0.45)], a2 = [q[0] - h * Math.cos(ang + 0.45), q[1] - h * Math.sin(ang + 0.45)];
-      path(line([p, q]), stroke); return path(line([q, a1, a2], true), { color: col, borderColor: col, borderWidth: sw / s }); }
+      path(line([p, q]), stroke); return path(line([q, a1, a2], true), { color: lc, borderColor: lc, borderWidth: sw / s }); }
     case 'text': { const t = String(a.text || '').replace(/[^\x20-\xFF]/g, ''); if (t && font) pg.drawText(t, { x: ox + p[0] * s, y: oy - p[1] * s, size: (a.fs || 24) * s, font, color: col }); return; }
   }
 }
