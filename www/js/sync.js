@@ -269,10 +269,16 @@ const Sync = (() => {
       });
       // 1b) fichiers partagés SiteTeam (Cloud Storage) : envoi des fichiers nouveaux ou remplacés, selon les droits sur le projet
       if (cloudOn()) {
+        // v1.0.111 : reprise — chaque envoi réussi est noté tout de suite dans « sync.cloud » (même si l'écriture de la base échoue ou que l'appli se ferme)
+        let cs = {}; try { cs = JSON.parse(localStorage.getItem('sync.cloud') || '{}'); } catch (e) {}
+        for (const f of files) { const x = cs[f.id]; if (x && (!f.sref || f.sref !== x.s) && (!f.blob || x.z === f.blob.size)) { f.sref = x.s; f.ssize = x.z; } }
         const up = files.filter(f => f.blob && f.projectId && (!f.sref || f.ssize !== f.blob.size) && !f.cloudSkip && Team.canCloud(f, 2));
         let k = 0;
-        await pool(up, 3, async (f) => {
-          try { const r = await Team.cloudUpload(f); f.sref = r.sref; f.ssize = r.ssize; await DB.put('files', f); }
+        // un fichier à la fois : moins de pointes de réseau et de mémoire (les PDF de plans sont lourds)
+        await pool(up, 1, async (f) => {
+          try { const r = await Team.cloudUpload(f); f.sref = r.sref; f.ssize = r.ssize;
+            try { const m = JSON.parse(localStorage.getItem('sync.cloud') || '{}'); m[f.id] = { s: r.sref, z: r.ssize }; localStorage.setItem('sync.cloud', JSON.stringify(m)); } catch (e) {}
+            await DB.put('files', f); }
           catch (e) { fails.push(`${f.name || 'fichier'} : ${e.message || e.code || e}`); if (/trop lourd/.test(String(e.message))) { f.cloudSkip = true; await DB.putRaw('files', f); } }
           finally { k++; setStatus('sync', `Envoi des fichiers ${k}/${up.length}`); }
         });

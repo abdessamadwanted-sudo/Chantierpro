@@ -149,7 +149,7 @@ function gsAttTab(box, p, G, save, redraw) {
   const mt = (a) => G.bpu.filter(it => !s || it.lot === s).reduce((t, it) => t + gsNum((a.q || {})[it.id]) * gsNum(it.pu), 0);
   box.innerHTML = `${gsLotChips(p, G)}<div class="gs-h"><b>📐 Attachements (métrés)</b><button class="btn small" data-a="add" ${G.bpu.length ? '' : 'disabled'}>${icon('plus')} Attachement</button></div>
     ${!G.bpu.length ? '<div class="gs-empty">Commencez par le BPU (onglet 📑) : les attachements se saisissent sur ses prix.</div>' : A.length ? `<div class="gt-w"><table class="gt"><thead><tr><th>Date</th><th class="l">Lot · zone / niveau</th><th>Postes</th><th>Montant HT</th></tr></thead><tbody>
-      ${A.map(a => `<tr data-att="${a.id}"><td>${fmtDate(a.date)}</td><td class="l"><b>${esc(gsLotName(p, a.lot) || '—')}</b><small>${esc(a.ouv || '')}</small></td><td>${Object.values(a.q || {}).filter(v => gsNum(v)).length}</td><td><b>${gsF(mt(a))}</b></td></tr>`).join('')}
+      ${A.map(a => `<tr data-att="${a.id}"><td>n° ${a.n || '—'}<small style="display:block;opacity:.7">${fmtDate(a.date)}</small></td><td class="l"><b>${esc(gsLotName(p, a.lot) || '—')}</b><small>${esc(a.ouv || '')}</small></td><td>${Object.values(a.q || {}).filter(v => gsNum(v)).length}</td><td><b>${gsF(mt(a))}</b></td></tr>`).join('')}
       </tbody><tfoot><tr><td colspan="3" class="l">Total</td><td><b>${gsF(A.reduce((t, a) => t + mt(a), 0))}</b></td></tr></tfoot></table></div>` : '<div class="gs-empty">Aucun attachement.</div>'}`;
   gsBindLots(box, redraw);
   const edit = async (a) => {
@@ -163,7 +163,8 @@ function gsAttTab(box, p, G, save, redraw) {
     if (!r) return; if (r.__danger) { G.att = G.att.filter(x => x !== a); await save(); return redraw(); }
     const q = a ? { ...(a.q || {}) } : {}; items.forEach(it => { const v = gsNum(r['q_' + it.id]); if (v) q[it.id] = v; else delete q[it.id]; });
     const o = { date: r.date || todayISO(), lot: r.lot, ouv: r.ouv, obs: r.obs, q };
-    if (a) Object.assign(a, o); else G.att.push({ id: DB.uid(), ...o });
+    // v1.0.111 : numéro automatique (1, 2, 3…) comme les décomptes ; un attachement modifié garde son numéro
+    if (a) Object.assign(a, o); else G.att.push({ id: DB.uid(), n: G.att.reduce((m, x) => Math.max(m, Number(x.n) || 0), 0) + 1, ...o });
     G.att.sort((x, y) => (x.date || '').localeCompare(y.date || '')); await save(); redraw(); };
   const ad = $('[data-a=add]', box); if (ad) ad.onclick = () => edit(null);
   $$('[data-att]', box).forEach(b => b.onclick = () => edit(G.att.find(x => x.id === b.dataset.att)));
