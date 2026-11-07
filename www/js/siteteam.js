@@ -369,27 +369,37 @@ const ST = (() => {
       const r = await formSheet('Ajouter un raccourci', [{ name: 'k', label: 'Section', type: 'select', value: opts[0].value, options: opts }], { okLabel: 'Ajouter' });
       if (!r || !r.k) return; const add = [...qaAdd, r.k]; qaSave([...qaKeys, r.k], qaHid, add); renderProjectTools(root); };
     // v1.0.112 : appui long sur le titre d'une catégorie → monter / descendre
-    root.querySelectorAll('details.st-acc[data-g] > summary').forEach(sm => { const g = sm.parentElement.dataset.g; let tm = null, lp = false;
-      sm.addEventListener('pointerdown', () => { lp = false; clearTimeout(tm); tm = setTimeout(async () => { lp = true; try { navigator.vibrate && navigator.vibrate(15); } catch (e) {}
-        const cur = G.map(x => x[0]), i = cur.indexOf(g); const v = await menu(String(sm.textContent || g).replace(/\d+$/, '').trim(), [...(i > 0 ? [{ label: '↑ Monter', icon: 'back', value: 'u' }] : []), ...(i < cur.length - 1 ? [{ label: '↓ Descendre', icon: 'chevdown', value: 'd' }] : [])]);
+    root.querySelectorAll('details.st-acc[data-g] > summary').forEach(sm => { const g = sm.parentElement.dataset.g; let tm = null, lp = false, last = 0;
+      const grpMenu = async () => { const cur = G.map(x => x[0]), i = cur.indexOf(g); const v = await menu(String(sm.textContent || g).replace(/\d+$/, '').trim(), [...(i > 0 ? [{ label: '↑ Monter', icon: 'back', value: 'u' }] : []), ...(i >= 0 && i < cur.length - 1 ? [{ label: '↓ Descendre', icon: 'chevdown', value: 'd' }] : [])]);
         if (!v) return; const o = [...cur], j = v === 'u' ? i - 1 : i + 1; [o[i], o[j]] = [o[j], o[i]];
-        try { localStorage.setItem('grp.ord', JSON.stringify(o)); } catch (e) {} renderProjectTools(root); }, 550); });
+        try { localStorage.setItem('grp.ord', JSON.stringify(o)); } catch (e) {} renderProjectTools(root); };
+      sm.style.userSelect = 'none'; sm.style.webkitTouchCallout = 'none';
+      sm.addEventListener('pointerdown', () => { lp = false; clearTimeout(tm); tm = setTimeout(() => { lp = true; try { navigator.vibrate && navigator.vibrate(15); } catch (e) {} grpMenu(); }, 550); });
       ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => sm.addEventListener(ev, () => clearTimeout(tm)));
-      sm.addEventListener('click', (e) => { if (lp) { e.preventDefault(); e.stopImmediatePropagation(); lp = false; } }, true); });
+      sm.addEventListener('contextmenu', (e) => { e.preventDefault(); clearTimeout(tm); lp = true; grpMenu(); });
+      // deux tapes rapprochées : on ignore la seconde (sinon le navigateur ouvre puis referme la catégorie)
+      sm.addEventListener('click', (e) => { const now = Date.now(); if (lp) { e.preventDefault(); e.stopImmediatePropagation(); lp = false; return; } if (now - last < 350) { e.preventDefault(); e.stopImmediatePropagation(); return; } last = now; }, true);
+      sm.addEventListener('dblclick', (e) => e.preventDefault()); });
     // appui long sur un raccourci : gauche / droite / masquer / tout réafficher
-    root.querySelectorAll('.st-qa-b:not(.st-qa-add)').forEach(b => { const k = b.dataset.a; if (!qaSpecOf(k)) return; let tm = null, lp = false;
-      b.addEventListener('pointerdown', () => { lp = false; clearTimeout(tm); tm = setTimeout(async () => { lp = true; try { navigator.vibrate && navigator.vibrate(15); } catch (e) {}
-        const cur = qaKeys.filter(x => qaAvailOf(x)), i = cur.indexOf(k), hidAny = qaHid.length > 0;
-        const v = await menu(qaSpec[k][2], [...(i > 0 ? [{ label: '← Déplacer à gauche', icon: 'back', value: 'l' }] : []), ...(i < cur.length - 1 ? [{ label: 'Déplacer à droite →', icon: 'chevright', value: 'r' }] : []), { label: 'Masquer ce raccourci', icon: 'trash', danger: true, value: 'hide' }, ...(hidAny ? [{ label: 'Réafficher tous les raccourcis', icon: 'check', value: 'show' }] : [])]);
-        if (!v) return;
-        let ord = [...qaKeys], hid = [...qaHid];
-        if (v === 'l' || v === 'r') { const j = v === 'l' ? i - 1 : i + 1, a = ord.indexOf(cur[i]), c = ord.indexOf(cur[j]); [ord[a], ord[c]] = [ord[c], ord[a]]; }
-        if (v === 'hide') hid.push(k);
-        if (v === 'show') hid = [];
-        qaSave(ord, hid); renderProjectTools(root); }, 500); });
+    // v1.0.114 : appui long fiable (pointeur + menu contextuel natif) sur tous les raccourcis, y compris ceux ajoutés
+    const qaMenu = async (k) => {
+      const cur = qaKeys.filter(x => qaAvailOf(x) && !qaHid.includes(x)), i = cur.indexOf(k);
+      const hidAny = qaHid.length > 0;
+      const v = await menu((qaSpecOf(k) || [0, 0, toolName(k)])[2], [...(i > 0 ? [{ label: '← Déplacer à gauche', icon: 'back', value: 'l' }] : []), ...(i >= 0 && i < cur.length - 1 ? [{ label: 'Déplacer à droite →', icon: 'chevright', value: 'r' }] : []), { label: 'Masquer ce raccourci', icon: 'trash', danger: true, value: 'hide' }, ...(hidAny ? [{ label: 'Réafficher tous les raccourcis', icon: 'check', value: 'show' }] : [])]);
+      if (!v) return;
+      let ord = [...qaKeys], hid = [...qaHid];
+      if (v === 'l' || v === 'r') { const j = v === 'l' ? i - 1 : i + 1, x = ord.indexOf(cur[i]), y = ord.indexOf(cur[j]); [ord[x], ord[y]] = [ord[y], ord[x]]; }
+      if (v === 'hide') hid.push(k);
+      if (v === 'show') hid = [];
+      qaSave(ord, hid); renderProjectTools(root);
+    };
+    root.querySelectorAll('.st-qa-b:not(.st-qa-add)').forEach(b => { const k = b.dataset.a; if (!qaSpecOf(k)) return;
+      let tm = null, fired = false;
+      b.style.userSelect = 'none'; b.style.webkitTouchCallout = 'none';
+      b.addEventListener('pointerdown', () => { fired = false; clearTimeout(tm); tm = setTimeout(() => { fired = true; try { navigator.vibrate && navigator.vibrate(15); } catch (e) {} qaMenu(k); }, 500); });
       ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => b.addEventListener(ev, () => clearTimeout(tm)));
-      b.addEventListener('click', (e) => { if (lp) { e.stopImmediatePropagation(); e.preventDefault(); lp = false; } }, true);
-      b.oncontextmenu = (e) => e.preventDefault(); });
+      b.addEventListener('contextmenu', (e) => { e.preventDefault(); clearTimeout(tm); if (!fired) { fired = true; qaMenu(k); } });
+      b.addEventListener('click', (e) => { if (fired) { e.preventDefault(); e.stopImmediatePropagation(); fired = false; } }, true); });
     if (typeof espaceBind === 'function') espaceBind(root);
   }
 
