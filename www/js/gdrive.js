@@ -330,7 +330,7 @@ const GDrive = (() => {
   // enregistre le ZIP d'un projet dans SON dossier (pas de dossier « Sauvegardes » par projet),
   // puis met à la corbeille les plus anciennes de ce projet (au-delà de PBK_KEEP)
   async function projectBackupSave(projectName, blob) {
-    const folder = await path([pFolder(projectName)]);
+    const folder = await path(['projects', pFolder(projectName)]);
     const base = pSafe(projectName), name = base + '_' + stamp() + '.chantier.zip';
     const r = await create({ name, parents: [folder], mimeType: 'application/zip' }, blob, 'application/zip');
     const mine = (await projectBackupList()).filter(x => x.project === base && (x.parents || []).includes(folder)).sort((a, b) => (a.stamp < b.stamp ? 1 : -1));

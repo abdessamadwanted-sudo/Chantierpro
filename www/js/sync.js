@@ -359,7 +359,7 @@ const Sync = (() => {
     }
   }
   // ---------- contrôle hebdomadaire : tout est-il bien dans Drive ? ----------
-  const SCRIPT_VER = 3;
+  const SCRIPT_VER = 4;
   async function scriptVer() { const c = cfg(); if (!c) return 0; if (c.mode === 'g') return SCRIPT_VER; try { const r = await call('ping', {}); c.ver = r.ver || 1; LS.set('cfg', c); return c.ver; } catch (e) { return c.ver || 0; } }
   async function weeklyCheck(manual) {
     if ((await scriptVer()) < SCRIPT_VER) { LS.set('chkAt', Date.now()); if (manual) alertBox('Mettez d\'abord à jour le script Google (Synchronisation › « Mettre à jour le script »).'); return null; }
@@ -479,7 +479,7 @@ const Sync = (() => {
 // Exécuter en tant que : Moi · Accès : Tout le monde
 const KEY = '${key}';
 const ROOT_NAME = 'SiteTeam';
-const VER = 3;
+const VER = 4;
 
 function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 function doGet() { return out({ ok: true, app: 'siteteam' }); }
@@ -502,7 +502,7 @@ function sub_(parent, name) {
 function dedupe_(f, n) { const seen = {}, it = f.getFolders(), list = []; while (it.hasNext()) list.push(it.next());
   list.forEach(function (c) { const k = c.getName(); if (seen[k]) { merge_(seen[k], c); n.n++; } else seen[k] = c; });
   for (const k in seen) dedupe_(seen[k], n); return n; }
-function path_(segs) { let f = root_(); segs.forEach(function (s) { f = sub_(f, s); }); return f; }
+function path_(segs) { let f = root_(); if (segs[0] !== '_sync (ne pas toucher)') f = sub_(f, 'projects'); segs.forEach(function (s) { f = sub_(f, s); }); return f; }
 function dbFile_() {
   const sys = sub_(root_(), '_sync (ne pas toucher)'); const it = sys.getFilesByName('db.json');
   return it.hasNext() ? it.next() : sys.createFile('db.json', '{}', 'application/json');
