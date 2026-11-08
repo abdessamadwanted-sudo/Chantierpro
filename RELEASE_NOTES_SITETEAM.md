@@ -1,3 +1,10 @@
+## SiteTeam : v1.0.122
+
+- Sauvegarde Drive : chaque sauvegarde complète est datée (SiteTeam-sauvegarde_AAAA-MM-JJ_HHMM) et on garde les 2 plus récentes ; les plus anciennes vont à la corbeille Drive.
+- Sauvegarde automatique : une fois par jour (au lieu de toutes les 12 h).
+- Restaurer depuis Drive : on choisit d'abord la sauvegarde (date et taille), puis les projets à restaurer (cases à cocher).
+- Restaurer depuis Drive : le téléchargement affiche son pourcentage.
+
 ## SiteTeam : v1.0.121
 
 - Plans : l'ouverture d'un grand plan (A0) affiche tout de suite un aperçu au lieu d'une page blanche.

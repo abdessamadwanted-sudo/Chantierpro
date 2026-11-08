@@ -113,8 +113,9 @@ const Backup = (() => {
     ctx.blob = (n, type) => { const r = fflate.unzipSync(u8, { filter: (f) => f.name === n })[n]; return r ? new Blob([r], { type }) : null; };
     for (const l of new TextDecoder().decode(d).split('\n')) if (l.trim()) yield l;
   }
-  async function importFile(file, onProgress, { replaceAll = false } = {}) {
-    let header = null, project = null, n = 0;
+  // only (optionnel) : Set d'identifiants de projets à restaurer ; les autres de la sauvegarde sont ignorés
+  async function importFile(file, onProgress, { replaceAll = false, only = null } = {}) {
+    let header = null, project = null, n = 0, last = null;
     const db = DB, ctx = {};
     const sig = new Uint8Array(await file.slice(0, 2).arrayBuffer()), isZip = sig[0] === 0x50 && sig[1] === 0x4b;
     let src;
@@ -127,12 +128,14 @@ const Backup = (() => {
       }
       if (obj.s === 'projects') {
         project = obj.d;
+        if (only && !only.has(project.id)) { project = null; continue; }
         const existing = await db.get('projects', project.id);
         if (existing) {
           if (!replaceAll) { const ok = await confirmBox(`« ${project.name} » existe déjà sur ce téléphone. Le remplacer par la sauvegarde ?`, 'Remplacer'); if (!ok) return null; }
           await db.deleteProject(project.id);
         }
         await db.put('projects', project);
+        last = project;
         continue;
       }
       if (!project || !STORES.includes(obj.s)) continue;
@@ -140,8 +143,8 @@ const Backup = (() => {
       await db.put(obj.s, decode(obj.d));
       n++; onProgress && onProgress(n);
     }
-    if (!project) throw new Error('Sauvegarde vide ou incomplète');
-    return project;
+    if (!last) throw new Error(only ? 'Aucun des projets choisis n\'est dans cette sauvegarde' : 'Sauvegarde vide ou incomplète');
+    return last;
   }
 
   // v1.0.74 : sauvegarde COMPLÈTE de tous les projets dans un seul fichier (pour Google Drive, mise à jour à chaque fois)

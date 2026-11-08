@@ -3741,3 +3741,8 @@ table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-
 .lot-chips::-webkit-scrollbar { display: none; }
 
 /* v1.0.116 : type de niveau dans l'en-tête */
+
+/* v1.1 : choix des projets à restaurer depuis Drive */
+.pk-list { display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px; }
+.pk-row { display: flex; align-items: center; gap: 12px; padding: 12px 6px; font-size: 15px; border-bottom: 1px solid var(--line); }
+.pk-row input { width: 20px; height: 20px; flex: none; }
