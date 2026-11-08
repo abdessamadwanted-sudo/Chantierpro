@@ -274,5 +274,44 @@ const GDrive = (() => {
   }
   async function backupGet(id) { return download(id); }
 
-  return { available, connect, call, forget, SCOPE, _reset: reset, backupInfo, backupSave, backupGet, projectSave };
+  // ---------- v1.1 : sauvegardes datées dans « SiteTeam / Sauvegardes » (2 gardées), avec un manifeste (liste des projets) ----------
+  const BK_PREFIX = 'SiteTeam-sauvegarde_', BK_KEEP = 2;
+  const stamp = (d = new Date()) => { const z = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}_${z(d.getHours())}${z(d.getMinutes())}`; };
+  // liste des sauvegardes (les plus récentes d'abord) ; manifestId = fichier de liste des projets, s'il existe
+  async function backupList() {
+    const folder = await path(['Sauvegardes']);
+    const l = await list(`'${folder}' in parents and trashed=false`, 'id,name,size,modifiedTime');
+    const mans = new Map(l.filter(f => f.name.startsWith(BK_PREFIX) && f.name.endsWith('.manifest.json')).map(f => [f.name.replace(/\.manifest\.json$/, '.chantier.zip'), f.id]));
+    const zips = l.filter(f => f.name === BK_NAME || (f.name.startsWith(BK_PREFIX) && f.name.endsWith('.chantier.zip')));
+    return zips.map(z => ({ ...z, manifestId: mans.get(z.name) || null })).sort((a, b) => Date.parse(b.modifiedTime) - Date.parse(a.modifiedTime));
+  }
+  // enregistre une nouvelle sauvegarde datée + son manifeste, puis met à la corbeille les plus anciennes (au-delà de BK_KEEP)
+  async function backupSaveDated(blob, manifest) {
+    const folder = await path(['Sauvegardes']);
+    const name = BK_PREFIX + stamp() + '.chantier.zip';
+    const r = await create({ name, parents: [folder], mimeType: 'application/zip' }, blob, 'application/zip');
+    await create({ name: name.replace(/\.chantier\.zip$/, '.manifest.json'), parents: [folder], mimeType: 'application/json' }, new Blob([JSON.stringify(manifest)], { type: 'application/json' }), 'application/json');
+    const mine = (await backupList()).filter(z => z.name.startsWith(BK_PREFIX)).sort((a, b) => (a.name < b.name ? 1 : -1));
+    for (const old of mine.slice(BK_KEEP)) {
+      try { await patch(`${API}/files/${old.id}`, { trashed: true }); if (old.manifestId) await patch(`${API}/files/${old.manifestId}`, { trashed: true }); } catch (e) { console.warn('purge sauvegarde', e); }
+    }
+    return { id: r.id, name, size: blob.size };
+  }
+  async function backupManifest(id) { const r = await download(id); return JSON.parse(await r.blob.text()); }
+  // téléchargement avec pourcentage (onP reçoit 0..100) ; total = taille annoncée par Drive
+  async function downloadProgress(id, total, onP) {
+    const r = await req(`${API}/files/${id}?alt=media`);
+    if (!r.body || !r.body.getReader) { const b = await r.blob(); onP && onP(100); return b; }
+    const rd = r.body.getReader(), parts = []; let got = 0;
+    for (;;) {
+      const { done, value } = await rd.read();
+      if (done) break;
+      parts.push(value); got += value.length;
+      onP && onP(Math.min(100, Math.round(got * 100 / (total || got || 1))));
+    }
+    onP && onP(100);
+    return new Blob(parts, { type: 'application/zip' });
+  }
+
+  return { available, connect, call, forget, SCOPE, _reset: reset, backupInfo, backupSave, backupGet, projectSave, backupList, backupSaveDated, backupManifest, downloadProgress, BK_KEEP };
 })();

@@ -1559,7 +1559,7 @@ async function quickLink(id, editOnly = false) {
 
 // ---------- Restauration ----------
 async function restoreBackup() {
-  const v = await menu('Restaurer', [{ label: '☁ Depuis Google Drive (sauvegarde complète)', icon: 'drive', value: 'drive' }, { label: 'Depuis un fichier (.zip / .chantier)', icon: 'undo', value: 'file' }]);
+  const v = await menu('Restaurer', [{ label: '☁ Depuis Google Drive (choisir une sauvegarde)', icon: 'drive', value: 'drive' }, { label: 'Depuis un fichier (.zip / .chantier)', icon: 'undo', value: 'file' }]);
   if (v === 'drive') return restoreFromDrive();
   if (v !== 'file') return;
   const files = await pickFiles({ accept: '*/*', multiple: false });
@@ -1583,7 +1583,8 @@ async function cloudSaveAll(auto = false) {
   const ld = auto ? null : loading('Sauvegarde Drive…');
   try {
     const blob = await Backup.buildAllBlob((i, n2) => ld && ld.set(`Sauvegarde Drive… ${i}/${n2}`));
-    const r = await GDrive.backupSave(blob);
+    const manifest = { app: 'chantier', v: 1, at: Date.now(), projects: (await DB.all('projects')).map(x => ({ id: x.id, name: x.name })) };
+    const r = await GDrive.backupSaveDated(blob, manifest);
     try { localStorage.setItem('bk.cloud', JSON.stringify({ at: Date.now(), size: blob.size, id: r.id, n })); } catch (e) {}
     ld && ld.close(); if (!auto) toast('☁ Sauvegarde complète mise à jour dans Drive ✓');
     return true;
@@ -1593,24 +1594,50 @@ async function cloudSaveAll(auto = false) {
     return false;
   }
 }
-// sauvegarde automatique : au plus une fois toutes les 12 h, seulement si Drive est connecté et qu'il y a des projets
+// sauvegarde automatique : au plus une fois par jour, seulement si Drive est connecté et qu'il y a des projets
 function cloudAutoCheck() {
-  try { const L = JSON.parse(localStorage.getItem('bk.cloud') || 'null'); if (L && Date.now() - L.at < 12 * 3600e3) return; } catch (e) {}
+  try { const L = JSON.parse(localStorage.getItem('bk.cloud') || 'null'); if (L && Date.now() - L.at < 24 * 3600e3) return; } catch (e) {}
   if (!window.__safe) cloudSaveAll(true);
 }
+// choix de projets (cases à cocher) dans une feuille du bas ; renvoie les identifiants choisis ou null
+function pickProjects(projs) {
+  return new Promise((resolve) => {
+    let done = null;
+    const s = sheet(`<div class="pk-list">${projs.map((p, i) => `<label class="pk-row"><input type="checkbox" data-i="${i}" checked><span>${esc(p.name)}</span></label>`).join('')}</div>
+      <button class="btn" data-a="go" style="width:100%;margin-top:12px">Restaurer la sélection</button>`, {
+      title: 'Projets à restaurer',
+      onMount: (el) => { const b = el.querySelector('[data-a=go]'); if (b) b.onclick = () => { done = [...el.querySelectorAll('input[type=checkbox]')].filter(c => c.checked).map(c => projs[+c.dataset.i].id); s.close(); }; },
+    });
+    s.onClose = () => resolve(done);
+  });
+}
+// v1.1 : Restaurer depuis Drive = choisir une sauvegarde datée, puis les projets, avec pourcentage de téléchargement
 async function restoreFromDrive() {
   if (!GDrive.available() || !Sync.enabled()) return alertBox('Connectez d\'abord Google Drive (Paramètres › Google Drive), puis réessayez.');
-  const ld = loading('Recherche de la sauvegarde…');
-  let info = null;
-  try { info = await GDrive.backupInfo(); } catch (e) { ld.close(); return alertBox('Drive inaccessible : ' + (e.message || e)); }
+  const ld = loading('Recherche des sauvegardes…');
+  let all = [];
+  try { all = await GDrive.backupList(); } catch (e) { ld.close(); return alertBox('Drive inaccessible : ' + (e.message || e)); }
   ld.close();
-  if (!info) return alertBox('Aucune sauvegarde complète dans Drive (dossier SiteTeam / Sauvegardes) pour ce compte Google.');
-  const ok = await confirmBox(`Restaurer la sauvegarde du ${fmtDateTime(info.modifiedTime ? Date.parse(info.modifiedTime) : Date.now())} (${Math.round((+info.size || 0) / 1048576)} Mo) ? Les projets déjà présents sur ce téléphone seront remplacés.`, 'Restaurer');
+  if (!all.length) return alertBox('Aucune sauvegarde dans Drive (dossier SiteTeam / Sauvegardes) pour ce compte Google.');
+  const k = await menu('Quelle sauvegarde restaurer ?', all.map((z, i) => ({ label: `${fmtDateTime(Date.parse(z.modifiedTime))} · ${Math.round((+z.size || 0) / 1048576)} Mo`, icon: 'drive', value: i })));
+  if (k == null) return;
+  const info = all[k];
+  let only = null;
+  if (info.manifestId) {
+    let projs = null;
+    try { projs = (await GDrive.backupManifest(info.manifestId)).projects || null; } catch (e) { console.warn('manifest', e); }
+    if (projs && projs.length) {
+      only = await pickProjects(projs);
+      if (!only || !only.length) return;
+    }
+  }
+  const ok = await confirmBox(`Restaurer ${only ? only.length + ' projet(s)' : 'tous les projets'} de la sauvegarde du ${fmtDateTime(Date.parse(info.modifiedTime))} ? Les projets déjà présents sur ce téléphone seront remplacés.`, 'Restaurer');
   if (!ok) return;
-  const ld2 = loading('Restauration depuis Drive…');
+  const ld2 = loading('Téléchargement de la sauvegarde… 0%');
   try {
-    const dl = await GDrive.backupGet(info.id);
-    await Backup.importFile(dl.blob, (n) => ld2.set(`Restauration… ${n} éléments`), { replaceAll: true });
+    const blob = await GDrive.downloadProgress(info.id, +info.size || 0, (p) => ld2.set(`Téléchargement de la sauvegarde… ${p}%`));
+    ld2.set('Restauration…');
+    await Backup.importFile(blob, (n) => ld2.set(`Restauration… ${n} éléments`), { replaceAll: true, only: only ? new Set(only) : null });
     ld2.close(); toast('✓ Projets restaurés depuis Drive'); renderHome();
   } catch (e) { ld2.close(); console.error(e); alertBox('Restauration impossible : ' + (e.message || e)); }
 }
