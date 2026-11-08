@@ -583,7 +583,6 @@ function doPost(e) {
       const s = sheet(`<div class="form">
         <div class="sync-card"><div class="cl">☁</div><div class="grow"><b>Google Drive connecté</b>${c.mode === 'g' && c.email ? `<div class="muted" style="font-size:12.5px">${esc(c.email)}</div>` : ''}<div data-syncstate>${statusLine()}</div></div></div>
         <div class="muted" style="font-size:13.5px;line-height:1.55">Tout est rangé dans <b>Mon Drive › SiteTeam › (projet)</b> : Plans par niveau, Réception ferraillage et Programme de bétonnage par mois et par jour (Réserves, Retours, PV du jour), Réserves, Photos…<br>La synchro se fait toute seule (après chaque modification, à l'ouverture et toutes les 2 minutes).</div>
-        <div class="sync-diag" data-syncdiag>…</div>
         <div class="keep-box"><div class="fld">Garder sur le téléphone</div>
           <select data-keep>
             <option value="all">Tout (plus d'espace utilisé)</option>
@@ -594,8 +593,11 @@ function doPost(e) {
           <div class="keep-use" data-use>…</div>
           <button class="btn ghost small" data-a="free">${icon('trash')} Libérer de l'espace maintenant</button>
           <div class="muted" style="font-size:12.5px;line-height:1.5">Les fichiers libérés restent dans Drive et se téléchargent tout seuls quand vous les ouvrez.</div></div>
-        <button class="btn" data-a="now">${icon('undo')} Synchroniser maintenant</button>
-        ${c.folder ? `<button class="btn ghost" data-a="open">${icon('drive')} Ouvrir le dossier dans Drive</button>` : ''}
+        <div class="sync-btns">
+          <button class="btn small" data-a="restore">${icon('undo')} Restaurer</button>
+          ${c.folder ? `<button class="btn small ghost" data-a="open">${icon('drive')} Ouvrir dans Drive</button>` : ''}
+          <button class="btn small ghost" data-a="now">${icon('undo')} Synchroniser</button>
+        </div>
         ${c.mode === 'g' ? `<div class="muted" style="font-size:12.5px;line-height:1.5">📱 Autre téléphone : connectez-le avec le même compte Google (Paramètres › Google Drive › Se connecter avec Google).</div>` : `<button class="btn ghost" data-a="code">${icon('phone')} Copier le code de connexion (PC / autre téléphone)</button>`}
         <div class="sync-upd" data-upd></div>
         <button class="btn ghost" data-a="dedupe">🧹 Fusionner les dossiers en double dans Drive</button>
@@ -603,19 +605,8 @@ function doPost(e) {
         ${c.mode === 'g' ? '' : `${GDrive.available() ? `<button class="btn" data-a="gnew">G&nbsp; Passer à la connexion Google (sans script)</button>` : ''}<button class="btn ghost" data-a="script">${icon('file')} Copier le code du script</button>`}
         <button class="btn danger" data-a="off">Déconnecter cet appareil</button>
       </div>`, { title: 'Synchronisation Google Drive' });
-      ($('[data-a=now]', s.el)||{}).onclick = async () => { await run({ force: true }); diag(); };
-      async function diag() {
-        const files = await DB.all('files'), projects = await DB.all('projects'), recs = await DB.all('receptions');
-        const withBlob = files.filter(f => f.blob), sent = withBlob.filter(f => f.driveId).length;
-        const nDocs = projects.reduce((a, p) => a + Object.keys(p.driveDocs || {}).length, 0);
-        const fl = LS.get('fails', []);
-        const el = $('[data-syncdiag]', s.el); if (!el) return;
-        el.innerHTML = `<div>📁 Compte Google : ${c.mode === 'g' ? esc(c.email || 'connecté dans l\'application') : 'celui qui a autorisé le script'}</div>
-          <div>📷 Fichiers envoyés : <b>${sent} / ${withBlob.length}</b></div>
-          <div>📄 PDF créés dans Drive : <b>${nDocs}</b> · Tableaux réception/bétonnage : <b>${recs.length}</b></div>
-          ${fl.length ? `<div style="color:#ef4444;margin-top:6px"><b>Erreurs :</b><br>${fl.map(esc).join('<br>')}</div>` : '<div style="color:#22c55e">Aucune erreur</div>'}`;
-      }
-      diag();
+      ($('[data-a=now]', s.el)||{}).onclick = async () => { await run({ force: true }); };
+      ($('[data-a=restore]', s.el)||{}).onclick = () => { s.close(); restoreFromDrive(); };
       const mb = (b) => (b / 1048576).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' Mo';
       const showUse = async () => { const u = await usage(); const e = $('[data-use]', s.el); if (e) e.innerHTML = `📱 Sur le téléphone : <b>${mb(u.local)}</b> (${u.n} fichiers) · ☁ seulement dans Drive : <b>${u.cloud}</b>`; };
       const ks = $('[data-keep]', s.el); ks.value = keepMode();

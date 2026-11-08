@@ -1,3 +1,8 @@
+## SiteTeam : v1.0.123
+
+- Synchronisation : la liste des erreurs « Envoi trop long » et le bloc d'informations (compte, fichiers envoyés) sont retirés de l'écran.
+- Synchronisation : trois petits boutons (Restaurer, Ouvrir dans Drive, Synchroniser). « Restaurer » ouvre le choix de la sauvegarde Drive, avec le pourcentage de téléchargement.
+
 ## SiteTeam : v1.0.122
 
 - Sauvegarde Drive : chaque sauvegarde complète est datée (SiteTeam-sauvegarde_AAAA-MM-JJ_HHMM) et on garde les 2 plus récentes ; les plus anciennes vont à la corbeille Drive.

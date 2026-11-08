@@ -3746,3 +3746,7 @@ table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-
 .pk-list { display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px; }
 .pk-row { display: flex; align-items: center; gap: 12px; padding: 12px 6px; font-size: 15px; border-bottom: 1px solid var(--line); }
 .pk-row input { width: 20px; height: 20px; flex: none; }
+
+/* v1.1 : boutons compacts de la synchronisation */
+.sync-btns { display: flex; gap: 8px; }
+.sync-btns .btn { flex: 1; padding: 8px 10px; font-size: 13px; min-height: 0; }
