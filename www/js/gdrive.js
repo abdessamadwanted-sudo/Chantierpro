@@ -313,5 +313,25 @@ const GDrive = (() => {
     return new Blob(parts, { type: 'application/zip' });
   }
 
-  return { available, connect, call, forget, SCOPE, _reset: reset, backupInfo, backupSave, backupGet, projectSave, backupList, backupSaveDated, backupManifest, downloadProgress, BK_KEEP };
+  // ---------- v1.1 : une sauvegarde ZIP par projet (nom = nom du projet), 2 gardées, dans « Sauvegardes » ----------
+  const PBK_KEEP = 2;
+  const pSafe = (n) => String(n || 'projet').replace(/[\\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 60) || 'projet';
+  const PRX = /^(.+)_(\d{4}-\d{2}-\d{2}_\d{4})\.chantier\.zip$/;
+  // liste des sauvegardes par projet (ignore la sauvegarde complète « SiteTeam-sauvegarde_… »)
+  async function projectBackupList() {
+    const folder = await path(['Sauvegardes']);
+    const l = await list(`'${folder}' in parents and trashed=false`, 'id,name,size,modifiedTime');
+    return l.filter(f => PRX.test(f.name) && !f.name.startsWith(BK_PREFIX)).map(f => { const m = PRX.exec(f.name); return { ...f, project: m[1], stamp: m[2] }; });
+  }
+  // enregistre le ZIP d'un projet, puis met à la corbeille les plus anciennes de ce projet (au-delà de PBK_KEEP)
+  async function projectBackupSave(projectName, blob) {
+    const folder = await path(['Sauvegardes']);
+    const base = pSafe(projectName), name = base + '_' + stamp() + '.chantier.zip';
+    const r = await create({ name, parents: [folder], mimeType: 'application/zip' }, blob, 'application/zip');
+    const mine = (await projectBackupList()).filter(x => x.project === base).sort((a, b) => (a.stamp < b.stamp ? 1 : -1));
+    for (const old of mine.slice(PBK_KEEP)) { try { await patch(`${API}/files/${old.id}`, { trashed: true }); } catch (e) { console.warn('purge projet', e); } }
+    return { id: r.id, name, size: blob.size };
+  }
+
+  return { available, connect, call, forget, SCOPE, _reset: reset, backupInfo, backupSave, backupGet, projectSave, backupList, backupSaveDated, backupManifest, downloadProgress, BK_KEEP, projectBackupList, projectBackupSave, PBK_KEEP };
 })();

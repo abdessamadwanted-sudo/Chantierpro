@@ -1,3 +1,10 @@
+## SiteTeam : v1.0.124
+
+- Sauvegarde par projet : « Sauvegarder ce projet dans Drive » crée un ZIP au nom du projet dans SiteTeam / Sauvegardes, et on garde les 2 plus récentes.
+- Restaurer : on choisit le projet, puis une de ses sauvegardes, on voit son contenu (plans, fichiers, tâches…), et on restaure ce projet seul. Les autres projets ne changent pas.
+- Restaurer : le téléchargement affiche son pourcentage.
+- L'ancienne sauvegarde complète reste disponible dans la liste (« Sauvegarde complète »).
+
 ## SiteTeam : v1.0.123
 
 - Synchronisation : la liste des erreurs « Envoi trop long » et le bloc d'informations (compte, fichiers envoyés) sont retirés de l'écran.
