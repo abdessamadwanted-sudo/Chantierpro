@@ -111,6 +111,8 @@ async function openPlanViewer(plan, ctx) {
   const base = Math.max(W, H);
   if (!plan.annotations) plan.annotations = [];
   plan.lastOpened = Date.now(); DB.put('plans', plan);
+  // v1.0.128 : tant qu'un plan est ouvert, la synchro ne démarre pas (évite la fermeture de l'application sur les gros PDF)
+  window.__planOpen = (window.__planOpen || 0) + 1;
   try { typeof bootTrail === 'function' && bootTrail('plan ouvert : ' + (plan.name || '') + ' (' + W + '×' + H + (plan.pdfFileId ? ', PDF' : '') + ', mémoire JS ' + (performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + ' Mo' : '?') + ')'); } catch (e) {}
   // v1.0.47 : plan A0 coupé (ancien import) → image refaite par tuiles en arrière-plan, puis remplacée à l'écran
   if (typeof planNeedsHeal === 'function' && planNeedsHeal(plan)) planHeal(plan).then(async ok => { if (!ok) return; const f2 = await DB.get('files', plan.fileId); const u = f2 ? BlobURL.get(f2.id, f2.blob) : ''; document.querySelectorAll('.fullpage .stage > img, .fullpage .loupe img').forEach(im => { if (im.getAttribute('src') === src) im.src = u; }); toast('Plan A0 : image complète ✓'); });
@@ -162,7 +164,7 @@ async function openPlanViewer(plan, ctx) {
   // v1.0.59 : à la fermeture du plan on libère la mémoire (PDF ouvert dans pdf.js, calques HD, image décodée).
   // Avant, chaque plan ouvert restait en mémoire → après quelques plans A0, Android fermait l'application.
   const cleanups = []; let closed = false, onResize = () => {};
-  const teardown = () => { closed = true; try { typeof bootTrail === 'function' && bootTrail('plan fermé'); } catch (e) {} window.removeEventListener('resize', onResize); cleanups.forEach(f => { try { f(); } catch (e) {} }); el.querySelectorAll('img').forEach(im => { try { im.removeAttribute('src'); } catch (e) {} }); el.remove(); ctx.onClose && ctx.onClose(); };
+  const teardown = () => { if (!closed) window.__planOpen = Math.max(0, (window.__planOpen || 1) - 1); closed = true; try { typeof bootTrail === 'function' && bootTrail('plan fermé'); } catch (e) {} window.removeEventListener('resize', onResize); cleanups.forEach(f => { try { f(); } catch (e) {} }); el.querySelectorAll('img').forEach(im => { try { im.removeAttribute('src'); } catch (e) {} }); el.remove(); ctx.onClose && ctx.onClose(); };
   const close = () => { unBack(); teardown(); };
   const unBack = pushBack(teardown);
   ($('[data-a=back]', el)||{}).onclick = close;
