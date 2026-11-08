@@ -1,3 +1,9 @@
+## SiteTeam : v1.0.121
+
+- Plans : l'ouverture d'un grand plan (A0) affiche tout de suite un aperçu au lieu d'une page blanche.
+- Plans : la version allégée du plan est gardée après la première ouverture : la réouverture est plus rapide.
+- Plans : l'ouverture du plan n'attend plus les miniatures des autres onglets.
+
 ## SiteTeam : v1.0.120
 
 - Plans : la liste des types dans l'en-tête de chaque niveau est retirée (en-tête d'origine). Le filtrage par type reste accessible depuis la barre des lots du niveau.

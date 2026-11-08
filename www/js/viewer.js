@@ -153,7 +153,10 @@ async function openPlanViewer(plan, ctx) {
   const viewer = $('.viewer', el), stage = $('.stage', el);
   let baseURL = src;
   { const im0 = $('.stage > img', el); if (im0) { im0.addEventListener('load', () => { clearTimeout(plTimer); hidePL(); }, { once: true }); im0.addEventListener('error', () => { clearTimeout(plTimer); hidePL(); }, { once: true }); } }
-  if (lite) { const im0 = $('.stage > img', el); avLiteURL(file.id, 3200).then(u => { if (!el.isConnected) return; baseURL = u || src; im0.src = baseURL; }).catch(() => { im0.src = src; }); }
+  if (lite) { const im0 = $('.stage > img', el);
+    // v1.0.121 : aperçu immédiat (miniature) pendant que l'image allégée se prépare ; le plan ne attend plus la file des miniatures
+    avLiteURL(file.id, 400).then(u => { if (u && el.isConnected && !im0.getAttribute('src')) im0.src = u; }).catch(() => {});
+    avLiteURL(file.id, 3200, { viewer: true }).then(u => { if (!el.isConnected) return; baseURL = u || src; im0.src = baseURL; }).catch(() => { im0.src = src; }); }
   const gAnn = $('.g-annots', el), gPrev = $('.g-preview', el), gLinks = $('.g-links', el), gTasks = $('.g-tasks', el);
 
   // v1.0.59 : à la fermeture du plan on libère la mémoire (PDF ouvert dans pdf.js, calques HD, image décodée).

@@ -10,16 +10,23 @@
 // sur le téléphone (localStorage) → plus jamais recalculées à chaque ouverture d'un onglet de lot
 const _avLite = new Map(); let _avLiteQ = Promise.resolve();
 const avLiteQ = (fn) => { const r = _avLiteQ.then(fn, fn); _avLiteQ = r.catch(() => {}); return r; };
-function avLiteURL(fileId, max) {
+// v1.0.121 : file séparée pour l'ouverture d'un plan, pour qu'elle ne attende pas derrière les miniatures
+let _avLiteQV = Promise.resolve();
+const avLiteQV = (fn) => { const r = _avLiteQV.then(fn, fn); _avLiteQV = r.catch(() => {}); return r; };
+// v1.0.121 : copie allégée (3200 px) gardée dans le cache du navigateur : à la réouverture, plus besoin de la recalculer
+const LITE_CACHE = 'st-lite-v1';
+async function liteCacheGet(id, max) { try { if (!('caches' in window)) return null; const c = await caches.open(LITE_CACHE); const r = await c.match('/__lite/' + id + '/' + max); return r ? URL.createObjectURL(await r.blob()) : null; } catch (e) { return null; } }
+function liteCachePut(id, max, b) { try { if (!('caches' in window)) return; caches.open(LITE_CACHE).then(c => c.put('/__lite/' + id + '/' + max, new Response(b, { headers: { 'Content-Type': 'image/jpeg' } }))).catch(() => {}); } catch (e) {} }
+function avLiteURL(fileId, max, opts) {
   const k = fileId + '|' + max; if (_avLite.has(k)) return _avLite.get(k);
   if (max <= 400) { try { const d = localStorage.getItem('th.' + k); if (d) { const pr0 = Promise.resolve(d); _avLite.set(k, pr0); return pr0; } } catch (e) {} }
-  const pr = avLiteQ(async () => { const f = await DB.get('files', fileId); if (!f || !f.blob) return fileURL(fileId);
+  const pr = (opts && opts.viewer ? avLiteQV : avLiteQ)(async () => { if (max > 400) { const cu = await liteCacheGet(fileId, max); if (cu) return cu; } const f = await DB.get('files', fileId); if (!f || !f.blob) return fileURL(fileId);
     if (max <= 400 && f.blob.size > 9e6) return '';   // v1.0.51 : image trop lourde pour une miniature sur téléphone → pas de miniature
     if (max <= 400) { try { const bm = await createImageBitmap(f.blob, { resizeWidth: max, resizeQuality: 'medium' }), c = document.createElement('canvas'); c.width = bm.width; c.height = bm.height; c.getContext('2d').drawImage(bm, 0, 0); bm.close && bm.close();
       const d = c.toDataURL('image/jpeg', 0.72); c.width = c.height = 0; try { localStorage.setItem('th.' + k, d); } catch (e) {} return d; } catch (e) { /* ancien navigateur : chemin normal */ } }
     try { const bm = await createImageBitmap(f.blob), r = Math.min(1, max / Math.max(bm.width, bm.height)); if (r >= 1) { bm.close && bm.close(); return BlobURL.get(f.id, f.blob); }
       const c = document.createElement('canvas'); c.width = Math.round(bm.width * r); c.height = Math.round(bm.height * r); const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(bm, 0, 0, c.width, c.height); bm.close && bm.close();
-      const b = await new Promise(res => c.toBlob(res, 'image/jpeg', max <= 400 ? 0.8 : 0.9)); c.width = c.height = 0; return URL.createObjectURL(b); } catch (e) { return BlobURL.get(f.id, f.blob); } });
+      const b = await new Promise(res => c.toBlob(res, 'image/jpeg', max <= 400 ? 0.8 : 0.9)); c.width = c.height = 0; if (max > 400 && b) liteCachePut(fileId, max, b); return URL.createObjectURL(b); } catch (e) { return BlobURL.get(f.id, f.blob); } });
   _avLite.set(k, pr); if (_avLite.size > 60) _avLite.delete(_avLite.keys().next().value); return pr;
 }
 
