@@ -44,7 +44,8 @@ const Backup = (() => {
       if (o.blob instanceof Blob) { const n = `f/${st}_${o.id}`; blobs.push([n, o.blob]); o.blob = { __zip: n, type: o.blob.type || o.mime || '' }; }
       lines.push(JSON.stringify({ s: st, d: o }));
     }
-    const fs = FS(), q = []; let qn = 0, err = null, wrote = false;
+    // v1.0.131 : envoi Drive = ZIP en mémoire (sans passer par le cache en base64, trop gourmand : fermeture de l'application en fin de sauvegarde)
+    const fs = opts.drive ? null : FS(), q = []; let qn = 0, err = null, wrote = false;
     const zip = new fflate.Zip((e, chunk) => { if (e) err = e; else if (chunk && chunk.length) { q.push(chunk); qn += chunk.length; } });
     const outParts = [];
     const flush = async (force) => {
