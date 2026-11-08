@@ -1062,7 +1062,10 @@ const Team = (() => {
       await leftOrg(c); location.reload();
     }, async (e) => { console.warn('accès (membre)', e && e.code);
       if (denied(e) && S.cid === cid && !leaving && !(await stillMember(cid))) { await leftOrg(null); location.reload(); } });
+    // v1.0.130 : version minimale imposée par l'équipe SiteTeam (Centre de contrôle › utilisateur › Version minimale)
+    const verLt = (a, b) => { const x = String(a || '0').split('.').map(Number), y = String(b || '0').split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { const p = x[i] || 0, q = y[i] || 0; if (p !== q) return p < q; } return false; };
     fs.collection('users').doc(uid).onSnapshot((d) => { if (d.metadata.fromCache || !d.exists) return; const v = d.data(); LS.set('profile', v);
+      if (v.blocked !== true && v.minVersion && typeof APP_VERSION === 'string' && !APP_VERSION.startsWith('__') && verLt(APP_VERSION, v.minVersion)) return gateScreen('⬆ Mise à jour requise', `Votre version (${APP_VERSION}) n'est plus autorisée. Installez la version ${v.minVersion} ou plus récente depuis les Releases GitHub.\nPour toute question : ${SUPPORT_EMAIL}`, false);
       if (v.blocked === true) gateScreen('⛔ Compte bloqué', `Ce compte a été bloqué par SiteTeam.${v.blockedWhy ? '\nMotif : ' + v.blockedWhy : ''}\nPour toute question : ${SUPPORT_EMAIL}`, false); }, (e) => console.warn('accès (profil)', e && e.code));
     fs.collection('companies').doc(cid).onSnapshot((c) => { if (c.metadata.fromCache || !c.exists || S.cid !== cid) return; const was = S.company && S.company.planStatus;
       S.company = { ...(S.company || {}), id: c.id, ...c.data() }; LS.set('company', S.company); if (S.company.planStatus !== was || S.company.allowed === false) gate(); }, (e) => console.warn('accès (organisation)', e && e.code));

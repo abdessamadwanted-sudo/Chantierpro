@@ -216,8 +216,9 @@
     const u = userOf(uid), ms_ = D.members.filter(m => m.uid === uid);
     const r = await modal(u.name || u.email || uid, `<div class="kv"><span>E-mail</span><b>${esc(u.email || '—')}</b><span>Dernière ouverture</span><b>${esc(dt(u.lastSeen))}</b><span>Version</span><b>${esc(u.appVersion || '—')} · ${esc(u.platform || '')}</b><span>Identifiant</span><b style="overflow-wrap:anywhere">${esc(uid)}</b></div>
       <h3 style="margin-top:12px">Espaces</h3>${ms_.length ? ms_.map(m => { const o = orgOf(m.cid); return `<div class="row"><div class="t grow"><b>${esc(o.name || m.cid)}</b><small>${esc(m.role || '')}${m.admin ? ' · administrateur' : ''} · ${PLAN_L(o.plan || 'enterprise')}</small></div>${stPill(o.planStatus)}</div>`; }).join('') : '<div class="empty">Aucun</div>'}
+      <label>Version minimale autorisée (ex : 1.0.130, vide = aucune)<input name="minv" value="${esc(u.minVersion || '')}" placeholder="1.0.130"></label>
       ${u.blocked ? `<p class="muted">Bloqué le ${esc(dt(u.blockedAt))}${u.blockedWhy ? ' : ' + esc(u.blockedWhy) : ''}</p>` : '<label>Motif du blocage (visible par la personne)<input name="why" placeholder="Ex : non-respect des conditions"></label>'}`,
-      [[u.blocked ? 'Débloquer' : 'Bloquer le compte', u.blocked ? 'unblock' : 'block', u.blocked ? '' : 'bad'], ['Annonce à cette personne', 'ann', 'ghost'], ['Fermer', null, 'ghost']]);
+      [[u.blocked ? 'Débloquer' : 'Bloquer le compte', u.blocked ? 'unblock' : 'block', u.blocked ? '' : 'bad'], ['Enregistrer la version', 'minv', ''], ['Annonce à cette personne', 'ann', 'ghost'], ['Fermer', null, 'ghost']]);
     if (!r) return;
     try {
       if (r.v === 'block' || r.v === 'unblock') {
@@ -225,6 +226,7 @@
         await db.collection('users').doc(uid).update(r.v === 'block' ? { blocked: true, blockedAt: ts(), blockedWhy: r.why || '' } : { blocked: false, blockedAt: null, blockedWhy: '' });
         toast(r.v === 'block' ? 'Compte bloqué ✓' : 'Compte débloqué ✓'); logA(r.v === 'block' ? 'Compte bloqué' : 'Compte débloqué', u.email || uid, r.why || ''); draw(true);
       }
+      if (r.v === 'minv') { const mv = String(r.minv || '').trim(); await db.collection('users').doc(uid).update({ minVersion: mv }); toast(mv ? `Version minimale : ${mv} ✓` : 'Aucune version minimale ✓'); logA('Version minimale', u.email || uid, mv || 'aucune'); }
       if (r.v === 'ann') annForm({ target: uid, label: u.email || u.name || uid });
     } catch (e) { fail(e); }
   }
