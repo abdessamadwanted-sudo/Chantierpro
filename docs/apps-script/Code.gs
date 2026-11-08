@@ -13,7 +13,7 @@ function root_() {
   pr.setProperty('ROOT', f.getId()); return f;
 }
 function sub_(parent, name) { const it = parent.getFoldersByName(name); return it.hasNext() ? it.next() : parent.createFolder(name); }
-function path_(segs) { let f = root_(); segs.forEach(function (s) { f = sub_(f, s); }); return f; }
+function path_(segs) { let f = root_(); if (segs[0] !== '_sync (ne pas toucher)') f = sub_(f, 'projects'); segs.forEach(function (s) { f = sub_(f, s); }); return f; }
 function dbFile_() {
   const sys = sub_(root_(), '_sync (ne pas toucher)'); const it = sys.getFilesByName('db.json');
   return it.hasNext() ? it.next() : sys.createFile('db.json', '{}', 'application/json');

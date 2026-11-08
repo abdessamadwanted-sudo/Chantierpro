@@ -175,5 +175,21 @@ const Backup = (() => {
     return new Blob(parts, { type: 'application/zip' });
   }
 
-  return { exportProject, importFile, buildAllBlob };
+  // lecture rapide du contenu d'une sauvegarde : nom du projet + nombre d'éléments par type
+  async function inspect(blob) {
+    await loadScript('vendor/fflate.min.js');
+    const u8 = new Uint8Array(await blob.arrayBuffer());
+    const d = fflate.unzipSync(u8, { filter: (f) => f.name === 'donnees.jsonl' })['donnees.jsonl'];
+    const out = { name: '', counts: {} };
+    if (!d) return out;
+    for (const l of new TextDecoder().decode(d).split('\n')) {
+      if (!l.trim()) continue;
+      const o = JSON.parse(l);
+      if (o.s === 'projects') out.name = o.d.name || '';
+      else if (o.s && STORES.includes(o.s)) out.counts[o.s] = (out.counts[o.s] || 0) + 1;
+    }
+    return out;
+  }
+
+  return { exportProject, importFile, buildAllBlob, inspect };
 })();

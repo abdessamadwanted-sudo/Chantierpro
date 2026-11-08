@@ -174,7 +174,9 @@ const GDrive = (() => {
 
   // ---------- fichiers ----------
   async function upload(d) {
-    const folder = await path(d.path);
+    // v1.0.127 : les dossiers projets vivent dans « SiteTeam / projects » (sauf le dossier technique _sync)
+    const segs = (d.path || []).slice();
+    const folder = await path(segs[0] === '_sync (ne pas toucher)' ? segs : ['projects', ...segs]);
     if (d.driveId) {
       try {
         const m = await json(`${API}/files/${d.driveId}?fields=id,parents,trashed`);
@@ -250,17 +252,19 @@ const GDrive = (() => {
 
   // ---------- v1.0.74 : sauvegarde complète unique « SiteTeam / Sauvegardes » (mise à jour, jamais dupliquée) ----------
   const BK_NAME = 'SiteTeam-sauvegarde-complete.chantier.zip';
+  // v1.0.126 : tous les dossiers de sauvegarde sont rangés dans « SiteTeam / projects / Sauvegardes »
+  const BK_DIR = ['projects', 'Sauvegardes'];
   // v1.0.79 : recherche / écriture d'un fichier nommé dans un sous-dossier (toujours le MÊME fichier, mis à jour)
   async function fileFind(name, sub) {
     const folder = await path(sub);
     const l = await list(`name='${qs(name)}' and '${folder}' in parents and trashed=false`, 'id,name,size,modifiedTime');
     return { folder, file: l[0] || null };
   }
-  async function backupFind() { return fileFind(BK_NAME, ['Sauvegardes']); }
+  async function backupFind() { return fileFind(BK_NAME, BK_DIR); }
   async function backupInfo() { return (await backupFind()).file; }
-  async function backupSave(blob) { return fileSave(BK_NAME, ['Sauvegardes'], blob); }
+  async function backupSave(blob) { return fileSave(BK_NAME, BK_DIR, blob); }
   // v1.0.79 : une sauvegarde par projet, dans SiteTeam / Sauvegardes / Projets
-  async function projectSave(name, blob) { return fileSave(name, ['Sauvegardes', 'Projets'], blob); }
+  async function projectSave(name, blob) { return fileSave(name, [...BK_DIR, 'Projets'], blob); }
   async function fileSave(name, sub, blob) {
     const { folder, file } = await fileFind(name, sub);
     if (!file) { const r = await create({ name, parents: [folder], mimeType: 'application/zip' }, blob, 'application/zip'); return { id: r.id, created: true, size: blob.size }; }
@@ -279,7 +283,7 @@ const GDrive = (() => {
   const stamp = (d = new Date()) => { const z = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}_${z(d.getHours())}${z(d.getMinutes())}`; };
   // liste des sauvegardes (les plus récentes d'abord) ; manifestId = fichier de liste des projets, s'il existe
   async function backupList() {
-    const folder = await path(['Sauvegardes']);
+    const folder = await path(BK_DIR);
     const l = await list(`'${folder}' in parents and trashed=false`, 'id,name,size,modifiedTime');
     const mans = new Map(l.filter(f => f.name.startsWith(BK_PREFIX) && f.name.endsWith('.manifest.json')).map(f => [f.name.replace(/\.manifest\.json$/, '.chantier.zip'), f.id]));
     const zips = l.filter(f => f.name === BK_NAME || (f.name.startsWith(BK_PREFIX) && f.name.endsWith('.chantier.zip')));
@@ -287,7 +291,7 @@ const GDrive = (() => {
   }
   // enregistre une nouvelle sauvegarde datée + son manifeste, puis met à la corbeille les plus anciennes (au-delà de BK_KEEP)
   async function backupSaveDated(blob, manifest) {
-    const folder = await path(['Sauvegardes']);
+    const folder = await path(BK_DIR);
     const name = BK_PREFIX + stamp() + '.chantier.zip';
     const r = await create({ name, parents: [folder], mimeType: 'application/zip' }, blob, 'application/zip');
     await create({ name: name.replace(/\.chantier\.zip$/, '.manifest.json'), parents: [folder], mimeType: 'application/json' }, new Blob([JSON.stringify(manifest)], { type: 'application/json' }), 'application/json');
@@ -313,5 +317,28 @@ const GDrive = (() => {
     return new Blob(parts, { type: 'application/zip' });
   }
 
-  return { available, connect, call, forget, SCOPE, _reset: reset, backupInfo, backupSave, backupGet, projectSave, backupList, backupSaveDated, backupManifest, downloadProgress, BK_KEEP };
+  // ---------- v1.1 : une sauvegarde ZIP par projet (nom = nom du projet), 2 gardées, dans « Sauvegardes » ----------
+  const PBK_KEEP = 2;
+  const pSafe = (n) => String(n || 'projet').replace(/[\\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 60) || 'projet';
+  const PRX = /^(.+)_(\d{4}-\d{2}-\d{2}_\d{4})\.chantier\.zip$/;
+  // nom du dossier projet, identique à celui créé par la synchro (sync.js › clean) : « SiteTeam / <projet> »
+  const pFolder = (n) => String(n || '').replace(/[\\/:*?"<>|#\n\r\t]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 90) || 'Projet';
+  // liste des sauvegardes par projet : ZIP « <projet>_<date>.chantier.zip » rangés DANS le dossier du projet
+  // (ignore la sauvegarde complète « SiteTeam-sauvegarde_… »)
+  async function projectBackupList() {
+    const l = await list(`name contains '.chantier.zip' and mimeType='application/zip' and trashed=false`, 'id,name,size,modifiedTime,parents');
+    return l.filter(f => PRX.test(f.name) && !f.name.startsWith(BK_PREFIX)).map(f => { const m = PRX.exec(f.name); return { ...f, project: m[1], stamp: m[2] }; });
+  }
+  // enregistre le ZIP d'un projet dans SON dossier (pas de dossier « Sauvegardes » par projet),
+  // puis met à la corbeille les plus anciennes de ce projet (au-delà de PBK_KEEP)
+  async function projectBackupSave(projectName, blob) {
+    const folder = await path(['projects', pFolder(projectName)]);
+    const base = pSafe(projectName), name = base + '_' + stamp() + '.chantier.zip';
+    const r = await create({ name, parents: [folder], mimeType: 'application/zip' }, blob, 'application/zip');
+    const mine = (await projectBackupList()).filter(x => x.project === base && (x.parents || []).includes(folder)).sort((a, b) => (a.stamp < b.stamp ? 1 : -1));
+    for (const old of mine.slice(PBK_KEEP)) { try { await patch(`${API}/files/${old.id}`, { trashed: true }); } catch (e) { console.warn('purge projet', e); } }
+    return { id: r.id, name, size: blob.size, folder };
+  }
+
+  return { available, connect, call, forget, SCOPE, _reset: reset, backupInfo, backupSave, backupGet, projectSave, backupList, backupSaveDated, backupManifest, downloadProgress, BK_KEEP, projectBackupList, projectBackupSave, PBK_KEEP };
 })();
