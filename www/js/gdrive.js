@@ -174,7 +174,9 @@ const GDrive = (() => {
 
   // ---------- fichiers ----------
   async function upload(d) {
-    const folder = await path(d.path);
+    // v1.0.127 : les dossiers projets vivent dans « SiteTeam / projects » (sauf le dossier technique _sync)
+    const segs = (d.path || []).slice();
+    const folder = await path(segs[0] === '_sync (ne pas toucher)' ? segs : ['projects', ...segs]);
     if (d.driveId) {
       try {
         const m = await json(`${API}/files/${d.driveId}?fields=id,parents,trashed`);
