@@ -250,17 +250,19 @@ const GDrive = (() => {
 
   // ---------- v1.0.74 : sauvegarde complète unique « SiteTeam / Sauvegardes » (mise à jour, jamais dupliquée) ----------
   const BK_NAME = 'SiteTeam-sauvegarde-complete.chantier.zip';
+  // v1.0.126 : tous les dossiers de sauvegarde sont rangés dans « SiteTeam / projects / Sauvegardes »
+  const BK_DIR = ['projects', 'Sauvegardes'];
   // v1.0.79 : recherche / écriture d'un fichier nommé dans un sous-dossier (toujours le MÊME fichier, mis à jour)
   async function fileFind(name, sub) {
     const folder = await path(sub);
     const l = await list(`name='${qs(name)}' and '${folder}' in parents and trashed=false`, 'id,name,size,modifiedTime');
     return { folder, file: l[0] || null };
   }
-  async function backupFind() { return fileFind(BK_NAME, ['Sauvegardes']); }
+  async function backupFind() { return fileFind(BK_NAME, BK_DIR); }
   async function backupInfo() { return (await backupFind()).file; }
-  async function backupSave(blob) { return fileSave(BK_NAME, ['Sauvegardes'], blob); }
+  async function backupSave(blob) { return fileSave(BK_NAME, BK_DIR, blob); }
   // v1.0.79 : une sauvegarde par projet, dans SiteTeam / Sauvegardes / Projets
-  async function projectSave(name, blob) { return fileSave(name, ['Sauvegardes', 'Projets'], blob); }
+  async function projectSave(name, blob) { return fileSave(name, [...BK_DIR, 'Projets'], blob); }
   async function fileSave(name, sub, blob) {
     const { folder, file } = await fileFind(name, sub);
     if (!file) { const r = await create({ name, parents: [folder], mimeType: 'application/zip' }, blob, 'application/zip'); return { id: r.id, created: true, size: blob.size }; }
@@ -279,7 +281,7 @@ const GDrive = (() => {
   const stamp = (d = new Date()) => { const z = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}_${z(d.getHours())}${z(d.getMinutes())}`; };
   // liste des sauvegardes (les plus récentes d'abord) ; manifestId = fichier de liste des projets, s'il existe
   async function backupList() {
-    const folder = await path(['Sauvegardes']);
+    const folder = await path(BK_DIR);
     const l = await list(`'${folder}' in parents and trashed=false`, 'id,name,size,modifiedTime');
     const mans = new Map(l.filter(f => f.name.startsWith(BK_PREFIX) && f.name.endsWith('.manifest.json')).map(f => [f.name.replace(/\.manifest\.json$/, '.chantier.zip'), f.id]));
     const zips = l.filter(f => f.name === BK_NAME || (f.name.startsWith(BK_PREFIX) && f.name.endsWith('.chantier.zip')));
@@ -287,7 +289,7 @@ const GDrive = (() => {
   }
   // enregistre une nouvelle sauvegarde datée + son manifeste, puis met à la corbeille les plus anciennes (au-delà de BK_KEEP)
   async function backupSaveDated(blob, manifest) {
-    const folder = await path(['Sauvegardes']);
+    const folder = await path(BK_DIR);
     const name = BK_PREFIX + stamp() + '.chantier.zip';
     const r = await create({ name, parents: [folder], mimeType: 'application/zip' }, blob, 'application/zip');
     await create({ name: name.replace(/\.chantier\.zip$/, '.manifest.json'), parents: [folder], mimeType: 'application/json' }, new Blob([JSON.stringify(manifest)], { type: 'application/json' }), 'application/json');

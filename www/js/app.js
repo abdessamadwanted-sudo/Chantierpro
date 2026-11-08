@@ -1629,7 +1629,7 @@ async function restoreFromDrive() {
   const names = [...groups.keys()].sort((x, y) => x.localeCompare(y, 'fr'));
   const items = names.map(n => ({ label: `${n} · ${groups.get(n).length} sauvegarde(s)`, icon: 'drive', value: 'p:' + n }));
   if (full.length) items.push({ label: '☁ Sauvegarde complète (tous les projets)', icon: 'drive', value: 'full' });
-  if (!items.length) return alertBox('Aucune sauvegarde dans Drive (dossier SiteTeam / Sauvegardes) pour ce compte Google.');
+  if (!items.length) return alertBox('Aucune sauvegarde dans Drive (dossier SiteTeam / projects / Sauvegardes) pour ce compte Google.');
   const v = await menu('Restaurer quel projet ?', items);
   if (v == null) return;
   if (v === 'full') return restoreFullBackup(full);
