@@ -317,20 +317,23 @@ const GDrive = (() => {
   const PBK_KEEP = 2;
   const pSafe = (n) => String(n || 'projet').replace(/[\\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 60) || 'projet';
   const PRX = /^(.+)_(\d{4}-\d{2}-\d{2}_\d{4})\.chantier\.zip$/;
-  // liste des sauvegardes par projet (ignore la sauvegarde complète « SiteTeam-sauvegarde_… »)
+  // nom du dossier projet, identique à celui créé par la synchro (sync.js › clean) : « SiteTeam / <projet> »
+  const pFolder = (n) => String(n || '').replace(/[\\/:*?"<>|#\n\r\t]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 90) || 'Projet';
+  // liste des sauvegardes par projet : ZIP « <projet>_<date>.chantier.zip » rangés DANS le dossier du projet
+  // (ignore la sauvegarde complète « SiteTeam-sauvegarde_… »)
   async function projectBackupList() {
-    const folder = await path(['Sauvegardes']);
-    const l = await list(`'${folder}' in parents and trashed=false`, 'id,name,size,modifiedTime');
+    const l = await list(`name contains '.chantier.zip' and mimeType='application/zip' and trashed=false`, 'id,name,size,modifiedTime,parents');
     return l.filter(f => PRX.test(f.name) && !f.name.startsWith(BK_PREFIX)).map(f => { const m = PRX.exec(f.name); return { ...f, project: m[1], stamp: m[2] }; });
   }
-  // enregistre le ZIP d'un projet, puis met à la corbeille les plus anciennes de ce projet (au-delà de PBK_KEEP)
+  // enregistre le ZIP d'un projet dans SON dossier (pas de dossier « Sauvegardes » par projet),
+  // puis met à la corbeille les plus anciennes de ce projet (au-delà de PBK_KEEP)
   async function projectBackupSave(projectName, blob) {
-    const folder = await path(['Sauvegardes']);
+    const folder = await path([pFolder(projectName)]);
     const base = pSafe(projectName), name = base + '_' + stamp() + '.chantier.zip';
     const r = await create({ name, parents: [folder], mimeType: 'application/zip' }, blob, 'application/zip');
-    const mine = (await projectBackupList()).filter(x => x.project === base).sort((a, b) => (a.stamp < b.stamp ? 1 : -1));
+    const mine = (await projectBackupList()).filter(x => x.project === base && (x.parents || []).includes(folder)).sort((a, b) => (a.stamp < b.stamp ? 1 : -1));
     for (const old of mine.slice(PBK_KEEP)) { try { await patch(`${API}/files/${old.id}`, { trashed: true }); } catch (e) { console.warn('purge projet', e); } }
-    return { id: r.id, name, size: blob.size };
+    return { id: r.id, name, size: blob.size, folder };
   }
 
   return { available, connect, call, forget, SCOPE, _reset: reset, backupInfo, backupSave, backupGet, projectSave, backupList, backupSaveDated, backupManifest, downloadProgress, BK_KEEP, projectBackupList, projectBackupSave, PBK_KEEP };
