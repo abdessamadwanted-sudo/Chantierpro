@@ -100,12 +100,16 @@ function lotBarInto(card, f, ps, root) {
       list.innerHTML = opt('__all', '📚 Tous les types (TOUT)', ps.length, 'all')
         + typesVis(f, p).map(t => opt('T:' + t.k, esc(t.l), nOfType(t.k))).join('')
         + (nNo ? opt('__none', '📄 Sans lot', nNo) : '')
-        + `<div class="lp-foot"><button type="button" class="lp-i add" data-lp="__addtype">＋ Nouveau type</button>${hiddenT(f).length || hiddenL(f).length ? `<button type="button" class="lp-i add" data-lp="__restore">↺ Rétablir masqués</button>` : ''}</div>`;
+        + `<div class="lp-foot"><button type="button" class="lp-i add" data-lp="__addtype">＋ Nouveau type</button><button type="button" class="lp-i add" data-lp="__restore">↺ Rétablir masqués (tous les niveaux)</button></div>`;
       list.querySelectorAll('[data-lp]').forEach(x => {
         x.onclick = async (e) => { e.stopPropagation();
           if (x.dataset.lp === '__addtype') { const r = await formSheet('Nouveau type de lot', [{ name: 'n', label: 'Nom du type', placeholder: 'Ex : Second œuvre' }], { okLabel: 'Ajouter' }); if (!r || !r.n) return;
             p.lotTypes = p.lotTypes || []; p.lotTypes.push({ k: 'T' + DB.uid(), l: r.n }); await DB.put('projects', p); App.lotSel[f.id] = 'T:' + p.lotTypes[p.lotTypes.length - 1].k; renderPlans(root); return; }
-          if (x.dataset.lp === '__restore') { f.hiddenTypes = []; f.hiddenLots = []; await DB.put('folders', f); renderPlans(root); return; }
+          if (x.dataset.lp === '__restore') {
+            // v1.0.130 : rétablir tous les types et lots masqués dans TOUS les niveaux du projet (pas seulement le niveau ouvert)
+            const all = (await DB.byProject('folders', p.id)).filter(g => (g.hiddenTypes || []).length || (g.hiddenLots || []).length);
+            for (const g of all) { g.hiddenTypes = []; g.hiddenLots = []; await DB.put('folders', g); }
+            toast(all.length ? `${all.length} niveau(x) rétabli(s) ✓` : 'Rien à rétablir'); renderPlans(root); return; }
           App.lotSel = App.lotSel || {}; App.lotSel[f.id] = x.dataset.lp; App.keepScrollY = ($('#content') || {}).scrollTop || 0; renderPlans(root);
         };
         // appui long (menu contextuel) sur un type : le retirer de ce niveau seulement
