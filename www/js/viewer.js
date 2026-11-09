@@ -101,7 +101,7 @@ function annotSVG(a) {
       const a2 = [q[0] - h * Math.cos(ang + 0.45), q[1] - h * Math.sin(ang + 0.45)];
       return `<line x1="${p[0]}" y1="${p[1]}" x2="${q[0]}" y2="${q[1]}" ${common}/><polygon points="${q.join(',')} ${a1.join(',')} ${a2.join(',')}" fill="${a.color}" stroke="${ln}" stroke-width="${sw}" stroke-linejoin="round"/>`;
     }
-    case 'text': return `<text x="${p[0]}" y="${p[1]}" fill="${a.color}" font-size="${a.fs}" font-family="Arial, sans-serif" font-weight="600" paint-order="stroke" stroke="rgba(255,255,255,.7)" stroke-width="${a.fs / 8}">${textLines(a).map((t, i) => `<tspan x="${p[0]}" dy="${i ? a.fs * 1.2 : 0}">${esc(t)}</tspan>`).join('')}</text>`;
+    case 'text': return `<text x="${p[0]}" y="${p[1]}" fill="${a.color}" font-size="${a.fs}" font-family="Arial, sans-serif" font-weight="${a.bold ? 700 : 400}">${textLines(a).map((t, i) => `<tspan x="${p[0]}" dy="${i ? a.fs * 1.2 : 0}">${esc(t)}</tspan>`).join('')}</text>`;
   }
   return '';
 }
@@ -638,7 +638,7 @@ async function openPlanViewer(plan, ctx) {
         ${st.pend ? `<button class="pb" data-p="cancel">${icon('close')}</button>${st.shape === 'poly' && st.pend.pts.length >= 3 ? `<button class="pb" data-p="closefinish" title="Fermer la polyligne">⬡<span>Fermer</span></button>` : ''}${st.shape === 'poly' && st.pend.pts.length >= 3 ? `<button class="pb" data-p="fillfinish" title="Fermer et colorer la zone">${icon('fill')}<span>Colorer</span></button>` : ''}<button class="pb ok" data-p="finish">${icon('check')}</button>` : ''}
         ${selA && (selA.type === 'poly' || selA.type === 'polygon') && selA.pts.length >= 3 ? `<button class="pb" data-p="togglefill">${icon('fill')}<span>${selA.type === 'polygon' ? 'Sans couleur' : 'Colorer'}</span></button>` : ''}
         ${selA && selA.type === 'polygon' ? `<button class="pb" data-p="hatch">${icon('fill')}<span>${selA.fill === 'hatch' ? 'Solide' : 'Hachure'}</span></button>` : ''}
-        ${selA && selA.type === 'text' ? `<button class="pb" data-p="edittext">${icon('edit')}<span>Texte</span></button>` : ''}
+        ${selA && selA.type === 'text' ? `<button class="pb" data-p="edittext">${icon('edit')}<span>Texte</span></button><button class="pb" data-p="bold"><b>G</b><span>${selA.bold ? 'Normal' : 'Gras'}</span></button>` : ''}
         ${selA ? `<button class="pb danger" data-p="delsel">${icon('trash')}</button><button class="pb ok" data-p="unsel">${icon('check')}</button>` : ''}
       </div>
       <div class="pb-colors">${HUES.map(c => `<button class="sw2 ${c === hue ? 'on' : ''}" data-c="${c}" style="background:${c}"></button>`).join('')}</div>
@@ -647,7 +647,6 @@ async function openPlanViewer(plan, ctx) {
         <label><span>Intensité</span><input type="range" min="0" max="100" step="1" value="${Math.round((Math.max(-0.5, Math.min(0.8, shade)) + 0.5) / 1.3 * 100)}" data-r="shade"
           style="background:linear-gradient(90deg, ${shadeHex(hue, -0.5)}, ${shadeHex(hue, 0.8)})"></label>
         ${selA && selA.type === 'polygon' && selA.fill === 'hatch' ? angleDialHTML(selA.angle || 45) + `<label style="min-width:110px"><span>Espacement <b class="gap-val">${selA.gap || Math.round(hatchGap(selA))}</b></span><input type="range" min="2" max="60" value="${selA.gap || Math.round(hatchGap(selA))}" data-r="gap"></label>` : ''}
-        ${isText && selA ? `<label><span>Largeur <b class="tw-val">${selA.tw ? Math.round(selA.tw * 100 / base) + '%' : 'auto'}</b></span><input type="range" min="0" max="100" value="${selA.tw ? Math.round(selA.tw * 100 / base) : 0}" data-r="tw"></label>` : ''}
         ${selA && selA.type === 'polygon' && selA.fill !== 'hatch' ? `<label><span>Opacité <b class="fo-val">${Math.round((selA.fo != null ? selA.fo : .55) * 100)}%</b></span><input type="range" min="0" max="100" value="${Math.round((selA.fo != null ? selA.fo : .55) * 100)}" data-r="fo"></label>` : ''}
         ${isText ? `<label><span>Taille <b class="ts-val">${tsize}</b></span><input type="range" min="1" max="16" value="${tsize}" data-r="ts"></label>`
           : `<label><span>Épaisseur <b class="th-val">${thick}</b></span><input type="range" min="1" max="16" value="${thick}" data-r="thick"></label>`}
@@ -667,7 +666,6 @@ async function openPlanViewer(plan, ctx) {
       if (k === 'shade') { const sh = -0.5 + v / 100 * 1.3; if (selA) apply(a => { a.hue = a.hue || a.color; a.shade = sh; }); else st.shade = sh; }   // v1.0.78 : une seule direction, couleur → pâle
       if (k === 'thick') { if (selA) apply(a => { a.sw = base * v / 1600; }); else st.thick = v; const thv = $('.th-val', bar); if (thv) thv.textContent = v; }
       if (k === 'gap') { if (selA) apply(a => { a.gap = v; }); const gv = $('.gap-val', bar); if (gv) gv.textContent = v; }
-      if (k === 'tw') { if (selA) apply(a => { a.tw = v ? v * base / 100 : undefined; }); const tv = $('.tw-val', bar); if (tv) tv.textContent = v ? v + '%' : 'auto'; }
       if (k === 'fo') { if (selA) apply(a => { a.fo = v / 100; }); const fv = $('.fo-val', bar); if (fv) fv.textContent = v + '%'; }
       if (k === 'ts') { if (selA) apply(a => { a.fs = v * base / 1000; }); else st.textSize = v; const tv = $('.ts-val', bar); if (tv) tv.textContent = v; }
       const pv = $('.pb-prev span', bar); pv.style.background = selA ? selA.color : st.color;
@@ -700,6 +698,7 @@ async function openPlanViewer(plan, ctx) {
     if (pb('closefinish')) pb('closefinish').onclick = () => { if (st.pend && st.pend.pts.length >= 3) { st.pend.pts.push([...st.pend.pts[0]]); finishPending(); toast('Polyligne fermée ✓'); } };
     if (pb('togglefill')) pb('togglefill').onclick = () => { pushUndo(); selA.type = selA.type === 'polygon' ? 'poly' : 'polygon'; renderAnnots(); saveAnnots(); renderSel(); renderPBar(); };
     if (pb('cancel')) pb('cancel').onclick = () => { st.pend = null; drawPending(); renderTools(); };
+    if (pb('bold')) pb('bold').onclick = () => { pushUndo(); selA.bold = !selA.bold; renderAnnots(); saveAnnots(); renderSel(); renderPBar(); };
     if (pb('edittext')) pb('edittext').onclick = async () => { const r = await formSheet('Texte', [{ name: 'text', label: 'Texte (Entrée = ligne suivante)', type: 'textarea', value: selA.text }], { okLabel: 'Enregistrer' }); if (r && r.text) { pushUndo(); selA.text = r.text; renderAnnots(); saveAnnots(); renderSel(); renderPBar(); } };
     if (pb('hatch')) pb('hatch').onclick = () => { pushUndo(); selA.fill = selA.fill === 'hatch' ? 'solid' : 'hatch'; if (selA.angle == null) selA.angle = 45; renderAnnots(); saveAnnots(); renderSel(); renderPBar(); };
     if (pb('delsel')) pb('delsel').onclick = () => { pushUndo(); plan.annotations.splice(st.sel, 1); st.sel = -1; renderAnnots(); saveAnnots(); renderSel(); renderTools(); };
@@ -856,7 +855,8 @@ async function openPlanViewer(plan, ctx) {
     if (!a) { gSel.innerHTML = ''; return; }
     const [x1, y1, x2, y2] = annotBBox(a), pad = 6 / st.scale;
     gSel.innerHTML = `<rect x="${x1 - pad}" y="${y1 - pad}" width="${x2 - x1 + 2 * pad}" height="${y2 - y1 + 2 * pad}" fill="rgba(91,141,239,.08)" stroke="#5b8def" stroke-width="${1.5 / st.scale}" stroke-dasharray="${5 / st.scale} ${4 / st.scale}"/>` +
-      handlesOf(a).map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="${9 / st.scale}" fill="#fff" stroke="#5b8def" stroke-width="${3 / st.scale}"/>`).join('');
+      handlesOf(a).map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="${9 / st.scale}" fill="#fff" stroke="#5b8def" stroke-width="${3 / st.scale}"/>`).join('') +
+      (a.type === 'text' ? `<rect x="${x2 + pad - 5 / st.scale}" y="${(y1 + y2) / 2 - 16 / st.scale}" width="${10 / st.scale}" height="${32 / st.scale}" rx="${5 / st.scale}" fill="#fff" stroke="#5b8def" stroke-width="${2.5 / st.scale}"/>` : '');
   }
   function annotAt(x, y) {
     const tol = 16 / st.scale;
@@ -896,8 +896,9 @@ async function openPlanViewer(plan, ctx) {
     if (st.tool === 'draw' && st.pend && st.pend.pts.length) { const hi = st.pend.pts.findIndex(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < 20 / st.scale); if (hi >= 0 && !(hi === 0 && st.pend.pts.length >= 3)) g.edit = { kind: 'pend', i: hi }; }
     if (st.tool === 'select' && st.sel >= 0) {
       const a = plan.annotations[st.sel];
-      const hi = handlesOf(a).findIndex(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < 22 / st.scale);
-      if (hi >= 0) g.edit = { kind: 'handle', i: hi };
+      const [bx1, by1, bx2, by2] = annotBBox(a), hi = handlesOf(a).findIndex(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < 22 / st.scale);
+      if (a.type === 'text' && Math.abs(p[0] - (bx2 + 6 / st.scale)) < 22 / st.scale && Math.abs(p[1] - (by1 + by2) / 2) < 30 / st.scale) g.edit = { kind: 'twidth' };
+      else if (hi >= 0) g.edit = { kind: 'handle', i: hi };
       else if (hitAnnot(a, p[0], p[1], 18 / st.scale)) g.edit = { kind: 'move' };
     }
     // un appui (court ou long) sur un pin l'ouvre ; on ne déplace un pin qu'avec l'outil « Sélection »
@@ -940,7 +941,8 @@ async function openPlanViewer(plan, ctx) {
     } else if (g.mode === 'edit') {
       const a = plan.annotations[st.sel];
       if (!g.undone) { pushUndo(); g.undone = true; }
-      if (g.edit.kind === 'handle') a.pts[g.edit.i] = [p[0], p[1]];
+      if (g.edit.kind === 'twidth') a.tw = Math.max(a.fs * 2, p[0] - a.pts[0][0] + 6 / st.scale);
+      else if (g.edit.kind === 'handle') a.pts[g.edit.i] = [p[0], p[1]];
       else { const lp = toImg(g.lx, g.ly), dx = p[0] - lp[0], dy = p[1] - lp[1]; a.pts = a.pts.map(q => [q[0] + dx, q[1] + dy]); }
       // le trait suit le doigt (rendu une fois par image) et la loupe montre où on le pose
       if (!editRaf) editRaf = requestAnimationFrame(() => { editRaf = 0; renderAnnots(); renderSel(); });
@@ -1296,8 +1298,8 @@ async function annotatedPlanPdf(plan, tasks, links, fmt, withPins = true) {
       const rot = ((pg.getRotation().angle % 360) + 360) % 360, mb = pg.getMediaBox(), W = mb.width, H = mb.height;
       const hasPins = withPins && (tasks.some(t => t.planId === plan.id && t.x != null) || links.some(l => l.planId === plan.id));
       if (rot === 0) {
-        const s = W / plan.w, font = await out.embedFont(PDFLib.StandardFonts.HelveticaBold);
-        for (const a of plan.annotations || []) { try { annotPdfDraw(pg, a, mb.x, mb.y + H, s, font); } catch (e) { console.warn('annot', a.type, e); } }
+        const s = W / plan.w, font = await out.embedFont(PDFLib.StandardFonts.Helvetica), fontB = await out.embedFont(PDFLib.StandardFonts.HelveticaBold);
+        for (const a of plan.annotations || []) { try { annotPdfDraw(pg, a, mb.x, mb.y + H, s, a.bold ? fontB : font); } catch (e) { console.warn('annot', a.type, e); } }
         if (hasPins) { const ov = await planOverlayCanvas(plan, tasks, links, Math.min(5000, Math.max(plan.w, 3000)), true); const png = await out.embedPng(await new Promise(r => ov.toBlob(b => b.arrayBuffer().then(r), 'image/png'))); pg.drawImage(png, { x: mb.x, y: mb.y, width: W, height: H }); }
       } else {
         // page tournée : calque transparent haute définition posé dans le bon sens
