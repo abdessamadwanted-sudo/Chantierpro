@@ -34,6 +34,27 @@ function cloudPath(x1, y1, x2, y2, bump) {
   return d + 'Z';
 }
 
+// hachure d'un polygone : segments parallèles à l'angle donné, coupés par le contour (pair-impair)
+function hatchSegs(pts, angle, gap) {
+  const th = (angle || 0) * Math.PI / 180, c = Math.cos(th), s = Math.sin(th);
+  const R = pts.map(([x, y]) => [x * c + y * s, -x * s + y * c]);   // repère tourné : hachures horizontales
+  const ys = R.map(q => q[1]), y0 = Math.min(...ys), y1 = Math.max(...ys), out = [];
+  for (let y = y0 + gap / 2; y < y1; y += gap) {
+    const xs = [];
+    for (let i = 0; i < R.length; i++) {
+      const [ax, ay] = R[i], [bx, by] = R[(i + 1) % R.length];
+      if ((ay > y) !== (by > y)) xs.push(ax + (y - ay) * (bx - ax) / (by - ay));
+    }
+    xs.sort((u, v) => u - v);
+    for (let k = 0; k + 1 < xs.length; k += 2) {
+      const xa = xs[k], xb = xs[k + 1];
+      out.push([[xa * c - y * s, xa * s + y * c], [xb * c - y * s, xb * s + y * c]]);
+    }
+  }
+  return out;
+}
+function hatchGap(a) { return Math.max(4, (a.sw || 3) * 5); }
+
 function annotSVG(a) {
   const sw = a.sw;
   // v1.0.108 : le contour garde la couleur de la palette ; l'intensité ne change que le remplissage
@@ -43,7 +64,11 @@ function annotSVG(a) {
   switch (a.type) {
     case 'pen': case 'poly': return `<polyline points="${a.pts.map(pt => pt.join(',')).join(' ')}" ${common}/>`;
     case 'rect': return `<rect x="${Math.min(p[0], q[0])}" y="${Math.min(p[1], q[1])}" width="${Math.abs(q[0] - p[0])}" height="${Math.abs(q[1] - p[1])}" ${common}/>`;
-    case 'polygon': return `<polygon points="${a.pts.map(pt => pt.join(',')).join(' ')}" fill="${a.color}" fill-opacity=".55" stroke="${ln}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+    case 'polygon': {
+      if (a.fill !== 'hatch') return `<polygon points="${a.pts.map(pt => pt.join(',')).join(' ')}" fill="${a.color}" fill-opacity=".55" stroke="${ln}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+      const d = hatchSegs(a.pts, a.angle || 45, hatchGap(a)).map(g => `M${g[0][0]},${g[0][1]}L${g[1][0]},${g[1][1]}`).join('');
+      return `<polygon points="${a.pts.map(pt => pt.join(',')).join(' ')}" fill="none" stroke="${ln}" stroke-width="${sw}" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="${ln}" stroke-width="${Math.max(0.5, sw * 0.6)}"/>`;
+    }
     case 'disc': { const r = Math.hypot(q[0] - p[0], q[1] - p[1]); return `<circle cx="${p[0]}" cy="${p[1]}" r="${r}" fill="${a.color}" fill-opacity=".8" stroke="${ln}" stroke-width="${sw / 2}"/>`; }
     case 'box': return `<rect x="${Math.min(p[0], q[0])}" y="${Math.min(p[1], q[1])}" width="${Math.abs(q[0] - p[0])}" height="${Math.abs(q[1] - p[1])}" fill="${a.color}" fill-opacity=".8" stroke="${ln}" stroke-width="${sw / 2}"/>`;
     case 'ellipse': return `<ellipse cx="${(p[0] + q[0]) / 2}" cy="${(p[1] + q[1]) / 2}" rx="${Math.abs(q[0] - p[0]) / 2}" ry="${Math.abs(q[1] - p[1]) / 2}" ${common}/>`;
@@ -576,12 +601,14 @@ async function openPlanViewer(plan, ctx) {
         <span style="flex:1"></span>
         ${st.pend ? `<button class="pb" data-p="cancel">${icon('close')}</button>${st.shape === 'poly' && st.pend.pts.length >= 3 ? `<button class="pb" data-p="closefinish" title="Fermer la polyligne">⬡<span>Fermer</span></button>` : ''}${st.shape === 'poly' && st.pend.pts.length >= 3 ? `<button class="pb" data-p="fillfinish" title="Fermer et colorer la zone">${icon('fill')}<span>Colorer</span></button>` : ''}<button class="pb ok" data-p="finish">${icon('check')}</button>` : ''}
         ${selA && (selA.type === 'poly' || selA.type === 'polygon') && selA.pts.length >= 3 ? `<button class="pb" data-p="togglefill">${icon('fill')}<span>${selA.type === 'polygon' ? 'Sans couleur' : 'Colorer'}</span></button>` : ''}
+        ${selA && selA.type === 'polygon' ? `<button class="pb" data-p="hatch">${icon('fill')}<span>${selA.fill === 'hatch' ? 'Solide' : 'Hachure'}</span></button>` : ''}
         ${selA ? `<button class="pb danger" data-p="delsel">${icon('trash')}</button><button class="pb ok" data-p="unsel">${icon('check')}</button>` : ''}
       </div>
       <div class="pb-colors">${HUES.map(c => `<button class="sw2 ${c === hue ? 'on' : ''}" data-c="${c}" style="background:${c}"></button>`).join('')}</div>
       <div class="pb-sliders">
         <label><span>Intensité</span><input type="range" min="0" max="100" step="1" value="${Math.round((Math.max(-0.5, Math.min(0.8, shade)) + 0.5) / 1.3 * 100)}" data-r="shade"
           style="background:linear-gradient(90deg, ${shadeHex(hue, -0.5)}, ${shadeHex(hue, 0.8)})"></label>
+        ${selA && selA.type === 'polygon' && selA.fill === 'hatch' ? `<label><span>Angle <b class="ang-val">${selA.angle || 45}</b>°</span><input type="range" min="0" max="180" value="${selA.angle || 45}" data-r="ang"></label>` : ''}
         ${isText ? `<label><span>Taille <b class="ts-val">${tsize}</b></span><input type="range" min="1" max="16" value="${tsize}" data-r="ts"></label>`
           : `<label><span>Épaisseur</span><input type="range" min="1" max="16" value="${thick}" data-r="thick"></label>`}
       </div>`;
@@ -594,6 +621,7 @@ async function openPlanViewer(plan, ctx) {
       const v = +r.value, k = r.dataset.r;
       if (k === 'shade') { const sh = -0.5 + v / 100 * 1.3; if (selA) apply(a => { a.hue = a.hue || a.color; a.shade = sh; }); else st.shade = sh; }   // v1.0.78 : une seule direction, couleur → pâle
       if (k === 'thick') { if (selA) apply(a => { a.sw = base * v / 1600; }); else st.thick = v; }
+      if (k === 'ang') { if (selA) apply(a => { a.angle = v; }); const av = $('.ang-val', bar); if (av) av.textContent = v; }
       if (k === 'ts') { if (selA) apply(a => { a.fs = v * base / 500; }); else st.textSize = v; const tv = $('.ts-val', bar); if (tv) tv.textContent = v; }
       const pv = $('.pb-prev span', bar); pv.style.background = selA ? selA.color : st.color;
       if (k === 'thick') pv.style.height = Math.max(2, Math.min(14, v)) + 'px';
@@ -608,6 +636,7 @@ async function openPlanViewer(plan, ctx) {
     if (pb('closefinish')) pb('closefinish').onclick = () => { if (st.pend && st.pend.pts.length >= 3) { st.pend.pts.push([...st.pend.pts[0]]); finishPending(); toast('Polyligne fermée ✓'); } };
     if (pb('togglefill')) pb('togglefill').onclick = () => { pushUndo(); selA.type = selA.type === 'polygon' ? 'poly' : 'polygon'; renderAnnots(); saveAnnots(); renderSel(); renderPBar(); };
     if (pb('cancel')) pb('cancel').onclick = () => { st.pend = null; drawPending(); renderTools(); };
+    if (pb('hatch')) pb('hatch').onclick = () => { pushUndo(); selA.fill = selA.fill === 'hatch' ? 'solid' : 'hatch'; if (selA.angle == null) selA.angle = 45; renderAnnots(); saveAnnots(); renderSel(); renderPBar(); };
     if (pb('delsel')) pb('delsel').onclick = () => { pushUndo(); plan.annotations.splice(st.sel, 1); st.sel = -1; renderAnnots(); saveAnnots(); renderSel(); renderTools(); };
     if (pb('unsel')) pb('unsel').onclick = () => { st.sel = -1; renderSel(); renderTools(); };
   }
@@ -1168,7 +1197,13 @@ function annotPdfDraw(pg, a, ox, oy, s, font) {
   switch (a.type) {
     case 'pen': case 'poly': return P.length > 1 && path(line(P), stroke);
     case 'line': return path(line([p, q]), stroke);
-    case 'polygon': return P.length > 2 && path(line(P, true), { ...stroke, color: col, opacity: .55 });
+    case 'polygon': {
+      if (P.length <= 2) return;
+      if (a.fill !== 'hatch') return path(line(P, true), { ...stroke, color: col, opacity: .55 });
+      path(line(P, true), stroke);
+      hatchSegs(P, a.angle || 45, hatchGap(a)).forEach(g => path(`M${g[0][0]} ${g[0][1]} L${g[1][0]} ${g[1][1]}`, { borderColor: lc, borderWidth: Math.max(0.5, sw * 0.6) / s }));
+      return;
+    }
     case 'rect': case 'box': { const x = Math.min(p[0], q[0]), y = Math.min(p[1], q[1]), w = Math.abs(q[0] - p[0]), h = Math.abs(q[1] - p[1]); return path(`M${x} ${y} H${x + w} V${y + h} H${x} Z`, a.type === 'box' ? { color: col, opacity: .8, borderColor: col, borderWidth: sw / s / 2 } : stroke); }
     case 'ellipse': case 'disc': { const cx = a.type === 'disc' ? p[0] : (p[0] + q[0]) / 2, cy = a.type === 'disc' ? p[1] : (p[1] + q[1]) / 2, rx = a.type === 'disc' ? Math.hypot(q[0] - p[0], q[1] - p[1]) : Math.abs(q[0] - p[0]) / 2, ry = a.type === 'disc' ? rx : Math.abs(q[1] - p[1]) / 2;
       return path(`M${cx - rx} ${cy} A${rx} ${ry} 0 1 0 ${cx + rx} ${cy} A${rx} ${ry} 0 1 0 ${cx - rx} ${cy} Z`, a.type === 'disc' ? { color: col, opacity: .8, borderColor: col, borderWidth: sw / s / 2 } : stroke); }
