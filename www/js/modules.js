@@ -77,6 +77,12 @@ async function editLicFeatures(L) {
 // SiteTeam : les versions sont publiées comme « siteteam-v1.0.N » (la « latest » du dépôt est l'application Chantier)
 const UPD_API = 'https://api.github.com/repos/abdessamadwanted-sudo/Chantierpro/releases?per_page=100';
 const UPD_TAG = /^siteteam-v(\d+\.\d+\.\d+)$/;
+const UPD_LATEST = 'https://abdessamadwanted-sudo.github.io/Chantierpro/siteteam-app/latest.json';
+// même forme qu'une release GitHub, à partir du numéro de version (les fichiers sont dans la release de ce numéro)
+function relFromVersion(v) {
+  const base = `https://github.com/abdessamadwanted-sudo/Chantierpro/releases/download/siteteam-v${v}/`;
+  return { tag_name: 'siteteam-v' + v, body: '', assets: [{ name: 'SiteTeam.apk', browser_download_url: base + 'SiteTeam.apk' }, { name: 'www.zip', browser_download_url: base + 'www.zip' }, { name: 'ota.json', browser_download_url: base + 'ota.json' }] };
+}
 const relVer = (rel) => String((rel && rel.tag_name) || '').replace(/^siteteam-v/, '').replace(/^v/, '');
 const UPD_APK = 'https://github.com/abdessamadwanted-sudo/Chantierpro/releases';
 const verNum = (v) => String(v || '').replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0);
@@ -95,11 +101,18 @@ async function checkUpdate(manual = false) {
   if (navigator.onLine === false) { updState({ state: 'horsligne' }); if (manual) toast('Pas de connexion internet'); return; }
   const ld = manual ? loading('Recherche d\'une mise à jour…') : null;
   let rel = null;
+  // v1.1 : 1) fichier « dernière version » publié sur GitHub Pages (rapide, sans limite d'API) ; 2) à défaut, l'API GitHub
   try {
-    const r = await Promise.race([fetch(UPD_API, { headers: { Accept: 'application/vnd.github+json' } }), new Promise((_, j) => setTimeout(() => j(new Error('timeout')), 12000))]);
-    if (r.ok) { const list = await r.json(); rel = (Array.isArray(list) ? list : []).find(x => !x.draft && !x.prerelease && UPD_TAG.test(x.tag_name || '') && (x.assets || []).some(a => /\.apk$/i.test(a.name))) || null; }
-  } catch (e) { console.warn('maj', e); }
-  finally { if (ld) ld.close(); }
+    const r = await Promise.race([fetch(UPD_LATEST + '?t=' + Date.now(), { cache: 'no-store' }), new Promise((_, j) => setTimeout(() => j(new Error('timeout')), 12000))]);
+    if (r.ok) { const L = await r.json(); const v = String((L && L.version) || '').replace(/^v/, ''); if (/^\d+\.\d+\.\d+$/.test(v)) rel = relFromVersion(v); }
+  } catch (e) { console.warn('maj (pages)', e); }
+  if (!rel) {
+    try {
+      const r = await Promise.race([fetch(UPD_API, { headers: { Accept: 'application/vnd.github+json' } }), new Promise((_, j) => setTimeout(() => j(new Error('timeout')), 12000))]);
+      if (r.ok) { const list = await r.json(); rel = (Array.isArray(list) ? list : []).find(x => !x.draft && !x.prerelease && UPD_TAG.test(x.tag_name || '') && (x.assets || []).some(a => /\.apk$/i.test(a.name))) || null; }
+    } catch (e) { console.warn('maj', e); }
+  }
+  if (ld) ld.close();
   try { localStorage.setItem('upd.at', String(Date.now())); } catch (e) {}
   if (!rel || !rel.tag_name) { updState({ state: 'echec' }); if (manual) toast('Impossible de vérifier (internet ?)'); return; }
   const latest = relVer(rel);
