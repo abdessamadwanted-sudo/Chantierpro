@@ -53,6 +53,23 @@ function hatchSegs(pts, angle, gap) {
   }
   return out;
 }
+function angleDialHTML(deg) {
+  const rad = deg * Math.PI / 180, L = 26, ticks = [0, 30, 60, 90, 120, 150].map(t => {
+    const a = t * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+    return `<line x1="${-30 * c}" y1="${-30 * s}" x2="${-27 * c}" y2="${-27 * s}" stroke="rgba(120,130,150,.55)" stroke-width="1.6" stroke-linecap="round"/><line x1="${30 * c}" y1="${30 * s}" x2="${27 * c}" y2="${27 * s}" stroke="rgba(120,130,150,.55)" stroke-width="1.6" stroke-linecap="round"/>`;
+  }).join('');
+  return `<div class="dial-wrap" style="display:flex;align-items:center;gap:12px;padding:4px 2px">
+    <div data-dial style="width:72px;height:72px;touch-action:none;cursor:grab;flex:none">
+      <svg viewBox="-36 -36 72 72" width="72" height="72" style="display:block">
+        <circle r="34" fill="rgba(255,255,255,.06)" stroke="rgba(120,130,150,.45)" stroke-width="1.5"/>
+        ${ticks}
+        <line class="dial-hand" x1="${-L * Math.cos(rad)}" y1="${-L * Math.sin(rad)}" x2="${L * Math.cos(rad)}" y2="${L * Math.sin(rad)}" stroke="#60a5fa" stroke-width="3" stroke-linecap="round"/>
+        <circle r="3.6" fill="#60a5fa"/>
+      </svg>
+    </div>
+    <div style="line-height:1.3"><div style="font-size:12px;opacity:.7">Angle des hachures</div><b class="dial-val" style="font-size:18px;font-variant-numeric:tabular-nums">${deg}°</b><div style="font-size:11px;opacity:.55">Glisser l'aiguille</div></div>
+  </div>`;
+}
 function hatchGap(a) { return Math.max(4, (a.sw || 3) * 5); }
 
 function annotSVG(a) {
@@ -608,7 +625,7 @@ async function openPlanViewer(plan, ctx) {
       <div class="pb-sliders">
         <label><span>Intensité</span><input type="range" min="0" max="100" step="1" value="${Math.round((Math.max(-0.5, Math.min(0.8, shade)) + 0.5) / 1.3 * 100)}" data-r="shade"
           style="background:linear-gradient(90deg, ${shadeHex(hue, -0.5)}, ${shadeHex(hue, 0.8)})"></label>
-        ${selA && selA.type === 'polygon' && selA.fill === 'hatch' ? `<label><span>Angle <b class="ang-val">${selA.angle || 45}</b>°</span><input type="range" min="0" max="180" value="${selA.angle || 45}" data-r="ang"></label>` : ''}
+        ${selA && selA.type === 'polygon' && selA.fill === 'hatch' ? angleDialHTML(selA.angle || 45) : ''}
         ${isText ? `<label><span>Taille <b class="ts-val">${tsize}</b></span><input type="range" min="1" max="16" value="${tsize}" data-r="ts"></label>`
           : `<label><span>Épaisseur</span><input type="range" min="1" max="16" value="${thick}" data-r="thick"></label>`}
       </div>`;
@@ -621,7 +638,6 @@ async function openPlanViewer(plan, ctx) {
       const v = +r.value, k = r.dataset.r;
       if (k === 'shade') { const sh = -0.5 + v / 100 * 1.3; if (selA) apply(a => { a.hue = a.hue || a.color; a.shade = sh; }); else st.shade = sh; }   // v1.0.78 : une seule direction, couleur → pâle
       if (k === 'thick') { if (selA) apply(a => { a.sw = base * v / 1600; }); else st.thick = v; }
-      if (k === 'ang') { if (selA) apply(a => { a.angle = v; }); const av = $('.ang-val', bar); if (av) av.textContent = v; }
       if (k === 'ts') { if (selA) apply(a => { a.fs = v * base / 500; }); else st.textSize = v; const tv = $('.ts-val', bar); if (tv) tv.textContent = v; }
       const pv = $('.pb-prev span', bar); pv.style.background = selA ? selA.color : st.color;
       if (k === 'thick') pv.style.height = Math.max(2, Math.min(14, v)) + 'px';
@@ -629,6 +645,23 @@ async function openPlanViewer(plan, ctx) {
       drawPending();
     });
     $$('[data-r]', bar).forEach(r => r.onchange = () => { bar._undo = false; });
+    // cadran : glisser l'aiguille (ou toucher) pour régler l'angle des hachures ; 0° = 3 h, sens des aiguilles
+    const dial = $('[data-dial]', bar);
+    if (dial && selA) {
+      const setAng = (ev) => {
+        const r = dial.getBoundingClientRect(), dx = ev.clientX - (r.left + r.width / 2), dy = ev.clientY - (r.top + r.height / 2);
+        const deg = Math.round(((Math.atan2(dy, dx) * 180 / Math.PI) % 180 + 180) % 180) % 180;
+        selA.angle = deg; const hand = $('.dial-hand', dial), num = $('.dial-val', dial), rad = deg * Math.PI / 180;
+        if (hand) { hand.setAttribute('x2', 26 * Math.cos(rad)); hand.setAttribute('y2', 26 * Math.sin(rad)); hand.setAttribute('x1', -26 * Math.cos(rad)); hand.setAttribute('y1', -26 * Math.sin(rad)); }
+        if (num) num.textContent = deg + '°';
+        renderAnnots(); drawPending();
+      };
+      let dragging = false;
+      dial.onpointerdown = (ev) => { dragging = true; if (!bar._undo) { pushUndo(); bar._undo = true; } try { dial.setPointerCapture(ev.pointerId); } catch (e) {} setAng(ev); };
+      dial.onpointermove = (ev) => { if (dragging) setAng(ev); };
+      const end = () => { if (!dragging) return; dragging = false; saveAnnots(); renderSel(); };
+      dial.onpointerup = end; dial.onpointercancel = end;
+    }
     const pb = (k) => $(`[data-p=${k}]`, bar);
     if (pb('shape')) pb('shape').onclick = () => openShapePicker($('.tool[data-t=draw]', el) || $('.tool[data-t=toggle]', el));
     if (pb('finish')) pb('finish').onclick = finishPending;
