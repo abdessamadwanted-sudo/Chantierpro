@@ -610,7 +610,7 @@ async function renderPlans(root) {
     const grid = $('.fbody > .plan-grid, .fbody > .plan-rows', card);
     if (grid) fillPlans(grid, ps, f, lotF);
     const sb = $('[data-a=addsub]', card); if (sb) sb.onclick = () => { const cl = f.id !== '_none' ? lotSelDefault(f, ps.concat(...subs.map(s => s.plans))) : null; newFolder(root, f, cl); };
-    const ap = $('[data-a=addplan]', card); if (ap) ap.onclick = () => addPlanTo(f.id, folders, root);
+    const ap = $('[data-a=addplan]', card); if (ap) ap.onclick = async () => { const sel = lotSelOf(f.id); App.newPlanLot = sel && sel !== '__none' && sel !== '__all' && !sel.startsWith('T:') ? sel : null; try { await addPlanTo(f.id, folders, root); } finally { App.newPlanLot = null; } };   // « Plan ici » : même lot que le niveau ouvert
     const sbox = $('.subfs', card);
     for (const { f: sf, plans: sps } of subs) {
       const sopen = q ? true : App.openFolders[sf.id];
