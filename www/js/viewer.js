@@ -86,7 +86,7 @@ function annotSVG(a) {
     case 'rect': return `<rect x="${Math.min(p[0], q[0])}" y="${Math.min(p[1], q[1])}" width="${Math.abs(q[0] - p[0])}" height="${Math.abs(q[1] - p[1])}" ${common}/>`;
     case 'polygon': {
       const fc = fillHexOf(a);
-      if (a.fill !== 'hatch') return `<polygon points="${a.pts.map(pt => pt.join(',')).join(' ')}" fill="${fc}" fill-opacity=".55" stroke="${ln}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+      if (a.fill !== 'hatch') return `<polygon points="${a.pts.map(pt => pt.join(',')).join(' ')}" fill="${fc}" fill-opacity="${a.fo != null ? a.fo : .55}" stroke="${ln}" stroke-width="${sw}" stroke-linejoin="round"/>`;
       const d = hatchSegs(a.pts, a.angle || 45, hatchGap(a)).map(g => `M${g[0][0]},${g[0][1]}L${g[1][0]},${g[1][1]}`).join('');
       return `<polygon points="${a.pts.map(pt => pt.join(',')).join(' ')}" fill="none" stroke="${ln}" stroke-width="${sw}" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="${a.fh ? fc : ln}" stroke-width="${Math.max(0.5, sw * 0.6)}"/>`;
     }
@@ -648,6 +648,7 @@ async function openPlanViewer(plan, ctx) {
           style="background:linear-gradient(90deg, ${shadeHex(hue, -0.5)}, ${shadeHex(hue, 0.8)})"></label>
         ${selA && selA.type === 'polygon' && selA.fill === 'hatch' ? angleDialHTML(selA.angle || 45) + `<label style="min-width:110px"><span>Espacement <b class="gap-val">${selA.gap || Math.round(hatchGap(selA))}</b></span><input type="range" min="2" max="60" value="${selA.gap || Math.round(hatchGap(selA))}" data-r="gap"></label>` : ''}
         ${isText && selA ? `<label><span>Largeur <b class="tw-val">${selA.tw ? Math.round(selA.tw * 100 / base) + '%' : 'auto'}</b></span><input type="range" min="0" max="100" value="${selA.tw ? Math.round(selA.tw * 100 / base) : 0}" data-r="tw"></label>` : ''}
+        ${selA && selA.type === 'polygon' && selA.fill !== 'hatch' ? `<label><span>Opacité <b class="fo-val">${Math.round((selA.fo != null ? selA.fo : .55) * 100)}%</b></span><input type="range" min="0" max="100" value="${Math.round((selA.fo != null ? selA.fo : .55) * 100)}" data-r="fo"></label>` : ''}
         ${isText ? `<label><span>Taille <b class="ts-val">${tsize}</b></span><input type="range" min="1" max="16" value="${tsize}" data-r="ts"></label>`
           : `<label><span>Épaisseur <b class="th-val">${thick}</b></span><input type="range" min="1" max="16" value="${thick}" data-r="thick"></label>`}
       </div>`;
@@ -667,6 +668,7 @@ async function openPlanViewer(plan, ctx) {
       if (k === 'thick') { if (selA) apply(a => { a.sw = base * v / 1600; }); else st.thick = v; const thv = $('.th-val', bar); if (thv) thv.textContent = v; }
       if (k === 'gap') { if (selA) apply(a => { a.gap = v; }); const gv = $('.gap-val', bar); if (gv) gv.textContent = v; }
       if (k === 'tw') { if (selA) apply(a => { a.tw = v ? v * base / 100 : undefined; }); const tv = $('.tw-val', bar); if (tv) tv.textContent = v ? v + '%' : 'auto'; }
+      if (k === 'fo') { if (selA) apply(a => { a.fo = v / 100; }); const fv = $('.fo-val', bar); if (fv) fv.textContent = v + '%'; }
       if (k === 'ts') { if (selA) apply(a => { a.fs = v * base / 1000; }); else st.textSize = v; const tv = $('.ts-val', bar); if (tv) tv.textContent = v; }
       const pv = $('.pb-prev span', bar); pv.style.background = selA ? selA.color : st.color;
       if (k === 'thick') pv.style.height = Math.max(2, Math.min(14, v)) + 'px';
@@ -1267,7 +1269,7 @@ function annotPdfDraw(pg, a, ox, oy, s, font) {
     case 'line': return path(line([p, q]), stroke);
     case 'polygon': {
       if (P.length <= 2) return;
-      if (a.fill !== 'hatch') return path(line(P, true), { ...stroke, color: tint(fcol || col) });   // couleur pleine, sans opacité
+      if (a.fill !== 'hatch') return path(line(P, true), { ...stroke, color: fcol || col, opacity: a.fo != null ? a.fo : .55 });   // remplissage à l'opacité choisie (le plan reste visible dessous)
       path(line(P, true), stroke);
       hatchSegs(P, a.angle || 45, hatchGap(a)).forEach(g => path(`M${g[0][0]} ${g[0][1]} L${g[1][0]} ${g[1][1]}`, { borderColor: fcol || lc, borderWidth: Math.max(0.8, sw * 0.6 / s) }));
       return;
