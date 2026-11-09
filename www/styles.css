@@ -233,7 +233,8 @@ svg.i { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-widt
 .pbar .pb svg.i { width: 20px; height: 20px; }
 .pbar .pb.shape svg.i:last-child { width: 14px; height: 14px; opacity: .7; }
 .pbar .pb-t { flex: none; color: var(--muted); font-size: 13px; padding: 0 4px; }
-.pb-row { display: flex; align-items: center; gap: 8px; }
+.pb-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pb-row .pb { flex: 0 0 auto; }
 .pb-colors { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px; }
 .pbar .pb-t { display: inline-flex; align-items: center; gap: 6px; }
 .sw2 { width: 28px; height: 28px; border-radius: 50%; border: 2px solid rgba(255,255,255,.25); flex: none; }
