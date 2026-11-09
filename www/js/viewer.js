@@ -434,7 +434,7 @@ async function openPlanViewer(plan, ctx) {
     const r = viewer.getBoundingClientRect();
     const [x, y] = toImg(cx, cy);
     const Z = st.scale * 2.5, R = 65;
-    const li = $('img[data-lsrc]', lst); if (li && !li.getAttribute('src')) li.src = baseURL;   // v1.0.63 : image de la loupe chargée seulement si on s'en sert
+    const li = $('img[data-lsrc]', lst); if (li && !li.getAttribute('src')) li.src = src;   // loupe : image pleine résolution (nette au zoom), chargée seulement au premier dessin   // v1.0.63 : image de la loupe chargée seulement si on s'en sert
     lst.style.transform = `translate(${R - x * Z}px,${R - y * Z}px) scale(${Z})`;
     lPrev.innerHTML = gPend.innerHTML + gPrev.innerHTML;   // la polyligne en cours et le trait sous le doigt
     if (loupe.style.display !== 'block' || lAnnV !== annV) { lAnn.innerHTML = gAnn.innerHTML; lAnnV = annV; loupe.style.display = 'block'; }
