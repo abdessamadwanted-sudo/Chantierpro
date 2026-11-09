@@ -1054,16 +1054,21 @@ async function recPinSync(r) {
   const lifted = !!r.liftedAt, nm = recPinName(r);
   if (L.recStatus !== r.status || !!L.recLifted !== lifted || L.name !== nm) { Object.assign(L, { recStatus: r.status, recLifted: lifted, name: nm }); await DB.put('links', L); }
 }
-async function recPinFlow(day, r, K, { save, refresh } = {}) {
+async function recPinFlow(day, r, K, { save, refresh, plan: forcedPlan } = {}) {
   const L = r.pinId ? await DB.get('links', r.pinId) : null;
   if (r.pinId && !L) r.pinId = null;
   if (L) {
-    const v = await menu(r.element, [{ label: 'Voir sur le plan', icon: 'plans', value: 'open' }, { label: 'Changer l\u2019emplacement', icon: 'pin', value: 'move' }, { label: 'Retirer du plan', icon: 'trash', danger: true, value: 'del' }]);
+    const v = await menu(r.element, [{ label: 'Voir sur le plan', icon: 'plans', value: 'open' }, { label: 'Changer l\u2019emplacement', icon: 'pin', value: 'move' }, { label: 'Changer de plan', icon: 'plans', value: 'plan' }, { label: 'Retirer du plan', icon: 'trash', danger: true, value: 'del' }]);
     if (!v) return;
     if (v === 'open') { const pl = await DB.get('plans', L.planId); if (!pl) return toast('Plan supprimé'); const [x, y] = L.shape === 'zone' ? [L.x + L.w / 2, L.y + L.h / 2] : [L.x, L.y]; return openPlanViewer(pl, { ...planCtx(() => refresh && refresh()), focus: { x, y } }); }
     if (v === 'del') { await DB.del('links', L.id); r.pinId = null; if (save) await save(); return refresh && refresh(); }
+    if (v === 'plan') {   // changer de plan : on choisit d'abord (annulable), puis on replace le pin sur le nouveau plan
+      const np = await pickPlanFor(day.projectId, r.niv, true); if (!np) return;
+      await DB.del('links', L.id); r.pinId = null; if (save) await save();
+      return recPinFlow(day, r, K, { save, refresh, plan: np });
+    }
   }
-  const pl = await pickPlanFor(day.projectId, r.niv); if (!pl) return;
+  const pl = forcedPlan || await pickPlanFor(day.projectId, r.niv); if (!pl) return;
   toast('📍 Touchez le plan à l\u2019endroit de « ' + (r.element || 'l\u2019ouvrage') + ' »');
   return openPlanViewer(pl, { ...planCtx(() => refresh && refresh()), place: { label: r.element, onPlace: async (x, y, plan) => {
     if (L) await DB.del('links', L.id);
@@ -1072,7 +1077,7 @@ async function recPinFlow(day, r, K, { save, refresh } = {}) {
   } } });
 }
 const recPinName = (r) => `${r.zone ? 'Z' + r.zone + ' · ' : ''}${r.element || ''}`.slice(0, 60);
-async function pickPlanFor(projectId, niv) {
+async function pickPlanFor(projectId, niv, always = false) {
   const [plans, folders] = await Promise.all([DB.byProject('plans', projectId), DB.byProject('folders', projectId)]);
   const F = Object.fromEntries(folders.map(f => [f.id, folderPath(f, folders)]));
   const cur = plans.filter(p => typeof isCurrentPlan !== 'function' || isCurrentPlan(p));
@@ -1080,7 +1085,7 @@ async function pickPlanFor(projectId, niv) {
   const score = (p) => (n && normQ(`${F[p.folderId] || ''} ${p.name}`).includes(n) ? 0 : 1);
   cur.sort((a, b) => score(a) - score(b) || (F[a.folderId] || '').localeCompare(F[b.folderId] || '', 'fr', { numeric: true }) || a.name.localeCompare(b.name, 'fr', { numeric: true }));
   if (!cur.length) { toast('Aucun plan dans ce projet'); return null; }
-  { const best = n ? cur.filter(p => !score(p)) : []; if (best.length === 1) return best[0]; }   // v1.0.71 : un seul plan pour ce niveau → direct
+  if (!always) { const best = n ? cur.filter(p => !score(p)) : []; if (best.length === 1) return best[0]; }   // v1.0.71 : un seul plan pour ce niveau → direct
   const id = await menu(`Sur quel plan${niv ? ' (' + niv + ')' : ''} ?`, cur.slice(0, 40).map(p => ({ label: `${score(p) ? '' : '⭐ '}${F[p.folderId] ? F[p.folderId] + ' › ' : ''}${p.name}`, icon: 'plans', value: p.id })));
   return cur.find(p => p.id === id) || null;
 }
