@@ -34,6 +34,44 @@ function cloudPath(x1, y1, x2, y2, bump) {
   return d + 'Z';
 }
 
+// hachure d'un polygone : segments parallèles à l'angle donné, coupés par le contour (pair-impair)
+function hatchSegs(pts, angle, gap) {
+  const th = (angle || 0) * Math.PI / 180, c = Math.cos(th), s = Math.sin(th);
+  const R = pts.map(([x, y]) => [x * c + y * s, -x * s + y * c]);   // repère tourné : hachures horizontales
+  const ys = R.map(q => q[1]), y0 = Math.min(...ys), y1 = Math.max(...ys), out = [];
+  for (let y = y0 + gap / 2; y < y1; y += gap) {
+    const xs = [];
+    for (let i = 0; i < R.length; i++) {
+      const [ax, ay] = R[i], [bx, by] = R[(i + 1) % R.length];
+      if ((ay > y) !== (by > y)) xs.push(ax + (y - ay) * (bx - ax) / (by - ay));
+    }
+    xs.sort((u, v) => u - v);
+    for (let k = 0; k + 1 < xs.length; k += 2) {
+      const xa = xs[k], xb = xs[k + 1];
+      out.push([[xa * c - y * s, xa * s + y * c], [xb * c - y * s, xb * s + y * c]]);
+    }
+  }
+  return out;
+}
+function angleDialHTML(deg) {
+  const rad = deg * Math.PI / 180, L = 26, ticks = [0, 30, 60, 90, 120, 150].map(t => {
+    const a = t * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+    return `<line x1="${-30 * c}" y1="${-30 * s}" x2="${-27 * c}" y2="${-27 * s}" stroke="rgba(120,130,150,.55)" stroke-width="1.6" stroke-linecap="round"/><line x1="${30 * c}" y1="${30 * s}" x2="${27 * c}" y2="${27 * s}" stroke="rgba(120,130,150,.55)" stroke-width="1.6" stroke-linecap="round"/>`;
+  }).join('');
+  return `<div class="dial-wrap" style="display:flex;align-items:center;gap:12px;padding:4px 2px">
+    <div data-dial style="width:72px;height:72px;touch-action:none;cursor:grab;flex:none">
+      <svg viewBox="-36 -36 72 72" width="72" height="72" style="display:block">
+        <circle r="34" fill="rgba(255,255,255,.06)" stroke="rgba(120,130,150,.45)" stroke-width="1.5"/>
+        ${ticks}
+        <line class="dial-hand" x1="${-L * Math.cos(rad)}" y1="${-L * Math.sin(rad)}" x2="${L * Math.cos(rad)}" y2="${L * Math.sin(rad)}" stroke="#60a5fa" stroke-width="3" stroke-linecap="round"/>
+        <circle r="3.6" fill="#60a5fa"/>
+      </svg>
+    </div>
+    <div style="line-height:1.3"><div style="font-size:12px;opacity:.7">Angle des hachures</div><b class="dial-val" style="font-size:18px;font-variant-numeric:tabular-nums">${deg}°</b><div style="font-size:11px;opacity:.55">Glisser l'aiguille</div></div>
+  </div>`;
+}
+function hatchGap(a) { return Math.max(4, (a.sw || 3) * 5); }
+
 function annotSVG(a) {
   const sw = a.sw;
   // v1.0.108 : le contour garde la couleur de la palette ; l'intensité ne change que le remplissage
@@ -43,7 +81,11 @@ function annotSVG(a) {
   switch (a.type) {
     case 'pen': case 'poly': return `<polyline points="${a.pts.map(pt => pt.join(',')).join(' ')}" ${common}/>`;
     case 'rect': return `<rect x="${Math.min(p[0], q[0])}" y="${Math.min(p[1], q[1])}" width="${Math.abs(q[0] - p[0])}" height="${Math.abs(q[1] - p[1])}" ${common}/>`;
-    case 'polygon': return `<polygon points="${a.pts.map(pt => pt.join(',')).join(' ')}" fill="${a.color}" fill-opacity=".55" stroke="${ln}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+    case 'polygon': {
+      if (a.fill !== 'hatch') return `<polygon points="${a.pts.map(pt => pt.join(',')).join(' ')}" fill="${a.color}" fill-opacity=".55" stroke="${ln}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+      const d = hatchSegs(a.pts, a.angle || 45, hatchGap(a)).map(g => `M${g[0][0]},${g[0][1]}L${g[1][0]},${g[1][1]}`).join('');
+      return `<polygon points="${a.pts.map(pt => pt.join(',')).join(' ')}" fill="none" stroke="${ln}" stroke-width="${sw}" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="${ln}" stroke-width="${Math.max(0.5, sw * 0.6)}"/>`;
+    }
     case 'disc': { const r = Math.hypot(q[0] - p[0], q[1] - p[1]); return `<circle cx="${p[0]}" cy="${p[1]}" r="${r}" fill="${a.color}" fill-opacity=".8" stroke="${ln}" stroke-width="${sw / 2}"/>`; }
     case 'box': return `<rect x="${Math.min(p[0], q[0])}" y="${Math.min(p[1], q[1])}" width="${Math.abs(q[0] - p[0])}" height="${Math.abs(q[1] - p[1])}" fill="${a.color}" fill-opacity=".8" stroke="${ln}" stroke-width="${sw / 2}"/>`;
     case 'ellipse': return `<ellipse cx="${(p[0] + q[0]) / 2}" cy="${(p[1] + q[1]) / 2}" rx="${Math.abs(q[0] - p[0]) / 2}" ry="${Math.abs(q[1] - p[1]) / 2}" ${common}/>`;
@@ -392,7 +434,7 @@ async function openPlanViewer(plan, ctx) {
     const r = viewer.getBoundingClientRect();
     const [x, y] = toImg(cx, cy);
     const Z = st.scale * 2.5, R = 65;
-    const li = $('img[data-lsrc]', lst); if (li && !li.getAttribute('src')) li.src = baseURL;   // v1.0.63 : image de la loupe chargée seulement si on s'en sert
+    const li = $('img[data-lsrc]', lst); if (li && !li.getAttribute('src')) li.src = src;   // loupe : image pleine résolution (nette au zoom), chargée seulement au premier dessin   // v1.0.63 : image de la loupe chargée seulement si on s'en sert
     lst.style.transform = `translate(${R - x * Z}px,${R - y * Z}px) scale(${Z})`;
     lPrev.innerHTML = gPend.innerHTML + gPrev.innerHTML;   // la polyligne en cours et le trait sous le doigt
     if (loupe.style.display !== 'block' || lAnnV !== annV) { lAnn.innerHTML = gAnn.innerHTML; lAnnV = annV; loupe.style.display = 'block'; }
@@ -576,12 +618,14 @@ async function openPlanViewer(plan, ctx) {
         <span style="flex:1"></span>
         ${st.pend ? `<button class="pb" data-p="cancel">${icon('close')}</button>${st.shape === 'poly' && st.pend.pts.length >= 3 ? `<button class="pb" data-p="closefinish" title="Fermer la polyligne">⬡<span>Fermer</span></button>` : ''}${st.shape === 'poly' && st.pend.pts.length >= 3 ? `<button class="pb" data-p="fillfinish" title="Fermer et colorer la zone">${icon('fill')}<span>Colorer</span></button>` : ''}<button class="pb ok" data-p="finish">${icon('check')}</button>` : ''}
         ${selA && (selA.type === 'poly' || selA.type === 'polygon') && selA.pts.length >= 3 ? `<button class="pb" data-p="togglefill">${icon('fill')}<span>${selA.type === 'polygon' ? 'Sans couleur' : 'Colorer'}</span></button>` : ''}
+        ${selA && selA.type === 'polygon' ? `<button class="pb" data-p="hatch">${icon('fill')}<span>${selA.fill === 'hatch' ? 'Solide' : 'Hachure'}</span></button>` : ''}
         ${selA ? `<button class="pb danger" data-p="delsel">${icon('trash')}</button><button class="pb ok" data-p="unsel">${icon('check')}</button>` : ''}
       </div>
       <div class="pb-colors">${HUES.map(c => `<button class="sw2 ${c === hue ? 'on' : ''}" data-c="${c}" style="background:${c}"></button>`).join('')}</div>
       <div class="pb-sliders">
         <label><span>Intensité</span><input type="range" min="0" max="100" step="1" value="${Math.round((Math.max(-0.5, Math.min(0.8, shade)) + 0.5) / 1.3 * 100)}" data-r="shade"
           style="background:linear-gradient(90deg, ${shadeHex(hue, -0.5)}, ${shadeHex(hue, 0.8)})"></label>
+        ${selA && selA.type === 'polygon' && selA.fill === 'hatch' ? angleDialHTML(selA.angle || 45) : ''}
         ${isText ? `<label><span>Taille <b class="ts-val">${tsize}</b></span><input type="range" min="1" max="16" value="${tsize}" data-r="ts"></label>`
           : `<label><span>Épaisseur</span><input type="range" min="1" max="16" value="${thick}" data-r="thick"></label>`}
       </div>`;
@@ -601,6 +645,23 @@ async function openPlanViewer(plan, ctx) {
       drawPending();
     });
     $$('[data-r]', bar).forEach(r => r.onchange = () => { bar._undo = false; });
+    // cadran : glisser l'aiguille (ou toucher) pour régler l'angle des hachures ; 0° = 3 h, sens des aiguilles
+    const dial = $('[data-dial]', bar);
+    if (dial && selA) {
+      const setAng = (ev) => {
+        const r = dial.getBoundingClientRect(), dx = ev.clientX - (r.left + r.width / 2), dy = ev.clientY - (r.top + r.height / 2);
+        const deg = Math.round(((Math.atan2(dy, dx) * 180 / Math.PI) % 180 + 180) % 180) % 180;
+        selA.angle = deg; const hand = $('.dial-hand', dial), num = $('.dial-val', dial), rad = deg * Math.PI / 180;
+        if (hand) { hand.setAttribute('x2', 26 * Math.cos(rad)); hand.setAttribute('y2', 26 * Math.sin(rad)); hand.setAttribute('x1', -26 * Math.cos(rad)); hand.setAttribute('y1', -26 * Math.sin(rad)); }
+        if (num) num.textContent = deg + '°';
+        renderAnnots(); drawPending();
+      };
+      let dragging = false;
+      dial.onpointerdown = (ev) => { dragging = true; if (!bar._undo) { pushUndo(); bar._undo = true; } try { dial.setPointerCapture(ev.pointerId); } catch (e) {} setAng(ev); };
+      dial.onpointermove = (ev) => { if (dragging) setAng(ev); };
+      const end = () => { if (!dragging) return; dragging = false; saveAnnots(); renderSel(); };
+      dial.onpointerup = end; dial.onpointercancel = end;
+    }
     const pb = (k) => $(`[data-p=${k}]`, bar);
     if (pb('shape')) pb('shape').onclick = () => openShapePicker($('.tool[data-t=draw]', el) || $('.tool[data-t=toggle]', el));
     if (pb('finish')) pb('finish').onclick = finishPending;
@@ -608,6 +669,7 @@ async function openPlanViewer(plan, ctx) {
     if (pb('closefinish')) pb('closefinish').onclick = () => { if (st.pend && st.pend.pts.length >= 3) { st.pend.pts.push([...st.pend.pts[0]]); finishPending(); toast('Polyligne fermée ✓'); } };
     if (pb('togglefill')) pb('togglefill').onclick = () => { pushUndo(); selA.type = selA.type === 'polygon' ? 'poly' : 'polygon'; renderAnnots(); saveAnnots(); renderSel(); renderPBar(); };
     if (pb('cancel')) pb('cancel').onclick = () => { st.pend = null; drawPending(); renderTools(); };
+    if (pb('hatch')) pb('hatch').onclick = () => { pushUndo(); selA.fill = selA.fill === 'hatch' ? 'solid' : 'hatch'; if (selA.angle == null) selA.angle = 45; renderAnnots(); saveAnnots(); renderSel(); renderPBar(); };
     if (pb('delsel')) pb('delsel').onclick = () => { pushUndo(); plan.annotations.splice(st.sel, 1); st.sel = -1; renderAnnots(); saveAnnots(); renderSel(); renderTools(); };
     if (pb('unsel')) pb('unsel').onclick = () => { st.sel = -1; renderSel(); renderTools(); };
   }
@@ -1168,7 +1230,13 @@ function annotPdfDraw(pg, a, ox, oy, s, font) {
   switch (a.type) {
     case 'pen': case 'poly': return P.length > 1 && path(line(P), stroke);
     case 'line': return path(line([p, q]), stroke);
-    case 'polygon': return P.length > 2 && path(line(P, true), { ...stroke, color: col, opacity: .55 });
+    case 'polygon': {
+      if (P.length <= 2) return;
+      if (a.fill !== 'hatch') return path(line(P, true), { ...stroke, color: col, opacity: .55 });
+      path(line(P, true), stroke);
+      hatchSegs(P, a.angle || 45, hatchGap(a)).forEach(g => path(`M${g[0][0]} ${g[0][1]} L${g[1][0]} ${g[1][1]}`, { borderColor: lc, borderWidth: Math.max(0.5, sw * 0.6) / s }));
+      return;
+    }
     case 'rect': case 'box': { const x = Math.min(p[0], q[0]), y = Math.min(p[1], q[1]), w = Math.abs(q[0] - p[0]), h = Math.abs(q[1] - p[1]); return path(`M${x} ${y} H${x + w} V${y + h} H${x} Z`, a.type === 'box' ? { color: col, opacity: .8, borderColor: col, borderWidth: sw / s / 2 } : stroke); }
     case 'ellipse': case 'disc': { const cx = a.type === 'disc' ? p[0] : (p[0] + q[0]) / 2, cy = a.type === 'disc' ? p[1] : (p[1] + q[1]) / 2, rx = a.type === 'disc' ? Math.hypot(q[0] - p[0], q[1] - p[1]) : Math.abs(q[0] - p[0]) / 2, ry = a.type === 'disc' ? rx : Math.abs(q[1] - p[1]) / 2;
       return path(`M${cx - rx} ${cy} A${rx} ${ry} 0 1 0 ${cx + rx} ${cy} A${rx} ${ry} 0 1 0 ${cx - rx} ${cy} Z`, a.type === 'disc' ? { color: col, opacity: .8, borderColor: col, borderWidth: sw / s / 2 } : stroke); }
