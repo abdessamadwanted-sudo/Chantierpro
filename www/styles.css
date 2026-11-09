@@ -3559,6 +3559,16 @@ body:has(#phPill) .sync-pill.sync { display: none !important; }
 .st-ptools-p .st-qa-b::after { content: ''; position: absolute; right: -18px; top: -18px; width: 54px; height: 54px; border-radius: 50%; background: rgba(255,255,255,.14); }
 .st-ptools-p .st-qa-b i { background: rgba(255,255,255,.2) !important; box-shadow: none !important; width: 38px !important; height: 38px !important; }
 .st-ptools-p .st-qa-b span { color: #fff !important; font-size: 11.5px; font-weight: 800; text-shadow: 0 1px 2px rgba(0,0,0,.25); }
+/* v1.1 : taille des icônes selon le nombre de raccourcis (peu → grandes, beaucoup → plus petites, libellés lisibles) */
+.st-ptools-p .st-qa.qa-l .st-qa-b i { width: 58px !important; height: 58px !important; border-radius: 18px !important; }
+.st-ptools-p .st-qa.qa-l .st-qa-b i svg.i { width: 28px !important; height: 28px !important; }
+.st-ptools-p .st-qa.qa-l .st-qa-b span { font-size: 13px !important; }
+.st-ptools-p .st-qa.qa-m .st-qa-b i { width: 44px !important; height: 44px !important; border-radius: 14px !important; }
+.st-ptools-p .st-qa.qa-m .st-qa-b i svg.i { width: 22px !important; height: 22px !important; }
+.st-ptools-p .st-qa.qa-s .st-qa-b { padding: 8px 2px 7px !important; }
+.st-ptools-p .st-qa.qa-s .st-qa-b i { width: 34px !important; height: 34px !important; border-radius: 11px !important; }
+.st-ptools-p .st-qa.qa-s .st-qa-b i svg.i { width: 17px !important; height: 17px !important; }
+.st-ptools-p .st-qa.qa-s .st-qa-b span { font-size: 10.5px !important; }
 /* catégories : cartes teintées de leur couleur */
 .st-ptools-p .st-tcat { padding: 12px 10px 12px !important; border-radius: 22px !important; border: 1px solid color-mix(in srgb, var(--c) 30%, var(--line)) !important;
   background: linear-gradient(170deg, color-mix(in srgb, var(--c) 16%, var(--card)) 0%, var(--card) 55%) !important; box-shadow: 0 10px 24px -18px color-mix(in srgb, var(--c) 80%, #000) !important; }
