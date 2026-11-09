@@ -473,6 +473,8 @@ service cloud.firestore {
               || get(/databases/$(db)/documents/config/plans).data.get(request.resource.data.get('plan', 'basic'), {}).get('open', false) == true))
           || (request.resource.data.get('packCode', null) != null && codePlanOk(request.resource.data)));
       allow read: if isMem(cid) || licOwner();
+      // v1.1 : suppression définitive de l'espace, par son propriétaire seulement
+      allow delete: if signed() && resource.data.ownerUid == request.auth.uid;
       // la formule (pack) ne change que par le Super Admin SiteTeam (plus tard : la facturation)
       allow update: if (isAdmin(cid) && request.resource.data.get('plan', null) == resource.data.get('plan', null)
           && request.resource.data.get('planStatus', null) == resource.data.get('planStatus', null)
@@ -486,6 +488,7 @@ service cloud.firestore {
 
       match /members/{uid} {
         allow read: if isMem(cid) || licOwner() || (signed() && uid == request.auth.uid);   // v1.0.53 : on lit toujours sa propre fiche (accès expiré → écran clair)
+        allow delete: if signed() && get(/databases/$(db)/documents/companies/$(cid)).data.ownerUid == request.auth.uid;   // v1.1 : le propriétaire retire les membres à la suppression de l'espace
         allow create: if (licOwner() && get(/databases/$(db)/documents/companies/$(cid)).data.ownerUid == uid) || signed() && (isAdmin(cid) || (uid == request.auth.uid && (
           (get(/databases/$(db)/documents/companies/$(cid)).data.ownerUid == request.auth.uid)
           || (request.resource.data.invite is string
@@ -1026,6 +1029,34 @@ const Team = (() => {
     ($('[data-a=new]', sh.el)||{}).onclick = async () => { sh.close(); const ok = await onboardScreen({ add: true }); if (ok) { try { if (typeof Sync !== 'undefined' && Sync.enabled && Sync.enabled()) await Sync.run({ quiet: true }); } catch (e) {} location.reload(); } };
   }
 
+  // v1.1 : suppression DÉFINITIVE d'un espace (personnel ou organisation) par son propriétaire, avec double confirmation.
+  // Le serveur perd l'espace et ses membres ; les autres membres sont sortis à leur prochaine ouverture (même logique que « retiré »).
+  // Les sauvegardes Drive ne sont pas touchées.
+  function isOwner() { return !!(S.company && S.user && S.company.ownerUid === S.user.uid); }
+  async function deleteEspace() {
+    const cid = S.cid, name = (S.company && S.company.name) || 'cet espace';
+    if (!cid || !S.user) return;
+    if (!isOwner()) return alertBox('Seul le propriétaire de cet espace peut le supprimer.');
+    if (!await confirmBox(`Supprimer DÉFINITIVEMENT « ${name} » ?\n\nLes membres perdent l'accès, et les données de cet espace sont effacées de ce téléphone. Cette action est irréversible.\n\n(Les sauvegardes Drive restent dans votre Drive.)`, 'Continuer')) return;
+    if (!await confirmBox(`Dernière confirmation : supprimer « ${name} » pour toujours ?`, 'Supprimer définitivement')) return;
+    const ld = loading('Suppression de l\'espace…');
+    try {
+      const ref = fs.collection('companies').doc(cid);
+      const mem = await withTimeout(ref.collection('members').get(), 30000);
+      for (let i = 0; i < mem.docs.length; i += 400) {
+        const b = fs.batch(); mem.docs.slice(i, i + 400).forEach(d => b.delete(d.ref)); await withTimeout(b.commit(), 30000);
+      }
+      await withTimeout(ref.delete(), 30000);
+    } catch (e) { ld.close(); console.warn('suppression espace', e); return alertBox('Suppression impossible : ' + errMsg(e)); }
+    ld.close();
+    const rest = (S.workspaces || []).filter(w => w.cid !== cid && !w.pending);
+    try { await withTimeout(fs.collection('users').doc(S.user.uid).set({ companyId: rest.length ? rest[0].cid : null, workspaces: rest }, { merge: true })); } catch (e) { console.warn('liste espaces', e); }
+    LS.set('profile', { ...(LS.get('profile') || {}), companyId: rest.length ? rest[0].cid : null, workspaces: rest });
+    WS.forget(cid);
+    await alertBox(`« ${name} » a été supprimé.`);
+    if (!rest.length) WS.put('st.db', 'chantier_vide');
+    location.reload();
+  }
   // v1.0.52 : retiré d'une organisation → on quitte cet espace ET on efface ses données de ce téléphone (projets, plans, photos de l'organisation)
   let leaving = false;
   async function leftOrg(c) {
@@ -2359,7 +2390,7 @@ const Team = (() => {
 
   return {
     boot, push, pull, resetPull, lvl, canSection, svcLib, canProject, isAdmin, openCompany, taille, secureApply, secureOn, saveAffectations, noteProject, projectIds, inviteFlow, logout, decorateSection, removeMember, refreshMembers,
-    isSuper, superConsole, orgType, isPerso, companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, workspaces: () => S.workspaces || [],
+    isSuper, superConsole, orgType, isPerso, companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, isOwner, deleteEspace, workspaces: () => S.workspaces || [],
     profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
     openProjectShares, claimShare, openPartners, renderHistory, sharedOf, joinWithCode,
     cloudOn, canCloud, cloudUpload, cloudDownload, cloudRemove, cloudCfg, storageRules: STORAGE_RULES,

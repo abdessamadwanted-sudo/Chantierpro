@@ -54,7 +54,7 @@ const DISCIPLINES = [
   { k: 'ETA', l: 'Étanchéité (ETA)' }, { k: 'PAY', l: 'Aménagement / paysage (PAY)' }, { k: 'SYN', l: 'Synthèse (SYN)' },
 ];
 // v1.0.101 : types de lots = types fixes + types ajoutés par le projet (p.lotTypes)
-const typesOf = (p) => [...DISCIPLINES, ...((p && p.lotTypes) || [])];
+const typesOf = (p) => [...DISCIPLINES, ...((p && p.lotTypes) || [])].filter(d => !((p && p.typesGone) || []).includes(d.k));
 const typeLab = (k, p) => (typesOf(p || App.project).find(d => d.k === k) || { l: k }).l;
 const discLabel = (f) => !f || !f.disc ? '' : f.disc === '_free' ? (f.discName || 'Autre') : ((DISCIPLINES.find(d => d.k === f.disc) || {}).l || f.disc);
 const tint = (c, a) => c + Math.round(a * 255).toString(16).padStart(2, '0');
@@ -105,13 +105,21 @@ function lotBarInto(card, f, ps, root) {
         x.onclick = async (e) => { e.stopPropagation();
           if (x.dataset.lp === '__addtype') { const r = await formSheet('Nouveau type de lot', [{ name: 'n', label: 'Nom du type', placeholder: 'Ex : Second œuvre' }], { okLabel: 'Ajouter' }); if (!r || !r.n) return;
             p.lotTypes = p.lotTypes || []; p.lotTypes.push({ k: 'T' + DB.uid(), l: r.n }); await DB.put('projects', p); App.lotSel[f.id] = 'T:' + p.lotTypes[p.lotTypes.length - 1].k; renderPlans(root); return; }
-          if (x.dataset.lp === '__restore') { f.hiddenTypes = []; f.hiddenLots = []; await DB.put('folders', f); renderPlans(root); return; }
+          if (x.dataset.lp === '__restore') { await restoreHiddenAll(p); renderPlans(root); return; }
           App.lotSel = App.lotSel || {}; App.lotSel[f.id] = x.dataset.lp; App.keepScrollY = ($('#content') || {}).scrollTop || 0; renderPlans(root);
         };
         // appui long (menu contextuel) sur un type : le retirer de ce niveau seulement
         if (x.dataset.lp.startsWith('T:')) x.oncontextmenu = async (e) => { e.preventDefault(); e.stopPropagation();
           const k = x.dataset.lp.slice(2), t = typesOf(p).find(d => d.k === k) || { l: k };
-          const v = await menu(t.l, [{ label: 'Retirer ce type de ce niveau', icon: 'trash', danger: true, value: 'hide' }]);
+          const v = await menu(t.l, [{ label: 'Masquer dans ce niveau', icon: 'eye', value: 'hide' }, { label: 'Supprimer définitivement ce type', icon: 'trash', danger: true, value: 'del' }]);
+          if (v === 'del') {
+            if (!await confirmBox(`Supprimer DÉFINITIVEMENT le type « ${t.l} » ? Ses lots restent dans les autres types (ou « Sans type »). Irréversible.`)) return;
+            p.typesGone = [...((p.typesGone || [])), k]; p.lotTypes = (p.lotTypes || []).filter(d => d.k !== k);
+            for (const L2 of planLots(p)) if (L2.cat === k) L2.cat = '';
+            for (const fo of await DB.byProject('folders', p.id)) if ((fo.hiddenTypes || []).includes(k)) { fo.hiddenTypes = fo.hiddenTypes.filter(q => q !== k); await DB.put('folders', fo); }
+            if (tk === k) App.lotSel[f.id] = '__all';
+            await DB.put('projects', p); renderPlans(root); return;
+          }
           if (v !== 'hide') return;
           f.hiddenTypes = [...hiddenT(f), k]; if (tk === k) App.lotSel[f.id] = '__all';
           await DB.put('folders', f); renderPlans(root); };
@@ -256,20 +264,40 @@ function lotPanel(L, f, root) {
 }
 const lpTabOf = (L) => { try { return (JSON.parse(localStorage.getItem('lp.tab') || '{}'))[L.id] || ''; } catch (e) { return ''; } };
 const lpTabSet = (L, k) => { try { const o = JSON.parse(localStorage.getItem('lp.tab') || '{}'); o[L.id] = k; localStorage.setItem('lp.tab', JSON.stringify(o)); } catch (e) {} };
+// masque un lot dans les niveaux donnés ; ses plans de ces niveaux gardent la trace (hiddenFromLot) pour être rendus au lot
+async function hideLotIn(p, L, folders) {
+  for (const fo of folders) {
+    if (!(fo.hiddenLots || []).includes(L.id)) { fo.hiddenLots = [...(fo.hiddenLots || []), L.id]; await DB.put('folders', fo); }
+  }
+  const ids = new Set(folders.map(x => x.id));
+  for (const x of await DB.byProject('plans', p.id)) if (ids.has(x.folderId) && x.lotId === L.id) { x.hiddenFromLot = L.id; x.lotId = null; await DB.put('plans', x); }
+}
+// « Rétablir masqués » : rend tous les types et lots masqués, dans tous les niveaux, et remet leurs plans à leur lot
+async function restoreHiddenAll(p) {
+  for (const fo of await DB.byProject('folders', p.id)) { if ((fo.hiddenTypes || []).length || (fo.hiddenLots || []).length) { fo.hiddenTypes = []; fo.hiddenLots = []; await DB.put('folders', fo); } }
+  for (const x of await DB.byProject('plans', p.id)) if (x.hiddenFromLot) { if (!x.lotId) x.lotId = x.hiddenFromLot; delete x.hiddenFromLot; await DB.put('plans', x); }
+}
 async function lotMenu(L, root, f) {
   const p = App.project, lots = planLots(p), i = lots.indexOf(L);
-  const v = await menu(`${L.e} ${L.name}`, [{ label: 'Renommer / emoji', icon: 'edit', value: 'ren' }, { label: 'Couleur', icon: 'brush', value: 'col' }, { label: 'Catégorie' + (L.cat ? ' · ' + typeLab(L.cat, App.project) : ''), icon: 'layers', value: 'cat' }, { label: '← Déplacer à gauche', icon: 'back', value: 'l' }, { label: 'Déplacer à droite →', icon: 'chevright', value: 'r' }, { label: 'Points de contrôle…', icon: 'check', value: 'pts' }, { label: f ? 'Retirer ce lot de ce niveau' : 'Supprimer le lot', icon: 'trash', danger: true, value: 'del' }]);
+  const v = await menu(`${L.e} ${L.name}`, [{ label: 'Renommer / emoji', icon: 'edit', value: 'ren' }, { label: 'Couleur', icon: 'brush', value: 'col' }, { label: 'Catégorie' + (L.cat ? ' · ' + typeLab(L.cat, App.project) : ''), icon: 'layers', value: 'cat' }, { label: '← Déplacer à gauche', icon: 'back', value: 'l' }, { label: 'Déplacer à droite →', icon: 'chevright', value: 'r' }, { label: 'Points de contrôle…', icon: 'check', value: 'pts' }, ...(f ? [{ label: 'Masquer dans ce niveau', icon: 'eye', value: 'hide' }] : []), { label: 'Supprimer définitivement', icon: 'trash', danger: true, value: 'del' }]);
   if (v === 'ren') { const r = await formSheet('Lot', [{ name: 'n', label: 'Nom', value: L.name }, { name: 'e', label: 'Emoji', value: L.e }]); if (r && r.n) { L.name = r.n; L.e = r.e || L.e; } }
   if (v === 'cat') { const k = await menu('Catégorie du lot', [...typesOf(App.project).map(d => ({ label: d.l, value: d.k, checked: L.cat === d.k })), { label: 'Aucune', value: '', checked: !L.cat }]); if (k !== null && k !== undefined) L.cat = k; }
   if (v === 'col') { const c = await menu('Couleur', ['#f59e0b', '#ef4444', '#a855f7', '#06b6d4', '#3b82f6', '#eab308', '#14b8a6', '#b45309', '#ec4899', '#64748b', '#22c55e', '#0ea5e9'].map(c => ({ label: c, swatch: c, value: c }))); if (c) L.c = c; }
   if ((v === 'l' && i > 0) || (v === 'r' && i < lots.length - 1)) { const j = v === 'l' ? i - 1 : i + 1; [lots[i], lots[j]] = [lots[j], lots[i]]; }
   if (v === 'pts') { const id = await menu('Supprimer un point ?', (L.points || []).map(x => ({ label: x.t, icon: 'trash', value: x.id }))); if (id && await confirmBox('Supprimer ce point de tous les niveaux ?')) L.points = L.points.filter(x => x.id !== id); }
-  if (v === 'del' && f) { if (await confirmBox(`Retirer « ${L.name} » de ce niveau seulement ? Ses plans de ce niveau deviennent « Sans lot ». Les autres niveaux ne changent pas.`)) {
-    f.hiddenLots = [...(f.hiddenLots || []), L.id];
-    for (const x of await DB.byProject('plans', p.id)) if (x.folderId === f.id && x.lotId === L.id) { x.lotId = null; await DB.put('plans', x); }
+  // masquer dans CE niveau seulement (récupérable avec « Rétablir masqués »)
+  if (v === 'hide' && f) { if (await confirmBox(`Masquer le lot « ${L.name} » de ce niveau ? Ses plans de ce niveau passent dans « Sans lot ». « Rétablir masqués » le remet.`)) {
+    await hideLotIn(p, L, [f]);
     if ((App.lotSel || {})[f.id] === L.id) App.lotSel[f.id] = '__all';
-    await DB.put('folders', f); renderPlans(root); } return; }
-  if (v === 'del' && await confirmBox(`Supprimer le lot « ${L.name} » ? Les plans restent dans le dossier.`)) lots.splice(i, 1);
+    renderPlans(root); } return; }
+  // suppression DÉFINITIVE du lot (dans tous les niveaux) ; ses plans restent, rangés « Sans lot »
+  if (v === 'del' && await confirmBox(`Supprimer DÉFINITIVEMENT le lot « ${L.name} » ? Il disparaît de tous les niveaux. Les plans restent (sans lot). Irréversible.`)) {
+    for (const x of await DB.byProject('plans', p.id)) if (x.lotId === L.id || x.hiddenFromLot === L.id) { x.lotId = null; delete x.hiddenFromLot; await DB.put('plans', x); }
+    for (const fo of await DB.byProject('folders', p.id)) if ((fo.hiddenLots || []).includes(L.id)) { fo.hiddenLots = fo.hiddenLots.filter(k => k !== L.id); await DB.put('folders', fo); }
+    const k = lots.indexOf(L); if (k >= 0) lots.splice(k, 1);
+    if (f && (App.lotSel || {})[f.id] === L.id) App.lotSel[f.id] = '__all';
+    await DB.put('projects', p); renderPlans(root); return;
+  }
   if (v) { await DB.put('projects', p); renderPlans(root); }
 }
 async function planLotMenu(plan, root) {

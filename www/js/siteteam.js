@@ -502,6 +502,7 @@ const ST = (() => {
       <div class="ws-cur"><span class="ws-e">${esc(perso() ? '👷' : org().e)}</span><span class="grow"><b>${esc(perso() ? 'Espace personnel' : C.name || '')}</b><small>${esc(plan().l)} · ${esc(perso() ? ((metierOf(Team.profil().metier) || {}).l || 'Indépendant') : R.l)}</small></span><i>✓</i></div>
       ${W.length ? `<div class="ws-h">Changer d'espace</div>${W.map(w => `<button class="ws-it" data-wsw="${esc(w.cid)}"><span class="ws-ic e">${esc(w.kind === 'perso' ? '👷' : w.role === 'collaborateur' ? '🤝' : orgTypeOf(w.org || 'entreprise').e)}</span><span class="grow"><b>${esc(w.name || '?')}</b><small>${w.kind === 'perso' ? 'Espace personnel' : esc(tmRoleOf(w.role).l)}</small></span>${icon('chevright')}</button>`).join('')}` : ''}
       ${item('switch', 'plus', 'Ajouter ou rejoindre un espace', 'Code d\'accès, organisation, espace personnel')}
+      ${Team.isOwner && Team.isOwner() ? item('delespace', 'trash', 'Supprimer cet espace', 'Définitif · propriétaire seulement') : ''}
     </div>`;
     document.body.appendChild(el);
     const close = () => { el.remove(); unB(); }, unB = pushBack(() => el.remove());
@@ -509,6 +510,7 @@ const ST = (() => {
     $$('[data-wsw]', el).forEach(b => b.onclick = () => { close(); Team.switchTo(b.dataset.wsw); });
     $$('[data-wm]', el).forEach(b => b.onclick = () => { const k = b.dataset.wm; close();
       if (k === 'switch') return Team.openSwitcher();
+      if (k === 'delespace') return Team.deleteEspace();
       if (k === 'org' || k === 'inv' || k === 'set' || k === 'me') return Team.openCompany(k === 'org' ? 'org' : k);
       if (k === 'aff') return Affectations.open();
       if (k === 'dossier') return openDossier();
