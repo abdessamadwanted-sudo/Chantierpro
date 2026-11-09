@@ -1273,11 +1273,13 @@ async function annotatedPlanPdf(plan, tasks, links, fmt, withPins = true) {
   let base;
   if (plan.dwgFileId || plan.dxfFileId) { const D = await cadOfPlan(plan); base = cadRaster(D, 7000, { hidden: plan.hiddenLayers || [] }).canvas; }
   else { const f = await DB.get('files', plan.fileId); base = document.createElement('canvas'); const im = await loadImage(BlobURL.get(f.id, f.blob)); base.width = im.naturalWidth; base.height = im.naturalHeight; base.getContext('2d').drawImage(im, 0, 0); }
-  const ov = await planOverlayCanvas(plan, withPins ? tasks : [], withPins ? links : [], base.width); base.getContext('2d').drawImage(ov, 0, 0, base.width, base.height);
+  // dessins et pins posés en calque PNG transparent (sans compression JPEG) : les traits restent nets
+  const ov = await planOverlayCanvas(plan, withPins ? tasks : [], withPins ? links : [], base.width);
   const { jsPDF } = window.jspdf; let [PW, PH] = PAPER[fmt] || PAPER.A3; const land = base.width >= base.height; if (!land) [PW, PH] = [PH, PW];
   const doc = new jsPDF({ orientation: land ? 'l' : 'p', unit: 'mm', format: [PW, PH], compress: true });
   const M = 6, k = Math.min((PW - 2 * M) / base.width, (PH - 2 * M) / base.height), w = base.width * k, h = base.height * k;
-  doc.addImage(base.toDataURL('image/jpeg', 0.9), 'JPEG', (PW - w) / 2, (PH - h) / 2, w, h, undefined, 'FAST');
+  doc.addImage(base.toDataURL('image/jpeg', 0.94), 'JPEG', (PW - w) / 2, (PH - h) / 2, w, h, undefined, 'FAST');
+  doc.addImage(ov.toDataURL('image/png'), 'PNG', (PW - w) / 2, (PH - h) / 2, w, h, undefined, 'FAST');
   doc.setFontSize(8); doc.setTextColor(90); doc.text(pt(`${plan.name}${plan.indice ? ' · Ind. ' + planIndice(plan) : ''} · annoté le ${fmtDate(todayISO())}`), M, PH - 2.5);
   return doc.output('blob');
 }
