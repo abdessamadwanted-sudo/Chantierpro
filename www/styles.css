@@ -3606,7 +3606,7 @@ body:has(#phPill) .sync-pill.sync { display: none !important; }
 
 /* v1.0.65 : dessins, pins et mesures toujours au-dessus du rendu net (HD) du plan — avant, un trait pouvait être caché dessous */
 .stage svg.ov { z-index: 5; }
-.stage { backface-visibility: hidden; }
+.stage { }   /* plus de backface-visibility : évite la rastérisation des tracés au zoom */
 
 /* v1.0.65 : plan noir et blanc (affichage) — seuls le plan et son rendu net passent en gris ; dessins, pins, avancement gardent leurs couleurs */
 
