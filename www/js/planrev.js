@@ -92,52 +92,71 @@ async function newPlanIndice(plan) {
   ], { okLabel: 'Mettre à jour le plan' });
   if (!r) return null;
   const ld = loading('Import du nouvel indice…');
-  let np, moved = { links: 0, tasks: 0, locaux: 0 }, flagged = [];
+  let np;
   try {
     const [img] = await fileToPlanImages(file, plan.projectId, ld, isPdf ? (+r.page || 1) : undefined);
     if (!img) { ld.close(); return null; }
-    const kx = img.w / plan.w, ky = img.h / plan.h;
     np = await DB.put('plans', {
       projectId: plan.projectId, folderId: plan.folderId, lotId: plan.lotId || null, fileId: img.fileId, pdfFileId: img.pdfFileId || null, pdfPage: img.pdfPage || null, dxfFileId: img.dxfFileId || null, dwgFileId: img.dwgFileId || null,
-      w: img.w, h: img.h, name: plan.name, annotations: (plan.annotations || []).map(a => scaleAnnot(a, kx, ky)),
+      w: img.w, h: img.h, name: plan.name, annotations: [],
       indice: (r.ind || nextIndice(planIndice(plan))).toUpperCase(), serieId: planSerie(plan), prevId: plan.id, indiceNote: r.note || '', indiceDate: r.date || todayISO(),
     });
     if (!plan.indice) plan.indice = 'A';
     if (!plan.serieId) plan.serieId = plan.id;
     plan.supersededBy = np.id; await DB.put('plans', plan);
-    // zones modifiées entre les deux indices (pour signaler les pins à vérifier)
     ld.set('Recherche des modifications…');
     let diff = null; try { diff = await planDiff(plan, np, 1400, { map: await planAlignMap(plan, np) }); } catch (e) { console.warn('diff', e); }
+    np.changeCount = diff ? diff.rects.length : null; await DB.put('plans', np);
+  } catch (e) { ld.close(); console.error(e); alertBox('Mise à jour impossible : ' + (e.message || e)); return null; }
+  ld.close();
+  const v = await menu(`Indice ${np.indice} créé ✓${np.changeCount != null ? `\n${np.changeCount} zone(s) modifiée(s) détectée(s).` : ''}\nLes dessins et pins de l'indice ${planIndice(plan)} ne sont pas encore reportés : ils restent sur l'ancien indice jusqu'au transfert.`, [
+    { label: `Transférer dessins et pins ici (mêmes emplacements)`, icon: 'share', value: 'tr' },
+    { label: `Voir les modifications (Ind. ${planIndice(plan)} → ${np.indice})`, icon: 'layers', value: 'cmp' },
+    { label: 'Plus tard', icon: 'check', value: 'ok' },
+  ]);
+  if (v === 'tr') await transferToIndice(plan, np);
+  if (v === 'cmp') await openPlanCompare(plan, np);
+  return np;
+}
+
+// Transfert manuel : dessins (copiés) + pins, tâches, éléments (déplacés) de l'ancien indice vers le nouveau,
+// aux MÊMES coordonnées. Si les deux images ont la même taille, rien n'est recalculé ; sinon mise à l'échelle.
+async function transferToIndice(oldPlan, np) {
+  if (!oldPlan || !np || oldPlan.id === np.id) return null;
+  const kx = np.w / oldPlan.w, ky = np.h / oldPlan.h;
+  const moved = { links: 0, tasks: 0, locaux: 0 }, flagged = [];
+  const ld = loading('Transfert des dessins et pins…');
+  try {
+    let diff = null; try { diff = await planDiff(oldPlan, np, 1400, { map: await planAlignMap(oldPlan, np) }); } catch (e) { console.warn('diff', e); }
     const inChange = (x, y) => diff && diff.rects.some(q => x >= q.x - q.pad && x <= q.x + q.w + q.pad && y >= q.y - q.pad && y <= q.y + q.h + q.pad);
-    ld.set('Report des pins sur le nouvel indice…');
-    for (const l of await DB.byProject('links', plan.projectId)) {
+    if (!np.annotFrom) {   // dessins copiés une seule fois
+      np.annotations = [...(np.annotations || []), ...(oldPlan.annotations || []).map(a => scaleAnnot(a, kx, ky))];
+      np.annotFrom = oldPlan.id;
+    }
+    for (const l of await DB.byProject('links', oldPlan.projectId)) {
       let ch = false;
-      if (l.planId === plan.id) {
+      if (l.planId === oldPlan.id) {
         scaleGeom(l, kx, ky); l.planId = np.id; ch = true;
         if (l.kind === 'local') moved.locaux++; else moved.links++;
         const cx = l.w != null ? l.x + l.w / 2 : l.x, cy = l.h != null ? l.y + l.h / 2 : l.y;
         if (inChange(cx, cy)) { l.checkIndice = np.indice; flagged.push(l.name || 'Pin'); } else delete l.checkIndice;
       }
-      if (l.targetPlanId === plan.id) { l.targetPlanId = np.id; ch = true; }
-      for (const z of l.zones || []) for (const pt of z.parts || []) for (const d of pt.docs || []) if (d.planId === plan.id) { d.planId = np.id; ch = true; }
-      for (const it of l.items || []) if (it.planId === plan.id) { it.planId = np.id; ch = true; }
+      if (l.targetPlanId === oldPlan.id) { l.targetPlanId = np.id; ch = true; }
+      for (const z of l.zones || []) for (const pt of z.parts || []) for (const d of pt.docs || []) if (d.planId === oldPlan.id) { d.planId = np.id; ch = true; }
+      for (const it of l.items || []) if (it.planId === oldPlan.id) { it.planId = np.id; ch = true; }
       if (ch) await DB.put('links', l);
     }
-    for (const t of await DB.byProject('tasks', plan.projectId)) {
-      if (t.planId !== plan.id) continue;
+    for (const t of await DB.byProject('tasks', oldPlan.projectId)) {
+      if (t.planId !== oldPlan.id) continue;
       if (t.x != null) { t.x *= kx; t.y *= ky; }
       t.planId = np.id; moved.tasks++;
       if (t.x != null && inChange(t.x, t.y)) flagged.push(`Tâche #${t.num || ''}`);
       await DB.put('tasks', t);
     }
-    np.changeCount = diff ? diff.rects.length : null; await DB.put('plans', np);
-  } catch (e) { ld.close(); console.error(e); alertBox('Mise à jour impossible : ' + (e.message || e)); return null; }
-  ld.close();
-  const v = await menu(`Indice ${np.indice} créé ✓\n${moved.locaux + moved.links} pin(s) et ${moved.tasks} tâche(s) reportés automatiquement.${np.changeCount != null ? `\n${np.changeCount} zone(s) modifiée(s) détectée(s).` : ''}${flagged.length ? `\n⚠ ${flagged.length} pin(s) dans une zone modifiée : vérifiez leur position (${flagged.slice(0, 6).join(', ')}${flagged.length > 6 ? '…' : ''}).` : ''}`, [
-    { label: `Voir les modifications (Ind. ${planIndice(plan)} → ${np.indice})`, icon: 'layers', value: 'cmp' },
-    { label: 'OK', icon: 'check', value: 'ok' },
-  ]);
-  if (v === 'cmp') await openPlanCompare(plan, np);
+    await DB.put('plans', np);
+  } catch (e) { console.error(e); alertBox('Transfert impossible : ' + (e.message || e)); return null; }
+  finally { ld.close(); }
+  await alertBox(`${moved.locaux + moved.links} pin(s) et ${moved.tasks} tâche(s) transférés vers l'indice ${np.indice}.${flagged.length ? `\n⚠ ${flagged.length} pin(s) dans une zone modifiée : vérifiez leur position (${flagged.slice(0, 6).join(', ')}${flagged.length > 6 ? '…' : ''}).` : ''}`);
   return np;
 }
 
@@ -148,6 +167,7 @@ async function planIndicesMenu(plan, { onNew, onOpen } = {}) {
   const v = await menu(`${plan.name} · Indice ${planIndice(plan)}`, [
     { label: 'Mettre à jour le plan (nouvel indice)', icon: 'upload', value: 'new' },
     ...(prev ? [{ label: `Comparer avec l'indice ${planIndice(prev)}`, icon: 'layers', value: 'cmp' }] : []),
+    ...(plan.supersededBy ? [{ label: 'Transférer dessins et pins vers l\u2019indice suivant', icon: 'share', value: 'tr' }] : []),
     ...(hist.length > 2 ? [{ label: 'Comparer deux indices au choix', icon: 'layers', value: 'cmp2' }] : []),
     ...(hist.length > 1 ? [{ label: `Historique des indices (${hist.length})`, icon: 'history', value: 'hist' }] : []),
     { label: 'Modifier l\u2019indice (nom, date, objet)', icon: 'edit', value: 'edit' },
@@ -156,6 +176,7 @@ async function planIndicesMenu(plan, { onNew, onOpen } = {}) {
   if (v === 'edit') { const r = await formSheet(`Indice — ${plan.name}`, [{ name: 'i', label: 'Indice', value: planIndice(plan) }, { name: 'd', label: 'Date', type: 'date', value: plan.indiceDate || '' }, { name: 'n', label: 'Objet', type: 'textarea', value: plan.indiceNote || '' }], { okLabel: 'Enregistrer' }); if (r) { plan.indice = (r.i || planIndice(plan)).trim(); plan.indiceDate = r.d || plan.indiceDate || ''; plan.indiceNote = r.n || ''; await DB.put('plans', plan); toast('Indice enregistré ✓'); if (onNew) onNew(plan); } }
   if (v === 'cart') { const ld = loading('Lecture des cartouches…'); let n = 0; try { for (const p of hist) { const c = await cartoucheOfPlan(p).catch(() => null); if (c) { if (c.indice) p.indice = c.indice; if (c.date) p.indiceDate = c.date; if (c.desc && !p.indiceNote) p.indiceNote = c.desc; await DB.put('plans', p); n++; } } } finally { ld.close(); } toast(n ? `${n} indice(s) mis à jour ✓` : 'Aucun cartouche lisible'); if (n && onNew) onNew(await DB.get('plans', plan.id)); }
   if (v === 'new') { const np = await newPlanIndice(plan); if (np && onNew) onNew(np); }
+  if (v === 'tr') { const nx = await DB.get('plans', plan.supersededBy); if (nx) { await transferToIndice(plan, nx); if (onOpen) onOpen(nx); } }
   if (v === 'cmp') openPlanCompare(prev, plan);
   if (v === 'cmp2') {
     const opts = hist.map(p => ({ label: `Indice ${planIndice(p)}${p.indiceDate ? ' · ' + fmtDate(p.indiceDate) : ''}${p.indiceNote ? ' · ' + p.indiceNote : ''}`, value: p.id }));
