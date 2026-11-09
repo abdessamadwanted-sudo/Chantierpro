@@ -582,7 +582,7 @@ async function openPlanViewer(plan, ctx) {
       <div class="pb-sliders">
         <label><span>Intensité</span><input type="range" min="0" max="100" step="1" value="${Math.round((Math.max(-0.5, Math.min(0.8, shade)) + 0.5) / 1.3 * 100)}" data-r="shade"
           style="background:linear-gradient(90deg, ${shadeHex(hue, -0.5)}, ${shadeHex(hue, 0.8)})"></label>
-        ${isText ? `<label><span>Taille</span><input type="range" min="4" max="16" value="${tsize}" data-r="ts"></label>`
+        ${isText ? `<label><span>Taille <b class="ts-val">${tsize}</b></span><input type="range" min="1" max="16" value="${tsize}" data-r="ts"></label>`
           : `<label><span>Épaisseur</span><input type="range" min="1" max="16" value="${thick}" data-r="thick"></label>`}
       </div>`;
     const apply = (fn) => { if (selA) { if (!bar._undo) { pushUndo(); bar._undo = true; } fn(selA); selA.color = shadeHex(selA.hue || selA.color, selA.shade || 0); renderAnnots(); saveAnnots(); renderSel(); } };
@@ -594,7 +594,7 @@ async function openPlanViewer(plan, ctx) {
       const v = +r.value, k = r.dataset.r;
       if (k === 'shade') { const sh = -0.5 + v / 100 * 1.3; if (selA) apply(a => { a.hue = a.hue || a.color; a.shade = sh; }); else st.shade = sh; }   // v1.0.78 : une seule direction, couleur → pâle
       if (k === 'thick') { if (selA) apply(a => { a.sw = base * v / 1600; }); else st.thick = v; }
-      if (k === 'ts') { if (selA) apply(a => { a.fs = v * base / 500; }); else st.textSize = v; }
+      if (k === 'ts') { if (selA) apply(a => { a.fs = v * base / 500; }); else st.textSize = v; const tv = $('.ts-val', bar); if (tv) tv.textContent = v; }
       const pv = $('.pb-prev span', bar); pv.style.background = selA ? selA.color : st.color;
       if (k === 'thick') pv.style.height = Math.max(2, Math.min(14, v)) + 'px';
       if (k === 'shade') $$('[data-c]', bar).forEach(() => {});
@@ -1144,7 +1144,7 @@ const plansboxCount = (l) => (l.zones || []).reduce((a, z) => a + (z.parts || []
 
 // ---------- Partager un plan : fichier d'origine (PDF / DWG / DXF / image) ou PDF annoté (dessins, couleurs, pins) ----------
 async function planOverlayCanvas(plan, tasks, links, outW, noAnn) {
-  const W = plan.w, H = plan.h, k = outW / W, base = Math.max(W, H), pr = base / 90;
+  const W = plan.w, H = plan.h, k = outW / W, base = Math.max(W, H), pr = base / 65;
   const pins = [
     ...tasks.filter(t => t.planId === plan.id && t.x != null).map(t => { const c = (STATUS[t.status] || STATUS.open).color; return `<g transform="translate(${t.x},${t.y})"><path d="M0,0 C${-pr * .3},${-pr * .7} ${-pr},${-pr} ${-pr},${-pr * 1.85} A${pr},${pr} 0 1 1 ${pr},${-pr * 1.85} C${pr},${-pr} ${pr * .3},${-pr * .7} 0,0Z" fill="${c}" stroke="#fff" stroke-width="${pr * .14}"/><text x="0" y="${-pr * 1.5}" text-anchor="middle" font-size="${pr * .95}" font-weight="700" fill="#fff" font-family="Arial">${t.num || ''}</text></g>`; }),
     ...links.filter(l => l.planId === plan.id).map(l => { const x = l.shape === 'zone' ? l.x + l.w / 2 : l.x, y = l.shape === 'zone' ? l.y + l.h / 2 : l.y, P = pinLook(l);
@@ -1178,7 +1178,7 @@ function annotPdfDraw(pg, a, ox, oy, s, font) {
     case 'text': { const t = String(a.text || '').replace(/[^\x20-\xFF]/g, ''); if (t && font) pg.drawText(t, { x: ox + p[0] * s, y: oy - p[1] * s, size: (a.fs || 24) * s, font, color: col }); return; }
   }
 }
-async function annotatedPlanPdf(plan, tasks, links, fmt) {
+async function annotatedPlanPdf(plan, tasks, links, fmt, withPins = true) {
   // 1) plan PDF d'origine : la page reste vectorielle, les dessins sont écrits en vectoriel par-dessus (nets au zoom, sur WhatsApp aussi)
   if (plan.pdfFileId) {
     const f = await DB.get('files', plan.pdfFileId);
@@ -1187,14 +1187,14 @@ async function annotatedPlanPdf(plan, tasks, links, fmt) {
       const src = await PDFLib.PDFDocument.load(await f.blob.arrayBuffer(), { ignoreEncryption: true }), out = await PDFLib.PDFDocument.create();
       const [pg] = await out.copyPages(src, [(plan.pdfPage || 1) - 1]); out.addPage(pg);
       const rot = ((pg.getRotation().angle % 360) + 360) % 360, mb = pg.getMediaBox(), W = mb.width, H = mb.height;
-      const hasPins = tasks.some(t => t.planId === plan.id && t.x != null) || links.some(l => l.planId === plan.id);
+      const hasPins = withPins && (tasks.some(t => t.planId === plan.id && t.x != null) || links.some(l => l.planId === plan.id));
       if (rot === 0) {
         const s = W / plan.w, font = await out.embedFont(PDFLib.StandardFonts.HelveticaBold);
         for (const a of plan.annotations || []) { try { annotPdfDraw(pg, a, mb.x, mb.y + H, s, font); } catch (e) { console.warn('annot', a.type, e); } }
         if (hasPins) { const ov = await planOverlayCanvas(plan, tasks, links, Math.min(5000, Math.max(plan.w, 3000)), true); const png = await out.embedPng(await new Promise(r => ov.toBlob(b => b.arrayBuffer().then(r), 'image/png'))); pg.drawImage(png, { x: mb.x, y: mb.y, width: W, height: H }); }
       } else {
         // page tournée : calque transparent haute définition posé dans le bon sens
-        const ov = await planOverlayCanvas(plan, tasks, links, Math.min(5000, Math.max(plan.w * 1.5, 3000))), png = await out.embedPng(await new Promise(r => ov.toBlob(b => b.arrayBuffer().then(r), 'image/png')));
+        const ov = await planOverlayCanvas(plan, withPins ? tasks : [], withPins ? links : [], Math.min(5000, Math.max(plan.w * 1.5, 3000))), png = await out.embedPng(await new Promise(r => ov.toBlob(b => b.arrayBuffer().then(r), 'image/png')));
         const o = rot === 90 ? { x: mb.x + W, y: mb.y, width: H, height: W } : rot === 180 ? { x: mb.x + W, y: mb.y + H, width: W, height: H } : { x: mb.x, y: mb.y + H, width: H, height: W };
         pg.drawImage(png, { ...o, rotate: PDFLib.degrees(rot) });
       }
@@ -1205,7 +1205,7 @@ async function annotatedPlanPdf(plan, tasks, links, fmt) {
   let base;
   if (plan.dwgFileId || plan.dxfFileId) { const D = await cadOfPlan(plan); base = cadRaster(D, 7000, { hidden: plan.hiddenLayers || [] }).canvas; }
   else { const f = await DB.get('files', plan.fileId); base = document.createElement('canvas'); const im = await loadImage(BlobURL.get(f.id, f.blob)); base.width = im.naturalWidth; base.height = im.naturalHeight; base.getContext('2d').drawImage(im, 0, 0); }
-  const ov = await planOverlayCanvas(plan, tasks, links, base.width); base.getContext('2d').drawImage(ov, 0, 0, base.width, base.height);
+  const ov = await planOverlayCanvas(plan, withPins ? tasks : [], withPins ? links : [], base.width); base.getContext('2d').drawImage(ov, 0, 0, base.width, base.height);
   const { jsPDF } = window.jspdf; let [PW, PH] = PAPER[fmt] || PAPER.A3; const land = base.width >= base.height; if (!land) [PW, PH] = [PH, PW];
   const doc = new jsPDF({ orientation: land ? 'l' : 'p', unit: 'mm', format: [PW, PH], compress: true });
   const M = 6, k = Math.min((PW - 2 * M) / base.width, (PH - 2 * M) / base.height), w = base.width * k, h = base.height * k;
@@ -1218,7 +1218,8 @@ async function sharePlanMenu(plan, { tasks = [], links = [] } = {}) {
   const nA = (plan.annotations || []).length + tasks.filter(t => t.planId === plan.id && t.x != null).length + links.filter(l => l.planId === plan.id).length;
   const v = await menu('Partager le plan', [
     { label: `📄 Original (${orig[1]} tel que reçu)`, icon: 'share', value: 'orig' },
-    { label: `✏️ PDF annoté (dessins, couleurs, pins${nA ? ' · ' + nA : ''})`, icon: 'pdf', value: 'annot' },
+    { label: `✏️ PDF annoté avec pins (dessins, couleurs, pins${nA ? ' · ' + nA : ''})`, icon: 'pdf', value: 'annot' },
+    { label: `✏️ PDF annoté sans pins (dessins et couleurs seulement)`, icon: 'pdf', value: 'annotnp' },
     ...(plan.dwgFileId ? [{ label: '📐 DXF (pour AutoCAD)', icon: 'share', value: 'dxf' }] : []),
     ...(plan.dwgFileId || plan.dxfFileId ? [{ label: '🖨️ PDF vectoriel à l\'échelle (A0 → A4)', icon: 'pdf', value: 'plot' }] : []),
   ]);
@@ -1231,10 +1232,11 @@ async function sharePlanMenu(plan, { tasks = [], links = [] } = {}) {
   }
   if (v === 'dxf') return exportDxfOfPlan(plan);
   if (v === 'plot') return plotPlan(plan);
+  const withPins = v !== 'annotnp';
   if (typeof Team !== 'undefined' && Team.featGate && !(await Team.featGate('plansend'))) return;   // v1.0.57 : fonction premium
   const fmt = plan.pdfFileId ? 'A3' : await menu('Format du PDF annoté', ['A0', 'A1', 'A2', 'A3', 'A4'].map(x => ({ label: x, value: x, checked: x === 'A3' })));
   if (!fmt) return;
   const ld = loading('Création du PDF annoté…');
-  try { const b = await annotatedPlanPdf(plan, tasks, links, fmt); ld.close(); await shareBlob(b, nm + '_annote.pdf'); }
+  try { const b = await annotatedPlanPdf(plan, tasks, links, fmt, withPins); ld.close(); await shareBlob(b, nm + (withPins ? '_annote.pdf' : '_annote_sans_pins.pdf')); }
   catch (e) { ld.close(); console.error(e); alertBox('Erreur : ' + (e.message || e)); }
 }
