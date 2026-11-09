@@ -1206,7 +1206,7 @@ const plansboxCount = (l) => (l.zones || []).reduce((a, z) => a + (z.parts || []
 
 // ---------- Partager un plan : fichier d'origine (PDF / DWG / DXF / image) ou PDF annoté (dessins, couleurs, pins) ----------
 async function planOverlayCanvas(plan, tasks, links, outW, noAnn) {
-  const W = plan.w, H = plan.h, k = outW / W, base = Math.max(W, H), pr = base / 65;
+  const W = plan.w, H = plan.h, k = outW / W, base = Math.max(W, H), pr = base / 42;   // pins d'export : bien lisibles sur le PDF
   const pins = [
     ...tasks.filter(t => t.planId === plan.id && t.x != null).map(t => { const c = (STATUS[t.status] || STATUS.open).color; return `<g transform="translate(${t.x},${t.y})"><path d="M0,0 C${-pr * .3},${-pr * .7} ${-pr},${-pr} ${-pr},${-pr * 1.85} A${pr},${pr} 0 1 1 ${pr},${-pr * 1.85} C${pr},${-pr} ${pr * .3},${-pr * .7} 0,0Z" fill="${c}" stroke="#fff" stroke-width="${pr * .14}"/><text x="0" y="${-pr * 1.5}" text-anchor="middle" font-size="${pr * .95}" font-weight="700" fill="#fff" font-family="Arial">${t.num || ''}</text></g>`; }),
     ...links.filter(l => l.planId === plan.id).map(l => { const x = l.shape === 'zone' ? l.x + l.w / 2 : l.x, y = l.shape === 'zone' ? l.y + l.h / 2 : l.y, P = pinLook(l);
@@ -1232,14 +1232,14 @@ function annotPdfDraw(pg, a, ox, oy, s, font) {
     case 'line': return path(line([p, q]), stroke);
     case 'polygon': {
       if (P.length <= 2) return;
-      if (a.fill !== 'hatch') return path(line(P, true), { ...stroke, color: col, opacity: .55 });
+      if (a.fill !== 'hatch') return path(line(P, true), { ...stroke, color: col, opacity: .9 });   // PDF vectoriel : couleurs plus fortes
       path(line(P, true), stroke);
       hatchSegs(P, a.angle || 45, hatchGap(a)).forEach(g => path(`M${g[0][0]} ${g[0][1]} L${g[1][0]} ${g[1][1]}`, { borderColor: lc, borderWidth: Math.max(0.5, sw * 0.6) / s }));
       return;
     }
-    case 'rect': case 'box': { const x = Math.min(p[0], q[0]), y = Math.min(p[1], q[1]), w = Math.abs(q[0] - p[0]), h = Math.abs(q[1] - p[1]); return path(`M${x} ${y} H${x + w} V${y + h} H${x} Z`, a.type === 'box' ? { color: col, opacity: .8, borderColor: col, borderWidth: sw / s / 2 } : stroke); }
+    case 'rect': case 'box': { const x = Math.min(p[0], q[0]), y = Math.min(p[1], q[1]), w = Math.abs(q[0] - p[0]), h = Math.abs(q[1] - p[1]); return path(`M${x} ${y} H${x + w} V${y + h} H${x} Z`, a.type === 'box' ? { color: col, opacity: 1, borderColor: col, borderWidth: sw / s / 2 } : stroke); }
     case 'ellipse': case 'disc': { const cx = a.type === 'disc' ? p[0] : (p[0] + q[0]) / 2, cy = a.type === 'disc' ? p[1] : (p[1] + q[1]) / 2, rx = a.type === 'disc' ? Math.hypot(q[0] - p[0], q[1] - p[1]) : Math.abs(q[0] - p[0]) / 2, ry = a.type === 'disc' ? rx : Math.abs(q[1] - p[1]) / 2;
-      return path(`M${cx - rx} ${cy} A${rx} ${ry} 0 1 0 ${cx + rx} ${cy} A${rx} ${ry} 0 1 0 ${cx - rx} ${cy} Z`, a.type === 'disc' ? { color: col, opacity: .8, borderColor: col, borderWidth: sw / s / 2 } : stroke); }
+      return path(`M${cx - rx} ${cy} A${rx} ${ry} 0 1 0 ${cx + rx} ${cy} A${rx} ${ry} 0 1 0 ${cx - rx} ${cy} Z`, a.type === 'disc' ? { color: col, opacity: 1, borderColor: col, borderWidth: sw / s / 2 } : stroke); }
     case 'cloud': return path(cloudPath(p[0], p[1], q[0], q[1], (a.sw || 3) * 6), stroke);
     case 'arrow': { const ang = Math.atan2(q[1] - p[1], q[0] - p[0]), h = (a.sw || 3) * 5, a1 = [q[0] - h * Math.cos(ang - 0.45), q[1] - h * Math.sin(ang - 0.45)], a2 = [q[0] - h * Math.cos(ang + 0.45), q[1] - h * Math.sin(ang + 0.45)];
       path(line([p, q]), stroke); return path(line([q, a1, a2], true), { color: lc, borderColor: lc, borderWidth: sw / s }); }
@@ -1273,11 +1273,13 @@ async function annotatedPlanPdf(plan, tasks, links, fmt, withPins = true) {
   let base;
   if (plan.dwgFileId || plan.dxfFileId) { const D = await cadOfPlan(plan); base = cadRaster(D, 7000, { hidden: plan.hiddenLayers || [] }).canvas; }
   else { const f = await DB.get('files', plan.fileId); base = document.createElement('canvas'); const im = await loadImage(BlobURL.get(f.id, f.blob)); base.width = im.naturalWidth; base.height = im.naturalHeight; base.getContext('2d').drawImage(im, 0, 0); }
-  const ov = await planOverlayCanvas(plan, withPins ? tasks : [], withPins ? links : [], base.width); base.getContext('2d').drawImage(ov, 0, 0, base.width, base.height);
+  // dessins et pins posés en calque PNG transparent (sans compression JPEG) : les traits restent nets
+  const ov = await planOverlayCanvas(plan, withPins ? tasks : [], withPins ? links : [], base.width);
   const { jsPDF } = window.jspdf; let [PW, PH] = PAPER[fmt] || PAPER.A3; const land = base.width >= base.height; if (!land) [PW, PH] = [PH, PW];
   const doc = new jsPDF({ orientation: land ? 'l' : 'p', unit: 'mm', format: [PW, PH], compress: true });
   const M = 6, k = Math.min((PW - 2 * M) / base.width, (PH - 2 * M) / base.height), w = base.width * k, h = base.height * k;
-  doc.addImage(base.toDataURL('image/jpeg', 0.9), 'JPEG', (PW - w) / 2, (PH - h) / 2, w, h, undefined, 'FAST');
+  doc.addImage(base.toDataURL('image/jpeg', 0.94), 'JPEG', (PW - w) / 2, (PH - h) / 2, w, h, undefined, 'FAST');
+  doc.addImage(ov.toDataURL('image/png'), 'PNG', (PW - w) / 2, (PH - h) / 2, w, h, undefined, 'FAST');
   doc.setFontSize(8); doc.setTextColor(90); doc.text(pt(`${plan.name}${plan.indice ? ' · Ind. ' + planIndice(plan) : ''} · annoté le ${fmtDate(todayISO())}`), M, PH - 2.5);
   return doc.output('blob');
 }
@@ -1286,8 +1288,8 @@ async function sharePlanMenu(plan, { tasks = [], links = [] } = {}) {
   const nA = (plan.annotations || []).length + tasks.filter(t => t.planId === plan.id && t.x != null).length + links.filter(l => l.planId === plan.id).length;
   const v = await menu('Partager le plan', [
     { label: `📄 Original (${orig[1]} tel que reçu)`, icon: 'share', value: 'orig' },
-    { label: `✏️ PDF annoté avec pins (dessins, couleurs, pins${nA ? ' · ' + nA : ''})`, icon: 'pdf', value: 'annot' },
-    { label: `✏️ PDF annoté sans pins (dessins et couleurs seulement)`, icon: 'pdf', value: 'annotnp' },
+    { label: `✏️ PDF annoté (dessins et couleurs, sans pins)`, icon: 'pdf', value: 'annotnp' },
+    { label: `📍 PDF annoté avec pins${nA ? ' · ' + nA : ''}`, icon: 'pdf', value: 'annot' },
     ...(plan.dwgFileId ? [{ label: '📐 DXF (pour AutoCAD)', icon: 'share', value: 'dxf' }] : []),
     ...(plan.dwgFileId || plan.dxfFileId ? [{ label: '🖨️ PDF vectoriel à l\'échelle (A0 → A4)', icon: 'pdf', value: 'plot' }] : []),
   ]);
