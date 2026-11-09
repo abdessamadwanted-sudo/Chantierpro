@@ -152,8 +152,7 @@ svg.i { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-widt
 .loupe .lst { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .loupe .lst img { display: block; }
 .loupe .lst svg { position: absolute; left: 0; top: 0; overflow: visible; }
-.loupe .cross { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px;
-  background: linear-gradient(#e11 0 0) center/2px 100% no-repeat, linear-gradient(#e11 0 0) center/100% 2px no-repeat; }
+.loupe .cross { position: absolute; left: 50%; top: 50%; width: 28px; height: 28px; margin: -14px 0 0 -14px; display: block; shape-rendering: geometricPrecision; }
 .stage img { display: block; user-select: none; -webkit-user-drag: none; pointer-events: none; background: #fff; }
 .stage svg.ov { position: absolute; left: 0; top: 0; overflow: visible; }
 .tools { position: absolute; right: 8px; top: 12px; display: flex; flex-direction: column; z-index: 5; }

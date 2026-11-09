@@ -184,7 +184,7 @@ async function openPlanViewer(plan, ctx) {
       <div class="stage"><img src="${lite ? '' : src}" width="${W}" height="${H}"><canvas class="hd"></canvas><canvas class="hd"></canvas><svg class="ov" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
         <g class="g-annots"></g><g class="g-preview"></g><g class="g-links"></g><g class="g-tasks"></g><g class="g-meas"></g></svg></div>
       <div class="tools"></div>
-      <div class="loupe"><div class="lst"><img data-lsrc="1" width="${W}" height="${H}"><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><g class="l-ann"></g><g class="l-prev"></g></svg></div><div class="cross"></div></div>
+      <div class="loupe"><div class="lst"><img data-lsrc="1" width="${W}" height="${H}"><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><g class="l-ann"></g><g class="l-prev"></g></svg></div><svg class="cross" width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><path d="M14 1V27M1 14H27" stroke="#fff" stroke-width="5" stroke-linecap="square"/><path d="M14 1V27M1 14H27" stroke="#e11d48" stroke-width="2" stroke-linecap="square"/></svg></div>
     </div>
     <div class="viewer-bottom"><span class="vb-info"></span></div>`;
   document.body.appendChild(el);
