@@ -512,6 +512,12 @@ async function openPlanViewer(plan, ctx) {
       if (l.kind === 'photonote') return `<g transform="translate(${px},${py}) scale(${Math.max(0.3, m) / st.scale})">${photoPinSVG(n)}
         ${showLabel ? `<text x="0" y="16" text-anchor="middle" font-size="12" fill="#b91c1c" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`;
       const P = pinLook(l);
+      // local technique : pastille (pill) au nom du local, couleur selon l'état (vert = loin, rouge = proche / en retard, ✓ = terminé)
+      if (l.kind === 'local') { const lk = localPillLook(l), tx = esc(String(l.name || 'Local').slice(0, 24)), w = Math.max(44, tx.length * 7.4 + (lk.e ? 34 : 22));
+        return `<g transform="translate(${px},${py}) scale(${s})"><line x1="0" y1="0" x2="0" y2="-12" stroke="${lk.c}" stroke-width="2"/><circle cx="0" cy="0" r="3.5" fill="${lk.c}" stroke="#fff" stroke-width="1.5"/>
+          <rect x="${-w / 2}" y="-40" width="${w}" height="28" rx="14" fill="${lk.c}" fill-opacity=".92" stroke="#fff" stroke-opacity=".85" stroke-width="1.5"/>
+          <text x="${lk.e ? -w / 2 + 16 : 0}" y="-21" text-anchor="${lk.e ? 'start' : 'middle'}" font-size="12.5" font-weight="700" fill="#fff" font-family="Arial">${lk.e || ''}</text>
+          <text x="${lk.e ? 8 : 0}" y="-21" text-anchor="middle" font-size="12.5" font-weight="700" fill="#fff" font-family="Arial">${tx}</text></g>`; }
       return `<g transform="translate(${px},${py}) scale(${s})">${linkPin(P.c, n, P.e)}
         ${showLabel ? `<text x="0" y="16" text-anchor="middle" font-size="12" fill="${P.c}" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`;
     }).join('');
@@ -1219,6 +1225,14 @@ const PIN_LOOKS = {
 };
 const PIN_EMOJIS = ['📐', '🔩', '✂️', '📷', '📄', '📝', '🧊', '🔗', '📁', '📎', '🏗️', '🧱', '🪜', '🚪', '🪟', '⚡', '💧', '🔥', '⚠️', '✅', '⭐', '📌', '🎯', '🧰', '🛗', '🌀', '🏛️', '🔷'];
 const PIN_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#7c3aed', '#ea580c', '#0891b2', '#ca8a04', '#db2777', '#475569', '#0f766e', '#1e3a8a', '#111827'];
+// état d'un local (tous lots) : rouge si proche / en retard, ✓ si tout est terminé, vert sinon
+function localPillLook(l) {
+  const sts = typeof avStatus === 'function' ? Object.values(l.lots || {}).map(r => avStatus(r)) : [];
+  if (sts.some(x => x === 'late' || x === 'soon')) return { c: '#dc2626', e: '' };
+  if (sts.length && sts.every(x => x === 'done' || x === 'donelate')) return { c: '#15803d', e: '✓' };
+  if (sts.some(x => x === 'progress')) return { c: '#16a34a', e: '' };
+  return { c: '#16a34a', e: '' };
+}
 function pinLook(l) {
   if (l.kind === 'plansbox') return { e: l.emoji || '📚', c: l.pinColor || '#1e3a8a' };
   if (l.kind === 'recpin') { if (l.recKind === 'Non-conformité') return l.recLifted ? { e: '✅', c: '#16a34a' } : { e: '⚠️', c: '#dc2626' };
