@@ -860,6 +860,8 @@ async function openPlanViewer(plan, ctx) {
   }
   function annotAt(x, y) {
     const tol = 16 / st.scale;
+    // le texte passe avant les formes : un texte posé sur une zone colorée se sélectionne lui-même
+    for (let i = plan.annotations.length - 1; i >= 0; i--) if (plan.annotations[i].type === 'text' && hitAnnot(plan.annotations[i], x, y, tol)) return i;
     for (let i = plan.annotations.length - 1; i >= 0; i--) if (hitAnnot(plan.annotations[i], x, y, tol)) return i;
     return -1;
   }
