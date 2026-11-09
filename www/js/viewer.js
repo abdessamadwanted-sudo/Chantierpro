@@ -73,6 +73,7 @@ function angleDialHTML(deg) {
 function hatchGap(a) { return a.gap ? a.gap : Math.max(4, (a.sw || 3) * 5); }
 
 function fillHexOf(a) { return a.fh ? shadeHex(a.fh, a.shade || 0) : (a.color || a.hue); }
+function solidTint(c) { const { rgb } = PDFLib; return rgb(c.red * .55 + .9 * .45, c.green * .55 + .9 * .45, c.blue * .55 + .9 * .45); }
 function hexRgbPdf(h) { const x = String(h || '#e11d48').replace('#', ''), n = parseInt(x.length === 3 ? x.split('').map(c => c + c).join('') : x.slice(0, 6), 16) || 0; return PDFLib.rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255); }
 function annotSVG(a) {
   const sw = a.sw;
@@ -1238,6 +1239,8 @@ function annotPdfDraw(pg, a, ox, oy, s, font) {
   const lc = rgb(((nl >> 16) & 255) / 255, ((nl >> 8) & 255) / 255, (nl & 255) / 255), sw = (a.sw || 3) * s, P = a.pts || [], [p, q] = P;
   const path = (d, o) => pg.drawSvgPath(d, { x: ox, y: oy, scale: s, borderLineCap: PDFLib.LineCapStyle.Round, borderLineJoin: PDFLib.LineJoinStyle.Round, ...o });
   const fcol = a.fh ? hexRgbPdf(fillHexOf(a)) : null;
+  // PDF sans transparence : les viewers mobiles rendent mal les calques transparents (bords flous)
+  const tint = (c) => solidTint(c);
   const line = (pts, closed) => 'M' + pts.map(t => t[0] + ' ' + t[1]).join(' L') + (closed ? ' Z' : '');
   const stroke = { borderColor: lc, borderWidth: sw / s };
   switch (a.type) {
@@ -1245,7 +1248,7 @@ function annotPdfDraw(pg, a, ox, oy, s, font) {
     case 'line': return path(line([p, q]), stroke);
     case 'polygon': {
       if (P.length <= 2) return;
-      if (a.fill !== 'hatch') return path(line(P, true), { ...stroke, color: fcol || col, opacity: .9 });   // PDF vectoriel : couleurs plus fortes
+      if (a.fill !== 'hatch') return path(line(P, true), { ...stroke, color: tint(fcol || col) });   // couleur pleine, sans opacité
       path(line(P, true), stroke);
       hatchSegs(P, a.angle || 45, hatchGap(a)).forEach(g => path(`M${g[0][0]} ${g[0][1]} L${g[1][0]} ${g[1][1]}`, { borderColor: fcol || lc, borderWidth: Math.max(0.8, sw * 0.6 / s) }));
       return;
