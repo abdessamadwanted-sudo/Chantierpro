@@ -3761,3 +3761,6 @@ table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-
 /* v1.1 : boutons compacts de la synchronisation */
 .sync-btns { display: flex; gap: 8px; }
 .sync-btns .btn { flex: 1; padding: 8px 10px; font-size: 13px; min-height: 0; }
+/* couleur de remplissage séparée du contour */
+.pb-fill { align-items: center; }
+.pb-fill .pb-lbl { font-size: 11px; color: var(--muted); flex: none; padding-right: 2px; }

@@ -72,6 +72,8 @@ function angleDialHTML(deg) {
 }
 function hatchGap(a) { return a.gap ? a.gap : Math.max(4, (a.sw || 3) * 5); }
 
+function fillHexOf(a) { return a.fh ? shadeHex(a.fh, a.shade || 0) : (a.color || a.hue); }
+function hexRgbPdf(h) { const x = String(h || '#e11d48').replace('#', ''), n = parseInt(x.length === 3 ? x.split('').map(c => c + c).join('') : x.slice(0, 6), 16) || 0; return PDFLib.rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255); }
 function annotSVG(a) {
   const sw = a.sw;
   // v1.0.108 : le contour garde la couleur de la palette ; l'intensité ne change que le remplissage
@@ -82,9 +84,10 @@ function annotSVG(a) {
     case 'pen': case 'poly': return `<polyline points="${a.pts.map(pt => pt.join(',')).join(' ')}" ${common}/>`;
     case 'rect': return `<rect x="${Math.min(p[0], q[0])}" y="${Math.min(p[1], q[1])}" width="${Math.abs(q[0] - p[0])}" height="${Math.abs(q[1] - p[1])}" ${common}/>`;
     case 'polygon': {
-      if (a.fill !== 'hatch') return `<polygon points="${a.pts.map(pt => pt.join(',')).join(' ')}" fill="${a.color}" fill-opacity=".55" stroke="${ln}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+      const fc = fillHexOf(a);
+      if (a.fill !== 'hatch') return `<polygon points="${a.pts.map(pt => pt.join(',')).join(' ')}" fill="${fc}" fill-opacity=".55" stroke="${ln}" stroke-width="${sw}" stroke-linejoin="round"/>`;
       const d = hatchSegs(a.pts, a.angle || 45, hatchGap(a)).map(g => `M${g[0][0]},${g[0][1]}L${g[1][0]},${g[1][1]}`).join('');
-      return `<polygon points="${a.pts.map(pt => pt.join(',')).join(' ')}" fill="none" stroke="${ln}" stroke-width="${sw}" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="${ln}" stroke-width="${Math.max(0.5, sw * 0.6)}"/>`;
+      return `<polygon points="${a.pts.map(pt => pt.join(',')).join(' ')}" fill="none" stroke="${ln}" stroke-width="${sw}" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="${a.fh ? fc : ln}" stroke-width="${Math.max(0.5, sw * 0.6)}"/>`;
     }
     case 'disc': { const r = Math.hypot(q[0] - p[0], q[1] - p[1]); return `<circle cx="${p[0]}" cy="${p[1]}" r="${r}" fill="${a.color}" fill-opacity=".8" stroke="${ln}" stroke-width="${sw / 2}"/>`; }
     case 'box': return `<rect x="${Math.min(p[0], q[0])}" y="${Math.min(p[1], q[1])}" width="${Math.abs(q[0] - p[0])}" height="${Math.abs(q[1] - p[1])}" fill="${a.color}" fill-opacity=".8" stroke="${ln}" stroke-width="${sw / 2}"/>`;
@@ -161,7 +164,7 @@ async function openPlanViewer(plan, ctx) {
 
   const st = {
     scale: 1, tx: 0, ty: 0,
-    tool: ctx && ctx.startTool ? ctx.startTool : 'pan', color: '#ff0000', textSize: 8,   // v1.0.53 : ouvert directement en mode « pin photos » depuis la barre des lots
+    tool: ctx && ctx.startTool ? ctx.startTool : 'pan', color: '#ff0000', textSize: 16,   // v1.0.53 : ouvert directement en mode « pin photos » depuis la barre des lots
     filters: { tasks: true, links: true, annots: true },
     tasks: [], links: [], undo: [], flyout: null, fitScale: 1,
     toolsOpen: true, shape: 'free', pend: null, sel: -1, hue: '#e53935', shade: -0.5, thick: 4,
@@ -609,7 +612,7 @@ async function openPlanViewer(plan, ctx) {
     const hue = selA ? (selA.hue || selA.color) : st.hue, shade = selA ? (selA.shade || 0) : st.shade;
     const isText = selA ? selA.type === 'text' : st.shape === 'text';
     const thick = selA ? (selA.type === 'text' ? 0 : Math.round(selA.sw * 1600 / base)) : st.thick;
-    const tsize = selA && selA.type === 'text' ? Math.round(selA.fs * 500 / base) : st.textSize;
+    const tsize = selA && selA.type === 'text' ? Math.round(selA.fs * 1000 / base) : st.textSize;
     const col = shadeHex(hue, shade);
     bar.innerHTML = `
       <div class="pb-row">
@@ -622,6 +625,7 @@ async function openPlanViewer(plan, ctx) {
         ${selA ? `<button class="pb danger" data-p="delsel">${icon('trash')}</button><button class="pb ok" data-p="unsel">${icon('check')}</button>` : ''}
       </div>
       <div class="pb-colors">${HUES.map(c => `<button class="sw2 ${c === hue ? 'on' : ''}" data-c="${c}" style="background:${c}"></button>`).join('')}</div>
+      ${(selA && (selA.type === 'polygon' || selA.type === 'poly')) || (!selA && st.tool === 'draw' && st.shape === 'poly') ? `<div class="pb-colors pb-fill"><span class="pb-lbl">Remplissage</span><button class="sw2 ${(selA ? selA.fh : st.fh) ? '' : 'on'}" data-f="same" title="Même couleur que le contour" style="background:#fff;color:#333;font-size:12px;font-weight:700">=</button>${HUES.map(c => `<button class="sw2 ${c === (selA ? selA.fh : st.fh) ? 'on' : ''}" data-f="${c}" style="background:${c}"></button>`).join('')}</div>` : ''}
       <div class="pb-sliders">
         <label><span>Intensité</span><input type="range" min="0" max="100" step="1" value="${Math.round((Math.max(-0.5, Math.min(0.8, shade)) + 0.5) / 1.3 * 100)}" data-r="shade"
           style="background:linear-gradient(90deg, ${shadeHex(hue, -0.5)}, ${shadeHex(hue, 0.8)})"></label>
@@ -634,12 +638,17 @@ async function openPlanViewer(plan, ctx) {
       if (selA) apply(a => { a.hue = b.dataset.c; a.shade = a.shade || 0; }); else st.hue = b.dataset.c;
       bar._undo = false; renderPBar(); drawPending();
     });
+    $$('[data-f]', bar).forEach(b => b.onclick = () => {
+      const v = b.dataset.f === 'same' ? null : b.dataset.f;
+      if (selA) { pushUndo(); selA.fh = v; renderAnnots(); saveAnnots(); renderSel(); } else st.fh = v;
+      renderPBar(); drawPending();
+    });
     $$('[data-r]', bar).forEach(r => r.oninput = () => {
       const v = +r.value, k = r.dataset.r;
       if (k === 'shade') { const sh = -0.5 + v / 100 * 1.3; if (selA) apply(a => { a.hue = a.hue || a.color; a.shade = sh; }); else st.shade = sh; }   // v1.0.78 : une seule direction, couleur → pâle
       if (k === 'thick') { if (selA) apply(a => { a.sw = base * v / 1600; }); else st.thick = v; const thv = $('.th-val', bar); if (thv) thv.textContent = v; }
       if (k === 'gap') { if (selA) apply(a => { a.gap = v; }); const gv = $('.gap-val', bar); if (gv) gv.textContent = v; }
-      if (k === 'ts') { if (selA) apply(a => { a.fs = v * base / 500; }); else st.textSize = v; const tv = $('.ts-val', bar); if (tv) tv.textContent = v; }
+      if (k === 'ts') { if (selA) apply(a => { a.fs = v * base / 1000; }); else st.textSize = v; const tv = $('.ts-val', bar); if (tv) tv.textContent = v; }
       const pv = $('.pb-prev span', bar); pv.style.background = selA ? selA.color : st.color;
       if (k === 'thick') pv.style.height = Math.max(2, Math.min(14, v)) + 'px';
       if (k === 'shade') $$('[data-c]', bar).forEach(() => {});
@@ -795,7 +804,7 @@ async function openPlanViewer(plan, ctx) {
     gPend.innerHTML = (pts.length > 1 ? annotSVG({ type, pts, color: st.color, sw: strokeW() }) : '') +
       pts.map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="${r}" fill="#fff" stroke="${st.color}" stroke-width="${2 / st.scale}"/>`).join('');
   }
-  function addAnnot(a) { pushUndo(); plan.annotations.push({ id: DB.uid(), color: st.color, hue: st.hue, shade: st.shade, sw: strokeW(), ...a }); renderAnnots(); saveAnnots(); renderMarkers(); }
+  function addAnnot(a) { pushUndo(); plan.annotations.push({ id: DB.uid(), color: st.color, hue: st.hue, shade: st.shade, sw: strokeW(), ...(st.fh ? { fh: st.fh } : {}), ...a }); renderAnnots(); saveAnnots(); renderMarkers(); }
   // toucher près du 1er point (3 points au moins) : la polyligne se ferme toute seule
   function polySnapClose(p) {
     const pd = st.pend; if (!pd || pd.pts.length < 3) return false;
@@ -1079,7 +1088,7 @@ async function openPlanViewer(plan, ctx) {
       const r = await formSheet('Texte', [{ name: 'text', label: 'Texte à afficher sur le plan' }], { okLabel: 'Ajouter' });
       if (r && r.text) {
         pushUndo();
-        plan.annotations.push({ id: DB.uid(), type: 'text', pts: [[x, y]], text: r.text, color: st.color, hue: st.hue, shade: st.shade, fs: st.textSize * base / 500 });
+        plan.annotations.push({ id: DB.uid(), type: 'text', pts: [[x, y]], text: r.text, color: st.color, hue: st.hue, shade: st.shade, fs: st.textSize * base / 1000 });
         renderAnnots(); saveAnnots(); renderMarkers();
       }
     }
@@ -1227,7 +1236,8 @@ function annotPdfDraw(pg, a, ox, oy, s, font) {
   // v1.0.108 : le contour garde la couleur de la palette (comme à l'écran), le remplissage prend l'intensité
   const hl = String(a.hue || a.color || '#e11d48').replace('#', ''), nl = parseInt(hl.length === 3 ? hl.split('').map(c => c + c).join('') : hl.slice(0, 6), 16) || 0;
   const lc = rgb(((nl >> 16) & 255) / 255, ((nl >> 8) & 255) / 255, (nl & 255) / 255), sw = (a.sw || 3) * s, P = a.pts || [], [p, q] = P;
-  const path = (d, o) => pg.drawSvgPath(d, { x: ox, y: oy, scale: s, borderLineCap: PDFLib.LineCapStyle.Round, ...o });
+  const path = (d, o) => pg.drawSvgPath(d, { x: ox, y: oy, scale: s, borderLineCap: PDFLib.LineCapStyle.Round, borderLineJoin: PDFLib.LineJoinStyle.Round, ...o });
+  const fcol = a.fh ? hexRgbPdf(fillHexOf(a)) : null;
   const line = (pts, closed) => 'M' + pts.map(t => t[0] + ' ' + t[1]).join(' L') + (closed ? ' Z' : '');
   const stroke = { borderColor: lc, borderWidth: sw / s };
   switch (a.type) {
@@ -1235,9 +1245,9 @@ function annotPdfDraw(pg, a, ox, oy, s, font) {
     case 'line': return path(line([p, q]), stroke);
     case 'polygon': {
       if (P.length <= 2) return;
-      if (a.fill !== 'hatch') return path(line(P, true), { ...stroke, color: col, opacity: .9 });   // PDF vectoriel : couleurs plus fortes
+      if (a.fill !== 'hatch') return path(line(P, true), { ...stroke, color: fcol || col, opacity: .9 });   // PDF vectoriel : couleurs plus fortes
       path(line(P, true), stroke);
-      hatchSegs(P, a.angle || 45, hatchGap(a)).forEach(g => path(`M${g[0][0]} ${g[0][1]} L${g[1][0]} ${g[1][1]}`, { borderColor: lc, borderWidth: Math.max(0.5, sw * 0.6) / s }));
+      hatchSegs(P, a.angle || 45, hatchGap(a)).forEach(g => path(`M${g[0][0]} ${g[0][1]} L${g[1][0]} ${g[1][1]}`, { borderColor: fcol || lc, borderWidth: Math.max(0.8, sw * 0.6 / s) }));
       return;
     }
     case 'rect': case 'box': { const x = Math.min(p[0], q[0]), y = Math.min(p[1], q[1]), w = Math.abs(q[0] - p[0]), h = Math.abs(q[1] - p[1]); return path(`M${x} ${y} H${x + w} V${y + h} H${x} Z`, a.type === 'box' ? { color: col, opacity: 1, borderColor: col, borderWidth: sw / s / 2 } : stroke); }
