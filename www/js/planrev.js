@@ -98,7 +98,7 @@ async function newPlanIndice(plan) {
     if (!img) { ld.close(); return null; }
     const kx = img.w / plan.w, ky = img.h / plan.h;
     np = await DB.put('plans', {
-      projectId: plan.projectId, folderId: plan.folderId, fileId: img.fileId, pdfFileId: img.pdfFileId || null, pdfPage: img.pdfPage || null, dxfFileId: img.dxfFileId || null, dwgFileId: img.dwgFileId || null,
+      projectId: plan.projectId, folderId: plan.folderId, lotId: plan.lotId || null, fileId: img.fileId, pdfFileId: img.pdfFileId || null, pdfPage: img.pdfPage || null, dxfFileId: img.dxfFileId || null, dwgFileId: img.dwgFileId || null,
       w: img.w, h: img.h, name: plan.name, annotations: (plan.annotations || []).map(a => scaleAnnot(a, kx, ky)),
       indice: (r.ind || nextIndice(planIndice(plan))).toUpperCase(), serieId: planSerie(plan), prevId: plan.id, indiceNote: r.note || '', indiceDate: r.date || todayISO(),
     });
