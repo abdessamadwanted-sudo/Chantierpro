@@ -738,6 +738,12 @@ async function folderMenu(f, root) {
   }
 }
 
+// lot d'un dossier : le sien, sinon celui du dossier parent (un sous-dossier créé dans un lot garde ce lot)
+function lotOfFolder(folderId, folders) {
+  let x = (folders || []).find(f => f.id === folderId);
+  while (x && !x.lotId && x.parentId) x = (folders || []).find(f => f.id === x.parentId);
+  return x && x.lotId ? x.lotId : null;
+}
 async function importPlans(folders, root, fromDrive = false, presetFolder) {
   const pid = App.project.id;
   let folderId = presetFolder === undefined ? null : presetFolder;
@@ -763,12 +769,14 @@ async function importPlans(folders, root, fromDrive = false, presetFolder) {
     if (bad.length) { toast(`Ignoré : ${bad.map(f => f.name).join(', ')} (PDF, image, DWG ou DXF)`); files = files.filter(f => !bad.includes(f)); }
   }
   if (!files.length) return;
+  // v1.1 : sans le lot ouvert (ex. « Ajouter un plan » depuis un sous-dossier), le plan prend le lot du dossier au lieu de rester sans lot
+  const defLot = App.newPlanLot || lotOfFolder(folderId, folders) || null;
   const ld = loading('Import du plan…');
   try {
     for (const file of files) {
       const base = file.name.replace(/\.[^.]+$/, '');
       if (/\.(dwg|dxf)$/i.test(file.name)) {   // AutoCAD : DXF affiché comme plan (le DWG est expliqué)
-        for (const im of await fileToPlanImages(file, pid, ld)) await DB.put('plans', { projectId: pid, folderId, lotId: App.newPlanLot || null, fileId: im.fileId, dxfFileId: im.dxfFileId, dwgFileId: im.dwgFileId || null, w: im.w, h: im.h, name: im.name, annotations: [], indice: 'A' });
+        for (const im of await fileToPlanImages(file, pid, ld)) await DB.put('plans', { projectId: pid, folderId, lotId: defLot, fileId: im.fileId, dxfFileId: im.dxfFileId, dwgFileId: im.dwgFileId || null, w: im.w, h: im.h, name: im.name, annotations: [], indice: 'A' });
         continue;
       }
       if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf' && !isRasterImage(file)) { await alertBox(`Format non pris en charge : ${file.name}`); continue; }
@@ -778,11 +786,11 @@ async function importPlans(folders, root, fromDrive = false, presetFolder) {
         const src = await DB.put('files', { projectId: pid, blob: file, mime: 'application/pdf', role: 'plansrc', name: file.name });
         for (const pg of pages) {
           const f = await DB.put('files', { projectId: pid, blob: pg.blob, mime: 'image/jpeg', role: 'plan', w: pg.w, h: pg.h, name: file.name });
-          await DB.put('plans', { projectId: pid, folderId, lotId: App.newPlanLot || null, fileId: f.id, pdfFileId: src.id, pdfPage: pg.page, w: pg.w, h: pg.h, name: pages.length > 1 ? `${base} - p${pg.page}` : base, annotations: [] });
+          await DB.put('plans', { projectId: pid, folderId, lotId: defLot, fileId: f.id, pdfFileId: src.id, pdfPage: pg.page, w: pg.w, h: pg.h, name: pages.length > 1 ? `${base} - p${pg.page}` : base, annotations: [] });
         }
       } else {
         const f = await saveImageFile(pid, file, 'plan');
-        await DB.put('plans', { projectId: pid, folderId, lotId: App.newPlanLot || null, fileId: f.id, w: f.w, h: f.h, name: base, annotations: [] });
+        await DB.put('plans', { projectId: pid, folderId, lotId: defLot, fileId: f.id, w: f.w, h: f.h, name: base, annotations: [] });
       }
     }
     if (folderId) { App.openFolders[folderId] = true; const fo = folders.find(x => x.id === folderId); if (fo && fo.parentId) App.openFolders[fo.parentId] = true; } else App.openFolders._none = true;
