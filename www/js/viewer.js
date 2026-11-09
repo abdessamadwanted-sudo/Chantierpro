@@ -697,6 +697,8 @@ async function openPlanViewer(plan, ctx) {
     if (t === 'draw') { if (st.flyout) return closeFly(); return openShapePicker(btn); }
     closeFly();
     if (t === 'undo') {
+      // tracé en cours (polyligne / ligne pas encore validée) : annule d'abord son dernier point
+      if (st.pend) { if (st.pend.pts.length > 1) st.pend.pts.pop(); else st.pend = null; drawPending(); return renderTools(); }
       if (!st.undo.length) return toast('Rien à annuler');
       plan.annotations = JSON.parse(st.undo.pop()); st.sel = -1; renderAnnots(); saveAnnots(); renderSel(); renderMarkers(); return renderTools();
     }
