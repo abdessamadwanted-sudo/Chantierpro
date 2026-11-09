@@ -123,20 +123,29 @@ async function newPlanIndice(plan) {
 // aux MÊMES coordonnées. Si les deux images ont la même taille, rien n'est recalculé ; sinon mise à l'échelle.
 async function transferToIndice(oldPlan, np) {
   if (!oldPlan || !np || oldPlan.id === np.id) return null;
-  const kx = np.w / oldPlan.w, ky = np.h / oldPlan.h;
+  // calage (optionnel) : décalage en pixels du plan et échelle, appliqués au transfert
+  const cal = await formSheet(`Calage — Ind. ${np.indice}`, [
+    { name: 'dx', label: 'Décalage horizontal (px, + vers la droite)', type: 'number', value: '0' },
+    { name: 'dy', label: 'Décalage vertical (px, + vers le bas)', type: 'number', value: '0' },
+    { name: 'sc', label: 'Échelle (%) — 100 = inchangé', type: 'number', value: '100' },
+  ], { okLabel: 'Transférer' });
+  if (!cal) return null;
+  const DX = +cal.dx || 0, DY = +cal.dy || 0, SC = (+cal.sc || 100) / 100;
+  const kx = np.w / oldPlan.w * SC, ky = np.h / oldPlan.h * SC;
+  const sh = (x, y) => [x + DX, y + DY];
   const moved = { links: 0, tasks: 0, locaux: 0 }, flagged = [];
   const ld = loading('Transfert des dessins et pins…');
   try {
     let diff = null; try { diff = await planDiff(oldPlan, np, 1400, { map: await planAlignMap(oldPlan, np) }); } catch (e) { console.warn('diff', e); }
     const inChange = (x, y) => diff && diff.rects.some(q => x >= q.x - q.pad && x <= q.x + q.w + q.pad && y >= q.y - q.pad && y <= q.y + q.h + q.pad);
     if (!np.annotFrom) {   // dessins copiés une seule fois
-      np.annotations = [...(np.annotations || []), ...(oldPlan.annotations || []).map(a => scaleAnnot(a, kx, ky))];
+      np.annotations = [...(np.annotations || []), ...(oldPlan.annotations || []).map(a => { const b = scaleAnnot(a, kx, ky); if (b.pts) b.pts = b.pts.map(([x, y]) => sh(x, y)); return b; })];
       np.annotFrom = oldPlan.id;
     }
     for (const l of await DB.byProject('links', oldPlan.projectId)) {
       let ch = false;
       if (l.planId === oldPlan.id) {
-        scaleGeom(l, kx, ky); l.planId = np.id; ch = true;
+        scaleGeom(l, kx, ky); if (l.x != null) { l.x += DX; l.y += DY; } if (Array.isArray(l.pts)) l.pts = l.pts.map(([x, y]) => sh(x, y)); l.planId = np.id; ch = true;
         if (l.kind === 'local') moved.locaux++; else moved.links++;
         const cx = l.w != null ? l.x + l.w / 2 : l.x, cy = l.h != null ? l.y + l.h / 2 : l.y;
         if (inChange(cx, cy)) { l.checkIndice = np.indice; flagged.push(l.name || 'Pin'); } else delete l.checkIndice;
@@ -148,7 +157,7 @@ async function transferToIndice(oldPlan, np) {
     }
     for (const t of await DB.byProject('tasks', oldPlan.projectId)) {
       if (t.planId !== oldPlan.id) continue;
-      if (t.x != null) { t.x *= kx; t.y *= ky; }
+      if (t.x != null) { t.x = t.x * kx + DX; t.y = t.y * ky + DY; }
       t.planId = np.id; moved.tasks++;
       if (t.x != null && inChange(t.x, t.y)) flagged.push(`Tâche #${t.num || ''}`);
       await DB.put('tasks', t);
