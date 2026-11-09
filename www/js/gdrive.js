@@ -289,15 +289,27 @@ const GDrive = (() => {
     const zips = l.filter(f => f.name === BK_NAME || (f.name.startsWith(BK_PREFIX) && f.name.endsWith('.chantier.zip')));
     return zips.map(z => ({ ...z, manifestId: mans.get(z.name) || null })).sort((a, b) => Date.parse(b.modifiedTime) - Date.parse(a.modifiedTime));
   }
-  // enregistre une nouvelle sauvegarde datée + son manifeste, puis met à la corbeille les plus anciennes (au-delà de BK_KEEP)
-  async function backupSaveDated(blob, manifest) {
-    const folder = await path(BK_DIR);
-    const name = BK_PREFIX + stamp() + '.chantier.zip';
+  // sauvegarde PAR ESPACE : « Espace-<espace>_<date>.chantier.zip » rangé directement dans « SiteTeam / projects »
+  // (un ZIP par espace, 2 gardés par espace, les autres espaces ne sont jamais touchés)
+  const ESP_PREFIX = 'Espace-', ESPX = /^Espace-(.+)_(\d{4}-\d{2}-\d{2}_\d{4})\.chantier\.zip$/;
+  const espBase = (e) => ESP_PREFIX + pSafe(e);
+  async function espaceBackupList(espace) {
+    const folder = await path(['projects']);
+    const l = await list(`'${folder}' in parents and trashed=false`, 'id,name,size,modifiedTime');
+    const mans = new Map(l.filter(f => f.name.startsWith(ESP_PREFIX) && f.name.endsWith('.manifest.json')).map(f => [f.name.replace(/\.manifest\.json$/, '.chantier.zip'), f.id]));
+    return l.filter(f => ESPX.test(f.name) && (espace == null || f.name.startsWith(espBase(espace) + '_')))
+      .map(f => { const m = ESPX.exec(f.name); return { ...f, espace: m[1], stamp: m[2], manifestId: mans.get(f.name) || null }; })
+      .sort((a, b) => Date.parse(b.modifiedTime) - Date.parse(a.modifiedTime));
+  }
+  // enregistre la sauvegarde d'un espace + son manifeste, puis met à la corbeille les plus anciennes DE CET ESPACE (au-delà de BK_KEEP)
+  async function backupSaveDated(blob, manifest, espace) {
+    const folder = await path(['projects']);
+    const name = espBase(espace || 'Espace') + '_' + stamp() + '.chantier.zip';
     const r = await create({ name, parents: [folder], mimeType: 'application/zip' }, blob, 'application/zip');
     await create({ name: name.replace(/\.chantier\.zip$/, '.manifest.json'), parents: [folder], mimeType: 'application/json' }, new Blob([JSON.stringify(manifest)], { type: 'application/json' }), 'application/json');
-    const mine = (await backupList()).filter(z => z.name.startsWith(BK_PREFIX)).sort((a, b) => (a.name < b.name ? 1 : -1));
+    const mine = (await espaceBackupList(espace || 'Espace')).sort((a, b) => (a.name < b.name ? 1 : -1));
     for (const old of mine.slice(BK_KEEP)) {
-      try { await patch(`${API}/files/${old.id}`, { trashed: true }); if (old.manifestId) await patch(`${API}/files/${old.manifestId}`, { trashed: true }); } catch (e) { console.warn('purge sauvegarde', e); }
+      try { await patch(`${API}/files/${old.id}`, { trashed: true }); if (old.manifestId) await patch(`${API}/files/${old.manifestId}`, { trashed: true }); } catch (e) { console.warn('purge espace', e); }
     }
     return { id: r.id, name, size: blob.size };
   }
@@ -327,7 +339,7 @@ const GDrive = (() => {
   // (ignore la sauvegarde complète « SiteTeam-sauvegarde_… »)
   async function projectBackupList() {
     const l = await list(`name contains '.chantier.zip' and mimeType='application/zip' and trashed=false`, 'id,name,size,modifiedTime,parents');
-    return l.filter(f => PRX.test(f.name) && !f.name.startsWith(BK_PREFIX)).map(f => { const m = PRX.exec(f.name); return { ...f, project: m[1], stamp: m[2] }; });
+    return l.filter(f => PRX.test(f.name) && !f.name.startsWith(BK_PREFIX) && !f.name.startsWith(ESP_PREFIX)).map(f => { const m = PRX.exec(f.name); return { ...f, project: m[1], stamp: m[2] }; });
   }
   // enregistre le ZIP d'un projet dans SON dossier (pas de dossier « Sauvegardes » par projet),
   // puis met à la corbeille les plus anciennes de ce projet (au-delà de PBK_KEEP)
@@ -340,5 +352,5 @@ const GDrive = (() => {
     return { id: r.id, name, size: blob.size, folder };
   }
 
-  return { available, connect, call, forget, SCOPE, _reset: reset, backupInfo, backupSave, backupGet, projectSave, backupList, backupSaveDated, backupManifest, downloadProgress, BK_KEEP, projectBackupList, projectBackupSave, PBK_KEEP };
+  return { available, connect, call, forget, SCOPE, _reset: reset, backupInfo, backupSave, backupGet, projectSave, backupList, backupSaveDated, espaceBackupList, backupManifest, downloadProgress, BK_KEEP, projectBackupList, projectBackupSave, PBK_KEEP };
 })();

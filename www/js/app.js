@@ -1574,17 +1574,20 @@ async function restoreBackup() {
 }
 
 // v1.0.74 : sauvegarde complète unique dans Google Drive (SiteTeam / Sauvegardes) — mise à jour, jamais dupliquée
+// nom de l'espace courant (sert de nom au dossier et au fichier de sauvegarde Drive)
+function espaceNameNow() { const C = (Team.company && Team.company()) || {}; return (C.name || 'Espace').trim() || 'Espace'; }
+function cloudKey() { return 'bk.cloud:' + espaceNameNow(); }
 async function cloudSaveAll(auto = false) {
   if (!GDrive.available() || !Sync.enabled()) { if (!auto) alertBox('Connectez d\'abord Google Drive (Paramètres › Google Drive).'); return false; }
-  // garde-fou : on n'écrase jamais la sauvegarde Drive avec MOINS de projets sans confirmation
-  const n = (await DB.all('projects')).length, prev = (() => { try { return (JSON.parse(localStorage.getItem('bk.cloud') || 'null') || {}).n || 0; } catch (e) { return 0; } })();
+  // garde-fou : on n'écrase jamais la sauvegarde Drive de CET espace avec MOINS de projets sans confirmation
+  const n = (await DB.all('projects')).length, prev = (() => { try { return (JSON.parse(localStorage.getItem(cloudKey()) || 'null') || {}).n || 0; } catch (e) { return 0; } })();
   if (n < prev) { if (auto) return false; const ok = await confirmBox(`Ce téléphone a ${n} projet(s), la sauvegarde Drive en a ${prev}. La remplacer quand même ?`, 'Remplacer'); if (!ok) return false; }
   const ld = auto ? null : loading('Sauvegarde Drive…');
   try {
     const blob = await Backup.buildAllBlob((i, n2) => ld && ld.set(`Sauvegarde Drive… ${i}/${n2}`));
     const manifest = { app: 'chantier', v: 1, at: Date.now(), projects: (await DB.all('projects')).map(x => ({ id: x.id, name: x.name })) };
-    const r = await GDrive.backupSaveDated(blob, manifest);
-    try { localStorage.setItem('bk.cloud', JSON.stringify({ at: Date.now(), size: blob.size, id: r.id, n })); } catch (e) {}
+    const r = await GDrive.backupSaveDated(blob, manifest, espaceNameNow());
+    try { localStorage.setItem(cloudKey(), JSON.stringify({ at: Date.now(), size: blob.size, id: r.id, n })); } catch (e) {}
     ld && ld.close(); if (!auto) toast('☁ Sauvegarde complète mise à jour dans Drive ✓');
     return true;
   } catch (e) {
@@ -1595,7 +1598,7 @@ async function cloudSaveAll(auto = false) {
 }
 // sauvegarde automatique : au plus une fois par jour, seulement si Drive est connecté et qu'il y a des projets
 function cloudAutoCheck() {
-  try { const L = JSON.parse(localStorage.getItem('bk.cloud') || 'null'); if (L && Date.now() - L.at < 24 * 3600e3) return; } catch (e) {}
+  try { const L = JSON.parse(localStorage.getItem(cloudKey()) || 'null'); if (L && Date.now() - L.at < 24 * 3600e3) return; } catch (e) {}
   if (!window.__safe) cloudSaveAll(true);
 }
 // choix de projets (cases à cocher) dans une feuille du bas ; renvoie les identifiants choisis ou null
@@ -1620,7 +1623,8 @@ async function restoreFromDrive() {
   if (!GDrive.available() || !Sync.enabled()) return alertBox('Connectez d\'abord Google Drive (Paramètres › Google Drive), puis réessayez.');
   const ld = loading('Recherche des sauvegardes…');
   let perProject = [], full = [];
-  try { [perProject, full] = await Promise.all([GDrive.projectBackupList(), GDrive.backupList()]); }
+  let espaces = [];
+  try { [perProject, full, espaces] = await Promise.all([GDrive.projectBackupList(), GDrive.backupList(), GDrive.espaceBackupList()]); }
   catch (e) { ld.close(); return alertBox('Drive inaccessible : ' + (e.message || e)); }
   ld.close();
   const groups = new Map();
@@ -1628,11 +1632,20 @@ async function restoreFromDrive() {
   for (const g of groups.values()) g.sort((x, y) => (x.stamp < y.stamp ? 1 : -1));
   const names = [...groups.keys()].sort((x, y) => x.localeCompare(y, 'fr'));
   const items = names.map(n => ({ label: `${n} · ${groups.get(n).length} sauvegarde(s)`, icon: 'drive', value: 'p:' + n }));
-  if (full.length) items.push({ label: '☁ Sauvegarde complète (tous les projets)', icon: 'drive', value: 'full' });
+  const espGroups = new Map();
+  for (const z of espaces) { if (!espGroups.has(z.espace)) espGroups.set(z.espace, []); espGroups.get(z.espace).push(z); }
+  for (const [en, L] of espGroups) items.unshift({ label: `🏢 ${en} · ${L.length} sauvegarde(s)`, icon: 'drive', value: 'e:' + en });
+  if (full.length) items.push({ label: '☁ Sauvegarde complète (ancienne)', icon: 'drive', value: 'full' });
   if (!items.length) return alertBox('Aucune sauvegarde dans Drive (dossier SiteTeam / projects / Sauvegardes) pour ce compte Google.');
   const v = await menu('Restaurer quel projet ?', items);
   if (v == null) return;
   if (v === 'full') return restoreFullBackup(full);
+  if (v.startsWith('e:')) {
+    const en = v.slice(2);
+    // une sauvegarde d'espace ne se restaure que dans SON espace (jamais mélangée à un autre)
+    if (en !== espaceNameNow()) return alertBox(`Cette sauvegarde appartient à l'espace « ${en} ». Ouvrez cet espace (menu de l'espace en haut), puis restaurez-la.`);
+    return restoreFullBackup(espGroups.get(en));
+  }
   const name = v.slice(2), versions = groups.get(name);
   const k = await menu(`Quelle sauvegarde de « ${name} » ?`, versions.map((z, i) => ({ label: `${fmtDateTime(Date.parse(z.modifiedTime))} · ${Math.round((+z.size || 0) / 1048576)} Mo`, icon: 'drive', value: i })));
   if (k == null) return;
