@@ -494,7 +494,7 @@ async function openPlanViewer(plan, ctx) {
         <path d="M0,0 C-4,-10 -14,-14 -14,-26 A14,14 0 1 1 14,-26 C14,-14 4,-10 0,0Z" fill="${c}" stroke="#fff" stroke-width="2"/>
         ${m >= 0.25 ? `<text x="0" y="-21" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" font-family="Arial">${t.num}</text>` : ''}</g>`;
     }).join('');
-    gLinks.innerHTML = st.links.filter(l => l.planId === plan.id).map(l => {
+    gLinks.innerHTML = PILL_DEFS + st.links.filter(l => l.planId === plan.id).map(l => {
       const n = showCount ? (l.kind === 'plansbox' ? plansboxCount(l) : l.kind === 'photonote' ? (typeof pnCount === 'function' ? pnCount(l) : (l.photos || []).length) + (l.notes || []).length : (l.items || []).length) : 0;
       const ls = 1 / st.scale;
       const [px, py] = linkXY(l);
@@ -512,6 +512,16 @@ async function openPlanViewer(plan, ctx) {
       if (l.kind === 'photonote') return `<g transform="translate(${px},${py}) scale(${Math.max(0.3, m) / st.scale})">${photoPinSVG(n)}
         ${showLabel ? `<text x="0" y="16" text-anchor="middle" font-size="12" fill="#b91c1c" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`;
       const P = pinLook(l);
+      // local technique : pastille (pill) au nom du local, couleur selon l'état (vert = loin, rouge = proche / en retard, ✓ = terminé)
+      // pastille unifiée : signal + « local » ou « ouvrage » + nom ; couleur d'état ; halo lumineux
+      if (l.kind === 'local' || l.kind === 'recpin') {
+        const lk = l.kind === 'local' ? localPillLook(l) : { c: P.c }, kindTxt = l.kind === 'local' ? 'local' : 'ouvrage';
+        const label = esc(`${kindTxt} · ${String(l.name || kindTxt).slice(0, 22)}`), w = Math.max(96, label.length * 6.9 + 44);
+        return `<g transform="translate(${px},${py}) scale(${s})"><line x1="0" y1="0" x2="0" y2="-12" stroke="${lk.c}" stroke-width="2"/><circle r="3.5" fill="${lk.c}" stroke="#fff" stroke-width="1.5"/>
+          <g filter="url(#pillGlow)"><rect x="${-w / 2}" y="-40" width="${w}" height="28" rx="14" fill="${lk.c}" fill-opacity=".92" stroke="#fff" stroke-width="1.5"/></g>
+          <circle cx="${-w / 2 + 16}" cy="-26" r="8" fill="none" stroke="#fff" stroke-width="1.5" stroke-opacity=".7"/><circle cx="${-w / 2 + 16}" cy="-26" r="3.5" fill="#fff"/>
+          <text x="${-w / 2 + 30}" y="-21" font-size="12.5" font-weight="700" fill="#fff" font-family="Arial">${label}</text></g>`;
+      }
       return `<g transform="translate(${px},${py}) scale(${s})">${linkPin(P.c, n, P.e)}
         ${showLabel ? `<text x="0" y="16" text-anchor="middle" font-size="12" fill="${P.c}" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`;
     }).join('');
@@ -1219,6 +1229,15 @@ const PIN_LOOKS = {
 };
 const PIN_EMOJIS = ['📐', '🔩', '✂️', '📷', '📄', '📝', '🧊', '🔗', '📁', '📎', '🏗️', '🧱', '🪜', '🚪', '🪟', '⚡', '💧', '🔥', '⚠️', '✅', '⭐', '📌', '🎯', '🧰', '🛗', '🌀', '🏛️', '🔷'];
 const PIN_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#7c3aed', '#ea580c', '#0891b2', '#ca8a04', '#db2777', '#475569', '#0f766e', '#1e3a8a', '#111827'];
+const PILL_DEFS = '<defs><filter id="pillGlow" x="-60%" y="-80%" width="220%" height="260%"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
+// état d'un local (tous lots) : rouge si proche / en retard, ✓ si tout est terminé, vert sinon
+function localPillLook(l) {
+  const sts = typeof avStatus === 'function' ? Object.values(l.lots || {}).map(r => avStatus(r)) : [];
+  if (sts.some(x => x === 'late' || x === 'soon')) return { c: '#dc2626', e: '' };
+  if (sts.length && sts.every(x => x === 'done' || x === 'donelate')) return { c: '#15803d', e: '✓' };
+  if (sts.some(x => x === 'progress')) return { c: '#16a34a', e: '' };
+  return { c: '#16a34a', e: '' };
+}
 function pinLook(l) {
   if (l.kind === 'plansbox') return { e: l.emoji || '📚', c: l.pinColor || '#1e3a8a' };
   if (l.kind === 'recpin') { if (l.recKind === 'Non-conformité') return l.recLifted ? { e: '✅', c: '#16a34a' } : { e: '⚠️', c: '#dc2626' };
