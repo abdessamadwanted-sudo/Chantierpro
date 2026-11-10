@@ -335,21 +335,48 @@ const GDrive = (() => {
   const PRX = /^(.+)_(\d{4}-\d{2}-\d{2}_\d{4})\.chantier\.zip$/;
   // nom du dossier projet, identique à celui créé par la synchro (sync.js › clean) : « SiteTeam / <projet> »
   const pFolder = (n) => String(n || '').replace(/[\\/:*?"<>|#\n\r\t]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 90) || 'Projet';
-  // liste des sauvegardes par projet : ZIP « <projet>_<date>.chantier.zip » rangés DANS le dossier du projet
-  // (ignore la sauvegarde complète « SiteTeam-sauvegarde_… »)
+  // v1.0.176 : un SEUL zip par projet, « <projet>.chantier.zip », mis à jour sur place (même fichier Drive, jamais un nouveau à chaque fois)
+  // + une copie de sécurité « <projet> (précédente).chantier.zip » (l'état d'avant la dernière sauvegarde).
+  // Le zip est reconstruit depuis l'état actuel du projet : ce qui a été supprimé dans l'appli disparaît du zip à la sauvegarde suivante.
+  const CRX = /^(.+?)( \(précédente\))?\.chantier\.zip$/;
+  const PREV = ' (précédente)';
+  // liste des sauvegardes par projet (zip courant, précédente, et anciens zips datés « <projet>_<date> » toujours lisibles)
   async function projectBackupList() {
     const l = await list(`name contains '.chantier.zip' and mimeType='application/zip' and trashed=false`, 'id,name,size,modifiedTime,parents');
-    return l.filter(f => PRX.test(f.name) && !f.name.startsWith(BK_PREFIX) && !f.name.startsWith(ESP_PREFIX)).map(f => { const m = PRX.exec(f.name); return { ...f, project: m[1], stamp: m[2] }; });
+    const out = [];
+    for (const f of l) {
+      if (f.name.startsWith(BK_PREFIX) || f.name.startsWith(ESP_PREFIX)) continue;
+      const d = PRX.exec(f.name);
+      if (d) { out.push({ ...f, project: d[1], stamp: d[2], legacy: true }); continue; }
+      const m = CRX.exec(f.name); if (!m) continue;
+      out.push({ ...f, project: m[1], previous: !!m[2], stamp: stamp(new Date(f.modifiedTime)) });
+    }
+    return out;
   }
-  // enregistre le ZIP d'un projet dans SON dossier (pas de dossier « Sauvegardes » par projet),
-  // puis met à la corbeille les plus anciennes de ce projet (au-delà de PBK_KEEP)
   async function projectBackupSave(projectName, blob) {
     const folder = await path(['projects', pFolder(projectName)]);
-    const base = pSafe(projectName), name = base + '_' + stamp() + '.chantier.zip';
-    const r = await create({ name, parents: [folder], mimeType: 'application/zip' }, blob, 'application/zip');
-    const mine = (await projectBackupList()).filter(x => x.project === base && (x.parents || []).includes(folder)).sort((a, b) => (a.stamp < b.stamp ? 1 : -1));
-    for (const old of mine.slice(PBK_KEEP)) { try { await patch(`${API}/files/${old.id}`, { trashed: true }); } catch (e) { console.warn('purge projet', e); } }
-    return { id: r.id, name, size: blob.size, folder };
+    const base = pSafe(projectName), name = base + '.chantier.zip', prevName = base + PREV + '.chantier.zip';
+    const find = async (n) => (await list(`name='${qs(n)}' and '${folder}' in parents and trashed=false`, 'id,name,size,modifiedTime'))[0] || null;
+    const cur = await find(name);
+    let id;
+    if (!cur) id = (await create({ name, parents: [folder], mimeType: 'application/zip' }, blob, 'application/zip')).id;
+    else {
+      // copie de sécurité côté Drive (sans retélécharger) : l'ancienne « précédente » est remplacée
+      try {
+        const old = await find(prevName); if (old) await patch(`${API}/files/${old.id}`, { trashed: true });
+        await patchless(`${API}/files/${cur.id}/copy?fields=id`, { name: prevName, parents: [folder] });
+      } catch (e) { console.warn('précédente', e); }
+      if (blob.size <= 4 * 1048576) await req(`${UP}/files/${cur.id}?uploadType=media&fields=id`, { method: 'PATCH', headers: { 'Content-Type': 'application/zip' }, body: blob });
+      else {
+        const s = await req(`${UP}/files/${cur.id}?uploadType=resumable&fields=id`, { method: 'PATCH', headers: { 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': 'application/zip', 'X-Upload-Content-Length': String(blob.size) }, body: '{}' });
+        const loc = s.headers.get('Location') || s.headers.get('location'); if (!loc) throw new Error('Envoi Drive : réponse incomplète');
+        await json(loc, { method: 'PUT', headers: { 'Content-Type': 'application/zip' }, body: blob });
+      }
+      id = cur.id;
+    }
+    // anciens zips datés de ce projet (ancien système) : remplacés par le zip unique → corbeille Drive (récupérables)
+    try { for (const old of (await projectBackupList()).filter(x => x.project === base && x.legacy && (x.parents || []).includes(folder))) await patch(`${API}/files/${old.id}`, { trashed: true }); } catch (e) { console.warn('purge projet', e); }
+    return { id, name, size: blob.size, folder, updated: !!cur };
   }
 
   return { available, connect, call, forget, SCOPE, _reset: reset, backupInfo, backupSave, backupGet, projectSave, backupList, backupSaveDated, espaceBackupList, backupManifest, downloadProgress, BK_KEEP, projectBackupList, projectBackupSave, PBK_KEEP };
