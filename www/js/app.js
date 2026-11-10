@@ -1695,6 +1695,18 @@ async function renderTeam(root) {
 }
 
 // ---------- Paramètres ----------
+// localisation du projet : lien Google Maps (ou coordonnées GPS / adresse) à ouvrir ou à partager sur WhatsApp
+function projectMapUrl(p) {
+  if (p.mapsUrl && /^https?:\/\//i.test(p.mapsUrl.trim())) return p.mapsUrl.trim();
+  const g = String(p.gps || '').match(/(-?\d+(?:\.\d+)?)\s*[,;]\s*(-?\d+(?:\.\d+)?)/);
+  if (g) return `https://www.google.com/maps?q=${g[1]},${g[2]}`;
+  return p.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.address)}` : '';
+}
+function shareProjectWhatsApp(p) {
+  const u = projectMapUrl(p); if (!u && !p.address) return toast('Ajoutez d\'abord l\'adresse ou le lien Google Maps');
+  const text = ['📍 ' + p.name, p.address || '', u].filter(Boolean).join('\n');
+  openUrl('https://wa.me/?text=' + encodeURIComponent(text));
+}
 // intervenants du projet : maître d'ouvrage, architecte, bureau de contrôle, topographe, BET… (plusieurs par rôle possibles)
 const IV_ROLES = [['mo', 'Maître d\'ouvrage', '🏛️'], ['archi', 'Bureau d\'architecture', '📐'], ['controle', 'Bureau de contrôle', '🔍'], ['topo', 'Bureau topographique', '🧭'], ['bet', 'BET (bureau d\'études)', '🧮'], ['autre', 'Autre intervenant', '👤']];
 function ivPanel(box) {
@@ -1741,6 +1753,8 @@ async function renderSettings(root) {
       <label>Nom du projet<input name="name" value="${esc(p.name)}"></label>
       <label>Adresse / ville<input name="address" value="${esc(p.address)}"></label>
       <label>Titre complet sur les tableaux / PDF (optionnel)<input name="pdfTitle" value="${esc(p.pdfTitle || '')}" placeholder="Ex : Projet de construction du Grand stade Benslimane"></label>
+      <label>Lien Google Maps<input name="mapsUrl" type="url" value="${esc(p.mapsUrl || '')}" placeholder="Collez le lien Google Maps du chantier"></label>
+      <div style="display:flex;gap:8px;margin:-4px 0 8px"><button class="btn ghost" data-a="mapopen" style="flex:1">📍 Ouvrir dans Maps</button><button class="btn ghost" data-a="mapwa" style="flex:1">💬 Partager sur WhatsApp</button></div>
       <label>Maître d'ouvrage<input name="mo" value="${esc(p.mo || '')}" placeholder="Ex : SONARGES, ONEE, Commune…"></label>
       <button class="btn" data-a="save">Enregistrer</button>
       <div class="card" style="margin:12px 0 0;padding:14px" data-ivbox></div>
@@ -1770,7 +1784,10 @@ async function renderSettings(root) {
   const wb = $('[data-a=welcome]', root); if (wb) wb.onclick = () => orgOnboard(true);
   fxPanel($('[data-fxbox]', root));
   ivPanel($('[data-ivbox]', root));
-  ($('[data-a=save]', root)||{}).onclick = async () => { p.name = $('[name=name]', root).value.trim() || p.name; p.address = $('[name=address]', root).value.trim(); p.pdfTitle = $('[name=pdfTitle]', root).value.trim(); p.mo = $('[name=mo]', root).value.trim(); await DB.put('projects', p); toast('Enregistré ✓'); renderSection(); };
+  const mapNow = () => { const m = $('[name=mapsUrl]', root); if (m) p.mapsUrl = m.value.trim(); const ad = $('[name=address]', root); if (ad) p.address = ad.value.trim(); };
+  ($('[data-a=mapopen]', root)||{}).onclick = () => { mapNow(); const u = projectMapUrl(p); if (u) openUrl(u); else toast('Ajoutez l\'adresse ou le lien Google Maps'); };
+  ($('[data-a=mapwa]', root)||{}).onclick = () => { mapNow(); shareProjectWhatsApp(p); };
+  ($('[data-a=save]', root)||{}).onclick = async () => { p.name = $('[name=name]', root).value.trim() || p.name; p.address = $('[name=address]', root).value.trim(); p.pdfTitle = $('[name=pdfTitle]', root).value.trim(); p.mo = $('[name=mo]', root).value.trim(); p.mapsUrl = ($('[name=mapsUrl]', root) || {}).value ? $('[name=mapsUrl]', root).value.trim() : ''; await DB.put('projects', p); toast('Enregistré ✓'); renderSection(); };
   ($('[data-a=backup]', root)||{}).onclick = async () => {
     const ld = loading('Préparation de la sauvegarde…');
     try {
