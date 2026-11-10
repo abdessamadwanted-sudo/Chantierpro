@@ -446,7 +446,7 @@ async function renderPointAlerts(c) {
   try {
     if (!c || !App.project) return;
     const L = (await DB.byProject('links', App.project.id)).filter(l => l.kind === 'local' && l.planId && l.x != null);
-    const ord = { red: 0, purple: 1, green: 2 };
+    const ord = { red: 0, client: 1, purple: 2, green: 3 };
     const items = L.map(l => ({ l, al: pointAlert(l) })).filter(x => x.al).sort((a, b) => ord[a.al] - ord[b.al]);
     if (!items.length) return;
     const div = document.createElement('button');
@@ -496,14 +496,14 @@ async function openPhotoTable() {
 // page « Alertes » : tableau des points d'intérêt en alerte, avec filtres (lot, niveau, état)
 async function openAlertsTable(items) {
   const p = App.project;
-  const lab = { red: 'Échéance atteinte', green: 'Moins de 3 jours', purple: 'Demande de fin' };
-  const col = { red: '#dc2626', green: '#16a34a', purple: '#7c3aed' };
+  const lab = { red: 'Retard · échéance atteinte', client: 'Attente client', green: 'Moins de 3 jours', purple: 'Demande de fin' };
+  const col = { red: pillColor('red'), client: pillColor('client'), green: pillColor('green'), purple: pillColor('purple') };
   const rows = [];
   for (const { l, al } of items) {
     const pl = await DB.get('plans', l.planId);
     const lot = pl && pl.lotId ? (avLot(p, pl.lotId) || {}).name || '' : '';
     const niv = l.nivId ? ((p.avNiveaux || []).find(n => n.id === l.nivId) || {}).name || '' : '';
-    const dd = l.due ? avDaysTo(l.due) : null;
+    const dd = l.due ? dueDays(l) : null;
     rows.push({ l, al, lot, niv, plan: pl ? pl.name || '' : '', due: l.due || '', ret: dd == null ? '' : dd < 0 ? `${-dd} j de retard` : `Reste ${dd} j` });
   }
   const uniq = (k) => [...new Set(rows.map(r => r[k]).filter(Boolean))].sort();
@@ -512,7 +512,7 @@ async function openAlertsTable(items) {
     <div class="ptab-f">
       <select data-f="lot">${opt('lot', uniq('lot'))}</select>
       <select data-f="niv">${opt('niv', uniq('niv'))}</select>
-      <select data-f="al">${opt('al', ['red', 'green', 'purple'])}</select>
+      <select data-f="al">${opt('al', ['red', 'client', 'green', 'purple'])}</select>
     </div>
     <div class="ptab-w"><table class="ptab-t"><thead><tr><th></th><th>Nom</th><th>Niveau</th><th>Lot</th><th>Plan</th><th>Échéance</th><th>État</th><th>Retard / reste</th></tr></thead>
     <tbody></tbody></table></div></div>`, { title: `🔔 Alertes · ${rows.length}` });
@@ -941,15 +941,40 @@ async function openExternal(f) {
   }
 }
 
-// tableau de la fiche d'un point d'intérêt : état, dates, retard, documents
+// tableau de la fiche d'un point d'intérêt : état, dates, retard, arrêt client, documents
 function localTableHTML(link) {
   const fd = (iso) => iso ? String(iso).split('-').reverse().join('/') : '—';
   const al = pointAlert(link);
-  const st = link.finished ? ['Terminé', '#15803d'] : link.endReq ? ['Demande de fin du propriétaire', '#7c3aed'] : link.started ? ['Démarré', '#2563eb'] : !link.due ? ['Sans échéance', '#64748b'] : al === 'red' ? ['Échéance atteinte, pas démarré', '#dc2626'] : al === 'green' ? ['Échéance dans moins de 3 jours', '#16a34a'] : ['Pas encore démarré', '#64748b'];
+  const sc = (k) => pillColor(k);
+  const st = link.finished ? ['Terminé', sc('done')] : link.endReq ? ['Demande de fin du propriétaire', sc('purple')] : link.hold ? ['Attente client (arrêt)', sc('client')] : link.started ? ['Démarré', sc('blue')] : !link.due ? ['Sans échéance', sc('grey')] : al === 'red' ? ['Retard : échéance atteinte, pas démarré', sc('red')] : al === 'green' ? ['Échéance dans moins de 3 jours', sc('green')] : ['Pas encore démarré', sc('grey')];
   let late = '—';
-  if (link.due && !link.finished) { const d = avDaysTo(link.due); late = d < 0 ? `<b style="color:#dc2626">${-d} j de retard</b>` : `Reste ${d} j`; }
-  const rows = [['Statut', `<b style="color:${st[1]}">${st[0]}</b>`], ['Début', fd(link.start)], ['Démarré le', fd(link.started)], ['Échéance', fd(link.due)], ['Retard / reste', late], ['Documents', (link.items || []).length]];
+  if (link.due && !link.finished) { const d = dueDays(link); late = d < 0 ? `<b style="color:${sc('red')}">${-d} j de retard</b>` : `Reste ${d} j`; }
+  const ht = holdTotal(link);
+  const hold = link.hold ? `<b style="color:${sc('client')}">En cours depuis le ${fd(link.hold)}</b> · ${ht} j au total` : ht ? `${ht} j cumulés` : '—';
+  const last = (link.dueLog || []).slice(-1)[0];
+  const rows = [['Statut', `<b style="color:${st[1]}">${st[0]}</b>`], ['Début', fd(link.start)], ['Démarré le', fd(link.started)],
+    ['Échéance <small>(maître d\'ouvrage)</small> ✎', `<span data-a="due" style="text-decoration:underline dotted">${fd(link.due)}</span>${last ? `<div class="muted" style="font-size:11px">modifiée le ${fd(last.at)} (avant : ${fd(last.from)})${last.note ? ' · ' + esc(last.note) : ''}</div>` : ''}`],
+    ...(ht ? [['Échéance ajustée', fd(dueEff(link))]] : []),
+    ['Arrêt client', hold], ['Retard / reste', late], ['Documents', (link.items || []).length]];
   return `<table class="lk-tb">${rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table>`;
+}
+// l'échéance est la date demandée par le maître d'ouvrage : on la modifie depuis la fiche, l'historique est gardé
+async function editLocalDue(link, save) {
+  const r = await formSheet('Échéance (ordre du maître d\'ouvrage)', [
+    { name: 'due', label: 'Nouvelle échéance', type: 'date', value: link.due || '' },
+    { name: 'note', label: 'Référence / motif (optionnel)', value: '', placeholder: 'ex : OS n°4, demande du maître d\'ouvrage' },
+  ], { okLabel: 'Enregistrer' });
+  if (!r) return false;
+  const nd = r.due || null;
+  if (nd === (link.due || null)) return false;
+  link.dueLog = [...(link.dueLog || []), { at: todayISO(), from: link.due || null, to: nd, note: r.note || '' }].slice(-20);
+  link.due = nd; await save(); return true;
+}
+// arrêt / attente du client : le retard n'est plus compté sur nous ; à la reprise les jours d'arrêt repoussent l'échéance
+async function toggleLocalHold(link, save) {
+  if (link.hold) { link.holdDays = (+link.holdDays || 0) + Math.max(0, -avDaysTo(link.hold)); link.hold = null; toast('Reprise — ' + link.holdDays + ' j d\'arrêt client ajoutés à l\'échéance'); }
+  else { link.hold = todayISO(); toast('Attente client : la pastille change de couleur'); }
+  await save();
 }
 function openLinkDetail(link) {
   return new Promise(async (resolve) => {
@@ -1055,6 +1080,7 @@ function openLinkDetail(link) {
         if (e.target.closest('[data-m]')) return itemMenu(it);
         openItem(it);
       });
+      const dueEl = $('[data-a=due]', box); if (dueEl) dueEl.onclick = async () => { if (await editLocalDue(link, save)) render(); };
       const lpb = $('[data-a=lphoto]', box); if (lpb) lpb.onclick = async () => { await openPhotoNote(link, { noForms: true }); render(); };
       const dfb = $('[data-a=dfolder]', box); if (dfb) dfb.onclick = async () => {
         const r = await formSheet('Dossier Google Drive', [{ name: 'url', label: 'Lien du dossier Drive', type: 'url', value: link.driveFolder || '', placeholder: 'https://drive.google.com/drive/folders/…' }, { name: 'name', label: 'Nom (optionnel)', value: link.driveFolderName || '' }], { okLabel: 'Enregistrer' });
@@ -1082,8 +1108,9 @@ function openLinkDetail(link) {
       ($('[data-a=more]', box)||{}).onclick = async () => {
         const v = await menu(link.name, [
           { label: 'Renommer', icon: 'edit', value: 'rename' },
+          ...(link.kind === 'local' ? [{ label: 'Échéance (ordre maître d\'ouvrage)', icon: 'calendar', value: 'due' }, { label: link.hold ? 'Reprise (fin d\'attente client)' : 'Attente client (arrêt)', icon: 'alert', value: 'hold' }, { label: 'Couleurs des états (dôme)', icon: 'pin', value: 'pillcol' }] : []),
           ...(link.kind === 'local' ? [{ label: 'Dates (début / échéance)', icon: 'calendar', value: 'dates' }] : []),
-          ...(link.kind === 'local' ? [{ label: 'Forme du panneau', icon: 'pin', value: 'shape' }] : []),
+          ...(link.kind === 'local' ? [{ label: 'Forme du point', icon: 'pin', value: 'shape' }] : []),
           ...(link.kind === 'local' ? [
             { label: link.started ? 'Démarré ✓ (annuler)' : 'Démarré', icon: 'check', value: 'started' },
             { label: link.endReq ? 'Retirer la demande de fin' : 'Demande de fin (propriétaire)', icon: 'alert', value: 'endreq' },
@@ -1096,6 +1123,9 @@ function openLinkDetail(link) {
           const r = await formSheet('Renommer', [{ name: 'name', label: 'Nom', value: link.name }]);
           if (r && r.name) { link.name = r.name; await save(); render(); }
         }
+        if (v === 'due') { if (await editLocalDue(link, save)) render(); }
+        if (v === 'hold') { await toggleLocalHold(link, save); render(); }
+        if (v === 'pillcol') { await choosePillColors(() => render()); }
         if (v === 'dates') {   // début et échéance : la pastille change de couleur selon ces dates
           const r = await formSheet('Dates du local', [
             { name: 'start', label: 'Date de début', type: 'date', value: link.start || '' },
@@ -1103,7 +1133,7 @@ function openLinkDetail(link) {
           ], { okLabel: 'Enregistrer' });
           if (r) { link.start = r.start || null; link.due = r.due || null; await save(); render(); }
         }
-        if (v === 'shape') { const sh = await menu('Forme du panneau', [{ label: 'Panneau avec dates', value: 'board', checked: (link.look || 'board') === 'board' }, { label: 'Rond (sans dates)', value: 'disc', checked: link.look === 'disc' }]); if (sh) { link.look = sh; await save(); render(); } }
+        if (v === 'shape') { const sh = await menu('Forme du point', [{ label: 'Gyrophare 3D (dôme)', value: 'beacon', checked: (link.look || 'beacon') === 'beacon' }, { label: 'Panneau avec dates', value: 'board', checked: link.look === 'board' }, { label: 'Rond (sans dates)', value: 'disc', checked: link.look === 'disc' }]); if (sh) { link.look = sh; await save(); render(); } }
         if (v === 'started') { link.started = link.started ? null : todayISO(); await save(); render(); toast(link.started ? 'Démarré ✓ — le signal rouge s\'arrête' : 'Démarrage annulé'); }
         if (v === 'endreq') { link.endReq = link.endReq ? null : todayISO(); await save(); render(); toast(link.endReq ? 'Demande de fin envoyée — visible dans les alertes' : 'Demande retirée'); }
         if (v === 'finished') { link.finished = link.finished ? null : todayISO(); link.endReq = null; await save(); render(); }

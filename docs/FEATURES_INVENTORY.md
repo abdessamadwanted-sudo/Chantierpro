@@ -93,6 +93,7 @@ création d'invitation par un non-admin, écriture de tâche par un rôle en lec
 | 3D, ferraillage, DXF | Modèles 3D coffrage/ferraillage, OCR nomenclature, barres, plans DXF | m3d.js, fer.js, dxf.js, vendor/3d | Modèles 3D, Maquette 3D | `project.models3d` | Fonctionnel (non testé auto) | Bibliothèques lourdes (≈ 12 Mo) |
 | Calculs | Métré, béton, acier, pente, nivellement, coordonnées | calc.js | Calculs & Topo | `project.calc` | Fonctionnel (non testé auto) | — |
 | Croquis / dessin | Tableau de dessin | sketch.js | Outil | `project.boards` | Fonctionnel (non testé auto) | — |
+| Points d'intérêt (plan) | Marqueur gyrophare 3D (dôme, lampe qui tourne, halo qui pulse) ; échéance modifiable (ordre du maître d'ouvrage, historique) ; attente client (arrêt qui repousse l'échéance) ; couleur du dôme réglable par état | viewer.js (`pointAlert`, `pillColor`, `choosePillColors`), app.js (`editLocalDue`, `toggleLocalHold`) | Plan › Point d'intérêt ; Filtres › Couleurs des états | `links` (`due`, `dueLog`, `hold`, `holdDays`, `look`) ; couleurs dans `localStorage.pillColors` | Fonctionnel (logique testée hors navigateur, rendu vérifié ; non testé de bout en bout) | Les couleurs d'état sont propres à l'appareil |
 | Notifications | Rappels locaux programmés | app.js (`LocalNotifications`) | Rappels | `project.rappels` | **Partiel** | Pas de notifications push entre utilisateurs |
 | Messages | — | — | — | — | **Absent** | Partage via liens WhatsApp uniquement |
 | Planning | — | — | — | — | **Absent** sur SiteTeam (un `planning.js` existe sur `main` seulement) | — |
