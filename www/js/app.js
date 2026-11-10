@@ -443,14 +443,45 @@ async function renderPointAlerts(c) {
     const ord = { red: 0, purple: 1, green: 2 };
     const items = L.map(l => ({ l, al: pointAlert(l) })).filter(x => x.al).sort((a, b) => ord[a.al] - ord[b.al]);
     if (!items.length) return;
-    const lab = { red: 'Échéance atteinte — pas encore démarré', green: 'Échéance dans moins de 3 jours', purple: 'Demande de fin du propriétaire' };
-    const col = { red: '#dc2626', green: '#16a34a', purple: '#7c3aed' };
-    const div = document.createElement('div');
+    const div = document.createElement('button');
     div.className = 'pt-alerts';
-    div.innerHTML = `<details open><summary><b>🔔 Alertes</b><span class="pt-cnt">${items.length}</span></summary>${items.map((x, i) => `<button class="pt-row" data-i="${i}"><i style="background:${col[x.al]}"></i><span><b>${esc(x.l.name || 'Point')}</b><small>${lab[x.al]}${x.l.due ? ' · éch. ' + x.l.due : ''}</small></span></button>`).join('')}</details>`;
+    div.innerHTML = `<span>🔔 Alertes</span><span class="pt-cnt">${items.length}</span>`;
     c.prepend(div);
-    div.querySelectorAll('[data-i]').forEach(b => b.onclick = async () => { await openLinkDetail(items[+b.dataset.i].l); renderSection(); });
+    div.onclick = () => openAlertsTable(items);
   } catch (e) {}
+}
+
+// page « Alertes » : tableau des points d'intérêt en alerte, avec filtres (lot, niveau, état)
+async function openAlertsTable(items) {
+  const p = App.project;
+  const lab = { red: 'Échéance atteinte', green: 'Moins de 3 jours', purple: 'Demande de fin' };
+  const col = { red: '#dc2626', green: '#16a34a', purple: '#7c3aed' };
+  const rows = [];
+  for (const { l, al } of items) {
+    const pl = await DB.get('plans', l.planId);
+    const lot = pl && pl.lotId ? (avLot(p, pl.lotId) || {}).name || '' : '';
+    const niv = l.nivId ? ((p.avNiveaux || []).find(n => n.id === l.nivId) || {}).name || '' : '';
+    const dd = l.due ? avDaysTo(l.due) : null;
+    rows.push({ l, al, lot, niv, plan: pl ? pl.name || '' : '', due: l.due || '', ret: dd == null ? '' : dd < 0 ? `${-dd} j de retard` : `Reste ${dd} j` });
+  }
+  const uniq = (k) => [...new Set(rows.map(r => r[k]).filter(Boolean))].sort();
+  const opt = (k, arr) => `<option value="">${k === 'al' ? 'Tous les états' : 'Tous'}</option>` + arr.map(v => `<option value="${esc(v)}">${esc(k === 'al' ? lab[v] : v)}</option>`).join('');
+  const s = sheet(`<div class="form ptab">
+    <div class="ptab-f">
+      <select data-f="lot">${opt('lot', uniq('lot'))}</select>
+      <select data-f="niv">${opt('niv', uniq('niv'))}</select>
+      <select data-f="al">${opt('al', ['red', 'green', 'purple'])}</select>
+    </div>
+    <div class="ptab-w"><table class="ptab-t"><thead><tr><th></th><th>Nom</th><th>Niveau</th><th>Lot</th><th>Plan</th><th>Échéance</th><th>État</th><th>Retard / reste</th></tr></thead>
+    <tbody></tbody></table></div></div>`, { title: `🔔 Alertes · ${rows.length}` });
+  const paint = () => {
+    const f = { lot: $('[data-f=lot]', s.el).value, niv: $('[data-f=niv]', s.el).value, al: $('[data-f=al]', s.el).value };
+    const sel = rows.filter(r => (!f.lot || r.lot === f.lot) && (!f.niv || r.niv === f.niv) && (!f.al || r.al === f.al));
+    $('.ptab-t tbody', s.el).innerHTML = sel.map((r, i) => `<tr data-i="${rows.indexOf(r)}"><td><i class="ptab-dot" style="background:${col[r.al]}"></i></td><td><b>${esc(r.l.name || 'Point')}</b></td><td>${esc(r.niv || '—')}</td><td>${esc(r.lot || '—')}</td><td>${esc(r.plan || '—')}</td><td>${esc(r.due ? r.due.split('-').reverse().join('/') : '—')}</td><td><span class="ptab-st" style="color:${col[r.al]}">${lab[r.al]}</span></td><td>${esc(r.ret || '—')}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Aucune alerte avec ces filtres</td></tr>';
+    $$('.ptab-t tbody tr[data-i]', s.el).forEach(tr => tr.onclick = async () => { s.close && s.close(); await openLinkDetail(rows[+tr.dataset.i].l); renderSection(); });
+  };
+  $$('[data-f]', s.el).forEach(x => x.onchange = paint);
+  paint();
 }
 
 async function openDrawer(opts = {}) {
@@ -942,14 +973,14 @@ function openLinkDetail(link) {
             ${open && !one ? `<div class="lk2-items">${items.map(it => `<div class="lk2-it" data-it="${it.id}"><span class="dot"></span><div class="grow"><div class="nm">${esc((it.kind === 'note' ? it.text : it.name) || 'Document')}</div><div class="mt">${subOf(it)} · ${fmtDate(it.date)}</div></div><button class="iconbtn sm" data-m="${it.id}">${icon('more')}</button></div>`).join('')}
               ${c.legacy ? '' : `<button class="lk2-more" data-add="${c.key}">${icon('plus')} Ajouter dans ${esc(c.label)}</button>`}</div>` : ''}
           </div>`;
-        }).join('')}</div>` : `<div class="lk2-empty">Ajoutez le plan de coffrage, de ferraillage ou une coupe pour les ouvrir d'un seul appui.</div>`}
-        <div class="lk2-addh">Ajouter</div>
+        }).join('')}</div>` : (link.kind === 'local' ? '' : `<div class="lk2-empty">Ajoutez le plan de coffrage, de ferraillage ou une coupe pour les ouvrir d'un seul appui.</div>`)}
+        ${link.kind === 'local' ? '' : `<div class="lk2-addh">Ajouter</div>
         <div class="lk2-chips">
           ${all.filter(c => !c.legacy).map(c => `<button class="lk2-chip" data-add="${c.key}">${icon(c.icon)}<span>${esc(c.label)}</span></button>`).join('')}
           <button class="lk2-chip" data-a="dfolder">${icon('drive')}<span>${link.driveFolder ? 'Changer le dossier Drive' : 'Dossier Drive'}</span></button>
           <button class="lk2-chip m3" data-a="m3d">${icon('box')}<span>Modèle 3D</span></button>
           <button class="lk2-chip ghost" data-a="newcat">${icon('plus')}<span>Rubrique</span></button>
-        </div>
+        </div>`}
         ${empty.some(c => c.custom) ? `<div class="lk2-rmrow">${empty.filter(c => c.custom).map(c => `<button data-rmcat="${c.key}">Retirer « ${esc(c.label)} »</button>`).join('')}</div>` : ''}`;
 
       const openItem = async (it) => {

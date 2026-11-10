@@ -3766,7 +3766,7 @@ table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-
 .pb-fill .pb-lbl { font-size: 11px; color: var(--muted); flex: none; padding-right: 2px; }
 
 /* alertes des points d'intérêt (vert / rouge / demande de fin) */
-.pt-alerts { margin: 8px 12px; border-radius: 14px; background: rgba(15,23,42,.06); border: 1px solid rgba(15,23,42,.12); }
+.pt-alerts { display:flex; align-items:center; justify-content:space-between; width: calc(100% - 24px); margin: 8px 12px; padding: 12px 14px; color: inherit; font: inherit; cursor: pointer; border-radius: 14px; background: rgba(15,23,42,.06); border: 1px solid rgba(15,23,42,.12); }
 .pt-alerts summary { list-style: none; cursor: pointer; padding: 10px 12px; display: flex; align-items: center; gap: 8px; }
 .pt-alerts summary::-webkit-details-marker { display: none; }
 .pt-cnt { margin-left: auto; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 11px; background: #dc2626; color: #fff; font: 700 12px/22px Arial, sans-serif; text-align: center; }
@@ -3784,3 +3784,14 @@ table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-
 .mnu-c .opt { padding: 8px 14px; min-height: 0; gap: 10px; font-size: 14px; }
 .mnu-c .opt svg, .mnu-c .opt .ic { width: 18px; height: 18px; }
 .mnu-c .opt > span:first-child:not(:last-child) { width: 30px; height: 30px; }
+
+/* page Alertes : tableau filtrable */
+.ptab-f { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.ptab-f select { flex: 1 1 120px; min-width: 0; padding: 8px; border-radius: 10px; font: inherit; }
+.ptab-w { overflow-x: auto; border-radius: 12px; border: 1px solid rgba(255,255,255,.08); }
+.ptab-t { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ptab-t th, .ptab-t td { padding: 8px; text-align: left; white-space: nowrap; border-bottom: 1px solid rgba(255,255,255,.07); }
+.ptab-t th { font-weight: 600; opacity: .7; position: sticky; top: 0; background: var(--panel, #1e2330); }
+.ptab-t tbody tr { cursor: pointer; }
+.ptab-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; }
+.ptab-st { font-weight: 600; }
