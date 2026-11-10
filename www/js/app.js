@@ -490,7 +490,7 @@ async function openPhotoTable() {
     const l = where.get(f.id) || (f.local ? links.find(x => x.id === f.local) : null) || null;
     const niv = l && l.nivId ? ((p.avNiveaux || []).find(n => n.id === l.nivId) || {}).name || '' : (f.grp && f.grp.niv) || '';
     const plan = l && l.planId ? await DB.get('plans', l.planId) : null;
-    const lot = plan && plan.lotId ? (avLot(p, plan.lotId) || {}).name || '' : (f.lot ? (avLot(p, f.lot) || {}).name || '' : '');
+    const lot = (l && l.lotId ? ptLotName(p, l, plan) : plan && plan.lotId ? ptLotName(p, {}, plan) : '') || (f.lot ? ((avLots(p).find(x => x.id === f.lot)) || {}).name || '' : '');
     rows.push({ f, niv: niv || '—', lot: lot || '—', pt: l ? (l.name || 'Point') : (f.source || '—'), dos: (l && l._dossier) || '—', date: new Date(f.createdAt || 0).toISOString().slice(0, 10) });
   }
   const uniq = (k) => [...new Set(rows.map(r => r[k]))].sort();
@@ -514,6 +514,12 @@ async function openPhotoTable() {
   paint();
 }
 
+// v1.0.176 : lot exact d'un point = lot choisi sur le point, sinon lot du plan (jamais « le premier lot » par défaut)
+function ptLotName(p, l, pl) {
+  if (l && l.lotId) { const a = avLots(p).find(x => x.id === l.lotId); if (a) return a.name; }
+  if (pl && pl.lotId) { const L = planLots(p).find(x => x.id === pl.lotId); if (L) return L.name; }
+  return '';
+}
 // tableau des points d'intérêt (alertes seulement, ou tous) : dôme de la couleur d'état → ouvre le plan sur le point ; filtres niveau, lot, plan, état
 async function openAlertsTable(items, opts = {}) {
   const p = App.project;
@@ -524,7 +530,7 @@ async function openAlertsTable(items, opts = {}) {
   for (const { l } of items) {
     const al = pillKey(l);
     const pl = await DB.get('plans', l.planId);
-    const lot = pl && pl.lotId ? (avLot(p, pl.lotId) || {}).name || '' : '';
+    const lot = ptLotName(p, l, pl);
     let niv = l.nivId ? ((p.avNiveaux || []).find(n => n.id === l.nivId) || {}).name || '' : '';
     if (!niv && pl) niv = ((p.avNiveaux || []).find(n => n.name && String(pl.name || '').toLowerCase().includes(String(n.name).toLowerCase())) || {}).name || '';
     const lt = ptLate(l), dd = l.due ? ptDueDays(l) : null;
@@ -536,6 +542,7 @@ async function openAlertsTable(items, opts = {}) {
   const uniq = (k) => [...new Set(rows.map(r => r[k]).filter(Boolean))].sort();
   const opt = (k, arr, all) => `<option value="">${all}</option>` + arr.map(v => `<option value="${esc(v)}">${esc(k === 'al' ? lab[v] : v)}</option>`).join('');
   const s = sheet(`<div class="form ptab">
+    ${opts.all ? `<input class="ptab-q" data-q type="search" placeholder="🔍 Rechercher un point (nom, niveau, lot, plan)…" style="width:100%;margin-bottom:8px">` : ''}
     <div class="ptab-f">
       <select data-f="niv">${opt('niv', uniq('niv'), 'Tous les niveaux')}</select>
       <select data-f="lot">${opt('lot', uniq('lot'), 'Tous les lots')}</select>
@@ -546,12 +553,19 @@ async function openAlertsTable(items, opts = {}) {
     <tbody></tbody></table></div></div>`, { title: `${opts.all ? '📍 Points d\'intérêt' : '🔔 Alertes'}${opts.planName ? ' · ' + opts.planName : ''} · ${rows.length}` });
   const paint = () => {
     const f = { niv: $('[data-f=niv]', s.el).value, lot: $('[data-f=lot]', s.el).value, plan: $('[data-f=plan]', s.el).value, al: $('[data-f=al]', s.el).value };
-    const sel = rows.filter(r => (!f.niv || r.niv === f.niv) && (!f.lot || r.lot === f.lot) && (!f.plan || r.plan === f.plan) && (!f.al || r.al === f.al));
+    const qv = opts.all ? String(($('[data-q]', s.el) || {}).value || '').trim().toLowerCase() : '';
+    const sel = rows.filter(r => (!f.niv || r.niv === f.niv) && (!f.lot || r.lot === f.lot) && (!f.plan || r.plan === f.plan) && (!f.al || r.al === f.al) && (!qv || [r.l.name, r.niv, r.lot, r.plan].some(x => String(x || '').toLowerCase().includes(qv))));
+    // v1.0.176 : tableau des points = recherche d'abord (rien n'est listé tant qu'on n'a ni cherché ni filtré)
+    const hid = opts.all && !qv && !f.niv && !f.lot && !f.plan && !f.al;
+    $('.ptab-t', s.el).style.display = hid ? 'none' : '';
+    let hint = $('.ptab-hint', s.el); if (!hint) { hint = document.createElement('p'); hint.className = 'ptab-hint'; hint.style.cssText = 'opacity:.7;text-align:center;padding:18px 8px'; $('.ptab-w', s.el).prepend(hint); }
+    hint.textContent = hid ? `Tapez un nom ou choisissez un filtre (${rows.length} points).` : (sel.length ? '' : 'Aucun résultat.');
     $('.ptab-t tbody', s.el).innerHTML = sel.map(r => { const i = rows.indexOf(r), c = pillColor(r.al); return `<tr data-i="${i}"><td><button class="ptab-pin" data-pin="${i}" title="Aller au point sur le plan">${domeIconSVG(c, 26)}</button></td><td><b>${esc(r.l.name || 'Point')}</b></td><td>${esc(r.niv || '—')}</td><td>${esc(r.lot || '—')}</td><td>${esc(r.plan || '—')}</td><td>${esc(fd(r.l.start))}</td><td>${esc(fd(r.l.dueCo))}</td><td>${esc(fd(r.l.due))}</td><td><span class="ptab-st" style="color:${c}">${esc(lab[r.al] || '')}</span></td><td>${esc(r.ret || '—')}</td><td>${esc(r.av)}</td></tr>`; }).join('') || '<tr><td colspan="11" class="muted">Aucun point avec ces filtres</td></tr>';
     $$('[data-pin]', s.el).forEach(b => b.onclick = async (e) => { e.stopPropagation(); const r = rows[+b.dataset.pin]; const pl = await DB.get('plans', r.l.planId); if (!pl) return toast('Plan supprimé'); s.close && s.close(); openPlanViewer(pl, { ...planCtx(() => renderSection()), focus: { x: r.l.x, y: r.l.y } }); });
     $$('.ptab-t tbody tr[data-i]', s.el).forEach(tr => tr.onclick = async () => { s.close && s.close(); await openLinkDetail(rows[+tr.dataset.i].l); renderSection(); });
   };
   $$('[data-f]', s.el).forEach(x => x.onchange = paint);
+  const qi = $('[data-q]', s.el); if (qi) qi.oninput = paint;
   paint();
 }
 
@@ -1144,6 +1158,7 @@ function openLinkDetail(link) {
           { label: 'Renommer', icon: 'edit', value: 'rename' },
           { label: 'Dates et Planning  ›', icon: 'calendar', value: 'g_dates' },
           { label: 'État  ›', icon: 'check', value: 'g_state' },
+          { label: 'Lot et niveau', icon: 'layers', value: 'lotniv' },
           { label: 'Couleurs des états (dôme)', icon: 'pin', value: 'pillcol' },
           { label: 'Supprimer l\'élément', icon: 'trash', danger: true, value: 'del' },
         ] : [
@@ -1169,6 +1184,12 @@ function openLinkDetail(link) {
         if (v === 'rename') {
           const r = await formSheet('Renommer', [{ name: 'name', label: 'Nom', value: link.name }]);
           if (r && r.name) { link.name = r.name; await save(); render(); }
+        }
+        if (v === 'lotniv') {
+          const r = await formSheet('Lot et niveau du point', [
+            { name: 'lot', label: 'Lot', type: 'select', value: link.lotId || '', options: [{ value: '', label: '— (lot du plan)' }, ...avLots(project).map(x => ({ value: x.id, label: x.name }))] },
+            { name: 'niv', label: 'Niveau', type: 'select', value: link.nivId || '', options: [{ value: '', label: '—' }, ...(project.avNiveaux || []).map(x => ({ value: x.id, label: x.name }))] }]);
+          if (r) { link.lotId = r.lot || null; link.nivId = r.niv || link.nivId || null; await save(); render(); }
         }
         if (v === 'due') { if (await editLocalDue(link, save)) render(); }
         if (v === 'hold') { await toggleLocalHold(link, save); render(); }
