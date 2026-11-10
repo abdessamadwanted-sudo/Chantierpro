@@ -554,6 +554,9 @@ async function openPlanViewer(plan, ctx) {
           ${lk.alert === 'red' ? `<g filter="url(#pillGlow)">
             <rect x="${-W / 2 + 22}" y="${top - 10}" width="${W / 2 - 28}" height="11" rx="5.5" fill="#ef4444"><animate attributeName="opacity" values="1;.12;1" dur=".6s" repeatCount="indefinite"/></rect>
             <rect x="6" y="${top - 10}" width="${W / 2 - 28}" height="11" rx="5.5" fill="#3b82f6"><animate attributeName="opacity" values=".12;1;.12" dur=".6s" repeatCount="indefinite"/></rect></g>` : ''}
+          ${lk.alert === 'green' ? `<g filter="url(#pillGlow)">
+            <rect x="${-W / 2 + 22}" y="${top - 10}" width="${W / 2 - 28}" height="11" rx="5.5" fill="#22c55e"><animate attributeName="opacity" values="1;.15;1" dur="1.4s" repeatCount="indefinite"/></rect>
+            <rect x="6" y="${top - 10}" width="${W / 2 - 28}" height="11" rx="5.5" fill="#f59e0b"><animate attributeName="opacity" values=".15;1;.15" dur="1.4s" repeatCount="indefinite"/></rect></g>` : ''}
           <text x="0" y="${top + 30}" text-anchor="middle" font-size="18" font-weight="700" fill="#fff" font-family="Arial" paint-order="stroke" stroke="#111" stroke-width="3">${name}</text>
           ${txt}
           </g></g>`;
