@@ -519,6 +519,8 @@ async function openPlanViewer(plan, ctx) {
       if (l.kind === 'local' || l.kind === 'recpin') {
         // panneau de signalisation : planche avec cadre doré victorien, verre ; la couleur = état ; dates écrites dedans
         const lk = l.kind === 'local' ? localPillLook(l) : { c: P.c, pulse: false, alert: null };
+        // dézoom : le panneau rétrécit (le zoom avant le ramène à sa taille)
+        const bk = Math.min(1, Math.max(0.3, st.scale / ((st.fitScale || 1) * 1.6)));
         const name = esc(String(l.name || 'local').slice(0, 22));
         const fdt = (iso) => iso ? String(iso).split('-').reverse().join('/') : '';
         const dl = [];
@@ -530,7 +532,7 @@ async function openPlanViewer(plan, ctx) {
         }
         if (l.kind === 'local' && l.look === 'disc') {
           const rc = lk.c;
-          return `<g transform="translate(${px},${py}) scale(${s})"><g transform="scale(.5)">
+          return `<g transform="translate(${px},${py}) scale(${s * bk})"><g transform="scale(.5)">
           <ellipse cx="0" cy="0" rx="8" ry="3" fill="#000" fill-opacity=".25"/>
           <rect x="-2.5" y="-34" width="5" height="34" rx="2" fill="#475569"/>
           <g filter="url(#pillGlow)"><circle cx="0" cy="-52" r="22" fill="${rc}" stroke="#b45309" stroke-width="6"/><circle cx="0" cy="-52" r="22" fill="url(#ptGlass)"/></g>
@@ -539,7 +541,7 @@ async function openPlanViewer(plan, ctx) {
         }
         const W = 180, H = 46 + dl.length * 17, top = -40 - H;
         const txt = dl.map((t, i) => `<text x="0" y="${top + 48 + i * 17}" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" font-family="Arial" paint-order="stroke" stroke="#111" stroke-width="3">${esc(t)}</text>`).join('');
-        return `<g transform="translate(${px},${py}) scale(${s})">
+        return `<g transform="translate(${px},${py}) scale(${s * bk})">
           <g transform="scale(.5)">
           <ellipse cx="0" cy="0" rx="10" ry="3.5" fill="#000" fill-opacity=".25"/>
           <rect x="-3.5" y="-40" width="7" height="40" rx="2" fill="#475569"/>
