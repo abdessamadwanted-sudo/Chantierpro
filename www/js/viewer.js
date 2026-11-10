@@ -88,7 +88,7 @@ function annotSVG(a) {
       const fc = fillHexOf(a);
       if (a.fill !== 'hatch') return `<polygon points="${a.pts.map(pt => pt.join(',')).join(' ')}" fill="${fc}" fill-opacity="${a.fo != null ? a.fo : .55}" stroke="${ln}" stroke-width="${sw}" stroke-linejoin="round"/>`;
       const d = hatchSegs(a.pts, a.angle || 45, hatchGap(a)).map(g => `M${g[0][0]},${g[0][1]}L${g[1][0]},${g[1][1]}`).join('');
-      return `<polygon points="${a.pts.map(pt => pt.join(',')).join(' ')}" fill="none" stroke="${ln}" stroke-width="${sw}" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="${a.fh ? fc : ln}" stroke-width="${Math.max(0.5, sw * 0.6)}"/>`;
+      return `<path d="${d}" fill="none" stroke="${a.fh ? fc : ln}" stroke-width="${Math.max(0.5, sw * 0.6)}" stroke-linecap="butt"/><polygon points="${a.pts.map(pt => pt.join(',')).join(' ')}" fill="none" stroke="${ln}" stroke-width="${sw}" stroke-linejoin="round"/>`;
     }
     case 'disc': { const r = Math.hypot(q[0] - p[0], q[1] - p[1]); return `<circle cx="${p[0]}" cy="${p[1]}" r="${r}" fill="${a.color}" fill-opacity=".8" stroke="${ln}" stroke-width="${sw / 2}"/>`; }
     case 'box': return `<rect x="${Math.min(p[0], q[0])}" y="${Math.min(p[1], q[1])}" width="${Math.abs(q[0] - p[0])}" height="${Math.abs(q[1] - p[1])}" fill="${a.color}" fill-opacity=".8" stroke="${ln}" stroke-width="${sw / 2}"/>`;
@@ -1300,8 +1300,8 @@ function annotPdfDraw(pg, a, ox, oy, s, font) {
     case 'polygon': {
       if (P.length <= 2) return;
       if (a.fill !== 'hatch') return path(line(P, true), { ...stroke, color: fcol || col, opacity: a.fo != null ? a.fo : .55 });   // remplissage à l'opacité choisie (le plan reste visible dessous)
-      path(line(P, true), stroke);
-      hatchSegs(P, a.angle || 45, hatchGap(a)).forEach(g => path(`M${g[0][0]} ${g[0][1]} L${g[1][0]} ${g[1][1]}`, { borderColor: fcol || lc, borderWidth: Math.max(0.5, a.sw * 0.6 * s) }));
+      hatchSegs(P, a.angle || 45, hatchGap(a)).forEach(g => path(`M${g[0][0]} ${g[0][1]} L${g[1][0]} ${g[1][1]}`, { borderColor: fcol || lc, borderWidth: Math.max(0.5, a.sw * 0.6 * s), borderLineCap: PDFLib.LineCapStyle.Butt }));
+      path(line(P, true), stroke);   // contour par-dessus les hachures
       return;
     }
     case 'rect': case 'box': { const x = Math.min(p[0], q[0]), y = Math.min(p[1], q[1]), w = Math.abs(q[0] - p[0]), h = Math.abs(q[1] - p[1]); return path(`M${x} ${y} H${x + w} V${y + h} H${x} Z`, a.type === 'box' ? { color: col, opacity: 1, borderColor: col, borderWidth: Math.max(0.5, a.sw * s / 2) } : stroke); }
