@@ -1420,11 +1420,12 @@ try {
       none: ptActive(mk({})) + '',
       started: ptActive(mk({ due: far.d, started: '2026-01-01' })) + '',
       co: [pointAlert(mk({ due: far.d, dueCo: past.d, dueCoTime: past.t })), pointAlert(mk({ due: past.d, dueTime: past.t, dueCo: past.d, dueCoTime: past.t })), pointAlert(mk({ dueCo: far.d })) + '', pillColor('co')].join(),
+      tk: [pointAlert(mk({ tk: { deb: iso(-2 * D).d, fin: iso(3 * D).d, started: false } })), pointAlert(mk({ tk: { deb: iso(-2 * D).d, fin: iso(3 * D).d, started: true } })), pointAlert(mk({ tk: { deb: iso(-2 * D).d, fin: iso(-2 * D).d, done: true } })) + '', typeof syncTaskPin, typeof placeTaskPin].join(),
       days: ptAlertDays(), data: typeof openDataFolder, tbl: typeof openAlertsTable, items: typeof pointAlertItems,
     };
   });
   log('v1.0.x [alertes : heure, activation auto, réglages]', tAl);
-  log('errors v1.0.x alertes', (tAl.far === 'false,' || tAl.far === 'false,null') && tAl.soon === 'true,green' && tAl.late === 'true,red' && tAl.hourFuture === 'green' && tAl.startFut === 'false' && tAl.startPast === 'true' && tAl.none === 'true' && tAl.co === 'co,red,null,#eab308' && tAl.started === 'true' && tAl.days === 3 && tAl.data === 'function' && tAl.tbl === 'function' && tAl.items === 'function' ? [] : ['v1.0.x alertes']);
+  log('errors v1.0.x alertes', (tAl.far === 'false,' || tAl.far === 'false,null') && tAl.soon === 'true,green' && tAl.late === 'true,red' && tAl.hourFuture === 'green' && tAl.startFut === 'false' && tAl.startPast === 'true' && tAl.none === 'true' && tAl.tk === 'co,,null,function,function' && tAl.co === 'co,red,null,#eab308' && tAl.started === 'true' && tAl.days === 3 && tAl.data === 'function' && tAl.tbl === 'function' && tAl.items === 'function' ? [] : ['v1.0.x alertes']);
   const t82 = await A.pg.evaluate(() => ({ db: typeof DB.get === 'function' }));
   log('v1.0.82 [démarrage : synchro différée, IndexedDB réessaie]', t82); log('errors v1.0.82', t82.db ? [] : ['v1.0.82']);
   const t79 = await A.pg.evaluate(() => ({ proj: typeof GDrive.projectSave, file: typeof Backup.exportProject }));
