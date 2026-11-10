@@ -1431,6 +1431,9 @@ try {
   // ---- v1.0.x : lien Google Maps du projet + partage WhatsApp ----
   const tMap = await A.pg.evaluate(() => ({ a: projectMapUrl({ mapsUrl: 'https://maps.app.goo.gl/abc' }), b: projectMapUrl({ gps: '33.5731, -7.5898' }), c: projectMapUrl({ address: 'Casablanca' }), d: projectMapUrl({}), f: typeof shareProjectWhatsApp }));
   log('v1.0.x [lien Google Maps / WhatsApp]', tMap); log('errors v1.0.x maps', tMap.a === 'https://maps.app.goo.gl/abc' && tMap.b === 'https://www.google.com/maps?q=33.5731,-7.5898' && tMap.c.includes('query=Casablanca') && tMap.d === '' && tMap.f === 'function' ? [] : ['v1.0.x maps']);
+  // ---- v1.0.176 : sauvegarde Drive d'un projet = un seul zip mis à jour sur place (+ « précédente ») ----
+  const tBk = await A.pg.evaluate(() => ({ save: typeof GDrive.projectBackupSave, list: typeof GDrive.projectBackupList, src: String(GDrive.projectBackupSave).includes('/copy') && String(GDrive.projectBackupSave).includes('PREV') && !String(GDrive.projectBackupSave).includes("stamp() + '.chantier.zip'") }));
+  log('v1.0.176 [sauvegarde Drive : zip unique]', tBk); log('errors v1.0.176 backup', tBk.save === 'function' && tBk.list === 'function' && tBk.src ? [] : ['v1.0.176 backup']);
   const t82 = await A.pg.evaluate(() => ({ db: typeof DB.get === 'function' }));
   log('v1.0.82 [démarrage : synchro différée, IndexedDB réessaie]', t82); log('errors v1.0.82', t82.db ? [] : ['v1.0.82']);
   const t79 = await A.pg.evaluate(() => ({ proj: typeof GDrive.projectSave, file: typeof Backup.exportProject }));

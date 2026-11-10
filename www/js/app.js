@@ -1931,7 +1931,7 @@ async function restoreFromDrive() {
     return restoreFullBackup(espGroups.get(en));
   }
   const name = v.slice(2), versions = groups.get(name);
-  const k = await menu(`Quelle sauvegarde de « ${name} » ?`, versions.map((z, i) => ({ label: `${fmtDateTime(Date.parse(z.modifiedTime))} · ${Math.round((+z.size || 0) / 1048576)} Mo`, icon: 'drive', value: i })));
+  const k = await menu(`Quelle sauvegarde de « ${name} » ?`, versions.map((z, i) => ({ label: `${z.previous ? '↩ précédente · ' : ''}${fmtDateTime(Date.parse(z.modifiedTime))} · ${Math.round((+z.size || 0) / 1048576)} Mo`, icon: 'drive', value: i })));
   if (k == null) return;
   const info = versions[k];
   const ld2 = loading('Téléchargement… 0%');
