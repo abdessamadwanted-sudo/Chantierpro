@@ -303,7 +303,7 @@ const ST = (() => {
       <div class="st-hd"><b>${esc(T.e || '🏗️')} ${esc(p.name)}</b><small>${esc(T.n || 'Projet')}${p.address ? ' · ' + esc(p.address) : ''}</small></div>
       <button class="st-pb st-pb-lib" data-a="library">${icon('grid')}<span><b>Bibliothèque métier</b><small>Outils réunis et classés selon votre service · pack ${esc(plan().l)}</small></span>${icon('chevright')}</button>
       <div class="st-qa ${Math.max(1, QA.length) <= 4 ? 'qa-l' : Math.max(1, QA.length) <= 8 ? 'qa-m' : 'qa-s'}" style="--n:${Math.max(1, QA.length)}">${QA.map(([k, ic, l, c]) => `<button class="st-qa-b" data-a="${k}" style="--c:${c}"><i>${icon(ic)}</i><span>${l}</span></button>`).join('')}${QA.length ? '' : `<button class="st-qa-b st-qa-add" data-a="qaadd" style="--c:#475569"><i>${icon('plus')}</i><span>Ajouter</span></button>`}</div>
-      <p class="st-thint2" style="margin:-4px 0 6px">Appui long sur la barre : ajouter · réorganiser</p>
+      <p class="st-thint2" style="margin:-4px 0 6px">Appui long sur la barre : ajouter · réorganiser · retirer</p>
       ${G.map(([g, l, ks]) => `<details class="st-tcat st-acc" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(l.replace(/^\S+\s/, ''))}<small>${ks.length}</small><i class="st-chev">${icon('chevdown')}</i></summary>
         <div class="st-tgrid">${ks.map(k => `<button class="st-tool" data-tool="${k}" style="--c:${CAT_C[catOf(k)] || CAT_C[g] || 'var(--accent)'}"><i class="st-ico">${icon(SECTIONS[k].icon || 'grid')}</i><span>${esc(toolName(k))}</span></button>`).join('')}</div></details>`).join('')}
       <details class="st-tcat st-acc" data-g="outils" style="--c:#B7791F" ${opened.includes('outils') ? 'open' : ''}><summary class="st-tcat-h">Outils<small>7</small><i class="st-chev">${icon('chevdown')}</i></summary>
@@ -386,14 +386,12 @@ const ST = (() => {
     // v1.0.114 : appui long fiable (pointeur + menu contextuel natif) sur tous les raccourcis, y compris ceux ajoutés
     const qaMenu = async (k) => {
       const cur = qaKeys.filter(x => qaAvailOf(x) && !qaHid.includes(x)), i = cur.indexOf(k);
-      const hidAny = qaHid.length > 0;
-      const v = await menu((qaSpecOf(k) || [0, 0, toolName(k)])[2], [...(i > 0 ? [{ label: '← Déplacer à gauche', icon: 'back', value: 'l' }] : []), ...(i >= 0 && i < cur.length - 1 ? [{ label: 'Déplacer à droite →', icon: 'chevright', value: 'r' }] : []), { label: 'Ajouter un raccourci', icon: 'plus', value: 'add' }, { label: 'Masquer ce raccourci', icon: 'trash', danger: true, value: 'hide' }, ...(hidAny ? [{ label: 'Réafficher tous les raccourcis', icon: 'check', value: 'show' }] : [])]);
+      const v = await menu((qaSpecOf(k) || [0, 0, toolName(k)])[2], [...(i > 0 ? [{ label: '← Déplacer à gauche', icon: 'back', value: 'l' }] : []), ...(i >= 0 && i < cur.length - 1 ? [{ label: 'Déplacer à droite →', icon: 'chevright', value: 'r' }] : []), { label: 'Ajouter un raccourci', icon: 'plus', value: 'add' }, { label: 'Retirer ce raccourci', icon: 'trash', danger: true, value: 'hide' }]);
       if (!v) return;
       if (v === 'add') return qaAddFlow();
       let ord = [...qaKeys], hid = [...qaHid];
       if (v === 'l' || v === 'r') { const j = v === 'l' ? i - 1 : i + 1, x = ord.indexOf(cur[i]), y = ord.indexOf(cur[j]); [ord[x], ord[y]] = [ord[y], ord[x]]; }
       if (v === 'hide') hid.push(k);
-      if (v === 'show') hid = [];
       qaSave(ord, hid); renderProjectTools(root);
     };
     root.querySelectorAll('.st-qa-b:not(.st-qa-add)').forEach(b => { const k = b.dataset.a; if (!qaSpecOf(k)) return;
@@ -408,9 +406,8 @@ const ST = (() => {
     if (qaBar) {
       const barMenu = async () => {
         const cur = qaKeys.filter(x => qaAvailOf(x) && !qaHid.includes(x));
-        const v = await menu('Raccourcis', [{ label: 'Ajouter un raccourci', icon: 'plus', value: 'add' }, ...(cur.length > 1 ? [{ label: 'Réorganiser (choisir un raccourci à déplacer)', icon: 'rows', value: 'ord' }] : []), ...(qaHid.length ? [{ label: 'Réafficher les raccourcis masqués', icon: 'check', value: 'show' }] : [])]);
+        const v = await menu('Raccourcis', [{ label: 'Ajouter un raccourci', icon: 'plus', value: 'add' }, ...(cur.length > 1 ? [{ label: 'Réorganiser (choisir un raccourci à déplacer)', icon: 'rows', value: 'ord' }] : []),]);
         if (v === 'add') return qaAddFlow();
-        if (v === 'show') { qaSave([...qaKeys], []); return renderProjectTools(root); }
         if (v === 'ord') { const k = await menu('Quel raccourci déplacer ?', cur.map(x => ({ label: (qaSpecOf(x) || [0, 0, toolName(x)])[2], value: x }))); if (k) return qaMenu(k); }
       };
       let tb = null;
