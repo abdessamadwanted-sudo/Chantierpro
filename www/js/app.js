@@ -1695,6 +1695,45 @@ async function renderTeam(root) {
 }
 
 // ---------- Paramètres ----------
+// intervenants du projet : maître d'ouvrage, architecte, bureau de contrôle, topographe, BET… (plusieurs par rôle possibles)
+const IV_ROLES = [['mo', 'Maître d\'ouvrage', '🏛️'], ['archi', 'Bureau d\'architecture', '📐'], ['controle', 'Bureau de contrôle', '🔍'], ['topo', 'Bureau topographique', '🧭'], ['bet', 'BET (bureau d\'études)', '🧮'], ['autre', 'Autre intervenant', '👤']];
+function ivPanel(box) {
+  const p = App.project; if (!box) return;
+  const save = async () => { const mos = (p.intervenants || []).filter(x => x.role === 'mo').map(x => x.name).filter(Boolean); if (mos.length) p.mo = mos.join(' / '); await DB.put('projects', p); };
+  const edit = async (role, cur) => {
+    const rl = IV_ROLES.find(x => x[0] === role) || IV_ROLES[5];
+    const r = await formSheet(cur ? cur.name || rl[1] : rl[1], [
+      { name: 'name', label: role === 'autre' ? 'Nom de l\'organisme / personne' : 'Nom (société ou bureau)', value: cur ? cur.name || '' : '' },
+      ...(role === 'autre' ? [{ name: 'fn', label: 'Fonction', value: cur ? cur.fn || '' : '', placeholder: 'Ex : laboratoire, géotechnicien' }] : []),
+      { name: 'contact', label: 'Contact (personne)', value: cur ? cur.contact || '' : '' },
+      { name: 'phone', label: 'Téléphone', type: 'tel', value: cur ? cur.phone || '' : '' },
+      { name: 'email', label: 'E-mail', type: 'email', value: cur ? cur.email || '' : '' },
+    ], { okLabel: 'Enregistrer', danger: cur ? 'Supprimer' : null });
+    if (!r) return;
+    p.intervenants = p.intervenants || [];
+    if (r.__danger) p.intervenants = p.intervenants.filter(x => x.id !== cur.id);
+    else if (!String(r.name || '').trim()) return toast('Le nom est obligatoire');
+    else if (cur) Object.assign(cur, { name: r.name.trim(), fn: r.fn || '', contact: r.contact || '', phone: r.phone || '', email: r.email || '' });
+    else p.intervenants.push({ id: DB.uid(), role, name: r.name.trim(), fn: r.fn || '', contact: r.contact || '', phone: r.phone || '', email: r.email || '' });
+    await save(); draw();
+  };
+  const draw = () => {
+    const L = p.intervenants || [];
+    box.innerHTML = `<div style="font-weight:600;margin-bottom:8px">Intervenants du projet</div>` + IV_ROLES.map(([k, l, e]) => {
+      const rows = L.filter(x => x.role === k);
+      return `<div class="iv-r"><div class="iv-h"><span>${e} ${esc(l)}${rows.length > 1 ? ` <small>· ${rows.length}</small>` : ''}</span><button class="iv-add" data-add="${k}" title="Ajouter">＋</button></div>${rows.map(x => `<button class="iv-i" data-id="${x.id}"><b>${esc(x.name)}</b><small>${esc([x.fn, x.contact, x.phone].filter(Boolean).join(' · '))}</small></button>`).join('') || '<div class="iv-n">— à renseigner</div>'}</div>`;
+    }).join('');
+    $$('[data-add]', box).forEach(b => b.onclick = () => edit(b.dataset.add, null));
+    $$('[data-id]', box).forEach(b => b.onclick = async () => {
+      const cur = (p.intervenants || []).find(x => x.id === b.dataset.id); if (!cur) return;
+      const v = await menu(cur.name, [{ label: 'Modifier', icon: 'edit', value: 'e' }, ...(cur.phone ? [{ label: 'Appeler ' + cur.phone, icon: 'phone', value: 'tel' }] : []), ...(cur.email ? [{ label: 'Écrire un e-mail', icon: 'mail', value: 'mail' }] : [])]);
+      if (v === 'e') edit(cur.role, cur);
+      if (v === 'tel') location.href = 'tel:' + cur.phone.replace(/\s+/g, '');
+      if (v === 'mail') location.href = 'mailto:' + cur.email;
+    });
+  };
+  draw();
+}
 async function renderSettings(root) {
   const p = App.project;
   root.innerHTML = `<div class="pagehead"><h2>Paramètres</h2></div>
@@ -1704,6 +1743,7 @@ async function renderSettings(root) {
       <label>Titre complet sur les tableaux / PDF (optionnel)<input name="pdfTitle" value="${esc(p.pdfTitle || '')}" placeholder="Ex : Projet de construction du Grand stade Benslimane"></label>
       <label>Maître d'ouvrage<input name="mo" value="${esc(p.mo || '')}" placeholder="Ex : SONARGES, ONEE, Commune…"></label>
       <button class="btn" data-a="save">Enregistrer</button>
+      <div class="card" style="margin:12px 0 0;padding:14px" data-ivbox></div>
       <div style="height:12px"></div>
       <div class="card" style="margin:0 0 12px;padding:14px" data-fxbox></div>
       ${Org.owner() ? `<button class="btn ghost" data-a="welcome" style="margin-bottom:12px">👋 Revoir l'écran de bienvenue (service et poste)</button>` : ''}
@@ -1729,6 +1769,7 @@ async function renderSettings(root) {
   const pcb = $('[data-a=pcollab]', root); if (pcb) pcb.onclick = () => Team.collabFlow(p);
   const wb = $('[data-a=welcome]', root); if (wb) wb.onclick = () => orgOnboard(true);
   fxPanel($('[data-fxbox]', root));
+  ivPanel($('[data-ivbox]', root));
   ($('[data-a=save]', root)||{}).onclick = async () => { p.name = $('[name=name]', root).value.trim() || p.name; p.address = $('[name=address]', root).value.trim(); p.pdfTitle = $('[name=pdfTitle]', root).value.trim(); p.mo = $('[name=mo]', root).value.trim(); await DB.put('projects', p); toast('Enregistré ✓'); renderSection(); };
   ($('[data-a=backup]', root)||{}).onclick = async () => {
     const ld = loading('Préparation de la sauvegarde…');
