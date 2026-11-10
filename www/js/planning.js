@@ -4,6 +4,29 @@
 function planData(p) { p.plan = p.plan || {}; p.plan.tasks = p.plan.tasks || []; return p.plan; }
 const dISO = (d) => d.toISOString().slice(0, 10), dAdd = (s, n) => { const d = new Date(s + 'T12:00:00'); d.setDate(d.getDate() + n); return dISO(d); }, dDiff = (a, b) => Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 864e5);
 const ganttLate = (t) => fN(t.av) < 100 && t.fin && t.fin < todayISO();
+// ---- tâche du planning ↔ pin (point d'intérêt) du plan : dates, heures et avancement de la tâche pilotent le pin ----
+async function syncTaskPin(p, t) {
+  if (!t.pinId) return;
+  const L = await DB.get('links', t.pinId); if (!L) { t.pinId = ''; return; }
+  const started = !!(t.debR || fN(t.av) > 0), done = fN(t.av) >= 100;
+  const wasDone = !!(L.tk && L.tk.done);
+  L.taskId = t.id;
+  L.start = t.deb || null; L.startTime = t.deb ? (t.debT || null) : null;
+  L.dueCo = t.fin || null; L.dueCoTime = t.fin ? (t.finT || null) : null;
+  L.tk = { deb: t.deb || null, debT: t.debT || null, fin: t.fin || null, finT: t.finT || null, started, done };
+  if (started && !L.started) L.started = t.debR || todayISO();
+  if (done && !L.finished) L.finished = t.finR || todayISO();
+  if (!done && wasDone) L.finished = null;
+  await DB.put('links', L);
+}
+async function unlinkTaskPin(id) { const L = await DB.get('links', id); if (L) { L.taskId = null; L.tk = null; await DB.put('links', L); } }
+// place un nouveau pin pour la tâche : on choisit le plan puis on touche l'emplacement
+async function placeTaskPin(p, t) {
+  const pl = await pickPlanFor(p.id, null); if (!pl) return; toast('📍 Touchez le plan à l\u2019endroit de la tâche');
+  return openPlanViewer(pl, { ...(typeof planCtx === 'function' ? planCtx(() => {}) : {}), place: { label: t.nom || 'Tâche', onPlace: async (x, y, plan) => {
+    const nl = await DB.put('links', { projectId: p.id, planId: plan.id, kind: 'local', shape: 'point', x: Math.round(x), y: Math.round(y), name: String(t.nom || 'Tâche').slice(0, 60), lots: {}, items: [], taskId: t.id });
+    t.pinId = nl.id; await DB.put('projects', p); await syncTaskPin(p, t); toast('📍 Pin placé ✓ — retard et alertes suivent le planning'); } } });
+}
 async function renderPlanning(root) {
   const p = App.project, P = planData(p), save = () => DB.put('projects', p), redraw = () => renderPlanning(root), canE = orgEdit('planning');
   const T = P.tasks.slice().sort((a, b) => String(a.deb || '9').localeCompare(String(b.deb || '9')));
@@ -36,12 +59,18 @@ async function renderPlanning(root) {
   </div>`;
   const sc = $('.gt-sc', root); if (sc && !P._scrolled) { sc.scrollLeft = Math.max(0, X(todayISO()) - 120); }
   $$('[data-z]', root).forEach(b => b.onclick = async () => { P.zoom = b.dataset.z; await save(); redraw(); });
-  const FIELDS = [{ name: 'nom', label: 'Tâche', placeholder: 'Ex : Gros œuvre R+3' }, { name: 'grp', label: 'Lot', list: typeof TCE_LOTS !== 'undefined' ? TCE_LOTS : [] }, { name: 'deb', label: 'Début prévu', type: 'date' }, { name: 'fin', label: 'Fin prévue', type: 'date' },
-    { name: 'debR', label: 'Début réel', type: 'date' }, { name: 'finR', label: 'Fin réelle', type: 'date' }, { name: 'av', label: 'Avancement (%)', type: 'number' }];
-  const edit = async (t) => { const r = await formSheet(t ? t.nom : 'Nouvelle tâche', FIELDS.map(f => ({ ...f, value: t ? t[f.name] ?? '' : f.name === 'deb' ? todayISO() : '' })), { okLabel: 'Enregistrer', danger: t ? 'Supprimer' : null });
-    if (!r) return; if (r.__danger) P.tasks.splice(P.tasks.indexOf(t), 1); else { r.av = String(Math.max(0, Math.min(100, fN(r.av)))); if (fN(r.av) >= 100 && !r.finR) r.finR = todayISO(); if (fN(r.av) > 0 && !r.debR) r.debR = r.deb || todayISO(); t ? Object.assign(t, r) : P.tasks.push({ id: DB.uid(), ...r }); }
+  const FIELDS = [{ name: 'nom', label: 'Tâche', placeholder: 'Ex : Gros œuvre R+3' }, { name: 'grp', label: 'Lot', list: typeof TCE_LOTS !== 'undefined' ? TCE_LOTS : [] }, { name: 'deb', label: 'Début prévu', type: 'date' }, { name: 'debT', label: 'Heure de début (optionnel)', type: 'time' }, { name: 'fin', label: 'Fin prévue', type: 'date' }, { name: 'finT', label: 'Heure de fin (optionnel)', type: 'time' },
+    { name: 'debR', label: 'Début réel', type: 'date' }, { name: 'finR', label: 'Fin réelle', type: 'date' }, { name: 'av', label: 'Avancement (%)', type: 'number' }, { name: 'pinId', label: 'Pin sur le plan', type: 'select', options: [] }];
+  const edit = async (t) => {
+    // pin sur le plan : aucun · un point existant · un nouveau pin à placer ; les dates et l'avancement de la tâche pilotent le pin (début / fin, retard)
+    const LK = (await DB.byProject('links', p.id)).filter(l => l.kind === 'local' && l.planId && l.x != null), PLS = await DB.byProject('plans', p.id), pm = {}; PLS.forEach(x => pm[x.id] = x);
+    FIELDS.find(f => f.name === 'pinId').options = [{ value: '', label: '— aucun —' }, { value: '__new', label: '📍 Placer un nouveau pin sur un plan…' }, ...LK.map(l => ({ value: l.id, label: `${l.name || 'Point'} · ${(pm[l.planId] || {}).name || ''}` }))];
+    const r = await formSheet(t ? t.nom : 'Nouvelle tâche', FIELDS.map(f => ({ ...f, value: t ? t[f.name] ?? '' : f.name === 'deb' ? todayISO() : '' })), { okLabel: 'Enregistrer', danger: t ? 'Supprimer' : null });
+    if (!r) return; if (r.__danger) { if (t.pinId) await unlinkTaskPin(t.pinId); P.tasks.splice(P.tasks.indexOf(t), 1); } else { r.av = String(Math.max(0, Math.min(100, fN(r.av)))); if (fN(r.av) >= 100 && !r.finR) r.finR = todayISO(); if (fN(r.av) > 0 && !r.debR) r.debR = r.deb || todayISO(); t ? Object.assign(t, r) : P.tasks.push({ id: DB.uid(), ...r }); }
     // la tâche liée à un lot TCE met à jour son avancement
     const tg = t || P.tasks[P.tasks.length - 1]; if (tg && tg.lotId && p.tce) { const L = p.tce.lots.find(l => l.id === tg.lotId); if (L) { L.av = fN(tg.av); L.deb = tg.deb; L.fin = tg.fin; L.finR = tg.finR || L.finR; } }
+    const tg2 = t || P.tasks[P.tasks.length - 1];
+    if (!r.__danger && tg2) { const wantNew = r.pinId === '__new'; if (wantNew) tg2.pinId = ''; await save(); await syncTaskPin(p, tg2); redraw(); if (wantNew) return placeTaskPin(p, tg2); return; }
     await save(); redraw(); };
   const ad = $('[data-a=add]', root); if (ad) ad.onclick = () => edit(null);
   $$('[data-t]', root).forEach(r => r.onclick = () => canE ? edit(P.tasks.find(t => t.id === r.dataset.t)) : null);

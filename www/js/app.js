@@ -509,8 +509,9 @@ async function openAlertsTable(items, opts = {}) {
     const pl = await DB.get('plans', l.planId);
     const lot = pl && pl.lotId ? (avLot(p, pl.lotId) || {}).name || '' : '';
     const niv = l.nivId ? ((p.avNiveaux || []).find(n => n.id === l.nivId) || {}).name || '' : '';
+    const tkl = al === 'co' && l.tk ? ptTkLate(l) : null;
     const dd = al === 'co' ? avDaysTo(l.dueCo) : l.due ? ptDueDays(l) : null;
-    rows.push({ l, al, lot, niv, plan: pl ? pl.name || '' : '', due: al === 'co' ? l.dueCo : l.due || '', ret: dd == null ? '' : dd < 0 ? `${-dd} j de retard` : `Reste ${dd} j` });
+    rows.push({ l, al, lot, niv, plan: pl ? pl.name || '' : '', due: al === 'co' ? l.dueCo : l.due || '', ret: tkl ? `Retard ${tkl.kind} ${ptLateTxt(tkl.ms)}` : dd == null ? '' : dd < 0 ? `${-dd} j de retard` : `Reste ${dd} j` });
   }
   const uniq = (k) => [...new Set(rows.map(r => r[k]).filter(Boolean))].sort();
   const opt = (k, arr) => `<option value="">${k === 'al' ? 'Tous les états' : 'Tous'}</option>` + arr.map(v => `<option value="${esc(v)}">${esc(k === 'al' ? lab[v] : v)}</option>`).join('');
