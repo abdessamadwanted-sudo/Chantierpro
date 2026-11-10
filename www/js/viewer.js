@@ -515,12 +515,15 @@ async function openPlanViewer(plan, ctx) {
       // local technique : pastille (pill) au nom du local, couleur selon l'état (vert = loin, rouge = proche / en retard, ✓ = terminé)
       // pastille unifiée : signal + « local » ou « ouvrage » + nom ; couleur d'état ; halo lumineux
       if (l.kind === 'local' || l.kind === 'recpin') {
-        const lk = l.kind === 'local' ? localPillLook(l) : { c: P.c, pulse: false }, kindTxt = l.kind === 'local' ? 'local' : 'ouvrage';
-        const label = esc(`${kindTxt} · ${String(l.name || kindTxt).slice(0, 22)}`), w = Math.max(96, label.length * 6.9 + 44);
-        return `<g transform="translate(${px},${py}) scale(${s})"><line x1="0" y1="0" x2="0" y2="-12" stroke="${lk.c}" stroke-width="2"/><circle r="3.5" fill="${lk.c}" stroke="#fff" stroke-width="1.5"/>
-          <g filter="url(#pillGlow)">${lk.pulse ? '<animate attributeName="opacity" values="1;.45;1" dur="1.6s" repeatCount="indefinite"/>' : ''}<rect x="${-w / 2}" y="-40" width="${w}" height="28" rx="14" fill="${lk.c}" fill-opacity=".92" stroke="#fff" stroke-width="1.5"/></g>
-          <circle cx="${-w / 2 + 16}" cy="-26" r="8" fill="none" stroke="#fff" stroke-width="1.5" stroke-opacity=".7"/><circle cx="${-w / 2 + 16}" cy="-26" r="3.5" fill="#fff"/>
-          <text x="${-w / 2 + 30}" y="-21" font-size="12.5" font-weight="700" fill="#fff" font-family="Arial">${label}</text></g>`;
+        // point d'intérêt : clou + tête rouge façon panneau de signalisation ; anneau = état (vert/rouge/bleu…), tête qui pulse si urgent
+        const lk = l.kind === 'local' ? localPillLook(l) : { c: P.c, pulse: false };
+        const label = esc(String(l.name || 'local').slice(0, 22));
+        return `<g transform="translate(${px},${py}) scale(${s})">
+          <line x1="0" y1="0" x2="0" y2="-20" stroke="#475569" stroke-width="3" stroke-linecap="round"/>
+          <ellipse cx="0" cy="0" rx="4" ry="1.6" fill="#000" fill-opacity=".25"/>
+          <g filter="url(#pillGlow)"><circle cx="0" cy="-30" r="12" fill="#dc2626" stroke="${lk.c}" stroke-width="3.5">${lk.pulse ? '<animate attributeName="opacity" values="1;.45;1" dur="1.6s" repeatCount="indefinite"/>' : ''}</circle></g>
+          <circle cx="0" cy="-30" r="4.5" fill="#fff"/>
+          ${showLabel ? `<text x="0" y="13" text-anchor="middle" font-size="12" font-weight="700" fill="#111" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${label}</text>` : ''}</g>`;
       }
       return `<g transform="translate(${px},${py}) scale(${s})">${linkPin(P.c, n, P.e)}
         ${showLabel ? `<text x="0" y="16" text-anchor="middle" font-size="12" fill="${P.c}" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`;
@@ -545,7 +548,7 @@ async function openPlanViewer(plan, ctx) {
 
   async function reloadData() {
     st.tasks = await DB.byProject('tasks', plan.projectId);
-    st.links = (await DB.byProject('links', plan.projectId)).filter(l => l.kind !== 'local');   // les locaux (avancement) ont leur propre écran
+    st.links = (await DB.byProject('links', plan.projectId)).filter(l => l.kind !== 'local' || (l.planId === plan.id && l.x != null));   // locaux posés sur ce plan (point d'intérêt) : affichés en panneau
     renderMarkers();
   }
 
