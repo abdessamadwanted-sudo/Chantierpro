@@ -566,7 +566,7 @@ async function openPlanViewer(plan, ctx) {
     ['arrow', 'arrow', 'Flèche'], ['text', 'text', 'Texte'],
   ];
   const TOOLS = [
-    ['pan', 'hand', 'Déplacer'], ['pin', 'pin', 'Tâche'], ['link', 'link', 'Élément'], ['planlink', 'section', 'Lien plan / coupe'], ['plansbox', 'plans', 'Plans de l\'ouvrage'], ['photonote', 'camera', 'Pin photos (dossiers)'],
+    ['pan', 'hand', 'Déplacer'], ['pin', 'pin', 'Tâche'], ['link', 'link', 'Élément'], ['pill', 'pin', 'Pill local'], ['planlink', 'section', 'Lien plan / coupe'], ['plansbox', 'plans', 'Plans de l\'ouvrage'], ['photonote', 'camera', 'Pin photos (dossiers)'],
     ['draw', 'pen', 'Dessin'], ['select', 'cursor', 'Modifier'], ['erase', 'eraser', 'Gomme'],
   ];
   const shapeInfo = () => SHAPES.find(x => x[0] === st.shape) || SHAPES[0];
@@ -575,6 +575,7 @@ async function openPlanViewer(plan, ctx) {
   function hintText() {
     if (st.tool === 'pin') return 'Touchez pour placer une tâche';
     if (st.tool === 'link') return 'Touchez pour placer un élément';
+    if (st.tool === 'pill') return 'Touchez le plan pour placer un local (pastille)';
     if (st.tool === 'photonote') return '📷 Touchez le plan pour placer un pin photos (dossiers : Porte provisoire, Brique, Nettoyage…)';
     if (st.tool === 'plansbox') return 'Touchez pour placer un pin « Plans » (zones → parties d\'ouvrage → PDF)';
     if (st.tool === 'planlink') return 'Touchez pour placer un lien (PDF de coupe, plan…)';
@@ -1103,6 +1104,13 @@ async function openPlanViewer(plan, ctx) {
     if (st.tool === 'pin') {
       await ctx.createTask({ planId: plan.id, x, y });
       await reloadData();
+    } else if (st.tool === 'pill') {
+      // pastille « local » : nom demandé, puis placée à l'endroit touché (dates et lots se règlent ensuite via le menu ⋯)
+      const r = await formSheet('Nouveau local', [{ name: 'name', label: 'Nom du local (ex : Local technique R+6)' }], { okLabel: 'Placer' });
+      if (r && r.name) {
+        const l = await DB.put('links', { projectId: plan.projectId, planId: plan.id, kind: 'local', shape: 'point', x, y, name: r.name.slice(0, 60), lots: {}, items: [], color: '#16a34a' });
+        await reloadData(); renderMarkers(); toast('Local placé ✓ — touchez la pastille pour les dates et documents');
+      }
     } else if (st.tool === 'link') {
       createLink({ shape: 'point', x, y });
     } else if (st.tool === 'planlink') {
