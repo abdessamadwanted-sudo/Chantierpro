@@ -1232,16 +1232,16 @@ const PIN_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#7c3aed', '#ea580c', '#089
 const PILL_DEFS = '<defs><filter id="pillGlow" x="-60%" y="-80%" width="220%" height="260%"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
 // état d'une pastille : début / échéance (l.start, l.due) puis avancement des lots
 // gris = pas commencé · bleu = en cours · vert = loin de l'échéance · rouge = proche ou dépassée (clignote) · ✓ = terminé
+const PILL_ALERT_DAYS = 3;   // rouge = échéance dans moins de 3 jours, ou dépassée sans être terminé
 function localPillLook(l) {
   const today = todayISO(), sts = typeof avStatus === 'function' ? Object.values(l.lots || {}).map(r => avStatus(r)) : [];
+  const dTo = (iso) => typeof avDaysTo === 'function' ? avDaysTo(iso) : 999;
   if (sts.length && sts.every(x => x === 'done' || x === 'donelate')) return { c: '#15803d', e: '✓', pulse: false };
   if (l.start && l.start > today) return { c: '#94a3b8', e: '', pulse: false };
-  if (l.due) {
-    const d = typeof avDaysTo === 'function' ? avDaysTo(l.due) : 999;
-    if (d <= 7) return { c: '#dc2626', e: '', pulse: true };
-    return l.start ? { c: '#2563eb', e: '', pulse: false } : { c: '#16a34a', e: '', pulse: false };
-  }
-  if (sts.some(x => x === 'late' || x === 'soon')) return { c: '#dc2626', e: '', pulse: true };
+  if (l.due && dTo(l.due) <= PILL_ALERT_DAYS) return { c: '#dc2626', e: '', pulse: true };
+  if (Object.values(l.lots || {}).some(r => r && r.state !== 'done' && r.due && dTo(r.due) <= PILL_ALERT_DAYS)) return { c: '#dc2626', e: '', pulse: true };
+  if (l.due) return l.start ? { c: '#2563eb', e: '', pulse: false } : { c: '#16a34a', e: '', pulse: false };
+  if (sts.some(x => x === 'late')) return { c: '#dc2626', e: '', pulse: true };
   if (sts.some(x => x === 'progress') || (l.start && l.start <= today)) return { c: '#2563eb', e: '', pulse: false };
   return { c: '#16a34a', e: '', pulse: false };
 }
