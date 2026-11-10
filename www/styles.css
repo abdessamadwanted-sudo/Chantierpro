@@ -3816,3 +3816,11 @@ table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-
 .iv-i { display:flex; flex-direction:column; align-items:flex-start; width:100%; padding:8px 10px; margin-top:6px; border-radius:10px; border:1px solid rgba(148,163,184,.25); background:rgba(148,163,184,.08); color:inherit; font:inherit; text-align:left; cursor:pointer; }
 .iv-i small { color: var(--muted); font-size:12.5px; }
 .iv-n { color: var(--muted); font-size:13px; padding:6px 0 0; }
+
+/* v1.0.176 : barre de raccourcis plus basse */
+.st-ptools-p .st-qa-b { padding: 8px 3px 7px !important; gap: 4px !important; }
+.st-ptools-p .st-qa.qa-l .st-qa-b i { width: 42px !important; height: 42px !important; border-radius: 14px !important; }
+.st-ptools-p .st-qa.qa-l .st-qa-b i svg.i { width: 22px !important; height: 22px !important; }
+.st-ptools-p .st-qa.qa-l .st-qa-b span { font-size: 12px !important; }
+.st-ptools-p .st-qa.qa-m .st-qa-b i { width: 36px !important; height: 36px !important; }
+.st-ptools-p .st-qa.qa-s .st-qa-b i { width: 30px !important; height: 30px !important; }
