@@ -532,11 +532,11 @@ async function openPlanViewer(plan, ctx) {
           <g transform="scale(.5)">
           <ellipse cx="0" cy="0" rx="10" ry="3.5" fill="#000" fill-opacity=".25"/>
           <rect x="-3.5" y="-40" width="7" height="40" rx="2" fill="#475569"/>
-          ${lk.alert === 'red' ? `<rect x="${-W / 2 - 12}" y="${top - 12}" width="${W + 24}" height="${H + 24}" rx="22" fill="#dc2626"><animate attributeName="opacity" values=".15;.8;.15" dur="1s" repeatCount="indefinite"/></rect>` : ''}
+          ${lk.alert === 'red' ? `<rect x="${-W / 2}" y="${top}" width="${W}" height="${H}" rx="14" fill="none" stroke="#ef4444" stroke-width="5" filter="url(#pillGlow)"><animate attributeName="stroke-opacity" values=".25;1;.25" dur="1.2s" repeatCount="indefinite"/></rect>` : ''}
           <g filter="url(#pillGlow)">
-            <rect x="${-W / 2}" y="${top}" width="${W}" height="${H}" rx="14" fill="${lk.c}" stroke="#b45309" stroke-width="7"/>
+            <rect x="${-W / 2}" y="${top}" width="${W}" height="${H}" rx="14" fill="${lk.c}" fill-opacity=".92" stroke="#fbbf24" stroke-width="3"/>
             <rect x="${-W / 2}" y="${top}" width="${W}" height="${H}" rx="14" fill="url(#ptGlass)"/>
-            <rect x="${-W / 2 + 9}" y="${top + 9}" width="${W - 18}" height="${H - 18}" rx="9" fill="none" stroke="#fde68a" stroke-width="2" stroke-opacity=".8"/>
+            <rect x="${-W / 2 + 6}" y="${top + 6}" width="${W - 12}" height="${H - 12}" rx="10" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="1.2"/>
           </g>
           <text x="0" y="${top + 30}" text-anchor="middle" font-size="18" font-weight="700" fill="#fff" font-family="Arial" paint-order="stroke" stroke="#111" stroke-width="3">${name}</text>
           ${txt}
@@ -1257,7 +1257,7 @@ const PIN_LOOKS = {
 };
 const PIN_EMOJIS = ['📐', '🔩', '✂️', '📷', '📄', '📝', '🧊', '🔗', '📁', '📎', '🏗️', '🧱', '🪜', '🚪', '🪟', '⚡', '💧', '🔥', '⚠️', '✅', '⭐', '📌', '🎯', '🧰', '🛗', '🌀', '🏛️', '🔷'];
 const PIN_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#7c3aed', '#ea580c', '#0891b2', '#ca8a04', '#db2777', '#475569', '#0f766e', '#1e3a8a', '#111827'];
-const PILL_DEFS = '<defs><filter id="pillGlow" x="-60%" y="-80%" width="220%" height="260%"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter><linearGradient id="ptGlass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".6"/><stop offset=".55" stop-color="#fff" stop-opacity=".05"/><stop offset="1" stop-color="#000" stop-opacity=".18"/></linearGradient></defs>';
+const PILL_DEFS = '<defs><filter id="pillGlow" x="-60%" y="-80%" width="220%" height="260%"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter><linearGradient id="ptGlass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".42"/><stop offset=".45" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#000" stop-opacity=".28"/></linearGradient></defs>';
 // état d'une pastille : début / échéance (l.start, l.due) puis avancement des lots
 // gris = pas commencé · bleu = en cours · vert = loin de l'échéance · rouge = proche ou dépassée (clignote) · ✓ = terminé
 const PILL_ALERT_DAYS = 3;   // vert = à 3 jours ou moins de l'échéance (pas encore démarré) · rouge = échéance atteinte, clignote jusqu'au « Démarré »
