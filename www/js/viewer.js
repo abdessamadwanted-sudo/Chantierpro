@@ -515,10 +515,10 @@ async function openPlanViewer(plan, ctx) {
       // local technique : pastille (pill) au nom du local, couleur selon l'état (vert = loin, rouge = proche / en retard, ✓ = terminé)
       // pastille unifiée : signal + « local » ou « ouvrage » + nom ; couleur d'état ; halo lumineux
       if (l.kind === 'local' || l.kind === 'recpin') {
-        const lk = l.kind === 'local' ? localPillLook(l) : { c: P.c }, kindTxt = l.kind === 'local' ? 'local' : 'ouvrage';
+        const lk = l.kind === 'local' ? localPillLook(l) : { c: P.c, pulse: false }, kindTxt = l.kind === 'local' ? 'local' : 'ouvrage';
         const label = esc(`${kindTxt} · ${String(l.name || kindTxt).slice(0, 22)}`), w = Math.max(96, label.length * 6.9 + 44);
         return `<g transform="translate(${px},${py}) scale(${s})"><line x1="0" y1="0" x2="0" y2="-12" stroke="${lk.c}" stroke-width="2"/><circle r="3.5" fill="${lk.c}" stroke="#fff" stroke-width="1.5"/>
-          <g filter="url(#pillGlow)"><rect x="${-w / 2}" y="-40" width="${w}" height="28" rx="14" fill="${lk.c}" fill-opacity=".92" stroke="#fff" stroke-width="1.5"/></g>
+          <g filter="url(#pillGlow)">${lk.pulse ? '<animate attributeName="opacity" values="1;.45;1" dur="1.6s" repeatCount="indefinite"/>' : ''}<rect x="${-w / 2}" y="-40" width="${w}" height="28" rx="14" fill="${lk.c}" fill-opacity=".92" stroke="#fff" stroke-width="1.5"/></g>
           <circle cx="${-w / 2 + 16}" cy="-26" r="8" fill="none" stroke="#fff" stroke-width="1.5" stroke-opacity=".7"/><circle cx="${-w / 2 + 16}" cy="-26" r="3.5" fill="#fff"/>
           <text x="${-w / 2 + 30}" y="-21" font-size="12.5" font-weight="700" fill="#fff" font-family="Arial">${label}</text></g>`;
       }
@@ -1230,13 +1230,20 @@ const PIN_LOOKS = {
 const PIN_EMOJIS = ['📐', '🔩', '✂️', '📷', '📄', '📝', '🧊', '🔗', '📁', '📎', '🏗️', '🧱', '🪜', '🚪', '🪟', '⚡', '💧', '🔥', '⚠️', '✅', '⭐', '📌', '🎯', '🧰', '🛗', '🌀', '🏛️', '🔷'];
 const PIN_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#7c3aed', '#ea580c', '#0891b2', '#ca8a04', '#db2777', '#475569', '#0f766e', '#1e3a8a', '#111827'];
 const PILL_DEFS = '<defs><filter id="pillGlow" x="-60%" y="-80%" width="220%" height="260%"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
-// état d'un local (tous lots) : rouge si proche / en retard, ✓ si tout est terminé, vert sinon
+// état d'une pastille : début / échéance (l.start, l.due) puis avancement des lots
+// gris = pas commencé · bleu = en cours · vert = loin de l'échéance · rouge = proche ou dépassée (clignote) · ✓ = terminé
 function localPillLook(l) {
-  const sts = typeof avStatus === 'function' ? Object.values(l.lots || {}).map(r => avStatus(r)) : [];
-  if (sts.some(x => x === 'late' || x === 'soon')) return { c: '#dc2626', e: '' };
-  if (sts.length && sts.every(x => x === 'done' || x === 'donelate')) return { c: '#15803d', e: '✓' };
-  if (sts.some(x => x === 'progress')) return { c: '#16a34a', e: '' };
-  return { c: '#16a34a', e: '' };
+  const today = todayISO(), sts = typeof avStatus === 'function' ? Object.values(l.lots || {}).map(r => avStatus(r)) : [];
+  if (sts.length && sts.every(x => x === 'done' || x === 'donelate')) return { c: '#15803d', e: '✓', pulse: false };
+  if (l.start && l.start > today) return { c: '#94a3b8', e: '', pulse: false };
+  if (l.due) {
+    const d = typeof avDaysTo === 'function' ? avDaysTo(l.due) : 999;
+    if (d <= 7) return { c: '#dc2626', e: '', pulse: true };
+    return l.start ? { c: '#2563eb', e: '', pulse: false } : { c: '#16a34a', e: '', pulse: false };
+  }
+  if (sts.some(x => x === 'late' || x === 'soon')) return { c: '#dc2626', e: '', pulse: true };
+  if (sts.some(x => x === 'progress') || (l.start && l.start <= today)) return { c: '#2563eb', e: '', pulse: false };
+  return { c: '#16a34a', e: '', pulse: false };
 }
 function pinLook(l) {
   if (l.kind === 'plansbox') return { e: l.emoji || '📚', c: l.pinColor || '#1e3a8a' };
