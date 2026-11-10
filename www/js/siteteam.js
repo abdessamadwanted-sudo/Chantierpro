@@ -276,7 +276,7 @@ const ST = (() => {
   // ---------- v1.0.38 : accueil du projet — les outils de CE projet (type, fonctions du projet, service, pack), par catégorie ----------
   function renderProjectTools(root) {
     const p = App.project; if (!p) return;
-    const ok = (k) => secShown(k) && k !== 'dashboard' && k !== 'ptools' && sectionOn(k) && Team.canSection(k);
+    const ok = (k) => secShown(k) && k !== 'dashboard' && k !== 'ptools' && k !== 'settings' && sectionOn(k) && Team.canSection(k);
     const first = Team.isAdmin() ? (ORG_FIRST[(Team.orgType() || {}).k] || 'trav') : grpOf();
     // v1.0.63 : l'ordre et les groupes choisis par l'utilisateur (appui long sur un outil → déplacer vers une autre catégorie)
     const G0 = stGroups(first).map(([g, l, ks]) => [g, l, ks.filter(ok).filter(k => !(k === 'plans' && g === 'trav'))]).filter(g => g[2].length);   // v1.0.109 : « Plans » est dans le raccourci du haut
