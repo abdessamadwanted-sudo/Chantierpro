@@ -181,7 +181,8 @@ async function openPlanViewer(plan, ctx) {
   const st = {
     scale: 1, tx: 0, ty: 0,
     tool: ctx && ctx.startTool ? ctx.startTool : 'pan', color: '#ff0000', textSize: 16,   // v1.0.53 : ouvert directement en mode « pin photos » depuis la barre des lots
-    filters: { tasks: true, links: true, annots: true },
+    filters: { tasks: true, links: true, annots: true, pills: true },
+    annHide: [], pillHide: [],   // annotations cachées par couleur ; points d'intérêt cachés par état
     tasks: [], links: [], undo: [], flyout: null, fitScale: 1,
     toolsOpen: true, shape: 'free', pend: null, sel: -1, hue: '#e53935', shade: -0.5, thick: 4,
     pinSize: (() => { try { return +localStorage.getItem('pinSize') || 1; } catch (e) { return 1; } })(),
@@ -464,11 +465,12 @@ async function openPlanViewer(plan, ctx) {
   function hideLoupe() { loupe.style.display = 'none'; }
   let annV = 0, lAnnV = -1, editRaf = 0;
 
+  try { const sv = JSON.parse(localStorage.getItem('viewFilters') || 'null'); if (sv) { st.filters = { ...st.filters, ...(sv.filters || {}) }; st.annHide = sv.annHide || []; st.pillHide = sv.pillHide || []; } } catch (e) {}
   // ---------- Rendering ----------
   function renderAnnots() {
     annV++;
     gAnn.style.display = st.filters.annots ? '' : 'none';
-    gAnn.innerHTML = plan.annotations.map(annotSVG).join('');
+    gAnn.innerHTML = plan.annotations.filter(a => !st.annHide.includes(a.hue || a.color)).map(annotSVG).join('');
   }
   // v1.0.75 : pin photo = pointe rouge avec une icône appareil photo (sans cercle autour) ; un chiffre si plusieurs photos
   function photoPinSVG(n) {
@@ -494,7 +496,7 @@ async function openPlanViewer(plan, ctx) {
         <path d="M0,0 C-4,-10 -14,-14 -14,-26 A14,14 0 1 1 14,-26 C14,-14 4,-10 0,0Z" fill="${c}" stroke="#fff" stroke-width="2"/>
         ${m >= 0.25 ? `<text x="0" y="-21" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" font-family="Arial">${t.num}</text>` : ''}</g>`;
     }).join('');
-    gLinks.innerHTML = PILL_DEFS + st.links.filter(l => l.planId === plan.id).map(l => {
+    gLinks.innerHTML = PILL_DEFS + st.links.filter(l => l.planId === plan.id && (l.kind !== 'local' || (st.filters.pills !== false && !st.pillHide.includes(pillKey(l))))).map(l => {
       const n = showCount ? (l.kind === 'plansbox' ? plansboxCount(l) : l.kind === 'photonote' ? (typeof pnCount === 'function' ? pnCount(l) : (l.photos || []).length) + (l.notes || []).length : (l.items || []).length) : 0;
       const ls = 1 / st.scale;
       const [px, py] = linkXY(l);
@@ -1184,6 +1186,9 @@ async function openPlanViewer(plan, ctx) {
       { label: 'Tâches', icon: 'pin', checked: st.filters.tasks, value: 'tasks' },
       { label: 'Liens / éléments', icon: 'link', checked: st.filters.links, value: 'links' },
       { label: 'Annotations', icon: 'pen', checked: st.filters.annots, value: 'annots' },
+      { label: 'Annotations par couleur', icon: 'pen', value: 'anncol' },
+      { label: 'Points d\'intérêt', icon: 'pin', checked: st.filters.pills !== false, value: 'pills' },
+      { label: 'Points d\'intérêt par état', icon: 'pin', value: 'pillst' },
       { label: `Taille des pins : ${{ 0.6: 'Petit', 1: 'Normal', 1.6: 'Grand' }[st.pinSize] || 'Normal'}`, icon: 'pin', value: 'size' },
     ]);
     if (v === 'size') {
@@ -1193,7 +1198,24 @@ async function openPlanViewer(plan, ctx) {
         { label: 'Grand', value: 1.6, checked: st.pinSize === 1.6 },
       ]);
       if (sz) { st.pinSize = sz; try { localStorage.setItem('pinSize', sz); } catch (e) {} renderMarkers(); }
-    } else if (v) { st.filters[v] = !st.filters[v]; renderAnnots(); renderMarkers(); }
+    } else if (v === 'anncol') {
+      // une couleur à la fois : on coche/décoche puis le menu se rouvre
+      const cols = [...new Set(plan.annotations.map(a => a.hue || a.color).filter(Boolean))];
+      if (!cols.length) return toast('Aucune annotation sur ce plan');
+      for (;;) {
+        const c = await menu('Annotations par couleur', cols.map(c => ({ label: (st.annHide.includes(c) ? 'Masqué · ' : 'Affiché · ') + c, swatch: c, value: c })));
+        if (!c) break;
+        st.annHide = st.annHide.includes(c) ? st.annHide.filter(x => x !== c) : [...st.annHide, c];
+        saveViewFilters(); renderAnnots();
+      }
+    } else if (v === 'pillst') {
+      for (;;) {
+        const k = await menu('Points d\'intérêt par état', PILL_KEYS.map(([k, lab, c]) => ({ label: (st.pillHide.includes(k) ? 'Masqué · ' : 'Affiché · ') + lab, swatch: c, value: k })));
+        if (!k) break;
+        st.pillHide = st.pillHide.includes(k) ? st.pillHide.filter(x => x !== k) : [...st.pillHide, k];
+        saveViewFilters(); renderMarkers();
+      }
+    } else if (v) { st.filters[v] = !st.filters[v]; saveViewFilters(); renderAnnots(); renderMarkers(); }
   };
   const openIndMenu = () => planIndicesMenu(plan, { onNew: (np) => { close(); openPlanViewer(np, ctx); }, onOpen: (p2) => { if (p2.id !== plan.id) { close(); openPlanViewer(p2, ctx); } } });
 
@@ -1291,6 +1313,18 @@ function localPillLook(l) {
   if (l.start && l.start > today) return { c: '#94a3b8', e: '', pulse: false, alert: null };
   return { c: '#64748b', e: '', pulse: false, alert: null };   // neutre : pas d'alerte
 }
+// clé d'état d'un point d'intérêt (pour le filtre) : red · green · purple · blue · done · grey
+function pillKey(l) {
+  const lk = localPillLook(l);
+  if (lk.e === '✓') return 'done';
+  if (lk.alert === 'purple') return 'purple';
+  if (lk.alert === 'red') return 'red';
+  if (lk.alert === 'green') return 'green';
+  if (l.started) return 'blue';
+  return 'grey';
+}
+const PILL_KEYS = [['red', 'Rouge · échéance atteinte', '#dc2626'], ['green', 'Vert · moins de 3 jours', '#16a34a'], ['purple', 'Violet · demande de fin', '#7c3aed'], ['blue', 'Bleu · démarré', '#2563eb'], ['grey', 'Gris · neutre', '#64748b'], ['done', 'Terminé ✓', '#15803d']];
+function saveViewFilters() { try { localStorage.setItem('viewFilters', JSON.stringify({ filters: st.filters, annHide: st.annHide, pillHide: st.pillHide })); } catch (e) {} }
 function pinLook(l) {
   if (l.kind === 'plansbox') return { e: l.emoji || '📚', c: l.pinColor || '#1e3a8a' };
   if (l.kind === 'recpin') { if (l.recKind === 'Non-conformité') return l.recLifted ? { e: '✅', c: '#16a34a' } : { e: '⚠️', c: '#dc2626' };
