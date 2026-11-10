@@ -438,7 +438,7 @@ async function renderSection() {
 // alertes des points d'intérêt : restent affichées jusqu'à « Démarré » (rouge/vert) ou « Terminé » (demande de fin)
 async function pointAlertItems(planId) {
   const L = (await DB.byProject('links', App.project.id)).filter(l => l.kind === 'local' && l.planId && l.x != null && (!planId || l.planId === planId));
-  const ord = { red: 0, client: 1, purple: 2, green: 3 };
+  const ord = { red: 0, co: 1, client: 2, purple: 3, green: 4 };
   return L.map(l => ({ l, al: pointAlert(l) })).filter(x => x.al).sort((a, b) => ord[a.al] - ord[b.al]);
 }
 // page d'accueil du chantier : un petit carré « total des alertes » + le dossier Data (le tableau des photos y est rangé)
@@ -502,15 +502,15 @@ async function openPhotoTable() {
 // page « Alertes » : tableau des points d'intérêt en alerte, avec filtres (lot, niveau, état)
 async function openAlertsTable(items, opts = {}) {
   const p = App.project;
-  const lab = { red: 'Retard · échéance atteinte', client: 'Attente client', green: `Moins de ${ptAlertDays()} j`, purple: 'Demande de fin' };
-  const col = { red: pillColor('red'), client: pillColor('client'), green: pillColor('green'), purple: pillColor('purple') };
+  const lab = { red: 'Retard · maître d\'ouvrage', co: 'Retard · société', client: 'Attente client', green: `Moins de ${ptAlertDays()} j`, purple: 'Demande de fin' };
+  const col = { red: pillColor('red'), co: pillColor('co'), client: pillColor('client'), green: pillColor('green'), purple: pillColor('purple') };
   const rows = [];
   for (const { l, al } of items) {
     const pl = await DB.get('plans', l.planId);
     const lot = pl && pl.lotId ? (avLot(p, pl.lotId) || {}).name || '' : '';
     const niv = l.nivId ? ((p.avNiveaux || []).find(n => n.id === l.nivId) || {}).name || '' : '';
-    const dd = l.due ? ptDueDays(l) : null;
-    rows.push({ l, al, lot, niv, plan: pl ? pl.name || '' : '', due: l.due || '', ret: dd == null ? '' : dd < 0 ? `${-dd} j de retard` : `Reste ${dd} j` });
+    const dd = al === 'co' ? avDaysTo(l.dueCo) : l.due ? ptDueDays(l) : null;
+    rows.push({ l, al, lot, niv, plan: pl ? pl.name || '' : '', due: al === 'co' ? l.dueCo : l.due || '', ret: dd == null ? '' : dd < 0 ? `${-dd} j de retard` : `Reste ${dd} j` });
   }
   const uniq = (k) => [...new Set(rows.map(r => r[k]).filter(Boolean))].sort();
   const opt = (k, arr) => `<option value="">${k === 'al' ? 'Tous les états' : 'Tous'}</option>` + arr.map(v => `<option value="${esc(v)}">${esc(k === 'al' ? lab[v] : v)}</option>`).join('');
@@ -518,14 +518,14 @@ async function openAlertsTable(items, opts = {}) {
     <div class="ptab-f">
       <select data-f="lot">${opt('lot', uniq('lot'))}</select>
       <select data-f="niv">${opt('niv', uniq('niv'))}</select>
-      <select data-f="al">${opt('al', ['red', 'client', 'green', 'purple'])}</select>
+      <select data-f="al">${opt('al', ['red', 'co', 'client', 'green', 'purple'])}</select>
     </div>
     <div class="ptab-w"><table class="ptab-t"><thead><tr><th></th><th></th><th>Nom</th><th>Niveau</th><th>Lot</th><th>Plan</th><th>Échéance</th><th>État</th><th>Retard / reste</th></tr></thead>
     <tbody></tbody></table></div></div>`, { title: `🔔 Alertes${opts.planName ? ' · ' + opts.planName : ''} · ${rows.length}` });
   const paint = () => {
     const f = { lot: $('[data-f=lot]', s.el).value, niv: $('[data-f=niv]', s.el).value, al: $('[data-f=al]', s.el).value };
     const sel = rows.filter(r => (!f.lot || r.lot === f.lot) && (!f.niv || r.niv === f.niv) && (!f.al || r.al === f.al));
-    $('.ptab-t tbody', s.el).innerHTML = sel.map((r, i) => `<tr data-i="${rows.indexOf(r)}"><td><i class="ptab-dot" style="background:${col[r.al]}"></i></td><td><button class="ptab-pin" data-pin="${rows.indexOf(r)}" title="Aller au point sur le plan">📍</button></td><td><b>${esc(r.l.name || 'Point')}</b></td><td>${esc(r.niv || '—')}</td><td>${esc(r.lot || '—')}</td><td>${esc(r.plan || '—')}</td><td>${esc(r.due ? r.due.split('-').reverse().join('/') + (r.l.dueTime ? ' ' + r.l.dueTime : '') : '—')}</td><td><span class="ptab-st" style="color:${col[r.al]}">${lab[r.al]}</span></td><td>${esc(r.ret || '—')}</td></tr>`).join('') || '<tr><td colspan="9" class="muted">Aucune alerte avec ces filtres</td></tr>';
+    $('.ptab-t tbody', s.el).innerHTML = sel.map((r, i) => `<tr data-i="${rows.indexOf(r)}"><td><i class="ptab-dot" style="background:${col[r.al]}"></i></td><td><button class="ptab-pin" data-pin="${rows.indexOf(r)}" title="Aller au point sur le plan">📍</button></td><td><b>${esc(r.l.name || 'Point')}</b></td><td>${esc(r.niv || '—')}</td><td>${esc(r.lot || '—')}</td><td>${esc(r.plan || '—')}</td><td>${esc(r.due ? r.due.split('-').reverse().join('/') + ((r.al === 'co' ? r.l.dueCoTime : r.l.dueTime) ? ' ' + (r.al === 'co' ? r.l.dueCoTime : r.l.dueTime) : '') : '—')}</td><td><span class="ptab-st" style="color:${col[r.al]}">${lab[r.al]}</span></td><td>${esc(r.ret || '—')}</td></tr>`).join('') || '<tr><td colspan="9" class="muted">Aucune alerte avec ces filtres</td></tr>';
     $$('[data-pin]', s.el).forEach(b => b.onclick = async (e) => { e.stopPropagation(); const r = rows[+b.dataset.pin]; const pl = await DB.get('plans', r.l.planId); if (!pl) return toast('Plan supprimé'); s.close && s.close(); openPlanViewer(pl, { ...planCtx(() => renderSection()), focus: { x: r.l.x, y: r.l.y } }); });
     $$('.ptab-t tbody tr[data-i]', s.el).forEach(tr => tr.onclick = async () => { s.close && s.close(); await openLinkDetail(rows[+tr.dataset.i].l); renderSection(); });
   };
@@ -953,7 +953,7 @@ function localTableHTML(link) {
   const fd = (iso) => iso ? String(iso).split('-').reverse().join('/') : '—';
   const al = pointAlert(link);
   const sc = (k) => pillColor(k);
-  const st = link.finished ? ['Terminé', sc('done')] : link.endReq ? ['Demande de fin du propriétaire', sc('purple')] : link.hold ? ['Attente client (arrêt)', sc('client')] : link.started ? ['Démarré', sc('blue')] : !link.due ? ['Sans échéance', sc('grey')] : al === 'red' ? ['Retard : échéance atteinte, pas démarré', sc('red')] : al === 'green' ? ['Échéance dans moins de 3 jours', sc('green')] : ['Pas encore démarré', sc('grey')];
+  const st = link.finished ? ['Terminé', sc('done')] : link.endReq ? ['Demande de fin du propriétaire', sc('purple')] : link.hold ? ['Attente client (arrêt)', sc('client')] : link.started ? ['Démarré', sc('blue')] : !link.due && !link.dueCo ? ['Sans échéance', sc('grey')] : al === 'red' ? ['Retard : échéance du maître d\'ouvrage atteinte', sc('red')] : al === 'co' ? ['Retard : objectif de la société dépassé', sc('co')] : al === 'green' ? ['Échéance dans moins de 3 jours', sc('green')] : ['Pas encore démarré', sc('grey')];
   let late = '—';
   if (link.due && !link.finished) { const d = ptDueDays(link); late = d < 0 ? `<b style="color:${sc('red')}">${-d} j de retard</b>` : `Reste ${d} j`; }
   const ht = holdTotal(link);
@@ -961,6 +961,7 @@ function localTableHTML(link) {
   const last = (link.dueLog || []).slice(-1)[0];
   const rows = [['Statut', `<b style="color:${st[1]}">${st[0]}</b>`], ['Début', fd(link.start)], ['Démarré le', fd(link.started)],
     ['Échéance <small>(maître d\'ouvrage)</small> ✎', `<span data-a="due" style="text-decoration:underline dotted">${fd(link.due)}</span>${last ? `<div class="muted" style="font-size:11px">modifiée le ${fd(last.at)} (avant : ${fd(last.from)})${last.note ? ' · ' + esc(last.note) : ''}</div>` : ''}`],
+    ['Échéance société', link.dueCo ? fd(link.dueCo) + (link.dueCoTime ? ' ' + link.dueCoTime : '') : '—'],
     ...(ht ? [['Échéance ajustée', fd(dueEff(link))]] : []),
     ['Arrêt client', hold], ['Retard / reste', late], ['Documents', (link.items || []).length]];
   return `<table class="lk-tb">${rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table>`;
@@ -1118,7 +1119,7 @@ function openLinkDetail(link) {
         const v = await menu(link.name, [
           { label: 'Renommer', icon: 'edit', value: 'rename' },
           ...(link.kind === 'local' ? [{ label: 'Échéance (ordre maître d\'ouvrage)', icon: 'calendar', value: 'due' }, { label: link.hold ? 'Reprise (fin d\'attente client)' : 'Attente client (arrêt)', icon: 'alert', value: 'hold' }, { label: 'Couleurs des états (dôme)', icon: 'pin', value: 'pillcol' }] : []),
-          ...(link.kind === 'local' ? [{ label: 'Dates (début / échéance)', icon: 'calendar', value: 'dates' }] : []),
+          ...(link.kind === 'local' ? [{ label: 'Dates (début / échéance / objectif société)', icon: 'calendar', value: 'dates' }] : []),
           ...(link.kind === 'local' ? [{ label: 'Forme du point', icon: 'pin', value: 'shape' }] : []),
           ...(link.kind === 'local' ? [
             { label: link.started ? 'Démarré ✓ (annuler)' : 'Démarré', icon: 'check', value: 'started' },
@@ -1141,8 +1142,10 @@ function openLinkDetail(link) {
             { name: 'startTime', label: 'Début : heure', type: 'time', value: link.startTime || '' },
             { name: 'due', label: 'Échéance : date', type: 'date', value: link.due || '' },
             { name: 'dueTime', label: 'Échéance : heure', type: 'time', value: link.dueTime || '' },
+            { name: 'dueCo', label: 'Objectif société : date', type: 'date', value: link.dueCo || '' },
+            { name: 'dueCoTime', label: 'Objectif société : heure', type: 'time', value: link.dueCoTime || '' },
           ], { okLabel: 'Enregistrer' });
-          if (r) { link.start = r.start || null; link.startTime = r.start ? (r.startTime || null) : null; link.due = r.due || null; link.dueTime = r.due ? (r.dueTime || null) : null; await save(); render(); }
+          if (r) { link.start = r.start || null; link.startTime = r.start ? (r.startTime || null) : null; link.due = r.due || null; link.dueTime = r.due ? (r.dueTime || null) : null; link.dueCo = r.dueCo || null; link.dueCoTime = r.dueCo ? (r.dueCoTime || null) : null; await save(); render(); }
         }
         if (v === 'shape') { const sh = await menu('Forme du point', [{ label: 'Gyrophare 3D (dôme)', value: 'beacon', checked: (link.look || 'beacon') === 'beacon' }, { label: 'Panneau avec dates', value: 'board', checked: link.look === 'board' }, { label: 'Rond (sans dates)', value: 'disc', checked: link.look === 'disc' }]); if (sh) { link.look = sh; await save(); render(); } }
         if (v === 'started') { link.started = link.started ? null : todayISO(); await save(); render(); toast(link.started ? 'Démarré ✓ — le signal rouge s\'arrête' : 'Démarrage annulé'); }
