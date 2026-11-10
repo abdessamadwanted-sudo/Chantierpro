@@ -520,7 +520,7 @@ async function openPlanViewer(plan, ctx) {
         // panneau de signalisation : planche avec cadre doré victorien, verre ; la couleur = état ; dates écrites dedans
         const lk = l.kind === 'local' ? localPillLook(l) : { c: P.c, pulse: false, alert: null };
         // dézoom : le panneau rétrécit (le zoom avant le ramène à sa taille)
-        const bk = Math.min(1, Math.max(0.3, st.scale / ((st.fitScale || 1) * 1.6)));
+        const bk = Math.min(2.5, Math.max(0.3, st.scale / ((st.fitScale || 1) * 1.6)));   // zoom avant : grandit ; dézoom : rétrécit
         const name = esc(String(l.name || 'local').slice(0, 22));
         const fdt = (iso) => iso ? String(iso).split('-').reverse().join('/') : '';
         const dl = [];
@@ -542,7 +542,7 @@ async function openPlanViewer(plan, ctx) {
         const W = 180, H = 46 + dl.length * 17, top = -40 - H;
         const txt = dl.map((t, i) => `<text x="0" y="${top + 48 + i * 17}" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" font-family="Arial" paint-order="stroke" stroke="#111" stroke-width="3">${esc(t)}</text>`).join('');
         return `<g transform="translate(${px},${py}) scale(${s * bk})">
-          <g transform="scale(.5)">
+          <g transform="scale(.36)">
           <ellipse cx="0" cy="0" rx="10" ry="3.5" fill="#000" fill-opacity=".25"/>
           <rect x="-3.5" y="-40" width="7" height="40" rx="2" fill="#475569"/>
           ${lk.alert === 'red' ? `<rect x="${-W / 2}" y="${top}" width="${W}" height="${H}" rx="14" fill="none" stroke="#ef4444" stroke-width="5" filter="url(#pillGlow)"><animate attributeName="stroke-opacity" values=".25;1;.25" dur="1.2s" repeatCount="indefinite"/></rect>` : ''}
@@ -551,6 +551,9 @@ async function openPlanViewer(plan, ctx) {
             <rect x="${-W / 2}" y="${top}" width="${W}" height="${H}" rx="14" fill="url(#ptGlass)"/>
             <rect x="${-W / 2 + 6}" y="${top + 6}" width="${W - 12}" height="${H - 12}" rx="10" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="1.2"/>
           </g>
+          ${lk.alert === 'red' ? `<g filter="url(#pillGlow)">
+            <rect x="${-W / 2 + 22}" y="${top - 10}" width="${W / 2 - 28}" height="11" rx="5.5" fill="#ef4444"><animate attributeName="opacity" values="1;.12;1" dur=".6s" repeatCount="indefinite"/></rect>
+            <rect x="6" y="${top - 10}" width="${W / 2 - 28}" height="11" rx="5.5" fill="#3b82f6"><animate attributeName="opacity" values=".12;1;.12" dur=".6s" repeatCount="indefinite"/></rect></g>` : ''}
           <text x="0" y="${top + 30}" text-anchor="middle" font-size="18" font-weight="700" fill="#fff" font-family="Arial" paint-order="stroke" stroke="#111" stroke-width="3">${name}</text>
           ${txt}
           </g></g>`;
