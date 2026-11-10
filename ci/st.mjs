@@ -1405,6 +1405,25 @@ try {
   log('v1.0.78 [pin 📍 colonne, pin rouge plan, choix de lot, intensité]', t78); log('errors v1.0.78', t78.lots ? [] : ['v1.0.78']);
   const t80 = await A.pg.evaluate(() => ({ lots: typeof lotBarInto === 'function' }));
   log('v1.0.80 [lots en liste déroulante]', t80); log('errors v1.0.80', t80.lots ? [] : ['v1.0.80']);
+  // ---- v1.0.x : début/échéance avec heure, activation automatique, alertes, dossier Data ----
+  const tAl = await A.pg.evaluate(() => {
+    const iso = (ms) => { const d = new Date(Date.now() + ms); const p = (n) => String(n).padStart(2, '0'); return { d: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`, t: `${p(d.getHours())}:${p(d.getMinutes())}` }; };
+    const H = 36e5, D = 24 * H, mk = (o) => ({ kind: 'local', ...o });
+    const far = iso(20 * D), soon = iso(2 * D), past = iso(-3 * H), fut = iso(5 * H), pastS = iso(-1 * H);
+    return {
+      far: [ptActive(mk({ due: far.d })), pointAlert(mk({ due: far.d }))].join(),
+      soon: [ptActive(mk({ due: soon.d })), pointAlert(mk({ due: soon.d }))].join(),
+      late: [ptActive(mk({ due: past.d, dueTime: past.t })), pointAlert(mk({ due: past.d, dueTime: past.t }))].join(),
+      hourFuture: pointAlert(mk({ due: fut.d, dueTime: fut.t })) + '',
+      startFut: ptActive(mk({ start: fut.d, startTime: fut.t, due: far.d })) + '',
+      startPast: ptActive(mk({ start: pastS.d, startTime: pastS.t, due: far.d })) + '',
+      none: ptActive(mk({})) + '',
+      started: ptActive(mk({ due: far.d, started: '2026-01-01' })) + '',
+      days: ptAlertDays(), data: typeof openDataFolder, tbl: typeof openAlertsTable, items: typeof pointAlertItems,
+    };
+  });
+  log('v1.0.x [alertes : heure, activation auto, réglages]', tAl);
+  log('errors v1.0.x alertes', (tAl.far === 'false,' || tAl.far === 'false,null') && tAl.soon === 'true,green' && tAl.late === 'true,red' && tAl.hourFuture === 'green' && tAl.startFut === 'false' && tAl.startPast === 'true' && tAl.none === 'true' && tAl.started === 'true' && tAl.days === 3 && tAl.data === 'function' && tAl.tbl === 'function' && tAl.items === 'function' ? [] : ['v1.0.x alertes']);
   const t82 = await A.pg.evaluate(() => ({ db: typeof DB.get === 'function' }));
   log('v1.0.82 [démarrage : synchro différée, IndexedDB réessaie]', t82); log('errors v1.0.82', t82.db ? [] : ['v1.0.82']);
   const t79 = await A.pg.evaluate(() => ({ proj: typeof GDrive.projectSave, file: typeof Backup.exportProject }));
