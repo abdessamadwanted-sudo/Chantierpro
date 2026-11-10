@@ -430,6 +430,12 @@ async function renderSection() {
   const hb = $('[data-a=home]'); if (hb) hb.onclick = renderHome;
   const cr = $('[data-a=crumb]'); if (cr) cr.onclick = (e) => { e.stopPropagation(); renderHome(); };
   await s.render($('#content'));
+  if (App.section === 'ptools') {   // Outils du projet : Accueil (maison blanche, liste des projets) et Paramètres fixés en haut à droite
+    const tba = $('#tbActions');
+    if (tba) { tba.innerHTML = `<button class="tb-home" data-a="tbhome" title="Accueil : mes projets">${icon('home')}</button><button class="iconbtn" data-a="tbset" title="Paramètres">${icon('settings')}</button>`;
+      ($('[data-a=tbhome]', tba) || {}).onclick = () => renderHome();
+      ($('[data-a=tbset]', tba) || {}).onclick = () => { App.section = 'settings'; renderSection(); }; }
+  }
   await renderPointAlerts($('#content'));
   const sv = App.secScroll[secKey]; if (sv && !App.scrollFolder) requestAnimationFrame(() => { const c1 = $('#content'); if (c1 && App.lastSecKey === secKey) { c1.scrollTop = sv[0]; if (document.scrollingElement) document.scrollingElement.scrollTop = sv[1]; } });
   Team.decorateSection(App.section);
@@ -1689,6 +1695,57 @@ async function renderTeam(root) {
 }
 
 // ---------- Paramètres ----------
+// localisation du projet : lien Google Maps (ou coordonnées GPS / adresse) à ouvrir ou à partager sur WhatsApp
+function projectMapUrl(p) {
+  if (p.mapsUrl && /^https?:\/\//i.test(p.mapsUrl.trim())) return p.mapsUrl.trim();
+  const g = String(p.gps || '').match(/(-?\d+(?:\.\d+)?)\s*[,;]\s*(-?\d+(?:\.\d+)?)/);
+  if (g) return `https://www.google.com/maps?q=${g[1]},${g[2]}`;
+  return p.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.address)}` : '';
+}
+function shareProjectWhatsApp(p) {
+  const u = projectMapUrl(p); if (!u && !p.address) return toast('Ajoutez d\'abord l\'adresse ou le lien Google Maps');
+  const text = ['📍 ' + p.name, p.address || '', u].filter(Boolean).join('\n');
+  openUrl('https://wa.me/?text=' + encodeURIComponent(text));
+}
+// intervenants du projet : maître d'ouvrage, architecte, bureau de contrôle, topographe, BET… (plusieurs par rôle possibles)
+const IV_ROLES = [['mo', 'Maître d\'ouvrage', '🏛️'], ['archi', 'Bureau d\'architecture', '📐'], ['controle', 'Bureau de contrôle', '🔍'], ['topo', 'Bureau topographique', '🧭'], ['bet', 'BET (bureau d\'études)', '🧮'], ['autre', 'Autre intervenant', '👤']];
+function ivPanel(box) {
+  const p = App.project; if (!box) return;
+  const save = async () => { const mos = (p.intervenants || []).filter(x => x.role === 'mo').map(x => x.name).filter(Boolean); if (mos.length) p.mo = mos.join(' / '); await DB.put('projects', p); };
+  const edit = async (role, cur) => {
+    const rl = IV_ROLES.find(x => x[0] === role) || IV_ROLES[5];
+    const r = await formSheet(cur ? cur.name || rl[1] : rl[1], [
+      { name: 'name', label: role === 'autre' ? 'Nom de l\'organisme / personne' : 'Nom (société ou bureau)', value: cur ? cur.name || '' : '' },
+      ...(role === 'autre' ? [{ name: 'fn', label: 'Fonction', value: cur ? cur.fn || '' : '', placeholder: 'Ex : laboratoire, géotechnicien' }] : []),
+      { name: 'contact', label: 'Contact (personne)', value: cur ? cur.contact || '' : '' },
+      { name: 'phone', label: 'Téléphone', type: 'tel', value: cur ? cur.phone || '' : '' },
+      { name: 'email', label: 'E-mail', type: 'email', value: cur ? cur.email || '' : '' },
+    ], { okLabel: 'Enregistrer', danger: cur ? 'Supprimer' : null });
+    if (!r) return;
+    p.intervenants = p.intervenants || [];
+    if (r.__danger) p.intervenants = p.intervenants.filter(x => x.id !== cur.id);
+    else if (!String(r.name || '').trim()) return toast('Le nom est obligatoire');
+    else if (cur) Object.assign(cur, { name: r.name.trim(), fn: r.fn || '', contact: r.contact || '', phone: r.phone || '', email: r.email || '' });
+    else p.intervenants.push({ id: DB.uid(), role, name: r.name.trim(), fn: r.fn || '', contact: r.contact || '', phone: r.phone || '', email: r.email || '' });
+    await save(); draw();
+  };
+  const draw = () => {
+    const L = p.intervenants || [];
+    box.innerHTML = `<div style="font-weight:600;margin-bottom:8px">Intervenants du projet</div>` + IV_ROLES.map(([k, l, e]) => {
+      const rows = L.filter(x => x.role === k);
+      return `<div class="iv-r"><div class="iv-h"><span>${e} ${esc(l)}${rows.length > 1 ? ` <small>· ${rows.length}</small>` : ''}</span><button class="iv-add" data-add="${k}" title="Ajouter">＋</button></div>${rows.map(x => `<button class="iv-i" data-id="${x.id}"><b>${esc(x.name)}</b><small>${esc([x.fn, x.contact, x.phone].filter(Boolean).join(' · '))}</small></button>`).join('') || '<div class="iv-n">— à renseigner</div>'}</div>`;
+    }).join('');
+    $$('[data-add]', box).forEach(b => b.onclick = () => edit(b.dataset.add, null));
+    $$('[data-id]', box).forEach(b => b.onclick = async () => {
+      const cur = (p.intervenants || []).find(x => x.id === b.dataset.id); if (!cur) return;
+      const v = await menu(cur.name, [{ label: 'Modifier', icon: 'edit', value: 'e' }, ...(cur.phone ? [{ label: 'Appeler ' + cur.phone, icon: 'phone', value: 'tel' }] : []), ...(cur.email ? [{ label: 'Écrire un e-mail', icon: 'mail', value: 'mail' }] : [])]);
+      if (v === 'e') edit(cur.role, cur);
+      if (v === 'tel') location.href = 'tel:' + cur.phone.replace(/\s+/g, '');
+      if (v === 'mail') location.href = 'mailto:' + cur.email;
+    });
+  };
+  draw();
+}
 async function renderSettings(root) {
   const p = App.project;
   root.innerHTML = `<div class="pagehead"><h2>Paramètres</h2></div>
@@ -1696,8 +1753,11 @@ async function renderSettings(root) {
       <label>Nom du projet<input name="name" value="${esc(p.name)}"></label>
       <label>Adresse / ville<input name="address" value="${esc(p.address)}"></label>
       <label>Titre complet sur les tableaux / PDF (optionnel)<input name="pdfTitle" value="${esc(p.pdfTitle || '')}" placeholder="Ex : Projet de construction du Grand stade Benslimane"></label>
+      <label>Lien Google Maps<input name="mapsUrl" type="url" value="${esc(p.mapsUrl || '')}" placeholder="Collez le lien Google Maps du chantier"></label>
+      <div style="display:flex;gap:8px;margin:-4px 0 8px"><button class="btn ghost" data-a="mapopen" style="flex:1">📍 Ouvrir dans Maps</button><button class="btn ghost" data-a="mapwa" style="flex:1">💬 Partager sur WhatsApp</button></div>
       <label>Maître d'ouvrage<input name="mo" value="${esc(p.mo || '')}" placeholder="Ex : SONARGES, ONEE, Commune…"></label>
       <button class="btn" data-a="save">Enregistrer</button>
+      <div class="card" style="margin:12px 0 0;padding:14px" data-ivbox></div>
       <div style="height:12px"></div>
       <div class="card" style="margin:0 0 12px;padding:14px" data-fxbox></div>
       ${Org.owner() ? `<button class="btn ghost" data-a="welcome" style="margin-bottom:12px">👋 Revoir l'écran de bienvenue (service et poste)</button>` : ''}
@@ -1723,7 +1783,11 @@ async function renderSettings(root) {
   const pcb = $('[data-a=pcollab]', root); if (pcb) pcb.onclick = () => Team.collabFlow(p);
   const wb = $('[data-a=welcome]', root); if (wb) wb.onclick = () => orgOnboard(true);
   fxPanel($('[data-fxbox]', root));
-  ($('[data-a=save]', root)||{}).onclick = async () => { p.name = $('[name=name]', root).value.trim() || p.name; p.address = $('[name=address]', root).value.trim(); p.pdfTitle = $('[name=pdfTitle]', root).value.trim(); p.mo = $('[name=mo]', root).value.trim(); await DB.put('projects', p); toast('Enregistré ✓'); renderSection(); };
+  ivPanel($('[data-ivbox]', root));
+  const mapNow = () => { const m = $('[name=mapsUrl]', root); if (m) p.mapsUrl = m.value.trim(); const ad = $('[name=address]', root); if (ad) p.address = ad.value.trim(); };
+  ($('[data-a=mapopen]', root)||{}).onclick = () => { mapNow(); const u = projectMapUrl(p); if (u) openUrl(u); else toast('Ajoutez l\'adresse ou le lien Google Maps'); };
+  ($('[data-a=mapwa]', root)||{}).onclick = () => { mapNow(); shareProjectWhatsApp(p); };
+  ($('[data-a=save]', root)||{}).onclick = async () => { p.name = $('[name=name]', root).value.trim() || p.name; p.address = $('[name=address]', root).value.trim(); p.pdfTitle = $('[name=pdfTitle]', root).value.trim(); p.mo = $('[name=mo]', root).value.trim(); p.mapsUrl = ($('[name=mapsUrl]', root) || {}).value ? $('[name=mapsUrl]', root).value.trim() : ''; await DB.put('projects', p); toast('Enregistré ✓'); renderSection(); };
   ($('[data-a=backup]', root)||{}).onclick = async () => {
     const ld = loading('Préparation de la sauvegarde…');
     try {

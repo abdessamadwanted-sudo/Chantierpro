@@ -246,7 +246,7 @@ const ST = (() => {
   // ---------- couleurs professionnelles par famille d'outils (pictogrammes sur pastille teintée) ----------
   const CAT_C = { trav: '#2164A8', qual: '#18866B', etu: '#5B4BA8', fin: '#B7791F', org: '#3D5A80', all: '#2164A8' };
   const catOf = (k) => { const g = typeof DR_GROUPS !== 'undefined' && DR_GROUPS.find(x => x[2].includes(k)); return g ? g[0] : 'trav'; };
-  const toolName = (k) => k === 'beton' ? 'Programme de bétonnage' : (SECTIONS[k].title || SECTIONS[k].label).split(' (')[0];
+  const toolName = (k) => k.startsWith('x:') ? (({ anom: 'Tableau des anomalies', due: 'Tableau des échéances', bons: 'Bons & modèles à remplir', dwg: 'DWG → PDF · plans', pdf: 'Outils PDF', photo: 'Studio photo', board: 'Tableau de dessin' })[k.slice(2)] || k) : k === 'beton' ? 'Programme de bétonnage' : (SECTIONS[k].title || SECTIONS[k].label).split(' (')[0];
   // ---------- Mes outils par catégorie (Chantier · Qualité & sécurité · Études · Gestion · Projet & équipe) ----------
   // v1.0.35 : catégories en cartes (sans « Tous ») ; rien n'est déplié tant qu'on ne touche pas une catégorie.
   // L'ordre suit le service (membres) ou le type d'organisation (BET / architecte → Études ; labo / contrôle → Qualité).
@@ -276,7 +276,7 @@ const ST = (() => {
   // ---------- v1.0.38 : accueil du projet — les outils de CE projet (type, fonctions du projet, service, pack), par catégorie ----------
   function renderProjectTools(root) {
     const p = App.project; if (!p) return;
-    const ok = (k) => secShown(k) && k !== 'dashboard' && k !== 'ptools' && sectionOn(k) && Team.canSection(k);
+    const ok = (k) => secShown(k) && k !== 'dashboard' && k !== 'ptools' && k !== 'settings' && sectionOn(k) && Team.canSection(k);
     const first = Team.isAdmin() ? (ORG_FIRST[(Team.orgType() || {}).k] || 'trav') : grpOf();
     // v1.0.63 : l'ordre et les groupes choisis par l'utilisateur (appui long sur un outil → déplacer vers une autre catégorie)
     const G0 = stGroups(first).map(([g, l, ks]) => [g, l, ks.filter(ok).filter(k => !(k === 'plans' && g === 'trav'))]).filter(g => g[2].length);   // v1.0.109 : « Plans » est dans le raccourci du haut
@@ -294,15 +294,19 @@ const ST = (() => {
     let qaOrd = [], qaHid = []; try { qaOrd = JSON.parse(localStorage.getItem('qa.ord') || '[]'); qaHid = JSON.parse(localStorage.getItem('qa.hid') || '[]'); } catch (e) {}
     // v1.0.112 : sections ajoutées par l'utilisateur (bouton ＋) ; chaque raccourci garde son ordre
     let qaAdd = []; try { qaAdd = JSON.parse(localStorage.getItem('qa.add') || '[]'); } catch (e) {}
-    const qaSpecOf = (k) => qaSpec[k] || (qaAdd.includes(k) && SECTIONS[k] ? [k, SECTIONS[k].icon || 'grid', toolName(k), '#334155'] : null);
-    const qaAvailOf = (k) => (k in qaAvail) ? qaAvail[k] : (qaAdd.includes(k) && ok(k));
+    // outils annexes (groupe « Outils ») utilisables aussi comme raccourcis : clés « x:… »
+    const XT = { anom: ['alert', 'Tableau des anomalies'], due: ['calendar', 'Tableau des échéances'], bons: ['form', 'Bons & modèles à remplir'], dwg: ['layers', 'DWG → PDF · plans'], pdf: ['pdf', 'Outils PDF'], photo: ['camera', 'Studio photo'], board: ['brush', 'Tableau de dessin'] };
+    const runX = (k) => { if (k === 'dwg' && typeof planToolsMenu === 'function') planToolsMenu(null); if (k === 'pdf') openPdfTools(); if (k === 'photo') photoStudioTool(); if (k === 'board') openBoardTool(); if (k === 'bons' && typeof openBons === 'function') openBons(p); if (k === 'due' && typeof openDueTable === 'function') openDueTable(p); if (k === 'anom' && typeof openAnomalies === 'function') openAnomalies(p); };
+    const qaSpecOf = (k) => qaSpec[k] || (k.startsWith('x:') && XT[k.slice(2)] && qaAdd.includes(k) ? [k, XT[k.slice(2)][0], XT[k.slice(2)][1], '#B7791F'] : null) || (qaAdd.includes(k) && SECTIONS[k] ? [k, SECTIONS[k].icon || 'grid', toolName(k), '#334155'] : null);
+    const qaAvailOf = (k) => (k in qaAvail) ? qaAvail[k] : k.startsWith('x:') ? qaAdd.includes(k) : (qaAdd.includes(k) && ok(k));
     const qaKeys = [...qaOrd.filter(k => qaSpecOf(k)), ...[...Object.keys(qaSpec), ...qaAdd].filter(k => !qaOrd.includes(k))];
     const QA = qaKeys.filter(k => qaAvailOf(k) && !qaHid.includes(k)).map(k => qaSpecOf(k)).filter(Boolean);
     const qaSave = (ord, hid, add) => { try { localStorage.setItem('qa.ord', JSON.stringify(ord)); localStorage.setItem('qa.hid', JSON.stringify(hid)); if (add) localStorage.setItem('qa.add', JSON.stringify(add)); } catch (e) {} };
     root.innerHTML = `<div class="st-ptools-p">
       <div class="st-hd"><b>${esc(T.e || '🏗️')} ${esc(p.name)}</b><small>${esc(T.n || 'Projet')}${p.address ? ' · ' + esc(p.address) : ''}</small></div>
       <button class="st-pb st-pb-lib" data-a="library">${icon('grid')}<span><b>Bibliothèque métier</b><small>Outils réunis et classés selon votre service · pack ${esc(plan().l)}</small></span>${icon('chevright')}</button>
-      <div class="st-qa ${(QA.length + 1) <= 4 ? 'qa-l' : (QA.length + 1) <= 8 ? 'qa-m' : 'qa-s'}" style="--n:${QA.length + 1}">${QA.map(([k, ic, l, c]) => `<button class="st-qa-b" data-a="${k}" style="--c:${c}"><i>${icon(ic)}</i><span>${l}</span></button>`).join('')}<button class="st-qa-b st-qa-add" data-a="qaadd" style="--c:#475569"><i>${icon('plus')}</i><span>Ajouter</span></button></div>
+      <div class="st-qa ${Math.max(1, QA.length) <= 4 ? 'qa-l' : Math.max(1, QA.length) <= 8 ? 'qa-m' : 'qa-s'}" style="--n:${Math.max(1, QA.length)}">${QA.map(([k, ic, l, c]) => `<button class="st-qa-b" data-a="${k}" style="--c:${c}"><i>${icon(ic)}</i><span>${l}</span></button>`).join('')}${QA.length ? '' : `<button class="st-qa-b st-qa-add" data-a="qaadd" style="--c:#475569"><i>${icon('plus')}</i><span>Ajouter</span></button>`}</div>
+      <p class="st-thint2" style="margin:-4px 0 6px">Appui long sur la barre : ajouter · réorganiser · retirer</p>
       ${G.map(([g, l, ks]) => `<details class="st-tcat st-acc" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(l.replace(/^\S+\s/, ''))}<small>${ks.length}</small><i class="st-chev">${icon('chevdown')}</i></summary>
         <div class="st-tgrid">${ks.map(k => `<button class="st-tool" data-tool="${k}" style="--c:${CAT_C[catOf(k)] || CAT_C[g] || 'var(--accent)'}"><i class="st-ico">${icon(SECTIONS[k].icon || 'grid')}</i><span>${esc(toolName(k))}</span></button>`).join('')}</div></details>`).join('')}
       <details class="st-tcat st-acc" data-g="outils" style="--c:#B7791F" ${opened.includes('outils') ? 'open' : ''}><summary class="st-tcat-h">Outils<small>7</small><i class="st-chev">${icon('chevdown')}</i></summary>
@@ -313,7 +317,7 @@ const ST = (() => {
     root.querySelectorAll('details.st-acc[data-g]').forEach(d => d.addEventListener('toggle', () => { const L = [...root.querySelectorAll('details.st-acc[data-g][open]')].map(x => x.dataset.g); try { localStorage.setItem('ptools.open', JSON.stringify(L)); } catch (e) {} }));
     const avj = root.querySelector('[data-a=avjour]'); if (avj) avj.onclick = () => openAvJour(p);
     root.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { App.section = b.dataset.tool; App.search = ''; renderSection(); });
-    root.querySelectorAll('[data-xtool]').forEach(b => b.onclick = () => { const k = b.dataset.xtool; if (k === 'dwg' && typeof planToolsMenu === 'function') planToolsMenu(null); if (k === 'pdf') openPdfTools(); if (k === 'photo') photoStudioTool(); if (k === 'board') openBoardTool(); if (k === 'bons' && typeof openBons === 'function') openBons(p); if (k === 'due' && typeof openDueTable === 'function') openDueTable(p); if (k === 'anom' && typeof openAnomalies === 'function') openAnomalies(p); });
+    root.querySelectorAll('[data-xtool]').forEach(b => b.onclick = () => runX(b.dataset.xtool));
     // v1.0.63 : appui long (ou ⋮) sur un outil → monter, descendre, déplacer vers une autre catégorie
     root.querySelectorAll('[data-tool]').forEach(b => { let t = null, lp = false;
       b.addEventListener('pointerdown', () => { lp = false; clearTimeout(t); t = setTimeout(() => { lp = true; try { navigator.vibrate && navigator.vibrate(15); } catch (e) {} if (typeof drMove === 'function') drMove(b.dataset.tool, () => renderProjectTools(root)); }, 550); });
@@ -362,12 +366,13 @@ const ST = (() => {
     const pb = root.querySelector('[data-a=pbatch]'); if (pb) pb.onclick = () => openPhotoBatch(p);
     const pl = root.querySelector('[data-a=plansqa]'); if (pl) pl.onclick = () => { App.section = 'plans'; App.search = ''; renderSection(); };
     // v1.0.112 : ＋ → choisir n'importe quelle section pour le raccourci du haut
-    root.querySelectorAll('.st-qa-b').forEach(b => { const k = b.dataset.a; if (k && qaAdd.includes(k)) b.onclick = () => { App.section = k; App.search = ''; renderSection(); }; });
-    const qaAddB = root.querySelector('[data-a=qaadd]'); if (qaAddB) qaAddB.onclick = async () => {
-      const opts = Object.keys(SECTIONS).filter(k => k !== 'dashboard' && ok(k) && !qaKeys.includes(k)).map(k => ({ value: k, label: toolName(k) }));
+    root.querySelectorAll('.st-qa-b').forEach(b => { const k = b.dataset.a; if (k && qaAdd.includes(k)) b.onclick = () => { if (k.startsWith('x:')) return runX(k.slice(2)); App.section = k; App.search = ''; renderSection(); }; });
+    const qaAddFlow = async () => {
+      const opts = [...Object.keys(SECTIONS).filter(k => k !== 'dashboard' && ok(k) && !QA.some(q => q[0] === k)).map(k => ({ value: k, label: toolName(k) })), ...Object.keys(XT).filter(x => !QA.some(q => q[0] === 'x:' + x)).map(x => ({ value: 'x:' + x, label: XT[x][1] + ' (outil)' }))];
       if (!opts.length) { toast('Toutes les sections sont déjà en raccourci'); return; }
       const r = await formSheet('Ajouter un raccourci', [{ name: 'k', label: 'Section', type: 'select', value: opts[0].value, options: opts }], { okLabel: 'Ajouter' });
-      if (!r || !r.k) return; const add = [...qaAdd, r.k]; qaSave([...qaKeys, r.k], qaHid, add); renderProjectTools(root); };
+      if (!r || !r.k) return; const add = qaAdd.includes(r.k) || qaSpec[r.k] ? qaAdd : [...qaAdd, r.k]; qaSave(qaKeys.includes(r.k) ? qaKeys : [...qaKeys, r.k], qaHid.filter(x => x !== r.k), add); renderProjectTools(root); };
+    const qaAddB = root.querySelector('[data-a=qaadd]'); if (qaAddB) qaAddB.onclick = qaAddFlow;
     // v1.0.112 : appui long sur le titre d'une catégorie → monter / descendre
     root.querySelectorAll('details.st-acc[data-g] > summary').forEach(sm => { const g = sm.parentElement.dataset.g; let tm = null, lp = false, last = 0;
       const grpMenu = async () => { const cur = G.map(x => x[0]), i = cur.indexOf(g); const v = await menu(String(sm.textContent || g).replace(/\d+$/, '').trim(), [...(i > 0 ? [{ label: '↑ Monter', icon: 'back', value: 'u' }] : []), ...(i >= 0 && i < cur.length - 1 ? [{ label: '↓ Descendre', icon: 'chevdown', value: 'd' }] : [])]);
@@ -384,13 +389,12 @@ const ST = (() => {
     // v1.0.114 : appui long fiable (pointeur + menu contextuel natif) sur tous les raccourcis, y compris ceux ajoutés
     const qaMenu = async (k) => {
       const cur = qaKeys.filter(x => qaAvailOf(x) && !qaHid.includes(x)), i = cur.indexOf(k);
-      const hidAny = qaHid.length > 0;
-      const v = await menu((qaSpecOf(k) || [0, 0, toolName(k)])[2], [...(i > 0 ? [{ label: '← Déplacer à gauche', icon: 'back', value: 'l' }] : []), ...(i >= 0 && i < cur.length - 1 ? [{ label: 'Déplacer à droite →', icon: 'chevright', value: 'r' }] : []), { label: 'Masquer ce raccourci', icon: 'trash', danger: true, value: 'hide' }, ...(hidAny ? [{ label: 'Réafficher tous les raccourcis', icon: 'check', value: 'show' }] : [])]);
+      const v = await menu((qaSpecOf(k) || [0, 0, toolName(k)])[2], [...(i > 0 ? [{ label: '← Déplacer à gauche', icon: 'back', value: 'l' }] : []), ...(i >= 0 && i < cur.length - 1 ? [{ label: 'Déplacer à droite →', icon: 'chevright', value: 'r' }] : []), { label: 'Ajouter un raccourci', icon: 'plus', value: 'add' }, { label: 'Retirer ce raccourci', icon: 'trash', danger: true, value: 'hide' }]);
       if (!v) return;
+      if (v === 'add') return qaAddFlow();
       let ord = [...qaKeys], hid = [...qaHid];
       if (v === 'l' || v === 'r') { const j = v === 'l' ? i - 1 : i + 1, x = ord.indexOf(cur[i]), y = ord.indexOf(cur[j]); [ord[x], ord[y]] = [ord[y], ord[x]]; }
       if (v === 'hide') hid.push(k);
-      if (v === 'show') hid = [];
       qaSave(ord, hid); renderProjectTools(root);
     };
     root.querySelectorAll('.st-qa-b:not(.st-qa-add)').forEach(b => { const k = b.dataset.a; if (!qaSpecOf(k)) return;
@@ -400,6 +404,20 @@ const ST = (() => {
       ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => b.addEventListener(ev, () => clearTimeout(tm)));
       b.addEventListener('contextmenu', (e) => { e.preventDefault(); clearTimeout(tm); if (!fired) { fired = true; qaMenu(k); } });
       b.addEventListener('click', (e) => { if (fired) { e.preventDefault(); e.stopImmediatePropagation(); fired = false; } }, true); });
+    // appui long sur la barre : ajouter · réorganiser (choisir un raccourci à déplacer) · réafficher les masqués
+    const qaBar = root.querySelector('.st-qa');
+    if (qaBar) {
+      const barMenu = async () => {
+        const cur = qaKeys.filter(x => qaAvailOf(x) && !qaHid.includes(x));
+        const v = await menu('Raccourcis', [{ label: 'Ajouter un raccourci', icon: 'plus', value: 'add' }, ...(cur.length > 1 ? [{ label: 'Réorganiser (choisir un raccourci à déplacer)', icon: 'rows', value: 'ord' }] : []),]);
+        if (v === 'add') return qaAddFlow();
+        if (v === 'ord') { const k = await menu('Quel raccourci déplacer ?', cur.map(x => ({ label: (qaSpecOf(x) || [0, 0, toolName(x)])[2], value: x }))); if (k) return qaMenu(k); }
+      };
+      let tb = null;
+      qaBar.addEventListener('pointerdown', (e) => { if (e.target !== qaBar) return; clearTimeout(tb); tb = setTimeout(() => { try { navigator.vibrate && navigator.vibrate(15); } catch (er) {} barMenu(); }, 500); });
+      ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => qaBar.addEventListener(ev, () => clearTimeout(tb)));
+      qaBar.addEventListener('contextmenu', (e) => { if (e.target === qaBar) { e.preventDefault(); barMenu(); } });
+    }
     if (typeof espaceBind === 'function') espaceBind(root);
   }
 
@@ -738,7 +756,7 @@ const ST = (() => {
     ['Intervenants', 'projet', [['moe', "Maître d'œuvre / architecte"], ['bet', 'BET'], ['bc', 'Bureau de contrôle'], ['labo', 'Laboratoire'], ['sousTraitants', 'Sous-traitants', 'textarea']]],
     ['Marché', 'finance', [['numMarche', 'N° de marché'], ['montantHT', 'Montant HT (MAD)', 'number'], ['avance', 'Avance (%)', 'number'], ['retenue', 'Retenue de garantie (%)', 'number'], ['delaiContractuel', 'Délai contractuel (mois)', 'number'], ['dateOS', "Date de l'ordre de service", 'date']]],
     ['Organisation', 'projet', [['lots', 'Lots (un par ligne)', 'textarea'], ['zones', 'Zones / blocs / niveaux', 'textarea'], ['responsable', 'Responsable du projet']]],
-    ['Localisation', 'projet', [['gps', 'Coordonnées GPS (lat, long)']]],
+    ['Localisation', 'projet', [['mapsUrl', 'Lien Google Maps', 'url'], ['gps', 'Coordonnées GPS (lat, long)']]],
   ];
   async function projectFiche(p) {
     const secs = FICHE.filter(([, mod]) => lvl(mod) >= 1), ro = (mod) => lvl(mod) < 2;

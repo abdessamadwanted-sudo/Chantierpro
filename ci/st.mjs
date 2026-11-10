@@ -1425,6 +1425,12 @@ try {
   });
   log('v1.0.x [alertes : heure, activation auto, réglages]', tAl);
   log('errors v1.0.x alertes', (tAl.far === 'false,' || tAl.far === 'false,null') && tAl.soon === 'true,green' && tAl.late === 'true,red' && tAl.startFut === 'false' && tAl.startPast === 'true' && tAl.none === 'true' && tAl.tk === 'co,null,co,red,null,function,function,function' && tAl.co === 'co,red,null,#eab308' && tAl.started === 'true' && tAl.days === 3 && tAl.data === 'function' && tAl.tbl === 'function' && tAl.items === 'function' ? [] : ['v1.0.x alertes']);
+  // ---- v1.0.x : Accueil (maison blanche) et Paramètres en haut à droite de « Outils du projet » ----
+  const tTb = await A.pg.evaluate(() => ({ css: !![...document.styleSheets].some(ss => { try { return [...ss.cssRules].some(r => r.selectorText === '.tb-home'); } catch (e) { return false; } }) }));
+  log('v1.0.x [barre Outils du projet : accueil + paramètres]', tTb); log('errors v1.0.x barre', tTb.css ? [] : ['v1.0.x barre']);
+  // ---- v1.0.x : lien Google Maps du projet + partage WhatsApp ----
+  const tMap = await A.pg.evaluate(() => ({ a: projectMapUrl({ mapsUrl: 'https://maps.app.goo.gl/abc' }), b: projectMapUrl({ gps: '33.5731, -7.5898' }), c: projectMapUrl({ address: 'Casablanca' }), d: projectMapUrl({}), f: typeof shareProjectWhatsApp }));
+  log('v1.0.x [lien Google Maps / WhatsApp]', tMap); log('errors v1.0.x maps', tMap.a === 'https://maps.app.goo.gl/abc' && tMap.b === 'https://www.google.com/maps?q=33.5731,-7.5898' && tMap.c.includes('query=Casablanca') && tMap.d === '' && tMap.f === 'function' ? [] : ['v1.0.x maps']);
   const t82 = await A.pg.evaluate(() => ({ db: typeof DB.get === 'function' }));
   log('v1.0.82 [démarrage : synchro différée, IndexedDB réessaie]', t82); log('errors v1.0.82', t82.db ? [] : ['v1.0.82']);
   const t79 = await A.pg.evaluate(() => ({ proj: typeof GDrive.projectSave, file: typeof Backup.exportProject }));
