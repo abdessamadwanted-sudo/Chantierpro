@@ -526,6 +526,15 @@ async function openPlanViewer(plan, ctx) {
           if (l.started) dl.push(`Dém. ${fdt(l.started)}`);
           if (l.due && !l.finished) { const dd = avDaysTo(l.due); dl.push(dd < 0 ? `Retard ${-dd} j` : `Reste ${dd} j`); }
         }
+        if (l.kind === 'local' && l.look === 'disc') {
+          const rc = lk.c;
+          return `<g transform="translate(${px},${py}) scale(${s})"><g transform="scale(.5)">
+          <ellipse cx="0" cy="0" rx="8" ry="3" fill="#000" fill-opacity=".25"/>
+          <rect x="-2.5" y="-34" width="5" height="34" rx="2" fill="#475569"/>
+          <g filter="url(#pillGlow)"><circle cx="0" cy="-52" r="22" fill="${rc}" stroke="#b45309" stroke-width="6"/><circle cx="0" cy="-52" r="22" fill="url(#ptGlass)"/></g>
+          <circle cx="0" cy="-52" r="6" fill="#fff"/></g>
+          ${showLabel ? `<text x="0" y="12" text-anchor="middle" font-size="12" font-weight="700" fill="#111" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${name}</text>` : ''}</g>`;
+        }
         const W = 180, H = 46 + dl.length * 17, top = -40 - H;
         const txt = dl.map((t, i) => `<text x="0" y="${top + 48 + i * 17}" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" font-family="Arial" paint-order="stroke" stroke="#111" stroke-width="3">${esc(t)}</text>`).join('');
         return `<g transform="translate(${px},${py}) scale(${s})">
