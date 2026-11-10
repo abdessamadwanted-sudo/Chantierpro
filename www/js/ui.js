@@ -140,10 +140,10 @@ function sheet(html, { onMount, title } = {}) {
 }
 
 // Menu d'options
-function menu(title, options) {
+function menu(title, options, mo = {}) {
   return new Promise((resolve) => {
     let picked = null;
-    const s = sheet(options.map((o, i) => `<button class="opt ${o.danger ? 'danger' : ''}" data-i="${i}">${o.swatch ? `<span class="swatch" style="background:${o.swatch}"></span>` : o.icon ? icon(o.icon) : ''}<span>${esc(o.label)}</span>${o.checked ? `<span class="check">${icon('check')}</span>` : ''}</button>`).join(''), {
+    const s = sheet(`<div class="${mo.compact ? 'mnu-c' : ''}">` + options.map((o, i) => `<button class="opt ${o.danger ? 'danger' : ''}" data-i="${i}">${o.swatch ? `<span class="swatch" style="background:${o.swatch}"></span>` : o.icon ? icon(o.icon) : ''}<span>${esc(o.label)}</span>${o.checked ? `<span class="check">${icon('check')}</span>` : ''}</button>`).join('') + '</div>', {
       title,
       onMount: (el) => $$('.opt', el).forEach(b => b.onclick = () => { picked = options[+b.dataset.i].value ?? +b.dataset.i; s.close(); }),
     });
