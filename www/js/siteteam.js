@@ -365,10 +365,10 @@ const ST = (() => {
     // v1.0.112 : ＋ → choisir n'importe quelle section pour le raccourci du haut
     root.querySelectorAll('.st-qa-b').forEach(b => { const k = b.dataset.a; if (k && qaAdd.includes(k)) b.onclick = () => { App.section = k; App.search = ''; renderSection(); }; });
     const qaAddFlow = async () => {
-      const opts = Object.keys(SECTIONS).filter(k => k !== 'dashboard' && ok(k) && !qaKeys.includes(k)).map(k => ({ value: k, label: toolName(k) }));
+      const opts = Object.keys(SECTIONS).filter(k => k !== 'dashboard' && ok(k) && !QA.some(q => q[0] === k)).map(k => ({ value: k, label: toolName(k) }));
       if (!opts.length) { toast('Toutes les sections sont déjà en raccourci'); return; }
       const r = await formSheet('Ajouter un raccourci', [{ name: 'k', label: 'Section', type: 'select', value: opts[0].value, options: opts }], { okLabel: 'Ajouter' });
-      if (!r || !r.k) return; const add = [...qaAdd, r.k]; qaSave([...qaKeys, r.k], qaHid, add); renderProjectTools(root); };
+      if (!r || !r.k) return; const add = qaAdd.includes(r.k) || qaSpec[r.k] ? qaAdd : [...qaAdd, r.k]; qaSave(qaKeys.includes(r.k) ? qaKeys : [...qaKeys, r.k], qaHid.filter(x => x !== r.k), add); renderProjectTools(root); };
     const qaAddB = root.querySelector('[data-a=qaadd]'); if (qaAddB) qaAddB.onclick = qaAddFlow;
     // v1.0.112 : appui long sur le titre d'une catégorie → monter / descendre
     root.querySelectorAll('details.st-acc[data-g] > summary').forEach(sm => { const g = sm.parentElement.dataset.g; let tm = null, lp = false, last = 0;
