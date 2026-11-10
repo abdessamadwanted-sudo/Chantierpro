@@ -537,6 +537,7 @@ async function openPlanViewer(plan, ctx) {
           if (l.due) dl.push(`Fin ${fdt(l.due)}`);
           if (l.started) dl.push(`Dém. ${fdt(l.started)}`);
           if (l.due && !l.finished) { const dd = ptDueDays(l); dl.push(dd < 0 ? `Ret. ${-dd} j` : `Reste ${dd} j`); }
+          if (l.dueCo && !l.finished) dl.push(`Soc. ${fdt(l.dueCo)}`);
         }
         if (l.kind === 'local' && l.look === 'disc') {
           const rc = lk.c;
@@ -550,9 +551,10 @@ async function openPlanViewer(plan, ctx) {
         if (l.kind === 'local' && l.look !== 'board') {
           // gyrophare : base noire, dôme de la couleur de l'état, lampe qui tourne et halo qui pulse (selon l'alerte) — couleur réglable (« Couleurs des états »)
           const rc = lk.c, al = lk.alert;
-          const dur = al === 'red' ? '.7s' : al === 'client' ? '1.6s' : al === 'green' ? '1.3s' : al === 'purple' ? '2.2s' : '';
+          const dur = al === 'red' ? '.7s' : al === 'co' ? '1.1s' : al === 'client' ? '1.6s' : al === 'green' ? '1.3s' : al === 'purple' ? '2.2s' : '';
           const dd = l.due && !l.finished ? ptDueDays(l) : null;
-          const sub = al === 'red' && dd != null ? `Ret. ${-dd} j` : al === 'client' ? 'Attente client' : '';
+          const ddc = l.dueCo && !l.finished && typeof avDaysTo === 'function' ? avDaysTo(l.dueCo) : null;
+          const sub = al === 'red' && dd != null ? `Retard ${-dd} j` : al === 'co' && ddc != null ? `Retard société ${Math.max(0, -ddc)} j` : al === 'client' ? 'Attente client' : '';
           const dome = 'M-12.5,-10 L-12.5,-21 A12.5,15 0 0 1 12.5,-21 L12.5,-10 A12.5,4.2 0 0 1 -12.5,-10Z';
           return `<g transform="translate(${px},${py}) scale(${s * bk})">
           <ellipse cx="0" cy="0" rx="17" ry="5.5" fill="#000" fill-opacity=".28"/>
@@ -566,7 +568,7 @@ async function openPlanViewer(plan, ctx) {
           <g transform="translate(0,-21)"><g>${dur ? `<animateTransform attributeName="transform" type="scale" values="1 1;.12 1;1 1;.12 1;1 1" dur="${dur === '.7s' ? '.7s' : '1.6s'}" repeatCount="indefinite"/>` : ''}<rect x="-8" y="-2.6" width="16" height="5.2" rx="2.6" fill="#fff" fill-opacity=".95"/></g></g>
           <ellipse cx="-5.5" cy="-29" rx="2.6" ry="6.5" fill="#fff" fill-opacity=".4" transform="rotate(-18 -5.5 -29)"/>
           ${showLabel ? `<text x="0" y="17" text-anchor="middle" font-size="12" font-weight="700" fill="#111" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${name}</text>` : ''}
-          ${showLabel && sub ? `<text x="0" y="30" text-anchor="middle" font-size="11" font-weight="700" fill="${rc}" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(sub)}</text>` : ''}</g>`;
+          ${showLabel && sub ? `<text x="0" y="30" text-anchor="middle" font-size="9" font-weight="700" fill="${rc}" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(sub)}</text>` : ''}</g>`;
         }
         const W = 180, H = 46 + dl.length * 17, top = -40 - H;
         const txt = dl.map((t, i) => `<text x="0" y="${top + 48 + i * 17}" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" font-family="Arial" paint-order="stroke" stroke="#111" stroke-width="3">${esc(t)}</text>`).join('');
@@ -1360,16 +1362,20 @@ function ptHideFuture() { try { return localStorage.getItem('ptHideFuture') !== 
 // moment (ms) de l'échéance effective (date + heure) ; sans heure : fin de journée
 function ptDueMs(l) { const d = dueEff(l); if (!d) return null; return new Date(d + 'T' + (l.dueTime || '23:59') + ':00').getTime(); }
 function ptStartMs(l) { return l.start ? new Date(l.start + 'T' + (l.startTime || '00:00') + ':00').getTime() : null; }
+// échéance de la société (objectif interne) : l.dueCo + l.dueCoTime ; retard société = jaune
+function ptCoMs(l) { return l.dueCo ? new Date(l.dueCo + 'T' + (l.dueCoTime || '23:59') + ':00').getTime() : null; }
+function ptCoLeft(l) { const m = ptCoMs(l); return m == null ? null : (m - Date.now()) / 864e5; }
 // jours (décimaux) avant l'échéance effective ; <= 0 : atteinte
 function ptDueLeft(l) { const m = ptDueMs(l); return m == null ? null : (m - Date.now()) / 864e5; }
 // un point est « actif » (affiché) quand son moment est venu : démarré, en alerte, début atteint ou échéance proche ; sans dates il reste affiché
 function ptActive(l) {
   if (l.kind !== 'local') return true;
   if (l.finished || l.started || l.endReq || l.hold) return true;
-  const s = ptStartMs(l), d = ptDueLeft(l);
-  if (s == null && d == null) return true;
+  const s = ptStartMs(l), d = ptDueLeft(l), c = ptCoLeft(l);
+  if (s == null && d == null && c == null) return true;
   if (s != null && Date.now() >= s) return true;
   if (d != null && d <= ptAlertDays()) return true;
+  if (c != null && c <= ptAlertDays()) return true;
   return false;
 }
 // état d'un point d'intérêt : finished → ✓ ; started (bouton « Démarré ») → bleu ; sinon selon l'échéance ; neutre sans échéance
@@ -1377,10 +1383,10 @@ function pointAlert(l) {
   if (l.kind !== 'local' || l.finished) return null;
   if (l.endReq) return 'purple';                       // demande de fin du propriétaire (reste jusqu'à « Terminé »)
   if (l.hold) return 'client';                         // arrêt / attente du client : ce n'est pas notre retard
-  if (!l.due || l.started) return null;
-  const d = ptDueLeft(l);
-  if (d <= 0 || (!l.dueTime && ptDueDays(l) <= 0)) return 'red';
-  if (d <= ptAlertDays()) return 'green';
+  if (l.started) return null;
+  if (l.due) { const d0 = ptDueLeft(l); if (d0 <= 0 || (!l.dueTime && ptDueDays(l) <= 0)) return 'red'; }   // retard : échéance du maître d'ouvrage dépassée
+  if (l.dueCo && ptCoLeft(l) <= 0) return 'co';                                                         // retard : objectif de la société dépassé
+  if (l.due && ptDueLeft(l) <= ptAlertDays()) return 'green';
   return null;
 }
 // couleur d'un état : réglage de l'utilisateur (« Couleurs des états ») sinon couleur par défaut
@@ -1392,6 +1398,7 @@ function localPillLook(l) {
   if (l.finished || (sts.length && sts.every(x => x === 'done' || x === 'donelate'))) return { c: pillColor('done'), e: '✓', pulse: false, alert: null };
   const al = pointAlert(l);
   if (al === 'red') return { c: pillColor('red'), e: '', pulse: true, alert: al };
+  if (al === 'co') return { c: pillColor('co'), e: '', pulse: true, alert: al };
   if (al === 'client') return { c: pillColor('client'), e: '', pulse: false, alert: al };
   if (al === 'green') return { c: pillColor('green'), e: '', pulse: false, alert: al };
   if (al === 'purple') return { c: pillColor('purple'), e: '', pulse: false, alert: al };
@@ -1406,7 +1413,7 @@ function pillKey(l) {
   if (l.started) return 'blue';
   return 'grey';
 }
-const PILL_KEYS = [['red', 'Retard · échéance atteinte', '#dc2626'], ['client', 'Attente client', '#f59e0b'], ['green', 'Bientôt · avant l\'échéance', '#16a34a'], ['purple', 'Demande de fin', '#7c3aed'], ['blue', 'Démarré', '#2563eb'], ['grey', 'Neutre', '#64748b'], ['done', 'Terminé ✓', '#15803d']];
+const PILL_KEYS = [['red', 'Retard · maître d\'ouvrage', '#dc2626'], ['co', 'Retard · société', '#eab308'], ['client', 'Attente client', '#f59e0b'], ['green', 'Bientôt · avant l\'échéance', '#16a34a'], ['purple', 'Demande de fin', '#7c3aed'], ['blue', 'Démarré', '#2563eb'], ['grey', 'Neutre', '#64748b'], ['done', 'Terminé ✓', '#15803d']];
 // choix de la couleur du dôme pour chaque état (retard, attente client…) ; mémorisé sur l'appareil
 async function choosePillColors(after) {
   const PAL = ['#dc2626', '#ef4444', '#f97316', '#f59e0b', '#eab308', '#16a34a', '#22c55e', '#0891b2', '#2563eb', '#3b82f6', '#7c3aed', '#db2777', '#64748b', '#111827'];
