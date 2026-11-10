@@ -868,6 +868,16 @@ async function openExternal(f) {
   }
 }
 
+// tableau de la fiche d'un point d'intérêt : état, dates, retard, documents
+function localTableHTML(link) {
+  const fd = (iso) => iso ? String(iso).split('-').reverse().join('/') : '—';
+  const al = pointAlert(link);
+  const st = link.finished ? ['Terminé', '#15803d'] : link.endReq ? ['Demande de fin du propriétaire', '#7c3aed'] : link.started ? ['Démarré', '#2563eb'] : !link.due ? ['Sans échéance', '#64748b'] : al === 'red' ? ['Échéance atteinte, pas démarré', '#dc2626'] : al === 'green' ? ['Échéance dans moins de 3 jours', '#16a34a'] : ['Pas encore démarré', '#64748b'];
+  let late = '—';
+  if (link.due && !link.finished) { const d = avDaysTo(link.due); late = d < 0 ? `<b style="color:#dc2626">${-d} j de retard</b>` : `Reste ${d} j`; }
+  const rows = [['Statut', `<b style="color:${st[1]}">${st[0]}</b>`], ['Début', fd(link.start)], ['Démarré le', fd(link.started)], ['Échéance', fd(link.due)], ['Retard / reste', late], ['Documents', (link.items || []).length]];
+  return `<table class="lk-tb">${rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table>`;
+}
 function openLinkDetail(link) {
   return new Promise(async (resolve) => {
     const pid = link.projectId;
@@ -919,6 +929,7 @@ function openLinkDetail(link) {
           <div class="grow"><div class="lk2-name">${esc(link.name)}</div><div class="lk2-sub">${link.items.length ? link.items.length + ' document(s)' : 'Aucun document'}</div></div>
           <button class="iconbtn" data-a="more">${icon('more')}</button>
         </div>
+        ${link.kind === 'local' ? localTableHTML(link) : ''}
         ${link.driveFolder ? `<button class="lk2-drive" data-a="opendf">${icon('drive')}<span class="grow"><b>Dossier Drive</b><small>${esc(link.driveFolderName || 'Ouvrir le dossier')}</small></span>${icon('external')}</button>` : ''}
         ${filled.length ? `<div class="lk2-list">${filled.map(c => {
           const items = link.items.filter(i => i.cat === c.key), one = items.length === 1, open = openCats.has(c.key);
@@ -998,6 +1009,7 @@ function openLinkDetail(link) {
         const v = await menu(link.name, [
           { label: 'Renommer', icon: 'edit', value: 'rename' },
           ...(link.kind === 'local' ? [{ label: 'Dates (début / échéance)', icon: 'calendar', value: 'dates' }] : []),
+          ...(link.kind === 'local' ? [{ label: 'Forme du panneau', icon: 'pin', value: 'shape' }] : []),
           ...(link.kind === 'local' ? [
             { label: link.started ? 'Démarré ✓ (annuler)' : 'Démarré', icon: 'check', value: 'started' },
             { label: link.endReq ? 'Retirer la demande de fin' : 'Demande de fin (propriétaire)', icon: 'alert', value: 'endreq' },
@@ -1017,6 +1029,7 @@ function openLinkDetail(link) {
           ], { okLabel: 'Enregistrer' });
           if (r) { link.start = r.start || null; link.due = r.due || null; await save(); render(); }
         }
+        if (v === 'shape') { const sh = await menu('Forme du panneau', [{ label: 'Panneau avec dates', value: 'board', checked: (link.look || 'board') === 'board' }, { label: 'Rond (sans dates)', value: 'disc', checked: link.look === 'disc' }]); if (sh) { link.look = sh; await save(); render(); } }
         if (v === 'started') { link.started = link.started ? null : todayISO(); await save(); render(); toast(link.started ? 'Démarré ✓ — le signal rouge s\'arrête' : 'Démarrage annulé'); }
         if (v === 'endreq') { link.endReq = link.endReq ? null : todayISO(); await save(); render(); toast(link.endReq ? 'Demande de fin envoyée — visible dans les alertes' : 'Demande retirée'); }
         if (v === 'finished') { link.finished = link.finished ? null : todayISO(); link.endReq = null; await save(); render(); }
