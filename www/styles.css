@@ -3764,3 +3764,13 @@ table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-
 /* couleur de remplissage séparée du contour */
 .pb-fill { align-items: center; }
 .pb-fill .pb-lbl { font-size: 11px; color: var(--muted); flex: none; padding-right: 2px; }
+
+/* alertes des points d'intérêt (vert / rouge / demande de fin) */
+.pt-alerts { margin: 8px 12px; border-radius: 14px; background: rgba(15,23,42,.06); border: 1px solid rgba(15,23,42,.12); }
+.pt-alerts summary { list-style: none; cursor: pointer; padding: 10px 12px; display: flex; align-items: center; gap: 8px; }
+.pt-alerts summary::-webkit-details-marker { display: none; }
+.pt-cnt { margin-left: auto; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 11px; background: #dc2626; color: #fff; font: 700 12px/22px Arial, sans-serif; text-align: center; }
+.pt-row { width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 0; background: transparent; text-align: left; color: inherit; }
+.pt-row i { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto; box-shadow: 0 0 0 3px rgba(255,255,255,.7); }
+.pt-row span { display: flex; flex-direction: column; min-width: 0; }
+.pt-row small { opacity: .75; font-size: 12px; }

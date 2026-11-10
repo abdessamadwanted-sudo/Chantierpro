@@ -515,15 +515,23 @@ async function openPlanViewer(plan, ctx) {
       // local technique : pastille (pill) au nom du local, couleur selon l'état (vert = loin, rouge = proche / en retard, ✓ = terminé)
       // pastille unifiée : signal + « local » ou « ouvrage » + nom ; couleur d'état ; halo lumineux
       if (l.kind === 'local' || l.kind === 'recpin') {
-        // point d'intérêt : clou + tête rouge façon panneau de signalisation ; anneau = état (vert/rouge/bleu…), tête qui pulse si urgent
-        const lk = l.kind === 'local' ? localPillLook(l) : { c: P.c, pulse: false };
+        // panneau de signalisation : cadre doré victorien, verre, couleur = état ; clignote en rouge si l'échéance est atteinte
+        const lk = l.kind === 'local' ? localPillLook(l) : { c: P.c, pulse: false, alert: null };
         const label = esc(String(l.name || 'local').slice(0, 22));
+        const ring = Array.from({ length: 8 }, (_, i) => { const a = i * Math.PI / 4; return `<circle cx="${(Math.cos(a) * 28).toFixed(1)}" cy="${(-56 + Math.sin(a) * 28).toFixed(1)}" r="2.2" fill="#fde68a" stroke="#78350f" stroke-width=".6"/>`; }).join('');
         return `<g transform="translate(${px},${py}) scale(${s})">
-          <line x1="0" y1="0" x2="0" y2="-20" stroke="#475569" stroke-width="3" stroke-linecap="round"/>
-          <ellipse cx="0" cy="0" rx="4" ry="1.6" fill="#000" fill-opacity=".25"/>
-          <g filter="url(#pillGlow)"><circle cx="0" cy="-30" r="12" fill="#dc2626" stroke="${lk.c}" stroke-width="3.5">${lk.pulse ? '<animate attributeName="opacity" values="1;.45;1" dur="1.6s" repeatCount="indefinite"/>' : ''}</circle></g>
-          <circle cx="0" cy="-30" r="4.5" fill="#fff"/>
-          ${showLabel ? `<text x="0" y="13" text-anchor="middle" font-size="12" font-weight="700" fill="#111" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${label}</text>` : ''}</g>`;
+          <ellipse cx="0" cy="0" rx="8" ry="3" fill="#000" fill-opacity=".25"/>
+          <rect x="-2.5" y="-34" width="5" height="34" rx="2" fill="#475569"/>
+          ${lk.alert === 'red' ? '<circle cx="0" cy="-56" r="36" fill="#dc2626"><animate attributeName="opacity" values=".15;.75;.15" dur="1s" repeatCount="indefinite"/></circle>' : ''}
+          <g filter="url(#pillGlow)">
+            <circle cx="0" cy="-56" r="28" fill="#b45309" stroke="#78350f" stroke-width="2"/>
+            ${ring}
+            <circle cx="0" cy="-56" r="22" fill="${lk.c}" stroke="#fff" stroke-width="2.5"/>
+            <circle cx="0" cy="-56" r="22" fill="url(#ptGlass)"/>
+          </g>
+          <circle cx="0" cy="-56" r="7" fill="#fff" fill-opacity=".9"/>
+          ${lk.e ? `<text x="0" y="-51" text-anchor="middle" font-size="12" font-weight="700" fill="${lk.c}" font-family="Arial">${lk.e}</text>` : ''}
+          ${showLabel ? `<text x="0" y="16" text-anchor="middle" font-size="13" font-weight="700" fill="#111" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${label}</text>` : ''}</g>`;
       }
       return `<g transform="translate(${px},${py}) scale(${s})">${linkPin(P.c, n, P.e)}
         ${showLabel ? `<text x="0" y="16" text-anchor="middle" font-size="12" fill="${P.c}" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`;
@@ -1240,21 +1248,30 @@ const PIN_LOOKS = {
 };
 const PIN_EMOJIS = ['📐', '🔩', '✂️', '📷', '📄', '📝', '🧊', '🔗', '📁', '📎', '🏗️', '🧱', '🪜', '🚪', '🪟', '⚡', '💧', '🔥', '⚠️', '✅', '⭐', '📌', '🎯', '🧰', '🛗', '🌀', '🏛️', '🔷'];
 const PIN_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#7c3aed', '#ea580c', '#0891b2', '#ca8a04', '#db2777', '#475569', '#0f766e', '#1e3a8a', '#111827'];
-const PILL_DEFS = '<defs><filter id="pillGlow" x="-60%" y="-80%" width="220%" height="260%"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
+const PILL_DEFS = '<defs><filter id="pillGlow" x="-60%" y="-80%" width="220%" height="260%"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter><linearGradient id="ptGlass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".6"/><stop offset=".55" stop-color="#fff" stop-opacity=".05"/><stop offset="1" stop-color="#000" stop-opacity=".18"/></linearGradient></defs>';
 // état d'une pastille : début / échéance (l.start, l.due) puis avancement des lots
 // gris = pas commencé · bleu = en cours · vert = loin de l'échéance · rouge = proche ou dépassée (clignote) · ✓ = terminé
-const PILL_ALERT_DAYS = 3;   // rouge = échéance dans moins de 3 jours, ou dépassée sans être terminé
+const PILL_ALERT_DAYS = 3;   // vert = à 3 jours ou moins de l'échéance (pas encore démarré) · rouge = échéance atteinte, clignote jusqu'au « Démarré »
+// état d'un point d'intérêt : finished → ✓ ; started (bouton « Démarré ») → bleu ; sinon selon l'échéance ; neutre sans échéance
+function pointAlert(l) {
+  if (l.kind !== 'local' || l.finished) return null;
+  if (l.endReq) return 'purple';                       // demande de fin du propriétaire (reste jusqu'à « Terminé »)
+  if (!l.due || l.started) return null;
+  const d = typeof avDaysTo === 'function' ? avDaysTo(l.due) : 999;
+  if (d <= 0) return 'red';
+  if (d <= PILL_ALERT_DAYS) return 'green';
+  return null;
+}
 function localPillLook(l) {
   const today = todayISO(), sts = typeof avStatus === 'function' ? Object.values(l.lots || {}).map(r => avStatus(r)) : [];
-  const dTo = (iso) => typeof avDaysTo === 'function' ? avDaysTo(iso) : 999;
-  if (sts.length && sts.every(x => x === 'done' || x === 'donelate')) return { c: '#15803d', e: '✓', pulse: false };
-  if (l.start && l.start > today) return { c: '#94a3b8', e: '', pulse: false };
-  if (l.due && dTo(l.due) <= PILL_ALERT_DAYS) return { c: '#dc2626', e: '', pulse: true };
-  if (Object.values(l.lots || {}).some(r => r && r.state !== 'done' && r.due && dTo(r.due) <= PILL_ALERT_DAYS)) return { c: '#dc2626', e: '', pulse: true };
-  if (l.due) return l.start ? { c: '#2563eb', e: '', pulse: false } : { c: '#16a34a', e: '', pulse: false };
-  if (sts.some(x => x === 'late')) return { c: '#dc2626', e: '', pulse: true };
-  if (sts.some(x => x === 'progress') || (l.start && l.start <= today)) return { c: '#2563eb', e: '', pulse: false };
-  return { c: '#16a34a', e: '', pulse: false };
+  if (l.finished || (sts.length && sts.every(x => x === 'done' || x === 'donelate'))) return { c: '#15803d', e: '✓', pulse: false, alert: null };
+  const al = pointAlert(l);
+  if (al === 'red') return { c: '#dc2626', e: '', pulse: true, alert: al };
+  if (al === 'green') return { c: '#16a34a', e: '', pulse: false, alert: al };
+  if (al === 'purple') return { c: '#7c3aed', e: '', pulse: false, alert: al };
+  if (l.started) return { c: '#2563eb', e: '', pulse: false, alert: null };
+  if (l.start && l.start > today) return { c: '#94a3b8', e: '', pulse: false, alert: null };
+  return { c: '#64748b', e: '', pulse: false, alert: null };   // neutre : pas d'alerte
 }
 function pinLook(l) {
   if (l.kind === 'plansbox') return { e: l.emoji || '📚', c: l.pinColor || '#1e3a8a' };

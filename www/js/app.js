@@ -430,8 +430,27 @@ async function renderSection() {
   const hb = $('[data-a=home]'); if (hb) hb.onclick = renderHome;
   const cr = $('[data-a=crumb]'); if (cr) cr.onclick = (e) => { e.stopPropagation(); renderHome(); };
   await s.render($('#content'));
+  await renderPointAlerts($('#content'));
   const sv = App.secScroll[secKey]; if (sv && !App.scrollFolder) requestAnimationFrame(() => { const c1 = $('#content'); if (c1 && App.lastSecKey === secKey) { c1.scrollTop = sv[0]; if (document.scrollingElement) document.scrollingElement.scrollTop = sv[1]; } });
   Team.decorateSection(App.section);
+}
+
+// alertes des points d'intérêt : restent affichées jusqu'à « Démarré » (rouge/vert) ou « Terminé » (demande de fin)
+async function renderPointAlerts(c) {
+  try {
+    if (!c || !App.project) return;
+    const L = (await DB.byProject('links', App.project.id)).filter(l => l.kind === 'local' && l.planId && l.x != null);
+    const ord = { red: 0, purple: 1, green: 2 };
+    const items = L.map(l => ({ l, al: pointAlert(l) })).filter(x => x.al).sort((a, b) => ord[a.al] - ord[b.al]);
+    if (!items.length) return;
+    const lab = { red: 'Échéance atteinte — pas encore démarré', green: 'Échéance dans moins de 3 jours', purple: 'Demande de fin du propriétaire' };
+    const col = { red: '#dc2626', green: '#16a34a', purple: '#7c3aed' };
+    const div = document.createElement('div');
+    div.className = 'pt-alerts';
+    div.innerHTML = `<details open><summary><b>🔔 Alertes</b><span class="pt-cnt">${items.length}</span></summary>${items.map((x, i) => `<button class="pt-row" data-i="${i}"><i style="background:${col[x.al]}"></i><span><b>${esc(x.l.name || 'Point')}</b><small>${lab[x.al]}${x.l.due ? ' · éch. ' + x.l.due : ''}</small></span></button>`).join('')}</details>`;
+    c.prepend(div);
+    div.querySelectorAll('[data-i]').forEach(b => b.onclick = async () => { await openLinkDetail(items[+b.dataset.i].l); renderSection(); });
+  } catch (e) {}
 }
 
 async function openDrawer(opts = {}) {
@@ -979,6 +998,11 @@ function openLinkDetail(link) {
         const v = await menu(link.name, [
           { label: 'Renommer', icon: 'edit', value: 'rename' },
           ...(link.kind === 'local' ? [{ label: 'Dates (début / échéance)', icon: 'calendar', value: 'dates' }] : []),
+          ...(link.kind === 'local' ? [
+            { label: link.started ? 'Démarré ✓ (annuler)' : 'Démarré', icon: 'check', value: 'started' },
+            { label: link.endReq ? 'Retirer la demande de fin' : 'Demande de fin (propriétaire)', icon: 'alert', value: 'endreq' },
+            { label: link.finished ? 'Rouvrir' : 'Terminé', icon: 'check', value: 'finished' },
+          ] : []),
           { label: 'Icône et couleur du pin', icon: 'pin', value: 'look' },
           { label: 'Supprimer l\'élément', icon: 'trash', danger: true, value: 'del' },
         ]);
@@ -993,6 +1017,9 @@ function openLinkDetail(link) {
           ], { okLabel: 'Enregistrer' });
           if (r) { link.start = r.start || null; link.due = r.due || null; await save(); render(); }
         }
+        if (v === 'started') { link.started = link.started ? null : todayISO(); await save(); render(); toast(link.started ? 'Démarré ✓ — le signal rouge s\'arrête' : 'Démarrage annulé'); }
+        if (v === 'endreq') { link.endReq = link.endReq ? null : todayISO(); await save(); render(); toast(link.endReq ? 'Demande de fin envoyée — visible dans les alertes' : 'Demande retirée'); }
+        if (v === 'finished') { link.finished = link.finished ? null : todayISO(); link.endReq = null; await save(); render(); }
         if (v === 'look') { if (await choosePinLook(link)) render(); }
         if (v === 'color') {
           const c = await menu('Couleur', PALETTE.filter(c => c !== '#ffffff').map(c => ({ label: c, value: c, checked: c === link.color })));
