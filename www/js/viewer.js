@@ -521,10 +521,10 @@ async function openPlanViewer(plan, ctx) {
         const fdt = (iso) => iso ? String(iso).split('-').reverse().join('/') : '';
         const dl = [];
         if (l.kind === 'local') {
-          if (l.start) dl.push(`Début ${fdt(l.start)}`);
+          if (l.start) dl.push(`Déb. ${fdt(l.start)}`);
           if (l.due) dl.push(`Fin ${fdt(l.due)}`);
-          if (l.started) dl.push(`Démarré ${fdt(l.started)}`);
-          if (l.due && !l.finished) { const dd = avDaysTo(l.due); dl.push(dd < 0 ? `⚠ Retard ${-dd} j` : `Reste ${dd} j`); }
+          if (l.started) dl.push(`Dém. ${fdt(l.started)}`);
+          if (l.due && !l.finished) { const dd = avDaysTo(l.due); dl.push(dd < 0 ? `Retard ${-dd} j` : `Reste ${dd} j`); }
         }
         const W = 180, H = 46 + dl.length * 17, top = -40 - H;
         const txt = dl.map((t, i) => `<text x="0" y="${top + 48 + i * 17}" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" font-family="Arial" paint-order="stroke" stroke="#111" stroke-width="3">${esc(t)}</text>`).join('');
