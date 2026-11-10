@@ -439,6 +439,12 @@ async function renderSection() {
 async function renderPointAlerts(c) {
   try {
     if (!c || !App.project) return;
+    const pb = document.createElement('button');
+    pb.className = 'pt-alerts'; pb.innerHTML = '<span>📷 Tableau des photos</span><span class="pt-cnt" style="background:var(--accent,#3b82f6)">›</span>';
+    c.prepend(pb); pb.onclick = () => openPhotoTable();
+  } catch (e) {}
+  try {
+    if (!c || !App.project) return;
     const L = (await DB.byProject('links', App.project.id)).filter(l => l.kind === 'local' && l.planId && l.x != null);
     const ord = { red: 0, purple: 1, green: 2 };
     const items = L.map(l => ({ l, al: pointAlert(l) })).filter(x => x.al).sort((a, b) => ord[a.al] - ord[b.al]);
@@ -449,6 +455,42 @@ async function renderPointAlerts(c) {
     c.prepend(div);
     div.onclick = () => openAlertsTable(items);
   } catch (e) {}
+}
+
+// tableau des photos du chantier : par niveau puis par lot, avec filtres
+async function openPhotoTable() {
+  const p = App.project;
+  const files = (await DB.byProject('files', p.id)).filter(f => f.role === 'photo' && f.blob);
+  const links = (await DB.byProject('links', p.id));
+  const where = new Map();   // id photo -> lien (point / pin photos)
+  for (const l of links) { for (const id of (l.photos || [])) where.set(id, l); for (const d of (l.folders || [])) for (const id of (d.photos || [])) where.set(id, { ...l, _dossier: d.name }); }
+  const rows = [];
+  for (const f of files) {
+    const l = where.get(f.id) || (f.local ? links.find(x => x.id === f.local) : null) || null;
+    const niv = l && l.nivId ? ((p.avNiveaux || []).find(n => n.id === l.nivId) || {}).name || '' : (f.grp && f.grp.niv) || '';
+    const plan = l && l.planId ? await DB.get('plans', l.planId) : null;
+    const lot = plan && plan.lotId ? (avLot(p, plan.lotId) || {}).name || '' : (f.lot ? (avLot(p, f.lot) || {}).name || '' : '');
+    rows.push({ f, niv: niv || '—', lot: lot || '—', pt: l ? (l.name || 'Point') : (f.source || '—'), dos: (l && l._dossier) || '—', date: new Date(f.createdAt || 0).toISOString().slice(0, 10) });
+  }
+  const uniq = (k) => [...new Set(rows.map(r => r[k]))].sort();
+  const opt = (k, arr) => `<option value="">Tous</option>` + arr.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  const s = sheet(`<div class="form ptab">
+    <div class="ptab-f"><select data-f="niv">${opt('niv', uniq('niv'))}</select><select data-f="lot">${opt('lot', uniq('lot'))}</select></div>
+    <div class="ptab-w"><table class="ptab-t"><thead><tr><th>Photo</th><th>Niveau</th><th>Lot</th><th>Point</th><th>Dossier</th><th>Date</th></tr></thead><tbody></tbody></table></div></div>`, { title: `📷 Photos · ${rows.length}` });
+  const paint = () => {
+    const fn = $('[data-f=niv]', s.el).value, fl = $('[data-f=lot]', s.el).value;
+    const sel = rows.filter(r => (!fn || r.niv === fn) && (!fl || r.lot === fl)).sort((a, b) => a.niv.localeCompare(b.niv) || a.lot.localeCompare(b.lot) || a.pt.localeCompare(b.pt));
+    let last = '', html = '';
+    for (const r of sel) {
+      const g = r.niv + ' · ' + r.lot;
+      if (g !== last) { html += `<tr class="ptab-g"><td colspan="6">${esc(g)}</td></tr>`; last = g; }
+      html += `<tr><td><img class="ptab-img" data-ph="${r.f.id}" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:8px"></td><td>${esc(r.niv)}</td><td>${esc(r.lot)}</td><td>${esc(r.pt)}</td><td>${esc(r.dos)}</td><td>${esc(r.date.split('-').reverse().join('/'))}</td></tr>`;
+    }
+    $('.ptab-t tbody', s.el).innerHTML = html || '<tr><td colspan="6" class="muted">Aucune photo avec ces filtres</td></tr>';
+    $$('[data-ph]', s.el).forEach(async im => { const f = rows.find(r => r.f.id === im.dataset.ph); if (f) im.src = BlobURL.get(f.f.id, f.f.blob); });
+  };
+  $$('[data-f]', s.el).forEach(x => x.onchange = paint);
+  paint();
 }
 
 // page « Alertes » : tableau des points d'intérêt en alerte, avec filtres (lot, niveau, état)
@@ -960,7 +1002,7 @@ function openLinkDetail(link) {
           <div class="grow"><div class="lk2-name">${esc(link.name)}</div><div class="lk2-sub">${link.items.length ? link.items.length + ' document(s)' : 'Aucun document'}</div></div>
           <button class="iconbtn" data-a="more">${icon('more')}</button>
         </div>
-        ${link.kind === 'local' ? localTableHTML(link) : ''}
+        ${link.kind === 'local' ? localTableHTML(link) + `<div class="lk2-chips" style="margin:0 12px 10px"><button class="lk2-chip" data-a="lphoto"><span>📁 Dossiers photos &amp; ✅ Tâches</span></button></div>` : ''}
         ${link.driveFolder ? `<button class="lk2-drive" data-a="opendf">${icon('drive')}<span class="grow"><b>Dossier Drive</b><small>${esc(link.driveFolderName || 'Ouvrir le dossier')}</small></span>${icon('external')}</button>` : ''}
         ${filled.length ? `<div class="lk2-list">${filled.map(c => {
           const items = link.items.filter(i => i.cat === c.key), one = items.length === 1, open = openCats.has(c.key);
@@ -1013,6 +1055,7 @@ function openLinkDetail(link) {
         if (e.target.closest('[data-m]')) return itemMenu(it);
         openItem(it);
       });
+      const lpb = $('[data-a=lphoto]', box); if (lpb) lpb.onclick = async () => { await openPhotoNote(link, { noForms: true }); render(); };
       const dfb = $('[data-a=dfolder]', box); if (dfb) dfb.onclick = async () => {
         const r = await formSheet('Dossier Google Drive', [{ name: 'url', label: 'Lien du dossier Drive', type: 'url', value: link.driveFolder || '', placeholder: 'https://drive.google.com/drive/folders/…' }, { name: 'name', label: 'Nom (optionnel)', value: link.driveFolderName || '' }], { okLabel: 'Enregistrer' });
         if (!r) return; link.driveFolder = (r.url || '').trim(); link.driveFolderName = r.name || ''; await save(); render();
