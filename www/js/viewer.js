@@ -528,7 +528,7 @@ async function openPlanViewer(plan, ctx) {
           if (l.start) dl.push(`Déb. ${fdt(l.start)}`);
           if (l.due) dl.push(`Fin ${fdt(l.due)}`);
           if (l.started) dl.push(`Dém. ${fdt(l.started)}`);
-          if (l.due && !l.finished) { const dd = avDaysTo(l.due); dl.push(dd < 0 ? `Ret. ${-dd} j` : `Reste ${dd} j`); }
+          if (l.due && !l.finished) { const dd = ptDueDays(l); dl.push(dd < 0 ? `Ret. ${-dd} j` : `Reste ${dd} j`); }
         }
         if (l.kind === 'local' && l.look === 'disc') {
           const rc = lk.c;
@@ -538,6 +538,27 @@ async function openPlanViewer(plan, ctx) {
           <g filter="url(#pillGlow)"><circle cx="0" cy="-52" r="22" fill="${rc}" stroke="#b45309" stroke-width="6"/><circle cx="0" cy="-52" r="22" fill="url(#ptGlass)"/></g>
           <circle cx="0" cy="-52" r="6" fill="#fff"/></g>
           ${showLabel ? `<text x="0" y="12" text-anchor="middle" font-size="12" font-weight="700" fill="#111" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${name}</text>` : ''}</g>`;
+        }
+        if (l.kind === 'local' && l.look !== 'board') {
+          // gyrophare : base noire, dôme de la couleur de l'état, lampe qui tourne et halo qui pulse (selon l'alerte) — couleur réglable (« Couleurs des états »)
+          const rc = lk.c, al = lk.alert;
+          const dur = al === 'red' ? '.7s' : al === 'client' ? '1.6s' : al === 'green' ? '1.3s' : al === 'purple' ? '2.2s' : '';
+          const dd = l.due && !l.finished ? ptDueDays(l) : null;
+          const sub = al === 'red' && dd != null ? `Ret. ${-dd} j` : al === 'client' ? 'Attente client' : '';
+          const dome = 'M-12.5,-10 L-12.5,-21 A12.5,15 0 0 1 12.5,-21 L12.5,-10 A12.5,4.2 0 0 1 -12.5,-10Z';
+          return `<g transform="translate(${px},${py}) scale(${s * bk})">
+          <ellipse cx="0" cy="0" rx="17" ry="5.5" fill="#000" fill-opacity=".28"/>
+          <path d="M-16,-3 L-16,-10 L16,-10 L16,-3 A16,5.5 0 0 1 -16,-3Z" fill="#111827"/>
+          <ellipse cx="0" cy="-10" rx="16" ry="5.5" fill="#374151" stroke="#9ca3af" stroke-opacity=".5"/>
+          ${dur ? `<circle cx="0" cy="-23" r="22" fill="${rc}" fill-opacity=".2" filter="url(#pillGlow)"><animate attributeName="r" values="15;26;15" dur="${dur}" repeatCount="indefinite"/><animate attributeName="fill-opacity" values=".06;.3;.06" dur="${dur}" repeatCount="indefinite"/></circle>` : ''}
+          <g filter="url(#pillGlow)">
+            <path d="${dome}" fill="${rc}" fill-opacity=".94" stroke="#fff" stroke-opacity=".55" stroke-width="1">${dur ? `<animate attributeName="fill-opacity" values=".7;1;.7" dur="${dur}" repeatCount="indefinite"/>` : ''}</path>
+            <path d="${dome}" fill="url(#ptGlass)"/>
+          </g>
+          <g transform="translate(0,-21)"><g>${dur ? `<animateTransform attributeName="transform" type="scale" values="1 1;.12 1;1 1;.12 1;1 1" dur="${dur === '.7s' ? '.7s' : '1.6s'}" repeatCount="indefinite"/>` : ''}<rect x="-8" y="-2.6" width="16" height="5.2" rx="2.6" fill="#fff" fill-opacity=".95"/></g></g>
+          <ellipse cx="-5.5" cy="-29" rx="2.6" ry="6.5" fill="#fff" fill-opacity=".4" transform="rotate(-18 -5.5 -29)"/>
+          ${showLabel ? `<text x="0" y="17" text-anchor="middle" font-size="12" font-weight="700" fill="#111" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${name}</text>` : ''}
+          ${showLabel && sub ? `<text x="0" y="30" text-anchor="middle" font-size="11" font-weight="700" fill="${rc}" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(sub)}</text>` : ''}</g>`;
         }
         const W = 180, H = 46 + dl.length * 17, top = -40 - H;
         const txt = dl.map((t, i) => `<text x="0" y="${top + 48 + i * 17}" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" font-family="Arial" paint-order="stroke" stroke="#111" stroke-width="3">${esc(t)}</text>`).join('');
@@ -1197,6 +1218,7 @@ async function openPlanViewer(plan, ctx) {
       { label: 'Annotations par couleur', icon: 'pen', value: 'anncol' },
       { label: 'Points d\'intérêt', icon: 'pin', checked: st.filters.pills !== false, value: 'pills' },
       { label: 'Points d\'intérêt par état', icon: 'pin', value: 'pillst' },
+      { label: 'Couleurs des états (dôme)', icon: 'pin', value: 'pillcol' },
       { label: `Taille des pins : ${{ 0.6: 'Petit', 1: 'Normal', 1.6: 'Grand' }[st.pinSize] || 'Normal'}`, icon: 'pin', value: 'size' },
     ]);
     if (v === 'size') {
@@ -1216,6 +1238,8 @@ async function openPlanViewer(plan, ctx) {
         st.annHide = st.annHide.includes(c) ? st.annHide.filter(x => x !== c) : [...st.annHide, c];
         saveViewFilters(); renderAnnots();
       }
+    } else if (v === 'pillcol') {
+      await choosePillColors(() => renderMarkers());
     } else if (v === 'pillst') {
       for (;;) {
         const k = await menu('Points d\'intérêt par état', PILL_KEYS.map(([k, lab, c]) => ({ label: (st.pillHide.includes(k) ? 'Masqué · ' : 'Affiché · ') + lab, swatch: c, value: k })));
@@ -1300,38 +1324,70 @@ const PILL_DEFS = '<defs><filter id="pillGlow" x="-60%" y="-80%" width="220%" he
 // état d'une pastille : début / échéance (l.start, l.due) puis avancement des lots
 // gris = pas commencé · bleu = en cours · vert = loin de l'échéance · rouge = proche ou dépassée (clignote) · ✓ = terminé
 const PILL_ALERT_DAYS = 3;   // vert = à 3 jours ou moins de l'échéance (pas encore démarré) · rouge = échéance atteinte, clignote jusqu'au « Démarré »
+// attente client : l.hold (date du début de l'arrêt en cours) + l.holdDays (jours d'arrêt déjà cumulés) repoussent l'échéance effective
+function holdTotal(l) {
+  let n = +l.holdDays || 0;
+  if (l.hold && typeof avDaysTo === 'function') n += Math.max(0, -avDaysTo(l.hold));
+  return n;
+}
+function dueEff(l) {
+  if (!l.due) return null;
+  const n = +l.holdDays || 0;
+  if (!n) return l.due;
+  const d = new Date(l.due + 'T00:00:00'); d.setDate(d.getDate() + n);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+const ptDueDays = (l) => (l.due && typeof avDaysTo === 'function') ? avDaysTo(dueEff(l)) : null;
 // état d'un point d'intérêt : finished → ✓ ; started (bouton « Démarré ») → bleu ; sinon selon l'échéance ; neutre sans échéance
 function pointAlert(l) {
   if (l.kind !== 'local' || l.finished) return null;
   if (l.endReq) return 'purple';                       // demande de fin du propriétaire (reste jusqu'à « Terminé »)
+  if (l.hold) return 'client';                         // arrêt / attente du client : ce n'est pas notre retard
   if (!l.due || l.started) return null;
-  const d = typeof avDaysTo === 'function' ? avDaysTo(l.due) : 999;
+  const d = ptDueDays(l);
   if (d <= 0) return 'red';
   if (d <= PILL_ALERT_DAYS) return 'green';
   return null;
 }
+// couleur d'un état : réglage de l'utilisateur (« Couleurs des états ») sinon couleur par défaut
+let _pillCols = null;
+function pillColors() { if (!_pillCols) { try { _pillCols = JSON.parse(localStorage.getItem('pillColors') || '{}') || {}; } catch (e) { _pillCols = {}; } } return _pillCols; }
+function pillColor(k) { return pillColors()[k] || (PILL_KEYS.find(x => x[0] === k) || [])[2] || '#64748b'; }
 function localPillLook(l) {
   const today = todayISO(), sts = typeof avStatus === 'function' ? Object.values(l.lots || {}).map(r => avStatus(r)) : [];
-  if (l.finished || (sts.length && sts.every(x => x === 'done' || x === 'donelate'))) return { c: '#15803d', e: '✓', pulse: false, alert: null };
+  if (l.finished || (sts.length && sts.every(x => x === 'done' || x === 'donelate'))) return { c: pillColor('done'), e: '✓', pulse: false, alert: null };
   const al = pointAlert(l);
-  if (al === 'red') return { c: '#dc2626', e: '', pulse: true, alert: al };
-  if (al === 'green') return { c: '#16a34a', e: '', pulse: false, alert: al };
-  if (al === 'purple') return { c: '#7c3aed', e: '', pulse: false, alert: al };
-  if (l.started) return { c: '#2563eb', e: '', pulse: false, alert: null };
-  if (l.start && l.start > today) return { c: '#94a3b8', e: '', pulse: false, alert: null };
-  return { c: '#64748b', e: '', pulse: false, alert: null };   // neutre : pas d'alerte
+  if (al === 'red') return { c: pillColor('red'), e: '', pulse: true, alert: al };
+  if (al === 'client') return { c: pillColor('client'), e: '', pulse: false, alert: al };
+  if (al === 'green') return { c: pillColor('green'), e: '', pulse: false, alert: al };
+  if (al === 'purple') return { c: pillColor('purple'), e: '', pulse: false, alert: al };
+  if (l.started) return { c: pillColor('blue'), e: '', pulse: false, alert: null };
+  return { c: pillColor('grey'), e: '', pulse: false, alert: null };   // neutre : pas d'alerte
 }
-// clé d'état d'un point d'intérêt (pour le filtre) : red · green · purple · blue · done · grey
+// clé d'état d'un point d'intérêt (pour le filtre et les couleurs) : red · client · green · purple · blue · done · grey
 function pillKey(l) {
   const lk = localPillLook(l);
   if (lk.e === '✓') return 'done';
-  if (lk.alert === 'purple') return 'purple';
-  if (lk.alert === 'red') return 'red';
-  if (lk.alert === 'green') return 'green';
+  if (lk.alert) return lk.alert;
   if (l.started) return 'blue';
   return 'grey';
 }
-const PILL_KEYS = [['red', 'Rouge · échéance atteinte', '#dc2626'], ['green', 'Vert · moins de 3 jours', '#16a34a'], ['purple', 'Violet · demande de fin', '#7c3aed'], ['blue', 'Bleu · démarré', '#2563eb'], ['grey', 'Gris · neutre', '#64748b'], ['done', 'Terminé ✓', '#15803d']];
+const PILL_KEYS = [['red', 'Retard · échéance atteinte', '#dc2626'], ['client', 'Attente client', '#f59e0b'], ['green', 'Bientôt · moins de 3 jours', '#16a34a'], ['purple', 'Demande de fin', '#7c3aed'], ['blue', 'Démarré', '#2563eb'], ['grey', 'Neutre', '#64748b'], ['done', 'Terminé ✓', '#15803d']];
+// choix de la couleur du dôme pour chaque état (retard, attente client…) ; mémorisé sur l'appareil
+async function choosePillColors(after) {
+  const PAL = ['#dc2626', '#ef4444', '#f97316', '#f59e0b', '#eab308', '#16a34a', '#22c55e', '#0891b2', '#2563eb', '#3b82f6', '#7c3aed', '#db2777', '#64748b', '#111827'];
+  for (;;) {
+    const k = await menu('Couleurs des états (dôme)', [...PILL_KEYS.map(([k, lab]) => ({ label: lab, swatch: pillColor(k), value: k })), { label: 'Réinitialiser les couleurs', icon: 'undo', value: '__reset' }]);
+    if (!k) break;
+    if (k === '__reset') { _pillCols = {}; try { localStorage.removeItem('pillColors'); } catch (e) {} if (after) after(); continue; }
+    const lab = (PILL_KEYS.find(x => x[0] === k) || [])[1] || '';
+    const c = await menu('Couleur · ' + lab, PAL.map(c => ({ label: c, swatch: c, value: c, checked: c === pillColor(k) })));
+    if (!c) continue;
+    _pillCols = { ...pillColors(), [k]: c };
+    try { localStorage.setItem('pillColors', JSON.stringify(_pillCols)); } catch (e) {}
+    if (after) after();
+  }
+}
 function saveViewFilters() { try { localStorage.setItem('viewFilters', JSON.stringify({ filters: st.filters, annHide: st.annHide, pillHide: st.pillHide })); } catch (e) {} }
 function pinLook(l) {
   if (l.kind === 'plansbox') return { e: l.emoji || '📚', c: l.pinColor || '#1e3a8a' };
