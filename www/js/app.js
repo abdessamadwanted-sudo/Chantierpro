@@ -430,6 +430,12 @@ async function renderSection() {
   const hb = $('[data-a=home]'); if (hb) hb.onclick = renderHome;
   const cr = $('[data-a=crumb]'); if (cr) cr.onclick = (e) => { e.stopPropagation(); renderHome(); };
   await s.render($('#content'));
+  if (App.section === 'ptools') {   // Outils du projet : Accueil (maison blanche, liste des projets) et Paramètres fixés en haut à droite
+    const tba = $('#tbActions');
+    if (tba) { tba.innerHTML = `<button class="tb-home" data-a="tbhome" title="Accueil : mes projets">${icon('home')}</button><button class="iconbtn" data-a="tbset" title="Paramètres">${icon('settings')}</button>`;
+      ($('[data-a=tbhome]', tba) || {}).onclick = () => renderHome();
+      ($('[data-a=tbset]', tba) || {}).onclick = () => { App.section = 'settings'; renderSection(); }; }
+  }
   await renderPointAlerts($('#content'));
   const sv = App.secScroll[secKey]; if (sv && !App.scrollFolder) requestAnimationFrame(() => { const c1 = $('#content'); if (c1 && App.lastSecKey === secKey) { c1.scrollTop = sv[0]; if (document.scrollingElement) document.scrollingElement.scrollTop = sv[1]; } });
   Team.decorateSection(App.section);
