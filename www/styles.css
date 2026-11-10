@@ -3780,3 +3780,7 @@ table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-
 .lk-tb th, .lk-tb td { padding: 8px 10px; text-align: left; border-bottom: 1px solid rgba(15,23,42,.08); }
 .lk-tb th { width: 42%; font-weight: 600; opacity: .75; }
 .lk-tb tr:last-child th, .lk-tb tr:last-child td { border-bottom: 0; }
+/* menus compacts (menu ⋯ d'un point d'intérêt) */
+.mnu-c .opt { padding: 8px 14px; min-height: 0; gap: 10px; font-size: 14px; }
+.mnu-c .opt svg, .mnu-c .opt .ic { width: 18px; height: 18px; }
+.mnu-c .opt > span:first-child:not(:last-child) { width: 30px; height: 30px; }
