@@ -23,7 +23,7 @@ async function pnFoldersHTML(l) {
   const F = pnFolders(l); let h = '';
   for (const d of F) {
     const th = (d.photos || []).slice(0, 8).map(id => ({ id }));   // v1.0.67 : miniatures légères, chargées à l'écran
-    h += `<div class="pnf" data-fd="${d.id}"><div class="pnf-h"><button class="pnf-n" data-fren="${d.id}">📁 <b>${esc(d.name)}</b> <small>${(d.photos || []).length}</small></button>
+    h += `<div class="pnf" data-fd="${d.id}"><div class="pnf-h"><button class="pnf-n" data-fren="${d.id}">📁 <b>${esc(d.name)}</b> <small>${(d.photos || []).length} photo(s)${(d.notes || []).length ? ` · ${d.notes.length} info` : ''}${(d.docs || []).length ? ` · ${d.docs.length} fich.` : ''}</small></button>
       <button class="iconbtn sm" data-fadd="${d.id}" title="Ajouter des photos">${icon('camera')}</button><button class="iconbtn sm" data-fmore="${d.id}">${icon('more')}</button></div>
       ${th.length ? `<div class="pnf-th">${th.map(t => `<img data-th="${t.id}" data-fv="${d.id}|${t.id}" alt="">`).join('')}${(d.photos || []).length > 8 ? `<span class="pnf-more">+${d.photos.length - 8}</span>` : ''}</div>` : '<div class="pnf-e">Aucune photo — touchez 📷</div>'}</div>`;
   }
@@ -45,7 +45,8 @@ function pnBindFolders(box, l, save, draw) {
   const ren = async (d) => { const r = await formSheet('Renommer le dossier', [{ name: 'n', label: 'Nom', value: d.name }]); if (r && r.n) { d.name = r.n.trim(); await save(); draw(); } };
   $$('[data-fren]', box).forEach(b => b.onclick = () => { const d = find(b.dataset.fren); if (d) ren(d); });
   $$('[data-fmore]', box).forEach(b => b.onclick = async () => { const d = find(b.dataset.fmore); if (!d) return; const i = F.indexOf(d);
-    const v = await menu(d.name, [{ label: 'Renommer', icon: 'edit', value: 'ren' }, { label: 'Envoyer ce dossier (PDF ou photos)', icon: 'share', value: 'sh' }, ...((d.photos || []).length ? [{ label: 'Supprimer des photos (choisir)', icon: 'trash', value: 'pdel' }] : []), ...(i > 0 ? [{ label: 'Monter', icon: 'chevup', value: 'up' }] : []), { label: 'Supprimer le dossier et ses photos', icon: 'trash', danger: true, value: 'del' }]);
+    const v = await menu(d.name, [{ label: 'Ouvrir (infos & fichiers)', icon: 'folder', value: 'open' }, { label: 'Renommer', icon: 'edit', value: 'ren' }, { label: 'Envoyer ce dossier (PDF ou photos)', icon: 'share', value: 'sh' }, ...((d.photos || []).length ? [{ label: 'Supprimer des photos (choisir)', icon: 'trash', value: 'pdel' }] : []), ...(i > 0 ? [{ label: 'Monter', icon: 'chevup', value: 'up' }] : []), { label: 'Supprimer le dossier et ses photos', icon: 'trash', danger: true, value: 'del' }]);
+    if (v === 'open') return pnOpenFolder(l, d, save, draw);
     if (v === 'ren') return ren(d);
     if (v === 'sh') return pnShare(l, { only: d.id });
     if (v === 'pdel') return pnPickDelete(l, d, save, draw);
@@ -55,6 +56,28 @@ function pnBindFolders(box, l, save, draw) {
     const L = []; for (const id of d.photos) { const f = await DB.get('files', id); if (f && f.blob) L.push({ id, src: BlobURL.get(id, f.blob) }); }
     // v1.0.54 : galerie devant la fiche, avec 🗑 pour supprimer la photo affichée (elle sort aussi du dossier)
     showGallery(L.map(x => ({ src: x.src, fileId: x.id, caption: d.name })), Math.max(0, L.findIndex(x => x.id === pid)), { onDelete: async (it) => { d.photos = d.photos.filter(id => id !== it.fileId); await DB.del('files', it.fileId); await save(); draw(); return true; } }); });
+}
+// sous-dossier : informations (texte) et fichiers (PDF, Word, Excel…), en plus des photos
+async function pnOpenFolder(l, d, save, draw) {
+  d.notes = Array.isArray(d.notes) ? d.notes : []; d.docs = Array.isArray(d.docs) ? d.docs : [];
+  const s = sheet('<div class="form pnfo"></div>', { title: `📁 ${d.name}` }); s.onClose = () => draw();
+  const paint = async () => {
+    const docs = []; for (const id of d.docs) { const f = await DB.get('files', id); if (f && f.blob) docs.push(f); }
+    $('.pnfo', s.el).innerHTML = `
+      <div class="nt-sec"><span>ℹ️ Informations (${d.notes.length})</span><button class="btn small ghost" data-x="ninfo">${icon('plus')} Information</button></div>
+      ${d.notes.map((n, i) => `<div class="pn-row"><span class="grow">${esc(n.text || '')}</span><button class="iconbtn sm" data-ndel="${i}">×</button></div>`).join('') || '<p class="muted" style="margin:0">Aucune information</p>'}
+      <div class="nt-sec"><span>📎 Fichiers (${docs.length})</span><button class="btn small ghost" data-x="nfile">${icon('plus')} Fichier</button></div>
+      ${docs.map(f => `<div class="pn-row"><button class="grow" data-dopen="${f.id}" style="text-align:left;background:none;border:0;color:inherit">${esc(f.name || 'fichier')}</button><button class="iconbtn sm" data-ddel="${f.id}">×</button></div>`).join('') || '<p class="muted" style="margin:0">Aucun fichier</p>'}`;
+    const ni = $('[data-x=ninfo]', s.el); if (ni) ni.onclick = async () => { const n = await editNote(null, l.projectId); if (n) { d.notes.push(n); await save(); paint(); } };
+    const nf = $('[data-x=nfile]', s.el); if (nf) nf.onclick = async () => {
+      const fs = await pickFiles({ accept: '*/*', multiple: true });
+      for (const f of fs) { const rec = await DB.put('files', { id: DB.uid(), projectId: l.projectId, blob: f, name: f.name, mime: f.type, kind: 'doc', createdAt: Date.now() }); d.docs.push(rec.id); }
+      if (fs.length) { await save(); paint(); } };
+    $$('[data-ndel]', s.el).forEach(b => b.onclick = async () => { if (!await confirmBox('Supprimer cette information ?')) return; d.notes.splice(+b.dataset.ndel, 1); await save(); paint(); });
+    $$('[data-dopen]', s.el).forEach(b => b.onclick = () => { const f = docs.find(x => x.id === b.dataset.dopen); if (f) shareBlob(f.blob, f.name || 'fichier', { ask: false }); });
+    $$('[data-ddel]', s.el).forEach(b => b.onclick = async () => { if (!await confirmBox('Supprimer ce fichier ?')) return; d.docs = d.docs.filter(id => id !== b.dataset.ddel); await DB.del('files', b.dataset.ddel); await save(); paint(); });
+  };
+  await paint();
 }
 // v1.0.54 : supprimer seulement les photos choisies d'un dossier (pas tout le dossier)
 async function pnPickDelete(l, d, save, draw) {
