@@ -520,6 +520,7 @@ async function openPlanViewer(plan, ctx) {
         const label = esc(String(l.name || 'local').slice(0, 22));
         const ring = Array.from({ length: 8 }, (_, i) => { const a = i * Math.PI / 4; return `<circle cx="${(Math.cos(a) * 28).toFixed(1)}" cy="${(-56 + Math.sin(a) * 28).toFixed(1)}" r="2.2" fill="#fde68a" stroke="#78350f" stroke-width=".6"/>`; }).join('');
         return `<g transform="translate(${px},${py}) scale(${s})">
+          <g transform="scale(.5)">
           <ellipse cx="0" cy="0" rx="8" ry="3" fill="#000" fill-opacity=".25"/>
           <rect x="-2.5" y="-34" width="5" height="34" rx="2" fill="#475569"/>
           ${lk.alert === 'red' ? '<circle cx="0" cy="-56" r="36" fill="#dc2626"><animate attributeName="opacity" values=".15;.75;.15" dur="1s" repeatCount="indefinite"/></circle>' : ''}
@@ -531,7 +532,8 @@ async function openPlanViewer(plan, ctx) {
           </g>
           <circle cx="0" cy="-56" r="7" fill="#fff" fill-opacity=".9"/>
           ${lk.e ? `<text x="0" y="-51" text-anchor="middle" font-size="12" font-weight="700" fill="${lk.c}" font-family="Arial">${lk.e}</text>` : ''}
-          ${showLabel ? `<text x="0" y="16" text-anchor="middle" font-size="13" font-weight="700" fill="#111" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${label}</text>` : ''}</g>`;
+          </g>
+          ${showLabel ? `<text x="0" y="12" text-anchor="middle" font-size="12" font-weight="700" fill="#111" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${label}</text>` : ''}</g>`;
       }
       return `<g transform="translate(${px},${py}) scale(${s})">${linkPin(P.c, n, P.e)}
         ${showLabel ? `<text x="0" y="16" text-anchor="middle" font-size="12" fill="${P.c}" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`;
