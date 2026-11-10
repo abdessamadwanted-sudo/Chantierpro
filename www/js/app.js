@@ -978,12 +978,20 @@ function openLinkDetail(link) {
       ($('[data-a=more]', box)||{}).onclick = async () => {
         const v = await menu(link.name, [
           { label: 'Renommer', icon: 'edit', value: 'rename' },
+          ...(link.kind === 'local' ? [{ label: 'Dates (début / échéance)', icon: 'calendar', value: 'dates' }] : []),
           { label: 'Icône et couleur du pin', icon: 'pin', value: 'look' },
           { label: 'Supprimer l\'élément', icon: 'trash', danger: true, value: 'del' },
         ]);
         if (v === 'rename') {
           const r = await formSheet('Renommer', [{ name: 'name', label: 'Nom', value: link.name }]);
           if (r && r.name) { link.name = r.name; await save(); render(); }
+        }
+        if (v === 'dates') {   // début et échéance : la pastille change de couleur selon ces dates
+          const r = await formSheet('Dates du local', [
+            { name: 'start', label: 'Date de début', type: 'date', value: link.start || '' },
+            { name: 'due', label: 'Échéance', type: 'date', value: link.due || '' },
+          ], { okLabel: 'Enregistrer' });
+          if (r) { link.start = r.start || null; link.due = r.due || null; await save(); render(); }
         }
         if (v === 'look') { if (await choosePinLook(link)) render(); }
         if (v === 'color') {
