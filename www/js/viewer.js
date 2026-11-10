@@ -515,25 +515,32 @@ async function openPlanViewer(plan, ctx) {
       // local technique : pastille (pill) au nom du local, couleur selon l'état (vert = loin, rouge = proche / en retard, ✓ = terminé)
       // pastille unifiée : signal + « local » ou « ouvrage » + nom ; couleur d'état ; halo lumineux
       if (l.kind === 'local' || l.kind === 'recpin') {
-        // panneau de signalisation : cadre doré victorien, verre, couleur = état ; clignote en rouge si l'échéance est atteinte
+        // panneau de signalisation : planche avec cadre doré victorien, verre ; la couleur = état ; dates écrites dedans
         const lk = l.kind === 'local' ? localPillLook(l) : { c: P.c, pulse: false, alert: null };
-        const label = esc(String(l.name || 'local').slice(0, 22));
-        const ring = Array.from({ length: 8 }, (_, i) => { const a = i * Math.PI / 4; return `<circle cx="${(Math.cos(a) * 28).toFixed(1)}" cy="${(-56 + Math.sin(a) * 28).toFixed(1)}" r="2.2" fill="#fde68a" stroke="#78350f" stroke-width=".6"/>`; }).join('');
+        const name = esc(String(l.name || 'local').slice(0, 22));
+        const fdt = (iso) => iso ? String(iso).split('-').reverse().join('/') : '';
+        const dl = [];
+        if (l.kind === 'local') {
+          if (l.start) dl.push(`Début ${fdt(l.start)}`);
+          if (l.due) dl.push(`Fin ${fdt(l.due)}`);
+          if (l.started) dl.push(`Démarré ${fdt(l.started)}`);
+          if (l.due && !l.finished) { const dd = avDaysTo(l.due); dl.push(dd < 0 ? `⚠ Retard ${-dd} j` : `Reste ${dd} j`); }
+        }
+        const W = 180, H = 46 + dl.length * 17, top = -40 - H;
+        const txt = dl.map((t, i) => `<text x="0" y="${top + 48 + i * 17}" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" font-family="Arial" paint-order="stroke" stroke="#111" stroke-width="3">${esc(t)}</text>`).join('');
         return `<g transform="translate(${px},${py}) scale(${s})">
           <g transform="scale(.5)">
-          <ellipse cx="0" cy="0" rx="8" ry="3" fill="#000" fill-opacity=".25"/>
-          <rect x="-2.5" y="-34" width="5" height="34" rx="2" fill="#475569"/>
-          ${lk.alert === 'red' ? '<circle cx="0" cy="-56" r="36" fill="#dc2626"><animate attributeName="opacity" values=".15;.75;.15" dur="1s" repeatCount="indefinite"/></circle>' : ''}
+          <ellipse cx="0" cy="0" rx="10" ry="3.5" fill="#000" fill-opacity=".25"/>
+          <rect x="-3.5" y="-40" width="7" height="40" rx="2" fill="#475569"/>
+          ${lk.alert === 'red' ? `<rect x="${-W / 2 - 12}" y="${top - 12}" width="${W + 24}" height="${H + 24}" rx="22" fill="#dc2626"><animate attributeName="opacity" values=".15;.8;.15" dur="1s" repeatCount="indefinite"/></rect>` : ''}
           <g filter="url(#pillGlow)">
-            <circle cx="0" cy="-56" r="28" fill="#b45309" stroke="#78350f" stroke-width="2"/>
-            ${ring}
-            <circle cx="0" cy="-56" r="22" fill="${lk.c}" stroke="#fff" stroke-width="2.5"/>
-            <circle cx="0" cy="-56" r="22" fill="url(#ptGlass)"/>
+            <rect x="${-W / 2}" y="${top}" width="${W}" height="${H}" rx="14" fill="${lk.c}" stroke="#b45309" stroke-width="7"/>
+            <rect x="${-W / 2}" y="${top}" width="${W}" height="${H}" rx="14" fill="url(#ptGlass)"/>
+            <rect x="${-W / 2 + 9}" y="${top + 9}" width="${W - 18}" height="${H - 18}" rx="9" fill="none" stroke="#fde68a" stroke-width="2" stroke-opacity=".8"/>
           </g>
-          <circle cx="0" cy="-56" r="7" fill="#fff" fill-opacity=".9"/>
-          ${lk.e ? `<text x="0" y="-51" text-anchor="middle" font-size="12" font-weight="700" fill="${lk.c}" font-family="Arial">${lk.e}</text>` : ''}
-          </g>
-          ${showLabel ? `<text x="0" y="12" text-anchor="middle" font-size="12" font-weight="700" fill="#111" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${label}</text>` : ''}</g>`;
+          <text x="0" y="${top + 30}" text-anchor="middle" font-size="18" font-weight="700" fill="#fff" font-family="Arial" paint-order="stroke" stroke="#111" stroke-width="3">${name}</text>
+          ${txt}
+          </g></g>`;
       }
       return `<g transform="translate(${px},${py}) scale(${s})">${linkPin(P.c, n, P.e)}
         ${showLabel ? `<text x="0" y="16" text-anchor="middle" font-size="12" fill="${P.c}" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`;
