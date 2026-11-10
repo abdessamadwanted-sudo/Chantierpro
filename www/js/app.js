@@ -503,7 +503,7 @@ async function openAlertsTable(items) {
     const pl = await DB.get('plans', l.planId);
     const lot = pl && pl.lotId ? (avLot(p, pl.lotId) || {}).name || '' : '';
     const niv = l.nivId ? ((p.avNiveaux || []).find(n => n.id === l.nivId) || {}).name || '' : '';
-    const dd = l.due ? dueDays(l) : null;
+    const dd = l.due ? ptDueDays(l) : null;
     rows.push({ l, al, lot, niv, plan: pl ? pl.name || '' : '', due: l.due || '', ret: dd == null ? '' : dd < 0 ? `${-dd} j de retard` : `Reste ${dd} j` });
   }
   const uniq = (k) => [...new Set(rows.map(r => r[k]).filter(Boolean))].sort();
@@ -948,7 +948,7 @@ function localTableHTML(link) {
   const sc = (k) => pillColor(k);
   const st = link.finished ? ['Terminé', sc('done')] : link.endReq ? ['Demande de fin du propriétaire', sc('purple')] : link.hold ? ['Attente client (arrêt)', sc('client')] : link.started ? ['Démarré', sc('blue')] : !link.due ? ['Sans échéance', sc('grey')] : al === 'red' ? ['Retard : échéance atteinte, pas démarré', sc('red')] : al === 'green' ? ['Échéance dans moins de 3 jours', sc('green')] : ['Pas encore démarré', sc('grey')];
   let late = '—';
-  if (link.due && !link.finished) { const d = dueDays(link); late = d < 0 ? `<b style="color:${sc('red')}">${-d} j de retard</b>` : `Reste ${d} j`; }
+  if (link.due && !link.finished) { const d = ptDueDays(link); late = d < 0 ? `<b style="color:${sc('red')}">${-d} j de retard</b>` : `Reste ${d} j`; }
   const ht = holdTotal(link);
   const hold = link.hold ? `<b style="color:${sc('client')}">En cours depuis le ${fd(link.hold)}</b> · ${ht} j au total` : ht ? `${ht} j cumulés` : '—';
   const last = (link.dueLog || []).slice(-1)[0];

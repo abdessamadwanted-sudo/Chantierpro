@@ -528,7 +528,7 @@ async function openPlanViewer(plan, ctx) {
           if (l.start) dl.push(`Déb. ${fdt(l.start)}`);
           if (l.due) dl.push(`Fin ${fdt(l.due)}`);
           if (l.started) dl.push(`Dém. ${fdt(l.started)}`);
-          if (l.due && !l.finished) { const dd = dueDays(l); dl.push(dd < 0 ? `Ret. ${-dd} j` : `Reste ${dd} j`); }
+          if (l.due && !l.finished) { const dd = ptDueDays(l); dl.push(dd < 0 ? `Ret. ${-dd} j` : `Reste ${dd} j`); }
         }
         if (l.kind === 'local' && l.look === 'disc') {
           const rc = lk.c;
@@ -543,7 +543,7 @@ async function openPlanViewer(plan, ctx) {
           // gyrophare : base noire, dôme de la couleur de l'état, lampe qui tourne et halo qui pulse (selon l'alerte) — couleur réglable (« Couleurs des états »)
           const rc = lk.c, al = lk.alert;
           const dur = al === 'red' ? '.7s' : al === 'client' ? '1.6s' : al === 'green' ? '1.3s' : al === 'purple' ? '2.2s' : '';
-          const dd = l.due && !l.finished ? dueDays(l) : null;
+          const dd = l.due && !l.finished ? ptDueDays(l) : null;
           const sub = al === 'red' && dd != null ? `Ret. ${-dd} j` : al === 'client' ? 'Attente client' : '';
           const dome = 'M-12.5,-10 L-12.5,-21 A12.5,15 0 0 1 12.5,-21 L12.5,-10 A12.5,4.2 0 0 1 -12.5,-10Z';
           return `<g transform="translate(${px},${py}) scale(${s * bk})">
@@ -1337,14 +1337,14 @@ function dueEff(l) {
   const d = new Date(l.due + 'T00:00:00'); d.setDate(d.getDate() + n);
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
-const dueDays = (l) => (l.due && typeof avDaysTo === 'function') ? avDaysTo(dueEff(l)) : null;
+const ptDueDays = (l) => (l.due && typeof avDaysTo === 'function') ? avDaysTo(dueEff(l)) : null;
 // état d'un point d'intérêt : finished → ✓ ; started (bouton « Démarré ») → bleu ; sinon selon l'échéance ; neutre sans échéance
 function pointAlert(l) {
   if (l.kind !== 'local' || l.finished) return null;
   if (l.endReq) return 'purple';                       // demande de fin du propriétaire (reste jusqu'à « Terminé »)
   if (l.hold) return 'client';                         // arrêt / attente du client : ce n'est pas notre retard
   if (!l.due || l.started) return null;
-  const d = dueDays(l);
+  const d = ptDueDays(l);
   if (d <= 0) return 'red';
   if (d <= PILL_ALERT_DAYS) return 'green';
   return null;
