@@ -436,25 +436,31 @@ async function renderSection() {
 }
 
 // alertes des points d'intérêt : restent affichées jusqu'à « Démarré » (rouge/vert) ou « Terminé » (demande de fin)
+async function pointAlertItems(planId) {
+  const L = (await DB.byProject('links', App.project.id)).filter(l => l.kind === 'local' && l.planId && l.x != null && (!planId || l.planId === planId));
+  const ord = { red: 0, client: 1, purple: 2, green: 3 };
+  return L.map(l => ({ l, al: pointAlert(l) })).filter(x => x.al).sort((a, b) => ord[a.al] - ord[b.al]);
+}
+// page d'accueil du chantier : un petit carré « total des alertes » + le dossier Data (le tableau des photos y est rangé)
 async function renderPointAlerts(c) {
   try {
-    if (!c || !App.project) return;
-    const pb = document.createElement('button');
-    pb.className = 'pt-alerts'; pb.innerHTML = '<span>📷 Tableau des photos</span><span class="pt-cnt" style="background:var(--accent,#3b82f6)">›</span>';
-    c.prepend(pb); pb.onclick = () => openPhotoTable();
+    if (!c || !App.project || App.section !== 'ptools') return;
+    const items = await pointAlertItems();
+    const bar = document.createElement('div'); bar.className = 'pt-bar';
+    bar.innerHTML = `<button class="pt-sq" data-x="alerts" title="Total des alertes du chantier">🔔 <b>${items.length}</b></button><button class="pt-alerts pt-data" data-x="data"><span>📁 Data</span><span class="pt-cnt" style="background:var(--accent,#3b82f6)">›</span></button>`;
+    c.prepend(bar);
+    bar.querySelector('[data-x=alerts]').onclick = () => openAlertsTable(items, { total: true });
+    bar.querySelector('[data-x=data]').onclick = () => openDataFolder();
   } catch (e) {}
-  try {
-    if (!c || !App.project) return;
-    const L = (await DB.byProject('links', App.project.id)).filter(l => l.kind === 'local' && l.planId && l.x != null);
-    const ord = { red: 0, client: 1, purple: 2, green: 3 };
-    const items = L.map(l => ({ l, al: pointAlert(l) })).filter(x => x.al).sort((a, b) => ord[a.al] - ord[b.al]);
-    if (!items.length) return;
-    const div = document.createElement('button');
-    div.className = 'pt-alerts';
-    div.innerHTML = `<span>🔔 Alertes</span><span class="pt-cnt">${items.length}</span>`;
-    c.prepend(div);
-    div.onclick = () => openAlertsTable(items);
-  } catch (e) {}
+}
+// dossier Data : un sous-dossier par type de données
+async function openDataFolder() {
+  const items = await pointAlertItems();
+  const nPh = (await DB.byProject('files', App.project.id)).filter(f => f.role === 'photo' && f.blob).length;
+  const s = sheet(`<div class="form"><div class="pt-dir">
+    <button class="item" data-d="alerts"><span>🔔 Alertes</span><span class="count">${items.length}</span></button>
+    <button class="item" data-d="photos"><span>📷 Photos (tableau)</span><span class="count">${nPh}</span></button></div></div>`, { title: '📁 Data' });
+  $$('[data-d]', s.el).forEach(b => b.onclick = () => { s.close && s.close(); if (b.dataset.d === 'alerts') openAlertsTable(items, { total: true }); else openPhotoTable(); });
 }
 
 // tableau des photos du chantier : par niveau puis par lot, avec filtres
@@ -494,9 +500,9 @@ async function openPhotoTable() {
 }
 
 // page « Alertes » : tableau des points d'intérêt en alerte, avec filtres (lot, niveau, état)
-async function openAlertsTable(items) {
+async function openAlertsTable(items, opts = {}) {
   const p = App.project;
-  const lab = { red: 'Retard · échéance atteinte', client: 'Attente client', green: 'Moins de 3 jours', purple: 'Demande de fin' };
+  const lab = { red: 'Retard · échéance atteinte', client: 'Attente client', green: `Moins de ${ptAlertDays()} j`, purple: 'Demande de fin' };
   const col = { red: pillColor('red'), client: pillColor('client'), green: pillColor('green'), purple: pillColor('purple') };
   const rows = [];
   for (const { l, al } of items) {
@@ -514,12 +520,13 @@ async function openAlertsTable(items) {
       <select data-f="niv">${opt('niv', uniq('niv'))}</select>
       <select data-f="al">${opt('al', ['red', 'client', 'green', 'purple'])}</select>
     </div>
-    <div class="ptab-w"><table class="ptab-t"><thead><tr><th></th><th>Nom</th><th>Niveau</th><th>Lot</th><th>Plan</th><th>Échéance</th><th>État</th><th>Retard / reste</th></tr></thead>
-    <tbody></tbody></table></div></div>`, { title: `🔔 Alertes · ${rows.length}` });
+    <div class="ptab-w"><table class="ptab-t"><thead><tr><th></th><th></th><th>Nom</th><th>Niveau</th><th>Lot</th><th>Plan</th><th>Échéance</th><th>État</th><th>Retard / reste</th></tr></thead>
+    <tbody></tbody></table></div></div>`, { title: `🔔 Alertes${opts.planName ? ' · ' + opts.planName : ''} · ${rows.length}` });
   const paint = () => {
     const f = { lot: $('[data-f=lot]', s.el).value, niv: $('[data-f=niv]', s.el).value, al: $('[data-f=al]', s.el).value };
     const sel = rows.filter(r => (!f.lot || r.lot === f.lot) && (!f.niv || r.niv === f.niv) && (!f.al || r.al === f.al));
-    $('.ptab-t tbody', s.el).innerHTML = sel.map((r, i) => `<tr data-i="${rows.indexOf(r)}"><td><i class="ptab-dot" style="background:${col[r.al]}"></i></td><td><b>${esc(r.l.name || 'Point')}</b></td><td>${esc(r.niv || '—')}</td><td>${esc(r.lot || '—')}</td><td>${esc(r.plan || '—')}</td><td>${esc(r.due ? r.due.split('-').reverse().join('/') : '—')}</td><td><span class="ptab-st" style="color:${col[r.al]}">${lab[r.al]}</span></td><td>${esc(r.ret || '—')}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Aucune alerte avec ces filtres</td></tr>';
+    $('.ptab-t tbody', s.el).innerHTML = sel.map((r, i) => `<tr data-i="${rows.indexOf(r)}"><td><i class="ptab-dot" style="background:${col[r.al]}"></i></td><td><button class="ptab-pin" data-pin="${rows.indexOf(r)}" title="Aller au point sur le plan">📍</button></td><td><b>${esc(r.l.name || 'Point')}</b></td><td>${esc(r.niv || '—')}</td><td>${esc(r.lot || '—')}</td><td>${esc(r.plan || '—')}</td><td>${esc(r.due ? r.due.split('-').reverse().join('/') + (r.l.dueTime ? ' ' + r.l.dueTime : '') : '—')}</td><td><span class="ptab-st" style="color:${col[r.al]}">${lab[r.al]}</span></td><td>${esc(r.ret || '—')}</td></tr>`).join('') || '<tr><td colspan="9" class="muted">Aucune alerte avec ces filtres</td></tr>';
+    $$('[data-pin]', s.el).forEach(b => b.onclick = async (e) => { e.stopPropagation(); const r = rows[+b.dataset.pin]; const pl = await DB.get('plans', r.l.planId); if (!pl) return toast('Plan supprimé'); s.close && s.close(); openPlanViewer(pl, { ...planCtx(() => renderSection()), focus: { x: r.l.x, y: r.l.y } }); });
     $$('.ptab-t tbody tr[data-i]', s.el).forEach(tr => tr.onclick = async () => { s.close && s.close(); await openLinkDetail(rows[+tr.dataset.i].l); renderSection(); });
   };
   $$('[data-f]', s.el).forEach(x => x.onchange = paint);
@@ -961,12 +968,14 @@ function localTableHTML(link) {
 // l'échéance est la date demandée par le maître d'ouvrage : on la modifie depuis la fiche, l'historique est gardé
 async function editLocalDue(link, save) {
   const r = await formSheet('Échéance (ordre du maître d\'ouvrage)', [
-    { name: 'due', label: 'Nouvelle échéance', type: 'date', value: link.due || '' },
+    { name: 'due', label: 'Nouvelle échéance (date)', type: 'date', value: link.due || '' },
+    { name: 'dueTime', label: 'Heure limite (optionnel)', type: 'time', value: link.dueTime || '' },
     { name: 'note', label: 'Référence / motif (optionnel)', value: '', placeholder: 'ex : OS n°4, demande du maître d\'ouvrage' },
   ], { okLabel: 'Enregistrer' });
   if (!r) return false;
-  const nd = r.due || null;
-  if (nd === (link.due || null)) return false;
+  const nd = r.due || null, nt = r.dueTime || null;
+  if (nd === (link.due || null) && nt === (link.dueTime || null)) return false;
+  link.dueTime = nt;
   link.dueLog = [...(link.dueLog || []), { at: todayISO(), from: link.due || null, to: nd, note: r.note || '' }].slice(-20);
   link.due = nd; await save(); return true;
 }
@@ -1128,10 +1137,12 @@ function openLinkDetail(link) {
         if (v === 'pillcol') { await choosePillColors(() => render()); }
         if (v === 'dates') {   // début et échéance : la pastille change de couleur selon ces dates
           const r = await formSheet('Dates du local', [
-            { name: 'start', label: 'Date de début', type: 'date', value: link.start || '' },
-            { name: 'due', label: 'Échéance', type: 'date', value: link.due || '' },
+            { name: 'start', label: 'Début : date', type: 'date', value: link.start || '' },
+            { name: 'startTime', label: 'Début : heure', type: 'time', value: link.startTime || '' },
+            { name: 'due', label: 'Échéance : date', type: 'date', value: link.due || '' },
+            { name: 'dueTime', label: 'Échéance : heure', type: 'time', value: link.dueTime || '' },
           ], { okLabel: 'Enregistrer' });
-          if (r) { link.start = r.start || null; link.due = r.due || null; await save(); render(); }
+          if (r) { link.start = r.start || null; link.startTime = r.start ? (r.startTime || null) : null; link.due = r.due || null; link.dueTime = r.due ? (r.dueTime || null) : null; await save(); render(); }
         }
         if (v === 'shape') { const sh = await menu('Forme du point', [{ label: 'Gyrophare 3D (dôme)', value: 'beacon', checked: (link.look || 'beacon') === 'beacon' }, { label: 'Panneau avec dates', value: 'board', checked: link.look === 'board' }, { label: 'Rond (sans dates)', value: 'disc', checked: link.look === 'disc' }]); if (sh) { link.look = sh; await save(); render(); } }
         if (v === 'started') { link.started = link.started ? null : todayISO(); await save(); render(); toast(link.started ? 'Démarré ✓ — le signal rouge s\'arrête' : 'Démarrage annulé'); }

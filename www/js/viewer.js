@@ -197,6 +197,7 @@ async function openPlanViewer(plan, ctx) {
     <div class="topbar">
       <button class="iconbtn" data-a="back">${icon('back')}</button>
       <h1>${esc(plan.name)}${plan.supersededBy ? ' <span class="ind-tag old">ancien</span>' : ''}</h1>
+      <button class="pt-sq" data-a="alerts" style="display:none" title="Alertes de ce plan">🔔 <b>0</b></button>
       <button class="iconbtn" data-a="filters">${icon('eye')}</button>
       <button class="iconbtn" data-a="more">${icon('more')}</button>
     </div>
@@ -229,6 +230,12 @@ async function openPlanViewer(plan, ctx) {
   const teardown = () => { if (!closed) window.__planOpen = Math.max(0, (window.__planOpen || 1) - 1); closed = true; try { typeof bootTrail === 'function' && bootTrail('plan fermé'); } catch (e) {} window.removeEventListener('resize', onResize); cleanups.forEach(f => { try { f(); } catch (e) {} }); el.querySelectorAll('img').forEach(im => { try { im.removeAttribute('src'); } catch (e) {} }); el.remove(); ctx.onClose && ctx.onClose(); };
   const close = () => { unBack(); teardown(); };
   const unBack = pushBack(teardown);
+  // petit carré : nombre d'alertes de CE plan ; touche → tableau des alertes (avec pin vers le point)
+  const alertItems = () => st.links.filter(l => l.kind === 'local' && l.planId === plan.id && l.x != null).map(l => ({ l, al: pointAlert(l) })).filter(x => x.al);
+  function updAlertBadge() { const b = $('[data-a=alerts]', el); if (!b) return; const n = alertItems().length; b.style.display = n ? '' : 'none'; const bb = b.querySelector('b'); if (bb) bb.textContent = n; }
+  ($('[data-a=alerts]', el)||{}).onclick = () => { if (typeof openAlertsTable === 'function') openAlertsTable(alertItems(), { planName: plan.name }); };
+  // activation automatique : toutes les minutes on vérifie si un point devient actif / en alerte
+  { let sig = ''; const tk = setInterval(() => { if (closed || !el.isConnected) return clearInterval(tk); const s2 = st.links.filter(l => l.kind === 'local' && l.planId === plan.id).map(l => (ptActive(l) ? 1 : 0) + (pointAlert(l) || '-')).join(','); if (sig && s2 !== sig) renderMarkers(); sig = s2; }, 60000); cleanups.push(() => clearInterval(tk)); }
   ($('[data-a=back]', el)||{}).onclick = close;
   if (!ctx.place && typeof planIndiceBar === 'function') planIndiceBar(el, plan, ctx, close).catch(() => {});
   // mode « placer un ouvrage » : un appui sur le plan donne l'emplacement
@@ -485,6 +492,7 @@ async function openPlanViewer(plan, ctx) {
   }
   function renderMarkers() {
     const m = pinM();
+    updAlertBadge();
     if (focusG && ctx.focus) focusG.setAttribute('transform', `translate(${ctx.focus.x} ${ctx.focus.y}) scale(${m / st.scale})`);   // v1.0.86 : ne reste pas grand en zoomant
     const s = m / st.scale;
     const showLabel = m >= 0.45, showCount = m >= 0.3;
@@ -496,7 +504,7 @@ async function openPlanViewer(plan, ctx) {
         <path d="M0,0 C-4,-10 -14,-14 -14,-26 A14,14 0 1 1 14,-26 C14,-14 4,-10 0,0Z" fill="${c}" stroke="#fff" stroke-width="2"/>
         ${m >= 0.25 ? `<text x="0" y="-21" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" font-family="Arial">${t.num}</text>` : ''}</g>`;
     }).join('');
-    gLinks.innerHTML = PILL_DEFS + st.links.filter(l => l.planId === plan.id && (l.kind !== 'local' || (st.filters.pills !== false && !st.pillHide.includes(pillKey(l))))).map(l => {
+    gLinks.innerHTML = PILL_DEFS + st.links.filter(l => l.planId === plan.id && (l.kind !== 'local' || (st.filters.pills !== false && !st.pillHide.includes(pillKey(l)) && (st.showAllPts || !ptHideFuture() || ptActive(l))))).map(l => {
       const n = showCount ? (l.kind === 'plansbox' ? plansboxCount(l) : l.kind === 'photonote' ? (typeof pnCount === 'function' ? pnCount(l) : (l.photos || []).length) + (l.notes || []).length : (l.items || []).length) : 0;
       const ls = 1 / st.scale;
       const [px, py] = linkXY(l);
@@ -1218,6 +1226,9 @@ async function openPlanViewer(plan, ctx) {
       { label: 'Annotations par couleur', icon: 'pen', value: 'anncol' },
       { label: 'Points d\'intérêt', icon: 'pin', checked: st.filters.pills !== false, value: 'pills' },
       { label: 'Points d\'intérêt par état', icon: 'pin', value: 'pillst' },
+      { label: st.showAllPts ? 'Afficher tout : OUI (même les points pas encore actifs)' : 'Afficher tout (points dont le moment n\'est pas venu)', icon: 'eye', checked: !!st.showAllPts, value: 'ptall' },
+      { label: ptHideFuture() ? 'Masquer les points pas encore actifs : OUI' : 'Masquer les points pas encore actifs : NON', icon: 'eye', value: 'pthide' },
+      { label: `Délai d\'alerte avant l\'échéance : ${ptAlertDays()} j`, icon: 'calendar', value: 'ptdays' },
       { label: 'Couleurs des états (dôme)', icon: 'pin', value: 'pillcol' },
       { label: `Taille des pins : ${{ 0.6: 'Petit', 1: 'Normal', 1.6: 'Grand' }[st.pinSize] || 'Normal'}`, icon: 'pin', value: 'size' },
     ]);
@@ -1238,6 +1249,11 @@ async function openPlanViewer(plan, ctx) {
         st.annHide = st.annHide.includes(c) ? st.annHide.filter(x => x !== c) : [...st.annHide, c];
         saveViewFilters(); renderAnnots();
       }
+    } else if (v === 'ptall') { st.showAllPts = !st.showAllPts; renderMarkers();
+    } else if (v === 'pthide') { try { localStorage.setItem('ptHideFuture', ptHideFuture() ? '0' : '1'); } catch (e) {} renderMarkers();
+    } else if (v === 'ptdays') {
+      const r = await formSheet('Délai d\'alerte', [{ name: 'd', label: 'Jours avant l\'échéance (le point apparaît et passe en alerte)', type: 'number', value: ptAlertDays() }], { okLabel: 'Enregistrer' });
+      if (r) { const n = parseInt(r.d, 10); if (n >= 1 && n <= 60) { try { localStorage.setItem('ptAlertDays', String(n)); } catch (e) {} renderMarkers(); } else toast('Entre 1 et 60 jours'); }
     } else if (v === 'pillcol') {
       await choosePillColors(() => renderMarkers());
     } else if (v === 'pillst') {
@@ -1338,15 +1354,33 @@ function dueEff(l) {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
 const ptDueDays = (l) => (l.due && typeof avDaysTo === 'function') ? avDaysTo(dueEff(l)) : null;
+// v1.0.x : réglages d'alerte (appareil) — délai « bientôt » réglable (défaut 3 j) ; masquer les points dont le moment n'est pas venu
+function ptAlertDays() { try { const n = parseInt(localStorage.getItem('ptAlertDays'), 10); return n >= 1 && n <= 60 ? n : PILL_ALERT_DAYS; } catch (e) { return PILL_ALERT_DAYS; } }
+function ptHideFuture() { try { return localStorage.getItem('ptHideFuture') !== '0'; } catch (e) { return true; } }
+// moment (ms) de l'échéance effective (date + heure) ; sans heure : fin de journée
+function ptDueMs(l) { const d = dueEff(l); if (!d) return null; return new Date(d + 'T' + (l.dueTime || '23:59') + ':00').getTime(); }
+function ptStartMs(l) { return l.start ? new Date(l.start + 'T' + (l.startTime || '00:00') + ':00').getTime() : null; }
+// jours (décimaux) avant l'échéance effective ; <= 0 : atteinte
+function ptDueLeft(l) { const m = ptDueMs(l); return m == null ? null : (m - Date.now()) / 864e5; }
+// un point est « actif » (affiché) quand son moment est venu : démarré, en alerte, début atteint ou échéance proche ; sans dates il reste affiché
+function ptActive(l) {
+  if (l.kind !== 'local') return true;
+  if (l.finished || l.started || l.endReq || l.hold) return true;
+  const s = ptStartMs(l), d = ptDueLeft(l);
+  if (s == null && d == null) return true;
+  if (s != null && Date.now() >= s) return true;
+  if (d != null && d <= ptAlertDays()) return true;
+  return false;
+}
 // état d'un point d'intérêt : finished → ✓ ; started (bouton « Démarré ») → bleu ; sinon selon l'échéance ; neutre sans échéance
 function pointAlert(l) {
   if (l.kind !== 'local' || l.finished) return null;
   if (l.endReq) return 'purple';                       // demande de fin du propriétaire (reste jusqu'à « Terminé »)
   if (l.hold) return 'client';                         // arrêt / attente du client : ce n'est pas notre retard
   if (!l.due || l.started) return null;
-  const d = ptDueDays(l);
-  if (d <= 0) return 'red';
-  if (d <= PILL_ALERT_DAYS) return 'green';
+  const d = ptDueLeft(l);
+  if (d <= 0 || (!l.dueTime && ptDueDays(l) <= 0)) return 'red';
+  if (d <= ptAlertDays()) return 'green';
   return null;
 }
 // couleur d'un état : réglage de l'utilisateur (« Couleurs des états ») sinon couleur par défaut
@@ -1372,7 +1406,7 @@ function pillKey(l) {
   if (l.started) return 'blue';
   return 'grey';
 }
-const PILL_KEYS = [['red', 'Retard · échéance atteinte', '#dc2626'], ['client', 'Attente client', '#f59e0b'], ['green', 'Bientôt · moins de 3 jours', '#16a34a'], ['purple', 'Demande de fin', '#7c3aed'], ['blue', 'Démarré', '#2563eb'], ['grey', 'Neutre', '#64748b'], ['done', 'Terminé ✓', '#15803d']];
+const PILL_KEYS = [['red', 'Retard · échéance atteinte', '#dc2626'], ['client', 'Attente client', '#f59e0b'], ['green', 'Bientôt · avant l\'échéance', '#16a34a'], ['purple', 'Demande de fin', '#7c3aed'], ['blue', 'Démarré', '#2563eb'], ['grey', 'Neutre', '#64748b'], ['done', 'Terminé ✓', '#15803d']];
 // choix de la couleur du dôme pour chaque état (retard, attente client…) ; mémorisé sur l'appareil
 async function choosePillColors(after) {
   const PAL = ['#dc2626', '#ef4444', '#f97316', '#f59e0b', '#eab308', '#16a34a', '#22c55e', '#0891b2', '#2563eb', '#3b82f6', '#7c3aed', '#db2777', '#64748b', '#111827'];
