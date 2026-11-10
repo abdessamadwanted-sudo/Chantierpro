@@ -554,9 +554,10 @@ async function openPlanViewer(plan, ctx) {
           const dur = al === 'red' ? '.7s' : al === 'co' ? '1.1s' : al === 'client' ? '1.6s' : al === 'green' ? '1.3s' : al === 'purple' ? '2.2s' : '';
           const dd = l.due && !l.finished ? ptDueDays(l) : null;
           const ddc = l.dueCo && !l.finished && typeof avDaysTo === 'function' ? avDaysTo(l.dueCo) : null;
-          const sub = al === 'red' && dd != null ? `Retard ${-dd} j` : al === 'co' && l.tk && ptTkLate(l) ? `Retard ${ptTkLate(l).kind} ${ptLateTxt(ptTkLate(l).ms)}` : al === 'co' && ddc != null ? `Retard société ${Math.max(0, -ddc)} j` : al === 'client' ? 'Attente client' : '';
+          const lt0 = (al === 'red' || al === 'co') ? ptLate(l) : null;
+          const sub = lt0 ? (lt0.al === 'red' ? `Retard ${lt0.days} j` : `Retard ${lt0.kind} ${lt0.days} j`) : al === 'client' ? 'Attente client' : '';
           const dome = 'M-12.5,-10 L-12.5,-21 A12.5,15 0 0 1 12.5,-21 L12.5,-10 A12.5,4.2 0 0 1 -12.5,-10Z';
-          return `<g transform="translate(${px},${py}) scale(${s * bk})">
+          return `<g transform="translate(${px},${py}) scale(${s * bk * 0.65})">
           <ellipse cx="0" cy="0" rx="17" ry="5.5" fill="#000" fill-opacity=".28"/>
           <path d="M-16,-3 L-16,-10 L16,-10 L16,-3 A16,5.5 0 0 1 -16,-3Z" fill="#111827"/>
           <ellipse cx="0" cy="-10" rx="16" ry="5.5" fill="#374151" stroke="#9ca3af" stroke-opacity=".5"/>
@@ -636,7 +637,7 @@ async function openPlanViewer(plan, ctx) {
     ['arrow', 'arrow', 'Flèche'], ['text', 'text', 'Texte'],
   ];
   const TOOLS = [
-    ['pan', 'hand', 'Déplacer'], ['pin', 'pin', 'Tâche'], ['link', 'link', 'Élément'], ['pill', 'pin', 'Point d\'intérêt'], ['planlink', 'section', 'Lien plan / coupe'], ['plansbox', 'plans', 'Plans de l\'ouvrage'], ['photonote', 'camera', 'Pin photos (dossiers)'],
+    ['pan', 'hand', 'Déplacer'], ['pin', 'pin', 'Tâche'], ['link', 'link', 'Élément'], ['pill', 'dome', 'Point d\'intérêt'], ['planlink', 'section', 'Lien plan / coupe'], ['plansbox', 'plans', 'Plans de l\'ouvrage'], ['photonote', 'camera', 'Pin photos (dossiers)'],
     ['draw', 'pen', 'Dessin'], ['select', 'cursor', 'Modifier'], ['erase', 'eraser', 'Gomme'],
   ];
   const shapeInfo = () => SHAPES.find(x => x[0] === st.shape) || SHAPES[0];
@@ -1365,15 +1366,6 @@ function ptStartMs(l) { return l.start ? new Date(l.start + 'T' + (l.startTime |
 // échéance de la société (objectif interne) : l.dueCo + l.dueCoTime ; retard société = jaune
 function ptCoMs(l) { return l.dueCo ? new Date(l.dueCo + 'T' + (l.dueCoTime || '23:59') + ':00').getTime() : null; }
 function ptCoLeft(l) { const m = ptCoMs(l); return m == null ? null : (m - Date.now()) / 864e5; }
-// tâche du planning liée au pin (l.tk) : retard de début (pas démarrée à l'heure) ou de fin (pas terminée à l'heure)
-function ptTkLate(l) {
-  const k = l.tk; if (!k || k.done) return null;
-  const now = Date.now(), at = (d, t, def) => d ? new Date(d + 'T' + (t || def) + ':00').getTime() : null;
-  const fin = at(k.fin, k.finT, '23:59'), deb = at(k.deb, k.debT, '23:59');
-  if (fin != null && now > fin) return { kind: 'fin', ms: now - fin };
-  if (!k.started && deb != null && now > deb) return { kind: 'début', ms: now - deb };
-  return null;
-}
 const ptLateTxt = (ms) => ms >= 864e5 ? Math.floor(ms / 864e5) + ' j' : Math.max(1, Math.floor(ms / 36e5)) + ' h';
 // jours (décimaux) avant l'échéance effective ; <= 0 : atteinte
 function ptDueLeft(l) { const m = ptDueMs(l); return m == null ? null : (m - Date.now()) / 864e5; }
@@ -1383,22 +1375,29 @@ function ptActive(l) {
   if (l.finished || l.started || l.endReq || l.hold) return true;
   const s = ptStartMs(l), d = ptDueLeft(l), c = ptCoLeft(l);
   if (s == null && d == null && c == null) return true;
-  if (l.tk && ptTkLate(l)) return true;
+  if (ptLate(l)) return true;
   if (s != null && Date.now() >= s) return true;
   if (d != null && d <= ptAlertDays()) return true;
   if (c != null && c <= ptAlertDays()) return true;
   return false;
 }
-// état d'un point d'intérêt : finished → ✓ ; started (bouton « Démarré ») → bleu ; sinon selon l'échéance ; neutre sans échéance
+// retard d'un point : échéance du maître d'ouvrage (rouge) · fin / objectif de la société (jaune) · début non démarré (jaune)
+// « Démarré » ne coupe PAS l'alerte : le signal continue, avec le nombre de jours de retard, jusqu'à « Terminé » (alors vert ✓)
+function ptLate(l) {
+  if (l.kind !== 'local' || l.finished) return null;
+  if (l.due) { const d = ptDueDays(l); if (d != null && d <= 0) return { al: 'red', kind: 'échéance', days: Math.max(0, -d) }; }
+  if (l.dueCo && typeof avDaysTo === 'function') { const d = avDaysTo(l.dueCo); if (d <= 0) return { al: 'co', kind: 'fin', days: Math.max(0, -d) }; }
+  if (l.start && !l.started && typeof avDaysTo === 'function') { const d = avDaysTo(l.start); if (d < 0) return { al: 'co', kind: 'début', days: -d }; }
+  return null;
+}
 function pointAlert(l) {
   if (l.kind !== 'local' || l.finished) return null;
   if (l.endReq) return 'purple';                       // demande de fin du propriétaire (reste jusqu'à « Terminé »)
   if (l.hold) return 'client';                         // arrêt / attente du client : ce n'est pas notre retard
-  if (l.due && !l.started) { const d0 = ptDueLeft(l); if (d0 <= 0 || (!l.dueTime && ptDueDays(l) <= 0)) return 'red'; }   // retard : échéance du maître d'ouvrage dépassée
-  if (l.tk && ptTkLate(l)) return 'co';                                                                  // retard de début / fin selon le planning
-  if (l.started) return null;
-  if (l.dueCo && ptCoLeft(l) <= 0) return 'co';                                                         // retard : objectif de la société dépassé
-  if (l.due && ptDueLeft(l) <= ptAlertDays()) return 'green';
+  const lt = ptLate(l); if (lt) return lt.al;
+  if (l.started || !l.due) return null;
+  const d = ptDueLeft(l);
+  if (d != null && d <= ptAlertDays()) return 'green';
   return null;
 }
 // couleur d'un état : réglage de l'utilisateur (« Couleurs des états ») sinon couleur par défaut

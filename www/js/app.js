@@ -441,26 +441,35 @@ async function pointAlertItems(planId) {
   const ord = { red: 0, co: 1, client: 2, purple: 3, green: 4 };
   return L.map(l => ({ l, al: pointAlert(l) })).filter(x => x.al).sort((a, b) => ord[a.al] - ord[b.al]);
 }
-// page d'accueil du chantier : un petit carré « total des alertes » + le dossier Data (le tableau des photos y est rangé)
+// page d'accueil du chantier : seulement un petit carré avec le total des alertes ; il ouvre le dossier Data
 async function renderPointAlerts(c) {
   try {
     if (!c || !App.project || App.section !== 'ptools') return;
     const items = await pointAlertItems();
     const bar = document.createElement('div'); bar.className = 'pt-bar';
-    bar.innerHTML = `<button class="pt-sq" data-x="alerts" title="Total des alertes du chantier">🔔 <b>${items.length}</b></button><button class="pt-alerts pt-data" data-x="data"><span>📁 Data</span><span class="pt-cnt" style="background:var(--accent,#3b82f6)">›</span></button>`;
+    bar.innerHTML = `<button class="pt-sq" data-x="data" title="Data : alertes, points, photos">🔔 <b>${items.length}</b></button>`;
     c.prepend(bar);
-    bar.querySelector('[data-x=alerts]').onclick = () => openAlertsTable(items, { total: true });
     bar.querySelector('[data-x=data]').onclick = () => openDataFolder();
   } catch (e) {}
 }
+// tous les points d'intérêt du chantier (ou d'un plan) avec leur état
+async function allPointItems(planId) {
+  const L = (await DB.byProject('links', App.project.id)).filter(l => l.kind === 'local' && l.planId && l.x != null && (!planId || l.planId === planId));
+  return L.map(l => ({ l, al: pillKey(l) }));
+}
 // dossier Data : un sous-dossier par type de données
 async function openDataFolder() {
-  const items = await pointAlertItems();
+  const items = await pointAlertItems(), pts = await allPointItems();
   const nPh = (await DB.byProject('files', App.project.id)).filter(f => f.role === 'photo' && f.blob).length;
   const s = sheet(`<div class="form"><div class="pt-dir">
     <button class="item" data-d="alerts"><span>🔔 Alertes</span><span class="count">${items.length}</span></button>
+    <button class="item" data-d="points"><span>${domeIconSVG('#2563eb')} Points d'intérêt · états et avancement</span><span class="count">${pts.length}</span></button>
     <button class="item" data-d="photos"><span>📷 Photos (tableau)</span><span class="count">${nPh}</span></button></div></div>`, { title: '📁 Data' });
-  $$('[data-d]', s.el).forEach(b => b.onclick = () => { s.close && s.close(); if (b.dataset.d === 'alerts') openAlertsTable(items, { total: true }); else openPhotoTable(); });
+  $$('[data-d]', s.el).forEach(b => b.onclick = () => { s.close && s.close(); if (b.dataset.d === 'alerts') openAlertsTable(items, { total: true }); else if (b.dataset.d === 'points') openAlertsTable(pts, { all: true }); else openPhotoTable(); });
+}
+// petit dôme (gyrophare) de la couleur de l'état, pour les tableaux
+function domeIconSVG(c, size = 22) {
+  return `<svg width="${size}" height="${size}" viewBox="-18 -26 36 32" style="vertical-align:middle"><ellipse cx="0" cy="0" rx="17" ry="5" fill="#000" fill-opacity=".25"/><path d="M-16,-3 L-16,-10 L16,-10 L16,-3 A16,5.5 0 0 1 -16,-3Z" fill="#111827"/><path d="M-12.5,-10 L-12.5,-21 A12.5,15 0 0 1 12.5,-21 L12.5,-10 A12.5,4.2 0 0 1 -12.5,-10Z" fill="${c}" stroke="#fff" stroke-opacity=".6"/><rect x="-5" y="-17" width="10" height="4" rx="2" fill="#fff" fill-opacity=".85"/></svg>`;
 }
 
 // tableau des photos du chantier : par niveau puis par lot, avec filtres
@@ -499,34 +508,40 @@ async function openPhotoTable() {
   paint();
 }
 
-// page « Alertes » : tableau des points d'intérêt en alerte, avec filtres (lot, niveau, état)
+// tableau des points d'intérêt (alertes seulement, ou tous) : dôme de la couleur d'état → ouvre le plan sur le point ; filtres niveau, lot, plan, état
 async function openAlertsTable(items, opts = {}) {
   const p = App.project;
-  const lab = { red: 'Retard · maître d\'ouvrage', co: 'Retard · société', client: 'Attente client', green: `Moins de ${ptAlertDays()} j`, purple: 'Demande de fin' };
-  const col = { red: pillColor('red'), co: pillColor('co'), client: pillColor('client'), green: pillColor('green'), purple: pillColor('purple') };
+  const lab = Object.fromEntries(PILL_KEYS.map(([k, l]) => [k, l])); lab.green = `Moins de ${ptAlertDays()} j`;
+  const fd = (d) => d ? String(d).split('-').reverse().join('/') : '—';
+  const tasks = typeof planData === 'function' ? (planData(p).tasks || []) : [];
   const rows = [];
-  for (const { l, al } of items) {
+  for (const { l } of items) {
+    const al = pillKey(l);
     const pl = await DB.get('plans', l.planId);
     const lot = pl && pl.lotId ? (avLot(p, pl.lotId) || {}).name || '' : '';
-    const niv = l.nivId ? ((p.avNiveaux || []).find(n => n.id === l.nivId) || {}).name || '' : '';
-    const tkl = al === 'co' && l.tk ? ptTkLate(l) : null;
-    const dd = al === 'co' ? avDaysTo(l.dueCo) : l.due ? ptDueDays(l) : null;
-    rows.push({ l, al, lot, niv, plan: pl ? pl.name || '' : '', due: al === 'co' ? l.dueCo : l.due || '', ret: tkl ? `Retard ${tkl.kind} ${ptLateTxt(tkl.ms)}` : dd == null ? '' : dd < 0 ? `${-dd} j de retard` : `Reste ${dd} j` });
+    let niv = l.nivId ? ((p.avNiveaux || []).find(n => n.id === l.nivId) || {}).name || '' : '';
+    if (!niv && pl) niv = ((p.avNiveaux || []).find(n => n.name && String(pl.name || '').toLowerCase().includes(String(n.name).toLowerCase())) || {}).name || '';
+    const lt = ptLate(l), dd = l.due ? ptDueDays(l) : null;
+    const tk = l.taskId ? tasks.find(t => t.id === l.taskId) : null;
+    const av = l.finished ? '100 %' : tk ? (+tk.av || 0) + ' %' : l.started ? 'En cours' : '0 %';
+    rows.push({ l, al, lot, niv, plan: pl ? pl.name || '' : '', ret: lt ? (lt.al === 'red' ? `${lt.days} j de retard` : `Retard ${lt.kind} ${lt.days} j`) : dd != null && !l.finished ? `Reste ${dd} j` : '', av });
   }
+  const order = PILL_KEYS.map(x => x[0]);
   const uniq = (k) => [...new Set(rows.map(r => r[k]).filter(Boolean))].sort();
-  const opt = (k, arr) => `<option value="">${k === 'al' ? 'Tous les états' : 'Tous'}</option>` + arr.map(v => `<option value="${esc(v)}">${esc(k === 'al' ? lab[v] : v)}</option>`).join('');
+  const opt = (k, arr, all) => `<option value="">${all}</option>` + arr.map(v => `<option value="${esc(v)}">${esc(k === 'al' ? lab[v] : v)}</option>`).join('');
   const s = sheet(`<div class="form ptab">
     <div class="ptab-f">
-      <select data-f="lot">${opt('lot', uniq('lot'))}</select>
-      <select data-f="niv">${opt('niv', uniq('niv'))}</select>
-      <select data-f="al">${opt('al', ['red', 'co', 'client', 'green', 'purple'])}</select>
+      <select data-f="niv">${opt('niv', uniq('niv'), 'Tous les niveaux')}</select>
+      <select data-f="lot">${opt('lot', uniq('lot'), 'Tous les lots')}</select>
+      <select data-f="plan">${opt('plan', uniq('plan'), 'Tous les plans')}</select>
+      <select data-f="al">${opt('al', order.filter(k => rows.some(r => r.al === k)), 'Tous les états')}</select>
     </div>
-    <div class="ptab-w"><table class="ptab-t"><thead><tr><th></th><th></th><th>Nom</th><th>Niveau</th><th>Lot</th><th>Plan</th><th>Échéance</th><th>État</th><th>Retard / reste</th></tr></thead>
-    <tbody></tbody></table></div></div>`, { title: `🔔 Alertes${opts.planName ? ' · ' + opts.planName : ''} · ${rows.length}` });
+    <div class="ptab-w"><table class="ptab-t"><thead><tr><th></th><th>Nom</th><th>Niveau</th><th>Lot</th><th>Plan</th><th>Début</th><th>Fin</th><th>Échéance</th><th>État</th><th>Retard / reste</th><th>Avancement</th></tr></thead>
+    <tbody></tbody></table></div></div>`, { title: `${opts.all ? '📍 Points d\'intérêt' : '🔔 Alertes'}${opts.planName ? ' · ' + opts.planName : ''} · ${rows.length}` });
   const paint = () => {
-    const f = { lot: $('[data-f=lot]', s.el).value, niv: $('[data-f=niv]', s.el).value, al: $('[data-f=al]', s.el).value };
-    const sel = rows.filter(r => (!f.lot || r.lot === f.lot) && (!f.niv || r.niv === f.niv) && (!f.al || r.al === f.al));
-    $('.ptab-t tbody', s.el).innerHTML = sel.map((r, i) => `<tr data-i="${rows.indexOf(r)}"><td><i class="ptab-dot" style="background:${col[r.al]}"></i></td><td><button class="ptab-pin" data-pin="${rows.indexOf(r)}" title="Aller au point sur le plan">📍</button></td><td><b>${esc(r.l.name || 'Point')}</b></td><td>${esc(r.niv || '—')}</td><td>${esc(r.lot || '—')}</td><td>${esc(r.plan || '—')}</td><td>${esc(r.due ? r.due.split('-').reverse().join('/') + ((r.al === 'co' ? r.l.dueCoTime : r.l.dueTime) ? ' ' + (r.al === 'co' ? r.l.dueCoTime : r.l.dueTime) : '') : '—')}</td><td><span class="ptab-st" style="color:${col[r.al]}">${lab[r.al]}</span></td><td>${esc(r.ret || '—')}</td></tr>`).join('') || '<tr><td colspan="9" class="muted">Aucune alerte avec ces filtres</td></tr>';
+    const f = { niv: $('[data-f=niv]', s.el).value, lot: $('[data-f=lot]', s.el).value, plan: $('[data-f=plan]', s.el).value, al: $('[data-f=al]', s.el).value };
+    const sel = rows.filter(r => (!f.niv || r.niv === f.niv) && (!f.lot || r.lot === f.lot) && (!f.plan || r.plan === f.plan) && (!f.al || r.al === f.al));
+    $('.ptab-t tbody', s.el).innerHTML = sel.map(r => { const i = rows.indexOf(r), c = pillColor(r.al); return `<tr data-i="${i}"><td><button class="ptab-pin" data-pin="${i}" title="Aller au point sur le plan">${domeIconSVG(c, 26)}</button></td><td><b>${esc(r.l.name || 'Point')}</b></td><td>${esc(r.niv || '—')}</td><td>${esc(r.lot || '—')}</td><td>${esc(r.plan || '—')}</td><td>${esc(fd(r.l.start))}</td><td>${esc(fd(r.l.dueCo))}</td><td>${esc(fd(r.l.due))}</td><td><span class="ptab-st" style="color:${c}">${esc(lab[r.al] || '')}</span></td><td>${esc(r.ret || '—')}</td><td>${esc(r.av)}</td></tr>`; }).join('') || '<tr><td colspan="11" class="muted">Aucun point avec ces filtres</td></tr>';
     $$('[data-pin]', s.el).forEach(b => b.onclick = async (e) => { e.stopPropagation(); const r = rows[+b.dataset.pin]; const pl = await DB.get('plans', r.l.planId); if (!pl) return toast('Plan supprimé'); s.close && s.close(); openPlanViewer(pl, { ...planCtx(() => renderSection()), focus: { x: r.l.x, y: r.l.y } }); });
     $$('.ptab-t tbody tr[data-i]', s.el).forEach(tr => tr.onclick = async () => { s.close && s.close(); await openLinkDetail(rows[+tr.dataset.i].l); renderSection(); });
   };
@@ -954,7 +969,8 @@ function localTableHTML(link) {
   const fd = (iso) => iso ? String(iso).split('-').reverse().join('/') : '—';
   const al = pointAlert(link);
   const sc = (k) => pillColor(k);
-  const st = link.finished ? ['Terminé', sc('done')] : link.endReq ? ['Demande de fin du propriétaire', sc('purple')] : link.hold ? ['Attente client (arrêt)', sc('client')] : link.started ? ['Démarré', sc('blue')] : !link.due && !link.dueCo ? ['Sans échéance', sc('grey')] : al === 'red' ? ['Retard : échéance du maître d\'ouvrage atteinte', sc('red')] : al === 'co' ? ['Retard : objectif de la société dépassé', sc('co')] : al === 'green' ? ['Échéance dans moins de 3 jours', sc('green')] : ['Pas encore démarré', sc('grey')];
+  const lt = ptLate(link);
+  const st = link.finished ? ['Terminé', sc('done')] : link.endReq ? ['Demande de fin du propriétaire', sc('purple')] : link.hold ? ['Attente client (arrêt)', sc('client')] : lt && lt.al === 'red' ? [`Retard : échéance du maître d'ouvrage dépassée de ${lt.days} j${link.started ? ' (démarré, pas terminé)' : ''}`, sc('red')] : lt ? [`Retard ${lt.kind} : ${lt.days} j${link.started ? ' (démarré, pas terminé)' : ''}`, sc('co')] : link.started ? ['Démarré', sc('blue')] : !link.due && !link.dueCo && !link.start ? ['Sans échéance', sc('grey')] : al === 'green' ? [`Échéance dans moins de ${ptAlertDays()} jours`, sc('green')] : ['Pas encore démarré', sc('grey')];
   let late = '—';
   if (link.due && !link.finished) { const d = ptDueDays(link); late = d < 0 ? `<b style="color:${sc('red')}">${-d} j de retard</b>` : `Reste ${d} j`; }
   const ht = holdTotal(link);
@@ -1117,19 +1133,33 @@ function openLinkDetail(link) {
         await DB.put('projects', project); openCats.add(key); render();
       };
       ($('[data-a=more]', box)||{}).onclick = async () => {
-        const v = await menu(link.name, [
+        const isLoc = link.kind === 'local';
+        let v = await menu(link.name, isLoc ? [
           { label: 'Renommer', icon: 'edit', value: 'rename' },
-          ...(link.kind === 'local' ? [{ label: 'Échéance (ordre maître d\'ouvrage)', icon: 'calendar', value: 'due' }, { label: link.hold ? 'Reprise (fin d\'attente client)' : 'Attente client (arrêt)', icon: 'alert', value: 'hold' }, { label: 'Couleurs des états (dôme)', icon: 'pin', value: 'pillcol' }] : []),
-          ...(link.kind === 'local' ? [{ label: 'Dates (début / échéance / objectif société)', icon: 'calendar', value: 'dates' }] : []),
-          ...(link.kind === 'local' ? [{ label: 'Forme du point', icon: 'pin', value: 'shape' }] : []),
-          ...(link.kind === 'local' ? [
-            { label: link.started ? 'Démarré ✓ (annuler)' : 'Démarré', icon: 'check', value: 'started' },
-            { label: link.endReq ? 'Retirer la demande de fin' : 'Demande de fin (propriétaire)', icon: 'alert', value: 'endreq' },
-            { label: link.finished ? 'Rouvrir' : 'Terminé', icon: 'check', value: 'finished' },
-          ] : []),
+          { label: 'Dates et Planning  ›', icon: 'calendar', value: 'g_dates' },
+          { label: 'État  ›', icon: 'check', value: 'g_state' },
+          { label: 'Couleurs des états (dôme)', icon: 'pin', value: 'pillcol' },
+          { label: 'Supprimer l\'élément', icon: 'trash', danger: true, value: 'del' },
+        ] : [
+          { label: 'Renommer', icon: 'edit', value: 'rename' },
           { label: 'Icône et couleur du pin', icon: 'pin', value: 'look' },
           { label: 'Supprimer l\'élément', icon: 'trash', danger: true, value: 'del' },
-        ], { compact: link.kind === 'local' });
+        ], { compact: isLoc });
+        if (v === 'g_dates') {   // sous-menu : dates, lien avec le Planning
+          const linkedT = link.taskId && typeof planData === 'function' ? (planData(project).tasks || []).find(t => t.id === link.taskId) : null;
+          v = await menu('Dates et Planning', [
+            { label: 'Début · Fin · Échéance', icon: 'calendar', value: 'dates' },
+            { label: linkedT ? `Lié au Planning : ${linkedT.nom || 'tâche'} (changer)` : 'Lier à une tâche du Planning', icon: 'gantt', value: 'plan' },
+            ...(linkedT ? [{ label: 'Délier du Planning', icon: 'trash', value: 'unplan' }] : []),
+          ]);
+        } else if (v === 'g_state') {   // sous-menu : état du point
+          v = await menu('État', [
+            { label: link.started ? 'Démarré ✓ (annuler)' : 'Démarré', icon: 'check', value: 'started' },
+            { label: link.hold ? 'Reprise (fin d\'attente client)' : 'Attente client (arrêt)', icon: 'alert', value: 'hold' },
+            { label: link.endReq ? 'Retirer la demande de fin' : 'Demande de fin (propriétaire)', icon: 'alert', value: 'endreq' },
+            { label: link.finished ? 'Rouvrir' : 'Terminé', icon: 'check', value: 'finished' },
+          ]);
+        }
         if (v === 'rename') {
           const r = await formSheet('Renommer', [{ name: 'name', label: 'Nom', value: link.name }]);
           if (r && r.name) { link.name = r.name; await save(); render(); }
@@ -1137,21 +1167,36 @@ function openLinkDetail(link) {
         if (v === 'due') { if (await editLocalDue(link, save)) render(); }
         if (v === 'hold') { await toggleLocalHold(link, save); render(); }
         if (v === 'pillcol') { await choosePillColors(() => render()); }
-        if (v === 'dates') {   // début et échéance : la pastille change de couleur selon ces dates
+        if (v === 'dates') {   // début, fin (objectif société) et échéance du maître d'ouvrage : la pastille change de couleur selon ces dates
+          const lk = !!link.taskId;
           const r = await formSheet('Dates du local', [
-            { name: 'start', label: 'Début : date', type: 'date', value: link.start || '' },
-            { name: 'startTime', label: 'Début : heure', type: 'time', value: link.startTime || '' },
-            { name: 'due', label: 'Échéance : date', type: 'date', value: link.due || '' },
-            { name: 'dueTime', label: 'Échéance : heure', type: 'time', value: link.dueTime || '' },
-            { name: 'dueCo', label: 'Objectif société : date', type: 'date', value: link.dueCo || '' },
-            { name: 'dueCoTime', label: 'Objectif société : heure', type: 'time', value: link.dueCoTime || '' },
+            ...(lk ? [{ type: 'info', label: 'Lié au Planning', value: 'Début et Fin viennent de la tâche du Planning ; les modifier ici les modifie aussi dans le Planning.' }] : []),
+            { name: 'start', label: 'Début', type: 'date', value: link.start || '' },
+            { name: 'dueCo', label: 'Fin (objectif société)', type: 'date', value: link.dueCo || '' },
+            { name: 'due', label: 'Échéance (maître d\'ouvrage)', type: 'date', value: link.due || '' },
           ], { okLabel: 'Enregistrer' });
-          if (r) { link.start = r.start || null; link.startTime = r.start ? (r.startTime || null) : null; link.due = r.due || null; link.dueTime = r.due ? (r.dueTime || null) : null; link.dueCo = r.dueCo || null; link.dueCoTime = r.dueCo ? (r.dueCoTime || null) : null; await save(); render(); }
+          if (r) {
+            const nd = r.due || null;
+            if (nd !== (link.due || null)) link.dueLog = [...(link.dueLog || []), { at: todayISO(), from: link.due || null, to: nd, note: '' }].slice(-20);
+            link.start = r.start || null; link.dueCo = r.dueCo || null; link.due = nd; link.startTime = link.dueCoTime = link.dueTime = null;
+            await save();
+            if (lk) await taskPatchFromPin(link, { deb: link.start || '', fin: link.dueCo || '' });
+            render();
+          }
         }
+        if (v === 'plan') {   // lier ce point à une tâche du Planning
+          const pr = await DB.get('projects', pid), ts = (typeof planData === 'function' ? planData(pr).tasks : []) || [];
+          if (!ts.length) { toast('Aucune tâche dans le Planning'); }
+          else {
+            const tid = await menu('Tâche du Planning', ts.map(t => ({ label: `${t.nom || 'Tâche'}${t.deb ? ' · ' + t.deb.split('-').reverse().join('/') : ''}`, icon: 'gantt', value: t.id, checked: t.id === link.taskId })));
+            if (tid) { await linkPinToTask(link, tid); render(); toast('Lié au Planning : début, fin et avancement suivent la tâche'); }
+          }
+        }
+        if (v === 'unplan') { await unlinkPinFromTask(link); render(); }
         if (v === 'shape') { const sh = await menu('Forme du point', [{ label: 'Gyrophare 3D (dôme)', value: 'beacon', checked: (link.look || 'beacon') === 'beacon' }, { label: 'Panneau avec dates', value: 'board', checked: link.look === 'board' }, { label: 'Rond (sans dates)', value: 'disc', checked: link.look === 'disc' }]); if (sh) { link.look = sh; await save(); render(); } }
-        if (v === 'started') { link.started = link.started ? null : todayISO(); await save(); render(); toast(link.started ? 'Démarré ✓ — le signal rouge s\'arrête' : 'Démarrage annulé'); }
+        if (v === 'started') { link.started = link.started ? null : todayISO(); await save(); if (link.taskId) await taskPatchFromPin(link, { debR: link.started || '' }); render(); toast(link.started ? 'Démarré ✓ — le signal continue avec le retard jusqu\'à « Terminé »' : 'Démarrage annulé'); }
         if (v === 'endreq') { link.endReq = link.endReq ? null : todayISO(); await save(); render(); toast(link.endReq ? 'Demande de fin envoyée — visible dans les alertes' : 'Demande retirée'); }
-        if (v === 'finished') { link.finished = link.finished ? null : todayISO(); link.endReq = null; await save(); render(); }
+        if (v === 'finished') { link.finished = link.finished ? null : todayISO(); link.endReq = null; await save(); if (link.taskId) await taskPatchFromPin(link, link.finished ? { av: '100', finR: link.finished } : { finR: '', av: '90' }); render(); }
         if (v === 'look') { if (await choosePinLook(link)) render(); }
         if (v === 'color') {
           const c = await menu('Couleur', PALETTE.filter(c => c !== '#ffffff').map(c => ({ label: c, value: c, checked: c === link.color })));
