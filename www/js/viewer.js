@@ -1286,7 +1286,7 @@ function annotPdfDraw(pg, a, ox, oy, s, font) {
   // PDF sans transparence : les viewers mobiles rendent mal les calques transparents (bords flous)
   const tint = (c) => solidTint(c);
   const line = (pts, closed) => 'M' + pts.map(t => t[0] + ' ' + t[1]).join(' L') + (closed ? ' Z' : '');
-  const stroke = { borderColor: lc, borderWidth: sw / s };
+  const stroke = { borderColor: lc, borderWidth: Math.max(0.5, a.sw * s) };   // épaisseur à l'échelle de la page, comme à l'écran
   switch (a.type) {
     case 'pen': case 'poly': return P.length > 1 && path(line(P), stroke);
     case 'line': return path(line([p, q]), stroke);
@@ -1294,12 +1294,12 @@ function annotPdfDraw(pg, a, ox, oy, s, font) {
       if (P.length <= 2) return;
       if (a.fill !== 'hatch') return path(line(P, true), { ...stroke, color: fcol || col, opacity: a.fo != null ? a.fo : .55 });   // remplissage à l'opacité choisie (le plan reste visible dessous)
       path(line(P, true), stroke);
-      hatchSegs(P, a.angle || 45, hatchGap(a)).forEach(g => path(`M${g[0][0]} ${g[0][1]} L${g[1][0]} ${g[1][1]}`, { borderColor: fcol || lc, borderWidth: Math.max(0.8, sw * 0.6 / s) }));
+      hatchSegs(P, a.angle || 45, hatchGap(a)).forEach(g => path(`M${g[0][0]} ${g[0][1]} L${g[1][0]} ${g[1][1]}`, { borderColor: fcol || lc, borderWidth: Math.max(0.5, a.sw * 0.6 * s) }));
       return;
     }
-    case 'rect': case 'box': { const x = Math.min(p[0], q[0]), y = Math.min(p[1], q[1]), w = Math.abs(q[0] - p[0]), h = Math.abs(q[1] - p[1]); return path(`M${x} ${y} H${x + w} V${y + h} H${x} Z`, a.type === 'box' ? { color: col, opacity: 1, borderColor: col, borderWidth: sw / s / 2 } : stroke); }
+    case 'rect': case 'box': { const x = Math.min(p[0], q[0]), y = Math.min(p[1], q[1]), w = Math.abs(q[0] - p[0]), h = Math.abs(q[1] - p[1]); return path(`M${x} ${y} H${x + w} V${y + h} H${x} Z`, a.type === 'box' ? { color: col, opacity: 1, borderColor: col, borderWidth: Math.max(0.5, a.sw * s / 2) } : stroke); }
     case 'ellipse': case 'disc': { const cx = a.type === 'disc' ? p[0] : (p[0] + q[0]) / 2, cy = a.type === 'disc' ? p[1] : (p[1] + q[1]) / 2, rx = a.type === 'disc' ? Math.hypot(q[0] - p[0], q[1] - p[1]) : Math.abs(q[0] - p[0]) / 2, ry = a.type === 'disc' ? rx : Math.abs(q[1] - p[1]) / 2;
-      return path(`M${cx - rx} ${cy} A${rx} ${ry} 0 1 0 ${cx + rx} ${cy} A${rx} ${ry} 0 1 0 ${cx - rx} ${cy} Z`, a.type === 'disc' ? { color: col, opacity: 1, borderColor: col, borderWidth: sw / s / 2 } : stroke); }
+      return path(`M${cx - rx} ${cy} A${rx} ${ry} 0 1 0 ${cx + rx} ${cy} A${rx} ${ry} 0 1 0 ${cx - rx} ${cy} Z`, a.type === 'disc' ? { color: col, opacity: 1, borderColor: col, borderWidth: Math.max(0.5, a.sw * s / 2) } : stroke); }
     case 'cloud': return path(cloudPath(p[0], p[1], q[0], q[1], (a.sw || 3) * 6), stroke);
     case 'arrow': { const ang = Math.atan2(q[1] - p[1], q[0] - p[0]), h = (a.sw || 3) * 5, a1 = [q[0] - h * Math.cos(ang - 0.45), q[1] - h * Math.sin(ang - 0.45)], a2 = [q[0] - h * Math.cos(ang + 0.45), q[1] - h * Math.sin(ang + 0.45)];
       path(line([p, q]), stroke); return path(line([q, a1, a2], true), { color: lc, borderColor: lc, borderWidth: sw / s }); }
