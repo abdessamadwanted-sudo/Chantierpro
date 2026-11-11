@@ -275,14 +275,18 @@ const Sync = (() => {
         // v1.0.111 : reprise — chaque envoi réussi est noté tout de suite dans « sync.cloud » (même si l'écriture de la base échoue ou que l'appli se ferme)
         let cs = {}; try { cs = JSON.parse(localStorage.getItem('sync.cloud') || '{}'); } catch (e) {}
         for (const f of files) { const x = cs[f.id]; if (x && (!f.sref || f.sref !== x.s) && (!f.blob || x.z === f.blob.size)) { f.sref = x.s; f.ssize = x.z; } }
-        const up = files.filter(f => f.blob && f.projectId && (!f.sref || f.ssize !== f.blob.size) && !f.cloudSkip && Team.canCloud(f, 2));
+        // v1.0.176 : si Cloud Storage ne répond pas (envois qui expirent), on arrête après 2 échecs de suite et on ne réessaie pas à chaque ouverture : pause de 6 h (sauf envoi manuel)
+        const pauseTil = (LS.get('cloudPause', 0) || 0), paused = !force && Date.now() < pauseTil;
+        const up = paused ? [] : files.filter(f => f.blob && f.projectId && (!f.sref || f.ssize !== f.blob.size) && !f.cloudSkip && Team.canCloud(f, 2));
+        let cfail = 0, stopped = false;
         let k = 0;
         // un fichier à la fois : moins de pointes de réseau et de mémoire (les PDF de plans sont lourds)
         await pool(up, 1, async (f) => {
-          try { const r = await Team.cloudUpload(f); f.sref = r.sref; f.ssize = r.ssize;
+          if (stopped) return;
+          try { const r = await Team.cloudUpload(f); cfail = 0; f.sref = r.sref; f.ssize = r.ssize;
             try { const m = JSON.parse(localStorage.getItem('sync.cloud') || '{}'); m[f.id] = { s: r.sref, z: r.ssize }; localStorage.setItem('sync.cloud', JSON.stringify(m)); } catch (e) {}
             await DB.put('files', f); }
-          catch (e) { fails.push(`${f.name || 'fichier'} : ${e.message || e.code || e}`); if (/trop lourd/.test(String(e.message))) { f.cloudSkip = true; await DB.putRaw('files', f); } }
+          catch (e) { cfail++; if (cfail >= 2 && !stopped) { stopped = true; LS.set('cloudPause', Date.now() + 6 * 3600 * 1000); fails.push('Cloud Storage ne répond pas : envoi des fichiers partagés suspendu 6 h (relancez avec « Envoyer » dans Stockage)'); } else if (!stopped) fails.push(`${f.name || 'fichier'} : ${e.message || e.code || e}`); if (/trop lourd/.test(String(e.message))) { f.cloudSkip = true; await DB.putRaw('files', f); } }
           finally { k++; setStatus('sync', `Envoi des fichiers ${k}/${up.length}`); }
         });
       }
