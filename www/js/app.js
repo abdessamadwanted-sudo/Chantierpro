@@ -2241,11 +2241,11 @@ function openMaquette(m) {
 }
 
 // ---------- v1.0.48 : journal de démarrage et des erreurs (diagnostic des fermetures) ----------
-function bootTrail(step) { try { const L = JSON.parse(localStorage.getItem('boot.trail') || '[]'); L.push(new Date().toTimeString().slice(0, 8) + ' ' + String(step).slice(0, 120)); localStorage.setItem('boot.trail', JSON.stringify(L.slice(-40))); } catch (e) {} }
+function bootTrail(step) { try { const L = JSON.parse(localStorage.getItem('boot.trail') || '[]'); const mem = performance.memory ? ' [JS ' + Math.round(performance.memory.usedJSHeapSize / 1048576) + ' Mo]' : ''; L.push(new Date().toTimeString().slice(0, 8) + ' ' + String(step).slice(0, 120) + mem); localStorage.setItem('boot.trail', JSON.stringify(L.slice(-40))); } catch (e) {} }
 (() => {
   const keep = (m) => { try { const L = JSON.parse(localStorage.getItem('err.log') || '[]'); L.push(new Date().toISOString().slice(5, 19).replace('T', ' ') + ' ' + String(m).slice(0, 220)); localStorage.setItem('err.log', JSON.stringify(L.slice(-20))); } catch (e) {} };
   window.addEventListener('error', (e) => keep((e.message || 'erreur') + (e.filename ? ' @' + String(e.filename).split('/').pop() + ':' + e.lineno : '')));
-  window.addEventListener('unhandledrejection', (e) => keep('promesse : ' + ((e.reason && (e.reason.message || e.reason)) || '?')));
+  window.addEventListener('unhandledrejection', (e) => keep('promesse : ' + ((e.reason && (e.reason.message || e.reason)) || '?') + (e.reason && e.reason.stack ? ' | ' + String(e.reason.stack).split('\n').slice(0, 2).join(' / ').slice(0, 240) : '')));   // v1.0.177 : pile d'appels ajoutée
 })();
 // v1.0.53 : « Signaler un problème » — envoyé au panneau d'administration avec le diagnostic (aucune donnée de chantier)
 async function diagText() {
