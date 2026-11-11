@@ -463,15 +463,23 @@ async function allPointItems(planId) {
   const L = (await DB.byProject('links', App.project.id)).filter(l => l.kind === 'local' && l.planId && l.x != null && (!planId || l.planId === planId));
   return L.map(l => ({ l, al: pillKey(l) }));
 }
-// dossier Data : un sous-dossier par type de données
+// v1.0.176 : « Tableaux » = petite application dédiée aux tableaux du chantier (carré 🔔 de l'accueil) : une carte par tableau, chacun s'ouvre en grand avec recherche et filtres
 async function openDataFolder() {
   const items = await pointAlertItems(), pts = await allPointItems();
-  const nPh = (await DB.byProject('files', App.project.id)).filter(f => f.role === 'photo' && f.blob).length;
-  const s = sheet(`<div class="form"><div class="pt-dir">
-    <button class="item" data-d="alerts"><span>🔔 Alertes</span><span class="count">${items.length}</span></button>
-    <button class="item" data-d="points"><span>${domeIconSVG('#2563eb')} Points d'intérêt · états et avancement</span><span class="count">${pts.length}</span></button>
-    <button class="item" data-d="photos"><span>📷 Photos (tableau)</span><span class="count">${nPh}</span></button></div></div>`, { title: '📁 Data' });
-  $$('[data-d]', s.el).forEach(b => b.onclick = () => { s.close && s.close(); if (b.dataset.d === 'alerts') openAlertsTable(items, { total: true }); else if (b.dataset.d === 'points') openAlertsTable(pts, { all: true }); else openPhotoTable(); });
+  const files = await DB.byProject('files', App.project.id);
+  const nPh = files.filter(f => f.role === 'photo' && f.blob).length;
+  const card = (d, ic, t, sub, n, c) => `<button class="tb-card" data-d="${d}" style="--c:${c}"><i>${ic}</i><span><b>${t}</b><small>${sub}</small></span><em>${n}</em></button>`;
+  const s = sheet(`<div class="form"><div class="tb-app">
+    ${card('alerts', '🔔', 'Alertes', 'Retards et échéances proches', items.length, '#dc2626')}
+    ${card('points', domeIconSVG('#2563eb', 26), 'Points d\'intérêt', 'Tous les points : état, avancement, retard', pts.length, '#2563eb')}
+    ${card('photos', '📷', 'Photos', 'Par niveau et par lot', nPh, '#7c3aed')}
+    ${typeof openAnomalies === 'function' ? card('anom', '⚠️', 'Anomalies', 'Réserves et anomalies', '', '#ea580c') : ''}
+    ${typeof openDueTable === 'function' ? card('due', '📅', 'Échéances', 'Tableau des échéances', '', '#0d9488') : ''}
+  </div></div>`, { title: '🗂️ Tableaux' });
+  if (s.el) s.el.style.minHeight = '70vh';
+  $$('[data-d]', s.el).forEach(b => b.onclick = () => { s.close && s.close(); const d = b.dataset.d;
+    if (d === 'alerts') openAlertsTable(items, { total: true }); else if (d === 'points') openAlertsTable(pts, { all: true }); else if (d === 'photos') openPhotoTable();
+    else if (d === 'anom') openAnomalies(App.project); else if (d === 'due') openDueTable(App.project); });
 }
 // petit dôme (gyrophare) de la couleur de l'état, pour les tableaux
 function domeIconSVG(c, size = 22) {
@@ -542,7 +550,7 @@ async function openAlertsTable(items, opts = {}) {
   const uniq = (k) => [...new Set(rows.map(r => r[k]).filter(Boolean))].sort();
   const opt = (k, arr, all) => `<option value="">${all}</option>` + arr.map(v => `<option value="${esc(v)}">${esc(k === 'al' ? lab[v] : v)}</option>`).join('');
   const s = sheet(`<div class="form ptab">
-    ${opts.all ? `<input class="ptab-q" data-q type="search" placeholder="🔍 Rechercher un point (nom, niveau, lot, plan)…" style="width:100%;margin-bottom:8px">` : ''}
+    <input class="ptab-q" data-q type="search" placeholder="🔍 Rechercher (nom, niveau, lot, plan)…" style="width:100%;margin-bottom:8px">
     <div class="ptab-f">
       <select data-f="niv">${opt('niv', uniq('niv'), 'Tous les niveaux')}</select>
       <select data-f="lot">${opt('lot', uniq('lot'), 'Tous les lots')}</select>
@@ -551,9 +559,10 @@ async function openAlertsTable(items, opts = {}) {
     </div>
     <div class="ptab-w"><table class="ptab-t"><thead><tr><th></th><th>Nom</th><th>Niveau</th><th>Lot</th><th>Plan</th><th>Début</th><th>Fin</th><th>Échéance</th><th>État</th><th>Retard / reste</th><th>Avancement</th></tr></thead>
     <tbody></tbody></table></div></div>`, { title: `${opts.all ? '📍 Points d\'intérêt' : '🔔 Alertes'}${opts.planName ? ' · ' + opts.planName : ''} · ${rows.length}` });
+  if (s.el) s.el.style.minHeight = '85vh';
   const paint = () => {
     const f = { niv: $('[data-f=niv]', s.el).value, lot: $('[data-f=lot]', s.el).value, plan: $('[data-f=plan]', s.el).value, al: $('[data-f=al]', s.el).value };
-    const qv = opts.all ? String(($('[data-q]', s.el) || {}).value || '').trim().toLowerCase() : '';
+    const qv = true ? String(($('[data-q]', s.el) || {}).value || '').trim().toLowerCase() : '';
     const sel = rows.filter(r => (!f.niv || r.niv === f.niv) && (!f.lot || r.lot === f.lot) && (!f.plan || r.plan === f.plan) && (!f.al || r.al === f.al) && (!qv || [r.l.name, r.niv, r.lot, r.plan].some(x => String(x || '').toLowerCase().includes(qv))));
     // v1.0.176 : tableau des points = recherche d'abord (rien n'est listé tant qu'on n'a ni cherché ni filtré)
     const hid = opts.all && !qv && !f.niv && !f.lot && !f.plan && !f.al;
