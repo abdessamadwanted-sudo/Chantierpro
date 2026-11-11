@@ -1431,6 +1431,18 @@ try {
   // ---- v1.0.x : lien Google Maps du projet + partage WhatsApp ----
   const tMap = await A.pg.evaluate(() => ({ a: projectMapUrl({ mapsUrl: 'https://maps.app.goo.gl/abc' }), b: projectMapUrl({ gps: '33.5731, -7.5898' }), c: projectMapUrl({ address: 'Casablanca' }), d: projectMapUrl({}), f: typeof shareProjectWhatsApp }));
   log('v1.0.x [lien Google Maps / WhatsApp]', tMap); log('errors v1.0.x maps', tMap.a === 'https://maps.app.goo.gl/abc' && tMap.b === 'https://www.google.com/maps?q=33.5731,-7.5898' && tMap.c.includes('query=Casablanca') && tMap.d === '' && tMap.f === 'function' ? [] : ['v1.0.x maps']);
+  // ---- v1.0.176 : PDF annoté — pins en vectoriel (aucune image dans la page) ----
+  const tPdf = await A.pg.evaluate(async () => { try {
+    await needPdfLib(); const d = await PDFLib.PDFDocument.create(); d.addPage([600, 400]); const bytes = await d.save();
+    const f = await DB.put('files', { projectId: 'T', role: 'plan', name: 't.pdf', blob: new Blob([bytes], { type: 'application/pdf' }) });
+    const plan = { id: 'pT', w: 600, h: 400, pdfFileId: f.id, pdfPage: 1, annotations: [{ type: 'line', pts: [[10, 10], [200, 100]], color: '#e11d48', sw: 3 }] };
+    const out = await annotatedPlanPdf(plan, [{ planId: 'pT', x: 100, y: 100, num: 3, status: 'open' }], [{ planId: 'pT', x: 300, y: 200, name: 'Local 1', kind: 'local' }], 'A3', true, true);
+    const txt = new TextDecoder('latin1').decode(new Uint8Array(await out.arrayBuffer()));
+    return { size: out.size, img: /\/Subtype\s*\/Image/.test(txt) };
+  } catch (e) { return { err: String(e && e.message || e) }; } });
+  log('v1.0.176 [PDF annoté : pins vectoriels]', tPdf); log('errors v1.0.176 pdf', tPdf.size > 500 && tPdf.img === false ? [] : ['v1.0.176 pdf ' + JSON.stringify(tPdf)]);
+  const tDue = await A.pg.evaluate(() => ({ s: String(openDueTable).includes('Point · échéance') && !String(openDueTable).includes("p.mo ? ' · ' + esc(p.mo) : ''}</span></div>") }));
+  log('v1.0.176 [échéances + points]', tDue); log('errors v1.0.176 échéances', tDue.s ? [] : ['v1.0.176 échéances']);
   // ---- v1.0.176 : sauvegarde Drive d'un projet = un seul zip mis à jour sur place (+ « précédente ») ----
   const tBk = await A.pg.evaluate(() => ({ save: typeof GDrive.projectBackupSave, list: typeof GDrive.projectBackupList, src: String(GDrive.projectBackupSave).includes('/copy') && String(GDrive.projectBackupSave).includes('PREV') && !String(GDrive.projectBackupSave).includes("stamp() + '.chantier.zip'") }));
   log('v1.0.176 [sauvegarde Drive : zip unique]', tBk); log('errors v1.0.176 backup', tBk.save === 'function' && tBk.list === 'function' && tBk.src ? [] : ['v1.0.176 backup']);

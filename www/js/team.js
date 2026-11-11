@@ -156,7 +156,7 @@ const SERVICES_LEGACY = ['logistique'];
 // modules (= droits) : projet (infos, rappels, constats, 3D…), plans, réserves, réception & bétonnage, photos, formulaires, rapports, constats, calculs, équipe, fichiers
 // v1.0.57 : fonctions premium, réglées par pack depuis le panneau (gratuites, payantes, période d'essai) et offertes à un espace
 const PREMIUM = [['cmp', 'Comparer plans, niveaux et indices'], ['pdf', 'Outils PDF (fusionner, diviser, changer le format)'], ['dwg', 'DWG / DXF → PDF (tracer, plusieurs DWG)'],
-  ['report', 'Générer les rapports PDF'], ['plansend', 'Envoyer un plan annoté'], ['photopdf', 'PDF des pins photos (4 photos / page)']];
+  ['report', 'Générer les rapports PDF'], ['plansend', 'Envoyer un plan annoté'], ['plansendhq', 'Plan annoté haute précision (vectoriel, comme AutoCAD)'], ['photopdf', 'PDF des pins photos (4 photos / page)']];
 const MODS = [['projet', 'Projet (infos, rappels, 3D)'], ['plans', 'Plans & maquettes'], ['reserves', 'Réserves / tâches'], ['reception', 'Réception & bétonnage'], ['photos', 'Photos'],
   ['forms', 'Formulaires / PV'], ['rapports', 'Rapports journaliers'], ['constats', 'Constats / NC'], ['calc', 'Calculs & topo'], ['equipe', 'Équipe du projet'], ['files', 'Fichiers'],
   ['topo', 'Topographie (implantations, levés)'], ['centrale', 'Centrale à béton (commandes, BL)'], ['materiel', 'Matériel & stock'], ['pointage', 'Pointage & effectifs'], ['hse', 'HSE (sécurité)'],
