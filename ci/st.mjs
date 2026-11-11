@@ -1463,6 +1463,8 @@ try {
   log('v1.0.177 [groupe Tableaux]', tTg); log('errors v1.0.177 groupe', tTg.g ? [] : ['v1.0.177 groupe']);
   const tBt = await A.pg.evaluate(async () => { const a = await fetch('js/app.js').then(x => x.text()), p = await fetch('js/photoq.js').then(x => x.text()); return { mem: a.includes('performance.memory') && a.includes('pile d\'appels'), pq: p.includes('}, 25000)') }; });
   log('v1.0.177 [démarrage : mémoire, pile, photos différées]', tBt); log('errors v1.0.177 demarrage', tBt.mem && tBt.pq ? [] : ['v1.0.177 demarrage']);
+  const tFl = await A.pg.evaluate(async () => { const v = await fetch('js/viewer.js').then(x => x.text()); return { f: v.includes('mkScale !== st.scale') && v.includes("stage.style.willChange = 'transform';   // v1.0.177") && v.includes('> 6e6') }; });
+  log('v1.0.177 [plan fluide]', tFl); log('errors v1.0.177 fluide', tFl.f ? [] : ['v1.0.177 fluide']);
   const t82 = await A.pg.evaluate(() => ({ db: typeof DB.get === 'function' }));
   log('v1.0.82 [démarrage : synchro différée, IndexedDB réessaie]', t82); log('errors v1.0.82', t82.db ? [] : ['v1.0.82']);
   const t79 = await A.pg.evaluate(() => ({ proj: typeof GDrive.projectSave, file: typeof Backup.exportProject }));
