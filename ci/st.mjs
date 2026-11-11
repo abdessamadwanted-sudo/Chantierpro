@@ -1436,7 +1436,7 @@ try {
     await needPdfLib(); const d = await PDFLib.PDFDocument.create(); d.addPage([600, 400]); const bytes = await d.save();
     const f = await DB.put('files', { projectId: 'T', role: 'plan', name: 't.pdf', blob: new Blob([bytes], { type: 'application/pdf' }) });
     const plan = { id: 'pT', w: 600, h: 400, pdfFileId: f.id, pdfPage: 1, annotations: [{ type: 'line', pts: [[10, 10], [200, 100]], color: '#e11d48', sw: 3 }] };
-    const out = await annotatedPlanPdf(plan, [{ planId: 'pT', x: 100, y: 100, num: 3, status: 'open' }], [{ planId: 'pT', x: 300, y: 200, name: 'Local 1', kind: 'local' }], 'A3', true);
+    const out = await annotatedPlanPdf(plan, [{ planId: 'pT', x: 100, y: 100, num: 3, status: 'open' }], [{ planId: 'pT', x: 300, y: 200, name: 'Local 1', kind: 'local' }], 'A3', true, true);
     const txt = new TextDecoder('latin1').decode(new Uint8Array(await out.arrayBuffer()));
     return { size: out.size, img: /\/Subtype\s*\/Image/.test(txt) };
   } catch (e) { return { err: String(e && e.message || e) }; } });
