@@ -3862,3 +3862,7 @@ table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-
 .pp-prev-acts button { background: #1b2130; color: #e6eaf2; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 10px 2px; font-size: 12px; }
 .pp-prev-acts button.d { color: #f87171; }
 .pp-prev-acts button:disabled { opacity: .35; }
+
+/* v1.0.189 : boutons « Replier tout / Déplier tout » dans la liste des plans */
+.pq-tools { display: flex; gap: 8px; margin: 4px 16px 8px; }
+.pq-tools .btn { flex: 1; padding: 8px 10px; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }

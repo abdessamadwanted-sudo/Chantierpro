@@ -1511,6 +1511,21 @@ try {
     return { a, b, c, d, e };
   });
   log('flags fichiers', ff); if (!ff.a || !ff.b || ff.c || ff.d || ff.e) throw new Error('fflags incorrect ' + JSON.stringify(ff));
+  // ---- v1.0.189 : bouton « Replier tout » / « Déplier tout » dans la liste des plans
+  const pqt = await A.pg.evaluate(async () => {
+    const pr0 = (await DB.all('projects'))[0]; if (!pr0) return { tools: false, noProject: true }; App.project = pr0;
+    await openPlansQuick(); await new Promise(r => setTimeout(r, 400));
+    const ok = { tools: !!document.querySelector('.pq-tools [data-a=pqfold]') && !!document.querySelector('.pq-tools [data-a=pqunfold]') };
+    const groups = document.querySelectorAll('.pq-h').length;
+    document.querySelector('[data-a=pqfold]').click(); await new Promise(r => setTimeout(r, 100));
+    ok.allShut = groups > 0 && [...document.querySelectorAll('.pq-h')].every(h => h.classList.contains('shut'));
+    document.querySelector('[data-a=pqunfold]').click(); await new Promise(r => setTimeout(r, 100));
+    ok.allOpen = groups > 0 && [...document.querySelectorAll('.pq-h')].every(h => !h.classList.contains('shut'));
+    return { ...ok, groups };
+  });
+  log('plans replier/déplier tout', pqt);
+  if (!pqt.tools || (pqt.groups && (!pqt.allShut || !pqt.allOpen))) throw new Error('replier tout KO ' + JSON.stringify(pqt));
+  await A.pg.evaluate(() => document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()));
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
