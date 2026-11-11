@@ -3839,3 +3839,13 @@ table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-
 .tb-card b { font-size: 14px !important; }
 .tb-card small { font-size: 11px !important; opacity: .7 !important; }
 .tb-card em { font-size: 15px !important; font-weight: 700 !important; color: var(--c); filter: brightness(1.6); }
+
+/* v1.0.177 : fiche point — nom plus petit, lignes plus serrées */
+.lk2-name { font-size: 16px !important; font-weight: 600 !important; }
+.lk2-sub { font-size: 12px !important; }
+.lk-tb th, .lk-tb td { padding: 5px 10px !important; font-size: 13px !important; }
+
+/* v1.0.177 : Tableau des échéances — cartes de statut, recherche et filtres restent en haut, la liste défile dessous */
+.due-top { position: sticky; top: 0; z-index: 5; background: var(--bg); display: grid; gap: 10px; padding: 0 0 6px; margin: 0 -2px; }
+.due-top .avf-bar { position: static; margin: 0; padding: 0 2px; }
+.due-k button.on { background: color-mix(in srgb, var(--accent) 18%, var(--card)); }
