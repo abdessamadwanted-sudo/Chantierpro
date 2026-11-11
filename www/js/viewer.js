@@ -1569,7 +1569,7 @@ async function sharePlanMenu(plan, { tasks = [], links = [] } = {}) {
     { label: `📄 Original (${orig[1]} tel que reçu)`, icon: 'share', value: 'orig' },
     { label: `✏️ PDF annoté · qualité normale (sans pins)`, icon: 'pdf', value: 'annotnp' },
     { label: `📍 PDF annoté · qualité normale (avec pins${nA ? ' · ' + nA : ''})`, icon: 'pdf', value: 'annot' },
-    { label: `💎 PDF annoté · haute précision (vectoriel, avec pins)`, icon: 'pdf', value: 'annothq' },
+    { label: `💎 PDF annoté · haute précision (vectoriel, sans pins)`, icon: 'pdf', value: 'annothq' },
     ...(plan.dwgFileId ? [{ label: '📐 DXF (pour AutoCAD)', icon: 'share', value: 'dxf' }] : []),
     ...(plan.dwgFileId || plan.dxfFileId ? [{ label: '🖨️ PDF vectoriel à l\'échelle (A0 → A4)', icon: 'pdf', value: 'plot' }] : []),
   ]);
@@ -1582,7 +1582,7 @@ async function sharePlanMenu(plan, { tasks = [], links = [] } = {}) {
   }
   if (v === 'dxf') return exportDxfOfPlan(plan);
   if (v === 'plot') return plotPlan(plan);
-  const withPins = v !== 'annotnp', hq = v === 'annothq';
+  const withPins = v === 'annot', hq = v === 'annothq';
   if (typeof Team !== 'undefined' && Team.featGate && !(await Team.featGate('plansend'))) return;
   if (hq && typeof Team !== 'undefined' && Team.featGate && !(await Team.featGate('plansendhq'))) return;   // v1.0.176 : haute précision = fonction premium réglable par pack   // v1.0.57 : fonction premium
   const fmt = plan.pdfFileId ? 'A3' : await menu('Format du PDF annoté', ['A0', 'A1', 'A2', 'A3', 'A4'].map(x => ({ label: x, value: x, checked: x === 'A3' })));
