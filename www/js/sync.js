@@ -246,9 +246,15 @@ const Sync = (() => {
       if (!window.__v2chk) try { window.__v2chk = 1; const F0 = await DB.all('files'), inD = new Set(F0.filter(f => f.driveId).map(f => f.projectId)); for (const pr of await DB.all('projects')) if (pr.driveV2 == null && !inD.has(pr.id)) { pr.driveV2 = true; await DB.put('projects', pr); } } catch (e) { console.warn('v2', e); }
       const paths = await buildPaths();
       const files = await DB.all('files');
+      // v1.0.189 : une photo « copie » (même taille et même date de prise) déjà rangée dans un tableau de réception / bétonnage
+      // n'est plus envoyée dans « 10 - Photos » (et sa copie déjà envoyée est mise à la corbeille)
+      const sigOf = (f) => { const sz = f.ssize || (f.blob && f.blob.size) || 0; return sz && f.createdAt ? sz + '|' + f.createdAt : ''; };
+      const inTable = new Set(files.filter(f => paths.map[f.id] && f.role === 'photo').map(sigOf).filter(Boolean));
+      const isDup = (f) => f.role === 'photo' && !paths.map[f.id] && !f.grp && !!sigOf(f) && inTable.has(sigOf(f));
+      for (const f of files.filter(x => isDup(x) && x.driveId)) { try { await call('push', { records: [{ _store: 'gen', id: 'dup:' + f.id + ':' + Date.now(), driveId: f.driveId, _deleted: true, updatedAt: Date.now() }] }); } catch (e) {} }
       // v1.0.84 : fichiers déjà envoyés (mémorisés à part, légers) : on ne les renvoie pas même si l'écriture de la base a échoué
       try { const sm = JSON.parse(localStorage.getItem('sync.sent') || '{}'); for (const f of files) { const x = sm[f.id]; if (x && !f.driveId) { f.driveId = x.d; f.drivePath = x.p; } } } catch (e) {}
-      const todo = !hasDrive() ? [] : files.filter(f => !f.bgq && !f.prep).filter(f => (f.blob && (!f.driveId || f.drivePath !== JSON.stringify(pathFor(f, paths)))) || (!f.blob && f.driveId && f.drivePath && f.drivePath !== JSON.stringify(pathFor(f, paths))));
+      const todo = !hasDrive() ? [] : files.filter(f => !f.bgq && !f.prep && !isDup(f)).filter(f => (f.blob && (!f.driveId || f.drivePath !== JSON.stringify(pathFor(f, paths)))) || (!f.blob && f.driveId && f.drivePath && f.drivePath !== JSON.stringify(pathFor(f, paths))));
       let i = 0; if (todo.length) tr(`envoi de ${todo.length} fichier(s)`);
       // v1.0.83 : un fichier à la fois (moins de pointes de mémoire) ; le blob est relâché après envoi
       await pool(todo, 1, async (f) => {
