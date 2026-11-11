@@ -291,27 +291,48 @@ const GDrive = (() => {
   }
   // sauvegarde PAR ESPACE : « Espace-<espace>_<date>.chantier.zip » rangé directement dans « SiteTeam / projects »
   // (un ZIP par espace, 2 gardés par espace, les autres espaces ne sont jamais touchés)
-  const ESP_PREFIX = 'Espace-', ESPX = /^Espace-(.+)_(\d{4}-\d{2}-\d{2}_\d{4})\.chantier\.zip$/;
+  const ESP_PREFIX = 'Espace-', ESPX = /^Espace-(.+)_(\d{4}-\d{2}-\d{2}_\d{4})\.chantier\.zip$/, ESPF = /^Espace-(.+?)( \(précédente\))?\.chantier\.zip$/;
   const espBase = (e) => ESP_PREFIX + pSafe(e);
   async function espaceBackupList(espace) {
     const folder = await path(['projects']);
     const l = await list(`'${folder}' in parents and trashed=false`, 'id,name,size,modifiedTime');
     const mans = new Map(l.filter(f => f.name.startsWith(ESP_PREFIX) && f.name.endsWith('.manifest.json')).map(f => [f.name.replace(/\.manifest\.json$/, '.chantier.zip'), f.id]));
-    return l.filter(f => ESPX.test(f.name) && (espace == null || f.name.startsWith(espBase(espace) + '_')))
-      .map(f => { const m = ESPX.exec(f.name); return { ...f, espace: m[1], stamp: m[2], manifestId: mans.get(f.name) || null }; })
+    // v1.0.190 : deux fichiers fixes par espace (actuelle + « précédente ») ; les anciens « Espace-X_date » restent listés
+    const fixedOf = (n) => { const m = ESPF.exec(n); return m && !ESPX.test(n) ? m : null; };
+    return l.filter(f => (ESPX.test(f.name) || fixedOf(f.name)) && (espace == null || f.name.startsWith(espBase(espace) + '_') || f.name === espBase(espace) + '.chantier.zip' || f.name === espBase(espace) + PREV + '.chantier.zip'))
+      .map(f => { const m = ESPX.exec(f.name); const fx = fixedOf(f.name); return { ...f, espace: m ? m[1] : fx[1], stamp: m ? m[2] : (f.modifiedTime || '').slice(0, 16).replace('T', '_'), previous: !!(fx && fx[2]), manifestId: mans.get(f.name) || null }; })
       .sort((a, b) => Date.parse(b.modifiedTime) - Date.parse(a.modifiedTime));
   }
   // enregistre la sauvegarde d'un espace + son manifeste, puis met à la corbeille les plus anciennes DE CET ESPACE (au-delà de BK_KEEP)
   async function backupSaveDated(blob, manifest, espace) {
+    // v1.0.190 : un seul zip par espace (« Espace-X.chantier.zip ») + une copie « (précédente) » — comme le zip de projet, plus de fichiers datés qui s'accumulent
     const folder = await path(['projects']);
-    const name = espBase(espace || 'Espace') + '_' + stamp() + '.chantier.zip';
-    const r = await create({ name, parents: [folder], mimeType: 'application/zip' }, blob, 'application/zip');
-    await create({ name: name.replace(/\.chantier\.zip$/, '.manifest.json'), parents: [folder], mimeType: 'application/json' }, new Blob([JSON.stringify(manifest)], { type: 'application/json' }), 'application/json');
-    const mine = (await espaceBackupList(espace || 'Espace')).sort((a, b) => (a.name < b.name ? 1 : -1));
-    for (const old of mine.slice(BK_KEEP)) {
-      try { await patch(`${API}/files/${old.id}`, { trashed: true }); if (old.manifestId) await patch(`${API}/files/${old.manifestId}`, { trashed: true }); } catch (e) { console.warn('purge espace', e); }
+    const base = espBase(espace || 'Espace'), name = base + '.chantier.zip', prevName = base + PREV + '.chantier.zip', mName = base + '.manifest.json';
+    const find = async (n) => (await list(`name='${qs(n)}' and '${folder}' in parents and trashed=false`, 'id,name,size,modifiedTime'))[0] || null;
+    const cur = await find(name), mtxt = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+    let id;
+    if (!cur) {
+      id = (await create({ name, parents: [folder], mimeType: 'application/zip' }, blob, 'application/zip')).id;
+      await create({ name: mName, parents: [folder], mimeType: 'application/json' }, mtxt, 'application/json');
+    } else {
+      try {
+        const old = await find(prevName); if (old) await patch(`${API}/files/${old.id}`, { trashed: true });
+        await patchless(`${API}/files/${cur.id}/copy?fields=id`, { name: prevName, parents: [folder] });
+      } catch (e) { console.warn('précédente espace', e); }
+      if (blob.size <= 4 * 1048576) await req(`${UP}/files/${cur.id}?uploadType=media&fields=id`, { method: 'PATCH', headers: { 'Content-Type': 'application/zip' }, body: blob });
+      else {
+        const s0 = await req(`${UP}/files/${cur.id}?uploadType=resumable&fields=id`, { method: 'PATCH', headers: { 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': 'application/zip', 'X-Upload-Content-Length': String(blob.size) }, body: JSON.stringify({}) });
+        const loc = s0.headers.get('Location') || s0.headers.get('location'); if (!loc) throw new Error('Envoi Drive : réponse incomplète');
+        await json(loc, { method: 'PUT', headers: { 'Content-Type': 'application/zip' }, body: blob });
+      }
+      id = cur.id;
+      const m = await find(mName);
+      if (m) await req(`${UP}/files/${m.id}?uploadType=media&fields=id`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: mtxt });
+      else await create({ name: mName, parents: [folder], mimeType: 'application/json' }, mtxt, 'application/json');
     }
-    return { id: r.id, name, size: blob.size };
+    // anciennes sauvegardes datées de cet espace (ancien système) : corbeille Drive (récupérables)
+    try { for (const old of (await espaceBackupList(espace || 'Espace')).filter(x => ESPX.test(x.name))) { await patch(`${API}/files/${old.id}`, { trashed: true }); if (old.manifestId) await patch(`${API}/files/${old.manifestId}`, { trashed: true }); } } catch (e) { console.warn('purge espace', e); }
+    return { id, name, size: blob.size, updated: !!cur };
   }
   async function backupManifest(id) { const r = await download(id); return JSON.parse(await r.blob.text()); }
   // téléchargement avec pourcentage (onP reçoit 0..100) ; total = taille annoncée par Drive
