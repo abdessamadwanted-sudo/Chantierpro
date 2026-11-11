@@ -1513,6 +1513,7 @@ try {
   log('flags fichiers', ff); if (!ff.a || !ff.b || ff.c || ff.d || ff.e) throw new Error('fflags incorrect ' + JSON.stringify(ff));
   // ---- v1.0.189 : bouton « Replier tout » / « Déplier tout » dans la liste des plans
   const pqt = await A.pg.evaluate(async () => {
+    const pr0 = (await DB.all('projects'))[0]; if (!pr0) return { tools: false, noProject: true }; App.project = pr0;
     await openPlansQuick(); await new Promise(r => setTimeout(r, 400));
     const ok = { tools: !!document.querySelector('.pq-tools [data-a=pqfold]') && !!document.querySelector('.pq-tools [data-a=pqunfold]') };
     const groups = document.querySelectorAll('.pq-h').length;
