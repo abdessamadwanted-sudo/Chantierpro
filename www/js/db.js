@@ -7,7 +7,7 @@ const DB = (() => {
   try { const L = JSON.parse(localStorage.getItem('st.dbPurge') || '[]'), keep = L.filter(n => n === NAME);
     L.filter(n => n !== NAME).forEach(n => { try { indexedDB.deleteDatabase(n); } catch (e) {} });
     keep.length ? localStorage.setItem('st.dbPurge', JSON.stringify(keep)) : localStorage.removeItem('st.dbPurge'); } catch (e) {}
-  const VERSION = 4;
+  const VERSION = 5;   // v5 : petite table « fflags » (drapeaux des fichiers) — le démarrage ne charge plus tous les fichiers avec leurs blobs
   const STORES = ['projects', 'folders', 'plans', 'tasks', 'links', 'files', 'forms', 'reports', 'receptions', 'items', 'tomb'];  // tomb = suppressions à synchroniser
   let dbp = null;
   // Erreurs passagères de connexion (connexion fermée par le système, transaction inactive) : on rouvre et on réessaie.
@@ -26,6 +26,7 @@ const DB = (() => {
             if (s !== 'projects') os.createIndex('projectId', 'projectId');
           }
         }
+        if (!db.objectStoreNames.contains('fflags')) db.createObjectStore('fflags', { keyPath: 'id' });
       };
       req.onsuccess = () => {
         const db = req.result;
@@ -62,6 +63,29 @@ const DB = (() => {
     }
   }
 
+  // ---- drapeaux des fichiers (prep = à préparer, bgq = confié au téléphone, pend = photo pas encore envoyée) ----
+  // Table séparée et minuscule : le démarrage lit ceci au lieu de charger tous les fichiers avec leurs blobs.
+  const flagsOf = (f) => ({ id: f.id, prep: !!f.prep, bgq: !!f.bgq, pend: !!(f.blob && !f.driveId && f.role === 'photo') });
+  const hasFlag = (r) => r.prep || r.bgq || r.pend;
+  async function setFlags(f) { try { const r = flagsOf(f); await run('fflags', 'readwrite', (os) => hasFlag(r) ? os.put(r) : os.delete(f.id)); } catch (e) {} }
+  async function dropFlags(id) { try { await run('fflags', 'readwrite', (os) => os.delete(id)); } catch (e) {} }
+  let ffp = null;
+  // première fois sur ce téléphone : on remplit la table en parcourant les fichiers un par un (jamais tous en mémoire)
+  function ensureFlags() {
+    const key = 'st.ff.' + NAME;
+    try { if (localStorage.getItem(key) === '1') return Promise.resolve(); } catch (e) {}
+    return ffp || (ffp = (async () => {
+      const db = await open(), recs = [];
+      await new Promise((res, rej) => {
+        const c = db.transaction('files', 'readonly').objectStore('files').openCursor();
+        c.onsuccess = () => { const cur = c.result; if (!cur) return res(); const r = flagsOf(cur.value); if (hasFlag(r)) recs.push(r); cur.continue(); };
+        c.onerror = () => rej(c.error);
+      });
+      await new Promise((res, rej) => { const t = db.transaction('fflags', 'readwrite'), os = t.objectStore('fflags'); os.clear(); recs.forEach((r) => os.put(r)); t.oncomplete = res; t.onerror = t.onabort = () => rej(t.error); });
+      try { localStorage.setItem(key, '1'); } catch (e) {}
+    })().catch((e) => { ffp = null; throw e; }));
+  }
+
   let chT = null;
   function changed(store) { if (store === 'tomb') return; clearTimeout(chT); chT = setTimeout(() => { try { DB.onChange && DB.onChange(store); } catch (e) {} }, 50); }
 
@@ -78,20 +102,29 @@ const DB = (() => {
       if (!obj.createdAt) obj.createdAt = Date.now();
       obj.updatedAt = Date.now();
       await run(store, 'readwrite', (os) => os.put(obj));
+      if (store === 'files') await setFlags(obj);
       changed(store);
       return obj;
     },
     async del(store, id) {
       const old = await this.get(store, id);
       await run(store, 'readwrite', (os) => os.delete(id));
+      if (store === 'files') await dropFlags(id);
       if (old && store !== 'tomb') {
         await run('tomb', 'readwrite', (os) => os.put({ id: store + ':' + id, store, rid: id, projectId: old.projectId || (store === 'projects' ? id : null), kind: old.kind || null, driveId: old.driveId || null, sref: old.sref || null, at: Date.now() }));
         changed(store);
       }
     },
     // utilisés par la synchronisation (ne déclenchent pas de nouvel envoi)
-    async putRaw(store, obj) { await run(store, 'readwrite', (os) => os.put(obj)); return obj; },
-    async delRaw(store, id) { return run(store, 'readwrite', (os) => os.delete(id)); },
+    async putRaw(store, obj) { await run(store, 'readwrite', (os) => os.put(obj)); if (store === 'files') await setFlags(obj); return obj; },
+    async delRaw(store, id) { const r = await run(store, 'readwrite', (os) => os.delete(id)); if (store === 'files') await dropFlags(id); return r; },
+    // fichiers portant un drapeau (prep | bgq | pend) : lit la petite table, puis seulement ces fichiers
+    async flagged(k) {
+      await ensureFlags();
+      const ids = (await run('fflags', 'readonly', (os) => os.getAll())).filter((r) => r[k]).map((r) => r.id), out = [];
+      for (const id of ids) { const f = await this.get('files', id); if (f && (k === 'pend' ? flagsOf(f).pend : f[k])) out.push(f); }
+      return out;
+    },
     onChange: null,
     async deleteProject(projectId) {
       for (const s of STORES) {

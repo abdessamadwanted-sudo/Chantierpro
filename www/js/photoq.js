@@ -37,7 +37,7 @@ const PhotoQ = (() => {
     } finally { busy = false; if (done >= total) { total = done = 0; } pill(); }
   }
   // au démarrage : photos restées « à préparer » (application fermée pendant la préparation)
-  async function resume() { try { const L = (await DB.all('files')).filter(f => f.prep); for (const f of L) if (!Q.some(q => q.id === f.id)) Q.push({ id: f.id }); total += L.length; if (L.length) kick(); } catch (e) {} }
+  async function resume() { try { const L = (await DB.flagged('prep')); for (const f of L) if (!Q.some(q => q.id === f.id)) Q.push({ id: f.id }); total += L.length; if (L.length) kick(); } catch (e) {} }
 
   // ---------- pastille ----------
   let bgPend = 0, upMsg = '';

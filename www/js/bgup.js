@@ -36,7 +36,7 @@ const BgUp = (() => {
     let st; try { st = await Promise.race([plug().status(), new Promise((_, rej) => setTimeout(() => rej(new Error('status')), 15000))]); } catch (e) { return last; }
     const pend = new Set(st.pendingIds || []), done = st.done || [], ack = [];
     const byId = new Map(done.map(d => [d.id, d]));
-    const mine = (await DB.all('files')).filter(f => f.bgq);
+    const mine = (await DB.flagged('bgq'));
     for (const f of mine) {
       const d = byId.get(f.id);
       if (d) { const ok = !!d.driveId; if (ok) { f.driveId = d.driveId; f.drivePath = f.bgq; } delete f.bgq; delete f.bgAt; await (ok ? DB.put('files', f) : DB.putRaw('files', f)); }
@@ -51,7 +51,7 @@ const BgUp = (() => {
   // au passage en arrière-plan : les photos encore à envoyer sont confiées au téléphone
   async function handPending(skip) {
     if (!on()) return 0;
-    const L = (await DB.all('files')).filter(f => f.blob && !f.driveId && !f.bgq && !f.prep && f.role === 'photo' && !(skip && skip.has(f.id)));
+    const L = (await DB.flagged('pend')).filter(f => !f.bgq && !f.prep && !(skip && skip.has(f.id)));
     return hand(L);
   }
 
