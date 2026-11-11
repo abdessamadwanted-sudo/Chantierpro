@@ -3824,3 +3824,10 @@ table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-
 .st-ptools-p .st-qa.qa-l .st-qa-b span { font-size: 12px !important; }
 .st-ptools-p .st-qa.qa-m .st-qa-b i { width: 36px !important; height: 36px !important; }
 .st-ptools-p .st-qa.qa-s .st-qa-b i { width: 30px !important; height: 30px !important; }
+
+/* v1.0.176 : application « Tableaux » */
+.tb-app { display: grid; gap: 10px; padding: 4px 2px 14px; }
+.tb-card { display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: 18px; border: 0; color: #fff; text-align: left; background: linear-gradient(135deg, var(--c), color-mix(in srgb, var(--c) 55%, #000)); position: relative; overflow: hidden; }
+.tb-card i { font-style: normal; font-size: 26px; width: 48px; height: 48px; border-radius: 14px; background: rgba(255,255,255,.2); display: grid; place-items: center; }
+.tb-card span { flex: 1; display: grid; gap: 2px; } .tb-card b { font-size: 16px; } .tb-card small { opacity: .85; font-size: 12px; }
+.tb-card em { font-style: normal; font-weight: 800; font-size: 20px; }

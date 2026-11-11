@@ -1437,6 +1437,8 @@ try {
   // ---- v1.0.176 (outils) : lot exact d'un point, recherche d'abord ----
   const tPt = await A.pg.evaluate(() => { const p = { lots: [{ id: 'L1', name: 'Gros œuvre' }, { id: 'L2', name: 'Maçonnerie' }], planLots: [] }; return { f: typeof ptLotName, a: ptLotName(p, { lotId: 'L1' }, null), b: ptLotName(p, {}, { lotId: 'inconnu' }), s: String(openAlertsTable).includes('data-q') && String(openAlertsTable).includes('hid') }; });
   log('v1.0.176 [lot exact / recherche]', tPt); log('errors v1.0.176 outils', tPt.f === 'function' && tPt.a === 'Gros œuvre' && tPt.b === '' && tPt.s ? [] : ['v1.0.176 outils']);
+  const tTb2 = await A.pg.evaluate(() => ({ f: typeof openDataFolder, s: String(openDataFolder).includes('tb-card') && String(openDataFolder).includes('Tableaux') }));
+  log('v1.0.176 [application Tableaux]', tTb2); log('errors v1.0.176 tableaux', tTb2.f === 'function' && tTb2.s ? [] : ['v1.0.176 tableaux']);
   const t82 = await A.pg.evaluate(() => ({ db: typeof DB.get === 'function' }));
   log('v1.0.82 [démarrage : synchro différée, IndexedDB réessaie]', t82); log('errors v1.0.82', t82.db ? [] : ['v1.0.82']);
   const t79 = await A.pg.evaluate(() => ({ proj: typeof GDrive.projectSave, file: typeof Backup.exportProject }));
