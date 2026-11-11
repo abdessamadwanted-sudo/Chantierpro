@@ -97,20 +97,22 @@ const Sync = (() => {
     // v1.0.47 : rangement « intelligent » (projets réorganisés ou nouveaux) : Plans / Zone / Niveau / NN Lot / Niveau_Lot_Ind-X_date
     // (l'indice en vigueur seul, les anciens dans « _Anciens indices ») — chaque lot numéroté dans l'ordre des travaux
     const FS = Object.fromEntries(folders.map(f => { const par = f.parentId && folders.find(x => x.id === f.parentId); return [f.id, par ? [par.name, f.name] : [f.name]]; }));
+    // v1.0.191 : arborescence des plans = vrais dossiers (niveau › sous-dossier › …), pas un seul dossier « niveau - sous-dossier »
+    const FC = (fid) => { const out = []; let cur = folders.find(x => x.id === fid), guard = 0; while (cur && guard++ < 10) { out.unshift(cur.name); cur = cur.parentId && folders.find(x => x.id === cur.parentId); } return out.length ? out.map(x => clean(x)) : ['Sans dossier']; };
     const v2 = (pid) => !!(PR[pid] && PR[pid].driveV2);
     for (const pl of plans) {
       // plan actuel dans le dossier du niveau ; anciens indices rangés à part (jamais écrasés)
       const old = !!pl.supersededBy, ind = pl.indice ? ` (ind ${pl.indice})` : '';
       if (v2(pl.projectId)) {
         const pr = PR[pl.projectId], lots = pr.planLots || [], li = lots.findIndex(l => l.id === pl.lotId), L = lots[li];
-        const fsg = FS[pl.folderId] || ['Sans niveau'], niv = (typeof nivOfFolder === 'function' && nivOfFolder(fsg[fsg.length - 1])) || fsg[fsg.length - 1];
+        const fsg = (FS[pl.folderId] && FC(pl.folderId)) || ['Sans niveau'], niv = (typeof nivOfFolder === 'function' && nivOfFolder(fsg[fsg.length - 1])) || fsg[fsg.length - 1];
         const dir = [pj(pl.projectId), D.plans, ...fsg, ...(L ? [`${String(li + 1).padStart(2, '0')} ${L.name}`] : []), ...(old ? ['_Anciens indices'] : [])];
         const dt = pl.indiceDate || new Date(pl.createdAt || Date.now()).toISOString().slice(0, 10);
         const nm = clean(L ? `${niv}_${L.name}_Ind-${pl.indice || 'A'}_${dt}` : `${pl.name.replace(/ - p\d+$/, '')}_Ind-${pl.indice || 'A'}_${dt}`);
         put(pl.pdfFileId, dir, nm); put(pl.dxfFileId, dir, nm); put(pl.dwgFileId, dir, nm); put(pl.fileId, [...dir, 'Aperçus'], nm);
         continue;
       }
-      const base = old ? [pj(pl.projectId), D.plans, F[pl.folderId] || 'Sans dossier', 'Anciens indices'] : [pj(pl.projectId), D.plans, F[pl.folderId] || 'Sans dossier'];
+      const base = old ? [pj(pl.projectId), D.plans, ...FC(pl.folderId), 'Anciens indices'] : [pj(pl.projectId), D.plans, ...FC(pl.folderId)];
       put(pl.pdfFileId, base, clean(pl.name.replace(/ - p\d+$/, '') + ind));
       put(pl.dxfFileId, base, clean(pl.name + ind));
       put(pl.dwgFileId, base, clean(pl.name + ind));
@@ -118,7 +120,7 @@ const Sync = (() => {
     }
     for (const l of links) {
       const pl = PL[l.planId]; if (!pl) continue;
-      const base = [pj(l.projectId), D.plans, F[pl.folderId] || 'Sans dossier', `${pl.name} - éléments`];
+      const base = [pj(l.projectId), D.plans, ...FC(pl.folderId), `${pl.name} - éléments`];
       const el = [...base, l.name || 'Élément'];
       put(l.fileId, base, clean(l.name));
       for (const it of l.items || []) if (it.fileId) put(it.fileId, [...el, it.cat || 'Documents'], clean(it.name || it.cat));
@@ -128,7 +130,7 @@ const Sync = (() => {
       if (l.kind === 'local' && l.lots) { const pr = PR[l.projectId] || {};
         // v1.0.47 : Avancement / Zone / Niveau / Lot / Local (projets réorganisés)
         const nv = v2(l.projectId) ? (pr.avNiveaux || []).find(n => n.id === l.nivId) : null, zn = nv ? ((l.zone && (pr.avZones || []).includes(l.zone)) ? l.zone : nv.zone || (pr.avZones || [])[0] || '') : '';
-        for (const [lid, rr] of Object.entries(l.lots)) { const lot = (pr.lots || []).find(x => x.id === lid); (rr.photos || []).forEach((id, i) => put(id, nv ? [pj(l.projectId), '11 - Avancement', ...(zn ? [zn] : []), nv.name, lot ? lot.name : 'Lot', l.name || 'Local'] : [pj(l.projectId), '11 - Avancement', F[pl.folderId] || 'Sans dossier', lot ? lot.name : 'Lot', l.name || 'Local'], `${clean(l.name || 'Local')} - ${i + 1}`)); }
+        for (const [lid, rr] of Object.entries(l.lots)) { const lot = (pr.lots || []).find(x => x.id === lid); (rr.photos || []).forEach((id, i) => put(id, nv ? [pj(l.projectId), '11 - Avancement', ...(zn ? [zn] : []), nv.name, lot ? lot.name : 'Lot', l.name || 'Local'] : [pj(l.projectId), '11 - Avancement', ...FC(pl.folderId), lot ? lot.name : 'Lot', l.name || 'Local'], `${clean(l.name || 'Local')} - ${i + 1}`)); }
         if (nv) { for (const [eid, x] of Object.entries(l.etapes || {})) { const et = (pr.avEtapes || []).find(e => e.id === eid); (x.photos || []).forEach((id, i) => put(id, [pj(l.projectId), '11 - Avancement', ...(zn ? [zn] : []), nv.name, 'Étapes', l.name || 'Local'], `${clean(l.name || 'Local')} - ${et ? clean(et.name) : 'Étape'} ${i + 1}`)); }
           for (const e of l.journal || []) (e.photos || []).forEach((id, i) => { const lot = (pr.lots || []).find(x => x.id === e.lot); put(id, [pj(l.projectId), '11 - Avancement', ...(zn ? [zn] : []), nv.name, lot ? lot.name : 'Lot', l.name || 'Local'], `${clean(l.name || 'Local')} - ${e.d} - ${i + 1}`); }); } }
       for (const n of l.notes || []) { const d = new Date(n.at).toISOString().slice(0, 10); (n.photos || []).forEach((id, i) => put(id, [...base, 'Photos et notes', l.name || 'Pin', 'Notes'], `Note ${d} - ${i + 1}`)); if (n.audio) put(n.audio, [...base, 'Photos et notes', l.name || 'Pin', 'Notes'], `Note vocale ${d}`); }
