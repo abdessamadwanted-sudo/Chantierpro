@@ -1094,7 +1094,7 @@ function openLinkDetail(link) {
           <button class="iconbtn" data-a="more">${icon('more')}</button>
         </div>
         ${link.kind === 'local' ? localTableHTML(link) + `<div class="lk2-chips" style="margin:0 12px 10px"><button class="lk2-chip" data-a="lphoto"><span>📁 Dossiers photos &amp; ✅ Tâches</span></button></div>` : ''}
-        ${link.driveFolder ? `<button class="lk2-drive" data-a="opendf">${icon('drive')}<span class="grow"><b>Dossier Drive</b><small>${esc(link.driveFolderName || 'Ouvrir le dossier')}</small></span>${icon('external')}</button>` : ''}
+        ${link.driveFolder ? `<button class="lk2-drive" data-a="opendf">${icon('gdfolder')}<span class="grow"><b>Dossier Drive</b><small>${esc(link.driveFolderName || 'Ouvrir le dossier')}</small></span>${icon('external')}</button>` : ''}
         ${filled.length ? `<div class="lk2-list">${filled.map(c => {
           const items = link.items.filter(i => i.cat === c.key), one = items.length === 1, open = openCats.has(c.key);
           return `<div class="lk2-cat ${open ? 'open' : ''}" data-c="${c.key}">
@@ -1110,7 +1110,7 @@ function openLinkDetail(link) {
         ${link.kind === 'local' ? '' : `<div class="lk2-addh">Ajouter</div>
         <div class="lk2-chips">
           ${all.filter(c => !c.legacy).map(c => `<button class="lk2-chip" data-add="${c.key}">${icon(c.icon)}<span>${esc(c.label)}</span></button>`).join('')}
-          <button class="lk2-chip" data-a="dfolder">${icon('drive')}<span>${link.driveFolder ? 'Changer le dossier Drive' : 'Dossier Drive'}</span></button>
+          <button class="lk2-chip" data-a="dfolder">${icon('gdfolder')}<span>${link.driveFolder ? 'Changer le dossier Drive' : 'Dossier Drive'}</span></button>
           <button class="lk2-chip m3" data-a="m3d">${icon('box')}<span>Modèle 3D</span></button>
           <button class="lk2-chip ghost" data-a="newcat">${icon('plus')}<span>Rubrique</span></button>
         </div>`}
@@ -1805,7 +1805,7 @@ async function renderSettings(root) {
       <div class="card" style="margin:0;padding:16px">
         <div style="font-weight:600;margin-bottom:6px">Sauvegarde manuelle (fichier)</div>
         <div style="color:var(--muted);font-size:14px;line-height:1.5;margin-bottom:12px">Crée un fichier <b>.chantier</b> avec tout le projet (plans, pins, tâches, photos, formulaires, rapports). Enregistrez-le dans Google Drive ou envoyez-le sur WhatsApp. Pour le récupérer : accueil → ⋮ → Restaurer une sauvegarde.</div>
-        <button class="btn" data-a="backupdrive" style="width:100%">${icon('share')} Sauvegarder ce projet dans Drive</button>
+        <button class="btn ghost" data-a="backupdrive" style="width:auto;padding:8px 14px;font-size:14px;margin:0 0 12px">${icon('share')} Sauvegarder ce projet dans Drive</button>
         <button class="btn ghost" data-a="backup" style="width:100%;margin-top:8px">${icon('share')} Envoyer / enregistrer le fichier</button>
         <button class="btn ghost" data-a="pfiche" style="width:100%;margin-top:8px">${icon('file')} Fiche projet (essentiel + avancé)</button>
         ${Team.ready() && Team.isPerso() ? `<button class="btn ghost" data-a="pcollab" style="width:100%;margin-top:8px">${icon('team')} Inviter un collaborateur${Team.plan().k === 'pro' ? '' : ' · avec Pro'}</button>` : ''}
