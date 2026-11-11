@@ -519,7 +519,9 @@ ${isBeton(K) ? '' : `<td class="c">${esc(r.avec || '')}</td>`}
             if (w === 'r') { const on = !pvRec(r); r.pvRecu = on; r.pvExist = false; r.pvRecuAt = on ? todayISO() : null; }   // reçu et livré sont indépendants
             else { r.pvLivre = !r.pvLivre; r.pvLivreAt = r.pvLivre ? todayISO() : null; }
             try { navigator.vibrate && navigator.vibrate(12); } catch (x) {} await save(); if (w === 'r' && pvRec(r) && typeof avFromReception === 'function') setTimeout(() => avFromReception(p, r, K, day.date), 900); toast(w === 'r' ? (pvRec(r) ? `PV reçu ✓ · ${r.element}` : `PV non reçu · ${r.element}`) : (r.pvLivre ? `PV livré au BET ✓ · ${r.element}` : `PV non livré · ${r.element}`)); return render(); } if (moveSel >= 0) { moveSel = +tr.dataset.i; return render(); }
-          $$('tbody tr.sel', el).forEach(x => x.classList.remove('sel')); tr.classList.add('sel'); selId = (day.rows[+tr.dataset.i] || {}).id || null;
+          // v1.0.177 : 1er appui = sélection (ligne surlignée) ; 2e appui sur la même ligne = ouverture des données
+          const rowId = (day.rows[+tr.dataset.i] || {}).id || null;
+          if (!tr.classList.contains('sel')) { $$('tbody tr.sel', el).forEach(x => x.classList.remove('sel')); tr.classList.add('sel'); selId = rowId; return; }
           editRow(+tr.dataset.i); };
       });
       $$('[data-mv]', el).forEach(b => b.onclick = async () => {
