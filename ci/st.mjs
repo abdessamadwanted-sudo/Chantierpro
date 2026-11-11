@@ -1526,6 +1526,27 @@ try {
   log('plans replier/déplier tout', pqt);
   if (!pqt.tools || (pqt.groups && (!pqt.allShut || !pqt.allOpen))) throw new Error('replier tout KO ' + JSON.stringify(pqt));
   await A.pg.evaluate(() => document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()));
+  // ---- Alertes & automatisations : aperçu client sans envoi externe ----
+  const waDemo = await A.pg.evaluate(() => {
+    const loaded = typeof AutoAlerts !== 'undefined';
+    if (!loaded) return { loaded: false };
+    const mock = { rappels: [
+      { id: 'a', text: 'En cours', at: '2026-11-15T10:00', done: false },
+      { id: 'b', text: 'Terminé', at: '2026-11-15T10:00', done: true },
+      { id: 'c', text: 'Ancien', at: '2026-11-10T10:00', done: false }
+    ] };
+    const rappels = AutoAlerts.rappelsDuProjet(mock, new Date('2026-11-11T10:00:00'));
+    const rappelOk = rappels.length === 2 && rappels[0].texte === 'Ancien' && rappels[0].statut === 'retard';
+    const c = AutoAlerts.canaux(), demo = AutoAlerts.simuler('critique'), sh = AutoAlerts.open();
+    const visibles = sh.el.querySelectorAll('[data-auto-sim]').length;
+    const wa = sh.el.textContent.includes('WhatsApp') && sh.el.textContent.includes('Non configuré');
+    const b = sh.el.querySelector('[data-auto-sim=critique]'); b.click();
+    const result = sh.el.querySelector('[data-auto-result]').textContent;
+    sh.close();
+    return { loaded, visibles, wa, rappelOk, noSend: demo.reel === false && demo.whatsapp === 'désactivé', result: result.includes('désactivés'), canaux: c.length };
+  });
+  log('Alertes & automatisations (simulation, sans envoi)', waDemo);
+  log('errors v1.0.190 autoalerts', waDemo.loaded && waDemo.visibles === 4 && waDemo.wa && waDemo.rappelOk && waDemo.noSend && waDemo.result && waDemo.canaux === 4 ? [] : ['autoalerts']);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');

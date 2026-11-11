@@ -314,7 +314,8 @@ async function renderHome() {
         { label: 'Apparence', sub: 'thèmes · sons et effets', icon: 'brush', value: 'look' },
         { label: 'Langue', sub: 'Français · العربية · English', icon: 'globe', value: 'lang' },
         { label: 'Code PIN et empreinte', icon: 'settings', value: 'pin' },
-        { label: 'Fonctions affichées', sub: 'masquer ce qui ne sert pas', icon: 'grid', value: 'feat' }] },
+        { label: 'Fonctions affichées', sub: 'masquer ce qui ne sert pas', icon: 'grid', value: 'feat' },
+        { label: 'Alertes & automatisations', sub: 'workflows · canaux · simulation', icon: 'alert', value: 'autoalerts' }] },
       { title: 'Application', color: '#64748b', items: [
         ...(() => { try { const T = JSON.parse(localStorage.getItem('boot.t') || 'null'); return T ? [{ label: `⏱ Dernier démarrage : ${(T.total / 1000).toFixed(1)} s`, sub: `fichiers ${(T.scripts / 1000).toFixed(1)} s · connexion ${(T.team / 1000).toFixed(1)} s · accueil ${(T.home / 1000).toFixed(1)} s`, icon: 'calendar', value: 'boott' }] : []; } catch (e) { return []; } })(),
         { label: `Version ${APP_VERSION.startsWith('__') ? 'dev' : APP_VERSION}`, sub: 'mise à jour', icon: 'upload', value: 'ver' },
@@ -332,6 +333,7 @@ async function renderHome() {
     if (v === 'team') openMyTeam();
     if (v === 'pin') setPinDialog();
     if (v === 'feat') chooseMyFeatures();
+    if (v === 'autoalerts' && typeof AutoAlerts !== 'undefined') AutoAlerts.open();
     if (v === 'upd') checkUpdate(true);
     if (v === 'ver') showVersion();
     if (v === 'diag') safeModeInfo();
