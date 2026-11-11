@@ -1500,6 +1500,17 @@ try {
     await A.pg.setViewportSize({ width: w, height: h }); await A.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.drawer,.drawer-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await A.pg.waitForTimeout(1200); await shot(A.pg, n);
   }
   await A.pg.setViewportSize({ width: 390, height: 800 });
+  // ---- v1.0.187 : démarrage léger — table séparée de drapeaux (fflags)
+  const ff = await A.pg.evaluate(async () => {
+    const id = 'ff' + Date.now(), blob = new Blob(['x']);
+    await DB.put('files', { id, projectId: 'p', role: 'photo', blob, prep: true });
+    const a = (await DB.flagged('prep')).some(f => f.id === id), b = (await DB.flagged('pend')).some(f => f.id === id);
+    const f = await DB.get('files', id); delete f.prep; f.driveId = 'd1'; await DB.put('files', f);
+    const c = (await DB.flagged('prep')).some(x => x.id === id), d = (await DB.flagged('pend')).some(x => x.id === id);
+    await DB.del('files', id); const e = (await DB.flagged('pend')).some(x => x.id === id);
+    return { a, b, c, d, e };
+  });
+  log('flags fichiers', ff); if (!ff.a || !ff.b || ff.c || ff.d || ff.e) throw new Error('fflags incorrect ' + JSON.stringify(ff));
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
