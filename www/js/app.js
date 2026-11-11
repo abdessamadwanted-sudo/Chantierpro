@@ -1009,7 +1009,9 @@ function localTableHTML(link) {
     ['Échéance <small>(maître d\'ouvrage)</small> ✎', `<span data-a="due" style="text-decoration:underline dotted">${fd(link.due)}</span>${last ? `<div class="muted" style="font-size:11px">modifiée le ${fd(last.at)} (avant : ${fd(last.from)})${last.note ? ' · ' + esc(last.note) : ''}</div>` : ''}`],
     ['Échéance société', link.dueCo ? fd(link.dueCo) + (link.dueCoTime ? ' ' + link.dueCoTime : '') : '—'],
     ...(ht ? [['Échéance ajustée', fd(dueEff(link))]] : []),
-    ['Arrêt client', hold], ['Retard / reste', late], ['Documents', (link.items || []).length]];
+    ['Arrêt client', hold], ['Retard / reste', late],
+    ['Retard échéance', lt ? `<b style="color:${sc(lt.al === 'red' ? 'red' : 'co')}">${lt.days} j · ${lt.kind === 'échéance' ? 'maître d\'ouvrage' : lt.kind === 'fin' ? 'fin société' : 'début société'}</b>` : '—'],
+    ['Documents', (link.items || []).length]];
   return `<table class="lk-tb">${rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table>`;
 }
 // l'échéance est la date demandée par le maître d'ouvrage : on la modifie depuis la fiche, l'historique est gardé

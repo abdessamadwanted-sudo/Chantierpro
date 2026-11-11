@@ -557,7 +557,7 @@ async function openPlanViewer(plan, ctx) {
           const lt0 = (al === 'red' || al === 'co') ? ptLate(l) : null;
           const sub = lt0 ? (lt0.al === 'red' ? `Retard ${lt0.days} j` : `Retard ${lt0.kind} ${lt0.days} j`) : al === 'client' ? 'Attente client' : '';
           const dome = 'M-12.5,-10 L-12.5,-21 A12.5,15 0 0 1 12.5,-21 L12.5,-10 A12.5,4.2 0 0 1 -12.5,-10Z';
-          return `<g transform="translate(${px},${py}) scale(${s * bk * 0.65})">
+          return `<g transform="translate(${px},${py}) scale(${s * bk * 0.45})">
           <ellipse cx="0" cy="0" rx="17" ry="5.5" fill="#000" fill-opacity=".28"/>
           <path d="M-16,-3 L-16,-10 L16,-10 L16,-3 A16,5.5 0 0 1 -16,-3Z" fill="#111827"/>
           <ellipse cx="0" cy="-10" rx="16" ry="5.5" fill="#374151" stroke="#9ca3af" stroke-opacity=".5"/>
@@ -568,8 +568,8 @@ async function openPlanViewer(plan, ctx) {
           </g>
           <g transform="translate(0,-21)"><g>${dur ? `<animateTransform attributeName="transform" type="scale" values="1 1;.12 1;1 1;.12 1;1 1" dur="${dur === '.7s' ? '.7s' : '1.6s'}" repeatCount="indefinite"/>` : ''}<rect x="-8" y="-2.6" width="16" height="5.2" rx="2.6" fill="#fff" fill-opacity=".95"/></g></g>
           <ellipse cx="-5.5" cy="-29" rx="2.6" ry="6.5" fill="#fff" fill-opacity=".4" transform="rotate(-18 -5.5 -29)"/>
-          ${showLabel ? `<text x="0" y="17" text-anchor="middle" font-size="12" font-weight="700" fill="#111" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${name}</text>` : ''}
-          ${showLabel && sub ? `<text x="0" y="30" text-anchor="middle" font-size="9" font-weight="700" fill="${rc}" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(sub)}</text>` : ''}</g>`;
+          ${showLabel ? `<text x="0" y="17" text-anchor="middle" font-size="10" font-weight="700" fill="#111" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${name}</text>` : ''}
+          ${showLabel && sub ? `<text x="0" y="30" text-anchor="middle" font-size="8" font-weight="700" fill="${rc}" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(sub)}</text>` : ''}</g>`;
         }
         const W = 180, H = 46 + dl.length * 17, top = -40 - H;
         const txt = dl.map((t, i) => `<text x="0" y="${top + 48 + i * 17}" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" font-family="Arial" paint-order="stroke" stroke="#111" stroke-width="3">${esc(t)}</text>`).join('');
