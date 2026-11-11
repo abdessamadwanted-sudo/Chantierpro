@@ -143,8 +143,9 @@ const Sync = (() => {
         const nm = clean(`${r.zone ? 'Zone ' + r.zone + ' · ' : ''}${r.niv ? r.niv + ' · ' : ''}${r.element || 'Ouvrage'}`);
         const dir = [...base, 'Photos', nm];
         (r.photoIds || []).forEach((id, i) => put(id, dir, `${nm} - Photo ${i + 1}`));
-        (r.anomIds || []).forEach((id, i) => put(id, [...dir, 'Anomalies'], `${nm} - ${bet ? 'Défaut' : 'Anomalie'} ${i + 1}`));
-        (r.retourIds || []).forEach((id, i) => put(id, [...dir, 'Réparations'], `${nm} - Réparation ${i + 1}`));
+        // v1.0.189 : anomalies et réparations = dossiers de catégorie au même niveau que « Photos » (rangés par ouvrage)
+        (r.anomIds || []).forEach((id, i) => put(id, [...base, bet ? 'Défauts' : 'Anomalies', nm], `${nm} - ${bet ? 'Défaut' : 'Anomalie'} ${i + 1}`));
+        (r.retourIds || []).forEach((id, i) => put(id, [...base, 'Réparations', nm], `${nm} - Réparation ${i + 1}`));
         if (r.croquisId) put(r.croquisId, dir, `${nm} - Croquis`);
         if (r.pvGenId) put(r.pvGenId, [...base, 'PV', 'Fiches remplies (à signer)'], `Fiche - ${nm}`);
         for (const [tid, fid] of Object.entries(r.fiches || {})) { const t = ((PR[d.projectId] || {}).ficheTpls || []).find(x => x.id === tid); put(fid, [...base, 'PV', 'Fiches remplies (à signer)'], `${t ? t.name : 'Fiche'} - ${nm}`); }

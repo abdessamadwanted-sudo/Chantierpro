@@ -2093,8 +2093,13 @@ async function openPlansQuick() {
   }
   el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('close')}</button><h1 style="flex:1">Plans</h1></div>
     <div class="search" style="margin:10px 16px 4px">${icon('search')}<input placeholder="Rechercher un plan…"></div>
+    <div class="pq-tools"><button class="btn ghost" data-a="pqfold">${icon('chevright')} Replier tout</button><button class="btn ghost" data-a="pqunfold">${icon('chevdown')} Déplier tout</button></div>
     <div class="pq-body"></div>`;
   ($('[data-a=x]', el)||{}).onclick = close;
+  // v1.0.189 : replier / déplier tous les niveaux d'un coup (même état que le toggle d'un niveau)
+  const setAll = (sh) => { App.pqShut = App.pqShut || {}; $$('[data-g]', el).forEach(h => { App.pqShut[h.dataset.g] = sh; h.classList.toggle('shut', sh); if (h.nextElementSibling) h.nextElementSibling.style.display = sh ? 'none' : ''; }); };
+  ($('[data-a=pqfold]', el)||{}).onclick = () => setAll(true);
+  ($('[data-a=pqunfold]', el)||{}).onclick = () => setAll(false);
   $('.search input', el).oninput = (e) => { q = e.target.value.trim().toLowerCase(); render(); };
   render();
 }
