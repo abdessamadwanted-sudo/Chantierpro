@@ -256,12 +256,13 @@ async function openPlanViewer(plan, ctx) {
     st.tx = pw <= vw ? (vw - pw) / 2 : Math.min(M, Math.max(vw - pw - M, st.tx));
     st.ty = ph <= vh ? (vh - ph) / 2 : Math.min(M, Math.max(vh - ph - M, st.ty));
   }
-  let rafPending = false;
+  let rafPending = false, mkScale = null;
   function applyT() {
     clampT();
     scheduleHD();
     stage.style.transform = `translate(${st.tx}px,${st.ty}px) scale(${st.scale})`;
-    if (!rafPending) { rafPending = true; requestAnimationFrame(() => { rafPending = false; renderMarkers(); if (typeof renderMeas === 'function') renderMeas(); }); }
+    // v1.0.177 : les pastilles/dômes ne dépendent que du zoom → pas redessinés à chaque déplacement du doigt (le glissement était lourd)
+    if (!rafPending) { rafPending = true; requestAnimationFrame(() => { rafPending = false; if (mkScale !== st.scale) { mkScale = st.scale; renderMarkers(); if (typeof renderMeas === 'function') renderMeas(); } }); }
   }
   function toImg(cx, cy) {
     const r = viewer.getBoundingClientRect();
@@ -345,7 +346,7 @@ async function openPlanViewer(plan, ctx) {
     const r0 = W / page.getViewport({ scale: 1 }).width;
     const sc = st.scale, tx = st.tx, ty = st.ty;
     let mx = Math.round(vw * HD_M), my = Math.round(vh * HD_M);
-    if ((vw + 2 * mx) * (vh + 2 * my) * dpr * dpr > 9e6) { mx = my = 0; }   // limite mémoire des téléphones
+    if ((vw + 2 * mx) * (vh + 2 * my) * dpr * dpr > 6e6) { mx = my = 0; }   // limite mémoire des téléphones
     const vp = page.getViewport({ scale: r0 * sc * dpr, offsetX: (tx + mx) * dpr, offsetY: (ty + my) * dpr });
     const c = document.createElement('canvas');
     c.width = Math.round((vw + 2 * mx) * dpr); c.height = Math.round((vh + 2 * my) * dpr);
@@ -957,6 +958,7 @@ async function openPlanViewer(plan, ctx) {
     closeFly();
     viewer.setPointerCapture(e.pointerId);
     ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+    clearTimeout(wcT); stage.style.willChange = 'transform';   // v1.0.177 : calque promu dès le 1er doigt (glissement fluide)
     if (ptrs.size === 2) {
       // v1.0.65 : pendant le pincement le plan reste une seule image (plus de carrés noirs) ; redessiné net à la fin du geste
       clearTimeout(wcT); stage.style.willChange = 'transform';
