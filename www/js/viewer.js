@@ -1509,6 +1509,22 @@ function annotPdfDraw(pg, a, ox, oy, s, font) {
     case 'text': { const fs = a.fs || 24; textLines(a).forEach((ln, i) => { const t = ln.replace(/[^\x20-\xFF]/g, ''); if (t && font) pg.drawText(t, { x: ox + p[0] * s, y: oy - (p[1] + i * fs * 1.2) * s, size: fs * s, font, color: col }); }); return; }
   }
 }
+// v1.0.176 : pins écrits en vectoriel dans le PDF (nets à tout zoom, comme les dessins) au lieu d'une image
+function pinsPdfDraw(pg, plan, tasks, links, ox, oy, s, font, fontB) {
+  const base = Math.max(plan.w, plan.h), pr = base / 42, white = PDFLib.rgb(1, 1, 1);
+  const col = (h) => hexRgbPdf(String(h || '#e11d48'));
+  const txt = (t, x, y, size, f, c) => { const u = String(t == null ? '' : t).replace(/[^\x20-\xFF]/g, ''); if (!u) return; const w = f.widthOfTextAtSize(u, size * s); pg.drawText(u, { x: ox + x * s - w / 2, y: oy - y * s, size: size * s, font: f, color: c }); };
+  for (const t of tasks.filter(t => t.planId === plan.id && t.x != null)) {
+    const c = col((STATUS[t.status] || STATUS.open).color);
+    pg.drawSvgPath(`M0,0 C${-pr * .3},${-pr * .7} ${-pr},${-pr} ${-pr},${-pr * 1.85} A${pr},${pr} 0 1 1 ${pr},${-pr * 1.85} C${pr},${-pr} ${pr * .3},${-pr * .7} 0,0Z`, { x: ox + t.x * s, y: oy - t.y * s, scale: s, color: c, borderColor: white, borderWidth: pr * .14 * s });
+    txt(t.num || '', t.x, t.y - pr * 1.5 + pr * .33, pr * .95, fontB, white);
+  }
+  for (const l of links.filter(l => l.planId === plan.id)) {
+    const x = l.shape === 'zone' ? l.x + l.w / 2 : l.x, y = l.shape === 'zone' ? l.y + l.h / 2 : l.y, P = pinLook(l), c = col(P.c), r = pr * .8;
+    pg.drawCircle({ x: ox + x * s, y: oy - y * s, size: r * s, color: c, borderColor: white, borderWidth: pr * .12 * s });
+    if (l.name) txt(l.name, x, y + pr * 1.9, pr * .8, fontB, c);
+  }
+}
 async function annotatedPlanPdf(plan, tasks, links, fmt, withPins = true) {
   // 1) plan PDF d'origine : la page reste vectorielle, les dessins sont écrits en vectoriel par-dessus (nets au zoom, sur WhatsApp aussi)
   if (plan.pdfFileId) {
@@ -1522,7 +1538,7 @@ async function annotatedPlanPdf(plan, tasks, links, fmt, withPins = true) {
       if (rot === 0) {
         const s = W / plan.w, font = await out.embedFont(PDFLib.StandardFonts.Helvetica), fontB = await out.embedFont(PDFLib.StandardFonts.HelveticaBold);
         for (const a of plan.annotations || []) { try { annotPdfDraw(pg, a, mb.x, mb.y + H, s, a.bold ? fontB : font); } catch (e) { console.warn('annot', a.type, e); } }
-        if (hasPins) { const ov = await planOverlayCanvas(plan, tasks, links, Math.min(5000, Math.max(plan.w, 3000)), true); const png = await out.embedPng(await new Promise(r => ov.toBlob(b => b.arrayBuffer().then(r), 'image/png'))); pg.drawImage(png, { x: mb.x, y: mb.y, width: W, height: H }); }
+        if (hasPins) { try { pinsPdfDraw(pg, plan, tasks, links, mb.x, mb.y + H, s, font, fontB); } catch (e) { console.warn('pins vectoriels', e); const ov = await planOverlayCanvas(plan, tasks, links, Math.min(5000, Math.max(plan.w, 3000)), true); const png = await out.embedPng(await new Promise(r => ov.toBlob(b => b.arrayBuffer().then(r), 'image/png'))); pg.drawImage(png, { x: mb.x, y: mb.y, width: W, height: H }); } }
       } else {
         // page tournée : calque transparent haute définition posé dans le bon sens
         const ov = await planOverlayCanvas(plan, withPins ? tasks : [], withPins ? links : [], Math.min(5000, Math.max(plan.w * 1.5, 3000))), png = await out.embedPng(await new Promise(r => ov.toBlob(b => b.arrayBuffer().then(r), 'image/png')));
@@ -1541,7 +1557,7 @@ async function annotatedPlanPdf(plan, tasks, links, fmt, withPins = true) {
   const { jsPDF } = window.jspdf; let [PW, PH] = PAPER[fmt] || PAPER.A3; const land = base.width >= base.height; if (!land) [PW, PH] = [PH, PW];
   const doc = new jsPDF({ orientation: land ? 'l' : 'p', unit: 'mm', format: [PW, PH], compress: true });
   const M = 6, k = Math.min((PW - 2 * M) / base.width, (PH - 2 * M) / base.height), w = base.width * k, h = base.height * k;
-  doc.addImage(base.toDataURL('image/jpeg', 0.94), 'JPEG', (PW - w) / 2, (PH - h) / 2, w, h, undefined, 'FAST');
+  doc.addImage(base.toDataURL('image/jpeg', 0.98), 'JPEG', (PW - w) / 2, (PH - h) / 2, w, h, undefined, 'FAST');
   doc.addImage(ov.toDataURL('image/png'), 'PNG', (PW - w) / 2, (PH - h) / 2, w, h, undefined, 'FAST');
   doc.setFontSize(8); doc.setTextColor(90); doc.text(pt(`${plan.name}${plan.indice ? ' · Ind. ' + planIndice(plan) : ''} · annoté le ${fmtDate(todayISO())}`), M, PH - 2.5);
   return doc.output('blob');

@@ -418,6 +418,18 @@ async function openDueTable(p, pre = {}) {
   const rows = [];
   for (const f of await DB.byProject('folders', p.id)) for (const L of planLots(p)) { const D = (f.lotData || {})[L.id]; if (!D) continue;
     for (const a of lotAlerts(D)) rows.push({ f, L, a, niv: nivOfFolder(f.name) || f.name, d: dueDays(a.d) }); }
+  // v1.0.176 : les points d'intérêt (plan) sont dans le même tableau : une ligne par date (échéance, fin objectif, début)
+  try {
+    for (const l of (await DB.byProject('links', p.id)).filter(x => x.kind === 'local' && x.planId && x.x != null)) {
+      const pl = await DB.get('plans', l.planId);
+      const lot = typeof ptLotName === 'function' ? ptLotName(p, l, pl) : '';
+      let niv = l.nivId ? ((p.avNiveaux || []).find(n => n.id === l.nivId) || {}).name || '' : '';
+      if (!niv && pl) niv = ((p.avNiveaux || []).find(n => n.name && String(pl.name || '').toLowerCase().includes(String(n.name).toLowerCase())) || {}).name || '';
+      const L = { name: lot || '—', e: '📍' };
+      const add = (d, t) => { if (d) rows.push({ f: null, L, pt: l, a: { obj: l.name || 'Point', type: t, d, done: !!l.finished, zone: '', by: '' }, niv: niv || '—', d: dueDays(d) }); };
+      add(l.due, 'Point · échéance'); add(l.dueCo, 'Point · fin objectif'); if (!l.started) add(l.start, 'Point · début');
+    }
+  } catch (e) { console.warn('échéances points', e); }
   const F = { niv: pre.niv || '', lot: pre.lot || '', zone: '', type: '', st: '', q: '' };
   const el = document.createElement('div'); el.className = 'fullpage due-page'; document.body.appendChild(el);
   const unBack = pushBack(() => el.remove()); const close = () => { unBack(); el.remove(); };
@@ -431,19 +443,20 @@ async function openDueTable(p, pre = {}) {
       && (!F.q || `${r.a.obj} ${r.a.type} ${r.niv} ${r.L.name} ${r.a.zone} ${r.a.by}`.toLowerCase().includes(F.q.toLowerCase()))).sort((x, y) => (x.a.done - y.a.done) || x.a.d.localeCompare(y.a.d));
     const cnt = (k) => rows.filter(r => stOf(r) === k).length;
     const sel = (k, lab, L) => `<label class="avf-s ${F[k] ? 'on' : ''}"><small>${lab}</small><select data-f="${k}"><option value="">Tous</option>${L.map(x => { const [v, t] = Array.isArray(x) ? x : [x, x]; return `<option value="${esc(v)}" ${v === F[k] ? 'selected' : ''}>${esc(t)}</option>`; }).join('')}</select></label>`;
-    el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><div class="tb-title" style="flex:1"><b>Tableau des échéances</b><span>${esc(p.name)}${p.mo ? ' · ' + esc(p.mo) : ''}</span></div><button class="iconbtn" data-a="notif" title="Notifications">🔔</button><button class="iconbtn" data-a="pdf">${icon('pdf')}</button></div>
+    el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><div class="tb-title" style="flex:1"><b>Tableau des échéances</b><span>${esc(p.name)}</span></div><button class="iconbtn" data-a="notif" title="Notifications">🔔</button><button class="iconbtn" data-a="pdf">${icon('pdf')}</button></div>
       <div class="due-body">
         <div class="due-k">${['retard', 'bientot', 'ok', 'fait'].map(k => `<button data-st="${k}" class="${F.st === k ? 'on' : ''} ${k}"><b>${cnt(k)}</b><small>${ST[k][0]} ${ST[k][1]}</small></button>`).join('')}</div>
         <input class="due-q" type="search" placeholder="🔍 Objet, lot, zone…" value="${esc(F.q)}">
         <div class="avf-bar">${sel('niv', 'Niveau', uniq(r => r.niv))}${sel('lot', 'Lot', uniq(r => r.L.name))}${sel('zone', 'Zone', uniq(r => r.a.zone))}${sel('type', 'Type', uniq(r => r.a.type))}</div>
-        <div class="due-l">${R.map((r, i) => `<button class="due-r ${stOf(r)}" data-i="${rows.indexOf(r)}"><span class="due-d">${r.a.done ? '✓' : esc(dueTxt(r.d))}</span><span class="grow"><b>${esc(r.a.obj || r.a.type)}</b><small>${esc(r.L.e || '')} ${esc(r.L.name)} · ${esc(r.niv)}${r.a.zone ? ' · ' + esc(r.a.zone) : ''} · ${esc(r.a.type)}${r.a.by ? ' · ' + esc(r.a.by) : ''}</small></span><em>${fmtDate(r.a.d)}${nxOf(r) ? `<br>🔔 ${nxOf(r).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}</em></button>`).join('') || '<div class="empty">Aucune échéance pour ce choix.<br>Ajoutez-les dans Plans › niveau › lot › Échéance.</div>'}</div>
+        <div class="due-l">${R.map((r, i) => `<button class="due-r ${stOf(r)}" data-i="${rows.indexOf(r)}"><span class="due-d">${r.a.done ? '✓' : esc(dueTxt(r.d))}</span><span class="grow"><b>${esc(r.a.obj || r.a.type)}</b><small>${esc(r.L.e || '')} ${esc(r.L.name)} · ${esc(r.niv)}${r.a.zone ? ' · ' + esc(r.a.zone) : ''} · ${esc(r.a.type)}${r.a.by ? ' · ' + esc(r.a.by) : ''}${p.mo ? ' · ' + esc(p.mo) : ''}</small></span><em>${fmtDate(r.a.d)}${nxOf(r) ? `<br>🔔 ${nxOf(r).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}</em></button>`).join('') || '<div class="empty">Aucune échéance pour ce choix.<br>Ajoutez-les dans Plans › niveau › lot › Échéance.</div>'}</div>
       </div>`;
     ($('[data-a=x]', el)||{}).onclick = close;
     ($('[data-a=notif]', el)||{}).onclick = () => dueNotifSettings(p);
     $$('[data-f]', el).forEach(s => s.onchange = () => { F[s.dataset.f] = s.value; draw(); });
     $$('[data-st]', el).forEach(b => b.onclick = () => { F.st = F.st === b.dataset.st ? '' : b.dataset.st; draw(); });
     const qi = $('.due-q', el); let t; qi.oninput = () => { clearTimeout(t); t = setTimeout(() => { F.q = qi.value.trim(); draw(); setTimeout(() => { const q2 = $('.due-q', el); if (q2) { q2.focus(); q2.setSelectionRange(q2.value.length, q2.value.length); } }, 0); }, 350); };
-    $$('[data-i]', el).forEach(b => b.onclick = () => { const r = rows[+b.dataset.i]; close(); App.lotSel = App.lotSel || {}; App.lotSel[r.f.id] = r.L.id; App.openFolders = App.openFolders || {}; App.openFolders[r.f.id] = true; App.scrollFolder = r.f.id; lotOpenSet(r.L, true); lpTabSet(r.L, 'due'); App.section = 'plans'; App.search = ''; renderSection(); });
+    $$('[data-i]', el).forEach(b => b.onclick = async () => { const r = rows[+b.dataset.i]; close();
+      if (r.pt) { const pl = await DB.get('plans', r.pt.planId); if (!pl) return toast('Plan supprimé'); return openPlanViewer(pl, { ...planCtx(() => renderSection()), focus: { x: r.pt.x, y: r.pt.y } }); } App.lotSel = App.lotSel || {}; App.lotSel[r.f.id] = r.L.id; App.openFolders = App.openFolders || {}; App.openFolders[r.f.id] = true; App.scrollFolder = r.f.id; lotOpenSet(r.L, true); lpTabSet(r.L, 'due'); App.section = 'plans'; App.search = ''; renderSection(); });
     ($('[data-a=pdf]', el)||{}).onclick = async () => {
       if (!window.jspdf && window.__late) await window.__late; if (!window.jspdf) return toast('Module PDF indisponible');
       const { jsPDF } = window.jspdf, doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' }), W = 297, M = 10; let y = 18;
