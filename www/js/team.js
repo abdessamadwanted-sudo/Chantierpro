@@ -643,7 +643,9 @@ const Team = (() => {
       'auth/invalid-credential': 'E-mail ou mot de passe incorrect', 'auth/invalid-login-credentials': 'E-mail ou mot de passe incorrect',
       'auth/email-already-in-use': 'Un compte existe déjà avec cet e-mail — connectez-vous', 'auth/weak-password': 'Mot de passe trop court (6 caractères minimum)',
       'auth/network-request-failed': 'Pas de connexion internet', 'auth/too-many-requests': 'Trop d\'essais, réessayez dans quelques minutes',
-      'permission-denied': 'Accès refusé (droits insuffisants ou règles Firestore non installées)', 'unavailable': 'Serveur injoignable (internet ?)' })[c] || (e && e.message) || String(e);
+      'permission-denied': 'Accès refusé (droits insuffisants ou règles Firestore non installées)', 'unavailable': 'Serveur injoignable (internet ?)',
+      // v1.0.? : quota Firestore dépassé (ex. plan Spark) — message clair au lieu du « Quota exceeded. » brut renvoyé par Firebase
+      'resource-exhausted': 'Quota Firestore dépassé (limite quotidienne atteinte) — réessayez plus tard ou passez au plan payant (Blaze)' })[c] || (e && e.message) || String(e);
   };
 
   // ---------- état ----------
