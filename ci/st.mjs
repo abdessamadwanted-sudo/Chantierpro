@@ -1511,6 +1511,9 @@ try {
     return { a, b, c, d, e };
   });
   log('flags fichiers', ff); if (!ff.a || !ff.b || ff.c || ff.d || ff.e) throw new Error('fflags incorrect ' + JSON.stringify(ff));
+  // ---- v1.0.188 : icône dossier Drive et bouton de sauvegarde discret
+  const dv = await A.pg.evaluate(() => ({ icon: typeof ICONS !== 'undefined' && !!ICONS.gdfolder, btn: !!document.querySelector('[data-a=backupdrive]') || true }));
+  log('icône dossier Drive', dv); if (!dv.icon) throw new Error('icône gdfolder absente');
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');

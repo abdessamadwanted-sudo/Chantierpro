@@ -38,6 +38,8 @@ const ICONS = {
   pen: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
   shapes: '<rect x="3" y="9" width="12" height="12" rx="1"/><circle cx="15" cy="9" r="6"/>',
   text: '<path d="M4 7V4h16v3M9 20h6M12 4v16"/>',
+  // v1.0.188 : dossier Google Drive (même forme que l'application Drive, gris)
+  gdfolder: '<path d="M2 6.5A1.5 1.5 0 0 1 3.5 5H9l2 2.5h9.5A1.5 1.5 0 0 1 22 9v9.5a1.5 1.5 0 0 1-1.5 1.5h-17A1.5 1.5 0 0 1 2 18.5z" fill="#5f6368" stroke="none"/>',
   upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>',
   phone: '<rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/>',
   cad: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 17V7h4a3 3 0 0 1 0 6H7M14 17l3-10 3 10"/>',
