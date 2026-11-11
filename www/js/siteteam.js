@@ -312,8 +312,10 @@ const ST = (() => {
         <div class="st-tgrid">${ks.map(k => `<button class="st-tool" data-tool="${k}" style="--c:${CAT_C[catOf(k)] || CAT_C[g] || 'var(--accent)'}"><i class="st-ico">${icon(SECTIONS[k].icon || 'grid')}</i><span>${esc(toolName(k))}</span></button>`).join('')}</div></details>`).join('')}
       <details class="st-tcat st-acc" data-g="biblio" style="--c:#5B4BA8" ${opened.includes('biblio') ? 'open' : ''}><summary class="st-tcat-h">Bibliothèque métier<small>${esc(plan().l)}</small><i class="st-chev">${icon('chevdown')}</i></summary>
         <div class="st-tgrid" style="grid-template-columns:1fr"><button class="st-pb st-pb-lib" data-a="library" style="margin:0">${icon('grid')}<span><b>Ouvrir la bibliothèque</b><small>Outils réunis et classés selon votre service · pack ${esc(plan().l)}</small></span>${icon('chevright')}</button></div></details>
-      <details class="st-tcat st-acc" data-g="outils" style="--c:#B7791F" ${opened.includes('outils') ? 'open' : ''}><summary class="st-tcat-h">Outils<small>7</small><i class="st-chev">${icon('chevdown')}</i></summary>
-        <div class="st-tgrid">${[['anom', 'alert', 'Tableau des anomalies'], ['due', 'calendar', 'Tableau des échéances'], ['bons', 'form', 'Bons & modèles à remplir'], ['dwg', 'layers', 'DWG → PDF · plans'], ['pdf', 'pdf', 'Outils PDF'], ['photo', 'camera', 'Studio photo'], ['board', 'brush', 'Tableau de dessin']].map(([k, ic, l]) => `<button class="st-tool" data-xtool="${k}" style="--c:#B7791F"><i class="st-ico">${icon(ic)}</i><span>${l}</span></button>`).join('')}</div></details>
+      <details class="st-tcat st-acc" data-g="tableaux" style="--c:#2563EB" ${opened.includes('tableaux') ? 'open' : ''}><summary class="st-tcat-h">Tableaux<small>5</small><i class="st-chev">${icon('chevdown')}</i></summary>
+        <div class="st-tgrid">${[['alertes', 'alert', 'Alertes'], ['points', 'pin', 'Points d\'intérêt'], ['photos', 'camera', 'Photos'], ['anom', 'alert', 'Anomalies'], ['due', 'calendar', 'Échéances']].map(([k, ic, l]) => `<button class="st-tool" data-tabtool="${k}" style="--c:#2563EB"><i class="st-ico">${icon(ic)}</i><span>${l}</span></button>`).join('')}</div></details>
+      <details class="st-tcat st-acc" data-g="outils" style="--c:#B7791F" ${opened.includes('outils') ? 'open' : ''}><summary class="st-tcat-h">Outils<small>5</small><i class="st-chev">${icon('chevdown')}</i></summary>
+        <div class="st-tgrid">${[['bons', 'form', 'Bons & modèles à remplir'], ['dwg', 'layers', 'DWG → PDF · plans'], ['pdf', 'pdf', 'Outils PDF'], ['photo', 'camera', 'Studio photo'], ['board', 'brush', 'Tableau de dessin']].map(([k, ic, l]) => `<button class="st-tool" data-xtool="${k}" style="--c:#B7791F"><i class="st-ico">${icon(ic)}</i><span>${l}</span></button>`).join('')}</div></details>
       <p class="st-thint2">Appui long sur un outil : le déplacer vers une autre catégorie</p>
       ${typeof espaceHome === 'function' && espaceHome() ? `<details class="st-tcat st-acc st-esp" style="--c:#3D5A80"><summary class="st-tcat-h">Espace métier<i class="st-chev">${icon('chevdown')}</i></summary>${espaceHome()}</details>` : ''}
     </div>`;
@@ -321,6 +323,7 @@ const ST = (() => {
     const avj = root.querySelector('[data-a=avjour]'); if (avj) avj.onclick = () => openAvJour(p);
     root.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { App.section = b.dataset.tool; App.search = ''; renderSection(); });
     root.querySelectorAll('[data-xtool]').forEach(b => b.onclick = () => runX(b.dataset.xtool));
+    root.querySelectorAll('[data-tabtool]').forEach(b => b.onclick = () => openTableTool(p, b.dataset.tabtool));
     // v1.0.63 : appui long (ou ⋮) sur un outil → monter, descendre, déplacer vers une autre catégorie
     root.querySelectorAll('[data-tool]').forEach(b => { let t = null, lp = false;
       b.addEventListener('pointerdown', () => { lp = false; clearTimeout(t); t = setTimeout(() => { lp = true; try { navigator.vibrate && navigator.vibrate(15); } catch (e) {} if (typeof drMove === 'function') drMove(b.dataset.tool, () => renderProjectTools(root)); }, 550); });
