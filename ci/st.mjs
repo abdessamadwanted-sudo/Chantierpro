@@ -1459,6 +1459,8 @@ try {
   log('v1.0.177 [fiche, échéances, dôme]', tFe); log('errors v1.0.177 fiche', tFe.ret && tFe.top && tFe.dome ? [] : ['v1.0.177 fiche']);
   const tRp = await A.pg.evaluate(async () => { const r = await fetch('js/reception.js').then(x => x.text()), p = await fetch('js/tools.js').then(x => x.text()); return { sel: r.includes('1er appui = sélection'), prev: p.includes('openPagePreview') && p.includes('max-width') || p.includes('openPagePreview(i)') }; });
   log('v1.0.177 [Réception 2 appuis, aperçu PDF]', tRp); log('errors v1.0.177 reception-pdf', tRp.sel && tRp.prev ? [] : ['v1.0.177 reception-pdf']);
+  const tTg = await A.pg.evaluate(async () => { const s = await fetch('js/siteteam.js').then(x => x.text()); return { g: s.includes('data-g="tableaux"') && s.includes('data-tabtool') && s.includes('openTableTool(p, b.dataset.tabtool)') && !s.includes("['anom', 'alert', 'Tableau des anomalies'], ['due'") }; });
+  log('v1.0.177 [groupe Tableaux]', tTg); log('errors v1.0.177 groupe', tTg.g ? [] : ['v1.0.177 groupe']);
   const t82 = await A.pg.evaluate(() => ({ db: typeof DB.get === 'function' }));
   log('v1.0.82 [démarrage : synchro différée, IndexedDB réessaie]', t82); log('errors v1.0.82', t82.db ? [] : ['v1.0.82']);
   const t79 = await A.pg.evaluate(() => ({ proj: typeof GDrive.projectSave, file: typeof Backup.exportProject }));

@@ -463,6 +463,14 @@ async function allPointItems(planId) {
   const L = (await DB.byProject('links', App.project.id)).filter(l => l.kind === 'local' && l.planId && l.x != null && (!planId || l.planId === planId));
   return L.map(l => ({ l, al: pillKey(l) }));
 }
+// v1.0.177 : ouverture directe d'un tableau depuis le groupe « Tableaux » (sans liste intermédiaire)
+async function openTableTool(p, k) {
+  if (k === 'alertes') return openAlertsTable(await pointAlertItems(), { total: true });
+  if (k === 'points') return openAlertsTable(await allPointItems(), { all: true });
+  if (k === 'photos') return openPhotoTable();
+  if (k === 'anom') return openAnomalies(p);
+  if (k === 'due') return openDueTable(p);
+}
 // v1.0.176 : « Tableaux » = petite application dédiée aux tableaux du chantier (carré 🔔 de l'accueil) : une carte par tableau, chacun s'ouvre en grand avec recherche et filtres
 async function openDataFolder() {
   const items = await pointAlertItems(), pts = await allPointItems();
