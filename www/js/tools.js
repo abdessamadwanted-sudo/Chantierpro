@@ -27,6 +27,25 @@ async function openPdfTools() {
     }
     return out;
   }
+  // v1.0.177 : aperçu plein écran de la page, en haute résolution, avec zoom au pincement ; actions = celles de la carte
+  async function openPagePreview(i) {
+    const pg = pages[i], src = sources[pg.s];
+    const ov = document.createElement('div'); ov.className = 'pp-prev';
+    ov.innerHTML = `<div class="pp-prev-top"><button data-x>✕</button><b>Page ${i + 1} · ${esc(src.name)}</b></div>
+      <div class="pp-prev-stage"><div class="pp-prev-loading">Chargement…</div></div>
+      <div class="pp-prev-acts"><button data-do="l" ${i ? '' : 'disabled'}>◀ Avant</button><button data-do="ro">⟳ Tourner</button><button data-do="d" class="d">✕ Retirer</button><button data-do="rt" ${i < pages.length - 1 ? '' : 'disabled'}>Après ▶</button></div>`;
+    document.body.appendChild(ov);
+    const close = () => ov.remove();
+    ($('[data-x]', ov) || {}).onclick = close;
+    $$('[data-do]', ov).forEach(b => b.onclick = () => { const k = b.dataset.do; const card = el.querySelector(`[data-i="${i}"]`); const btn = card && card.querySelector(k === 'l' ? `[data-l="${i}"]` : k === 'ro' ? `[data-ro="${i}"]` : k === 'd' ? `[data-d="${i}"]` : `[data-rt="${i}"]`); close(); if (btn && !btn.disabled) btn.click(); });
+    try {
+      let url;
+      if (src.kind === 'image') url = URL.createObjectURL(new Blob([src.bytes], { type: src.mime }));
+      else { const page = await src.pdfjs.getPage(pg.p + 1), vp1 = page.getViewport({ scale: 1 }), vp = page.getViewport({ scale: Math.min(1800, Math.max(vp1.width, vp1.height) * 2) / Math.max(vp1.width, vp1.height) });
+        const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); await page.render({ canvasContext: g, viewport: vp }).promise; url = c.toDataURL('image/png'); }
+      const st = $('.pp-prev-stage', ov); if (st) st.innerHTML = `<img src="${url}" alt="" style="transform:rotate(${pg.rot || 0}deg)">`;
+    } catch (e) { const st = $('.pp-prev-stage', ov); if (st) st.innerHTML = '<p>Aperçu impossible</p>'; }
+  }
   async function thumb(pg) {
     if (pg.thumb) return pg.thumb;
     const src = sources[pg.s];
@@ -131,7 +150,7 @@ async function openPdfTools() {
       const cancel = () => { if (t && t !== 'long') clearTimeout(t); };
       im.addEventListener('pointerup', async () => { if (t === 'long') { t = null; return; } cancel(); t = null;
         if (sel.size) { const id = pages[i].id; sel.has(id) ? sel.delete(id) : sel.add(id); return draw(); }
-        const pg = pages[i]; const b = await build([pg]); showPdf(b, `Page ${i + 1}`); });
+        openPagePreview(i); });
       im.addEventListener('pointerleave', cancel); im.addEventListener('pointercancel', cancel);
     });
     $$('img[data-th]', el).forEach(async img => { const u = await thumb(pages[+img.dataset.th]); if (img.isConnected) img.src = u; });
