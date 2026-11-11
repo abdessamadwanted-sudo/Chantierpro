@@ -565,10 +565,10 @@ async function openAlertsTable(items, opts = {}) {
     const qv = true ? String(($('[data-q]', s.el) || {}).value || '').trim().toLowerCase() : '';
     const sel = rows.filter(r => (!f.niv || r.niv === f.niv) && (!f.lot || r.lot === f.lot) && (!f.plan || r.plan === f.plan) && (!f.al || r.al === f.al) && (!qv || [r.l.name, r.niv, r.lot, r.plan].some(x => String(x || '').toLowerCase().includes(qv))));
     // v1.0.176 : tableau des points = recherche d'abord (rien n'est listé tant qu'on n'a ni cherché ni filtré)
-    const hid = opts.all && !qv && !f.niv && !f.lot && !f.plan && !f.al;
+    const hid = false;   // v1.0.177 : « Tous » affiche tout, sans rien choisir de plus
     $('.ptab-t', s.el).style.display = hid ? 'none' : '';
     let hint = $('.ptab-hint', s.el); if (!hint) { hint = document.createElement('p'); hint.className = 'ptab-hint'; hint.style.cssText = 'opacity:.7;text-align:center;padding:18px 8px'; $('.ptab-w', s.el).prepend(hint); }
-    hint.textContent = hid ? `Tapez un nom ou choisissez un filtre (${rows.length} points).` : (sel.length ? '' : 'Aucun résultat.');
+    hint.textContent = sel.length ? '' : 'Aucun résultat.';
     $('.ptab-t tbody', s.el).innerHTML = sel.map(r => { const i = rows.indexOf(r), c = pillColor(r.al); return `<tr data-i="${i}"><td><button class="ptab-pin" data-pin="${i}" title="Aller au point sur le plan">${domeIconSVG(c, 26)}</button></td><td><b>${esc(r.l.name || 'Point')}</b></td><td>${esc(r.niv || '—')}</td><td>${esc(r.lot || '—')}</td><td>${esc(r.plan || '—')}</td><td>${esc(fd(r.l.start))}</td><td>${esc(fd(r.l.dueCo))}</td><td>${esc(fd(r.l.due))}</td><td><span class="ptab-st" style="color:${c}">${esc(lab[r.al] || '')}</span></td><td>${esc(r.ret || '—')}</td><td>${esc(r.av)}</td></tr>`; }).join('') || '<tr><td colspan="11" class="muted">Aucun point avec ces filtres</td></tr>';
     $$('[data-pin]', s.el).forEach(b => b.onclick = async (e) => { e.stopPropagation(); const r = rows[+b.dataset.pin]; const pl = await DB.get('plans', r.l.planId); if (!pl) return toast('Plan supprimé'); s.close && s.close(); openPlanViewer(pl, { ...planCtx(() => renderSection()), focus: { x: r.l.x, y: r.l.y } }); });
     $$('.ptab-t tbody tr[data-i]', s.el).forEach(tr => tr.onclick = async () => { s.close && s.close(); await openLinkDetail(rows[+tr.dataset.i].l); renderSection(); });
