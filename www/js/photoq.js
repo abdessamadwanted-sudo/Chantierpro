@@ -123,4 +123,4 @@ const PhotoQ = (() => {
   bindLongPress();
   return { save, start, pill, poll, remove, purgeRefs, endSel, pending: () => Math.max(0, total - done) };
 })();
-setTimeout(() => { try { if (!window.__safe) PhotoQ.start(); } catch (e) { console.warn('photoq', e); } }, 2500);   // v1.0.48 : rien en arrière-plan en mode secours
+setTimeout(() => { try { if (!window.__safe) PhotoQ.start(); } catch (e) { console.warn('photoq', e); } }, 25000);   // v1.0.177 : 25 s après le démarrage (plus 2,5 s) : l'accueil et la mémoire d'abord   // v1.0.48 : rien en arrière-plan en mode secours
