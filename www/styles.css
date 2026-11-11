@@ -3831,3 +3831,11 @@ table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-
 .tb-card i { font-style: normal; font-size: 26px; width: 48px; height: 48px; border-radius: 14px; background: rgba(255,255,255,.2); display: grid; place-items: center; }
 .tb-card span { flex: 1; display: grid; gap: 2px; } .tb-card b { font-size: 16px; } .tb-card small { opacity: .85; font-size: 12px; }
 .tb-card em { font-style: normal; font-weight: 800; font-size: 20px; }
+
+/* v1.0.177 : cartes « Tableaux » plus petites et plus sobres */
+.tb-app { gap: 8px !important; }
+.tb-card { padding: 11px 14px !important; border-radius: 14px !important; background: color-mix(in srgb, var(--c) 18%, #1b1f27) !important; border: 1px solid color-mix(in srgb, var(--c) 35%, transparent) !important; }
+.tb-card i { width: 36px !important; height: 36px !important; font-size: 18px !important; border-radius: 11px !important; background: color-mix(in srgb, var(--c) 30%, transparent) !important; }
+.tb-card b { font-size: 14px !important; }
+.tb-card small { font-size: 11px !important; opacity: .7 !important; }
+.tb-card em { font-size: 15px !important; font-weight: 700 !important; color: var(--c); filter: brightness(1.6); }

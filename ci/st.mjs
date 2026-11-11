@@ -1453,6 +1453,8 @@ try {
   log('v1.0.176 [application Tableaux]', tTb2); log('errors v1.0.176 tableaux', tTb2.f === 'function' && tTb2.s ? [] : ['v1.0.176 tableaux']);
   const tSy = await A.pg.evaluate(async () => { const r = await fetch('js/sync.js').then(x => x.text()); return { s: r.includes('cloudPause') && r.includes('cfail >= 2') && r.includes('!force && Date.now() < pauseTil') }; });
   log('v1.0.176 [envoi Cloud : pause après 2 échecs]', tSy); log('errors v1.0.176 sync', tSy.s ? [] : ['v1.0.176 sync']);
+  const tUx = await A.pg.evaluate(async () => { const r = await fetch('js/app.js').then(x => x.text()); return { s: r.includes('const hid = false') && !r.includes('Tapez un nom ou choisissez') }; });
+  log('v1.0.177 [Tous affiche tout]', tUx); log('errors v1.0.177 tous', tUx.s ? [] : ['v1.0.177 tous']);
   const t82 = await A.pg.evaluate(() => ({ db: typeof DB.get === 'function' }));
   log('v1.0.82 [démarrage : synchro différée, IndexedDB réessaie]', t82); log('errors v1.0.82', t82.db ? [] : ['v1.0.82']);
   const t79 = await A.pg.evaluate(() => ({ proj: typeof GDrive.projectSave, file: typeof Backup.exportProject }));
