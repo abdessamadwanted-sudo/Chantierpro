@@ -308,13 +308,16 @@ const ST = (() => {
     const toolBtn = (k, g) => `<button class="st-tool" data-tool="${k}" style="--c:${CAT_C[catOf(k)] || CAT_C[g] || 'var(--accent)'}"><i class="st-ico">${icon(SECTIONS[k].icon || 'grid')}</i><span>${esc(toolName(k))}</span></button>`;
     const QS_DEF = { docq: 'adm', clauses: 'adm', reception: 'ter', forms: 'ter', constat: 'ter', labo: 'ter', hse: 'ter', monespace: 'com', team: 'com', org: 'com', histo: 'com' };
     const QS_NAMES = { adm: ['📁', 'Administratif'], ter: ['🏗️', 'Terrain'], com: ['🔗', 'Commun'] };
+    const QS_UI = { adm: ['folder', '#2563eb', 'Documents, archives, clauses'], ter: ['hard', '#16a34a', 'Réceptions, contrôles, PV, labo'], com: ['users', '#7c3aed', 'Équipe, organigramme, mon espace'] };
+    // volets autorisés à la personne : choisis par l'administrateur dans l'organigramme (vide = les deux) ; l'administrateur voit tout
+    const qsAllowed = () => { try { if (!ready() || Team.isAdmin()) return ['adm', 'ter', 'com']; const m = window.MonEspace && MonEspace.meOf(p), v = m && m.volet; return v === 'adm' ? ['adm', 'com'] : v === 'ter' ? ['ter', 'com'] : ['adm', 'ter', 'com']; } catch (e) { return ['adm', 'ter', 'com']; } };
     const qsMap = () => { let u = {}; try { u = JSON.parse(localStorage.getItem('qual.side') || '{}') || {}; } catch (e) {} return { ...QS_DEF, ...u }; };
     const qsMine = () => { try { const k = (typeof Org !== 'undefined' && Org.poste && (Org.poste() || {}).k) || ''; return ['tsq', 'ctrl'].includes(k) ? 'ter' : 'adm'; } catch (e) { return 'adm'; } };
     const qualSplit = (ks) => {
       const M = qsMap(), all = [...new Set([...ks, ...Object.keys(QS_DEF).filter(k => SECTIONS[k] && ok(k))])].filter(k => SECTIONS[k] && ok(k));
       let op = null; try { op = JSON.parse(localStorage.getItem('ptools.qs') || 'null'); } catch (e) {} if (!Array.isArray(op)) op = [qsMine()];
-      return ['adm', 'ter', 'com'].map(v => { const L = all.filter(k => (M[k] || 'ter') === v); if (!L.length) return '';
-        return `<details class="st-qs" data-qs="${v}" ${op.includes(v) ? 'open' : ''}><summary>${QS_NAMES[v][0]} ${QS_NAMES[v][1]}<small>${L.length}</small><i class="st-chev">${icon('chevdown')}</i></summary><div class="st-tgrid">${L.map(k => toolBtn(k, 'qual')).join('')}</div></details>`; }).join('')
+      return qsAllowed().map(v => { const L = all.filter(k => (M[k] || 'ter') === v); if (!L.length) return '';
+        return `<details class="st-qs" data-qs="${v}" ${op.includes(v) ? 'open' : ''}><summary style="--c:${QS_UI[v][1]}"><i class="st-qs-ic">${icon(QS_UI[v][0])}</i><span><b>${QS_NAMES[v][1]}</b><small>${QS_UI[v][2]}</small></span><em>${L.length}</em><i class="st-chev">${icon('chevdown')}</i></summary><div class="st-tgrid">${L.map(k => toolBtn(k, 'qual')).join('')}</div></details>`; }).join('')
         + `<button class="st-qs-set" data-a="qsset">⚙️ Répartition Administratif / Terrain / Commun</button>`;
     };
     const qsSet = async () => {
@@ -862,5 +865,5 @@ const ST = (() => {
   }
 
   function refreshRole() { applyRole(); try { App.project ? renderSection() : renderHome(); } catch (e) {} }
-  return { families: FAMILIES, openDash, openPro, openTeamHub, openServiceLibrary, profileCardHTML, wsBtnHTML, wsMenu, renderProjectTools, directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
+  return { families: FAMILIES, openDash, openPro, openTeamHub, openServiceLibrary, profileCardHTML, wsBtnHTML, wsMenu, renderProjectTools, isEnt: () => plan().k === 'enterprise', directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
 })();
