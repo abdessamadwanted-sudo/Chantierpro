@@ -4,7 +4,8 @@
 (function () {
   const TYPES = [['texte', 'Texte'], ['nombre', 'Nombre'], ['date', 'Date'], ['liste', 'Liste de choix'], ['case', 'Case à cocher (oui/non)']];
   const slug = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'champ';
-  const entId = () => 'e_' + (String(LS.get('cid') || 'local').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60) || 'local');
+  // identifiant d'entreprise : celui de l'espace Team connecté, sinon « local » (suivis privés à ce téléphone)
+  const entId = () => { let c = ''; try { const co = typeof Team !== 'undefined' && Team.company && Team.company(); c = (co && (co.id || co.cid)) || ''; } catch (e) {} return 'e_' + (String(c || 'local').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60) || 'local'); };
   const projId = (p) => 'p_' + String(p.id).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60);
   const ctxOf = (p) => ({ entrepriseId: entId(), projetId: projId(p) });
   const mine = async (p) => (await DB.all('dsmodeles')).filter(m => m.entrepriseId === entId() && m.projetId === projId(p) && m.categorie === 'suivi').sort((a, b) => a.nom.localeCompare(b.nom));
@@ -81,6 +82,7 @@
     if (!m) return;
     return new Promise(async (resolve) => {
       const lignes = await lignesOf(m);
+      let nav = false;   // true quand on referme la feuille pour naviguer ailleurs (pas pour revenir à la liste)
       const s = sheet(`<div class="form">
         <div class="ds-scroll"><table class="ds-tab"><thead><tr><th>#</th>${m.champs.map(c => `<th>${esc(c.libelle)}</th>`).join('')}<th></th></tr></thead>
         <tbody>${lignes.length ? lignes.map((d, i) => `<tr>${'<td>' + (lignes.length - i) + '</td>'}${m.champs.map(c => `<td>${esc(show(c, d.valeurs[c.id]))}</td>`).join('')}<td><button class="btn ghost" data-del="${esc(d.id)}">${icon('trash')}</button></td></tr>`).join('') : `<tr><td colspan="${m.champs.length + 2}" class="muted">Aucune ligne</td></tr>`}</tbody></table></div>
@@ -88,8 +90,8 @@
         <div class="btnrow"><button class="btn danger" data-a="rm">Supprimer ce suivi</button></div></div>`, {
         title: m.nom,
         onMount: (el) => {
-          ($('[data-a=add]', el) || {}).onclick = async () => { s.close(); await ligneForm(p, m); resolve(suiviOpen(p, m)); };
-          ($('[data-a=edit]', el) || {}).onclick = async () => { s.close(); const nm = await suiviBuilder(p, m); resolve(suiviOpen(p, nm ? (await mine(p)).find(x => x.id === m.id) : m)); };
+          ($('[data-a=add]', el) || {}).onclick = async () => { nav = true; s.close(); await ligneForm(p, m); resolve(suiviOpen(p, m)); };
+          ($('[data-a=edit]', el) || {}).onclick = async () => { nav = true; s.close(); const nm = await suiviBuilder(p, m); resolve(suiviOpen(p, nm ? (await mine(p)).find(x => x.id === m.id) : m)); };
           ($('[data-a=rm]', el) || {}).onclick = async () => {
             if (!(await confirmBox('Supprimer ce suivi et toutes ses lignes ?'))) return;
             for (const d of lignes) await DB.delRaw('dsdossiers', d.id);
@@ -97,11 +99,11 @@
           };
           el.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
             if (!(await confirmBox('Supprimer cette ligne ?'))) return;
-            await DB.delRaw('dsdossiers', b.dataset.del); s.close(); resolve(suiviOpen(p, m));
+            await DB.delRaw('dsdossiers', b.dataset.del); nav = true; s.close(); resolve(suiviOpen(p, m));
           });
         },
       });
-      s.onClose = () => resolve();
+      s.onClose = () => { if (!nav) resolve(); };
     });
   }
 

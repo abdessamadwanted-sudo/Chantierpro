@@ -1572,18 +1572,21 @@ try {
     const pr0 = (await DB.all('projects'))[0]; if (!pr0) return { noProject: true };
     App.project = pr0;
     const top = () => [...document.querySelectorAll('.sheet-bg')].pop();
-    const click = (sel) => { const e = top() && top().querySelector(sel); if (!e) throw new Error('absent ' + sel); e.click(); };
+    // attend (jusqu'à 8 s) que l'élément soit présent dans la feuille du dessus, puis agit (runner CI parfois lent)
+    const need = async (sel) => { for (let i = 0; i < 80; i++) { const e = top() && top().querySelector(sel); if (e) return e; await wait(100); } throw new Error('absent ' + sel + ' | ' + (top() ? top().textContent.slice(0, 80) : 'aucune feuille')); };
+    const click = async (sel) => { (await need(sel)).click(); await wait(250); };
     try {
-      openSuivis(pr0); await wait(400); click('[data-a=new]'); await wait(400);
-      top().querySelector('[name=nom]').value = 'Suivi test CI';
-      click('[data-a=addcol]'); await wait(400);
-      top().querySelector('[name=libelle]').value = 'Surface'; top().querySelector('[name=type]').value = 'nombre'; click('[data-a=ok]'); await wait(400);
-      click('[data-a=addcol]'); await wait(400);
-      top().querySelector('[name=libelle]').value = 'Code'; top().querySelector('[name=type]').value = 'liste'; top().querySelector('[name=options]').value = 'A, B'; click('[data-a=ok]'); await wait(400);
-      click('[data-a=save]'); await wait(600);
-      o.liste = !!top().querySelector('[data-open]');
-      click('[data-open]'); await wait(500); click('[data-a=add]'); await wait(500);
-      top().querySelector('[name=Surface]').value = '12.5'; top().querySelector('[name=Code]').value = 'B'; click('[data-a=ok]'); await wait(600);
+      openSuivis(pr0); await click('[data-a=new]');
+      (await need('[name=nom]')).value = 'Suivi test CI';
+      await click('[data-a=addcol]');
+      (await need('[name=libelle]')).value = 'Surface'; top().querySelector('[name=type]').value = 'nombre'; await click('[data-a=ok]');
+      await click('[data-a=addcol]');
+      (await need('[name=libelle]')).value = 'Code'; top().querySelector('[name=type]').value = 'liste'; top().querySelector('[name=options]').value = 'A, B'; await click('[data-a=ok]');
+      await click('[data-a=save]');
+      o.liste = !!(await need('[data-open]'));
+      await click('[data-open]'); await click('[data-a=add]');
+      (await need('[name=Surface]')).value = '12.5'; top().querySelector('[name=Code]').value = 'B'; await click('[data-a=ok]');
+      await need('.ds-tab');
       const ms = (await DB.all('dsmodeles')).filter(m => m.nom === 'Suivi test CI'), ds = await DB.all('dsdossiers');
       o.modele = ms.length === 1 && ms[0].champs.length === 2 && ms[0].categorie === 'suivi';
       o.ligne = ds.length === 1 && ds[0].valeurs.Surface === 12.5 && ds[0].valeurs.Code === 'B' && ds[0].statut === 'brouillon';
