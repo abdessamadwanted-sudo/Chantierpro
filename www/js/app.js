@@ -412,6 +412,7 @@ const SECTIONS = {
 async function renderSection() {
   if (!App.project || !Team.canProject(App.project.id)) return renderHome();
   BackStack.length = 0;
+  if (App.recTab && App.section !== 'reception' && App.section !== 'beton') App.recTab = null;   // onglet « suivi personnalisé » : seulement dans Réception / Bétonnage
   if (App.section === 'reception' && !Team.canSection('reception') && Team.canSection('beton') && sectionOn('beton')) App.section = 'beton';   // v1.0.34 : bibliothèque du service
   if (!SECTIONS[App.section] || !sectionOn(App.section) || !Team.canSection(App.section)) App.section = Object.keys(SECTIONS).find(k => !SECTIONS[k].hidden && sectionOn(k) && Team.canSection(k)) || 'plans';
   pushBack(() => { if (App.fromBrief && typeof briefReopen === 'function') return briefReopen(); const home = Team.ready() ? 'ptools' : 'plans'; if (App.section !== home) { App.section = home; App.search = ''; renderSection(); } else renderHome(); });

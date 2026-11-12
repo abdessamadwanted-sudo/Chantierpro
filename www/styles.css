@@ -3874,3 +3874,13 @@ table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-
 .ds-tab { border-collapse: collapse; width: 100%; font-size: 14px; }
 .ds-tab th, .ds-tab td { padding: 6px 8px; border-bottom: 1px solid var(--line, rgba(128,128,128,.25)); text-align: left; white-space: nowrap; }
 .ds-tab th { position: sticky; top: 0; background: var(--card, #1f2937); }
+
+/* suivis personnalisés : onglets à côté de Réception / Bétonnage */
+.kseg.sv { overflow-x: auto; scrollbar-width: none; }
+.kseg.sv::-webkit-scrollbar { display: none; }
+.kseg.sv button { flex: 1 0 auto; white-space: nowrap; padding: 10px 12px; }
+.sv-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 10px 16px 6px; }
+.sv-head small { color: var(--muted); }
+.ds-tab tr[data-l] { cursor: pointer; }
+.ds-cb { display: inline-flex; gap: 2px; }
+.ds-cb .btn { padding: 4px 8px; min-width: 0; }

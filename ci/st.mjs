@@ -1566,39 +1566,52 @@ try {
   });
   log('Document Studio (socle)', ds);
   log('errors v1.0.x document-studio', ds.loaded && ds.date && ds.dateKo && ds.isole && ds.stocke && ds.supprime && ds.tables ? [] : ['document-studio']);
-  // ---- v1.0.x : Suivis personnalisés (Form Builder → ligne saisie → stockage local)
+  // ---- Suivis personnalisés : onglets dans l'écran Réception / Bétonnage, modèles prêts, colonnes et lignes modifiables
   const sv = await A.pg.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
     const pr0 = (await DB.all('projects'))[0]; if (!pr0) return { noProject: true };
-    App.project = pr0;
+    pr0.type = 'bat'; delete pr0.featOff; App.project = pr0;   // (en mémoire seulement) type bâtiment : Réception / Bétonnage disponibles
     const top = () => [...document.querySelectorAll('.sheet-bg')].pop();
-    // attend (jusqu'à 8 s) que l'élément soit présent dans la feuille du dessus, puis agit (runner CI parfois lent)
-    const need = async (sel) => { for (let i = 0; i < 80; i++) { const e = top() && top().querySelector(sel); if (e) return e; await wait(100); } throw new Error('absent ' + sel + ' | ' + (top() ? top().textContent.slice(0, 80) : 'aucune feuille')); };
-    const click = async (sel) => { (await need(sel)).click(); await wait(250); };
+    const need = async (sel, root) => { for (let i = 0; i < 100; i++) { const e = (root || top() || document).querySelector(sel); if (e) return e; await wait(100); } throw new Error('absent ' + sel + ' | ' + (top() ? top().textContent.slice(0, 100) : document.body.textContent.slice(0, 60))); };
+    const click = async (sel, root) => { (await need(sel, root)).click(); await wait(300); };
+    const byText = async (re) => { for (let i = 0; i < 100; i++) { const e = top() && [...top().querySelectorAll('button')].find(b => re.test(b.textContent)); if (e) return e; await wait(100); } throw new Error('texte absent ' + re); };
+    const tab = () => document.querySelector('.ds-tab');
+    const until = async (f) => { for (let i = 0; i < 80 && !f(); i++) await wait(100); return f(); };
     try {
-      openSuivis(pr0); await click('[data-a=new]');
-      (await need('[name=nom]')).value = 'Suivi test CI';
-      await click('[data-a=addcol]');
-      (await need('[name=libelle]')).value = 'Surface'; top().querySelector('[name=type]').value = 'nombre'; await click('[data-a=ok]');
-      await click('[data-a=addcol]');
-      (await need('[name=libelle]')).value = 'Code'; top().querySelector('[name=type]').value = 'liste'; top().querySelector('[name=options]').value = 'A, B'; await click('[data-a=ok]');
+      App.section = 'reception'; App.recTab = null;
+      openSuivis(pr0);
+      o.galerie = /conseillé/.test((await byText(/Chape/)) && top().textContent);
+      (await byText(/Chape/)).click(); await wait(400);
+      o.preNom = (await need('[name=nom]')).value === 'Chape' && top().querySelectorAll('.ds-col').length === 8;
       await click('[data-a=save]');
-      o.liste = !!(await need('[data-open]'));
-      await click('[data-open]'); await click('[data-a=add]');
-      (await need('[name=Surface]')).value = '12.5'; top().querySelector('[name=Code]').value = 'B'; await click('[data-a=ok]');
-      await need('.ds-tab');
-      const ms = (await DB.all('dsmodeles')).filter(m => m.nom === 'Suivi test CI'), ds = await DB.all('dsdossiers');
-      o.modele = ms.length === 1 && ms[0].champs.length === 2 && ms[0].categorie === 'suivi';
-      o.ligne = ds.length === 1 && ds[0].valeurs.Surface === 12.5 && ds[0].valeurs.Code === 'B' && ds[0].statut === 'brouillon';
-      o.tableau = !!top() && top().textContent.includes('12.5');
+      await until(() => App.recTab);
+      o.onglet = !!App.recTab && /Chape/.test(((await need('.kseg [data-sv].on', document)) || {}).textContent || '');
+      await need('.ds-tab', document); o.entete = /Surface m²/.test(tab().querySelector('thead').textContent);
+      await click('[data-a=add]', document);
+      (await need('[name=Niveau]')).value = 'R+1'; top().querySelector('[name=Surface_m]').value = '42'; await click('[data-a=ok]');
+      o.ligne = await until(() => /R\+1/.test(tab() ? tab().textContent : ''));
+      await click('tr[data-l]', document);
+      (await need('[name=Niveau]')).value = 'R+2'; await click('[data-a=ok]');
+      await until(() => /R\+2/.test(tab() ? tab().textContent : ''));
+      o.edit = /R\+2/.test(tab().textContent) && (await DB.all('dsdossiers')).length === 1;
+      await click('[data-a=cfg]', document);
+      await click('[data-ced="0"]'); (await need('[name=libelle]')).value = 'Étage'; await click('[data-a=ok]');
+      await click('[data-dn="0"]'); await click('[data-a=save]');
+      await until(() => /Étage/.test(tab() ? tab().textContent : ''));
+      const heads = [...tab().querySelectorAll('thead th')].map(x => x.textContent);
+      o.rename = heads.includes('Étage') && heads.indexOf('Étage') > heads.indexOf('Local') && /R\+2/.test(tab().querySelector('tbody').textContent);
+      const inp = document.querySelector('.search input'); inp.value = 'zzz'; inp.dispatchEvent(new Event('input')); await wait(800);
+      o.recherche = /Aucun résultat/.test(tab().textContent);
+      document.querySelector('.kseg [data-k=reception]').click(); await wait(800);
+      o.retour = !App.recTab && !!document.querySelector('.kseg [data-sv]');
       o.sync = !(await DB.all('tomb')).some(x => /^(s_|d_)/.test(String(x.id || '')));
-      for (const d of ds) await DB.delRaw('dsdossiers', d.id); for (const m of ms) await DB.delRaw('dsmodeles', m.id);
     } catch (e) { o.err = String(e.message || e); }
-    document.querySelectorAll('.sheet-bg').forEach(x => x.remove());
+    for (const d of await DB.all('dsdossiers')) await DB.delRaw('dsdossiers', d.id); for (const m of await DB.all('dsmodeles')) await DB.delRaw('dsmodeles', m.id);
+    App.recTab = null; document.querySelectorAll('.sheet-bg').forEach(x => x.remove());
     return o;
   });
   log('Suivis personnalisés', sv);
-  if (!sv.noProject && !(sv.liste && sv.modele && sv.ligne && sv.tableau && sv.sync)) throw new Error('suivis personnalisés KO ' + JSON.stringify(sv));
+  if (!sv.noProject && !(sv.galerie && sv.preNom && sv.onglet && sv.entete && sv.ligne && sv.edit && sv.rename && sv.recherche && sv.retour && sv.sync)) throw new Error('suivis personnalisés KO ' + JSON.stringify(sv));
   // ---- Suivis personnalisés + modèle visuel : cases liées aux colonnes, PDF écrit sur le bon
   const sv2 = await A.pg.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
@@ -1629,7 +1642,7 @@ try {
       await DB.putRaw('dsmodeles', { ...base, visuel, creeLe: Date.now() });
       const d = DocumentStudio.remplir(base, { Surface: 12.5, Date: '2026-11-12' }, SuivisPerso.ctxOf(pr0));
       await DB.putRaw('dsdossiers', { ...d, id: 'd_vis', creeLe: Date.now() });
-      openSuivis(pr0); (await need('[data-open]')).click(); const bp = await need('[data-pdf]'); bp.click();
+      App.recTab = { pid: pr0.id, id: 's_vis' }; const root = document.createElement('div'); document.body.appendChild(root); await SuivisTabs.render(root, pr0, 'Ferraillage'); (await need('[data-pdf]', root)).click(); setTimeout(() => root.remove(), 4000);
       for (let i = 0; i < 100 && !opened; i++) await wait(100);
       o.pdf = !!opened && opened.blob.size > 500 && opened.mime === 'application/pdf';
       const txt = opened ? new TextDecoder('latin1').decode(new Uint8Array(await opened.blob.arrayBuffer())) : '';

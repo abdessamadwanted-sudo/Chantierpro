@@ -118,6 +118,7 @@ async function renderReceptions(root, kind = 'Ferraillage') {
   const noRec = typeof Team !== 'undefined' && Team.svcLib && Team.svcLib() && !Team.canSection('reception');
   if (noRec && kind === 'Ferraillage') { kind = 'Bétonnage'; App.section = 'beton'; }
   if (kind === 'Ferraillage') { try { const n = await carryPending(p.id); if (n) { const u = carryPending.undo; toast(`↪ ${n} ouvrage(s) non réceptionné(s) reporté(s) au lendemain`, { action: 'Annuler', onAction: async () => { await u(); toast('Report annulé ✓'); renderSection(); } }); } } catch (e) { console.warn('report', e); } }
+  if (App.recTab && App.recTab.pid === p.id && typeof SuivisTabs !== 'undefined' && await SuivisTabs.render(root, p, kind)) return;   // onglet « suivi personnalisé »
   const all = (await DB.byProject('receptions', p.id)).filter(d => kindOf(d) === kind).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   App.recSearch = App.recSearch || {}; App.openMonths = App.openMonths || {};
   const q = (App.recSearch[kind] || '').trim().toLowerCase();
@@ -132,7 +133,8 @@ async function renderReceptions(root, kind = 'Ferraillage') {
   if (tba) tba.innerHTML = `<button class="iconbtn" data-a="sync" title="Google Sheets">${icon('grid')}</button>`;
 
   const nPvAll = nMiss;
-  root.innerHTML = `<div class="kseg ${noRec ? 'solo' : ''}"><button class="${!isBeton(kind) ? 'on' : ''}" data-k="reception" ${noRec ? 'hidden' : ''}>${icon('layers')} Réception${nPvAll ? ` <i>${nPvAll}</i>` : ''}</button><button class="${isBeton(kind) ? 'on' : ''}" data-k="beton">${icon('calendar')} Bétonnage</button></div>
+  const svTabs = typeof SuivisTabs !== 'undefined' ? await SuivisTabs.tabsHtml(p) : '';   // onglets des suivis personnalisés
+  root.innerHTML = `<div class="kseg ${svTabs ? 'sv' : ''} ${noRec && !svTabs ? 'solo' : ''}"><button class="${!isBeton(kind) ? 'on' : ''}" data-k="reception" ${noRec ? 'hidden' : ''}>${icon('layers')} Réception${nPvAll ? ` <i>${nPvAll}</i>` : ''}</button><button class="${isBeton(kind) ? 'on' : ''}" data-k="beton">${icon('calendar')} Bétonnage</button>${svTabs}</div>
     ${isBeton(kind) ? decofBanner(p, all) : ''}
     <div class="search">${icon('search')}<input placeholder="Rechercher un ouvrage (ex : CR 77, voile…)" value="${esc(App.recSearch[kind] || '')}"></div>
     <div class="fbar">
@@ -143,6 +145,7 @@ async function renderReceptions(root, kind = 'Ferraillage') {
     ${!isBeton(kind) && (nMiss || pvF) ? `<div class="chips niv"><button class="chip pvchip ${pvF ? 'on' : ''}" data-a="pvf">🔔 PV non reçus <b>${nMiss}</b></button></div>` : ''}
     <div id="recBody"></div>`;
   $$('.kseg [data-k]', root).forEach(b => b.onclick = () => { if (App.section !== b.dataset.k) { App.section = b.dataset.k; renderSection(); } });
+  if (typeof SuivisTabs !== 'undefined') SuivisTabs.bind(root, p);
   // barre de partage unique (suit le tableau choisi)
   const sb = document.createElement('div'); sb.className = 'sharebar';
   sb.innerHTML = `<button data-sb>${icon('share')} Partager ${isBeton(kind) ? 'le bétonnage' : 'la réception'}…</button>`;
