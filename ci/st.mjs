@@ -1590,14 +1590,23 @@ try {
       // + : nouvelle ligne (aujourd'hui) → page du jour
       await click('.fab', document); await (await byText(/Aujourd/)).click(); await wait(500);
       (await need('[name=Niveau]')).value = 'R+1'; top().querySelector('[name=Surface_m]').value = '42'; await click('[data-a=ok]');
-      await need('.sv-day', document); o.entete = /Surface m²/.test(document.querySelector('.sv-day .ds-tab thead').textContent);
-      o.ligne = await until(() => /R\+1/.test((document.querySelector('.sv-day .ds-tab') || {}).textContent || ''));
+      await need('.sv-dayr', document); o.entete = /Surface m²/.test(document.querySelector('.sv-dayr table.rec thead').textContent);
+      o.ligne = await until(() => /R\+1/.test((document.querySelector('.sv-dayr table.rec') || {}).textContent || ''));
       // modifier la ligne
-      await click('.sv-day tr[data-l]', document);
+      await click('.sv-dayr tr[data-l]', document);
       (await need('[name=Niveau]')).value = 'R+2'; await click('[data-a=ok]');
-      await until(() => /R\+2/.test((document.querySelector('.sv-day .ds-tab') || {}).textContent || ''));
-      o.edit = /R\+2/.test(document.querySelector('.sv-day .ds-tab').textContent) && (await DB.all('dsdossiers')).length === 1 && /^\d{4}-\d{2}-\d{2}$/.test((await DB.all('dsdossiers'))[0].jour || '');
-      document.querySelector('.sv-day [data-a=x]').click(); await wait(600);
+      await until(() => /R\+2/.test((document.querySelector('.sv-dayr table.rec') || {}).textContent || ''));
+      o.edit = /R\+2/.test(document.querySelector('.sv-dayr table.rec').textContent) && (await DB.all('dsdossiers')).length === 1 && /^\d{4}-\d{2}-\d{2}$/.test((await DB.all('dsdossiers'))[0].jour || '');
+      // entête comme Réception : date + nom du projet + nom du suivi, résumé, boutons Ajouter / Coller
+      const inf = (document.querySelector('.sv-dayr .rec-info') || {}).textContent || '';
+      o.entetePro = inf.includes((window.App && App.projects && (App.projects.find(x => x.id === App.recTab.pid) || {}).name) || '') && !!document.querySelector('.sv-dayr .rec-sum') && !!document.querySelector('.sv-dayr [data-a=paste]') && !!document.querySelector('.sv-dayr [data-a=add]');
+      // Coller un texte : une ligne par ligne
+      await click('.sv-dayr [data-a=paste]', document);
+      top().querySelector('textarea[name=t]').value = 'R+9;12'; await click('[data-a=ok]');
+      await until(async () => (await DB.all('dsdossiers')).length === 2);
+      o.coller = (await DB.all('dsdossiers')).some(d => Object.values(d.valeurs).includes('R+9'));
+      for (const d of (await DB.all('dsdossiers'))) if (Object.values(d.valeurs).includes('R+9')) await DB.delRaw('dsdossiers', d.id);
+      document.querySelector('.sv-dayr [data-a=back]').click(); await wait(600);
       // filtre Niveau (colonne « Niveau » présente) + recherche
       o.filtre = !!document.querySelector('.fsel[data-f=niv]') && !!document.querySelector('.mcard .prow');
       // renommer une colonne + déplacer : les valeurs restent
@@ -1605,10 +1614,10 @@ try {
       await click('[data-ced="0"]'); (await need('[name=libelle]')).value = 'Étage'; await click('[data-a=ok]');
       await click('[data-dn="0"]'); await click('[data-a=save]');
       await until(() => !document.querySelector('.sheet-bg'));
-      await wait(600); await click('.mcard .prow', document); await need('.sv-day', document);
-      const heads = [...document.querySelectorAll('.sv-day .ds-tab thead th')].map(x => x.textContent);
-      o.rename = heads.includes('Étage') && heads.indexOf('Étage') > heads.indexOf('Local') && /R\+2/.test(document.querySelector('.sv-day .ds-tab tbody').textContent);
-      document.querySelector('.sv-day [data-a=x]').click(); await wait(600);
+      await wait(600); await click('.mcard .prow', document); await need('.sv-dayr', document);
+      const heads = [...document.querySelectorAll('.sv-dayr table.rec thead th')].map(x => x.textContent);
+      o.rename = heads.includes('Étage') && heads.indexOf('Étage') > heads.indexOf('Local') && /R\+2/.test(document.querySelector('.sv-dayr table.rec tbody').textContent);
+      document.querySelector('.sv-dayr [data-a=back]').click(); await wait(600);
       const inp = document.querySelector('.search input'); inp.value = 'zzz'; inp.dispatchEvent(new Event('input')); await wait(900);
       o.recherche = /Aucun résultat/.test(document.querySelector('#svBody').textContent);
       document.querySelector('.kseg [data-k=reception]').click(); await wait(800);
@@ -1620,7 +1629,7 @@ try {
     return o;
   });
   log('Suivis personnalisés', sv);
-  if (!sv.noProject && !(sv.galerie && sv.preNom && sv.onglet && sv.structure && sv.entete && sv.ligne && sv.edit && sv.filtre && sv.rename && sv.recherche && sv.retour && sv.sync)) throw new Error('suivis personnalisés KO ' + JSON.stringify(sv));
+  if (!sv.noProject && !(sv.galerie && sv.preNom && sv.onglet && sv.structure && sv.entete && sv.ligne && sv.edit && sv.entetePro && sv.coller && sv.filtre && sv.rename && sv.recherche && sv.retour && sv.sync)) throw new Error('suivis personnalisés KO ' + JSON.stringify(sv));
   // ---- Suivis personnalisés + modèle visuel : cases liées aux colonnes, PDF écrit sur le bon
   const sv2 = await A.pg.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
@@ -1651,7 +1660,7 @@ try {
       await DB.putRaw('dsmodeles', { ...base, visuel, creeLe: Date.now() });
       const d = DocumentStudio.remplir(base, { Surface: 12.5, Date: '2026-11-12' }, SuivisPerso.ctxOf(pr0));
       await DB.putRaw('dsdossiers', { ...d, id: 'd_vis', creeLe: Date.now() });
-      App.recTab = { pid: pr0.id, id: 's_vis' }; const root = document.createElement('div'); document.body.appendChild(root); await SuivisTabs.render(root, pr0, 'Ferraillage'); await (await need('.mcard .prow', root)).click(); (await need('[data-pdf]', document)).click(); setTimeout(() => { root.remove(); document.querySelectorAll('.sv-day').forEach(x => x.remove()); }, 4000);
+      App.recTab = { pid: pr0.id, id: 's_vis' }; const root = document.createElement('div'); document.body.appendChild(root); await SuivisTabs.render(root, pr0, 'Ferraillage'); await (await need('.mcard .prow', root)).click(); (await need('[data-pdf]', document)).click(); setTimeout(() => { root.remove(); document.querySelectorAll('.sv-dayr').forEach(x => x.remove()); }, 4000);
       for (let i = 0; i < 100 && !opened; i++) await wait(100);
       o.pdf = !!opened && opened.blob.size > 500 && opened.mime === 'application/pdf';
       const txt = opened ? new TextDecoder('latin1').decode(new Uint8Array(await opened.blob.arrayBuffer())) : '';
