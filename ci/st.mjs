@@ -1643,6 +1643,24 @@ try {
   });
   log('Suivis modèle visuel', sv2);
   if (!sv2.noProject && !sv2.nolib && !(sv2.menuCols && sv2.boite && sv2.cases && sv2.pdf && sv2.pdfPages)) throw new Error('suivis modèle visuel KO ' + JSON.stringify(sv2));
+  // ---- Détection automatique des cases : logique pure + OCR réel (tesseract local) sur un bon dessiné
+  const ac = await A.pg.evaluate(async () => {
+    const o = {};
+    try {
+      const w = (t, x, y, wd = t.length * 6) => ({ t, x, y, w: wd, h: 10 });
+      const L = AutoCases.depuisMots([w('ZONE', 40, 170), w('..................', 80, 170, 150), w('OUVRAGE:', 40, 200), w('Poteau P4', 110, 200, 60), w('NOM:', 40, 300), w('phrase sans intitulé du tout ici', 40, 500, 190)], 595, 842).map(c => c.label);
+      o.pur = L.join() === 'Zone,Ouvrage,Nom';
+      const cv = document.createElement('canvas'); cv.width = 1190; cv.height = 840; const g = cv.getContext('2d');
+      g.fillStyle = '#fff'; g.fillRect(0, 0, 1190, 840); g.fillStyle = '#222'; g.font = 'bold 34px Arial';
+      g.fillText('DATE :', 700, 150); g.fillText('ZONE', 60, 260); g.fillText('OUVRAGE :', 60, 340); g.fillText('NOM :', 60, 520); g.fillText('VISA :', 600, 520);
+      g.font = '34px Arial'; g.fillText('......................................', 170, 260); g.fillStyle = '#1d3fbf'; g.font = 'italic 40px cursive'; g.fillText('12/11/2026', 820, 150); g.fillText('Poteau P4', 300, 335);
+      const mots = await AutoCases.motsOcr(cv, 595, 420), lab = AutoCases.depuisMots(mots, 595, 420).map(c => c.label);
+      o.ocr = ['Date', 'Zone', 'Ouvrage', 'Nom', 'Visa'].every(x => lab.includes(x)); o.lab = lab.join();
+    } catch (e) { o.err = String(e.message || e); }
+    return o;
+  });
+  log('Détection des cases', ac);
+  if (!(ac.pur && ac.ocr)) throw new Error('détection des cases KO ' + JSON.stringify(ac));
   log('errors v1.0.x suivis', []);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);

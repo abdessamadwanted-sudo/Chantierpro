@@ -28,7 +28,7 @@ async function ftEditor(p, tpl) {
     const el = document.createElement('div'); el.className = 'fullpage ft-ed';
     el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><div class="tb-title" style="flex:1"><b>${esc(tpl.name)}</b><span>Placez chaque case · glissez pour déplacer · coin ◢ pour agrandir</span></div><button class="btn small" data-a="ok">Enregistrer</button></div>
       <div class="ft-wrap"><div class="ft-page"><canvas></canvas><div class="ft-boxes"></div></div></div>
-      <div class="ft-bar"><button class="btn ghost ft-z" data-z="-1">－</button><button class="btn ghost ft-z" data-z="1">＋</button><button class="btn" data-a="add">${icon('plus')} Case</button><button class="btn ghost" data-a="test">👁 Essai</button></div>`;
+      <div class="ft-bar"><button class="btn ghost ft-z" data-z="-1">－</button><button class="btn ghost ft-z" data-z="1">＋</button><button class="btn" data-a="add">${icon('plus')} Case</button><button class="btn ghost" data-a="auto">✨ Détecter</button><button class="btn ghost" data-a="test">👁 Essai</button></div>`;
     document.body.appendChild(el);
     const unBack = pushBack(() => done(false)); let saved = false;
     const done = async (ok) => { if (ok) { await DB.put('projects', p); if (typeof tpl.onSave === 'function') await tpl.onSave(); saved = true; } el.remove(); resolve(saved); };
@@ -75,6 +75,21 @@ async function ftEditor(p, tpl) {
       const sz = k === 'coche' ? [28, 22] : ['jour', 'mois'].includes(k) ? [34, 20] : [140, 22];
       tpl.fields.push({ id: DB.uid(), k, ...(colDef ? { col: colDef.id, label: colDef.libelle } : { label }), x: Math.max(0, Math.min(tpl.W - sz[0], left - sz[0] / 2)), y: Math.max(0, Math.min(tpl.H - sz[1], top)), w: sz[0], h: sz[1], align: 'center' }); draw();
       toast('Glissez la case à sa place, coin ◢ pour la taille');
+    };
+    // ✨ Détecter : propose une case à côté de chaque intitulé imprimé (texte du PDF, sinon OCR). À vérifier ensuite.
+    ($('[data-a=auto]', el)||{}).onclick = async () => {
+      if (typeof AutoCases === 'undefined') return toast('Module non chargé');
+      const ld = loading('Recherche des intitulés…');
+      try {
+        const r = await AutoCases.detecter(page, { progress: (x) => ld.set(`Lecture du bon… ${Math.round(x * 100)} %`) });
+        let L = r.cases, ignorees = 0;
+        if ((tpl.cols || []).length) { const m = AutoCases.versColonnes(L, tpl.cols); ignorees = L.length - m.length; L = m; }
+        L = AutoCases.nouvelles(L, tpl.fields); ld.close();
+        if (!L.length) return alertBox(`Aucune nouvelle case trouvée${r.via === 'ocr' ? ' (lecture OCR)' : ''}.${ignorees ? ` ${ignorees} intitulé(s) ne correspondent à aucune colonne du suivi.` : ''} Placez-les avec « + Case ».`);
+        if (!(await confirmBox(`${L.length} case(s) trouvée(s) (${r.via === 'ocr' ? 'lecture de l\'image' : 'texte du PDF'})${ignorees ? ` · ${ignorees} sans colonne, ignorée(s)` : ''}. Les ajouter ? Vérifiez-les ensuite : l'écriture à la main n'est pas lue.`, 'Ajouter'))) return;
+        for (const c of L) tpl.fields.push({ id: DB.uid(), k: c.col ? 'col' : 'libre', ...(c.col ? { col: c.col } : {}), label: c.label, x: c.x, y: c.y, w: c.w, h: c.h, align: 'left' });
+        draw(); toast('Cases ajoutées : glissez pour ajuster');
+      } catch (e) { ld.close(); alertBox('Détection impossible : ' + (e.message || e)); }
     };
     ($('[data-a=test]', el)||{}).onclick = async () => { const ld = loading('Essai…'); try { const day = { date: todayISO() }, r = { element: 'Plancher Axe D3*D4 fil H*K', niv: 'R+5', zone: '3', indFer: 'PE00', indCof: 'PE01' }; const b = await ftMake(p, tpl, ftDefaults(p, day, r, tpl), 'essai'); ld.close(); openFileRecord({ blob: b, mime: 'application/pdf', name: 'essai.pdf' }, 'Essai'); } catch (e) { ld.close(); alertBox('Essai impossible : ' + (e.message || e)); } };
     draw();
