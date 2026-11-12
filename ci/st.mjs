@@ -1620,6 +1620,9 @@ try {
       const heads = [...document.querySelectorAll('.sv-dayr table.rec thead th')].map(x => x.textContent);
       o.rename = heads.includes('Étage') && heads.indexOf('Étage') > heads.indexOf('Local') && /R\+2/.test(document.querySelector('.sv-dayr table.rec tbody').textContent);
       document.querySelector('.sv-dayr [data-a=back]').click(); await wait(600);
+      // archivage : le suivi disparaît des onglets (lignes gardées), puis il revient
+      { const m0 = (await SuivisPerso.mine(pr0))[0], n0 = (await SuivisPerso.actifs(pr0)).length; await SuivisPerso.archiver(m0, true); const a1 = (await SuivisPerso.actifs(pr0)).length, t1 = (await SuivisPerso.mine(pr0)).length, l1 = (await SuivisPerso.lignesOf(m0)).length; await SuivisPerso.archiver(m0, false);
+        o.archive = a1 === n0 - 1 && t1 === n0 && l1 > 0 && (await SuivisPerso.actifs(pr0)).length === n0; }
       const inp = document.querySelector('.search input'); inp.value = 'zzz'; inp.dispatchEvent(new Event('input')); await wait(900);
       o.recherche = /Aucun résultat/.test(document.querySelector('#svBody').textContent);
       document.querySelector('.kseg [data-k=reception]').click(); await wait(800);
