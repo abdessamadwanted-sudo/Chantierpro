@@ -1578,6 +1578,8 @@ try {
     const until = async (f) => { for (let i = 0; i < 80 && !f(); i++) await wait(100); return f(); };
     try {
       App.section = 'reception'; App.recTab = null;
+      // modèles selon le poste : le service de l'utilisateur est lu depuis Team, chaque modèle a des colonnes valides
+      { const me0 = Team.me; Team.me = () => ({ service: 'topo' }); o.poste = SuivisPerso.monService().k === 'topo' && SuivisPerso.PRESETS.some(x => (x.svc || []).includes('topo')) && SuivisPerso.PRESETS.every(x => SuivisPerso.colsOfPreset(x).length === x.cols.length); Team.me = me0; }
       openSuivis(pr0);
       o.galerie = /conseillé/.test((await byText(/Chape/)) && top().textContent);
       (await byText(/Chape/)).click(); await wait(400);
@@ -1629,7 +1631,7 @@ try {
     return o;
   });
   log('Suivis personnalisés', sv);
-  if (!sv.noProject && !(sv.galerie && sv.preNom && sv.onglet && sv.structure && sv.entete && sv.ligne && sv.edit && sv.entetePro && sv.coller && sv.filtre && sv.rename && sv.recherche && sv.retour && sv.sync)) throw new Error('suivis personnalisés KO ' + JSON.stringify(sv));
+  if (!sv.noProject && !(sv.galerie && sv.poste && sv.preNom && sv.onglet && sv.structure && sv.entete && sv.ligne && sv.edit && sv.entetePro && sv.coller && sv.filtre && sv.rename && sv.recherche && sv.retour && sv.sync)) throw new Error('suivis personnalisés KO ' + JSON.stringify(sv));
   // ---- Suivis personnalisés + modèle visuel : cases liées aux colonnes, PDF écrit sur le bon
   const sv2 = await A.pg.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
