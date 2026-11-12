@@ -1698,6 +1698,35 @@ try {
   });
   log('Mon espace', me1);
   if (!me1.noProject && !(me1.ask && me1.card && me1.missions && me1.avance)) throw new Error('mon espace KO ' + JSON.stringify(me1));
+  // ---- Documentation qualité par partie d'ouvrage : rubriques, pièces classées, manques, historique
+  const qd = await A.pg.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
+    const pr0 = (await DB.all('projects'))[0]; if (!pr0) return { noProject: true };
+    const added = [];
+    try {
+      App.project = pr0; App.docCat = null; App.docView = 'parties'; App.qSt = null;
+      const parts = QualiteDocs.partsOf(pr0); o.parties = parts.length >= 9 && parts[0].nom === 'Terrassement et fondation';
+      const f = await DB.put('files', QualiteDocs.addHist({ projectId: pr0.id, role: 'doc', docCat: 'autre', partId: 'terr', rubrique: 'Fond de fouille', name: 'fond-fouille.pdf', blob: new Blob(['x'], { type: 'application/pdf' }), mime: 'application/pdf' }, 'ajoutée', 'test'));
+      added.push(f.id);
+      const f2 = await DB.put('files', { projectId: pr0.id, role: 'doc', docCat: 'labo', partId: 'terr', rubrique: 'PV laboratoire sol', name: 'pv-sol.pdf', blob: new Blob(['y'], { type: 'application/pdf' }), mime: 'application/pdf' }); added.push(f2.id);
+      const all = await DB.byProject('files', pr0.id), st = QualiteDocs.stat(parts[0], all);
+      o.stat = st.cov === 2 && st.total === 6 && st.manque.includes('Compactage') && st.n === 2;
+      o.hist = (f.hist || []).length === 1 && f.hist[0].act === 'ajoutée' && f.hist[0].at > 0;
+      o.cat = QualiteDocs.catOf('PV laboratoire sol') === 'labo' && QualiteDocs.catOf('Réception coulage') === 'pv' && QualiteDocs.catOf('Fond de fouille') === 'autre';
+      const root = document.createElement('div'); document.body.appendChild(root);
+      await QualiteDocs.render(root); await wait(300);
+      const card = root.querySelector('[data-p=terr]'); o.carte = !!card && /2\/6 rubriques/.test(card.textContent) && /Compactage/.test(card.textContent);
+      card.click(); await wait(400);
+      o.rubriques = root.querySelectorAll('.qd-rub').length >= 6 && !!root.querySelector('.qd-rub.ok') && !!root.querySelector('.qd-rub.no');
+      root.querySelector('[data-r="Fond de fouille"]').click(); await wait(400);
+      o.piece = /fond-fouille\.pdf/.test(root.textContent);
+      root.remove();
+    } catch (e) { o.err = String(e.message || e); }
+    for (const id of added) await DB.del('files', id).catch(() => {}); App.qSt = null;
+    return o;
+  });
+  log('Documentation qualité', qd);
+  if (!qd.noProject && !(qd.parties && qd.stat && qd.hist && qd.cat && qd.carte && qd.rubriques && qd.piece)) throw new Error('documentation qualité KO ' + JSON.stringify(qd));
   // ---- Suivis personnalisés + modèle visuel : cases liées aux colonnes, PDF écrit sur le bon
   const sv2 = await A.pg.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
