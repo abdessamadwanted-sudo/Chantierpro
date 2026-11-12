@@ -128,6 +128,10 @@ const Org = {
 };
 // le titulaire de la licence peut tout faire ; sinon c'est le poste qui décide
 function orgEdit(f) { return Org.can(f, 'edit'); }
+// pack Enterprise : l'administrateur est le seul à ajouter, retirer ou modifier les personnes de l'organigramme (autres packs : droits du poste, comme avant)
+const orgEnt = () => { try { return !!(typeof ST !== 'undefined' && ST.isEnt && ST.isEnt()); } catch (e) { return false; } };
+const orgIsAdm = () => { try { return !(typeof Team !== 'undefined' && Team.ready && Team.ready()) || !!Team.isAdmin(); } catch (e) { return true; } };
+const orgCanAdmin = () => !orgEnt() || orgIsAdm();
 function orgValid(f) { return Org.can(f, 'valid'); }
 
 // ---------- 1er démarrage : service → poste → récapitulatif ----------
@@ -334,7 +338,7 @@ const ogCodeSet = (m, c) => { try { c ? localStorage.setItem(ogCodeKey(m), JSON.
 window.OrgQ = { ORG_BR, PARTIES_OUVRAGE, POSTE_ROLE, roleOfMember, missionStats, orgVue, ogCodeGet, ogCodeSet };
 async function renderOrg(root) {
   const p = App.project; if (orgMembers(p)) await DB.put('projects', p);
-  const collapsed = new Set(p.orgCollapsed || []), canE = orgEdit('org'), br = App.orgBr || '';
+  const collapsed = new Set(p.orgCollapsed || []), canE = orgEdit('org') && orgCanAdmin(), br = App.orgBr || '';
   const save = () => DB.put('projects', p), redraw = () => renderOrg(root);
   root.innerHTML = `<div class="og"><div class="og-bar"><b>Organigramme</b><small>${p.team.length} personne(s)</small><span class="grow"></span>
       ${canE ? `<button class="btn small" data-a="add">${icon('plus')} Personne</button>` : ''}<button class="iconbtn" data-a="exp">${icon('share')}</button></div>
@@ -377,6 +381,7 @@ async function orgEditMember(p, m, save, redraw) {
     { name: 'role', label: 'Fonction / entreprise (texte libre)', value: m?.role },
     { name: 'phone', label: 'Téléphone', type: 'tel', value: m?.phone },
     { name: 'parent', label: 'Supérieur direct (N+1)', type: 'select', value: m?.parent || '', options: [{ value: '', label: 'Automatique (selon le poste)' }, { value: '__none', label: 'Personne (tout en haut)' }, ...others.map(x => ({ value: x.id, label: x.name }))] },
+    ...(orgEnt() ? [{ name: 'volet', label: 'Volets Qualité visibles', type: 'select', value: m?.volet || '', options: [{ value: '', label: '📁 Administratif + 🏗️ Terrain (les deux)' }, { value: 'adm', label: '📁 Administratif seulement' }, { value: 'ter', label: '🏗️ Terrain seulement' }] }] : []),
     { name: 'interim', label: 'Intérim : remplacé(e) par… (congé)', type: 'select', value: m?.interim || '', options: [{ value: '', label: 'Non' }, ...others.map(x => ({ value: x.id, label: x.name }))] },
     { name: 'interimTo', label: 'Intérim jusqu\'au', type: 'date', value: m?.interimTo || '' },
   ], { danger: m && !m.me ? 'Retirer' : null });
@@ -391,7 +396,7 @@ async function orgFiche(p, m, canE, save, redraw) {
   const draw = () => {
     const cd = ogCodeGet(m), ms = missionsOf(m), ok = cd && (Date.now() - cd.at) < 7 * 864e5;
     return `<div class="og-f" style="--c:${memColor(m)}"><div class="og-fa">${esc((m.name || '?')[0].toUpperCase())}</div><b>${esc(m.name || '')}${m.me ? ' (moi)' : ''}</b><span>${esc(P ? P.svc.e + ' ' + P.n : m.role || '')}</span>
-    ${m.branche ? `<small>${esc(orgBrLabel(m.branche))}</small>` : ''}${par ? `<small>N+1 : ${esc(par.name)}</small>` : ''}${sub.length ? `<small>Équipe : ${sub.map(x => esc(x.name)).join(', ')}</small>` : ''}
+    ${m.branche ? `<small>${esc(orgBrLabel(m.branche))}</small>` : ''}${orgEnt() ? `<small>${m.volet === 'adm' ? '📁 Volet Administratif' : m.volet === 'ter' ? '🏗️ Volet Terrain' : '📁🏗️ Administratif + Terrain'}</small>` : ''}${par ? `<small>N+1 : ${esc(par.name)}</small>` : ''}${sub.length ? `<small>Équipe : ${sub.map(x => esc(x.name)).join(', ')}</small>` : ''}
     ${it && (!m.interimTo || m.interimTo >= todayISO()) ? `<small class="og-int">🔁 En congé · intérim : ${esc(it.name)}${m.interimTo ? ' jusqu\'au ' + fmtDate(m.interimTo) : ''}</small>` : ''}
     <div class="og-fb">${m.phone ? `<a class="btn small" href="tel:${esc(m.phone)}">${icon('phone')} Appeler</a><button class="btn small ghost" data-wa>WhatsApp</button>` : ''}${canE ? `<button class="btn small ghost" data-ed>${icon('edit')} Modifier</button>` : ''}</div></div>
     <div class="og-sec"><h4>🎯 Missions <i>${ms.length}</i></h4>
