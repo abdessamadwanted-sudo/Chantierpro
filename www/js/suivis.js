@@ -270,22 +270,82 @@
     const r = await formSheet('Choisir la date', [{ name: 'date', label: 'Date', type: 'date', value: t0 }], { okLabel: 'Continuer' });
     return r && r.date ? r.date : null;
   }
-  // page d'un jour : tableau des lignes de ce jour (toucher une ligne = modifier)
-  async function jourPage(p, m, jour) {
-    return new Promise((resolve) => {
-      const el = document.createElement('div'); el.className = 'fullpage sv-day'; document.body.appendChild(el);
+  // page d'un jour : même présentation que le tableau de Réception / Bétonnage
+  // (entête date + projet, résumé, tableau clair, « Ajouter une ligne », « Coller un texte », Plans, PV du jour)
+  const joursAvec = async (m) => [...new Set((await lignesOf(m)).map(jourOf))].sort();
+  const pvOf = (m, jour) => ((m.jours || {})[jour] || {}).pvIds || [];
+  async function setPv(m, jour, ids) { const cur = (await mine({ id: m.projetId.slice(2) })).find(x => x.id === m.id) || m; await DB.putRaw('dsmodeles', { ...cur, jours: { ...(cur.jours || {}), [jour]: { ...((cur.jours || {})[jour] || {}), pvIds: ids } } }); }
+  // « Coller un texte » : une ligne par ligne de texte ; colonnes séparées par tabulation, « ; » ou « | »
+  const lignesDeTexte = (m, txt) => String(txt || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean).map(l => {
+    const parts = (/[\t;|]/.test(l) ? l.split(/[\t;|]/) : l.split(/\s{2,}/)).map(x => x.trim());
+    const v = {}; m.champs.forEach((c, i) => { let x = parts[i]; if (x === undefined || x === '') return; if (c.type === 'case') v[c.id] = /^(oui|yes|1|x|ok|✓|✔)/i.test(x); else if (c.type === 'nombre') { const n = Number(String(x).replace(',', '.')); if (!isNaN(n)) v[c.id] = n; } else v[c.id] = x; });
+    return v;
+  }).filter(v => Object.keys(v).length);
+  async function jourPage(p, m0, jour0) {
+    return new Promise(async (resolve) => {
+      let jour = jour0, m = m0;
+      const el = document.createElement('div'); el.className = 'fullpage sv-dayr'; document.body.appendChild(el);
       const unBack = pushBack(() => { el.remove(); resolve(); }); const close = () => { unBack(); el.remove(); resolve(); };
       const pdf = !!(m.visuel && m.visuel.fields && m.visuel.fields.length);
+      let jours = await joursAvec(m); if (!jours.includes(jour)) jours = [...jours, jour].sort();
+      const sib = (dir) => { const i = jours.indexOf(jour); return i < 0 ? null : jours[i + dir] || null; };
       const draw = async () => {
-        const L = (await lignesOf(m)).filter(d => jourOf(d) === jour);
-        el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><div class="tb-title" style="flex:1"><b>${esc(m.nom)}</b><span>${fmtDate(jour)} · ${L.length} ligne${L.length > 1 ? 's' : ''}</span></div></div>
-          <div class="sv-daybody"><div class="ds-scroll sv-box"><table class="ds-tab"><thead><tr><th>#</th>${m.champs.map(c => `<th>${esc(c.libelle)}</th>`).join('')}${pdf ? '<th></th>' : ''}</tr></thead>
-          <tbody>${L.length ? L.map((d, i) => `<tr data-l="${esc(d.id)}"><td class="t-date0">${i + 1}</td>${m.champs.map(c => `<td class="t-${c.type}${c.type === 'case' ? (d.valeurs[c.id] ? ' ok' : ' no') : ''}">${esc(show(c, d.valeurs[c.id]))}</td>`).join('')}${pdf ? `<td><button class="sv-pdf" data-pdf="${esc(d.id)}">PDF</button></td>` : ''}</tr>`).join('') : `<tr><td colspan="${m.champs.length + 2}" class="sv-empty"><i>📝</i><b>Aucune ligne ce jour</b><small>Touchez « Nouvelle ligne »</small></td></tr>`}</tbody></table></div></div>
-          <div class="sv-add"><button class="btn" data-a="add">${icon('plus')} Nouvelle ligne</button></div>`;
-        ($('[data-a=x]', el) || {}).onclick = close;
+        m = (await mine(p)).find(x => x.id === m.id) || m; jours = await joursAvec(m); if (!jours.includes(jour)) jours = [...jours, jour].sort();
+        const L = (await lignesOf(m)).filter(d => jourOf(d) === jour).sort((a, b) => (a.creeLe || 0) - (b.creeLe || 0));
+        const cases = m.champs.filter(c => c.type === 'case').slice(0, 2);
+        const stats = `<span><b>${L.length}</b> ligne${L.length > 1 ? 's' : ''}</span>` + cases.map((c, i) => { const n = L.filter(d => d.valeurs[c.id]).length; return `<span style="color:${i ? '#f59e0b' : '#22c55e'}"><b>${n}</b> ${esc(c.libelle)}</span>`; }).join('');
+        el.innerHTML = `<div class="topbar"><button class="iconbtn" data-a="back">${icon('back')}</button>
+            <div class="dnav"><button data-dn="-1" ${sib(-1) ? '' : 'disabled'}>‹</button><h1>${fmtDate(jour)}</h1><button data-dn="1" ${sib(1) ? '' : 'disabled'}>›</button></div>
+            <button class="iconbtn" data-a="share">${icon('share')}</button><button class="iconbtn" data-a="more">${icon('more')}</button></div>
+          <div class="rec-sum">${stats}</div>
+          <div class="rec-info"><b>${fmtDate(jour)}</b><span class="rp">${esc(p.pdfTitle || p.name)}</span><span class="rt">${esc(m.nom)}</span>${jour !== todayISO() ? `<button class="kswitch ktoday" data-a="today">📅 Aujourd'hui</button>` : ''}</div>
+          <div class="rec-wrap">
+            <table class="rec"><thead><tr><th>#</th>${m.champs.map(c => `<th>${esc(c.libelle)}</th>`).join('')}${pdf ? '<th>PDF</th>' : ''}</tr></thead>
+            <tbody>${L.map((d, i) => `<tr data-l="${esc(d.id)}"><td class="c">${i + 1}</td>${m.champs.map(c => c.type === 'case' ? `<td class="c">${d.valeurs[c.id] ? '<span class="sv-ok">✓</span>' : '<span class="sv-no">—</span>'}</td>` : `<td class="${c.type === 'nombre' ? 'c' : ''}">${esc(show(c, d.valeurs[c.id]))}</td>`).join('')}${pdf ? `<td class="c"><button class="sv-pdf" data-pdf="${esc(d.id)}">PDF</button></td>` : ''}</tr>`).join('')}
+              <tr class="addrow"><td colspan="${m.champs.length + 1 + (pdf ? 1 : 0)}"><div class="addrow-in"><button data-a="add">${icon('plus')} Ajouter une ligne</button><button data-a="paste">${icon('edit')} Coller un texte</button></div></td></tr>
+            </tbody></table>
+            ${typeof openRecBox === 'function' ? `<div class="rec-dplans"><button data-a="dayplans">📚 Plans des ouvrages du jour <b>${L.length}</b>${icon('chevright')}</button></div>` : ''}
+            <div class="pv-day"><div class="pv-h">${icon('report')} PV du jour <span>${pvOf(m, jour).length || ''}</span></div><div class="thumbs" id="svPv"></div></div>
+          </div>`;
+        ($('[data-a=back]', el) || {}).onclick = close;
+        el.querySelectorAll('[data-dn]').forEach(b => b.onclick = () => { const j = sib(+b.dataset.dn); if (j) { jour = j; draw(); } });
+        ($('[data-a=today]', el) || {}).onclick = () => { jour = todayISO(); draw(); };
         ($('[data-a=add]', el) || {}).onclick = async () => { await ligneForm(p, m, null, { jour }); draw(); };
+        ($('[data-a=paste]', el) || {}).onclick = async () => {
+          const r = await formSheet('Coller un texte', [{ name: 't', label: 'Une ligne par ligne · colonnes séparées par tabulation, « ; » ou « | »', type: 'textarea', value: '' }], { okLabel: 'Ajouter', intro: `<p class="muted" style="margin:0 0 8px">Ordre des colonnes : ${esc(m.champs.map(c => c.libelle).join(' · '))}</p>` });
+          if (!r || !r.t) return; const lots = lignesDeTexte(m, r.t); if (!lots.length) return toast('Rien à ajouter');
+          try { for (const v of lots) { const d = DocumentStudio.remplir(m, v, ctxOf(p)); await DB.putRaw('dsdossiers', { ...d, id: 'd_' + DB.uid(), creeLe: Date.now(), jour }); } toast(lots.length + ' ligne(s) ajoutée(s)'); } catch (e) { toast(String(e.message || e)); }
+          draw();
+        };
+        const dp = $('[data-a=dayplans]', el); if (dp) dp.onclick = () => openRecBox(p.id);
+        ($('[data-a=share]', el) || {}).onclick = () => { const t = `*${p.pdfTitle || p.name}*\n*${m.nom} — ${fmtDate(jour)}*\n\n` + (L.length ? L.map((d, i) => `${i + 1}. ${texteLigne(m, d)}`).join('\n') : 'Aucune ligne'); try { shareText(t); } catch (e) { toast('Partage impossible'); } };
+        ($('[data-a=more]', el) || {}).onclick = async () => {
+          const o = await menu(m.nom, [{ label: 'Modifier les colonnes', icon: 'edit', value: 'cols' }, ...(L.length ? [{ label: 'Supprimer les lignes de ce jour', icon: 'trash', danger: true, value: 'del' }] : [])]);
+          if (o === 'cols') { await suiviBuilder(p, m); draw(); }
+          if (o === 'del' && await confirmBox(`Supprimer les ${L.length} ligne(s) du ${fmtDate(jour)} ?`)) { for (const d of L) await DB.delRaw('dsdossiers', d.id); toast('Lignes supprimées'); draw(); }
+        };
         el.querySelectorAll('[data-pdf]').forEach(b => b.onclick = (e) => { e.stopPropagation(); const d = L.find(x => x.id === b.dataset.pdf); if (d) lignePdf(p, m, d); });
         el.querySelectorAll('tr[data-l]').forEach(tr => tr.onclick = async () => { const d = L.find(x => x.id === tr.dataset.l); if (d) { await ligneForm(p, m, d); draw(); } });
+        pvBox();
+      };
+      // PV du jour : photos/scans du procès-verbal rattachés à ce suivi et à ce jour
+      const pvBox = async () => {
+        const box = $('#svPv', el); if (!box) return;
+        const ids = pvOf(m, jour); let fs = []; try { fs = await loadFiles(ids); } catch (e) {}
+        box.innerHTML = fs.map(f => `<div class="t" data-pv="${f.id}"><img src="${BlobURL.get(f.id, f.blob)}"><button class="x" data-pvdel="${f.id}">×</button></div>`).join('') + `<button class="t add" data-a="addpv">${icon('camera')}</button>`;
+        ($('[data-a=addpv]', box) || {}).onclick = async () => {
+          const src = await pickSource('Ajouter un PV'); if (!src) return;
+          let files = await pickImages(src); if (!files.length) return;
+          try { const sc = typeof scanDocuments === 'function' ? await scanDocuments(files) : files; if (!sc || !sc.length) return; files = sc; } catch (e) {}
+          const ld = loading('Enregistrement…'); const recs = [];
+          try { for (const f of files) recs.push(await saveImageFile(p.id, f, 'photo', { source: `PV ${m.nom} ${fmtDate(jour)}`, hq: true })); await setPv(m, jour, [...ids, ...recs.map(x => x.id)]); } finally { ld.close(); }
+          toast(recs.length + ' PV ajouté(s) ✓'); draw();
+        };
+        box.querySelectorAll('[data-pv]').forEach(t => t.onclick = async (e) => {
+          const id = t.dataset.pv;
+          if (e.target.closest('[data-pvdel]')) { if (await confirmBox('Retirer ce PV ?')) { await setPv(m, jour, ids.filter(x => x !== id)); DB.del('files', id).catch(() => {}); draw(); } return; }
+          showGallery(fs.map((f, k) => ({ src: BlobURL.get(f.id, f.blob), caption: `PV du ${fmtDate(jour)} (${k + 1})`, fileId: f.id })), fs.findIndex(x => x.id === id));
+        });
       };
       draw();
     });

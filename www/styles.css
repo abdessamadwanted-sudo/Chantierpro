@@ -3948,3 +3948,9 @@ table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-
 .fsel.sv-cfgb { flex: 0 0 auto; } .fsel.sv-cfgb b { display: inline-flex; align-items: center; gap: 6px; } .fsel.sv-cfgb svg.i { width: 15px; height: 15px; }
 .sv-day .sv-add { position: fixed; left: 0; right: 0; bottom: 0; }
 body:has(.sv-day) #plansFab { display: none !important; }
+
+/* Suivi : page d'un jour au même style que Réception (tableau clair, résumé, entête projet) */
+table.rec .sv-ok { color: #16a34a; font-weight: 800; } table.rec .sv-no { color: #9aa3b2; }
+.sv-dayr table.rec { min-width: 0; } .sv-dayr table.rec td { font-weight: 600; }
+.sv-dayr .rec-wrap .sv-pdf { background: #e6eefc; color: #1e66d0; }
+html.th-net .sv-dayr .rec-wrap { background: #fff; }
