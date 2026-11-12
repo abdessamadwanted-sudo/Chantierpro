@@ -220,14 +220,15 @@
     });
   }
 
-  async function ligneForm(p, m, existing) {
+  async function ligneForm(p, m, existing, opt = {}) {
     const champs = m.champs.filter(c => ['texte', 'nombre', 'date', 'liste', 'case'].includes(c.type));
     const vx = (c, v) => v === undefined || v === null ? '' : c.type === 'case' ? (v ? 'oui' : 'non') : v;
-    const r = await formSheet(existing ? 'Modifier la ligne' : 'Nouvelle ligne', champs.map(c => ({
+    const jourInit = existing ? (existing.jour || new Date(existing.creeLe || Date.now()).toISOString().slice(0, 10)) : (opt.jour || todayISO());
+    const r = await formSheet(existing ? 'Modifier la ligne' : 'Nouvelle ligne', [{ name: '__jour', label: 'Date', type: 'date', value: jourInit }, ...champs.map(c => ({
       name: c.id, label: c.libelle + (c.obligatoire ? ' *' : ''), value: existing ? vx(c, existing.valeurs[c.id]) : '',
       type: c.type === 'nombre' ? 'number' : c.type === 'date' ? 'date' : c.type === 'liste' ? 'select' : c.type === 'case' ? 'select' : 'text',
       options: c.type === 'liste' ? [{ value: '', label: '—' }, ...c.options.map(o => ({ value: o, label: o }))] : c.type === 'case' ? [{ value: '', label: '—' }, { value: 'oui', label: 'Oui' }, { value: 'non', label: 'Non' }] : undefined,
-    })), { okLabel: existing ? 'Enregistrer' : 'Ajouter', danger: existing ? 'Supprimer cette ligne' : null });
+    }))], { okLabel: existing ? 'Enregistrer' : 'Ajouter', danger: existing ? 'Supprimer cette ligne' : null });
     if (!r) return null;
     if (r.__danger) { if (await confirmBox('Supprimer cette ligne ?')) { await DB.delRaw('dsdossiers', existing.id); toast('Ligne supprimée'); return 'supprimee'; } return null; }
     const valeurs = {};
@@ -237,7 +238,8 @@
     }
     try {
       const d = DocumentStudio.remplir(m, valeurs, ctxOf(p));
-      await DB.putRaw('dsdossiers', existing ? { ...d, id: existing.id, creeLe: existing.creeLe, modifieLe: Date.now() } : { ...d, id: 'd_' + DB.uid(), creeLe: Date.now() });
+      const jour = /^\d{4}-\d{2}-\d{2}$/.test(r.__jour || '') ? r.__jour : jourInit;
+      await DB.putRaw('dsdossiers', existing ? { ...d, id: existing.id, creeLe: existing.creeLe, jour, modifieLe: Date.now() } : { ...d, id: 'd_' + DB.uid(), creeLe: Date.now(), jour });
       toast(existing ? 'Ligne modifiée' : 'Ligne ajoutée'); return d;
     } catch (e) { toast(String(e.message || e)); return null; }
   }
@@ -255,32 +257,90 @@
     root.querySelectorAll('.kseg [data-sv]').forEach(b => b.onclick = () => go(b.dataset.sv));
     ($('.kseg [data-sv-new]', root) || {}).onclick = async () => { const m = await nouveauSuivi(p); if (m) go(m.id); };
   }
-  // affiche le suivi choisi à la place du contenu Réception / Bétonnage ; retourne false si le suivi n'existe plus
+  // ---------- vue d'un suivi : même structure que Réception / Bétonnage (filtres, mois repliables → jours, bouton +, partage) ----------
+  const jourOf = (d) => d.jour || new Date(d.creeLe || Date.now()).toISOString().slice(0, 10);
+  const colDe = (m, re) => m.champs.find(c => re.test(AutoNorm(c.libelle)));
+  const AutoNorm = (x) => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const texteLigne = (m, d) => m.champs.map(c => { const v = show(c, d.valeurs[c.id]); return v ? `${c.libelle} : ${v}` : ''; }).filter(Boolean).join(' · ');
+  // choisir la date d'une nouvelle ligne (aujourd'hui / date passée), comme pour un tableau de réception
+  async function choisirJour() {
+    const t0 = todayISO(), pick = await menu('Nouvelle ligne', [{ label: `Aujourd'hui (${fmtDate(t0)})`, icon: 'calendar', value: 'today' }, { label: 'Une date passée…', icon: 'history', value: 'past' }]);
+    if (!pick) return null;
+    if (pick === 'today') return t0;
+    const r = await formSheet('Choisir la date', [{ name: 'date', label: 'Date', type: 'date', value: t0 }], { okLabel: 'Continuer' });
+    return r && r.date ? r.date : null;
+  }
+  // page d'un jour : tableau des lignes de ce jour (toucher une ligne = modifier)
+  async function jourPage(p, m, jour) {
+    return new Promise((resolve) => {
+      const el = document.createElement('div'); el.className = 'fullpage sv-day'; document.body.appendChild(el);
+      const unBack = pushBack(() => { el.remove(); resolve(); }); const close = () => { unBack(); el.remove(); resolve(); };
+      const pdf = !!(m.visuel && m.visuel.fields && m.visuel.fields.length);
+      const draw = async () => {
+        const L = (await lignesOf(m)).filter(d => jourOf(d) === jour);
+        el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><div class="tb-title" style="flex:1"><b>${esc(m.nom)}</b><span>${fmtDate(jour)} · ${L.length} ligne${L.length > 1 ? 's' : ''}</span></div></div>
+          <div class="sv-daybody"><div class="ds-scroll sv-box"><table class="ds-tab"><thead><tr><th>#</th>${m.champs.map(c => `<th>${esc(c.libelle)}</th>`).join('')}${pdf ? '<th></th>' : ''}</tr></thead>
+          <tbody>${L.length ? L.map((d, i) => `<tr data-l="${esc(d.id)}"><td class="t-date0">${i + 1}</td>${m.champs.map(c => `<td class="t-${c.type}${c.type === 'case' ? (d.valeurs[c.id] ? ' ok' : ' no') : ''}">${esc(show(c, d.valeurs[c.id]))}</td>`).join('')}${pdf ? `<td><button class="sv-pdf" data-pdf="${esc(d.id)}">PDF</button></td>` : ''}</tr>`).join('') : `<tr><td colspan="${m.champs.length + 2}" class="sv-empty"><i>📝</i><b>Aucune ligne ce jour</b><small>Touchez « Nouvelle ligne »</small></td></tr>`}</tbody></table></div></div>
+          <div class="sv-add"><button class="btn" data-a="add">${icon('plus')} Nouvelle ligne</button></div>`;
+        ($('[data-a=x]', el) || {}).onclick = close;
+        ($('[data-a=add]', el) || {}).onclick = async () => { await ligneForm(p, m, null, { jour }); draw(); };
+        el.querySelectorAll('[data-pdf]').forEach(b => b.onclick = (e) => { e.stopPropagation(); const d = L.find(x => x.id === b.dataset.pdf); if (d) lignePdf(p, m, d); });
+        el.querySelectorAll('tr[data-l]').forEach(tr => tr.onclick = async () => { const d = L.find(x => x.id === tr.dataset.l); if (d) { await ligneForm(p, m, d); draw(); } });
+      };
+      draw();
+    });
+  }
   async function renderTab(root, p, kind) {
     const m = (await mine(p)).find(x => x.id === App.recTab.id);
     if (!m) { App.recTab = null; return false; }
-    const lignes = await lignesOf(m), q = (App.recSearchSv || '').trim().toLowerCase();
-    const txt = (d) => m.champs.map(c => show(c, d.valeurs[c.id])).join(' ').toLowerCase();
-    const L = q ? lignes.filter(d => txt(d).includes(q)) : lignes, pdf = !!(m.visuel && m.visuel.fields && m.visuel.fields.length);
+    App.svF = App.svF || {}; const F = App.svF[m.id] = App.svF[m.id] || { niv: '', zone: '', q: '' }, openM = (App.svOpen = App.svOpen || {});
+    const cN = colDe(m, /^(niv|niveau)\b/), cZ = colDe(m, /^zone\b/);
+    const toutes = await lignesOf(m), q = AutoNorm(F.q);
+    const val = (d, c) => c ? String(d.valeurs[c.id] ?? '').trim() : '';
+    const nivs = cN ? [...new Set(toutes.map(d => val(d, cN)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr', { numeric: true })) : [], zones = cZ ? [...new Set(toutes.map(d => val(d, cZ)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr', { numeric: true })) : [];
+    const L = toutes.filter(d => (!F.niv || val(d, cN) === F.niv) && (!F.zone || val(d, cZ) === F.zone) && (!q || AutoNorm(texteLigne(m, d)).includes(q)));
+    const jours = [...new Set(L.map(jourOf))].sort().reverse(), mois = [...new Set(jours.map(j => j.slice(0, 7)))];
     const seg = `<div class="kseg sv"><button data-k="reception" ${dispo('reception') ? '' : 'hidden'}>${icon('layers')} Réception</button><button data-k="beton" ${dispo('beton') ? '' : 'hidden'}>${icon('calendar')} Bétonnage</button>${await tabsHtml(p)}</div>`;
+    const fsel = (f, lab, cur, all) => `<button class="fsel ${cur ? 'on' : ''}" data-f="${f}"><small>${lab}</small><b>${esc(cur || all)}</b>${icon('chevdown')}</button>`;
     root.innerHTML = `${seg}
-      <div class="search">${icon('search')}<input placeholder="Rechercher dans « ${esc(m.nom)} »…" value="${esc(App.recSearchSv || '')}"></div>
-      <div class="sv-head"><span class="sv-t"><b>${esc(m.nom)}</b><small>${lignes.length} ligne${lignes.length > 1 ? 's' : ''}${q ? ` · ${L.length} affichée${L.length > 1 ? 's' : ''}` : ''} · ${m.champs.length} colonnes</small></span><button class="sv-cfg" data-a="cfg" title="Modifier le tableau">${icon('edit')}<span>Modifier</span></button></div>
-      <div class="ds-scroll sv-box"><table class="ds-tab"><thead><tr><th>Date</th>${m.champs.map(c => `<th>${esc(c.libelle)}</th>`).join('')}${pdf ? '<th></th>' : ''}</tr></thead>
-        <tbody>${L.length ? L.map(d => `<tr data-l="${esc(d.id)}"><td class="t-date0">${esc(jour(d.creeLe))}</td>${m.champs.map(c => `<td class="t-${c.type}${c.type === 'case' ? (d.valeurs[c.id] ? ' ok' : ' no') : ''}">${esc(show(c, d.valeurs[c.id]))}</td>`).join('')}${pdf ? `<td><button class="sv-pdf" data-pdf="${esc(d.id)}">PDF</button></td>` : ''}</tr>`).join('') : `<tr><td colspan="${m.champs.length + 2}" class="sv-empty">${q ? '🔍 Aucun résultat' : '<i>📝</i><b>Aucune ligne</b><small>Touchez « Nouvelle ligne » pour commencer</small>'}</td></tr>`}</tbody></table></div>
-      <div class="sv-add"><button class="btn" data-a="add">${icon('plus')} Nouvelle ligne</button></div>`;
+      <div class="search">${icon('search')}<input placeholder="Rechercher dans « ${esc(m.nom)} »…" value="${esc(F.q)}"></div>
+      <div class="fbar">${cN ? fsel('niv', 'Niveau', F.niv, 'Tous') : ''}${cZ ? fsel('zone', 'Zone', F.zone, 'Toutes') : ''}<button class="fsel sv-cfgb" data-a="cfg"><small>${m.champs.length} colonnes</small><b>${icon('edit')} Modifier</b></button>${F.niv || F.zone ? `<button class="fclear" data-f="clear" title="Effacer">${icon('close')}</button>` : ''}</div>
+      <div id="svBody"></div>`;
+    const body = $('#svBody', root);
+    if (!L.length) body.innerHTML = `<div class="empty">${toutes.length ? '🔍 Aucun résultat avec ces filtres.' : `Aucune ligne pour le moment.<br>Appuyez sur <b>+</b> pour ajouter la première.`}</div>`;
+    for (const mo of mois) {
+      const key = m.id + mo; if (openM[key] === undefined) openM[key] = mo === mois[0];
+      const jm = jours.filter(j => j.slice(0, 7) === mo), n = L.filter(d => jourOf(d).slice(0, 7) === mo).length, open = openM[key];
+      const card = document.createElement('div'); card.className = 'card mcard';
+      card.innerHTML = `<div class="folder-head"><span class="fh-ic">${icon('calendar')}</span><div class="grow"><div class="title">${monthLabel(mo)}</div><div class="sub">${jm.length} jour(s) · ${n} ligne(s)</div></div><span class="fh-chev" style="transform:rotate(${open ? 180 : 0}deg)">${icon('chevdown')}</span></div>
+        ${open ? `<div class="plan-rows">${jm.map(j => { const nj = L.filter(d => jourOf(d) === j).length;
+          return `<div class="prow" data-j="${j}"><span class="daybox"><b>${j.slice(8, 10)}</b><small>${MONTHS[+j.slice(5, 7) - 1].slice(0, 3)}</small></span><div class="nm"><div style="font-size:16px">${fmtDate(j)}</div><div style="font-size:13px;color:var(--muted);margin-top:2px">${nj} ligne${nj > 1 ? 's' : ''}</div></div></div>`; }).join('')}</div>` : ''}`;
+      body.appendChild(card);
+      ($('.folder-head', card) || {}).onclick = () => { openM[key] = !open; renderSection(); };
+      card.querySelectorAll('.prow[data-j]').forEach(r => r.onclick = async () => { await jourPage(p, m, r.dataset.j); renderSection(); });
+    }
     root.querySelectorAll('.kseg [data-k]').forEach(b => b.onclick = () => { App.recTab = null; App.section = b.dataset.k; renderSection(); });
     bindTabs(root, p);
     const kb = $('.kseg', root), on = $('.kseg .on', root); if (kb && on) kb.scrollLeft = Math.max(0, on.offsetLeft - 60);   // l'onglet actif reste visible
-    const rr = () => renderSection();
-    ($('.search input', root) || {}).oninput = (e) => { App.recSearchSv = e.target.value; clearTimeout(renderTab._t); renderTab._t = setTimeout(async () => { const pos = e.target.selectionStart; await renderTab(root, p, kind); const i = $('.search input', root); if (i) { i.focus(); try { i.setSelectionRange(pos, pos); } catch (x) {} } }, 250); };
-    ($('[data-a=add]', root) || {}).onclick = async () => { await ligneForm(p, m); rr(); };
-    ($('[data-a=cfg]', root) || {}).onclick = async () => { const r = await suiviBuilder(p, m); if (r === 'supprime') App.recTab = null; rr(); };
-    root.querySelectorAll('[data-pdf]').forEach(b => b.onclick = (e) => { e.stopPropagation(); const d = lignes.find(x => x.id === b.dataset.pdf); if (d) lignePdf(p, m, d); });
-    root.querySelectorAll('tr[data-l]').forEach(tr => tr.onclick = async () => { const d = lignes.find(x => x.id === tr.dataset.l); if (d) { await ligneForm(p, m, d); rr(); } });
+    const inp = $('.search input', root);
+    inp.oninput = () => { F.q = inp.value; clearTimeout(inp._t); inp._t = setTimeout(async () => { const pos = inp.selectionStart; await renderTab(root, p, kind); const i = $('.search input', root); if (i) { i.focus(); try { i.setSelectionRange(pos, pos); } catch (x) {} } }, 250); };
+    root.querySelectorAll('[data-f]').forEach(b => b.onclick = async () => {
+      const f = b.dataset.f; if (f === 'clear') { F.niv = ''; F.zone = ''; return renderSection(); }
+      const list = f === 'niv' ? nivs : zones, v = await menu(f === 'niv' ? 'Filtrer par niveau' : 'Filtrer par zone', [{ label: f === 'niv' ? 'Tous les niveaux' : 'Toutes les zones', icon: 'check', value: '__all' }, ...list.map(x => ({ label: f === 'niv' ? x : 'Zone ' + x, icon: 'layers', value: x }))]);
+      if (v == null) return; F[f] = v === '__all' ? '' : v; renderSection();
+    });
+    ($('[data-a=cfg]', root) || {}).onclick = async () => { const r = await suiviBuilder(p, m); if (r === 'supprime') App.recTab = null; renderSection(); };
+    // partage : un jour (texte) via WhatsApp, comme la barre verte de Réception
+    const sb = document.createElement('div'); sb.className = 'sharebar'; sb.innerHTML = `<button data-sb>${icon('share')} Partager ${esc(m.nom)}…</button>`; root.appendChild(sb);
+    ($('[data-sb]', sb) || {}).onclick = async () => {
+      const js = [...new Set(toutes.map(jourOf))].sort().reverse(); if (!js.length) return toast('Aucune ligne');
+      const j = await menu('Quel jour ?', js.slice(0, 12).map(x => ({ label: `${fmtDate(x)} · ${toutes.filter(d => jourOf(d) === x).length} ligne(s)`, icon: 'calendar', value: x })));
+      if (!j) return;
+      shareWhatsApp(`${m.nom} · ${p.name}\n${fmtDate(j)}\n` + toutes.filter(d => jourOf(d) === j).map((d, i) => `${i + 1}. ${texteLigne(m, d)}`).join('\n'));
+    };
+    fab(root, async () => { const j = await choisirJour(); if (!j) return; const d = await ligneForm(p, m, null, { jour: j }); if (d && d !== 'supprimee') { openM[m.id + j.slice(0, 7)] = true; await jourPage(p, m, j); } renderSection(); });
     return true;
   }
-
   window.openSuivis = openSuivis;
   window.SuivisTabs = { tabsHtml, bind: bindTabs, render: renderTab };
   window.SuivisPerso = { mine, lignesOf, ctxOf, visuelEditer, PRESETS, colsOfPreset };

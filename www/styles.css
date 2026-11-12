@@ -3943,3 +3943,8 @@ table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-
 .emb-wrap .ptab-w { max-height: none; }
 .emb > .topbar { justify-content: flex-end; background: transparent; }
 .emb > .topbar .tb-title { display: none; }
+/* suivi : même structure que Réception (mois → jours, filtres, bouton +) */
+.sv-day .sv-daybody { flex: 1; overflow: auto; padding: 12px 0 100px; }
+.fsel.sv-cfgb { flex: 0 0 auto; } .fsel.sv-cfgb b { display: inline-flex; align-items: center; gap: 6px; } .fsel.sv-cfgb svg.i { width: 15px; height: 15px; }
+.sv-day .sv-add { position: fixed; left: 0; right: 0; bottom: 0; }
+body:has(.sv-day) #plansFab { display: none !important; }
