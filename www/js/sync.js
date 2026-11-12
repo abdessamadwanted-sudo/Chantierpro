@@ -365,8 +365,11 @@ const Sync = (() => {
     } catch (e) {
       // v1.0.35 : message clair (au lieu de « Missing or insufficient permissions ») ; le détail reste dans la liste des problèmes
       const raw = String(e.message || e), perm = e.code === 'permission-denied' || /insufficient permissions|permission-denied/i.test(raw);
-      console.error('sync', e); LS.set('fails', [perm ? 'Accès refusé par le serveur : les règles Firestore / Storage publiées ne sont pas à jour (Réglages › Copier les règles, puis console Firebase › Publier). Détail : ' + raw : raw]);
-      setStatus('error', perm ? 'Règles du serveur à publier — touchez pour voir' : raw.slice(0, 80));
+      // v1.0.? : « Quota exceeded. » brut (Firestore, plan gratuit Spark) prêtait à confusion avec le quota Google Drive — message clair
+      const quota = !perm && (e.code === 'resource-exhausted' || /quota exceeded/i.test(raw));
+      console.error('sync', e); LS.set('fails', [perm ? 'Accès refusé par le serveur : les règles Firestore / Storage publiées ne sont pas à jour (Réglages › Copier les règles, puis console Firebase › Publier). Détail : ' + raw
+        : quota ? 'Quota Firestore (base de données) dépassé — limite quotidienne atteinte, réessayez plus tard ou passez au plan payant (Blaze). Détail : ' + raw : raw]);
+      setStatus('error', perm ? 'Règles du serveur à publier — touchez pour voir' : quota ? 'Quota Firestore dépassé — touchez pour voir' : raw.slice(0, 80));
     } finally {
       running = false;
       if (again) schedule(1500);
