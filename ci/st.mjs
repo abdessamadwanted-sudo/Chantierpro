@@ -1631,7 +1631,7 @@ try {
     return o;
   });
   log('Suivis personnalisés', sv);
-  if (!sv.noProject && !(sv.galerie && sv.poste && sv.preNom && sv.onglet && sv.structure && sv.entete && sv.ligne && sv.edit && sv.entetePro && sv.coller && sv.filtre && sv.rename && sv.recherche && sv.retour && sv.sync)) throw new Error('suivis personnalisés KO ' + JSON.stringify(sv));
+  if (!sv.noProject && !(sv.galerie && sv.poste && sv.preNom && sv.onglet && sv.structure && sv.entete && sv.ligne && sv.edit && sv.entetePro && sv.coller && sv.filtre && sv.rename && sv.archive && sv.recherche && sv.retour && sv.sync)) throw new Error('suivis personnalisés KO ' + JSON.stringify(sv));
   // ---- Suivis personnalisés + modèle visuel : cases liées aux colonnes, PDF écrit sur le bon
   const sv2 = await A.pg.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};

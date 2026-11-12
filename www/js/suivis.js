@@ -9,6 +9,9 @@
   const projId = (p) => 'p_' + String(p.id).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60);
   const ctxOf = (p) => ({ entrepriseId: entId(), projetId: projId(p) });
   const mine = async (p) => (await DB.all('dsmodeles')).filter(m => m.entrepriseId === entId() && m.projetId === projId(p) && m.categorie === 'suivi').sort((a, b) => a.nom.localeCompare(b.nom));
+  // archivage : un suivi archivé disparaît des onglets mais garde toutes ses lignes (restaurable depuis « + »)
+  const actifs = async (p) => (await mine(p)).filter(m => !m.archive);
+  async function archiver(m, val) { const cur = (await mine({ id: m.projetId.slice(2) })).find(x => x.id === m.id) || m; await DB.putRaw('dsmodeles', { ...cur, archive: val ? Date.now() : null }); }
   const lignesOf = async (m) => (await DB.all('dsdossiers')).filter(d => d.modeleId === m.id && d.entrepriseId === m.entrepriseId).sort((a, b) => (b.creeLe || 0) - (a.creeLe || 0));
   const unique = (base, taken) => { let id = base, i = 2; while (taken.has(id)) id = base + '_' + i++; return id; };
 
@@ -19,12 +22,12 @@
     if (typeof DocumentStudio === 'undefined') return toast('Module non chargé');
     const sec = dispo('reception') ? 'reception' : dispo('beton') ? 'beton' : null;
     if (!sec) return listeFeuille(p);
-    let list = await mine(p);
+    let list = await actifs(p);
     if (!list.length) { const m = await nouveauSuivi(p); if (!m) return; list = [m]; }
     App.recTab = { pid: p.id, id: list[0].id }; App.section = sec; renderSection();
   }
   async function listeFeuille(p) {
-    const list = await mine(p), counts = {};
+    const list = await actifs(p), counts = {};
     for (const m of list) counts[m.id] = (await lignesOf(m)).length;
     const s = sheet(`<div class="form">
       ${list.length ? list.map(m => `<button class="menu-item" data-open="${esc(m.id)}"><b>${esc(m.nom)}</b><small>${m.champs.length} colonne(s) · ${counts[m.id]} ligne(s)</small></button>`).join('')
@@ -130,12 +133,13 @@
     const ty = p.type, mon = monService(), poste = (x) => !!mon.k && (x.svc || []).includes(mon.k);
     // d'abord les modèles du poste de l'utilisateur, puis ceux du type de projet, puis les autres
     const ordre = PRESETS.map((x, i) => ({ x, i, pos: poste(x), rel: !poste(x) && !!(ty && x.types.includes(ty)) })).sort((a, b) => (b.pos - a.pos) || (b.rel - a.rel) || (a.i - b.i));
-    const T = typeof projTypeOf === 'function' && projTypeOf(ty);
+    const T = typeof projTypeOf === 'function' && projTypeOf(ty), arch = (await mine(p)).filter(m => m.archive);
     const v = await new Promise((resolve) => {
       let pick = null;
       const card = (o) => `<button class="sv-card ${o.rel || o.pos ? 'rel' : ''}" data-i="${o.i}"><i>${o.x.ico}</i><b>${esc(o.x.nom)}</b><small>${o.x.cols.length} colonnes</small>${o.pos ? '<em>👤 votre poste</em>' : o.rel ? '<em>⭐ conseillé</em>' : ''}</button>`;
       const s = sheet(`<div class="sv-gal">
         <p class="sv-sub">${T ? `${T.e} Projet : ${esc(T.n.replace(/\s*\(.*\)/, ''))}. ` : ''}Choisissez un modèle prêt, vous pourrez tout modifier ensuite.</p>
+        ${arch.length ? `<button class="sv-card sv-blank" data-i="arch"><i>🗄️</i><span><b>Suivis archivés (${arch.length})</b><small>Restaurer un suivi</small></span></button>` : ''}
         <button class="sv-card sv-blank" data-i="-1"><i>✏️</i><span><b>Suivi vide</b><small>Je choisis moi-même les colonnes</small></span></button>
         ${ordre.some(o => o.pos) ? `<h4>Pour votre poste${mon.l ? ' (' + esc(mon.l) + ')' : ''}</h4><div class="sv-grid">${ordre.filter(o => o.pos).map(card).join('')}</div>` : ''}
         ${ordre.some(o => o.rel) ? `<h4>Conseillés pour ce projet</h4><div class="sv-grid">${ordre.filter(o => o.rel).map(card).join('')}</div>` : ''}
@@ -146,6 +150,10 @@
       s.onClose = () => resolve(pick);
     });
     if (v == null || v === '') return null;
+    if (v === 'arch') {
+      const r = await menu('Suivis archivés', arch.map(m => ({ label: m.nom, icon: 'folder', value: m.id })));
+      if (!r) return null; const m = arch.find(x => x.id === r); await archiver(m, false); toast('Suivi restauré'); return m;
+    }
     const m = await suiviBuilder(p, null, +v >= 0 ? PRESETS[+v] : null);
     return m && m !== 'supprime' ? m : null;
   }
@@ -268,7 +276,7 @@
   const jour = (t) => { try { return new Date(t).toLocaleDateString('fr-FR'); } catch (e) { return ''; } };
   async function tabsHtml(p) {
     if (typeof DocumentStudio === 'undefined') return '';
-    const list = await mine(p), act = App.recTab && App.recTab.pid === p.id ? App.recTab.id : null;
+    const list = await actifs(p), act = App.recTab && App.recTab.pid === p.id ? App.recTab.id : null;
     return list.map(m => `<button class="${act === m.id ? 'on' : ''}" data-sv="${esc(m.id)}">${icon('grid')} ${esc(m.nom)}</button>`).join('') + `<button class="sv-plus" data-sv-new title="Nouveau suivi">＋</button>`;
   }
   function bindTabs(root, p) {
@@ -422,5 +430,5 @@
   }
   window.openSuivis = openSuivis;
   window.SuivisTabs = { tabsHtml, bind: bindTabs, render: renderTab };
-  window.SuivisPerso = { monService, mine, lignesOf, ctxOf, visuelEditer, PRESETS, colsOfPreset };
+  window.SuivisPerso = { monService, actifs, archiver, mine, lignesOf, ctxOf, visuelEditer, PRESETS, colsOfPreset };
 })();
