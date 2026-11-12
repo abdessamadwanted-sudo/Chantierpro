@@ -47,8 +47,17 @@
   }
   const canW = () => { try { return Team.lvl('files') >= 2; } catch (e) { return true; } };
 
-  const tabsHtml = (cur) => `<div class="qd-tabs">${[['parties', "🧱 Partie d'ouvrage"], ['mz', '🎯 Mission / zone'], ['type', '🗂️ Type']].map(([k, l]) => `<button class="${k === cur ? 'on' : ''}" data-v="${k}">${l}</button>`).join('')}</div>`;
+  const isEnt = () => { try { return !!(window.ST && ST.isEnt && ST.isEnt()); } catch (e) { return false; } };
+  const tabsHtml = (cur) => `<div class="qd-tabs">${[['parties', "🧱 Partie d'ouvrage"], ...(isEnt() ? [['mz', '🎯 Mission / zone']] : []), ['type', '🗂️ Type']].map(([k, l]) => `<button class="${k === cur ? 'on' : ''}" data-v="${k}">${l}</button>`).join('')}</div>`;
   // vue par mission ou par zone : pièces regroupées selon la mission et la zone auxquelles elles sont rattachées
+  // alertes : missions en retard, missions sans pièce, parties d'ouvrage incomplètes
+  const alertes = (p, files) => {
+    const M = missionsOf(p), D = docsAll(files), today = new Date().toISOString().slice(0, 10), open = M.filter(m => m.statut !== 'done');
+    const late = open.filter(m => m.echeance && m.echeance < today), vide = open.filter(m => !D.some(f => f.missionId === m.id));
+    const inc = partsOf(p).filter(x => stat(x, files).manque.length);
+    return { late, vide, inc, n: late.length + vide.length + inc.length };
+  };
+  const alertesHtml = (a) => a.n ? `<div class="qd-al"><b>⚠ À traiter</b>${a.late.length ? `<span>⏰ ${a.late.length} mission(s) en retard</span>` : ''}${a.vide.length ? `<span>📎 ${a.vide.length} mission(s) sans pièce</span>` : ''}${a.inc.length ? `<span>🧱 ${a.inc.length} partie(s) d'ouvrage incomplète(s)</span>` : ''}</div>` : '';
   async function renderMZ(root) {
     const p = App.project, S = (App.mzSt = App.mzSt || { mode: 'mission', key: null }), W = canW();
     const files = docsAll(await DB.byProject('files', p.id)), M = missionsOf(p);
@@ -57,7 +66,7 @@
       ? [...M.map(m => ({ k: m.id, t: m.titre, sub: m.memNom || '', L: files.filter(f => f.missionId === m.id) })), { k: '__none', t: 'Sans mission', sub: '', L: files.filter(f => !f.missionId || !M.some(m => m.id === f.missionId)) }]
       : [...zonesOf(p, files).map(z => ({ k: z, t: z, sub: '', L: files.filter(f => f.zone === z) })), { k: '__none', t: 'Sans zone', sub: '', L: files.filter(f => !f.zone) }];
     const g = S.key && groups.find(x => x.k === S.key);
-    const head = `<div class="pagehead"><h2>Documentation & archives</h2><p>Les pièces rangées par mission ou par zone</p></div>${tabsHtml('mz')}`;
+    const head = `<div class="pagehead"><h2>Documentation & archives</h2><p>Les pièces rangées par mission ou par zone</p></div>${tabsHtml('mz')}${alertesHtml(alertes(p, files))}`;
     if (!g) {
       root.innerHTML = `${head}<div class="qd-tabs qd-sub"><button class="${S.mode === 'mission' ? 'on' : ''}" data-m="mission">🎯 Par mission</button><button class="${S.mode === 'zone' ? 'on' : ''}" data-m="zone">📍 Par zone</button></div>
         <div class="qd-list">${groups.map(x => `<button class="qd-card" data-k="${esc(x.k)}"><div class="qd-h"><b>${esc(x.t)}</b><span class="qd-n">${x.L.length} pièce${x.L.length > 1 ? 's' : ''}</span></div><small>${esc(x.sub)}${x.sub && !x.L.length ? ' · ' : ''}${!x.L.length && x.k !== '__none' ? '⚠ aucune pièce' : ''}</small></button>`).join('')}</div>`;
@@ -78,7 +87,7 @@
       if (v === 'ref') { const q = await askRef(p, files, f); if (q) { addHist(f, 'rattachée', refTxt(p, { ...f, ...q }) || 'sans mission ni zone'); Object.assign(f, q); await DB.put('files', f); } renderMZ(root); } });
   }
   async function render(root) {
-    if (App.docView === 'mz') return renderMZ(root);
+    if (App.docView === 'mz' && isEnt()) return renderMZ(root);
     const p = App.project, S = (App.qSt = App.qSt || {});
     if (S.pid !== p.id) { S.pid = p.id; S.part = null; S.rub = null; }
     const files = (await DB.byProject('files', p.id)), parts = partsOf(p);
@@ -153,5 +162,5 @@
       toast(n + ' pièce(s) ajoutée(s) ✓'); render(root);
     });
   }
-  window.QualiteDocs = { render, renderMZ, missionsOf, zonesOf, refTxt, partsOf, stat, addHist, catOf, DEF };
+  window.QualiteDocs = { render, renderMZ, alertes, missionsOf, zonesOf, refTxt, partsOf, stat, addHist, catOf, DEF };
 })();
