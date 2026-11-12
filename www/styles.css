@@ -3963,3 +3963,15 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .sv-sig.on { border-style: solid; border-color: #16a34a; }
 .sv-sig img { max-width: 100%; height: 44px; object-fit: contain; background: #fff; }
 .sv-sig b { font-size: 13px; } .sv-sig small { color: #5b6578; font-size: 11px; } .sv-sig em { font-style: normal; color: #b45309; font-size: 11px; font-weight: 700; }
+
+/* Organigramme : branches, missions et code d'accès */
+.og-br { display: flex; gap: 8px; padding: 6px 12px 2px; overflow-x: auto; }
+.og-br button { flex: none; padding: 7px 12px; border-radius: 99px; background: var(--card); border: 1px solid var(--line); color: var(--muted); font-weight: 700; font-size: 13px; }
+.og-br button.on { background: var(--accent); border-color: transparent; color: #fff; } .og-br button i { font-style: normal; opacity: .75; margin-left: 2px; }
+.og-fw .og-sec { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); display: grid; gap: 6px; }
+.og-sec h4 { margin: 0; font-size: 14px; display: flex; align-items: center; gap: 6px; } .og-sec h4 i { font-style: normal; background: var(--bg2); border-radius: 99px; padding: 0 8px; font-size: 12px; color: var(--muted); }
+.og-ms { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 9px 10px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); color: var(--text); }
+.og-ms b { display: block; font-size: 13.5px; } .og-ms small { display: block; color: var(--muted); font-size: 11.5px; } .og-ms svg { width: 16px; height: 16px; color: var(--muted); }
+.og-mst { flex: none; color: #fff; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 8px; }
+.og-code { display: grid; gap: 4px; padding: 10px 12px; border-radius: 12px; background: var(--bg2); border: 1px dashed var(--accent); }
+.og-code b { font-size: 22px; letter-spacing: 3px; font-variant-numeric: tabular-nums; } .og-code small { color: var(--muted); } .og-code.old { opacity: .6; border-color: var(--line); }

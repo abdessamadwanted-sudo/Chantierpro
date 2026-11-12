@@ -294,7 +294,7 @@ function orgSvg(p, collapsed, { forExport } = {}) {
       <circle cx="${x0 + 28}" cy="${y0 + CH / 2}" r="15" fill="${c}"/><text x="${x0 + 28}" y="${y0 + CH / 2 + 5}" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">${X((m.name || '?')[0].toUpperCase())}</text>
       <text x="${x0 + 50}" y="${y0 + 26}" font-size="13" font-weight="700" fill="${forExport ? '#0f172a' : 'var(--text)'}">${X((m.name || '').slice(0, 17))}${m.me ? ' (moi)' : ''}</text>
       <text x="${x0 + 50}" y="${y0 + 43}" font-size="10.5" fill="${forExport ? '#475569' : 'var(--muted)'}">${X(((P && P.n) || m.role || '').slice(0, 24))}</text>
-      <text x="${x0 + 50}" y="${y0 + 58}" font-size="10" fill="${c}">${X(((P && P.svc.n) || '').slice(0, 24))}${m.interim ? ' · intérim' : ''}</text>
+      <text x="${x0 + 50}" y="${y0 + 58}" font-size="10" fill="${c}">${X(((P && P.svc.n) || '').slice(0, 24))}${m.branche ? ' · ' + (m.branche === 'admin' ? 'Admin' : 'Chantier') : ''}${m.interim ? ' · intérim' : ''}${missionStats(m).open ? ' · 🎯' + missionStats(m).open : ''}</text>
       ${n ? `<g data-cl="${m.id}"><circle cx="${x0 + CW / 2}" cy="${y0 + CH}" r="9" fill="${c}"/><text x="${x0 + CW / 2}" y="${y0 + CH + 4}" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">${collapsed.has(m.id) ? '+' : '−'}</text></g>` : ''}</g>`; }).join('');
   return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${Ly.W}" height="${Ly.H}" viewBox="0 0 ${Ly.W} ${Ly.H}" font-family="Roboto, Arial, sans-serif">${forExport ? `<rect width="100%" height="100%" fill="#fff"/>` : ''}${lines}${cards}</svg>`, W: Ly.W, H: Ly.H, pos: Ly.pos, CW, CH, O };
 }
@@ -304,15 +304,44 @@ async function orgImage(p, collapsed) {
   const c = document.createElement('canvas'); c.width = Math.round(W * k); c.height = Math.round(H * k); const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
   return { canvas: c, W, H };
 }
+
+// ---------- Service Qualité : branches Administratif / Chantier, missions par personne, code d'accès (v1.0.2xx) ----------
+const ORG_BR = [['admin', '🏢', 'Administratif'], ['chantier', '🏗️', 'Chantier']];
+const orgBrLabel = (k) => (ORG_BR.find(x => x[0] === k) || [])[2] || '';
+// parties d'ouvrage proposées pour une mission (liste libre : « Autre » garde le titre)
+const PARTIES_OUVRAGE = ['Terrassement et fondation', 'Gros œuvre', 'Étanchéité', 'Second œuvre', 'Finitions', 'Lots techniques (plomberie, électricité, CVC)', 'VRD et réseaux', 'Chaussée', 'Ouvrages d\'art', 'Documentation / archivage'];
+const MISSION_ST = { todo: ['À faire', '#64748b'], doing: ['En cours', '#3b82f6'], done: ['Terminée', '#22c55e'] };
+// poste de l'organigramme du chantier → poste de l'organisation SiteTeam (utilisé pour le code d'accès)
+const POSTE_ROLE = { dirproj: 'dirprojet', dirtrav: 'dirtravaux', ingtrav: 'conducteur', conduct: 'conducteur', chef: 'chefchantier', cheq: 'chefequipe',
+  dirq: 'dirqualite', ingq: 'ingqualite', respq: 'respqualite', tsq: 'techqualite', ctrl: 'ctrlqualite',
+  dirlab: 'resplabo', inglab: 'resplabo', resplab: 'resplabo', techlab: 'techlabo', oper: 'techlabo',
+  dirhse: 'resphse', inghse: 'resphse', resphse: 'resphse', suphse: 'animhse', anim: 'animhse', secu: 'animhse',
+  topo: 'techtopo', metreur: 'metreur', respach: 'respachats', ach: 'acheteur', mag: 'magasinier', daf: 'respadmin', compta: 'comptable' };
+const roleOfMember = (m) => POSTE_ROLE[m.poste] || ({ trav: 'techtravaux', qual: 'techqualite', labo: 'techlabo', hse: 'animhse' })[m.service] || 'techtravaux';
+const missionsOf = (m) => (m.missions || []);
+const missionStats = (m) => { const L = missionsOf(m); return { n: L.length, done: L.filter(x => x.statut === 'done').length, open: L.filter(x => x.statut !== 'done').length }; };
+// vue filtrée par branche : les membres de la branche + leur chaîne de supérieurs (pour garder l'arbre connecté)
+function orgVue(p, br) {
+  if (!br) return p;
+  const L = p.team, keep = new Set();
+  L.filter(m => m.branche === br).forEach(m => { let c = m; const seen = new Set(); while (c && !seen.has(c.id)) { seen.add(c.id); keep.add(c.id); c = L.find(x => x.id === memParent(L, c)); } });
+  return { ...p, team: L.filter(m => keep.has(m.id)) };
+}
+// code d'accès : gardé seulement sur ce téléphone (jamais dans le projet synchronisé, pour ne pas l'exposer aux autres membres)
+const ogCodeKey = (m) => 'og.code.' + m.id;
+const ogCodeGet = (m) => { try { const c = JSON.parse(localStorage.getItem(ogCodeKey(m)) || 'null'); return c && c.code ? c : null; } catch (e) { return null; } };
+const ogCodeSet = (m, c) => { try { c ? localStorage.setItem(ogCodeKey(m), JSON.stringify(c)) : localStorage.removeItem(ogCodeKey(m)); } catch (e) {} };
+window.OrgQ = { ORG_BR, PARTIES_OUVRAGE, POSTE_ROLE, roleOfMember, missionStats, orgVue, ogCodeGet, ogCodeSet };
 async function renderOrg(root) {
   const p = App.project; if (orgMembers(p)) await DB.put('projects', p);
-  const collapsed = new Set(p.orgCollapsed || []), canE = orgEdit('org');
+  const collapsed = new Set(p.orgCollapsed || []), canE = orgEdit('org'), br = App.orgBr || '';
   const save = () => DB.put('projects', p), redraw = () => renderOrg(root);
   root.innerHTML = `<div class="og"><div class="og-bar"><b>Organigramme</b><small>${p.team.length} personne(s)</small><span class="grow"></span>
       ${canE ? `<button class="btn small" data-a="add">${icon('plus')} Personne</button>` : ''}<button class="iconbtn" data-a="exp">${icon('share')}</button></div>
+    <div class="og-br">${[['', '👥', 'Tous'], ...ORG_BR].map(([k, e, l]) => `<button data-br="${k}" class="${br === k ? 'on' : ''}">${e} ${l}${k ? ` <i>${p.team.filter(m => m.branche === k).length}</i>` : ''}</button>`).join('')}</div>
     <div class="og-vp"><div class="og-st"></div><div class="og-zc"><button data-z="in" aria-label="Zoom avant">＋</button><button data-z="out" aria-label="Zoom arrière">－</button><button data-z="fit" aria-label="Ajuster">⤢</button><button data-z="full" aria-label="Plein écran">⛶</button></div></div>${p.team.length <= 1 && canE ? '<div class="og-empty"><b>Créer l\'organigramme</b><span>1. Touchez « ＋ Personne »<br>2. Nom, service, poste et responsable (N+1)<br>3. L\'organigramme se dessine tout seul — exportez-le en PDF avec ⤴</span></div>' : ''}<div class="og-hint">Glissez pour déplacer · pincez ou ＋/－ pour zoomer · touchez une carte · ± pour plier une branche</div></div>`;
   const vp = $('.og-vp', root), stg = $('.og-st', root); let G;
-  const build = () => { G = orgSvg(p, collapsed); stg.innerHTML = G.svg; stg.style.width = G.W + 'px'; stg.style.height = G.H + 'px'; };
+  const build = () => { G = orgSvg(orgVue(p, br), collapsed); stg.innerHTML = G.svg; stg.style.width = G.W + 'px'; stg.style.height = G.H + 'px'; };
   build();
   const pz = panZoom(vp, stg, G.W, G.H, { onTap: ([x, y]) => {
     for (const q of G.pos.values()) { const x0 = q.x + G.O, y0 = q.y + G.O;
@@ -325,11 +354,12 @@ async function renderOrg(root) {
     if (z === 'in') pz.zoomAt(ctr(), pz.st.s * 1.35); if (z === 'out') pz.zoomAt(ctr(), pz.st.s / 1.35); if (z === 'fit') pz.fit();
     if (z === 'full') { const og = $('.og', root); og.classList.toggle('full'); b.textContent = og.classList.contains('full') ? '✕' : '⛶'; setTimeout(() => pz.fit(), 60); } });
   $$('.og-zc', root).forEach(x => ['pointerdown', 'pointerup'].forEach(ev => x.addEventListener(ev, e => e.stopPropagation())));
+  $$('[data-br]', root).forEach(b => b.onclick = () => { App.orgBr = b.dataset.br; redraw(); });
   if (canE) ($('[data-a=add]', root)||{}).onclick = () => orgEditMember(p, null, save, redraw);
   ($('[data-a=exp]', root)||{}).onclick = async () => {
     const v = await menu('Organigramme', [{ label: 'PDF (A4 / A3 paysage)', icon: 'pdf', value: 'pdf' }, { label: 'Image (WhatsApp)', icon: 'image', value: 'png' }]); if (!v) return;
     const ld = loading('Création…');
-    try { const { canvas, W, H } = await orgImage(p, collapsed);
+    try { const { canvas, W, H } = await orgImage(orgVue(p, br), collapsed);
       if (v === 'png') { const b = await new Promise(r => canvas.toBlob(r, 'image/png')); ld.close(); return shareBlob(b, `Organigramme_${safeName(p.name)}.png`); }
       const fmt = W > 1400 ? 'a3' : 'a4', doc = new window.jspdf.jsPDF({ unit: 'mm', format: fmt, orientation: 'landscape' }), PW = doc.internal.pageSize.getWidth(), PH = doc.internal.pageSize.getHeight();
       doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.text(pt(`Organigramme — ${p.name}`), 12, 14); doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(110); doc.text(pt(`Mis à jour le ${fmtDate(todayISO())}`), 12, 20);
@@ -343,6 +373,7 @@ async function orgEditMember(p, m, save, redraw) {
   const r = await formSheet(m ? 'Modifier' : 'Nouvelle personne', [
     { name: 'name', label: 'Nom', value: m?.name },
     { name: 'poste', label: 'Poste', type: 'select', value: m?.poste || '', options: [{ value: '', label: '— autre —' }, ...SERVICES.flatMap(s => s.postes.map(x => ({ value: x.k, label: `${s.e} ${x.n}` })))] },
+    { name: 'branche', label: 'Branche', type: 'select', value: m?.branche || '', options: [{ value: '', label: '— non classé —' }, ...ORG_BR.map(([k, e, l]) => ({ value: k, label: `${e} ${l}` }))] },
     { name: 'role', label: 'Fonction / entreprise (texte libre)', value: m?.role },
     { name: 'phone', label: 'Téléphone', type: 'tel', value: m?.phone },
     { name: 'parent', label: 'Supérieur direct (N+1)', type: 'select', value: m?.parent || '', options: [{ value: '', label: 'Automatique (selon le poste)' }, { value: '__none', label: 'Personne (tout en haut)' }, ...others.map(x => ({ value: x.id, label: x.name }))] },
@@ -356,12 +387,47 @@ async function orgEditMember(p, m, save, redraw) {
 }
 async function orgFiche(p, m, canE, save, redraw) {
   const P = memPoste(m), L = p.team, par = L.find(x => x.id === memParent(L, m)), sub = L.filter(x => memParent(L, x) === m.id), it = m.interim && L.find(x => x.id === m.interim);
-  const s = sheet(`<div class="og-f" style="--c:${memColor(m)}"><div class="og-fa">${esc((m.name || '?')[0].toUpperCase())}</div><b>${esc(m.name || '')}${m.me ? ' (moi)' : ''}</b><span>${esc(P ? P.svc.e + ' ' + P.n : m.role || '')}</span>
-    ${par ? `<small>N+1 : ${esc(par.name)}</small>` : ''}${sub.length ? `<small>Équipe : ${sub.map(x => esc(x.name)).join(', ')}</small>` : ''}
+  const team = typeof Team !== 'undefined' && Team.ready && Team.ready(), canCode = canE && team && Team.canInviteNow && Team.canInviteNow();
+  const draw = () => {
+    const cd = ogCodeGet(m), ms = missionsOf(m), ok = cd && (Date.now() - cd.at) < 7 * 864e5;
+    return `<div class="og-f" style="--c:${memColor(m)}"><div class="og-fa">${esc((m.name || '?')[0].toUpperCase())}</div><b>${esc(m.name || '')}${m.me ? ' (moi)' : ''}</b><span>${esc(P ? P.svc.e + ' ' + P.n : m.role || '')}</span>
+    ${m.branche ? `<small>${esc(orgBrLabel(m.branche))}</small>` : ''}${par ? `<small>N+1 : ${esc(par.name)}</small>` : ''}${sub.length ? `<small>Équipe : ${sub.map(x => esc(x.name)).join(', ')}</small>` : ''}
     ${it && (!m.interimTo || m.interimTo >= todayISO()) ? `<small class="og-int">🔁 En congé · intérim : ${esc(it.name)}${m.interimTo ? ' jusqu\'au ' + fmtDate(m.interimTo) : ''}</small>` : ''}
-    <div class="og-fb">${m.phone ? `<a class="btn small" href="tel:${esc(m.phone)}">${icon('phone')} Appeler</a><button class="btn small ghost" data-wa>WhatsApp</button>` : ''}${canE ? `<button class="btn small ghost" data-ed>${icon('edit')} Modifier</button>` : ''}</div></div>`, { title: 'Fiche' });
-  const wa = $('[data-wa]', s.el); if (wa) wa.onclick = () => openUrl('https://wa.me/' + String(m.phone).replace(/\D/g, '').replace(/^0/, '212'));
-  const ed = $('[data-ed]', s.el); if (ed) ed.onclick = () => { s.close(); orgEditMember(p, m, save, redraw); };
+    <div class="og-fb">${m.phone ? `<a class="btn small" href="tel:${esc(m.phone)}">${icon('phone')} Appeler</a><button class="btn small ghost" data-wa>WhatsApp</button>` : ''}${canE ? `<button class="btn small ghost" data-ed>${icon('edit')} Modifier</button>` : ''}</div></div>
+    <div class="og-sec"><h4>🎯 Missions <i>${ms.length}</i></h4>
+      ${ms.map(x => `<button class="og-ms" data-ms="${x.id}"><span class="og-mst" style="background:${MISSION_ST[x.statut || 'todo'][1]}">${MISSION_ST[x.statut || 'todo'][0]}</span><span class="grow"><b>${esc(x.titre)}</b><small>${esc(x.partie || '')}${x.echeance ? (x.partie ? ' · ' : '') + '📅 ' + fmtDate(x.echeance) : ''}</small></span>${icon('chevright')}</button>`).join('') || '<p class="muted" style="margin:4px 0">Aucune mission pour le moment.</p>'}
+      ${canE ? `<button class="btn small ghost" data-a="msnew">${icon('plus')} Mission</button>` : ''}</div>
+    <div class="og-sec"><h4>🔑 Accès à l'application</h4>
+      ${cd ? `<div class="og-code ${ok ? '' : 'old'}"><b>${esc(cd.code)}</b><small>${ok ? 'Créé le ' + fmtDate(new Date(cd.at).toISOString().slice(0, 10)) + ' · valable 7 jours' : 'Expiré : créez-en un nouveau'}</small>
+        <div class="og-fb"><button class="btn small ghost" data-a="cp">Copier</button><button class="btn small" data-a="cwa">${icon('share')} Envoyer par WhatsApp</button></div></div>` : ''}
+      ${canCode ? `<button class="btn small ${cd ? 'ghost' : ''}" data-a="cnew">${cd ? 'Nouveau code' : 'Créer le code d\'accès'}</button><p class="muted" style="font-size:12px;margin:6px 0 0">Poste d'accès : ${esc(roleLabel(m))}. La personne ne verra que ce chantier.</p>`
+        : `<p class="muted" style="font-size:12px;margin:4px 0">${team ? 'Seuls les responsables autorisés (« Équipe ») créent les codes d\'accès.' : 'Connectez-vous à votre organisation SiteTeam pour créer des codes d\'accès.'}</p>`}</div>`;
+  };
+  const s = sheet(`<div class="og-fw">${draw()}</div>`, { title: 'Fiche' });
+  const bind = () => {
+    const el = s.el;
+    const wa = $('[data-wa]', el); if (wa) wa.onclick = () => openUrl('https://wa.me/' + String(m.phone).replace(/\D/g, '').replace(/^0/, '212'));
+    const ed = $('[data-ed]', el); if (ed) ed.onclick = () => { s.close(); orgEditMember(p, m, save, redraw); };
+    const again = () => { const host = $('.og-fw', el); if (host) { host.innerHTML = draw(); bind(); } };
+    const msForm = async (x) => formSheet(x ? 'Mission' : 'Nouvelle mission', [
+      { name: 'titre', label: 'Mission', value: x && x.titre || '', placeholder: 'Ex : Rassembler les fiches de fond de fouille' },
+      { name: 'partie', label: 'Partie d\'ouvrage', type: 'select', value: x && x.partie || '', options: [{ value: '', label: '— aucune —' }, ...PARTIES_OUVRAGE.map(v => ({ value: v, label: v }))] },
+      { name: 'statut', label: 'État', type: 'select', value: x && x.statut || 'todo', options: Object.entries(MISSION_ST).map(([k, v]) => ({ value: k, label: v[0] })) },
+      { name: 'echeance', label: 'Échéance', type: 'date', value: x && x.echeance || '' },
+    ], { okLabel: 'Enregistrer', danger: x ? 'Retirer cette mission' : null });
+    const msn = $('[data-a=msnew]', el); if (msn) msn.onclick = async () => { const r = await msForm(); if (!r || !String(r.titre || '').trim()) return; m.missions = [...missionsOf(m), { id: DB.uid(), titre: r.titre.trim(), partie: r.partie || '', statut: r.statut || 'todo', echeance: r.echeance || '', creeLe: Date.now() }]; await save(); again(); redraw(); };
+    $$('[data-ms]', el).forEach(b => b.onclick = async () => { const x = missionsOf(m).find(y => y.id === b.dataset.ms); if (!x) return;
+      if (!canE) return; const r = await msForm(x); if (!r) return;
+      m.missions = r.__danger ? missionsOf(m).filter(y => y.id !== x.id) : missionsOf(m).map(y => y.id === x.id ? { ...y, titre: String(r.titre || '').trim() || y.titre, partie: r.partie || '', statut: r.statut || 'todo', echeance: r.echeance || '', modifieLe: Date.now() } : y);
+      await save(); again(); redraw(); });
+    const cn = $('[data-a=cnew]', el); if (cn) cn.onclick = async () => {
+      const r = await Team.inviteFor({ name: m.name || 'Nouveau', role: roleOfMember(m), pid: p.id }); if (!r) return;
+      ogCodeSet(m, { code: r.code, at: Date.now(), role: r.o.role }); toast('Code d\'accès créé ✓'); again(); };
+    const cp = $('[data-a=cp]', el); if (cp) cp.onclick = () => { const c = ogCodeGet(m); if (c) copyText(c.code); };
+    const cw = $('[data-a=cwa]', el); if (cw) cw.onclick = () => { const c = ogCodeGet(m); if (c) Team.shareInvite(c.code, { name: m.name, role: c.role }, m.phone); };
+  };
+  bind();
 }
+const roleLabel = (m) => { try { return (typeof tmRoleOf === 'function' && tmRoleOf(roleOfMember(m)).l) || roleOfMember(m); } catch (e) { return roleOfMember(m); } };
 // le titulaire voit toutes ses fonctions (Maquette 3D, Modèles 3D, Calculs…) : on annule une seule fois le masquage fait par le choix du poste
 try { if (Org.owner() && !localStorage.getItem('feat.reset2')) { localStorage.removeItem('myFeatures'); localStorage.setItem('feat.reset2', '1'); } } catch (e) {}

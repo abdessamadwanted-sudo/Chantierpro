@@ -1646,6 +1646,36 @@ try {
   });
   log('Suivis personnalisés', sv);
   if (!sv.noProject && !(sv.galerie && sv.poste && sv.preNom && sv.onglet && sv.structure && sv.entete && sv.ligne && sv.edit && sv.entetePro && sv.coller && sv.filtre && sv.rename && sv.archive && sv.syncSuivis && sv.signature && sv.sigUi && sv.recherche && sv.retour && sv.sync)) throw new Error('suivis personnalisés KO ' + JSON.stringify(sv));
+  // ---- Organigramme Service Qualité : branches Administratif / Chantier, missions, code d'accès (local seulement)
+  const og = await A.pg.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
+    const pr0 = (await DB.all('projects'))[0]; if (!pr0) return { noProject: true };
+    const bak = JSON.stringify(pr0.team || null);
+    try {
+      pr0.team = [{ id: 'og1', name: 'Directeur', poste: 'dirq', service: 'qual', branche: 'admin' }, { id: 'og2', name: 'Resp', poste: 'respq', service: 'qual', parent: 'og1', branche: 'admin' }, { id: 'og3', name: 'Chef', poste: 'chef', service: 'trav', parent: 'og1', branche: 'chantier' }];
+      App.project = pr0; App.orgBr = '';
+      const root = document.createElement('div'); document.body.appendChild(root);
+      await renderOrg(root); await wait(300);
+      o.chips = root.querySelectorAll('[data-br]').length === 3;
+      const n0 = root.querySelectorAll('g[data-m]').length;
+      root.querySelector('[data-br=chantier]').click(); await wait(400);
+      const n1 = root.querySelectorAll('g[data-m]').length;   // Chef + son supérieur
+      o.filtre = n0 >= 3 && n1 < n0 && !!root.querySelector('g[data-m="og3"]') && !root.querySelector('g[data-m="og2"]');
+      App.orgBr = '';
+      const m = pr0.team.find(x => x.id === 'og2'); m.missions = [{ id: 'a', titre: 'Fiches fond de fouille', partie: 'Terrassement et fondation', statut: 'doing' }, { id: 'b', titre: 'PV labo', statut: 'done' }];
+      o.stats = OrgQ.missionStats(m).open === 1 && OrgQ.missionStats(m).done === 1;
+      o.role = OrgQ.roleOfMember(m) === 'respqualite' && OrgQ.roleOfMember({ poste: 'zzz', service: 'hse' }) === 'animhse';
+      OrgQ.ogCodeSet(m, { code: 'ABCD2345', at: Date.now(), role: 'respqualite' }); o.code = OrgQ.ogCodeGet(m).code === 'ABCD2345' && !JSON.stringify(pr0).includes('ABCD2345'); OrgQ.ogCodeSet(m, null);
+      orgFiche(pr0, m, true, async () => {}, () => {}); await wait(300);
+      const sh = [...document.querySelectorAll('.sheet-bg')].pop();
+      o.fiche = !!sh && sh.querySelectorAll('[data-ms]').length === 2 && /Fiches fond de fouille/.test(sh.textContent) && !!sh.querySelector('[data-a=msnew]');
+      document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); root.remove();
+    } catch (e) { o.err = String(e.message || e); }
+    pr0.team = JSON.parse(bak); await DB.put('projects', pr0);
+    return o;
+  });
+  log('Organigramme Qualité', og);
+  if (!og.noProject && !(og.chips && og.filtre && og.stats && og.role && og.code && og.fiche)) throw new Error('organigramme qualité KO ' + JSON.stringify(og));
   // ---- Suivis personnalisés + modèle visuel : cases liées aux colonnes, PDF écrit sur le bon
   const sv2 = await A.pg.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
