@@ -22,8 +22,8 @@ async function openAnomalies(p, pre = {}) {
   p = p || App.project; if (!p) return;
   let R = await anCollect(p);
   const F = { niv: pre.niv || '', zone: '', lot: pre.lot || '', src: '', st: '', q: '' };
-  const el = document.createElement('div'); el.className = 'fullpage an-page'; document.body.appendChild(el);
-  const unBack = pushBack(() => el.remove()); const close = () => { unBack(); el.remove(); };
+  const EMB = pre.embed || null, el = EMB || document.createElement('div'); if (EMB) { EMB.classList.add('an-page', 'emb'); EMB.innerHTML = ''; } else { el.className = 'fullpage an-page'; document.body.appendChild(el); }
+  const unBack = EMB ? () => {} : pushBack(() => el.remove()); const close = EMB ? () => {} : () => { unBack(); el.remove(); };
   const th = new Map(); const thumb = async (id) => { if (!id) return ''; if (th.has(id)) return th.get(id); const f = await DB.get('files', id); const u = f && (f.blob || f.driveId) ? BlobURL.get(f.id, f.blob) : ''; th.set(id, u); return u; };
   const uniq = (fn) => { const m = new Map(); for (const r of R) { const v = fn(r); if (v && !m.has(anK(v))) m.set(anK(v), v); } return [...m.values()].sort((a, b) => String(a).localeCompare(String(b), 'fr', { numeric: true })); };
   const shown = () => R.filter(r => (!F.niv || anK(r.niv) === anK(F.niv)) && (!F.zone || anK(r.zone) === anK(F.zone)) && (!F.lot || anK(r.lot) === anK(F.lot) || (anK(F.lot).includes('gros') && r.src !== 'Réserve' && r.src !== 'Non-conformité')) && (!F.src || r.src === F.src) && (!F.st || r.st === F.st)

@@ -1674,6 +1674,23 @@ try {
   });
   log('Détection des cases', ac);
   if (!(ac.pur && ac.ocr)) throw new Error('détection des cases KO ' + JSON.stringify(ac));
+  // ---- Tableaux intégrés : Anomalies, Échéances, Points d'intérêt, Alertes, Photos s'affichent dans l'application (pas en feuille / page par-dessus)
+  const ti = await A.pg.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
+    const pr0 = (await DB.all('projects'))[0]; if (!pr0) return { noProject: true };
+    App.project = pr0;
+    try {
+      for (const k of ['anom', 'due', 'points', 'alertes', 'photos']) {
+        document.querySelectorAll('.sheet-bg').forEach(x => x.remove());
+        await openTableTool(pr0, k); await wait(1200);
+        const c = document.querySelector('#content');
+        o[k] = App.section === 'tb_' + k && !!document.querySelector('#app > .topbar') && !!c && (c.classList.contains('emb') || !!c.querySelector('.emb-wrap')) && !document.querySelector('.sheet-bg') && !document.querySelector('body > .fullpage.an-page, body > .fullpage.due-page');
+      }
+    } catch (e) { o.err = String(e.message || e); }
+    return o;
+  });
+  log('Tableaux intégrés', ti);
+  if (!ti.noProject && !(ti.anom && ti.due && ti.points && ti.alertes && ti.photos)) throw new Error('tableaux intégrés KO ' + JSON.stringify(ti));
   log('errors v1.0.x suivis', []);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);

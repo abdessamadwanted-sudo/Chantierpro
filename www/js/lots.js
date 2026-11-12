@@ -431,8 +431,8 @@ async function openDueTable(p, pre = {}) {
     }
   } catch (e) { console.warn('échéances points', e); }
   const F = { niv: pre.niv || '', lot: pre.lot || '', zone: '', type: '', st: '', q: '' };
-  const el = document.createElement('div'); el.className = 'fullpage due-page'; document.body.appendChild(el);
-  const unBack = pushBack(() => el.remove()); const close = () => { unBack(); el.remove(); };
+  const EMB = pre.embed || null, el = EMB || document.createElement('div'); if (EMB) { EMB.classList.add('due-page', 'emb'); EMB.innerHTML = ''; } else { el.className = 'fullpage due-page'; document.body.appendChild(el); }
+  const unBack = EMB ? () => {} : pushBack(() => el.remove()); const close = EMB ? () => {} : () => { unBack(); el.remove(); };
   const stOf = (r) => r.a.done ? 'fait' : r.d < 0 ? 'retard' : r.d <= 7 ? 'bientot' : 'ok';
   const ST = { retard: ['🔴', 'En retard'], bientot: ['🟠', 'Bientôt (≤ 7 j)'], ok: ['🟢', 'À venir'], fait: ['✓', 'Fait'] };
   const uniq = (fn) => [...new Set(rows.map(fn).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), 'fr', { numeric: true }));
