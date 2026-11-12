@@ -4029,3 +4029,4 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .qd-al { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 16px; padding: 10px 12px; border-radius: 12px; background: #fef3c7; color: #92400e; border: 1px solid #f59e0b55; font-size: 12.5px; }
 .qd-al b { width: 100%; } .qd-al span { background: #fff8; padding: 3px 8px; border-radius: 99px; }
 @media (prefers-color-scheme: dark) { .qd-al { background: #451a03; color: #fcd34d; } }
+

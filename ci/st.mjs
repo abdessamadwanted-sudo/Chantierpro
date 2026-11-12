@@ -1761,6 +1761,7 @@ try {
       const pm = pr0.team; pr0.team = [{ id: 'v1', name: 'Test', poste: 'ctrl', service: 'qual', me: true, volet: 'ter' }];
       o.adminToutVoit = true; pr0.team = pm;
       o.adminSeul = ST.isEnt() === true && typeof orgCanAdmin === 'function' && orgCanAdmin() === true;
+      o.deuxCat = !!root.querySelector('details[data-g=qual]') && !!root.querySelector('details[data-g=sq]') && /Service Qualité/.test(root.querySelector('details[data-g=sq] summary').textContent) && !root.querySelector('details[data-g=qual] details.st-qs') && !!root.querySelector('details[data-g=qual] [data-tool]');
       sessionStorage.setItem('st.preview', JSON.stringify({ plan: 'basic' })); ST.renderProjectTools(root); await wait(400);
       o.basicInchange = !root.querySelector('details.st-qs') && (!q || !!root.querySelector('details[data-g=qual] [data-tool]'));
       sessionStorage.removeItem('st.preview');
@@ -1769,7 +1770,7 @@ try {
     return o;
   });
   log('Qualité volets', qs1);
-  if (!qs1.noProject && !qs1.pasQual && !(qs1.volets && qs1.adm && qs1.ter && qs1.reglage && qs1.basicInchange && qs1.icones && qs1.adminSeul)) throw new Error('volets qualité KO ' + JSON.stringify(qs1));
+  if (!qs1.noProject && !qs1.pasQual && !(qs1.volets && qs1.adm && qs1.ter && qs1.reglage && qs1.basicInchange && qs1.icones && qs1.adminSeul && qs1.deuxCat)) throw new Error('volets qualité KO ' + JSON.stringify(qs1));
   // ---- Suivis personnalisés + modèle visuel : cases liées aux colonnes, PDF écrit sur le bon
   const sv2 = await A.pg.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
