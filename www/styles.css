@@ -3954,3 +3954,12 @@ table.rec .sv-ok { color: #16a34a; font-weight: 800; } table.rec .sv-no { color:
 .sv-dayr table.rec { min-width: 0; } .sv-dayr table.rec td { font-weight: 600; }
 .sv-dayr .rec-wrap .sv-pdf { background: #e6eefc; color: #1e66d0; }
 html.th-net .sv-dayr .rec-wrap { background: #fff; }
+
+/* Suivi : signatures du jour (dessinées à la main) */
+.sv-sigrow { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.sv-sig { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; min-height: 96px; padding: 10px; border: 1.5px dashed #b8c1cf; border-radius: 12px; background: #fff; color: #1f2937; text-align: left; }
+.sv-sig > small:first-child { color: #5b6578; font-weight: 700; font-size: 11.5px; text-transform: uppercase; letter-spacing: .4px; }
+.sv-sig > span { margin: auto; color: #1e66d0; font-weight: 800; }
+.sv-sig.on { border-style: solid; border-color: #16a34a; }
+.sv-sig img { max-width: 100%; height: 44px; object-fit: contain; background: #fff; }
+.sv-sig b { font-size: 13px; } .sv-sig small { color: #5b6578; font-size: 11px; } .sv-sig em { font-style: normal; color: #b45309; font-size: 11px; font-weight: 700; }

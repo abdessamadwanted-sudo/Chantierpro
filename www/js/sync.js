@@ -2,7 +2,7 @@
 // Tout est envoyé dans « Mon Drive / SiteTeam / <Projet> / … ». Les données restent dans SON Drive.
 // Connexion conseillée : « Se connecter avec Google » (gdrive.js, sans script). Ancienne méthode : petit script Google (Apps Script).
 const Sync = (() => {
-  const DATA = ['projects', 'folders', 'plans', 'tasks', 'links', 'files', 'forms', 'reports', 'receptions', 'items'];
+  const DATA = ['projects', 'folders', 'plans', 'tasks', 'links', 'files', 'forms', 'reports', 'receptions', 'items', 'dsmodeles', 'dsdossiers'];   // + suivis personnalisés (Document Studio)
   const LS = {
     get(k, d = null) { try { const v = localStorage.getItem('sync.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem('sync.' + k, JSON.stringify(v)); } catch (e) {} },
@@ -300,6 +300,7 @@ const Sync = (() => {
         });
       }
       // 2) envoyer les données modifiées (tableaux, pins, tâches…)
+      try { if (typeof SuivisPerso !== 'undefined') await SuivisPerso.rattraper(); } catch (e) { console.warn('suivis', e); }
       const since = LS.get('pushAt', 0), start = Date.now();
       const out = [];
       for (const s of DATA) for (const r of await DB.all(s)) if ((r.updatedAt || 0) > since) { const { blob, ...rest } = r; out.push({ ...rest, _store: s }); }

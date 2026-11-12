@@ -8,10 +8,28 @@
   const entId = () => { let c = ''; try { const co = typeof Team !== 'undefined' && Team.company && Team.company(); c = (co && (co.id || co.cid)) || ''; } catch (e) {} return 'e_' + (String(c || 'local').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60) || 'local'); };
   const projId = (p) => 'p_' + String(p.id).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60);
   const ctxOf = (p) => ({ entrepriseId: entId(), projetId: projId(p) });
+  // écriture « synchronisable » : chaque enregistrement porte son projet (projectId) et une date de modification (updatedAt),
+  // ce que le moteur de synchro (Drive / équipe) utilise ; une suppression laisse une trace (tomb) pour être propagée aux autres appareils
+  const projDe = (o) => o.projectId || String(o.projetId || '').replace(/^p_/, '');
+  async function sput(store, o) { const r = { ...o, projectId: projDe(o), updatedAt: Date.now() }; await DB.putRaw(store, r); return r; }
+  async function sdel(store, id) {
+    let old = null; try { old = await DB.get(store, id); } catch (e) {}
+    await DB.delRaw(store, id);
+    if (old) await DB.putRaw('tomb', { id: store + ':' + id, store, rid: id, projectId: projDe(old), kind: null, driveId: null, sref: null, at: Date.now() });
+  }
+  // suivis créés avant la synchro : leur donner projectId + updatedAt pour qu'ils partent au prochain envoi
+  async function rattraper() {
+    let n = 0;
+    for (const store of ['dsmodeles', 'dsdossiers']) for (const o of await DB.all(store)) {
+      if (o.projectId && o.updatedAt) continue;
+      await DB.putRaw(store, { ...o, projectId: projDe(o), updatedAt: o.modifieLe || o.creeLe || Date.now() }); n++;
+    }
+    return n;
+  }
   const mine = async (p) => (await DB.all('dsmodeles')).filter(m => m.entrepriseId === entId() && m.projetId === projId(p) && m.categorie === 'suivi').sort((a, b) => a.nom.localeCompare(b.nom));
   // archivage : un suivi archivé disparaît des onglets mais garde toutes ses lignes (restaurable depuis « + »)
   const actifs = async (p) => (await mine(p)).filter(m => !m.archive);
-  async function archiver(m, val) { const cur = (await mine({ id: m.projetId.slice(2) })).find(x => x.id === m.id) || m; await DB.putRaw('dsmodeles', { ...cur, archive: val ? Date.now() : null }); }
+  async function archiver(m, val) { const cur = (await mine({ id: m.projetId.slice(2) })).find(x => x.id === m.id) || m; await sput('dsmodeles', { ...cur, archive: val ? Date.now() : null }); }
   const lignesOf = async (m) => (await DB.all('dsdossiers')).filter(d => d.modeleId === m.id && d.entrepriseId === m.entrepriseId).sort((a, b) => (b.creeLe || 0) - (a.creeLe || 0));
   const unique = (base, taken) => { let id = base, i = 2; while (taken.has(id)) id = base + '_' + i++; return id; };
 
@@ -84,9 +102,9 @@
     return o;
   }
   async function supprimerSuivi(m) {
-    for (const d of await lignesOf(m)) await DB.delRaw('dsdossiers', d.id);
+    for (const d of await lignesOf(m)) await sdel('dsdossiers', d.id);
     if (m.visuel) await DB.del('files', m.visuel.fileId).catch(() => {});
-    await DB.delRaw('dsmodeles', m.id);
+    await sdel('dsmodeles', m.id);
   }
 
   // ---------- modèles prêts à l'emploi, classés selon le type de projet (p.type) ----------
@@ -202,7 +220,7 @@
                 const base = { id: existing ? existing.id : 's_' + DB.uid(), nom: nom.trim(), entrepriseId: entId(), serviceId: 'general', projetId: projId(p), categorie: 'suivi', champs };
                 const m = DocumentStudio.modele({ ...base, version: existing ? existing.version + 1 : 1 });
                 if (visuel) visuel.fields = visuel.fields.filter(f => champs.some(c => c.id === f.col));   // case liée à une colonne supprimée : retirée
-                await DB.putRaw('dsmodeles', { ...m, ...(visuel ? { visuel } : {}), creeLe: existing ? existing.creeLe : Date.now(), modifieLe: Date.now() });
+                await sput('dsmodeles', { ...m, ...(visuel ? { visuel } : {}), creeLe: existing ? existing.creeLe : Date.now(), modifieLe: Date.now() });
                 s.close(); toast('Suivi enregistré'); resolve(m);
               } catch (e) { toast(String(e.message || e)); }
             };
@@ -232,14 +250,14 @@
           ($('[data-a=edit]', el) || {}).onclick = async () => { nav = true; s.close(); const nm = await suiviBuilder(p, m); resolve(suiviOpen(p, nm ? (await mine(p)).find(x => x.id === m.id) : m)); };
           ($('[data-a=rm]', el) || {}).onclick = async () => {
             if (!(await confirmBox('Supprimer ce suivi et toutes ses lignes ?'))) return;
-            for (const d of lignes) await DB.delRaw('dsdossiers', d.id);
+            for (const d of lignes) await sdel('dsdossiers', d.id);
             if (m.visuel) await DB.del('files', m.visuel.fileId).catch(() => {});
-            await DB.delRaw('dsmodeles', m.id); s.close(); toast('Suivi supprimé'); resolve();
+            await sdel('dsmodeles', m.id); s.close(); toast('Suivi supprimé'); resolve();
           };
           el.querySelectorAll('[data-pdf]').forEach(b => b.onclick = () => { const d = lignes.find(x => x.id === b.dataset.pdf); if (d) lignePdf(p, m, d); });
           el.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
             if (!(await confirmBox('Supprimer cette ligne ?'))) return;
-            await DB.delRaw('dsdossiers', b.dataset.del); nav = true; s.close(); resolve(suiviOpen(p, m));
+            await sdel('dsdossiers', b.dataset.del); nav = true; s.close(); resolve(suiviOpen(p, m));
           });
         },
       });
@@ -257,7 +275,7 @@
       options: c.type === 'liste' ? [{ value: '', label: '—' }, ...c.options.map(o => ({ value: o, label: o }))] : c.type === 'case' ? [{ value: '', label: '—' }, { value: 'oui', label: 'Oui' }, { value: 'non', label: 'Non' }] : undefined,
     }))], { okLabel: existing ? 'Enregistrer' : 'Ajouter', danger: existing ? 'Supprimer cette ligne' : null });
     if (!r) return null;
-    if (r.__danger) { if (await confirmBox('Supprimer cette ligne ?')) { await DB.delRaw('dsdossiers', existing.id); toast('Ligne supprimée'); return 'supprimee'; } return null; }
+    if (r.__danger) { if (await confirmBox('Supprimer cette ligne ?')) { await sdel('dsdossiers', existing.id); toast('Ligne supprimée'); return 'supprimee'; } return null; }
     const valeurs = {};
     for (const c of champs) {
       const v = r[c.id]; if (v === '' || v === undefined) continue;
@@ -266,7 +284,7 @@
     try {
       const d = DocumentStudio.remplir(m, valeurs, ctxOf(p));
       const jour = /^\d{4}-\d{2}-\d{2}$/.test(r.__jour || '') ? r.__jour : jourInit;
-      await DB.putRaw('dsdossiers', existing ? { ...d, id: existing.id, creeLe: existing.creeLe, jour, modifieLe: Date.now() } : { ...d, id: 'd_' + DB.uid(), creeLe: Date.now(), jour });
+      await sput('dsdossiers', existing ? { ...d, id: existing.id, creeLe: existing.creeLe, jour, modifieLe: Date.now() } : { ...d, id: 'd_' + DB.uid(), creeLe: Date.now(), jour });
       toast(existing ? 'Ligne modifiée' : 'Ligne ajoutée'); return d;
     } catch (e) { toast(String(e.message || e)); return null; }
   }
@@ -301,13 +319,46 @@
   // (entête date + projet, résumé, tableau clair, « Ajouter une ligne », « Coller un texte », Plans, PV du jour)
   const joursAvec = async (m) => [...new Set((await lignesOf(m)).map(jourOf))].sort();
   const pvOf = (m, jour) => ((m.jours || {})[jour] || {}).pvIds || [];
-  async function setPv(m, jour, ids) { const cur = (await mine({ id: m.projetId.slice(2) })).find(x => x.id === m.id) || m; await DB.putRaw('dsmodeles', { ...cur, jours: { ...(cur.jours || {}), [jour]: { ...((cur.jours || {})[jour] || {}), pvIds: ids } } }); }
+  async function setPv(m, jour, ids) { const cur = (await mine({ id: m.projetId.slice(2) })).find(x => x.id === m.id) || m; await sput('dsmodeles', { ...cur, jours: { ...(cur.jours || {}), [jour]: { ...((cur.jours || {})[jour] || {}), pvIds: ids } } }); }
   // « Coller un texte » : une ligne par ligne de texte ; colonnes séparées par tabulation, « ; » ou « | »
   const lignesDeTexte = (m, txt) => String(txt || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean).map(l => {
     const parts = (/[\t;|]/.test(l) ? l.split(/[\t;|]/) : l.split(/\s{2,}/)).map(x => x.trim());
     const v = {}; m.champs.forEach((c, i) => { let x = parts[i]; if (x === undefined || x === '') return; if (c.type === 'case') v[c.id] = /^(oui|yes|1|x|ok|✓|✔)/i.test(x); else if (c.type === 'nombre') { const n = Number(String(x).replace(',', '.')); if (!isNaN(n)) v[c.id] = n; } else v[c.id] = x; });
     return v;
   }).filter(v => Object.keys(v).length);
+  // signatures du jour : toujours dessinées à la main, une par rôle, avec case de consentement ; aucune signature mémorisée ni réutilisée
+  const SIGS = [['redige', 'Rédigé par'], ['controle', 'Contrôlé par'], ['visa', 'Visa / Approuvé']];
+  const sigsOf = (m, jour) => ((m.jours || {})[jour] || {}).sigs || {};
+  async function setSig(m, jour, key, val) {
+    const cur = (await mine({ id: m.projetId.slice(2) })).find(x => x.id === m.id) || m, j = (cur.jours || {})[jour] || {}, sigs = { ...(j.sigs || {}) };
+    if (val) sigs[key] = val; else delete sigs[key];
+    await sput('dsmodeles', { ...cur, jours: { ...(cur.jours || {}), [jour]: { ...j, sigs } } });
+  }
+  async function signer(m, jour, key, label) {
+    let nomMem = ''; try { nomMem = localStorage.getItem('sv.signNom') || ''; } catch (e) {}
+    return new Promise((resolve) => {
+      let img = '', done = false;
+      const s = sheet(`<div class="form"><p class="muted" style="margin:0 0 8px">${esc(label)} · ${esc(m.nom)} · ${fmtDate(jour)}</p>
+        <label>Nom et prénom<input name="nom" value="${esc(nomMem)}" placeholder="Ex : Abdessamad D."></label>
+        <label>Fonction<input name="fn" placeholder="Ex : Technicien qualité"></label>
+        <div class="fld">Signature (à la main)<div class="sigbox"></div></div>
+        <label class="chk" style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" name="ok"> <span>Je confirme avoir contrôlé ces lignes et je signe sous mon nom. Je comprends que la signature est liée à ce suivi et à cette date.</span></label>
+        <div class="btnrow"><button class="btn" data-a="ok" disabled>Enregistrer la signature</button></div></div>`, {
+        title: 'Signer : ' + label,
+        onMount: (el) => {
+          const ok = $('[data-a=ok]', el), nom = $('[name=nom]', el), chk = $('[name=ok]', el);
+          const maj = () => { ok.disabled = !(img && chk.checked && nom.value.trim()); };
+          signaturePad($('.sigbox', el), '', (v) => { img = v; maj(); }); chk.onchange = maj; nom.oninput = maj;
+          ok.onclick = async () => {
+            try { localStorage.setItem('sv.signNom', nom.value.trim()); } catch (e) {}
+            let uid = ''; try { uid = (typeof Team !== 'undefined' && Team.uid && Team.uid()) || ''; } catch (e) {}
+            done = true; s.close(); resolve({ img, nom: nom.value.trim(), fn: $('[name=fn]', el).value.trim(), at: Date.now(), uid, consent: true });
+          };
+        },
+      });
+      s.onClose = () => { if (!done) resolve(null); };
+    });
+  }
   async function jourPage(p, m0, jour0) {
     return new Promise(async (resolve) => {
       let jour = jour0, m = m0;
@@ -333,6 +384,8 @@
             </tbody></table>
             ${typeof openRecBox === 'function' ? `<div class="rec-dplans"><button data-a="dayplans">📚 Plans des ouvrages du jour <b>${L.length}</b>${icon('chevright')}</button></div>` : ''}
             <div class="pv-day"><div class="pv-h">${icon('report')} PV du jour <span>${pvOf(m, jour).length || ''}</span></div><div class="thumbs" id="svPv"></div></div>
+            <div class="pv-day sv-sigs"><div class="pv-h">${icon('pen')} Signatures</div><div class="sv-sigrow">${SIGS.map(([k, l]) => { const g = sigsOf(m, jour)[k], modif = g && L.some(d => (d.updatedAt || d.modifieLe || 0) > g.at + 1000);
+              return `<button class="sv-sig ${g ? 'on' : ''}" data-sig="${k}"><small>${esc(l)}</small>${g ? `<img src="${g.img}" alt=""><b>${esc(g.nom)}</b><small>${esc(g.fn || '')}${g.fn ? ' · ' : ''}${new Date(g.at).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}</small>${modif ? '<em>⚠ lignes modifiées après signature</em>' : ''}` : '<span>＋ Signer</span>'}</button>`; }).join('')}</div></div>
           </div>`;
         ($('[data-a=back]', el) || {}).onclick = close;
         el.querySelectorAll('[data-dn]').forEach(b => b.onclick = () => { const j = sib(+b.dataset.dn); if (j) { jour = j; draw(); } });
@@ -341,15 +394,20 @@
         ($('[data-a=paste]', el) || {}).onclick = async () => {
           const r = await formSheet('Coller un texte', [{ name: 't', label: 'Une ligne par ligne · colonnes séparées par tabulation, « ; » ou « | »', type: 'textarea', value: '' }], { okLabel: 'Ajouter', intro: `<p class="muted" style="margin:0 0 8px">Ordre des colonnes : ${esc(m.champs.map(c => c.libelle).join(' · '))}</p>` });
           if (!r || !r.t) return; const lots = lignesDeTexte(m, r.t); if (!lots.length) return toast('Rien à ajouter');
-          try { for (const v of lots) { const d = DocumentStudio.remplir(m, v, ctxOf(p)); await DB.putRaw('dsdossiers', { ...d, id: 'd_' + DB.uid(), creeLe: Date.now(), jour }); } toast(lots.length + ' ligne(s) ajoutée(s)'); } catch (e) { toast(String(e.message || e)); }
+          try { for (const v of lots) { const d = DocumentStudio.remplir(m, v, ctxOf(p)); await sput('dsdossiers', { ...d, id: 'd_' + DB.uid(), creeLe: Date.now(), jour }); } toast(lots.length + ' ligne(s) ajoutée(s)'); } catch (e) { toast(String(e.message || e)); }
           draw();
         };
+        el.querySelectorAll('[data-sig]').forEach(b => b.onclick = async () => {
+          const k = b.dataset.sig, lab = (SIGS.find(x => x[0] === k) || [])[1], g = sigsOf(m, jour)[k];
+          if (g) { const o = await menu(lab + ' : ' + g.nom, [{ label: 'Retirer cette signature', icon: 'trash', danger: true, value: 'del' }]); if (o === 'del' && await confirmBox('Retirer la signature ?')) { await setSig(m, jour, k, null); draw(); } return; }
+          const v = await signer(m, jour, k, lab); if (v) { await setSig(m, jour, k, v); toast('Signature enregistrée ✓'); draw(); }
+        });
         const dp = $('[data-a=dayplans]', el); if (dp) dp.onclick = () => openRecBox(p.id);
-        ($('[data-a=share]', el) || {}).onclick = () => { const t = `*${p.pdfTitle || p.name}*\n*${m.nom} — ${fmtDate(jour)}*\n\n` + (L.length ? L.map((d, i) => `${i + 1}. ${texteLigne(m, d)}`).join('\n') : 'Aucune ligne'); try { shareText(t); } catch (e) { toast('Partage impossible'); } };
+        ($('[data-a=share]', el) || {}).onclick = () => { const t = `*${p.pdfTitle || p.name}*\n*${m.nom} — ${fmtDate(jour)}*\n\n` + (L.length ? L.map((d, i) => `${i + 1}. ${texteLigne(m, d)}`).join('\n') : 'Aucune ligne') + (Object.keys(sigsOf(m, jour)).length ? '\n\n✍️ Signé : ' + SIGS.filter(([k]) => sigsOf(m, jour)[k]).map(([k, l]) => `${l} ${sigsOf(m, jour)[k].nom}`).join(' · ') : ''); try { shareText(t); } catch (e) { toast('Partage impossible'); } };
         ($('[data-a=more]', el) || {}).onclick = async () => {
           const o = await menu(m.nom, [{ label: 'Modifier les colonnes', icon: 'edit', value: 'cols' }, ...(L.length ? [{ label: 'Supprimer les lignes de ce jour', icon: 'trash', danger: true, value: 'del' }] : [])]);
           if (o === 'cols') { await suiviBuilder(p, m); draw(); }
-          if (o === 'del' && await confirmBox(`Supprimer les ${L.length} ligne(s) du ${fmtDate(jour)} ?`)) { for (const d of L) await DB.delRaw('dsdossiers', d.id); toast('Lignes supprimées'); draw(); }
+          if (o === 'del' && await confirmBox(`Supprimer les ${L.length} ligne(s) du ${fmtDate(jour)} ?`)) { for (const d of L) await sdel('dsdossiers', d.id); toast('Lignes supprimées'); draw(); }
         };
         el.querySelectorAll('[data-pdf]').forEach(b => b.onclick = (e) => { e.stopPropagation(); const d = L.find(x => x.id === b.dataset.pdf); if (d) lignePdf(p, m, d); });
         el.querySelectorAll('tr[data-l]').forEach(tr => tr.onclick = async () => { const d = L.find(x => x.id === tr.dataset.l); if (d) { await ligneForm(p, m, d); draw(); } });
@@ -430,5 +488,5 @@
   }
   window.openSuivis = openSuivis;
   window.SuivisTabs = { tabsHtml, bind: bindTabs, render: renderTab };
-  window.SuivisPerso = { monService, actifs, archiver, mine, lignesOf, ctxOf, visuelEditer, PRESETS, colsOfPreset };
+  window.SuivisPerso = { sigsOf, setSig, rattraper, sput, sdel, monService, actifs, archiver, mine, lignesOf, ctxOf, visuelEditer, PRESETS, colsOfPreset };
 })();

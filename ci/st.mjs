@@ -1602,6 +1602,7 @@ try {
       // entête comme Réception : date + nom du projet + nom du suivi, résumé, boutons Ajouter / Coller
       const inf = (document.querySelector('.sv-dayr .rec-info') || {}).textContent || '';
       o.entetePro = inf.includes((window.App && App.projects && (App.projects.find(x => x.id === App.recTab.pid) || {}).name) || '') && !!document.querySelector('.sv-dayr .rec-sum') && !!document.querySelector('.sv-dayr [data-a=paste]') && !!document.querySelector('.sv-dayr [data-a=add]');
+      o.sigUi = document.querySelectorAll('.sv-dayr [data-sig]').length === 3;
       // Coller un texte : une ligne par ligne
       await click('.sv-dayr [data-a=paste]', document);
       top().querySelector('textarea[name=t]').value = 'R+9;12'; await click('[data-a=ok]');
@@ -1623,6 +1624,16 @@ try {
       // archivage : le suivi disparaît des onglets (lignes gardées), puis il revient
       { const m0 = (await SuivisPerso.mine(pr0))[0], n0 = (await SuivisPerso.actifs(pr0)).length; await SuivisPerso.archiver(m0, true); const a1 = (await SuivisPerso.actifs(pr0)).length, t1 = (await SuivisPerso.mine(pr0)).length, l1 = (await SuivisPerso.lignesOf(m0)).length; await SuivisPerso.archiver(m0, false);
         o.archive = a1 === n0 - 1 && t1 === n0 && l1 > 0 && (await SuivisPerso.actifs(pr0)).length === n0; }
+      // synchro : chaque suivi/ligne porte projectId + updatedAt ; une suppression laisse une trace (tomb) ; les anciens suivis sont rattrapés
+      { const m0 = (await SuivisPerso.mine(pr0))[0], L0 = (await SuivisPerso.lignesOf(m0))[0];
+        const stamped = !!m0.projectId && m0.projectId === pr0.id && (await DB.all('dsdossiers')).every(d => d.projectId === pr0.id && d.updatedAt > 0);
+        await DB.putRaw('dsdossiers', { ...L0, projectId: undefined, updatedAt: undefined }); const n = await SuivisPerso.rattraper(); const back = (await DB.get('dsdossiers', L0.id));
+        const tmp = await SuivisPerso.sput('dsdossiers', { ...L0, id: 'd_tmp_sync' }); await SuivisPerso.sdel('dsdossiers', 'd_tmp_sync'); const tomb = (await DB.all('tomb')).some(t => t.id === 'dsdossiers:d_tmp_sync' && t.projectId === pr0.id);
+        o.syncSuivis = stamped && n >= 1 && back.projectId === pr0.id && back.updatedAt > 0 && !!tmp.updatedAt && tomb && !(await DB.get('dsdossiers', 'd_tmp_sync')); }
+      // signatures manuelles du jour : enregistrées dans le suivi (synchronisable), retirables
+      { const m0 = (await SuivisPerso.mine(pr0))[0]; await SuivisPerso.setSig(m0, '2026-01-01', 'redige', { img: 'data:image/png;base64,AA', nom: 'Test', at: Date.now(), consent: true });
+        const m1 = (await SuivisPerso.mine(pr0))[0]; const okA = SuivisPerso.sigsOf(m1, '2026-01-01').redige.nom === 'Test' && m1.updatedAt > 0 && m1.projectId === pr0.id;
+        await SuivisPerso.setSig(m1, '2026-01-01', 'redige', null); o.signature = okA && !SuivisPerso.sigsOf((await SuivisPerso.mine(pr0))[0], '2026-01-01').redige; }
       const inp = document.querySelector('.search input'); inp.value = 'zzz'; inp.dispatchEvent(new Event('input')); await wait(900);
       o.recherche = /Aucun résultat/.test(document.querySelector('#svBody').textContent);
       document.querySelector('.kseg [data-k=reception]').click(); await wait(800);
@@ -1634,7 +1645,7 @@ try {
     return o;
   });
   log('Suivis personnalisés', sv);
-  if (!sv.noProject && !(sv.galerie && sv.poste && sv.preNom && sv.onglet && sv.structure && sv.entete && sv.ligne && sv.edit && sv.entetePro && sv.coller && sv.filtre && sv.rename && sv.archive && sv.recherche && sv.retour && sv.sync)) throw new Error('suivis personnalisés KO ' + JSON.stringify(sv));
+  if (!sv.noProject && !(sv.galerie && sv.poste && sv.preNom && sv.onglet && sv.structure && sv.entete && sv.ligne && sv.edit && sv.entetePro && sv.coller && sv.filtre && sv.rename && sv.archive && sv.syncSuivis && sv.signature && sv.sigUi && sv.recherche && sv.retour && sv.sync)) throw new Error('suivis personnalisés KO ' + JSON.stringify(sv));
   // ---- Suivis personnalisés + modèle visuel : cases liées aux colonnes, PDF écrit sur le bon
   const sv2 = await A.pg.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
