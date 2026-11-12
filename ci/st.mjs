@@ -1608,7 +1608,9 @@ try {
     const need = async (sel, root) => { for (let i = 0; i < 100; i++) { const e = (root || top() || document).querySelector(sel); if (e) return e; await wait(100); } throw new Error('absent ' + sel); };
     let opened = null; const oldOpen = window.openFileRecord; window.openFileRecord = (rec) => { opened = rec; };
     try {
-      const PDFLib = await needPdfLib(), doc = await PDFLib.PDFDocument.create(); doc.addPage([420, 595]);
+      try { await needPdfLib(); } catch (e) { o.nolib = true; }   // pdf-lib / pdf.js ne sont copiés dans www/lib qu'au build : ici on ne peut pas écrire de PDF
+      if (o.nolib) { window.openFileRecord = oldOpen; return o; }
+      const PDFLib = window.PDFLib, doc = await PDFLib.PDFDocument.create(); doc.addPage([420, 595]);
       const blob = new Blob([await doc.save()], { type: 'application/pdf' });
       const rec = await DB.put('files', { projectId: pr0.id, blob, mime: 'application/pdf', role: 'bontpl', name: 'Modèle test.pdf' });
       const champs = [{ id: 'Surface', libelle: 'Surface', type: 'nombre' }, { id: 'Date', libelle: 'Date', type: 'date' }];
@@ -1640,7 +1642,7 @@ try {
     return o;
   });
   log('Suivis modèle visuel', sv2);
-  if (!sv2.noProject && !(sv2.menuCols && sv2.boite && sv2.cases && sv2.pdf && sv2.pdfPages)) throw new Error('suivis modèle visuel KO ' + JSON.stringify(sv2));
+  if (!sv2.noProject && !sv2.nolib && !(sv2.menuCols && sv2.boite && sv2.cases && sv2.pdf && sv2.pdfPages)) throw new Error('suivis modèle visuel KO ' + JSON.stringify(sv2));
   log('errors v1.0.x suivis', []);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
