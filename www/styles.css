@@ -4010,3 +4010,5 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .qd-rub.ok i { background: #16a34a; color: #fff; } .qd-rub b { display: block; font-size: 14px; } .qd-rub small { color: var(--muted); font-size: 12px; } .qd-rub.no small { color: #f59e0b; } .qd-rub svg { width: 16px; height: 16px; color: var(--muted); }
 .qd-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
 .qd-hi { padding: 8px 2px; border-bottom: 1px solid var(--line); } .qd-hi b { display: block; font-size: 13.5px; } .qd-hi small { color: var(--muted); }
+.me-go { display: block; margin: 14px 16px 0; width: calc(100% - 32px); padding: 12px; border-radius: 12px; background: var(--card); border: 1px dashed var(--line); color: inherit; font-weight: 600; }
+.qd-sub { margin-top: -4px; }

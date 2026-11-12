@@ -35,7 +35,10 @@
     const ms = mesMissions(m), st = ST(), nOpen = ms.filter(x => x.statut !== 'done').length, nLate = ms.filter(retard).length;
     // responsable de… (parties d'ouvrage de la documentation qualité)
     const files = await DB.byProject('files', p.id).catch(() => []);
-    const resp = (window.QualiteDocs ? QualiteDocs.partsOf(p).filter(x => x.resp === m.id) : []).map(x => ({ x, s: QualiteDocs.stat(x, files) }));
+    // pièces rattachées à mes missions (et leurs zones)
+    const docsM = (x) => files.filter(f => f.role === 'doc' && !f.archived && f.missionId === x.id);
+    const zones = [...new Set(ms.flatMap(x => docsM(x).map(f => f.zone).filter(Boolean)))];
+    const nDocs = ms.reduce((n, x) => n + docsM(x).length, 0);
     const mine = files.filter(f => f.role === 'doc' && ((uid() && f.by === uid()) || (nomUser() && f.byName === nomUser()))).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 5);
     // accès : poste SiteTeam et outils (niveaux voir / modifier / valider)
     let acc = '';
@@ -46,11 +49,12 @@
       <div class="me-card" style="--c:${typeof memColor === 'function' ? memColor(m) : '#3b82f6'}"><div class="me-av">${esc((m.name || '?')[0].toUpperCase())}</div><div class="grow"><b>${esc(m.name || '')}</b>
         <span>${esc(P ? P.svc.e + ' ' + P.n : m.role || '')}</span><small>${m.branche ? (m.branche === 'admin' ? '🏢 Administratif' : '🏗️ Chantier') : ''}${par ? ` · N+1 : ${esc(par.name)}` : ''}${sub.length ? ` · ${sub.length} dans mon équipe` : ''}</small></div>
         <button class="iconbtn" data-a="who" title="Ce n'est pas moi">${icon('edit')}</button></div>
-      <div class="me-kpi"><div><b>${nOpen}</b><small>mission(s) à traiter</small></div><div class="${nLate ? 'late' : ''}"><b>${nLate}</b><small>en retard</small></div><div><b>${resp.length}</b><small>partie(s) sous ma responsabilité</small></div></div>
+      <div class="me-kpi"><div><b>${nOpen}</b><small>mission(s) à traiter</small></div><div class="${nLate ? 'late' : ''}"><b>${nLate}</b><small>en retard</small></div><div><b>${nDocs}</b><small>pièce(s) sur mes missions</small></div></div>
       <h4 class="me-h">🎯 Mes missions</h4>
-      <div class="me-list">${ms.map(x => `<button class="me-ms ${retard(x) ? 'late' : ''}" data-ms="${x.id}"><span class="me-st" style="background:${(st[x.statut || 'todo'] || st.todo)[1]}">${(st[x.statut || 'todo'] || st.todo)[0]}</span><span class="grow"><b>${esc(x.titre)}</b><small>${esc(x.partie || '')}${x.echeance ? (x.partie ? ' · ' : '') + (retard(x) ? '⚠ en retard · ' : '📅 ') + fmtDate(x.echeance) : ''}</small></span></button>`).join('') || '<p class="muted" style="margin:2px 16px">Aucune mission pour le moment.</p>'}</div>
+      <div class="me-list">${ms.map(x => `<button class="me-ms ${retard(x) ? 'late' : ''}" data-ms="${x.id}"><span class="me-st" style="background:${(st[x.statut || 'todo'] || st.todo)[1]}">${(st[x.statut || 'todo'] || st.todo)[0]}</span><span class="grow"><b>${esc(x.titre)}</b><small>${docsM(x).length ? '📎 ' + docsM(x).length + ' pièce(s)' : '⚠ aucune pièce'}${x.echeance ? ' · ' + (retard(x) ? '⚠ en retard · ' : '📅 ') + fmtDate(x.echeance) : ''}</small></span></button>`).join('') || '<p class="muted" style="margin:2px 16px">Aucune mission pour le moment.</p>'}</div>
       ${ms.length ? '<small class="me-hint">Touchez l\'état d\'une mission pour le faire avancer : à faire → en cours → terminée.</small>' : ''}
-      ${resp.length ? `<h4 class="me-h">🧱 Je suis responsable de</h4><div class="me-list">${resp.map(({ x, s }) => `<button class="me-rp" data-p="${x.id}"><span class="grow"><b>${esc(x.nom)}</b><small>${s.cov}/${s.total} rubriques · ${s.n} pièce(s)${s.manque.length ? ` · manque : ${esc(s.manque.slice(0, 2).join(', '))}` : ' · ✅ complet'}</small></span>${icon('chevright')}</button>`).join('')}</div>` : ''}
+      ${zones.length ? `<h4 class="me-h">📍 Mes zones</h4><div class="me-chips" style="margin:0 16px">${zones.map(z => `<span>${esc(z)}</span>`).join('')}</div>` : ''}
+      <button class="me-go" data-a="docs">📎 Ajouter / voir les pièces (Mission / zone)</button>
       ${acc ? `<h4 class="me-h">🔑 Mon accès</h4>${acc}` : ''}
       ${mine.length ? `<h4 class="me-h">📎 Mes dernières pièces</h4><div class="me-list">${mine.map(f => `<div class="me-doc"><span class="grow"><b>${esc(f.name || 'Pièce')}</b><small>${esc(f.rubrique || '')}${f.rubrique ? ' · ' : ''}${fmtDate(new Date(f.updatedAt || Date.now()).toISOString().slice(0, 10))}</small></span></div>`).join('')}</div>` : ''}
       ${sub.length ? `<h4 class="me-h">👥 Mon équipe</h4><div class="me-list">${sub.map(x => `<div class="me-doc"><span class="grow"><b>${esc(x.name || '')}</b><small>${esc((typeof memPoste === 'function' && memPoste(x) ? memPoste(x).n : x.role) || '')} · ${(x.missions || []).filter(y => y.statut !== 'done').length} mission(s) ouverte(s)</small></span></div>`).join('')}</div>` : ''}`;
@@ -59,7 +63,7 @@
       const x = (m.missions || []).find(y => y.id === b.dataset.ms); if (!x) return;
       x.statut = NEXT[x.statut || 'todo']; x.modifieLe = Date.now(); x.parNom = m.name;
       await DB.put('projects', p); render(root); });
-    $$('[data-p]', root).forEach(b => b.onclick = () => { App.docCat = null; App.section = 'docq'; renderSection(); });
+    ($('[data-a=docs]', root) || {}).onclick = () => { App.docCat = null; App.docView = 'mz'; App.mzSt = { mode: 'mission', key: null }; App.section = 'docq'; renderSection(); };
   }
   window.MonEspace = { render, meOf, mesMissions, retard, setMap };
 })();

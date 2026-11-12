@@ -1691,13 +1691,22 @@ try {
       o.missions = root.querySelectorAll('[data-ms]').length === 2 && !!root.querySelector('.me-ms.late');
       root.querySelector('[data-ms=m1]').click(); await wait(500);
       o.avance = (pr0.team.find(x => x.id === 'me2').missions[0].statut === 'doing');
+      await DB.put('files', { id: 'fmz1', projectId: pr0.id, role: 'doc', name: 'Fiche test', missionId: 'm1', zone: 'Zone 1', rubrique: 'Fond de fouille', updatedAt: Date.now() });
+      await MonEspace.render(root); await wait(400);
+      o.pieces = /1 pièce/.test(root.querySelector('[data-ms=m2]') ? root.querySelector('[data-ms=m2]').textContent : '') === false && /1 pièce/.test(root.querySelector('[data-ms=m1]').textContent) && /Zone 1/.test(root.textContent);
+      App.docView = 'mz'; App.mzSt = { mode: 'mission', key: null };
+      const r2 = document.createElement('div'); document.body.appendChild(r2); await QualiteDocs.renderMZ(r2); await wait(400);
+      o.vueMz = !!r2.querySelector('[data-m=zone]') && /PV labo béton/.test(r2.textContent);
+      r2.querySelector('[data-m=zone]').click(); await wait(400);
+      o.vueZone = /Zone 1/.test(r2.textContent);
+      r2.remove(); App.docView = null; await DB.del('files', 'fmz1');
       MonEspace.setMap(pr0, ''); root.remove();
     } catch (e) { o.err = String(e.message || e); }
     pr0.team = JSON.parse(bak); await DB.put('projects', pr0);
     return o;
   });
   log('Mon espace', me1);
-  if (!me1.noProject && !(me1.ask && me1.card && me1.missions && me1.avance)) throw new Error('mon espace KO ' + JSON.stringify(me1));
+  if (!me1.noProject && !(me1.ask && me1.card && me1.missions && me1.avance && me1.pieces && me1.vueMz && me1.vueZone)) throw new Error('mon espace KO ' + JSON.stringify(me1));
   // ---- Documentation qualité par partie d'ouvrage : rubriques, pièces classées, manques, historique
   const qd = await A.pg.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
