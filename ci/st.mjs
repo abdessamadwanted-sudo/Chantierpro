@@ -1578,6 +1578,8 @@ try {
     const until = async (f) => { for (let i = 0; i < 80 && !f(); i++) await wait(100); return f(); };
     try {
       App.section = 'reception'; App.recTab = null;
+      // modèles selon le poste : le service de l'utilisateur est lu depuis Team, chaque modèle a des colonnes valides
+      { const me0 = Team.me; Team.me = () => ({ service: 'topo' }); o.poste = SuivisPerso.monService().k === 'topo' && SuivisPerso.PRESETS.some(x => (x.svc || []).includes('topo')) && SuivisPerso.PRESETS.every(x => SuivisPerso.colsOfPreset(x).length === x.cols.length); Team.me = me0; }
       openSuivis(pr0);
       o.galerie = /conseillé/.test((await byText(/Chape/)) && top().textContent);
       (await byText(/Chape/)).click(); await wait(400);
@@ -1618,6 +1620,9 @@ try {
       const heads = [...document.querySelectorAll('.sv-dayr table.rec thead th')].map(x => x.textContent);
       o.rename = heads.includes('Étage') && heads.indexOf('Étage') > heads.indexOf('Local') && /R\+2/.test(document.querySelector('.sv-dayr table.rec tbody').textContent);
       document.querySelector('.sv-dayr [data-a=back]').click(); await wait(600);
+      // archivage : le suivi disparaît des onglets (lignes gardées), puis il revient
+      { const m0 = (await SuivisPerso.mine(pr0))[0], n0 = (await SuivisPerso.actifs(pr0)).length; await SuivisPerso.archiver(m0, true); const a1 = (await SuivisPerso.actifs(pr0)).length, t1 = (await SuivisPerso.mine(pr0)).length, l1 = (await SuivisPerso.lignesOf(m0)).length; await SuivisPerso.archiver(m0, false);
+        o.archive = a1 === n0 - 1 && t1 === n0 && l1 > 0 && (await SuivisPerso.actifs(pr0)).length === n0; }
       const inp = document.querySelector('.search input'); inp.value = 'zzz'; inp.dispatchEvent(new Event('input')); await wait(900);
       o.recherche = /Aucun résultat/.test(document.querySelector('#svBody').textContent);
       document.querySelector('.kseg [data-k=reception]').click(); await wait(800);
@@ -1629,7 +1634,7 @@ try {
     return o;
   });
   log('Suivis personnalisés', sv);
-  if (!sv.noProject && !(sv.galerie && sv.preNom && sv.onglet && sv.structure && sv.entete && sv.ligne && sv.edit && sv.entetePro && sv.coller && sv.filtre && sv.rename && sv.recherche && sv.retour && sv.sync)) throw new Error('suivis personnalisés KO ' + JSON.stringify(sv));
+  if (!sv.noProject && !(sv.galerie && sv.poste && sv.preNom && sv.onglet && sv.structure && sv.entete && sv.ligne && sv.edit && sv.entetePro && sv.coller && sv.filtre && sv.rename && sv.archive && sv.recherche && sv.retour && sv.sync)) throw new Error('suivis personnalisés KO ' + JSON.stringify(sv));
   // ---- Suivis personnalisés + modèle visuel : cases liées aux colonnes, PDF écrit sur le bon
   const sv2 = await A.pg.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};

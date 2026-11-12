@@ -9,6 +9,9 @@
   const projId = (p) => 'p_' + String(p.id).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60);
   const ctxOf = (p) => ({ entrepriseId: entId(), projetId: projId(p) });
   const mine = async (p) => (await DB.all('dsmodeles')).filter(m => m.entrepriseId === entId() && m.projetId === projId(p) && m.categorie === 'suivi').sort((a, b) => a.nom.localeCompare(b.nom));
+  // archivage : un suivi archivé disparaît des onglets mais garde toutes ses lignes (restaurable depuis « + »)
+  const actifs = async (p) => (await mine(p)).filter(m => !m.archive);
+  async function archiver(m, val) { const cur = (await mine({ id: m.projetId.slice(2) })).find(x => x.id === m.id) || m; await DB.putRaw('dsmodeles', { ...cur, archive: val ? Date.now() : null }); }
   const lignesOf = async (m) => (await DB.all('dsdossiers')).filter(d => d.modeleId === m.id && d.entrepriseId === m.entrepriseId).sort((a, b) => (b.creeLe || 0) - (a.creeLe || 0));
   const unique = (base, taken) => { let id = base, i = 2; while (taken.has(id)) id = base + '_' + i++; return id; };
 
@@ -19,12 +22,12 @@
     if (typeof DocumentStudio === 'undefined') return toast('Module non chargé');
     const sec = dispo('reception') ? 'reception' : dispo('beton') ? 'beton' : null;
     if (!sec) return listeFeuille(p);
-    let list = await mine(p);
+    let list = await actifs(p);
     if (!list.length) { const m = await nouveauSuivi(p); if (!m) return; list = [m]; }
     App.recTab = { pid: p.id, id: list[0].id }; App.section = sec; renderSection();
   }
   async function listeFeuille(p) {
-    const list = await mine(p), counts = {};
+    const list = await actifs(p), counts = {};
     for (const m of list) counts[m.id] = (await lignesOf(m)).length;
     const s = sheet(`<div class="form">
       ${list.length ? list.map(m => `<button class="menu-item" data-open="${esc(m.id)}"><b>${esc(m.nom)}</b><small>${m.champs.length} colonne(s) · ${counts[m.id]} ligne(s)</small></button>`).join('')
@@ -89,44 +92,68 @@
   // ---------- modèles prêts à l'emploi, classés selon le type de projet (p.type) ----------
   // colonne : 'Nom|type|choix1,choix2' (type : t texte, n nombre, d date, l liste, c case)
   const PRESETS = [
-    { nom: 'Gradins', ico: '🏟️', types: ['equip', 'indus'], cols: ['Secteur|t', 'Gradin n°|t', 'Axe / file|t', 'Coffrage|c', 'Ferraillage|c', 'Bétonnage|d', 'Décoffrage|d', 'Observation|t'] },
-    { nom: 'Chape', ico: '🧱', types: ['bat', 'villa', 'reno', 'so', 'equip'], cols: ['Niveau|t', 'Local|t', 'Surface m²|n', 'Type|l|Ciment,Autolissante,Fluide,Allégée', 'Épaisseur cm|n', 'Date de coulage|d', 'Planéité|l|Conforme,Non conforme', 'Observation|t'] },
-    { nom: 'Maçonnerie', ico: '🏗️', types: ['bat', 'villa', 'reno', 'equip'], cols: ['Niveau|t', 'Zone / axe|t', 'Type de mur|l|Cloison 7,Cloison 10,Mur 15,Mur 20,Mur 25', 'Longueur m|n', 'Hauteur m|n', 'Date|d', 'État|l|À faire,En cours,Terminé', 'Observation|t'] },
-    { nom: 'Étanchéité', ico: '💧', types: ['bat', 'equip', 'reno', 'hydro', 'ga', 'villa'], cols: ['Zone|t', 'Support|t', 'Surface m²|n', 'Revêtement|l|Bicouche,Monocouche,Membrane,Résine', 'Date|d', 'Essai à l\'eau|l|Conforme,Non conforme,Non fait', 'PV|c'] },
-    { nom: 'Enduit & plâtre', ico: '🪣', types: ['bat', 'villa', 'reno', 'so', 'equip'], cols: ['Niveau|t', 'Local|t', 'Surface m²|n', 'Type|l|Enduit ciment,Plâtre,Projeté', 'Date|d', 'État|l|À faire,En cours,Terminé'] },
-    { nom: 'Carrelage', ico: '🔲', types: ['bat', 'villa', 'reno', 'so', 'equip'], cols: ['Niveau|t', 'Local|t', 'Référence|t', 'Surface m²|n', 'Date de pose|d', 'Joints|c', 'Réception|l|Acceptée,Réserves,Refusée'] },
-    { nom: 'Peinture', ico: '🎨', types: ['bat', 'villa', 'reno', 'so', 'equip'], cols: ['Niveau|t', 'Local|t', 'Couche|l|Impression,1re couche,2e couche,Finition', 'Surface m²|n', 'Date|d', 'Réception|l|Acceptée,Réserves'] },
-    { nom: 'Faux plafond', ico: '⬜', types: ['bat', 'equip', 'so', 'reno'], cols: ['Niveau|t', 'Local|t', 'Type|t', 'Surface m²|n', 'Ossature|c', 'Plaques|c', 'Finition|c'] },
-    { nom: 'Menuiserie', ico: '🚪', types: ['bat', 'villa', 'reno', 'so', 'equip'], cols: ['Niveau|t', 'Repère|t', 'Type|l|Porte,Fenêtre,Baie,Garde-corps', 'Matière|l|Alu,PVC,Bois,Acier', 'Dimensions|t', 'Pose|d', 'Réception|l|Acceptée,Réserves'] },
-    { nom: 'Plomberie', ico: '🚰', types: ['bat', 'villa', 'reno', 'equip'], cols: ['Niveau|t', 'Zone|t', 'Réseau|l|EU,EV,EF,ECS,Incendie', 'Diamètre|t', 'Longueur m|n', 'Essai de pression|l|Conforme,Non conforme,Non fait', 'Date|d'] },
-    { nom: 'Électricité', ico: '⚡', types: ['bat', 'villa', 'reno', 'equip', 'indus'], cols: ['Niveau|t', 'Zone|t', 'Lot|l|Gaines,Câblage,Appareillage,Tableaux', 'Quantité|n', 'Date|d', 'Contrôle|l|Conforme,Non conforme,Non fait'] },
-    { nom: 'Tranchées & réseaux', ico: '🛣️', types: ['vrd', 'route', 'ext'], cols: ['Tronçon|t', 'PK début|t', 'PK fin|t', 'Longueur m|n', 'Diamètre|t', 'Profondeur m|n', 'Lit de pose|c', 'Remblai|c', 'Essai|l|Conforme,Non conforme,Non fait', 'Date|d'] },
-    { nom: 'Chaussée (couches)', ico: '🛤️', types: ['route', 'vrd'], cols: ['PK début|t', 'PK fin|t', 'Couche|l|Terrassement,Forme,GNT,Base,Roulement', 'Épaisseur cm|n', 'Compactage %|n', 'Date|d', 'Contrôle|l|Conforme,Non conforme,Non fait'] },
-    { nom: 'Appuis & tabliers', ico: '🌉', types: ['ga', 'pont'], cols: ['Ouvrage|t', 'Élément|l|Fondation,Pile,Culée,Chevêtre,Tablier', 'Ferraillage|c', 'Coffrage|c', 'Bétonnage|d', 'Éprouvettes|t', 'Observation|t'] },
+    { nom: 'Gradins', ico: '🏟️', types: ['equip', 'indus'], svc: ['travaux', 'ferraillage'], cols: ['Secteur|t', 'Gradin n°|t', 'Axe / file|t', 'Coffrage|c', 'Ferraillage|c', 'Bétonnage|d', 'Décoffrage|d', 'Observation|t'] },
+    { nom: 'Chape', ico: '🧱', types: ['bat', 'villa', 'reno', 'so', 'equip'], svc: ['travaux', 'ferraillage'], cols: ['Niveau|t', 'Local|t', 'Surface m²|n', 'Type|l|Ciment,Autolissante,Fluide,Allégée', 'Épaisseur cm|n', 'Date de coulage|d', 'Planéité|l|Conforme,Non conforme', 'Observation|t'] },
+    { nom: 'Maçonnerie', ico: '🏗️', types: ['bat', 'villa', 'reno', 'equip'], svc: ['travaux', 'ferraillage'], cols: ['Niveau|t', 'Zone / axe|t', 'Type de mur|l|Cloison 7,Cloison 10,Mur 15,Mur 20,Mur 25', 'Longueur m|n', 'Hauteur m|n', 'Date|d', 'État|l|À faire,En cours,Terminé', 'Observation|t'] },
+    { nom: 'Étanchéité', ico: '💧', types: ['bat', 'equip', 'reno', 'hydro', 'ga', 'villa'], svc: ['travaux'], cols: ['Zone|t', 'Support|t', 'Surface m²|n', 'Revêtement|l|Bicouche,Monocouche,Membrane,Résine', 'Date|d', 'Essai à l\'eau|l|Conforme,Non conforme,Non fait', 'PV|c'] },
+    { nom: 'Enduit & plâtre', ico: '🪣', types: ['bat', 'villa', 'reno', 'so', 'equip'], svc: ['travaux'], cols: ['Niveau|t', 'Local|t', 'Surface m²|n', 'Type|l|Enduit ciment,Plâtre,Projeté', 'Date|d', 'État|l|À faire,En cours,Terminé'] },
+    { nom: 'Carrelage', ico: '🔲', types: ['bat', 'villa', 'reno', 'so', 'equip'], svc: ['travaux'], cols: ['Niveau|t', 'Local|t', 'Référence|t', 'Surface m²|n', 'Date de pose|d', 'Joints|c', 'Réception|l|Acceptée,Réserves,Refusée'] },
+    { nom: 'Peinture', ico: '🎨', types: ['bat', 'villa', 'reno', 'so', 'equip'], svc: ['travaux'], cols: ['Niveau|t', 'Local|t', 'Couche|l|Impression,1re couche,2e couche,Finition', 'Surface m²|n', 'Date|d', 'Réception|l|Acceptée,Réserves'] },
+    { nom: 'Faux plafond', ico: '⬜', types: ['bat', 'equip', 'so', 'reno'], svc: ['travaux'], cols: ['Niveau|t', 'Local|t', 'Type|t', 'Surface m²|n', 'Ossature|c', 'Plaques|c', 'Finition|c'] },
+    { nom: 'Menuiserie', ico: '🚪', types: ['bat', 'villa', 'reno', 'so', 'equip'], svc: ['travaux'], cols: ['Niveau|t', 'Repère|t', 'Type|l|Porte,Fenêtre,Baie,Garde-corps', 'Matière|l|Alu,PVC,Bois,Acier', 'Dimensions|t', 'Pose|d', 'Réception|l|Acceptée,Réserves'] },
+    { nom: 'Plomberie', ico: '🚰', types: ['bat', 'villa', 'reno', 'equip'], svc: ['travaux', 'maintenance'], cols: ['Niveau|t', 'Zone|t', 'Réseau|l|EU,EV,EF,ECS,Incendie', 'Diamètre|t', 'Longueur m|n', 'Essai de pression|l|Conforme,Non conforme,Non fait', 'Date|d'] },
+    { nom: 'Électricité', ico: '⚡', types: ['bat', 'villa', 'reno', 'equip', 'indus'], svc: ['travaux', 'maintenance'], cols: ['Niveau|t', 'Zone|t', 'Lot|l|Gaines,Câblage,Appareillage,Tableaux', 'Quantité|n', 'Date|d', 'Contrôle|l|Conforme,Non conforme,Non fait'] },
+    { nom: 'Tranchées & réseaux', ico: '🛣️', types: ['vrd', 'route', 'ext'], svc: ['travaux', 'topo'], cols: ['Tronçon|t', 'PK début|t', 'PK fin|t', 'Longueur m|n', 'Diamètre|t', 'Profondeur m|n', 'Lit de pose|c', 'Remblai|c', 'Essai|l|Conforme,Non conforme,Non fait', 'Date|d'] },
+    { nom: 'Chaussée (couches)', ico: '🛤️', types: ['route', 'vrd'], svc: ['travaux', 'topo'], cols: ['PK début|t', 'PK fin|t', 'Couche|l|Terrassement,Forme,GNT,Base,Roulement', 'Épaisseur cm|n', 'Compactage %|n', 'Date|d', 'Contrôle|l|Conforme,Non conforme,Non fait'] },
+    { nom: 'Appuis & tabliers', ico: '🌉', types: ['ga', 'pont'], svc: ['travaux', 'ferraillage'], cols: ['Ouvrage|t', 'Élément|l|Fondation,Pile,Culée,Chevêtre,Tablier', 'Ferraillage|c', 'Coffrage|c', 'Bétonnage|d', 'Éprouvettes|t', 'Observation|t'] },
+    { nom: 'Ferraillage', ico: '🔩', types: ['bat', 'villa', 'equip', 'indus', 'ga', 'pont'], svc: ['ferraillage', 'travaux', 'qualite'], cols: ['Niveau|t', 'Zone / axe|t', 'Élément|t', 'Diamètres|t', 'Espacement cm|n', 'Enrobage|c', 'Date|d', 'Réception|l|Acceptée,Réserves,Refusée', 'Observation|t'] },
+    { nom: 'Coffrage', ico: '🪵', types: ['bat', 'villa', 'equip', 'indus', 'ga', 'pont'], svc: ['travaux', 'ferraillage'], cols: ['Niveau|t', 'Zone / axe|t', 'Élément|t', 'Aplomb|c', 'Étanchéité du coffrage|c', 'Date|d', 'Décoffrage|d', 'Observation|t'] },
+    { nom: 'Contrôle qualité', ico: '✅', types: [], svc: ['qualite', 'labo'], cols: ['Zone|t', 'Point de contrôle|t', 'Référence|t', 'Date|d', 'Résultat|l|Conforme,Non conforme,À reprendre', 'Action corrective|t', 'Levée|c'] },
+    { nom: 'Essais béton', ico: '🧪', types: [], svc: ['qualite', 'labo', 'centrale'], cols: ['N° BL|t', 'Élément|t', 'Classe|t', 'Affaissement cm|n', 'Éprouvettes|t', 'Date|d', 'Résistance 28 j MPa|n', 'Conforme|c'] },
+    { nom: 'Implantation & levés', ico: '📐', types: [], svc: ['topo'], cols: ['Point|t', 'X|n', 'Y|n', 'Z|n', 'Écart mm|n', 'Date|d', 'Contrôle|l|Conforme,Non conforme,Non fait'] },
+    { nom: 'Contrôles HSE', ico: '🦺', types: [], svc: ['hse'], cols: ['Zone|t', 'Point de contrôle|t', 'Conforme|c', 'Action|t', 'Responsable|t', 'Échéance|d'] },
+    { nom: 'Livraisons béton', ico: '🚛', types: [], svc: ['centrale', 'travaux'], cols: ['N° BL|t', 'Classe|t', 'Volume m³|n', 'Camion|t', 'Heure|t', 'Affaissement cm|n', 'Ouvrage|t'] },
     { nom: 'Suivi libre', ico: '📋', types: [], cols: ['Élément|t', 'Date|d', 'État|l|À faire,En cours,Terminé', 'Observation|t'] },
   ];
   function colsOfPreset(pr) {
     const taken = new Set(), TY = { t: 'texte', n: 'nombre', d: 'date', l: 'liste', c: 'case' };
     return pr.cols.map(x => { const [lib, t, opt] = x.split('|'), c = { id: unique(slug(lib), taken), libelle: lib, type: TY[t] || 'texte', obligatoire: false }; taken.add(c.id); if (c.type === 'liste') c.options = String(opt || '').split(',').map(z => z.trim()).filter(Boolean); return c; });
   }
+  // service de l'utilisateur connecté (espace Team) : sert à proposer d'abord les modèles de son métier
+  function monService() {
+    try {
+      const me = typeof Team !== 'undefined' && Team.me && Team.me(); if (!me) return {};
+      const k = me.service || (typeof tmRoleOf === 'function' ? tmRoleOf(me.role).s : '');
+      const sv = typeof TM_SERVICES !== 'undefined' ? TM_SERVICES.find(x => x.k === k) : null;
+      return k ? { k, l: sv ? sv.l : k } : {};
+    } catch (e) { return {}; }
+  }
   // proposer : d'abord les modèles qui correspondent au type du projet, puis les autres ; ou un suivi vide
   async function nouveauSuivi(p) {
-    const ty = p.type, ordre = PRESETS.map((x, i) => ({ x, i, rel: ty && x.types.includes(ty) })).sort((a, b) => (b.rel - a.rel) || (a.i - b.i));
-    const T = typeof projTypeOf === 'function' && projTypeOf(ty);
+    const ty = p.type, mon = monService(), poste = (x) => !!mon.k && (x.svc || []).includes(mon.k);
+    // d'abord les modèles du poste de l'utilisateur, puis ceux du type de projet, puis les autres
+    const ordre = PRESETS.map((x, i) => ({ x, i, pos: poste(x), rel: !poste(x) && !!(ty && x.types.includes(ty)) })).sort((a, b) => (b.pos - a.pos) || (b.rel - a.rel) || (a.i - b.i));
+    const T = typeof projTypeOf === 'function' && projTypeOf(ty), arch = (await mine(p)).filter(m => m.archive);
     const v = await new Promise((resolve) => {
       let pick = null;
-      const card = (o) => `<button class="sv-card ${o.rel ? 'rel' : ''}" data-i="${o.i}"><i>${o.x.ico}</i><b>${esc(o.x.nom)}</b><small>${o.x.cols.length} colonnes</small>${o.rel ? '<em>⭐ conseillé</em>' : ''}</button>`;
+      const card = (o) => `<button class="sv-card ${o.rel || o.pos ? 'rel' : ''}" data-i="${o.i}"><i>${o.x.ico}</i><b>${esc(o.x.nom)}</b><small>${o.x.cols.length} colonnes</small>${o.pos ? '<em>👤 votre poste</em>' : o.rel ? '<em>⭐ conseillé</em>' : ''}</button>`;
       const s = sheet(`<div class="sv-gal">
         <p class="sv-sub">${T ? `${T.e} Projet : ${esc(T.n.replace(/\s*\(.*\)/, ''))}. ` : ''}Choisissez un modèle prêt, vous pourrez tout modifier ensuite.</p>
+        ${arch.length ? `<button class="sv-card sv-blank" data-i="arch"><i>🗄️</i><span><b>Suivis archivés (${arch.length})</b><small>Restaurer un suivi</small></span></button>` : ''}
         <button class="sv-card sv-blank" data-i="-1"><i>✏️</i><span><b>Suivi vide</b><small>Je choisis moi-même les colonnes</small></span></button>
+        ${ordre.some(o => o.pos) ? `<h4>Pour votre poste${mon.l ? ' (' + esc(mon.l) + ')' : ''}</h4><div class="sv-grid">${ordre.filter(o => o.pos).map(card).join('')}</div>` : ''}
         ${ordre.some(o => o.rel) ? `<h4>Conseillés pour ce projet</h4><div class="sv-grid">${ordre.filter(o => o.rel).map(card).join('')}</div>` : ''}
-        <h4>${ordre.some(o => o.rel) ? 'Autres modèles' : 'Modèles'}</h4><div class="sv-grid">${ordre.filter(o => !o.rel).map(card).join('')}</div></div>`, {
+        <h4>${ordre.some(o => o.rel || o.pos) ? 'Autres modèles' : 'Modèles'}</h4><div class="sv-grid">${ordre.filter(o => !o.rel && !o.pos).map(card).join('')}</div></div>`, {
         title: 'Nouveau suivi',
         onMount: (el) => el.querySelectorAll('[data-i]').forEach(b => b.onclick = () => { pick = b.dataset.i; s.close(); }),
       });
       s.onClose = () => resolve(pick);
     });
     if (v == null || v === '') return null;
+    if (v === 'arch') {
+      const r = await menu('Suivis archivés', arch.map(m => ({ label: m.nom, icon: 'folder', value: m.id })));
+      if (!r) return null; const m = arch.find(x => x.id === r); await archiver(m, false); toast('Suivi restauré'); return m;
+    }
     const m = await suiviBuilder(p, null, +v >= 0 ? PRESETS[+v] : null);
     return m && m !== 'supprime' ? m : null;
   }
@@ -249,7 +276,7 @@
   const jour = (t) => { try { return new Date(t).toLocaleDateString('fr-FR'); } catch (e) { return ''; } };
   async function tabsHtml(p) {
     if (typeof DocumentStudio === 'undefined') return '';
-    const list = await mine(p), act = App.recTab && App.recTab.pid === p.id ? App.recTab.id : null;
+    const list = await actifs(p), act = App.recTab && App.recTab.pid === p.id ? App.recTab.id : null;
     return list.map(m => `<button class="${act === m.id ? 'on' : ''}" data-sv="${esc(m.id)}">${icon('grid')} ${esc(m.nom)}</button>`).join('') + `<button class="sv-plus" data-sv-new title="Nouveau suivi">＋</button>`;
   }
   function bindTabs(root, p) {
@@ -403,5 +430,5 @@
   }
   window.openSuivis = openSuivis;
   window.SuivisTabs = { tabsHtml, bind: bindTabs, render: renderTab };
-  window.SuivisPerso = { mine, lignesOf, ctxOf, visuelEditer, PRESETS, colsOfPreset };
+  window.SuivisPerso = { monService, actifs, archiver, mine, lignesOf, ctxOf, visuelEditer, PRESETS, colsOfPreset };
 })();
