@@ -1678,7 +1678,7 @@ try {
   if (!og.noProject && !(og.chips && og.filtre && og.stats && og.role && og.code && og.fiche)) throw new Error('organigramme qualité KO ' + JSON.stringify(og));
   // ---- Mon espace : rôle, missions, accès de la personne
   const me1 = await A.pg.evaluate(async () => {
-    const o = {}; const pr0 = (await DB.all('projects'))[0]; if (!pr0) return { noProject: true };
+    const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {}; const pr0 = (await DB.all('projects'))[0]; if (!pr0) return { noProject: true };
     const bak = JSON.stringify(pr0.team || []);
     try {
       pr0.team = [{ id: 'me1', name: 'Directeur', poste: 'dirq', service: 'qual', branche: 'admin' }, { id: 'me2', name: 'Chef labo', poste: 'respq', service: 'qual', parent: 'me1', branche: 'chantier', missions: [{ id: 'm1', titre: 'PV labo béton', statut: 'todo', echeance: '2020-01-01' }, { id: 'm2', titre: 'Fiches fond de fouille', statut: 'done' }] }];
