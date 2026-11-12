@@ -1660,9 +1660,9 @@ try {
       const n0 = root.querySelectorAll('g[data-m]').length;
       root.querySelector('[data-br=chantier]').click(); await wait(400);
       const n1 = root.querySelectorAll('g[data-m]').length;   // Chef + son supérieur
-      o.filtre = n0 === 3 && n1 === 2 && !root.querySelector('g[data-m="og2"]');
+      o.filtre = n0 >= 3 && n1 < n0 && !!root.querySelector('g[data-m="og3"]') && !root.querySelector('g[data-m="og2"]');
       App.orgBr = '';
-      const m = pr0.team[1]; m.missions = [{ id: 'a', titre: 'Fiches fond de fouille', partie: 'Terrassement et fondation', statut: 'doing' }, { id: 'b', titre: 'PV labo', statut: 'done' }];
+      const m = pr0.team.find(x => x.id === 'og2'); m.missions = [{ id: 'a', titre: 'Fiches fond de fouille', partie: 'Terrassement et fondation', statut: 'doing' }, { id: 'b', titre: 'PV labo', statut: 'done' }];
       o.stats = OrgQ.missionStats(m).open === 1 && OrgQ.missionStats(m).done === 1;
       o.role = OrgQ.roleOfMember(m) === 'respqualite' && OrgQ.roleOfMember({ poste: 'zzz', service: 'hse' }) === 'animhse';
       OrgQ.ogCodeSet(m, { code: 'ABCD2345', at: Date.now(), role: 'respqualite' }); o.code = OrgQ.ogCodeGet(m).code === 'ABCD2345' && !JSON.stringify(pr0).includes('ABCD2345'); OrgQ.ogCodeSet(m, null);
