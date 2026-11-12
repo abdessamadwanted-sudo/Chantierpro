@@ -1566,6 +1566,40 @@ try {
   });
   log('Document Studio (socle)', ds);
   log('errors v1.0.x document-studio', ds.loaded && ds.date && ds.dateKo && ds.isole && ds.stocke && ds.supprime && ds.tables ? [] : ['document-studio']);
+  // ---- v1.0.x : Suivis personnalisés (Form Builder → ligne saisie → stockage local)
+  const sv = await A.pg.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
+    const pr0 = (await DB.all('projects'))[0]; if (!pr0) return { noProject: true };
+    App.project = pr0;
+    const top = () => [...document.querySelectorAll('.sheet-bg')].pop();
+    // attend (jusqu'à 8 s) que l'élément soit présent dans la feuille du dessus, puis agit (runner CI parfois lent)
+    const need = async (sel) => { for (let i = 0; i < 80; i++) { const e = top() && top().querySelector(sel); if (e) return e; await wait(100); } throw new Error('absent ' + sel + ' | ' + (top() ? top().textContent.slice(0, 80) : 'aucune feuille')); };
+    const click = async (sel) => { (await need(sel)).click(); await wait(250); };
+    try {
+      openSuivis(pr0); await click('[data-a=new]');
+      (await need('[name=nom]')).value = 'Suivi test CI';
+      await click('[data-a=addcol]');
+      (await need('[name=libelle]')).value = 'Surface'; top().querySelector('[name=type]').value = 'nombre'; await click('[data-a=ok]');
+      await click('[data-a=addcol]');
+      (await need('[name=libelle]')).value = 'Code'; top().querySelector('[name=type]').value = 'liste'; top().querySelector('[name=options]').value = 'A, B'; await click('[data-a=ok]');
+      await click('[data-a=save]');
+      o.liste = !!(await need('[data-open]'));
+      await click('[data-open]'); await click('[data-a=add]');
+      (await need('[name=Surface]')).value = '12.5'; top().querySelector('[name=Code]').value = 'B'; await click('[data-a=ok]');
+      await need('.ds-tab');
+      const ms = (await DB.all('dsmodeles')).filter(m => m.nom === 'Suivi test CI'), ds = await DB.all('dsdossiers');
+      o.modele = ms.length === 1 && ms[0].champs.length === 2 && ms[0].categorie === 'suivi';
+      o.ligne = ds.length === 1 && ds[0].valeurs.Surface === 12.5 && ds[0].valeurs.Code === 'B' && ds[0].statut === 'brouillon';
+      o.tableau = !!top() && top().textContent.includes('12.5');
+      o.sync = !(await DB.all('tomb')).some(x => /^(s_|d_)/.test(String(x.id || '')));
+      for (const d of ds) await DB.delRaw('dsdossiers', d.id); for (const m of ms) await DB.delRaw('dsmodeles', m.id);
+    } catch (e) { o.err = String(e.message || e); }
+    document.querySelectorAll('.sheet-bg').forEach(x => x.remove());
+    return o;
+  });
+  log('Suivis personnalisés', sv);
+  if (!sv.noProject && !(sv.liste && sv.modele && sv.ligne && sv.tableau && sv.sync)) throw new Error('suivis personnalisés KO ' + JSON.stringify(sv));
+  log('errors v1.0.x suivis', []);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
