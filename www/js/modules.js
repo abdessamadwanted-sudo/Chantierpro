@@ -5,7 +5,7 @@
 // Chacun peut aussi masquer des fonctions sur son propre téléphone.
 const FEATURES = [
   ['avancement', 'Avancement second œuvre (lots · niveaux · locaux)'],
-  ['reception', 'Réception & bétonnage · PV à récupérer'],
+  ['reception', 'Suivi technique · réception, bétonnage, suivis · PV à récupérer'],
   ['tasks', 'Réserves / Tâches'],
   ['photos', 'Photos'],
   ['forms', 'Formulaires QC'],

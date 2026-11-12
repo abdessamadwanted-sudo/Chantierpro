@@ -378,8 +378,8 @@ const SECTIONS = {
   plans: { label: 'Plans', icon: 'plans', render: renderPlans, title: 'Plans', subtitle: 'Toutes les tâches sur les plans' },
   clauses: { label: 'Clauses techniques', icon: 'book', render: (r) => renderClauses(r) },
   tasks: { label: 'Réserves / Tâches', icon: 'tasks', render: renderTasks },
-  reception: { label: 'Réception & Bétonnage', icon: 'layers', render: (r) => renderReceptions(r, 'Ferraillage'), title: 'Réception & Bétonnage', subtitle: 'Tableaux par jour' },
-  beton: { label: 'Programme de bétonnage', hidden: true, icon: 'calendar', render: (r) => renderReceptions(r, 'Bétonnage'), title: 'Réception & Bétonnage', subtitle: 'Tableaux par jour' },
+  reception: { label: 'Suivi technique', icon: 'layers', render: (r) => renderReceptions(r, 'Ferraillage'), title: 'Suivi technique', subtitle: 'Réception · bétonnage · suivis' },
+  beton: { label: 'Programme de bétonnage', hidden: true, icon: 'calendar', render: (r) => renderReceptions(r, 'Bétonnage'), title: 'Suivi technique', subtitle: 'Réception · bétonnage · suivis' },
   photos: { label: 'Photos', icon: 'camera', render: (r) => (typeof renderPhotosV2 === 'function' ? renderPhotosV2 : renderPhotos)(r) },   // v1.0.47 : photos classées (av47.js)
   forms: { label: 'PV & contrôles', icon: 'form', render: renderForms },
   reports: { label: 'Rapports journaliers', icon: 'report', render: renderReports },

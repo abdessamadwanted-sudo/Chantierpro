@@ -110,7 +110,7 @@ Intervenants|المتدخلون|Stakeholders
 Intervenant|متدخل|Stakeholder
 Équipe|الفريق|Team
 Responsable|المسؤول|Manager
-Réception & Bétonnage|الاستلام والصب|Reception & Concreting
+Suivi technique|التتبع التقني|Technical follow-up
 Réception ferraillage|استلام الحديد|Rebar reception
 Réception coffrage|استلام الكوفراج|Formwork reception
 Réception ferraillage seule|استلام الحديد فقط|Rebar reception only
