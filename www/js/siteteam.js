@@ -304,9 +304,9 @@ const ST = (() => {
     const qaKeys = [...qaOrd.filter(k => qaSpecOf(k)), ...[...Object.keys(qaSpec), ...qaAdd].filter(k => !qaOrd.includes(k))];
     const QA = qaKeys.filter(k => qaAvailOf(k) && !qaHid.includes(k)).map(k => qaSpecOf(k)).filter(Boolean);
     const qaSave = (ord, hid, add) => { try { localStorage.setItem('qa.ord', JSON.stringify(ord)); localStorage.setItem('qa.hid', JSON.stringify(hid)); if (add) localStorage.setItem('qa.add', JSON.stringify(add)); } catch (e) {} };
-    // v1.0.2xx : le service Qualité se déplie en deux volets — Administratif (bureau) et Terrain (chantier) — plus un volet Commun ; la répartition se règle (⚙️)
+    // v1.0.2xx : réservé au pack Enterprise (Basic et autres packs : liste d'origine) — le service Qualité se déplie en deux volets — Administratif (bureau) et Terrain (chantier) — plus un volet Commun ; la répartition se règle (⚙️)
     const toolBtn = (k, g) => `<button class="st-tool" data-tool="${k}" style="--c:${CAT_C[catOf(k)] || CAT_C[g] || 'var(--accent)'}"><i class="st-ico">${icon(SECTIONS[k].icon || 'grid')}</i><span>${esc(toolName(k))}</span></button>`;
-    const QS_DEF = { docq: 'adm', clauses: 'adm', reception: 'ter', forms: 'ter', constat: 'ter', labo: 'ter', hse: 'ter', monespace: 'com', org: 'com', histo: 'com' };
+    const QS_DEF = { docq: 'adm', clauses: 'adm', reception: 'ter', forms: 'ter', constat: 'ter', labo: 'ter', hse: 'ter', monespace: 'com', team: 'com', org: 'com', histo: 'com' };
     const QS_NAMES = { adm: ['📁', 'Administratif'], ter: ['🏗️', 'Terrain'], com: ['🔗', 'Commun'] };
     const qsMap = () => { let u = {}; try { u = JSON.parse(localStorage.getItem('qual.side') || '{}') || {}; } catch (e) {} return { ...QS_DEF, ...u }; };
     const qsMine = () => { try { const k = (typeof Org !== 'undefined' && Org.poste && (Org.poste() || {}).k) || ''; return ['tsq', 'ctrl'].includes(k) ? 'ter' : 'adm'; } catch (e) { return 'adm'; } };
@@ -328,7 +328,7 @@ const ST = (() => {
       <div class="st-qa ${Math.max(1, QA.length) <= 4 ? 'qa-l' : Math.max(1, QA.length) <= 8 ? 'qa-m' : 'qa-s'}" style="--n:${Math.max(1, QA.length)}">${QA.map(([k, ic, l, c]) => `<button class="st-qa-b" data-a="${k}" style="--c:${c}"><i>${icon(ic)}</i><span>${l}</span></button>`).join('')}${QA.length ? '' : `<button class="st-qa-b st-qa-add" data-a="qaadd" style="--c:#475569"><i>${icon('plus')}</i><span>Ajouter</span></button>`}</div>
       <p class="st-thint2" style="margin:-4px 0 6px">Appui long sur la barre : ajouter · réorganiser · retirer</p>
       ${G.map(([g, l, ks]) => `<details class="st-tcat st-acc" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(l.replace(/^\S+\s/, ''))}<small>${ks.length}</small><i class="st-chev">${icon('chevdown')}</i></summary>
-        ${g === 'qual' ? qualSplit(ks) : `<div class="st-tgrid">${ks.map(k => toolBtn(k, g)).join('')}</div>`}</details>`).join('')}
+        ${g === 'qual' && plan().k === 'enterprise' ? qualSplit(ks) : `<div class="st-tgrid">${ks.map(k => toolBtn(k, g)).join('')}</div>`}</details>`).join('')}
       <details class="st-tcat st-acc" data-g="biblio" style="--c:#5B4BA8" ${opened.includes('biblio') ? 'open' : ''}><summary class="st-tcat-h">Bibliothèque métier<small>${esc(plan().l)}</small><i class="st-chev">${icon('chevdown')}</i></summary>
         <div class="st-tgrid" style="grid-template-columns:1fr"><button class="st-pb st-pb-lib" data-a="library" style="margin:0">${icon('grid')}<span><b>Ouvrir la bibliothèque</b><small>Outils réunis et classés selon votre service · pack ${esc(plan().l)}</small></span>${icon('chevright')}</button></div></details>
       <details class="st-tcat st-acc" data-g="tableaux" style="--c:#2563EB" ${opened.includes('tableaux') ? 'open' : ''}><summary class="st-tcat-h">Tableaux<small>5</small><i class="st-chev">${icon('chevdown')}</i></summary>
