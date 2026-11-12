@@ -4012,3 +4012,10 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .qd-hi { padding: 8px 2px; border-bottom: 1px solid var(--line); } .qd-hi b { display: block; font-size: 13.5px; } .qd-hi small { color: var(--muted); }
 .me-go { display: block; margin: 14px 16px 0; width: calc(100% - 32px); padding: 12px; border-radius: 12px; background: var(--card); border: 1px dashed var(--line); color: inherit; font-weight: 600; }
 .qd-sub { margin-top: -4px; }
+
+/* Qualité : volets Administratif / Terrain / Commun */
+.st-qs { margin: 6px 0 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); overflow: hidden; }
+.st-qs > summary { list-style: none; cursor: pointer; padding: 10px 12px; font-weight: 700; font-size: 13.5px; display: flex; align-items: center; gap: 6px; }
+.st-qs > summary::-webkit-details-marker { display: none; } .st-qs > summary small { margin-left: auto; color: var(--muted); font-weight: 500; }
+.st-qs[open] > summary .st-chev { transform: rotate(180deg); } .st-qs .st-tgrid { padding: 0 10px 10px; }
+.st-qs-set { display: block; width: 100%; margin: 4px 0 2px; padding: 8px; border-radius: 10px; background: none; border: 1px dashed var(--line); color: var(--muted); font-size: 12px; }

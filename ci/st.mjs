@@ -1736,6 +1736,26 @@ try {
   });
   log('Documentation qualité', qd);
   if (!qd.noProject && !(qd.parties && qd.stat && qd.hist && qd.cat && qd.carte && qd.rubriques && qd.piece)) throw new Error('documentation qualité KO ' + JSON.stringify(qd));
+  // ---- Qualité : volets Administratif / Terrain / Commun dans les outils du projet
+  const qs1 = await A.pg.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {}; const pr0 = (await DB.all('projects'))[0]; if (!pr0) return { noProject: true };
+    try {
+      App.project = pr0; localStorage.removeItem('qual.side'); localStorage.removeItem('ptools.qs');
+      const root = document.createElement('div'); document.body.appendChild(root);
+      ST.renderProjectTools(root); await wait(400);
+      const q = root.querySelector('details[data-g=qual]');
+      if (!q) { o.pasQual = true; } else {
+        o.volets = q.querySelectorAll('details.st-qs').length >= 2;
+        o.adm = !!q.querySelector('details[data-qs=adm] [data-tool=docq]');
+        o.ter = !!q.querySelector('details[data-qs=ter] [data-tool=reception]');
+        o.reglage = !!q.querySelector('[data-a=qsset]');
+      }
+      root.remove();
+    } catch (e) { o.err = String(e.message || e); }
+    return o;
+  });
+  log('Qualité volets', qs1);
+  if (!qs1.noProject && !qs1.pasQual && !(qs1.volets && qs1.adm && qs1.ter && qs1.reglage)) throw new Error('volets qualité KO ' + JSON.stringify(qs1));
   // ---- Suivis personnalisés + modèle visuel : cases liées aux colonnes, PDF écrit sur le bon
   const sv2 = await A.pg.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
