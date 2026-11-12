@@ -1742,6 +1742,7 @@ try {
     try {
       App.project = pr0; localStorage.removeItem('qual.side'); localStorage.removeItem('ptools.qs');
       const root = document.createElement('div'); document.body.appendChild(root);
+      sessionStorage.setItem('st.preview', JSON.stringify({ plan: 'enterprise' }));
       ST.renderProjectTools(root); await wait(400);
       const q = root.querySelector('details[data-g=qual]');
       if (!q) { o.pasQual = true; } else {
