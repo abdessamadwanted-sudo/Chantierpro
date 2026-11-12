@@ -353,6 +353,7 @@ function openReceptionDay(day, opts = {}) {
       if (!n) { if (old) { await DB.del('files', old).catch(() => {}); day.pvPdfId = null; } return; }
       const rec = await DB.put('files', { projectId: day.projectId, blob: new Blob([await doc.save()], { type: 'application/pdf' }), mime: 'application/pdf', role: 'pvpdf', name: `PV du ${day.date}.pdf` });
       day.pvPdfId = rec.id; if (old && old !== rec.id) await DB.del('files', old).catch(() => {});
+      try { if (window.QualiteDocs) await QualiteDocs.autoSend(day.projectId, { name: `PV ${recTitle(K)} du ${day.date}.pdf`, blob: rec.blob, mime: 'application/pdf', srcKind: 'recday', srcId: day.id }); } catch (e) { console.warn('envoi auto documentation', e); }
     }
     // en arrière-plan, une seule à la fois (l'écran ne bloque plus)
     let pvQ = Promise.resolve();
@@ -430,7 +431,7 @@ ${isBeton(K) ? '' : `<td class="c">${esc(r.avec || '')}</td>`}
           ? `<button class="pv-pdf" data-a="openpvpdf"><span class="pp-ic">${icon('pdf')}</span><span class="grow"><b>PV du ${fmtDate(day.date)}.pdf</b><small>${pvs.length} page(s) · un seul fichier</small></span></button>
              ${pvs.map(f => `<div class="t" data-pv="${f.id}"><img src="${BlobURL.get(f.id, f.blob)}"><button class="x" data-pvdel="${f.id}">×</button></div>`).join('')}
              <button class="t add" data-a="addpv">${icon('camera')}</button>
-             <div class="pv-acts"><button data-a="sharepvpdf">${icon('share')} Envoyer le PDF</button><button data-a="splitpv">${icon('layers')} Séparer</button></div>`
+             <div class="pv-acts"><button data-a="sharepvpdf">${icon('share')} Envoyer le PDF</button><button data-a="splitpv">${icon('layers')} Séparer</button>${window.QualiteDocs ? `<button data-a="todoc">${icon('file')} Documentation</button>` : ''}</div>`
           : pvs.map(f => `<div class="t" data-pv="${f.id}"><img src="${BlobURL.get(f.id, f.blob)}"><button class="x" data-pvdel="${f.id}">×</button></div>`).join('') + `<button class="t add" data-a="addpv">${icon('camera')}</button>`
             + (pvs.length > 1 ? `<div class="pv-acts"><button data-a="mergepv">${icon('pdf')} Fusionner en un seul PDF</button></div>` : '');
         const addPv = async () => {
@@ -449,6 +450,7 @@ ${isBeton(K) ? '' : `<td class="c">${esc(r.avec || '')}</td>`}
         const mb = $('[data-a=mergepv]', box); if (mb) mb.onclick = async () => { const ld = loading('Création du PDF…'); try { await pvQ; await mergePv(); await save(); toast('PV fusionnés en un PDF ✓'); } finally { ld.close(); } render(); };
         const sp = $('[data-a=splitpv]', box); if (sp) sp.onclick = async () => { if (!await confirmBox('Séparer le PDF ? Les photos des PV redeviennent séparées.', 'Séparer')) return; await DB.del('files', day.pvPdfId); day.pvPdfId = null; await save(); render(); };
         const op = $('[data-a=openpvpdf]', box); if (op) op.onclick = async () => { await pvQ; const f = await DB.get('files', day.pvPdfId); if (f) showPdf(f.blob, `PV du ${fmtDate(day.date)}`); };
+        const td = $('[data-a=todoc]', box); if (td) td.onclick = async () => { await pvQ; const f = await DB.get('files', day.pvPdfId); if (f && window.QualiteDocs) QualiteDocs.sendToDocs(await DB.get('projects', day.projectId), [{ name: `PV ${recTitle(K)} du ${day.date}.pdf`, blob: f.blob, mime: 'application/pdf', srcKind: 'recday', srcId: day.id }]); };
         const sh = $('[data-a=sharepvpdf]', box); if (sh) sh.onclick = async () => { await pvQ; const f = await DB.get('files', day.pvPdfId); if (f) shareBlob(f.blob, `PV_${safeName(recTitle(K))}_${day.date}.pdf`); };
         $$('[data-pv]', box).forEach(t => t.onclick = async (e) => {
           const id = t.dataset.pv;

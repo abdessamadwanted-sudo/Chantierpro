@@ -50,6 +50,7 @@
         <span>${esc(P ? P.svc.e + ' ' + P.n : m.role || '')}</span><small>${m.branche ? (m.branche === 'admin' ? '🏢 Administratif' : '🏗️ Chantier') : ''}${par ? ` · N+1 : ${esc(par.name)}` : ''}${sub.length ? ` · ${sub.length} dans mon équipe` : ''}</small></div>
         <button class="iconbtn" data-a="who" title="Ce n'est pas moi">${icon('edit')}</button></div>
       <div class="me-kpi"><div><b>${nOpen}</b><small>mission(s) à traiter</small></div><div class="${nLate ? 'late' : ''}"><b>${nLate}</b><small>en retard</small></div><div><b>${nDocs}</b><small>pièce(s) sur mes missions</small></div></div>
+      ${nLate || ms.some(x => x.statut !== 'done' && !docsM(x).length) ? `<div class="qd-al"><b>⚠ À traiter</b>${nLate ? `<span>⏰ ${nLate} en retard</span>` : ''}${ms.filter(x => x.statut !== 'done' && !docsM(x).length).length ? `<span>📎 ${ms.filter(x => x.statut !== 'done' && !docsM(x).length).length} sans pièce</span>` : ''}</div>` : ''}
       <h4 class="me-h">🎯 Mes missions</h4>
       <div class="me-list">${ms.map(x => `<button class="me-ms ${retard(x) ? 'late' : ''}" data-ms="${x.id}"><span class="me-st" style="background:${(st[x.statut || 'todo'] || st.todo)[1]}">${(st[x.statut || 'todo'] || st.todo)[0]}</span><span class="grow"><b>${esc(x.titre)}</b><small>${docsM(x).length ? '📎 ' + docsM(x).length + ' pièce(s)' : '⚠ aucune pièce'}${x.echeance ? ' · ' + (retard(x) ? '⚠ en retard · ' : '📅 ') + fmtDate(x.echeance) : ''}</small></span></button>`).join('') || '<p class="muted" style="margin:2px 16px">Aucune mission pour le moment.</p>'}</div>
       ${ms.length ? '<small class="me-hint">Touchez l\'état d\'une mission pour le faire avancer : à faire → en cours → terminée.</small>' : ''}
@@ -61,7 +62,9 @@
     ($('[data-a=who]', root) || {}).onclick = () => { setMap(p, ''); if (!isAdm()) { render(root); return; } const mm = (p.team || []).find(x => x.me); if (mm) mm.me = false; render(root); };
     $$('[data-ms]', root).forEach(b => b.onclick = async () => {
       const x = (m.missions || []).find(y => y.id === b.dataset.ms); if (!x) return;
-      x.statut = NEXT[x.statut || 'todo']; x.modifieLe = Date.now(); x.parNom = m.name;
+      const nx = NEXT[x.statut || 'todo'];
+      if (nx === 'done' && !docsM(x).length && !(await confirmBox('Aucune pièce n\'est rattachée à cette mission. La terminer quand même ?', 'Terminer'))) return;
+      x.statut = nx; x.modifieLe = Date.now(); x.parNom = m.name;
       await DB.put('projects', p); render(root); });
     ($('[data-a=docs]', root) || {}).onclick = () => { App.docCat = null; App.docView = 'mz'; App.mzSt = { mode: 'mission', key: null }; App.section = 'docq'; renderSection(); };
   }
