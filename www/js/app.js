@@ -109,7 +109,7 @@ const rapLabel = (x) => { const d = rapDays(x); return d < 0 ? ` · en retard de
 
 // ---------- Accueil : projets ----------
 // v1.0.44 : ce que montre chaque projet sur l'accueil dépend du service (et se personnalise) — la réception / les PV ne concernent que la qualité
-const HOME_BLOCKS = [['lots', '📊 Lots & niveaux (avancement, alertes)'], ['av', '🏗️ Avancement second œuvre'], ['rec', '🔩 Réception & bétonnage (tableau)'], ['pv', '📥 PV à récupérer'], ['pvv', '📋 PV à valider / à corriger'], ['res', '⚠️ Réserves ouvertes'], ['rap', '🔔 Rappels']];
+const HOME_BLOCKS = [['lots', '📊 Lots & niveaux (avancement, alertes)'], ['av', '🏗️ Avancement second œuvre'], ['rec', '🔩 Suivi technique (réception, bétonnage, suivis)'], ['pv', '📥 PV à récupérer'], ['pvv', '📋 PV à valider / à corriger'], ['res', '⚠️ Réserves ouvertes'], ['rap', '🔔 Rappels']];
 const HOME_DEF = { qualite: ['rec', 'pv', 'pvv', 'res', 'rap'], labo: ['rec', 'pvv', 'rap'], centrale: ['rec', 'rap'], travaux: ['lots', 'av', 'res', 'rap'], ferraillage: ['lots', 'rec', 'res', 'rap'], methodes: ['lots', 'av', 'rap'], bim: ['lots', 'av', 'rap'],
   topo: ['av', 'rap'], hse: ['res', 'rap'], metre: ['lots', 'av', 'rap'], contrats: ['lots', 'rap'], direction: ['lots', 'pvv', 'res', 'rap'] };
 function homeBlocks() {

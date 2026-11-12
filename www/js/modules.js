@@ -1,7 +1,7 @@
 // ================= Fonctions affichées (par téléphone et par licence) + mises à jour de l'application =================
 
 // ---------- Fonctions (modules) ----------
-// Le propriétaire choisit, pour chaque licence, les fonctions visibles chez son ami (ex : retirer « Réception & bétonnage »).
+// Le propriétaire choisit, pour chaque licence, les fonctions visibles chez son ami (ex : retirer « Suivi technique »).
 // Chacun peut aussi masquer des fonctions sur son propre téléphone.
 const FEATURES = [
   ['avancement', 'Avancement second œuvre (lots · niveaux · locaux)'],
