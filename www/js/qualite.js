@@ -47,6 +47,43 @@
   }
   // dossier Drive de la pièce : <Projet>/Qualité/<partie>/<rubrique>/<zone> (la synchro déplace le fichier si le classement change)
   const qPathOf = (part, rub, zone) => ['Qualité', part && part.nom || 'Hors partie', rub && rub !== '__autres' ? rub : 'Autres pièces', zone || ''].filter(Boolean);
+  // ---------- Terrain → Documentation : envoyer un PV / PDF du terrain vers la documentation (lié à sa source, mis à jour s'il change) ----------
+  // items : [{ name, blob, mime, srcKind, srcId }] ; dest : { partId, rub, missionId, zone } (demandée si absente)
+  async function pickDest(p, files, last) {
+    const parts = partsOf(p); if (!parts.length) { toast('Aucune partie d\'ouvrage'); return null; }
+    const r = await formSheet('Envoyer vers la documentation', [
+      { name: 'partId', label: 'Partie d\'ouvrage', type: 'select', value: (last && last.partId) || parts[0].id, options: parts.map(x => ({ value: x.id, label: x.nom })) },
+      { name: 'auto', label: 'Envoi automatique des prochains PV de réception ?', type: 'select', value: p.qAuto && p.qAuto.on ? '1' : '', options: [{ value: '', label: 'Non, je choisis à chaque fois' }, { value: '1', label: 'Oui, vers cette destination' }] }], { okLabel: 'Suivant' });
+    if (!r) return null;
+    const part = parts.find(x => x.id === r.partId), rub = await menu('Rubrique', [...part.rub.map(x => ({ label: x, value: x })), { label: 'Autres pièces', value: '__a' }]);
+    if (!rub) return null;
+    const ref = await askRef(p, files, last); if (!ref) return null;
+    return { partId: part.id, rub: rub === '__a' ? '' : rub, ...ref, auto: !!r.auto };
+  }
+  // crée ou met à jour la pièce liée à sa source (même srcKind+srcId = même pièce)
+  async function putDoc(p, it, d, files, silent) {
+    const part = allParts(p).find(x => x.id === d.partId), ex = files.find(f => f.srcKind === it.srcKind && f.srcId === it.srcId && f.partId === d.partId);
+    const qPath = qPathOf(part, d.rub, d.zone);
+    if (ex) { ex.blob = it.blob; ex.mime = it.mime; ex.name = it.name; ex.qPath = qPath; addHist(ex, 'mise à jour', 'depuis le terrain'); await DB.put('files', ex); return 'maj'; }
+    await DB.put('files', addHist({ projectId: p.id, role: 'doc', docCat: catOf(d.rub), partId: d.partId, rubrique: d.rub || '', missionId: d.missionId || '', zone: d.zone || '', qPath, docDate: todayISO(), by: uid(), byName: nomUser(), srcKind: it.srcKind, srcId: it.srcId, blob: it.blob, mime: it.mime, name: it.name }, 'ajoutée', 'depuis le terrain' + (silent ? ' (envoi automatique)' : '')));
+    return 'new';
+  }
+  async function sendToDocs(p, items) {
+    if (!p || !items || !items.length) return;
+    const files = await DB.byProject('files', p.id), d = await pickDest(p, files, p.qDest);
+    if (!d) return;
+    p.qDest = { partId: d.partId, rub: d.rub, missionId: d.missionId, zone: d.zone };
+    p.qAuto = { ...(p.qAuto || {}), on: d.auto, ...(d.auto ? p.qDest : {}) };
+    await DB.put('projects', p);
+    let n = 0; for (const it of items) { await putDoc(p, it, d, await DB.byProject('files', p.id)); n++; }
+    toast(`${n} pièce(s) envoyée(s) à la documentation ✓${d.auto ? ' · envoi automatique activé' : ''}`);
+  }
+  // envoi automatique (PV de réception) : sans question, vers la destination mémorisée
+  async function autoSend(projectId, it) {
+    const p = await DB.get('projects', projectId); if (!p || !p.qAuto || !p.qAuto.on || !p.qAuto.partId) return;
+    if (!allParts(p).some(x => x.id === p.qAuto.partId)) return;
+    await putDoc(p, it, p.qAuto, await DB.byProject('files', p.id), true);
+  }
   const canW = () => { try { return Team.lvl('files') >= 2; } catch (e) { return true; } };
 
   const isEnt = () => { try { return !!(window.ST && ST.isEnt && ST.isEnt()); } catch (e) { return false; } };
@@ -103,9 +140,10 @@
           return `<button class="qd-card" data-p="${x.id}"><div class="qd-h"><b>${esc(x.nom)}</b><span class="qd-n">${st.n} pièce${st.n > 1 ? 's' : ''}</span></div>
             <div class="qd-bar"><i style="width:${pc}%"></i></div>
             <small>${st.cov}/${st.total} rubriques couvertes${st.manque.length ? ` · <u>manque : ${esc(st.manque.slice(0, 2).join(', '))}${st.manque.length > 2 ? '…' : ''}</u>` : ' · ✅ complet'}${rn ? ` · 👤 ${esc(rn)}` : ''}</small></button>`; }).join('')}
-          ${W ? `<button class="qd-add" data-a="pnew">${icon('plus')} Partie d'ouvrage</button>` : ''}</div>`;
+          ${W ? `<button class="qd-add" data-a="pnew">${icon('plus')} Partie d'ouvrage</button>` : ''}${W && p.qAuto && p.qAuto.on ? `<button class="qd-add" data-a="autooff">⚡ Envoi automatique des PV : activé · désactiver</button>` : ''}</div>`;
       bindTabs();
       $$('[data-p]', root).forEach(b => b.onclick = () => { S.part = b.dataset.p; S.rub = null; render(root); });
+      ($('[data-a=autooff]', root) || {}).onclick = async () => { p.qAuto = { ...(p.qAuto || {}), on: false }; await DB.put('projects', p); toast('Envoi automatique désactivé'); render(root); };
       ($('[data-a=pnew]', root) || {}).onclick = async () => {
         const r = await formSheet('Nouvelle partie d\'ouvrage', [{ name: 'nom', label: 'Nom', placeholder: 'Ex : Dalle de compression' }], { okLabel: 'Créer' }); if (!r || !String(r.nom || '').trim()) return;
         p.qualParties = [...allParts(p), { id: 'q' + DB.uid(), nom: r.nom.trim(), rub: ['PV réception', 'Fiches de contrôle'] }]; await DB.put('projects', p); render(root); };
@@ -164,5 +202,5 @@
       toast(n + ' pièce(s) ajoutée(s) ✓'); render(root);
     });
   }
-  window.QualiteDocs = { qPathOf, render, renderMZ, alertes, missionsOf, zonesOf, refTxt, partsOf, stat, addHist, catOf, DEF };
+  window.QualiteDocs = { sendToDocs, autoSend, qPathOf, render, renderMZ, alertes, missionsOf, zonesOf, refTxt, partsOf, stat, addHist, catOf, DEF };
 })();

@@ -83,7 +83,8 @@
     o[c.id] = c.type === 'case' ? !!v : c.type === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v.split('-').reverse().join('/') : String(v); } return o; };
   async function lignePdf(p, m, d) {
     const ld = loading('Écriture sur le bon…');
-    try { const blob = await ftMake(p, m.visuel, valeursPdf(m, d), d.id); ld.close(); openFileRecord({ blob, mime: 'application/pdf', name: `${m.nom}.pdf` }, m.nom); }
+    try { const blob = await ftMake(p, m.visuel, valeursPdf(m, d), d.id); ld.close(); const k = window.QualiteDocs ? await menu(m.nom, [{ label: 'Ouvrir le PDF', icon: 'pdf', value: 'o' }, { label: 'Envoyer à la documentation', icon: 'file', value: 'd' }]) : 'o';
+      if (k === 'd') await QualiteDocs.sendToDocs(p, [{ name: `${m.nom} ${d.date || ''}.pdf`.trim(), blob, mime: 'application/pdf', srcKind: 'suivi', srcId: d.id }]); else if (k) openFileRecord({ blob, mime: 'application/pdf', name: `${m.nom}.pdf` }, m.nom); }
     catch (e) { ld.close(); alertBox('PDF impossible : ' + (e.message || e)); }
   }
 
