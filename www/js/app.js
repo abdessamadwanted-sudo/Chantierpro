@@ -395,6 +395,11 @@ const SECTIONS = {
   pointage: { label: 'Pointage main d\'œuvre', icon: 'clock', render: (r) => renderPointage(r), title: 'Pointage', subtitle: 'Présences · coût' },
   rfi: { label: 'RFI · demandes au BET', icon: 'ask', render: (r) => renderRfi(r), title: 'RFI', subtitle: 'Demandes d\'information' },
   visa: { label: 'Visas & bordereaux', icon: 'stamp', render: (r) => renderVisa(r), title: 'Visas', subtitle: 'Documents · bordereaux d\'envoi' },
+  tb_alertes: { label: 'Alertes', hidden: true, icon: 'alert', render: async (r) => openAlertsTable(await pointAlertItems(), { total: true, embed: r }), title: 'Alertes', subtitle: 'Retards et échéances proches' },
+  tb_points: { label: 'Points d\'intérêt', hidden: true, icon: 'pin', render: async (r) => openAlertsTable(await allPointItems(), { all: true, embed: r }), title: 'Points d\'intérêt', subtitle: 'État · avancement · retard' },
+  tb_photos: { label: 'Photos (tableau)', hidden: true, icon: 'camera', render: (r) => openPhotoTable({ embed: r }), title: 'Photos', subtitle: 'Par niveau et par lot' },
+  tb_anom: { label: 'Anomalies', hidden: true, icon: 'alert', render: (r) => openAnomalies(App.project, { embed: r }), title: 'Anomalies', subtitle: 'Réserves et anomalies' },
+  tb_due: { label: 'Échéances', hidden: true, icon: 'calendar', render: (r) => openDueTable(App.project, { embed: r }), title: 'Échéances', subtitle: 'Tableau des échéances' },
   ptools: { label: 'Outils du projet', icon: 'grid', hidden: true, render: (r) => ST.renderProjectTools(r), title: 'Outils du projet' },
   lotsuivi: { label: 'Lots & équipes', icon: 'layers', render: (r) => renderLotSuivi(r), title: 'Lots & équipes', subtitle: 'Avancement · sous-traitants · rendement' },
   labo: { label: 'Laboratoire', icon: 'flask', render: (r) => renderLabo(r), title: 'Laboratoire', subtitle: 'Béton · slump · essais' },
@@ -468,11 +473,9 @@ async function allPointItems(planId) {
 }
 // v1.0.177 : ouverture directe d'un tableau depuis le groupe « Tableaux » (sans liste intermédiaire)
 async function openTableTool(p, k) {
-  if (k === 'alertes') return openAlertsTable(await pointAlertItems(), { total: true });
-  if (k === 'points') return openAlertsTable(await allPointItems(), { all: true });
-  if (k === 'photos') return openPhotoTable();
-  if (k === 'anom') return openAnomalies(p);
-  if (k === 'due') return openDueTable(p);
+  const sec = { alertes: 'tb_alertes', points: 'tb_points', photos: 'tb_photos', anom: 'tb_anom', due: 'tb_due' }[k];
+  if (!sec) return;
+  App.section = sec; renderSection();   // le tableau s'affiche dans l'application (avec son en-tête et son menu), pas en feuille par-dessus
 }
 // v1.0.176 : « Tableaux » = petite application dédiée aux tableaux du chantier (carré 🔔 de l'accueil) : une carte par tableau, chacun s'ouvre en grand avec recherche et filtres
 async function openDataFolder() {
@@ -488,9 +491,7 @@ async function openDataFolder() {
     ${typeof openDueTable === 'function' ? card('due', '📅', 'Échéances', 'Tableau des échéances', '', '#0d9488') : ''}
   </div></div>`, { title: '🗂️ Tableaux' });
   if (s.el) s.el.style.minHeight = '70vh';
-  $$('[data-d]', s.el).forEach(b => b.onclick = () => { s.close && s.close(); const d = b.dataset.d;
-    if (d === 'alerts') openAlertsTable(items, { total: true }); else if (d === 'points') openAlertsTable(pts, { all: true }); else if (d === 'photos') openPhotoTable();
-    else if (d === 'anom') openAnomalies(App.project); else if (d === 'due') openDueTable(App.project); });
+  $$('[data-d]', s.el).forEach(b => b.onclick = () => { s.close && s.close(); openTableTool(App.project, b.dataset.d === 'alerts' ? 'alertes' : b.dataset.d); });
 }
 // petit dôme (gyrophare) de la couleur de l'état, pour les tableaux
 function domeIconSVG(c, size = 22) {
@@ -498,7 +499,7 @@ function domeIconSVG(c, size = 22) {
 }
 
 // tableau des photos du chantier : par niveau puis par lot, avec filtres
-async function openPhotoTable() {
+async function openPhotoTable(opts = {}) {
   const p = App.project;
   const files = (await DB.byProject('files', p.id)).filter(f => f.role === 'photo' && f.blob);
   const links = (await DB.byProject('links', p.id));
@@ -514,7 +515,7 @@ async function openPhotoTable() {
   }
   const uniq = (k) => [...new Set(rows.map(r => r[k]))].sort();
   const opt = (k, arr) => `<option value="">Tous</option>` + arr.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
-  const s = sheet(`<div class="form ptab">
+  const s = (opts.embed ? embedSheet.bind(null, opts.embed) : sheet)(`<div class="form ptab">
     <div class="ptab-f"><select data-f="niv">${opt('niv', uniq('niv'))}</select><select data-f="lot">${opt('lot', uniq('lot'))}</select></div>
     <div class="ptab-w"><table class="ptab-t"><thead><tr><th>Photo</th><th>Niveau</th><th>Lot</th><th>Point</th><th>Dossier</th><th>Date</th></tr></thead><tbody></tbody></table></div></div>`, { title: `📷 Photos · ${rows.length}` });
   const paint = () => {
@@ -560,7 +561,7 @@ async function openAlertsTable(items, opts = {}) {
   const order = PILL_KEYS.map(x => x[0]);
   const uniq = (k) => [...new Set(rows.map(r => r[k]).filter(Boolean))].sort();
   const opt = (k, arr, all) => `<option value="">${all}</option>` + arr.map(v => `<option value="${esc(v)}">${esc(k === 'al' ? lab[v] : v)}</option>`).join('');
-  const s = sheet(`<div class="form ptab">
+  const s = (opts.embed ? embedSheet.bind(null, opts.embed) : sheet)(`<div class="form ptab">
     <input class="ptab-q" data-q type="search" placeholder="🔍 Rechercher (nom, niveau, lot, plan)…" style="width:100%;margin-bottom:8px">
     <div class="ptab-f">
       <select data-f="niv">${opt('niv', uniq('niv'), 'Tous les niveaux')}</select>

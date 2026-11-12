@@ -3933,3 +3933,13 @@ table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-
 .ds-col .ds-cb .btn { width: 36px; min-width: 36px; height: 36px; padding: 0; margin: 0; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .ds-col .ds-cb .btn svg.i { width: 17px; height: 17px; }
 .fs-info { margin: 10px 0; }
+/* tableaux intégrés dans l'application (Alertes, Points d'intérêt, Anomalies, Échéances, Photos) : plus de feuille ni de page par-dessus */
+.emb > .topbar { padding: 6px 8px; position: sticky; top: 0; z-index: 5; }
+.emb > .topbar [data-a=x] { display: none; }
+.emb > .topbar .tb-title { padding-left: 8px; }
+.emb-wrap { padding: 10px 12px 96px; }
+.emb-t { display: none; }
+.emb-wrap .form { padding: 0; }
+.emb-wrap .ptab-w { max-height: none; }
+.emb > .topbar { justify-content: flex-end; background: transparent; }
+.emb > .topbar .tb-title { display: none; }

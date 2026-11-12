@@ -140,6 +140,14 @@ function sheet(html, { onMount, title } = {}) {
   return api;
 }
 
+// Variante intégrée de sheet() : le contenu s'affiche dans la page (hôte) au lieu d'une feuille qui se superpose
+function embedSheet(host, html, { onMount, title } = {}) {
+  host.innerHTML = `<div class="emb-wrap">${title ? `<h3 class="emb-t">${esc(title)}</h3>` : ''}${html}</div>`;
+  const api = { el: host.firstElementChild, close: () => {}, onClose: null };
+  if (onMount) onMount(api.el, api);
+  return api;
+}
+
 // Menu d'options
 function menu(title, options, mo = {}) {
   return new Promise((resolve) => {
