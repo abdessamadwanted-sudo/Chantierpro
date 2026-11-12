@@ -30,14 +30,60 @@
   function addHist(f, act, note) { f.hist = [...(f.hist || []), { at: Date.now(), by: uid(), nom: nomUser(), act, note: note || '' }]; return f; }
   const fmtH = (t) => new Date(t).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
   const respNom = (p, part) => { const m = (p.team || []).find(x => x.id === part.resp); return m ? m.name : ''; };
+  // missions de l'organigramme (aplaties) et zones du projet : chaque pièce peut être rattachée à une mission et à une zone
+  const missionsOf = (p) => (p.team || []).flatMap(m => (m.missions || []).map(x => ({ ...x, memId: m.id, memNom: m.name })));
+  const zonesOf = (p, files) => { let Z = []; try { Z = typeof avZones === 'function' ? [...avZones(p)] : []; } catch (e) {} (files || []).forEach(f => { if (f.zone && !Z.includes(f.zone)) Z.push(f.zone); }); return Z; };
+  const docsAll = (files) => files.filter(f => f.role === 'doc' && !f.archived);
+  const refTxt = (p, f) => { const m = f.missionId && missionsOf(p).find(x => x.id === f.missionId); return [m ? '🎯 ' + m.titre : '', f.zone ? '📍 ' + f.zone : ''].filter(Boolean).join(' · '); };
+  // question « mission / zone » avant d'ajouter ou pour corriger une pièce
+  async function askRef(p, files, cur) {
+    cur = cur || {}; const M = missionsOf(p), Z = zonesOf(p, files);
+    const r = await formSheet('Rattacher à…', [
+      { name: 'missionId', label: 'Mission', type: 'select', value: cur.missionId || '', options: [{ value: '', label: '— aucune mission —' }, ...M.map(x => ({ value: x.id, label: x.titre + (x.memNom ? ' · ' + x.memNom : '') }))] },
+      { name: 'zone', label: 'Zone', type: 'select', value: cur.zone || '', options: [{ value: '', label: '— aucune zone —' }, ...Z.map(z => ({ value: z, label: z }))] },
+      { name: 'zoneNew', label: 'Autre zone (si absente de la liste)', placeholder: 'Ex : Bloc B – Niveau 2' }], { okLabel: 'Valider' });
+    if (!r) return null;
+    return { missionId: r.missionId || '', zone: String(r.zoneNew || '').trim() || r.zone || '' };
+  }
   const canW = () => { try { return Team.lvl('files') >= 2; } catch (e) { return true; } };
 
+  const tabsHtml = (cur) => `<div class="qd-tabs">${[['parties', "🧱 Partie d'ouvrage"], ['mz', '🎯 Mission / zone'], ['type', '🗂️ Type']].map(([k, l]) => `<button class="${k === cur ? 'on' : ''}" data-v="${k}">${l}</button>`).join('')}</div>`;
+  // vue par mission ou par zone : pièces regroupées selon la mission et la zone auxquelles elles sont rattachées
+  async function renderMZ(root) {
+    const p = App.project, S = (App.mzSt = App.mzSt || { mode: 'mission', key: null }), W = canW();
+    const files = docsAll(await DB.byProject('files', p.id)), M = missionsOf(p);
+    const bindTabs = () => $$('[data-v]', root).forEach(b => b.onclick = () => { App.docView = b.dataset.v; App.docCat = null; renderSection(); });
+    const groups = S.mode === 'mission'
+      ? [...M.map(m => ({ k: m.id, t: m.titre, sub: m.memNom || '', L: files.filter(f => f.missionId === m.id) })), { k: '__none', t: 'Sans mission', sub: '', L: files.filter(f => !f.missionId || !M.some(m => m.id === f.missionId)) }]
+      : [...zonesOf(p, files).map(z => ({ k: z, t: z, sub: '', L: files.filter(f => f.zone === z) })), { k: '__none', t: 'Sans zone', sub: '', L: files.filter(f => !f.zone) }];
+    const g = S.key && groups.find(x => x.k === S.key);
+    const head = `<div class="pagehead"><h2>Documentation & archives</h2><p>Les pièces rangées par mission ou par zone</p></div>${tabsHtml('mz')}`;
+    if (!g) {
+      root.innerHTML = `${head}<div class="qd-tabs qd-sub"><button class="${S.mode === 'mission' ? 'on' : ''}" data-m="mission">🎯 Par mission</button><button class="${S.mode === 'zone' ? 'on' : ''}" data-m="zone">📍 Par zone</button></div>
+        <div class="qd-list">${groups.map(x => `<button class="qd-card" data-k="${esc(x.k)}"><div class="qd-h"><b>${esc(x.t)}</b><span class="qd-n">${x.L.length} pièce${x.L.length > 1 ? 's' : ''}</span></div><small>${esc(x.sub)}${x.sub && !x.L.length ? ' · ' : ''}${!x.L.length && x.k !== '__none' ? '⚠ aucune pièce' : ''}</small></button>`).join('')}</div>`;
+      bindTabs();
+      $$('[data-m]', root).forEach(b => b.onclick = () => { S.mode = b.dataset.m; S.key = null; renderMZ(root); });
+      $$('[data-k]', root).forEach(b => b.onclick = () => { S.key = b.dataset.k; renderMZ(root); });
+      return;
+    }
+    const L = g.L.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    root.innerHTML = `<div class="pagehead"><button class="linkbtn" data-a="up">← ${S.mode === 'mission' ? 'Missions' : 'Zones'}</button><h2>${esc(g.t)}</h2><p>${L.length} pièce(s)</p></div>
+      ${L.length ? `<div class="list">${L.map(f => `<div class="row" data-id="${f.id}"><span>${icon(/^image\//.test(f.mime || '') ? 'image' : 'file')}</span><div class="grow"><div class="title">${esc(f.name || 'Pièce')}</div><div class="sub">${esc([f.rubrique, refTxt(p, f)].filter(Boolean).join(' · '))}</div></div>${icon('chevright')}</div>`).join('')}</div>` : '<div class="empty">Aucune pièce rattachée.<br>Ajoutez-en depuis « Partie d\'ouvrage » : l\'app demande la mission et la zone.</div>'}`;
+    ($('[data-a=up]', root) || {}).onclick = () => { S.key = null; renderMZ(root); };
+    $$('.row[data-id]', root).forEach(r => r.onclick = async () => {
+      const f = L.find(x => x.id === r.dataset.id); if (!f) return;
+      const v = await menu(f.name || 'Pièce', [{ label: 'Ouvrir', icon: 'file', value: 'open' }, { label: 'Historique', icon: 'history', value: 'hist' }, ...(W ? [{ label: 'Mission / zone…', icon: 'edit', value: 'ref' }] : [])]);
+      if (v === 'open') { addHist(f, 'consultation'); await DB.put('files', f); return openFileRecord(f, f.name); }
+      if (v === 'hist') { const H = [...(f.hist || [])].reverse(); return sheet(`<div class="form">${H.length ? H.map(h => `<div class="qd-hi"><b>${esc(h.act)}</b><small>${fmtH(h.at)}${h.nom ? ' · ' + esc(h.nom) : ''}${h.note ? '<br>' + esc(h.note) : ''}</small></div>`).join('') : '<p class="muted">Aucun historique.</p>'}</div>`); }
+      if (v === 'ref') { const q = await askRef(p, files, f); if (q) { addHist(f, 'rattachée', refTxt(p, { ...f, ...q }) || 'sans mission ni zone'); Object.assign(f, q); await DB.put('files', f); } renderMZ(root); } });
+  }
   async function render(root) {
+    if (App.docView === 'mz') return renderMZ(root);
     const p = App.project, S = (App.qSt = App.qSt || {});
     if (S.pid !== p.id) { S.pid = p.id; S.part = null; S.rub = null; }
     const files = (await DB.byProject('files', p.id)), parts = partsOf(p);
     const W = canW();
-    const tabs = `<div class="qd-tabs"><button class="on" data-v="parties">🧱 Par partie d'ouvrage</button><button data-v="type">🗂️ Par type</button></div>`;
+    const tabs = tabsHtml('parties');
     const bindTabs = () => $$('[data-v]', root).forEach(b => b.onclick = () => { App.docView = b.dataset.v; App.docCat = null; renderSection(); });
     const part = S.part && parts.find(x => x.id === S.part);
     if (!part) {
@@ -76,21 +122,23 @@
     }
     const rub = S.rub, L = (rub === '__autres' ? orph : docsOf(files, part.id, rub)).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     root.innerHTML = `<div class="pagehead"><button class="linkbtn" data-a="up">← ${esc(part.nom)}</button><h2>${rub === '__autres' ? 'Autres pièces' : esc(rub)}</h2><p>${L.length} pièce(s)</p></div>
-      ${L.length ? `<div class="list">${L.map(f => `<div class="row" data-id="${f.id}"><span>${icon(/^image\//.test(f.mime || '') ? 'image' : 'file')}</span><div class="grow"><div class="title">${esc(f.name || 'Pièce')}</div><div class="sub">${esc(f.docDate ? fmtDate(f.docDate) : fmtH(f.updatedAt || Date.now()))}${f.byName ? ' · ' + esc(f.byName) : ''}${(f.hist || []).length ? ` · ${(f.hist || []).length} action(s)` : ''}</div></div>${icon('more')}</div>`).join('')}</div>`
+      ${L.length ? `<div class="list">${L.map(f => `<div class="row" data-id="${f.id}"><span>${icon(/^image\//.test(f.mime || '') ? 'image' : 'file')}</span><div class="grow"><div class="title">${esc(f.name || 'Pièce')}</div><div class="sub">${esc(refTxt(p, f) ? refTxt(p, f) + ' · ' : '')}${esc(f.docDate ? fmtDate(f.docDate) : fmtH(f.updatedAt || Date.now()))}${f.byName ? ' · ' + esc(f.byName) : ''}${(f.hist || []).length ? ` · ${(f.hist || []).length} action(s)` : ''}</div></div>${icon('more')}</div>`).join('')}</div>`
         : `<div class="empty">Aucune pièce ici.${W ? '<br>Appuyez sur <b>+</b> pour scanner une photo ou ajouter un fichier.' : ''}</div>`}`;
     ($('[data-a=up]', root) || {}).onclick = () => { S.rub = null; render(root); };
     $$('.row[data-id]', root).forEach(r => r.onclick = async () => {
       const f = L.find(x => x.id === r.dataset.id); if (!f) return;
-      const v = await menu(f.name || 'Pièce', [{ label: 'Ouvrir', icon: 'file', value: 'open' }, { label: 'Historique', icon: 'history', value: 'hist' }, ...(W ? [{ label: 'Changer de rubrique', icon: 'folder', value: 'mv' }, { label: 'Archiver la pièce', icon: 'folder', value: 'arc' }, { label: 'Supprimer', icon: 'trash', danger: true, value: 'del' }] : [])]);
+      const v = await menu(f.name || 'Pièce', [{ label: 'Ouvrir', icon: 'file', value: 'open' }, { label: 'Historique', icon: 'history', value: 'hist' }, ...(W ? [{ label: 'Mission / zone…', icon: 'edit', value: 'ref' }, { label: 'Changer de rubrique', icon: 'folder', value: 'mv' }, { label: 'Archiver la pièce', icon: 'folder', value: 'arc' }, { label: 'Supprimer', icon: 'trash', danger: true, value: 'del' }] : [])]);
       if (v === 'open') { addHist(f, 'consultation'); await DB.put('files', f); return openFileRecord(f, f.name); }
       if (v === 'hist') { const H = [...(f.hist || [])].reverse(); return sheet(`<div class="form">${H.length ? H.map(h => `<div class="qd-hi"><b>${esc(h.act)}</b><small>${fmtH(h.at)}${h.nom ? ' · ' + esc(h.nom) : ''}${h.note ? '<br>' + esc(h.note) : ''}</small></div>`).join('') : '<p class="muted">Aucun historique.</p>'}</div>`, { title: 'Historique · ' + (f.name || '') }); }
+      if (v === 'ref') { const q = await askRef(p, files, f); if (q) { addHist(f, 'rattachée', refTxt(p, { ...f, ...q }) || 'sans mission ni zone'); Object.assign(f, q); await DB.put('files', f); } }
       if (v === 'mv') { const t = await menu('Déplacer vers', part.rub.map(x => ({ label: x, value: x, checked: x === f.rubrique }))); if (t && t !== f.rubrique) { addHist(f, 'déplacée', `${f.rubrique || '—'} → ${t}`); f.rubrique = t; f.docCat = catOf(t); await DB.put('files', f); } }
       if (v === 'arc') { addHist(f, 'archivée'); f.archived = true; await DB.put('files', f); }
       if (v === 'del' && await confirmBox(`Supprimer « ${f.name} » ? (aussi dans Drive)`, 'Supprimer')) await DB.del('files', f.id);
       render(root); });
     if (W) fab(root, async () => {
       const k = await menu('Ajouter une pièce', [{ label: 'Photo / scan', icon: 'camera', value: 'img' }, { label: 'Fichier (PDF, Word, Excel)', icon: 'file', value: 'file' }]); if (!k) return;
-      const rubName = rub === '__autres' ? '' : rub, base = { projectId: p.id, role: 'doc', docCat: catOf(rubName), partId: part.id, rubrique: rubName, docDate: todayISO(), by: uid(), byName: nomUser() };
+      const ref = await askRef(p, files, S.lastRef); if (!ref) return; S.lastRef = ref;
+      const rubName = rub === '__autres' ? '' : rub, base = { ...ref, projectId: p.id, role: 'doc', docCat: catOf(rubName), partId: part.id, rubrique: rubName, docDate: todayISO(), by: uid(), byName: nomUser() };
       let n = 0;
       if (k === 'file') {
         const fl = await pickFiles({ accept: '*/*', multiple: true }); if (!fl || !fl.length) return;
@@ -105,5 +153,5 @@
       toast(n + ' pièce(s) ajoutée(s) ✓'); render(root);
     });
   }
-  window.QualiteDocs = { render, partsOf, stat, addHist, catOf, DEF };
+  window.QualiteDocs = { render, renderMZ, missionsOf, zonesOf, refTxt, partsOf, stat, addHist, catOf, DEF };
 })();

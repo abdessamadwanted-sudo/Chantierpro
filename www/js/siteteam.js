@@ -815,7 +815,7 @@ const ST = (() => {
     const canW = Team.lvl('files') >= 2, inCat = (k) => all.filter(f => k === 'archive' ? f.archived : (!f.archived && f.docCat === k));
     if (!cat) {
       root.innerHTML = `<div class="pagehead"><h2>Documentation & archives</h2><p>Classement des documents du projet</p></div>
-        ${window.QualiteDocs ? '<div class="qd-tabs"><button data-v="parties">🧱 Par partie d\'ouvrage</button><button class="on" data-v="type">🗂️ Par type</button></div>' : ''}
+        ${window.QualiteDocs ? '<div class="qd-tabs"><button data-v="parties">🧱 Partie d\'ouvrage</button><button data-v="mz">🎯 Mission / zone</button><button class="on" data-v="type">🗂️ Type</button></div>' : ''}
         <div class="st-docs">${DOC_CATS.map(([k, l, e]) => `<button class="st-doc" data-c="${k}"><span class="e">${e}</span><b>${esc(l)}</b><small>${inCat(k).length} document(s)</small></button>`).join('')}</div>`;
       $$('[data-c]', root).forEach(b => b.onclick = () => { App.docCat = b.dataset.c; renderDocs(root); });
       $$('[data-v]', root).forEach(b => b.onclick = () => { App.docView = b.dataset.v; renderSection(); });

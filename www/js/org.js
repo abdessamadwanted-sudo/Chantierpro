@@ -175,7 +175,7 @@ const DR_GROUPS = [
   ['qual', '✅ Qualité & sécurité', ['reception', 'forms', 'constat', 'labo', 'hse', 'docq', 'clauses']],
   ['etu', '📐 Études & 3D', ['rfi', 'visa', 'calc', 'models3d', 'maquette']],
   ['fin', '💰 Gestion & finance', ['finance', 'avenants', 'gestion', 'pointage', 'tce', 'st']],
-  ['org', '👥 Projet & équipe', ['team', 'orgs', 'histo', 'org']],
+  ['org', '👥 Projet & équipe', ['monespace', 'team', 'orgs', 'histo', 'org']],
 ];
 // v1.0.34 : « Programme de bétonnage » devient une rubrique à part pour les services sans accès aux PV de réception (bibliothèque du service)
 const secShown = (k) => !!SECTIONS[k] && (!SECTIONS[k].hidden || (k === 'beton' && typeof Team !== 'undefined' && Team.svcLib && !!Team.svcLib() && !Team.canSection('reception') && Team.canSection('beton')));

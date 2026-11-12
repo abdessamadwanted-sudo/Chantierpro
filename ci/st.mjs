@@ -1676,6 +1676,37 @@ try {
   });
   log('Organigramme Qualité', og);
   if (!og.noProject && !(og.chips && og.filtre && og.stats && og.role && og.code && og.fiche)) throw new Error('organigramme qualité KO ' + JSON.stringify(og));
+  // ---- Mon espace : rôle, missions, accès de la personne
+  const me1 = await A.pg.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {}; const pr0 = (await DB.all('projects'))[0]; if (!pr0) return { noProject: true };
+    const bak = JSON.stringify(pr0.team || []);
+    try {
+      pr0.team = [{ id: 'me1', name: 'Directeur', poste: 'dirq', service: 'qual', branche: 'admin' }, { id: 'me2', name: 'Chef labo', poste: 'respq', service: 'qual', parent: 'me1', branche: 'chantier', missions: [{ id: 'm1', titre: 'PV labo béton', statut: 'todo', echeance: '2020-01-01' }, { id: 'm2', titre: 'Fiches fond de fouille', statut: 'done' }] }];
+      App.project = pr0; MonEspace.setMap(pr0, '');
+      const root = document.createElement('div'); document.body.appendChild(root);
+      await MonEspace.render(root); await wait(300);
+      o.ask = root.querySelectorAll('.me-pick').length === 2;
+      root.querySelector('[data-id=me2]').click(); await wait(500);
+      o.card = /Chef labo/.test(root.querySelector('.me-card').textContent);
+      o.missions = root.querySelectorAll('[data-ms]').length === 2 && !!root.querySelector('.me-ms.late');
+      root.querySelector('[data-ms=m1]').click(); await wait(500);
+      o.avance = (pr0.team.find(x => x.id === 'me2').missions[0].statut === 'doing');
+      await DB.put('files', { id: 'fmz1', projectId: pr0.id, role: 'doc', name: 'Fiche test', missionId: 'm1', zone: 'Zone 1', rubrique: 'Fond de fouille', updatedAt: Date.now() });
+      await MonEspace.render(root); await wait(400);
+      o.pieces = /1 pièce/.test(root.querySelector('[data-ms=m2]') ? root.querySelector('[data-ms=m2]').textContent : '') === false && /1 pièce/.test(root.querySelector('[data-ms=m1]').textContent) && /Zone 1/.test(root.textContent);
+      App.docView = 'mz'; App.mzSt = { mode: 'mission', key: null };
+      const r2 = document.createElement('div'); document.body.appendChild(r2); await QualiteDocs.renderMZ(r2); await wait(400);
+      o.vueMz = !!r2.querySelector('[data-m=zone]') && /PV labo béton/.test(r2.textContent);
+      r2.querySelector('[data-m=zone]').click(); await wait(400);
+      o.vueZone = /Zone 1/.test(r2.textContent);
+      r2.remove(); App.docView = null; await DB.del('files', 'fmz1');
+      MonEspace.setMap(pr0, ''); root.remove();
+    } catch (e) { o.err = String(e.message || e); }
+    pr0.team = JSON.parse(bak); await DB.put('projects', pr0);
+    return o;
+  });
+  log('Mon espace', me1);
+  if (!me1.noProject && !(me1.ask && me1.card && me1.missions && me1.avance && me1.pieces && me1.vueMz && me1.vueZone)) throw new Error('mon espace KO ' + JSON.stringify(me1));
   // ---- Documentation qualité par partie d'ouvrage : rubriques, pièces classées, manques, historique
   const qd = await A.pg.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
