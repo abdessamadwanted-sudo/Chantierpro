@@ -810,12 +810,15 @@ const ST = (() => {
   const DOC_CATS = [['paq', 'PAQ — Plan d\'assurance qualité', '📘'], ['proc', 'Procédures', '📑'], ['pc', 'Plans de contrôle', '🗂️'], ['ft', 'Fiches techniques et agréments', '🧾'],
     ['pv', 'PV de réception', '✅'], ['labo', 'Rapports d\'essais labo', '🧪'], ['nc', 'NC et actions correctives', '⚠️'], ['visa', 'Visas', '🖋️'], ['audit', 'Audits', '🔍'], ['autre', 'Divers', '📎'], ['archive', 'Archives', '🗄️']];
   async function renderDocs(root) {
+    if (!App.docCat && App.docView !== 'type' && window.QualiteDocs) return QualiteDocs.render(root);   // v1.0.2xx : par partie d'ouvrage (par défaut)
     const pid = App.project.id, all = (await DB.byProject('files', pid)).filter(f => f.role === 'doc' && f.docCat), cat = App.docCat;
     const canW = Team.lvl('files') >= 2, inCat = (k) => all.filter(f => k === 'archive' ? f.archived : (!f.archived && f.docCat === k));
     if (!cat) {
       root.innerHTML = `<div class="pagehead"><h2>Documentation & archives</h2><p>Classement des documents du projet</p></div>
+        ${window.QualiteDocs ? '<div class="qd-tabs"><button data-v="parties">🧱 Par partie d\'ouvrage</button><button class="on" data-v="type">🗂️ Par type</button></div>' : ''}
         <div class="st-docs">${DOC_CATS.map(([k, l, e]) => `<button class="st-doc" data-c="${k}"><span class="e">${e}</span><b>${esc(l)}</b><small>${inCat(k).length} document(s)</small></button>`).join('')}</div>`;
       $$('[data-c]', root).forEach(b => b.onclick = () => { App.docCat = b.dataset.c; renderDocs(root); });
+      $$('[data-v]', root).forEach(b => b.onclick = () => { App.docView = b.dataset.v; renderSection(); });
       return;
     }
     const C = DOC_CATS.find(x => x[0] === cat) || DOC_CATS[0], L = inCat(cat).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));

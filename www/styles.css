@@ -3975,3 +3975,19 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .og-mst { flex: none; color: #fff; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 8px; }
 .og-code { display: grid; gap: 4px; padding: 10px 12px; border-radius: 12px; background: var(--bg2); border: 1px dashed var(--accent); }
 .og-code b { font-size: 22px; letter-spacing: 3px; font-variant-numeric: tabular-nums; } .og-code small { color: var(--muted); } .og-code.old { opacity: .6; border-color: var(--line); }
+
+/* Documentation qualité : par partie d'ouvrage */
+.qd-tabs { display: flex; gap: 8px; padding: 0 16px 10px; overflow-x: auto; }
+.qd-tabs button { flex: none; padding: 8px 14px; border-radius: 99px; background: var(--card); border: 1px solid var(--line); color: var(--muted); font-weight: 700; font-size: 13px; }
+.qd-tabs button.on { background: var(--accent); border-color: transparent; color: #fff; }
+.qd-list { display: grid; gap: 10px; padding: 0 16px 90px; }
+.qd-card { display: grid; gap: 7px; text-align: left; padding: 13px 14px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); color: var(--text); }
+.qd-h { display: flex; align-items: center; gap: 8px; } .qd-h b { flex: 1; font-size: 14.5px; line-height: 1.25; } .qd-n { font-size: 11.5px; font-weight: 700; color: var(--muted); background: var(--bg2); border-radius: 99px; padding: 2px 9px; white-space: nowrap; }
+.qd-bar { height: 6px; border-radius: 99px; background: var(--bg2); overflow: hidden; } .qd-bar i { display: block; height: 100%; background: var(--green, #22c55e); border-radius: 99px; }
+.qd-card small { color: var(--muted); font-size: 12px; } .qd-card small u { text-decoration: none; color: #f59e0b; font-weight: 600; }
+.qd-add { padding: 13px; border-radius: 16px; border: 2px dashed var(--line); color: var(--accent); font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.qd-rub { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 12px 14px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); color: var(--text); }
+.qd-rub i { font-style: normal; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; background: var(--bg2); color: var(--muted); }
+.qd-rub.ok i { background: #16a34a; color: #fff; } .qd-rub b { display: block; font-size: 14px; } .qd-rub small { color: var(--muted); font-size: 12px; } .qd-rub.no small { color: #f59e0b; } .qd-rub svg { width: 16px; height: 16px; color: var(--muted); }
+.qd-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.qd-hi { padding: 8px 2px; border-bottom: 1px solid var(--line); } .qd-hi b { display: block; font-size: 13.5px; } .qd-hi small { color: var(--muted); }
