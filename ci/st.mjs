@@ -1575,7 +1575,6 @@ try {
     const need = async (sel, root) => { for (let i = 0; i < 100; i++) { const e = (root || top() || document).querySelector(sel); if (e) return e; await wait(100); } throw new Error('absent ' + sel + ' | ' + (top() ? top().textContent.slice(0, 100) : document.body.textContent.slice(0, 60))); };
     const click = async (sel, root) => { (await need(sel, root)).click(); await wait(300); };
     const byText = async (re) => { for (let i = 0; i < 100; i++) { const e = top() && [...top().querySelectorAll('button')].find(b => re.test(b.textContent)); if (e) return e; await wait(100); } throw new Error('texte absent ' + re); };
-    const tab = () => document.querySelector('.ds-tab');
     const until = async (f) => { for (let i = 0; i < 80 && !f(); i++) await wait(100); return f(); };
     try {
       App.section = 'reception'; App.recTab = null;
@@ -1586,22 +1585,32 @@ try {
       await click('[data-a=save]');
       await until(() => App.recTab);
       o.onglet = !!App.recTab && /Chape/.test(((await need('.kseg [data-sv].on', document)) || {}).textContent || '');
-      await need('.ds-tab', document); o.entete = /Surface m²/.test(tab().querySelector('thead').textContent);
-      await click('[data-a=add]', document);
+      await need('.fab', document);
+      o.structure = !!document.querySelector('.search input') && !!document.querySelector('.fbar') && !!document.querySelector('.fab') && !!document.querySelector('.sharebar');
+      // + : nouvelle ligne (aujourd'hui) → page du jour
+      await click('.fab', document); await (await byText(/Aujourd/)).click(); await wait(500);
       (await need('[name=Niveau]')).value = 'R+1'; top().querySelector('[name=Surface_m]').value = '42'; await click('[data-a=ok]');
-      o.ligne = await until(() => /R\+1/.test(tab() ? tab().textContent : ''));
-      await click('tr[data-l]', document);
+      await need('.sv-day', document); o.entete = /Surface m²/.test(document.querySelector('.sv-day .ds-tab thead').textContent);
+      o.ligne = await until(() => /R\+1/.test((document.querySelector('.sv-day .ds-tab') || {}).textContent || ''));
+      // modifier la ligne
+      await click('.sv-day tr[data-l]', document);
       (await need('[name=Niveau]')).value = 'R+2'; await click('[data-a=ok]');
-      await until(() => /R\+2/.test(tab() ? tab().textContent : ''));
-      o.edit = /R\+2/.test(tab().textContent) && (await DB.all('dsdossiers')).length === 1;
+      await until(() => /R\+2/.test((document.querySelector('.sv-day .ds-tab') || {}).textContent || ''));
+      o.edit = /R\+2/.test(document.querySelector('.sv-day .ds-tab').textContent) && (await DB.all('dsdossiers')).length === 1 && /^\d{4}-\d{2}-\d{2}$/.test((await DB.all('dsdossiers'))[0].jour || '');
+      document.querySelector('.sv-day [data-a=x]').click(); await wait(600);
+      // filtre Niveau (colonne « Niveau » présente) + recherche
+      o.filtre = !!document.querySelector('.fsel[data-f=niv]') && !!document.querySelector('.mcard .prow');
+      // renommer une colonne + déplacer : les valeurs restent
       await click('[data-a=cfg]', document);
       await click('[data-ced="0"]'); (await need('[name=libelle]')).value = 'Étage'; await click('[data-a=ok]');
       await click('[data-dn="0"]'); await click('[data-a=save]');
-      await until(() => /Étage/.test(tab() ? tab().textContent : ''));
-      const heads = [...tab().querySelectorAll('thead th')].map(x => x.textContent);
-      o.rename = heads.includes('Étage') && heads.indexOf('Étage') > heads.indexOf('Local') && /R\+2/.test(tab().querySelector('tbody').textContent);
-      const inp = document.querySelector('.search input'); inp.value = 'zzz'; inp.dispatchEvent(new Event('input')); await wait(800);
-      o.recherche = /Aucun résultat/.test(tab().textContent);
+      await until(() => !document.querySelector('.sheet-bg'));
+      await wait(600); await click('.mcard .prow', document); await need('.sv-day', document);
+      const heads = [...document.querySelectorAll('.sv-day .ds-tab thead th')].map(x => x.textContent);
+      o.rename = heads.includes('Étage') && heads.indexOf('Étage') > heads.indexOf('Local') && /R\+2/.test(document.querySelector('.sv-day .ds-tab tbody').textContent);
+      document.querySelector('.sv-day [data-a=x]').click(); await wait(600);
+      const inp = document.querySelector('.search input'); inp.value = 'zzz'; inp.dispatchEvent(new Event('input')); await wait(900);
+      o.recherche = /Aucun résultat/.test(document.querySelector('#svBody').textContent);
       document.querySelector('.kseg [data-k=reception]').click(); await wait(800);
       o.retour = !App.recTab && !!document.querySelector('.kseg [data-sv]');
       o.sync = !(await DB.all('tomb')).some(x => /^(s_|d_)/.test(String(x.id || '')));
@@ -1611,7 +1620,7 @@ try {
     return o;
   });
   log('Suivis personnalisés', sv);
-  if (!sv.noProject && !(sv.galerie && sv.preNom && sv.onglet && sv.entete && sv.ligne && sv.edit && sv.rename && sv.recherche && sv.retour && sv.sync)) throw new Error('suivis personnalisés KO ' + JSON.stringify(sv));
+  if (!sv.noProject && !(sv.galerie && sv.preNom && sv.onglet && sv.structure && sv.entete && sv.ligne && sv.edit && sv.filtre && sv.rename && sv.recherche && sv.retour && sv.sync)) throw new Error('suivis personnalisés KO ' + JSON.stringify(sv));
   // ---- Suivis personnalisés + modèle visuel : cases liées aux colonnes, PDF écrit sur le bon
   const sv2 = await A.pg.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
@@ -1642,7 +1651,7 @@ try {
       await DB.putRaw('dsmodeles', { ...base, visuel, creeLe: Date.now() });
       const d = DocumentStudio.remplir(base, { Surface: 12.5, Date: '2026-11-12' }, SuivisPerso.ctxOf(pr0));
       await DB.putRaw('dsdossiers', { ...d, id: 'd_vis', creeLe: Date.now() });
-      App.recTab = { pid: pr0.id, id: 's_vis' }; const root = document.createElement('div'); document.body.appendChild(root); await SuivisTabs.render(root, pr0, 'Ferraillage'); (await need('[data-pdf]', root)).click(); setTimeout(() => root.remove(), 4000);
+      App.recTab = { pid: pr0.id, id: 's_vis' }; const root = document.createElement('div'); document.body.appendChild(root); await SuivisTabs.render(root, pr0, 'Ferraillage'); await (await need('.mcard .prow', root)).click(); (await need('[data-pdf]', document)).click(); setTimeout(() => { root.remove(); document.querySelectorAll('.sv-day').forEach(x => x.remove()); }, 4000);
       for (let i = 0; i < 100 && !opened; i++) await wait(100);
       o.pdf = !!opened && opened.blob.size > 500 && opened.mime === 'application/pdf';
       const txt = opened ? new TextDecoder('latin1').decode(new Uint8Array(await opened.blob.arrayBuffer())) : '';
