@@ -3884,3 +3884,52 @@ table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-
 .ds-tab tr[data-l] { cursor: pointer; }
 .ds-cb { display: inline-flex; gap: 2px; }
 .ds-cb .btn { padding: 4px 8px; min-width: 0; }
+
+/* ===== Suivis personnalisés : design soigné (onglets, en-tête, tableau, bouton, galerie, colonnes) ===== */
+.kseg.sv button { max-width: 170px; overflow: hidden; text-overflow: ellipsis; }
+.kseg.sv button.on { background: linear-gradient(180deg, #34456a, #2b3a5c); box-shadow: 0 1px 0 rgba(255,255,255,.08) inset, 0 2px 8px rgba(0,0,0,.25); }
+.kseg.sv .sv-plus { flex: 0 0 auto; min-width: 42px; padding: 8px 12px; font-size: 20px; line-height: 1; color: var(--accent); border: 1px dashed rgba(91,141,239,.55); background: transparent; }
+.sv-head { margin: 14px 16px 8px; }
+.sv-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sv-t b { font-size: 19px; font-weight: 700; letter-spacing: .1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sv-t small { font-size: 12.5px; color: var(--muted); }
+.sv-cfg { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); color: var(--text); font-size: 13.5px; font-weight: 600; flex: 0 0 auto; }
+.sv-cfg svg.i { width: 16px; height: 16px; }
+.sv-box { margin: 0 16px; max-height: none; border: 1px solid var(--line); border-radius: 14px; background: var(--bg2); overflow: auto; }
+.sv-box .ds-tab { font-size: 14.5px; }
+.sv-box .ds-tab th { background: #262b34; color: var(--muted); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.sv-box .ds-tab td { padding: 11px 12px; border-bottom: 1px solid rgba(255,255,255,.05); }
+.sv-box .ds-tab tbody tr:nth-child(even) { background: rgba(255,255,255,.025); }
+.sv-box .ds-tab tbody tr:last-child td { border-bottom: 0; }
+.sv-box .ds-tab tr[data-l]:active { background: rgba(91,141,239,.14); }
+.sv-box .t-date0 { color: var(--muted); font-size: 12.5px; }
+.sv-box .t-nombre { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.sv-box .t-case { text-align: center; font-weight: 800; } .sv-box .t-case.ok { color: var(--green); } .sv-box .t-case.no { color: var(--muted); }
+.sv-pdf { padding: 4px 10px; border-radius: 8px; background: rgba(91,141,239,.16); color: var(--accent); font-size: 12px; font-weight: 700; }
+.sv-empty { text-align: center; padding: 34px 12px !important; color: var(--muted); }
+.sv-empty i { display: block; font-style: normal; font-size: 34px; margin-bottom: 6px; } .sv-empty b { display: block; color: var(--text); font-size: 16px; } .sv-empty small { display: block; margin-top: 3px; }
+.sv-add { position: sticky; bottom: 0; padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(180deg, transparent, var(--bg) 38%); }
+.sv-add .btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px; border-radius: 14px; font-size: 16px; font-weight: 700; box-shadow: 0 6px 18px rgba(74,122,216,.35); }
+/* galerie de modèles */
+.sv-gal { padding: 0 16px 16px; }
+.sv-sub { color: var(--muted); font-size: 13.5px; margin: 0 0 12px; line-height: 1.4; }
+.sv-gal h4 { margin: 16px 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+.sv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.sv-card { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 14px 12px 12px; border-radius: 14px; background: var(--card2); border: 1px solid var(--line); text-align: left; color: var(--text); }
+.sv-card i { font-style: normal; font-size: 26px; line-height: 1.1; margin-bottom: 4px; }
+.sv-card b { font-size: 15px; font-weight: 700; } .sv-card small { color: var(--muted); font-size: 12px; }
+.sv-card em { position: absolute; top: 8px; right: 8px; font-style: normal; font-size: 10.5px; font-weight: 700; color: #fbbf24; background: rgba(251,191,36,.14); border-radius: 999px; padding: 2px 7px; }
+.sv-card.rel { border-color: rgba(91,141,239,.6); background: linear-gradient(180deg, rgba(91,141,239,.14), var(--card2)); }
+.sv-card:active { transform: scale(.98); }
+.sv-blank { flex-direction: row; align-items: center; gap: 12px; width: 100%; border-style: dashed; background: transparent; padding: 14px; }
+.sv-blank i { margin: 0; } .sv-blank span { display: flex; flex-direction: column; }
+/* constructeur : colonnes en cartes */
+.ds-col { padding: 8px 8px 8px 10px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--card2); }
+.ds-col > em { flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%; background: rgba(91,141,239,.2); color: var(--accent); font-style: normal; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.ds-col > span { flex: 1; min-width: 0; display: flex; flex-direction: column; } .ds-col > span b { font-size: 15px; overflow: hidden; text-overflow: ellipsis; } .ds-col > span small { opacity: .65; font-size: 12px; }
+.ds-cb .btn { border-radius: 10px; padding: 6px 9px; background: rgba(255,255,255,.05); border: 0; }
+.ds-cb .btn[disabled] { opacity: .25; }
+.ds-col .ds-cb { display: flex; flex-direction: row; flex-wrap: nowrap; gap: 4px; flex: 0 0 auto; }
+.ds-col .ds-cb .btn { width: 36px; min-width: 36px; height: 36px; padding: 0; margin: 0; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.ds-col .ds-cb .btn svg.i { width: 17px; height: 17px; }
+.fs-info { margin: 10px 0; }

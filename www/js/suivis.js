@@ -113,7 +113,19 @@
   async function nouveauSuivi(p) {
     const ty = p.type, ordre = PRESETS.map((x, i) => ({ x, i, rel: ty && x.types.includes(ty) })).sort((a, b) => (b.rel - a.rel) || (a.i - b.i));
     const T = typeof projTypeOf === 'function' && projTypeOf(ty);
-    const v = await menu('Nouveau suivi' + (T ? ` · ${T.e} ${T.n.replace(/\s*\(.*\)/, '')}` : ''), [{ label: '✏️ Suivi vide (je choisis les colonnes)', value: '-1' }, ...ordre.map(o => ({ label: `${o.x.ico} ${o.x.nom}${o.rel ? '  ⭐ conseillé' : ''}`, value: String(o.i) }))]);
+    const v = await new Promise((resolve) => {
+      let pick = null;
+      const card = (o) => `<button class="sv-card ${o.rel ? 'rel' : ''}" data-i="${o.i}"><i>${o.x.ico}</i><b>${esc(o.x.nom)}</b><small>${o.x.cols.length} colonnes</small>${o.rel ? '<em>⭐ conseillé</em>' : ''}</button>`;
+      const s = sheet(`<div class="sv-gal">
+        <p class="sv-sub">${T ? `${T.e} Projet : ${esc(T.n.replace(/\s*\(.*\)/, ''))}. ` : ''}Choisissez un modèle prêt, vous pourrez tout modifier ensuite.</p>
+        <button class="sv-card sv-blank" data-i="-1"><i>✏️</i><span><b>Suivi vide</b><small>Je choisis moi-même les colonnes</small></span></button>
+        ${ordre.some(o => o.rel) ? `<h4>Conseillés pour ce projet</h4><div class="sv-grid">${ordre.filter(o => o.rel).map(card).join('')}</div>` : ''}
+        <h4>${ordre.some(o => o.rel) ? 'Autres modèles' : 'Modèles'}</h4><div class="sv-grid">${ordre.filter(o => !o.rel).map(card).join('')}</div></div>`, {
+        title: 'Nouveau suivi',
+        onMount: (el) => el.querySelectorAll('[data-i]').forEach(b => b.onclick = () => { pick = b.dataset.i; s.close(); }),
+      });
+      s.onClose = () => resolve(pick);
+    });
     if (v == null || v === '') return null;
     const m = await suiviBuilder(p, null, +v >= 0 ? PRESETS[+v] : null);
     return m && m !== 'supprime' ? m : null;
@@ -126,7 +138,7 @@
       const draw = () => {
         const s = sheet(`<div class="form">
           <label>Nom du suivi<input name="nom" value="${esc(nom)}" placeholder="Ex. Suivi finitions sols" maxlength="160"></label>
-          <div class="fs-info"><b>Colonnes (${champs.length})</b>${champs.length ? champs.map((c, i) => `<div class="ds-col"><span>${i + 1}. ${esc(c.libelle)} <small>· ${esc((TYPES.find(t => t[0] === c.type) || [, c.type])[1])}${c.obligatoire ? ' · obligatoire' : ''}</small></span><span class="ds-cb"><button class="btn ghost" data-up="${i}" ${i ? '' : 'disabled'}>↑</button><button class="btn ghost" data-dn="${i}" ${i < champs.length - 1 ? '' : 'disabled'}>↓</button><button class="btn ghost" data-ced="${i}">${icon('edit')}</button><button class="btn ghost" data-del="${i}">${icon('close')}</button></span></div>`).join('') : '<div class="muted">Aucune colonne</div>'}</div>
+          <div class="fs-info"><b>Colonnes (${champs.length})</b>${champs.length ? champs.map((c, i) => `<div class="ds-col"><em>${i + 1}</em><span><b>${esc(c.libelle)}</b><small>${esc(c.type === 'case' ? 'Oui / non' : c.type === 'liste' ? 'Liste de choix' : (TYPES.find(t => t[0] === c.type) || [, c.type])[1])}${c.obligatoire ? ' · obligatoire' : ''}</small></span><span class="ds-cb"><button class="btn ghost" data-up="${i}" ${i ? '' : 'disabled'}>↑</button><button class="btn ghost" data-dn="${i}" ${i < champs.length - 1 ? '' : 'disabled'}>↓</button><button class="btn ghost" data-ced="${i}">${icon('edit')}</button><button class="btn ghost" data-del="${i}">${icon('close')}</button></span></div>`).join('') : '<div class="muted">Aucune colonne</div>'}</div>
           <div class="fs-info"><b>Modèle visuel (bon / fiche)</b>${visuel ? `<div class="ds-col"><span>${esc(visuel.name)} <small>· ${visuel.fields.length} case(s) placée(s)</small></span></div>` : '<small class="muted">Optionnel : une photo ou un PDF du bon. Chaque ligne pourra être écrite dessus (PDF).</small>'}</div>
           <div class="btnrow"><button class="btn ghost" data-a="visuel">${visuel ? 'Placer / modifier les cases' : '📷 Ajouter un modèle visuel'}</button>${visuel ? '<button class="btn ghost" data-a="novisuel">Retirer</button>' : ''}</div>
           <div class="btnrow"><button class="btn ghost" data-a="addcol">${icon('plus')} Ajouter une colonne</button></div>
@@ -236,7 +248,7 @@
   async function tabsHtml(p) {
     if (typeof DocumentStudio === 'undefined') return '';
     const list = await mine(p), act = App.recTab && App.recTab.pid === p.id ? App.recTab.id : null;
-    return list.map(m => `<button class="${act === m.id ? 'on' : ''}" data-sv="${esc(m.id)}">${icon('grid')} ${esc(m.nom)}</button>`).join('') + `<button data-sv-new title="Nouveau suivi">＋</button>`;
+    return list.map(m => `<button class="${act === m.id ? 'on' : ''}" data-sv="${esc(m.id)}">${icon('grid')} ${esc(m.nom)}</button>`).join('') + `<button class="sv-plus" data-sv-new title="Nouveau suivi">＋</button>`;
   }
   function bindTabs(root, p) {
     const go = (id) => { App.recTab = id ? { pid: p.id, id } : null; renderSection(); };
@@ -253,12 +265,13 @@
     const seg = `<div class="kseg sv"><button data-k="reception" ${dispo('reception') ? '' : 'hidden'}>${icon('layers')} Réception</button><button data-k="beton" ${dispo('beton') ? '' : 'hidden'}>${icon('calendar')} Bétonnage</button>${await tabsHtml(p)}</div>`;
     root.innerHTML = `${seg}
       <div class="search">${icon('search')}<input placeholder="Rechercher dans « ${esc(m.nom)} »…" value="${esc(App.recSearchSv || '')}"></div>
-      <div class="sv-head"><span><b>${esc(m.nom)}</b> <small>${lignes.length} ligne(s)${q ? ` · ${L.length} affichée(s)` : ''}</small></span><button class="btn ghost" data-a="cfg">${icon('edit')} Modifier</button></div>
-      <div class="ds-scroll" style="margin:0 16px"><table class="ds-tab"><thead><tr><th>Date</th>${m.champs.map(c => `<th>${esc(c.libelle)}</th>`).join('')}${pdf ? '<th></th>' : ''}</tr></thead>
-        <tbody>${L.length ? L.map(d => `<tr data-l="${esc(d.id)}"><td>${esc(jour(d.creeLe))}</td>${m.champs.map(c => `<td>${esc(show(c, d.valeurs[c.id]))}</td>`).join('')}${pdf ? `<td><button class="btn ghost" data-pdf="${esc(d.id)}">PDF</button></td>` : ''}</tr>`).join('') : `<tr><td colspan="${m.champs.length + 2}" class="muted">${q ? 'Aucun résultat' : 'Aucune ligne : touchez « Nouvelle ligne »'}</td></tr>`}</tbody></table></div>
-      <div class="btnrow" style="margin:12px 16px"><button class="btn" data-a="add">${icon('plus')} Nouvelle ligne</button></div>`;
+      <div class="sv-head"><span class="sv-t"><b>${esc(m.nom)}</b><small>${lignes.length} ligne${lignes.length > 1 ? 's' : ''}${q ? ` · ${L.length} affichée${L.length > 1 ? 's' : ''}` : ''} · ${m.champs.length} colonnes</small></span><button class="sv-cfg" data-a="cfg" title="Modifier le tableau">${icon('edit')}<span>Modifier</span></button></div>
+      <div class="ds-scroll sv-box"><table class="ds-tab"><thead><tr><th>Date</th>${m.champs.map(c => `<th>${esc(c.libelle)}</th>`).join('')}${pdf ? '<th></th>' : ''}</tr></thead>
+        <tbody>${L.length ? L.map(d => `<tr data-l="${esc(d.id)}"><td class="t-date0">${esc(jour(d.creeLe))}</td>${m.champs.map(c => `<td class="t-${c.type}${c.type === 'case' ? (d.valeurs[c.id] ? ' ok' : ' no') : ''}">${esc(show(c, d.valeurs[c.id]))}</td>`).join('')}${pdf ? `<td><button class="sv-pdf" data-pdf="${esc(d.id)}">PDF</button></td>` : ''}</tr>`).join('') : `<tr><td colspan="${m.champs.length + 2}" class="sv-empty">${q ? '🔍 Aucun résultat' : '<i>📝</i><b>Aucune ligne</b><small>Touchez « Nouvelle ligne » pour commencer</small>'}</td></tr>`}</tbody></table></div>
+      <div class="sv-add"><button class="btn" data-a="add">${icon('plus')} Nouvelle ligne</button></div>`;
     root.querySelectorAll('.kseg [data-k]').forEach(b => b.onclick = () => { App.recTab = null; App.section = b.dataset.k; renderSection(); });
     bindTabs(root, p);
+    const kb = $('.kseg', root), on = $('.kseg .on', root); if (kb && on) kb.scrollLeft = Math.max(0, on.offsetLeft - 60);   // l'onglet actif reste visible
     const rr = () => renderSection();
     ($('.search input', root) || {}).oninput = (e) => { App.recSearchSv = e.target.value; clearTimeout(renderTab._t); renderTab._t = setTimeout(async () => { const pos = e.target.selectionStart; await renderTab(root, p, kind); const i = $('.search input', root); if (i) { i.focus(); try { i.setSelectionRange(pos, pos); } catch (x) {} } }, 250); };
     ($('[data-a=add]', root) || {}).onclick = async () => { await ligneForm(p, m); rr(); };
