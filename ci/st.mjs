@@ -1547,6 +1547,25 @@ try {
   });
   log('Alertes & automatisations (simulation, sans envoi)', waDemo);
   log('errors v1.0.190 autoalerts', waDemo.loaded && waDemo.visibles === 4 && waDemo.wa && waDemo.rappelOk && waDemo.noSend && waDemo.result && waDemo.canaux === 4 ? [] : ['autoalerts']);
+  // ---- v1.0.x : Document Studio — socle (modèles, dates, périmètre entreprise, tables locales)
+  const ds = await A.pg.evaluate(async () => {
+    if (typeof DocumentStudio === 'undefined') return { loaded: false };
+    const S = DocumentStudio, o = {};
+    const m = S.nouveauSuivi('suivi_t', 'entreprise_1', 'qualite', 'Suivi test', [
+      { id: 'jour', libelle: 'Date', type: 'date' }, { id: 'code', libelle: 'Code', type: 'liste', options: ['A', 'B'] }]);
+    o.date = S.remplir(m, { jour: '2026-11-11', code: 'A' }, { entrepriseId: 'entreprise_1' }).valeurs.jour === '2026-11-11';
+    try { S.remplir(m, { jour: '11/11/2026' }, { entrepriseId: 'entreprise_1' }); o.dateKo = false; } catch (e) { o.dateKo = true; }
+    try { S.remplir(m, { code: 'A' }, { entrepriseId: 'autre' }); o.isole = false; } catch (e) { o.isole = true; }
+    await DB.putRaw('dsmodeles', { id: 'm_test', ...m });
+    const back = await DB.get('dsmodeles', 'm_test');
+    o.stocke = !!back && back.nom === 'Suivi test';
+    await DB.delRaw('dsmodeles', 'm_test');
+    o.supprime = !(await DB.get('dsmodeles', 'm_test'));
+    o.tables = (await DB.all('dsdossiers')).length >= 0;
+    return { loaded: true, ...o };
+  });
+  log('Document Studio (socle)', ds);
+  log('errors v1.0.x document-studio', ds.loaded && ds.date && ds.dateKo && ds.isole && ds.stocke && ds.supprime && ds.tables ? [] : ['document-studio']);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
