@@ -1599,6 +1599,50 @@ try {
   });
   log('Suivis personnalisés', sv);
   if (!sv.noProject && !(sv.liste && sv.modele && sv.ligne && sv.tableau && sv.sync)) throw new Error('suivis personnalisés KO ' + JSON.stringify(sv));
+  // ---- Suivis personnalisés + modèle visuel : cases liées aux colonnes, PDF écrit sur le bon
+  const sv2 = await A.pg.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
+    const pr0 = (await DB.all('projects'))[0]; if (!pr0) return { noProject: true };
+    App.project = pr0;
+    const top = () => [...document.querySelectorAll('.sheet-bg')].pop();
+    const need = async (sel, root) => { for (let i = 0; i < 100; i++) { const e = (root || top() || document).querySelector(sel); if (e) return e; await wait(100); } throw new Error('absent ' + sel); };
+    let opened = null; const oldOpen = window.openFileRecord; window.openFileRecord = (rec) => { opened = rec; };
+    try {
+      try { await needPdfLib(); } catch (e) { o.nolib = true; }   // pdf-lib / pdf.js ne sont copiés dans www/lib qu'au build : ici on ne peut pas écrire de PDF
+      if (o.nolib) { window.openFileRecord = oldOpen; return o; }
+      const PDFLib = window.PDFLib, doc = await PDFLib.PDFDocument.create(); doc.addPage([420, 595]);
+      const blob = new Blob([await doc.save()], { type: 'application/pdf' });
+      const rec = await DB.put('files', { projectId: pr0.id, blob, mime: 'application/pdf', role: 'bontpl', name: 'Modèle test.pdf' });
+      const champs = [{ id: 'Surface', libelle: 'Surface', type: 'nombre' }, { id: 'Date', libelle: 'Date', type: 'date' }];
+      const visuel = { id: 'v1', name: 'Bon test', fileId: rec.id, fields: [] };
+      // éditeur de cases : proposer les colonnes, en placer une
+      const ed = SuivisPerso.visuelEditer(pr0, visuel, champs);
+      const edEl = await need('.ft-ed', document);
+      (await need('[data-a=add]', edEl)).click(); await wait(300);
+      const items = [...top().querySelectorAll('button')]; o.menuCols = items.some(b => /Colonne : Surface/.test(b.textContent)) && items.some(b => /Colonne : Date/.test(b.textContent)) && !items.some(b => /Fiche N°/.test(b.textContent));
+      items.find(b => /Colonne : Surface/.test(b.textContent)).click(); await wait(400);
+      o.boite = edEl.querySelectorAll('.ft-box').length === 1;
+      (await need('[data-a=ok]', edEl)).click(); await ed;
+      o.cases = visuel.fields.length === 1 && visuel.fields[0].k === 'col' && visuel.fields[0].col === 'Surface';
+      // ligne + PDF
+      const base = DocumentStudio.modele({ id: 's_vis', nom: 'Suivi visuel', entrepriseId: SuivisPerso.ctxOf(pr0).entrepriseId, serviceId: 'general', projetId: SuivisPerso.ctxOf(pr0).projetId, categorie: 'suivi', champs });
+      await DB.putRaw('dsmodeles', { ...base, visuel, creeLe: Date.now() });
+      const d = DocumentStudio.remplir(base, { Surface: 12.5, Date: '2026-11-12' }, SuivisPerso.ctxOf(pr0));
+      await DB.putRaw('dsdossiers', { ...d, id: 'd_vis', creeLe: Date.now() });
+      openSuivis(pr0); (await need('[data-open]')).click(); const bp = await need('[data-pdf]'); bp.click();
+      for (let i = 0; i < 100 && !opened; i++) await wait(100);
+      o.pdf = !!opened && opened.blob.size > 500 && opened.mime === 'application/pdf';
+      const txt = opened ? new TextDecoder('latin1').decode(new Uint8Array(await opened.blob.arrayBuffer())) : '';
+      o.pdfPages = txt.startsWith('%PDF') && opened.blob.size > 5000;   // plus gros que la page vierge : les cases sont bien écrites
+    } catch (e) { o.err = String(e.message || e); }
+    window.openFileRecord = oldOpen;
+    for (const m of (await DB.all('dsmodeles')).filter(m => m.id === 's_vis')) await DB.delRaw('dsmodeles', m.id);
+    for (const d of (await DB.all('dsdossiers')).filter(d => d.id === 'd_vis')) await DB.delRaw('dsdossiers', d.id);
+    document.querySelectorAll('.sheet-bg,.ft-ed').forEach(x => x.remove());
+    return o;
+  });
+  log('Suivis modèle visuel', sv2);
+  if (!sv2.noProject && !sv2.nolib && !(sv2.menuCols && sv2.boite && sv2.cases && sv2.pdf && sv2.pdfPages)) throw new Error('suivis modèle visuel KO ' + JSON.stringify(sv2));
   log('errors v1.0.x suivis', []);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
