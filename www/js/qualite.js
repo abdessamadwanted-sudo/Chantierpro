@@ -45,6 +45,8 @@
     if (!r) return null;
     return { missionId: r.missionId || '', zone: String(r.zoneNew || '').trim() || r.zone || '' };
   }
+  // dossier Drive de la pièce : <Projet>/Qualité/<partie>/<rubrique>/<zone> (la synchro déplace le fichier si le classement change)
+  const qPathOf = (part, rub, zone) => ['Qualité', part && part.nom || 'Hors partie', rub && rub !== '__autres' ? rub : 'Autres pièces', zone || ''].filter(Boolean);
   const canW = () => { try { return Team.lvl('files') >= 2; } catch (e) { return true; } };
 
   const isEnt = () => { try { return !!(window.ST && ST.isEnt && ST.isEnt()); } catch (e) { return false; } };
@@ -84,7 +86,7 @@
       const v = await menu(f.name || 'Pièce', [{ label: 'Ouvrir', icon: 'file', value: 'open' }, { label: 'Historique', icon: 'history', value: 'hist' }, ...(W ? [{ label: 'Mission / zone…', icon: 'edit', value: 'ref' }] : [])]);
       if (v === 'open') { addHist(f, 'consultation'); await DB.put('files', f); return openFileRecord(f, f.name); }
       if (v === 'hist') { const H = [...(f.hist || [])].reverse(); return sheet(`<div class="form">${H.length ? H.map(h => `<div class="qd-hi"><b>${esc(h.act)}</b><small>${fmtH(h.at)}${h.nom ? ' · ' + esc(h.nom) : ''}${h.note ? '<br>' + esc(h.note) : ''}</small></div>`).join('') : '<p class="muted">Aucun historique.</p>'}</div>`); }
-      if (v === 'ref') { const q = await askRef(p, files, f); if (q) { addHist(f, 'rattachée', refTxt(p, { ...f, ...q }) || 'sans mission ni zone'); Object.assign(f, q); await DB.put('files', f); } renderMZ(root); } });
+      if (v === 'ref') { const q = await askRef(p, files, f); if (q) { addHist(f, 'rattachée', refTxt(p, { ...f, ...q }) || 'sans mission ni zone'); Object.assign(f, q); if (f.partId) f.qPath = qPathOf(allParts(p).find(x => x.id === f.partId), f.rubrique, f.zone); await DB.put('files', f); } renderMZ(root); } });
   }
   async function render(root) {
     if (App.docView === 'mz' && isEnt()) return renderMZ(root);
@@ -139,15 +141,15 @@
       const v = await menu(f.name || 'Pièce', [{ label: 'Ouvrir', icon: 'file', value: 'open' }, { label: 'Historique', icon: 'history', value: 'hist' }, ...(W ? [{ label: 'Mission / zone…', icon: 'edit', value: 'ref' }, { label: 'Changer de rubrique', icon: 'folder', value: 'mv' }, { label: 'Archiver la pièce', icon: 'folder', value: 'arc' }, { label: 'Supprimer', icon: 'trash', danger: true, value: 'del' }] : [])]);
       if (v === 'open') { addHist(f, 'consultation'); await DB.put('files', f); return openFileRecord(f, f.name); }
       if (v === 'hist') { const H = [...(f.hist || [])].reverse(); return sheet(`<div class="form">${H.length ? H.map(h => `<div class="qd-hi"><b>${esc(h.act)}</b><small>${fmtH(h.at)}${h.nom ? ' · ' + esc(h.nom) : ''}${h.note ? '<br>' + esc(h.note) : ''}</small></div>`).join('') : '<p class="muted">Aucun historique.</p>'}</div>`, { title: 'Historique · ' + (f.name || '') }); }
-      if (v === 'ref') { const q = await askRef(p, files, f); if (q) { addHist(f, 'rattachée', refTxt(p, { ...f, ...q }) || 'sans mission ni zone'); Object.assign(f, q); await DB.put('files', f); } }
-      if (v === 'mv') { const t = await menu('Déplacer vers', part.rub.map(x => ({ label: x, value: x, checked: x === f.rubrique }))); if (t && t !== f.rubrique) { addHist(f, 'déplacée', `${f.rubrique || '—'} → ${t}`); f.rubrique = t; f.docCat = catOf(t); await DB.put('files', f); } }
+      if (v === 'ref') { const q = await askRef(p, files, f); if (q) { addHist(f, 'rattachée', refTxt(p, { ...f, ...q }) || 'sans mission ni zone'); Object.assign(f, q); f.qPath = qPathOf(part, f.rubrique, f.zone); await DB.put('files', f); } }
+      if (v === 'mv') { const t = await menu('Déplacer vers', part.rub.map(x => ({ label: x, value: x, checked: x === f.rubrique }))); if (t && t !== f.rubrique) { addHist(f, 'déplacée', `${f.rubrique || '—'} → ${t}`); f.rubrique = t; f.docCat = catOf(t); f.qPath = qPathOf(part, t, f.zone); await DB.put('files', f); } }
       if (v === 'arc') { addHist(f, 'archivée'); f.archived = true; await DB.put('files', f); }
       if (v === 'del' && await confirmBox(`Supprimer « ${f.name} » ? (aussi dans Drive)`, 'Supprimer')) await DB.del('files', f.id);
       render(root); });
     if (W) fab(root, async () => {
       const k = await menu('Ajouter une pièce', [{ label: 'Photo / scan', icon: 'camera', value: 'img' }, { label: 'Fichier (PDF, Word, Excel)', icon: 'file', value: 'file' }]); if (!k) return;
       const ref = await askRef(p, files, S.lastRef); if (!ref) return; S.lastRef = ref;
-      const rubName = rub === '__autres' ? '' : rub, base = { ...ref, projectId: p.id, role: 'doc', docCat: catOf(rubName), partId: part.id, rubrique: rubName, docDate: todayISO(), by: uid(), byName: nomUser() };
+      const rubName = rub === '__autres' ? '' : rub, base = { ...ref, qPath: qPathOf(part, rubName, ref.zone), projectId: p.id, role: 'doc', docCat: catOf(rubName), partId: part.id, rubrique: rubName, docDate: todayISO(), by: uid(), byName: nomUser() };
       let n = 0;
       if (k === 'file') {
         const fl = await pickFiles({ accept: '*/*', multiple: true }); if (!fl || !fl.length) return;
@@ -162,5 +164,5 @@
       toast(n + ' pièce(s) ajoutée(s) ✓'); render(root);
     });
   }
-  window.QualiteDocs = { render, renderMZ, alertes, missionsOf, zonesOf, refTxt, partsOf, stat, addHist, catOf, DEF };
+  window.QualiteDocs = { qPathOf, render, renderMZ, alertes, missionsOf, zonesOf, refTxt, partsOf, stat, addHist, catOf, DEF };
 })();

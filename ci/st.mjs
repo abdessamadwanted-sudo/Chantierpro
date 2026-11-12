@@ -1699,6 +1699,7 @@ try {
       o.vueMz = !!r2.querySelector('[data-m=zone]') && /PV labo béton/.test(r2.textContent);
       r2.querySelector('[data-m=zone]').click(); await wait(400);
       o.vueZone = /Zone 1/.test(r2.textContent);
+      o.qpath = JSON.stringify(QualiteDocs.qPathOf({ nom: 'Gros œuvre' }, 'PV labo', 'Bloc A')) === '["Qualité","Gros œuvre","PV labo","Bloc A"]' && QualiteDocs.qPathOf(null, '__autres', '').join('/') === 'Qualité/Hors partie/Autres pièces';
       { const al = QualiteDocs.alertes(pr0, await DB.byProject('files', pr0.id)); o.alertes = al.late.length === 1 && al.vide.length === 0; }
       r2.remove(); App.docView = null; await DB.del('files', 'fmz1');
       MonEspace.setMap(pr0, ''); root.remove();
@@ -1707,7 +1708,7 @@ try {
     return o;
   });
   log('Mon espace', me1);
-  if (!me1.noProject && !(me1.ask && me1.card && me1.missions && me1.avance && me1.pieces && me1.vueMz && me1.vueZone && me1.alertes)) throw new Error('mon espace KO ' + JSON.stringify(me1));
+  if (!me1.noProject && !(me1.ask && me1.card && me1.missions && me1.avance && me1.pieces && me1.vueMz && me1.vueZone && me1.alertes && me1.qpath)) throw new Error('mon espace KO ' + JSON.stringify(me1));
   // ---- Documentation qualité par partie d'ouvrage : rubriques, pièces classées, manques, historique
   const qd = await A.pg.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
