@@ -231,7 +231,7 @@ const tmRoleOf = (k) => { if (k === 'proprietaire') return ROLE_PROPRIO; if (k =
 const metierOf = (k) => TM_ROLES.find(r => r.k === k) || null;
 const serviceOf = (k) => TM_SERVICES.find(s => s.k === k) || TM_SERVICES[TM_SERVICES.length - 1];
 // magasin local → module (sous-collection Firestore)
-const STORE_MOD = { projects: 'projet', folders: 'plans', plans: 'plans', links: 'plans', tasks: 'reserves', receptions: 'reception', forms: 'forms', reports: 'rapports', files: 'files', items: '*' };
+const STORE_MOD = { projects: 'projet', folders: 'plans', plans: 'plans', links: 'plans', tasks: 'reserves', receptions: 'reception', dsmodeles: 'reception', dsdossiers: 'reception', forms: 'forms', reports: 'rapports', files: 'files', items: '*' };
 // éléments des espaces (store « items ») : module selon le type
 const KIND_MOD = { impl: 'topo', leve: 'topo', cmd: 'centrale', bl: 'centrale', mat: 'materiel', stock: 'materiel', pt: 'pointage', hse: 'hse', rdt: 'rapports' };
 const modOf = (store, rec) => store === 'items' ? KIND_MOD[(rec || {}).kind] : STORE_MOD[store];
