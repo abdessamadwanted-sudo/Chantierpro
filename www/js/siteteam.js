@@ -321,10 +321,6 @@ const ST = (() => {
         return `<details class="st-qs" data-qs="${v}" ${op.includes(v) ? 'open' : ''}><summary style="--c:${QS_UI[v][1]}"><i class="st-qs-ic">${icon(QS_UI[v][0])}</i><span><b>${QS_NAMES[v][1]}</b><small>${QS_UI[v][2]}</small></span><em>${L.length}</em><i class="st-chev">${icon('chevdown')}</i></summary><div class="st-tgrid">${L.map(k => toolBtn(k, 'qual')).join('')}</div></details>`; }).join('')
         + `<button class="st-qs-set" data-a="qsset">⚙️ Répartition Administratif / Terrain / Commun</button>`;
     };
-    // « Service Qualité » en deux versions visibles dans l'app : Enterprise (volets) et Basic (liste d'origine) — choix gardé sur le téléphone
-    const qVer = () => { try { return localStorage.getItem('qual.ver') === 'basic' ? 'basic' : 'ent'; } catch (e) { return 'ent'; } };
-    const qualBlock = (ks) => `<div class="st-qv"><button data-qv="ent" class="${qVer() === 'ent' ? 'on' : ''}">🏛️ Enterprise</button><button data-qv="basic" class="${qVer() === 'basic' ? 'on' : ''}">🌱 Basic</button></div>`
-      + (qVer() === 'basic' ? `<p class="st-qv-h">Version Basic : la liste d'origine, sans volets.</p><div class="st-tgrid">${ks.map(k => toolBtn(k, 'qual')).join('')}</div>` : qualSplit(ks));
     const qsSet = async () => {
       const M = qsMap(), ks = [...new Set([...Object.keys(QS_DEF), ...G.flatMap(x => x[0] === 'qual' ? x[2] : [])])].filter(k => SECTIONS[k] && ok(k));
       for (;;) { const v = await menu('Où ranger chaque outil ?', [...ks.map(k => ({ label: `${toolName(k)} — ${QS_NAMES[M[k] || 'ter'][1]}`, value: k })), { label: 'Terminé', icon: 'check', value: '__ok' }]); if (!v || v === '__ok') break;
@@ -335,8 +331,8 @@ const ST = (() => {
       <div class="st-hd"><b>${esc(T.e || '🏗️')} ${esc(p.name)}</b><small>${esc(T.n || 'Projet')}${p.address ? ' · ' + esc(p.address) : ''}</small></div>
       <div class="st-qa ${Math.max(1, QA.length) <= 4 ? 'qa-l' : Math.max(1, QA.length) <= 8 ? 'qa-m' : 'qa-s'}" style="--n:${Math.max(1, QA.length)}">${QA.map(([k, ic, l, c]) => `<button class="st-qa-b" data-a="${k}" style="--c:${c}"><i>${icon(ic)}</i><span>${l}</span></button>`).join('')}${QA.length ? '' : `<button class="st-qa-b st-qa-add" data-a="qaadd" style="--c:#475569"><i>${icon('plus')}</i><span>Ajouter</span></button>`}</div>
       <p class="st-thint2" style="margin:-4px 0 6px">Appui long sur la barre : ajouter · réorganiser · retirer</p>
-      ${G.map(([g, l, ks]) => `<details class="st-tcat st-acc" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(g === 'qual' && isEnt() ? 'Service Qualité' : l.replace(/^\S+\s/, ''))}<small>${ks.length}</small><i class="st-chev">${icon('chevdown')}</i></summary>
-        ${g === 'qual' && isEnt() ? qualBlock(ks) : `<div class="st-tgrid">${ks.map(k => toolBtn(k, g)).join('')}</div>`}</details>`).join('')}
+      ${G.map(([g, l, ks]) => `<details class="st-tcat st-acc" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(g === 'qual' && isEnt() ? 'Qualité' : l.replace(/^\S+\s/, ''))}<small>${ks.length}</small><i class="st-chev">${icon('chevdown')}</i></summary>
+        <div class="st-tgrid">${ks.map(k => toolBtn(k, g)).join('')}</div></details>${g === 'qual' && isEnt() ? `<details class="st-tcat st-acc" data-g="sq" style="--c:#0d9488" ${opened.includes('sq') ? 'open' : ''}><summary class="st-tcat-h">Service Qualité<small>3 volets</small><i class="st-chev">${icon('chevdown')}</i></summary>${qualSplit(ks)}</details>` : ''}`).join('')}
       <details class="st-tcat st-acc" data-g="biblio" style="--c:#5B4BA8" ${opened.includes('biblio') ? 'open' : ''}><summary class="st-tcat-h">Bibliothèque métier<small>${esc(plan().l)}</small><i class="st-chev">${icon('chevdown')}</i></summary>
         <div class="st-tgrid" style="grid-template-columns:1fr"><button class="st-pb st-pb-lib" data-a="library" style="margin:0">${icon('grid')}<span><b>Ouvrir la bibliothèque</b><small>Outils réunis et classés selon votre service · pack ${esc(plan().l)}</small></span>${icon('chevright')}</button></div></details>
       <details class="st-tcat st-acc" data-g="tableaux" style="--c:#2563EB" ${opened.includes('tableaux') ? 'open' : ''}><summary class="st-tcat-h">Tableaux<small>5</small><i class="st-chev">${icon('chevdown')}</i></summary>
@@ -351,7 +347,6 @@ const ST = (() => {
     root.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { App.section = b.dataset.tool; App.search = ''; renderSection(); });
     root.querySelectorAll('[data-xtool]').forEach(b => b.onclick = () => runX(b.dataset.xtool));
     root.querySelectorAll('details.st-qs').forEach(d => d.addEventListener('toggle', () => { const L = [...root.querySelectorAll('details.st-qs[open]')].map(x => x.dataset.qs); try { localStorage.setItem('ptools.qs', JSON.stringify(L)); } catch (e) {} }));
-    root.querySelectorAll('[data-qv]').forEach(b => b.onclick = (e) => { e.preventDefault(); try { localStorage.setItem('qual.ver', b.dataset.qv); } catch (er) {} renderProjectTools(root); });
     const qss = root.querySelector('[data-a=qsset]'); if (qss) qss.onclick = qsSet;
     root.querySelectorAll('[data-tabtool]').forEach(b => b.onclick = () => openTableTool(p, b.dataset.tabtool));
     // v1.0.63 : appui long (ou ⋮) sur un outil → monter, descendre, déplacer vers une autre catégorie
