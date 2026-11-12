@@ -1581,10 +1581,21 @@ const Team = (() => {
       if (v === 'wa') shareInvite(code, { name: r.name, role: 'collaborateur' }); if (v === 'cp') copyText(code); return code;
     } catch (e) { ld.close(); alertBox(errMsg(e) + (e.code === 'permission-denied' ? '\n\nLes règles Firestore v1.0.17 sont-elles publiées ?' : '')); }
   }
-  function shareInvite(code, o) {
+  function shareInvite(code, o, phone) {
     const R = tmRoleOf(o.role);
     const txt = `Bonjour${o.name ? ' ' + o.name : ''},\nRejoignez l'équipe *${S.company.name}* sur SiteTeam (${R.l}).\n\n1️⃣ Installez l'application : ${apkLink()}\n2️⃣ Créez votre compte\n3️⃣ « Rejoindre avec un code » → *${code}*\n(code valable 7 jours)`;
-    openUrl('https://wa.me/?text=' + encodeURIComponent(txt));
+    const tel = String(phone || '').replace(/\D/g, '').replace(/^0/, '212');   // numéro de la personne (organigramme) : WhatsApp s'ouvre directement sur sa conversation
+    openUrl('https://wa.me/' + tel + '?text=' + encodeURIComponent(txt));
+  }
+  // code d'accès créé depuis l'organigramme d'un projet : un poste, ce projet seulement (jamais administrateur)
+  async function inviteFor({ name, role, pid }) {
+    if (!canInvite()) { alertBox('Seuls les responsables autorisés (module Équipe) peuvent créer des codes d\'accès.'); return null; }
+    if (!(await checkLimit('users'))) return null;
+    const R = tmRoleOf(role), o = { name: name || '', role: R.k, perms: R.perms, admin: false, allProjects: false, projects: pid ? [pid] : [], managerUid: null, zone: '' };
+    const on = MODS.filter(([m]) => (o.perms[m] || 0) > 0);
+    if (!(await confirmBox(`${name || 'Nouveau'} — ${R.l} (${serviceOf(R.s).l})\nAccès : ce projet uniquement\nOutils (${on.length}) : ${on.map(([m, l]) => l.split(' (')[0]).join(', ')}`, 'Créer le code'))) return null;
+    const ld = loading('Création du code…');
+    try { const code = await createInvite(o); ld.close(); return { code, o }; } catch (e) { ld.close(); alertBox(errMsg(e)); return null; }
   }
 
   // ---------- partage externe (projet précis, accès limité) ----------
@@ -2391,7 +2402,7 @@ const Team = (() => {
   }
 
   return {
-    boot, push, pull, resetPull, lvl, canSection, svcLib, canProject, isAdmin, openCompany, taille, secureApply, secureOn, saveAffectations, noteProject, projectIds, inviteFlow, logout, decorateSection, removeMember, refreshMembers,
+    boot, push, pull, resetPull, lvl, canSection, svcLib, canProject, isAdmin, openCompany, taille, secureApply, secureOn, saveAffectations, noteProject, projectIds, inviteFlow, inviteFor, shareInvite, canInviteNow: () => canInvite(), logout, decorateSection, removeMember, refreshMembers,
     isSuper, superConsole, orgType, isPerso, companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, isOwner, deleteEspace, workspaces: () => S.workspaces || [],
     profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
     openProjectShares, claimShare, openPartners, renderHistory, sharedOf, joinWithCode,
