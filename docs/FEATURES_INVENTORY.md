@@ -80,7 +80,7 @@ création d'invitation par un non-admin, écriture de tâche par un rôle en lec
 | Photos | Galerie du projet | app.js, ui.js | Photos | `files` | Fonctionnel (non testé auto) | Photos réduites à l'import |
 | Formulaires / PV qualité | Réception ferraillage, coffrage, bétonnage, maçonnerie, étanchéité ; signature ; PDF | app.js, pro.js | Formulaires | `forms` | Fonctionnel (non testé auto) | — |
 | Rapports journaliers | Météo, effectif, travaux, livraisons, PDF | app.js, pro.js | Rapports | `reports` | Fonctionnel (non testé auto) | — |
-| Suivi technique (ex « Réception & Bétonnage ») | Tableaux journaliers de réception et de bétonnage, messages WhatsApp, exports, rappel PV, et onglets de suivis personnalisés | reception.js, suivis.js | Suivi technique | `receptions` | Fonctionnel (testé) | Synchro Google Sheets par script séparé (non testée auto) |
+| Suivi technique (ex « Réception & Bétonnage », renommé aussi dans les blocs d'accueil et les licences) | Tableaux journaliers de réception et de bétonnage, messages WhatsApp, exports, rappel PV, et onglets de suivis personnalisés | reception.js, suivis.js | Suivi technique | `receptions` | Fonctionnel (testé) | Synchro Google Sheets par script séparé (non testée auto) |
 | Constats / non-conformités | Bibliothèque problème → solution | tools.js | Constats / NC | `project` | Fonctionnel (non testé auto) | — |
 | Topographie | Demandes d'implantation, levés/récolements ; calculs topo | espace.js, calc.js | Espace topo, Calculs & Topo | `items` (`impl`, `leve`), `project.calc` | Fonctionnel (testé pour `impl`) | — |
 | Centrale à béton | Commandes béton, bons de livraison | espace.js | Espace centrale | `items` (`cmd`, `bl`) | Fonctionnel (testé pour `cmd`) | — |
