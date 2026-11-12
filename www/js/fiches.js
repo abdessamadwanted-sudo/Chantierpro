@@ -31,7 +31,7 @@ async function ftEditor(p, tpl) {
       <div class="ft-bar"><button class="btn ghost ft-z" data-z="-1">－</button><button class="btn ghost ft-z" data-z="1">＋</button><button class="btn" data-a="add">${icon('plus')} Case</button><button class="btn ghost" data-a="test">👁 Essai</button></div>`;
     document.body.appendChild(el);
     const unBack = pushBack(() => done(false)); let saved = false;
-    const done = async (ok) => { if (ok) { await DB.put('projects', p); saved = true; } el.remove(); resolve(saved); };
+    const done = async (ok) => { if (ok) { await DB.put('projects', p); if (typeof tpl.onSave === 'function') await tpl.onSave(); saved = true; } el.remove(); resolve(saved); };
     ($('[data-a=x]', el)||{}).onclick = () => { unBack(); done(false); };
     ($('[data-a=ok]', el)||{}).onclick = () => { unBack(); done(true); toast('Modèle enregistré ✓'); };
     const pg = $('.ft-page', el), cv = $('canvas', pg), boxes = $('.ft-boxes', pg);
@@ -66,11 +66,14 @@ async function ftEditor(p, tpl) {
       draw();
     };
     ($('[data-a=add]', el)||{}).onclick = async () => {
-      const k = await menu('Quelle case ?', FT_FIELDS.map(([k2, l]) => ({ label: l + (tpl.fields.some(f => f.k === k2 && k2 !== 'coche' && k2 !== 'libre') ? '  ✓' : ''), value: k2 }))); if (!k) return;
+      const opts = [...(tpl.cols || []).map(c => ({ label: '▦ Colonne : ' + c.libelle + (tpl.fields.some(f => f.k === 'col' && f.col === c.id) ? '  ✓' : ''), value: 'col:' + c.id })),
+        ...FT_FIELDS.map(([k2, l]) => ({ label: l + (tpl.fields.some(f => f.k === k2 && k2 !== 'coche' && k2 !== 'libre') ? '  ✓' : ''), value: k2 }))];
+      const k0 = await menu('Quelle case ?', (tpl.cols || []).length ? opts.filter(o => /^col:/.test(o.value) || o.value === 'libre') : opts); if (!k0) return;
+      const colId = /^col:/.test(k0) ? k0.slice(4) : null, colDef = colId && (tpl.cols || []).find(c => c.id === colId), k = colId ? 'col' : k0;
       let label = ''; if (k === 'coche' || k === 'libre') { const r = await formSheet(k === 'coche' ? 'Coche' : 'Texte libre', [{ name: 'l', label: 'Nom (ex : Conforme · ligne 1)', value: '' }]); if (!r) return; label = r.l; }
       const wrap = $('.ft-wrap', el), top = (wrap.scrollTop + wrap.clientHeight / 2) / S - 10, left = (wrap.scrollLeft + wrap.clientWidth / 2) / S;
       const sz = k === 'coche' ? [28, 22] : ['jour', 'mois'].includes(k) ? [34, 20] : [140, 22];
-      tpl.fields.push({ id: DB.uid(), k, label, x: Math.max(0, Math.min(tpl.W - sz[0], left - sz[0] / 2)), y: Math.max(0, Math.min(tpl.H - sz[1], top)), w: sz[0], h: sz[1], align: 'center' }); draw();
+      tpl.fields.push({ id: DB.uid(), k, ...(colDef ? { col: colDef.id, label: colDef.libelle } : { label }), x: Math.max(0, Math.min(tpl.W - sz[0], left - sz[0] / 2)), y: Math.max(0, Math.min(tpl.H - sz[1], top)), w: sz[0], h: sz[1], align: 'center' }); draw();
       toast('Glissez la case à sa place, coin ◢ pour la taille');
     };
     ($('[data-a=test]', el)||{}).onclick = async () => { const ld = loading('Essai…'); try { const day = { date: todayISO() }, r = { element: 'Plancher Axe D3*D4 fil H*K', niv: 'R+5', zone: '3', indFer: 'PE00', indCof: 'PE01' }; const b = await ftMake(p, tpl, ftDefaults(p, day, r, tpl), 'essai'); ld.close(); openFileRecord({ blob: b, mime: 'application/pdf', name: 'essai.pdf' }, 'Essai'); } catch (e) { ld.close(); alertBox('Essai impossible : ' + (e.message || e)); } };
@@ -84,9 +87,10 @@ async function ftMake(p, tpl, vals, seed) {
   const { width: PW, height: PH } = pg.getSize();
   const ops = [];
   for (const f of tpl.fields) {
-    const key = f.k === 'coche' || f.k === 'libre' ? f.id : f.k, v = vals[key];
+    const key = f.k === 'col' ? f.col : f.k === 'coche' || f.k === 'libre' ? f.id : f.k, v = vals[key];
     let cv = null;
-    if (f.k === 'coche') { if (v === true || v === 'o') cv = pvgTick(f.w, f.h, seed + f.id); }
+    if (f.k === 'col' && typeof v === 'boolean') { if (v) cv = pvgTick(f.w, f.h, seed + f.id); }
+    else if (f.k === 'coche') { if (v === true || v === 'o') cv = pvgTick(f.w, f.h, seed + f.id); }
     else if (v) cv = await pvgInk(String(v), f.w, f.h, f.size || Math.max(9, Math.min(22, f.h * .78)), seed + f.id, f.align === 'left' ? 'left' : 'center');
     if (!cv) continue;
     ops.push({ cv, x: f.x, y: f.y, w: f.w, h: f.h });
