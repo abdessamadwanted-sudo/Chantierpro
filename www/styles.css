@@ -3866,3 +3866,11 @@ table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-
 /* v1.0.189 : boutons « Replier tout / Déplier tout » dans la liste des plans */
 .pq-tools { display: flex; gap: 8px; margin: 4px 16px 8px; }
 .pq-tools .btn { flex: 1; padding: 8px 10px; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+
+/* v1.0.x : Suivis personnalisés (Document Studio) */
+.ds-col { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line, rgba(128,128,128,.25)); }
+.ds-col small { opacity: .7; }
+.ds-scroll { overflow: auto; max-height: 52vh; margin: 4px 0 8px; }
+.ds-tab { border-collapse: collapse; width: 100%; font-size: 14px; }
+.ds-tab th, .ds-tab td { padding: 6px 8px; border-bottom: 1px solid var(--line, rgba(128,128,128,.25)); text-align: left; white-space: nowrap; }
+.ds-tab th { position: sticky; top: 0; background: var(--card, #1f2937); }
