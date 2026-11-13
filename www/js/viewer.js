@@ -221,6 +221,26 @@ const planHeadHtml = async (plan) => { const t = await planTitle(plan), l = plan
   const ty = planTypeText(plan, fo);
   return `<span class="pv-card"><b class="pv-niv">${esc(t)}</b>${ty ? `<span class="pv-ty">${esc(ty)}</span>` : ''}${l ? `<span class="pv-lo">${esc(l)}</span>` : ''}</span>`; };
 
+// ---------- v1.0.237 : changer de plan en glissant sur l'en-tête ----------
+// ← → : plans du même niveau (rangés par type puis nom) ; ↑ ↓ : même type (même lot si possible) dans le niveau du dessus / du dessous
+function planTypeKey(plan, p) { try { const lot = plan.lotId && p && typeof planLots === 'function' ? planLots(p).find(x => x.id === plan.lotId) : null; return plan.disc || (lot && lot.cat) || ''; } catch (e) { return plan.disc || ''; } }
+// rang physique d'un niveau : SSL/sous-sols < fondations < RDC < mezzanine < R+n < terrasse ; inconnu après, par nom
+function nivRank(name) {
+  const n = String((typeof nivOfFolder === 'function' && nivOfFolder(name)) || name || '').toUpperCase().replace(/\s+/g, '');
+  if (/^FOND/.test(n)) return -3; let m = n.match(/^SS(\d)?L?$/); if (m) return -2 + (m[1] ? -(+m[1] - 1) * 0.1 : 0) - (n === 'SSL' ? 0.5 : 0);
+  if (n === 'RDC') return 0; if (/^MEZZ/.test(n)) return 0.5; m = n.match(/^R\+(\d+)$/); if (m) return +m[1]; if (/^TERRASSE/.test(n)) return 1000; return 500;
+}
+function planNavInfo(plan, folders, plans, p) {
+  const byId = new Map(folders.map(f => [f.id, f]));
+  const topOf = (fid) => { let f = byId.get(fid); while (f && f.parentId && byId.get(f.parentId)) f = byId.get(f.parentId); return f ? f.id : null; };
+  const cur = plans.filter(x => !x.supersededBy), key = (x) => planTypeKey(x, p), mine = topOf(plan.folderId);
+  const row = cur.filter(x => topOf(x.folderId) === mine).sort((a, b) => key(a).localeCompare(key(b), 'fr') || String(a.name || '').localeCompare(String(b.name || ''), 'fr', { numeric: true }));
+  const levels = folders.filter(f => !f.parentId || !byId.get(f.parentId)).sort((a, b) => nivRank(a.name) - nivRank(b.name) || String(a.name).localeCompare(String(b.name), 'fr', { numeric: true }));
+  const li = levels.findIndex(f => f.id === mine);
+  const near = (dir) => { if (li < 0) return null; for (let i = li + dir; i >= 0 && i < levels.length; i += dir) { const c = cur.filter(x => topOf(x.folderId) === levels[i].id), t = key(plan);
+    const hit = (plan.lotId && c.find(x => x.lotId === plan.lotId)) || (t && c.find(x => key(x) === t)); if (hit) return hit; } return null; };
+  return { row, idx: row.findIndex(x => x.id === plan.id), levels, li, up: near(1), down: near(-1) };
+}
 async function openPlanViewer(plan, ctx) {
   const file = await DB.get('files', plan.fileId);
   const titleHtml = await planHeadHtml(plan);
@@ -293,6 +313,30 @@ async function openPlanViewer(plan, ctx) {
   // petit carré : nombre d'alertes de CE plan ; touche → tableau des alertes (avec pin vers le point)
   const alertItems = () => st.links.filter(l => l.kind === 'local' && l.planId === plan.id && l.x != null).map(l => ({ l, al: pointAlert(l) })).filter(x => x.al);
   function updAlertBadge() { const b = $('[data-a=alerts]', el); if (!b) return; const n = alertItems().length; b.style.display = n ? '' : 'none'; const bb = b.querySelector('b'); if (bb) bb.textContent = n; }
+  // v1.0.237 : glisser sur l'en-tête (niveau · type · lot) = changer de plan ; le reste du plan garde le déplacement / zoom libres
+  (() => {
+    const h1 = $('.topbar', el), dots = document.createElement('div'); dots.className = 'pv-dots'; el.appendChild(dots);
+    let info = null, hideT = null, t0 = null;
+    const load = async () => { try { const pid = plan.projectId; const [fo, pl] = await Promise.all([DB.byProject('folders', pid), DB.byProject('plans', pid)]); info = planNavInfo(plan, fo, pl, App.project); } catch (e) { info = null; } return info; };
+    const showDots = () => {
+      if (!info) return; const { row, idx, levels, li } = info, win = (n, i, k) => { const a = Math.max(0, Math.min(n - k, i - Math.floor(k / 2))); return [a, Math.min(n, a + k)]; };
+      const [a, b] = win(row.length, idx, 9), [c, d] = win(levels.length, li, 7);
+      dots.innerHTML = (row.length > 1 ? `<div class="pd-h">${row.slice(a, b).map((x, i) => `<i class="${a + i === idx ? 'on' : ''}"></i>`).join('')}</div>` : '') +
+        (levels.length > 1 && li >= 0 ? `<div class="pd-v">${levels.slice(c, d).reverse().map((f, i) => `<b class="${f.id === levels[li].id ? 'on' : ''}">${esc((typeof nivOfFolder === 'function' && nivOfFolder(f.name)) || f.name)}</b>`).join('')}</div>` : '');
+      dots.classList.add('show'); clearTimeout(hideT); hideT = setTimeout(() => dots.classList.remove('show'), 2000);
+    };
+    const go = (target, dir) => { if (!target) return false; if (st.pend) { toast('Terminez ou annulez le tracé en cours'); return true; } close(); openPlanViewer(target, { ...ctx, slide: dir, navHint: true }); return true; };
+    h1.addEventListener('touchstart', async (e) => { if (e.touches.length !== 1 || e.target.closest('button')) { t0 = null; return; } t0 = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() }; if (!info) await load(); showDots(); }, { passive: true });
+    h1.addEventListener('touchend', (e) => {
+      if (!t0 || !info) { t0 = null; return; } const t = e.changedTouches[0], dx = t.clientX - t0.x, dy = t.clientY - t0.y; t0 = null;
+      const ax = Math.abs(dx), ay = Math.abs(dy); if (Math.max(ax, ay) < 34) return;
+      if (ax > ay) { const n = info.idx + (dx < 0 ? 1 : -1), tg = info.row[n]; if (!go(tg, dx < 0 ? 'l' : 'r')) { toast(dx < 0 ? 'Dernier plan de ce niveau' : 'Premier plan de ce niveau'); showDots(); } }
+      else { const tg = dy < 0 ? info.up : info.down; if (!go(tg, dy < 0 ? 'u' : 'd')) { toast(dy < 0 ? 'Pas de plan du même type au niveau au-dessus' : 'Pas de plan du même type au niveau en dessous'); showDots(); } }
+    }, { passive: true });
+    if (ctx && ctx.navHint) load().then(showDots);
+    if (ctx && ctx.slide) { el.classList.add('pv-slide-' + ctx.slide); setTimeout(() => el.classList.remove('pv-slide-' + ctx.slide), 400); }
+    cleanups.push(() => clearTimeout(hideT));
+  })();
   ($('[data-a=alerts]', el)||{}).onclick = () => { if (typeof openAlertsTable === 'function') openAlertsTable(alertItems(), { planName: plan.name }); };
   // activation automatique : toutes les minutes on vérifie si un point devient actif / en alerte
   { let sig = ''; const tk = setInterval(() => { if (closed || !el.isConnected) return clearInterval(tk); const s2 = st.links.filter(l => l.kind === 'local' && l.planId === plan.id).map(l => (ptActive(l) ? 1 : 0) + (pointAlert(l) || '-')).join(','); if (sig && s2 !== sig) renderMarkers(); sig = s2; }, 60000); cleanups.push(() => clearInterval(tk)); }
