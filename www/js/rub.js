@@ -12,7 +12,7 @@ const rubCols = (spec) => spec.map(([l, t]) => ({ k: DB.uid().slice(0, 8), l, t 
 const rubParseCols = (txt) => String(txt || '').split(/[;\n]/).map(s => s.trim()).filter(Boolean).map(s => { const [l, t0 = ''] = s.split(':').map(x => x.trim()), t = /^n/i.test(t0) ? 'num' : /^d/i.test(t0) ? 'date' : /^c|^✓/i.test(t0) ? 'check' : 'text'; return [l, t]; });
 const rubColsTxt = (cols) => cols.map(c => c.l + (c.t === 'text' ? '' : ':' + { num: 'nombre', date: 'date', check: 'case' }[c.t])).join(' ; ');
 
-async function rubNew(p, L) {
+async function rubNew(p, L, fo) {
   const k = await menu(`Nouvelle rubrique · ${L.name}`, [{ label: '📊 Avancement (zone, %, date)', value: 'av' }, { label: '✅ Réception (partie, conforme, date)', value: 'rec' }, { label: '🗂 Liste simple', value: 'list' }, { label: '✏️ Mes colonnes…', value: 'own' }]);
   if (!k) return null;
   const T = RUB_TPL[k] || { name: '', e: '📋', cols: [['Désignation', 'text'], ['Date', 'date'], ['Observation', 'text']] };
@@ -20,7 +20,7 @@ async function rubNew(p, L) {
     { name: 'c', label: 'Colonnes (séparées par ;  —  :nombre  :date  :case)', type: 'textarea', value: rubColsTxt(T.cols.map(([l, t]) => ({ l, t }))) }], { okLabel: 'Créer' });
   if (!r || !r.n) return null;
   const cols = rubParseCols(r.c); if (!cols.length) { toast('Ajoutez au moins une colonne'); return null; }
-  const R = { id: DB.uid(), name: r.n.trim(), e: (r.e || '📋').trim(), cols: rubCols(cols) };
+  const R = { id: DB.uid(), name: r.n.trim(), e: (r.e || '📋').trim(), cols: rubCols(cols), ...(fo ? { only: [fo.id] } : {}) };   // propre au niveau où on la crée
   rubList(L).push(R); await DB.put('projects', p); return R;
 }
 async function rubMenu(p, L, R, redraw) {
