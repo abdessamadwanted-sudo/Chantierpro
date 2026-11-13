@@ -25,7 +25,7 @@ Ce n'est pas un navigateur : c'est le navigateur intégré du système.
 - Refusés : `javascript:` `data:` `file:` `blob:` `vbscript:` `about:` `content:` `intent:` et tout schéma autre que http/https.
 - Refusés : adresses avec identifiants (`user:pass@`) ou paramètres sensibles (`access_token`, `id_token`, `refresh_token`, `token`, `password`…).
 - Aucun script injecté dans les pages externes ; la page externe n'est pas un espace de confiance.
-- Ouverts **hors** navigateur intégré : WhatsApp (`wa.me`…), Telegram, Play Store, et les téléchargements `.apk` `.aab` `.zip` (mise à jour de l'application).
+- Ouverts **hors** navigateur intégré : **Google Drive / Docs / Sheets** (`drive.google.com`, `docs.google.com` → application Drive du téléphone, vue complète des dossiers), WhatsApp (`wa.me`…), Telegram, Play Store, et les téléchargements `.apk` `.aab` `.zip` (mise à jour de l'application).
 - Un double toucher sur le même lien (< 0,7 s) ne provoque qu'une ouverture.
 
 ## Google Drive
