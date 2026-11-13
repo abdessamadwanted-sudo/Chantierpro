@@ -657,12 +657,21 @@ const Team = (() => {
   const lvl = (mod) => lvlFor(mod, curPid());
   // réglages généraux décidés dans le panneau d'administration (config/app) : version minimale, maintenance, message, fonctions coupées
   const appCfg = () => LS.get('appCfg') || {};
-  // mises en service : chaque nouvelle fonction est « dev » (visible par le Super Admin seul) tant qu'elle n'est pas ouverte — « test » : comptes listés ; « pub » : tous (dans leur pack)
-  // réglées dans le Centre de contrôle (config/app.flags, config/app.testers) ; une fonction sans réglage reste fermée
+  // mises en service par pack : chaque fonction récente est rattachée à des packs, avec un niveau par pack —
+  // « dev » : le Super Admin seul · « test » : comptes listés · « pub » : tous les comptes de ce pack ; absent = la fonction n'existe pas dans ce pack
+  // réglées dans le Centre de contrôle (config/app.fp, config/app.testers), sans mise à jour de l'application
   const FLAG_DEFS = { svcqual: 'Service Qualité (volets Administratif / Terrain, organigramme géré par l\'admin)', monespace: 'Mon espace', missionzone: 'Documentation par mission / zone + alertes « À traiter »', terraindoc: 'Terrain → Documentation (bouton PV, envoi automatique)', qdocs: 'Documentation qualité par partie d\'ouvrage + rangement Drive', orgq: 'Organigramme Qualité (branches, missions, code d\'accès)' };
-  const flag = (k) => { try { if (isSuper()) return true; const A = appCfg(), lv = (A.flags || {})[k] || 'dev'; if (lv === 'pub') return true;
-    if (lv === 'test') { const em = ((S.user && S.user.email) || '').toLowerCase(); return !!em && (A.testers || []).some(x => String(x).trim().toLowerCase() === em); } return false; } catch (e) { return false; } };
-  const applyFlags = (f, testers) => LS.set('appCfg', { ...appCfg(), flags: f || {}, ...(testers ? { testers } : {}) });
+  const FLAG_DEFAULT = Object.fromEntries(Object.keys(FLAG_DEFS).map(k => [k, { enterprise: 'dev' }]));
+  const flagCfg = (k) => (appCfg().fp || {})[k] || FLAG_DEFAULT[k] || {};
+  // pack en vigueur : aperçu du Super Admin (« Pack de travail »), sinon pack de l'espace
+  const packPreview = () => { try { const v = JSON.parse(sessionStorage.getItem('st.preview') || 'null'); return v && v.plan ? (PLAN_ALIAS[v.plan] || v.plan) : ''; } catch (e) { return ''; } };
+  const packNow = () => packPreview() || planOf(((S.ready && S.company) || {}).plan || PLAN_DEFAULT_COMPANY).k;
+  const flag = (k) => { try { const lv = flagCfg(k)[packNow()];
+    if (isSuper()) return packPreview() ? !!lv : true;
+    if (lv === 'pub') return true;
+    if (lv === 'test') { const em = ((S.user && S.user.email) || '').toLowerCase(); return !!em && (appCfg().testers || []).some(x => String(x).trim().toLowerCase() === em); } return false; } catch (e) { return false; } };
+  const allFlags = (lv) => Object.fromEntries(Object.keys(FLAG_DEFS).map(k => [k, { basic: lv, pro: lv, business: lv, enterprise: lv }]));
+  const applyFlags = (fp, testers, news) => LS.set('appCfg', { ...appCfg(), fp: fp || {}, ...(testers ? { testers } : {}), ...(news ? { news } : {}) });
   // v1.0.45 : accès sur code uniquement — le Super Admin n'est jamais concerné
   const inviteOnly = () => !!appCfg().inviteOnly && !isSuper();
   // anti-capture d'écran (Android FLAG_SECURE) : option de l'organisation, ou imposée à tous par le Super Admin (config/app.secureAll)
@@ -2413,7 +2422,7 @@ const Team = (() => {
     profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
     openProjectShares, claimShare, openPartners, renderHistory, sharedOf, joinWithCode,
     cloudOn, canCloud, cloudUpload, cloudDownload, cloudRemove, cloudCfg, storageRules: STORAGE_RULES,
-    appCfg, flag, FLAG_DEFS, applyFlags, isOff, featInfo, featGate, checkAnnonces, requestPack, logError, reportIssue, applyPackCode, isFree, askPoste,
+    appCfg, flag, FLAG_DEFS, FLAG_DEFAULT, flagCfg, allFlags, pack: packNow, applyFlags, isOff, featInfo, featGate, checkAnnonces, requestPack, logError, reportIssue, applyPackCode, isFree, askPoste,
     ready: () => S.ready, me: () => S.me, uid: () => S.user && S.user.uid, company: () => S.company, members: () => S.members, rules: FIRESTORE_RULES,
   };
 })();
