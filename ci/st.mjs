@@ -1464,6 +1464,16 @@ try {
   } catch (e) { return { err: String(e && e.message || e) }; } });
   log('v1.0.236 [annotations : PDF tourné vectoriel, polyligne fermée, hachures]', tAn);
   log('errors v1.0.236 annot', tAn.rot90 && !tAn.rot90.img && !tAn.rot180.img && !tAn.rot270.img && tAn.close.join() === 'polygon,none,3' && tAn.hatch.every(Boolean) && tAn.op0 && tAn.rectNone ? [] : ['v1.0.236 annot ' + JSON.stringify(tAn)]);
+  // ---- v1.0.237 : changer de plan en glissant sur l'en-tête (← → même niveau, ↑ ↓ même type) ----
+  const tNav = await A.pg.evaluate(() => { try {
+    const fo = [{ id: 'f1', name: 'R+1' }, { id: 'f0', name: 'RDC' }, { id: 'fs', name: 'SSL' }, { id: 'fr', name: 'Terrasse' }, { id: 'fx', name: 'Sous', parentId: 'f0' }];
+    const pl = [{ id: 'a', folderId: 'f0', disc: 'STR', name: 'B' }, { id: 'b', folderId: 'f0', disc: 'ARCH', name: 'A' }, { id: 'c', folderId: 'fx', disc: 'STR', name: 'C' },
+      { id: 'd', folderId: 'f1', disc: 'STR', name: 'D' }, { id: 'e', folderId: 'fs', disc: 'ARCH', name: 'E' }, { id: 'g', folderId: 'f1', disc: 'STR', name: 'G', supersededBy: 'x' }];
+    const n = planNavInfo(pl[0], fo, pl, {}), m = planNavInfo(pl[1], fo, pl, {});
+    return { row: n.row.map(x => x.id).join(), idx: n.idx, up: n.up && n.up.id, down: n.down && n.down.id, archUp: m.up && m.up.id, archDown: m.down && m.down.id, lv: n.levels.map(f => f.name).join(), rk: [navLevelRank('SSL'), navLevelRank('RDC'), navLevelRank('R+2'), navLevelRank('Terrasse')].join() };
+  } catch (e) { return { err: String(e.message || e) }; } });
+  log('v1.0.237 [navigation plans par glissement]', tNav);
+  log('errors v1.0.237 nav', tNav.row === 'b,a,c' && tNav.idx === 1 && tNav.up === 'd' && !tNav.down && !tNav.archUp && tNav.archDown === 'e' && tNav.lv === 'SSL,RDC,R+1,Terrasse' ? [] : ['v1.0.237 nav ' + JSON.stringify(tNav)]);
   const tDue = await A.pg.evaluate(() => ({ s: String(openDueTable).includes('Point · échéance') && !String(openDueTable).includes("p.mo ? ' · ' + esc(p.mo) : ''}</span></div>") }));
   log('v1.0.176 [échéances + points]', tDue); log('errors v1.0.176 échéances', tDue.s ? [] : ['v1.0.176 échéances']);
   // ---- v1.0.176 : sauvegarde Drive d'un projet = un seul zip mis à jour sur place (+ « précédente ») ----

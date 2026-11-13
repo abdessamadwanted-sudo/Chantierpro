@@ -4103,3 +4103,19 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .pbar .pb-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
 .pbar .pb-seg .pb { border-radius: 0; border: 0; padding: 4px 8px; font-size: 12px; }
 .pbar .pb-seg .pb.on { background: var(--accent, #5b8def); color: #fff; }
+/* Changer de plan en glissant sur l'en-tête : pastilles discrètes (visibles ~2 s) + glissement d'entrée */
+.fullpage > .topbar:has(.pv-h1) { touch-action: none; } .topbar h1.pv-h1 { min-height: 40px; display: flex; align-items: center; }
+.pv-dots { position: absolute; left: 0; right: 0; top: calc(var(--topbar-h, 56px) + env(safe-area-inset-top, 0px) + 2px); z-index: 30; pointer-events: none; opacity: 0; transition: opacity .25s; }
+.pv-dots.show { opacity: 1; }
+.pv-dots .pd-h { display: flex; justify-content: center; gap: 6px; padding: 5px 10px; width: max-content; margin: 0 auto; border-radius: 999px; background: rgba(15,23,42,.72); backdrop-filter: blur(6px); }
+.pv-dots .pd-h i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.4); transition: all .2s; }
+.pv-dots .pd-h i.on { background: #fff; width: 16px; border-radius: 4px; }
+.pv-dots .pd-v { position: absolute; right: 8px; top: 34px; display: flex; flex-direction: column; gap: 4px; padding: 6px 7px; border-radius: 12px; background: rgba(15,23,42,.72); backdrop-filter: blur(6px); align-items: flex-end; }
+.pv-dots .pd-v b { font-size: 10px; font-weight: 600; color: rgba(255,255,255,.5); line-height: 1; }
+.pv-dots .pd-v b.on { color: #fff; font-size: 12px; font-weight: 800; }
+@keyframes pvsl { from { transform: translateX(28%); opacity: .2; } }
+@keyframes pvsr { from { transform: translateX(-28%); opacity: .2; } }
+@keyframes pvsu { from { transform: translateY(24%); opacity: .2; } }
+@keyframes pvsd { from { transform: translateY(-24%); opacity: .2; } }
+.fullpage.pv-slide-l { animation: pvsl .22s ease-out; } .fullpage.pv-slide-r { animation: pvsr .22s ease-out; }
+.fullpage.pv-slide-u { animation: pvsu .22s ease-out; } .fullpage.pv-slide-d { animation: pvsd .22s ease-out; }
