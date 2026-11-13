@@ -169,9 +169,18 @@ async function planTitle(plan) {
     return n || plan.name || 'Plan'; } catch (e) { return plan.name || 'Plan'; }
 }
 
+// sous le niveau : type du lot (discipline) et lot du plan, en petit gras — vide si le plan n'a pas de lot
+function planLotText(plan) {
+  try { const p = App.project; if (!p || !plan || !plan.lotId || typeof planLots !== 'function') return '';
+    const lot = planLots(p).find(x => x.id === plan.lotId); if (!lot) return '';
+    const ty = lot.cat && typeof typesOf === 'function' ? (typesOf(p).find(d => d.k === lot.cat) || {}).l : '';
+    return [ty, lot.name].filter(Boolean).join(' · '); } catch (e) { return ''; }
+}
+const planHeadHtml = async (plan) => { const t = await planTitle(plan), l = planLotText(plan); return esc(t) + (l ? ` <small class="pv-lot">${esc(l)}</small>` : ''); };
+
 async function openPlanViewer(plan, ctx) {
   const file = await DB.get('files', plan.fileId);
-  const titleTxt = await planTitle(plan);
+  const titleHtml = await planHeadHtml(plan);
   const src = file ? BlobURL.get(file.id, file.blob) : '';
   const W = plan.w, H = plan.h;
   // v1.0.63 : plan A0 très grand (ex. 4756 × 3364) — à l'écran une image allégée (3200 px) ; la netteté au zoom vient du rendu PDF / DWG.
@@ -204,7 +213,7 @@ async function openPlanViewer(plan, ctx) {
   el.innerHTML = `
     <div class="topbar">
       <button class="iconbtn" data-a="back">${icon('back')}</button>
-      <h1 title="${esc(plan.name)}">${esc(titleTxt)}${plan.supersededBy ? ' <span class="ind-tag old">ancien</span>' : ''}</h1>
+      <h1 title="${esc(plan.name)}">${titleHtml}${plan.supersededBy ? ' <span class="ind-tag old">ancien</span>' : ''}</h1>
       <button class="pt-sq" data-a="alerts" style="display:none" title="Alertes de ce plan">🔔 <b>0</b></button>
       <button class="iconbtn" data-a="filters">${icon('eye')}</button>
       <button class="iconbtn" data-a="more">${icon('more')}</button>
@@ -1311,7 +1320,7 @@ async function openPlanViewer(plan, ctx) {
     if (v === 'indmenu') openIndMenu();
     if (v === 'rename') {
       const r = await formSheet('Renommer', [{ name: 'name', label: 'Nom du plan', value: plan.name }]);
-      if (r && r.name) { plan.name = r.name; await DB.put('plans', plan); const T = await planTitle(plan); $('h1', el).textContent = T; $('h1', el).title = plan.name; }
+      if (r && r.name) { plan.name = r.name; await DB.put('plans', plan); $('h1', el).innerHTML = await planHeadHtml(plan); $('h1', el).title = plan.name; }
     }
     if (v === 'del' && await confirmBox('Supprimer ce plan et ses annotations ?')) {
       await DB.del('plans', plan.id); await DB.del('files', plan.fileId);
