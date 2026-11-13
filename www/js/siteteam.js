@@ -45,6 +45,7 @@ const ST = (() => {
   const planKey = () => { const p = PV.get(); return p ? p.plan : ((ready() && Team.company()) || {}).plan || PLAN_DEFAULT_COMPANY; };
   const plan = () => planOf(planKey());
   const isEnt = () => plan().k === 'enterprise';
+  const svcq = () => isEnt() && Team.flag('svcqual');   // Service Qualité : fermé tant que la fonction n'est pas mise en service
   const org = () => { const p = PV.get(); return p && p.org ? orgTypeOf(p.org) : (ready() ? Team.orgType() : orgTypeOf('entreprise')); };
   // interface de la jiha : un module hors du métier de l'organisation est masqué (pas verrouillé)
   const orgHas = (mod) => { const m = org().mods; return m === '*' || !mod || m.includes(mod); };
@@ -331,8 +332,8 @@ const ST = (() => {
       <div class="st-hd"><b>${esc(T.e || '🏗️')} ${esc(p.name)}</b><small>${esc(T.n || 'Projet')}${p.address ? ' · ' + esc(p.address) : ''}</small></div>
       <div class="st-qa ${Math.max(1, QA.length) <= 4 ? 'qa-l' : Math.max(1, QA.length) <= 8 ? 'qa-m' : 'qa-s'}" style="--n:${Math.max(1, QA.length)}">${QA.map(([k, ic, l, c]) => `<button class="st-qa-b" data-a="${k}" style="--c:${c}"><i>${icon(ic)}</i><span>${l}</span></button>`).join('')}${QA.length ? '' : `<button class="st-qa-b st-qa-add" data-a="qaadd" style="--c:#475569"><i>${icon('plus')}</i><span>Ajouter</span></button>`}</div>
       <p class="st-thint2" style="margin:-4px 0 6px">Appui long sur la barre : ajouter · réorganiser · retirer</p>
-      ${G.map(([g, l, ks]) => `<details class="st-tcat st-acc" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(g === 'qual' && isEnt() ? 'Qualité' : l.replace(/^\S+\s/, ''))}<small>${ks.length}</small><i class="st-chev">${icon('chevdown')}</i></summary>
-        <div class="st-tgrid">${ks.map(k => toolBtn(k, g)).join('')}</div></details>${g === 'qual' && isEnt() ? `<details class="st-tcat st-acc" data-g="sq" style="--c:#0d9488" ${opened.includes('sq') ? 'open' : ''}><summary class="st-tcat-h">Service Qualité<small>3 volets</small><i class="st-chev">${icon('chevdown')}</i></summary>${qualSplit(ks)}</details>` : ''}`).join('')}
+      ${G.map(([g, l, ks]) => `<details class="st-tcat st-acc" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(g === 'qual' && svcq() ? 'Qualité' : l.replace(/^\S+\s/, ''))}<small>${ks.length}</small><i class="st-chev">${icon('chevdown')}</i></summary>
+        <div class="st-tgrid">${ks.map(k => toolBtn(k, g)).join('')}</div></details>${g === 'qual' && svcq() ? `<details class="st-tcat st-acc" data-g="sq" style="--c:#0d9488" ${opened.includes('sq') ? 'open' : ''}><summary class="st-tcat-h">Service Qualité<small>3 volets</small><i class="st-chev">${icon('chevdown')}</i></summary>${qualSplit(ks)}</details>` : ''}`).join('')}
       <details class="st-tcat st-acc" data-g="biblio" style="--c:#5B4BA8" ${opened.includes('biblio') ? 'open' : ''}><summary class="st-tcat-h">Bibliothèque métier<small>${esc(plan().l)}</small><i class="st-chev">${icon('chevdown')}</i></summary>
         <div class="st-tgrid" style="grid-template-columns:1fr"><button class="st-pb st-pb-lib" data-a="library" style="margin:0">${icon('grid')}<span><b>Ouvrir la bibliothèque</b><small>Outils réunis et classés selon votre service · pack ${esc(plan().l)}</small></span>${icon('chevright')}</button></div></details>
       <details class="st-tcat st-acc" data-g="tableaux" style="--c:#2563EB" ${opened.includes('tableaux') ? 'open' : ''}><summary class="st-tcat-h">Tableaux<small>5</small><i class="st-chev">${icon('chevdown')}</i></summary>
@@ -835,12 +836,12 @@ const ST = (() => {
   const DOC_CATS = [['paq', 'PAQ — Plan d\'assurance qualité', '📘'], ['proc', 'Procédures', '📑'], ['pc', 'Plans de contrôle', '🗂️'], ['ft', 'Fiches techniques et agréments', '🧾'],
     ['pv', 'PV de réception', '✅'], ['labo', 'Rapports d\'essais labo', '🧪'], ['nc', 'NC et actions correctives', '⚠️'], ['visa', 'Visas', '🖋️'], ['audit', 'Audits', '🔍'], ['autre', 'Divers', '📎'], ['archive', 'Archives', '🗄️']];
   async function renderDocs(root) {
-    if (!App.docCat && App.docView !== 'type' && window.QualiteDocs) return QualiteDocs.render(root);   // v1.0.2xx : par partie d'ouvrage (par défaut)
+    if (!App.docCat && App.docView !== 'type' && window.QualiteDocs && Team.flag('qdocs')) return QualiteDocs.render(root);   // v1.0.2xx : par partie d'ouvrage (par défaut)
     const pid = App.project.id, all = (await DB.byProject('files', pid)).filter(f => f.role === 'doc' && f.docCat), cat = App.docCat;
     const canW = Team.lvl('files') >= 2, inCat = (k) => all.filter(f => k === 'archive' ? f.archived : (!f.archived && f.docCat === k));
     if (!cat) {
       root.innerHTML = `<div class="pagehead"><h2>Documentation & archives</h2><p>Classement des documents du projet</p></div>
-        ${window.QualiteDocs ? '<div class="qd-tabs"><button data-v="parties">🧱 Partie d\'ouvrage</button>' + (isEnt() ? '<button data-v="mz">🎯 Mission / zone</button>' : '') + '<button class="on" data-v="type">🗂️ Type</button></div>' : ''}
+        ${window.QualiteDocs && Team.flag('qdocs') ? '<div class="qd-tabs"><button data-v="parties">🧱 Partie d\'ouvrage</button>' + (isEnt() && Team.flag('missionzone') ? '<button data-v="mz">🎯 Mission / zone</button>' : '') + '<button class="on" data-v="type">🗂️ Type</button></div>' : ''}
         <div class="st-docs">${DOC_CATS.map(([k, l, e]) => `<button class="st-doc" data-c="${k}"><span class="e">${e}</span><b>${esc(l)}</b><small>${inCat(k).length} document(s)</small></button>`).join('')}</div>`;
       $$('[data-c]', root).forEach(b => b.onclick = () => { App.docCat = b.dataset.c; renderDocs(root); });
       $$('[data-v]', root).forEach(b => b.onclick = () => { App.docView = b.dataset.v; renderSection(); });
@@ -866,5 +867,5 @@ const ST = (() => {
   }
 
   function refreshRole() { applyRole(); try { App.project ? renderSection() : renderHome(); } catch (e) {} }
-  return { families: FAMILIES, openDash, openPro, openTeamHub, openServiceLibrary, profileCardHTML, wsBtnHTML, wsMenu, renderProjectTools, isEnt: () => plan().k === 'enterprise', directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
+  return { families: FAMILIES, openDash, openPro, openTeamHub, openServiceLibrary, profileCardHTML, wsBtnHTML, wsMenu, renderProjectTools, isEnt: () => plan().k === 'enterprise', svcq, directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
 })();

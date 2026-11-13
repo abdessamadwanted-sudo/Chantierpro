@@ -431,7 +431,7 @@ ${isBeton(K) ? '' : `<td class="c">${esc(r.avec || '')}</td>`}
           ? `<button class="pv-pdf" data-a="openpvpdf"><span class="pp-ic">${icon('pdf')}</span><span class="grow"><b>PV du ${fmtDate(day.date)}.pdf</b><small>${pvs.length} page(s) · un seul fichier</small></span></button>
              ${pvs.map(f => `<div class="t" data-pv="${f.id}"><img src="${BlobURL.get(f.id, f.blob)}"><button class="x" data-pvdel="${f.id}">×</button></div>`).join('')}
              <button class="t add" data-a="addpv">${icon('camera')}</button>
-             <div class="pv-acts"><button data-a="sharepvpdf">${icon('share')} Envoyer le PDF</button><button data-a="splitpv">${icon('layers')} Séparer</button>${window.QualiteDocs ? `<button data-a="todoc">${icon('file')} Documentation</button>` : ''}</div>`
+             <div class="pv-acts"><button data-a="sharepvpdf">${icon('share')} Envoyer le PDF</button><button data-a="splitpv">${icon('layers')} Séparer</button>${window.QualiteDocs && Team.flag('terraindoc') ? `<button data-a="todoc">${icon('file')} Documentation</button>` : ''}</div>`
           : pvs.map(f => `<div class="t" data-pv="${f.id}"><img src="${BlobURL.get(f.id, f.blob)}"><button class="x" data-pvdel="${f.id}">×</button></div>`).join('') + `<button class="t add" data-a="addpv">${icon('camera')}</button>`
             + (pvs.length > 1 ? `<div class="pv-acts"><button data-a="mergepv">${icon('pdf')} Fusionner en un seul PDF</button></div>` : '');
         const addPv = async () => {

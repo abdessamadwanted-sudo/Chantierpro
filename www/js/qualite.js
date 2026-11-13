@@ -80,13 +80,14 @@
   }
   // envoi automatique (PV de réception) : sans question, vers la destination mémorisée
   async function autoSend(projectId, it) {
+    if (!Team.flag('terraindoc')) return;
     const p = await DB.get('projects', projectId); if (!p || !p.qAuto || !p.qAuto.on || !p.qAuto.partId) return;
     if (!allParts(p).some(x => x.id === p.qAuto.partId)) return;
     await putDoc(p, it, p.qAuto, await DB.byProject('files', p.id), true);
   }
   const canW = () => { try { return Team.lvl('files') >= 2; } catch (e) { return true; } };
 
-  const isEnt = () => { try { return !!(window.ST && ST.isEnt && ST.isEnt()); } catch (e) { return false; } };
+  const isEnt = () => { try { return !!(window.ST && ST.isEnt && ST.isEnt() && Team.flag('missionzone')); } catch (e) { return false; } };
   const tabsHtml = (cur) => `<div class="qd-tabs">${[['parties', "🧱 Partie d'ouvrage"], ...(isEnt() ? [['mz', '🎯 Mission / zone']] : []), ['type', '🗂️ Type']].map(([k, l]) => `<button class="${k === cur ? 'on' : ''}" data-v="${k}">${l}</button>`).join('')}</div>`;
   // vue par mission ou par zone : pièces regroupées selon la mission et la zone auxquelles elles sont rattachées
   // alertes : missions en retard, missions sans pièce, parties d'ouvrage incomplètes
