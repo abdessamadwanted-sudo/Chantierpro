@@ -1763,7 +1763,7 @@ try {
       const pm = pr0.team; pr0.team = [{ id: 'v1', name: 'Test', poste: 'ctrl', service: 'qual', me: true, volet: 'ter' }];
       o.adminToutVoit = true; pr0.team = pm;
       o.adminSeul = ST.isEnt() === true && typeof orgCanAdmin === 'function' && orgCanAdmin() === true;
-      o.deuxCat = !!root.querySelector('details[data-g=qual]') && !!root.querySelector('details[data-g=sq]') && /Service Qualité/.test(root.querySelector('details[data-g=sq] summary').textContent) && !root.querySelector('details[data-g=qual] details.st-qs') && !!root.querySelector('details[data-g=qual] [data-tool]');
+      o.deuxCat = !root.querySelector('details[data-g=qual]') && !!root.querySelector('details[data-g=sq]') && /Service Qualité/.test(root.querySelector('details[data-g=sq] summary').textContent) && ['reception', 'docq'].every(k => !!root.querySelector('details[data-g=sq] [data-tool=' + k + ']'));
       sessionStorage.setItem('st.preview', JSON.stringify({ plan: 'basic' })); ST.renderProjectTools(root); await wait(400);
       o.basicInchange = !root.querySelector('details.st-qs') && (!q || !!root.querySelector('details[data-g=qual] [data-tool]'));
       sessionStorage.removeItem('st.preview');
