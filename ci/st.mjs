@@ -1758,6 +1758,8 @@ try {
         o.adm = !!q.querySelector('details[data-qs=adm] [data-tool=docq]');
         o.ter = !!q.querySelector('details[data-qs=ter] [data-tool=reception]');
         o.reglage = !!q.querySelector('[data-a=qsset]');
+        o.services = ['travaux', 'hse', 'topo', 'labo'].every(k => { const d = root.querySelector('details[data-g=sv-' + k + ']'); return !!d && /^Service /.test(d.querySelector('summary').textContent) && d.querySelectorAll('details.st-qs').length >= 1; })
+          && /Service Topographique/.test(root.textContent);
       }
       o.icones = !!q && q.querySelectorAll('details.st-qs > summary .st-qs-ic').length >= 2;
       const pm = pr0.team; pr0.team = [{ id: 'v1', name: 'Test', poste: 'ctrl', service: 'qual', me: true, volet: 'ter' }];
@@ -1780,7 +1782,7 @@ try {
       Team.applyFlags({});
       o.fermees = !Team.isSuper() && Object.keys(Team.FLAG_DEFS).every(k => Team.flag(k) === false);
       const root = document.createElement('div'); document.body.appendChild(root); ST.renderProjectTools(root); await wait(400);
-      o.pasSq = !root.querySelector('details[data-g=sq]'); o.monEspaceCache = SECTIONS.monespace.hidden === true;
+      o.pasSq = !root.querySelector('details[data-g=sq]') && !root.querySelector('details[data-g^=sv-]'); o.monEspaceCache = SECTIONS.monespace.hidden === true;
       Team.applyFlags({ svcqual: { enterprise: 'test' } }, ['autre@example.com']); o.testAutre = Team.flag('svcqual') === false;
       Team.applyFlags({ svcqual: { enterprise: 'pub' } }); o.pub = Team.flag('svcqual') === true;
       sessionStorage.setItem('st.preview', JSON.stringify({ plan: 'basic' })); o.autrePack = Team.flag('svcqual') === false && Team.pack() === 'basic';
@@ -1792,7 +1794,7 @@ try {
   });
   log('Mises en service', fl1);
   if (!fl1.noProject && !(fl1.fermees && fl1.pasSq && fl1.monEspaceCache && fl1.testAutre && fl1.pub && fl1.autrePack)) throw new Error('mises en service KO ' + JSON.stringify(fl1));
-  if (!qs1.noProject && !qs1.pasQual && !(qs1.volets && qs1.adm && qs1.ter && qs1.reglage && qs1.basicInchange && qs1.icones && qs1.adminSeul && qs1.deuxCat)) throw new Error('volets qualité KO ' + JSON.stringify(qs1));
+  if (!qs1.noProject && !qs1.pasQual && !(qs1.volets && qs1.adm && qs1.ter && qs1.reglage && qs1.basicInchange && qs1.icones && qs1.adminSeul && qs1.deuxCat && qs1.services)) throw new Error('volets qualité KO ' + JSON.stringify(qs1));
   // ---- Suivis personnalisés + modèle visuel : cases liées aux colonnes, PDF écrit sur le bon
   const sv2 = await A.pg.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
