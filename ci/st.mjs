@@ -1938,6 +1938,13 @@ try {
   log('Link Viewer', lk);
   if (lk.err || !lk.webOpen || !lk.badBlocked || !lk.checkBad || !lk.implicit || !lk.wa || !lk.repeat || !lk.native || !lk.dataKept || !lk.authKept) throw new Error('link viewer KO ' + JSON.stringify(lk));
   log('errors ST-LINK-001', []);
+  // ---- titre de l'écran d'un plan = niveau (et non le long nom du fichier)
+  const pt2 = await A.pg.evaluate(async () => { const o = {}; try { const pl = (await DB.all('plans')).find(x => !x.deleted); if (!pl) return { noPlan: true };
+    const fo = pl.folderId ? await DB.get('folders', pl.folderId) : null; o.t = await planTitle(pl); o.expect = (fo && nivOfFolder(fo.name)) || nivOfFolder(pl.name) || (fo && fo.name) || pl.name || 'Plan';
+    o.long = await planTitle({ name: 'GSC-POP-PE-A-JA-0M-RDC-PLAN', folderId: '' }); } catch (e) { o.err = String(e.message || e); } return o; });
+  log('Titre du plan = niveau', pt2);
+  if (!pt2.noPlan && (pt2.err || pt2.t !== pt2.expect || pt2.long !== 'RDC')) throw new Error('titre plan KO ' + JSON.stringify(pt2));
+  log('errors titre plan', []);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
