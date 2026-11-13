@@ -1912,6 +1912,32 @@ try {
   log('Table de projet', tp);
   if (!tp.noProject && (tp.err || tp.tiles !== 3 || !tp.hasRfi || tp.rowsBet < 1 || tp.late < 1 || tp.archi)) throw new Error('table de projet KO ' + JSON.stringify(tp));
   log('errors v1.0.x table de projet', []);
+  // ---- ST-LINK-001 : Link Viewer (ouverture centralisée des liens)
+  const lk = await A.pg.evaluate(async () => { const o = {}; const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const uid0 = Team.uid(), nProj0 = (await DB.all('projects')).length, calls = [], realOpen = window.open, realCap = window.Capacitor;
+    window.open = (u, t, f) => { calls.push({ u, t, f }); return {}; };
+    try {
+      // Web : lien https valide → nouvel onglet sécurisé
+      await openUrl('https://www.google.com/maps/place/Casablanca'); o.webOpen = calls.length === 1 && /noopener/.test(calls[0].f || '') && calls[0].t === '_blank';
+      // liens refusés
+      const bad = ['javascript:alert(1)', 'data:text/html,<b>x</b>', 'file:///etc/passwd', 'https://user:pw@evil.example/', 'https://x.example/?access_token=abc', 'vbscript:x', ''];
+      const n0 = calls.length; for (const b of bad) await openUrl(b); o.badBlocked = calls.length === n0; o.checkBad = bad.every(b => LinkViewer.check(b) === null);
+      // schéma implicite
+      o.implicit = LinkViewer.check('drive.google.com/file/d/1/view') === 'https://drive.google.com/file/d/1/view';
+      // WhatsApp : application externe (jamais le navigateur intégré)
+      const r = await LinkViewer.openLink('https://wa.me/?text=hello'); o.wa = r.mode === 'external';
+      // ouvertures répétées : pas de blocage, double toucher ignoré
+      let rep = 0; for (let i = 0; i < 6; i++) { await LinkViewer.openLink('https://example.com/p' + i); rep++; await wait(5); } const d = await LinkViewer.openLink('https://example.com/p5'); o.repeat = rep === 6 && d.mode === 'ignored';
+      // Android natif simulé : le plugin Browser est utilisé, l'application n'est pas touchée
+      const seen = []; window.Capacitor = { isNativePlatform: () => true, Plugins: { Browser: { open: async (x) => { seen.push(x.url); } } } };
+      const rn = await LinkViewer.openLink('https://drive.google.com/file/d/ABC/view'); await wait(750); const rn2 = await LinkViewer.openLink('https://www.google.com/maps?q=1'); o.native = rn.mode === 'inapp' && rn2.mode === 'inapp' && seen.length === 2;
+    } catch (e) { o.err = String(e.message || e); }
+    window.open = realOpen; window.Capacitor = realCap;
+    o.dataKept = (await DB.all('projects')).length === nProj0; o.authKept = Team.uid() === uid0;
+    return o; });
+  log('Link Viewer', lk);
+  if (lk.err || !lk.webOpen || !lk.badBlocked || !lk.checkBad || !lk.implicit || !lk.wa || !lk.repeat || !lk.native || !lk.dataKept || !lk.authKept) throw new Error('link viewer KO ' + JSON.stringify(lk));
+  log('errors ST-LINK-001', []);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
