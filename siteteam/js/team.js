@@ -242,11 +242,11 @@ const modOf = (store, rec) => store === 'items' ? KIND_MOD[(rec || {}).kind] : S
 const SECTION_MOD = { avancement: 'projet', clauses: 'forms', gestion: 'materiel', finance: 'finance', tce: 'finance', avenants: 'finance', st: 'finance',
   planning: 'projet', lotsuivi: 'projet', ptools: 'projet', reunions: 'forms', pointage: 'pointage', rfi: 'forms', visa: 'forms', labo: 'reception', hse: 'hse', org: 'equipe',
   dashboard: 'projet', plans: 'plans', tasks: 'reserves', reception: 'reception', beton: 'reception', photos: 'photos', forms: 'forms', reports: 'rapports',
-  constat: 'constats', models3d: 'plans', maquette: 'plans', calc: 'calc', team: 'equipe', settings: 'projet', docq: 'files', histo: 'projet', orgs: 'projet', monespace: 'projet' };
+  constat: 'constats', models3d: 'plans', maquette: 'plans', calc: 'calc', team: 'equipe', settings: 'projet', docq: 'files', histo: 'projet', orgs: 'projet', monespace: 'projet', tabproj: 'projet' };
 
 // v1.0.34 : bibliothèque de chaque service. Socle commun + outils du métier. Les PV de réception (ferraillage) relèvent de la Qualité ;
 // les Travaux gardent le programme de bétonnage. Les droits du poste (0 à 4) s'appliquent toujours en plus.
-const LIB_CORE = ['ptools', 'dashboard', 'plans', 'tasks', 'photos', 'reports', 'team', 'org', 'settings', 'histo', 'monespace'];
+const LIB_CORE = ['ptools', 'dashboard', 'plans', 'tasks', 'photos', 'reports', 'team', 'org', 'settings', 'histo', 'monespace', 'tabproj'];
 const SVC_LIB = {
   travaux: ['lotsuivi', 'avancement', 'planning', 'reunions', 'beton', 'calc', 'models3d', 'pointage', 'gestion'],
   ferraillage: ['lotsuivi', 'avancement', 'planning', 'beton', 'calc', 'models3d', 'gestion'],
@@ -662,9 +662,9 @@ const Team = (() => {
   // mises en service par pack : chaque fonction récente est rattachée à des packs, avec un niveau par pack —
   // « dev » : le Super Admin seul · « test » : comptes listés · « pub » : tous les comptes de ce pack ; absent = la fonction n'existe pas dans ce pack
   // réglées dans le Centre de contrôle (config/app.fp, config/app.testers), sans mise à jour de l'application
-  const FLAG_DEFS = { svcqual: 'Service Qualité (volets Administratif / Terrain, organigramme géré par l\'admin)', monespace: 'Mon espace', missionzone: 'Documentation par mission / zone + alertes « À traiter »', terraindoc: 'Terrain → Documentation (bouton PV, envoi automatique)', qdocs: 'Documentation qualité par partie d\'ouvrage + rangement Drive', orgq: 'Organigramme Qualité (branches, missions, code d\'accès)', svctravaux: 'Service Travaux (volets)', svchse: 'Service HSE (volets)', svctopo: 'Service Topographique (volets)', svclabo: 'Service Laboratoire (volets)', espbet: 'Espace BET (volets)', esparchi: 'Espace Architecte / MOE (volets)', esplabo: 'Espace Laboratoire externe (volets)', espmoa: 'Espace Maître d\'ouvrage / AMO (volets)', espbc: 'Espace Bureau de contrôle (volets)', esptopo: 'Espace Topographe externe (volets)', espat: 'Espace Assistance technique / Délégué (volets)' };
+  const FLAG_DEFS = { svcqual: 'Service Qualité (volets Administratif / Terrain, organigramme géré par l\'admin)', monespace: 'Mon espace', missionzone: 'Documentation par mission / zone + alertes « À traiter »', terraindoc: 'Terrain → Documentation (bouton PV, envoi automatique)', qdocs: 'Documentation qualité par partie d\'ouvrage + rangement Drive', orgq: 'Organigramme Qualité (branches, missions, code d\'accès)', svctravaux: 'Service Travaux (volets)', svchse: 'Service HSE (volets)', svctopo: 'Service Topographique (volets)', svclabo: 'Service Laboratoire (volets)', tabproj: 'Table de projet (réserves · RFI · visas, tableau de bord interactif)', espbet: 'Espace BET (volets)', esparchi: 'Espace Architecte / MOE (volets)', esplabo: 'Espace Laboratoire externe (volets)', espmoa: 'Espace Maître d\'ouvrage / AMO (volets)', espbc: 'Espace Bureau de contrôle (volets)', esptopo: 'Espace Topographe externe (volets)', espat: 'Espace Assistance technique / Délégué (volets)' };
   // par défaut : Enterprise = tout en « dev » ; Business = Service Qualité + Travaux (et ce qui les accompagne) + Espaces des intervenants (la documentation Terrain reste Enterprise)
-  const BIZ_FLAGS = ['svcqual', 'svctravaux', 'monespace', 'missionzone', 'qdocs', 'orgq', 'espbet', 'esparchi', 'esplabo', 'espmoa', 'espbc', 'esptopo', 'espat'];
+  const BIZ_FLAGS = ['svcqual', 'svctravaux', 'monespace', 'missionzone', 'qdocs', 'orgq', 'tabproj', 'espbet', 'esparchi', 'esplabo', 'espmoa', 'espbc', 'esptopo', 'espat'];
   const FLAG_DEFAULT = Object.fromEntries(Object.keys(FLAG_DEFS).map(k => [k, BIZ_FLAGS.includes(k) ? { business: 'dev', enterprise: 'dev' } : { enterprise: 'dev' }]));
   const flagCfg = (k) => (appCfg().fp || {})[k] || FLAG_DEFAULT[k] || {};
   // pack en vigueur : aperçu du Super Admin (« Pack de travail »), sinon pack de l'espace
