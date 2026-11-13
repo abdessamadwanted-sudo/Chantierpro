@@ -329,6 +329,21 @@ const ST = (() => {
         ui: { adm: 'Plans, maquettes, modèles', ter: 'Calculs, implantation, relevés', com: 'Équipe, organigramme, mon espace' } },
       { k: 'labo', flag: 'svclabo', nom: 'Service Laboratoire', c: '#8b5cf6', tools: ['labo', 'beton', 'forms', 'docq'], map: { docq: 'adm', forms: 'adm', labo: 'ter', beton: 'ter', ...COMMUN },
         ui: { adm: 'Documents, formulaires', ter: 'Essais, prélèvements, béton', com: 'Équipe, organigramme, mon espace' } },
+      // Espaces des intervenants externes (Business / Enterprise) : même gabarit, kind 'espace' ; structure seulement — le contenu propre à chaque intervenant viendra ensuite
+      { k: 'e-bet', kind: 'espace', flag: 'espbet', nom: 'Espace BET', c: '#7c3aed', tools: ['calc', 'visa', 'rfi', 'docq', 'plans'], map: { docq: 'adm', plans: 'adm', visa: 'adm', rfi: 'adm', calc: 'ter', ...COMMUN },
+        ui: { adm: 'Notes, plans, visas, RFI', ter: 'Calculs, vérifications', com: 'Équipe, organigramme, mon espace' } },
+      { k: 'e-archi', kind: 'espace', flag: 'esparchi', nom: 'Espace Architecte / MOE', c: '#db2777', tools: ['plans', 'visa', 'rfi', 'reunions', 'clauses'], map: { plans: 'adm', visa: 'adm', rfi: 'adm', clauses: 'adm', reunions: 'adm', constat: 'ter', ...COMMUN },
+        ui: { adm: 'Plans, visas, RFI, réunions', ter: 'Visites, constats', com: 'Équipe, organigramme, mon espace' } },
+      { k: 'e-labo', kind: 'espace', flag: 'esplabo', nom: 'Espace Laboratoire (externe)', c: '#8b5cf6', tools: ['labo', 'beton', 'forms', 'docq'], map: { docq: 'adm', forms: 'adm', labo: 'ter', beton: 'ter', ...COMMUN },
+        ui: { adm: 'Rapports, formulaires', ter: 'Essais, prélèvements', com: 'Équipe, organigramme, mon espace' } },
+      { k: 'e-moa', kind: 'espace', flag: 'espmoa', nom: 'Espace Maître d\'ouvrage / AMO', c: '#b45309', tools: ['reunions', 'visa', 'avancement', 'gestion'], map: { reunions: 'adm', visa: 'adm', gestion: 'adm', avancement: 'ter', ...COMMUN },
+        ui: { adm: 'Réunions, validations, budget', ter: 'Suivi d\'avancement', com: 'Équipe, organigramme, mon espace' } },
+      { k: 'e-bc', kind: 'espace', flag: 'espbc', nom: 'Espace Bureau de contrôle', c: '#be123c', tools: ['clauses', 'visa', 'reception', 'constat', 'hse'], map: { clauses: 'adm', visa: 'adm', reception: 'ter', constat: 'ter', hse: 'ter', ...COMMUN },
+        ui: { adm: 'Avis, visas, référentiels', ter: 'Contrôles, réceptions, constats', com: 'Équipe, organigramme, mon espace' } },
+      { k: 'e-topo', kind: 'espace', flag: 'esptopo', nom: 'Espace Topographe (externe)', c: '#0891b2', tools: ['calc', 'models3d', 'maquette', 'avancement'], map: { models3d: 'adm', maquette: 'adm', calc: 'ter', avancement: 'ter', ...COMMUN },
+        ui: { adm: 'Plans, maquettes', ter: 'Implantation, relevés', com: 'Équipe, organigramme, mon espace' } },
+      { k: 'e-at', kind: 'espace', flag: 'espat', nom: 'Espace Assistance technique / Délégué', c: '#4d7c0f', tools: ['reunions', 'avancement', 'constat', 'visa'], map: { reunions: 'adm', visa: 'adm', avancement: 'ter', constat: 'ter', ...COMMUN },
+        ui: { adm: 'Réunions, visas', ter: 'Suivi et constats', com: 'Équipe, organigramme, mon espace' } },
     ];
     const QS_NAMES = { adm: ['📁', 'Administratif'], ter: ['🏗️', 'Terrain'], com: ['🔗', 'Commun'] };
     const QS_COL = { adm: ['folder', '#2563eb'], ter: ['hard', '#16a34a'], com: ['users', '#7c3aed'] };
@@ -359,7 +374,8 @@ const ST = (() => {
       <p class="st-thint2" style="margin:-4px 0 6px">Appui long sur la barre : ajouter · réorganiser · retirer</p>
       ${G.map(([g, l, ks]) => (g === 'qual' && svcq() ? '' : `<details class="st-tcat st-acc" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(l.replace(/^\S+\s/, ''))}<small>${ks.length}</small><i class="st-chev">${icon('chevdown')}</i></summary>
         <div class="st-tgrid">${ks.map(k => toolBtn(k, g)).join('')}</div></details>`) + `${g === 'qual' && svcq() ? svcAcc(SVC_SHELLS[0], ks) : ''}`).join('')}
-      ${SVC_SHELLS.slice(1).filter(S => Team.flag(S.flag)).map(S => svcAcc(S, [])).join('')}
+      ${SVC_SHELLS.slice(1).filter(S => S.kind !== 'espace' && Team.flag(S.flag)).map(S => svcAcc(S, [])).join('')}
+      ${(() => { const E = SVC_SHELLS.filter(S => S.kind === 'espace' && Team.flag(S.flag)); return E.length ? `<p class="st-thint2" style="margin:10px 0 4px"><b>Espaces des intervenants</b> · travail partagé avec les intervenants externes</p>` + E.map(S => svcAcc(S, [])).join('') : ''; })()}
       <details class="st-tcat st-acc" data-g="biblio" style="--c:#5B4BA8" ${opened.includes('biblio') ? 'open' : ''}><summary class="st-tcat-h">Bibliothèque métier<small>${esc(plan().l)}</small><i class="st-chev">${icon('chevdown')}</i></summary>
         <div class="st-tgrid" style="grid-template-columns:1fr"><button class="st-pb st-pb-lib" data-a="library" style="margin:0">${icon('grid')}<span><b>Ouvrir la bibliothèque</b><small>Outils réunis et classés selon votre service · pack ${esc(plan().l)}</small></span>${icon('chevright')}</button></div></details>
       <details class="st-tcat st-acc" data-g="tableaux" style="--c:#2563EB" ${opened.includes('tableaux') ? 'open' : ''}><summary class="st-tcat-h">Tableaux<small>5</small><i class="st-chev">${icon('chevdown')}</i></summary>
