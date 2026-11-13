@@ -52,9 +52,21 @@ const DISCIPLINES = [
   { k: 'CFO', l: 'Électricité CFO' }, { k: 'CFA', l: 'Électricité CFA' }, { k: 'PLB', l: 'Plomberie / sanitaire (PLB)' },
   { k: 'CVC', l: 'CVC' }, { k: 'SSI', l: 'Sécurité incendie (SSI)' }, { k: 'CM', l: 'Charpente métallique (CM)' },
   { k: 'ETA', l: 'Étanchéité (ETA)' }, { k: 'PAY', l: 'Aménagement / paysage (PAY)' }, { k: 'SYN', l: 'Synthèse (SYN)' },
+  { k: 'FND', l: 'Fondations (FND)' },
 ];
+// Familles (menus déroulants) : chaque type de plan est rangé dans une famille ; on peut le déplacer (p.typeFam) et renommer (p.typeNames, p.famNames)
+const FAMILLES = [
+  { k: 'gros', l: 'Gros œuvre & Structure', t: ['STR', 'FND', 'CM'] }, { k: 'archi', l: 'Corps d\'état architecturaux', t: ['ARCH', 'ETA'] },
+  { k: 'elec', l: 'Électricité', t: ['CFO', 'CFA'] }, { k: 'fluides', l: 'Fluides', t: ['PLB', 'CVC'] },
+  { k: 'vrd', l: 'VRD & Extérieurs', t: ['VRD', 'PAY'] }, { k: 'secu', l: 'Sécurité & Systèmes', t: ['SSI'] },
+  { k: 'syn', l: 'Synthèse & Coordination', t: ['SYN'] }, { k: 'autre', l: 'Autres', t: [] },
+];
+const famsOf = (p) => FAMILLES.map(f => ({ ...f, l: ((p && p.famNames) || {})[f.k] || f.l }));
+const famOfType = (p, k) => ((p && p.typeFam) || {})[k] || (FAMILLES.find(f => f.t.includes(k)) || { k: 'autre' }).k;
+// Fondations : proposées par défaut dans le niveau SSL seulement ; on peut les ajouter ailleurs (f.extraTypes)
+const typeShownIn = (f, t) => t.k !== 'FND' || !f || (typeof nivOfFolder === 'function' && nivOfFolder(f.name) === 'SSL') || (f.extraTypes || []).includes('FND');
 // v1.0.101 : types de lots = types fixes + types ajoutés par le projet (p.lotTypes)
-const typesOf = (p) => [...DISCIPLINES, ...((p && p.lotTypes) || [])].filter(d => !((p && p.typesGone) || []).includes(d.k));
+const typesOf = (p) => [...DISCIPLINES, ...((p && p.lotTypes) || [])].filter(d => !((p && p.typesGone) || []).includes(d.k)).map(d => ({ ...d, l: ((p && p.typeNames) || {})[d.k] || d.l }));
 const typeLab = (k, p) => (typesOf(p || App.project).find(d => d.k === k) || { l: k }).l;
 const discLabel = (f) => !f || !f.disc ? '' : f.disc === '_free' ? (f.discName || 'Autre') : ((DISCIPLINES.find(d => d.k === f.disc) || {}).l || f.disc);
 const tint = (c, a) => c + Math.round(a * 255).toString(16).padStart(2, '0');
@@ -62,7 +74,7 @@ const tint = (c, a) => c + Math.round(a * 255).toString(16).padStart(2, '0');
 // v1.0.108 : barre = une boîte fixe « type » (liste dessous) + la rangée des lots de ce type ; masquage par niveau
 const hiddenT = (f) => (f && f.hiddenTypes) || [];
 const hiddenL = (f) => (f && f.hiddenLots) || [];
-const typesVis = (f, p) => typesOf(p || App.project).filter(t => !hiddenT(f).includes(t.k));
+const typesVis = (f, p) => typesOf(p || App.project).filter(t => !hiddenT(f).includes(t.k) && typeShownIn(f, t));
 const lotsVis = (f, lots) => lots.filter(l => !hiddenL(f).includes(l.id));
 // type courant : clé de type (ou '' si un lot sans type, ou '__all')
 const selTypeKey = (sel, lots) => sel && sel.startsWith('T:') ? sel.slice(2) : (sel && sel !== '__all' && sel !== '__none') ? ((lots.find(l => l.id === sel) || {}).cat || '') : '';
@@ -97,21 +109,35 @@ function lotBarInto(card, f, ps, root) {
     const list = document.createElement('div'); list.className = 'lot-pick';
     const draw = () => {
       const opt = (v, lab, n, cls = '') => `<button type="button" class="lp-type ${cls} ${sel === v || (v.startsWith('T:') && tk === v.slice(2) && sel.startsWith('T:')) ? 'on' : ''}" data-lp="${v}"><span>${lab}</span><small>${n}</small></button>`;
-      list.innerHTML = opt('__all', '📚 Tous les types (TOUT)', ps.length, 'all')
-        + typesVis(f, p).map(t => opt('T:' + t.k, esc(t.l), nOfType(t.k))).join('')
+      App.famOpen = App.famOpen || {}; const fo = App.famOpen[f.id] = App.famOpen[f.id] || {}; const curFam = tk ? famOfType(p, tk) : ''; if (curFam && fo[curFam] === undefined) fo[curFam] = true;
+      const TV = typesVis(f, p), famHtml = famsOf(p).map(F => { const ts = TV.filter(t => famOfType(p, t.k) === F.k); if (!ts.length) return '';
+        const n = ts.reduce((a, t) => a + nOfType(t.k), 0), open = !!fo[F.k];
+        return `<button type="button" class="lp-fam ${open ? 'open' : ''}" data-fam="${F.k}"><span class="lp-fn">📁 ${esc(F.l)}</span><small>${n}</small><i>${open ? '▴' : '▾'}</i></button>`
+          + (open ? `<div class="lp-fbody">${ts.map(t => opt('T:' + t.k, esc(t.l), nOfType(t.k))).join('')}</div>` : ''); }).join('');
+      const addFnd = !typeShownIn(f, { k: 'FND' }) ? `<button type="button" class="lp-i add" data-lp="__addfnd">＋ Fondations ici</button>` : '';
+      list.innerHTML = opt('__all', '📚 Tous les types (TOUT)', ps.length, 'all') + famHtml
         + (nNo ? opt('__none', '📄 Sans lot', nNo) : '')
-        + `<div class="lp-foot"><button type="button" class="lp-i add" data-lp="__addtype">＋ Nouveau type</button>${hiddenT(f).length || hiddenL(f).length ? `<button type="button" class="lp-i add" data-lp="__restore">↺ Rétablir masqués</button>` : ''}</div>`;
+        + `<div class="lp-foot"><button type="button" class="lp-i add" data-lp="__addtype">＋ Nouveau type</button>${addFnd}${hiddenT(f).length || hiddenL(f).length ? `<button type="button" class="lp-i add" data-lp="__restore">↺ Rétablir masqués</button>` : ''}</div>`;
+      list.querySelectorAll('[data-fam]').forEach(h => {
+        h.onclick = (e) => { e.stopPropagation(); fo[h.dataset.fam] = !fo[h.dataset.fam]; draw(); };
+        h.oncontextmenu = async (e) => { e.preventDefault(); e.stopPropagation(); const F = famsOf(p).find(z => z.k === h.dataset.fam); if (!F) return;
+          const r = await formSheet('Renommer la famille', [{ name: 'n', label: 'Nom', value: F.l }]); if (!r || !r.n) return;
+          p.famNames = { ...(p.famNames || {}), [F.k]: r.n }; await DB.put('projects', p); renderPlans(root); };
+      });
       list.querySelectorAll('[data-lp]').forEach(x => {
         x.onclick = async (e) => { e.stopPropagation();
           if (x.dataset.lp === '__addtype') { const r = await formSheet('Nouveau type de lot', [{ name: 'n', label: 'Nom du type', placeholder: 'Ex : Second œuvre' }], { okLabel: 'Ajouter' }); if (!r || !r.n) return;
             p.lotTypes = p.lotTypes || []; p.lotTypes.push({ k: 'T' + DB.uid(), l: r.n }); await DB.put('projects', p); App.lotSel[f.id] = 'T:' + p.lotTypes[p.lotTypes.length - 1].k; renderPlans(root); return; }
+          if (x.dataset.lp === '__addfnd') { f.extraTypes = [...(f.extraTypes || []), 'FND']; await DB.put('folders', f); App.lotSel[f.id] = 'T:FND'; renderPlans(root); return; }
           if (x.dataset.lp === '__restore') { await restoreHiddenAll(p); renderPlans(root); return; }
           App.lotSel = App.lotSel || {}; App.lotSel[f.id] = x.dataset.lp; App.keepScrollY = ($('#content') || {}).scrollTop || 0; renderPlans(root);
         };
         // appui long (menu contextuel) sur un type : le retirer de ce niveau seulement
         if (x.dataset.lp.startsWith('T:')) x.oncontextmenu = async (e) => { e.preventDefault(); e.stopPropagation();
           const k = x.dataset.lp.slice(2), t = typesOf(p).find(d => d.k === k) || { l: k };
-          const v = await menu(t.l, [{ label: 'Masquer dans ce niveau', icon: 'eye', value: 'hide' }, { label: 'Supprimer définitivement ce type', icon: 'trash', danger: true, value: 'del' }]);
+          const v = await menu(t.l, [{ label: 'Renommer', icon: 'edit', value: 'ren' }, { label: 'Déplacer vers une autre famille', icon: 'layers', value: 'fam' }, { label: 'Masquer dans ce niveau', icon: 'eye', value: 'hide' }, { label: 'Supprimer définitivement ce type', icon: 'trash', danger: true, value: 'del' }]);
+          if (v === 'ren') { const r = await formSheet('Renommer le type', [{ name: 'n', label: 'Nom', value: t.l }]); if (!r || !r.n) return; p.typeNames = { ...(p.typeNames || {}), [k]: r.n }; await DB.put('projects', p); renderPlans(root); return; }
+          if (v === 'fam') { const cur = famOfType(p, k), g = await menu('Déplacer « ' + t.l + ' » vers', famsOf(p).map(F => ({ label: F.l, value: F.k, checked: F.k === cur }))); if (!g) return; p.typeFam = { ...(p.typeFam || {}), [k]: g }; if (!App.famOpen) App.famOpen = {}; (App.famOpen[f.id] = App.famOpen[f.id] || {})[g] = true; await DB.put('projects', p); renderPlans(root); return; }
           if (v === 'del') {
             if (!await confirmBox(`Supprimer DÉFINITIVEMENT le type « ${t.l} » ? Ses lots restent dans les autres types (ou « Sans type »). Irréversible.`)) return;
             p.typesGone = [...((p.typesGone || [])), k]; p.lotTypes = (p.lotTypes || []).filter(d => d.k !== k);

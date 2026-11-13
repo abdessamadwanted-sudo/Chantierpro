@@ -1948,6 +1948,14 @@ try {
   const lt = await A.pg.evaluate(() => { const p = App.project || {}; const hold = p.planLots; p.planLots = [{ id: 'zz', name: 'Gros œuvre', cat: 'STR' }]; App.project = p; const o = { lot: planLotText({ lotId: 'zz' }), none: planLotText({}) }; p.planLots = hold; return o; });
   log('Type de lot sous le niveau', lt);
   if (lt.lot !== 'Gros œuvre' || lt.none !== '') throw new Error('type lot KO ' + JSON.stringify(lt));
+  // ---- familles de types (menus déroulants), Fondations en SSL, carte d'en-tête
+  const fm = await A.pg.evaluate(async () => { const o = {}; try { const p = { typeFam: {}, typeNames: {} };
+    o.famStr = famOfType(p, 'STR'); o.famElec = famOfType(p, 'CFO'); p.typeFam.CFO = 'secu'; o.moved = famOfType(p, 'CFO'); p.typeNames.ARCH = 'Archi'; o.ren = typesOf(p).find(t => t.k === 'ARCH').l;
+    const ssl = { name: 'SSL' }, rdc = { name: 'RDC' }; o.fndSsl = typeShownIn(ssl, { k: 'FND' }); o.fndRdc = typeShownIn(rdc, { k: 'FND' }); o.fndAdd = typeShownIn({ name: 'RDC', extraTypes: ['FND'] }, { k: 'FND' });
+    const h = await planHeadHtml({ name: 'x', folderId: '' }); o.card = /pv-card/.test(h) && /pv-niv/.test(h);
+  } catch (e) { o.err = String(e.message || e); } return o; });
+  log('Familles / Fondations / carte', fm);
+  if (fm.err || fm.famStr !== 'gros' || fm.famElec !== 'elec' || fm.moved !== 'secu' || fm.ren !== 'Archi' || !fm.fndSsl || fm.fndRdc || !fm.fndAdd || !fm.card) throw new Error('familles KO ' + JSON.stringify(fm));
   log('errors titre plan', []);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);

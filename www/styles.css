@@ -4067,3 +4067,18 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 
 /* écran d'un plan : type de lot / lot sous le niveau — petit et en gras */
 .pv-lot { font-size: 12px; font-weight: 700; opacity: .75; margin-left: 8px; letter-spacing: .1px; }
+
+/* classification en familles (menus déroulants) */
+.lot-pick .lp-fam { display: flex; align-items: center; gap: 8px; width: 100%; border: 1px solid #334155; background: #2a3140; color: #f8fafc; border-radius: 14px; padding: 10px 12px; font-size: 14px; font-weight: 700; text-align: left; margin-top: 4px; }
+.lot-pick .lp-fam .lp-fn { flex: 1 1 auto; }
+.lot-pick .lp-fam small { opacity: .75; font-weight: 600; }
+.lot-pick .lp-fam.open { border-color: #3b82f6; }
+.lot-pick .lp-fbody { display: flex; flex-direction: column; gap: 5px; padding: 4px 0 6px 12px; }
+
+/* écran d'un plan : carte compacte niveau · type · lot */
+.topbar h1 { min-width: 0; }
+.pv-card { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 3px 8px 3px 4px; border-radius: 999px; background: rgba(148,163,184,.14); font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; vertical-align: middle; }
+.pv-niv { font-size: 14px; font-weight: 800; padding: 2px 10px; border-radius: 999px; background: #0d9488; color: #fff; letter-spacing: .2px; flex: 0 0 auto; }
+.pv-ty, .pv-lo { overflow: hidden; text-overflow: ellipsis; opacity: .92; }
+.pv-ty::after { content: '·'; margin-left: 6px; opacity: .5; }
+.pv-ty:last-child::after { content: ''; }
