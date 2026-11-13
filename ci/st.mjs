@@ -394,6 +394,9 @@ try {
   const J = await newUser('J'); await signup(J.pg, 'Jamal Invité', 'jamal@test.ma');
   await J.pg.click('[data-a=create]'); await J.pg.waitForSelector('.st-offers'); await shot(J.pg, '91_packs_fermes');
   log('J packs : ouverts / sur demande', await J.pg.evaluate(() => [[...document.querySelectorAll('.st-offers [data-p]')].map(b => b.dataset.p), [...document.querySelectorAll('.st-offers [data-req]')].map(b => b.dataset.req)]));
+  const pdv = await J.pg.evaluate(() => ['business', 'enterprise', 'basic'].map(k => { const c = document.querySelector('.st-offers [data-offer=' + k + ']'); return k + ':' + (c ? (/En cours de développement/.test(c.textContent) ? 'dev' : 'prix') + (/MAD/.test(c.textContent) ? '+MAD' : '') : 'absent'); }));
+  log('Packs en développement (aucun prix)', pdv);
+  if (pdv.join() !== 'business:dev,enterprise:dev,basic:prix') throw new Error('packs en développement KO ' + pdv.join());
   await J.pg.click('[data-req=business]'); await J.pg.waitForSelector('.sheet [name=msg]'); await J.pg.fill('.sheet [name=msg]', '12 utilisateurs, 3 chantiers'); await J.pg.click('.sheet [data-a=ok]');
   await J.pg.waitForSelector('.opt:has-text("OK")', { timeout: 15000 }); log('J demande envoyée', await J.pg.textContent('.sheet h3')); await J.pg.click('.opt:has-text("OK")');
   log('J refus serveur d\'un pack fermé', await J.pg.evaluate(async () => { try { await firebase.firestore().collection('companies').doc('jx1').set({ name: 'X', ownerUid: firebase.auth().currentUser.uid, plan: 'business', planStatus: 'essai' }); return 'ALLOWED (BAD)'; } catch (e) { return 'denied OK: ' + e.code; } }));
