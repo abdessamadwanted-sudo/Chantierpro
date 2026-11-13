@@ -329,22 +329,34 @@ const ST = (() => {
         ui: { adm: 'Plans, maquettes, modèles', ter: 'Calculs, implantation, relevés', com: 'Équipe, organigramme, mon espace' } },
       { k: 'labo', flag: 'svclabo', nom: 'Service Laboratoire', c: '#8b5cf6', tools: ['labo', 'beton', 'forms', 'docq'], map: { docq: 'adm', forms: 'adm', labo: 'ter', beton: 'ter', ...COMMUN },
         ui: { adm: 'Documents, formulaires', ter: 'Essais, prélèvements, béton', com: 'Équipe, organigramme, mon espace' } },
-      // Espaces des intervenants externes (Business / Enterprise) : même gabarit, kind 'espace' ; structure seulement — le contenu propre à chaque intervenant viendra ensuite
-      { k: 'e-bet', kind: 'espace', flag: 'espbet', nom: 'Espace BET', c: '#7c3aed', tools: ['calc', 'visa', 'rfi', 'docq', 'plans'], map: { docq: 'adm', plans: 'adm', visa: 'adm', rfi: 'adm', calc: 'ter', ...COMMUN },
-        ui: { adm: 'Notes, plans, visas, RFI', ter: 'Calculs, vérifications', com: 'Équipe, organigramme, mon espace' } },
-      { k: 'e-archi', kind: 'espace', flag: 'esparchi', nom: 'Espace Architecte / MOE', c: '#db2777', tools: ['plans', 'visa', 'rfi', 'reunions', 'clauses'], map: { plans: 'adm', visa: 'adm', rfi: 'adm', clauses: 'adm', reunions: 'adm', constat: 'ter', ...COMMUN },
-        ui: { adm: 'Plans, visas, RFI, réunions', ter: 'Visites, constats', com: 'Équipe, organigramme, mon espace' } },
-      { k: 'e-labo', kind: 'espace', flag: 'esplabo', nom: 'Espace Laboratoire (externe)', c: '#8b5cf6', tools: ['labo', 'beton', 'forms', 'docq'], map: { docq: 'adm', forms: 'adm', labo: 'ter', beton: 'ter', ...COMMUN },
-        ui: { adm: 'Rapports, formulaires', ter: 'Essais, prélèvements', com: 'Équipe, organigramme, mon espace' } },
-      { k: 'e-moa', kind: 'espace', flag: 'espmoa', nom: 'Espace Maître d\'ouvrage / AMO', c: '#b45309', tools: ['reunions', 'visa', 'avancement', 'gestion'], map: { reunions: 'adm', visa: 'adm', gestion: 'adm', avancement: 'ter', ...COMMUN },
-        ui: { adm: 'Réunions, validations, budget', ter: 'Suivi d\'avancement', com: 'Équipe, organigramme, mon espace' } },
-      { k: 'e-bc', kind: 'espace', flag: 'espbc', nom: 'Espace Bureau de contrôle', c: '#be123c', tools: ['clauses', 'visa', 'reception', 'constat', 'hse'], map: { clauses: 'adm', visa: 'adm', reception: 'ter', constat: 'ter', hse: 'ter', ...COMMUN },
-        ui: { adm: 'Avis, visas, référentiels', ter: 'Contrôles, réceptions, constats', com: 'Équipe, organigramme, mon espace' } },
-      { k: 'e-topo', kind: 'espace', flag: 'esptopo', nom: 'Espace Topographe (externe)', c: '#0891b2', tools: ['calc', 'models3d', 'maquette', 'avancement'], map: { models3d: 'adm', maquette: 'adm', calc: 'ter', avancement: 'ter', ...COMMUN },
-        ui: { adm: 'Plans, maquettes', ter: 'Implantation, relevés', com: 'Équipe, organigramme, mon espace' } },
-      { k: 'e-at', kind: 'espace', flag: 'espat', nom: 'Espace Assistance technique / Délégué', c: '#4d7c0f', tools: ['reunions', 'avancement', 'constat', 'visa'], map: { reunions: 'adm', visa: 'adm', avancement: 'ter', constat: 'ter', ...COMMUN },
-        ui: { adm: 'Réunions, visas', ter: 'Suivi et constats', com: 'Équipe, organigramme, mon espace' } },
     ];
+    // ---- Niveau « Intervenants du projet » : l'Entreprise (ses services ci-dessus) + chaque intervenant externe = une organisation avec ses propres services, chacun en 3 volets. Structure seulement ; modifier ici pour ajuster les services d'un intervenant.
+    const UI0 = { adm: 'Documents, plans, visas', ter: 'Terrain, contrôles, suivi', com: 'Équipe, organigramme, mon espace' };
+    const mk = (k, nom, c, adm, ter, com) => ({ k, nom, c, tools: [...adm, ...ter], map: { ...Object.fromEntries(adm.map(t => [t, 'adm'])), ...Object.fromEntries(ter.map(t => [t, 'ter'])), ...(com ? Object.fromEntries(com.map(t => [t, 'com'])) : {}), ...COMMUN }, ui: UI0 });
+    const INTERVENANTS = [
+      { k: 'bet', e: '📐', nom: 'BET', c: '#7c3aed', flag: 'espbet', services: [
+        mk('bet.struct', 'Structure', '#7c3aed', ['plans', 'docq', 'visa'], ['calc']), mk('bet.fluides', 'Fluides / Électricité', '#7c3aed', ['plans', 'docq', 'visa'], ['calc']),
+        mk('bet.metre', 'Métré & estimation', '#7c3aed', ['gestion', 'docq'], ['calc']), mk('bet.exec', 'Suivi d\'exécution (visas)', '#7c3aed', ['visa', 'rfi', 'reunions'], ['constat'])] },
+      { k: 'archi', e: '🏛️', nom: 'Architecte / MOE', c: '#db2777', flag: 'esparchi', services: [
+        mk('archi.concep', 'Conception & plans', '#db2777', ['plans', 'clauses', 'docq'], ['models3d', 'maquette']), mk('archi.exec', 'Suivi d\'exécution', '#db2777', ['visa', 'rfi', 'reunions'], ['constat']),
+        mk('archi.opc', 'Coordination (OPC)', '#db2777', ['planning', 'reunions'], ['avancement', 'lotsuivi'])] },
+      { k: 'moa', e: '🏗️', nom: 'Maître d\'ouvrage / AMO', c: '#b45309', flag: 'espmoa', services: [
+        mk('moa.budget', 'Programme & budget', '#b45309', ['gestion', 'docq', 'reunions'], []), mk('moa.valid', 'Validations & paiements', '#b45309', ['visa', 'gestion'], ['avancement']),
+        mk('moa.tech', 'Suivi technique', '#b45309', ['reunions'], ['avancement', 'constat'])] },
+      { k: 'bc', e: '🔍', nom: 'Bureau de contrôle', c: '#be123c', flag: 'espbc', services: [
+        mk('bc.avis', 'Avis techniques', '#be123c', ['clauses', 'visa', 'docq'], []), mk('bc.ctrl', 'Contrôles chantier', '#be123c', ['forms'], ['constat', 'hse', 'reception']),
+        mk('bc.recep', 'Réception', '#be123c', ['docq'], ['reception', 'constat'])] },
+      { k: 'labo', e: '🧪', nom: 'Laboratoire (externe)', c: '#8b5cf6', flag: 'esplabo', services: [
+        mk('labo.beton', 'Essais béton', '#8b5cf6', ['forms'], ['beton', 'labo']), mk('labo.sols', 'Sols / géotechnique', '#8b5cf6', ['forms', 'docq'], ['labo']),
+        mk('labo.rapp', 'Rapports', '#8b5cf6', ['docq', 'forms'], [])] },
+      { k: 'topo', e: '📍', nom: 'Topographe (externe)', c: '#0891b2', flag: 'esptopo', services: [
+        mk('topo.impl', 'Implantation', '#0891b2', ['models3d'], ['calc']), mk('topo.rel', 'Relevés', '#0891b2', ['maquette'], ['calc', 'avancement']),
+        mk('topo.asb', 'As-built', '#0891b2', ['plans', 'models3d', 'docq'], [])] },
+      { k: 'at', e: '🤝', nom: 'Assistance technique / Délégué', c: '#4d7c0f', flag: 'espat', services: [
+        mk('at.suivi', 'Suivi technique', '#4d7c0f', ['reunions', 'visa'], ['avancement', 'constat'])] },
+    ];
+    const ALL_SHELLS = [...SVC_SHELLS, ...INTERVENANTS.flatMap(I => I.services)];
+    const ivOn = () => INTERVENANTS.some(I => Team.flag(I.flag));
     const QS_NAMES = { adm: ['📁', 'Administratif'], ter: ['🏗️', 'Terrain'], com: ['🔗', 'Commun'] };
     const QS_COL = { adm: ['folder', '#2563eb'], ter: ['hard', '#16a34a'], com: ['users', '#7c3aed'] };
     // volets autorisés à la personne : choisis par l'administrateur dans l'organigramme (vide = les deux) ; l'administrateur voit tout
@@ -360,7 +372,17 @@ const ST = (() => {
         return `<details class="st-qs" data-qs="${pre}${v}" ${op.includes(pre + v) ? 'open' : ''}><summary style="--c:${QS_COL[v][1]}"><i class="st-qs-ic">${icon(QS_COL[v][0])}</i><span><b>${QS_NAMES[v][1]}</b><small>${esc(S.ui[v])}</small></span><em>${L.length}</em><i class="st-chev">${icon('chevdown')}</i></summary><div class="st-tgrid">${L.map(k => toolBtn(k, 'qual')).join('')}</div></details>`; }).join('')
         + `<button class="st-qs-set" data-a="qsset" data-svc="${S.k}">⚙️ Répartition Administratif / Terrain / Commun</button>`;
     };
-    const svcAcc = (S, ks) => `<details class="st-tcat st-acc" data-g="${S.k === 'qual' ? 'sq' : 'sv-' + S.k}" style="--c:${S.c}" ${opened.includes(S.k === 'qual' ? 'sq' : 'sv-' + S.k) ? 'open' : ''}><summary class="st-tcat-h">${esc(S.nom)}<small>3 volets</small><i class="st-chev">${icon('chevdown')}</i></summary>${svcSplit(S, ks)}</details>`;
+    let subOp = null; try { subOp = JSON.parse(localStorage.getItem('ptools.sub') || 'null'); } catch (e) {} if (!Array.isArray(subOp)) subOp = [];
+    const svcAcc = (S, ks, sub) => sub
+      ? `<details class="st-tcat st-sub" data-sg="${S.k}" style="--c:${S.c}" ${subOp.includes(S.k) ? 'open' : ''}><summary class="st-tcat-h">${esc(S.nom)}<small>3 volets</small><i class="st-chev">${icon('chevdown')}</i></summary>${svcSplit(S, ks)}</details>`
+      : `<details class="st-tcat st-acc" data-g="${S.k === 'qual' ? 'sq' : 'sv-' + S.k}" style="--c:${S.c}" ${opened.includes(S.k === 'qual' ? 'sq' : 'sv-' + S.k) ? 'open' : ''}><summary class="st-tcat-h">${esc(S.nom)}<small>3 volets</small><i class="st-chev">${icon('chevdown')}</i></summary>${svcSplit(S, ks)}</details>`;
+    // organisation (Entreprise ou intervenant) : un accordéon qui contient ses services
+    const orgAcc = (g, titre, c, inner, n) => `<details class="st-tcat st-acc" data-g="${g}" style="--c:${c}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(titre)}<small>${n} services</small><i class="st-chev">${icon('chevdown')}</i></summary><div class="st-orgin">${inner}</div></details>`;
+    const entSvcs = () => [...(svcq() ? [svcAcc(SVC_SHELLS[0], (G.find(x => x[0] === 'qual') || [0, 0, []])[2], true)] : []), ...SVC_SHELLS.slice(1).filter(S => Team.flag(S.flag)).map(S => svcAcc(S, [], true))];
+    const ivHtml = () => { if (!ivOn()) return ''; const E = entSvcs();
+      return `<p class="st-thint2" style="margin:6px 0 4px"><b>Intervenants du projet</b> · chaque organisation a ses services</p>`
+        + orgAcc('iv-ent', '🏢 Entreprise', '#0d9488', E.join('') || '<p class="st-thint2" style="padding:8px">Aucun service activé</p>', E.length)
+        + INTERVENANTS.filter(I => Team.flag(I.flag)).map(I => orgAcc('iv-' + I.k, I.e + ' ' + I.nom, I.c, I.services.map(S => svcAcc(S, [], true)).join(''), I.services.length)).join(''); };
     const qsSet = async (S, ks) => {
       const M = qsMap(S), all = qsTools(S, ks);
       for (;;) { const v = await menu(`${S.nom} : où ranger chaque outil ?`, [...all.map(k => ({ label: `${toolName(k)} — ${QS_NAMES[M[k] || 'ter'][1]}`, value: k })), { label: 'Terminé', icon: 'check', value: '__ok' }]); if (!v || v === '__ok') break;
@@ -372,10 +394,10 @@ const ST = (() => {
       <div class="st-hd"><b>${esc(T.e || '🏗️')} ${esc(p.name)}</b><small>${esc(T.n || 'Projet')}${p.address ? ' · ' + esc(p.address) : ''}</small></div>
       <div class="st-qa ${Math.max(1, QA.length) <= 4 ? 'qa-l' : Math.max(1, QA.length) <= 8 ? 'qa-m' : 'qa-s'}" style="--n:${Math.max(1, QA.length)}">${QA.map(([k, ic, l, c]) => `<button class="st-qa-b" data-a="${k}" style="--c:${c}"><i>${icon(ic)}</i><span>${l}</span></button>`).join('')}${QA.length ? '' : `<button class="st-qa-b st-qa-add" data-a="qaadd" style="--c:#475569"><i>${icon('plus')}</i><span>Ajouter</span></button>`}</div>
       <p class="st-thint2" style="margin:-4px 0 6px">Appui long sur la barre : ajouter · réorganiser · retirer</p>
+      ${ivHtml()}
       ${G.map(([g, l, ks]) => (g === 'qual' && svcq() ? '' : `<details class="st-tcat st-acc" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(l.replace(/^\S+\s/, ''))}<small>${ks.length}</small><i class="st-chev">${icon('chevdown')}</i></summary>
-        <div class="st-tgrid">${ks.map(k => toolBtn(k, g)).join('')}</div></details>`) + `${g === 'qual' && svcq() ? svcAcc(SVC_SHELLS[0], ks) : ''}`).join('')}
-      ${SVC_SHELLS.slice(1).filter(S => S.kind !== 'espace' && Team.flag(S.flag)).map(S => svcAcc(S, [])).join('')}
-      ${(() => { const E = SVC_SHELLS.filter(S => S.kind === 'espace' && Team.flag(S.flag)); return E.length ? `<p class="st-thint2" style="margin:10px 0 4px"><b>Espaces des intervenants</b> · travail partagé avec les intervenants externes</p>` + E.map(S => svcAcc(S, [])).join('') : ''; })()}
+        <div class="st-tgrid">${ks.map(k => toolBtn(k, g)).join('')}</div></details>`) + `${g === 'qual' && svcq() && !ivOn() ? svcAcc(SVC_SHELLS[0], ks) : ''}`).join('')}
+      ${ivOn() ? '' : SVC_SHELLS.slice(1).filter(S => Team.flag(S.flag)).map(S => svcAcc(S, [])).join('')}
       <details class="st-tcat st-acc" data-g="biblio" style="--c:#5B4BA8" ${opened.includes('biblio') ? 'open' : ''}><summary class="st-tcat-h">Bibliothèque métier<small>${esc(plan().l)}</small><i class="st-chev">${icon('chevdown')}</i></summary>
         <div class="st-tgrid" style="grid-template-columns:1fr"><button class="st-pb st-pb-lib" data-a="library" style="margin:0">${icon('grid')}<span><b>Ouvrir la bibliothèque</b><small>Outils réunis et classés selon votre service · pack ${esc(plan().l)}</small></span>${icon('chevright')}</button></div></details>
       <details class="st-tcat st-acc" data-g="tableaux" style="--c:#2563EB" ${opened.includes('tableaux') ? 'open' : ''}><summary class="st-tcat-h">Tableaux<small>5</small><i class="st-chev">${icon('chevdown')}</i></summary>
@@ -389,8 +411,9 @@ const ST = (() => {
     const avj = root.querySelector('[data-a=avjour]'); if (avj) avj.onclick = () => openAvJour(p);
     root.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { App.section = b.dataset.tool; App.search = ''; renderSection(); });
     root.querySelectorAll('[data-xtool]').forEach(b => b.onclick = () => runX(b.dataset.xtool));
+    root.querySelectorAll('details.st-sub').forEach(d => d.addEventListener('toggle', () => { const L = [...root.querySelectorAll('details.st-sub[open]')].map(x => x.dataset.sg); try { localStorage.setItem('ptools.sub', JSON.stringify(L)); } catch (e) {} }));
     root.querySelectorAll('details.st-qs').forEach(d => d.addEventListener('toggle', () => { const L = [...root.querySelectorAll('details.st-qs[open]')].map(x => x.dataset.qs); try { localStorage.setItem('ptools.qs', JSON.stringify(L)); } catch (e) {} }));
-    root.querySelectorAll('[data-a=qsset]').forEach(b => b.onclick = () => { const S = SVC_SHELLS.find(x => x.k === b.dataset.svc) || SVC_SHELLS[0]; qsSet(S, S.k === 'qual' ? qualKs : []); });
+    root.querySelectorAll('[data-a=qsset]').forEach(b => b.onclick = () => { const S = ALL_SHELLS.find(x => x.k === b.dataset.svc) || SVC_SHELLS[0]; qsSet(S, S.k === 'qual' ? qualKs : []); });
     root.querySelectorAll('[data-tabtool]').forEach(b => b.onclick = () => openTableTool(p, b.dataset.tabtool));
     // v1.0.63 : appui long (ou ⋮) sur un outil → monter, descendre, déplacer vers une autre catégorie
     root.querySelectorAll('[data-tool]').forEach(b => { let t = null, lp = false;
