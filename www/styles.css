@@ -4091,3 +4091,15 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .lot-c.sub { font-size: 12px; padding: 4px 9px; opacity: .92; }
 .lot-c .lc-open { margin-left: 6px; font-style: normal; font-weight: 800; opacity: .85; }
 .lot-pick .lp-ab { display: inline-block; min-width: 38px; margin-right: 6px; padding: 1px 6px; border-radius: 8px; background: rgba(59,130,246,.18); font-size: 11px; font-weight: 800; letter-spacing: .3px; text-align: center; }
+
+/* Menu compact (Filtres du plan) : lignes serrées, puces d'icônes fines, coche discrète */
+.sheet .mnu-c { padding: 0 8px 10px; }
+.sheet .mnu-c .opt { padding: 7px 10px; gap: 10px; font-size: 14px; line-height: 1.25; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); border-radius: 0; }
+.sheet .mnu-c .opt:last-child { border-bottom: 0; }
+.sheet .mnu-c .opt > svg.i:first-child { width: 26px; height: 26px; padding: 5px; border-radius: 8px; }
+.sheet .mnu-c .opt .check { display: flex; width: 20px; height: 20px; align-items: center; justify-content: center; border-radius: 50%; background: color-mix(in srgb, var(--accent, #5b8def) 18%, transparent); }
+.sheet .mnu-c .opt .check svg { width: 13px; height: 13px; }
+.sheet:has(.mnu-c) h3 { margin: 4px 16px 6px; font-size: 16px; }
+.pbar .pb-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+.pbar .pb-seg .pb { border-radius: 0; border: 0; padding: 4px 8px; font-size: 12px; }
+.pbar .pb-seg .pb.on { background: var(--accent, #5b8def); color: #fff; }

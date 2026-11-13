@@ -1444,6 +1444,26 @@ try {
     return { size: out.size, img: /\/Subtype\s*\/Image/.test(txt) };
   } catch (e) { return { err: String(e && e.message || e) }; } });
   log('v1.0.176 [PDF annoté : pins vectoriels]', tPdf); log('errors v1.0.176 pdf', tPdf.size > 500 && tPdf.img === false ? [] : ['v1.0.176 pdf ' + JSON.stringify(tPdf)]);
+  // ---- v1.0.236 : annotations — page PDF tournée en vectoriel, polyligne fermée reliée, hachures/opacité sur formes fermées ----
+  const tAn = await A.pg.evaluate(async () => { try {
+    await needPdfLib(); const r = {};
+    for (const rot of [90, 180, 270]) {
+      const d = await PDFLib.PDFDocument.create(), pg = d.addPage([600, 400]); pg.setRotation(PDFLib.degrees(rot));
+      const f = await DB.put('files', { projectId: 'T', role: 'plan', name: 'r.pdf', blob: new Blob([await d.save()], { type: 'application/pdf' }) });
+      const dw = rot === 180 ? 600 : 400, dh = rot === 180 ? 400 : 600;
+      const plan = { id: 'pR' + rot, w: dw, h: dh, pdfFileId: f.id, pdfPage: 1, annotations: [{ type: 'rect', pts: [[10, 10], [200, 100]], hue: '#e11d48', color: '#e11d48', sw: 2, fill: 'hatch', angle: 45, gap: 8, hsw: 1 }] };
+      const out = await annotatedPlanPdf(plan, [], [], 'A3', false, true), txt = new TextDecoder('latin1').decode(new Uint8Array(await out.arrayBuffer()));
+      r['rot' + rot] = { img: /\/Subtype\s*\/Image/.test(txt), size: out.size };
+    }
+    const poly = { type: 'poly', pts: [[0, 0], [10, 0], [10, 10], [0, 0]] }; normAnnot(poly);
+    r.close = [poly.type, poly.fill, poly.pts.length];
+    const mk = (t, o) => annotSVG({ type: t, pts: [[0, 0], [40, 30]], hue: '#f00', color: '#f00', sw: 2, ...o });
+    r.hatch = ['rect', 'ellipse', 'disc', 'box', 'polygon'].map(t => /<path d="M/.test(mk(t, { fill: 'hatch', gap: 4, hsw: 0.7, ...(t === 'polygon' ? { pts: [[0, 0], [40, 0], [40, 30]] } : {}) })) && /stroke-width="0.7"/.test(mk(t, { fill: 'hatch', gap: 4, hsw: 0.7, ...(t === 'polygon' ? { pts: [[0, 0], [40, 0], [40, 30]] } : {}) })));
+    r.op0 = /fill-opacity="0"/.test(mk('disc', { fo: 0 })); r.rectNone = /fill="none"/.test(mk('rect', {})) && fillMode({ type: 'rect' }) === 'none';
+    return r;
+  } catch (e) { return { err: String(e && e.message || e) }; } });
+  log('v1.0.236 [annotations : PDF tourné vectoriel, polyligne fermée, hachures]', tAn);
+  log('errors v1.0.236 annot', tAn.rot90 && !tAn.rot90.img && !tAn.rot180.img && !tAn.rot270.img && tAn.close.join() === 'polygon,none,3' && tAn.hatch.every(Boolean) && tAn.op0 && tAn.rectNone ? [] : ['v1.0.236 annot ' + JSON.stringify(tAn)]);
   const tDue = await A.pg.evaluate(() => ({ s: String(openDueTable).includes('Point · échéance') && !String(openDueTable).includes("p.mo ? ' · ' + esc(p.mo) : ''}</span></div>") }));
   log('v1.0.176 [échéances + points]', tDue); log('errors v1.0.176 échéances', tDue.s ? [] : ['v1.0.176 échéances']);
   // ---- v1.0.176 : sauvegarde Drive d'un projet = un seul zip mis à jour sur place (+ « précédente ») ----
