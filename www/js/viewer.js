@@ -225,7 +225,7 @@ const planHeadHtml = async (plan) => { const t = await planTitle(plan), l = plan
 // ← → : plans du même niveau (rangés par type puis nom) ; ↑ ↓ : même type (même lot si possible) dans le niveau du dessus / du dessous
 function planTypeKey(plan, p) { try { const lot = plan.lotId && p && typeof planLots === 'function' ? planLots(p).find(x => x.id === plan.lotId) : null; return plan.disc || (lot && lot.cat) || ''; } catch (e) { return plan.disc || ''; } }
 // rang physique d'un niveau : SSL/sous-sols < fondations < RDC < mezzanine < R+n < terrasse ; inconnu après, par nom
-function nivRank(name) {
+function navLevelRank(name) {
   const n = String((typeof nivOfFolder === 'function' && nivOfFolder(name)) || name || '').toUpperCase().replace(/\s+/g, '');
   if (/^FOND/.test(n)) return -3; let m = n.match(/^SS(\d)?L?$/); if (m) return -2 + (m[1] ? -(+m[1] - 1) * 0.1 : 0) - (n === 'SSL' ? 0.5 : 0);
   if (n === 'RDC') return 0; if (/^MEZZ/.test(n)) return 0.5; m = n.match(/^R\+(\d+)$/); if (m) return +m[1]; if (/^TERRASSE/.test(n)) return 1000; return 500;
@@ -235,7 +235,7 @@ function planNavInfo(plan, folders, plans, p) {
   const topOf = (fid) => { let f = byId.get(fid); while (f && f.parentId && byId.get(f.parentId)) f = byId.get(f.parentId); return f ? f.id : null; };
   const cur = plans.filter(x => !x.supersededBy), key = (x) => planTypeKey(x, p), mine = topOf(plan.folderId);
   const row = cur.filter(x => topOf(x.folderId) === mine).sort((a, b) => key(a).localeCompare(key(b), 'fr') || String(a.name || '').localeCompare(String(b.name || ''), 'fr', { numeric: true }));
-  const levels = folders.filter(f => !f.parentId || !byId.get(f.parentId)).sort((a, b) => nivRank(a.name) - nivRank(b.name) || String(a.name).localeCompare(String(b.name), 'fr', { numeric: true }));
+  const levels = folders.filter(f => !f.parentId || !byId.get(f.parentId)).sort((a, b) => navLevelRank(a.name) - navLevelRank(b.name) || String(a.name).localeCompare(String(b.name), 'fr', { numeric: true }));
   const li = levels.findIndex(f => f.id === mine);
   const near = (dir) => { if (li < 0) return null; for (let i = li + dir; i >= 0 && i < levels.length; i += dir) { const c = cur.filter(x => topOf(x.folderId) === levels[i].id), t = key(plan);
     const hit = (plan.lotId && c.find(x => x.lotId === plan.lotId)) || (t && c.find(x => key(x) === t)); if (hit) return hit; } return null; };
