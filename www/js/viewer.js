@@ -75,6 +75,45 @@ function hatchGap(a) { return a.gap ? a.gap : Math.max(4, (a.sw || 3) * 5); }
 function fillHexOf(a) { return a.fh ? shadeHex(a.fh, a.shade || 0) : (a.color || a.hue); }
 function solidTint(c) { const { rgb } = PDFLib; return rgb(c.red * .55 + .9 * .45, c.green * .55 + .9 * .45, c.blue * .55 + .9 * .45); }
 function hexRgbPdf(h) { const x = String(h || '#e11d48').replace('#', ''), n = parseInt(x.length === 3 ? x.split('').map(c => c + c).join('') : x.slice(0, 6), 16) || 0; return PDFLib.rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255); }
+// Formes fermées (remplissage / hachures possibles) : polygone, rectangle, ellipse, disque, boîte
+const CLOSED = ['polygon', 'rect', 'ellipse', 'disc', 'box'];
+const isClosed = (a) => !!a && CLOSED.includes(a.type);
+// mode de remplissage : 'none' | 'solid' | 'hatch' (défauts hérités : polygone/disque/boîte pleins, le reste vide)
+function fillMode(a) { return a.fill === 'hatch' ? 'hatch' : a.fill === 'none' ? 'none' : a.fill === 'solid' ? 'solid' : (a.type === 'polygon' || a.type === 'disc' || a.type === 'box' ? 'solid' : 'none'); }
+function fillOp(a) { return a.fo != null ? a.fo : (a.type === 'disc' || a.type === 'box' ? .8 : .55); }
+// épaisseur des hachures : propre (a.hsw) ou, par défaut, 60 % du contour
+function hatchSW(a) { return a.hsw ? a.hsw : Math.max(0.5, (a.sw || 3) * 0.6); }
+// contour d'une forme fermée en polygone (ellipse/disque approchés, pour les hachures)
+function closedPoly(a) {
+  const [p, q] = a.pts || [];
+  if (a.type === 'polygon') return a.pts;
+  if (a.type === 'rect' || a.type === 'box') { const x1 = Math.min(p[0], q[0]), x2 = Math.max(p[0], q[0]), y1 = Math.min(p[1], q[1]), y2 = Math.max(p[1], q[1]); return [[x1, y1], [x2, y1], [x2, y2], [x1, y2]]; }
+  const disc = a.type === 'disc', cx = disc ? p[0] : (p[0] + q[0]) / 2, cy = disc ? p[1] : (p[1] + q[1]) / 2, rx = disc ? Math.hypot(q[0] - p[0], q[1] - p[1]) : Math.abs(q[0] - p[0]) / 2, ry = disc ? rx : Math.abs(q[1] - p[1]) / 2, out = [];
+  for (let i = 0; i < 72; i++) { const t = i / 72 * 2 * Math.PI; out.push([cx + rx * Math.cos(t), cy + ry * Math.sin(t)]); }
+  return out;
+}
+// polyligne fermée à l'ancienne (dernier point = premier) → vrai polygone « sans couleur », donc toujours relié à l'édition
+function normAnnot(a) {
+  if (a.type === 'poly' && a.pts.length >= 4) { const f = a.pts[0], l = a.pts[a.pts.length - 1]; if (f[0] === l[0] && f[1] === l[1]) { a.type = 'polygon'; a.fill = 'none'; a.pts = a.pts.slice(0, -1); } }
+  return a;
+}
+// forme fermée : contour + (rien | plein à l'opacité choisie | hachures à l'épaisseur choisie)
+function closedSVG(a, ln) {
+  const sw = (a.type === 'disc' || a.type === 'box') ? a.sw / 2 : a.sw, [p, q] = a.pts, mode = fillMode(a), fc = fillHexOf(a);
+  const geo = (extra) => {
+    if (a.type === 'polygon') return `<polygon points="${a.pts.map(pt => pt.join(',')).join(' ')}" ${extra}/>`;
+    if (a.type === 'rect' || a.type === 'box') return `<rect x="${Math.min(p[0], q[0])}" y="${Math.min(p[1], q[1])}" width="${Math.abs(q[0] - p[0])}" height="${Math.abs(q[1] - p[1])}" ${extra}/>`;
+    if (a.type === 'disc') return `<circle cx="${p[0]}" cy="${p[1]}" r="${Math.hypot(q[0] - p[0], q[1] - p[1])}" ${extra}/>`;
+    return `<ellipse cx="${(p[0] + q[0]) / 2}" cy="${(p[1] + q[1]) / 2}" rx="${Math.abs(q[0] - p[0]) / 2}" ry="${Math.abs(q[1] - p[1]) / 2}" ${extra}/>`;
+  };
+  const edge = `stroke="${ln}" stroke-width="${sw}" stroke-linejoin="round"`;
+  if (mode === 'solid') return geo(`fill="${fc}" fill-opacity="${fillOp(a)}" ${edge}`);
+  if (mode === 'hatch') {
+    const d = hatchSegs(closedPoly(a), a.angle || 45, hatchGap(a)).map(g => `M${g[0][0]},${g[0][1]}L${g[1][0]},${g[1][1]}`).join('');
+    return `<path d="${d}" fill="none" stroke="${a.fh ? fc : ln}" stroke-width="${hatchSW(a)}" stroke-linecap="butt"/>` + geo(`fill="none" ${edge}`);
+  }
+  return geo(`fill="none" ${edge}`);
+}
 function annotSVG(a) {
   const sw = a.sw;
   // v1.0.108 : le contour garde la couleur de la palette ; l'intensité ne change que le remplissage
@@ -83,16 +122,7 @@ function annotSVG(a) {
   const [p, q] = a.pts;
   switch (a.type) {
     case 'pen': case 'poly': return `<polyline points="${a.pts.map(pt => pt.join(',')).join(' ')}" ${common}/>`;
-    case 'rect': return `<rect x="${Math.min(p[0], q[0])}" y="${Math.min(p[1], q[1])}" width="${Math.abs(q[0] - p[0])}" height="${Math.abs(q[1] - p[1])}" ${common}/>`;
-    case 'polygon': {
-      const fc = fillHexOf(a);
-      if (a.fill !== 'hatch') return `<polygon points="${a.pts.map(pt => pt.join(',')).join(' ')}" fill="${fc}" fill-opacity="${a.fo != null ? a.fo : .55}" stroke="${ln}" stroke-width="${sw}" stroke-linejoin="round"/>`;
-      const d = hatchSegs(a.pts, a.angle || 45, hatchGap(a)).map(g => `M${g[0][0]},${g[0][1]}L${g[1][0]},${g[1][1]}`).join('');
-      return `<path d="${d}" fill="none" stroke="${a.fh ? fc : ln}" stroke-width="${Math.max(0.5, sw * 0.6)}" stroke-linecap="butt"/><polygon points="${a.pts.map(pt => pt.join(',')).join(' ')}" fill="none" stroke="${ln}" stroke-width="${sw}" stroke-linejoin="round"/>`;
-    }
-    case 'disc': { const r = Math.hypot(q[0] - p[0], q[1] - p[1]); return `<circle cx="${p[0]}" cy="${p[1]}" r="${r}" fill="${a.color}" fill-opacity=".8" stroke="${ln}" stroke-width="${sw / 2}"/>`; }
-    case 'box': return `<rect x="${Math.min(p[0], q[0])}" y="${Math.min(p[1], q[1])}" width="${Math.abs(q[0] - p[0])}" height="${Math.abs(q[1] - p[1])}" fill="${a.color}" fill-opacity=".8" stroke="${ln}" stroke-width="${sw / 2}"/>`;
-    case 'ellipse': return `<ellipse cx="${(p[0] + q[0]) / 2}" cy="${(p[1] + q[1]) / 2}" rx="${Math.abs(q[0] - p[0]) / 2}" ry="${Math.abs(q[1] - p[1]) / 2}" ${common}/>`;
+    case 'polygon': case 'disc': case 'box': case 'ellipse': case 'rect': return closedSVG(a, ln);
     case 'cloud': return `<path d="${cloudPath(p[0], p[1], q[0], q[1], sw * 6)}" ${common}/>`;
     case 'line': return `<line x1="${p[0]}" y1="${p[1]}" x2="${q[0]}" y2="${q[1]}" ${common}/>`;
     case 'arrow': {
@@ -157,6 +187,10 @@ function hitAnnot(a, x, y, tol) {
     return false;
   }
   if (a.type === 'disc') { const [c, e] = a.pts; return Math.hypot(x - c[0], y - c[1]) <= Math.hypot(e[0] - c[0], e[1] - c[1]) + tol; }
+  if (isClosed(a) && fillMode(a) !== 'none') {
+    if (a.type === 'rect') return true;
+    if (a.type === 'ellipse') { const rx = (x2 - x1) / 2 || 1, ry = (y2 - y1) / 2 || 1, dx = (x - (x1 + x2) / 2) / (rx + tol), dy = (y - (y1 + y2) / 2) / (ry + tol); if (dx * dx + dy * dy <= 1) return true; }
+  }
   // formes : proche du contour
   const nearEdge = Math.min(Math.abs(x - x1), Math.abs(x - x2), Math.abs(y - y1), Math.abs(y - y2)) < tol * 1.5;
   return nearEdge || (x2 - x1 < tol * 4) || (y2 - y1 < tol * 4);
@@ -210,11 +244,11 @@ async function openPlanViewer(plan, ctx) {
     filters: { tasks: true, links: true, annots: true, pills: true },
     annHide: [], pillHide: [],   // annotations cachées par couleur ; points d'intérêt cachés par état
     tasks: [], links: [], undo: [], flyout: null, fitScale: 1,
-    toolsOpen: true, shape: 'free', pend: null, sel: -1, hue: '#e53935', shade: -0.5, thick: 4,
+    toolsOpen: true, shape: 'free', pend: null, sel: -1, hue: '#e53935', shade: -0.5, thick: 8,
     pinSize: (() => { try { return +localStorage.getItem('pinSize') || 1; } catch (e) { return 1; } })(),
   };
   // Taille des pins : proportionnelle au zoom (petits quand on dézoome, limités quand on zoome)
-  const strokeW = () => base * st.thick / 1600;
+  const strokeW = () => base * st.thick / 3200;
   const pinM = () => Math.max(0.1, Math.min(0.8, Math.pow(st.scale / st.fitScale, 1.15) * 0.18 * st.pinSize));
 
   const el = document.createElement('div');
@@ -504,6 +538,7 @@ async function openPlanViewer(plan, ctx) {
   function renderAnnots() {
     annV++;
     gAnn.style.display = st.filters.annots ? '' : 'none';
+    plan.annotations.forEach(normAnnot);
     gAnn.innerHTML = plan.annotations.filter(a => !st.annHide.includes(a.hue || a.color)).map(annotSVG).join('');
   }
   // v1.0.75 : pin photo = pointe rouge avec une icône appareil photo (sans cercle autour) ; un chiffre si plusieurs photos
@@ -736,29 +771,31 @@ async function openPlanViewer(plan, ctx) {
     if (!bar) { bar = document.createElement('div'); bar.className = 'pbar'; viewer.appendChild(bar); }
     const hue = selA ? (selA.hue || selA.color) : st.hue, shade = selA ? (selA.shade || 0) : st.shade;
     const isText = selA ? selA.type === 'text' : st.shape === 'text';
-    const thick = selA ? (selA.type === 'text' ? 0 : Math.round(selA.sw * 1600 / base)) : st.thick;
+    const thick = selA ? (selA.type === 'text' ? 0 : Math.round(selA.sw * 3200 / base)) : st.thick;
+    const hth = selA && isClosed(selA) ? Math.round(hatchSW(selA) * 3200 / base) : 0, fmode = selA && isClosed(selA) ? fillMode(selA) : '';
+    const half = (v) => (v / 2).toFixed(1).replace(/\.0$/, '');
     const tsize = selA && selA.type === 'text' ? Math.round(selA.fs * 1000 / base) : st.textSize;
     const col = shadeHex(hue, shade);
     bar.innerHTML = `
       <div class="pb-row">
         ${st.tool === 'draw' ? `<button class="pb shape" data-p="shape">${icon(shapeInfo()[1])}<span>${shapeInfo()[2]}</span>${icon('chevdown')}</button>` : `<span class="pb-t">${icon('cursor')} Modifier</span>`}
-        <span class="pb-prev"><span style="background:${col};height:${isText ? 14 : Math.max(2, Math.min(14, thick))}px"></span></span>
+        <span class="pb-prev"><span style="background:${col};height:${isText ? 14 : Math.max(1, Math.min(14, thick / 2))}px"></span></span>
         <span style="flex:1"></span>
         ${st.pend ? `<button class="pb" data-p="cancel">${icon('close')}</button>${st.shape === 'poly' && st.pend.pts.length >= 3 ? `<button class="pb" data-p="closefinish" title="Fermer la polyligne">⬡<span>Fermer</span></button>` : ''}${st.shape === 'poly' && st.pend.pts.length >= 3 ? `<button class="pb" data-p="fillfinish" title="Fermer et colorer la zone">${icon('fill')}<span>Colorer</span></button>` : ''}<button class="pb ok" data-p="finish">${icon('check')}</button>` : ''}
-        ${selA && (selA.type === 'poly' || selA.type === 'polygon') && selA.pts.length >= 3 ? `<button class="pb" data-p="togglefill">${icon('fill')}<span>${selA.type === 'polygon' ? 'Sans couleur' : 'Colorer'}</span></button>` : ''}
-        ${selA && selA.type === 'polygon' ? `<button class="pb" data-p="hatch">${icon('fill')}<span>${selA.fill === 'hatch' ? 'Solide' : 'Hachure'}</span></button>` : ''}
+        ${selA && selA.type === 'poly' && selA.pts.length >= 3 ? `<button class="pb" data-p="closepoly" title="Fermer la polyligne (reste reliée)">⬡<span>Fermer</span></button>` : ''}
+        ${selA && isClosed(selA) ? `<span class="pb-seg">${[['none', 'Vide'], ['solid', 'Plein'], ['hatch', 'Hachure']].map(([m, l]) => `<button class="pb ${fmode === m ? 'on' : ''}" data-p="fmode" data-m="${m}">${l}</button>`).join('')}</span>` : ''}
         ${selA && selA.type === 'text' ? `<button class="pb" data-p="edittext">${icon('edit')}<span>Texte</span></button><button class="pb" data-p="bold"><b>G</b><span>${selA.bold ? 'Normal' : 'Gras'}</span></button>` : ''}
         ${selA ? `<button class="pb danger" data-p="delsel">${icon('trash')}</button><button class="pb ok" data-p="unsel">${icon('check')}</button>` : ''}
       </div>
       <div class="pb-colors">${HUES.map(c => `<button class="sw2 ${c === hue ? 'on' : ''}" data-c="${c}" style="background:${c}"></button>`).join('')}</div>
-      ${(selA && (selA.type === 'polygon' || selA.type === 'poly')) || (!selA && st.tool === 'draw' && st.shape === 'poly') ? `<div class="pb-colors pb-fill"><span class="pb-lbl">Remplissage</span><button class="sw2 ${(selA ? selA.fh : st.fh) ? '' : 'on'}" data-f="same" title="Même couleur que le contour" style="background:#fff;color:#333;font-size:12px;font-weight:700">=</button>${HUES.map(c => `<button class="sw2 ${c === (selA ? selA.fh : st.fh) ? 'on' : ''}" data-f="${c}" style="background:${c}"></button>`).join('')}</div>` : ''}
+      ${(selA && (isClosed(selA) && fmode !== 'none' || selA.type === 'poly')) || (!selA && st.tool === 'draw' && st.shape === 'poly') ? `<div class="pb-colors pb-fill"><span class="pb-lbl">Remplissage</span><button class="sw2 ${(selA ? selA.fh : st.fh) ? '' : 'on'}" data-f="same" title="Même couleur que le contour" style="background:#fff;color:#333;font-size:12px;font-weight:700">=</button>${HUES.map(c => `<button class="sw2 ${c === (selA ? selA.fh : st.fh) ? 'on' : ''}" data-f="${c}" style="background:${c}"></button>`).join('')}</div>` : ''}
       <div class="pb-sliders">
         <label><span>Intensité</span><input type="range" min="0" max="100" step="1" value="${Math.round((Math.max(-0.5, Math.min(0.8, shade)) + 0.5) / 1.3 * 100)}" data-r="shade"
           style="background:linear-gradient(90deg, ${shadeHex(hue, -0.5)}, ${shadeHex(hue, 0.8)})"></label>
-        ${selA && selA.type === 'polygon' && selA.fill === 'hatch' ? angleDialHTML(selA.angle || 45) + `<label style="min-width:110px"><span>Espacement <b class="gap-val">${selA.gap || Math.round(hatchGap(selA))}</b></span><input type="range" min="2" max="60" value="${selA.gap || Math.round(hatchGap(selA))}" data-r="gap"></label>` : ''}
-        ${selA && selA.type === 'polygon' && selA.fill !== 'hatch' ? `<label><span>Opacité <b class="fo-val">${Math.round((selA.fo != null ? selA.fo : .55) * 100)}%</b></span><input type="range" min="0" max="100" value="${Math.round((selA.fo != null ? selA.fo : .55) * 100)}" data-r="fo"></label>` : ''}
+        ${fmode === 'hatch' ? angleDialHTML(selA.angle || 45) + `<label style="min-width:110px"><span>Espacement <b class="gap-val">${selA.gap || Math.round(hatchGap(selA))}</b></span><input type="range" min="2" max="60" value="${selA.gap || Math.round(hatchGap(selA))}" data-r="gap"></label><label><span>Épaisseur hachure <b class="hth-val">${half(hth)}</b></span><input type="range" min="1" max="40" value="${hth}" data-r="hth"></label>` : ''}
+        ${fmode === 'solid' ? `<label><span>Opacité <b class="fo-val">${Math.round(fillOp(selA) * 100)}%</b></span><input type="range" min="0" max="100" value="${Math.round(fillOp(selA) * 100)}" data-r="fo"></label>` : ''}
         ${isText ? `<label><span>Taille <b class="ts-val">${tsize}</b></span><input type="range" min="1" max="16" value="${tsize}" data-r="ts"></label>`
-          : `<label><span>Épaisseur <b class="th-val">${thick}</b></span><input type="range" min="1" max="16" value="${thick}" data-r="thick"></label>`}
+          : `<label><span>${fmode ? 'Épaisseur contour' : 'Épaisseur'} <b class="th-val">${half(thick)}</b></span><input type="range" min="1" max="40" value="${thick}" data-r="thick"></label>`}
       </div>`;
     const apply = (fn) => { if (selA) { if (!bar._undo) { pushUndo(); bar._undo = true; } fn(selA); selA.color = shadeHex(selA.hue || selA.color, selA.shade || 0); renderAnnots(); saveAnnots(); renderSel(); } };
     $$('[data-c]', bar).forEach(b => b.onclick = () => {
@@ -773,12 +810,13 @@ async function openPlanViewer(plan, ctx) {
     $$('[data-r]', bar).forEach(r => r.oninput = () => {
       const v = +r.value, k = r.dataset.r;
       if (k === 'shade') { const sh = -0.5 + v / 100 * 1.3; if (selA) apply(a => { a.hue = a.hue || a.color; a.shade = sh; }); else st.shade = sh; }   // v1.0.78 : une seule direction, couleur → pâle
-      if (k === 'thick') { if (selA) apply(a => { a.sw = base * v / 1600; }); else st.thick = v; const thv = $('.th-val', bar); if (thv) thv.textContent = v; }
+      if (k === 'thick') { if (selA) apply(a => { a.sw = base * v / 3200; }); else st.thick = v; const thv = $('.th-val', bar); if (thv) thv.textContent = half(v); }
+      if (k === 'hth') { if (selA) apply(a => { a.hsw = base * v / 3200; }); const hv = $('.hth-val', bar); if (hv) hv.textContent = half(v); }
       if (k === 'gap') { if (selA) apply(a => { a.gap = v; }); const gv = $('.gap-val', bar); if (gv) gv.textContent = v; }
       if (k === 'fo') { if (selA) apply(a => { a.fo = v / 100; }); const fv = $('.fo-val', bar); if (fv) fv.textContent = v + '%'; }
       if (k === 'ts') { if (selA) apply(a => { a.fs = v * base / 1000; }); else st.textSize = v; const tv = $('.ts-val', bar); if (tv) tv.textContent = v; }
       const pv = $('.pb-prev span', bar); pv.style.background = selA ? selA.color : st.color;
-      if (k === 'thick') pv.style.height = Math.max(2, Math.min(14, v)) + 'px';
+      if (k === 'thick') pv.style.height = Math.max(1, Math.min(14, v / 2)) + 'px';
       if (k === 'shade') $$('[data-c]', bar).forEach(() => {});
       drawPending();
     });
@@ -804,12 +842,12 @@ async function openPlanViewer(plan, ctx) {
     if (pb('shape')) pb('shape').onclick = () => openShapePicker($('.tool[data-t=draw]', el) || $('.tool[data-t=toggle]', el));
     if (pb('finish')) pb('finish').onclick = finishPending;
     if (pb('fillfinish')) pb('fillfinish').onclick = () => finishPending(true);
-    if (pb('closefinish')) pb('closefinish').onclick = () => { if (st.pend && st.pend.pts.length >= 3) { st.pend.pts.push([...st.pend.pts[0]]); finishPending(); toast('Polyligne fermée ✓'); } };
-    if (pb('togglefill')) pb('togglefill').onclick = () => { pushUndo(); selA.type = selA.type === 'polygon' ? 'poly' : 'polygon'; renderAnnots(); saveAnnots(); renderSel(); renderPBar(); };
+    if (pb('closefinish')) pb('closefinish').onclick = () => { if (st.pend && st.pend.pts.length >= 3) { finishPending('close'); toast('Polyligne fermée ✓'); } };
+    if (pb('closepoly')) pb('closepoly').onclick = () => { pushUndo(); selA.type = 'polygon'; selA.fill = 'none'; renderAnnots(); saveAnnots(); renderSel(); renderPBar(); toast('Polyligne fermée ✓'); };
+    $$('[data-p=fmode]', bar).forEach(b => b.onclick = () => { pushUndo(); selA.fill = b.dataset.m; if (b.dataset.m === 'hatch' && selA.angle == null) selA.angle = 45; renderAnnots(); saveAnnots(); renderSel(); renderPBar(); });
     if (pb('cancel')) pb('cancel').onclick = () => { st.pend = null; drawPending(); renderTools(); };
     if (pb('bold')) pb('bold').onclick = () => { pushUndo(); selA.bold = !selA.bold; renderAnnots(); saveAnnots(); renderSel(); renderPBar(); };
     if (pb('edittext')) pb('edittext').onclick = async () => { const r = await formSheet('Texte', [{ name: 'text', label: 'Texte (Entrée = ligne suivante)', type: 'textarea', value: selA.text }], { okLabel: 'Enregistrer' }); if (r && r.text) { pushUndo(); selA.text = r.text; renderAnnots(); saveAnnots(); renderSel(); renderPBar(); } };
-    if (pb('hatch')) pb('hatch').onclick = () => { pushUndo(); selA.fill = selA.fill === 'hatch' ? 'solid' : 'hatch'; if (selA.angle == null) selA.angle = 45; renderAnnots(); saveAnnots(); renderSel(); renderPBar(); };
     if (pb('delsel')) pb('delsel').onclick = () => { pushUndo(); plan.annotations.splice(st.sel, 1); st.sel = -1; renderAnnots(); saveAnnots(); renderSel(); renderTools(); };
     if (pb('unsel')) pb('unsel').onclick = () => { st.sel = -1; renderSel(); renderTools(); };
   }
@@ -939,11 +977,14 @@ async function openPlanViewer(plan, ctx) {
   function polySnapClose(p) {
     const pd = st.pend; if (!pd || pd.pts.length < 3) return false;
     const f = pd.pts[0]; if (Math.hypot(p[0] - f[0], p[1] - f[1]) * st.scale > 22) return false;
-    pd.pts.push([...f]); try { navigator.vibrate && navigator.vibrate(15); } catch (e) {} toast('Polyligne fermée ✓'); finishPending(); return true;
+    try { navigator.vibrate && navigator.vibrate(15); } catch (e) {} toast('Polyligne fermée ✓'); finishPending('close'); return true;
   }
   function finishPending(fill) {
     const pd = st.pend; st.pend = null;
-    if (pd && pd.pts.length >= 2) addAnnot({ type: st.shape === 'poly' ? (fill === true && pd.pts.length >= 3 ? 'polygon' : 'poly') : st.shape, pts: pd.pts.map(p => [...p]) });
+    if (pd && pd.pts.length >= 2) {
+      const poly = st.shape === 'poly', closed = poly && pd.pts.length >= 3 && (fill === true || fill === 'close');
+      addAnnot({ type: poly ? (closed ? 'polygon' : 'poly') : st.shape, pts: pd.pts.map(p => [...p]), ...(fill === 'close' && closed ? { fill: 'none' } : {}) });
+    }
     drawPending(); renderTools();
   }
 
@@ -1257,12 +1298,12 @@ async function openPlanViewer(plan, ctx) {
       { label: 'Annotations par couleur', icon: 'pen', value: 'anncol' },
       { label: 'Points d\'intérêt', icon: 'pin', checked: st.filters.pills !== false, value: 'pills' },
       { label: 'Points d\'intérêt par état', icon: 'pin', value: 'pillst' },
-      { label: st.showAllPts ? 'Afficher tout : OUI (même les points pas encore actifs)' : 'Afficher tout (points dont le moment n\'est pas venu)', icon: 'eye', checked: !!st.showAllPts, value: 'ptall' },
-      { label: ptHideFuture() ? 'Masquer les points pas encore actifs : OUI' : 'Masquer les points pas encore actifs : NON', icon: 'eye', value: 'pthide' },
-      { label: `Délai d\'alerte avant l\'échéance : ${ptAlertDays()} j`, icon: 'calendar', value: 'ptdays' },
+      { label: st.showAllPts ? 'Afficher tout : OUI' : 'Afficher tout (points futurs)', icon: 'eye', checked: !!st.showAllPts, value: 'ptall' },
+      { label: ptHideFuture() ? 'Masquer points pas actifs : OUI' : 'Masquer points pas actifs : NON', icon: 'eye', value: 'pthide' },
+      { label: `Alerte avant échéance : ${ptAlertDays()} j`, icon: 'calendar', value: 'ptdays' },
       { label: 'Couleurs des états (dôme)', icon: 'pin', value: 'pillcol' },
       { label: `Taille des pins : ${{ 0.6: 'Petit', 1: 'Normal', 1.6: 'Grand' }[st.pinSize] || 'Normal'}`, icon: 'pin', value: 'size' },
-    ]);
+    ], { compact: true });
     if (v === 'size') {
       const sz = await menu('Taille des pins', [
         { label: 'Petit', value: 0.6, checked: st.pinSize === 0.6 },
@@ -1521,16 +1562,17 @@ function annotPdfDraw(pg, a, ox, oy, s, font) {
   switch (a.type) {
     case 'pen': case 'poly': return P.length > 1 && path(line(P), stroke);
     case 'line': return path(line([p, q]), stroke);
-    case 'polygon': {
-      if (P.length <= 2) return;
-      if (a.fill !== 'hatch') return path(line(P, true), { ...stroke, color: fcol || col, opacity: a.fo != null ? a.fo : .55 });   // remplissage à l'opacité choisie (le plan reste visible dessous)
-      hatchSegs(P, a.angle || 45, hatchGap(a)).forEach(g => path(`M${g[0][0]} ${g[0][1]} L${g[1][0]} ${g[1][1]}`, { borderColor: fcol || lc, borderWidth: Math.max(0.5, a.sw * 0.6 * s), borderLineCap: PDFLib.LineCapStyle.Butt }));
-      path(line(P, true), stroke);   // contour par-dessus les hachures
-      return;
+    case 'polygon': case 'rect': case 'box': case 'ellipse': case 'disc': {
+      if (P.length < 2 || (a.type === 'polygon' && P.length <= 2)) return;
+      const mode = fillMode(a), half = a.type === 'disc' || a.type === 'box', edge = half ? { ...stroke, borderWidth: Math.max(0.5, a.sw * s / 2) } : stroke;
+      let d;
+      if (a.type === 'polygon') d = line(P, true);
+      else if (a.type === 'rect' || a.type === 'box') { const x = Math.min(p[0], q[0]), y = Math.min(p[1], q[1]), w = Math.abs(q[0] - p[0]), h = Math.abs(q[1] - p[1]); d = `M${x} ${y} H${x + w} V${y + h} H${x} Z`; }
+      else { const dc = a.type === 'disc', cx = dc ? p[0] : (p[0] + q[0]) / 2, cy = dc ? p[1] : (p[1] + q[1]) / 2, rx = dc ? Math.hypot(q[0] - p[0], q[1] - p[1]) : Math.abs(q[0] - p[0]) / 2, ry = dc ? rx : Math.abs(q[1] - p[1]) / 2; d = `M${cx - rx} ${cy} A${rx} ${ry} 0 1 0 ${cx + rx} ${cy} A${rx} ${ry} 0 1 0 ${cx - rx} ${cy} Z`; }
+      if (mode === 'solid') return path(d, { ...edge, color: fcol || col, opacity: fillOp(a) });
+      if (mode === 'hatch') hatchSegs(closedPoly(a), a.angle || 45, hatchGap(a)).forEach(g => path(`M${g[0][0]} ${g[0][1]} L${g[1][0]} ${g[1][1]}`, { borderColor: fcol || lc, borderWidth: Math.max(0.3, hatchSW(a) * s), borderLineCap: PDFLib.LineCapStyle.Butt }));
+      return path(d, edge);   // contour par-dessus (vide si pas de remplissage)
     }
-    case 'rect': case 'box': { const x = Math.min(p[0], q[0]), y = Math.min(p[1], q[1]), w = Math.abs(q[0] - p[0]), h = Math.abs(q[1] - p[1]); return path(`M${x} ${y} H${x + w} V${y + h} H${x} Z`, a.type === 'box' ? { color: col, opacity: 1, borderColor: col, borderWidth: Math.max(0.5, a.sw * s / 2) } : stroke); }
-    case 'ellipse': case 'disc': { const cx = a.type === 'disc' ? p[0] : (p[0] + q[0]) / 2, cy = a.type === 'disc' ? p[1] : (p[1] + q[1]) / 2, rx = a.type === 'disc' ? Math.hypot(q[0] - p[0], q[1] - p[1]) : Math.abs(q[0] - p[0]) / 2, ry = a.type === 'disc' ? rx : Math.abs(q[1] - p[1]) / 2;
-      return path(`M${cx - rx} ${cy} A${rx} ${ry} 0 1 0 ${cx + rx} ${cy} A${rx} ${ry} 0 1 0 ${cx - rx} ${cy} Z`, a.type === 'disc' ? { color: col, opacity: 1, borderColor: col, borderWidth: Math.max(0.5, a.sw * s / 2) } : stroke); }
     case 'cloud': return path(cloudPath(p[0], p[1], q[0], q[1], (a.sw || 3) * 6), stroke);
     case 'arrow': { const ang = Math.atan2(q[1] - p[1], q[0] - p[0]), h = (a.sw || 3) * 5, a1 = [q[0] - h * Math.cos(ang - 0.45), q[1] - h * Math.sin(ang - 0.45)], a2 = [q[0] - h * Math.cos(ang + 0.45), q[1] - h * Math.sin(ang + 0.45)];
       path(line([p, q]), stroke); return path(line([q, a1, a2], true), { color: lc, borderColor: lc, borderWidth: sw / s }); }
@@ -1563,15 +1605,21 @@ async function annotatedPlanPdf(plan, tasks, links, fmt, withPins = true, hq = f
       const [pg] = await out.copyPages(src, [(plan.pdfPage || 1) - 1]); out.addPage(pg);
       const rot = ((pg.getRotation().angle % 360) + 360) % 360, mb = pg.getMediaBox(), W = mb.width, H = mb.height;
       const hasPins = withPins && (tasks.some(t => t.planId === plan.id && t.x != null) || links.some(l => l.planId === plan.id));
-      if (rot === 0) {
-        const s = W / plan.w, font = await out.embedFont(PDFLib.StandardFonts.Helvetica), fontB = await out.embedFont(PDFLib.StandardFonts.HelveticaBold);
-        for (const a of plan.annotations || []) { try { annotPdfDraw(pg, a, mb.x, mb.y + H, s, a.bold ? fontB : font); } catch (e) { console.warn('annot', a.type, e); } }
-        if (hasPins) { try { if (!hq) throw 0; pinsPdfDraw(pg, plan, tasks, links, mb.x, mb.y + H, s, font, fontB); } catch (e) { if (e) console.warn('pins vectoriels', e); const ov = await planOverlayCanvas(plan, tasks, links, Math.min(5000, Math.max(plan.w, 3000)), true); const png = await out.embedPng(await new Promise(r => ov.toBlob(b => b.arrayBuffer().then(r), 'image/png'))); pg.drawImage(png, { x: mb.x, y: mb.y, width: W, height: H }); } }
-      } else {
-        // page tournée : calque transparent haute définition posé dans le bon sens
-        const ov = await planOverlayCanvas(plan, withPins ? tasks : [], withPins ? links : [], Math.min(5000, Math.max(plan.w * 1.5, 3000))), png = await out.embedPng(await new Promise(r => ov.toBlob(b => b.arrayBuffer().then(r), 'image/png')));
-        const o = rot === 90 ? { x: mb.x + W, y: mb.y, width: H, height: W } : rot === 180 ? { x: mb.x + W, y: mb.y + H, width: W, height: H } : { x: mb.x, y: mb.y + H, width: H, height: W };
-        pg.drawImage(png, { ...o, rotate: PDFLib.degrees(rot) });
+      // Toutes rotations : dessins (et pins en haute précision) écrits en vectoriel, dans le repère de la page non tournée,
+      // via une matrice qui ramène le repère affiché du plan (y vers le bas) sur la page (/Rotate 0, 90, 180, 270)
+      const dispW = rot === 90 || rot === 270 ? H : W, s = dispW / plan.w;
+      const M = rot === 90 ? [0, 1, -1, 0, mb.x, mb.y] : rot === 270 ? [0, -1, 1, 0, mb.x + W, mb.y + H] : rot === 180 ? [-1, 0, 0, -1, mb.x + W, mb.y] : [1, 0, 0, 1, mb.x, mb.y + H];
+      const font = await out.embedFont(PDFLib.StandardFonts.Helvetica), fontB = await out.embedFont(PDFLib.StandardFonts.HelveticaBold);
+      pg.pushOperators(PDFLib.pushGraphicsState(), PDFLib.concatTransformationMatrix(...M));
+      for (const a of plan.annotations || []) { try { annotPdfDraw(pg, a, 0, 0, s, a.bold ? fontB : font); } catch (e) { console.warn('annot', a.type, e); } }
+      let pinsVec = true;
+      if (hasPins && hq) { try { pinsPdfDraw(pg, plan, tasks, links, 0, 0, s, font, fontB); } catch (e) { console.warn('pins vectoriels', e); pinsVec = false; } }
+      pg.pushOperators(PDFLib.popGraphicsState());
+      if (hasPins && (!hq || !pinsVec)) {
+        // pins en calque PNG (qualité normale) : seulement les pins, posés dans le bon sens
+        const ov = await planOverlayCanvas(plan, tasks, links, Math.min(5000, Math.max(plan.w, 3000)), true), png = await out.embedPng(await new Promise(r => ov.toBlob(b => b.arrayBuffer().then(r), 'image/png')));
+        const o = rot === 90 ? { x: mb.x + W, y: mb.y, width: H, height: W } : rot === 180 ? { x: mb.x + W, y: mb.y + H, width: W, height: H } : rot === 270 ? { x: mb.x, y: mb.y + H, width: H, height: W } : { x: mb.x, y: mb.y, width: W, height: H };
+        pg.drawImage(png, rot ? { ...o, rotate: PDFLib.degrees(rot) } : o);
       }
       return new Blob([await out.save()], { type: 'application/pdf' });
     } catch (e) { console.warn('pdf annot', e); } }
