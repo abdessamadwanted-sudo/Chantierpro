@@ -4104,7 +4104,7 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .pbar .pb-seg .pb { border-radius: 0; border: 0; padding: 4px 8px; font-size: 12px; }
 .pbar .pb-seg .pb.on { background: var(--accent, #5b8def); color: #fff; }
 /* Changer de plan en glissant sur l'en-tête : pastilles discrètes (visibles ~2 s) + glissement d'entrée */
-.fullpage > .topbar:has(.pv-h1) { touch-action: none; } .topbar h1.pv-h1 { min-height: 40px; display: flex; align-items: center; }
+.topbar h1.pv-h1 { min-height: 40px; display: flex; align-items: center; }
 .pv-dots { position: absolute; left: 0; right: 0; top: calc(var(--topbar-h, 56px) + env(safe-area-inset-top, 0px) + 2px); z-index: 30; pointer-events: none; opacity: 0; transition: opacity .25s; }
 .pv-dots.show { opacity: 1; }
 .pv-dots .pd-h { display: flex; justify-content: center; gap: 6px; padding: 5px 10px; width: max-content; margin: 0 auto; border-radius: 999px; background: rgba(15,23,42,.72); backdrop-filter: blur(6px); }

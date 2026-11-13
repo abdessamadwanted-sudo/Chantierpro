@@ -326,13 +326,20 @@ async function openPlanViewer(plan, ctx) {
       dots.classList.add('show'); clearTimeout(hideT); hideT = setTimeout(() => dots.classList.remove('show'), 2000);
     };
     const go = (target, dir) => { if (!target) return false; if (st.pend) { toast('Terminez ou annulez le tracé en cours'); return true; } close(); openPlanViewer(target, { ...ctx, slide: dir, navHint: true }); return true; };
-    h1.addEventListener('touchstart', async (e) => { if (e.touches.length !== 1 || e.target.closest('button')) { t0 = null; return; } t0 = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() }; if (!info) await load(); showDots(); }, { passive: true });
-    h1.addEventListener('touchend', (e) => {
-      if (!t0 || !info) { t0 = null; return; } const t = e.changedTouches[0], dx = t.clientX - t0.x, dy = t.clientY - t0.y; t0 = null;
-      const ax = Math.abs(dx), ay = Math.abs(dy); if (Math.max(ax, ay) < 34) return;
-      if (ax > ay) { const n = info.idx + (dx < 0 ? 1 : -1), tg = info.row[n]; if (!go(tg, dx < 0 ? 'l' : 'r')) { toast(dx < 0 ? 'Dernier plan de ce niveau' : 'Premier plan de ce niveau'); showDots(); } }
-      else { const tg = dy < 0 ? info.up : info.down; if (!go(tg, dy < 0 ? 'u' : 'd')) { toast(dy < 0 ? 'Pas de plan du même type au niveau au-dessus' : 'Pas de plan du même type au niveau en dessous'); showDots(); } }
-    }, { passive: true });
+    h1.style.touchAction = 'none';   // le navigateur ne prend pas le geste pour un défilement (pas de :has, absent des vieux WebView)
+    load();   // préchargé dès l'ouverture : le glissement ne dépend plus d'un chargement tardif
+    const act = async (dx, dy) => {
+      const I = info || await load(); if (!I) return toast('Plans du niveau introuvables');
+      if (Math.abs(dx) > Math.abs(dy)) { const tg = I.row[I.idx + (dx < 0 ? 1 : -1)]; if (!go(tg, dx < 0 ? 'l' : 'r')) { toast(dx < 0 ? 'Dernier plan de ce niveau' : 'Premier plan de ce niveau'); showDots(); } }
+      else { const tg = dy < 0 ? I.up : I.down; if (!go(tg, dy < 0 ? 'u' : 'd')) { toast(dy < 0 ? 'Pas de plan du même type au niveau au-dessus' : 'Pas de plan du même type au niveau en dessous'); showDots(); } }
+    };
+    h1.addEventListener('touchstart', (e) => { if (e.touches.length !== 1 || e.target.closest('button')) { t0 = null; return; } t0 = { x: e.touches[0].clientX, y: e.touches[0].clientY, done: false }; showDots(); }, { passive: true });
+    // déclenché dès que le doigt a parcouru ~34 px (sans attendre le relâchement : touchend peut être annulé par le système)
+    h1.addEventListener('touchmove', (e) => {
+      if (!t0 || t0.done) return; const t = e.touches[0], dx = t.clientX - t0.x, dy = t.clientY - t0.y;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 34) return; t0.done = true; if (e.cancelable) e.preventDefault(); act(dx, dy);
+    }, { passive: false });
+    h1.addEventListener('touchend', () => { t0 = null; }, { passive: true }); h1.addEventListener('touchcancel', () => { t0 = null; }, { passive: true });
     if (ctx && ctx.navHint) load().then(showDots);
     if (ctx && ctx.slide) { el.classList.add('pv-slide-' + ctx.slide); setTimeout(() => el.classList.remove('pv-slide-' + ctx.slide), 400); }
     cleanups.push(() => clearTimeout(hideT));
