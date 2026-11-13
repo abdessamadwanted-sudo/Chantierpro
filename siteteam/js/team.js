@@ -657,6 +657,12 @@ const Team = (() => {
   const lvl = (mod) => lvlFor(mod, curPid());
   // réglages généraux décidés dans le panneau d'administration (config/app) : version minimale, maintenance, message, fonctions coupées
   const appCfg = () => LS.get('appCfg') || {};
+  // mises en service : chaque nouvelle fonction est « dev » (visible par le Super Admin seul) tant qu'elle n'est pas ouverte — « test » : comptes listés ; « pub » : tous (dans leur pack)
+  // réglées dans le Centre de contrôle (config/app.flags, config/app.testers) ; une fonction sans réglage reste fermée
+  const FLAG_DEFS = { svcqual: 'Service Qualité (volets Administratif / Terrain, organigramme géré par l\'admin)', monespace: 'Mon espace', missionzone: 'Documentation par mission / zone + alertes « À traiter »', terraindoc: 'Terrain → Documentation (bouton PV, envoi automatique)', qdocs: 'Documentation qualité par partie d\'ouvrage + rangement Drive', orgq: 'Organigramme Qualité (branches, missions, code d\'accès)' };
+  const flag = (k) => { try { if (isSuper()) return true; const A = appCfg(), lv = (A.flags || {})[k] || 'dev'; if (lv === 'pub') return true;
+    if (lv === 'test') { const em = ((S.user && S.user.email) || '').toLowerCase(); return !!em && (A.testers || []).some(x => String(x).trim().toLowerCase() === em); } return false; } catch (e) { return false; } };
+  const applyFlags = (f, testers) => LS.set('appCfg', { ...appCfg(), flags: f || {}, ...(testers ? { testers } : {}) });
   // v1.0.45 : accès sur code uniquement — le Super Admin n'est jamais concerné
   const inviteOnly = () => !!appCfg().inviteOnly && !isSuper();
   // anti-capture d'écran (Android FLAG_SECURE) : option de l'organisation, ou imposée à tous par le Super Admin (config/app.secureAll)
@@ -2407,7 +2413,7 @@ const Team = (() => {
     profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
     openProjectShares, claimShare, openPartners, renderHistory, sharedOf, joinWithCode,
     cloudOn, canCloud, cloudUpload, cloudDownload, cloudRemove, cloudCfg, storageRules: STORAGE_RULES,
-    appCfg, isOff, featInfo, featGate, checkAnnonces, requestPack, logError, reportIssue, applyPackCode, isFree, askPoste,
+    appCfg, flag, FLAG_DEFS, applyFlags, isOff, featInfo, featGate, checkAnnonces, requestPack, logError, reportIssue, applyPackCode, isFree, askPoste,
     ready: () => S.ready, me: () => S.me, uid: () => S.user && S.user.uid, company: () => S.company, members: () => S.members, rules: FIRESTORE_RULES,
   };
 })();

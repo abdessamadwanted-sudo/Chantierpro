@@ -369,6 +369,10 @@
       <div class="card"><h3>Fonctions coupées</h3><p class="muted">Cachées pour tout le monde (sauf vous), sans effacer les données.</p>
         <div class="cks">${MODS.filter(([k]) => k !== 'projet').map(([k, l]) => `<label class="ck"><input type="checkbox" data-off="${k}" ${off.includes(k) ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</div>
         <div class="btns"><button class="btn" data-a="off">Enregistrer</button></div></div>
+      <div class="card"><h3>🚦 Mises en service</h3><p class="muted">Chaque nouvelle fonction est fermée : vous seul la voyez (🔒 Dev). « Test » : seulement les comptes listés ci-dessous. « Publié » : tout le monde, dans son pack. Aucune mise à jour de l'application n'est nécessaire.</p>
+        ${Object.entries(Team.FLAG_DEFS).map(([k, l]) => `<label>${esc(l)}<select data-fl="${k}">${[['dev', '🔒 Dev (moi seul)'], ['test', '🧪 Test (comptes listés)'], ['pub', '🚀 Publié (tous)']].map(([v, t]) => `<option value="${v}" ${((A.flags || {})[k] || 'dev') === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>`).join('')}
+        <label>Comptes de test (emails, un par ligne)<textarea name="testers" placeholder="ex : ami@gmail.com">${esc((A.testers || []).join('\n'))}</textarea></label>
+        <div class="btns"><button class="btn" data-a="flags">Enregistrer</button></div></div>
       <div class="card"><h3>🔑 Accès sur code uniquement</h3><p class="muted">Activé : une personne qui installe l'application ne peut rien faire sans un code d'accès que vous lui donnez (Équipe › Codes d'accès). Les espaces personnels sont bloqués, sauf ceux que vous autorisez (Organisations › ouvrir › « Autoriser »). Pour arrêter quelqu'un : retirez-le de l'organisation, révoquez son code ou bloquez son compte.</p>
         <label class="ck"><input type="checkbox" name="inv" ${A.inviteOnly ? 'checked' : ''}> Accès sur code uniquement</label>
         <div class="btns"><button class="btn" data-a="inv">Enregistrer</button></div></div>
@@ -393,6 +397,7 @@
     ($('[data-a=packs]', M)||{}).onclick = () => save('plans', Object.fromEntries($$('[data-pk]', M).filter(x => x.dataset.pk !== 'basic').map(x => [x.dataset.pk, { open: x.checked }])), 'Packs enregistrés ✓');
     ($('[data-a=svcs]', M)||{}).onclick = () => save('services', { open: [...new Set(['direction', 'externe', 'perso', ...$$('[data-sv]', M).filter(x => x.checked).map(x => x.dataset.sv)])] }, 'Services enregistrés ✓');
     ($('[data-a=off]', M)||{}).onclick = () => save('app', { off: $$('[data-off]', M).filter(x => x.checked).map(x => x.dataset.off) }, 'Fonctions enregistrées ✓');
+    ($('[data-a=flags]', M)||{}).onclick = () => { const f = Object.fromEntries($$('[data-fl]', M).map(e => [e.dataset.fl, e.value])), t = val('testers').value.split(/[\n,;\s]+/).map(v => v.trim().toLowerCase()).filter(Boolean); save('app', { flags: f, testers: t }, 'Mises en service enregistrées ✓').then(() => { try { Team.applyFlags(f, t); } catch (e) {} }); };
     ($('[data-a=ver]', M)||{}).onclick = () => { const v = val('minv').value.trim(); if (v && !/^\d+\.\d+\.\d+$/.test(v)) return toast('Version au format X.Y.Z (ex : 1.0.24)');
       save('app', { minVersion: v, maintenance: { on: val('mon').checked, text: val('mtext').value.trim() } }); };
     ($('[data-a=inv]', M)||{}).onclick = () => save('app', { inviteOnly: val('inv').checked }, val('inv').checked ? 'Accès sur code uniquement ✓' : 'Accès libre ✓');
