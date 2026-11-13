@@ -6,7 +6,8 @@
 // Ancienne version de l'APK sans le plugin : repli sur l'ouverture dans le navigateur externe (comportement d'avant).
 const LinkViewer = (() => {
   // applications natives : ces liens s'ouvrent dans leur application, pas dans le navigateur intégré
-  const EXTERNAL_HOSTS = /^(wa\.me|api\.whatsapp\.com|web\.whatsapp\.com|t\.me|play\.google\.com|market\.android\.com)$/i;
+  // Google Drive / Docs / Sheets : l'application Drive du téléphone (vue complète des dossiers et des fichiers) s'ouvre à la place du navigateur intégré
+  const EXTERNAL_HOSTS = /^(wa\.me|api\.whatsapp\.com|web\.whatsapp\.com|t\.me|play\.google\.com|market\.android\.com|drive\.google\.com|docs\.google\.com)$/i;
   // téléchargements (mise à jour APK…) : toujours par le navigateur du téléphone, qui sait les installer
   const DOWNLOAD = /\.(apk|aab|zip)(\?|#|$)/i;
   const SECRET_PARAMS = ['access_token', 'id_token', 'refresh_token', 'token', 'idtoken', 'password', 'pw'];
@@ -45,6 +46,7 @@ const LinkViewer = (() => {
   }
   // iOS seulement : Android ne sait pas fermer l'onglet par programme (le retour se fait par le bouton Retour)
   async function closeLink() { try { const P = plugin(); if (native() && P && P.close) await P.close(); } catch (e) {} }
-  return { openLink, closeLink, openExternal, check };
+  const isExternal = (raw) => { const u = check(raw); if (!u) return false; const U = new URL(u); return EXTERNAL_HOSTS.test(U.hostname) || DOWNLOAD.test(U.pathname); };
+  return { openLink, closeLink, openExternal, check, isExternal };
 })();
 window.LinkViewer = LinkViewer;

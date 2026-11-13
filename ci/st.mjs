@@ -1930,13 +1930,14 @@ try {
       let rep = 0; for (let i = 0; i < 6; i++) { await LinkViewer.openLink('https://example.com/p' + i); rep++; await wait(5); } const d = await LinkViewer.openLink('https://example.com/p5'); o.repeat = rep === 6 && d.mode === 'ignored';
       // Android natif simulé : le plugin Browser est utilisé, l'application n'est pas touchée
       const seen = []; window.Capacitor = { isNativePlatform: () => true, Plugins: { Browser: { open: async (x) => { seen.push(x.url); } } } };
-      const rn = await LinkViewer.openLink('https://drive.google.com/file/d/ABC/view'); await wait(750); const rn2 = await LinkViewer.openLink('https://www.google.com/maps?q=1'); o.native = rn.mode === 'inapp' && rn2.mode === 'inapp' && seen.length === 2;
+      o.driveExt = LinkViewer.isExternal('https://drive.google.com/drive/folders/XYZ') && LinkViewer.isExternal('https://docs.google.com/spreadsheets/d/1/edit') && !LinkViewer.isExternal('https://www.google.com/maps?q=1');
+      const rn = await LinkViewer.openLink('https://example.com/page'); await wait(750); const rn2 = await LinkViewer.openLink('https://www.google.com/maps?q=1'); o.native = rn.mode === 'inapp' && rn2.mode === 'inapp' && seen.length === 2;
     } catch (e) { o.err = String(e.message || e); }
     window.open = realOpen; window.Capacitor = realCap;
     o.dataKept = (await DB.all('projects')).length === nProj0; o.authKept = Team.uid() === uid0;
     return o; });
   log('Link Viewer', lk);
-  if (lk.err || !lk.webOpen || !lk.badBlocked || !lk.checkBad || !lk.implicit || !lk.wa || !lk.repeat || !lk.native || !lk.dataKept || !lk.authKept) throw new Error('link viewer KO ' + JSON.stringify(lk));
+  if (lk.err || !lk.webOpen || !lk.badBlocked || !lk.checkBad || !lk.implicit || !lk.wa || !lk.repeat || !lk.native || !lk.driveExt || !lk.dataKept || !lk.authKept) throw new Error('link viewer KO ' + JSON.stringify(lk));
   log('errors ST-LINK-001', []);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
