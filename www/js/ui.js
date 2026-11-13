@@ -557,9 +557,11 @@ async function showPdf(blob, caption = 'PDF', opts = {}) {
 
 // Ouvre un lien (Google Drive, etc.) dans le navigateur du téléphone
 function openUrl(url) {
-  if (!/^(https?|mailto|tel|sms|whatsapp|intent|geo):/i.test(url)) url = 'https://' + url;
-  if (isNative()) window.location.href = url; // Capacitor l'ouvre dans le navigateur externe
-  else window.open(url, '_blank');
+  // ST-LINK-001 : les liens http(s) passent par LinkViewer (navigateur intégré, vérifications) ; mailto / tel / sms / whatsapp / geo restent ouverts par le système
+  if (/^(mailto|tel|sms|whatsapp|geo):/i.test(url)) { if (isNative()) window.location.href = url; else window.open(url, '_blank'); return; }
+  if (typeof LinkViewer !== 'undefined') return LinkViewer.openLink(url);
+  if (!/^https?:/i.test(url)) url = 'https://' + url;
+  if (isNative()) window.location.href = url; else window.open(url, '_blank');
 }
 
 // ---------- Google Drive : télécharger un fichier partagé par lien ----------
