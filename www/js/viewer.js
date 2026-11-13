@@ -169,12 +169,10 @@ async function planTitle(plan) {
     return n || plan.name || 'Plan'; } catch (e) { return plan.name || 'Plan'; }
 }
 
-// sous le niveau : type du lot (discipline) et lot du plan, en petit gras — vide si le plan n'a pas de lot
+// à côté du niveau : le LOT du plan (Gros œuvre, Maçonnerie…), en petit gras — vide si le plan n'a pas de lot
 function planLotText(plan) {
   try { const p = App.project; if (!p || !plan || !plan.lotId || typeof planLots !== 'function') return '';
-    const lot = planLots(p).find(x => x.id === plan.lotId); if (!lot) return '';
-    const ty = lot.cat && typeof typesOf === 'function' ? (typesOf(p).find(d => d.k === lot.cat) || {}).l : '';
-    return [ty, lot.name].filter(Boolean).join(' · '); } catch (e) { return ''; }
+    const lot = planLots(p).find(x => x.id === plan.lotId); return lot ? (lot.name || '') : ''; } catch (e) { return ''; }
 }
 const planHeadHtml = async (plan) => { const t = await planTitle(plan), l = planLotText(plan); return esc(t) + (l ? ` <small class="pv-lot">${esc(l)}</small>` : ''); };
 

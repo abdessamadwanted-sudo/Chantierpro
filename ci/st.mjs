@@ -1947,7 +1947,7 @@ try {
   if (!pt2.noPlan && (pt2.err || pt2.t !== pt2.expect || pt2.long !== 'RDC')) throw new Error('titre plan KO ' + JSON.stringify(pt2));
   const lt = await A.pg.evaluate(() => { const p = App.project || {}; const hold = p.planLots; p.planLots = [{ id: 'zz', name: 'Gros œuvre', cat: 'STR' }]; App.project = p; const o = { lot: planLotText({ lotId: 'zz' }), none: planLotText({}) }; p.planLots = hold; return o; });
   log('Type de lot sous le niveau', lt);
-  if (!/Gros œuvre/.test(lt.lot) || lt.none !== '') throw new Error('type lot KO ' + JSON.stringify(lt));
+  if (lt.lot !== 'Gros œuvre' || lt.none !== '') throw new Error('type lot KO ' + JSON.stringify(lt));
   log('errors titre plan', []);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
