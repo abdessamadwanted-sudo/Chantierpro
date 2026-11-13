@@ -356,7 +356,13 @@ const ST = (() => {
         mk('at.suivi', 'Suivi technique', '#4d7c0f', ['reunions', 'visa'], ['avancement', 'constat'])] },
     ];
     const ALL_SHELLS = [...SVC_SHELLS, ...INTERVENANTS.flatMap(I => I.services)];
-    const ivOn = () => INTERVENANTS.some(I => Team.flag(I.flag));
+    // organisation partenaire invitée (Team.sharedOf) : son rôle dans le projet (bet, architecte, bcontrole…) lui ouvre SON espace d'intervenant, et seulement lui — jamais l'Entreprise ni les autres intervenants ; ses outils restent bornés par les accès (voir / modifier) donnés à l'invitation
+    const IV_OF_ROLE = { mo: 'moa', mod: 'moa', architecte: 'archi', bet: 'bet', bcontrole: 'bc', labo: 'labo', topoext: 'topo' };
+    const partnerSh = () => { try { return Team.sharedOf(p.id) || null; } catch (e) { return null; } };
+    const ivMine = () => { const sh = partnerSh(); return sh ? INTERVENANTS.find(I => I.k === IV_OF_ROLE[sh.role]) || null : null; };
+    const ivList = () => { const sh = partnerSh(); return sh ? [ivMine()].filter(I => I && Team.flag(I.flag)) : INTERVENANTS.filter(I => Team.flag(I.flag)); };
+    const ivOn = () => ivList().length > 0;
+    const entOn = () => ivOn() && !partnerSh();
     const QS_NAMES = { adm: ['📁', 'Administratif'], ter: ['🏗️', 'Terrain'], com: ['🔗', 'Commun'] };
     const QS_COL = { adm: ['folder', '#2563eb'], ter: ['hard', '#16a34a'], com: ['users', '#7c3aed'] };
     // volets autorisés à la personne : choisis par l'administrateur dans l'organigramme (vide = les deux) ; l'administrateur voit tout
@@ -379,10 +385,10 @@ const ST = (() => {
     // organisation (Entreprise ou intervenant) : un accordéon qui contient ses services
     const orgAcc = (g, titre, c, inner, n) => `<details class="st-tcat st-acc" data-g="${g}" style="--c:${c}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(titre)}<small>${n} services</small><i class="st-chev">${icon('chevdown')}</i></summary><div class="st-orgin">${inner}</div></details>`;
     const entSvcs = () => [...(svcq() ? [svcAcc(SVC_SHELLS[0], (G.find(x => x[0] === 'qual') || [0, 0, []])[2], true)] : []), ...SVC_SHELLS.slice(1).filter(S => Team.flag(S.flag)).map(S => svcAcc(S, [], true))];
-    const ivHtml = () => { if (!ivOn()) return ''; const E = entSvcs();
+    const ivHtml = () => { if (!ivOn()) return ''; const E = entOn() ? entSvcs() : [];
       return `<p class="st-thint2" style="margin:6px 0 4px"><b>Intervenants du projet</b> · chaque organisation a ses services</p>`
-        + orgAcc('iv-ent', '🏢 Entreprise', '#0d9488', E.join('') || '<p class="st-thint2" style="padding:8px">Aucun service activé</p>', E.length)
-        + INTERVENANTS.filter(I => Team.flag(I.flag)).map(I => orgAcc('iv-' + I.k, I.e + ' ' + I.nom, I.c, I.services.map(S => svcAcc(S, [], true)).join(''), I.services.length)).join(''); };
+        + (entOn() ? orgAcc('iv-ent', '🏢 Entreprise', '#0d9488', E.join('') || '<p class="st-thint2" style="padding:8px">Aucun service activé</p>', E.length) : '')
+        + ivList().map(I => orgAcc('iv-' + I.k, I.e + ' ' + I.nom, I.c, I.services.map(S => svcAcc(S, [], true)).join(''), I.services.length)).join(''); };
     const qsSet = async (S, ks) => {
       const M = qsMap(S), all = qsTools(S, ks);
       for (;;) { const v = await menu(`${S.nom} : où ranger chaque outil ?`, [...all.map(k => ({ label: `${toolName(k)} — ${QS_NAMES[M[k] || 'ter'][1]}`, value: k })), { label: 'Terminé', icon: 'check', value: '__ok' }]); if (!v || v === '__ok') break;
@@ -396,8 +402,8 @@ const ST = (() => {
       <p class="st-thint2" style="margin:-4px 0 6px">Appui long sur la barre : ajouter · réorganiser · retirer</p>
       ${ivHtml()}
       ${G.map(([g, l, ks]) => (g === 'qual' && svcq() ? '' : `<details class="st-tcat st-acc" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(l.replace(/^\S+\s/, ''))}<small>${ks.length}</small><i class="st-chev">${icon('chevdown')}</i></summary>
-        <div class="st-tgrid">${ks.map(k => toolBtn(k, g)).join('')}</div></details>`) + `${g === 'qual' && svcq() && !ivOn() ? svcAcc(SVC_SHELLS[0], ks) : ''}`).join('')}
-      ${ivOn() ? '' : SVC_SHELLS.slice(1).filter(S => Team.flag(S.flag)).map(S => svcAcc(S, [])).join('')}
+        <div class="st-tgrid">${ks.map(k => toolBtn(k, g)).join('')}</div></details>`) + `${g === 'qual' && svcq() && !entOn() ? svcAcc(SVC_SHELLS[0], ks) : ''}`).join('')}
+      ${entOn() ? '' : SVC_SHELLS.slice(1).filter(S => Team.flag(S.flag)).map(S => svcAcc(S, [])).join('')}
       <details class="st-tcat st-acc" data-g="biblio" style="--c:#5B4BA8" ${opened.includes('biblio') ? 'open' : ''}><summary class="st-tcat-h">Bibliothèque métier<small>${esc(plan().l)}</small><i class="st-chev">${icon('chevdown')}</i></summary>
         <div class="st-tgrid" style="grid-template-columns:1fr"><button class="st-pb st-pb-lib" data-a="library" style="margin:0">${icon('grid')}<span><b>Ouvrir la bibliothèque</b><small>Outils réunis et classés selon votre service · pack ${esc(plan().l)}</small></span>${icon('chevright')}</button></div></details>
       <details class="st-tcat st-acc" data-g="tableaux" style="--c:#2563EB" ${opened.includes('tableaux') ? 'open' : ''}><summary class="st-tcat-h">Tableaux<small>5</small><i class="st-chev">${icon('chevdown')}</i></summary>
@@ -932,5 +938,5 @@ const ST = (() => {
   }
 
   function refreshRole() { applyRole(); try { App.project ? renderSection() : renderHome(); } catch (e) {} }
-  return { families: FAMILIES, openDash, openPro, openTeamHub, openServiceLibrary, profileCardHTML, wsBtnHTML, wsMenu, renderProjectTools, isEnt: () => plan().k === 'enterprise', svcq, quickPack, directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
+  return { families: FAMILIES, openDash, openPro, openTeamHub, openServiceLibrary, profileCardHTML, wsBtnHTML, wsMenu, renderProjectTools, isEnt: () => plan().k === 'enterprise', svcq, quickPack, ivKeyOfRole: (r) => ({ mo: 'moa', mod: 'moa', architecte: 'archi', bet: 'bet', bcontrole: 'bc', labo: 'labo', topoext: 'topo' })[r] || null, directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
 })();

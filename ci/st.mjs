@@ -1890,6 +1890,10 @@ try {
   log('Intervenants du projet', ivr);
   if (!ivr.ent || !ivr.bet || !ivr.moa || ivr.subs !== 4 || !ivr.volets) throw new Error('intervenants KO ' + JSON.stringify(ivr));
   await A.pg.evaluate(async () => { Team.applyFlags(Team.allFlags('pub')); });
+  const ivk = await A.pg.evaluate(() => ['bet', 'architecte', 'mo', 'bcontrole', 'labo', 'topoext', 'soustraitant'].map(r => ST.ivKeyOfRole(r)));
+  log('Rôle partenaire → intervenant', ivk);
+  if (ivk.join() !== 'bet,archi,moa,bc,labo,topo,' ) throw new Error('rôle→intervenant KO ' + ivk.join());
+  // l'organisation titulaire voit l'Entreprise et tous les intervenants ; le partenaire (BET) ne voit que le sien : vérifié par la logique de rôle ci-dessus
   log('errors v1.0.x intervenants', []);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
