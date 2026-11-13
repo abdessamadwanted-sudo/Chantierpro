@@ -87,7 +87,7 @@
   }
   const canW = () => { try { return Team.lvl('files') >= 2; } catch (e) { return true; } };
 
-  const isEnt = () => { try { return !!(window.ST && ST.isEnt && ST.isEnt() && Team.flag('missionzone')); } catch (e) { return false; } };
+  const isEnt = () => { try { return !!Team.flag('missionzone'); } catch (e) { return false; } };
   const tabsHtml = (cur) => `<div class="qd-tabs">${[['parties', "🧱 Partie d'ouvrage"], ...(isEnt() ? [['mz', '🎯 Mission / zone']] : []), ['type', '🗂️ Type']].map(([k, l]) => `<button class="${k === cur ? 'on' : ''}" data-v="${k}">${l}</button>`).join('')}</div>`;
   // vue par mission ou par zone : pièces regroupées selon la mission et la zone auxquelles elles sont rattachées
   // alertes : missions en retard, missions sans pièce, parties d'ouvrage incomplètes
