@@ -72,7 +72,7 @@ const ST = (() => {
   }
   function banner() {
     let b = document.getElementById('stPreview'); const p = PV.get();
-    if (!p) { if (b) b.remove(); return; }
+    if (!p || p.pk) { if (b) b.remove(); return; }   // « Pack de travail » (Super Admin) : pas de bandeau, le bouton « 🧭 Pack de travail » de l'accueil suffit pour changer ou revenir
     if (!b) { b = document.createElement('div'); b.id = 'stPreview'; document.body.appendChild(b); }
     b.innerHTML = `<span>👁 Aperçu : <b>${esc(tmRoleOf(p.role).l)}</b> · ${esc(planOf(p.plan).l)}${p.org ? ' · ' + esc(orgTypeOf(p.org).l) : ''}</span><button data-x>Quitter</button>`;
     b.querySelector('[data-x]').onclick = () => stopPreview();
@@ -99,7 +99,7 @@ const ST = (() => {
     const cur = PV.get(), pl = await menu('Pack de travail', [{ label: '👑 Tous les packs (Super Admin)', value: '__all', checked: !cur }, ...Object.values(PLANS).map(P => ({ label: `${P.e || ''} ${P.l}`, value: P.k, checked: !!cur && planOf(cur.plan).k === P.k }))]);
     if (!pl) return;
     if (pl === '__all') return stopPreview();
-    const me = Team.me() || {}; PV.set({ role: me.role || (cur && cur.role) || '', plan: pl, org: (cur && cur.org) || Team.orgType().k }); applyRole(); App.project = null; refresh();
+    const me = Team.me() || {}; PV.set({ role: me.role || (cur && cur.role) || '', plan: pl, org: (cur && cur.org) || Team.orgType().k, pk: 1 }); applyRole(); App.project = null; refresh();
   }
   function stopPreview() { PV.set(null); applyRole(); refresh(); }
 
