@@ -20,8 +20,8 @@ const PLANS = {
                 modules: ['projet', 'plans', 'reserves', 'photos', 'rapports', 'equipe'] },
   pro:        { k: 'pro', l: 'Pro', e: '⭐', price: 99, period: 'mois', trialDays: 14, users: 1, projects: 0, storageGb: 30, perso: true, orgOffer: false, highlight: true, for: 'Professionnel indépendant — outils avancés',
                 modules: ['projet', 'plans', 'reserves', 'photos', 'rapports', 'equipe', 'reception', 'forms', 'constats', 'calc', 'files', 'topo', 'centrale', 'materiel', 'pointage', 'hse', 'finance'] },
-  business:   { k: 'business', l: 'Business', e: '🏢', price: 990, period: 'mois', trialDays: 14, highlight: true, users: 15, extraUserPrice: 49, projects: 0, storageGb: 200, hier: true, for: 'Entreprise — plusieurs utilisateurs, services et projets', modules: '*' },
-  enterprise: { k: 'enterprise', l: 'Enterprise', e: '🏛️', price: null, period: 'mois', trialDays: 14, users: 0, projects: 0, storageGb: 1000, hier: true, shares: true, for: 'Grandes entreprises — hiérarchie et groupements avancés', modules: '*' },
+  business:   { k: 'business', l: 'Business', e: '🏢', dev: true, price: 990, period: 'mois', trialDays: 14, highlight: true, users: 15, extraUserPrice: 49, projects: 0, storageGb: 200, hier: true, for: 'Entreprise — plusieurs utilisateurs, services et projets', modules: '*' },
+  enterprise: { k: 'enterprise', l: 'Enterprise', e: '🏛️', dev: true, price: null, period: 'mois', trialDays: 14, users: 0, projects: 0, storageGb: 1000, hier: true, shares: true, for: 'Grandes entreprises — hiérarchie et groupements avancés', modules: '*' },
 };
 // packs ouverts au public : Basic seulement par défaut ; les autres s'ouvrent depuis le panneau d'administration (config/plans.<pack>.open).
 // Le Super Admin les voit et les choisit tous. Le serveur refuse la création d'un espace avec un pack fermé.
@@ -32,7 +32,9 @@ const planOpen = (P) => !!P && (P.k === 'basic' || (PLANS[P.k] || {}).open === t
 // anciennes formules (avant v1.0.14) : « personnel » → Pro, « entreprise » → Enterprise (aucun outil perdu)
 const PLAN_ALIAS = { personnel: 'pro', entreprise: 'enterprise' };
 const planOf = (k) => PLANS[PLAN_ALIAS[k] || k] || PLANS.basic;
-const planPrice = (P) => P.price == null ? 'sur devis' : P.price ? `${P.price} MAD/${P.period}` : 'gratuite';
+// pack en cours de développement (dev) tant qu'il n'est pas ouvert depuis le panneau : aucun prix affiché (real = true : prix réel, pour l'administration)
+const planDev = (P) => !!P && !!P.dev && !((PLANS[P.k] || {}).open === true);
+const planPrice = (P, real) => !real && planDev(P) ? 'en cours de développement' : P.price == null ? 'sur devis' : P.price ? `${P.price} MAD/${P.period}` : 'gratuite';
 const planUsers = (P) => P.users ? `${P.users} compte(s)` : 'comptes illimités';
 // limites effectives selon l'espace : personnel (valeurs de base) ou organisation (valeurs « org » si le pack en a)
 const planFor = (P, perso) => (!perso ? { ...P, ...(P.org || {}), l: P.orgLabel || P.l, for: P.orgFor || P.for } : P);
@@ -43,12 +45,12 @@ const qty = (n, unit) => n ? `${n}${unit ? ' ' + unit : ''}` : 'Illimités';
 const storageL = (g) => (g >= 1000 ? g / 1000 + ' To' : g + ' Go') + ' (indicatif)';
 // carte d'offre : utilisateurs inclus, projets actifs, services, stockage, outils (liste détaillée), prix et essai
 function offerCard(P, perso, btn = true) {
-  const mods = P.modules === '*' ? MODS.map(([m]) => m) : P.modules, price = P.price == null ? 'Sur devis' : P.price ? `${P.price} MAD / ${P.period}` : 'Gratuit';
+  const dev = planDev(P), mods = P.modules === '*' ? MODS.map(([m]) => m) : P.modules, price = dev ? 'En cours de développement' : P.price == null ? 'Sur devis' : P.price ? `${P.price} MAD / ${P.period}` : 'Gratuit';
   const act = P.price == null ? 'Demander un devis · essai' : P.price ? `Démarrer l'essai ${P.trialDays || 14} jours` : 'Commencer gratuitement';
   const locked = btn && !planOpen(P) && !ST_SUPER;
-  return `<div class="st-offer ${P.highlight && !locked ? 'hl' : ''} ${locked ? 'lk' : ''}" data-offer="${P.k}"><div class="st-of-h"><b>${locked ? '🔒 ' : ''}${esc(P.e || '')} ${esc(P.l)}</b>${P.highlight && !locked ? '<i>Recommandé</i>' : ''}${locked ? '<i class="soon">Sur demande</i>' : ''}<em class="${P.price === 0 ? 'free' : ''}">${esc(price)}</em></div>
-    ${P.price && P.trialDays ? `<small class="st-of-t">Essai gratuit ${P.trialDays} jours, sans paiement</small>` : ''}<small class="st-of-f">${esc(P.for || '')}</small>
-    <div class="st-of-r"><span>Utilisateurs inclus</span><b>${P.users ? (perso && P.users === 1 ? '1 (vous)' : P.users) + (P.extraUserPrice ? ` (+${P.extraUserPrice} MAD / pers.)` : '') : 'Selon contrat'}</b></div>
+  return `<div class="st-offer ${P.highlight && !locked ? 'hl' : ''} ${locked ? 'lk' : ''}" data-offer="${P.k}"><div class="st-of-h"><b>${locked ? '🔒 ' : ''}${esc(P.e || '')} ${esc(P.l)}</b>${P.highlight && !locked ? '<i>Recommandé</i>' : ''}${locked ? `<i class="soon">${dev ? 'Bientôt' : 'Sur demande'}</i>` : ''}<em class="${P.price === 0 ? 'free' : ''}">${esc(price)}</em></div>
+    ${P.price && P.trialDays && !dev ? `<small class="st-of-t">Essai gratuit ${P.trialDays} jours, sans paiement</small>` : ''}<small class="st-of-f">${esc(P.for || '')}</small>
+    <div class="st-of-r"><span>Utilisateurs inclus</span><b>${P.users ? (perso && P.users === 1 ? '1 (vous)' : P.users) + (P.extraUserPrice && !dev ? ` (+${P.extraUserPrice} MAD / pers.)` : '') : 'Selon contrat'}</b></div>
     <div class="st-of-r"><span>Projets actifs</span><b>${qty(P.projects)}</b></div>
     ${perso ? '' : `<div class="st-of-r"><span>Services</span><b>${qty(P.services)}</b></div>`}
     <div class="st-of-r"><span>Stockage</span><b>${storageL(P.storageGb)}</b></div>
@@ -2336,7 +2338,7 @@ const Team = (() => {
       $$('[data-t]', el).forEach(b => b.onclick = () => { tab = b.dataset.t; draw(); });
       const body = $('.tm-body', el);
       if (tab === 'packs') {
-        body.innerHTML = `<div class="list">${Object.values(PLANS).map(P => `<button class="tm-mem" data-p="${P.k}"><span class="grow"><b>${esc(P.e || '')} ${esc(P.l)}</b><small>${esc(planPrice(P))} · ${esc(planUsers(P))} · ${P.projects ? P.projects + ' projet(s)' : 'projets illimités'} · ${P.storageGb} Go · ${P.modules === '*' ? 'tous les outils' : P.modules.length + ' outils'}${P.hier ? ' · hiérarchie' : ''}${P.shares ? ' · groupements' : ''}</small></span>${icon('edit')}</button>`).join('')}</div>
+        body.innerHTML = `<div class="list">${Object.values(PLANS).map(P => `<button class="tm-mem" data-p="${P.k}"><span class="grow"><b>${esc(P.e || '')} ${esc(P.l)}</b><small>${esc(planPrice(P, true))} · ${esc(planUsers(P))} · ${P.projects ? P.projects + ' projet(s)' : 'projets illimités'} · ${P.storageGb} Go · ${P.modules === '*' ? 'tous les outils' : P.modules.length + ' outils'}${P.hier ? ' · hiérarchie' : ''}${P.shares ? ' · groupements' : ''}</small></span>${icon('edit')}</button>`).join('')}</div>
           <p class="muted" style="padding:0 16px;font-size:12.5px">Les changements s'appliquent à tous les téléphones à leur prochaine ouverture, sans nouvelle version.</p>`;
         $$('[data-p]', body).forEach(b => b.onclick = async () => { if (await editPack(PLANS[b.dataset.p])) draw(); });
       }
