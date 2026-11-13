@@ -1970,6 +1970,10 @@ try {
     App.project = hold; if (hold) { hold.planLots = h2; hold.catV = hv; } } catch (e) { o.err = String(e.message || e); } return o; });
   log('Sous-lots / niveaux / abréviations', sl);
   if (sl.err || sl.kids !== 'a,b' || sl.txt !== 'Peinture › Finition' || sl.vis1 !== 'a,b,c' || sl.vis2 !== 'a,c' || sl.ab !== 'CFO' || sl.ab2 !== 'FP' || sl.auto !== 'go' || sl.seedGo !== 'STR' || !sl.seedRev || sl.fam !== 'secu,archi') throw new Error('sous-lots KO ' + JSON.stringify(sl));
+  // le panneau d'un lot doit se construire (régression : une erreur dedans bloquait « Sous-dossier » et « Plan ici »)
+  const lp = await A.pg.evaluate(async () => { const o = {}; try { const p = App.project, f = (await DB.byProject('folders', p.id)).find(x => !x.parentId); const L = planLots(p)[0];
+    const el = lotPanel(L, f, document.body); o.ok = !!(el && el.classList && el.classList.contains('lot-panel')); } catch (e) { o.err = String(e.message || e); } return o; });
+  log('Panneau de lot', lp); if (lp.err || !lp.ok) throw new Error('lotPanel KO ' + JSON.stringify(lp));
   log('errors titre plan', []);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);

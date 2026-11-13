@@ -274,7 +274,7 @@ const LOT_GS = [['bpu', '📑 BPU'], ['att', '📐 Attachements'], ['dec', '🧾
 function lotPanel(L, f, root) {
   const p = App.project, niv = nivOfFolder(f.name);
   f.lotData = f.lotData || {}; const D = f.lotData[L.id] = f.lotData[L.id] || {};
-  const PTS = PTS.filter(x => onlyHere(x, f)), RUBV = (L.rub || []).filter(x => onlyHere(x, f));   // points et rubriques créés dans un niveau : visibles là seulement
+  const PTS = (L.points || []).filter(x => onlyHere(x, f)), RUBV = (L.rub || []).filter(x => onlyHere(x, f));   // points et rubriques créés dans un niveau : visibles là seulement
   const av = (p.lots || []).find(x => normQ(x.name) === normQ(L.name));
   const done = PTS.filter(x => (D[x.id] || {}).done).length, open = !!lotOpenK(L), po = paOpen(L, D).length, di = dueInfo(D);
   const sc = L.sc || [], docs = D._docs || [];
