@@ -409,6 +409,7 @@ const SECTIONS = {
   hse: { label: 'HSE · sécurité', icon: 'shield', render: (r) => renderHse(r), title: 'HSE', subtitle: 'Causeries · EPI · accidents · permis' },
   avenants: { label: 'Avenants & OS', icon: 'sign', render: (r) => renderAvenants(r), title: 'Avenants & OS', subtitle: 'Montants · délais' },
   st: { label: 'Sous-traitants', icon: 'hands', render: (r) => renderSt(r), title: 'Sous-traitants', subtitle: 'Contrats · situations · paiements' },
+  tabproj: { get hidden() { try { return !Team.flag('tabproj'); } catch (e) { return true; } }, label: 'Table de projet', icon: 'layers', render: (r) => TabProj.render(r), title: 'Table de projet', subtitle: 'Réserves · RFI · visas, par intervenant' },
   monespace: { get hidden() { try { return !Team.flag('monespace'); } catch (e) { return true; } }, label: 'Mon espace', icon: 'user', render: (r) => MonEspace.render(r), title: 'Mon espace', subtitle: 'Mon rôle, mes missions, mes responsabilités' },
   org: { label: 'Organigramme', icon: 'org', render: (r) => renderOrg(r), title: 'Organigramme', subtitle: 'Hiérarchie du chantier' },
   team: { label: 'Équipe', icon: 'team', render: renderTeam },

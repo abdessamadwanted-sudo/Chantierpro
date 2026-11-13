@@ -1898,6 +1898,20 @@ try {
   if (ivk.join() !== 'bet,archi,moa,bc,labo,topo,' ) throw new Error('rôle→intervenant KO ' + ivk.join());
   // l'organisation titulaire voit l'Entreprise et tous les intervenants ; le partenaire (BET) ne voit que le sien : vérifié par la logique de rôle ci-dessus
   log('errors v1.0.x intervenants', []);
+  // ---- v1.0.x : Table de projet (réserves · RFI · visas) + tableau de bord interactif
+  const tp = await A.pg.evaluate(async () => { const wait = (ms) => new Promise(r => setTimeout(r, ms)); document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove());
+    const p = (await DB.all('projects')).find(x => !x.deleted); if (!p) return { noProject: true }; App.project = p;
+    const L = REG.rfi.store(p); const x = { id: 'tp-test', n: 'RFI-TP1', obj: 'Gaine VMC test', dest: 'BET structure', st: 'env', date: '2020-01-01' }; L.push(x); await DB.put('projects', p);
+    Team.applyFlags(Team.allFlags('pub')); const o = {};
+    try { App.section = 'tabproj'; await renderSection(); await wait(600);
+      o.tiles = document.querySelectorAll('.tp-t').length; o.rowsAll = document.querySelectorAll('.tp-r').length; o.late = +document.querySelectorAll('.tp-t b')[1].textContent;
+      document.querySelector('[data-set="iv:bet"]').click(); await wait(200); o.rowsBet = document.querySelectorAll('.tp-r').length; o.hasRfi = [...document.querySelectorAll('.tp-r b')].some(b => /RFI-TP1/.test(b.textContent));
+      document.querySelector('[data-set="iv:archi"]') ? o.archi = 1 : o.archi = 0;
+    } catch (e) { o.err = String(e.message || e); }
+    p.reg.rfi = p.reg.rfi.filter(y => y.id !== 'tp-test'); await DB.put('projects', p); App.section = 'ptools'; return o; });
+  log('Table de projet', tp);
+  if (!tp.noProject && (tp.err || tp.tiles !== 3 || !tp.hasRfi || tp.rowsBet < 1 || tp.late < 1 || tp.archi)) throw new Error('table de projet KO ' + JSON.stringify(tp));
+  log('errors v1.0.x table de projet', []);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');

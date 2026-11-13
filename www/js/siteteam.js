@@ -317,7 +317,7 @@ const ST = (() => {
     // v1.0.2xx : réservé au pack Enterprise (Basic et autres packs : liste d'origine) — le service Qualité se déplie en deux volets — Administratif (bureau) et Terrain (chantier) — plus un volet Commun ; la répartition se règle (⚙️)
     const toolBtn = (k, g) => `<button class="st-tool" data-tool="${k}" style="--c:${CAT_C[catOf(k)] || CAT_C[g] || 'var(--accent)'}"><i class="st-ico">${icon(SECTIONS[k].icon || 'grid')}</i><span>${esc(toolName(k))}</span></button>`;
     // ---- Services en volets (Enterprise) : un même gabarit pour chaque service — Administratif / Terrain / Commun. Pour ajouter ou modifier un service ou ses outils : éditer SVC_SHELLS.
-    const COMMUN = { monespace: 'com', team: 'com', org: 'com', histo: 'com' };
+    const COMMUN = { tabproj: 'com', monespace: 'com', team: 'com', org: 'com', histo: 'com' };
     const SVC_SHELLS = [
       { k: 'qual', flag: 'svcqual', nom: 'Service Qualité', c: '#0d9488', side: 'qual.side', tools: [], map: { docq: 'adm', clauses: 'adm', visa: 'adm', rfi: 'adm', reception: 'ter', forms: 'ter', constat: 'ter', labo: 'ter', hse: 'ter', beton: 'ter', ...COMMUN },
         ui: { adm: 'Documents, archives, clauses', ter: 'Réceptions, contrôles, PV, labo', com: 'Équipe, organigramme, mon espace' } },
