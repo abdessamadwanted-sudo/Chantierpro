@@ -660,7 +660,7 @@ const Team = (() => {
   // mises en service par pack : chaque fonction récente est rattachée à des packs, avec un niveau par pack —
   // « dev » : le Super Admin seul · « test » : comptes listés · « pub » : tous les comptes de ce pack ; absent = la fonction n'existe pas dans ce pack
   // réglées dans le Centre de contrôle (config/app.fp, config/app.testers), sans mise à jour de l'application
-  const FLAG_DEFS = { svcqual: 'Service Qualité (volets Administratif / Terrain, organigramme géré par l\'admin)', monespace: 'Mon espace', missionzone: 'Documentation par mission / zone + alertes « À traiter »', terraindoc: 'Terrain → Documentation (bouton PV, envoi automatique)', qdocs: 'Documentation qualité par partie d\'ouvrage + rangement Drive', orgq: 'Organigramme Qualité (branches, missions, code d\'accès)' };
+  const FLAG_DEFS = { svcqual: 'Service Qualité (volets Administratif / Terrain, organigramme géré par l\'admin)', monespace: 'Mon espace', missionzone: 'Documentation par mission / zone + alertes « À traiter »', terraindoc: 'Terrain → Documentation (bouton PV, envoi automatique)', qdocs: 'Documentation qualité par partie d\'ouvrage + rangement Drive', orgq: 'Organigramme Qualité (branches, missions, code d\'accès)', svctravaux: 'Service Travaux (volets)', svchse: 'Service HSE (volets)', svctopo: 'Service Topographique (volets)', svclabo: 'Service Laboratoire (volets)' };
   const FLAG_DEFAULT = Object.fromEntries(Object.keys(FLAG_DEFS).map(k => [k, { enterprise: 'dev' }]));
   const flagCfg = (k) => (appCfg().fp || {})[k] || FLAG_DEFAULT[k] || {};
   // pack en vigueur : aperçu du Super Admin (« Pack de travail »), sinon pack de l'espace

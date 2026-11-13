@@ -316,32 +316,50 @@ const ST = (() => {
     const qaSave = (ord, hid, add) => { try { localStorage.setItem('qa.ord', JSON.stringify(ord)); localStorage.setItem('qa.hid', JSON.stringify(hid)); if (add) localStorage.setItem('qa.add', JSON.stringify(add)); } catch (e) {} };
     // v1.0.2xx : réservé au pack Enterprise (Basic et autres packs : liste d'origine) — le service Qualité se déplie en deux volets — Administratif (bureau) et Terrain (chantier) — plus un volet Commun ; la répartition se règle (⚙️)
     const toolBtn = (k, g) => `<button class="st-tool" data-tool="${k}" style="--c:${CAT_C[catOf(k)] || CAT_C[g] || 'var(--accent)'}"><i class="st-ico">${icon(SECTIONS[k].icon || 'grid')}</i><span>${esc(toolName(k))}</span></button>`;
-    const QS_DEF = { docq: 'adm', clauses: 'adm', reception: 'ter', forms: 'ter', constat: 'ter', labo: 'ter', hse: 'ter', monespace: 'com', team: 'com', org: 'com', histo: 'com' };
+    // ---- Services en volets (Enterprise) : un même gabarit pour chaque service — Administratif / Terrain / Commun. Pour ajouter ou modifier un service ou ses outils : éditer SVC_SHELLS.
+    const COMMUN = { monespace: 'com', team: 'com', org: 'com', histo: 'com' };
+    const SVC_SHELLS = [
+      { k: 'qual', flag: 'svcqual', nom: 'Service Qualité', c: '#0d9488', side: 'qual.side', tools: [], map: { docq: 'adm', clauses: 'adm', visa: 'adm', rfi: 'adm', reception: 'ter', forms: 'ter', constat: 'ter', labo: 'ter', hse: 'ter', beton: 'ter', ...COMMUN },
+        ui: { adm: 'Documents, archives, clauses', ter: 'Réceptions, contrôles, PV, labo', com: 'Équipe, organigramme, mon espace' } },
+      { k: 'travaux', flag: 'svctravaux', nom: 'Service Travaux', c: '#2563eb', tools: ['planning', 'reunions', 'gestion', 'pointage', 'avancement', 'lotsuivi', 'beton', 'calc', 'models3d'], map: { planning: 'adm', reunions: 'adm', gestion: 'adm', pointage: 'adm', lotsuivi: 'ter', beton: 'ter', calc: 'ter', models3d: 'ter', avancement: 'com', ...COMMUN },
+        ui: { adm: 'Planning, réunions, gestion', ter: 'Suivi des lots, béton, avancement', com: 'Équipe, organigramme, mon espace' } },
+      { k: 'hse', flag: 'svchse', nom: 'Service HSE', c: '#ea580c', tools: ['hse', 'constat', 'forms', 'pointage', 'reunions'], map: { reunions: 'adm', forms: 'adm', pointage: 'adm', hse: 'ter', constat: 'ter', ...COMMUN },
+        ui: { adm: 'Réunions, formulaires, effectifs', ter: 'Inspections, constats, sécurité', com: 'Équipe, organigramme, mon espace' } },
+      { k: 'topo', flag: 'svctopo', nom: 'Service Topographique', c: '#0891b2', tools: ['calc', 'models3d', 'maquette', 'avancement'], map: { models3d: 'adm', maquette: 'adm', calc: 'ter', avancement: 'ter', ...COMMUN },
+        ui: { adm: 'Plans, maquettes, modèles', ter: 'Calculs, implantation, relevés', com: 'Équipe, organigramme, mon espace' } },
+      { k: 'labo', flag: 'svclabo', nom: 'Service Laboratoire', c: '#8b5cf6', tools: ['labo', 'beton', 'forms', 'docq'], map: { docq: 'adm', forms: 'adm', labo: 'ter', beton: 'ter', ...COMMUN },
+        ui: { adm: 'Documents, formulaires', ter: 'Essais, prélèvements, béton', com: 'Équipe, organigramme, mon espace' } },
+    ];
     const QS_NAMES = { adm: ['📁', 'Administratif'], ter: ['🏗️', 'Terrain'], com: ['🔗', 'Commun'] };
-    const QS_UI = { adm: ['folder', '#2563eb', 'Documents, archives, clauses'], ter: ['hard', '#16a34a', 'Réceptions, contrôles, PV, labo'], com: ['users', '#7c3aed', 'Équipe, organigramme, mon espace'] };
+    const QS_COL = { adm: ['folder', '#2563eb'], ter: ['hard', '#16a34a'], com: ['users', '#7c3aed'] };
     // volets autorisés à la personne : choisis par l'administrateur dans l'organigramme (vide = les deux) ; l'administrateur voit tout
     const qsAllowed = () => { try { if (!ready() || Team.isAdmin()) return ['adm', 'ter', 'com']; const m = window.MonEspace && MonEspace.meOf(p), v = m && m.volet; return v === 'adm' ? ['adm', 'com'] : v === 'ter' ? ['ter', 'com'] : ['adm', 'ter', 'com']; } catch (e) { return ['adm', 'ter', 'com']; } };
-    const qsMap = () => { let u = {}; try { u = JSON.parse(localStorage.getItem('qual.side') || '{}') || {}; } catch (e) {} return { ...QS_DEF, ...u }; };
+    const qsKey = (S) => S.side || ('svc.side.' + S.k);
+    const qsMap = (S) => { let u = {}; try { u = JSON.parse(localStorage.getItem(qsKey(S)) || '{}') || {}; } catch (e) {} return { ...S.map, ...u }; };
     const qsMine = () => { try { const k = (typeof Org !== 'undefined' && Org.poste && (Org.poste() || {}).k) || ''; return ['tsq', 'ctrl'].includes(k) ? 'ter' : 'adm'; } catch (e) { return 'adm'; } };
-    const qualSplit = (ks) => {
-      const M = qsMap(), all = [...new Set([...ks, ...Object.keys(QS_DEF).filter(k => SECTIONS[k] && ok(k))])].filter(k => SECTIONS[k] && ok(k));
-      let op = null; try { op = JSON.parse(localStorage.getItem('ptools.qs') || 'null'); } catch (e) {} if (!Array.isArray(op)) op = [qsMine()];
+    const qsTools = (S, ks) => [...new Set([...(ks || []), ...S.tools, ...Object.keys(S.map)])].filter(k => SECTIONS[k] && ok(k));
+    const svcSplit = (S, ks) => {
+      const M = qsMap(S), all = qsTools(S, ks), pre = S.k === 'qual' ? '' : S.k + '.';
+      let op = null; try { op = JSON.parse(localStorage.getItem('ptools.qs') || 'null'); } catch (e) {} if (!Array.isArray(op)) op = [pre + qsMine()];
       return qsAllowed().map(v => { const L = all.filter(k => (M[k] || 'ter') === v); if (!L.length) return '';
-        return `<details class="st-qs" data-qs="${v}" ${op.includes(v) ? 'open' : ''}><summary style="--c:${QS_UI[v][1]}"><i class="st-qs-ic">${icon(QS_UI[v][0])}</i><span><b>${QS_NAMES[v][1]}</b><small>${QS_UI[v][2]}</small></span><em>${L.length}</em><i class="st-chev">${icon('chevdown')}</i></summary><div class="st-tgrid">${L.map(k => toolBtn(k, 'qual')).join('')}</div></details>`; }).join('')
-        + `<button class="st-qs-set" data-a="qsset">⚙️ Répartition Administratif / Terrain / Commun</button>`;
+        return `<details class="st-qs" data-qs="${pre}${v}" ${op.includes(pre + v) ? 'open' : ''}><summary style="--c:${QS_COL[v][1]}"><i class="st-qs-ic">${icon(QS_COL[v][0])}</i><span><b>${QS_NAMES[v][1]}</b><small>${esc(S.ui[v])}</small></span><em>${L.length}</em><i class="st-chev">${icon('chevdown')}</i></summary><div class="st-tgrid">${L.map(k => toolBtn(k, 'qual')).join('')}</div></details>`; }).join('')
+        + `<button class="st-qs-set" data-a="qsset" data-svc="${S.k}">⚙️ Répartition Administratif / Terrain / Commun</button>`;
     };
-    const qsSet = async () => {
-      const M = qsMap(), ks = [...new Set([...Object.keys(QS_DEF), ...G.flatMap(x => x[0] === 'qual' ? x[2] : [])])].filter(k => SECTIONS[k] && ok(k));
-      for (;;) { const v = await menu('Où ranger chaque outil ?', [...ks.map(k => ({ label: `${toolName(k)} — ${QS_NAMES[M[k] || 'ter'][1]}`, value: k })), { label: 'Terminé', icon: 'check', value: '__ok' }]); if (!v || v === '__ok') break;
+    const svcAcc = (S, ks) => `<details class="st-tcat st-acc" data-g="${S.k === 'qual' ? 'sq' : 'sv-' + S.k}" style="--c:${S.c}" ${opened.includes(S.k === 'qual' ? 'sq' : 'sv-' + S.k) ? 'open' : ''}><summary class="st-tcat-h">${esc(S.nom)}<small>3 volets</small><i class="st-chev">${icon('chevdown')}</i></summary>${svcSplit(S, ks)}</details>`;
+    const qsSet = async (S, ks) => {
+      const M = qsMap(S), all = qsTools(S, ks);
+      for (;;) { const v = await menu(`${S.nom} : où ranger chaque outil ?`, [...all.map(k => ({ label: `${toolName(k)} — ${QS_NAMES[M[k] || 'ter'][1]}`, value: k })), { label: 'Terminé', icon: 'check', value: '__ok' }]); if (!v || v === '__ok') break;
         const w = await menu(toolName(v), ['adm', 'ter', 'com'].map(x => ({ label: `${QS_NAMES[x][0]} ${QS_NAMES[x][1]}`, value: x, checked: (M[v] || 'ter') === x })));
-        if (w) { M[v] = w; try { localStorage.setItem('qual.side', JSON.stringify(M)); } catch (e) {} } }
+        if (w) { M[v] = w; try { localStorage.setItem(qsKey(S), JSON.stringify(M)); } catch (e) {} } }
       renderProjectTools(root); };
+    const qualKs = (G.find(x => x[0] === 'qual') || [0, 0, []])[2];
     root.innerHTML = `<div class="st-ptools-p">
       <div class="st-hd"><b>${esc(T.e || '🏗️')} ${esc(p.name)}</b><small>${esc(T.n || 'Projet')}${p.address ? ' · ' + esc(p.address) : ''}</small></div>
       <div class="st-qa ${Math.max(1, QA.length) <= 4 ? 'qa-l' : Math.max(1, QA.length) <= 8 ? 'qa-m' : 'qa-s'}" style="--n:${Math.max(1, QA.length)}">${QA.map(([k, ic, l, c]) => `<button class="st-qa-b" data-a="${k}" style="--c:${c}"><i>${icon(ic)}</i><span>${l}</span></button>`).join('')}${QA.length ? '' : `<button class="st-qa-b st-qa-add" data-a="qaadd" style="--c:#475569"><i>${icon('plus')}</i><span>Ajouter</span></button>`}</div>
       <p class="st-thint2" style="margin:-4px 0 6px">Appui long sur la barre : ajouter · réorganiser · retirer</p>
       ${G.map(([g, l, ks]) => (g === 'qual' && svcq() ? '' : `<details class="st-tcat st-acc" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(l.replace(/^\S+\s/, ''))}<small>${ks.length}</small><i class="st-chev">${icon('chevdown')}</i></summary>
-        <div class="st-tgrid">${ks.map(k => toolBtn(k, g)).join('')}</div></details>`) + `${g === 'qual' && svcq() ? `<details class="st-tcat st-acc" data-g="sq" style="--c:#0d9488" ${opened.includes('sq') ? 'open' : ''}><summary class="st-tcat-h">Service Qualité<small>3 volets</small><i class="st-chev">${icon('chevdown')}</i></summary>${qualSplit(ks)}</details>` : ''}`).join('')}
+        <div class="st-tgrid">${ks.map(k => toolBtn(k, g)).join('')}</div></details>`) + `${g === 'qual' && svcq() ? svcAcc(SVC_SHELLS[0], ks) : ''}`).join('')}
+      ${SVC_SHELLS.slice(1).filter(S => Team.flag(S.flag)).map(S => svcAcc(S, [])).join('')}
       <details class="st-tcat st-acc" data-g="biblio" style="--c:#5B4BA8" ${opened.includes('biblio') ? 'open' : ''}><summary class="st-tcat-h">Bibliothèque métier<small>${esc(plan().l)}</small><i class="st-chev">${icon('chevdown')}</i></summary>
         <div class="st-tgrid" style="grid-template-columns:1fr"><button class="st-pb st-pb-lib" data-a="library" style="margin:0">${icon('grid')}<span><b>Ouvrir la bibliothèque</b><small>Outils réunis et classés selon votre service · pack ${esc(plan().l)}</small></span>${icon('chevright')}</button></div></details>
       <details class="st-tcat st-acc" data-g="tableaux" style="--c:#2563EB" ${opened.includes('tableaux') ? 'open' : ''}><summary class="st-tcat-h">Tableaux<small>5</small><i class="st-chev">${icon('chevdown')}</i></summary>
@@ -356,7 +374,7 @@ const ST = (() => {
     root.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { App.section = b.dataset.tool; App.search = ''; renderSection(); });
     root.querySelectorAll('[data-xtool]').forEach(b => b.onclick = () => runX(b.dataset.xtool));
     root.querySelectorAll('details.st-qs').forEach(d => d.addEventListener('toggle', () => { const L = [...root.querySelectorAll('details.st-qs[open]')].map(x => x.dataset.qs); try { localStorage.setItem('ptools.qs', JSON.stringify(L)); } catch (e) {} }));
-    const qss = root.querySelector('[data-a=qsset]'); if (qss) qss.onclick = qsSet;
+    root.querySelectorAll('[data-a=qsset]').forEach(b => b.onclick = () => { const S = SVC_SHELLS.find(x => x.k === b.dataset.svc) || SVC_SHELLS[0]; qsSet(S, S.k === 'qual' ? qualKs : []); });
     root.querySelectorAll('[data-tabtool]').forEach(b => b.onclick = () => openTableTool(p, b.dataset.tabtool));
     // v1.0.63 : appui long (ou ⋮) sur un outil → monter, descendre, déplacer vers une autre catégorie
     root.querySelectorAll('[data-tool]').forEach(b => { let t = null, lp = false;
