@@ -1875,6 +1875,14 @@ try {
   log('Tableaux intégrés', ti);
   if (!ti.noProject && !(ti.anom && ti.due && ti.points && ti.alertes && ti.photos)) throw new Error('tableaux intégrés KO ' + JSON.stringify(ti));
   log('errors v1.0.x suivis', []);
+  // ---- v1.0.x : Espaces des intervenants (Business + Enterprise, Dev) — invisibles en Basic/Pro
+  const esp = await A.pg.evaluate(() => { const o = {}; const ks = ['espbet', 'esparchi', 'esplabo', 'espmoa', 'espbc', 'esptopo', 'espat'];
+    Team.applyFlags({}, []); // réglages par défaut du code
+    for (const pk of ['basic', 'pro', 'business', 'enterprise']) { const on = (k) => !!Team.flagCfg(k)[pk]; o[pk] = ks.every(on) ? 'tous' : ks.some(on) ? 'partiel' : 'aucun'; o[pk + '_svc'] = on('svctravaux'); }
+    Team.applyFlags(Team.allFlags('pub')); return o; });
+  log('Espaces intervenants', esp);
+  if (esp.basic !== 'aucun' || esp.pro !== 'aucun' || esp.business !== 'tous' || esp.enterprise !== 'tous' || !esp.business_svc) throw new Error('espaces intervenants KO ' + JSON.stringify(esp));
+  log('errors v1.0.x espaces', []);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
