@@ -129,7 +129,8 @@ const Org = {
 // le titulaire de la licence peut tout faire ; sinon c'est le poste qui décide
 function orgEdit(f) { return Org.can(f, 'edit'); }
 // pack Enterprise : l'administrateur est le seul à ajouter, retirer ou modifier les personnes de l'organigramme (autres packs : droits du poste, comme avant)
-const orgEnt = () => { try { return !!(typeof ST !== 'undefined' && ST.isEnt && ST.isEnt()); } catch (e) { return false; } };
+const orgEnt = () => { try { return !!(typeof ST !== 'undefined' && ST.svcq && ST.svcq()); } catch (e) { return false; } };
+const orgQ = () => { try { return !!Team.flag('orgq'); } catch (e) { return false; } };
 const orgIsAdm = () => { try { return !(typeof Team !== 'undefined' && Team.ready && Team.ready()) || !!Team.isAdmin(); } catch (e) { return true; } };
 const orgCanAdmin = () => !orgEnt() || orgIsAdm();
 function orgValid(f) { return Org.can(f, 'valid'); }
@@ -342,7 +343,7 @@ async function renderOrg(root) {
   const save = () => DB.put('projects', p), redraw = () => renderOrg(root);
   root.innerHTML = `<div class="og"><div class="og-bar"><b>Organigramme</b><small>${p.team.length} personne(s)</small><span class="grow"></span>
       ${canE ? `<button class="btn small" data-a="add">${icon('plus')} Personne</button>` : ''}<button class="iconbtn" data-a="exp">${icon('share')}</button></div>
-    <div class="og-br">${[['', '👥', 'Tous'], ...ORG_BR].map(([k, e, l]) => `<button data-br="${k}" class="${br === k ? 'on' : ''}">${e} ${l}${k ? ` <i>${p.team.filter(m => m.branche === k).length}</i>` : ''}</button>`).join('')}</div>
+    ${orgQ() ? `<div class="og-br">${[['', '👥', 'Tous'], ...ORG_BR].map(([k, e, l]) => `<button data-br="${k}" class="${br === k ? 'on' : ''}">${e} ${l}${k ? ` <i>${p.team.filter(m => m.branche === k).length}</i>` : ''}</button>`).join('')}</div>` : ''}
     <div class="og-vp"><div class="og-st"></div><div class="og-zc"><button data-z="in" aria-label="Zoom avant">＋</button><button data-z="out" aria-label="Zoom arrière">－</button><button data-z="fit" aria-label="Ajuster">⤢</button><button data-z="full" aria-label="Plein écran">⛶</button></div></div>${p.team.length <= 1 && canE ? '<div class="og-empty"><b>Créer l\'organigramme</b><span>1. Touchez « ＋ Personne »<br>2. Nom, service, poste et responsable (N+1)<br>3. L\'organigramme se dessine tout seul — exportez-le en PDF avec ⤴</span></div>' : ''}<div class="og-hint">Glissez pour déplacer · pincez ou ＋/－ pour zoomer · touchez une carte · ± pour plier une branche</div></div>`;
   const vp = $('.og-vp', root), stg = $('.og-st', root); let G;
   const build = () => { G = orgSvg(orgVue(p, br), collapsed); stg.innerHTML = G.svg; stg.style.width = G.W + 'px'; stg.style.height = G.H + 'px'; };
@@ -377,7 +378,7 @@ async function orgEditMember(p, m, save, redraw) {
   const r = await formSheet(m ? 'Modifier' : 'Nouvelle personne', [
     { name: 'name', label: 'Nom', value: m?.name },
     { name: 'poste', label: 'Poste', type: 'select', value: m?.poste || '', options: [{ value: '', label: '— autre —' }, ...SERVICES.flatMap(s => s.postes.map(x => ({ value: x.k, label: `${s.e} ${x.n}` })))] },
-    { name: 'branche', label: 'Branche', type: 'select', value: m?.branche || '', options: [{ value: '', label: '— non classé —' }, ...ORG_BR.map(([k, e, l]) => ({ value: k, label: `${e} ${l}` }))] },
+    ...(orgQ() ? [{ name: 'branche', label: 'Branche', type: 'select', value: m?.branche || '', options: [{ value: '', label: '— non classé —' }, ...ORG_BR.map(([k, e, l]) => ({ value: k, label: `${e} ${l}` }))] }] : []),
     { name: 'role', label: 'Fonction / entreprise (texte libre)', value: m?.role },
     { name: 'phone', label: 'Téléphone', type: 'tel', value: m?.phone },
     { name: 'parent', label: 'Supérieur direct (N+1)', type: 'select', value: m?.parent || '', options: [{ value: '', label: 'Automatique (selon le poste)' }, { value: '__none', label: 'Personne (tout en haut)' }, ...others.map(x => ({ value: x.id, label: x.name }))] },
@@ -399,14 +400,14 @@ async function orgFiche(p, m, canE, save, redraw) {
     ${m.branche ? `<small>${esc(orgBrLabel(m.branche))}</small>` : ''}${orgEnt() ? `<small>${m.volet === 'adm' ? '📁 Volet Administratif' : m.volet === 'ter' ? '🏗️ Volet Terrain' : '📁🏗️ Administratif + Terrain'}</small>` : ''}${par ? `<small>N+1 : ${esc(par.name)}</small>` : ''}${sub.length ? `<small>Équipe : ${sub.map(x => esc(x.name)).join(', ')}</small>` : ''}
     ${it && (!m.interimTo || m.interimTo >= todayISO()) ? `<small class="og-int">🔁 En congé · intérim : ${esc(it.name)}${m.interimTo ? ' jusqu\'au ' + fmtDate(m.interimTo) : ''}</small>` : ''}
     <div class="og-fb">${m.phone ? `<a class="btn small" href="tel:${esc(m.phone)}">${icon('phone')} Appeler</a><button class="btn small ghost" data-wa>WhatsApp</button>` : ''}${canE ? `<button class="btn small ghost" data-ed>${icon('edit')} Modifier</button>` : ''}</div></div>
-    <div class="og-sec"><h4>🎯 Missions <i>${ms.length}</i></h4>
+    ${orgQ() ? `<div class="og-sec"><h4>🎯 Missions <i>${ms.length}</i></h4>
       ${ms.map(x => `<button class="og-ms" data-ms="${x.id}"><span class="og-mst" style="background:${MISSION_ST[x.statut || 'todo'][1]}">${MISSION_ST[x.statut || 'todo'][0]}</span><span class="grow"><b>${esc(x.titre)}</b><small>${esc(x.partie || '')}${x.echeance ? (x.partie ? ' · ' : '') + '📅 ' + fmtDate(x.echeance) : ''}</small></span>${icon('chevright')}</button>`).join('') || '<p class="muted" style="margin:4px 0">Aucune mission pour le moment.</p>'}
       ${canE ? `<button class="btn small ghost" data-a="msnew">${icon('plus')} Mission</button>` : ''}</div>
     <div class="og-sec"><h4>🔑 Accès à l'application</h4>
       ${cd ? `<div class="og-code ${ok ? '' : 'old'}"><b>${esc(cd.code)}</b><small>${ok ? 'Créé le ' + fmtDate(new Date(cd.at).toISOString().slice(0, 10)) + ' · valable 7 jours' : 'Expiré : créez-en un nouveau'}</small>
         <div class="og-fb"><button class="btn small ghost" data-a="cp">Copier</button><button class="btn small" data-a="cwa">${icon('share')} Envoyer par WhatsApp</button></div></div>` : ''}
       ${canCode ? `<button class="btn small ${cd ? 'ghost' : ''}" data-a="cnew">${cd ? 'Nouveau code' : 'Créer le code d\'accès'}</button><p class="muted" style="font-size:12px;margin:6px 0 0">Poste d'accès : ${esc(roleLabel(m))}. La personne ne verra que ce chantier.</p>`
-        : `<p class="muted" style="font-size:12px;margin:4px 0">${team ? 'Seuls les responsables autorisés (« Équipe ») créent les codes d\'accès.' : 'Connectez-vous à votre organisation SiteTeam pour créer des codes d\'accès.'}</p>`}</div>`;
+        : `<p class="muted" style="font-size:12px;margin:4px 0">${team ? 'Seuls les responsables autorisés (« Équipe ») créent les codes d\'accès.' : 'Connectez-vous à votre organisation SiteTeam pour créer des codes d\'accès.'}</p>`}</div>` : ''}`;
   };
   const s = sheet(`<div class="og-fw">${draw()}</div>`, { title: 'Fiche' });
   const bind = () => {
