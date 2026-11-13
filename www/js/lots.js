@@ -32,15 +32,29 @@ const lotAlerts = (D) => { if (!D) return []; const A = (D._al || []).filter(a =
 const dueInfo = (D) => { const A = lotAlerts(D).filter(a => !a.done).sort((a, b) => a.d.localeCompare(b.d)); if (!A.length) return null; const a = A[0], d = dueDays(a.d); return { d, a, n: A.length, cls: d < 0 ? 'late' : d <= 7 ? 'soon' : 'ok', txt: dueTxt(d) }; };
 const paOpen = (L, D) => (L.pa || []).filter(x => x.k === 'a' && ((D.pa || {})[x.id] || {}).st !== 'ok');
 const lotStarted = (L, D) => !!(D._due || D._start || Object.keys(D).some(k => !k.startsWith('_') && k !== 'pa' && (D[k] || {}).done) || Object.values(D.pa || {}).some(v => v.st));
+// catalogue : les lots connus sont rangés dans leur type (une fois) ; Revêtements et Faux plafonds ajoutés
+const LOT_CAT_SEED = { go: 'STR', mac: 'STR', chape: 'CEA', enduit: 'CEA', etan: 'ETA', elec: 'CFO', plomb: 'PLB', menu: 'CEA', peint: 'CEA', carr: 'CEA' };
+const LOTS_NEW = [{ id: 'rev', name: 'Revêtements', e: '🧩', c: '#0891b2', cat: 'CEA' }, { id: 'faplaf', name: 'Faux plafonds', e: '⬜', c: '#7c3aed', cat: 'CEA' }];
 function planLots(p) {
   if (!p.planLots) p.planLots = LOTS_DEF.map(l => ({ ...l, points: l.id === 'go' ? LOT_GO_POINTS.map(t => ({ id: DB.uid(), t })) : [] }));
+  if (!p.catV) { p.catV = 1;
+    for (const l of p.planLots) if (!l.cat && LOT_CAT_SEED[l.id]) l.cat = LOT_CAT_SEED[l.id];
+    for (const n of LOTS_NEW) if (!p.planLots.some(l => l.id === n.id)) p.planLots.push({ ...n, points: [] });
+    if (p.id) { try { DB.put('projects', p); } catch (e) {} } }
   return p.planLots;
 }
+// sous-lots : un lot avec up = id du lot parent (mêmes plans, points et couleurs que n'importe quel lot)
+const lotIdsWithKids = (p, id) => [id, ...planLots(p).filter(l => l.up === id).map(l => l.id)];
+const SOUS_LOTS_TPL = { peint: ['Impression', 'Finition', 'Enduit décoratif'], rev: ['Carrelage', 'Marbre / pierre', 'Parquet', 'Résine'], faplaf: ['Plâtre (BA13)', 'Dalles modulaires', 'Bois / métal'], carr: ['Carrelage sol', 'Faïence murale', 'Plinthes'], go: ['Coffrage', 'Ferraillage', 'Bétonnage'] };
+const tplOfLot = (L) => SOUS_LOTS_TPL[L.id] || (/peint/i.test(L.name) ? SOUS_LOTS_TPL.peint : /rev[eê]t/i.test(L.name) ? SOUS_LOTS_TPL.rev : /faux.?plaf/i.test(L.name) ? SOUS_LOTS_TPL.faplaf : []);
+// classement automatique d'après le nom du plan (à confirmer par l'utilisateur)
+const AUTO_LOT = [[/coffrage|ferraill|b[ée]ton|\bGO\b|fondation/i, 'go'], [/ma[cç]onn|cloison|agglo/i, 'mac'], [/chape/i, 'chape'], [/enduit/i, 'enduit'], [/[ée]tanch/i, 'etan'], [/\bCFO\b|\bCFA\b|[ée]lectr/i, 'elec'], [/plomb|\bPLB\b|sanitaire/i, 'plomb'], [/menuis/i, 'menu'], [/peint/i, 'peint'], [/carrel|faïence|faience/i, 'carr'], [/rev[eê]tement/i, 'rev'], [/faux.?plaf/i, 'faplaf']];
+const autoLotOf = (p, name) => { const hit = AUTO_LOT.find(([re]) => re.test(String(name || ''))); if (!hit) return null; const L = planLots(p).find(l => l.id === hit[1]); return L || null; };
 const lotSelOf = (fid) => (App.lotSel || {})[fid] || '';
 // v1.0.50 : plus de « Tous » — un lot est toujours choisi (le 1er qui a des plans) ; « Sans lot » seulement s'il reste des plans sans lot
 function lotSelDefault(f, ps) {
   App.lotSel = App.lotSel || {}; const cur = App.lotSel[f.id], lots = planLots(App.project);
-  const hT = (f.hiddenTypes || []), hL = (f.hiddenLots || []), LV = lots.filter(l => !hL.includes(l.id));
+  const hT = (f.hiddenTypes || []), hL = (f.hiddenLots || []), LV = lots.filter(l => !hL.includes(l.id) && onlyHere(l, f));
   if (cur && (cur === '__all' || (typeof cur === 'string' && cur.startsWith('T:') && !hT.includes(cur.slice(2))) || (cur === '__none' ? ps.some(x => !x.lotId) : LV.some(l => l.id === cur)))) return cur;   // v1.0.98 : « Tous les lots »
   const d = '__all';   // v1.0.107 : par défaut, tous les plans du niveau
   App.lotSel[f.id] = d; return d;
@@ -52,21 +66,27 @@ const DISCIPLINES = [
   { k: 'CFO', l: 'Électricité CFO' }, { k: 'CFA', l: 'Électricité CFA' }, { k: 'PLB', l: 'Plomberie / sanitaire (PLB)' },
   { k: 'CVC', l: 'CVC' }, { k: 'SSI', l: 'Sécurité incendie (SSI)' }, { k: 'CM', l: 'Charpente métallique (CM)' },
   { k: 'ETA', l: 'Étanchéité (ETA)' }, { k: 'PAY', l: 'Aménagement / paysage (PAY)' }, { k: 'SYN', l: 'Synthèse (SYN)' },
-  { k: 'FND', l: 'Fondations (FND)' },
+  { k: 'FND', l: 'Fondations (FND)' }, { k: 'CEA', l: 'Corps d\'état architecturaux (CEA)' }, { k: 'GTB', l: 'GTB / GTC (GTB)' },
 ];
 // Familles (menus déroulants) : chaque type de plan est rangé dans une famille ; on peut le déplacer (p.typeFam) et renommer (p.typeNames, p.famNames)
 const FAMILLES = [
-  { k: 'gros', l: 'Gros œuvre & Structure', t: ['STR', 'FND', 'CM'] }, { k: 'archi', l: 'Corps d\'état architecturaux', t: ['ARCH', 'ETA'] },
+  { k: 'gros', l: 'Gros œuvre & Structure', t: ['STR', 'FND', 'CM'] }, { k: 'archi', l: 'Corps d\'état architecturaux', t: ['ARCH', 'CEA', 'ETA'] },
   { k: 'elec', l: 'Électricité', t: ['CFO', 'CFA'] }, { k: 'fluides', l: 'Fluides', t: ['PLB', 'CVC'] },
-  { k: 'vrd', l: 'VRD & Extérieurs', t: ['VRD', 'PAY'] }, { k: 'secu', l: 'Sécurité & Systèmes', t: ['SSI'] },
+  { k: 'vrd', l: 'VRD & Extérieurs', t: ['VRD', 'PAY'] }, { k: 'secu', l: 'Sécurité & Systèmes', t: ['SSI', 'GTB'] },
   { k: 'syn', l: 'Synthèse & Coordination', t: ['SYN'] }, { k: 'autre', l: 'Autres', t: [] },
 ];
 const famsOf = (p) => FAMILLES.map(f => ({ ...f, l: ((p && p.famNames) || {})[f.k] || f.l }));
 const famOfType = (p, k) => ((p && p.typeFam) || {})[k] || (FAMILLES.find(f => f.t.includes(k)) || { k: 'autre' }).k;
 // Fondations : proposées par défaut dans le niveau SSL seulement ; on peut les ajouter ailleurs (f.extraTypes)
-const typeShownIn = (f, t) => t.k !== 'FND' || !f || (typeof nivOfFolder === 'function' && nivOfFolder(f.name) === 'SSL') || (f.extraTypes || []).includes('FND');
+// visible dans ce niveau ? un type / lot / point / rubrique créé dans un niveau n'apparaît que là (x.only = ids de dossiers) ; absent = partout
+const onlyHere = (x, f) => !x || !x.only || !f || x.only.includes(f.id);
+const typeShownIn = (f, t) => onlyHere(t, f) && (t.k !== 'FND' || !f || (typeof nivOfFolder === 'function' && nivOfFolder(f.name) === 'SSL') || (f.extraTypes || []).includes('FND'));
 // v1.0.101 : types de lots = types fixes + types ajoutés par le projet (p.lotTypes)
 const typesOf = (p) => [...DISCIPLINES, ...((p && p.lotTypes) || [])].filter(d => !((p && p.typesGone) || []).includes(d.k)).map(d => ({ ...d, l: ((p && p.typeNames) || {})[d.k] || d.l }));
+// abréviation d'un type (CFO, CVC, STR…) : la clé pour les types fixes, sinon les initiales du nom
+const typeName = (l) => String(l || '').replace(/\s*\([A-Za-z]{2,5}\)\s*$/, '');
+const abbrOf = (l) => { const w = typeName(l).split(/[\s\/&,'’\-]+/).filter(x => x.length > 2); if (!w.length) return String(l || '').slice(0, 3).toUpperCase(); return (w.length === 1 ? w[0].slice(0, 4) : w.slice(0, 4).map(x => x[0]).join('')).toUpperCase(); };
+const typeAbOf = (k, p) => { const t = typesOf(p || App.project).find(d => d.k === k); if (!t) return ''; return DISCIPLINES.some(d => d.k === k) ? k : (t.ab || abbrOf(t.l)); };
 const typeLab = (k, p) => (typesOf(p || App.project).find(d => d.k === k) || { l: k }).l;
 const discLabel = (f) => !f || !f.disc ? '' : f.disc === '_free' ? (f.discName || 'Autre') : ((DISCIPLINES.find(d => d.k === f.disc) || {}).l || f.disc);
 const tint = (c, a) => c + Math.round(a * 255).toString(16).padStart(2, '0');
@@ -75,32 +95,38 @@ const tint = (c, a) => c + Math.round(a * 255).toString(16).padStart(2, '0');
 const hiddenT = (f) => (f && f.hiddenTypes) || [];
 const hiddenL = (f) => (f && f.hiddenLots) || [];
 const typesVis = (f, p) => typesOf(p || App.project).filter(t => !hiddenT(f).includes(t.k) && typeShownIn(f, t));
-const lotsVis = (f, lots) => lots.filter(l => !hiddenL(f).includes(l.id));
+const lotsVis = (f, lots) => lots.filter(l => !hiddenL(f).includes(l.id) && onlyHere(l, f));
 // type courant : clé de type (ou '' si un lot sans type, ou '__all')
 const selTypeKey = (sel, lots) => sel && sel.startsWith('T:') ? sel.slice(2) : (sel && sel !== '__all' && sel !== '__none') ? ((lots.find(l => l.id === sel) || {}).cat || '') : '';
 
 // barre de lots + panneau du lot choisi, insérés dans la carte du dossier
 function lotBarInto(card, f, ps, root) {
   const p = App.project, allLots = planLots(p), lots = lotsVis(f, allLots), sel = lotSelDefault(f, ps);
-  const cnt = (id) => ps.filter(x => x.lotId === id).length, nNo = ps.filter(x => !x.lotId).length;
+  const cnt = (id) => { const set = lotIdsWithKids(p, id); return ps.filter(x => set.includes(x.lotId)).length; }, nNo = ps.filter(x => !x.lotId).length;
+  const focus = sel === '__all' ? ((App.lotF || {})[f.id] || '') : (sel !== '__none' && !sel.startsWith('T:') ? sel : '');
+  const focusL = lots.find(x => x.id === focus) || null, focusTop = focusL ? (focusL.up || focusL.id) : '';
   const avB = (L) => { try { return typeof avLotBadge === 'function' && App._avLinks ? avLotBadge(p, L, f, App._avLinks) : ''; } catch (e) { return ''; } };
   const bar = document.createElement('div'); bar.className = 'lot-bar lot-bar2';
   const tk = selTypeKey(sel, lots);
   const nOfType = (k) => ps.filter(x => { const L = lots.find(l => l.id === x.lotId); return L && (L.cat || '') === k; }).length;
-  const where = sel === '__all' ? '📚 Tous les types (TOUT)' : sel === '__none' ? '📄 Sans lot' : tk ? typeLab(tk, p) : 'Sans type';
+  const where = sel === '__all' ? '📚 Tous les types (TOUT)' : sel === '__none' ? '📄 Sans lot' : tk ? typeAbOf(tk, p) + ' · ' + typeName(typeLab(tk, p)) : 'Sans type';
   const cntTop = sel === '__all' ? ps.length : sel === '__none' ? nNo : sel.startsWith('T:') ? nOfType(tk) : cnt(sel);
   // boîte fixe : ouvre / ferme la liste des types dessous
   const box = document.createElement('button'); box.type = 'button'; box.className = 'lot-tbox';
   box.innerHTML = `<span>▾ ${esc(where)}</span><small>${cntTop}</small>`;
   bar.appendChild(box);
   // rangée des lots du type choisi (ou de tous les lots pour TOUT)
-  const chipOf = (l, on) => { const D = (f.lotData || {})[l.id] || {}, di = dueInfo(D), po = lotStarted(l, D) ? paOpen(l, D).length : 0;
-    return `<button type="button" class="lot-c ${on ? 'on' : ''}" data-lp="${l.id}" style="--c:${l.c};--t:${tint(l.c, .16)}">${l.e} ${esc(l.name)}${cnt(l.id) ? ` <small>${cnt(l.id)}</small>` : ''}${po ? `<i class="lc-pa">🛑${po}</i>` : ''}${di && di.cls !== 'ok' ? `<i class="lc-due ${di.cls}">⏳</i>` : ''}${avB(l)}</button>`; };
-  const inType = tk ? lots.filter(l => (l.cat || '') === tk) : lots;
+  const chipOf = (l, on, sub) => { const D = (f.lotData || {})[l.id] || {}, di = dueInfo(D), po = lotStarted(l, D) ? paOpen(l, D).length : 0;
+    return `<button type="button" class="lot-c ${on ? 'on' : ''} ${sub ? 'sub' : ''}" data-lp="${l.id}" style="--c:${l.c};--t:${tint(l.c, .16)}">${sub ? '↳ ' : l.e + ' '}${esc(l.name)}${cnt(l.id) ? ` <small>${cnt(l.id)}</small>` : ''}${po ? `<i class="lc-pa">🛑${po}</i>` : ''}${di && di.cls !== 'ok' ? `<i class="lc-due ${di.cls}">⏳</i>` : ''}${avB(l)}${sel === '__all' && on ? `<i class="lc-open" data-open="${l.id}" title="Ouvrir le lot">⤢</i>` : ''}</button>`; };
+  const kidsOf = (L) => lots.filter(x => x.up === L.id);
+  const topOf = (arr) => arr.filter(l => !l.up || !lots.some(z => z.id === l.up));
+  // une rangée : lots du niveau ; sous-lots du lot « en vue » juste après lui
+  const rowOf = (arr) => topOf(arr).map(l => chipOf(l, focus === l.id || (sel !== '__all' && sel === l.id)) + (l.id === focusTop ? kidsOf(l).map(k => chipOf(k, focus === k.id, true)).join('') + `<button type="button" class="lot-c add sub" data-lp="__addsub">＋ Sous-lot</button>` : '')).join('');
+  const inType = sel === '__all' ? lots : lots.filter(l => (l.cat || '') === tk);
   const chips = document.createElement('div'); chips.className = 'lot-chips';
-  if (sel !== '__none') chips.innerHTML = (sel.startsWith('T:') || (sel !== '__all' && tk)) ? `<button type="button" class="lot-c ${sel === '__all' || sel.startsWith('T:') ? 'on' : ''}" data-lp="${tk ? 'T:' + tk : '__all'}" style="--c:#334155">📚 Tous</button>` + inType.map(l => chipOf(l, sel === l.id)).join('') + `<button type="button" class="lot-c add" data-lp="__add">＋ Lot</button>`
-    : '';
-  if (sel === '__all') chips.innerHTML = lots.map(l => chipOf(l, false)).join('') + (nNo ? `<button type="button" class="lot-c" data-lp="__none" style="--c:#64748b">📄 Sans lot <small>${nNo}</small></button>` : '');
+  if (sel !== '__none' && sel !== '__all') chips.innerHTML = `<button type="button" class="lot-c ${sel.startsWith('T:') ? 'on' : ''}" data-lp="${tk ? 'T:' + tk : '__all'}" style="--c:#334155">📚 Tous</button>` + rowOf(inType) + `<button type="button" class="lot-c add" data-lp="__add">＋ Lot</button>`;
+  // TOUT : tous les lots et sous-lots restent visibles ; toucher un lot filtre les plans sans quitter TOUT (⤢ = ouvrir le lot)
+  if (sel === '__all') chips.innerHTML = `<button type="button" class="lot-c ${focus ? '' : 'on'}" data-lp="__f0" style="--c:#334155">📚 Tous</button>` + rowOf(lots) + (nNo ? `<button type="button" class="lot-c" data-lp="__none" style="--c:#64748b">📄 Sans lot <small>${nNo}</small></button>` : '');
   if (sel === '__none') chips.innerHTML = `<button type="button" class="lot-c on" data-lp="__none" style="--c:#64748b">📄 Sans lot <small>${nNo}</small></button>`;
   bar.appendChild(chips);
   // liste des types (sous la boîte), fermée par défaut
@@ -113,11 +139,11 @@ function lotBarInto(card, f, ps, root) {
       const TV = typesVis(f, p), famHtml = famsOf(p).map(F => { const ts = TV.filter(t => famOfType(p, t.k) === F.k); if (!ts.length) return '';
         const n = ts.reduce((a, t) => a + nOfType(t.k), 0), open = !!fo[F.k];
         return `<button type="button" class="lp-fam ${open ? 'open' : ''}" data-fam="${F.k}"><span class="lp-fn">📁 ${esc(F.l)}</span><small>${n}</small><i>${open ? '▴' : '▾'}</i></button>`
-          + (open ? `<div class="lp-fbody">${ts.map(t => opt('T:' + t.k, esc(t.l), nOfType(t.k))).join('')}</div>` : ''); }).join('');
+          + (open ? `<div class="lp-fbody">${ts.map(t => opt('T:' + t.k, `<b class="lp-ab">${esc(typeAbOf(t.k, p))}</b> ${esc(typeName(t.l))}`, nOfType(t.k))).join('')}</div>` : ''); }).join('');
       const addFnd = !typeShownIn(f, { k: 'FND' }) ? `<button type="button" class="lp-i add" data-lp="__addfnd">＋ Fondations ici</button>` : '';
       list.innerHTML = opt('__all', '📚 Tous les types (TOUT)', ps.length, 'all') + famHtml
         + (nNo ? opt('__none', '📄 Sans lot', nNo) : '')
-        + `<div class="lp-foot"><button type="button" class="lp-i add" data-lp="__addtype">＋ Nouveau type</button>${addFnd}${hiddenT(f).length || hiddenL(f).length ? `<button type="button" class="lp-i add" data-lp="__restore">↺ Rétablir masqués</button>` : ''}</div>`;
+        + `<div class="lp-foot"><button type="button" class="lp-i add" data-lp="__addtype">＋ Nouveau type</button>${addFnd}${nNo ? `<button type="button" class="lp-i add" data-lp="__auto">✨ Classer automatiquement (${nNo})</button>` : ''}${hiddenT(f).length || hiddenL(f).length ? `<button type="button" class="lp-i add" data-lp="__restore">↺ Rétablir masqués</button>` : ''}</div>`;
       list.querySelectorAll('[data-fam]').forEach(h => {
         h.onclick = (e) => { e.stopPropagation(); fo[h.dataset.fam] = !fo[h.dataset.fam]; draw(); };
         h.oncontextmenu = async (e) => { e.preventDefault(); e.stopPropagation(); const F = famsOf(p).find(z => z.k === h.dataset.fam); if (!F) return;
@@ -126,8 +152,9 @@ function lotBarInto(card, f, ps, root) {
       });
       list.querySelectorAll('[data-lp]').forEach(x => {
         x.onclick = async (e) => { e.stopPropagation();
-          if (x.dataset.lp === '__addtype') { const r = await formSheet('Nouveau type de lot', [{ name: 'n', label: 'Nom du type', placeholder: 'Ex : Second œuvre' }], { okLabel: 'Ajouter' }); if (!r || !r.n) return;
-            p.lotTypes = p.lotTypes || []; p.lotTypes.push({ k: 'T' + DB.uid(), l: r.n }); await DB.put('projects', p); App.lotSel[f.id] = 'T:' + p.lotTypes[p.lotTypes.length - 1].k; renderPlans(root); return; }
+          if (x.dataset.lp === '__addtype') { const r = await formSheet('Nouveau type (ce niveau seulement)', [{ name: 'n', label: 'Nom du type', placeholder: 'Ex : Second œuvre' }], { okLabel: 'Ajouter' }); if (!r || !r.n) return;
+            p.lotTypes = p.lotTypes || []; p.lotTypes.push({ k: 'T' + DB.uid(), l: r.n, only: [f.id] }); await DB.put('projects', p); App.lotSel[f.id] = 'T:' + p.lotTypes[p.lotTypes.length - 1].k; renderPlans(root); return; }
+          if (x.dataset.lp === '__auto') { await autoClassify(ps, f, root); return; }
           if (x.dataset.lp === '__addfnd') { f.extraTypes = [...(f.extraTypes || []), 'FND']; await DB.put('folders', f); App.lotSel[f.id] = 'T:FND'; renderPlans(root); return; }
           if (x.dataset.lp === '__restore') { await restoreHiddenAll(p); renderPlans(root); return; }
           App.lotSel = App.lotSel || {}; App.lotSel[f.id] = x.dataset.lp; App.keepScrollY = ($('#content') || {}).scrollTop || 0; renderPlans(root);
@@ -135,9 +162,13 @@ function lotBarInto(card, f, ps, root) {
         // appui long (menu contextuel) sur un type : le retirer de ce niveau seulement
         if (x.dataset.lp.startsWith('T:')) x.oncontextmenu = async (e) => { e.preventDefault(); e.stopPropagation();
           const k = x.dataset.lp.slice(2), t = typesOf(p).find(d => d.k === k) || { l: k };
-          const v = await menu(t.l, [{ label: 'Renommer', icon: 'edit', value: 'ren' }, { label: 'Déplacer vers une autre famille', icon: 'layers', value: 'fam' }, { label: 'Masquer dans ce niveau', icon: 'eye', value: 'hide' }, { label: 'Supprimer définitivement ce type', icon: 'trash', danger: true, value: 'del' }]);
+          const v = await menu(t.l, [{ label: 'Renommer', icon: 'edit', value: 'ren' }, { label: 'Déplacer vers une autre famille', icon: 'layers', value: 'fam' }, { label: 'Fusionner avec un autre type…', icon: 'layers', value: 'merge' }, ...((p.lotTypes || []).some(d => d.k === k) ? [{ label: 'Visible dans quels niveaux…', icon: 'eye', value: 'lvl' }] : []), { label: 'Masquer dans ce niveau', icon: 'eye', value: 'hide' }, { label: 'Supprimer définitivement ce type', icon: 'trash', danger: true, value: 'del' }]);
           if (v === 'ren') { const r = await formSheet('Renommer le type', [{ name: 'n', label: 'Nom', value: t.l }]); if (!r || !r.n) return; p.typeNames = { ...(p.typeNames || {}), [k]: r.n }; await DB.put('projects', p); renderPlans(root); return; }
           if (v === 'fam') { const cur = famOfType(p, k), g = await menu('Déplacer « ' + t.l + ' » vers', famsOf(p).map(F => ({ label: F.l, value: F.k, checked: F.k === cur }))); if (!g) return; p.typeFam = { ...(p.typeFam || {}), [k]: g }; if (!App.famOpen) App.famOpen = {}; (App.famOpen[f.id] = App.famOpen[f.id] || {})[g] = true; await DB.put('projects', p); renderPlans(root); return; }
+          if (v === 'merge') { const g = await menu('Fusionner « ' + t.l + ' » dans', typesOf(p).filter(d => d.k !== k).map(d => ({ label: `${typeAbOf(d.k, p)} · ${typeName(d.l)}`, value: d.k }))); if (!g) return;
+            if (!await confirmBox(`Fusionner « ${t.l} » dans « ${typeLab(g, p)} » ? Ses lots passent dans l'autre type ; aucun plan n'est perdu.`)) return;
+            await mergeTypes(k, g, p); App.lotSel[f.id] = 'T:' + g; renderPlans(root); return; }
+          if (v === 'lvl') { const tt = (p.lotTypes || []).find(d => d.k === k); if (tt && await shareWithLevels(tt, p, f)) { await DB.put('projects', p); renderPlans(root); } return; }
           if (v === 'del') {
             if (!await confirmBox(`Supprimer DÉFINITIVEMENT le type « ${t.l} » ? Ses lots restent dans les autres types (ou « Sans type »). Irréversible.`)) return;
             p.typesGone = [...((p.typesGone || [])), k]; p.lotTypes = (p.lotTypes || []).filter(d => d.k !== k);
@@ -157,9 +188,15 @@ function lotBarInto(card, f, ps, root) {
   chips.querySelectorAll('[data-lp]').forEach(b => { const L = lots.find(l => l.id === b.dataset.lp); if (L) b.oncontextmenu = (e) => { e.preventDefault(); lotMenu(L, root, f); }; });
   // ajout d'un lot : rangé dans le type affiché
   const addB = chips.querySelector('[data-lp="__add"]');
-  if (addB) addB.onclick = async (e) => { e.stopPropagation(); const r = await formSheet('Nouveau lot', [{ name: 'n', label: 'Nom', placeholder: 'Ex : Faux plafond' }, { name: 'e', label: 'Emoji', value: '🔧' }], { okLabel: 'Ajouter' });
-    if (r && r.n) { const nl = { id: DB.uid(), name: r.n, e: r.e || '🔧', c: ['#0ea5e9', '#22c55e', '#f97316', '#8b5cf6', '#e11d48'][allLots.length % 5], points: [], cat: tk || undefined }; allLots.push(nl); await DB.put('projects', p); App.lotSel[f.id] = nl.id; renderPlans(root); } };
-  chips.querySelectorAll('[data-lp]').forEach(b => { if (b.dataset.lp !== '__add') b.onclick = (e) => { e.stopPropagation(); App.lotSel = App.lotSel || {}; App.lotSel[f.id] = b.dataset.lp; App.keepScrollY = ($('#content') || {}).scrollTop || 0; renderPlans(root); }; });
+  if (addB) addB.onclick = async (e) => { e.stopPropagation(); const r = await formSheet('Nouveau lot (ce niveau seulement)', [{ name: 'n', label: 'Nom', placeholder: 'Ex : Faux plafond' }, { name: 'e', label: 'Emoji', value: '🔧' }], { okLabel: 'Ajouter' });
+    if (r && r.n) { const nl = { id: DB.uid(), name: r.n, e: r.e || '🔧', c: ['#0ea5e9', '#22c55e', '#f97316', '#8b5cf6', '#e11d48'][allLots.length % 5], points: [], cat: tk || undefined, only: [f.id] }; allLots.push(nl); await DB.put('projects', p); App.lotSel[f.id] = nl.id; renderPlans(root); } };
+  chips.querySelectorAll('[data-lp]').forEach(b => { if (!/^__add/.test(b.dataset.lp)) b.onclick = (e) => { e.stopPropagation(); App.lotSel = App.lotSel || {}; App.lotSel[f.id] = b.dataset.lp; App.keepScrollY = ($('#content') || {}).scrollTop || 0; renderPlans(root); }; });
+  const addSub = chips.querySelector('[data-lp="__addsub"]');
+  if (addSub) addSub.onclick = (e) => { e.stopPropagation(); const par = lots.find(x => x.id === focusTop); if (par) addSubLot(par, f, root); };
+  if (sel === '__all') chips.querySelectorAll('[data-lp]').forEach(b => { const id = b.dataset.lp; if (id === '__none' || /^__add/.test(id)) return;
+    b.onclick = (e) => { e.stopPropagation(); App.lotF = App.lotF || {};
+      const op = e.target.closest && e.target.closest('[data-open]'); if (op) { App.lotSel[f.id] = op.dataset.open; App.lotF[f.id] = ''; App.keepScrollY = ($('#content') || {}).scrollTop || 0; return renderPlans(root); }
+      App.lotF[f.id] = (id === '__f0' || App.lotF[f.id] === id) ? '' : id; App.keepScrollY = ($('#content') || {}).scrollTop || 0; renderPlans(root); }; });
   // balayage gauche / droite dans le dossier = type suivant / précédent (TOUT compris)
   card.classList.add('lot-swipe');   // le balayage dans ce dossier change de type : il n'ouvre pas le menu (voir app.js)
   if (!card._swipe) { card._swipe = true; let x0 = null, y0 = 0;
@@ -176,7 +213,59 @@ function lotBarInto(card, f, ps, root) {
   const head = $('.folder-head', card); head.after(bar);
   if (sel && sel !== '__all' && sel !== '__none' && !sel.startsWith('T:')) { const L = lots.find(l => l.id === sel); if (L) bar.after(lotPanel(L, f, root)); }
 }
-const lotFilter = (ps, f) => { const s = lotSelDefault(f, ps); if (s && s.startsWith('T:')) { const k = s.slice(2), ids = lotsVis(f, planLots(App.project)).filter(l => (l.cat || '') === k).map(l => l.id); return ps.filter(p => ids.includes(p.lotId)); } return s === '__all' ? ps : s === '__none' ? ps.filter(p => !p.lotId) : s ? ps.filter(p => p.lotId === s) : ps; };
+const lotFilter = (ps, f) => { const s = lotSelDefault(f, ps), P = App.project;
+  if (s && s.startsWith('T:')) { const k = s.slice(2), ids = lotsVis(f, planLots(P)).filter(l => (l.cat || '') === k).map(l => l.id); return ps.filter(p => ids.includes(p.lotId)); }
+  if (s === '__all') { const lf = (App.lotF || {})[f.id]; if (lf && planLots(P).some(l => l.id === lf)) { const ids = lotIdsWithKids(P, lf); return ps.filter(p => ids.includes(p.lotId)); } return ps; }
+  if (s === '__none') return ps.filter(p => !p.lotId);
+  if (s) { const ids = lotIdsWithKids(P, s); return ps.filter(p => ids.includes(p.lotId)); }
+  return ps; };
+// ajouter un sous-lot au lot : modèles proposés (Revêtements → Carrelage, Parquet…) ou nom libre ; propre au niveau
+async function addSubLot(par, f, root) {
+  const p = App.project, lots = planLots(p), have = lots.filter(x => x.up === par.id).map(x => normQ(x.name));
+  const tpl = tplOfLot(par).filter(n => !have.includes(normQ(n)));
+  const v = tpl.length ? await menu(`Sous-lot de ${par.name}`, [...tpl.map(n => ({ label: n, icon: 'layers', value: 'T:' + n })), { label: 'Autre nom…', icon: 'edit', value: 'new' }]) : 'new';
+  if (!v) return; let name = v.startsWith('T:') ? v.slice(2) : '';
+  if (v === 'new') { const r = await formSheet(`Nouveau sous-lot de ${par.name} (ce niveau seulement)`, [{ name: 'n', label: 'Nom', placeholder: 'Ex : Peinture plastique' }], { okLabel: 'Ajouter' }); if (!r || !r.n) return; name = r.n; }
+  const nl = { id: DB.uid(), name, e: par.e, c: par.c, points: [], cat: par.cat, up: par.id, only: [f.id] };
+  lots.push(nl); await DB.put('projects', p); App.lotF = App.lotF || {}; if ((App.lotSel || {})[f.id] === '__all') App.lotF[f.id] = nl.id; else App.lotSel[f.id] = nl.id; renderPlans(root);
+}
+// fusion : A est absorbé par B (plans, points, données par niveau) — rien n'est perdu
+async function mergeLots(A, B, p) {
+  for (const x of await DB.byProject('plans', p.id)) { let ch = false; if (x.lotId === A.id) { x.lotId = B.id; ch = true; } if (x.hiddenFromLot === A.id) { x.hiddenFromLot = B.id; ch = true; } if (ch) await DB.put('plans', x); }
+  for (const fo of await DB.byProject('folders', p.id)) { let ch = false; const D = fo.lotData || {};
+    if (D[A.id]) { if (!D[B.id]) D[B.id] = D[A.id]; delete D[A.id]; ch = true; }
+    if ((fo.hiddenLots || []).includes(A.id)) { fo.hiddenLots = fo.hiddenLots.filter(k => k !== A.id); ch = true; }
+    if (ch) await DB.put('folders', fo); }
+  B.points = B.points || []; for (const q of (A.points || [])) if (!B.points.some(z => normQ(z.t) === normQ(q.t))) B.points.push(q);
+  const lots = planLots(p); for (const l of lots) if (l.up === A.id) l.up = B.up || B.id;
+  const i = lots.indexOf(A); if (i >= 0) lots.splice(i, 1);
+  await DB.put('projects', p);
+}
+async function mergeTypes(kA, kB, p) {
+  for (const l of planLots(p)) if (l.cat === kA) l.cat = kB;
+  p.typesGone = [...(p.typesGone || []), kA]; p.lotTypes = (p.lotTypes || []).filter(d => d.k !== kA);
+  for (const fo of await DB.byProject('folders', p.id)) if ((fo.hiddenTypes || []).includes(kA)) { fo.hiddenTypes = fo.hiddenTypes.filter(q => q !== kA); await DB.put('folders', fo); }
+  await DB.put('projects', p);
+}
+// classement automatique d'après le nom des plans sans lot (aperçu + confirmation)
+async function autoClassify(ps, f, root) {
+  const p = App.project, props = ps.filter(x => !x.lotId).map(x => [x, autoLotOf(p, x.name)]).filter(([, L]) => L);
+  if (!props.length) { toast('Aucun plan à classer d\'après son nom'); return; }
+  const txt = props.slice(0, 8).map(([x, L]) => `• ${x.name.slice(0, 32)} → ${L.name}`).join('\n') + (props.length > 8 ? `\n… et ${props.length - 8} autre(s)` : '');
+  if (!await confirmBox(`Classer ${props.length} plan(s) d'après leur nom ?\n${txt}`)) return;
+  for (const [x, L] of props) { x.lotId = L.id; await DB.put('plans', x); }
+  toast(`✓ ${props.length} plan(s) classé(s)`); renderPlans(root);
+}
+// partager un type / lot / sous-lot avec d'autres niveaux (ou tous)
+async function shareWithLevels(x, p, f) {
+  const fos = (await DB.byProject('folders', p.id)).filter(o => !o.parentId && o.id !== '_none');
+  if (!fos.length) return false;
+  const cur = x.only || null;
+  const v = await menu('Visible dans quels niveaux ?', [{ label: 'Tous les niveaux', icon: 'layers', value: '*', checked: !cur }, ...fos.map(o => ({ label: o.name, icon: 'folder', value: o.id, checked: !!(cur && cur.includes(o.id)) }))]);
+  if (!v) return false;
+  if (v === '*') delete x.only; else { const set = new Set(cur || (f ? [f.id] : [])); set.has(v) ? set.delete(v) : set.add(v); x.only = [...set]; if (!x.only.length) delete x.only; }
+  return true;
+}
 
 // panneau du lot : replié par défaut (une ligne), on l'ouvre au toucher ; « ＋ Ajouter » pour y mettre ce qu'il faut
 const lotOpenK = (L) => { try { return (JSON.parse(localStorage.getItem('lot.open') || '{}'))[L.id]; } catch (e) { return false; } };
@@ -185,11 +274,12 @@ const LOT_GS = [['bpu', '📑 BPU'], ['att', '📐 Attachements'], ['dec', '🧾
 function lotPanel(L, f, root) {
   const p = App.project, niv = nivOfFolder(f.name);
   f.lotData = f.lotData || {}; const D = f.lotData[L.id] = f.lotData[L.id] || {};
+  const PTS = PTS.filter(x => onlyHere(x, f)), RUBV = (L.rub || []).filter(x => onlyHere(x, f));   // points et rubriques créés dans un niveau : visibles là seulement
   const av = (p.lots || []).find(x => normQ(x.name) === normQ(L.name));
-  const done = (L.points || []).filter(x => (D[x.id] || {}).done).length, open = !!lotOpenK(L), po = paOpen(L, D).length, di = dueInfo(D);
+  const done = PTS.filter(x => (D[x.id] || {}).done).length, open = !!lotOpenK(L), po = paOpen(L, D).length, di = dueInfo(D);
   const sc = L.sc || [], docs = D._docs || [];
   const el = document.createElement('div'); el.className = 'lot-panel' + (open ? ' open' : ''); el.style.setProperty('--c', L.c); el.style.setProperty('--t', tint(L.c, .12));
-  el.innerHTML = `<div class="lp-h" data-a="tog"><span class="lp-e">${L.e}</span><div class="grow"><b>${esc(L.name)}</b><small>${esc(f.name)}${(L.points || []).length ? ` · ${done}/${L.points.length} points` : ''}${po ? ` · 🛑 ${po}` : ''}${di ? ` · ⏳ ${di.txt}` : ''}</small></div><button class="iconbtn sm" data-a="lm">${icon('more')}</button><span class="lp-chev">${icon('chevdown')}</span></div>
+  el.innerHTML = `<div class="lp-h" data-a="tog"><span class="lp-e">${L.e}</span><div class="grow"><b>${esc(L.name)}</b><small>${esc(f.name)}${PTS.length ? ` · ${done}/${PTS.length} points` : ''}${po ? ` · 🛑 ${po}` : ''}${di ? ` · ⏳ ${di.txt}` : ''}</small></div><button class="iconbtn sm" data-a="lm">${icon('more')}</button><span class="lp-chev">${icon('chevdown')}</span></div>
     ${!open ? '' : `<div class="lp-body">
     <div class="lp-avslot"></div>
     ${lotDueHTML(L, D, f)}
@@ -202,15 +292,15 @@ function lotPanel(L, f, root) {
       <button data-go="anom"><i>🚨</i><span>Suivi des anomalies<small>${esc(L.name)}${niv ? ' · ' + esc(niv) : ''}</small></span></button>
       <div class="lp-gh">Qualité</div>
       <button data-go="tasks"><i>⚠️</i><span>Réserves<small>${esc(niv || 'tous niveaux')}</small></span></button>
-      ${(L.rub || []).length || sc.length ? '<div class="lp-gh">Rubriques & raccourcis</div>' : ''}
-      ${(L.rub || []).map(R => `<button data-rub="${R.id}"><i>${esc(R.e)}</i><span>${esc(R.name)}<small>${(((f.lotData || {})[L.id] || {})._rub || {})[R.id] && f.lotData[L.id]._rub[R.id].length ? f.lotData[L.id]._rub[R.id].length + ' ligne(s)' : 'tableau'}</small></span></button>`).join('')}
-      ${sc.map((x, i) => `<button data-sc="${i}"><i>${SC_EMO && SC_EMO[x.sec] ? SC_EMO[x.sec] : '🔗'}</i><span>${esc(x.label)}<small>raccourci</small></span></button>`).join('')}
+      ${RUBV.length || sc.length ? '<div class="lp-gh">Rubriques & raccourcis</div>' : ''}
+      ${RUBV.map(R => `<button data-rub="${R.id}"><i>${esc(R.e)}</i><span>${esc(R.name)}<small>${(((f.lotData || {})[L.id] || {})._rub || {})[R.id] && f.lotData[L.id]._rub[R.id].length ? f.lotData[L.id]._rub[R.id].length + ' ligne(s)' : 'tableau'}</small></span></button>`).join('')}
+      ${sc.map((x, i) => !onlyHere(x, f) ? '' : `<button data-sc="${i}"><i>${SC_EMO && SC_EMO[x.sec] ? SC_EMO[x.sec] : '🔗'}</i><span>${esc(x.label)}<small>raccourci</small></span></button>`).join('')}
       <button data-a="rubnew" class="lp-rubnew"><i>＋</i><span>Rubrique<small>tableau + Excel</small></span></button>
     </div>
     ${docs.length ? `<div class="lp-docs">${docs.map((d, i) => `<div class="lp-doc"><button class="grow" data-doc="${i}">${icon(d.url && !d.fileId ? 'drive' : d.planId ? 'plans' : 'pdf')}<span>${esc(d.name)}</span></button><button class="iconbtn sm" data-docm="${i}">${icon('more')}</button></div>`).join('')}</div>` : ''}
-    <details class="lp-det" ${App.lotDet ? 'open' : ''}><summary>☑ Points de contrôle ${done}/${(L.points || []).length} · notes</summary>
-    <div class="lp-pts">${(L.points || []).map(x => { const v = D[x.id] || {}; return `<button class="lp-pt ${v.done ? 'on' : ''}" data-pt="${x.id}"><i>${v.done ? '☑' : '☐'}</i><span class="grow">${esc(x.t)}${v.at ? `<small>${fmtDate(v.at)}</small>` : ''}</span></button>`; }).join('')}
-      <button class="lp-add" data-a="addpt">${icon('plus')} Point de contrôle (pour tous les niveaux)</button></div>
+    <details class="lp-det" ${App.lotDet ? 'open' : ''}><summary>☑ Points de contrôle ${done}/${PTS.length} · notes</summary>
+    <div class="lp-pts">${PTS.map(x => { const v = D[x.id] || {}; return `<button class="lp-pt ${v.done ? 'on' : ''}" data-pt="${x.id}"><i>${v.done ? '☑' : '☐'}</i><span class="grow">${esc(x.t)}${v.at ? `<small>${fmtDate(v.at)}</small>` : ''}</span></button>`; }).join('')}
+      <button class="lp-add" data-a="addpt">${icon('plus')} Point de contrôle (ce niveau)</button></div>
     <label class="lp-note">Notes ${esc(L.name)} · ${esc(f.name)}<textarea placeholder="Remarques, besoins, matériel…">${esc(D._note || '')}</textarea></label></details>
     <button class="lp-plus" data-a="plus">${icon('plus')} Ajouter dans ${esc(L.name)}</button></div>`}`;
   const save = () => DB.put('folders', f), redraw = () => renderPlans(root);
@@ -224,7 +314,7 @@ function lotPanel(L, f, root) {
   { const ls = $('.lp-links', el); if (ls && typeof pnLotBlock === 'function') { pnEl = pnLotBlock(p, L, f, redraw); ls.before(pnEl); } }
   $('.lp-det', el).ontoggle = (e) => { App.lotDet = e.target.open; };
   $$('[data-pt]', el).forEach(b => b.onclick = async () => { const v = D[b.dataset.pt] = D[b.dataset.pt] || {}; v.done = !v.done; v.at = v.done ? todayISO() : null; await save(); redraw(); });
-  const addPt = async () => { const r = await formSheet(`Point de contrôle · ${L.name}`, [{ name: 't', label: 'Intitulé (ajouté à tous les niveaux)', placeholder: 'Ex : Réservations vérifiées' }], { okLabel: 'Ajouter' }); if (r && r.t) { L.points = L.points || []; L.points.push({ id: DB.uid(), t: r.t }); App.lotDet = true; await DB.put('projects', p); redraw(); } };
+  const addPt = async () => { const r = await formSheet(`Point de contrôle · ${L.name}`, [{ name: 't', label: 'Intitulé (ce niveau seulement)', placeholder: 'Ex : Réservations vérifiées' }], { okLabel: 'Ajouter' }); if (r && r.t) { L.points = L.points || []; L.points.push({ id: DB.uid(), t: r.t, only: [f.id] }); App.lotDet = true; await DB.put('projects', p); redraw(); } };
   ($('[data-a=addpt]', el)||{}).onclick = addPt;
   const ta = $('textarea', el); ta.oninput = () => { D._note = ta.value; clearTimeout(ta._t); ta._t = setTimeout(save, 500); };
   bindLotDue(el, L, D, f, save, redraw);
@@ -249,7 +339,7 @@ function lotPanel(L, f, root) {
     let t = null; b.addEventListener('touchstart', () => { t = setTimeout(() => { t = 'done'; rubMenu(p, L, R, redraw); }, 550); }, { passive: true });
     b.addEventListener('touchend', (e) => { if (t === 'done') e.preventDefault(); clearTimeout(t); t = null; }); b.addEventListener('touchmove', () => { clearTimeout(t); t = null; }, { passive: true });
     b.oncontextmenu = (e) => { e.preventDefault(); rubMenu(p, L, R, redraw); }; });
-  ($('[data-a=rubnew]', el)||{}).onclick = async () => { const R = await rubNew(p, L); if (R) { await rubOpen(p, L, f, R); redraw(); } };
+  ($('[data-a=rubnew]', el)||{}).onclick = async () => { const R = await rubNew(p, L, f); if (R) { await rubOpen(p, L, f, R); redraw(); } };
   $$('[data-doc]', el).forEach(b => b.onclick = () => pbOpenDoc(docs[+b.dataset.doc], { projectId: p.id }, planCtx(() => {})));
   $$('[data-docm]', el).forEach(b => b.onclick = async () => { const i = +b.dataset.docm, d = docs[i];
     const v = await menu(d.name, [{ label: 'Ouvrir', icon: 'pdf', value: 'open' }, { label: 'Renommer', icon: 'edit', value: 'ren' }, { label: 'Monter', icon: 'chevup', value: 'up' }, { label: 'Retirer', icon: 'trash', danger: true, value: 'del' }]);
@@ -259,14 +349,14 @@ function lotPanel(L, f, root) {
     if (v === 'del' && await confirmBox('Retirer ce document ?')) { if (d.fileId) await DB.del('files', d.fileId); docs.splice(i, 1); await save(); redraw(); } });
   // ＋ Ajouter : ce qu'il faut dans ce lot
   ($('[data-a=plus]', el)||{}).onclick = async () => {
-    const v = await menu(`Ajouter dans ${L.e} ${L.name}`, [{ label: '☑ Point de contrôle (tous les niveaux)', icon: 'check', value: 'pt' }, { label: '🛑 Point d\'arrêt', icon: 'close', value: 'pa' }, { label: '⚠️ Point critique', icon: 'ask', value: 'pc' },
+    const v = await menu(`Ajouter dans ${L.e} ${L.name}`, [{ label: '☑ Point de contrôle (ce niveau)', icon: 'check', value: 'pt' }, { label: '🛑 Point d\'arrêt', icon: 'close', value: 'pa' }, { label: '⚠️ Point critique', icon: 'ask', value: 'pc' },
       { label: '🗂 Nouvelle rubrique (tableau + Excel)', icon: 'grid', value: 'rub' }, { label: '🔗 Raccourci vers une section', icon: 'layers', value: 'sc' }, { label: `📄 Document / plan (${f.name})`, icon: 'pdf', value: 'doc' }, { label: '📝 Note', icon: 'edit', value: 'note' }]);
     if (v === 'pt') addPt();
-    if (v === 'rub') { const R = await rubNew(p, L); if (R) { await rubOpen(p, L, f, R); redraw(); } }
+    if (v === 'rub') { const R = await rubNew(p, L, f); if (R) { await rubOpen(p, L, f, R); redraw(); } }
     if (v === 'pa' || v === 'pc') { const b = $(v === 'pa' ? '[data-a=addpa]' : '[data-a=addpc]', el); if (b) b.click(); }
     if (v === 'sc') { const secs = Object.entries(SECTIONS).filter(([k, S]) => !S.hidden && k !== 'settings' && (!SECTION_FEATURE[k] || featOn(SECTION_FEATURE[k])));
       const k = await menu('Raccourci vers…', secs.map(([k2, S]) => ({ label: `${(SC_EMO && SC_EMO[k2]) || '📁'} ${S.label}`, value: k2 }))); if (!k) return;
-      L.sc = L.sc || []; L.sc.push({ sec: k, label: SECTIONS[k].label.split(' (')[0] }); await DB.put('projects', p); toast('Raccourci ajouté (pour tous les niveaux) ✓'); redraw(); }
+      L.sc = L.sc || []; L.sc.push({ sec: k, label: SECTIONS[k].label.split(' (')[0], only: [f.id] }); await DB.put('projects', p); toast('Raccourci ajouté (ce niveau) ✓'); redraw(); }
     if (v === 'doc') { const ds = await pbPickDocs(p.id); if (ds.length) { D._docs = [...docs, ...ds]; await save(); redraw(); } }
     if (v === 'note') { App.lotDet = true; lpTabSet(L, 'pts'); redraw(); setTimeout(() => { const t = document.querySelector(`.lot-panel.open textarea`); if (t) { t.focus(); t.scrollIntoView({ block: 'center' }); } }, 200); }
   };
@@ -279,7 +369,7 @@ function lotPanel(L, f, root) {
       ['due', '⏳', 'Échéance', [q('.lp-due'), q('.lp-als')].filter(Boolean), di ? di.txt : 'non fixée', di && /late|r/.test(di.cls || '')],
       ['pa', '🛑', 'Points d\'arrêt', [q('.lp-pa')].filter(Boolean), po ? `${po} ouvert(s)` : `${(L.pa || []).length}`, po > 0],
       ['go', '🔗', 'Accès rapides', links, `${links[0] ? $$('button', links[0]).length - 1 : 0}`],
-      ['pts', '☑', 'Contrôle', [q('.lp-det:not(.lp-pa)')].filter(Boolean), `${done}/${(L.points || []).length}`],
+      ['pts', '☑', 'Contrôle', [q('.lp-det:not(.lp-pa)')].filter(Boolean), `${done}/${PTS.length}`],
     ].filter(t => t[3].length);
     const bar = document.createElement('div'); bar.className = 'lp-tabs';
     const show = (k) => { T.forEach(t => t[3].forEach(n => { n.style.display = t[0] === k ? '' : 'none'; n.classList.toggle('lp-hide', t[0] !== k); })); $$('button', bar).forEach(b => b.classList.toggle('on', b.dataset.lt === k)); };
@@ -306,9 +396,17 @@ async function restoreHiddenAll(p) {
 }
 async function lotMenu(L, root, f) {
   const p = App.project, lots = planLots(p), i = lots.indexOf(L);
-  const v = await menu(`${L.e} ${L.name}`, [{ label: 'Renommer / emoji', icon: 'edit', value: 'ren' }, { label: 'Couleur', icon: 'brush', value: 'col' }, { label: 'Catégorie' + (L.cat ? ' · ' + typeLab(L.cat, App.project) : ''), icon: 'layers', value: 'cat' }, { label: '← Déplacer à gauche', icon: 'back', value: 'l' }, { label: 'Déplacer à droite →', icon: 'chevright', value: 'r' }, { label: 'Points de contrôle…', icon: 'check', value: 'pts' }, ...(f ? [{ label: 'Masquer dans ce niveau', icon: 'eye', value: 'hide' }] : []), { label: 'Supprimer définitivement', icon: 'trash', danger: true, value: 'del' }]);
+  const v = await menu(`${L.e} ${L.name}`, [{ label: 'Renommer / emoji', icon: 'edit', value: 'ren' }, { label: 'Couleur', icon: 'brush', value: 'col' }, { label: 'Catégorie' + (L.cat ? ' · ' + typeLab(L.cat, App.project) : ''), icon: 'layers', value: 'cat' }, ...(!L.up && f ? [{ label: 'Ajouter un sous-lot…', icon: 'plus', value: 'sub' }] : []), { label: L.up ? 'Déplacer vers un autre lot…' : 'Faire de ce lot un sous-lot de…', icon: 'layers', value: 'upl' }, { label: 'Fusionner avec un autre lot…', icon: 'layers', value: 'merge' }, { label: 'Visible dans quels niveaux…', icon: 'eye', value: 'lvl' }, ...(f ? [{ label: 'Partager ses points / rubriques avec d\'autres niveaux…', icon: 'eye', value: 'items' }] : []), { label: '← Déplacer à gauche', icon: 'back', value: 'l' }, { label: 'Déplacer à droite →', icon: 'chevright', value: 'r' }, { label: 'Points de contrôle…', icon: 'check', value: 'pts' }, ...(f ? [{ label: 'Masquer dans ce niveau', icon: 'eye', value: 'hide' }] : []), { label: 'Supprimer définitivement', icon: 'trash', danger: true, value: 'del' }]);
   if (v === 'ren') { const r = await formSheet('Lot', [{ name: 'n', label: 'Nom', value: L.name }, { name: 'e', label: 'Emoji', value: L.e }]); if (r && r.n) { L.name = r.n; L.e = r.e || L.e; } }
   if (v === 'cat') { const k = await menu('Catégorie du lot', [...typesOf(App.project).map(d => ({ label: d.l, value: d.k, checked: L.cat === d.k })), { label: 'Aucune', value: '', checked: !L.cat }]); if (k !== null && k !== undefined) L.cat = k; }
+  if (v === 'sub' && f) { await addSubLot(L, f, root); return; }
+  if (v === 'upl') { const cand = lots.filter(x => x !== L && !x.up && x.up !== L.id && !lots.some(z => z.up === L.id && z === x)); const g = await menu(L.up ? 'Déplacer vers le lot' : 'Sous-lot de', [...cand.map(x => ({ label: `${x.e} ${x.name}`, value: x.id })), ...(L.up ? [{ label: 'Aucun (lot principal)', value: '__none' }] : [])]); if (!g) return; if (g === '__none') delete L.up; else { L.up = g; L.cat = (lots.find(x => x.id === g) || {}).cat; for (const z of lots) if (z.up === L.id) z.up = g; } }
+  if (v === 'merge') { const g = await menu(`Fusionner « ${L.name} » dans`, lots.filter(x => x !== L && x.up !== L.id).map(x => ({ label: `${x.e} ${x.name}`, value: x.id }))); if (!g) return;
+    const B = lots.find(x => x.id === g); if (!await confirmBox(`Fusionner « ${L.name} » dans « ${B.name} » ? Ses plans et ses points passent dans « ${B.name} » ; aucun plan n'est perdu.`)) return;
+    await mergeLots(L, B, p); if (f && (App.lotSel || {})[f.id] === L.id) App.lotSel[f.id] = B.id; renderPlans(root); return; }
+  if (v === 'lvl') { if (await shareWithLevels(L, p, f)) { await DB.put('projects', p); renderPlans(root); } return; }
+  if (v === 'items') { const its = [...(L.points || []), ...(L.rub || []), ...(L.sc || [])].filter(x => x.only); if (!its.length) { toast('Rien de propre à un niveau dans ce lot'); return; }
+    const tmp = { only: [...its[0].only] }; if (await shareWithLevels(tmp, p, f)) { for (const x of its) { if (tmp.only) x.only = [...tmp.only]; else delete x.only; } await DB.put('projects', p); renderPlans(root); } return; }
   if (v === 'col') { const c = await menu('Couleur', ['#f59e0b', '#ef4444', '#a855f7', '#06b6d4', '#3b82f6', '#eab308', '#14b8a6', '#b45309', '#ec4899', '#64748b', '#22c55e', '#0ea5e9'].map(c => ({ label: c, swatch: c, value: c }))); if (c) L.c = c; }
   if ((v === 'l' && i > 0) || (v === 'r' && i < lots.length - 1)) { const j = v === 'l' ? i - 1 : i + 1; [lots[i], lots[j]] = [lots[j], lots[i]]; }
   if (v === 'pts') { const id = await menu('Supprimer un point ?', (L.points || []).map(x => ({ label: x.t, icon: 'trash', value: x.id }))); if (id && await confirmBox('Supprimer ce point de tous les niveaux ?')) L.points = L.points.filter(x => x.id !== id); }
@@ -328,9 +426,12 @@ async function lotMenu(L, root, f) {
   if (v) { await DB.put('projects', p); renderPlans(root); }
 }
 async function planLotMenu(plan, root) {
-  const lots = planLots(App.project);
-  const v = await menu(`Lot du plan « ${plan.name} »`, [...lots.map(l => ({ label: `${l.e} ${l.name}`, icon: plan.lotId === l.id ? 'check' : 'layers', value: l.id })), { label: 'Aucun lot', icon: 'close', value: '__none' }]);
+  const p = App.project, fo = plan.folderId ? await DB.get('folders', plan.folderId) : null, all = planLots(p).filter(l => !fo || onlyHere(l, fo));
+  const ord = [...all.filter(l => !l.up).flatMap(l => [l, ...all.filter(k => k.up === l.id)]), ...all.filter(l => l.up && !all.some(z => z.id === l.up))];
+  const v = await menu(`Lot du plan « ${plan.name} »`, [...ord.map(l => ({ label: `${l.up ? '   ↳ ' : l.e + ' '}${l.name}`, icon: plan.lotId === l.id ? 'check' : 'layers', value: l.id })), { label: 'Discipline du plan (différente du lot)…', icon: 'brush', value: '__disc' }, { label: 'Aucun lot', icon: 'close', value: '__none' }]);
   if (!v) return;
+  if (v === '__disc') { const k = await menu('Discipline technique du plan', [...typesOf(p).map(d => ({ label: `${typeAbOf(d.k, p)} · ${typeName(d.l)}`, value: d.k, checked: plan.disc === d.k })), { label: 'Comme le lot du marché', value: '__same', checked: !plan.disc }]); if (!k) return;
+    for (const x of await DB.byProject('plans', plan.projectId)) if (x.id === plan.id || planSerie(x) === planSerie(plan)) { if (k === '__same') delete x.disc; else x.disc = k; await DB.put('plans', x); } renderPlans(root); return; }
   plan.lotId = v === '__none' ? null : v; await DB.put('plans', plan);
   // les anciens indices suivent
   for (const x of await DB.byProject('plans', plan.projectId)) if (x.id !== plan.id && planSerie(x) === planSerie(plan)) { x.lotId = plan.lotId; await DB.put('plans', x); }

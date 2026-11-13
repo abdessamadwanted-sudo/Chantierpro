@@ -4082,3 +4082,12 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .pv-ty, .pv-lo { overflow: hidden; text-overflow: ellipsis; opacity: .92; }
 .pv-ty::after { content: '·'; margin-left: 6px; opacity: .5; }
 .pv-ty:last-child::after { content: ''; }
+
+/* v1.0.2xx : en-tête du plan en texte complet (retour à la ligne), sous-lots, abréviations */
+.topbar h1.pv-h1 { overflow: visible; white-space: normal; text-overflow: clip; line-height: 1.15; }
+.pv-card { flex-wrap: wrap; white-space: normal; row-gap: 3px; border-radius: 14px; }
+.pv-ty, .pv-lo { overflow: visible; text-overflow: clip; font-weight: 700; }
+.pv-ty { letter-spacing: .3px; }
+.lot-c.sub { font-size: 12px; padding: 4px 9px; opacity: .92; }
+.lot-c .lc-open { margin-left: 6px; font-style: normal; font-weight: 800; opacity: .85; }
+.lot-pick .lp-ab { display: inline-block; min-width: 38px; margin-right: 6px; padding: 1px 6px; border-radius: 8px; background: rgba(59,130,246,.18); font-size: 11px; font-weight: 800; letter-spacing: .3px; text-align: center; }

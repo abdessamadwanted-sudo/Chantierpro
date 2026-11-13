@@ -1945,7 +1945,7 @@ try {
     o.long = await planTitle({ name: 'GSC-POP-PE-A-JA-0M-RDC-PLAN', folderId: '' }); } catch (e) { o.err = String(e.message || e); } return o; });
   log('Titre du plan = niveau', pt2);
   if (!pt2.noPlan && (pt2.err || pt2.t !== pt2.expect || pt2.long !== 'RDC')) throw new Error('titre plan KO ' + JSON.stringify(pt2));
-  const lt = await A.pg.evaluate(() => { const p = App.project || {}; const hold = p.planLots; p.planLots = [{ id: 'zz', name: 'Gros œuvre', cat: 'STR' }]; App.project = p; const o = { lot: planLotText({ lotId: 'zz' }), none: planLotText({}) }; p.planLots = hold; return o; });
+  const lt = await A.pg.evaluate(() => { const p = App.project || {}; const hold = p.planLots, holdV = p.catV; p.catV = 1; p.planLots = [{ id: 'zz', name: 'Gros œuvre', cat: 'STR' }]; App.project = p; const o = { lot: planLotText({ lotId: 'zz' }), none: planLotText({}) }; p.planLots = hold; p.catV = holdV; return o; });
   log('Type de lot sous le niveau', lt);
   if (lt.lot !== 'Gros œuvre' || lt.none !== '') throw new Error('type lot KO ' + JSON.stringify(lt));
   // ---- familles de types (menus déroulants), Fondations en SSL, carte d'en-tête
@@ -1959,6 +1959,17 @@ try {
   // balayage dans un dossier de plans : ne doit pas ouvrir le menu
   const sw = await A.pg.evaluate(() => { const src = String(document.querySelector('script[src*="app.js"]') ? '' : ''); return { cls: typeof lotBarInto === 'function' && /lot-swipe/.test(String(lotBarInto)) }; });
   log('Balayage dossier sans menu', sw); if (!sw.cls) throw new Error('lot-swipe KO');
+  // ---- sous-lots, portée par niveau, abréviations, classement automatique, catalogue
+  const sl = await A.pg.evaluate(() => { const o = {}; try { const hold = App.project, h2 = hold && hold.planLots, hv = hold && hold.catV;
+    const P = { catV: 1, planLots: [{ id: 'a', name: 'Peinture', cat: 'CEA' }, { id: 'b', name: 'Finition', cat: 'CEA', up: 'a', only: ['f1'] }, { id: 'c', name: 'Autre' }] };
+    App.project = P; o.kids = lotIdsWithKids(P, 'a').join(','); o.txt = planLotText({ lotId: 'b' });
+    o.vis1 = lotsVis({ id: 'f1' }, P.planLots).map(l => l.id).join(','); o.vis2 = lotsVis({ id: 'f2' }, P.planLots).map(l => l.id).join(',');
+    o.ab = typeAbOf('CFO', P); o.ab2 = abbrOf('Faux plafonds'); o.auto = (autoLotOf({ catV: 1, planLots: [{ id: 'go', name: 'Gros œuvre' }] }, 'PLAN COFFRAGE R+1') || {}).id;
+    const N = { catV: 0, planLots: null }; const L = planLots(N); o.seedGo = (L.find(l => l.id === 'go') || {}).cat; o.seedRev = !!L.find(l => l.id === 'rev');
+    o.fam = famOfType(P, 'GTB') + ',' + famOfType(P, 'CEA');
+    App.project = hold; if (hold) { hold.planLots = h2; hold.catV = hv; } } catch (e) { o.err = String(e.message || e); } return o; });
+  log('Sous-lots / niveaux / abréviations', sl);
+  if (sl.err || sl.kids !== 'a,b' || sl.txt !== 'Peinture › Finition' || sl.vis1 !== 'a,b,c' || sl.vis2 !== 'a,c' || sl.ab !== 'CFO' || sl.ab2 !== 'FP' || sl.auto !== 'go' || sl.seedGo !== 'STR' || !sl.seedRev || sl.fam !== 'secu,archi') throw new Error('sous-lots KO ' + JSON.stringify(sl));
   log('errors titre plan', []);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
