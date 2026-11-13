@@ -1883,6 +1883,14 @@ try {
   log('Espaces intervenants', esp);
   if (esp.basic !== 'aucun' || esp.pro !== 'aucun' || esp.business !== 'tous' || esp.enterprise !== 'tous' || !esp.business_svc) throw new Error('espaces intervenants KO ' + JSON.stringify(esp));
   log('errors v1.0.x espaces', []);
+  // ---- v1.0.x : niveau « Intervenants du projet » (Entreprise + intervenants, chacun avec ses services en volets)
+  await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); Team.applyFlags(Team.allFlags('pub')); App.section = 'ptools'; await renderSection(); }); await A.pg.waitForTimeout(400);
+  const ivr = await A.pg.evaluate(() => { const q = (s) => document.querySelectorAll('.st-ptools-p ' + s).length; const d = document.querySelector('.st-ptools-p details[data-g=iv-bet]'); if (d) d.open = true; const sub = d && d.querySelector('details.st-sub'); if (sub) sub.open = true;
+    return { ent: q('details[data-g=iv-ent]'), bet: q('details[data-g=iv-bet]'), moa: q('details[data-g=iv-moa]'), subs: d ? d.querySelectorAll('details.st-sub').length : 0, volets: sub ? sub.querySelectorAll('details.st-qs').length : 0 }; });
+  log('Intervenants du projet', ivr);
+  if (!ivr.ent || !ivr.bet || !ivr.moa || ivr.subs !== 4 || !ivr.volets) throw new Error('intervenants KO ' + JSON.stringify(ivr));
+  await A.pg.evaluate(async () => { Team.applyFlags(Team.allFlags('pub')); });
+  log('errors v1.0.x intervenants', []);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');

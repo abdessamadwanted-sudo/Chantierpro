@@ -4034,3 +4034,13 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .st-packbar { display: block; width: calc(100% - 32px); margin: 6px 16px; padding: 9px 12px; border-radius: 12px; background: #312e81; color: #fff; border: 0; font-size: 13px; text-align: left; }
 .fl-tabs { display: flex; gap: 6px; margin: 6px 0 10px; } .fl-tabs button { flex: 1; padding: 8px 4px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: inherit; font-size: 12.5px; font-weight: 600; }
 .fl-tabs button.on { background: var(--accent, #2563eb); color: #fff; border-color: transparent; }
+
+/* Intervenants : accordéon d'organisation contenant ses services */
+.st-orgin { padding: 0 10px 10px; display: grid; gap: 8px; }
+.st-sub { border-left: 3px solid var(--c); border-radius: 10px; background: color-mix(in srgb, var(--c) 5%, transparent); }
+.st-sub > summary.st-tcat-h { list-style: none; cursor: pointer; padding: 11px 12px; margin: 0 !important; display: flex; align-items: center; gap: 8px; }
+.st-sub > summary::-webkit-details-marker { display: none; }
+.st-sub > summary small { margin-left: auto; padding: 1px 8px; border-radius: 99px; background: color-mix(in srgb, var(--c) 14%, transparent); color: var(--c); font-weight: 700; }
+.st-sub .st-chev { display: grid; transition: transform .2s; color: var(--muted); } .st-sub .st-chev svg.i { width: 16px; height: 16px; }
+.st-sub[open] .st-chev { transform: rotate(180deg); }
+.st-sub > .st-qs, .st-sub > .st-qs-set { margin-left: 8px; margin-right: 8px; }
