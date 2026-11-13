@@ -45,7 +45,7 @@ const ST = (() => {
   const planKey = () => { const p = PV.get(); return p ? p.plan : ((ready() && Team.company()) || {}).plan || PLAN_DEFAULT_COMPANY; };
   const plan = () => planOf(planKey());
   const isEnt = () => plan().k === 'enterprise';
-  const svcq = () => isEnt() && Team.flag('svcqual');   // Service Qualité : fermé tant que la fonction n'est pas mise en service
+  const svcq = () => Team.flag('svcqual');   // Service Qualité : fermé tant que la fonction n'est pas mise en service
   const org = () => { const p = PV.get(); return p && p.org ? orgTypeOf(p.org) : (ready() ? Team.orgType() : orgTypeOf('entreprise')); };
   // interface de la jiha : un module hors du métier de l'organisation est masqué (pas verrouillé)
   const orgHas = (mod) => { const m = org().mods; return m === '*' || !mod || m.includes(mod); };
@@ -92,6 +92,14 @@ const ST = (() => {
     PV.set({ role, plan: pl, org: og }); applyRole();
     toast('Aperçu : seul l\'affichage change, vos droits réels restent les mêmes');
     App.project = null; refresh();
+  }
+  // Super Admin : choisir le pack sur lequel on travaille (l'application se comporte alors comme ce pack)
+  async function quickPack() {
+    if (!ready() || !Team.isSuper()) return;
+    const cur = PV.get(), pl = await menu('Pack de travail', [{ label: '👑 Tous les packs (Super Admin)', value: '__all', checked: !cur }, ...Object.values(PLANS).map(P => ({ label: `${P.e || ''} ${P.l}`, value: P.k, checked: !!cur && planOf(cur.plan).k === P.k }))]);
+    if (!pl) return;
+    if (pl === '__all') return stopPreview();
+    const me = Team.me() || {}; PV.set({ role: me.role || (cur && cur.role) || '', plan: pl, org: (cur && cur.org) || Team.orgType().k }); applyRole(); App.project = null; refresh();
   }
   function stopPreview() { PV.set(null); applyRole(); refresh(); }
 
@@ -841,7 +849,7 @@ const ST = (() => {
     const canW = Team.lvl('files') >= 2, inCat = (k) => all.filter(f => k === 'archive' ? f.archived : (!f.archived && f.docCat === k));
     if (!cat) {
       root.innerHTML = `<div class="pagehead"><h2>Documentation & archives</h2><p>Classement des documents du projet</p></div>
-        ${window.QualiteDocs && Team.flag('qdocs') ? '<div class="qd-tabs"><button data-v="parties">🧱 Partie d\'ouvrage</button>' + (isEnt() && Team.flag('missionzone') ? '<button data-v="mz">🎯 Mission / zone</button>' : '') + '<button class="on" data-v="type">🗂️ Type</button></div>' : ''}
+        ${window.QualiteDocs && Team.flag('qdocs') ? '<div class="qd-tabs"><button data-v="parties">🧱 Partie d\'ouvrage</button>' + (Team.flag('missionzone') ? '<button data-v="mz">🎯 Mission / zone</button>' : '') + '<button class="on" data-v="type">🗂️ Type</button></div>' : ''}
         <div class="st-docs">${DOC_CATS.map(([k, l, e]) => `<button class="st-doc" data-c="${k}"><span class="e">${e}</span><b>${esc(l)}</b><small>${inCat(k).length} document(s)</small></button>`).join('')}</div>`;
       $$('[data-c]', root).forEach(b => b.onclick = () => { App.docCat = b.dataset.c; renderDocs(root); });
       $$('[data-v]', root).forEach(b => b.onclick = () => { App.docView = b.dataset.v; renderSection(); });
@@ -867,5 +875,5 @@ const ST = (() => {
   }
 
   function refreshRole() { applyRole(); try { App.project ? renderSection() : renderHome(); } catch (e) {} }
-  return { families: FAMILIES, openDash, openPro, openTeamHub, openServiceLibrary, profileCardHTML, wsBtnHTML, wsMenu, renderProjectTools, isEnt: () => plan().k === 'enterprise', svcq, directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
+  return { families: FAMILIES, openDash, openPro, openTeamHub, openServiceLibrary, profileCardHTML, wsBtnHTML, wsMenu, renderProjectTools, isEnt: () => plan().k === 'enterprise', svcq, quickPack, directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
 })();

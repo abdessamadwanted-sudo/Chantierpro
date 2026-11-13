@@ -209,6 +209,8 @@ async function renderHome() {
         <div class="h2-date">${dateL.charAt(0).toUpperCase() + dateL.slice(1)}</div></div></div>
       </div>
       <div class="h2-body">
+        ${Team.ready() && Team.isSuper() ? `<button class="st-packbar" data-a="packwork">🧭 Pack de travail : <b>${esc(((typeof PLANS !== 'undefined' && PLANS[Team.pack()]) || {}).l || Team.pack())}</b>${(() => { try { return JSON.parse(sessionStorage.getItem('st.preview') || 'null') ? '' : ' (tous)'; } catch (e) { return ''; } })()} ▾</button>` : ''}
+        ${(() => { const N = Team.ready() && (Team.appCfg().news || {})[Team.pack()]; let off = ''; try { off = localStorage.getItem('st.newsOff') || ''; } catch (e) {} return N && N.text && off !== String(N.id) ? `<div class="st-msg"><span>✨</span><p><b>Ce qui est nouveau</b><br>${esc(N.text)}</p><button class="iconbtn sm" data-a="newsoff" aria-label="Masquer">${icon('close')}</button></div>` : ''; })()}
         ${(() => { const M = Team.ready() && Team.appCfg().message; let off = ''; try { off = localStorage.getItem('st.msgOff') || ''; } catch (e) {}
           return M && M.on && M.text && off !== String(M.id || M.text) ? `<div class="st-msg ${M.level === 'alerte' ? 'al' : ''}"><span>${M.level === 'alerte' ? '⚠️' : '📣'}</span><p>${esc(M.text)}</p><button class="iconbtn sm" data-a="msgoff" aria-label="Masquer">${icon('close')}</button></div>` : ''; })()}
         ${(() => {
@@ -294,6 +296,7 @@ async function renderHome() {
   ($('[data-a=uname]')||{}).onclick = askName;
   const rb = $('[data-a=role]'); if (rb) rb.onclick = async () => { const v = await menu('Mon profil (couleur et titre)', ROLES.map(x => ({ label: `${x.e} ${x.n}`, value: x.k, swatch: ROLE_COLORS[x.k], checked: x.k === myRole() }))); if (v) { try { localStorage.setItem('myRole', v); } catch (e) {} renderHome(); } };
   try { if (!uname && !localStorage.getItem('askedName')) { localStorage.setItem('askedName', '1'); setTimeout(askName, 600); } } catch (e) {}
+  { const pw = $('[data-a=packwork]'); if (pw) pw.onclick = () => ST.quickPack(); const no = $('[data-a=newsoff]'); if (no) no.onclick = () => { const N = (Team.appCfg().news || {})[Team.pack()] || {}; try { localStorage.setItem('st.newsOff', String(N.id)); } catch (e) {} renderHome(); }; }
   { const mo = $('[data-a=msgoff]'); if (mo) mo.onclick = () => { const M = Team.appCfg().message || {}; try { localStorage.setItem('st.msgOff', String(M.id || M.text)); } catch (e) {} mo.closest('.st-msg').remove(); }; }
   ($('[data-a=homemore]')||{}).onclick = async () => {
         // menu ⋮ : 6 groupes courts, sans doublon (déconnexion et prénom sont dans « Mon compte », la langue dans Réglages, la version ouvre la mise à jour)
@@ -406,7 +409,7 @@ const SECTIONS = {
   hse: { label: 'HSE · sécurité', icon: 'shield', render: (r) => renderHse(r), title: 'HSE', subtitle: 'Causeries · EPI · accidents · permis' },
   avenants: { label: 'Avenants & OS', icon: 'sign', render: (r) => renderAvenants(r), title: 'Avenants & OS', subtitle: 'Montants · délais' },
   st: { label: 'Sous-traitants', icon: 'hands', render: (r) => renderSt(r), title: 'Sous-traitants', subtitle: 'Contrats · situations · paiements' },
-  monespace: { get hidden() { try { return !(ST.isEnt() && Team.flag('monespace')); } catch (e) { return true; } }, label: 'Mon espace', icon: 'user', render: (r) => MonEspace.render(r), title: 'Mon espace', subtitle: 'Mon rôle, mes missions, mes responsabilités' },
+  monespace: { get hidden() { try { return !Team.flag('monespace'); } catch (e) { return true; } }, label: 'Mon espace', icon: 'user', render: (r) => MonEspace.render(r), title: 'Mon espace', subtitle: 'Mon rôle, mes missions, mes responsabilités' },
   org: { label: 'Organigramme', icon: 'org', render: (r) => renderOrg(r), title: 'Organigramme', subtitle: 'Hiérarchie du chantier' },
   team: { label: 'Équipe', icon: 'team', render: renderTeam },
   orgs: { label: 'Organisations du projet', icon: 'team', render: (r) => Team.openPartners(App.project, r), title: 'Organisations', subtitle: 'MOA · BET · architecte · groupement' },

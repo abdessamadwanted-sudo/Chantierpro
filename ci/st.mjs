@@ -1567,7 +1567,7 @@ try {
   log('Document Studio (socle)', ds);
   log('errors v1.0.x document-studio', ds.loaded && ds.date && ds.dateKo && ds.isole && ds.stocke && ds.supprime && ds.tables ? [] : ['document-studio']);
   // ---- Mises en service : les fonctions récentes sont ouvertes pour les tests (le blocage est vérifié plus bas)
-  await A.pg.evaluate(() => { Team.applyFlags({ svcqual: 'pub', monespace: 'pub', missionzone: 'pub', terraindoc: 'pub', qdocs: 'pub', orgq: 'pub' }); });
+  await A.pg.evaluate(() => { Team.applyFlags(Team.allFlags('pub')); });
   // ---- Suivis personnalisés : onglets dans l'écran Réception / Bétonnage, modèles prêts, colonnes et lignes modifiables
   const sv = await A.pg.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
@@ -1778,18 +1778,20 @@ try {
     try {
       App.project = pr0; sessionStorage.setItem('st.preview', JSON.stringify({ plan: 'enterprise' }));
       Team.applyFlags({});
-      o.fermees = !Team.isSuper() && ['svcqual', 'monespace', 'missionzone', 'terraindoc', 'qdocs', 'orgq'].every(k => Team.flag(k) === false);
+      o.fermees = !Team.isSuper() && Object.keys(Team.FLAG_DEFS).every(k => Team.flag(k) === false);
       const root = document.createElement('div'); document.body.appendChild(root); ST.renderProjectTools(root); await wait(400);
       o.pasSq = !root.querySelector('details[data-g=sq]'); o.monEspaceCache = SECTIONS.monespace.hidden === true;
-      Team.applyFlags({ svcqual: 'test' }, ['autre@example.com']); o.testAutre = Team.flag('svcqual') === false;
-      Team.applyFlags({ svcqual: 'pub' }); o.pub = Team.flag('svcqual') === true;
-      Team.applyFlags({ svcqual: 'pub', monespace: 'pub', missionzone: 'pub', terraindoc: 'pub', qdocs: 'pub', orgq: 'pub' }, []);
+      Team.applyFlags({ svcqual: { enterprise: 'test' } }, ['autre@example.com']); o.testAutre = Team.flag('svcqual') === false;
+      Team.applyFlags({ svcqual: { enterprise: 'pub' } }); o.pub = Team.flag('svcqual') === true;
+      sessionStorage.setItem('st.preview', JSON.stringify({ plan: 'basic' })); o.autrePack = Team.flag('svcqual') === false && Team.pack() === 'basic';
+      sessionStorage.setItem('st.preview', JSON.stringify({ plan: 'enterprise' }));
+      Team.applyFlags(Team.allFlags('pub'), []);
       sessionStorage.removeItem('st.preview'); root.remove();
     } catch (e) { o.err = String(e.message || e); }
     return o;
   });
   log('Mises en service', fl1);
-  if (!fl1.noProject && !(fl1.fermees && fl1.pasSq && fl1.monEspaceCache && fl1.testAutre && fl1.pub)) throw new Error('mises en service KO ' + JSON.stringify(fl1));
+  if (!fl1.noProject && !(fl1.fermees && fl1.pasSq && fl1.monEspaceCache && fl1.testAutre && fl1.pub && fl1.autrePack)) throw new Error('mises en service KO ' + JSON.stringify(fl1));
   if (!qs1.noProject && !qs1.pasQual && !(qs1.volets && qs1.adm && qs1.ter && qs1.reglage && qs1.basicInchange && qs1.icones && qs1.adminSeul && qs1.deuxCat)) throw new Error('volets qualité KO ' + JSON.stringify(qs1));
   // ---- Suivis personnalisés + modèle visuel : cases liées aux colonnes, PDF écrit sur le bon
   const sv2 = await A.pg.evaluate(async () => {
