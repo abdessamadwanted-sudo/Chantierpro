@@ -4064,3 +4064,6 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .tp-r.late { border-color: #ef4444; } .tp-ty { font-size: 20px; } .tp-m { flex: 1; min-width: 0; display: grid; gap: 2px; } .tp-m b { font-size: 14px; overflow-wrap: anywhere; } .tp-m small { color: var(--muted); font-size: 12px; }
 .tp-s { font-size: 11.5px; font-weight: 700; padding: 3px 9px; border-radius: 99px; color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); white-space: nowrap; }
 .tp-r.late .tp-s { --c: #ef4444; } .tp-n { color: var(--muted); font-size: 13px; }
+
+/* écran d'un plan : type de lot / lot sous le niveau — petit et en gras */
+.pv-lot { font-size: 12px; font-weight: 700; opacity: .75; margin-left: 8px; letter-spacing: .1px; }
