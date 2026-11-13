@@ -162,8 +162,16 @@ function hitAnnot(a, x, y, tol) {
   return nearEdge || (x2 - x1 < tol * 4) || (y2 - y1 < tol * 4);
 }
 
+// titre de l'écran du plan : le NIVEAU (R+2, RDC, SSL…) plutôt que le long nom du fichier ; repli sur le nom du plan
+async function planTitle(plan) {
+  try { const fo = plan.folderId ? await DB.get('folders', plan.folderId) : null;
+    const n = (typeof nivOfFolder === 'function' && ((fo && nivOfFolder(fo.name)) || nivOfFolder(plan.name))) || (fo && fo.name) || '';
+    return n || plan.name || 'Plan'; } catch (e) { return plan.name || 'Plan'; }
+}
+
 async function openPlanViewer(plan, ctx) {
   const file = await DB.get('files', plan.fileId);
+  const titleTxt = await planTitle(plan);
   const src = file ? BlobURL.get(file.id, file.blob) : '';
   const W = plan.w, H = plan.h;
   // v1.0.63 : plan A0 très grand (ex. 4756 × 3364) — à l'écran une image allégée (3200 px) ; la netteté au zoom vient du rendu PDF / DWG.
@@ -196,7 +204,7 @@ async function openPlanViewer(plan, ctx) {
   el.innerHTML = `
     <div class="topbar">
       <button class="iconbtn" data-a="back">${icon('back')}</button>
-      <h1>${esc(plan.name)}${plan.supersededBy ? ' <span class="ind-tag old">ancien</span>' : ''}</h1>
+      <h1 title="${esc(plan.name)}">${esc(titleTxt)}${plan.supersededBy ? ' <span class="ind-tag old">ancien</span>' : ''}</h1>
       <button class="pt-sq" data-a="alerts" style="display:none" title="Alertes de ce plan">🔔 <b>0</b></button>
       <button class="iconbtn" data-a="filters">${icon('eye')}</button>
       <button class="iconbtn" data-a="more">${icon('more')}</button>
@@ -1303,7 +1311,7 @@ async function openPlanViewer(plan, ctx) {
     if (v === 'indmenu') openIndMenu();
     if (v === 'rename') {
       const r = await formSheet('Renommer', [{ name: 'name', label: 'Nom du plan', value: plan.name }]);
-      if (r && r.name) { plan.name = r.name; await DB.put('plans', plan); $('h1', el).textContent = plan.name; }
+      if (r && r.name) { plan.name = r.name; await DB.put('plans', plan); const T = await planTitle(plan); $('h1', el).textContent = T; $('h1', el).title = plan.name; }
     }
     if (v === 'del' && await confirmBox('Supprimer ce plan et ses annotations ?')) {
       await DB.del('plans', plan.id); await DB.del('files', plan.fileId);
