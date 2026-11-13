@@ -174,7 +174,17 @@ function planLotText(plan) {
   try { const p = App.project; if (!p || !plan || !plan.lotId || typeof planLots !== 'function') return '';
     const lot = planLots(p).find(x => x.id === plan.lotId); return lot ? (lot.name || '') : ''; } catch (e) { return ''; }
 }
-const planHeadHtml = async (plan) => { const t = await planTitle(plan), l = planLotText(plan); return esc(t) + (l ? ` <small class="pv-lot">${esc(l)}</small>` : ''); };
+// type du plan : celui du lot (Structure, Architecture…) sans le sigle entre parenthèses ; repli sur la discipline du dossier
+function planTypeText(plan, fo) {
+  try { const p = App.project; if (!p || typeof planLots !== 'function') return '';
+    const lot = plan.lotId ? planLots(p).find(x => x.id === plan.lotId) : null;
+    const lab = lot && lot.cat ? typeLab(lot.cat, p) : (fo && typeof discLabel === 'function' ? discLabel(fo) : '');
+    return String(lab || '').replace(/\s*\([A-Z]{2,4}\)\s*$/, ''); } catch (e) { return ''; }
+}
+// carte compacte unique : NIVEAU (puce colorée, gras) · type · lot (gras léger)
+const planHeadHtml = async (plan) => { const t = await planTitle(plan), l = planLotText(plan); let fo = null; try { fo = plan.folderId ? await DB.get('folders', plan.folderId) : null; } catch (e) {}
+  const ty = planTypeText(plan, fo);
+  return `<span class="pv-card"><b class="pv-niv">${esc(t)}</b>${ty ? `<span class="pv-ty">${esc(ty)}</span>` : ''}${l ? `<span class="pv-lo">${esc(l)}</span>` : ''}</span>`; };
 
 async function openPlanViewer(plan, ctx) {
   const file = await DB.get('files', plan.fileId);
