@@ -161,6 +161,7 @@ function lotBarInto(card, f, ps, root) {
     if (r && r.n) { const nl = { id: DB.uid(), name: r.n, e: r.e || '🔧', c: ['#0ea5e9', '#22c55e', '#f97316', '#8b5cf6', '#e11d48'][allLots.length % 5], points: [], cat: tk || undefined }; allLots.push(nl); await DB.put('projects', p); App.lotSel[f.id] = nl.id; renderPlans(root); } };
   chips.querySelectorAll('[data-lp]').forEach(b => { if (b.dataset.lp !== '__add') b.onclick = (e) => { e.stopPropagation(); App.lotSel = App.lotSel || {}; App.lotSel[f.id] = b.dataset.lp; App.keepScrollY = ($('#content') || {}).scrollTop || 0; renderPlans(root); }; });
   // balayage gauche / droite dans le dossier = type suivant / précédent (TOUT compris)
+  card.classList.add('lot-swipe');   // le balayage dans ce dossier change de type : il n'ouvre pas le menu (voir app.js)
   if (!card._swipe) { card._swipe = true; let x0 = null, y0 = 0;
     card.addEventListener('touchstart', (e) => { if (e.touches.length !== 1 || e.target.closest('.lot-pick, .lot-panel, .lot-chips')) { x0 = null; return; } x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
     card.addEventListener('touchend', (e) => { if (x0 == null) return; const t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0; x0 = null;

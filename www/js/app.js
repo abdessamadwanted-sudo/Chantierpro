@@ -2133,7 +2133,7 @@ async function openPlansQuick() {
   const hScroll = (el) => { for (let x = el; x && x !== document.body; x = x.parentElement) { if (/^(INPUT|TEXTAREA|SELECT|CANVAS)$/.test(x.tagName)) return true; const cs = getComputedStyle(x); if (/(auto|scroll)/.test(cs.overflowX) && x.scrollWidth > x.clientWidth + 2) return true; } return false; };
   let gx = 0, gy = 0, gt = 0, gon = false, gdrag = null;
   document.addEventListener('touchstart', e => { gon = false; gdrag = null; if (e.target === de || e.touches.length > 1) return; const t = e.touches[0]; gx = t.clientX; gy = t.clientY; gt = Date.now();
-    gon = !!App.project && gx < innerWidth * 0.6 && !document.querySelector('.fullpage, .viewer, .sheet-bg, .drawer, .lightbox, .sketch, .lock') && !!e.target.closest('#app') && !hScroll(e.target); }, { passive: true });
+    gon = !!App.project && gx < innerWidth * 0.6 && !document.querySelector('.fullpage, .viewer, .sheet-bg, .drawer, .lightbox, .sketch, .lock') && !!e.target.closest('#app') && !hScroll(e.target) && !(e.target.closest('.lot-swipe') && !e.target.closest('.lot-pick, .lot-panel, .lot-chips')); }, { passive: true });   // dans un dossier de plans, glisser = changer de type (le menu reste au bord gauche et au bouton ☰)
   document.addEventListener('touchmove', e => { if (!gon) return; const t = e.touches[0], dx = t.clientX - gx, dy = t.clientY - gy;
     if (!gdrag) { if (Math.abs(dy) > 14 && Math.abs(dy) > Math.abs(dx)) { gon = false; return; } if (dx > 22 && dx > Math.abs(dy) * 1.8) { gdrag = { off: dx }; openDrawer({ drag: gdrag }); } else return; }
     e.preventDefault(); if (gdrag.ctl) gdrag.ctl.move(dx - gdrag.off + 20); }, { passive: false });

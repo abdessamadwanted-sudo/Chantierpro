@@ -1956,6 +1956,9 @@ try {
   } catch (e) { o.err = String(e.message || e); } return o; });
   log('Familles / Fondations / carte', fm);
   if (fm.err || fm.famStr !== 'gros' || fm.famElec !== 'elec' || fm.moved !== 'secu' || fm.ren !== 'Archi' || !fm.fndSsl || fm.fndRdc || !fm.fndAdd || !fm.card) throw new Error('familles KO ' + JSON.stringify(fm));
+  // balayage dans un dossier de plans : ne doit pas ouvrir le menu
+  const sw = await A.pg.evaluate(() => { const src = String(document.querySelector('script[src*="app.js"]') ? '' : ''); return { cls: typeof lotBarInto === 'function' && /lot-swipe/.test(String(lotBarInto)) }; });
+  log('Balayage dossier sans menu', sw); if (!sw.cls) throw new Error('lot-swipe KO');
   log('errors titre plan', []);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
