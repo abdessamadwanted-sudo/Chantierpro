@@ -1491,6 +1491,12 @@ try {
   } catch (e) { return { err: String(e && e.message || e) }; } });
   log('v1.0.240 [glissement tactile en-tête]', tSw);
   log('errors v1.0.240 swipe', tSw.t0 === 'SW A' && tSw.t1 === 'SW B' && tSw.t2 === 'SW U' && tSw.n === 1 ? [] : ['v1.0.240 swipe ' + JSON.stringify(tSw)]);
+  // balayage direct sur le plan (entier, outil Main) : change aussi de plan
+  await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage').forEach(x => x.remove()); const p = App.project; const a = (await DB.byProject('plans', p.id)).find(x => x.name === 'SW A'); await openPlanViewer(a, planCtx(() => {})); await new Promise(r => setTimeout(r, 900)); });
+  const vb = await A.pg.evaluate(() => { const r = document.querySelector('.fullpage .viewer').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+  await A.pg.mouse.move(vb.x + 70, vb.y); await A.pg.mouse.down(); for (let i = 1; i <= 8; i++) await A.pg.mouse.move(vb.x + 70 - i * 18, vb.y + 2); await A.pg.mouse.up(); await A.pg.waitForTimeout(1200);
+  const tSw2 = await A.pg.evaluate(() => { const e = document.querySelector('.fullpage .pv-h1'); return e ? e.title : ''; });
+  log('v1.0.240 [balayage sur le plan]', tSw2); log('errors v1.0.240 swipe plan', tSw2 === 'SW B' ? [] : ['v1.0.240 swipe plan ' + tSw2]);
   const tDue = await A.pg.evaluate(() => ({ s: String(openDueTable).includes('Point · échéance') && !String(openDueTable).includes("p.mo ? ' · ' + esc(p.mo) : ''}</span></div>") }));
   log('v1.0.176 [échéances + points]', tDue); log('errors v1.0.176 échéances', tDue.s ? [] : ['v1.0.176 échéances']);
   // ---- v1.0.176 : sauvegarde Drive d'un projet = un seul zip mis à jour sur place (+ « précédente ») ----

@@ -333,6 +333,7 @@ async function openPlanViewer(plan, ctx) {
       if (Math.abs(dx) > Math.abs(dy)) { const tg = I.row[I.idx + (dx < 0 ? 1 : -1)]; if (!go(tg, dx < 0 ? 'l' : 'r')) { toast(dx < 0 ? 'Dernier plan de ce niveau' : 'Premier plan de ce niveau'); showDots(); } }
       else { const tg = dy < 0 ? I.up : I.down; if (!go(tg, dy < 0 ? 'u' : 'd')) { toast(dy < 0 ? 'Pas de plan du même type au niveau au-dessus' : 'Pas de plan du même type au niveau en dessous'); showDots(); } }
     };
+    el._planNav = act;   // aussi appelé par un balayage sur le plan lui-même (plan entier, outil Main)
     h1.addEventListener('touchstart', (e) => { if (e.touches.length !== 1 || e.target.closest('button')) { t0 = null; return; } t0 = { x: e.touches[0].clientX, y: e.touches[0].clientY, done: false }; showDots(); }, { passive: true });
     // déclenché dès que le doigt a parcouru ~34 px (sans attendre le relâchement : touchend peut être annulé par le système)
     h1.addEventListener('touchmove', (e) => {
@@ -1178,6 +1179,11 @@ async function openPlanViewer(plan, ctx) {
     }
     if (cur.mode === 'edit' && cur.edit.kind === 'pend') { drawPending(); if (!cur.moved) return onTap(cur.start); return; }
     if (cur.mode === 'edit' && cur.moved) { renderAnnots(); saveAnnots(); renderSel(); return; }
+    // v1.0.240 : plan entier (non zoomé) + outil Main : un balayage franc sur le plan change de plan (← → même niveau, ↑ ↓ même type d'un autre niveau)
+    if (cur.moved && cur.mode === 'pan' && st.tool === 'pan' && !cur.onPin && !st.pend && st.scale <= st.fitScale * 1.05 && el._planNav && Date.now() - cur.t0 < 900) {
+      const dx = e.clientX - cur.sx, dy = e.clientY - cur.sy, ax = Math.abs(dx), ay = Math.abs(dy);
+      if (Math.max(ax, ay) >= 90 && (ax > ay * 1.6 || ay > ax * 1.6)) return el._planNav(dx, dy);
+    }
     if (!cur.moved) return onTap(cur.start);
     if (cur.onPin && Date.now() - cur.t0 < 700 && Math.hypot(e.clientX - cur.sx, e.clientY - cur.sy) < 44) return onTap(cur.start);
     if (cur.mode !== 'draw' || !cur.end) return;
