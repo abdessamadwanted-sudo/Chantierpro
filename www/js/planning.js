@@ -12,6 +12,8 @@ async function syncTaskPin(p, t) {
   const wasDone = !!(L.tk && L.tk.done);
   L.taskId = t.id;
   L.start = t.deb || null; L.dueCo = t.fin || null; L.startTime = L.dueCoTime = null;
+  // échéance du maître d'ouvrage : partagée avec la tâche (journal de modification conservé)
+  if (t.ech && t.ech !== L.due) { L.dueLog = [...(L.dueLog || []), { at: todayISO(), from: L.due || null, to: t.ech, note: 'Planning' }].slice(-20); L.due = t.ech; L.dueTime = null; }
   L.tk = { done };
   if (started && !L.started) L.started = t.debR || todayISO();
   if (done && !L.finished) L.finished = t.finR || todayISO();
@@ -25,6 +27,7 @@ async function linkPinToTask(link, taskId) {
   t.pinId = link.id;
   if (!t.deb && link.start) t.deb = link.start;      // la tâche reprend les dates du point si elle n'en a pas
   if (!t.fin && link.dueCo) t.fin = link.dueCo;
+  if (!t.ech && link.due) t.ech = link.due;
   await DB.put('projects', pr); if (App.project && App.project.id === pr.id) Object.assign(App.project, pr);
   await syncTaskPin(pr, t); Object.assign(link, await DB.get('links', link.id));
 }
@@ -80,7 +83,7 @@ async function renderPlanning(root) {
   </div>`;
   const sc = $('.gt-sc', root); if (sc && !P._scrolled) { sc.scrollLeft = Math.max(0, X(todayISO()) - 120); }
   $$('[data-z]', root).forEach(b => b.onclick = async () => { P.zoom = b.dataset.z; await save(); redraw(); });
-  const FIELDS = [{ name: 'nom', label: 'Tâche', placeholder: 'Ex : Gros œuvre R+3' }, { name: 'grp', label: 'Lot', list: typeof TCE_LOTS !== 'undefined' ? TCE_LOTS : [] }, { name: 'deb', label: 'Début prévu', type: 'date' }, { name: 'fin', label: 'Fin prévue', type: 'date' },
+  const FIELDS = [{ name: 'nom', label: 'Tâche', placeholder: 'Ex : Gros œuvre R+3' }, { name: 'grp', label: 'Lot', list: typeof TCE_LOTS !== 'undefined' ? TCE_LOTS : [] }, { name: 'deb', label: 'Début prévu', type: 'date' }, { name: 'fin', label: 'Fin prévue', type: 'date' }, { name: 'ech', label: 'Échéance (maître d\'ouvrage)', type: 'date' },
     { name: 'debR', label: 'Début réel', type: 'date' }, { name: 'finR', label: 'Fin réelle', type: 'date' }, { name: 'av', label: 'Avancement (%)', type: 'number' }, { name: 'pinId', label: 'Pin sur le plan', type: 'select', options: [] }];
   const edit = async (t) => {
     // pin sur le plan : aucun · un point existant · un nouveau pin à placer ; les dates et l'avancement de la tâche pilotent le pin (début / fin, retard)

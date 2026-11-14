@@ -410,6 +410,7 @@ const SECTIONS = {
   avenants: { label: 'Avenants & OS', icon: 'sign', render: (r) => renderAvenants(r), title: 'Avenants & OS', subtitle: 'Montants · délais' },
   st: { label: 'Sous-traitants', icon: 'hands', render: (r) => renderSt(r), title: 'Sous-traitants', subtitle: 'Contrats · situations · paiements' },
   tabproj: { get hidden() { try { return !Team.flag('tabproj'); } catch (e) { return true; } }, label: 'Table de projet', icon: 'layers', render: (r) => TabProj.render(r), title: 'Table de projet', subtitle: 'Réserves · RFI · visas, par intervenant' },
+  localisation: { label: 'Localisation', icon: 'pin', render: (r) => Localisation.render(r), title: 'Localisation', subtitle: 'Locaux · pin Localiser sur le plan' },
   monespace: { get hidden() { try { return !Team.flag('monespace'); } catch (e) { return true; } }, label: 'Mon espace', icon: 'user', render: (r) => MonEspace.render(r), title: 'Mon espace', subtitle: 'Mon rôle, mes missions, mes responsabilités' },
   org: { label: 'Organigramme', icon: 'org', render: (r) => renderOrg(r), title: 'Organigramme', subtitle: 'Hiérarchie du chantier' },
   team: { label: 'Équipe', icon: 'team', render: renderTeam },
@@ -1029,7 +1030,21 @@ function localTableHTML(link) {
     ['Arrêt client', hold], ['Retard / reste', late],
     ['Retard échéance', lt ? `<b style="color:${sc(lt.al === 'red' ? 'red' : 'co')}">${lt.days} j · ${lt.kind === 'échéance' ? 'maître d\'ouvrage' : lt.kind === 'fin' ? 'fin société' : 'début société'}</b>` : '—'],
     ['Documents', (link.items || []).length]];
-  return `<table class="lk-tb">${rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table>`;
+  return `<table class="lk-tb">${rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table>` + ptFrise(link, fd);
+}
+// frises : société (début → fin objectif) et maître d'ouvrage (début → échéance), repère « aujourd'hui » et jours de retard
+function ptFrise(link, fd) {
+  const D = (iso) => iso ? new Date(iso + 'T00:00:00').getTime() : null, day = 864e5, now = D(todayISO());
+  const bar = (lab, a, b, col, done) => {
+    const A = D(a), B = D(b); if (B == null) return '';
+    const s0 = A != null ? A : B - 14 * day, span = Math.max(day, B - s0), pr = Math.max(0, Math.min(1, (now - s0) / span)) * 100, late = !done && now > B ? Math.round((now - B) / day) : 0;
+    const left = !done && now <= B ? Math.round((B - now) / day) : 0;
+    return `<div class="fr"><div class="fr-h"><b style="color:${col}">${lab}</b><span class="${late ? 'bad' : ''}">${done ? '✓ terminé' : late ? late + ' j de retard' : 'reste ' + left + ' j'}</span></div>
+      <div class="fr-b"><i class="fr-f" style="width:${done ? 100 : pr}%;background:${late ? '#dc2626' : col}"></i>${done ? '' : `<u class="fr-t" style="left:${pr}%" title="Aujourd'hui"></u>`}</div>
+      <div class="fr-d"><span>${A != null ? fd(a) : '—'}</span><span>${fd(b)}</span></div></div>`;
+  };
+  const h = bar('Société', link.start, link.dueCo, '#0ea5e9', !!link.finished) + bar('Maître d\'ouvrage', link.start, link.due, '#f97316', !!link.finished);
+  return h ? `<div class="fr-w">${h}</div>` : '';
 }
 // l'échéance est la date demandée par le maître d'ouvrage : on la modifie depuis la fiche, l'historique est gardé
 async function editLocalDue(link, save) {
@@ -1043,7 +1058,7 @@ async function editLocalDue(link, save) {
   if (nd === (link.due || null) && nt === (link.dueTime || null)) return false;
   link.dueTime = nt;
   link.dueLog = [...(link.dueLog || []), { at: todayISO(), from: link.due || null, to: nd, note: r.note || '' }].slice(-20);
-  link.due = nd; await save(); return true;
+  link.due = nd; await save(); if (link.taskId && typeof taskPatchFromPin === 'function') await taskPatchFromPin(link, { ech: nd || '' }); return true;
 }
 // arrêt / attente du client : le retard n'est plus compté sur nous ; à la reprise les jours d'arrêt repoussent l'échéance
 async function toggleLocalHold(link, save) {
@@ -1235,7 +1250,7 @@ function openLinkDetail(link) {
             if (nd !== (link.due || null)) link.dueLog = [...(link.dueLog || []), { at: todayISO(), from: link.due || null, to: nd, note: '' }].slice(-20);
             link.start = r.start || null; link.dueCo = r.dueCo || null; link.due = nd; link.startTime = link.dueCoTime = link.dueTime = null;
             await save();
-            if (lk) await taskPatchFromPin(link, { deb: link.start || '', fin: link.dueCo || '' });
+            if (lk) await taskPatchFromPin(link, { deb: link.start || '', fin: link.dueCo || '', ech: link.due || '' });
             render();
           }
         }

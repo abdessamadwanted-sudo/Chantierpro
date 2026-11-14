@@ -121,7 +121,7 @@ function lotBarInto(card, f, ps, root) {
   const kidsOf = (L) => lots.filter(x => x.up === L.id);
   const topOf = (arr) => arr.filter(l => !l.up || !lots.some(z => z.id === l.up));
   // une rangée : lots du niveau ; sous-lots du lot « en vue » juste après lui
-  const rowOf = (arr) => topOf(arr).map(l => chipOf(l, focus === l.id || (sel !== '__all' && sel === l.id)) + (l.id === focusTop ? kidsOf(l).map(k => chipOf(k, focus === k.id, true)).join('') + `<button type="button" class="lot-c add sub" data-lp="__addsub">＋ Sous-lot</button>` : '')).join('');
+  const rowOf = (arr) => topOf(arr).map(l => chipOf(l, focus === l.id || (sel !== '__all' && sel === l.id))).join('');
   const inType = sel === '__all' ? lots : lots.filter(l => (l.cat || '') === tk);
   const chips = document.createElement('div'); chips.className = 'lot-chips';
   if (sel !== '__none' && sel !== '__all') chips.innerHTML = `<button type="button" class="lot-c ${sel.startsWith('T:') ? 'on' : ''}" data-lp="${tk ? 'T:' + tk : '__all'}" style="--c:#334155">📚 Tous</button>` + rowOf(inType) + `<button type="button" class="lot-c add" data-lp="__add">＋ Lot</button>`;
@@ -129,6 +129,23 @@ function lotBarInto(card, f, ps, root) {
   if (sel === '__all') chips.innerHTML = `<button type="button" class="lot-c ${focus ? '' : 'on'}" data-lp="__f0" style="--c:#334155">📚 Tous</button>` + rowOf(lots) + (nNo ? `<button type="button" class="lot-c" data-lp="__none" style="--c:#64748b">📄 Sans lot <small>${nNo}</small></button>` : '');
   if (sel === '__none') chips.innerHTML = `<button type="button" class="lot-c on" data-lp="__none" style="--c:#64748b">📄 Sans lot <small>${nNo}</small></button>`;
   bar.appendChild(chips);
+  // accordéon des sous-lots du lot en vue : métiers (haut) puis divisions (Zone, Bloc, Tranche…), avec nombre de plans
+  const parL = lots.find(x => x.id === focusTop);
+  if (parL && sel !== '__none') {
+    App.accOpen = App.accOpen || {}; const open = App.accOpen[parL.id] !== false, kids = kidsOf(parL), kM = kids.filter(k => k.kind !== 'div'), kD = kids.filter(k => k.kind === 'div');
+    const item = (k) => `<button type="button" class="lot-c sub ${focus === k.id ? 'on' : ''} ${k.kind === 'div' ? 'div' : ''}" data-lp="${k.id}" style="--c:${k.kind === 'div' ? '#0f766e' : k.c};--t:${tint(k.kind === 'div' ? '#0f766e' : k.c, .16)}">${k.kind === 'div' ? '▦' : '↳'} ${esc(k.name)}${cnt(k.id) ? ` <small>${cnt(k.id)}</small>` : ''}</button>`;
+    const grp = (lab, arr) => arr.length ? `<div class="acc-g"><span class="acc-l">${lab}</span><div class="acc-r">${arr.map(item).join('')}</div></div>` : '';
+    const acc = document.createElement('div'); acc.className = 'lot-acc' + (open ? ' open' : '');
+    acc.innerHTML = `<button type="button" class="acc-h" data-acc="1"><span>${parL.e} ${esc(parL.name)} · sous-lots</span><small>${kids.length}</small><i>${open ? '▴' : '▾'}</i></button>`
+      + (open ? `<div class="acc-b">${grp('Métiers', kM)}${grp('Divisions', kD)}<button type="button" class="lot-c add sub" data-lp="__addsub">＋ Sous-lot</button></div>` : '');
+    bar.appendChild(acc);
+    acc.querySelector('[data-acc]').onclick = (e) => { e.stopPropagation(); App.accOpen[parL.id] = !open; renderPlans(root); };
+    acc.querySelectorAll('[data-lp]').forEach(b => { const K = kids.find(k => k.id === b.dataset.lp);
+      if (K) { b.oncontextmenu = (e) => { e.preventDefault(); lotMenu(K, root, f); };
+        b.onclick = (e) => { e.stopPropagation(); App.lotSel = App.lotSel || {}; App.lotF = App.lotF || {};
+          if (sel === '__all') App.lotF[f.id] = App.lotF[f.id] === K.id ? parL.id : K.id; else App.lotSel[f.id] = focus === K.id ? parL.id : K.id;
+          App.keepScrollY = ($('#content') || {}).scrollTop || 0; renderPlans(root); }; } });
+  }
   // liste des types (sous la boîte), fermée par défaut
   const pickBtn = box;
   pickBtn.onclick = (e) => { e.stopPropagation(); const old = $('.lot-pick', card); if (old) { old.remove(); return; }
@@ -191,7 +208,7 @@ function lotBarInto(card, f, ps, root) {
   if (addB) addB.onclick = async (e) => { e.stopPropagation(); const r = await formSheet('Nouveau lot (ce niveau seulement)', [{ name: 'n', label: 'Nom', placeholder: 'Ex : Faux plafond' }, { name: 'e', label: 'Emoji', value: '🔧' }], { okLabel: 'Ajouter' });
     if (r && r.n) { const nl = { id: DB.uid(), name: r.n, e: r.e || '🔧', c: ['#0ea5e9', '#22c55e', '#f97316', '#8b5cf6', '#e11d48'][allLots.length % 5], points: [], cat: tk || undefined, only: [f.id] }; allLots.push(nl); await DB.put('projects', p); App.lotSel[f.id] = nl.id; renderPlans(root); } };
   chips.querySelectorAll('[data-lp]').forEach(b => { if (!/^__add/.test(b.dataset.lp)) b.onclick = (e) => { e.stopPropagation(); App.lotSel = App.lotSel || {}; App.lotSel[f.id] = b.dataset.lp; App.keepScrollY = ($('#content') || {}).scrollTop || 0; renderPlans(root); }; });
-  const addSub = chips.querySelector('[data-lp="__addsub"]');
+  const addSub = bar.querySelector('[data-lp="__addsub"]');
   if (addSub) addSub.onclick = (e) => { e.stopPropagation(); const par = lots.find(x => x.id === focusTop); if (par) addSubLot(par, f, root); };
   if (sel === '__all') chips.querySelectorAll('[data-lp]').forEach(b => { const id = b.dataset.lp; if (id === '__none' || /^__add/.test(id)) return;
     b.onclick = (e) => { e.stopPropagation(); App.lotF = App.lotF || {};
@@ -222,12 +239,22 @@ const lotFilter = (ps, f) => { const s = lotSelDefault(f, ps), P = App.project;
 // ajouter un sous-lot au lot : modèles proposés (Revêtements → Carrelage, Parquet…) ou nom libre ; propre au niveau
 async function addSubLot(par, f, root) {
   const p = App.project, lots = planLots(p), have = lots.filter(x => x.up === par.id).map(x => normQ(x.name));
-  const tpl = tplOfLot(par).filter(n => !have.includes(normQ(n)));
-  const v = tpl.length ? await menu(`Sous-lot de ${par.name}`, [...tpl.map(n => ({ label: n, icon: 'layers', value: 'T:' + n })), { label: 'Autre nom…', icon: 'edit', value: 'new' }]) : 'new';
-  if (!v) return; let name = v.startsWith('T:') ? v.slice(2) : '';
-  if (v === 'new') { const r = await formSheet(`Nouveau sous-lot de ${par.name} (ce niveau seulement)`, [{ name: 'n', label: 'Nom', placeholder: 'Ex : Peinture plastique' }], { okLabel: 'Ajouter' }); if (!r || !r.n) return; name = r.n; }
-  const nl = { id: DB.uid(), name, e: par.e, c: par.c, points: [], cat: par.cat, up: par.id, only: [f.id] };
-  lots.push(nl); await DB.put('projects', p); App.lotF = App.lotF || {}; if ((App.lotSel || {})[f.id] === '__all') App.lotF[f.id] = nl.id; else App.lotSel[f.id] = nl.id; renderPlans(root);
+  const kind = await menu(`Sous-lot de ${par.name}`, [{ label: 'Métier (revêtement, peinture…)', icon: 'layers', value: 'met' }, { label: 'Division (Zone, Bloc, Tranche, Cage…)', icon: 'layers', value: 'div' }]);
+  if (!kind) return; let name = '';
+  if (kind === 'div') {
+    const g = await menu('Type de division', [...['Zone', 'Bloc', 'Tranche', 'Cage'].map(n => ({ label: n + '…', value: n })), { label: 'Autre nom libre…', value: '-' }]);
+    if (!g) return;
+    const pre = g === '-' ? '' : g;
+    const r = await formSheet(`Nouvelle division de ${par.name} (ce niveau seulement)`, [{ name: 'n', label: pre ? `${pre} — nom ou numéro` : 'Nom', placeholder: pre ? 'Ex : A, 1, Nord' : 'Ex : Aile Est' }], { okLabel: 'Ajouter' });
+    if (!r || !r.n) return; name = pre ? `${pre} ${r.n}` : r.n;
+  } else {
+    const tpl = tplOfLot(par).filter(n => !have.includes(normQ(n)));
+    const v = tpl.length ? await menu(`Métier — ${par.name}`, [...tpl.map(n => ({ label: n, icon: 'layers', value: 'T:' + n })), { label: 'Autre nom…', icon: 'edit', value: 'new' }]) : 'new';
+    if (!v) return; name = v.startsWith('T:') ? v.slice(2) : '';
+    if (v === 'new') { const r = await formSheet(`Nouveau sous-lot de ${par.name} (ce niveau seulement)`, [{ name: 'n', label: 'Nom', placeholder: 'Ex : Peinture plastique' }], { okLabel: 'Ajouter' }); if (!r || !r.n) return; name = r.n; }
+  }
+  const nl = { id: DB.uid(), name, e: par.e, c: par.c, points: [], cat: par.cat, up: par.id, only: [f.id] }; if (kind === 'div') nl.kind = 'div';
+  lots.push(nl); await DB.put('projects', p); App.lotF = App.lotF || {}; App.accOpen = App.accOpen || {}; App.accOpen[par.id] = true; if ((App.lotSel || {})[f.id] === '__all') App.lotF[f.id] = nl.id; else App.lotSel[f.id] = nl.id; renderPlans(root);
 }
 // fusion : A est absorbé par B (plans, points, données par niveau) — rien n'est perdu
 async function mergeLots(A, B, p) {

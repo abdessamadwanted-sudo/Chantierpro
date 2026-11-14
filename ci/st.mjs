@@ -2027,6 +2027,22 @@ try {
   const lpn = await A.pg.evaluate(async () => { const o = {}; try { const p = App.project, f = (await DB.byProject('folders', p.id)).find(x => !x.parentId); const L = planLots(p)[0];
     const el = lotPanel(L, f, document.body); o.ok = !!(el && el.classList && el.classList.contains('lot-panel')); } catch (e) { o.err = String(e.message || e); } return o; });
   log('Panneau de lot', lpn); if (lpn.err || !lpn.ok) throw new Error('lotPanel KO ' + JSON.stringify(lpn));
+  // ---- v1.0.244 : sous-lots division + accordéon, échéance Planning ↔ pin, frise, Localisation
+  const v244 = await A.pg.evaluate(async () => { const o = {}; try { const p = App.project, f = (await DB.byProject('folders', p.id)).find(x => !x.parentId);
+    const hold = p.planLots; p.planLots = [{ id: 'a', name: 'Peinture', cat: 'CEA', e: '🎨', c: '#0ea5e9' }, { id: 'm', name: 'Finition', cat: 'CEA', up: 'a', only: [f.id], e: '🎨', c: '#0ea5e9' }, { id: 'z', name: 'Zone A', cat: 'CEA', up: 'a', only: [f.id], kind: 'div', e: '🎨', c: '#0ea5e9' }]; p.catV = 1;
+    const host = document.createElement('div'); document.body.appendChild(host); App.lotSel = App.lotSel || {}; App.lotSel[f.id] = 'a';
+    lotBarInto(host, f, [], document.body); o.acc = !!host.querySelector('.lot-acc'); o.met = host.querySelectorAll('.acc-g')[0] ? host.querySelectorAll('.acc-g')[0].textContent.includes('Finition') : false; o.div = host.querySelectorAll('.acc-g')[1] ? host.querySelectorAll('.acc-g')[1].textContent.includes('Zone A') : false; host.remove(); p.planLots = hold;
+    // échéance Planning → pin
+    const L = await DB.put('links', { projectId: p.id, kind: 'local', planId: 'x', x: 1, y: 1, name: 'T', items: [], lots: {} });
+    const P = planData(p); const t = { id: 'tk1', nom: 'Gros œuvre', deb: '2026-01-01', fin: '2026-02-01', ech: '2026-03-01', av: '0', pinId: L.id }; P.tasks.push(t); await syncTaskPin(p, t);
+    o.due = (await DB.get('links', L.id)).due; await taskPatchFromPin(Object.assign(await DB.get('links', L.id), { taskId: 'tk1' }), { ech: '2026-04-01' }); o.ech = t.ech;
+    P.tasks.splice(P.tasks.indexOf(t), 1);
+    o.fr = ptFrise({ start: '2020-01-01', dueCo: '2020-02-01', due: '2020-03-01' }, (d) => d).includes('de retard');
+    // Localisation
+    const l = await Localisation.add(p, { name: 'Local test', niv: 'R+1' }); o.loc = Localisation.locs(p).some(z => z.id === l.id); p.locs = Localisation.locs(p).filter(z => z.id !== l.id); await DB.put('projects', p);
+  } catch (e) { o.err = String(e.message || e); } return o; });
+  log('v1.0.244 [sous-lots division, échéance, frise, localisation]', v244);
+  log('errors v1.0.244', !v244.err && v244.acc && v244.met && v244.div && v244.due === '2026-03-01' && v244.fr && v244.loc ? [] : ['v1.0.244 ' + JSON.stringify(v244)]);
   log('errors titre plan', []);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);

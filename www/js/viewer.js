@@ -626,6 +626,7 @@ async function openPlanViewer(plan, ctx) {
         <path d="M0,0 C-4,-10 -14,-14 -14,-26 A14,14 0 1 1 14,-26 C14,-14 4,-10 0,0Z" fill="${c}" stroke="#fff" stroke-width="2"/>
         ${m >= 0.25 ? `<text x="0" y="-21" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" font-family="Arial">${t.num}</text>` : ''}</g>`;
     }).join('');
+    gTasks.innerHTML += st.tool === 'loc' && typeof Localisation !== 'undefined' ? Localisation.locs(App.project).filter(l => l.planId === plan.id && l.x != null).map(l => `<g transform="translate(${l.x},${l.y}) scale(${s * 0.5})"><path d="M0,0 C-3,-7 -9,-10 -9,-18 A9,9 0 1 1 9,-18 C9,-10 3,-7 0,0Z" fill="#0f766e" stroke="#fff" stroke-width="1.5"/><circle cx="0" cy="-18" r="3" fill="#fff"/>${m >= 0.45 ? `<text x="0" y="6" text-anchor="middle" font-size="9" font-weight="700" fill="#111" paint-order="stroke" stroke="#fff" stroke-width="2.5">${esc(l.name)}</text>` : ''}</g>`).join('') : '';
     gLinks.innerHTML = PILL_DEFS + st.links.filter(l => l.planId === plan.id && (l.kind !== 'local' || (st.filters.pills !== false && !st.pillHide.includes(pillKey(l)) && (st.showAllPts || !ptHideFuture() || ptActive(l))))).map(l => {
       const n = showCount ? (l.kind === 'plansbox' ? plansboxCount(l) : l.kind === 'photonote' ? (typeof pnCount === 'function' ? pnCount(l) : (l.photos || []).length) + (l.notes || []).length : (l.items || []).length) : 0;
       const ls = 1 / st.scale;
@@ -690,6 +691,8 @@ async function openPlanViewer(plan, ctx) {
           </g>
           <g transform="translate(0,-21)"><g>${dur ? `<animateTransform attributeName="transform" type="scale" values="1 1;.12 1;1 1;.12 1;1 1" dur="${dur === '.7s' ? '.7s' : '1.6s'}" repeatCount="indefinite"/>` : ''}<rect x="-8" y="-2.6" width="16" height="5.2" rx="2.6" fill="#fff" fill-opacity=".95"/></g></g>
           <ellipse cx="-5.5" cy="-29" rx="2.6" ry="6.5" fill="#fff" fill-opacity=".4" transform="rotate(-18 -5.5 -29)"/>
+          ${(() => { const bg = (y, c, n) => `<g transform="translate(23,${y})"><circle r="9" fill="${c}" stroke="#fff" stroke-width="1.6"/><text y="3.6" text-anchor="middle" font-size="${n > 9 ? 8.5 : 10.5}" font-weight="800" fill="#fff" font-family="Arial">${n > 99 ? '99+' : n}</text></g>`;
+            return (ddc != null && ddc < 0 ? bg(-34, '#dc2626', -ddc) : '') + (dd != null && dd < 0 ? bg(ddc != null && ddc < 0 ? -14 : -34, '#f97316', -dd) : ''); })()}
           ${showLabel ? `<text x="0" y="17" text-anchor="middle" font-size="10" font-weight="700" fill="#111" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${name}</text>` : ''}
           ${showLabel && sub ? `<text x="0" y="30" text-anchor="middle" font-size="8" font-weight="700" fill="${rc}" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(sub)}</text>` : ''}</g>`;
         }
@@ -759,7 +762,7 @@ async function openPlanViewer(plan, ctx) {
     ['arrow', 'arrow', 'Flèche'], ['text', 'text', 'Texte'],
   ];
   const TOOLS = [
-    ['pan', 'hand', 'Déplacer'], ['pin', 'pin', 'Tâche'], ['link', 'link', 'Élément'], ['pill', 'dome', 'Point d\'intérêt'], ['planlink', 'section', 'Lien plan / coupe'], ['plansbox', 'plans', 'Plans de l\'ouvrage'], ['photonote', 'camera', 'Pin photos (dossiers)'],
+    ['pan', 'hand', 'Déplacer'], ['pin', 'pin', 'Tâche'], ['link', 'link', 'Élément'], ['pill', 'dome', 'Point d\'intérêt'], ['loc', 'pin', 'Localiser'], ['planlink', 'section', 'Lien plan / coupe'], ['plansbox', 'plans', 'Plans de l\'ouvrage'], ['photonote', 'camera', 'Pin photos (dossiers)'],
     ['draw', 'pen', 'Dessin'], ['select', 'cursor', 'Modifier'], ['erase', 'eraser', 'Gomme'],
   ];
   const shapeInfo = () => SHAPES.find(x => x[0] === st.shape) || SHAPES[0];
@@ -769,6 +772,7 @@ async function openPlanViewer(plan, ctx) {
     if (st.tool === 'pin') return 'Touchez pour placer une tâche';
     if (st.tool === 'link') return 'Touchez pour placer un élément';
     if (st.tool === 'pill') return 'Touchez le plan pour placer un point d\'intérêt';
+    if (st.tool === 'loc') return '📍 Touchez le plan pour placer un local (tout petit pin, visible seulement à la recherche)';
     if (st.tool === 'photonote') return '📷 Touchez le plan pour placer un pin photos (dossiers : Porte provisoire, Brique, Nettoyage…)';
     if (st.tool === 'plansbox') return 'Touchez pour placer un pin « Plans » (zones → parties d\'ouvrage → PDF)';
     if (st.tool === 'planlink') return 'Touchez pour placer un lien (PDF de coupe, plan…)';
@@ -1322,6 +1326,11 @@ async function openPlanViewer(plan, ctx) {
     if (st.tool === 'pin') {
       await ctx.createTask({ planId: plan.id, x, y });
       await reloadData();
+    } else if (st.tool === 'loc') {
+      const P0 = App.project, lp = ctx.locPlace && Localisation.locs(P0).find(z => z.id === ctx.locPlace);
+      if (lp) { await Localisation.place(P0, lp, plan.id, x, y); ctx.locPlace = null; toast('📍 ' + lp.name + ' placé ✓'); }
+      else { const r = await formSheet('Nouveau local', [{ name: 'name', label: 'Nom du local', placeholder: 'Ex : Local technique 03' }], { okLabel: 'Placer' }); if (r && r.name) { const l = await Localisation.add(P0, { name: r.name }); await Localisation.place(P0, l, plan.id, x, y); toast('📍 Local placé ✓'); } }
+      renderMarkers();
     } else if (st.tool === 'pill') {
       // pastille « local » : nom demandé, puis placée à l'endroit touché (dates et lots se règlent ensuite via le menu ⋯)
       const r = await formSheet('Nouveau point d\'intérêt', [{ name: 'name', label: 'Nom du point d\'intérêt (ex : R+6 Poteau P12)' }], { okLabel: 'Placer' });
