@@ -2064,6 +2064,16 @@ try {
     P.tasks = P.tasks.slice(0, had); P.bls = hb; P.revs = hr; await DB.put('projects', p); } catch (e) { o.err = String(e.message || e); } return o; }, planItems);
   log('planning intelligent [PDF exemple]', vPl);
   log('errors planning intelligent', !vPl.err && vPl.n === 10 && vPl.ver === 'V01' && vPl.t10 && vPl.t02 && vPl.noInvent && vPl.c1 === 10 && vPl.c2 === 0 && vPl.dup === 10 && vPl.bl && vPl.pv > 0 && vPl.ret && vPl.hit === 'T02' ? [] : ['planning intelligent ' + JSON.stringify(vPl)]);
+  // ---- planning : vues Calendrier / Liste / Comparaison / Courbe S, prévision de fin
+  const vVw = await A.pg.evaluate(async (items) => { const o = {}; try { const t = PlanImport.tableFromItems(items), p = App.project, P = planData(p), hold = { tasks: P.tasks, bls: P.bls, revs: P.revs, view: P.view };
+    P.tasks = t.rows.map(r => ({ id: DB.uid(), ref: r.ref, nom: r.nom, deb: r.deb, fin: r.fin, av: r.av, dep: r.dep.join(','), hist: [{ d: r.deb, av: +r.av }] })); P.bls = [{ ver: 'V01', at: Date.now(), tasks: t.rows.map(r => ({ ref: r.ref, nom: r.nom, deb: r.deb, fin: r.fin })) }]; P.revs = [];
+    const F = PlanTrack.forecast(P); o.fc = !!(F && F.end === '2027-02-07'); o.svg = true;
+    const root = document.createElement('div'); root.innerHTML = '<div class="gt"><div class="gt-sc"></div><div class="gt-leg"></div></div>'; document.body.appendChild(root);
+    for (const v of ['list', 'cmp', 's', 'cal']) { P.view = v; root.innerHTML = '<div class="gt"><div class="gt-sc"></div><div class="gt-leg"></div></div>'; PlanTrack.applyView(root, p, P, () => {}); o[v] = !!root.querySelector('.gt-vw') && root.querySelector('.gt-vw').innerHTML.length > 50; }
+    P._ym = '2026-12'; P.view = 'cal'; root.innerHTML = '<div class="gt"></div>'; PlanTrack.applyView(root, p, P, () => {}); o.calDays = root.querySelectorAll('[data-day]').length;
+    root.remove(); Object.assign(P, hold); P.view = hold.view; } catch (e) { o.err = String(e.message || e); } return o; }, planItems);
+  log('planning vues', vVw);
+  log('errors planning vues', !vVw.err && vVw.fc && vVw.list && vVw.cmp && vVw.s && vVw.cal && vVw.calDays === 31 ? [] : ['planning vues ' + JSON.stringify(vVw)]);
   log('errors v1.0.246', !v245.err && v245.card && v245.url && v245.ov && v245.closed && v245.cr ? [] : ['v1.0.246 ' + JSON.stringify(v245)]);
   log('errors v1.0.244', !v244.err && v244.acc && v244.met && v244.div && v244.due === '2026-03-01' && v244.fr && v244.loc ? [] : ['v1.0.244 ' + JSON.stringify(v244)]);
   log('errors titre plan', []);

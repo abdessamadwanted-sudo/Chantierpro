@@ -4161,3 +4161,13 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .pi-t td { padding: 6px; border-top: 1px solid rgba(100,116,139,.16); vertical-align: top; } .pi-t td small { display: block; color: #64748b; font-size: 10.5px; } .pi-t tr.warn td small { color: #d97706; } .pi-t tr.bad { background: rgba(239,68,68,.08); } .pi-t tr.bad td small { color: #dc2626; }
 .pi-f { padding: 8px 12px; border-top: 1px solid rgba(100,116,139,.25); display: flex; flex-direction: column; gap: 4px; } .pi-f small { color: #64748b; } .pi-cv { max-width: 100%; }
 .gt-bl { position: absolute; bottom: 3px; height: 4px; border-radius: 3px; background: #94a3b8; opacity: .85; }
+
+/* vues du planning */
+.gt-views { display: flex; gap: 4px; padding: 6px 12px; overflow-x: auto; } .gt-views button { border: 1px solid rgba(100,116,139,.3); background: none; border-radius: 14px; padding: 4px 12px; font-size: 12px; font-weight: 700; white-space: nowrap; color: inherit; } .gt-views button.on { background: #2563eb; border-color: #2563eb; color: #fff; }
+.gt-vw { padding: 4px 12px 12px; }
+.cl-h { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; text-transform: capitalize; } .cl-g { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; } .cl-g > span { text-align: center; font-size: 10px; color: #64748b; font-weight: 800; }
+.cl-c { min-height: 58px; border: 1px solid rgba(100,116,139,.2); border-radius: 8px; padding: 2px 3px; font-size: 10px; display: flex; flex-direction: column; gap: 1px; overflow: hidden; } .cl-c.off { border: 0; } .cl-c.td { border-color: #ef4444; box-shadow: inset 0 0 0 1px #ef4444; }
+.cl-c b { font-size: 11px; } .cl-c i { font-style: normal; color: #fff; border-radius: 4px; padding: 0 3px; font-size: 9px; white-space: nowrap; overflow: hidden; } .cl-c em { font-size: 9px; color: #64748b; font-style: normal; }
+.cp-r { display: flex; align-items: center; border-bottom: 1px solid rgba(100,116,139,.12); } .cp-n { flex: none; width: 150px; padding: 3px 4px; font-size: 11px; overflow: hidden; } .cp-n small { display: block; color: #64748b; font-size: 9.5px; }
+.cp-t { position: relative; height: 26px; } .cp-b { position: absolute; border-radius: 3px; } .cp-b.bl { top: 1px; height: 5px; background: #94a3b8; } .cp-b.rv { top: 8px; height: 5px; background: #f59e0b; } .cp-b.pv { top: 15px; height: 5px; background: #a855f7; opacity: .75; } .cp-b.rl { top: 20px; height: 5px; }
+.sc-svg { background: rgba(255,255,255,.4); border-radius: 10px; }
