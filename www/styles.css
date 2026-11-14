@@ -4119,3 +4119,25 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 @keyframes pvsd { from { transform: translateY(-24%); opacity: .2; } }
 .fullpage.pv-slide-l { animation: pvsl .3s cubic-bezier(.2,.8,.2,1); } .fullpage.pv-slide-r { animation: pvsr .3s cubic-bezier(.2,.8,.2,1); }
 .fullpage.pv-slide-u { animation: pvsu .3s cubic-bezier(.2,.8,.2,1); } .fullpage.pv-slide-d { animation: pvsd .3s cubic-bezier(.2,.8,.2,1); }
+
+/* accordéon des sous-lots (métiers / divisions) */
+.lot-acc { margin: 2px 0 4px; border: 1px solid rgba(100,116,139,.25); border-radius: 12px; background: rgba(255,255,255,.55); backdrop-filter: blur(6px); overflow: hidden; }
+.acc-h { width: 100%; display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: none; border: 0; font-weight: 800; font-size: 12px; color: #334155; text-align: left; }
+.acc-h span { flex: 1; } .acc-h small { background: rgba(100,116,139,.16); border-radius: 8px; padding: 0 6px; font-size: 11px; } .acc-h i { font-style: normal; color: #64748b; }
+.acc-b { padding: 2px 8px 8px; display: flex; flex-direction: column; gap: 5px; animation: accIn .16s ease-out; }
+.acc-g { display: flex; align-items: center; gap: 6px; } .acc-l { flex: none; width: 58px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: #64748b; }
+.acc-r { display: flex; flex-wrap: wrap; gap: 5px; } .acc-b > .lot-c.add { align-self: flex-start; }
+.lot-c.sub.div { border-radius: 8px; }
+@keyframes accIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+/* frises société / maître d'ouvrage (fiche du point) */
+.fr-w { display: flex; flex-direction: column; gap: 7px; margin-top: 8px; }
+.fr-h { display: flex; justify-content: space-between; font-size: 12px; } .fr-h .bad { color: #dc2626; font-weight: 800; }
+.fr-b { position: relative; height: 8px; border-radius: 6px; background: rgba(100,116,139,.2); margin: 3px 0 2px; }
+.fr-f { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; }
+.fr-t { position: absolute; top: -4px; width: 2px; height: 16px; background: #111827; border-radius: 2px; transform: translateX(-1px); text-decoration: none; }
+.fr-d { display: flex; justify-content: space-between; font-size: 10.5px; color: #64748b; }
+/* Localisation */
+.lcz-bar { display: flex; gap: 8px; margin: 6px 0; } .lcz-q { flex: 1; padding: 8px 12px; border-radius: 12px; border: 1px solid rgba(100,116,139,.35); font-size: 14px; }
+.lcz-t { width: 100%; border-collapse: collapse; font-size: 13px; } .lcz-t th { text-align: left; font-size: 11px; color: #64748b; padding: 4px 6px; } .lcz-t td { padding: 6px; border-top: 1px solid rgba(100,116,139,.18); }
+.lcz-go { border: 0; background: rgba(15,118,110,.12); color: #0f766e; border-radius: 10px; padding: 4px 8px; font-weight: 800; }
