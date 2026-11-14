@@ -48,7 +48,7 @@ const Visio = (() => {
     const up = L.filter(v => !v.at || new Date(v.at).getTime() > now - 3 * 36e5), past = L.filter(v => !up.includes(v)).reverse();
     const card = (v) => `<div class="vz-c" data-id="${v.id}"><div class="vz-t"><b>${esc(v.title)}</b><small>${esc(when(v))}</small></div>
       <div class="vz-m"><span class="vz-a">👥 ${esc(v.aud.l)}</span>${(v.plans || []).length ? `<span class="vz-a">📐 ${v.plans.length} plan(s)</span>` : ''}</div>${v.agenda ? `<div class="vz-g">${esc(v.agenda)}</div>` : ''}
-      <div class="vz-b"><button class="btn sm primary" data-j="${v.id}">📹 Rejoindre</button><button class="btn sm" data-i="${v.id}">Inviter</button><button class="btn sm" data-p="${v.id}">Plans</button><button class="btn sm" data-x="${v.id}">⋯</button></div></div>`;
+      <div class="vz-b"><button class="btn sm primary" data-j="${v.id}">📹 Rejoindre</button><button class="btn sm" data-i="${v.id}">Inviter</button><button class="btn sm" data-p="${v.id}">Plans</button><button class="btn sm" data-c="${v.id}">📝 CR</button><button class="btn sm" data-x="${v.id}">⋯</button></div></div>`;
     root.innerHTML = `<div class="vz"><div class="pagehead"><h2>Réunion en ligne</h2><p>${esc(p.name)} · visio par service ou intervenant</p></div>
       <div class="vz-bar"><button class="btn primary" data-a="new">＋ Planifier</button><button class="btn" data-a="now">⚡ Réunion immédiate</button></div>
       <div class="vz-tools"><span>🖥 Partage d'écran</span><span>🧑‍🏫 Tableau blanc</span><span>💬 Chat</span><span>📐 Plans / PDF joints</span></div>
@@ -60,6 +60,10 @@ const Visio = (() => {
     root.querySelectorAll('[data-j]').forEach(b => b.onclick = () => join(get(b.dataset.j)));
     root.querySelectorAll('[data-i]').forEach(b => b.onclick = () => invite(get(b.dataset.i)));
     root.querySelectorAll('[data-p]').forEach(b => b.onclick = async () => { const v = get(b.dataset.p); if (!(v.plans || []).length) return toast('Aucun plan joint — ⋯ › Modifier'); const rows = []; for (const id of v.plans) { const x = await DB.get('plans', id); if (x) rows.push({ label: x.name, value: id }); } const id = await menu('Plans de la réunion', rows); if (id) { const x = await DB.get('plans', id); openPlanViewer(x, { ...(typeof planCtx === 'function' ? planCtx(() => render(root)) : {}) }); } });
+    // compte rendu : crée (ou rouvre) la fiche du registre « Réunions de chantier » préremplie avec l'objet, la date, l'audience et l'ordre du jour
+    root.querySelectorAll('[data-c]').forEach(b => b.onclick = async () => { const v = get(b.dataset.c); const L = REG.reu.store(p); let x = v.cr && L.find(z => z.id === v.cr);
+      if (!x) { x = { id: DB.uid(), n: regNum(L, REG.reu.pre), date: (v.at || '').slice(0, 10) || todayISO(), type: (REU_TYPES[0] && (REU_TYPES[0].value ?? REU_TYPES[0])) || '', lieu: 'Visio SiteTeam', part: v.aud.l, points: [v.title, v.agenda].filter(Boolean).join('\n'), at: Date.now(), by: myName(), visio: v.id }; L.push(x); v.cr = x.id; await regSave(p); await DB.put('projects', p); }
+      await regEdit(p, 'reu', x, () => render(root)); });
     root.querySelectorAll('[data-x]').forEach(b => b.onclick = async () => { const v = get(b.dataset.x); const a = await menu(v.title, [{ label: 'Modifier', value: 'e' }, { label: 'Ouvrir dans le navigateur', value: 'b' }, { label: 'Copier le lien', value: 'c' }, { label: 'Serveur de visio…', value: 's' }, { label: 'Supprimer', value: 'd' }]);
       if (a === 'b') LinkViewer.openLink(roomUrl(v), { external: true });
       if (a === 's') { const r = await formSheet('Serveur de visio', [{ name: 'h', label: 'Adresse du serveur Jitsi', placeholder: 'meet.jit.si', value: server() }], { okLabel: 'Enregistrer' }); if (r) { try { localStorage.setItem('visio.server', (r.h || '').trim()); } catch (e) {} toast('Serveur : ' + server()); } }

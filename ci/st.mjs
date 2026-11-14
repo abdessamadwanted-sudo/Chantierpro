@@ -2043,9 +2043,14 @@ try {
   } catch (e) { o.err = String(e.message || e) + ' | ' + String(e.stack || '').split('\n').slice(1,4).join(' / '); } return o; });
   log('v1.0.244 [sous-lots division, échéance, frise, localisation]', v244);
   const v245 = await A.pg.evaluate(async () => { const o = {}; try { const p = App.project; const v = { id: 'vz1', title: 'Test', at: '2099-01-01T10:00', aud: { k: 'svc', l: 'Qualité' }, room: 'abc12345', plans: [], agenda: '' }; Visio.list(p).push(v);
-    const host = document.createElement('div'); document.body.appendChild(host); await Visio.render(host); o.card = host.querySelectorAll('.vz-c').length >= 1; o.url = Visio.roomUrl(v).startsWith('https://meet.jit.si/SiteTeam-abc12345'); Visio.joinInApp(v); o.ov = !!document.querySelector('.vz-ov iframe'); document.querySelector('.vz-ov [data-q]').click(); o.closed = !document.querySelector('.vz-ov'); host.remove(); p.visios = Visio.list(p).filter(z => z.id !== 'vz1'); await DB.put('projects', p); } catch (e) { o.err = String(e.message || e); } return o; });
+    const host = document.createElement('div'); document.body.appendChild(host); await Visio.render(host); o.card = host.querySelectorAll('.vz-c').length >= 1; o.url = Visio.roomUrl(v).startsWith('https://meet.jit.si/SiteTeam-abc12345'); o.cr = !!host.querySelector('[data-c]'); Visio.joinInApp(v); o.ov = !!document.querySelector('.vz-ov iframe'); document.querySelector('.vz-ov [data-q]').click(); o.closed = !document.querySelector('.vz-ov'); host.remove(); p.visios = Visio.list(p).filter(z => z.id !== 'vz1'); await DB.put('projects', p); } catch (e) { o.err = String(e.message || e); } return o; });
   log('v1.0.246 [réunion en ligne]', v245);
-  log('errors v1.0.246', !v245.err && v245.card && v245.url && v245.ov && v245.closed ? [] : ['v1.0.246 ' + JSON.stringify(v245)]);
+  const v249 = await A.pg.evaluate(() => { const o = {}; try { const r = PlanImport.parseLines(['Tâche Durée Début Fin', '1 Terrassement 10 jours lun 05/01/26 ven 16/01/26', 'Gros œuvre 30 j 19/01/2026 27/02/2026', 'Étanchéité 5 jours 02 mars 2026']);
+    o.n = r.length; o.a = r[0] && r[0].nom === 'Terrassement' && r[0].deb === '2026-01-05' && r[0].fin === '2026-01-16'; o.c = r[2] && r[2].fin === '2026-03-06';
+    o.x = PlanImport.mspRows('<Project><Tasks><Task><Name>Dalle</Name><Start>2026-03-01T08:00:00</Start><Finish>2026-03-10T17:00:00</Finish></Task></Tasks></Project>').length; } catch (e) { o.err = String(e.message || e); } return o; });
+  log('import planning [parseur]', v249);
+  log('errors import planning', !v249.err && v249.n === 3 && v249.a && v249.c && v249.x === 1 ? [] : ['import planning ' + JSON.stringify(v249)]);
+  log('errors v1.0.246', !v245.err && v245.card && v245.url && v245.ov && v245.closed && v245.cr ? [] : ['v1.0.246 ' + JSON.stringify(v245)]);
   log('errors v1.0.244', !v244.err && v244.acc && v244.met && v244.div && v244.due === '2026-03-01' && v244.fr && v244.loc ? [] : ['v1.0.244 ' + JSON.stringify(v244)]);
   log('errors titre plan', []);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
