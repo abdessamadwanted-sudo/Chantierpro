@@ -4110,12 +4110,12 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .pv-dots .pd-h { display: flex; justify-content: center; gap: 6px; padding: 5px 10px; width: max-content; margin: 0 auto; border-radius: 999px; background: rgba(15,23,42,.72); backdrop-filter: blur(6px); }
 .pv-dots .pd-h i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.4); transition: all .2s; }
 .pv-dots .pd-h i.on { background: #fff; width: 16px; border-radius: 4px; }
-.pv-dots .pd-v { position: absolute; right: 8px; top: 34px; display: flex; flex-direction: column; gap: 4px; padding: 6px 7px; border-radius: 12px; background: rgba(15,23,42,.72); backdrop-filter: blur(6px); align-items: flex-end; }
-.pv-dots .pd-v b { font-size: 10px; font-weight: 600; color: rgba(255,255,255,.5); line-height: 1; }
-.pv-dots .pd-v b.on { color: #fff; font-size: 12px; font-weight: 800; }
+.pv-dots .pd-v { position: fixed; left: 8px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 3px; padding: 5px; border-radius: 16px; align-items: stretch; background: linear-gradient(180deg, rgba(30,41,59,.82), rgba(15,23,42,.82)); border: 1px solid rgba(255,255,255,.12); box-shadow: 0 6px 20px rgba(0,0,0,.35); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.pv-dots .pd-v b { min-width: 38px; padding: 5px 6px; border-radius: 11px; text-align: center; font-size: 10.5px; font-weight: 600; letter-spacing: .02em; line-height: 1; color: rgba(255,255,255,.55); transition: all .2s; }
+.pv-dots .pd-v b.on { background: #5b8def; color: #fff; font-weight: 800; box-shadow: 0 2px 10px rgba(91,141,239,.55); transform: scale(1.06); }
 @keyframes pvsl { from { transform: translateX(28%); opacity: .2; } }
 @keyframes pvsr { from { transform: translateX(-28%); opacity: .2; } }
 @keyframes pvsu { from { transform: translateY(24%); opacity: .2; } }
 @keyframes pvsd { from { transform: translateY(-24%); opacity: .2; } }
-.fullpage.pv-slide-l { animation: pvsl .22s ease-out; } .fullpage.pv-slide-r { animation: pvsr .22s ease-out; }
-.fullpage.pv-slide-u { animation: pvsu .22s ease-out; } .fullpage.pv-slide-d { animation: pvsd .22s ease-out; }
+.fullpage.pv-slide-l { animation: pvsl .3s cubic-bezier(.2,.8,.2,1); } .fullpage.pv-slide-r { animation: pvsr .3s cubic-bezier(.2,.8,.2,1); }
+.fullpage.pv-slide-u { animation: pvsu .3s cubic-bezier(.2,.8,.2,1); } .fullpage.pv-slide-d { animation: pvsd .3s cubic-bezier(.2,.8,.2,1); }

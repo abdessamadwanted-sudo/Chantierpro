@@ -228,7 +228,7 @@ function planTypeKey(plan, p) { try { const lot = plan.lotId && p && typeof plan
 function navLevelRank(name) {
   const n = String((typeof nivOfFolder === 'function' && nivOfFolder(name)) || name || '').toUpperCase().replace(/\s+/g, '');
   if (/^FOND/.test(n)) return -3; let m = n.match(/^SS(\d)?L?$/); if (m) return -2 + (m[1] ? -(+m[1] - 1) * 0.1 : 0) - (n === 'SSL' ? 0.5 : 0);
-  if (n === 'RDC') return 0; if (/^MEZZ/.test(n)) return 0.5; m = n.match(/^R\+(\d+)$/); if (m) return +m[1]; if (/^TERRASSE/.test(n)) return 1000; return 500;
+  if (n === 'RDC') return 0; if (/^MEZZ/.test(n)) return -0.5; m = n.match(/^R\+(\d+)$/); if (m) return +m[1]; if (/^TERRASSE/.test(n)) return 1000; return 500;
 }
 function planNavInfo(plan, folders, plans, p) {
   const byId = new Map(folders.map(f => [f.id, f]));
@@ -330,8 +330,9 @@ async function openPlanViewer(plan, ctx) {
     load();   // préchargé dès l'ouverture : le glissement ne dépend plus d'un chargement tardif
     const act = async (dx, dy) => {
       const I = info || await load(); if (!I) return toast('Plans du niveau introuvables');
-      if (Math.abs(dx) > Math.abs(dy)) { const tg = I.row[I.idx + (dx < 0 ? 1 : -1)]; if (!go(tg, dx < 0 ? 'l' : 'r')) { toast(dx < 0 ? 'Dernier plan de ce niveau' : 'Premier plan de ce niveau'); showDots(); } }
-      else { const tg = dy < 0 ? I.up : I.down; if (!go(tg, dy < 0 ? 'u' : 'd')) { toast(dy < 0 ? 'Pas de plan du même type au niveau au-dessus' : 'Pas de plan du même type au niveau en dessous'); showDots(); } }
+      if (Math.abs(dx) > Math.abs(dy)) { const tg = I.row[I.idx + (dx < 0 ? 1 : -1)]; if (!go(tg, dx < 0 ? 'l' : 'r')) { toast(dx < 0 ? 'Dernier plan de ce niveau' : 'Premier plan de ce niveau'); showDots(); return false; } }
+      else { const tg = dy < 0 ? I.up : I.down; if (!go(tg, dy < 0 ? 'u' : 'd')) { toast(dy < 0 ? 'Pas de plan du même type au niveau au-dessus' : 'Pas de plan du même type au niveau en dessous'); showDots(); return false; } }
+      return true;
     };
     el._planNav = act;   // aussi appelé par un balayage sur le plan lui-même (plan entier, outil Main)
     h1.addEventListener('touchstart', (e) => { if (e.touches.length !== 1 || e.target.closest('button')) { t0 = null; return; } t0 = { x: e.touches[0].clientX, y: e.touches[0].clientY, done: false }; showDots(); }, { passive: true });
@@ -369,6 +370,12 @@ async function openPlanViewer(plan, ctx) {
     st.ty = ph <= vh ? (vh - ph) / 2 : Math.min(M, Math.max(vh - ph - M, st.ty));
   }
   let rafPending = false, mkScale = null;
+  // rend le plan à sa place après un glissement de « page » non validé (retour doux)
+  function pageReset() {
+    stage.style.transition = 'transform .22s cubic-bezier(.2,.8,.2,1), opacity .22s'; stage.style.opacity = '';
+    stage.style.transform = `translate(${st.tx}px,${st.ty}px) scale(${st.scale})`;
+    setTimeout(() => { stage.style.transition = ''; }, 260);
+  }
   function applyT() {
     clampT();
     scheduleHD();
@@ -1081,6 +1088,7 @@ async function openPlanViewer(plan, ctx) {
     if (ptrs.size === 2) {
       // v1.0.65 : pendant le pincement le plan reste une seule image (plus de carrés noirs) ; redessiné net à la fin du geste
       clearTimeout(wcT); stage.style.willChange = 'transform';
+      if (g && g.page != null) { g.page = null; pageReset(); }
       if (g && g.edit && g.moved) { /* on garde la modification déjà faite */ }
       const [a, b] = [...ptrs.values()];
       if (g) clearTimeout(g.lpTimer);
@@ -1134,6 +1142,17 @@ async function openPlanViewer(plan, ctx) {
     if (!g.moved) { g.lx = e.clientX; g.ly = e.clientY; return; }
     const p = toImg(e.clientX, e.clientY);
     if (g.mode === 'pan') {
+      // plan entier + outil Main : le plan suit le doigt (axe verrouillé, résistance, léger fondu) comme une page qu'on tourne
+      if (st.tool === 'pan' && !g.onPin && !st.pend && st.scale <= st.fitScale * 1.05 && el._planNav) {
+        const dx = e.clientX - g.sx, dy = e.clientY - g.sy, adx = Math.abs(dx), ady = Math.abs(dy);
+        if (!g.axis && Math.max(adx, ady) > 10) g.axis = adx > ady * 1.2 ? 'x' : ady > adx * 1.2 ? 'y' : null;
+        if (g.axis) {
+          const d = g.axis === 'x' ? dx : dy, size = g.axis === 'x' ? viewer.clientWidth : viewer.clientHeight, o = Math.sign(d) * Math.min(Math.abs(d) * 0.6, size * 0.4);
+          g.page = o; stage.style.transition = 'none';
+          stage.style.transform = `translate(${st.tx + (g.axis === 'x' ? o : 0)}px,${st.ty + (g.axis === 'y' ? o : 0)}px) scale(${st.scale})`;
+          stage.style.opacity = String(1 - Math.min(Math.abs(o) / size * 1.4, 0.4)); g.lx = e.clientX; g.ly = e.clientY; return;
+        }
+      }
       st.tx += e.clientX - g.lx; st.ty += e.clientY - g.ly; applyT();
     } else if (g.mode === 'edit' && g.edit.kind === 'pin') {
       const o = st.selPin.obj;
@@ -1179,12 +1198,13 @@ async function openPlanViewer(plan, ctx) {
     }
     if (cur.mode === 'edit' && cur.edit.kind === 'pend') { drawPending(); if (!cur.moved) return onTap(cur.start); return; }
     if (cur.mode === 'edit' && cur.moved) { renderAnnots(); saveAnnots(); renderSel(); return; }
-    // v1.0.240 : plan entier (non zoomé) + outil Main : un balayage franc sur le plan change de plan (← → même niveau, ↑ ↓ même type d'un autre niveau)
-    if (cur.moved && cur.mode === 'pan' && st.tool === 'pan' && !cur.onPin && !st.pend && st.scale <= st.fitScale * 1.05 && el._planNav && Date.now() - cur.t0 < 900) {
-      const dx = e.clientX - cur.sx, dy = e.clientY - cur.sy, ax = Math.abs(dx), ay = Math.abs(dy);
-      if (Math.max(ax, ay) >= 90 && (ax > ay * 1.6 || ay > ax * 1.6)) return el._planNav(dx, dy);
-    }
     if (!cur.moved) return onTap(cur.start);
+    // plan entier + outil Main : relâché assez loin (ou vite) → changement de plan ; sinon le plan revient doucement
+    if (cur.page != null) {
+      const dx = e.clientX - cur.sx, dy = e.clientY - cur.sy, d = Math.abs(cur.axis === 'x' ? dx : dy), fast = Date.now() - cur.t0 < 260 && d >= 45;
+      if ((d >= 90 || fast) && el._planNav && await el._planNav(cur.axis === 'x' ? dx : 0, cur.axis === 'y' ? dy : 0)) return;
+      pageReset(); return;
+    }
     if (cur.onPin && Date.now() - cur.t0 < 700 && Math.hypot(e.clientX - cur.sx, e.clientY - cur.sy) < 44) return onTap(cur.start);
     if (cur.mode !== 'draw' || !cur.end) return;
     if (['pin', 'link', 'planlink', 'plansbox', 'photonote'].includes(st.tool)) return onTap(cur.end, true);
