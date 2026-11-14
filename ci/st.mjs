@@ -2051,7 +2051,7 @@ try {
   log('import planning [parseur]', v249);
   log('errors import planning', !v249.err && v249.n === 3 && v249.a && v249.c && v249.x === 1 ? [] : ['import planning ' + JSON.stringify(v249)]);
   // ---- planning intelligent : extraction du PDF exemple (10 activités), baseline, écarts, pas de doublon à la réimportation
-  const planItems = JSON.parse(fs.readFileSync(new URL('./fixtures/planning-items.json', import.meta.url), 'utf8'));
+  const planItems = JSON.parse(fs.readFileSync(new (await import('node:url')).URL('./fixtures/planning-items.json', import.meta.url), 'utf8'));
   const vPl = await A.pg.evaluate(async (items) => { const o = {}; try { const t = PlanImport.tableFromItems(items), p = App.project, P = planData(p); const had = P.tasks.length, hb = P.bls, hr = P.revs; P.bls = []; P.revs = [];
     o.n = t.rows.length; o.ver = t.info.ver; o.t10 = t.rows[9] && t.rows[9].ref === 'T10' && t.rows[9].dep.join() === 'T07,T08,T09'; o.t02 = t.rows[1].lot === 'Gros oeuvre' && t.rows[1].deb === '2026-11-23' && t.rows[1].fin === '2026-12-06' && t.rows[1].av === '60'; o.warn = t.rows.filter(r => r.msgs.length).length;
     // une date absente n'est jamais inventée
