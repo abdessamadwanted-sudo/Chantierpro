@@ -676,6 +676,7 @@ function fab(root, onClick) {
 
 // ---------- Plans ----------
 async function renderPlans(root) {
+  if (!App.project) return;   // v1.0.248 : plus d'erreur « null.id » quand aucun projet n'est ouvert
   const pid = App.project.id;
   const [folders, plans, tasks] = await Promise.all([DB.byProject('folders', pid), DB.byProject('plans', pid), DB.byProject('tasks', pid)]);
   try { App._avLinks = (App.project.avNiveaux || []).length ? (await DB.byProject('links', pid)).filter(l => l.kind === 'local') : null; } catch (e) { App._avLinks = null; }   // v1.0.47 : pastilles d'alerte des lots
@@ -2164,6 +2165,8 @@ async function openPlansQuick() {
   // v1.0.51 : dernier plantage côté Android (Java ou moteur web) → journal des erreurs
   setTimeout(async () => { try { const G = window.Capacitor?.Plugins?.GDriveAuth; if (!G || !G.lastCrash) return; const r = await G.lastCrash({ clear: true }); if (r && r.last) { const L = JSON.parse(localStorage.getItem('err.log') || '[]'); L.push('ANDROID ' + r.last.slice(0, 400)); localStorage.setItem('err.log', JSON.stringify(L.slice(-20))); } } catch (e) {} }, 1500);
   setTimeout(() => { try { localStorage.setItem('boot.crash', '0'); } catch (e) {} bootTrail('ouvert depuis 30 s ✓'); }, 30000);
+  // v1.0.248 : quitter l'application volontairement (accueil, mise à jour, changement d'appli) n'est pas un plantage au démarrage : le compteur repart de 0
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { try { localStorage.setItem('boot.crash', '0'); } catch (e) {} } });
   try { const LN = window.Capacitor?.Plugins?.LocalNotifications; if (LN) LN.cancel({ notifications: [{ id: 1999000301 }, { id: 1999000101 }] }).catch(() => {}); } catch (e) {}   // anciens rappels « on » (boucle) retirés
   setTimeout(() => { try { const C = typeof Career !== 'undefined' && Career.get(); if (C && C.robot && C.robot.on) careerRobotNotif(C.robot); } catch (e) {} }, 4000);   // robot emploi : reprogrammé (notification datée)
   // v1.0.36 : temps de démarrage mesuré (fichiers · connexion · accueil), visible dans le menu ⋮ › Application
