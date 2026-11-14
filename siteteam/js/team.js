@@ -242,11 +242,11 @@ const modOf = (store, rec) => store === 'items' ? KIND_MOD[(rec || {}).kind] : S
 const SECTION_MOD = { avancement: 'projet', clauses: 'forms', gestion: 'materiel', finance: 'finance', tce: 'finance', avenants: 'finance', st: 'finance',
   planning: 'projet', lotsuivi: 'projet', ptools: 'projet', reunions: 'forms', pointage: 'pointage', rfi: 'forms', visa: 'forms', labo: 'reception', hse: 'hse', org: 'equipe',
   dashboard: 'projet', plans: 'plans', tasks: 'reserves', reception: 'reception', beton: 'reception', photos: 'photos', forms: 'forms', reports: 'rapports',
-  constat: 'constats', models3d: 'plans', maquette: 'plans', calc: 'calc', team: 'equipe', settings: 'projet', docq: 'files', histo: 'projet', orgs: 'projet', monespace: 'projet', tabproj: 'projet' };
+  constat: 'constats', models3d: 'plans', maquette: 'plans', calc: 'calc', team: 'equipe', settings: 'projet', docq: 'files', histo: 'projet', orgs: 'projet', monespace: 'projet', tabproj: 'projet', localisation: 'projet' };
 
 // v1.0.34 : bibliothèque de chaque service. Socle commun + outils du métier. Les PV de réception (ferraillage) relèvent de la Qualité ;
 // les Travaux gardent le programme de bétonnage. Les droits du poste (0 à 4) s'appliquent toujours en plus.
-const LIB_CORE = ['ptools', 'dashboard', 'plans', 'tasks', 'photos', 'reports', 'team', 'org', 'settings', 'histo', 'monespace', 'tabproj'];
+const LIB_CORE = ['ptools', 'dashboard', 'plans', 'tasks', 'photos', 'reports', 'team', 'org', 'settings', 'histo', 'monespace', 'tabproj', 'localisation'];
 const SVC_LIB = {
   travaux: ['lotsuivi', 'avancement', 'planning', 'reunions', 'beton', 'calc', 'models3d', 'pointage', 'gestion'],
   ferraillage: ['lotsuivi', 'avancement', 'planning', 'beton', 'calc', 'models3d', 'gestion'],
@@ -662,10 +662,11 @@ const Team = (() => {
   // mises en service par pack : chaque fonction récente est rattachée à des packs, avec un niveau par pack —
   // « dev » : le Super Admin seul · « test » : comptes listés · « pub » : tous les comptes de ce pack ; absent = la fonction n'existe pas dans ce pack
   // réglées dans le Centre de contrôle (config/app.fp, config/app.testers), sans mise à jour de l'application
-  const FLAG_DEFS = { svcqual: 'Service Qualité (volets Administratif / Terrain, organigramme géré par l\'admin)', monespace: 'Mon espace', missionzone: 'Documentation par mission / zone + alertes « À traiter »', terraindoc: 'Terrain → Documentation (bouton PV, envoi automatique)', qdocs: 'Documentation qualité par partie d\'ouvrage + rangement Drive', orgq: 'Organigramme Qualité (branches, missions, code d\'accès)', svctravaux: 'Service Travaux (volets)', svchse: 'Service HSE (volets)', svctopo: 'Service Topographique (volets)', svclabo: 'Service Laboratoire (volets)', tabproj: 'Table de projet (réserves · RFI · visas, tableau de bord interactif)', espbet: 'Espace BET (volets)', esparchi: 'Espace Architecte / MOE (volets)', esplabo: 'Espace Laboratoire externe (volets)', espmoa: 'Espace Maître d\'ouvrage / AMO (volets)', espbc: 'Espace Bureau de contrôle (volets)', esptopo: 'Espace Topographe externe (volets)', espat: 'Espace Assistance technique / Délégué (volets)' };
+  const FLAG_DEFS = { svclink: 'Liaison service interne ↔ intervenant du projet (Pro et plus)', svcqual: 'Service Qualité (volets Administratif / Terrain, organigramme géré par l\'admin)', monespace: 'Mon espace', missionzone: 'Documentation par mission / zone + alertes « À traiter »', terraindoc: 'Terrain → Documentation (bouton PV, envoi automatique)', qdocs: 'Documentation qualité par partie d\'ouvrage + rangement Drive', orgq: 'Organigramme Qualité (branches, missions, code d\'accès)', svctravaux: 'Service Travaux (volets)', svchse: 'Service HSE (volets)', svctopo: 'Service Topographique (volets)', svclabo: 'Service Laboratoire (volets)', tabproj: 'Table de projet (réserves · RFI · visas, tableau de bord interactif)', espbet: 'Espace BET (volets)', esparchi: 'Espace Architecte / MOE (volets)', esplabo: 'Espace Laboratoire externe (volets)', espmoa: 'Espace Maître d\'ouvrage / AMO (volets)', espbc: 'Espace Bureau de contrôle (volets)', esptopo: 'Espace Topographe externe (volets)', espat: 'Espace Assistance technique / Délégué (volets)' };
   // par défaut : Enterprise = tout en « dev » ; Business = Service Qualité + Travaux (et ce qui les accompagne) + Espaces des intervenants (la documentation Terrain reste Enterprise)
   const BIZ_FLAGS = ['svcqual', 'svctravaux', 'monespace', 'missionzone', 'qdocs', 'orgq', 'tabproj', 'espbet', 'esparchi', 'esplabo', 'espmoa', 'espbc', 'esptopo', 'espat'];
   const FLAG_DEFAULT = Object.fromEntries(Object.keys(FLAG_DEFS).map(k => [k, BIZ_FLAGS.includes(k) ? { business: 'dev', enterprise: 'dev' } : { enterprise: 'dev' }]));
+  FLAG_DEFAULT.svclink = { pro: 'dev', business: 'dev', enterprise: 'dev' };
   const flagCfg = (k) => (appCfg().fp || {})[k] || FLAG_DEFAULT[k] || {};
   // pack en vigueur : aperçu du Super Admin (« Pack de travail »), sinon pack de l'espace
   const packPreview = () => { try { const v = JSON.parse(sessionStorage.getItem('st.preview') || 'null'); return v && v.plan ? (PLAN_ALIAS[v.plan] || v.plan) : ''; } catch (e) { return ''; } };
@@ -1836,7 +1837,7 @@ const Team = (() => {
         <div class="section-label">Organisations (${L.length + 1})</div>
         <div class="list">
           <div class="tm-inv"><span class="grow"><b>${esc(ownerName)}${!sh0 ? ' (vous)' : ''}</b><small>👑 Titulaire du projet${jv && jv.mand === ownerCid ? ' · Mandataire' : ''}</small></span></div>
-          ${L.map(x => `<div class="tm-inv" data-o="${esc(x.o)}"><span class="grow"><b>${esc(x.orgName || '?')}${x.o === S.cid ? ' (vous)' : ''}</b><small>${esc(partnerRoleLabel(x.role))}${jv && jv.mand === x.o ? ' · Mandataire' : ''}${x.status !== 'actif' ? ' · suspendu' : ''}</small><small>${esc(modsTxt(x.mods))}</small></span>${canManage ? icon('more') : ''}</div>`).join('')}
+          ${L.map(x => `<div class="tm-inv" data-o="${esc(x.o)}"><span class="grow"><b>${esc(x.orgName || '?')}${x.o === S.cid ? ' (vous)' : ''}</b><small>${esc(partnerRoleLabel(x.role))}${x.svc && flag('svclink') ? ' · 🔗 ' + esc((TM_SERVICES.find(z => z.k === x.svc) || {}).l || x.svc) : ''}${jv && jv.mand === x.o ? ' · Mandataire' : ''}${x.status !== 'actif' ? ' · suspendu' : ''}</small><small>${esc(modsTxt(x.mods))}</small></span>${canManage ? icon('more') : ''}</div>`).join('')}
         </div>
         ${canManage ? `<button class="btn" data-a="inv" style="margin-top:12px">${icon('plus')} Inviter une organisation</button>` : ''}
         ${sh0 && isAdmin() ? `<button class="btn ghost danger" data-a="leave" style="margin-top:12px">Quitter ce projet</button>` : ''}
@@ -1851,9 +1852,10 @@ const Team = (() => {
       };
       $$('[data-o]', wrap).forEach(row => row.onclick = async () => {
         if (!canManage) return; const x = L.find(i => i.o === row.dataset.o); if (!x || x.o === S.cid) return;
-        const v = await menu(x.orgName || 'Organisation', [{ label: 'Modifier les accès', icon: 'edit', value: 'ed' }, { label: x.status === 'actif' ? 'Suspendre l\'accès' : 'Rétablir l\'accès', icon: 'close', value: 'st' }, { label: 'Retirer du projet', icon: 'trash', danger: true, value: 'rm' }]);
+        const v = await menu(x.orgName || 'Organisation', [{ label: 'Modifier les accès', icon: 'edit', value: 'ed' }, ...(flag('svclink') ? [{ label: 'Lier à un service interne…', icon: 'layers', value: 'svc' }] : []), { label: x.status === 'actif' ? 'Suspendre l\'accès' : 'Rétablir l\'accès', icon: 'close', value: 'st' }, { label: 'Retirer du projet', icon: 'trash', danger: true, value: 'rm' }]);
         try {
           if (v === 'ed') { const o = await partnerForm({ ...x, edit: true }); if (o) { await withTimeout(ref.collection('partners').doc(x.o).update({ role: o.role, mods: o.mods })); toast('Accès mis à jour ✓'); } }
+          if (v === 'svc') { const g = await menu('Service interne lié à « ' + (x.orgName || 'cet intervenant') + ' »', [{ label: '— aucun (liaison manuelle) —', value: '-' }, ...companyServices().filter(z => z.k !== 'externe').map(z => ({ label: z.l, swatch: z.c, value: z.k, checked: z.k === x.svc }))]); if (g) { await withTimeout(ref.collection('partners').doc(x.o).update({ svc: g === '-' ? '' : g })); toast('Liaison enregistrée ✓ — les plans, RFI, visas et tâches du service sont partagés ; RH, prix et finances restent privés'); } }
           if (v === 'st') { await withTimeout(ref.collection('partners').doc(x.o).update({ status: x.status === 'actif' ? 'suspendu' : 'actif' })); }
           if (v === 'rm' && await confirmBox(`Retirer « ${x.orgName} » du projet ? Elle perd l'accès tout de suite. L'historique reste.`, 'Retirer')) await withTimeout(ref.collection('partners').doc(x.o).delete());
           if (v) draw();
