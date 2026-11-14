@@ -1486,7 +1486,7 @@ try {
     const swipe = async (dx, dy) => { const bar = document.querySelector('.fullpage .topbar'), r = bar.getBoundingClientRect(), x0 = r.left + r.width * 0.45, y0 = r.top + r.height / 2;
       const tc = (x, y) => new Touch({ identifier: 7, target: bar, clientX: x, clientY: y }), ev = (t, x, y) => new TouchEvent(t, { bubbles: true, cancelable: true, touches: t === 'touchend' ? [] : [tc(x, y)], changedTouches: [tc(x, y)] });
       bar.dispatchEvent(ev('touchstart', x0, y0)); for (let i = 1; i <= 4; i++) bar.dispatchEvent(ev('touchmove', x0 + dx * i / 4, y0 + dy * i / 4)); bar.dispatchEvent(ev('touchend', x0 + dx, y0 + dy)); await new Promise(r2 => setTimeout(r2, 1200)); };
-    const t0 = title(); await swipe(-90, 0); const t1 = title(); await swipe(0, -90); const t2 = title();
+    const t0 = title(); await swipe(-90, 0); const t1 = title(); await swipe(0, 90); const t2 = title();
     return { t0, t1, t2, n: document.querySelectorAll('.fullpage .pv-h1').length };
   } catch (e) { return { err: String(e && e.message || e) }; } });
   log('v1.0.240 [glissement tactile en-tête]', tSw);
