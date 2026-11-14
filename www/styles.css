@@ -4153,3 +4153,11 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .vz-ov { position: fixed; inset: 0; z-index: 9000; background: #0b1220; display: flex; flex-direction: column; padding-top: env(safe-area-inset-top); }
 .vz-ob { display: flex; align-items: center; gap: 8px; padding: 8px 10px; color: #fff; } .vz-ob b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .vz-if { flex: 1; width: 100%; border: 0; background: #0b1220; }
+
+/* Import / suivi du planning */
+.pi-ov { position: fixed; inset: 0; z-index: 8000; background: var(--bg, #fff); display: flex; flex-direction: column; padding-top: env(safe-area-inset-top); }
+.pi-h { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid rgba(100,116,139,.25); } .pi-i { padding: 6px 12px; font-size: 12px; color: #64748b; } .pi-i input, .pi-i select { font-size: 12px; }
+.pi-t { flex: 1; overflow: auto; } .pi-t table { width: 100%; border-collapse: collapse; font-size: 12.5px; } .pi-t th { text-align: left; font-size: 10.5px; color: #64748b; padding: 4px 6px; position: sticky; top: 0; background: var(--bg, #fff); }
+.pi-t td { padding: 6px; border-top: 1px solid rgba(100,116,139,.16); vertical-align: top; } .pi-t td small { display: block; color: #64748b; font-size: 10.5px; } .pi-t tr.warn td small { color: #d97706; } .pi-t tr.bad { background: rgba(239,68,68,.08); } .pi-t tr.bad td small { color: #dc2626; }
+.pi-f { padding: 8px 12px; border-top: 1px solid rgba(100,116,139,.25); display: flex; flex-direction: column; gap: 4px; } .pi-f small { color: #64748b; } .pi-cv { max-width: 100%; }
+.gt-bl { position: absolute; bottom: 3px; height: 4px; border-radius: 3px; background: #94a3b8; opacity: .85; }
