@@ -68,7 +68,7 @@ async function renderPlanning(root) {
   root.innerHTML = `<div class="gt">
     <div class="fn-kpi" style="padding:12px 12px 0"><div><span>Tâches</span><b>${T.length}</b><small>avancement moyen ${avg} %</small></div><div class="${late ? 'neg' : ''}"><span>En retard</span><b>${late}</b></div>
       <div class="wide"><span>Fin du marché</span><b>${P.finM ? fmtDate(P.finM) : '— à saisir'}${delai && P.finM ? ` → ${fmtDate(finRev)}` : ''}</b><small>${delai ? `+${delai} j (avenants et ordres de service)` : 'aucun délai supplémentaire'}</small></div></div>
-    <div class="gt-bar">${canE ? `<button class="btn small" data-a="add">${icon('plus')} Tâche</button>` : ''}${canE && (p.tce || {}).lots && p.tce.lots.length ? `<button class="btn small ghost" data-a="tce">Importer les lots TCE</button>` : ''}
+    <div class="gt-bar">${canE ? `<button class="btn small" data-a="add">${icon('plus')} Tâche</button>` : ''}${canE && (p.tce || {}).lots && p.tce.lots.length ? `<button class="btn small ghost" data-a="tce">Importer les lots TCE</button>` : ''}${canE ? `<button class="btn small ghost" data-a="imp">Importer un fichier</button>` : ''}
       <span class="grow"></span><div class="gt-z">${[['d', 'Jour'], ['w', 'Sem.'], ['m', 'Mois']].map(([k, l]) => `<button class="${z === k ? 'on' : ''}" data-z="${k}">${l}</button>`).join('')}</div><button class="iconbtn" data-a="more">${icon('more')}</button></div>
     ${T.length ? `<div class="gt-sc"><div class="gt-in" style="width:${W + 130}px">
       <div class="gt-hd"><div class="gt-nm"></div><div class="gt-tl" style="width:${W}px"><div class="gt-mo">${months}</div><div class="gt-tk">${ticks}</div></div></div>
@@ -98,6 +98,7 @@ async function renderPlanning(root) {
     await save(); redraw(); };
   const ad = $('[data-a=add]', root); if (ad) ad.onclick = () => edit(null);
   $$('[data-t]', root).forEach(r => r.onclick = () => canE ? edit(P.tasks.find(t => t.id === r.dataset.t)) : null);
+  const im = $('[data-a=imp]', root); if (im) im.onclick = () => PlanImport.run(p, redraw);
   const tc = $('[data-a=tce]', root); if (tc) tc.onclick = async () => { let n = 0; for (const L of p.tce.lots) { if (P.tasks.some(t => t.lotId === L.id)) continue; P.tasks.push({ id: DB.uid(), lotId: L.id, nom: L.lot, grp: L.lot, deb: L.deb || '', fin: L.fin || '', finR: L.finR || '', av: String(fN(L.av)) }); n++; } await save(); toast(`${n} lot(s) importé(s)`); redraw(); };
   ($('[data-a=more]', root)||{}).onclick = async () => {
     const v = await menu('Planning', [...(canE ? [{ label: `Fin du marché (contractuelle)${P.finM ? ' · ' + fmtDate(P.finM) : ''}`, icon: 'calendar', value: 'fin' }] : []), { label: 'Export Excel', icon: 'grid', value: 'xls' }, { label: 'Avenants & ordres de service (délais)', icon: 'sign', value: 'av' }]);
