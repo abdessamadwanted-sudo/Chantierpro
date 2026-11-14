@@ -2074,6 +2074,35 @@ try {
     root.remove(); Object.assign(P, hold); P.view = hold.view; } catch (e) { o.err = String(e.message || e); } return o; }, planItems);
   log('planning vues', vVw);
   log('errors planning vues', !vVw.err && vVw.fc && vVw.list && vVw.cmp && vVw.s && vVw.cal && vVw.calDays === 31 ? [] : ['planning vues ' + JSON.stringify(vVw)]);
+  // ---- suivi quantitatif (BPU/DQE) : calculs, unités, corrections, doublon, dépassement, séparation des projets, interface
+  const vSq = await A.pg.evaluate(async () => { const o = {}; try { const p = App.project, S = SuiviQ, d = (v, w) => Math.abs(v - w) < 1e-6;
+    const art = { id: 'qa1', projectId: p.id, kind: 'sqa', ref: '1.1', nom: 'Béton B25', lot: 'GO', unit: 'm³', qty: 100, planRef: '', zones: [{ zid: 'z1', qty: 60 }, { zid: 'z2', qty: 40 }], hist: [] };
+    const zs = [{ id: 'z1', projectId: p.id, kind: 'sqz', bat: 'A', bloc: 'B1', niv: 'RDC', zone: 'Z1' }, { id: 'z2', projectId: p.id, kind: 'sqz', bat: 'A', bloc: 'B1', niv: 'R+1', zone: 'Z2' }];
+    await DB.put('items', art); for (const z of zs) await DB.put('items', z);
+    const c0 = S.calc(art, []); o.zero = c0.done === 0 && c0.pct === 0 && c0.remaining === 100 && c0.planned === null;   // projet sans planning : prévu non inventé
+    let r = await S.record(p, art, 'z1', 30.5, 'cum', { by: 'T' }); o.rec = r.ok;
+    r = await S.record(p, art, 'z1', 30.5, 'cum', { by: 'T' }); o.noChange = !r.ok;
+    r = await S.record(p, art, 'z2', 10, 'inc', { by: 'T' }); const r2 = await S.record(p, art, 'z2', 10, 'inc', { by: 'T' }); o.dup = r.ok && !r2.ok && r2.dup === true;
+    const E = () => DB.byProject('items', p.id).then(a => a.filter(x => x.kind === 'sqe'));
+    let c = S.calc(art, await E()); o.sum = d(c.done, 40.5) && d(c.remaining, 59.5) && d(c.pct, 40.5);
+    r = await S.record(p, art, 'z1', 'abc', 'cum'); o.bad = !r.ok;
+    const ua = { ...art, id: 'qa2', unit: 'U', qty: 10 }; r = await S.record(p, ua, 'z1', 2.5, 'cum', { by: 'T' }); o.int = !r.ok && S.valid('U', 3) && !S.valid('U', 2.5) && S.valid('m²', 2.5);
+    o.dec = S.calc({ ...art, id: 'x' }, [{ artId: 'x', projectId: p.id, zid: 'a', delta: 0.1 }, { artId: 'x', projectId: p.id, zid: 'a', delta: 0.2 }]).done === 0.3;
+    r = await S.record(p, art, 'z1', 95, 'cum', { by: 'T' }); o.needNote = !r.ok && r.needNote === true;
+    r = await S.record(p, art, 'z1', 95, 'cum', { by: 'T', note: 'Reprise fondations', at: Date.now() + 9000 }); c = S.calc(art, await E()); o.over = r.ok && d(c.over, 5) && c.pct > 100;
+    const ent = (await E()).find(e => e.id === r.entry.id); const rc = await S.correct(p, art, ent, 20, { by: 'T' }); c = S.calc(art, await E());
+    o.cor = rc.ok && d(c.byZone.z1, 95 - ent.delta + 20) && (await E()).some(e => e.corrects === ent.id); const rc2 = await S.correct(p, art, ent, 5); o.corOnce = !rc2.ok;
+    o.ref0 = S.calc({ ...art, qty: 0 }, [{ artId: 'qa1', projectId: p.id, zid: 'z1', delta: 5 }]).pct === null;
+    o.recon = S.calc({ ...art, zones: [{ zid: 'z1', qty: 50 }] }, []).recon === -50;
+    o.sep = S.calc(art, [{ artId: 'qa1', projectId: 'AUTRE', zid: 'z1', delta: 999 }]).done === 0;
+    const root = document.createElement('div'); document.body.appendChild(root); App.sq = {}; await S.render(root);
+    o.list = !!root.querySelector('.sq-art') && root.textContent.includes('Béton B25'); App.sq.sel = 'qa1'; await S.render(root);
+    o.fiche = root.querySelectorAll('.sq-m').length === 4 && root.querySelectorAll('.sq-z').length === 2 && !!root.querySelector('.sq-h'); o.sec = !!SECTIONS.suiviq;
+    root.remove(); App.sq = {};
+    for (const x of await DB.byProject('items', p.id)) if (x.kind && x.kind.startsWith('sq')) await DB.del('items', x.id);
+  } catch (e) { o.err = String(e.message || e); } return o; });
+  log('suivi quantitatif', vSq);
+  log('errors suivi quantitatif', !vSq.err && vSq.zero && vSq.rec && vSq.noChange && vSq.dup && vSq.sum && vSq.bad && vSq.int && vSq.dec && vSq.needNote && vSq.over && vSq.cor && vSq.corOnce && vSq.ref0 && vSq.recon && vSq.sep && vSq.list && vSq.fiche && vSq.sec ? [] : ['suivi quantitatif ' + JSON.stringify(vSq)]);
   log('errors v1.0.246', !v245.err && v245.card && v245.url && v245.ov && v245.closed && v245.cr ? [] : ['v1.0.246 ' + JSON.stringify(v245)]);
   log('errors v1.0.244', !v244.err && v244.acc && v244.met && v244.div && v244.due === '2026-03-01' && v244.fr && v244.loc ? [] : ['v1.0.244 ' + JSON.stringify(v244)]);
   log('errors titre plan', []);
