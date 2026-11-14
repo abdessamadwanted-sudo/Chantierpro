@@ -4141,3 +4141,11 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .lcz-bar { display: flex; gap: 8px; margin: 6px 0; } .lcz-q { flex: 1; padding: 8px 12px; border-radius: 12px; border: 1px solid rgba(100,116,139,.35); font-size: 14px; }
 .lcz-t { width: 100%; border-collapse: collapse; font-size: 13px; } .lcz-t th { text-align: left; font-size: 11px; color: #64748b; padding: 4px 6px; } .lcz-t td { padding: 6px; border-top: 1px solid rgba(100,116,139,.18); }
 .lcz-go { border: 0; background: rgba(15,118,110,.12); color: #0f766e; border-radius: 10px; padding: 4px 8px; font-weight: 800; }
+
+/* Réunion en ligne */
+.vz-bar { display: flex; gap: 8px; margin: 6px 0; } .vz-tools { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 8px; } .vz-tools span { font-size: 11px; padding: 3px 9px; border-radius: 10px; background: rgba(37,99,235,.1); color: #2563eb; font-weight: 700; }
+.vz-h { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #64748b; margin: 12px 0 4px; }
+.vz-c { border: 1px solid rgba(100,116,139,.25); border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; background: rgba(255,255,255,.55); }
+.vz-t { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; } .vz-t small { color: #64748b; font-weight: 700; white-space: nowrap; }
+.vz-m { display: flex; gap: 6px; flex-wrap: wrap; margin: 5px 0; } .vz-a { font-size: 11px; padding: 2px 8px; border-radius: 8px; background: rgba(100,116,139,.14); }
+.vz-g { font-size: 12px; color: #475569; margin-bottom: 6px; white-space: pre-wrap; } .vz-b { display: flex; gap: 6px; flex-wrap: wrap; }
