@@ -331,7 +331,8 @@ async function openPlanViewer(plan, ctx) {
     const act = async (dx, dy) => {
       const I = info || await load(); if (!I) return toast('Plans du niveau introuvables');
       if (Math.abs(dx) > Math.abs(dy)) { const tg = I.row[I.idx + (dx < 0 ? 1 : -1)]; if (!go(tg, dx < 0 ? 'l' : 'r')) { toast(dx < 0 ? 'Dernier plan de ce niveau' : 'Premier plan de ce niveau'); showDots(); return false; } }
-      else { const tg = dy < 0 ? I.up : I.down; if (!go(tg, dy < 0 ? 'u' : 'd')) { toast(dy < 0 ? 'Pas de plan du même type au niveau au-dessus' : 'Pas de plan du même type au niveau en dessous'); showDots(); return false; } }
+      // comme on fait glisser une page : doigt vers le BAS = on voit le niveau du dessus ; doigt vers le HAUT = niveau du dessous
+      else { const tg = dy > 0 ? I.up : I.down; if (!go(tg, dy < 0 ? 'u' : 'd')) { toast(dy > 0 ? 'Pas de plan du même type au niveau au-dessus' : 'Pas de plan du même type au niveau en dessous'); showDots(); return false; } }
       return true;
     };
     el._planNav = act;   // aussi appelé par un balayage sur le plan lui-même (plan entier, outil Main)
