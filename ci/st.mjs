@@ -1191,7 +1191,7 @@ try {
     const nivs = p.avNiveaux, t = todayISO(), loc = [];
     for (let i = 0; i < 400; i++) { const l = { id: 'pl' + i, nivId: nivs[i % 8].id, name: 'L' + i, kind: 'local', lots: {}, journal: [] };
       for (let d = 40; d >= 0; d -= 3) for (const lot of p.lots) l.journal.push({ id: i + lot.id + d, d: avAddDays(t, -d), t: d, lot: lot.id, pct: Math.min(100, (40 - d) * 2.5), prev: 0, eq: '' }); loc.push(l); }
-    const host = document.createElement('div'); host.innerHTML = '<div class="folder-head"></div>'; document.body.appendChild(host);
+    const host = document.createElement('div'); document.body.appendChild(host);
     const t0 = performance.now(); App.avF = { _p: 'perf', pk: 'total', sect: '', zone: '', niv: '', lot: '', eq: '', lt: '', by: 'zone' }; await avProDash(host, p, nivs, loc); const ms = Math.round(performance.now() - t0);
     host.remove(); App.avF = null;
     return { ms, pct: avPctAt(loc[0], 'A', avAddDays(t, -20)) };
@@ -2030,7 +2030,7 @@ try {
   // ---- v1.0.244 : sous-lots division + accordéon, échéance Planning ↔ pin, frise, Localisation
   const v244 = await A.pg.evaluate(async () => { const o = {}; try { const p = App.project, f = (await DB.byProject('folders', p.id)).find(x => !x.parentId);
     const hold = p.planLots; p.planLots = [{ id: 'a', name: 'Peinture', cat: 'CEA', e: '🎨', c: '#0ea5e9' }, { id: 'm', name: 'Finition', cat: 'CEA', up: 'a', only: [f.id], e: '🎨', c: '#0ea5e9' }, { id: 'z', name: 'Zone A', cat: 'CEA', up: 'a', only: [f.id], kind: 'div', e: '🎨', c: '#0ea5e9' }]; p.catV = 1;
-    const host = document.createElement('div'); document.body.appendChild(host); App.lotSel = App.lotSel || {}; App.lotSel[f.id] = 'a';
+    const host = document.createElement('div'); host.innerHTML = '<div class="folder-head"></div>'; document.body.appendChild(host); App.lotSel = App.lotSel || {}; App.lotSel[f.id] = 'a';
     lotBarInto(host, f, [], document.body); o.acc = !!host.querySelector('.lot-acc'); o.met = host.querySelectorAll('.acc-g')[0] ? host.querySelectorAll('.acc-g')[0].textContent.includes('Finition') : false; o.div = host.querySelectorAll('.acc-g')[1] ? host.querySelectorAll('.acc-g')[1].textContent.includes('Zone A') : false; host.remove(); p.planLots = hold;
     // échéance Planning → pin
     const L = await DB.put('links', { projectId: p.id, kind: 'local', planId: 'x', x: 1, y: 1, name: 'T', items: [], lots: {} });
