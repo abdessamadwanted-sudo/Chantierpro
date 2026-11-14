@@ -321,7 +321,7 @@ const ST = (() => {
     const SVC_SHELLS = [
       { k: 'qual', flag: 'svcqual', nom: 'Service Qualité', c: '#0d9488', side: 'qual.side', tools: [], map: { docq: 'adm', clauses: 'adm', visa: 'adm', rfi: 'adm', reception: 'ter', forms: 'ter', constat: 'ter', labo: 'ter', hse: 'ter', beton: 'ter', ...COMMUN },
         ui: { adm: 'Documents, archives, clauses', ter: 'Réceptions, contrôles, PV, labo', com: 'Équipe, organigramme, mon espace' } },
-      { k: 'travaux', flag: 'svctravaux', nom: 'Service Travaux', c: '#2563eb', tools: ['planning', 'reunions', 'gestion', 'pointage', 'avancement', 'lotsuivi', 'beton', 'calc', 'models3d'], map: { planning: 'adm', reunions: 'adm', gestion: 'adm', pointage: 'adm', lotsuivi: 'ter', beton: 'ter', calc: 'ter', models3d: 'ter', avancement: 'com', ...COMMUN },
+      { k: 'travaux', flag: 'svctravaux', nom: 'Service Travaux', c: '#2563eb', tools: ['planning', 'reunions', 'gestion', 'pointage', 'avancement', 'suiviq', 'lotsuivi', 'beton', 'calc', 'models3d'], map: { planning: 'adm', reunions: 'adm', gestion: 'adm', pointage: 'adm', lotsuivi: 'ter', beton: 'ter', calc: 'ter', models3d: 'ter', suiviq: 'ter', avancement: 'com', ...COMMUN },
         ui: { adm: 'Planning, réunions, gestion', ter: 'Suivi des lots, béton, avancement', com: 'Équipe, organigramme, mon espace' } },
       { k: 'hse', flag: 'svchse', nom: 'Service HSE', c: '#ea580c', tools: ['hse', 'constat', 'forms', 'pointage', 'reunions'], map: { reunions: 'adm', forms: 'adm', pointage: 'adm', hse: 'ter', constat: 'ter', ...COMMUN },
         ui: { adm: 'Réunions, formulaires, effectifs', ter: 'Inspections, constats, sécurité', com: 'Équipe, organigramme, mon espace' } },

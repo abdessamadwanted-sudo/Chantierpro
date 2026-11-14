@@ -410,6 +410,7 @@ const SECTIONS = {
   avenants: { label: 'Avenants & OS', icon: 'sign', render: (r) => renderAvenants(r), title: 'Avenants & OS', subtitle: 'Montants · délais' },
   st: { label: 'Sous-traitants', icon: 'hands', render: (r) => renderSt(r), title: 'Sous-traitants', subtitle: 'Contrats · situations · paiements' },
   tabproj: { get hidden() { try { return !Team.flag('tabproj'); } catch (e) { return true; } }, label: 'Table de projet', icon: 'layers', render: (r) => TabProj.render(r), title: 'Table de projet', subtitle: 'Réserves · RFI · visas, par intervenant' },
+  suiviq: { label: 'Suivi quantitatif (BPU/DQE)', icon: 'layers', render: (r) => renderSuiviQ(r), title: 'Suivi quantitatif', subtitle: 'Articles BPU/DQE · quantités par zone · prévu vs réalisé' },
   visio: { label: 'Réunion en ligne', icon: 'meet', render: (r) => Visio.render(r), title: 'Réunion en ligne', subtitle: 'Visio par service ou intervenant' },
   localisation: { label: 'Localisation', icon: 'pin', render: (r) => Localisation.render(r), title: 'Localisation', subtitle: 'Locaux · pin Localiser sur le plan' },
   monespace: { get hidden() { try { return !Team.flag('monespace'); } catch (e) { return true; } }, label: 'Mon espace', icon: 'user', render: (r) => MonEspace.render(r), title: 'Mon espace', subtitle: 'Mon rôle, mes missions, mes responsabilités' },
