@@ -1191,7 +1191,7 @@ try {
     const nivs = p.avNiveaux, t = todayISO(), loc = [];
     for (let i = 0; i < 400; i++) { const l = { id: 'pl' + i, nivId: nivs[i % 8].id, name: 'L' + i, kind: 'local', lots: {}, journal: [] };
       for (let d = 40; d >= 0; d -= 3) for (const lot of p.lots) l.journal.push({ id: i + lot.id + d, d: avAddDays(t, -d), t: d, lot: lot.id, pct: Math.min(100, (40 - d) * 2.5), prev: 0, eq: '' }); loc.push(l); }
-    const host = document.createElement('div'); document.body.appendChild(host);
+    const host = document.createElement('div'); host.innerHTML = '<div class="folder-head"></div>'; document.body.appendChild(host);
     const t0 = performance.now(); App.avF = { _p: 'perf', pk: 'total', sect: '', zone: '', niv: '', lot: '', eq: '', lt: '', by: 'zone' }; await avProDash(host, p, nivs, loc); const ms = Math.round(performance.now() - t0);
     host.remove(); App.avF = null;
     return { ms, pct: avPctAt(loc[0], 'A', avAddDays(t, -20)) };
