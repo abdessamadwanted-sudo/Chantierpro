@@ -1474,6 +1474,23 @@ try {
   } catch (e) { return { err: String(e.message || e) }; } });
   log('v1.0.237 [navigation plans par glissement]', tNav);
   log('errors v1.0.237 nav', tNav.row === 'b,a,c' && tNav.idx === 1 && tNav.up === 'd' && !tNav.down && !tNav.archUp && tNav.archDown === 'e' && tNav.lv === 'SSL,RDC,R+1,Terrasse' ? [] : ['v1.0.237 nav ' + JSON.stringify(tNav)]);
+  // ---- v1.0.240 : glissement réel (événements tactiles) sur la barre du haut d'un plan ouvert : change de plan ----
+  const tSw = await A.pg.evaluate(async () => { try {
+    const p = App.project, c = document.createElement('canvas'); c.width = 300; c.height = 200; c.getContext('2d').fillRect(0, 0, 300, 200);
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.8)), f = await DB.put('files', { projectId: p.id, blob, mime: 'image/jpeg', name: 'sw.jpg', role: 'plan' });
+    const fR = await DB.put('folders', { projectId: p.id, name: 'RDC' }), fU = await DB.put('folders', { projectId: p.id, name: 'R+1' });
+    const mk = (name, fo, disc) => DB.put('plans', { projectId: p.id, fileId: f.id, folderId: fo.id, disc, w: 300, h: 200, name, annotations: [], indice: 'A' });
+    const a = await mk('SW A', fR, 'STR'), b2 = await mk('SW B', fR, 'STR'), u = await mk('SW U', fU, 'STR');
+    await openPlanViewer(a, planCtx(() => {})); await new Promise(r => setTimeout(r, 900));
+    const title = () => { const e = document.querySelector('.fullpage .pv-h1'); return e ? e.title : ''; };
+    const swipe = async (dx, dy) => { const bar = document.querySelector('.fullpage .topbar'), r = bar.getBoundingClientRect(), x0 = r.left + r.width * 0.45, y0 = r.top + r.height / 2;
+      const tc = (x, y) => new Touch({ identifier: 7, target: bar, clientX: x, clientY: y }), ev = (t, x, y) => new TouchEvent(t, { bubbles: true, cancelable: true, touches: t === 'touchend' ? [] : [tc(x, y)], changedTouches: [tc(x, y)] });
+      bar.dispatchEvent(ev('touchstart', x0, y0)); for (let i = 1; i <= 4; i++) bar.dispatchEvent(ev('touchmove', x0 + dx * i / 4, y0 + dy * i / 4)); bar.dispatchEvent(ev('touchend', x0 + dx, y0 + dy)); await new Promise(r2 => setTimeout(r2, 1200)); };
+    const t0 = title(); await swipe(-90, 0); const t1 = title(); await swipe(0, -90); const t2 = title();
+    return { t0, t1, t2, n: document.querySelectorAll('.fullpage .pv-h1').length };
+  } catch (e) { return { err: String(e && e.message || e) }; } });
+  log('v1.0.240 [glissement tactile en-tête]', tSw);
+  log('errors v1.0.240 swipe', tSw.t0 === 'SW A' && tSw.t1 === 'SW B' && tSw.t2 === 'SW U' && tSw.n === 1 ? [] : ['v1.0.240 swipe ' + JSON.stringify(tSw)]);
   // balayage direct sur le plan (entier, outil Main) : change aussi de plan
   await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage').forEach(x => x.remove()); const p = App.project; const a = (await DB.byProject('plans', p.id)).find(x => x.name === 'SW A'); await openPlanViewer(a, planCtx(() => {})); await new Promise(r => setTimeout(r, 900)); });
   const vb = await A.pg.evaluate(() => { const r = document.querySelector('.fullpage .viewer').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
