@@ -5,14 +5,26 @@ const Visio = (() => {
   const list = (p) => (p.visios = p.visios || []);
   const rid = () => { const a = new Uint8Array(8); (window.crypto || { getRandomValues: (x) => x.map(() => Math.random() * 256) }).getRandomValues(a); return [...a].map(b => (b % 36).toString(36)).join(''); };
   const slug = (s) => String(s || 'projet').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9]+/g, '').slice(0, 12) || 'Projet';
-  const roomUrl = (v) => `https://meet.jit.si/SiteTeam-${v.room}#config.prejoinPageEnabled=false&config.disableDeepLinking=false`;
+  // serveur de visio : meet.jit.si par défaut ; réglable (⋯ › Serveur de visio) pour un serveur Jitsi privé ou JaaS
+  const server = () => { try { return (localStorage.getItem('visio.server') || 'meet.jit.si').replace(/^https?:\/\//, '').replace(/\/.*$/, ''); } catch (e) { return 'meet.jit.si'; } };
+  const roomUrl = (v) => `https://${server()}/SiteTeam-${v.room}#config.prejoinPageEnabled=false&config.disableDeepLinking=true&config.startWithAudioMuted=false`;
+  // appel DANS l'application : iframe plein écran (caméra, micro et chat de Jitsi), barre SiteTeam au-dessus (retour, plans joints)
+  function joinInApp(v, root) {
+    const ov = document.createElement('div'); ov.className = 'vz-ov';
+    ov.innerHTML = `<div class="vz-ob"><button class="btn sm" data-q>← Quitter</button><b>${esc(v.title)}</b><span style="flex:1"></span>${(v.plans || []).length ? '<button class="btn sm" data-pl>📐 Plans</button>' : ''}<button class="btn sm" data-ext title="Ouvrir dans le navigateur">↗</button></div><iframe class="vz-if" allow="camera; microphone; display-capture; autoplay; fullscreen; clipboard-write" src="${esc(roomUrl(v))}"></iframe>`;
+    document.body.appendChild(ov); let off = pushBack(() => close());
+    const close = () => { off && off(); off = null; const f = ov.querySelector('iframe'); if (f) f.src = 'about:blank'; ov.remove(); };
+    ov.querySelector('[data-q]').onclick = () => close();
+    ov.querySelector('[data-ext]').onclick = () => LinkViewer.openLink(roomUrl(v), { external: true });
+    const pl = ov.querySelector('[data-pl]'); if (pl) pl.onclick = async () => { const rows = []; for (const id of v.plans) { const x = await DB.get('plans', id); if (x) rows.push({ label: x.name, value: id }); } const id = await menu('Plans de la réunion', rows); if (id) { ov.style.display = 'none'; const x = await DB.get('plans', id); openPlanViewer(x, { ...(typeof planCtx === 'function' ? planCtx(() => { ov.style.display = ''; }) : {}) }); } };
+  }
   const when = (v) => { if (!v.at) return 'Maintenant'; const d = new Date(v.at); return isNaN(d) ? v.at : d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }) + ' · ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); };
   const audOpts = () => [{ label: 'Tout le projet', value: 'prj|Tout le projet' },
     ...(typeof TM_SERVICES !== 'undefined' ? TM_SERVICES.filter(s => s.k !== 'externe').map(s => ({ label: 'Service ' + s.l, value: 'svc|' + s.l })) : []),
     ...(typeof IV_ROLES !== 'undefined' ? IV_ROLES.map(r => ({ label: r[2] + ' ' + r[1], value: 'iv|' + r[1] })) : [])];
   async function invite(v) { const p = App.project; const pl = []; for (const id of v.plans || []) { const x = await DB.get('plans', id); if (x) pl.push('• ' + x.name); }
     shareWhatsApp(`📹 Réunion ${p.name}\n${v.title}\n🗓 ${when(v)}\n👥 ${v.aud.l}\n${v.agenda ? '📝 ' + v.agenda + '\n' : ''}${pl.length ? '📐 Plans :\n' + pl.join('\n') + '\n' : ''}\n🔗 ${roomUrl(v).split('#')[0]}`); }
-  function join(v) { LinkViewer.openLink(roomUrl(v), { external: true }); }
+  function join(v) { joinInApp(v); }
   async function pickPlans(cur) {
     const plans = (await DB.byProject('plans', App.project.id)).filter(x => !x.supersededBy), out = new Set(cur || []);
     for (;;) { const v = await menu(`Plans joints (${out.size})`, [{ label: '✔ Terminer', value: '__ok' }, ...plans.slice(0, 40).map(x => ({ label: (out.has(x.id) ? '☑ ' : '☐ ') + x.name, value: x.id }))]);
@@ -48,9 +60,11 @@ const Visio = (() => {
     root.querySelectorAll('[data-j]').forEach(b => b.onclick = () => join(get(b.dataset.j)));
     root.querySelectorAll('[data-i]').forEach(b => b.onclick = () => invite(get(b.dataset.i)));
     root.querySelectorAll('[data-p]').forEach(b => b.onclick = async () => { const v = get(b.dataset.p); if (!(v.plans || []).length) return toast('Aucun plan joint — ⋯ › Modifier'); const rows = []; for (const id of v.plans) { const x = await DB.get('plans', id); if (x) rows.push({ label: x.name, value: id }); } const id = await menu('Plans de la réunion', rows); if (id) { const x = await DB.get('plans', id); openPlanViewer(x, { ...(typeof planCtx === 'function' ? planCtx(() => render(root)) : {}) }); } });
-    root.querySelectorAll('[data-x]').forEach(b => b.onclick = async () => { const v = get(b.dataset.x); const a = await menu(v.title, [{ label: 'Modifier', value: 'e' }, { label: 'Copier le lien', value: 'c' }, { label: 'Supprimer', value: 'd' }]);
+    root.querySelectorAll('[data-x]').forEach(b => b.onclick = async () => { const v = get(b.dataset.x); const a = await menu(v.title, [{ label: 'Modifier', value: 'e' }, { label: 'Ouvrir dans le navigateur', value: 'b' }, { label: 'Copier le lien', value: 'c' }, { label: 'Serveur de visio…', value: 's' }, { label: 'Supprimer', value: 'd' }]);
+      if (a === 'b') LinkViewer.openLink(roomUrl(v), { external: true });
+      if (a === 's') { const r = await formSheet('Serveur de visio', [{ name: 'h', label: 'Adresse du serveur Jitsi', placeholder: 'meet.jit.si', value: server() }], { okLabel: 'Enregistrer' }); if (r) { try { localStorage.setItem('visio.server', (r.h || '').trim()); } catch (e) {} toast('Serveur : ' + server()); } }
       if (a === 'e') edit(p, v, root); if (a === 'c') { try { await navigator.clipboard.writeText(roomUrl(v).split('#')[0]); toast('Lien copié ✓'); } catch (e) { toast(roomUrl(v).split('#')[0]); } }
       if (a === 'd' && await confirmBox('Supprimer cette réunion ?')) { p.visios = list(p).filter(z => z !== v); await DB.put('projects', p); render(root); } });
   }
-  return { render, roomUrl, list, edit };
+  return { render, roomUrl, list, edit, joinInApp, server };
 })();

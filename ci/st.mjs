@@ -2043,9 +2043,9 @@ try {
   } catch (e) { o.err = String(e.message || e) + ' | ' + String(e.stack || '').split('\n').slice(1,4).join(' / '); } return o; });
   log('v1.0.244 [sous-lots division, échéance, frise, localisation]', v244);
   const v245 = await A.pg.evaluate(async () => { const o = {}; try { const p = App.project; const v = { id: 'vz1', title: 'Test', at: '2099-01-01T10:00', aud: { k: 'svc', l: 'Qualité' }, room: 'abc12345', plans: [], agenda: '' }; Visio.list(p).push(v);
-    const host = document.createElement('div'); document.body.appendChild(host); await Visio.render(host); o.card = host.querySelectorAll('.vz-c').length >= 1; o.url = Visio.roomUrl(v).startsWith('https://meet.jit.si/SiteTeam-abc12345'); host.remove(); p.visios = Visio.list(p).filter(z => z.id !== 'vz1'); await DB.put('projects', p); } catch (e) { o.err = String(e.message || e); } return o; });
+    const host = document.createElement('div'); document.body.appendChild(host); await Visio.render(host); o.card = host.querySelectorAll('.vz-c').length >= 1; o.url = Visio.roomUrl(v).startsWith('https://meet.jit.si/SiteTeam-abc12345'); Visio.joinInApp(v); o.ov = !!document.querySelector('.vz-ov iframe'); document.querySelector('.vz-ov [data-q]').click(); o.closed = !document.querySelector('.vz-ov'); host.remove(); p.visios = Visio.list(p).filter(z => z.id !== 'vz1'); await DB.put('projects', p); } catch (e) { o.err = String(e.message || e); } return o; });
   log('v1.0.246 [réunion en ligne]', v245);
-  log('errors v1.0.246', !v245.err && v245.card && v245.url ? [] : ['v1.0.246 ' + JSON.stringify(v245)]);
+  log('errors v1.0.246', !v245.err && v245.card && v245.url && v245.ov && v245.closed ? [] : ['v1.0.246 ' + JSON.stringify(v245)]);
   log('errors v1.0.244', !v244.err && v244.acc && v244.met && v244.div && v244.due === '2026-03-01' && v244.fr && v244.loc ? [] : ['v1.0.244 ' + JSON.stringify(v244)]);
   log('errors titre plan', []);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
