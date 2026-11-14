@@ -72,6 +72,7 @@ async function renderPlanning(root) {
       <div class="wide"><span>Fin du marché</span><b>${P.finM ? fmtDate(P.finM) : '— à saisir'}${delai && P.finM ? ` → ${fmtDate(finRev)}` : ''}</b><small>${delai ? `+${delai} j (avenants et ordres de service)` : 'aucun délai supplémentaire'}</small></div></div>
     <div class="gt-bar">${canE ? `<button class="btn small" data-a="add">${icon('plus')} Tâche</button>` : ''}${canE && (p.tce || {}).lots && p.tce.lots.length ? `<button class="btn small ghost" data-a="tce">Importer les lots TCE</button>` : ''}${canE ? `<button class="btn small ghost" data-a="imp">Importer un fichier</button>` : ''}<button class="btn small ghost" data-a="trk">Suivi · écarts</button>${(P.bls || []).length && P.bls[0].fileId ? `<button class="btn small ghost" data-a="org">Original</button>` : ''}
       <span class="grow"></span><div class="gt-z">${[['d', 'Jour'], ['w', 'Sem.'], ['m', 'Mois']].map(([k, l]) => `<button class="${z === k ? 'on' : ''}" data-z="${k}">${l}</button>`).join('')}</div><button class="iconbtn" data-a="more">${icon('more')}</button></div>
+    <div class="gt-views">${[['g', 'Gantt'], ['cal', 'Calendrier'], ['list', 'Liste'], ['cmp', 'Comparaison'], ['s', 'Courbe S']].map(([k, l]) => `<button class="${(P.view || 'g') === k ? 'on' : ''}" data-v="${k}">${l}</button>`).join('')}</div>
     ${T.length ? `<div class="gt-sc"><div class="gt-in" style="width:${W + 130}px">
       <div class="gt-hd"><div class="gt-nm"></div><div class="gt-tl" style="width:${W}px"><div class="gt-mo">${months}</div><div class="gt-tk">${ticks}</div></div></div>
       ${T.map(t => { const lt = ganttLate(t), c = lt ? '#ef4444' : fN(t.av) >= 100 ? '#22c55e' : '#3b82f6';
@@ -84,6 +85,8 @@ async function renderPlanning(root) {
     </div></div><div class="gt-leg"><span><i class="pv"></i>prévu</span><span><i style="background:#94a3b8"></i>baseline</span><span><i style="background:#3b82f6"></i>réel / avancement</span><span><i style="background:#ef4444"></i>en retard</span><span><i class="td"></i>aujourd'hui</span><span><i class="fm"></i>fin du marché</span></div>`
     : '<div class="fn-empty" style="padding:20px">Ajoutez les tâches (ou importez les lots TCE) avec les dates prévues. Le réel et l\'avancement s\'affichent par-dessus.</div>'}
   </div>`;
+  $$('[data-v]', root).forEach(b => b.onclick = async () => { P.view = b.dataset.v; await save(); redraw(); });
+  if ((P.view || 'g') !== 'g' && T.length) PlanTrack.applyView(root, p, P, redraw);   // vues Calendrier / Liste / Comparaison / Courbe S : remplacent le Gantt, mêmes données
   const sc = $('.gt-sc', root); if (sc && !P._scrolled) { sc.scrollLeft = Math.max(0, X(todayISO()) - 120); }
   $$('[data-z]', root).forEach(b => b.onclick = async () => { P.zoom = b.dataset.z; await save(); redraw(); });
   const FIELDS = [{ name: 'ref', label: 'ID (ex : T01)' }, { name: 'nom', label: 'Tâche', placeholder: 'Ex : Gros œuvre R+3' }, { name: 'grp', label: 'Lot', list: typeof TCE_LOTS !== 'undefined' ? TCE_LOTS : [] }, { name: 'deb', label: 'Début prévu', type: 'date' }, { name: 'fin', label: 'Fin prévue', type: 'date' }, { name: 'ech', label: 'Échéance (maître d\'ouvrage)', type: 'date' },
