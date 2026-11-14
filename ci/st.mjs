@@ -2040,7 +2040,7 @@ try {
     o.fr = ptFrise({ start: '2020-01-01', dueCo: '2020-02-01', due: '2020-03-01' }, (d) => d).includes('de retard');
     // Localisation
     const l = await Localisation.add(p, { name: 'Local test', niv: 'R+1' }); o.loc = Localisation.locs(p).some(z => z.id === l.id); p.locs = Localisation.locs(p).filter(z => z.id !== l.id); await DB.put('projects', p);
-  } catch (e) { o.err = String(e.message || e); } return o; });
+  } catch (e) { o.err = String(e.message || e) + ' | ' + String(e.stack || '').split('\n').slice(1,4).join(' / '); } return o; });
   log('v1.0.244 [sous-lots division, échéance, frise, localisation]', v244);
   log('errors v1.0.244', !v244.err && v244.acc && v244.met && v244.div && v244.due === '2026-03-01' && v244.fr && v244.loc ? [] : ['v1.0.244 ' + JSON.stringify(v244)]);
   log('errors titre plan', []);
