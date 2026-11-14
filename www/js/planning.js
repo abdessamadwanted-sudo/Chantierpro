@@ -3,6 +3,8 @@
 // Pointage : présence de chaque ouvrier par jour ; le coût part automatiquement dans Financier › Dépenses (main d'œuvre).
 function planData(p) { p.plan = p.plan || {}; p.plan.tasks = p.plan.tasks || []; return p.plan; }
 const dISO = (d) => d.toISOString().slice(0, 10), dAdd = (s, n) => { const d = new Date(s + 'T12:00:00'); d.setDate(d.getDate() + n); return dISO(d); }, dDiff = (a, b) => Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 864e5);
+// tâche de la baseline (première version importée) correspondant à une tâche courante : par ID, sinon par désignation
+const baseOf = (P, t) => { const b = (P.bls || [])[0]; if (!b) return null; return b.tasks.find(x => (x.ref && x.ref === t.ref) || (!x.ref && x.nom === t.nom)) || null; };
 const ganttLate = (t) => fN(t.av) < 100 && t.fin && t.fin < todayISO();
 // ---- tâche du planning ↔ pin (point d'intérêt) du plan : dates, heures et avancement de la tâche pilotent le pin ----
 async function syncTaskPin(p, t) {
@@ -68,29 +70,30 @@ async function renderPlanning(root) {
   root.innerHTML = `<div class="gt">
     <div class="fn-kpi" style="padding:12px 12px 0"><div><span>Tâches</span><b>${T.length}</b><small>avancement moyen ${avg} %</small></div><div class="${late ? 'neg' : ''}"><span>En retard</span><b>${late}</b></div>
       <div class="wide"><span>Fin du marché</span><b>${P.finM ? fmtDate(P.finM) : '— à saisir'}${delai && P.finM ? ` → ${fmtDate(finRev)}` : ''}</b><small>${delai ? `+${delai} j (avenants et ordres de service)` : 'aucun délai supplémentaire'}</small></div></div>
-    <div class="gt-bar">${canE ? `<button class="btn small" data-a="add">${icon('plus')} Tâche</button>` : ''}${canE && (p.tce || {}).lots && p.tce.lots.length ? `<button class="btn small ghost" data-a="tce">Importer les lots TCE</button>` : ''}${canE ? `<button class="btn small ghost" data-a="imp">Importer un fichier</button>` : ''}
+    <div class="gt-bar">${canE ? `<button class="btn small" data-a="add">${icon('plus')} Tâche</button>` : ''}${canE && (p.tce || {}).lots && p.tce.lots.length ? `<button class="btn small ghost" data-a="tce">Importer les lots TCE</button>` : ''}${canE ? `<button class="btn small ghost" data-a="imp">Importer un fichier</button>` : ''}<button class="btn small ghost" data-a="trk">Suivi · écarts</button>${(P.bls || []).length && P.bls[0].fileId ? `<button class="btn small ghost" data-a="org">Original</button>` : ''}
       <span class="grow"></span><div class="gt-z">${[['d', 'Jour'], ['w', 'Sem.'], ['m', 'Mois']].map(([k, l]) => `<button class="${z === k ? 'on' : ''}" data-z="${k}">${l}</button>`).join('')}</div><button class="iconbtn" data-a="more">${icon('more')}</button></div>
     ${T.length ? `<div class="gt-sc"><div class="gt-in" style="width:${W + 130}px">
       <div class="gt-hd"><div class="gt-nm"></div><div class="gt-tl" style="width:${W}px"><div class="gt-mo">${months}</div><div class="gt-tk">${ticks}</div></div></div>
       ${T.map(t => { const lt = ganttLate(t), c = lt ? '#ef4444' : fN(t.av) >= 100 ? '#22c55e' : '#3b82f6';
+        const bt = baseOf(P, t), bl = bt && bt.deb && bt.fin && (bt.deb !== t.deb || bt.fin !== t.fin) ? `<div class="gt-bl" style="left:${X(bt.deb)}px;width:${Math.max(DW, (dDiff(bt.deb, bt.fin) + 1) * DW)}px" title="Baseline ${fmtDate(bt.deb)} → ${fmtDate(bt.fin)}"></div>` : '';
         const pv = t.deb && t.fin ? `<div class="gt-pv" style="left:${X(t.deb)}px;width:${Math.max(DW, (dDiff(t.deb, t.fin) + 1) * DW)}px"></div>` : '';
         const rs = t.debR || (fN(t.av) > 0 ? t.deb : ''), re = t.finR || (fN(t.av) > 0 && fN(t.av) < 100 ? todayISO() : t.fin);
         const rv = rs && re && re >= rs ? `<div class="gt-rv" style="left:${X(rs)}px;width:${Math.max(DW, (dDiff(rs, re) + 1) * DW)}px;--c:${c}"><u style="width:${Math.min(100, fN(t.av))}%"></u></div>` : '';
-        return `<div class="gt-r" data-t="${t.id}"><div class="gt-nm"><b>${esc(t.nom || '')}</b><small>${fN(t.av)} %${lt ? ' · retard ' + dDiff(t.fin, todayISO()) + ' j' : ''}</small></div><div class="gt-tl" style="width:${W}px">${pv}${rv}</div></div>`; }).join('')}
+        return `<div class="gt-r" data-t="${t.id}"><div class="gt-nm"><b>${esc(t.nom || '')}</b><small>${fN(t.av)} %${lt ? ' · retard ' + dDiff(t.fin, todayISO()) + ' j' : ''}</small></div><div class="gt-tl" style="width:${W}px">${bl}${pv}${rv}</div></div>`; }).join('')}
       <div class="gt-today" style="left:${130 + X(todayISO())}px"></div>${P.finM ? `<div class="gt-fin" style="left:${130 + X(P.finM)}px" title="Fin du marché"></div>` : ''}${finRev && finRev !== P.finM ? `<div class="gt-fin rev" style="left:${130 + X(finRev)}px"></div>` : ''}
-    </div></div><div class="gt-leg"><span><i class="pv"></i>prévu</span><span><i style="background:#3b82f6"></i>réel / avancement</span><span><i style="background:#ef4444"></i>en retard</span><span><i class="td"></i>aujourd'hui</span><span><i class="fm"></i>fin du marché</span></div>`
+    </div></div><div class="gt-leg"><span><i class="pv"></i>prévu</span><span><i style="background:#94a3b8"></i>baseline</span><span><i style="background:#3b82f6"></i>réel / avancement</span><span><i style="background:#ef4444"></i>en retard</span><span><i class="td"></i>aujourd'hui</span><span><i class="fm"></i>fin du marché</span></div>`
     : '<div class="fn-empty" style="padding:20px">Ajoutez les tâches (ou importez les lots TCE) avec les dates prévues. Le réel et l\'avancement s\'affichent par-dessus.</div>'}
   </div>`;
   const sc = $('.gt-sc', root); if (sc && !P._scrolled) { sc.scrollLeft = Math.max(0, X(todayISO()) - 120); }
   $$('[data-z]', root).forEach(b => b.onclick = async () => { P.zoom = b.dataset.z; await save(); redraw(); });
-  const FIELDS = [{ name: 'nom', label: 'Tâche', placeholder: 'Ex : Gros œuvre R+3' }, { name: 'grp', label: 'Lot', list: typeof TCE_LOTS !== 'undefined' ? TCE_LOTS : [] }, { name: 'deb', label: 'Début prévu', type: 'date' }, { name: 'fin', label: 'Fin prévue', type: 'date' }, { name: 'ech', label: 'Échéance (maître d\'ouvrage)', type: 'date' },
-    { name: 'debR', label: 'Début réel', type: 'date' }, { name: 'finR', label: 'Fin réelle', type: 'date' }, { name: 'av', label: 'Avancement (%)', type: 'number' }, { name: 'pinId', label: 'Pin sur le plan', type: 'select', options: [] }];
+  const FIELDS = [{ name: 'ref', label: 'ID (ex : T01)' }, { name: 'nom', label: 'Tâche', placeholder: 'Ex : Gros œuvre R+3' }, { name: 'grp', label: 'Lot', list: typeof TCE_LOTS !== 'undefined' ? TCE_LOTS : [] }, { name: 'deb', label: 'Début prévu', type: 'date' }, { name: 'fin', label: 'Fin prévue', type: 'date' }, { name: 'ech', label: 'Échéance (maître d\'ouvrage)', type: 'date' },
+    { name: 'debR', label: 'Début réel', type: 'date' }, { name: 'finR', label: 'Fin réelle', type: 'date' }, { name: 'av', label: 'Avancement (%)', type: 'number' }, { name: 'dep', label: 'Dépendances (ID séparés par ,)' }, { name: 'w', label: 'Poids pour l\'avancement global (vide = durée)', type: 'number' }, { name: 'obs', label: 'Observations', type: 'textarea' }, { name: 'pinId', label: 'Pin sur le plan', type: 'select', options: [] }];
   const edit = async (t) => {
     // pin sur le plan : aucun · un point existant · un nouveau pin à placer ; les dates et l'avancement de la tâche pilotent le pin (début / fin, retard)
     const LK = (await DB.byProject('links', p.id)).filter(l => l.kind === 'local' && l.planId && l.x != null), PLS = await DB.byProject('plans', p.id), pm = {}; PLS.forEach(x => pm[x.id] = x);
     FIELDS.find(f => f.name === 'pinId').options = [{ value: '', label: '— aucun —' }, { value: '__new', label: '📍 Placer un nouveau pin sur un plan…' }, ...LK.map(l => ({ value: l.id, label: `${l.name || 'Point'} · ${(pm[l.planId] || {}).name || ''}` }))];
     const r = await formSheet(t ? t.nom : 'Nouvelle tâche', FIELDS.map(f => ({ ...f, value: t ? t[f.name] ?? '' : f.name === 'deb' ? todayISO() : '' })), { okLabel: 'Enregistrer', danger: t ? 'Supprimer' : null });
-    if (!r) return; if (r.__danger) { if (t.pinId) await unlinkTaskPin(t.pinId); P.tasks.splice(P.tasks.indexOf(t), 1); } else { r.av = String(Math.max(0, Math.min(100, fN(r.av)))); if (fN(r.av) >= 100 && !r.finR) r.finR = todayISO(); if (fN(r.av) > 0 && !r.debR) r.debR = r.deb || todayISO(); t ? Object.assign(t, r) : P.tasks.push({ id: DB.uid(), ...r }); }
+    if (!r) return; if (r.__danger) { if (t.pinId) await unlinkTaskPin(t.pinId); P.tasks.splice(P.tasks.indexOf(t), 1); } else { r.av = String(Math.max(0, Math.min(100, fN(r.av)))); if (fN(r.av) >= 100 && !r.finR) r.finR = todayISO(); if (fN(r.av) > 0 && !r.debR) r.debR = r.deb || todayISO(); { const prevAv = t ? fN(t.av) : null; t ? Object.assign(t, r) : P.tasks.push({ id: DB.uid(), ...r }); const tt = t || P.tasks[P.tasks.length - 1]; if (prevAv !== fN(tt.av)) (tt.hist = tt.hist || []).push({ d: todayISO(), av: fN(tt.av), by: typeof myName === 'function' ? myName() : '' }); } }
     // la tâche liée à un lot TCE met à jour son avancement
     const tg = t || P.tasks[P.tasks.length - 1]; if (tg && tg.lotId && p.tce) { const L = p.tce.lots.find(l => l.id === tg.lotId); if (L) { L.av = fN(tg.av); L.deb = tg.deb; L.fin = tg.fin; L.finR = tg.finR || L.finR; } }
     const tg2 = t || P.tasks[P.tasks.length - 1];
@@ -98,6 +101,8 @@ async function renderPlanning(root) {
     await save(); redraw(); };
   const ad = $('[data-a=add]', root); if (ad) ad.onclick = () => edit(null);
   $$('[data-t]', root).forEach(r => r.onclick = () => canE ? edit(P.tasks.find(t => t.id === r.dataset.t)) : null);
+  const tk = $('[data-a=trk]', root); if (tk) tk.onclick = () => PlanTrack.open(p, redraw);
+  const og = $('[data-a=org]', root); if (og) og.onclick = () => PlanTrack.original(p);
   const im = $('[data-a=imp]', root); if (im) im.onclick = () => PlanImport.run(p, redraw);
   const tc = $('[data-a=tce]', root); if (tc) tc.onclick = async () => { let n = 0; for (const L of p.tce.lots) { if (P.tasks.some(t => t.lotId === L.id)) continue; P.tasks.push({ id: DB.uid(), lotId: L.id, nom: L.lot, grp: L.lot, deb: L.deb || '', fin: L.fin || '', finR: L.finR || '', av: String(fN(L.av)) }); n++; } await save(); toast(`${n} lot(s) importé(s)`); redraw(); };
   ($('[data-a=more]', root)||{}).onclick = async () => {

@@ -2050,6 +2050,20 @@ try {
     o.x = PlanImport.mspRows('<Project><Tasks><Task><Name>Dalle</Name><Start>2026-03-01T08:00:00</Start><Finish>2026-03-10T17:00:00</Finish></Task></Tasks></Project>').length; } catch (e) { o.err = String(e.message || e); } return o; });
   log('import planning [parseur]', v249);
   log('errors import planning', !v249.err && v249.n === 3 && v249.a && v249.c && v249.x === 1 ? [] : ['import planning ' + JSON.stringify(v249)]);
+  // ---- planning intelligent : extraction du PDF exemple (10 activités), baseline, écarts, pas de doublon à la réimportation
+  const planItems = JSON.parse(fs.readFileSync(new (await import('node:url')).URL('./fixtures/planning-items.json', import.meta.url), 'utf8'));
+  const vPl = await A.pg.evaluate(async (items) => { const o = {}; try { const t = PlanImport.tableFromItems(items), p = App.project, P = planData(p); const had = P.tasks.length, hb = P.bls, hr = P.revs; P.bls = []; P.revs = [];
+    o.n = t.rows.length; o.ver = t.info.ver; o.t10 = t.rows[9] && t.rows[9].ref === 'T10' && t.rows[9].dep.join() === 'T07,T08,T09'; o.t02 = t.rows[1].lot === 'Gros oeuvre' && t.rows[1].deb === '2026-11-23' && t.rows[1].fin === '2026-12-06' && t.rows[1].av === '60'; o.warn = t.rows.filter(r => r.msgs.length).length;
+    // une date absente n'est jamais inventée
+    const y3 = items.find(z => z.s === 'T03').y, d3 = items.filter(i => Math.abs(i.y - y3) < 4 && /^\d\d\/\d\d\/\d{4}$/.test(i.s)).sort((a, b) => a.x - b.x)[0], bad = PlanImport.tableFromItems(items.filter(i => i !== d3));
+    o.noInvent = bad.rows.find(r => r.ref === 'T03') ? bad.rows.find(r => r.ref === 'T03').deb === '' && bad.rows.find(r => r.ref === 'T03').msgs.some(m => /début manquante/i.test(m)) : false;
+    const f = new File([new Uint8Array([37, 80, 68, 70])], 'ex.pdf', { type: 'application/pdf' });
+    const r1 = await PlanImport.commit(p, f, t, t.rows), r2 = await PlanImport.commit(p, f, t, t.rows); o.c1 = r1.n; o.c2 = r2.n; o.dup = r2.dup; o.bl = P.bls.length === 1 && P.revs.length === 1;
+    const C = PlanTrack.compute(P, '2026-12-01'); const T2 = C.rows.find(r => r.t.ref === 'T02'); o.pv = T2 && T2.pv; o.late = C.late;
+    P.tasks.find(t => t.ref === 'T02').av = '10'; const C2 = PlanTrack.compute(P, '2026-12-07'); o.ret = C2.rows.find(r => r.t.ref === 'T02').ret > 0; o.hit = C2.rows.find(r => r.t.ref === 'T03').hit.join();
+    P.tasks = P.tasks.slice(0, had); P.bls = hb; P.revs = hr; await DB.put('projects', p); } catch (e) { o.err = String(e.message || e); } return o; }, planItems);
+  log('planning intelligent [PDF exemple]', vPl);
+  log('errors planning intelligent', !vPl.err && vPl.n === 10 && vPl.ver === 'V01' && vPl.t10 && vPl.t02 && vPl.noInvent && vPl.c1 === 10 && vPl.c2 === 0 && vPl.dup === 10 && vPl.bl && vPl.pv > 0 && vPl.ret && vPl.hit === 'T02' ? [] : ['planning intelligent ' + JSON.stringify(vPl)]);
   log('errors v1.0.246', !v245.err && v245.card && v245.url && v245.ov && v245.closed && v245.cr ? [] : ['v1.0.246 ' + JSON.stringify(v245)]);
   log('errors v1.0.244', !v244.err && v244.acc && v244.met && v244.div && v244.due === '2026-03-01' && v244.fr && v244.loc ? [] : ['v1.0.244 ' + JSON.stringify(v244)]);
   log('errors titre plan', []);
