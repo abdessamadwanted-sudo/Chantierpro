@@ -4203,3 +4203,8 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .sq-warn{background:#fff3e0;color:#8a4b00;border-radius:12px;padding:10px 12px;margin:10px 0;font-size:13px}.sq-info{background:#e8f1fb;color:#1f4f82;border-radius:12px;padding:9px 12px;margin:10px 0;font-size:13px}
 .sq-err{color:#bf3434;font-size:13px;min-height:0;margin-top:8px}.sq-empty{padding:24px 10px;text-align:center;color:var(--muted,#6f7c87);font-size:14px}
 @media(min-width:600px){.sq-ms{grid-template-columns:repeat(4,1fr)}}
+
+/* ===== Organisation : équipes, effectifs, rendements (fiche personne / fiche équipe) ===== */
+.og-kp{display:flex;flex-direction:column;gap:2px;background:var(--card2,#f1f4f7);border-radius:12px;padding:10px 12px;margin:8px 0}.og-kp small{color:var(--muted)}
+.og-ms .btn.small{flex:none}
+.og-fw .og-sec{padding:10px 14px}.og-fw .og-ms{width:100%;text-align:left}

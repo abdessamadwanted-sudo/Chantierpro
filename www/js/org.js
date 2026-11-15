@@ -342,7 +342,7 @@ async function renderOrg(root) {
   const collapsed = new Set(p.orgCollapsed || []), canE = orgEdit('org') && orgCanAdmin(), br = App.orgBr || '';
   const save = () => DB.put('projects', p), redraw = () => renderOrg(root);
   root.innerHTML = `<div class="og"><div class="og-bar"><b>Organigramme</b><small>${p.team.length} personne(s)</small><span class="grow"></span>
-      ${canE ? `<button class="btn small" data-a="add">${icon('plus')} Personne</button>` : ''}<button class="iconbtn" data-a="exp">${icon('share')}</button></div>
+      ${canE ? `<button class="btn small" data-a="add">${icon('plus')} Personne</button>` : ''}<button class="btn small ghost" data-a="crews">👷 Équipes</button><button class="iconbtn" data-a="exp">${icon('share')}</button></div>
     ${orgQ() ? `<div class="og-br">${[['', '👥', 'Tous'], ...ORG_BR].map(([k, e, l]) => `<button data-br="${k}" class="${br === k ? 'on' : ''}">${e} ${l}${k ? ` <i>${p.team.filter(m => m.branche === k).length}</i>` : ''}</button>`).join('')}</div>` : ''}
     <div class="og-vp"><div class="og-st"></div><div class="og-zc"><button data-z="in" aria-label="Zoom avant">＋</button><button data-z="out" aria-label="Zoom arrière">－</button><button data-z="fit" aria-label="Ajuster">⤢</button><button data-z="full" aria-label="Plein écran">⛶</button></div></div>${p.team.length <= 1 && canE ? '<div class="og-empty"><b>Créer l\'organigramme</b><span>1. Touchez « ＋ Personne »<br>2. Nom, service, poste et responsable (N+1)<br>3. L\'organigramme se dessine tout seul — exportez-le en PDF avec ⤴</span></div>' : ''}<div class="og-hint">Glissez pour déplacer · pincez ou ＋/－ pour zoomer · touchez une carte · ± pour plier une branche</div></div>`;
   const vp = $('.og-vp', root), stg = $('.og-st', root); let G;
@@ -361,6 +361,7 @@ async function renderOrg(root) {
   $$('.og-zc', root).forEach(x => ['pointerdown', 'pointerup'].forEach(ev => x.addEventListener(ev, e => e.stopPropagation())));
   $$('[data-br]', root).forEach(b => b.onclick = () => { App.orgBr = b.dataset.br; redraw(); });
   if (canE) ($('[data-a=add]', root)||{}).onclick = () => orgEditMember(p, null, save, redraw);
+  ($('[data-a=crews]', root)||{}).onclick = () => OrgCrews.list(p, canE);
   ($('[data-a=exp]', root)||{}).onclick = async () => {
     const v = await menu('Organigramme', [{ label: 'PDF (A4 / A3 paysage)', icon: 'pdf', value: 'pdf' }, { label: 'Image (WhatsApp)', icon: 'image', value: 'png' }]); if (!v) return;
     const ld = loading('Création…');
@@ -394,6 +395,7 @@ async function orgEditMember(p, m, save, redraw) {
 async function orgFiche(p, m, canE, save, redraw) {
   const P = memPoste(m), L = p.team, par = L.find(x => x.id === memParent(L, m)), sub = L.filter(x => memParent(L, x) === m.id), it = m.interim && L.find(x => x.id === m.interim);
   const team = typeof Team !== 'undefined' && Team.ready && Team.ready(), canCode = canE && team && Team.canInviteNow && Team.canInviteNow();
+  let xh = ''; try { xh = await OrgCrews.fiche(p, m, canE); } catch (e) {}
   const draw = () => {
     const cd = ogCodeGet(m), ms = missionsOf(m), ok = cd && (Date.now() - cd.at) < 7 * 864e5;
     return `<div class="og-f" style="--c:${memColor(m)}"><div class="og-fa">${esc((m.name || '?')[0].toUpperCase())}</div><b>${esc(m.name || '')}${m.me ? ' (moi)' : ''}</b><span>${esc(P ? P.svc.e + ' ' + P.n : m.role || '')}</span>
@@ -407,14 +409,14 @@ async function orgFiche(p, m, canE, save, redraw) {
       ${cd ? `<div class="og-code ${ok ? '' : 'old'}"><b>${esc(cd.code)}</b><small>${ok ? 'Créé le ' + fmtDate(new Date(cd.at).toISOString().slice(0, 10)) + ' · valable 7 jours' : 'Expiré : créez-en un nouveau'}</small>
         <div class="og-fb"><button class="btn small ghost" data-a="cp">Copier</button><button class="btn small" data-a="cwa">${icon('share')} Envoyer par WhatsApp</button></div></div>` : ''}
       ${canCode ? `<button class="btn small ${cd ? 'ghost' : ''}" data-a="cnew">${cd ? 'Nouveau code' : 'Créer le code d\'accès'}</button><p class="muted" style="font-size:12px;margin:6px 0 0">Poste d'accès : ${esc(roleLabel(m))}. La personne ne verra que ce chantier.</p>`
-        : `<p class="muted" style="font-size:12px;margin:4px 0">${team ? 'Seuls les responsables autorisés (« Équipe ») créent les codes d\'accès.' : 'Connectez-vous à votre organisation SiteTeam pour créer des codes d\'accès.'}</p>`}</div>` : ''}`;
+        : `<p class="muted" style="font-size:12px;margin:4px 0">${team ? 'Seuls les responsables autorisés (« Équipe ») créent les codes d\'accès.' : 'Connectez-vous à votre organisation SiteTeam pour créer des codes d\'accès.'}</p>`}</div>` : ''}${xh}`;
   };
   const s = sheet(`<div class="og-fw">${draw()}</div>`, { title: 'Fiche' });
   const bind = () => {
     const el = s.el;
     const wa = $('[data-wa]', el); if (wa) wa.onclick = () => openUrl('https://wa.me/' + String(m.phone).replace(/\D/g, '').replace(/^0/, '212'));
     const ed = $('[data-ed]', el); if (ed) ed.onclick = () => { s.close(); orgEditMember(p, m, save, redraw); };
-    const again = () => { const host = $('.og-fw', el); if (host) { host.innerHTML = draw(); bind(); } };
+    const again = async () => { try { xh = await OrgCrews.fiche(p, m, canE); } catch (e) {} const host = $('.og-fw', el); if (host) { host.innerHTML = draw(); bind(); } };
     const msForm = async (x) => formSheet(x ? 'Mission' : 'Nouvelle mission', [
       { name: 'titre', label: 'Mission', value: x && x.titre || '', placeholder: 'Ex : Rassembler les fiches de fond de fouille' },
       { name: 'partie', label: 'Partie d\'ouvrage', type: 'select', value: x && x.partie || '', options: [{ value: '', label: '— aucune —' }, ...PARTIES_OUVRAGE.map(v => ({ value: v, label: v }))] },
@@ -426,6 +428,7 @@ async function orgFiche(p, m, canE, save, redraw) {
       if (!canE) return; const r = await msForm(x); if (!r) return;
       m.missions = r.__danger ? missionsOf(m).filter(y => y.id !== x.id) : missionsOf(m).map(y => y.id === x.id ? { ...y, titre: String(r.titre || '').trim() || y.titre, partie: r.partie || '', statut: r.statut || 'todo', echeance: r.echeance || '', modifieLe: Date.now() } : y);
       await save(); again(); redraw(); });
+    try { OrgCrews.bindFiche(el, p, m, canE, again); } catch (e) {}
     const cn = $('[data-a=cnew]', el); if (cn) cn.onclick = async () => {
       const r = await Team.inviteFor({ name: m.name || 'Nouveau', role: roleOfMember(m), pid: p.id }); if (!r) return;
       ogCodeSet(m, { code: r.code, at: Date.now(), role: r.o.role }); toast('Code d\'accès créé ✓'); again(); };
