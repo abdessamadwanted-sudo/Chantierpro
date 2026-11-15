@@ -2097,12 +2097,12 @@ try {
     o.sep = S.calc(art, [{ artId: 'qa1', projectId: 'AUTRE', zid: 'z1', delta: 999 }]).done === 0;
     const root = document.createElement('div'); document.body.appendChild(root); App.sq = {}; await S.render(root);
     o.list = !!root.querySelector('.sq-art') && root.textContent.includes('Béton B25'); App.sq.sel = 'qa1'; await S.render(root);
-    o.fiche = root.querySelectorAll('.sq-m').length === 4 && root.querySelectorAll('.sq-z').length === 2 && !!root.querySelector('.sq-h'); o.sec = !!SECTIONS.suiviq;
+    o.fiche = root.querySelectorAll('.sq-m').length === 4 && root.querySelectorAll('.sq-z').length === 2 && !!root.querySelector('.sq-h'); o.sec = !!SECTIONS.suiviq; o.sync = ['sqa', 'sqz', 'sqe'].every(k => modOf('items', { kind: k }) === 'projet');
     root.remove(); App.sq = {};
     for (const x of await DB.byProject('items', p.id)) if (x.kind && x.kind.startsWith('sq')) await DB.del('items', x.id);
   } catch (e) { o.err = String(e.message || e); } return o; });
   log('suivi quantitatif', vSq);
-  log('errors suivi quantitatif', !vSq.err && vSq.zero && vSq.rec && vSq.noChange && vSq.dup && vSq.sum && vSq.bad && vSq.int && vSq.dec && vSq.needNote && vSq.over && vSq.cor && vSq.corOnce && vSq.ref0 && vSq.recon && vSq.sep && vSq.list && vSq.fiche && vSq.sec ? [] : ['suivi quantitatif ' + JSON.stringify(vSq)]);
+  log('errors suivi quantitatif', !vSq.err && vSq.zero && vSq.rec && vSq.noChange && vSq.dup && vSq.sum && vSq.bad && vSq.int && vSq.dec && vSq.needNote && vSq.over && vSq.cor && vSq.corOnce && vSq.ref0 && vSq.recon && vSq.sep && vSq.list && vSq.fiche && vSq.sec && vSq.sync ? [] : ['suivi quantitatif ' + JSON.stringify(vSq)]);
   log('errors v1.0.246', !v245.err && v245.card && v245.url && v245.ov && v245.closed && v245.cr ? [] : ['v1.0.246 ' + JSON.stringify(v245)]);
   log('errors v1.0.244', !v244.err && v244.acc && v244.met && v244.div && v244.due === '2026-03-01' && v244.fr && v244.loc ? [] : ['v1.0.244 ' + JSON.stringify(v244)]);
   log('errors titre plan', []);
