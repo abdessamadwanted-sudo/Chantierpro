@@ -25,9 +25,14 @@ const OrgCrews = (() => {
   // effectif UNIQUE : une personne présente dans deux équipes sur la période n'est comptée qu'une fois (dédoublonnage par identifiant)
   const uniqueHeads = (mems, from, to, only) => { const s = new Set(); for (const m of mems) if (active(m, from, to) && (!only || m.who.startsWith(only))) s.add(m.who); return s.size; };
   const personDays = (mems, from, to) => mems.reduce((n, m) => n + overlap(m.from, m.to, from, to), 0);
+  // effectif SANS NOMS (ogh) : un nombre daté par équipe (changer le nombre = clôturer l'ancien + ouvrir le nouveau, l'historique reste) ;
+  // non dédoublonnable entre équipes (pas d'identité) : il s'additionne à l'effectif nominatif et la mention est affichée
+  const anonAt = (hc, crewId, d) => hc.filter(h => h.crewId === crewId && h.from <= d && (!h.to || h.to >= d)).reduce((n, h) => n + (+h.n || 0), 0);
+  const anonDays = (hc, crewId, from, to) => hc.filter(h => h.crewId === crewId).reduce((n, h) => n + (+h.n || 0) * overlap(h.from, h.to, from, to), 0);
+  const anonHeads = (hc, ids, d) => ids.reduce((n, id) => n + anonAt(hc, id, d), 0);
   // rendement par unité (jamais d'addition entre unités différentes) : quantité exécutée sur la période / jours / ouvrier-jours
-  function yields(crew, mems, entries, arts, from, to) {
-    const days = Math.round((D(to) - D(from)) / DAY) + 1, pd = personDays(mems.filter(m => m.crewId === crew.id), from, to), out = {};
+  function yields(crew, mems, entries, arts, from, to, hc) {
+    const days = Math.round((D(to) - D(from)) / DAY) + 1, pd = personDays(mems.filter(m => m.crewId === crew.id), from, to) + anonDays(hc || [], crew.id, from, to), out = {};
     for (const e of entries) { if (e.crewId !== crew.id) continue; const d = iso(e.at); if (d < from || d > to) continue; const a = arts.find(x => x.id === e.artId); if (!a) continue;
       const u = a.unit || '?'; (out[u] = out[u] || { qty: 0 }).qty = Math.round((out[u].qty + (+e.delta || 0)) * 1e6) / 1e6; }
     for (const u in out) { out[u].perDay = days ? Math.round(out[u].qty / days * 100) / 100 : null; out[u].perWorkerDay = pd ? Math.round(out[u].qty / pd * 1000) / 1000 : null; }
@@ -55,7 +60,7 @@ const OrgCrews = (() => {
   const helmet = (m, px) => { const g = gradeOf(m), sz = px || 30; return `<svg class="og-hm" width="${sz}" height="${Math.round(sz * .87)}" viewBox="0 0 30 26" role="img" aria-label="${esc(GRADES[g].l)}">${helmetG(g, 0, 0, 1)}</svg>`; };
   const legend = () => `<div class="og-lg">${Object.entries(GRADES).map(([k, g]) => `<span><svg width="20" height="17" viewBox="0 0 30 26">${helmetG(k, 0, 0, 1)}</svg>${esc(g.l)}</span>`).join('')}</div>`;
 
-  async function load(p) { const all = mine(await DB.byProject('items', p.id), p.id); return { crews: all.filter(x => x.kind === 'ogt'), workers: all.filter(x => x.kind === 'ogw'), mems: all.filter(x => x.kind === 'ogm'), asg: all.filter(x => x.kind === 'oga'), arts: all.filter(x => x.kind === 'sqa'), ents: all.filter(x => x.kind === 'sqe') }; }
+  async function load(p) { const all = mine(await DB.byProject('items', p.id), p.id); return { crews: all.filter(x => x.kind === 'ogt'), workers: all.filter(x => x.kind === 'ogw'), mems: all.filter(x => x.kind === 'ogm'), hc: all.filter(x => x.kind === 'ogh'), asg: all.filter(x => x.kind === 'oga'), arts: all.filter(x => x.kind === 'sqa'), ents: all.filter(x => x.kind === 'sqe') }; }
   const nameOf = (p, W, who) => who.startsWith('m:') ? ((p.team || []).find(m => m.id === who.slice(2)) || {}).name || '?' : (W.find(w => w.id === who.slice(2)) || {}).name || '?';
   const audit = (x, what) => { (x.hist = x.hist || []).push({ at: Date.now(), by: typeof myName === 'function' ? myName() : '', what }); x.updatedAt = Date.now(); return x; };
   const period = () => { const n = (App.ogPer || 7), to = today(); return { from: iso(D(to) - (n - 1) * DAY), to, n }; };
@@ -64,16 +69,16 @@ const OrgCrews = (() => {
   async function fiche(p, m, canE) {
     const L = await load(p), S = scope(p, L.crews, L.mems), per = period(), mine_ = crewsOf(S.crews, m.id);
     const tradeCrews = S.crews.filter(c => (m.trades || []).includes(c.trade) && !mine_.includes(c)), sup = [...mine_, ...tradeCrews];
-    const mems = L.mems.filter(x => sup.some(c => c.id === x.crewId)), head = uniqueHeads(mems, per.from, per.to, 'w:');
+    const mems = L.mems.filter(x => sup.some(c => c.id === x.crewId)), head = uniqueHeads(mems, per.from, per.to, 'w:') + anonHeads(L.hc, sup.map(c => c.id), per.to);
     const par = (p.team || []).find(x => x.id === m.func);
-    const row = (c) => { const y = yields(c, L.mems, L.ents, L.arts, per.from, per.to), u = Object.entries(y.byUnit).map(([k, v]) => `${fmt(v.qty)} ${esc(k)}${v.perDay != null ? ` · ${fmt(v.perDay)} ${esc(k)}/j` : ''}`).join(' · ') || 'aucune quantité liée';
+    const row = (c) => { const y = yields(c, L.mems, L.ents, L.arts, per.from, per.to, L.hc), u = Object.entries(y.byUnit).map(([k, v]) => `${fmt(v.qty)} ${esc(k)}${v.perDay != null ? ` · ${fmt(v.perDay)} ${esc(k)}/j` : ''}`).join(' · ') || 'aucune quantité liée';
       const a = L.asg.filter(x => x.crewId === c.id && x.from <= per.to && (!x.to || x.to >= per.from)).map(x => spatialLabel(x.spatial)).join(' ; ') || spatialLabel(c.spatial);
       return `<button class="og-ms" data-crew="${c.id}"><span class="grow"><b>${esc(c.name)}</b><small>${esc(c.trade || '')} · ${esc(a)} · ${u}</small></span><span>›</span></button>`; };
     return `<div class="og-sec"><h4>🧭 Responsabilités et rattachement</h4>
       <small>${helmet(m, 22)} Grade : ${esc(GRADES[gradeOf(m)].l)}</small><br><small>Métiers : ${(m.trades || []).length ? (m.trades || []).map(esc).join(', ') : 'généraliste (aucun périmètre de métier implicite)'}</small>
       ${par ? `<small>Responsable fonctionnel : <b>${esc(par.name)}</b></small>` : ''}${canE ? '<div class="og-fb"><button class="btn small ghost" data-a="trades">Métiers / responsable fonctionnel</button></div>' : ''}</div>
     <div class="og-sec"><h4>👷 Équipes suivies <i>${sup.length}</i></h4>${sup.map(row).join('') || '<p class="muted" style="font-size:12px">Aucune équipe dans votre périmètre.</p>'}
-      <div class="og-kp"><span><b>${head}</b> ouvrier(s) distinct(s)</span><small>sur ${fmt(per.n)} j (${per.from} → ${per.to}) · une personne dans 2 équipes = 1</small></div>
+      <div class="og-kp"><span><b>${head}</b> ouvrier(s) distinct(s)</span><small>sur ${fmt(per.n)} j (${per.from} → ${per.to}) · une personne nommée dans 2 équipes = 1 ; l'effectif « sans noms » s'ajoute tel quel</small></div>
       <div class="og-fb">${[7, 30].map(n => `<button class="btn small ${per.n === n ? '' : 'ghost'}" data-per="${n}">${n} j</button>`).join('')}</div>
       <small class="muted">Provenance : affectations datées (ogm) · quantités des saisies du Suivi quantitatif liées à l'équipe · jours calendaires.</small></div>`;
   }
@@ -90,13 +95,15 @@ const OrgCrews = (() => {
   // ---- fiche équipe ----
   async function crewSheet(p, id, canE) {
     const L = await load(p), c = L.crews.find(x => x.id === id); if (!c) return; const S = scope(p, L.crews, L.mems); if (!S.crews.some(x => x.id === id)) return toast('Équipe hors de votre périmètre');
-    const per = period(), cm = L.mems.filter(x => x.crewId === id), now = today(), cur = cm.filter(x => active(x, now, now)), y = yields(c, L.mems, L.ents, L.arts, per.from, per.to);
+    const per = period(), cm = L.mems.filter(x => x.crewId === id), now = today(), cur = cm.filter(x => active(x, now, now)), y = yields(c, L.mems, L.ents, L.arts, per.from, per.to, L.hc);
     const asg = L.asg.filter(x => x.crewId === id).sort((a, b) => b.from.localeCompare(a.from));
     const pers = (i) => (p.team || []).find(x => x.id === i);
     const html = () => `<div class="og-fw"><div class="og-f"><b>${esc(c.name)}</b><span>${esc(c.trade || '')} · ${esc(spatialLabel(((asg.find(x => !x.to) || {}).spatial) || c.spatial))}</span></div>
       <div class="og-sec"><h4>Encadrement</h4>${rolesOf(c).map(([r, i]) => `<button class="og-ms" data-p="${i}">${pers(i) ? helmet(pers(i), 28) : ''}<span class="grow"><b>${esc((pers(i) || {}).name || '?')}</b><small>${r}</small></span><span>›</span></button>`).join('') || '<small class="muted">Non renseigné</small>'}</div>
-      <div class="og-sec"><h4>Effectif <i>${uniqueHeads(cm, now, now)}</i></h4><small>Aujourd'hui (${uniqueHeads(cm, now, now, 'w:')} ouvriers · ${uniqueHeads(cm, now, now, 'm:')} encadrants)</small>
+      <div class="og-sec"><h4>Effectif <i>${uniqueHeads(cm, now, now) + anonAt(L.hc, id, now)}</i></h4><small>Aujourd'hui (${uniqueHeads(cm, now, now, 'w:')} ouvriers nommés · ${anonAt(L.hc, id, now)} sans noms · ${uniqueHeads(cm, now, now, 'm:')} encadrants)</small>
         ${cur.map(x => `<div class="og-ms"><span class="grow"><b>${esc(nameOf(p, L.workers, x.who))}</b><small>depuis ${esc(x.from)}${x.to ? ' → ' + esc(x.to) : ''}</small></span>${canE ? `<button class="btn small ghost" data-end="${x.id}">Retirer</button>` : ''}</div>`).join('')}
+        ${L.hc.filter(h => h.crewId === id).sort((a, b) => b.from.localeCompare(a.from)).slice(0, 4).map(h => `<div class="og-ms"><span class="grow"><b>${fmt(h.n)} ouvriers (sans noms)</b><small>${esc(h.from)} → ${esc(h.to || 'en cours')}${h.note ? ' · ' + esc(h.note) : ''}</small></span></div>`).join('')}
+        ${canE ? '<div class="og-fb"><button class="btn small" data-a="nbw">Nombre d\'ouvriers (sans noms)</button></div>' : ''}
         ${canE ? '<div class="og-fb"><button class="btn small" data-a="addw">＋ Ouvrier</button><button class="btn small ghost" data-a="addm">＋ Encadrant</button></div>' : ''}</div>
       <div class="og-sec"><h4>Rendement (${per.from} → ${per.to})</h4>${Object.entries(y.byUnit).map(([u, v]) => `<div class="og-kp"><span><b>${fmt(v.qty)} ${esc(u)}</b> exécuté(s)</span><small>${v.perDay != null ? fmt(v.perDay) + ' ' + esc(u) + '/jour' : ''}${v.perWorkerDay != null ? ' · ' + fmt(v.perWorkerDay) + ' ' + esc(u) + '/ouvrier-jour' : ' · ouvrier-jours = 0 : rendement indisponible'}</small></div>`).join('') || '<small class="muted">Aucune quantité liée à cette équipe sur la période (choisir l\'équipe à la saisie dans le Suivi quantitatif).</small>'}
         <small class="muted">${y.personDays} ouvrier-jours · jours calendaires · unités jamais additionnées entre elles</small></div>
@@ -110,6 +117,12 @@ const OrgCrews = (() => {
         const w = { id: DB.uid(), projectId: p.id, kind: 'ogw', name: r.n.trim() }; await DB.put('items', w); who = 'w:' + w.id; return mk(who, r.from); }
       const v = await menu('Encadrant', p.team.map(x => ({ label: x.name, value: x.id }))); if (!v) return; const r = await formSheet('Depuis le', [{ name: 'from', label: 'Date de début', type: 'date', value: today() }]); if (!r) return; return mk('m:' + v, r.from); };
     const mk = async (who, from) => { if (L.mems.some(x => x.who === who && x.crewId === id && !x.to)) return toast('Déjà dans l\'équipe'); const x = { id: DB.uid(), projectId: p.id, kind: 'ogm', crewId: id, who, from: from || today(), to: '', hist: [] }; audit(x, 'affecté à l\'équipe'); await DB.put('items', x); redo(); };
+    const nb = $('[data-a=nbw]', s.el); if (nb) nb.onclick = async () => {
+      const r = await formSheet('Nombre d\'ouvriers (sans noms)', [{ name: 'n', label: 'Nombre d\'ouvriers dans l\'équipe', type: 'number', value: anonAt(L.hc, id, today()) || '' }, { name: 'from', label: 'À partir du', type: 'date', value: today() }, { name: 'note', label: 'Note (optionnel)' }], { okLabel: 'Enregistrer' }); if (!r) return;
+      const n = Math.round(parseFloat(String(r.n).replace(',', '.'))); if (!Number.isFinite(n) || n < 0) return toast('Nombre invalide'); const from = r.from || today();
+      const prev = L.hc.find(h => h.crewId === id && !h.to); if (prev && prev.from >= from) return toast('Date postérieure à la dernière saisie requise');
+      if (prev) { prev.to = iso(D(from) - DAY); audit(prev, 'clôturé'); await DB.put('items', prev); }   // l'ancien nombre et ses rendements restent intacts
+      const x = { id: DB.uid(), projectId: p.id, kind: 'ogh', crewId: id, n, from, to: '', note: String(r.note || '').slice(0, 120), hist: [] }; audit(x, 'créé'); await DB.put('items', x); redo(); };
     const aw = $('[data-a=addw]', s.el); if (aw) aw.onclick = () => addPerson('w'); const am = $('[data-a=addm]', s.el); if (am) am.onclick = () => addPerson('m');
     const eq = $('[data-a=eq]', s.el); if (eq) eq.onclick = async () => { s.close(); if (await editCrew(p, c)) crewSheet(p, id, canE); };
     const ch = $('[data-a=chg]', s.el); if (ch) ch.onclick = async () => { const r = await spatialForm(p, L); if (!r) return; const prev = asg.find(x => !x.to);
@@ -139,10 +152,10 @@ const OrgCrews = (() => {
   async function list(p, canE, embed) {
     const L = await load(p), S = scope(p, L.crews, L.mems), per = period(), me = S.me, P = me && typeof posteOf === 'function' ? posteOf(me.poste) : null, today_ = today();
     const trades = [...new Set(S.crews.map(c => c.trade).filter(Boolean))], act = L.asg.filter(x => S.crews.some(c => c.id === x.crewId) && x.from <= today_ && (!x.to || x.to >= today_));
-    const zonesAct = new Set(act.map(x => spatialLabel(x.spatial))), head = uniqueHeads(L.mems.filter(x => S.crews.some(c => c.id === x.crewId)), per.from, per.to, 'w:');
+    const zonesAct = new Set(act.map(x => spatialLabel(x.spatial))), head = uniqueHeads(L.mems.filter(x => S.crews.some(c => c.id === x.crewId)), per.from, per.to, 'w:') + anonHeads(L.hc, S.crews.map(c => c.id), per.to);
     const title = S.all ? 'Dashboard Directeur' : 'Dashboard ' + (P ? P.n : 'Conducteur'), sub = S.all ? 'Toutes les équipes du projet' : (me && (me.trades || []).length ? me.trades.join(' + ') : 'Périmètre limité à mes affectations');
     const K = (l, v) => `<div class="og-k"><small>${l}</small><b>${v}</b></div>`;
-    const card = (c) => { const y = yields(c, L.mems, L.ents, L.arts, per.from, per.to), a = act.find(x => x.crewId === c.id), u = a && a.unit, v = u && y.byUnit[u], pct = v && a.obj > 0 && v.perDay != null ? Math.round(v.perDay / a.obj * 100) : null, boss = (p.team || []).find(x => x.id === c.leaderId);
+    const card = (c) => { const y = yields(c, L.mems, L.ents, L.arts, per.from, per.to, L.hc), a = act.find(x => x.crewId === c.id), u = a && a.unit, v = u && y.byUnit[u], pct = v && a.obj > 0 && v.perDay != null ? Math.round(v.perDay / a.obj * 100) : null, boss = (p.team || []).find(x => x.id === c.leaderId);
       return `<button class="og-ms og-tc" data-crew="${c.id}">${boss ? helmet(boss, 30) : ''}<span class="grow"><b>${esc(c.name)}</b><small>${esc(spatialLabel((a || {}).spatial || c.spatial))}</small>${pct != null ? `<div class="sq-tr"><div class="sq-fl" style="width:${Math.min(100, pct)}%"></div></div>` : ''}</span><b>${pct != null ? pct + '%' : '—'}</b></button>`; };
     const html = `<div class="og-fw"><div class="og-sec"><span class="og-demo">${S.all ? 'Vue complète' : 'Mon périmètre'}</span><h4>${esc(title)}</h4><small>${esc(sub)} · ${esc(p.name)}</small>
       <div class="og-kg">${K('Ouvriers affectés', head)}${K('Équipes', S.crews.length)}${K('Métiers', trades.length)}${K('Zones actives', zonesAct.size)}</div>
@@ -154,5 +167,5 @@ const OrgCrews = (() => {
     const nw = $('[data-a=new]', s.el); if (nw) nw.onclick = async () => { if (!embed) s.close(); if (await editCrew(p, null)) list(p, canE, embed); };
   }
   const render = (root) => list(App.project, orgEdit('org') && orgCanAdmin(), root);
-  return { render, list, fiche, bindFiche, crewSheet, helmet, helmetG, gradeOf, GRADES, calc: { overlap, uniqueHeads, personDays, yields, scope, spatialLabel, crewsOf }, TRADES };
+  return { render, list, fiche, bindFiche, crewSheet, helmet, helmetG, gradeOf, GRADES, calc: { overlap, uniqueHeads, personDays, anonAt, anonDays, anonHeads, yields, scope, spatialLabel, crewsOf }, TRADES };
 })();
