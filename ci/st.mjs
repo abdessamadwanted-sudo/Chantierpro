@@ -1537,7 +1537,7 @@ try {
     await DB.put('links', { id: 'cc1', projectId: p.id, planId: a.id, kind: 'planlink', shape: 'point', x: 60, y: 100, rot: 90, fileId: f.id, name: 'Coupe cc1', color: '#1e88e5', items: [] });
     await openPlanViewer(a, planCtx(() => {})); await w(1000);
     const o = {}; const g = () => document.querySelector('.fullpage .g-links');
-    o.eye = !!g().querySelector('path[d^="M1 12s4-8"]'); o.name = g().textContent.includes('Coupe cc1');
+    o.eye = !!g().querySelector('circle[r="17"] ~ g path[d^="M1 12s4-8"]'); o.name = g().textContent.includes('Coupe cc1');
     const sc = () => { const t = g().querySelector('g[transform^="translate(60"]').getAttribute('transform'); return +t.match(/scale\(([\d.e-]+)\)/)[1]; };
     const s1 = sc(); o.s1 = s1 > 0;
     const vw = document.querySelector('.fullpage .pv-viewer, .fullpage [class*=viewer]');
