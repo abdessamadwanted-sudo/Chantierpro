@@ -419,6 +419,7 @@ const SECTIONS = {
   team: { label: 'Équipe', icon: 'team', render: renderTeam },
   orgs: { label: 'Organisations du projet', icon: 'team', render: (r) => Team.openPartners(App.project, r), title: 'Organisations', subtitle: 'MOA · BET · architecte · groupement' },
   histo: { label: 'Historique', icon: 'history', render: (r) => Team.renderHistory(r), title: 'Historique', subtitle: 'qui a fait quoi, et quand' },
+  fichiers: { label: 'Fichiers', icon: 'file', render: (r) => Fichiers.render(r), title: 'Fichiers', subtitle: 'Plans et documents · taille · par niveau / type' },
   docq: { label: 'Documentation & archives', icon: 'file', render: (r) => ST.renderDocs(r), title: 'Documentation', subtitle: 'PAQ · procédures · PV · essais · archives' },
   settings: { label: 'Paramètres', icon: 'settings', render: renderSettings },
 };
@@ -604,6 +605,7 @@ async function openDrawer(opts = {}) {
   App.drawerCache = App.drawerCache || {};
   const dc = App.drawerCache[App.project.id] || { tasks: [], nPv: 0 };
   const tasks = dc.tasks, nPv = dc.nPv;
+  if (typeof Fichiers !== 'undefined') Fichiers.size(App.project.id).then(t => { App.fichCache = App.fichCache || {}; App.fichCache[App.project.id] = t; const b = document.querySelector('.drawer [data-s=fichiers] .fsz'); if (b) b.textContent = t; });
   Promise.all([DB.byProject('tasks', App.project.id), missingPvs(App.project.id)]).then(([t, pv]) => {
     const changed = t.length !== tasks.length || pv.length !== nPv || JSON.stringify(t.map(x => x.status)) !== JSON.stringify(tasks.map(x => x.status));
     App.drawerCache[App.project.id] = { tasks: t, nPv: pv.length };
@@ -621,7 +623,7 @@ async function openDrawer(opts = {}) {
   d.innerHTML = `
     <div class="drawer-head"><h3>${esc(App.project.name)}</h3><button class="iconbtn" data-home>${icon('home')}</button></div>
     ${Team.ready() ? `<button class="item tm-dr" data-company>${icon('team')}<span>${esc((Team.me() || {}).name || 'Mon entreprise')}</span><span class="count" style="font-size:11.5px;opacity:.7">${esc(tmRoleOf((Team.me() || {}).role).l)}</span></button>` : ''}
-    <div class="dr-scroll">${drawerSections((k) => { const s = SECTIONS[k]; return `<button class="item ${App.section === k || (k === 'reception' && App.section === 'beton') ? 'active' : ''}" data-s="${k === 'reception' && App.section === 'beton' ? 'beton' : k}">${icon(s.icon)}<span>${s.label}</span>${k === 'reception' && nPv ? `<span class="count pvbadge">${nPv} PV</span>` : ''}${k === 'tasks' ? `<span class="count dr-rt" data-rtog>${tasks.filter(t => t.status === 'open').length || ''}<i style="display:inline-block;transform:rotate(${resOpen ? 180 : 0}deg)">${icon('chevdown', 'style="width:18px;height:18px"')}</i></span>` : ''}</button>${k === 'tasks' ? `<div class="dr-sub" style="${resOpen ? '' : 'display:none'}">${resRows}</div>` : ''}`; })}
+    <div class="dr-scroll">${drawerSections((k) => { const s = SECTIONS[k]; return `<button class="item ${App.section === k || (k === 'reception' && App.section === 'beton') ? 'active' : ''}" data-s="${k === 'reception' && App.section === 'beton' ? 'beton' : k}">${icon(s.icon)}<span>${s.label}</span>${k === 'fichiers' ? `<span class="count fsz" style="font-size:12px;opacity:.7">${esc((App.fichCache || {})[App.project.id] || '')}</span>` : ''}${k === 'reception' && nPv ? `<span class="count pvbadge">${nPv} PV</span>` : ''}${k === 'tasks' ? `<span class="count dr-rt" data-rtog>${tasks.filter(t => t.status === 'open').length || ''}<i style="display:inline-block;transform:rotate(${resOpen ? 180 : 0}deg)">${icon('chevdown', 'style="width:18px;height:18px"')}</i></span>` : ''}</button>${k === 'tasks' ? `<div class="dr-sub" style="${resOpen ? '' : 'display:none'}">${resRows}</div>` : ''}`; })}
     <div class="dr-g ${(() => { try { const v = localStorage.getItem('dr.g.tools'); return v === '1'; } catch (e) { return false; } })() ? 'open' : ''}" data-g="tools"><button class="group dr-gh" data-gt="tools"><span>🧰 Outils & liens</span><i>${6 + (App.project.quickLinks || [1]).length}</i>${icon('chevdown', 'style="width:16px;height:16px"')}</button><div class="dr-gb">
     <button class="item" data-tool="pdf">${icon('pdf')}<span>Outils PDF</span><span class="count" style="font-size:12px;opacity:.6">fusionner · pages · compresser</span></button>
     <button class="item" data-tool="poutre">🧱<span>Poutre 3D</span><span class="count" style="font-size:12px;opacity:.6">plan Arche → 3D</span></button>

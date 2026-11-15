@@ -240,14 +240,14 @@ Object.assign(KIND_MOD, { ogt: 'pointage', ogw: 'pointage', ogm: 'pointage', oga
 const modOf = (store, rec) => store === 'items' ? KIND_MOD[(rec || {}).kind] : STORE_MOD[store];
 // section de l'application → module
 // rubriques issues de Chantier : rattachées au module SiteTeam le plus proche (visibilité selon le poste)
-const SECTION_MOD = { avancement: 'projet', suiviq: 'projet', equipes: 'pointage', clauses: 'forms', gestion: 'materiel', finance: 'finance', tce: 'finance', avenants: 'finance', st: 'finance',
+const SECTION_MOD = { fichiers: 'files', avancement: 'projet', suiviq: 'projet', equipes: 'pointage', clauses: 'forms', gestion: 'materiel', finance: 'finance', tce: 'finance', avenants: 'finance', st: 'finance',
   planning: 'projet', lotsuivi: 'projet', ptools: 'projet', reunions: 'forms', pointage: 'pointage', rfi: 'forms', visa: 'forms', labo: 'reception', hse: 'hse', org: 'equipe',
   dashboard: 'projet', plans: 'plans', tasks: 'reserves', reception: 'reception', beton: 'reception', photos: 'photos', forms: 'forms', reports: 'rapports',
   constat: 'constats', models3d: 'plans', maquette: 'plans', calc: 'calc', team: 'equipe', settings: 'projet', docq: 'files', histo: 'projet', orgs: 'projet', monespace: 'projet', tabproj: 'projet', localisation: 'projet', visio: 'projet' };
 
 // v1.0.34 : bibliothèque de chaque service. Socle commun + outils du métier. Les PV de réception (ferraillage) relèvent de la Qualité ;
 // les Travaux gardent le programme de bétonnage. Les droits du poste (0 à 4) s'appliquent toujours en plus.
-const LIB_CORE = ['ptools', 'dashboard', 'plans', 'tasks', 'photos', 'reports', 'team', 'org', 'settings', 'histo', 'monespace', 'tabproj', 'localisation', 'visio'];
+const LIB_CORE = ['ptools', 'dashboard', 'plans', 'fichiers', 'tasks', 'photos', 'reports', 'team', 'org', 'settings', 'histo', 'monespace', 'tabproj', 'localisation', 'visio'];
 const SVC_LIB = {
   travaux: ['lotsuivi', 'avancement', 'suiviq', 'equipes', 'planning', 'reunions', 'beton', 'calc', 'models3d', 'pointage', 'gestion'],
   ferraillage: ['lotsuivi', 'avancement', 'planning', 'beton', 'calc', 'models3d', 'gestion'],

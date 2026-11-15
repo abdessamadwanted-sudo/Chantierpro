@@ -1545,6 +1545,42 @@ try {
     document.querySelectorAll('.fullpage').forEach(x => x.remove()); return o; } catch (e) { return { err: String(e.message || e) }; } });
   log('v1.0.262 [menu outils : groupe Élément / Coupe / Photos]', tGp);
   log('errors v1.0.262 groupe', !tGp.err && tGp.grouped && tGp.nTools === 10 && tGp.fly && tGp.coupe && tGp.headOn && tGp.photo ? [] : ['v1.0.262 groupe ' + JSON.stringify(tGp)]);
+  const tFi = await A.pg.evaluate(async () => { try { const p = App.project, pid = p.id, o = {}; document.querySelectorAll('.fullpage,.lightbox').forEach(x => x.remove());
+    const blob = (n) => new Blob([new Uint8Array(n)], { type: 'application/pdf' });
+    const fo0 = await DB.put('folders', { projectId: pid, name: 'R+2' }), fo1 = await DB.put('folders', { projectId: pid, name: 'RDC' });
+    const fA = await DB.put('files', { projectId: pid, blob: blob(1000), mime: 'image/jpeg', name: 'a.jpg', role: 'plan' }), fB = await DB.put('files', { projectId: pid, blob: blob(3000), mime: 'application/pdf', name: 'a.pdf', role: 'plansrc' });
+    const pl1 = await DB.put('plans', { projectId: pid, fileId: fA.id, pdfFileId: fB.id, folderId: fo1.id, disc: 'STR', w: 10, h: 10, name: 'Coffrage RDC', annotations: [] });
+    const fC = await DB.put('files', { projectId: pid, blob: blob(2048), mime: 'image/jpeg', name: 'c.jpg', role: 'plan' });
+    const pl2 = await DB.put('plans', { projectId: pid, fileId: fC.id, folderId: fo0.id, disc: 'ARCH', w: 10, h: 10, name: 'Archi R+2', annotations: [] });
+    const d1 = await DB.put('files', { projectId: pid, blob: blob(5000), mime: 'application/pdf', name: 'CPS.pdf', role: 'doc', niv: 'RDC', ptype: 'ARCH' });
+    const d2 = await DB.put('files', { projectId: pid, blob: blob(700), mime: 'application/pdf', name: 'Divers.pdf', role: 'doc' });
+    const C = await Fichiers.collect(p), mine = C.rows.filter(r => [pl1.id, pl2.id, d1.id, d2.id].includes(r.id));
+    o.rows = mine.length === 4 && mine.find(r => r.id === pl1.id).size === 4000 && mine.find(r => r.id === pl1.id).n === 2 && mine.find(r => r.id === pl2.id).size === 2048 && mine.find(r => r.id === d1.id).size === 5000;
+    o.total = C.total >= 4000 + 2048 + 5000 + 700;   // plan = aperçu + PDF source additionnés
+    const gN = Fichiers.group(mine, 'niv'); o.gNiv = gN.map(g => g.label).join() === 'RDC,R+2,Sans niveau' && gN[0].rows.length === 2 && gN[0].size === 9000;   // RDC avant R+2 ; sans niveau en dernier
+    const gT = Fichiers.group(mine, 'type'); o.gType = gT.map(g => g.key).join() === 'ARCH,STR,' && gT[0].rows.length === 2;
+    o.gDate = Fichiers.group(mine, 'date')[0].rows.length === 4;
+    const root = document.createElement('div'); root.style.cssText = 'position:fixed;inset:0;overflow:auto;z-index:99999;background:#fff'; document.body.appendChild(root); App.fi = { q: '', open: {} };
+    await Fichiers.render(root); o.ui = root.querySelector('.fi-tot').textContent.includes('Mo') || root.querySelector('.fi-tot').textContent.includes('Ko');
+    o.hdr = [...root.querySelectorAll('.fi-gh')].some(b => b.textContent.includes('RDC') && b.textContent.includes('2') && /Ko/.test(b.textContent));
+    root.querySelector('[data-v=type]').click(); await new Promise(r => setTimeout(r, 150)); o.chip = !!root.querySelector('[data-v=type].on') && [...root.querySelectorAll('.fi-gh')].some(b => b.textContent.includes('Architecture'));
+    root.querySelector('.fi-gh').click(); o.open = !!root.querySelector('.fi-g.open .fi-r'); o.size = [...root.querySelectorAll('.fi-r em')].some(e => /Ko/.test(e.textContent));
+    const q = root.querySelector('.fi-q'); q.value = 'cps'; q.dispatchEvent(new Event('input')); await new Promise(r => setTimeout(r, 450)); o.search = root.querySelectorAll('.fi-r, .fi-g').length >= 1 && !root.textContent.includes('Archi R+2');
+    o.sizeTxt = /Ko|Mo/.test(await Fichiers.size(pid)); o.sec = !!SECTIONS.fichiers && DR_GROUPS[0][2].includes('fichiers');
+    root.remove(); return o; } catch (e) { return { err: String(e.message || e) + ' ' + String(e.stack || '').split('\n')[1] }; } });
+  log('v1.0.263 [Fichiers : tailles, niveaux, types]', tFi);
+  log('errors v1.0.263 fichiers', !tFi.err && ['rows','total','gNiv','gType','gDate','ui','hdr','chip','open','size','search','sizeTxt','sec'].every(k => tFi[k]) ? [] : ['v1.0.263 fichiers ' + JSON.stringify(tFi)]);
+  const tPd = await A.pg.evaluate(async () => { try { const o = {}; document.querySelectorAll('.lightbox').forEach(x => x.remove());
+    for (let i = 0; i < 40 && !(window.jspdf || window.jsPDF); i++) await new Promise(r => setTimeout(r, 250)); if (!window.pdfjsLib) return { skip: 'pdf.js absent (lib/ non téléchargée en CI)' }; o.libs = [!!window.pdfjsLib, !!(window.jspdf || window.jsPDF)];
+    const J = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF; if (!J) return { skip: 'jsPDF absent', o };
+    const d = new J({ unit: 'pt', format: [842, 595] }); d.setFontSize(40); d.text('COUPE A-A', 100, 200); d.line(50, 300, 700, 320); const blob = d.output('blob');
+    await showPdf(blob, 'Coupe test'); const w = (n) => new Promise(r => setTimeout(r, n)); await w(1500);
+    const lb = [...document.querySelectorAll('.lightbox')].pop(); if (!lb) return { ...o, nolb: document.body.innerText.slice(-200) }; const c = lb.querySelector('canvas'); o.w0 = c.width;
+    const sc = lb.querySelector('.pdf-pages'); for (let i = 0; i < 6; i++) { sc.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, ctrlKey: true, clientX: 200, clientY: 300, bubbles: true, cancelable: true })); await w(30); }
+    await w(1500); o.w1 = c.width; o.sharper = o.w1 > o.w0 * 1.5; o.noBlank = c.width > 0 && c.height > 0;
+    lb.querySelector('[data-a=x]').click(); return o; } catch (e) { return { err: String(e.message || e) }; } });
+  log('v1.0.263 [PDF net au zoom]', tPd);
+  log('errors v1.0.263 pdf', !tPd.err && (tPd.skip || (tPd.sharper && tPd.noBlank)) ? [] : ['v1.0.263 pdf ' + JSON.stringify(tPd)]);
   const tDue = await A.pg.evaluate(() => ({ s: String(openDueTable).includes('Point · échéance') && !String(openDueTable).includes("p.mo ? ' · ' + esc(p.mo) : ''}</span></div>") }));
   log('v1.0.176 [échéances + points]', tDue); log('errors v1.0.176 échéances', tDue.s ? [] : ['v1.0.176 échéances']);
   // ---- v1.0.176 : sauvegarde Drive d'un projet = un seul zip mis à jour sur place (+ « précédente ») ----

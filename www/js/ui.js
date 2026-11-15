@@ -501,11 +501,12 @@ async function showPdf(blob, caption = 'PDF', opts = {}) {
   const unBack = pushBack(shut);
   ($('[data-a=x]', el)||{}).onclick = () => { unBack(); shut(); };
   const scroller = $('.pdf-pages', el), box = $('.pdf-zoom', el);
-  let zk = 1, pinch = null, lastTap = 0, nPages = 0;
+  let zk = 1, pinch = null, lastTap = 0, nPages = 0, hiT = null;
   const setZoom = (nk, mx, my) => {
     nk = Math.max(1, Math.min(5, nk)); const r = scroller.getBoundingClientRect(); mx = mx ?? r.width / 2; my = my ?? r.height / 2;
     const cx = (scroller.scrollLeft + mx) / zk, cy = (scroller.scrollTop + my) / zk; zk = nk; box.style.width = (zk * 100) + '%';
     scroller.scrollLeft = cx * zk - mx; scroller.scrollTop = cy * zk - my; $('[data-a=fit]', el).style.display = zk > 1.02 ? '' : 'none';
+    clearTimeout(hiT); hiT = setTimeout(() => { const R = scroller.getBoundingClientRect(); cs().forEach(c => { const r = c.getBoundingClientRect(); if (c._r && r.bottom > R.top - 200 && r.top < R.bottom + 200) render(c, true); }); }, 380);
   };
   scroller.addEventListener('touchstart', (e) => {
     if (e.touches.length === 2) { const [a, b] = e.touches, r = scroller.getBoundingClientRect(); pinch = { d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), k: zk, mx: (a.clientX + b.clientX) / 2 - r.left, my: (a.clientY + b.clientY) / 2 - r.top }; }
@@ -522,12 +523,18 @@ async function showPdf(blob, caption = 'PDF', opts = {}) {
   const goPage = (n) => { const c = cs()[n - 1]; if (c) scroller.scrollTop = c.offsetTop - 6; pgInd(); };
   // rendu à la demande (les pages visibles d'abord) → on peut sauter direct à la page 150
   const render = async (c, force) => {
-    if (c._r && !force) return; c._r = true; const n = +c.dataset.p;
+    if (c._r && !force) return; if (c._busy) { c._again = true; return; } c._r = true; const n = +c.dataset.p;
     const page = await pdf.getPage(n), vp1 = page.getViewport({ scale: 1 });
-    const vp = page.getViewport({ scale: Math.min(3, (window.innerWidth * 2) / vp1.width) });
-    c.width = vp.width; c.height = vp.height; const g = c.getContext('2d');
-    await page.render({ canvasContext: g, viewport: vp }).promise;
-    if (q) { try { const tc = await page.getTextContent(); g.save(); g.globalCompositeOperation = 'multiply'; g.fillStyle = 'rgba(255,214,0,.55)';
+    // v1.0.263 : la netteté suit le zoom (avant : rendu fixe ≈ 2× la largeur d'écran → flou dès qu'on zoome) ; plafonné (≈ 14 Mpx, 8192 px de côté) pour ne pas saturer le téléphone
+    const want = Math.min(Math.min(3, (window.innerWidth * 2) / vp1.width) * Math.max(1, zk), Math.sqrt(14e6 / (vp1.width * vp1.height)), 8192 / Math.max(vp1.width, vp1.height));
+    if (force && c._s && c._s >= want * 0.98) return; c._busy = true; c._s = want;
+    const vp = page.getViewport({ scale: want });
+    const tmp = document.createElement('canvas'); tmp.width = Math.round(vp.width); tmp.height = Math.round(vp.height); const g = tmp.getContext('2d');   // rendu hors écran puis échange : pas de page blanche pendant la remise au net
+    try { await page.render({ canvasContext: g, viewport: vp }).promise; } catch (e) { c._busy = false; return; }
+    if (!c.isConnected) { tmp.width = tmp.height = 0; c._busy = false; return; }
+    c.width = tmp.width; c.height = tmp.height; c.getContext('2d').drawImage(tmp, 0, 0); tmp.width = tmp.height = 0;
+    c._busy = false; if (c._again) { c._again = false; setTimeout(() => render(c, true), 0); }
+    if (q) { try { const g = c.getContext('2d'); const tc = await page.getTextContent(); g.save(); g.globalCompositeOperation = 'multiply'; g.fillStyle = 'rgba(255,214,0,.55)';
       for (const it of tc.items) { if (!normTxt(it.str).includes(q)) continue; const t = pdfjsLib.Util.transform(vp.transform, it.transform), h = Math.hypot(t[2], t[3]); g.fillRect(t[4], t[5] - h, it.width * vp.scale, h * 1.15); }
       g.restore(); } catch (e) {} }
   };
