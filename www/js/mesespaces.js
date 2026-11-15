@@ -51,8 +51,8 @@ const MesEspaces = (() => {
     ($e('[data-a=new]') || {}).onclick = () => { shut(); Team.openSwitcher(true); };
     ($e('[data-a=me]') || {}).onclick = () => { shut(); Team.openCompany('me'); };
     ($e('[data-a=more]') || {}).onclick = async () => {
-      const v = await menu('Mes espaces', [{ label: 'Ancien sélecteur d\'espace', icon: 'undo', value: 'old' }, { label: 'Désactiver cet écran (revenir à l\'ancien)', icon: 'close', danger: true, value: 'off' }]);
-      if (v === 'old') { shut(); Team.openSwitcher(true); } else if (v === 'off') { setEnabled(false); toast('Ancien sélecteur rétabli'); shut(); }
+      const v = await menu('Mes espaces', [...(Team.isSuper() && typeof Studio !== 'undefined' ? [{ label: 'Architecture Studio', icon: 'layers', value: 'studio' }] : []), { label: 'Ancien sélecteur d\'espace', icon: 'undo', value: 'old' }, { label: 'Désactiver cet écran (revenir à l\'ancien)', icon: 'close', danger: true, value: 'off' }]);
+      if (v === 'studio') { shut(); Studio.open({ onClose: () => MesEspaces.open() }); } else if (v === 'old') { shut(); Team.openSwitcher(true); } else if (v === 'off') { setEnabled(false); toast('Ancien sélecteur rétabli'); shut(); }
     };
     return { el, close: shut, counts: { perso: C.perso.length, orgs: C.orgs.length, invit: C.invit.length, shared: shared.length + C.shared.length } };
   }
