@@ -271,6 +271,8 @@ async function openPlanViewer(plan, ctx) {
   };
   // Taille des pins : proportionnelle au zoom (petits quand on dézoome, limités quand on zoome)
   const strokeW = () => base * st.thick / 3200;
+  // v1.0.264 : le symbole de coupe suit le plan (rétrécit au dézoom, grandit au zoom) ; plancher pour rester visible
+  const pinL = () => Math.max(0.3, Math.min(2.5, (st.scale / st.fitScale) * 0.45 * st.pinSize));
   const pinM = () => Math.max(0.1, Math.min(0.8, Math.pow(st.scale / st.fitScale, 1.15) * 0.18 * st.pinSize));
 
   const el = document.createElement('div');
@@ -660,10 +662,11 @@ async function openPlanViewer(plan, ctx) {
       const ls = 1 / st.scale;
       const [px, py] = linkXY(l);
       if (focusG && ctx.focus && Math.hypot(px - ctx.focus.x, py - ctx.focus.y) < 2) return '';   // v1.0.86 : un seul pin pendant l'arrivée
-      if (l.kind === 'planlink') return `<g transform="translate(${px},${py}) scale(${s})">
+      if (l.kind === 'planlink') { const mL = pinL(); return `<g transform="translate(${px},${py}) scale(${mL / st.scale})">
         <circle r="17" fill="#1e88e5" stroke="#fff" stroke-width="2.4"/>
         <g transform="rotate(${+l.rot || 0})" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"><path d="M0,-11V11" stroke-width="3.4"/><path d="M0,0H10M6,-4.2L10.4,0L6,4.2" stroke-width="2.8"/></g>
-        ${showLabel ? `<text x="0" y="29" text-anchor="middle" font-size="12" fill="#1e88e5" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`;
+        <g transform="translate(13,-13)"><circle r="8.5" fill="#fff" stroke="#1e88e5" stroke-width="1.6"/><g transform="scale(.5) translate(-12,-12)" fill="none" stroke="#1e88e5" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></g></g>
+        ${mL >= 0.4 ? `<text x="0" y="31" text-anchor="middle" font-size="12" fill="#1e88e5" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`; }
       if (l.kind === 'plansbox') { const P = pinLook(l); return `<g transform="translate(${px},${py}) scale(${s})">
         <rect x="-17" y="-17" width="34" height="34" rx="9" fill="${P.c}" stroke="#fff" stroke-width="2.4"/><text x="0" y="6.5" text-anchor="middle" font-size="18">${P.e}</text>
         ${n ? `<circle cx="16" cy="-16" r="9" fill="#111" stroke="#fff" stroke-width="1.5"/><text x="16" y="-12" text-anchor="middle" font-size="11" font-weight="700" fill="#fff" font-family="Arial">${n}</text>` : ''}
@@ -1067,6 +1070,33 @@ async function openPlanViewer(plan, ctx) {
     else a = +v.slice(1);
     if (a == null) return; l.rot = a; await DB.put('links', l); toast('Coupe orientée ✓');
   }
+  // le fichier d'une coupe peut être partagé par des copies : on ne le supprime que si plus aucun lien ne l'utilise
+  async function dropLinkFile(l) {
+    if (!l.fileId) return;
+    const autres = (await DB.all('links')).filter(k => k.id !== l.id && k.fileId === l.fileId);
+    if (!autres.length) await DB.del('files', l.fileId);
+  }
+  // v1.0.264 : appui long sur une coupe → copier vers un autre endroit du plan (même fichier, même sens)
+  function planLinkMenu(l) {
+    return menu(l.name, [{ label: 'Copier vers un autre endroit', icon: 'plus', value: 'copy' }, { label: 'Ouvrir', icon: 'section', value: 'open' }, { label: 'Modifier…', icon: 'edit', value: 'edit' }]).then(async (v) => {
+      if (v === 'open') return openPlanLink(l);
+      if (v === 'edit') { await editPlanLink(l); return reloadData(); }
+      if (v === 'copy') startCopy(l);
+    });
+  }
+  function startCopy(l) {
+    st.copying = l; const bar = document.createElement('div'); bar.className = 'pv-copy';
+    bar.innerHTML = `<span>Touchez l'endroit où coller « ${esc(l.name)} »</span><button data-a="cx">Annuler</button>`;
+    el.appendChild(bar); const end = () => { st.copying = null; bar.remove(); };
+    bar.querySelector('button').onclick = (e) => { e.stopPropagation(); end(); };
+    st.copyEnd = end; cleanups.push(end);
+  }
+  async function pasteCopy(x, y) {
+    const src = st.copying; if (st.copyEnd) st.copyEnd(); if (!src) return;
+    const { id, createdAt, updatedAt, ...rest } = src;
+    await DB.put('links', { ...rest, items: [...(src.items || [])], x, y });
+    await reloadData(); renderMarkers(); toast('Coupe copiée ✓');
+  }
   async function editPlanLink(l) {
     const v = await menu(l.name, [
       { label: 'Ouvrir', icon: 'section', value: 'open' }, { label: 'Orienter la coupe (sens de la vue)', icon: 'section', value: 'orient' }, { label: 'Changer le fichier / plan lié', icon: 'plans', value: 'change' },
@@ -1074,9 +1104,9 @@ async function openPlanViewer(plan, ctx) {
     ]);
     if (v === 'open') return openPlanLink(l);
     if (v === 'orient') await orientPlanLink(l);
-    if (v === 'change') { const t = await pickLinkTarget(); if (t) { const { defName, ...tg } = t; if (l.fileId && l.fileId !== tg.fileId) await DB.del('files', l.fileId); Object.assign(l, tg); await DB.put('links', l); toast('Lien modifié ✓'); } }
+    if (v === 'change') { const t = await pickLinkTarget(); if (t) { const { defName, ...tg } = t; if (l.fileId && l.fileId !== tg.fileId) await dropLinkFile(l); Object.assign(l, tg); await DB.put('links', l); toast('Lien modifié ✓'); } }
     if (v === 'rename') { const r = await formSheet('Renommer', [{ name: 'name', label: 'Nom', value: l.name }]); if (r && r.name) { l.name = r.name; await DB.put('links', l); } }
-    if (v === 'del' && await confirmBox('Supprimer ce lien ?')) { if (l.fileId) await DB.del('files', l.fileId); await DB.del('links', l.id); }
+    if (v === 'del' && await confirmBox('Supprimer ce lien ?')) { await dropLinkFile(l); await DB.del('links', l.id); }
   }
 
   // ---------- Dessin en plusieurs touchers (ligne / polyligne) ----------
@@ -1172,6 +1202,8 @@ async function openPlanViewer(plan, ctx) {
     }
     // un appui (court ou long) sur un pin l'ouvre ; on ne déplace un pin qu'avec l'outil « Sélection »
     if (['pan', 'pin', 'link', 'planlink', 'plansbox', 'photonote'].includes(st.tool) && !g.edit && hitMarker(p[0], p[1])) g.onPin = true;
+    if (g.onPin && !st.copying && !ctx.place) { const h = hitMarker(p[0], p[1]); if (h && h.kind === 'planlink') { const G = g, pid = e.pointerId;
+      G.lpTimer = setTimeout(() => { if (g !== G || G.moved) return; ptrs.delete(pid); g = null; gPrev.innerHTML = ''; try { navigator.vibrate && navigator.vibrate(30); } catch (er) {} planLinkMenu(h.obj); }, 550); } }
     const dragDraw = st.tool === 'draw' && !st.pend && (st.shape === 'free' || TWO_PT.includes(st.shape));
     g.mode = g.edit ? 'edit' : (dragDraw || (st.tool === 'draw' && st.shape === 'poly') || ['pin', 'link', 'planlink', 'plansbox', 'photonote'].includes(st.tool)) ? 'draw' : 'pan';
   });
@@ -1302,7 +1334,8 @@ async function openPlanViewer(plan, ctx) {
         if (l.planId !== plan.id) continue;
         const [lx, ly] = linkXY(l);
         // le pin ET son nom sont touchables (un simple appui ouvre)
-        if (l.kind === 'planlink' || l.kind === 'plansbox') consider(Math.min(Math.hypot(x - lx, y - ly) * 0.8, Math.hypot((x - lx) * 0.5, y - (ly + head(l.kind === 'plansbox' ? 32 : 29)))), { kind: l.kind, obj: l });
+        if (l.kind === 'planlink') consider(Math.min(Math.hypot(x - lx, y - ly) * 0.8, Math.hypot((x - lx) * 0.5, y - (ly + 31 * pinL() / st.scale))), { kind: l.kind, obj: l });
+        else if (l.kind === 'plansbox') consider(Math.min(Math.hypot(x - lx, y - ly) * 0.8, Math.hypot((x - lx) * 0.5, y - (ly + head(32)))), { kind: l.kind, obj: l });
         else consider(Math.min(Math.hypot(x - lx, y - (ly - head(31))) * 0.8, Math.hypot(x - lx, y - ly), Math.hypot((x - lx) * 0.5, y - (ly + head(16)))), { kind: l.kind === 'photonote' ? 'photonote' : l.kind === 'recpin' ? 'recpin' : 'link', obj: l });
       }
     }
@@ -1310,6 +1343,7 @@ async function openPlanViewer(plan, ctx) {
   }
 
   async function onTap([x, y], aimed = false) {
+    if (st.copying) return pasteCopy(x, y);
     if (ctx.place) { const ok = await ctx.place.onPlace(x, y, plan); if (ok !== false) close(); return; }
     // double-tap = zoom
     const now = Date.now();

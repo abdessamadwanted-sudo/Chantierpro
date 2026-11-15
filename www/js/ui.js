@@ -503,7 +503,7 @@ async function showPdf(blob, caption = 'PDF', opts = {}) {
   const scroller = $('.pdf-pages', el), box = $('.pdf-zoom', el);
   let zk = 1, pinch = null, lastTap = 0, nPages = 0, hiT = null;
   const setZoom = (nk, mx, my) => {
-    nk = Math.max(1, Math.min(5, nk)); const r = scroller.getBoundingClientRect(); mx = mx ?? r.width / 2; my = my ?? r.height / 2;
+    nk = Math.max(1, Math.min(12, nk)); const r = scroller.getBoundingClientRect(); mx = mx ?? r.width / 2; my = my ?? r.height / 2;
     const cx = (scroller.scrollLeft + mx) / zk, cy = (scroller.scrollTop + my) / zk; zk = nk; box.style.width = (zk * 100) + '%';
     scroller.scrollLeft = cx * zk - mx; scroller.scrollTop = cy * zk - my; $('[data-a=fit]', el).style.display = zk > 1.02 ? '' : 'none';
     clearTimeout(hiT); hiT = setTimeout(() => { const R = scroller.getBoundingClientRect(); cs().forEach(c => { const r = c.getBoundingClientRect(); if (c._r && r.bottom > R.top - 200 && r.top < R.bottom + 200) render(c, true); }); }, 380);
