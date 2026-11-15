@@ -296,7 +296,7 @@ function orgSvg(p, collapsed, { forExport } = {}) {
   const cards = [...pos.values()].map(({ x, y, m, n }) => { const c = memColor(m), P = memPoste(m), x0 = x + O, y0 = y + O;
     return `<g data-m="${m.id}" style="cursor:pointer"><rect x="${x0}" y="${y0}" width="${CW}" height="${CH}" rx="12" fill="${forExport ? '#ffffff' : 'var(--card)'}" stroke="${c}" stroke-width="1.6"/>
       <rect x="${x0}" y="${y0}" width="6" height="${CH}" rx="3" fill="${c}"/>
-      <circle cx="${x0 + 28}" cy="${y0 + CH / 2}" r="15" fill="${c}"/><text x="${x0 + 28}" y="${y0 + CH / 2 + 5}" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">${X((m.name || '?')[0].toUpperCase())}</text>
+      ${typeof OrgCrews !== 'undefined' ? OrgCrews.helmetG(OrgCrews.gradeOf(m), x0 + 12, y0 + CH / 2 - 12, 1.05) : ''}
       <text x="${x0 + 50}" y="${y0 + 26}" font-size="13" font-weight="700" fill="${forExport ? '#0f172a' : 'var(--text)'}">${X((m.name || '').slice(0, 17))}${m.me ? ' (moi)' : ''}</text>
       <text x="${x0 + 50}" y="${y0 + 43}" font-size="10.5" fill="${forExport ? '#475569' : 'var(--muted)'}">${X(((P && P.n) || m.role || '').slice(0, 24))}</text>
       <text x="${x0 + 50}" y="${y0 + 58}" font-size="10" fill="${c}">${X(((P && P.svc.n) || '').slice(0, 24))}${m.branche ? ' · ' + (m.branche === 'admin' ? 'Admin' : 'Chantier') : ''}${m.interim ? ' · intérim' : ''}${missionStats(m).open ? ' · 🎯' + missionStats(m).open : ''}</text>
@@ -398,7 +398,7 @@ async function orgFiche(p, m, canE, save, redraw) {
   let xh = ''; try { xh = await OrgCrews.fiche(p, m, canE); } catch (e) {}
   const draw = () => {
     const cd = ogCodeGet(m), ms = missionsOf(m), ok = cd && (Date.now() - cd.at) < 7 * 864e5;
-    return `<div class="og-f" style="--c:${memColor(m)}"><div class="og-fa">${esc((m.name || '?')[0].toUpperCase())}</div><b>${esc(m.name || '')}${m.me ? ' (moi)' : ''}</b><span>${esc(P ? P.svc.e + ' ' + P.n : m.role || '')}</span>
+    return `<div class="og-f" style="--c:${memColor(m)}"><div class="og-fa">${typeof OrgCrews !== 'undefined' ? OrgCrews.helmet(m, 44) : esc((m.name || '?')[0].toUpperCase())}</div><b>${esc(m.name || '')}${m.me ? ' (moi)' : ''}</b><span>${esc(P ? P.svc.e + ' ' + P.n : m.role || '')}</span>
     ${m.branche ? `<small>${esc(orgBrLabel(m.branche))}</small>` : ''}${orgEnt() ? `<small>${m.volet === 'adm' ? '📁 Volet Administratif' : m.volet === 'ter' ? '🏗️ Volet Terrain' : '📁🏗️ Administratif + Terrain'}</small>` : ''}${par ? `<small>N+1 : ${esc(par.name)}</small>` : ''}${sub.length ? `<small>Équipe : ${sub.map(x => esc(x.name)).join(', ')}</small>` : ''}
     ${it && (!m.interimTo || m.interimTo >= todayISO()) ? `<small class="og-int">🔁 En congé · intérim : ${esc(it.name)}${m.interimTo ? ' jusqu\'au ' + fmtDate(m.interimTo) : ''}</small>` : ''}
     <div class="og-fb">${m.phone ? `<a class="btn small" href="tel:${esc(m.phone)}">${icon('phone')} Appeler</a><button class="btn small ghost" data-wa>WhatsApp</button>` : ''}${canE ? `<button class="btn small ghost" data-ed>${icon('edit')} Modifier</button>` : ''}</div></div>

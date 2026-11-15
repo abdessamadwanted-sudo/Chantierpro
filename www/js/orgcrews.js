@@ -43,6 +43,18 @@ const OrgCrews = (() => {
   const rolesOf = (c) => [['Chef d\'équipe', c.leaderId], ['Chef de chantier', c.chefId], ...(c.techIds || []).map(i => ['Technicien', i]), ...(c.condIds || []).map(i => ['Conducteur', i])].filter(r => r[1]);
   const crewsOf = (crews, id) => crews.filter(c => rolesOf(c).some(r => r[1] === id));
 
+  // ---- grade → casque de chantier (convention SiteTeam, la légende est affichée) ----
+  const GRADES = { dir: { l: 'Direction', c: '#f8fafc', s: '#d4a017' }, cond: { l: 'Conducteur / ingénieur', c: '#2563eb', s: '#bfdbfe' }, tech: { l: 'Technicien', c: '#16a34a', s: '#bbf7d0' },
+    chef: { l: 'Chef de chantier', c: '#f97316', s: '#ffedd5' }, ceq: { l: 'Chef d\'équipe', c: '#facc15', s: '#a16207' }, ouv: { l: 'Ouvrier', c: '#9ca3af', s: '#e5e7eb' } };
+  function gradeOf(m) { const P = (typeof posteOf === 'function' && posteOf(m.poste)) || null, n = String((P && P.n) || m.role || ''), k = m.poste || '';
+    if (m.grade && GRADES[m.grade]) return m.grade;
+    if (/technicien|^TS\b/i.test(n) || k === 'tsq') return 'tech'; if (k === 'chef') return 'chef'; if (k === 'cheq') return 'ceq';
+    if (!P) return /ouvrier/i.test(n) ? 'ouv' : 'tech'; return P.lv <= 2 ? 'dir' : P.lv <= 4 ? 'cond' : 'ouv'; }
+  const helmetG = (g, x, y, k) => { const G = GRADES[g] || GRADES.ouv, sc = (k || 1);   // casque 30×26 dessiné en SVG (dôme, bande centrale, visière)
+    return `<g transform="translate(${x} ${y}) scale(${sc})"><path d="M2 20a13 13 0 0 1 26 0z" fill="${G.c}" stroke="#0f172a" stroke-opacity=".45" stroke-width="1.2"/><rect x="13" y="4" width="4" height="16" fill="${G.s}" stroke="#0f172a" stroke-opacity=".25" stroke-width=".6"/><rect x="0" y="19.5" width="30" height="4.5" rx="2.2" fill="${G.c}" stroke="#0f172a" stroke-opacity=".45" stroke-width="1.2"/></g>`; };
+  const helmet = (m, px) => { const g = gradeOf(m), sz = px || 30; return `<svg class="og-hm" width="${sz}" height="${Math.round(sz * .87)}" viewBox="0 0 30 26" role="img" aria-label="${esc(GRADES[g].l)}">${helmetG(g, 0, 0, 1)}</svg>`; };
+  const legend = () => `<div class="og-lg">${Object.entries(GRADES).map(([k, g]) => `<span><svg width="20" height="17" viewBox="0 0 30 26">${helmetG(k, 0, 0, 1)}</svg>${esc(g.l)}</span>`).join('')}</div>`;
+
   async function load(p) { const all = mine(await DB.byProject('items', p.id), p.id); return { crews: all.filter(x => x.kind === 'ogt'), workers: all.filter(x => x.kind === 'ogw'), mems: all.filter(x => x.kind === 'ogm'), asg: all.filter(x => x.kind === 'oga'), arts: all.filter(x => x.kind === 'sqa'), ents: all.filter(x => x.kind === 'sqe') }; }
   const nameOf = (p, W, who) => who.startsWith('m:') ? ((p.team || []).find(m => m.id === who.slice(2)) || {}).name || '?' : (W.find(w => w.id === who.slice(2)) || {}).name || '?';
   const audit = (x, what) => { (x.hist = x.hist || []).push({ at: Date.now(), by: typeof myName === 'function' ? myName() : '', what }); x.updatedAt = Date.now(); return x; };
@@ -58,7 +70,7 @@ const OrgCrews = (() => {
       const a = L.asg.filter(x => x.crewId === c.id && x.from <= per.to && (!x.to || x.to >= per.from)).map(x => spatialLabel(x.spatial)).join(' ; ') || spatialLabel(c.spatial);
       return `<button class="og-ms" data-crew="${c.id}"><span class="grow"><b>${esc(c.name)}</b><small>${esc(c.trade || '')} · ${esc(a)} · ${u}</small></span><span>›</span></button>`; };
     return `<div class="og-sec"><h4>🧭 Responsabilités et rattachement</h4>
-      <small>Métiers : ${(m.trades || []).length ? (m.trades || []).map(esc).join(', ') : 'généraliste (aucun périmètre de métier implicite)'}</small>
+      <small>${helmet(m, 22)} Grade : ${esc(GRADES[gradeOf(m)].l)}</small><br><small>Métiers : ${(m.trades || []).length ? (m.trades || []).map(esc).join(', ') : 'généraliste (aucun périmètre de métier implicite)'}</small>
       ${par ? `<small>Responsable fonctionnel : <b>${esc(par.name)}</b></small>` : ''}${canE ? '<div class="og-fb"><button class="btn small ghost" data-a="trades">Métiers / responsable fonctionnel</button></div>' : ''}</div>
     <div class="og-sec"><h4>👷 Équipes suivies <i>${sup.length}</i></h4>${sup.map(row).join('') || '<p class="muted" style="font-size:12px">Aucune équipe dans votre périmètre.</p>'}
       <div class="og-kp"><span><b>${head}</b> ouvrier(s) distinct(s)</span><small>sur ${fmt(per.n)} j (${per.from} → ${per.to}) · une personne dans 2 équipes = 1</small></div>
@@ -82,7 +94,7 @@ const OrgCrews = (() => {
     const asg = L.asg.filter(x => x.crewId === id).sort((a, b) => b.from.localeCompare(a.from));
     const pers = (i) => (p.team || []).find(x => x.id === i);
     const html = () => `<div class="og-fw"><div class="og-f"><b>${esc(c.name)}</b><span>${esc(c.trade || '')} · ${esc(spatialLabel(((asg.find(x => !x.to) || {}).spatial) || c.spatial))}</span></div>
-      <div class="og-sec"><h4>Encadrement</h4>${rolesOf(c).map(([r, i]) => `<button class="og-ms" data-p="${i}"><span class="grow"><b>${esc((pers(i) || {}).name || '?')}</b><small>${r}</small></span><span>›</span></button>`).join('') || '<small class="muted">Non renseigné</small>'}</div>
+      <div class="og-sec"><h4>Encadrement</h4>${rolesOf(c).map(([r, i]) => `<button class="og-ms" data-p="${i}">${pers(i) ? helmet(pers(i), 28) : ''}<span class="grow"><b>${esc((pers(i) || {}).name || '?')}</b><small>${r}</small></span><span>›</span></button>`).join('') || '<small class="muted">Non renseigné</small>'}</div>
       <div class="og-sec"><h4>Effectif <i>${uniqueHeads(cm, now, now)}</i></h4><small>Aujourd'hui (${uniqueHeads(cm, now, now, 'w:')} ouvriers · ${uniqueHeads(cm, now, now, 'm:')} encadrants)</small>
         ${cur.map(x => `<div class="og-ms"><span class="grow"><b>${esc(nameOf(p, L.workers, x.who))}</b><small>depuis ${esc(x.from)}${x.to ? ' → ' + esc(x.to) : ''}</small></span>${canE ? `<button class="btn small ghost" data-end="${x.id}">Retirer</button>` : ''}</div>`).join('')}
         ${canE ? '<div class="og-fb"><button class="btn small" data-a="addw">＋ Ouvrier</button><button class="btn small ghost" data-a="addm">＋ Encadrant</button></div>' : ''}</div>
@@ -125,13 +137,20 @@ const OrgCrews = (() => {
 
   // ---- liste des équipes (vue Directeur / Conducteur selon le périmètre) ----
   async function list(p, canE) {
-    const L = await load(p), S = scope(p, L.crews, L.mems), per = period();
-    const s = sheet(`<div class="og-fw"><div class="og-sec"><h4>👷 Équipes ${S.all ? 'du projet' : 'de mon périmètre'} <i>${S.crews.length}</i></h4>
-      ${S.crews.map(c => { const n = uniqueHeads(L.mems.filter(x => x.crewId === c.id), per.from, per.to); return `<button class="og-ms" data-crew="${c.id}"><span class="grow"><b>${esc(c.name)}</b><small>${esc(c.trade || '')} · ${esc(spatialLabel(c.spatial))} · ${n} pers.</small></span><span>›</span></button>`; }).join('') || '<small class="muted">Aucune équipe.</small>'}
-      ${canE ? '<div class="og-fb"><button class="btn small" data-a="new">＋ Équipe</button></div>' : ''}
-      <div class="og-kp"><span><b>${uniqueHeads(L.mems.filter(x => S.crews.some(c => c.id === x.crewId)), per.from, per.to, 'w:')}</b> ouvriers distincts</span><small>${per.from} → ${per.to} · dédoublonnés entre équipes</small></div></div></div>`, { title: 'Équipes' });
+    const L = await load(p), S = scope(p, L.crews, L.mems), per = period(), me = S.me, P = me && typeof posteOf === 'function' ? posteOf(me.poste) : null, today_ = today();
+    const trades = [...new Set(S.crews.map(c => c.trade).filter(Boolean))], act = L.asg.filter(x => S.crews.some(c => c.id === x.crewId) && x.from <= today_ && (!x.to || x.to >= today_));
+    const zonesAct = new Set(act.map(x => spatialLabel(x.spatial))), head = uniqueHeads(L.mems.filter(x => S.crews.some(c => c.id === x.crewId)), per.from, per.to, 'w:');
+    const title = S.all ? 'Dashboard Directeur' : 'Dashboard ' + (P ? P.n : 'Conducteur'), sub = S.all ? 'Toutes les équipes du projet' : (me && (me.trades || []).length ? me.trades.join(' + ') : 'Périmètre limité à mes affectations');
+    const K = (l, v) => `<div class="og-k"><small>${l}</small><b>${v}</b></div>`;
+    const card = (c) => { const y = yields(c, L.mems, L.ents, L.arts, per.from, per.to), a = act.find(x => x.crewId === c.id), u = a && a.unit, v = u && y.byUnit[u], pct = v && a.obj > 0 && v.perDay != null ? Math.round(v.perDay / a.obj * 100) : null, boss = (p.team || []).find(x => x.id === c.leaderId);
+      return `<button class="og-ms og-tc" data-crew="${c.id}">${boss ? helmet(boss, 30) : ''}<span class="grow"><b>${esc(c.name)}</b><small>${esc(spatialLabel((a || {}).spatial || c.spatial))}</small>${pct != null ? `<div class="sq-tr"><div class="sq-fl" style="width:${Math.min(100, pct)}%"></div></div>` : ''}</span><b>${pct != null ? pct + '%' : '—'}</b></button>`; };
+    const s = sheet(`<div class="og-fw"><div class="og-sec"><span class="og-demo">${S.all ? 'Vue complète' : 'Mon périmètre'}</span><h4>${esc(title)}</h4><small>${esc(sub)} · ${esc(p.name)}</small>
+      <div class="og-kg">${K('Ouvriers affectés', head)}${K('Équipes', S.crews.length)}${K('Métiers', trades.length)}${K('Zones actives', zonesAct.size)}</div>
+      <h4 style="margin-top:14px">Affectations des équipes</h4>${S.crews.map(card).join('') || '<small class="muted">Aucune équipe.</small>'}
+      <small class="muted">Les % comparent le rendement journalier moyen (${per.from} → ${per.to}) à l'objectif journalier de l'affectation en cours, même unité. Ce n'est pas l'avancement global (voir Suivi quantitatif). « — » : objectif ou quantité non liés.</small>
+      ${canE ? '<div class="og-fb"><button class="btn small" data-a="new">＋ Équipe</button></div>' : ''}${legend()}</div></div>`, { title: 'Équipes' });
     $$('[data-crew]', s.el).forEach(b => b.onclick = () => { s.close(); crewSheet(p, b.dataset.crew, canE); });
     const nw = $('[data-a=new]', s.el); if (nw) nw.onclick = async () => { s.close(); if (await editCrew(p, null)) list(p, canE); };
   }
-  return { list, fiche, bindFiche, crewSheet, calc: { overlap, uniqueHeads, personDays, yields, scope, spatialLabel, crewsOf }, TRADES };
+  return { list, fiche, bindFiche, crewSheet, helmet, helmetG, gradeOf, GRADES, calc: { overlap, uniqueHeads, personDays, yields, scope, spatialLabel, crewsOf }, TRADES };
 })();
