@@ -136,7 +136,7 @@ const OrgCrews = (() => {
   }
 
   // ---- liste des équipes (vue Directeur / Conducteur selon le périmètre) ----
-  async function list(p, canE) {
+  async function list(p, canE, embed) {
     const L = await load(p), S = scope(p, L.crews, L.mems), per = period(), me = S.me, P = me && typeof posteOf === 'function' ? posteOf(me.poste) : null, today_ = today();
     const trades = [...new Set(S.crews.map(c => c.trade).filter(Boolean))], act = L.asg.filter(x => S.crews.some(c => c.id === x.crewId) && x.from <= today_ && (!x.to || x.to >= today_));
     const zonesAct = new Set(act.map(x => spatialLabel(x.spatial))), head = uniqueHeads(L.mems.filter(x => S.crews.some(c => c.id === x.crewId)), per.from, per.to, 'w:');
@@ -144,13 +144,15 @@ const OrgCrews = (() => {
     const K = (l, v) => `<div class="og-k"><small>${l}</small><b>${v}</b></div>`;
     const card = (c) => { const y = yields(c, L.mems, L.ents, L.arts, per.from, per.to), a = act.find(x => x.crewId === c.id), u = a && a.unit, v = u && y.byUnit[u], pct = v && a.obj > 0 && v.perDay != null ? Math.round(v.perDay / a.obj * 100) : null, boss = (p.team || []).find(x => x.id === c.leaderId);
       return `<button class="og-ms og-tc" data-crew="${c.id}">${boss ? helmet(boss, 30) : ''}<span class="grow"><b>${esc(c.name)}</b><small>${esc(spatialLabel((a || {}).spatial || c.spatial))}</small>${pct != null ? `<div class="sq-tr"><div class="sq-fl" style="width:${Math.min(100, pct)}%"></div></div>` : ''}</span><b>${pct != null ? pct + '%' : '—'}</b></button>`; };
-    const s = sheet(`<div class="og-fw"><div class="og-sec"><span class="og-demo">${S.all ? 'Vue complète' : 'Mon périmètre'}</span><h4>${esc(title)}</h4><small>${esc(sub)} · ${esc(p.name)}</small>
+    const html = `<div class="og-fw"><div class="og-sec"><span class="og-demo">${S.all ? 'Vue complète' : 'Mon périmètre'}</span><h4>${esc(title)}</h4><small>${esc(sub)} · ${esc(p.name)}</small>
       <div class="og-kg">${K('Ouvriers affectés', head)}${K('Équipes', S.crews.length)}${K('Métiers', trades.length)}${K('Zones actives', zonesAct.size)}</div>
       <h4 style="margin-top:14px">Affectations des équipes</h4>${S.crews.map(card).join('') || '<small class="muted">Aucune équipe.</small>'}
       <small class="muted">Les % comparent le rendement journalier moyen (${per.from} → ${per.to}) à l'objectif journalier de l'affectation en cours, même unité. Ce n'est pas l'avancement global (voir Suivi quantitatif). « — » : objectif ou quantité non liés.</small>
-      ${canE ? '<div class="og-fb"><button class="btn small" data-a="new">＋ Équipe</button></div>' : ''}${legend()}</div></div>`, { title: 'Équipes' });
-    $$('[data-crew]', s.el).forEach(b => b.onclick = () => { s.close(); crewSheet(p, b.dataset.crew, canE); });
-    const nw = $('[data-a=new]', s.el); if (nw) nw.onclick = async () => { s.close(); if (await editCrew(p, null)) list(p, canE); };
+      ${canE ? '<div class="og-fb"><button class="btn small" data-a="new">＋ Équipe</button></div>' : ''}${legend()}</div></div>`;
+    const s = embed ? (embed.innerHTML = html, { el: embed, close() { list(p, canE, embed); } }) : sheet(html, { title: 'Équipes' });
+    $$('[data-crew]', s.el).forEach(b => b.onclick = () => { if (!embed) s.close(); crewSheet(p, b.dataset.crew, canE); });
+    const nw = $('[data-a=new]', s.el); if (nw) nw.onclick = async () => { if (!embed) s.close(); if (await editCrew(p, null)) list(p, canE, embed); };
   }
-  return { list, fiche, bindFiche, crewSheet, helmet, helmetG, gradeOf, GRADES, calc: { overlap, uniqueHeads, personDays, yields, scope, spatialLabel, crewsOf }, TRADES };
+  const render = (root) => list(App.project, orgEdit('org') && orgCanAdmin(), root);
+  return { render, list, fiche, bindFiche, crewSheet, helmet, helmetG, gradeOf, GRADES, calc: { overlap, uniqueHeads, personDays, yields, scope, spatialLabel, crewsOf }, TRADES };
 })();
