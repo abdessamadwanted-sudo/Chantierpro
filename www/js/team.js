@@ -619,6 +619,11 @@ service firebase.storage {
   }
 }`;
 
+// v1.0.275 : la TAILLE de l'organisation (petite / moyenne / grande) est un champ à part (companies/{cid}.taille), indépendant du pack.
+// Sans valeur choisie, elle se déduit du pack comme avant (Basic = petite · Business = moyenne · Enterprise = grande) : aucun changement pour l'existant.
+const TAILLES = [['petite', 'Petite entreprise', 'structure légère, services regroupés'], ['moyenne', 'Moyenne entreprise', 'services structurés, plusieurs conducteurs'], ['grande', 'Grande entreprise', 'directions, départements, hiérarchie avancée']];
+const tailleOf = (company, planKey) => { const c = company || {}; if (c.kind === 'perso') return 'perso'; if (TAILLES.some(t => t[0] === c.taille)) return c.taille; return planKey === 'enterprise' ? 'grande' : planKey === 'business' ? 'moyenne' : 'petite'; };
+
 const Team = (() => {
   const LS = {
     get(k, d = null) { try { const v = localStorage.getItem('team.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -726,7 +731,8 @@ const Team = (() => {
   // espace personnel vu par son propriétaire ; un collaborateur invité sur un projet voit seulement ce projet
   const isPerso = () => (S.company || {}).kind === 'perso' && (S.me || {}).role !== 'collaborateur';
   // taille d'entreprise (décision du 27/10) : elle suit le pack — Basic = petite · Business = moyenne · Enterprise = grande
-  const taille = () => { if ((S.company || {}).kind === 'perso') return 'perso'; const k = myPlan().k; return k === 'enterprise' ? 'grande' : k === 'business' ? 'moyenne' : 'petite'; };
+  // (v1.0.275) un champ « taille » choisi par l'administrateur prime ; l'aperçu de pack du Super Admin garde la déduction par le pack
+  const taille = () => tailleOf(packPreview() ? { ...(S.company || {}), taille: '' } : S.company, myPlan().k);
   const isCollab = () => (S.me || {}).role === 'collaborateur';
   // services de l'organisation : ceux choisis à la création (+ externes + ceux déjà utilisés par un membre) ; anciennes entreprises : tous
   const companyServices = () => { const c = S.company || {}; if (!Array.isArray(c.services)) return TM_SERVICES.filter(x => !SERVICES_LEGACY.includes(x.k) || (S.members || []).some(m => m.service === x.k));
@@ -1979,7 +1985,7 @@ const Team = (() => {
             <p style="font-size:12.5px;color:var(--muted)">Essai — la facturation n'est pas encore activée. Un membre invité par code n'a pas besoin de pack : seule l'organisation est facturée.</p>
             <div class="btnrow" style="padding:0"><button class="btn ghost small" data-a="catalog">Catalogue des outils</button><button class="btn ghost small" data-a="planchange">Demander un changement de pack</button><button class="btn ghost small" data-a="pcode">🎟 Code pack</button></div></div>
           ${isPerso() ? '' : `<div class="tm-box"><b>${T.e} Type d'organisation : ${esc(T.l)}</b><p>Le type choisit l'interface (outils mis en avant). Services actifs : ${companyServices().filter(x => x.k !== 'externe').map(x => esc(x.l)).join(', ')}.</p>
-            <div class="btnrow" style="padding:0"><button class="btn ghost small" data-a="otype">Changer le type</button><button class="btn ghost small" data-a="svcs">Services…</button></div></div>`}
+            <div class="btnrow" style="padding:0"><button class="btn ghost small" data-a="otype">Changer le type</button><button class="btn ghost small" data-a="otaille">Taille : ${esc((TAILLES.find(t => t[0] === taille()) || [0, '—'])[1].split(' ')[0])}</button><button class="btn ghost small" data-a="svcs">Services…</button></div></div>`}
           <div class="tm-box"><b>☁ Google Drive de l'entreprise</b><p>Les plans, photos et PDF de toute l'équipe sont rangés dans ce Drive. Les membres le reçoivent automatiquement.</p>
             <div>${c && c.mode === 'g' ? `<span style="color:#22c55e">✓ Connecté avec Google${c.email ? ' (' + esc(c.email) + ')' : ''}</span><br><span style="font-size:12.5px;color:var(--muted)">Drive personnel de ce compte (chaque membre peut connecter le sien).</span>` : c && c.url ? '<span style="color:#22c55e">✓ Connecté</span>' : '<span style="color:#f59e0b">Non connecté — les fichiers restent sur chaque téléphone</span>'}</div>
             <div class="btnrow" style="padding:0"><button class="btn ghost small" data-a="drive">${c && (c.url || c.mode === 'g') ? 'Réglages Drive' : 'Connecter Google Drive'}</button>${c && c.url ? '<button class="btn ghost small" data-a="share">Partager avec l\'équipe</button>' : ''}</div></div>
@@ -2003,6 +2009,10 @@ const Team = (() => {
         const ot = $('[data-a=otype]', body); if (ot) ot.onclick = async () => {
           const k = await menu('Type d\'organisation', ORG_TYPES.map(t => ({ label: `${t.e} ${t.l}`, value: t.k, checked: t.k === T.k })));
           if (!k || k === T.k) return; try { await fs.collection('companies').doc(S.cid).update({ orgType: k }); S.company.orgType = k; LS.set('company', S.company); toast('Interface mise à jour ✓'); draw(); } catch (e) { alertBox(errMsg(e)); } };
+        const ota = $('[data-a=otaille]', body); if (ota) ota.onclick = async () => {
+          const k = await menu('Taille de l\'organisation', [...TAILLES.map(t => ({ label: `${t[1]} — ${t[2]}`, value: t[0], checked: t[0] === taille() })), ...(S.company.taille ? [{ label: 'Revenir au calcul automatique (selon le pack)', icon: 'undo', value: 'auto' }] : [])]);
+          if (!k) return; const v = k === 'auto' ? firebase.firestore.FieldValue.delete() : k;
+          try { await fs.collection('companies').doc(S.cid).update({ taille: v }); if (k === 'auto') delete S.company.taille; else S.company.taille = k; LS.set('company', S.company); toast('Taille enregistrée ✓'); draw(); } catch (e) { alertBox(errMsg(e)); } };
         const sv = $('[data-a=svcs]', body); if (sv) sv.onclick = async () => { const L = await pickServices(Array.isArray(S.company.services) ? S.company.services : TM_SERVICES.map(x => x.k));
           if (!L) return; try { await fs.collection('companies').doc(S.cid).update({ services: L }); S.company.services = L; LS.set('company', S.company); toast('Services enregistrés ✓'); draw(); } catch (e) { alertBox(errMsg(e)); } };
         const sh = $('[data-a=share]', body); if (sh) sh.onclick = shareDrive;
@@ -2429,7 +2439,7 @@ const Team = (() => {
 
   return {
     boot, push, pull, resetPull, lvl, canSection, svcLib, canProject, isAdmin, openCompany, taille, secureApply, secureOn, saveAffectations, noteProject, projectIds, inviteFlow, inviteFor, shareInvite, canInviteNow: () => canInvite(), logout, decorateSection, removeMember, refreshMembers,
-    isSuper, superConsole, orgType, isPerso, companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, isOwner, deleteEspace, workspaces: () => S.workspaces || [], shared: () => S.shared || [], cid: () => S.cid,
+    isSuper, superConsole, orgType, isPerso, tailleList: () => TAILLES, companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, isOwner, deleteEspace, workspaces: () => S.workspaces || [], shared: () => S.shared || [], cid: () => S.cid,
     profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
     openProjectShares, claimShare, openPartners, renderHistory, sharedOf, joinWithCode,
     cloudOn, canCloud, cloudUpload, cloudDownload, cloudRemove, cloudCfg, storageRules: STORAGE_RULES,

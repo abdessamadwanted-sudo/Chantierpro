@@ -1594,6 +1594,15 @@ try {
     root.remove(); return o; } catch (e) { return { err: String(e.message || e) + ' ' + String(e.stack || '').split('\n')[1] }; } });
   log('v1.0.263 [Fichiers : tailles, niveaux, types]', tFi);
   log('errors v1.0.263 fichiers', !tFi.err && ['rows','total','gNiv','gType','gDate','ui','hdr','chip','open','size','search','sizeTxt','sec'].every(k => tFi[k]) ? [] : ['v1.0.263 fichiers ' + JSON.stringify(tFi)]);
+  const tTa = await A.pg.evaluate(async () => { try { const o = {};
+    o.auto = tailleOf({}, 'basic') === 'petite' && tailleOf({}, 'business') === 'moyenne' && tailleOf({}, 'enterprise') === 'grande' && tailleOf(null, 'pro') === 'petite';
+    o.explicit = tailleOf({ taille: 'grande' }, 'basic') === 'grande' && tailleOf({ taille: 'petite' }, 'enterprise') === 'petite' && tailleOf({ taille: 'moyenne' }, 'business') === 'moyenne';
+    o.invalid = tailleOf({ taille: 'geante' }, 'business') === 'moyenne' && tailleOf({ taille: '' }, 'enterprise') === 'grande';
+    o.perso = tailleOf({ kind: 'perso', taille: 'grande' }, 'enterprise') === 'perso';
+    o.list = Team.tailleList().map(t => t[0]).join() === 'petite,moyenne,grande' && ['petite', 'moyenne', 'grande', 'perso'].includes(Team.taille());
+    return o; } catch (e) { return { err: String(e.message || e) }; } });
+  log('v1.0.275 [Taille organisation]', tTa);
+  log('errors v1.0.275 taille', !tTa.err && ['auto','explicit','invalid','perso','list'].every(k => tTa[k]) ? [] : ['v1.0.275 taille ' + JSON.stringify(tTa)]);
   const tMe = await A.pg.evaluate(async () => { try { const o = {}; document.querySelectorAll('.fullpage,.lightbox,.sheet,.sheet-bg').forEach(x => x.remove());
     const C = MesEspaces.classify([{ cid: 'a', kind: 'perso' }, { cid: 'b', kind: 'org', role: 'chef' }, { cid: 'c', kind: 'org', role: 'collaborateur' }, { cid: 'd', kind: 'org', pending: true }, null], 'b');
     o.classify = C.perso.length === 1 && C.orgs.length === 1 && C.shared.length === 1 && C.invit.length === 1 && C.cur === 'b';
