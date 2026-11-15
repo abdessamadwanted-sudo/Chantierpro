@@ -236,7 +236,7 @@ const serviceOf = (k) => TM_SERVICES.find(s => s.k === k) || TM_SERVICES[TM_SERV
 const STORE_MOD = { projects: 'projet', folders: 'plans', plans: 'plans', links: 'plans', tasks: 'reserves', receptions: 'reception', dsmodeles: 'reception', dsdossiers: 'reception', forms: 'forms', reports: 'rapports', files: 'files', items: '*' };
 // éléments des espaces (store « items ») : module selon le type
 const KIND_MOD = { impl: 'topo', leve: 'topo', cmd: 'centrale', bl: 'centrale', mat: 'materiel', stock: 'materiel', pt: 'pointage', hse: 'hse', rdt: 'rapports', sqa: 'projet', sqz: 'projet', sqe: 'projet' };   // suivi quantitatif : sans cette entrée un « kind » n'est jamais envoyé au serveur
-Object.assign(KIND_MOD, { ogt: 'pointage', ogw: 'pointage', ogm: 'pointage', oga: 'pointage' });   // organisation : équipes, ouvriers, appartenances et affectations datées
+Object.assign(KIND_MOD, { ogt: 'pointage', ogw: 'pointage', ogm: 'pointage', oga: 'pointage', ogh: 'pointage' });   // organisation : équipes, ouvriers, appartenances et affectations datées
 const modOf = (store, rec) => store === 'items' ? KIND_MOD[(rec || {}).kind] : STORE_MOD[store];
 // section de l'application → module
 // rubriques issues de Chantier : rattachées au module SiteTeam le plus proche (visibilité selon le poste)
