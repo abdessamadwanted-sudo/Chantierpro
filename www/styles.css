@@ -4242,3 +4242,4 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .dr-it.col{display:block}.dr-it>span{flex:1;min-width:0}.dr-it b{display:block;font-size:14px}.dr-it small{display:block;color:var(--dr-mut);font-size:12px;margin-top:3px}.dr-it em{font-style:normal;font-weight:700;font-size:13px}.dr-it i{color:var(--dr-mut);font-style:normal}
 .dr-row{display:flex;justify-content:space-between;gap:8px;margin-bottom:8px}.dr-row b{display:inline}
 .dr-fb{margin-top:12px}
+.dr-card>.dr-bar+.dr-ms,.dr-card>.dr-ms{margin-top:12px}

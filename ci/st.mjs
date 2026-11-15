@@ -2164,13 +2164,13 @@ try {
   const L = await OrgCrews.load(p), S = OrgCrews.calc.scope(p, L.crews, L.mems), per = OrgCrews.period(), M = OrgDir.model(p, L, S, per, () => null), r1 = (n) => n == null ? null : Math.round(n * 100) / 100;
   const cF = M.conds.find(c => c.m.id === 'cF'), cA = M.conds.find(c => c.m.id === 'cA'), pA = M.parts.find(q => q.name === 'A'), pB = M.parts.find(q => q.name === 'B');
   o.counts = cF.nCrews === 1 && cF.nTechs === 1 && cF.nWorkers === 1 && cF.nZones === 1 && cA.nCrews === 1 && cA.nTechs === 0 && cA.nWorkers === 2;
-  o.av = r1(cF.av) === 38.33 || r1(cF.av); o.avF = cF.arts.length === 2; o.avV = r1(cF.av);
+  o.avF = cF.arts.length === 2; o.avV = r1(cF.av);
   o.rend = cF.rend != null && cF.rend > 30 && cF.rend < 40; o.rendNone = cA.rend === null;
   const la = pA.lines.find(l => l.A.art.id === 'a1'), lb = pB.lines.find(l => l.A.art.id === 'a1');
   o.noDouble = la.done === 250 && lb.done === 100 && la.done + lb.done === M.arts.a1.c.done;   // correction −50 incluse, 2 équipes, somme = article
   o.pct = r1(la.pct) === 41.67 && r1(M.arts.a1.pct) === 35;
   o.over = M.arts.a3.pct === 120 && M.arts.a4.pct === null;   // dépassement conservé, quantité nulle → « — »
-  o.multi = Object.keys(M.arts.a1.crews).length === 2;
+  o.multi = Object.keys(M.arts.a1.crews).length === 2 && Object.keys(la.crews).join() === 'c1' && Object.keys(lb.crews).join() === 'c2'; o.cap = r1(cA.av) === 67.5;   // a1 35 % + a3 120 % plafonné à 100 → 67,5
   o.unit = !pA.lines.some(l => l.A.art.unit !== (L.arts.find(x => x.id === l.A.art.id).unit));
   // vue
   const root = document.createElement('div'); document.body.appendChild(root); App.dr = { tab: 'cond', v: null, back: [] };
@@ -2191,7 +2191,7 @@ try {
   root.remove(); for (const x of items) await DB.del('items', x.id); p.team = hold;
  } catch (e) { o.err = String(e.message || e) + (e.stack || '').split('\n')[1]; } return o; });
   log('directeur équipes & ouvrages', vDv);
-  log('errors directeur équipes & ouvrages', !vDv.err && ['counts','avF','rend','rendNone','noDouble','pct','over','multi','unit','v1','v2','v3','v4','v5','nav','perm'].every(k => vDv[k]) && vDv.avV === 37.5 ? [] : ['directeur équipes & ouvrages ' + JSON.stringify(vDv)]);
+  log('errors directeur équipes & ouvrages', !vDv.err && ['counts','avF','rend','rendNone','noDouble','pct','over','multi','cap','unit','v1','v2','v3','v4','v5','nav','perm'].every(k => vDv[k]) && vDv.avV === 37.5 ? [] : ['directeur équipes & ouvrages ' + JSON.stringify(vDv)]);
   log('errors v1.0.246', !v245.err && v245.card && v245.url && v245.ov && v245.closed && v245.cr ? [] : ['v1.0.246 ' + JSON.stringify(v245)]);
   log('errors v1.0.244', !v244.err && v244.acc && v244.met && v244.div && v244.due === '2026-03-01' && v244.fr && v244.loc ? [] : ['v1.0.244 ' + JSON.stringify(v244)]);
   log('errors titre plan', []);

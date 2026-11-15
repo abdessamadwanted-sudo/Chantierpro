@@ -6,7 +6,7 @@
 const OrgDir = (() => {
   const fmt = (n) => n == null ? '—' : new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(n);
   const pc = (n) => n == null ? '—' : Math.round(n) + ' %';
-  const mean = (a) => { a = a.filter(x => x != null && Number.isFinite(x)); return a.length ? a.reduce((s, x) => s + x, 0) / a.length : null; };
+  const mean = (a, cap) => { a = a.filter(x => x != null && Number.isFinite(x)); if (cap) a = a.map(x => Math.min(x, 100)); return a.length ? a.reduce((s, x) => s + x, 0) / a.length : null; };
   const OC = () => OrgCrews.calc;
   const todayD = () => (typeof todayISO === 'function' ? todayISO() : new Date().toISOString().slice(0, 10));
 
@@ -30,14 +30,14 @@ const OrgDir = (() => {
       const aset = new Set(); L.asg.filter(a => ids.has(a.crewId) && a.artId).forEach(a => aset.add(a.artId)); ents.filter(e => ids.has(e.crewId)).forEach(e => aset.add(e.artId));
       const A = [...aset].map(i => arts[i]).filter(Boolean), zs = new Set(act.filter(a => ids.has(a.crewId)).map(a => O.spatialLabel(a.spatial)).filter(x => x !== '—'));
       const rs = []; for (const a of act) { if (!ids.has(a.crewId) || !(a.obj > 0) || !a.unit) continue; const crew = L.crews.find(c => c.id === a.crewId), y = O.yields(crew, L.mems, ents, L.arts, per.from, per.to, L.hc, a.artId || undefined), v = y.byUnit[a.unit]; rs.push(v && v.perDay != null ? v.perDay / a.obj * 100 : null); }
-      return { m, crews: st.crews, nCrews: st.nCrews, nTechs: st.nTechs, nWorkers: st.nWorkers, nZones: zs.size, arts: A, av: mean(A.map(x => x.pct)), prev: mean(A.map(x => x.planned)), rend: mean(rs) };
+      return { m, crews: st.crews, nCrews: st.nCrews, nTechs: st.nTechs, nWorkers: st.nWorkers, nZones: zs.size, arts: A, av: mean(A.map(x => x.pct), 1), prev: mean(A.map(x => x.planned)), rend: mean(rs) };
     });
     // parties d'ouvrage = zones groupées par bâtiment/ouvrage (à défaut « Sans localisation »)
     const P = {};
     for (const A of Object.values(arts)) for (const zr of (A.art.zones || [])) { const z = zById[zr.zid]; if (!z) continue; const key = z.bat || 'Sans localisation'; const q = P[key] = P[key] || { name: key, lines: {}, zones: new Set() };
-      q.zones.add(zr.zid); const l = q.lines[A.art.id] = q.lines[A.art.id] || { A, ref: 0, done: 0, zones: [] }; const d = A.c.byZone[zr.zid] || 0; l.ref += +zr.qty || 0; l.done += d; l.zones.push({ id: zr.zid, name: zName(z), ref: +zr.qty || 0, done: d }); }
+      q.zones.add(zr.zid); const l = q.lines[A.art.id] = q.lines[A.art.id] || { A, ref: 0, done: 0, zones: [], crews: {} }; const d = A.c.byZone[zr.zid] || 0; l.ref += +zr.qty || 0; l.done += d; l.zones.push({ id: zr.zid, name: zName(z), ref: +zr.qty || 0, done: d }); for (const e of ents) if (e.artId === A.art.id && e.zid === zr.zid && e.crewId) l.crews[e.crewId] = Math.round(((l.crews[e.crewId] || 0) + (+e.delta || 0)) * 1e6) / 1e6; }
     const parts = Object.values(P).map(q => { const lines = Object.values(q.lines).map(l => ({ ...l, ref: Math.round(l.ref * 1e6) / 1e6, done: Math.round(l.done * 1e6) / 1e6, pct: l.ref > 0 ? l.done / l.ref * 100 : null }));
-      return { name: q.name, nZones: q.zones.size, lines, av: mean(lines.map(l => l.pct)), prev: mean(lines.map(l => l.A.planned)) }; }).sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true }));
+      return { name: q.name, nZones: q.zones.size, lines, av: mean(lines.map(l => l.pct), 1), prev: mean(lines.map(l => l.A.planned)) }; }).sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true }));
     return { conds, parts, arts, act };
   }
 
@@ -69,7 +69,7 @@ const OrgDir = (() => {
         h += `<div class="dr-wrap">${crumb([{ t: p.name || 'Projet', go: 'root' }, { t: q.name }])}<div class="dr-card"><b>Avancement physique</b>${perf(q.av, null, q.prev).replace(/<div class="dr-pr"><span>Rendement[^]*$/, '</div>')}<p class="dr-n">Moyenne simple des articles de la partie (unités différentes non additionnées).</p></div>
           ${Object.entries(grp).map(([g, ls]) => `<h3>${esc(g)}</h3>${ls.map(l => `<button class="dr-it col" data-art="${l.A.art.id}" data-pt="${esc(q.name)}"><span class="dr-row"><b>${esc(l.A.art.ref)} · ${esc(l.A.art.nom)}</b><em>${pc(l.pct)}</em></span>${bar(l.pct)}<small>${fmt(l.done)} / ${fmt(l.ref)} ${esc(l.A.art.unit)}${l.pct > 100 ? ' · dépassement' : ''}</small></button>`).join('')}`).join('')}</div>`; }
       else if (st.tab === 'parts' && v.t === 'a') { const A = M.arts[v.id], q = M.parts.find(x => x.name === v.pt), l = q && q.lines.find(x => x.A === A); if (!A || !l) { st.v = null; return draw(); }
-        const u = esc(A.art.unit), ys = Object.entries(A.crews).map(([cid, qty]) => { const cr = L.crews.find(x => x.id === cid); return { cr, qty }; }), objs = M.act.filter(a => a.artId === A.art.id && a.obj > 0 && a.unit === A.art.unit), rd = mean(objs.map(a => { const cr = L.crews.find(x => x.id === a.crewId), y = cr && OC().yields(cr, L.mems, L.ents, L.arts, per.from, per.to, L.hc, A.art.id), pdv = y && y.byUnit[a.unit]; return pdv && pdv.perDay != null ? pdv.perDay / a.obj * 100 : null; }));
+        const u = esc(A.art.unit), ys = Object.entries(l.crews).map(([cid, qty]) => { const cr = L.crews.find(x => x.id === cid); return { cr, qty }; }), objs = M.act.filter(a => a.artId === A.art.id && a.obj > 0 && a.unit === A.art.unit), rd = mean(objs.map(a => { const cr = L.crews.find(x => x.id === a.crewId), y = cr && OC().yields(cr, L.mems, L.ents, L.arts, per.from, per.to, L.hc, A.art.id), pdv = y && y.byUnit[a.unit]; return pdv && pdv.perDay != null ? pdv.perDay / a.obj * 100 : null; }));
         h += `<div class="dr-wrap">${crumb([{ t: p.name || 'Projet', go: 'root' }, { t: q.name, go: 'part' }, ...(A.act ? [{ t: A.act, go: 'part' }] : []), { t: A.art.ref + ' · ' + A.art.nom }])}<div class="dr-card"><b>Avancement physique</b><div class="dr-pr"><span>Réalisé / référence</span><b>${pc(l.pct)}</b></div>${bar(l.pct)}<div class="dr-ms">${tile('Quantité totale', fmt(l.ref) + ' ' + u)}${tile('Réalisé', fmt(l.done) + ' ' + u)}${tile('Restant', fmt(Math.max(0, l.ref - l.done)) + ' ' + u)}${tile('Rendement / objectif', pc(rd))}</div>
           ${A.planned != null ? `<h3>Prévisionnel vs Réalisé</h3><div class="dr-pr"><span>Prévu à date</span><b>${pc(A.planned)}</b></div>${bar(A.planned, 1)}<div class="dr-pr"><span>Réalisé</span><b>${pc(A.pct)}</b></div>${bar(A.pct)}` : '<p class="dr-n">Prévu à date indisponible (article non lié à une activité du Planning).</p>'}</div>
           <h3>Par équipe</h3>${ys.map(y => `<div class="dr-it"><span><b>${esc(y.cr ? y.cr.name : 'Équipe supprimée')}</b><small>${esc(y.cr ? (L.crews.length && y.cr.condIds && y.cr.condIds.length ? y.cr.condIds.map(i => ((p.team || []).find(m => m.id === i) || {}).name).filter(Boolean).join(', ') : '') : '')}</small></span><em>${fmt(y.qty)} ${u}</em></div>`).join('') || '<p class="dr-s">Aucune saisie rattachée à une équipe.</p>'}
