@@ -4272,3 +4272,18 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .hp-list{display:flex;flex-direction:column;gap:10px;padding:0 14px 90px}.hp-c{display:flex;align-items:center;gap:8px;background:var(--card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:14px;padding:8px}
 .hp-open{flex:1;min-width:0;display:flex;align-items:center;gap:12px;background:none;border:0;text-align:left;padding:0;color:inherit}.hp-th{width:64px;height:64px;border-radius:10px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:none}.hp-th img{width:100%;height:100%;object-fit:cover}
 .hp-t{display:flex;flex-direction:column;min-width:0}.hp-t b{font-size:17px}.hp-t small{opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hp-more{flex:none;border:1px solid var(--line,#d1d5db);background:none;border-radius:999px;padding:6px 10px;font-size:12.5px;color:inherit}
+
+/* HSE spatial : éditeur de calques */
+.hs-ed{display:flex;flex-direction:column;background:#1e293b;z-index:60}
+.hs-vp{flex:1;position:relative;overflow:hidden;touch-action:none;background:#0f172a}
+.hs-svg{width:100%;height:100%;display:block;touch-action:none;user-select:none}
+.hs-hint{position:absolute;left:8px;right:8px;top:8px;background:rgba(15,23,42,.85);color:#fff;font-size:13px;padding:6px 10px;border-radius:8px;pointer-events:none;text-align:center}
+.hs-bar{display:flex;gap:6px;padding:6px;background:#fff;justify-content:center}
+.hs-bar button{flex:1;border:1px solid #cbd5e1;background:#f8fafc;border-radius:8px;padding:9px 6px;font-size:14px}
+.hs-bar button:disabled{opacity:.4}
+.hs-pal{display:flex;gap:4px;overflow-x:auto;padding:6px;background:#fff;border-top:1px solid #e2e8f0;align-items:center}
+.hs-pal i{width:1px;align-self:stretch;background:#cbd5e1;margin:0 2px}
+.hs-t{flex:none;width:44px;height:44px;border:1px solid #cbd5e1;background:#f8fafc;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;padding:0}
+.hs-t img{width:28px;height:28px}
+.hs-t.on{background:#dbeafe;border-color:#2563eb}
+.hs-ro{flex:none;font-size:12px;color:#64748b;padding:0 6px}

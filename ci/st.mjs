@@ -1609,6 +1609,41 @@ try {
     r.remove(); for (const [st, id] of ids) await DB.del(st, id); return o; } catch (e) { return { err: String(e.message || e) }; } });
   log('v1.0.270 [Plans HSE : un plan par niveau]', tHp);
   log('errors v1.0.270 plans hse', !tHp.err && tHp.order && tHp.one && tHp.pref && tHp.current && tHp.saved && tHp.sec && tHp.cards && tHp.more ? [] : ['v1.0.270 plans hse ' + JSON.stringify(tHp)]);
+  const tHs = await A.pg.evaluate(async () => { try { const o = {}, p = App.project; document.querySelectorAll('.fullpage,.lightbox').forEach(x => x.remove());
+    const fo = await DB.put('folders', { projectId: p.id, name: 'RDC', parentId: null }), pl = await DB.put('plans', { projectId: p.id, folderId: fo.id, name: 'RDC test', disc: 'ARCH', w: 1000, h: 800 });
+    // modèle pur
+    o.valid = !!HseSp.make('dalle', [[0, 0], [100, 0], [100, 80]], { projectId: p.id, planId: pl.id }) && !HseSp.make('dalle', [[0, 0], [100, 0]], { projectId: p.id, planId: pl.id }) && !HseSp.make('dalle', [[0, 0], [10, 10], [20, 20]], { projectId: p.id, planId: pl.id })
+      && !HseSp.make('mur', [[0, 0]], { projectId: p.id, planId: pl.id }) && !HseSp.make('risque', [[0, 0], [1, 1]], { projectId: p.id, planId: pl.id }) && !HseSp.make('inconnu', [[0, 0]], { projectId: p.id, planId: pl.id }) && !HseSp.make('mur', [[NaN, 0], [1, 1]], { projectId: p.id, planId: pl.id });
+    const d0 = HseSp.make('dalle', [[0, 0], [100, 0], [100, 80]], { projectId: p.id, planId: pl.id });
+    o.guard = d0.status === 'prevue' && !HseSp.walkable(d0) && !HseSp.walkable({ type: 'dalle', status: 'praticable_validee' }) && HseSp.walkable({ type: 'dalle', status: 'praticable_validee', verifiedBy: 'u1' }) && !HseSp.walkable({ type: 'mur', status: 'construit', verifiedBy: 'u1' });
+    o.block = HseSp.blocks({ type: 'mur', status: 'construit' }) && !HseSp.blocks({ type: 'mur', status: 'prevu' }) && HseSp.blocks({ type: 'reservation', status: 'ouverte' }) && !HseSp.blocks({ type: 'reservation', status: 'bouchee' });
+    o.snap = JSON.stringify(HseSp.snap([103, 2], [{ id: 'a', geom: { pts: [[100, 0]] } }], 10)) === '[100,0]' && JSON.stringify(HseSp.snap([150, 2], [{ id: 'a', geom: { pts: [[100, 0]] } }], 10)) === '[150,2]';
+    o.pick = HseSp.pick([{ id: 'p', geom: { t: 'poly', pts: [[0, 0], [100, 0], [100, 80]] } }, { id: 'l', geom: { t: 'line', pts: [[0, 200], [100, 200]] } }], [90, 20], 5).id === 'p' && HseSp.pick([{ id: 'l', geom: { t: 'line', pts: [[0, 200], [100, 200]] } }], [50, 203], 5).id === 'l' && !HseSp.pick([{ id: 'l', geom: { t: 'line', pts: [[0, 200], [100, 200]] } }], [50, 300], 5);
+    o.types = HseSp.T.length === 15 && HseSp.T.every(t => HseSp.GROUPS.some(g => g[0] === t.g) && t.st.some(s => s[0] === t.d) && !t.st.some(s => s[0] === 'praticable_validee'));
+    // éditeur
+    const ed = await HseSp.open(pl, {});
+    o.open = !!ed && !!document.querySelector('.hs-ed') && document.querySelectorAll('.hs-pal .hs-t').length === 16;
+    const a = await ed.add('mur', [[10, 10], [200, 10]]), b = await ed.add('escalier', [[300, 300]]), c = await ed.add('dalle', [[400, 400], [600, 400], [600, 600]]);
+    o.add = ed.objs().length === 3 && a.kind === 'hseo' && a.planId === pl.id && a.source === 'manuel' && a.hist.length === 1;
+    o.persist = (await DB.byProject('items', p.id)).filter(x => x.kind === 'hseo').length === 3;
+    await ed.update(c, { status: 'attente' }, 'statut'); o.upd = (await DB.get('items', c.id)).status === 'attente' && (await DB.get('items', c.id)).hist.length === 2;
+    await ed.undo(); o.undo = (await DB.get('items', c.id)).status === 'prevue'; await ed.redo(); o.redo = (await DB.get('items', c.id)).status === 'attente';
+    await ed.undo(); await ed.undo(); o.undoAdd = ed.objs().length === 2 && (await DB.byProject('items', p.id)).filter(x => x.kind === 'hseo').length === 2;
+    await ed.redo(); o.redoAdd = ed.objs().length === 3;
+    ed.hide(['sec']); o.layer = document.querySelectorAll('.hs-l [data-id]').length === 3; ed.hide(['str']); o.layer2 = document.querySelectorAll('.hs-l [data-id]').length === 1; ed.hide([]);
+    // dessin par touches (outil risque)
+    ed.setTool('risque'); const r = document.querySelector('.hs-vp').getBoundingClientRect(), sv = document.querySelector('.hs-svg');
+    const ev = (t) => sv.dispatchEvent(new PointerEvent(t, { pointerId: 7, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true }));
+    ev('pointerdown'); ev('pointerup'); await new Promise(z => setTimeout(z, 100)); o.tap = ed.objs().some(x => x.type === 'risque');
+    ed.setTool('mur'); ed.addPoint([20, 500]); ed.addPoint([220, 500]); o.draft = document.querySelector('.hs-bar').style.display !== 'none'; await ed.finish(); o.line = ed.objs().some(x => x.type === 'mur' && x.geom.pts.length === 2 && x.geom.pts[0][1] === 500);
+    await ed.remove(b); o.del = !ed.objs().some(x => x.id === b.id) && !(await DB.get('items', b.id));
+    ed.close(); o.closed = !document.querySelector('.hs-ed');
+    o.kmod = typeof KIND_MOD !== 'undefined' ? KIND_MOD.hseo === 'hse' : true;
+    // lecture seule
+    const ro = await HseSp.open(pl, { readOnly: true }); o.ro = document.querySelectorAll('.hs-pal .hs-t').length === 1 && !!document.querySelector('.hs-ro'); ro.close();
+    for (const x of (await DB.byProject('items', p.id)).filter(x => x.kind === 'hseo')) await DB.del('items', x.id); await DB.del('plans', pl.id); await DB.del('folders', fo.id); return o; } catch (e) { return { err: String(e.message || e) + ' ' + String(e.stack || '').split('\n')[1] }; } });
+  log('v1.0.271 [Calques HSE]', tHs);
+  log('errors v1.0.271 calques hse', !tHs.err && ['valid','guard','block','snap','pick','types','open','add','persist','upd','undo','redo','undoAdd','redoAdd','layer','layer2','tap','draft','line','del','closed','kmod','ro'].every(k => tHs[k]) ? [] : ['v1.0.271 calques hse ' + JSON.stringify(tHs)]);
   const tPd = await A.pg.evaluate(async () => { try { const o = {}; document.querySelectorAll('.lightbox').forEach(x => x.remove());
     for (let i = 0; i < 40 && !(window.jspdf || window.jsPDF); i++) await new Promise(r => setTimeout(r, 250)); if (!window.pdfjsLib) return { skip: 'pdf.js absent (lib/ non téléchargée en CI)' }; o.libs = [!!window.pdfjsLib, !!(window.jspdf || window.jsPDF)];
     const J = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF; if (!J) return { skip: 'jsPDF absent', o };
