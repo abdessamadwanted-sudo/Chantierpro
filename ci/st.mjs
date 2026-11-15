@@ -2125,11 +2125,14 @@ try {
     a1.to = d(-6); await DB.put('items', a1); const a2 = { id: 'g2', projectId: pid, kind: 'oga', crewId: 'c1', from: d(-5), to: '', spatial: { type: 'route', axe: 'RN1', pkd: '1', pkf: '2' }, hist: [] }; await DB.put('items', a2);
     const asg = (await DB.byProject('items', pid)).filter(x => x.kind === 'oga' && x.crewId === 'c1'); o.hist = asg.length === 2 && asg.some(x => x.to === d(-6)) && C.overlap(d(-20), d(-6), d(-30), d(-10)) > 0;
     { const r = document.createElement('div'); document.body.appendChild(r); await OrgCrews.render(r); o.emb = !!SECTIONS.equipes && r.querySelectorAll('.og-k').length === 4 && r.textContent.includes('Ferraillage A'); r.remove(); }
+    { const hc = [{ crewId: 'c1', n: 10, from: d(-10), to: d(-4) }, { crewId: 'c1', n: 12, from: d(-3), to: '' }];
+      const y2 = C.yields(cr[0], [], [{ crewId: 'c1', artId: 'a1', delta: 600, at: Date.now() - 864e5 }], arts, d(-6), today, hc);
+      o.anon = C.anonAt(hc, 'c1', today) === 12 && C.anonAt(hc, 'c1', d(-8)) === 10 && C.anonAt(hc, 'c2', today) === 0 && C.anonHeads(hc, ['c1', 'c2'], today) === 12 && y2.personDays === 78 && y2.byUnit.kg.perWorkerDay === 7.692 && modOf('items', { kind: 'ogh' }) === 'pointage'; }
     o.sep = C.scope({ ...p, team: [{ ...team[0], me: true }] }, [{ id: 'z', trade: 'x' }], []).all === true && modOf('items', { kind: 'ogm' }) === 'pointage' && modOf('items', { kind: 'ogt' }) === 'pointage';
     for (const x of await DB.byProject('items', pid)) if (/^og/.test(x.kind || '')) await DB.del('items', x.id); p.team = hold;
   } catch (e) { o.err = String(e.message || e); } return o; });
   log('organisation équipes', vOg);
-  log('errors organisation équipes', !vOg.err && vOg.head && vOg.dir && vOg.condA && vOg.condF && vOg.noImplicit && vOg.roles && vOg.route && vOg.yield && vOg.fiche && vOg.hist && vOg.sep && vOg.emb ? [] : ['organisation équipes ' + JSON.stringify(vOg)]);
+  log('errors organisation équipes', !vOg.err && vOg.head && vOg.dir && vOg.condA && vOg.condF && vOg.noImplicit && vOg.roles && vOg.route && vOg.yield && vOg.fiche && vOg.hist && vOg.sep && vOg.emb && vOg.anon ? [] : ['organisation équipes ' + JSON.stringify(vOg)]);
   log('errors v1.0.246', !v245.err && v245.card && v245.url && v245.ov && v245.closed && v245.cr ? [] : ['v1.0.246 ' + JSON.stringify(v245)]);
   log('errors v1.0.244', !v244.err && v244.acc && v244.met && v244.div && v244.due === '2026-03-01' && v244.fr && v244.loc ? [] : ['v1.0.244 ' + JSON.stringify(v244)]);
   log('errors titre plan', []);
