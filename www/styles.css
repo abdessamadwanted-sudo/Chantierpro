@@ -4254,3 +4254,5 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .pv-dots.pick .pd-v b { min-width: 54px; padding: 11px 8px; font-size: 13px; }
 .pv-dots.pick .pd-v b.empty { opacity: .35; }
 .topbar h1.pv-h1 { cursor: pointer; }
+
+.flyout.shapes.grp3 { grid-template-columns: repeat(3, 62px); }

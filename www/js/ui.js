@@ -68,6 +68,7 @@ const ICONS = {
   box: '<rect x="4" y="5" width="16" height="14" rx="1" fill="currentColor" fill-opacity=".85"/>',
   sheet: '<rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M7 16V9h5v7M12 12h4v4M17 4v5"/>',
   section: '<path d="M4 4v16M20 4v16"/><path d="M4 12h16"/><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/>',
+  coupe: '<circle cx="8.5" cy="12" r="5.2"/><path d="M8.5 3.8v16.4"/><path d="M8.5 12H21M17.4 8.6 21 12l-3.6 3.4"/>',   // symbole de coupe : point de vue (cercle + trait de coupe) et flèche = sens de la vue
   grid: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
   rows: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M3 14h18M8 4v16"/>',
   history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 3"/>',
