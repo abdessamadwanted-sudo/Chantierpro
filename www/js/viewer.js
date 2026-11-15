@@ -1509,8 +1509,8 @@ async function openPlanViewer(plan, ctx) {
         $('.ov', el).appendChild(gp); focusG = gp; }   // v1.0.86 : garde la référence ; v1.0.81 : le pin reste tant qu'on est dans le plan, il part à la fermeture
       const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle'); ring.setAttribute('cx', ctx.focus.x); ring.setAttribute('cy', ctx.focus.y); ring.setAttribute('r', 60 / st.scale); ring.setAttribute('fill', 'none'); ring.setAttribute('stroke', '#facc15'); ring.setAttribute('stroke-width', 6 / st.scale); ring.setAttribute('class', 'focus-ring');
       $('.ov', el).appendChild(ring);
-      // v1.0.260 : après ~5 s le pin d'arrivée disparaît (le cercle jaune reste) ; le vrai marqueur du point (ex. gyrophare d'alerte) reste affiché à sa place
-      const fz = setTimeout(() => { if (closed) return; try { if (focusG) { focusG.remove(); focusG = null; } renderMarkers(); } catch (e) {} }, 5000); cleanups.push(() => clearTimeout(fz)); }
+      // v1.0.260 : après ~5 s le pin d'arrivée ET le cercle jaune disparaissent ; le vrai marqueur du point (ex. gyrophare d'alerte) reste affiché à sa place
+      const fz = setTimeout(() => { if (closed) return; try { ring.remove(); if (focusG) { focusG.remove(); focusG = null; } renderMarkers(); } catch (e) {} }, 5000); cleanups.push(() => clearTimeout(fz)); }
   });
   // v1.0.63 : le clavier (titre d'un pin…) change seulement la hauteur → on garde le zoom ; on recadre seulement si la largeur change (rotation)
   let lastW = window.innerWidth; onResize = () => { if (Math.abs(window.innerWidth - lastW) < 2) { applyT(); return; } lastW = window.innerWidth; fit(); };
