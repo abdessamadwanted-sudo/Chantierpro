@@ -235,7 +235,7 @@ const serviceOf = (k) => TM_SERVICES.find(s => s.k === k) || TM_SERVICES[TM_SERV
 // magasin local → module (sous-collection Firestore)
 const STORE_MOD = { projects: 'projet', folders: 'plans', plans: 'plans', links: 'plans', tasks: 'reserves', receptions: 'reception', dsmodeles: 'reception', dsdossiers: 'reception', forms: 'forms', reports: 'rapports', files: 'files', items: '*' };
 // éléments des espaces (store « items ») : module selon le type
-const KIND_MOD = { impl: 'topo', leve: 'topo', cmd: 'centrale', bl: 'centrale', mat: 'materiel', stock: 'materiel', pt: 'pointage', hse: 'hse', rdt: 'rapports', sqa: 'projet', sqz: 'projet', sqe: 'projet' };   // suivi quantitatif : sans cette entrée un « kind » n'est jamais envoyé au serveur
+const KIND_MOD = { impl: 'topo', leve: 'topo', cmd: 'centrale', bl: 'centrale', mat: 'materiel', stock: 'materiel', pt: 'pointage', hse: 'hse', rdt: 'rapports', sqa: 'projet', sqz: 'projet', sqe: 'projet', ogt: 'equipe', ogw: 'equipe', ogh: 'equipe', oga: 'equipe', ogm: 'equipe' };   // suivi quantitatif : sans cette entrée un « kind » n'est jamais envoyé au serveur
 Object.assign(KIND_MOD, { ogt: 'pointage', ogw: 'pointage', ogm: 'pointage', oga: 'pointage', ogh: 'pointage' });   // organisation : équipes, ouvriers, appartenances et affectations datées
 const modOf = (store, rec) => store === 'items' ? KIND_MOD[(rec || {}).kind] : STORE_MOD[store];
 // section de l'application → module
@@ -1484,7 +1484,8 @@ const Team = (() => {
         }
         else b.set(projRef(pid).collection('audit').doc(), auditOf(r, pid));
       }
-      await withTimeout(b.commit(), 45000);
+      try { await withTimeout(b.commit(), 45000); }
+      catch (e) { try { const lot = ok.slice(i, i + 150); e.ctx = `projets ${[...new Set(lot.map(r => r._store === 'projects' ? r.id : r.projectId))].slice(0, 3).join(',')} · modules ${[...new Set(lot.map(r => modOf(r._store, r)))].join(',')} · ${lot.length} enreg.`; } catch (x) {} throw e; }
     }
     return { skipped };
   }

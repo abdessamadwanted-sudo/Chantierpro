@@ -487,6 +487,12 @@ async function pdfPagesText(pdf, onProg) {
   for (let p = 1; p <= pdf.numPages; p++) { try { const tc = await (await pdf.getPage(p)).getTextContent(); out.push(tc.items.map(i => i.str + (i.hasEOL ? '\n' : ' ')).join('').replace(/[ \t]+/g, ' ')); } catch (e) { out.push(''); } if (onProg) onProg(p, pdf.numPages); }
   return out;
 }
+// v1.0.269 : budget de rendu d'une page PDF (fonction pure, testée) : résolution voulue selon le zoom, plafonnée en pixels et en côté ;
+// téléphone à peu de mémoire (deviceMemory ≤ 2 Go) : plafonds réduits pour éviter l'écran noir (canvas refusé / WebView tuée)
+function pdfBudget(w, h, zk, innerW, mem) {
+  const low = !!mem && mem <= 2, maxPx = low ? 6e6 : 14e6, maxSide = low ? 4096 : 8192;
+  return Math.min(Math.min(3, (innerW * 2) / w) * Math.max(1, zk), Math.sqrt(maxPx / (w * h)), maxSide / Math.max(w, h));
+}
 // opts : { page: n (ouvrir à cette page), q: 'mot' (surligner + recherche) }
 async function showPdf(blob, caption = 'PDF', opts = {}) {
   if (!(await pdfReadyA())) { toast('Lecteur PDF non disponible'); return; }
@@ -497,7 +503,7 @@ async function showPdf(blob, caption = 'PDF', opts = {}) {
     <div class="pdf-pages"><div class="pdf-zoom"></div></div><div class="pdf-ind"><span data-pg></span><button data-a="fit">⤢</button></div>`;
   document.body.appendChild(el);
   // v1.0.59 : fermer le lecteur libère le PDF et les pages dessinées (mémoire)
-  const shut = () => { try { el.querySelectorAll('canvas').forEach(c => { c.width = 0; c.height = 0; }); } catch (e) {} el.remove(); setTimeout(() => { try { pdf && pdf.destroy(); } catch (e) {} }, 0); };
+  const shut = () => { try { document.removeEventListener('visibilitychange', onVis); } catch (e) {} try { el.querySelectorAll('canvas').forEach(c => { c.width = 0; c.height = 0; }); } catch (e) {} el.remove(); setTimeout(() => { try { pdf && pdf.destroy(); } catch (e) {} }, 0); };
   const unBack = pushBack(shut);
   ($('[data-a=x]', el)||{}).onclick = () => { unBack(); shut(); };
   const scroller = $('.pdf-pages', el), box = $('.pdf-zoom', el);
@@ -506,7 +512,7 @@ async function showPdf(blob, caption = 'PDF', opts = {}) {
     nk = Math.max(1, Math.min(24, nk)); const r = scroller.getBoundingClientRect(); mx = mx ?? r.width / 2; my = my ?? r.height / 2;
     const cx = (scroller.scrollLeft + mx) / zk, cy = (scroller.scrollTop + my) / zk; zk = nk; box.style.width = (zk * 100) + '%';
     scroller.scrollLeft = cx * zk - mx; scroller.scrollTop = cy * zk - my; $('[data-a=fit]', el).style.display = zk > 1.02 ? '' : 'none';
-    cs().forEach(c => { if (c._tile) { c._tile.remove(); c._tile = null; } });
+    cs().forEach(c => { c._cap = 1; c._fail = 0; if (c._tile) { c._tile.remove(); c._tile = null; } });
     clearTimeout(hiT); hiT = setTimeout(() => { const R = scroller.getBoundingClientRect(); cs().forEach(c => { const r = c.getBoundingClientRect(); if (c._r && r.bottom > R.top - 200 && r.top < R.bottom + 200) render(c, true).then(() => tuile(c)); }); }, 380);
   };
   scroller.addEventListener('touchstart', (e) => {
@@ -542,6 +548,13 @@ async function showPdf(blob, caption = 'PDF', opts = {}) {
       if (c._tile) c._tile.remove(); box.appendChild(tc); c._tile = tc;
     } catch (e) {}
   };
+  // pages loin de l'écran (> 2,5 écrans) : canvas réduit (même proportions) → mémoire libérée ; elles se redessinent en revenant
+  const evict = () => { const R = scroller.getBoundingClientRect(), far = R.height * 2.5; cs().forEach(c => { if (!c._r || c._busy) return; const r = c.getBoundingClientRect(); if (r.bottom < R.top - far || r.top > R.bottom + far) {
+    if (c._tile) { c._tile.remove(); c._tile = null; } const ratio = c.height / c.width; c._r = false; c._s = 0; c._sOk = 0; c.width = 60; c.height = Math.max(1, Math.round(60 * ratio)); } }); };
+  let evT = null; scroller.addEventListener('scroll', () => { clearTimeout(evT); evT = setTimeout(evict, 500); }, { passive: true });
+  // retour au premier plan (Android peut avoir libéré les bitmaps) : on redessine les pages visibles
+  const onVis = () => { if (document.visibilityState !== 'visible' || !el.isConnected) return; const R = scroller.getBoundingClientRect(); cs().forEach(c => { const r = c.getBoundingClientRect(); if (c._r && r.bottom > R.top - 200 && r.top < R.bottom + 200) { c._cap = 1; c._fail = 0; render(c, true).then(() => tuile(c)); } }); };
+  document.addEventListener('visibilitychange', onVis);
   let tsT = null; scroller.addEventListener('scroll', () => { clearTimeout(tsT); tsT = setTimeout(() => { if (zk < 1.3) return; const R = scroller.getBoundingClientRect(); cs().forEach(c => { const r = c.getBoundingClientRect(); if (r.bottom > R.top && r.top < R.bottom) tuile(c); }); }, 350); }, { passive: true });
   const pgInd = () => { const c = cs(); if (!c.length) return; const mid = scroller.scrollTop + scroller.clientHeight / 3; let n = 1; c.forEach((x, j) => { if (x.offsetTop <= mid) n = j + 1; }); $('[data-pg]', el).textContent = `Page ${n} / ${nPages}`; };
   scroller.addEventListener('scroll', pgInd, { passive: true });
@@ -552,11 +565,16 @@ async function showPdf(blob, caption = 'PDF', opts = {}) {
     if (c._r && !force) return; if (c._busy) { c._again = true; return; } c._r = true; const n = +c.dataset.p;
     const page = await pdf.getPage(n), vp1 = page.getViewport({ scale: 1 });
     // v1.0.263 : la netteté suit le zoom (avant : rendu fixe ≈ 2× la largeur d'écran → flou dès qu'on zoome) ; plafonné (≈ 14 Mpx, 8192 px de côté) pour ne pas saturer le téléphone
-    const want = Math.min(Math.min(3, (window.innerWidth * 2) / vp1.width) * Math.max(1, zk), Math.sqrt(14e6 / (vp1.width * vp1.height)), 8192 / Math.max(vp1.width, vp1.height));
+    const want = pdfBudget(vp1.width, vp1.height, zk, window.innerWidth, navigator.deviceMemory) * (c._cap || 1);
     if (force && c._s && c._s >= want * 0.98) return; c._busy = true; c._s = want;
     const vp = page.getViewport({ scale: want });
     const tmp = document.createElement('canvas'); tmp.width = Math.round(vp.width); tmp.height = Math.round(vp.height); const g = tmp.getContext('2d');   // rendu hors écran puis échange : pas de page blanche pendant la remise au net
-    try { await page.render({ canvasContext: g, viewport: vp }).promise; } catch (e) { c._busy = false; return; }
+    try { await page.render({ canvasContext: g, viewport: vp }).promise; }
+    catch (e) {   // échec (mémoire, canvas refusé) : le dernier rendu valide reste affiché ; on retente moins fin (2 fois), sans jamais vider la page
+      tmp.width = tmp.height = 0; c._busy = false; c._s = c._sOk || 0;
+      if ((c._fail = (c._fail || 0) + 1) <= 2 && !(e && e.name === 'RenderingCancelledException')) { c._cap = (c._cap || 1) * 0.6; setTimeout(() => { if (c.isConnected) render(c, true); }, 250); }
+      return; }
+    c._fail = 0; c._sOk = want;
     if (!c.isConnected) { tmp.width = tmp.height = 0; c._busy = false; return; }
     c.width = tmp.width; c.height = tmp.height; c.getContext('2d').drawImage(tmp, 0, 0); tmp.width = tmp.height = 0;
     c._busy = false; if (c._again) { c._again = false; setTimeout(() => render(c, true), 0); }
