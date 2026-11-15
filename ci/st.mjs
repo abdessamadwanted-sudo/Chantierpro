@@ -2133,11 +2133,13 @@ try {
       o.vis = C.scope(p, mine_, []).all === true;   // direction niveau 1 : tout le projet
       p.team = [T('cz', 'Conducteur Z', 'conduct', [], true)]; const mc = [{ id: 'n3', trade: 'coffrage', createdBy: 'cz' }, { id: 'n4', trade: 'coffrage', createdBy: 'x' }];
       o.vis2 = C.scope(p, mc, []).crews.map(x => x.id).join() === 'n3'; }   // le créateur voit sa propre équipe, pas celle des autres
+    { const cs = C.condStats(team[1], cr, ms, [{ crewId: 'c2', n: 5, from: d(-10), to: '' }], d(-6), today), cf = C.condStats(team[2], cr, ms, [], d(-6), today);   // conductrice A : ferraillage + bétonnage ; conducteur F : ferraillage seul
+      o.cond = cs.nCrews === 2 && cs.nTechs === 1 && cs.nWorkers === 3 + 5 && cf.nCrews === 1 && cf.nTechs === 1 && cf.nWorkers === 2; }
     o.sep = C.scope({ ...p, team: [{ ...team[0], me: true }] }, [{ id: 'z', trade: 'x' }], []).all === true && modOf('items', { kind: 'ogm' }) === 'pointage' && modOf('items', { kind: 'ogt' }) === 'pointage';
     for (const x of await DB.byProject('items', pid)) if (/^og/.test(x.kind || '')) await DB.del('items', x.id); p.team = hold;
   } catch (e) { o.err = String(e.message || e); } return o; });
   log('organisation équipes', vOg);
-  log('errors organisation équipes', !vOg.err && vOg.head && vOg.dir && vOg.condA && vOg.condF && vOg.noImplicit && vOg.roles && vOg.route && vOg.yield && vOg.fiche && vOg.hist && vOg.sep && vOg.emb && vOg.anon && vOg.vis && vOg.vis2 ? [] : ['organisation équipes ' + JSON.stringify(vOg)]);
+  log('errors organisation équipes', !vOg.err && vOg.head && vOg.dir && vOg.condA && vOg.condF && vOg.noImplicit && vOg.roles && vOg.route && vOg.yield && vOg.fiche && vOg.hist && vOg.sep && vOg.emb && vOg.anon && vOg.vis && vOg.vis2 && vOg.cond ? [] : ['organisation équipes ' + JSON.stringify(vOg)]);
   log('errors v1.0.246', !v245.err && v245.card && v245.url && v245.ov && v245.closed && v245.cr ? [] : ['v1.0.246 ' + JSON.stringify(v245)]);
   log('errors v1.0.244', !v244.err && v244.acc && v244.met && v244.div && v244.due === '2026-03-01' && v244.fr && v244.loc ? [] : ['v1.0.244 ' + JSON.stringify(v244)]);
   log('errors titre plan', []);
