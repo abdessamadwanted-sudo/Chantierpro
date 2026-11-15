@@ -31,9 +31,9 @@ const OrgCrews = (() => {
   const anonDays = (hc, crewId, from, to) => hc.filter(h => h.crewId === crewId).reduce((n, h) => n + (+h.n || 0) * overlap(h.from, h.to, from, to), 0);
   const anonHeads = (hc, ids, d) => ids.reduce((n, id) => n + anonAt(hc, id, d), 0);
   // rendement par unité (jamais d'addition entre unités différentes) : quantité exécutée sur la période / jours / ouvrier-jours
-  function yields(crew, mems, entries, arts, from, to, hc) {
+  function yields(crew, mems, entries, arts, from, to, hc, artId) {
     const days = Math.round((D(to) - D(from)) / DAY) + 1, pd = personDays(mems.filter(m => m.crewId === crew.id), from, to) + anonDays(hc || [], crew.id, from, to), out = {};
-    for (const e of entries) { if (e.crewId !== crew.id) continue; const d = iso(e.at); if (d < from || d > to) continue; const a = arts.find(x => x.id === e.artId); if (!a) continue;
+    for (const e of entries) { if (e.crewId !== crew.id || (artId && e.artId !== artId)) continue; const d = iso(e.at); if (d < from || d > to) continue; const a = arts.find(x => x.id === e.artId); if (!a) continue;
       const u = a.unit || '?'; (out[u] = out[u] || { qty: 0 }).qty = Math.round((out[u].qty + (+e.delta || 0)) * 1e6) / 1e6; }
     for (const u in out) { out[u].perDay = days ? Math.round(out[u].qty / days * 100) / 100 : null; out[u].perWorkerDay = pd ? Math.round(out[u].qty / pd * 1000) / 1000 : null; }
     return { days, personDays: pd, byUnit: out, from, to };
@@ -46,6 +46,13 @@ const OrgCrews = (() => {
     return { all: false, me, crews: crews.filter(c => c.createdBy === me.id || t.has(c.trade) || roles(c).includes(me.id) || memsAll.some(m => m.crewId === c.id && m.who === 'm:' + me.id)) };
   }
   const rolesOf = (c) => [['Chef d\'équipe', c.leaderId], ['Chef de chantier', c.chefId], ...(c.techIds || []).map(i => ['Technicien', i]), ...(c.condIds || []).map(i => ['Conducteur', i])].filter(r => r[1]);
+  // profil d'un conducteur : équipes qu'il suit (rattachées explicitement OU de ses métiers), techniciens distincts, ouvriers (nommés distincts + sans noms)
+  function condStats(m, crews, mems, hc, from, to) {
+    const t = new Set(m.trades || []), mine = crews.filter(c => t.has(c.trade) || rolesOf(c).some(r => r[1] === m.id)), ids = new Set(mine.map(c => c.id));
+    const techs = new Set(); mine.forEach(c => (c.techIds || []).forEach(i => techs.add(i)));
+    const named = new Set(mems.filter(x => ids.has(x.crewId) && x.who.startsWith('w:') && active(x, from, to)).map(x => x.who));
+    return { crews: mine, nCrews: mine.length, nTechs: techs.size, nWorkers: named.size + anonHeads(hc || [], [...ids], to) };
+  }
   const crewsOf = (crews, id) => crews.filter(c => rolesOf(c).some(r => r[1] === id));
 
   // ---- grade → casque de chantier (convention SiteTeam, la légende est affichée) ----
@@ -60,7 +67,7 @@ const OrgCrews = (() => {
   const helmet = (m, px) => { const g = gradeOf(m), sz = px || 30; return `<svg class="og-hm" width="${sz}" height="${Math.round(sz * .87)}" viewBox="0 0 30 26" role="img" aria-label="${esc(GRADES[g].l)}">${helmetG(g, 0, 0, 1)}</svg>`; };
   const legend = () => `<div class="og-lg">${Object.entries(GRADES).map(([k, g]) => `<span><svg width="20" height="17" viewBox="0 0 30 26">${helmetG(k, 0, 0, 1)}</svg>${esc(g.l)}</span>`).join('')}</div>`;
 
-  async function load(p) { const all = mine(await DB.byProject('items', p.id), p.id); return { crews: all.filter(x => x.kind === 'ogt'), workers: all.filter(x => x.kind === 'ogw'), mems: all.filter(x => x.kind === 'ogm'), hc: all.filter(x => x.kind === 'ogh'), asg: all.filter(x => x.kind === 'oga'), arts: all.filter(x => x.kind === 'sqa'), ents: all.filter(x => x.kind === 'sqe') }; }
+  async function load(p) { const all = mine(await DB.byProject('items', p.id), p.id); return { crews: all.filter(x => x.kind === 'ogt'), workers: all.filter(x => x.kind === 'ogw'), mems: all.filter(x => x.kind === 'ogm'), hc: all.filter(x => x.kind === 'ogh'), asg: all.filter(x => x.kind === 'oga'), arts: all.filter(x => x.kind === 'sqa'), zones: all.filter(x => x.kind === 'sqz'), ents: all.filter(x => x.kind === 'sqe') }; }
   const nameOf = (p, W, who) => who.startsWith('m:') ? ((p.team || []).find(m => m.id === who.slice(2)) || {}).name || '?' : (W.find(w => w.id === who.slice(2)) || {}).name || '?';
   const audit = (x, what) => { (x.hist = x.hist || []).push({ at: Date.now(), by: typeof myName === 'function' ? myName() : '', what }); x.updatedAt = Date.now(); return x; };
   const period = () => { const n = (App.ogPer || 7), to = today(); return { from: iso(D(to) - (n - 1) * DAY), to, n }; };
@@ -150,22 +157,31 @@ const OrgCrews = (() => {
 
   // ---- liste des équipes (vue Directeur / Conducteur selon le périmètre) ----
   async function list(p, canE, embed) {
+    App.dr = App.dr || { tab: S_def(p), v: null, back: [] };
+    if (embed && App.dr.tab !== 'crews' && typeof OrgDir !== 'undefined') return OrgDir.render(p, canE, embed, { crews() { list(p, canE, embed); } });
     const L = await load(p), S = scope(p, L.crews, L.mems), per = period(), me = S.me, P = me && typeof posteOf === 'function' ? posteOf(me.poste) : null, today_ = today();
     const trades = [...new Set(S.crews.map(c => c.trade).filter(Boolean))], act = L.asg.filter(x => S.crews.some(c => c.id === x.crewId) && x.from <= today_ && (!x.to || x.to >= today_));
     const zonesAct = new Set(act.map(x => spatialLabel(x.spatial))), head = uniqueHeads(L.mems.filter(x => S.crews.some(c => c.id === x.crewId)), per.from, per.to, 'w:') + anonHeads(L.hc, S.crews.map(c => c.id), per.to);
     const title = S.all ? 'Dashboard Directeur' : 'Dashboard ' + (P ? P.n : 'Conducteur'), sub = S.all ? 'Toutes les équipes du projet' : (me && (me.trades || []).length ? me.trades.join(' + ') : 'Périmètre limité à mes affectations');
+    const conds = (p.team || []).filter(m => gradeOf(m) === 'cond' || L.crews.some(c => (c.condIds || []).includes(m.id)));
+    const condSection = `<h4 style="margin-top:14px">Conducteurs <i>${conds.length}</i></h4>${conds.map(m => { const st = condStats(m, S.crews, L.mems, L.hc, per.from, per.to), pp = (p.team || []).find(x => x.id === m.parent), P2 = typeof posteOf === 'function' ? posteOf(m.poste) : null;
+      return `<button class="og-ms og-tc" data-p="${m.id}">${helmet(m, 38)}<span class="grow"><b>${esc(m.name || '')}</b><small>${esc((P2 && P2.n) || m.role || 'Conducteur')}${(m.trades || []).length ? ' · ' + (m.trades || []).map(esc).join(' + ') : ' · généraliste'}${pp ? ' · N+1 : ' + esc(pp.name) : ''}</small>
+        <em class="og-cs">👷 <strong>${st.nCrews}</strong> équipe(s) · 🔧 <strong>${st.nTechs}</strong> technicien(s) · 👥 <strong>${st.nWorkers}</strong> ouvrier(s)</em></span><span>›</span></button>`; }).join('') || '<small class="muted">Aucun conducteur (poste « Conducteur » ou « Ingénieur travaux » dans l\'organigramme).</small>'}`;
     const K = (l, v) => `<div class="og-k"><small>${l}</small><b>${v}</b></div>`;
     const card = (c) => { const y = yields(c, L.mems, L.ents, L.arts, per.from, per.to, L.hc), a = act.find(x => x.crewId === c.id), u = a && a.unit, v = u && y.byUnit[u], pct = v && a.obj > 0 && v.perDay != null ? Math.round(v.perDay / a.obj * 100) : null, boss = (p.team || []).find(x => x.id === c.leaderId);
       return `<button class="og-ms og-tc" data-crew="${c.id}">${boss ? helmet(boss, 30) : ''}<span class="grow"><b>${esc(c.name)}</b><small>${esc(spatialLabel((a || {}).spatial || c.spatial))}</small>${pct != null ? `<div class="sq-tr"><div class="sq-fl" style="width:${Math.min(100, pct)}%"></div></div>` : ''}</span><b>${pct != null ? pct + '%' : '—'}</b></button>`; };
-    const html = `<div class="og-fw"><div class="og-sec"><span class="og-demo">${S.all ? 'Vue complète' : 'Mon périmètre'}</span><h4>${esc(title)}</h4><small>${esc(sub)} · ${esc(p.name)}</small>
+    const html = `<div class="og-fw">${embed && typeof OrgDir !== 'undefined' ? OrgDir.tabs('crews') : ''}<div class="og-sec"><span class="og-demo">${S.all ? 'Vue complète' : 'Mon périmètre'}</span><h4>${esc(title)}</h4><small>${esc(sub)} · ${esc(p.name)}</small>
       <div class="og-kg">${K('Ouvriers affectés', head)}${K('Équipes', S.crews.length)}${K('Métiers', trades.length)}${K('Zones actives', zonesAct.size)}</div>
       <h4 style="margin-top:14px">Affectations des équipes</h4>${S.crews.map(card).join('') || '<small class="muted">Aucune équipe.</small>'}
       <small class="muted">Les % comparent le rendement journalier moyen (${per.from} → ${per.to}) à l'objectif journalier de l'affectation en cours, même unité. Ce n'est pas l'avancement global (voir Suivi quantitatif). « — » : objectif ou quantité non liés.</small>
       ${canE ? '<div class="og-fb"><button class="btn small" data-a="new">＋ Équipe</button></div>' : ''}${legend()}</div></div>`;
     const s = embed ? (embed.innerHTML = html, { el: embed, close() { list(p, canE, embed); } }) : sheet(html, { title: 'Équipes' });
     $$('[data-crew]', s.el).forEach(b => b.onclick = () => { if (!embed) s.close(); crewSheet(p, b.dataset.crew, canE); });
+    $$('[data-p]', s.el).forEach(b => b.onclick = () => { const m = (p.team || []).find(x => x.id === b.dataset.p); if (m) orgFiche(p, m, orgEdit('org') && orgCanAdmin(), () => DB.put('projects', p), () => {}); });
+    $$('[data-tab]', s.el).forEach(b => b.onclick = () => { App.dr.tab = b.dataset.tab; App.dr.v = null; list(p, canE, embed); });
     const nw = $('[data-a=new]', s.el); if (nw) nw.onclick = async () => { if (!embed) s.close(); if (await editCrew(p, null)) list(p, canE, embed); };
   }
+  const S_def = (p) => { const me = (p.team || []).find(x => x.me); return !me || (typeof Org !== 'undefined' && Org.owner()) || FULL.includes(me.poste) ? 'cond' : 'crews'; };
   const render = (root) => list(App.project, orgEdit('org') && orgCanAdmin(), root);
-  return { render, list, fiche, bindFiche, crewSheet, helmet, helmetG, gradeOf, GRADES, calc: { overlap, uniqueHeads, personDays, anonAt, anonDays, anonHeads, yields, scope, spatialLabel, crewsOf }, TRADES };
+  return { load, period, render, list, fiche, bindFiche, crewSheet, helmet, helmetG, gradeOf, GRADES, calc: { condStats, overlap, uniqueHeads, personDays, anonAt, anonDays, anonHeads, yields, scope, spatialLabel, crewsOf }, TRADES };
 })();

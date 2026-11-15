@@ -2124,7 +2124,7 @@ try {
     const a1 = { id: 'g1', projectId: pid, kind: 'oga', crewId: 'c1', from: d(-20), to: '', spatial: { type: 'bat', bat: 'A' }, hist: [] }; await DB.put('items', a1);
     a1.to = d(-6); await DB.put('items', a1); const a2 = { id: 'g2', projectId: pid, kind: 'oga', crewId: 'c1', from: d(-5), to: '', spatial: { type: 'route', axe: 'RN1', pkd: '1', pkf: '2' }, hist: [] }; await DB.put('items', a2);
     const asg = (await DB.byProject('items', pid)).filter(x => x.kind === 'oga' && x.crewId === 'c1'); o.hist = asg.length === 2 && asg.some(x => x.to === d(-6)) && C.overlap(d(-20), d(-6), d(-30), d(-10)) > 0;
-    { const r = document.createElement('div'); document.body.appendChild(r); await OrgCrews.render(r); o.emb = !!SECTIONS.equipes && r.querySelectorAll('.og-k').length === 4 && r.textContent.includes('Ferraillage A'); r.remove(); }
+    { const r = document.createElement('div'); document.body.appendChild(r); App.dr = { tab: 'crews', v: null, back: [] }; await OrgCrews.render(r); o.emb = !!SECTIONS.equipes && r.querySelectorAll('.og-k').length === 4 && r.textContent.includes('Ferraillage A'); r.remove(); }
     { const hc = [{ crewId: 'c1', n: 10, from: d(-10), to: d(-4) }, { crewId: 'c1', n: 12, from: d(-3), to: '' }];
       const y2 = C.yields(cr[0], [], [{ crewId: 'c1', artId: 'a1', delta: 600, at: Date.now() - 864e5 }], arts, d(-6), today, hc);
       o.anon = C.anonAt(hc, 'c1', today) === 12 && C.anonAt(hc, 'c1', d(-8)) === 10 && C.anonAt(hc, 'c2', today) === 0 && C.anonHeads(hc, ['c1', 'c2'], today) === 12 && y2.personDays === 78 && y2.byUnit.kg.perWorkerDay === 7.692 && modOf('items', { kind: 'ogh' }) === 'pointage'; }
@@ -2133,11 +2133,65 @@ try {
       o.vis = C.scope(p, mine_, []).all === true;   // direction niveau 1 : tout le projet
       p.team = [T('cz', 'Conducteur Z', 'conduct', [], true)]; const mc = [{ id: 'n3', trade: 'coffrage', createdBy: 'cz' }, { id: 'n4', trade: 'coffrage', createdBy: 'x' }];
       o.vis2 = C.scope(p, mc, []).crews.map(x => x.id).join() === 'n3'; }   // le créateur voit sa propre équipe, pas celle des autres
+    { const cs = C.condStats(team[1], cr, ms, [{ crewId: 'c2', n: 5, from: d(-10), to: '' }], d(-6), today), cf = C.condStats(team[2], cr, ms, [], d(-6), today);   // conductrice A : ferraillage + bétonnage ; conducteur F : ferraillage seul
+      o.cond = cs.nCrews === 2 && cs.nTechs === 1 && cs.nWorkers === 3 + 5 && cf.nCrews === 1 && cf.nTechs === 1 && cf.nWorkers === 2; }
     o.sep = C.scope({ ...p, team: [{ ...team[0], me: true }] }, [{ id: 'z', trade: 'x' }], []).all === true && modOf('items', { kind: 'ogm' }) === 'pointage' && modOf('items', { kind: 'ogt' }) === 'pointage';
     for (const x of await DB.byProject('items', pid)) if (/^og/.test(x.kind || '')) await DB.del('items', x.id); p.team = hold;
   } catch (e) { o.err = String(e.message || e); } return o; });
   log('organisation équipes', vOg);
-  log('errors organisation équipes', !vOg.err && vOg.head && vOg.dir && vOg.condA && vOg.condF && vOg.noImplicit && vOg.roles && vOg.route && vOg.yield && vOg.fiche && vOg.hist && vOg.sep && vOg.emb && vOg.anon && vOg.vis && vOg.vis2 ? [] : ['organisation équipes ' + JSON.stringify(vOg)]);
+  log('errors organisation équipes', !vOg.err && vOg.head && vOg.dir && vOg.condA && vOg.condF && vOg.noImplicit && vOg.roles && vOg.route && vOg.yield && vOg.fiche && vOg.hist && vOg.sep && vOg.emb && vOg.anon && vOg.vis && vOg.vis2 && vOg.cond ? [] : ['organisation équipes ' + JSON.stringify(vOg)]);
+  const vDv = await A.pg.evaluate(async () => { const o = {}; try { const p = App.project, hold = p.team, pid = p.id, today = todayISO(), d = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+  const T = (id, name, poste, trades, me) => ({ id, name, poste, trades: trades || [], me: !!me });
+  const team = [T('dir', 'Directeur', 'dirtrav', [], true), T('cA', 'Conductrice A', 'conduct', ['bétonnage']), T('cF', 'Conducteur F', 'conduct', ['ferraillage']), T('te', 'Technicien', 'cheq', ['ferraillage'])];
+  p.team = team; const put = (x) => DB.put('items', { projectId: pid, ...x });
+  const items = [
+    { id: 'c1', kind: 'ogt', name: 'Ferraillage A', trade: 'ferraillage', leaderId: '', chefId: '', techIds: ['te'], condIds: ['cF'], hist: [] },
+    { id: 'c2', kind: 'ogt', name: 'Bétonnage A', trade: 'bétonnage', leaderId: '', chefId: '', techIds: [], condIds: ['cA'], hist: [] },
+    { id: 'm1', kind: 'ogm', crewId: 'c1', who: 'w:o1', from: d(-10), to: '' }, { id: 'm2', kind: 'ogm', crewId: 'c2', who: 'w:o1', from: d(-10), to: '' }, { id: 'm3', kind: 'ogm', crewId: 'c2', who: 'w:o2', from: d(-10), to: '' },
+    { id: 'g1', kind: 'oga', crewId: 'c1', from: d(-9), to: '', spatial: { type: 'bat', bat: 'A' }, artId: 'a1', obj: 100, unit: 'kg', hist: [] },
+    { id: 'g2', kind: 'oga', crewId: 'c2', from: d(-9), to: '', spatial: { type: 'bat', bat: 'B' }, hist: [] },
+    { id: 'z1', kind: 'sqz', bat: 'A', bloc: '', niv: 'N1', zone: '' }, { id: 'z2', kind: 'sqz', bat: 'B', bloc: '', niv: 'N1', zone: '' },
+    { id: 'a1', kind: 'sqa', ref: '1.1', nom: 'Acier HA', lot: 'GO', unit: 'kg', qty: 1000, zones: [{ zid: 'z1', qty: 600 }, { zid: 'z2', qty: 400 }] },
+    { id: 'a2', kind: 'sqa', ref: '1.2', nom: 'Béton', lot: 'GO', unit: 'm³', qty: 100, zones: [{ zid: 'z1', qty: 100 }] },
+    { id: 'a3', kind: 'sqa', ref: '1.3', nom: 'Dépassé', lot: 'GO', unit: 'ml', qty: 10, zones: [{ zid: 'z2', qty: 10 }] },
+    { id: 'a4', kind: 'sqa', ref: '1.4', nom: 'Sans quantité', lot: 'GO', unit: 'u', qty: 0, zones: [{ zid: 'z2', qty: 0 }] },
+    { id: 'e1', kind: 'sqe', artId: 'a1', zid: 'z1', delta: 300, at: Date.now() - 2 * 864e5, crewId: 'c1', status: 'valide' },
+    { id: 'e2', kind: 'sqe', artId: 'a1', zid: 'z2', delta: 100, at: Date.now() - 2 * 864e5, crewId: 'c2', status: 'valide' },
+    { id: 'e3', kind: 'sqe', artId: 'a1', zid: 'z1', delta: -50, at: Date.now() - 1 * 864e5, crewId: 'c1', status: 'valide' },
+    { id: 'e4', kind: 'sqe', artId: 'a2', zid: 'z1', delta: 40, at: Date.now() - 2 * 864e5, crewId: 'c1', status: 'valide' },
+    { id: 'e5', kind: 'sqe', artId: 'a3', zid: 'z2', delta: 12, at: Date.now() - 2 * 864e5, crewId: 'c2', status: 'valide' }];
+  for (const x of items) await put(x);
+  const L = await OrgCrews.load(p), S = OrgCrews.calc.scope(p, L.crews, L.mems), per = OrgCrews.period(), M = OrgDir.model(p, L, S, per, () => null), r1 = (n) => n == null ? null : Math.round(n * 100) / 100;
+  const cF = M.conds.find(c => c.m.id === 'cF'), cA = M.conds.find(c => c.m.id === 'cA'), pA = M.parts.find(q => q.name === 'A'), pB = M.parts.find(q => q.name === 'B');
+  o.counts = cF.nCrews === 1 && cF.nTechs === 1 && cF.nWorkers === 1 && cF.nZones === 1 && cA.nCrews === 1 && cA.nTechs === 0 && cA.nWorkers === 2;
+  o.avF = cF.arts.length === 2; o.avV = r1(cF.av);
+  o.rend = cF.rend != null && cF.rend > 30 && cF.rend < 40; o.rendNone = cA.rend === null;
+  const la = pA.lines.find(l => l.A.art.id === 'a1'), lb = pB.lines.find(l => l.A.art.id === 'a1');
+  o.noDouble = la.done === 250 && lb.done === 100 && la.done + lb.done === M.arts.a1.c.done;   // correction −50 incluse, 2 équipes, somme = article
+  o.pct = r1(la.pct) === 41.67 && r1(M.arts.a1.pct) === 35;
+  o.over = M.arts.a3.pct === 120 && M.arts.a4.pct === null;   // dépassement conservé, quantité nulle → « — »
+  o.multi = Object.keys(M.arts.a1.crews).length === 2 && Object.keys(la.crews).join() === 'c1' && Object.keys(lb.crews).join() === 'c2'; o.cap = r1(cA.av) === 67.5;   // a1 35 % + a3 120 % plafonné à 100 → 67,5
+  o.unit = !pA.lines.some(l => l.A.art.unit !== (L.arts.find(x => x.id === l.A.art.id).unit));
+  // vue
+  const root = document.createElement('div'); document.body.appendChild(root); App.dr = { tab: 'cond', v: null, back: [] };
+  await OrgDir.render(p, true, root, { crews() {} });
+  o.v1 = root.querySelectorAll('.dr-card').length === 2 && root.textContent.includes('Conducteur F') && root.querySelector('.dr-nav') && root.querySelectorAll('.dr-m').length === 8 && root.querySelector('.dr-bar>i');
+  root.querySelector('[data-c=cF]').click(); await new Promise(r => setTimeout(r, 50));
+  o.v2 = root.textContent.includes('Techniciens') && root.textContent.includes('Ferraillage A') && root.querySelector('.dr-crumb');
+  root.querySelector('[data-tab=parts]').click(); await new Promise(r => setTimeout(r, 50));
+  o.v3 = root.querySelectorAll('[data-part]').length === 2;
+  root.querySelector('[data-part="A"]').click(); await new Promise(r => setTimeout(r, 50));
+  o.v4 = root.querySelectorAll('[data-art]').length === 2 && root.textContent.includes('Acier HA');
+  root.querySelector('[data-art=a1]').click(); await new Promise(r => setTimeout(r, 50));
+  o.v5 = root.textContent.includes('Quantité totale') && root.textContent.includes('Ferraillage A') && root.textContent.includes('Prévu à date indisponible');
+  root.querySelector('[data-sq=a1]').click(); o.nav = App.section === 'suiviq' && App.sq.sel === 'a1';
+  // permissions : conducteur F ne voit que ses équipes
+  p.team = team.map(x => ({ ...x, me: x.id === 'cF' })); const S2 = OrgCrews.calc.scope(p, L.crews, L.mems); const M2 = OrgDir.model(p, L, S2, per, () => null);
+  o.perm = S2.crews.length === 1 && M2.conds.find(c => c.m.id === 'cA').nCrews === 0 && M2.arts.a1.c.done === 350;
+  root.remove(); for (const x of items) await DB.del('items', x.id); p.team = hold;
+ } catch (e) { o.err = String(e.message || e) + (e.stack || '').split('\n')[1]; } return o; });
+  log('directeur équipes & ouvrages', vDv);
+  log('errors directeur équipes & ouvrages', !vDv.err && ['counts','avF','rend','rendNone','noDouble','pct','over','multi','cap','unit','v1','v2','v3','v4','v5','nav','perm'].every(k => vDv[k]) && vDv.avV === 37.5 ? [] : ['directeur équipes & ouvrages ' + JSON.stringify(vDv)]);
   log('errors v1.0.246', !v245.err && v245.card && v245.url && v245.ov && v245.closed && v245.cr ? [] : ['v1.0.246 ' + JSON.stringify(v245)]);
   log('errors v1.0.244', !v244.err && v244.acc && v244.met && v244.div && v244.due === '2026-03-01' && v244.fr && v244.loc ? [] : ['v1.0.244 ' + JSON.stringify(v244)]);
   log('errors titre plan', []);
