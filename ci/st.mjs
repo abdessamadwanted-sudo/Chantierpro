@@ -2103,6 +2103,32 @@ try {
   } catch (e) { o.err = String(e.message || e); } return o; });
   log('suivi quantitatif', vSq);
   log('errors suivi quantitatif', !vSq.err && vSq.zero && vSq.rec && vSq.noChange && vSq.dup && vSq.sum && vSq.bad && vSq.int && vSq.dec && vSq.needNote && vSq.over && vSq.cor && vSq.corOnce && vSq.ref0 && vSq.recon && vSq.sep && vSq.list && vSq.fiche && vSq.sec && vSq.sync ? [] : ['suivi quantitatif ' + JSON.stringify(vSq)]);
+  // ---- organisation : équipes, affectations datées, effectif unique, rendements, périmètre par métier, projet linéaire
+  const vOg = await A.pg.evaluate(async () => { const o = {}; try { const p = App.project, C = OrgCrews.calc, hold = p.team;
+    const pid = p.id, T = (id, name, poste, trades, me) => ({ id, name, poste, trades: trades || [], me: !!me }), today = todayISO(), d = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+    const team = [T('dir', 'Directeur', 'dirtrav', []), T('cA', 'Conductrice A', 'conduct', ['ferraillage', 'bétonnage']), T('cF', 'Conducteur F', 'conduct', ['ferraillage']), T('te', 'Technicien', 'cheq', ['ferraillage']), T('cc', 'Chef chantier', 'chef', ['ferraillage']), T('ce', 'Chef équipe', 'cheq', ['ferraillage'])];
+    p.team = team; const mk = (id, name, trade, extra) => ({ id, projectId: pid, kind: 'ogt', name, trade, leaderId: 'ce', chefId: 'cc', techIds: ['te'], condIds: [], hist: [], ...extra });
+    const cr = [mk('c1', 'Ferraillage A', 'ferraillage', { condIds: ['cF'] }), mk('c2', 'Bétonnage A', 'bétonnage', { condIds: ['cA'] }), mk('c3', 'Coffrage A', 'coffrage', { leaderId: '', chefId: '', techIds: [] })];
+    const mem = (id, crew, who, from, to) => ({ id, projectId: pid, kind: 'ogm', crewId: crew, who, from, to: to || '' });
+    const ms = [mem('m1', 'c1', 'w:o1', d(-10)), mem('m2', 'c1', 'w:o2', d(-10)), mem('m3', 'c2', 'w:o2', d(-10)), mem('m4', 'c2', 'w:o3', d(-10)), mem('m5', 'c1', 'w:o4', d(-30), d(-20))];
+    o.head = C.uniqueHeads(ms, d(-6), today, 'w:') === 3 && C.uniqueHeads(ms, d(-30), d(-25), 'w:') === 1;   // o2 dans 2 équipes = 1 ; ouvrier sorti non compté sur la période récente
+    const as = (me) => { p.team = team.map(x => ({ ...x, me: x.id === me })); return C.scope(p, cr, ms).crews.map(x => x.id).sort().join(','); };
+    o.dir = as('dir') === 'c1,c2,c3'; o.condA = as('cA') === 'c1,c2'; o.condF = as('cF') === 'c1'; o.noImplicit = !as('cF').includes('c2');
+    o.roles = C.crewsOf(cr, 'cc').length === 2 && C.crewsOf(cr, 'ce').length === 2;   // chef chantier / chef d'équipe → équipes
+    o.route = C.spatialLabel({ type: 'route', axe: 'RN1', troncon: 'T2', pkd: '12+500', pkf: '14+000' }) === 'RN1 · T2 · PK 12+500→14+000' && C.spatialLabel({ type: 'bat', bat: 'A', zone: 'Z1' }) === 'A · Z1';
+    const arts = [{ id: 'a1', unit: 'kg' }, { id: 'a2', unit: 'm³' }], at = Date.now() - 2 * 864e5;
+    const ents = [{ crewId: 'c1', artId: 'a1', delta: 400, at }, { crewId: 'c1', artId: 'a2', delta: 10, at }, { crewId: 'c1', artId: 'a1', delta: 50, at: Date.now() - 40 * 864e5 }, { crewId: 'c2', artId: 'a2', delta: 99, at }];
+    const y = C.yields(cr[0], ms, ents, arts, d(-6), today); o.yield = y.byUnit.kg.qty === 400 && y.byUnit['m³'].qty === 10 && y.days === 7 && y.byUnit.kg.perDay === 57.14 && y.personDays === 14 && y.byUnit.kg.perWorkerDay === 28.571;   // unités séparées, hors période exclue
+    p.team = team.map(x => ({ ...x, me: x.id === 'dir' })); for (const x of [...cr, ...ms, { id: 'w1', projectId: pid, kind: 'ogw', name: 'Ouvrier 1' }]) await DB.put('items', x);
+    const h = await OrgCrews.fiche(p, team[4], true); o.fiche = h.includes('Ferraillage A') && h.includes('Bétonnage A') && h.includes('ouvrier(s) distinct(s)');
+    const a1 = { id: 'g1', projectId: pid, kind: 'oga', crewId: 'c1', from: d(-20), to: '', spatial: { type: 'bat', bat: 'A' }, hist: [] }; await DB.put('items', a1);
+    a1.to = d(-6); await DB.put('items', a1); const a2 = { id: 'g2', projectId: pid, kind: 'oga', crewId: 'c1', from: d(-5), to: '', spatial: { type: 'route', axe: 'RN1', pkd: '1', pkf: '2' }, hist: [] }; await DB.put('items', a2);
+    const asg = (await DB.byProject('items', pid)).filter(x => x.kind === 'oga' && x.crewId === 'c1'); o.hist = asg.length === 2 && asg.some(x => x.to === d(-6)) && C.overlap(d(-20), d(-6), d(-30), d(-10)) > 0;
+    o.sep = C.scope({ ...p, team: [{ ...team[0], me: true }] }, [{ id: 'z', trade: 'x' }], []).all === true && modOf('items', { kind: 'ogm' }) === 'pointage' && modOf('items', { kind: 'ogt' }) === 'pointage';
+    for (const x of await DB.byProject('items', pid)) if (/^og/.test(x.kind || '')) await DB.del('items', x.id); p.team = hold;
+  } catch (e) { o.err = String(e.message || e); } return o; });
+  log('organisation équipes', vOg);
+  log('errors organisation équipes', !vOg.err && vOg.head && vOg.dir && vOg.condA && vOg.condF && vOg.noImplicit && vOg.roles && vOg.route && vOg.yield && vOg.fiche && vOg.hist && vOg.sep ? [] : ['organisation équipes ' + JSON.stringify(vOg)]);
   log('errors v1.0.246', !v245.err && v245.card && v245.url && v245.ov && v245.closed && v245.cr ? [] : ['v1.0.246 ' + JSON.stringify(v245)]);
   log('errors v1.0.244', !v244.err && v244.acc && v244.met && v244.div && v244.due === '2026-03-01' && v244.fr && v244.loc ? [] : ['v1.0.244 ' + JSON.stringify(v244)]);
   log('errors titre plan', []);
