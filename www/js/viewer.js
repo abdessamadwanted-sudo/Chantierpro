@@ -442,6 +442,9 @@ async function openPlanViewer(plan, ctx) {
   }
   const HD_M = 0.25;   // marge rendue autour de l'écran (25 % de chaque côté)
   let pdfPage = null, pdfDoc = null, hdTimer = null, hdTask = null;
+  let hdFail = 0, hdCap = 1;   // v1.0.269 : reprise automatique après un échec de rendu (résolution réduite)
+  // retour au premier plan : Android peut avoir libéré les bitmaps des canvas → on masque le calque HD (l'image de base reste) et on le redessine
+  { const onVis = () => { if (document.visibilityState === 'visible' && el.isConnected) { hdFail = 0; hdCap = 1; hd.style.display = 'none'; scheduleHD(); } }; document.addEventListener('visibilitychange', onVis); cleanups.push(() => document.removeEventListener('visibilitychange', onVis)); }
   let focusG = null;   // v1.0.86 : pin d'arrivée (depuis le tableau), suit le zoom, disparaît à la fermeture
   const freeCanvas = c => { try { c.width = 0; c.height = 0; } catch (e) {} };
   cleanups.push(() => { clearTimeout(hdTimer); if (hdTask) { try { hdTask.cancel(); } catch (e) {} } hdc.forEach(freeCanvas); if (pdfDoc) { try { pdfDoc.destroy(); } catch (e) {} } pdfDoc = pdfPage = null; });
@@ -487,7 +490,7 @@ async function openPlanViewer(plan, ctx) {
   async function renderHD() {
     if (closed) return;
     if (g || !el.isConnected) return scheduleHD();
-    let dpr = Math.min(window.devicePixelRatio || 1, 2);   // v1.0.63 : 2 au lieu de 3 (P30 Pro) — net, et 2 fois moins de mémoire
+    let dpr = Math.min(window.devicePixelRatio || 1, 2) * hdCap;   // v1.0.63 : 2 au lieu de 3 (P30 Pro) — net, et 2 fois moins de mémoire
     if (st.scale * dpr <= (lite ? 0.75 : 1.05)) { hd.style.display = 'none'; return; } // l'image de base suffit
     const page = await loadPdfPage();
     if (!page) return;
@@ -496,14 +499,19 @@ async function openPlanViewer(plan, ctx) {
     const r0 = W / page.getViewport({ scale: 1 }).width;
     const sc = st.scale, tx = st.tx, ty = st.ty;
     let mx = Math.round(vw * HD_M), my = Math.round(vh * HD_M);
-    if ((vw + 2 * mx) * (vh + 2 * my) * dpr * dpr > 6e6) { mx = my = 0; }   // limite mémoire des téléphones
+    if ((vw + 2 * mx) * (vh + 2 * my) * dpr * dpr > (navigator.deviceMemory && navigator.deviceMemory <= 2 ? 3e6 : 6e6)) { mx = my = 0; }   // limite mémoire des téléphones (3 Mpx si ≤ 2 Go)
     const vp = page.getViewport({ scale: r0 * sc * dpr, offsetX: (tx + mx) * dpr, offsetY: (ty + my) * dpr });
     const c = document.createElement('canvas');
     c.width = Math.round((vw + 2 * mx) * dpr); c.height = Math.round((vh + 2 * my) * dpr);
     if (hdTask) { try { hdTask.cancel(); } catch (e) {} }
     hdTask = page.render({ canvasContext: c.getContext('2d'), viewport: vp, background: 'white' });
-    try { await hdTask.promise; } catch (e) { freeCanvas(c); return; }
-    hdTask = null;
+    try { await hdTask.promise; }
+    catch (e) {   // annulé (nouveau geste) : rien ; échec réel (mémoire…) : le dernier rendu reste affiché, on retente moins fin (2 fois) puis on garde l'image de base
+      freeCanvas(c); if (e && e.name === 'RenderingCancelledException') return;
+      if (++hdFail <= 2) { hdCap *= 0.6; return scheduleHD(); }
+      return;
+    }
+    hdTask = null; hdFail = 0; hdCap = Math.min(1, hdCap * 1.25);
     if (closed) return freeCanvas(c);
     if (st.scale !== sc || st.tx !== tx || st.ty !== ty) { freeCanvas(c); return scheduleHD(); }   // l'écran a bougé pendant le rendu : on recommence
     hdShow(c, (-tx - mx) / sc, (-ty - my) / sc, (vw + 2 * mx) / sc, (vh + 2 * my) / sc); freeCanvas(c);

@@ -1605,6 +1605,40 @@ try {
     lb.querySelector('[data-a=x]').click(); return o; } catch (e) { return { err: String(e.message || e) }; } });
   log('v1.0.263 [PDF net au zoom]', tPd);
   log('errors v1.0.263 pdf', !tPd.err && (tPd.skip || (tPd.sharper && tPd.noBlank)) ? [] : ['v1.0.263 pdf ' + JSON.stringify(tPd)]);
+  // ---- v1.0.269 : moteur PDF — non-régression avec un pdf.js simulé (CI sans lib/) : A0, zoom répété, défilement, échecs, faible mémoire
+  const tPr = await A.pg.evaluate(async () => { const real = window.pdfjsLib, hadMem = Object.getOwnPropertyDescriptor(navigator, 'deviceMemory'); const o = {};
+    const w = (n) => new Promise(r => setTimeout(r, n));
+    const mk = (pages, pw, ph, opt) => ({ GlobalWorkerOptions: { workerSrc: 'x' }, Util: { transform: () => [1, 0, 0, 1, 0, 0] },
+      getDocument: () => ({ promise: Promise.resolve({ numPages: pages, destroy() {}, getPage: async (n) => ({
+        getViewport: ({ scale }) => ({ width: pw * scale, height: ph * scale, scale, transform: [scale, 0, 0, -scale, 0, 0] }), getTextContent: async () => ({ items: [] }),
+        render: ({ canvasContext }) => ({ promise: (async () => { const c = canvasContext.canvas; opt.calls.push(c.width * c.height); await w(15); if (opt.fail > 0) { opt.fail--; throw new Error('mémoire simulée'); } canvasContext.fillStyle = '#336'; canvasContext.fillRect(0, 0, c.width, c.height); })() }) }) }) }) });
+    const zoom = async (sc, n, dir, x, y) => { for (let i = 0; i < n; i++) { sc.dispatchEvent(new WheelEvent('wheel', { deltaY: dir * 100, ctrlKey: true, clientX: x, clientY: y, bubbles: true, cancelable: true })); await w(25); } };
+    const open = async (pages, pw, ph, opt) => { window.pdfjsLib = mk(pages, pw, ph, opt); document.querySelectorAll('.lightbox').forEach(x => x.remove()); await showPdf(new Blob(['%PDF-1.4'], { type: 'application/pdf' }), 'Test'); await w(700); return [...document.querySelectorAll('.lightbox')].pop(); };
+    try {
+      // budget pur : A0 (2384×3370 pt)
+      const pxOf = (z, mem) => { const s = pdfBudget(2384, 3370, z, 400, mem); return [s * 2384 * s * 3370, s * 3370]; };
+      o.budget = [1, 6, 24].every(z => pxOf(z)[0] <= 14.01e6 && pxOf(z)[1] <= 8192.01) && [1, 6, 24].every(z => pxOf(z, 2)[0] <= 6.01e6 && pxOf(z, 2)[1] <= 4096.01);
+      // A0 : zoom répété + déplacements rapides, jamais de page vide ni de canvas hors limites
+      let opt = { calls: [], fail: 0 }; let lb = await open(1, 2384, 3370, opt); const sc = lb.querySelector('.pdf-pages'), c = () => lb.querySelector('canvas:not(.pdf-tile)');
+      o.bg = getComputedStyle(c()).backgroundColor === 'rgb(255, 255, 255)';
+      let blank = 0, maxPx = 0; const sample = () => { const k = c(); if (!k.width || !k.height) blank++; maxPx = Math.max(maxPx, k.width * k.height); };
+      for (let r = 0; r < 4; r++) { await zoom(sc, 12, -1, 120 + r * 40, 200 + r * 60); sample(); for (let j = 0; j < 8; j++) { sc.scrollTop = Math.random() * sc.scrollHeight; sc.scrollLeft = Math.random() * sc.scrollWidth; await w(15); sample(); } await zoom(sc, 8, 1, 200, 300); sample(); await w(500); sample(); }
+      await w(900); sample(); o.blank = blank; o.maxPx = maxPx; o.limit = maxPx <= 14.01e6 && c().width <= 8192; o.painted = (() => { const d = c().getContext('2d').getImageData(0, 0, Math.min(40, c().width), Math.min(40, c().height)).data; return d[3] > 0; })();
+      // échecs de rendu : le dernier rendu valide reste, puis reprise automatique
+      const w0 = c().width; opt.fail = 2; await zoom(sc, 10, -1, 150, 250); await w(600); o.keep = c().width > 0; await w(1800); o.recover = opt.fail === 0 && c().width > 0;
+      lb.querySelector('[data-a=x]').click();
+      // faible mémoire (≤ 2 Go) : plafonds réduits
+      Object.defineProperty(navigator, 'deviceMemory', { value: 1, configurable: true }); opt = { calls: [], fail: 0 }; lb = await open(1, 2384, 3370, opt);
+      await zoom(lb.querySelector('.pdf-pages'), 25, -1, 150, 250); await w(1200); o.lowMem = Math.max(...opt.calls) <= 6.01e6; lb.querySelector('[data-a=x]').click();
+      if (hadMem) Object.defineProperty(navigator, 'deviceMemory', hadMem); else delete navigator.deviceMemory;
+      // longue pièce (30 pages) : les pages lointaines sont libérées, celles à l'écran restent nettes
+      opt = { calls: [], fail: 0 }; lb = await open(30, 595, 842, opt); const sc2 = lb.querySelector('.pdf-pages');
+      for (let p = 0; p < 6; p++) { sc2.scrollTop = (sc2.scrollHeight / 6) * p; await w(250); }
+      sc2.scrollTop = sc2.scrollHeight; await w(1800); const cs = [...lb.querySelectorAll('canvas:not(.pdf-tile)')]; o.evict = cs.slice(0, 5).some(k => k.width === 60); o.vis = cs.slice(-3).some(k => k.width > 300);
+      lb.querySelector('[data-a=x]').click();
+    } catch (e) { o.err = String(e.message || e); } finally { window.pdfjsLib = real; document.querySelectorAll('.lightbox').forEach(x => x.remove()); } return o; });
+  log('v1.0.269 [moteur PDF : A0, zoom répété, échecs, faible mémoire]', tPr);
+  log('errors v1.0.269 moteur pdf', !tPr.err && tPr.budget && tPr.bg && tPr.blank === 0 && tPr.limit && tPr.painted && tPr.keep && tPr.recover && tPr.lowMem && tPr.evict && tPr.vis ? [] : ['v1.0.269 moteur pdf ' + JSON.stringify(tPr)]);
   const tDue = await A.pg.evaluate(() => ({ s: String(openDueTable).includes('Point · échéance') && !String(openDueTable).includes("p.mo ? ' · ' + esc(p.mo) : ''}</span></div>") }));
   log('v1.0.176 [échéances + points]', tDue); log('errors v1.0.176 échéances', tDue.s ? [] : ['v1.0.176 échéances']);
   // ---- v1.0.176 : sauvegarde Drive d'un projet = un seul zip mis à jour sur place (+ « précédente ») ----

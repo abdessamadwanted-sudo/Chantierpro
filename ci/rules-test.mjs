@@ -425,6 +425,73 @@ await t('code uniquement : REFUS à un administrateur de s\'autoriser lui-même'
 await t('Super Admin : outils visibles d\'un membre (perms)', () => assertSucceeds(owner.collection('companies').doc('c2').collection('members').doc('chef2').update({ perms: { plans: 1, reserves: 0 } })));
 await t('Super Admin : REFUS de rendre un membre administrateur', () => assertFails(owner.collection('companies').doc('c2').collection('members').doc('chef2').update({ admin: true })));
 await env.withSecurityRulesDisabled(async (c) => { await c.firestore().collection('config').doc('app').set({ inviteOnly: false }, { merge: true }); });
+// --- v1.0.269 (audit sécurité) : isolation entre organisations, matrice des rôles partenaires (MOA, BET, Entreprise, Bureau de contrôle),
+// administrateur, invité sans compte ; chaque cas « REFUS » doit échouer côté serveur
+await env.withSecurityRulesDisabled(async (c) => {
+  const db = c.firestore(), T = db.collection('companies').doc('cT'), PR = T.collection('projects').doc('pT');
+  await T.set({ name: 'Titulaire Audit', ownerUid: 'ownT', plan: 'enterprise', planStatus: 'actif' });
+  await T.collection('members').doc('ownT').set({ name: 'Own', admin: true, perms: ALL4, allProjects: true, projects: [] });
+  await T.collection('members').doc('techT').set({ name: 'Tech', admin: false, perms: { ...ALL0, projet: 2, reserves: 2, forms: 2 }, allProjects: false, projects: ['pT'] });
+  await T.collection('members').doc('techX').set({ name: 'Tech autre projet', admin: false, perms: { ...ALL0, projet: 2, reserves: 2 }, allProjects: false, projects: ['pAutre'] });
+  await PR.set({ name: 'Projet Audit', by: 'ownT' });
+  for (const [mod, st, id] of [['reserves', 'tasks', 'a1'], ['plans', 'plans', 'a2'], ['finance', 'items', 'a3'], ['forms', 'forms', 'a4']]) await PR.collection('m').doc(mod).collection('r').doc(`${st}__${id}`).set({ store: st, id, projectId: 'pT', data: '{}', ...(st === 'forms' ? { aut: 'techT', vst: 'soumis' } : {}) });
+  // organisations partenaires : mêmes règles pour tous, seuls les modules accordés (mods) et les droits du membre comptent
+  const ORGS = { cMOA: ['moa1', { projet: 1, reserves: 1 }, { projet: 1, reserves: 1, plans: 1 }], cBET: ['bet1', { projet: 1, plans: 2, reserves: 2 }, { ...ALL0, projet: 1, plans: 2, reserves: 2 }],
+    cENT: ['ent1', { projet: 1, reserves: 2 }, { ...ALL0, projet: 1, reserves: 2 }], cBC: ['bc1', { projet: 1, forms: 2, reserves: 1 }, { ...ALL0, projet: 1, forms: 4, reserves: 1 }] };
+  for (const [cid, [u, mods, perms]] of Object.entries(ORGS)) {
+    await db.collection('companies').doc(cid).set({ name: cid, ownerUid: u, plan: 'business', planStatus: 'actif' });
+    await db.collection('companies').doc(cid).collection('members').doc(u).set({ name: u, admin: false, perms: { ...ALL0, ...perms }, allProjects: true, projects: [] });
+    await db.collection('users').doc(u).set({ companyId: cid });
+    await PR.collection('partners').doc(cid).set({ orgName: cid, role: cid.slice(1).toLowerCase(), mods, status: 'actif' });
+  }
+  await db.collection('companies').doc('cFOR').set({ name: 'Étrangère', ownerUid: 'forA', plan: 'business', planStatus: 'actif' });
+  await db.collection('companies').doc('cFOR').collection('members').doc('forA').set({ name: 'Admin étranger', admin: true, perms: ALL4, allProjects: true, projects: [] });
+  await db.collection('users').doc('forA').set({ companyId: 'cFOR' }); await db.collection('users').doc('ownT').set({ companyId: 'cT' }); await db.collection('users').doc('techT').set({ companyId: 'cT' }); await db.collection('users').doc('techX').set({ companyId: 'cT' });
+});
+const [ownT, techT, techX, moa1, bet1, ent1, bc1, forA, gst1] = ['ownT', 'techT', 'techX', 'moa1', 'bet1', 'ent1', 'bc1', 'forA', 'gst1'].map(nu);
+const PT = (db) => db.collection('companies').doc('cT').collection('projects').doc('pT');
+const RT = (db, mod, st, id) => PT(db).collection('m').doc(mod).collection('r').doc(`${st}__${id}`);
+const W = (mod, st, id, extra) => ({ store: st, id, projectId: 'pT', data: '{}', ...extra });
+// isolation entre organisations
+await t('isolation : REFUS à un administrateur d\'une autre organisation (lecture du projet)', () => assertFails(PT(forA).get()));
+await t('isolation : REFUS de lire les réserves d\'une autre organisation', () => assertFails(RT(forA, 'reserves', 'tasks', 'a1').get()));
+await t('isolation : REFUS d\'écrire chez une autre organisation', () => assertFails(RT(forA, 'reserves', 'tasks', 'zz').set(W('reserves', 'tasks', 'zz'))));
+await t('isolation : REFUS de lister les projets d\'une autre organisation', () => assertFails(forA.collection('companies').doc('cT').collection('projects').get()));
+await t('isolation : REFUS de lire l\'organisation et ses membres', async () => { await assertFails(forA.collection('companies').doc('cT').get()); await assertFails(forA.collection('companies').doc('cT').collection('members').get()); });
+await t('isolation : REFUS de lire le journal (audit) d\'une autre organisation', () => assertFails(forA.collection('companies').doc('cT').collection('audit').get()));
+await t('isolation : REFUS de se déclarer partenaire sans code', () => assertFails(PT(forA).collection('partners').doc('cFOR').set({ orgName: 'x', role: 'bet', mods: { projet: 1, reserves: 2 }, status: 'actif', code: 'INCONNU' })));
+await t('isolation : REFUS de s\'ajouter comme membre d\'une autre organisation', () => assertFails(forA.collection('companies').doc('cT').collection('members').doc('forA').set({ name: 'x', admin: true, perms: ALL4, allProjects: true, projects: [] })));
+await t('isolation : REFUS de lire le profil d\'un autre compte', () => assertFails(forA.collection('users').doc('ownT').get()));
+await t('isolation : membre limité à un autre projet : REFUS', () => assertFails(RT(techX, 'reserves', 'tasks', 'a1').get()));
+// invité sans compte ni organisation
+await t('invité : REFUS de lire une organisation', () => assertFails(gst1.collection('companies').doc('cT').get()));
+await t('invité : REFUS de lire / écrire les données d\'un projet', async () => { await assertFails(RT(gst1, 'reserves', 'tasks', 'a1').get()); await assertFails(RT(gst1, 'reserves', 'tasks', 'g1').set(W('reserves', 'tasks', 'g1'))); });
+await t('invité sans connexion : REFUS de tout', async () => { await assertFails(RT(anon, 'reserves', 'tasks', 'a1').get()); await assertFails(anon.collection('companies').doc('cT').get()); });
+await t('invité : REFUS de créer un code d\'accès pour une organisation', () => assertFails(gst1.collection('invites').doc('GST1').set({ cid: 'cT', createdBy: 'gst1', admin: true, perms: ALL4, allProjects: true, projects: [], used: false, status: 'valide', role: 'x' })));
+// matrice des partenaires : MOA lecture seule, BET plans, Entreprise réserves, Bureau de contrôle PV
+await t('MOA : lit les réserves accordées', () => assertSucceeds(RT(moa1, 'reserves', 'tasks', 'a1').get()));
+await t('MOA : REFUS d\'écrire (niveau Voir)', () => assertFails(RT(moa1, 'reserves', 'tasks', 'm1').set(W('reserves', 'tasks', 'm1'))));
+await t('MOA : REFUS de lire un module non accordé (plans, finance, PV)', async () => { await assertFails(RT(moa1, 'plans', 'plans', 'a2').get()); await assertFails(RT(moa1, 'finance', 'items', 'a3').get()); await assertFails(RT(moa1, 'forms', 'forms', 'a4').get()); });
+await t('BET : modifie les plans accordés', () => assertSucceeds(RT(bet1, 'plans', 'plans', 'a2').set(W('plans', 'plans', 'a2', { rev: 2 }))));
+await t('BET : REFUS des finances', async () => { await assertFails(RT(bet1, 'finance', 'items', 'a3').get()); await assertFails(RT(bet1, 'finance', 'items', 'b1').set(W('finance', 'items', 'b1'))); });
+await t('Entreprise partenaire : ajoute une réserve, REFUS des plans', async () => { await assertSucceeds(RT(ent1, 'reserves', 'tasks', 'e1').set(W('reserves', 'tasks', 'e1'))); await assertFails(RT(ent1, 'plans', 'plans', 'a2').get()); });
+await t('Entreprise partenaire : REFUS de supprimer les données du titulaire hors module accordé', () => assertFails(RT(ent1, 'finance', 'items', 'a3').delete()));
+await t('Bureau de contrôle : dépose un PV en brouillon', () => assertSucceeds(RT(bc1, 'forms', 'forms', 'bc1').set(W('forms', 'forms', 'bc1', { aut: 'bc1', vst: 'brouillon' }))));
+await t('Bureau de contrôle : REFUS de valider un PV du titulaire', () => assertFails(RT(bc1, 'forms', 'forms', 'a4').set(W('forms', 'forms', 'a4', { aut: 'techT', vst: 'valide', vby: 'bc1' }))));
+await t('Bureau de contrôle : REFUS d\'écrire les réserves (niveau Voir)', () => assertFails(RT(bc1, 'reserves', 'tasks', 'c1').set(W('reserves', 'tasks', 'c1'))));
+await t('partenaires : REFUS de modifier la fiche du projet', async () => { for (const p of [moa1, bet1, ent1, bc1]) await assertFails(PT(p).update({ name: 'Piraté' })); });
+await t('partenaires : REFUS de supprimer le projet', () => assertFails(PT(bet1).delete()));
+await t('partenaires : REFUS de modifier leur propre périmètre (mods)', () => assertFails(PT(ent1).collection('partners').doc('cENT').update({ mods: { projet: 1, reserves: 2, finance: 2 } })));
+await t('partenaires : REFUS qu\'un partenaire en retire un autre', () => assertFails(PT(bet1).collection('partners').doc('cENT').delete()));
+await t('partenaires : REFUS d\'écrire dans l\'historique d\'une autre identité', () => assertFails(PT(bet1).collection('audit').add({ by: 'ownT', srv: SRV() })));
+await t('administrateur : accès complet à son organisation', async () => { await assertSucceeds(RT(ownT, 'finance', 'items', 'a3').get()); await assertSucceeds(RT(ownT, 'reserves', 'tasks', 'o1').set(W('reserves', 'tasks', 'o1'))); });
+await t('administrateur : REFUS de se donner un pack supérieur', () => assertFails(ownT.collection('companies').doc('cT').update({ plan: 'enterprise-plus' })));
+await t('technicien : REFUS hors de ses modules (finance)', () => assertFails(RT(techT, 'finance', 'items', 'a3').get()));
+// membre à accès limité dans le temps
+await env.withSecurityRulesDisabled(c => c.firestore().collection('companies').doc('cT').collection('members').doc('techT').update({ until: new Date(Date.now() - 86400000) }));
+await t('accès expiré (until) : REFUS de lire le projet', () => assertFails(RT(techT, 'reserves', 'tasks', 'a1').get()));
+await env.withSecurityRulesDisabled(c => c.firestore().collection('companies').doc('cT').update({ accessUntil: new Date(Date.now() - 86400000) }));
+await t('espace expiré (accessUntil) : REFUS pour l\'administrateur aussi', () => assertFails(RT(ownT, 'reserves', 'tasks', 'a1').get()));
 log(`\n${fails ? fails + ' ÉCHEC(S)' : 'TOUT OK'} — ${out.length} vérifications`);
 fs.writeFileSync(O + '/rules-test.txt', out.join('\n') + '\n');
 await env.cleanup();

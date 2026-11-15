@@ -3,23 +3,155 @@ service cloud.firestore {
   match /databases/{db}/documents {
     function signed() { return request.auth != null; }
     function memPath(cid) { return /databases/$(db)/documents/companies/$(cid)/members/$(request.auth.uid); }
-    function isMem(cid) { return signed() && exists(memPath(cid)); }
+    // compte bloqué par le Super Admin (users/{uid}.blocked) : plus aucun accès aux organisations, projets et fichiers
+    function okUser() { return !exists(/databases/$(db)/documents/users/$(request.auth.uid)) || get(/databases/$(db)/documents/users/$(request.auth.uid)).data.get('blocked', false) != true; }
+    // v1.0.53 : accès d'un membre limité dans le temps (members.until, posé par l'administrateur ou le Super Admin) — passé la date, plus d'accès
+    function memLive(cid) { return get(memPath(cid)).data.get('until', null) == null || get(memPath(cid)).data.until > request.time; }
+    function isMem(cid) { return signed() && exists(memPath(cid)) && okUser() && memLive(cid); }
     function mem(cid) { return get(memPath(cid)).data; }
     function isAdmin(cid) { return isMem(cid) && mem(cid).admin == true; }
     function lvl(cid, m) { return mem(cid).perms.get(m, 0); }
-    function canProj(cid, pid) { return mem(cid).allProjects == true || pid in mem(cid).projects; }
+    // organisation suspendue par le Super Admin : ses projets ne sont plus accessibles (rien n'est effacé)
+    // v1.0.57 : … et espace dont l'accès a pris fin (accessUntil), ou espace personnel non autorisé quand l'accès est « sur code uniquement »
+    function live(cid) { return !exists(/databases/$(db)/documents/companies/$(cid)) || coLive(get(/databases/$(db)/documents/companies/$(cid)).data); }
+    function coLive(c) { return c.get('planStatus', '') != 'suspendu' && (c.get('accessUntil', null) == null || c.accessUntil > request.time)
+      && (c.get('kind', '') != 'perso' || c.get('allowed', false) == true || licOwner() || !exists(/databases/$(db)/documents/config/app) || get(/databases/$(db)/documents/config/app).data.get('inviteOnly', false) != true); }
+    function teamsOn(cid) { let c = co(cid); return c.get('teamsVersion', 0) == 1 && !(c.get('plan', 'basic') in ['basic', 'pro', 'personnel']); }
+    function teamAllowed(cid, d) { return !teamsOn(cid) || isAdmin(cid) || d.get('teamEnabled', false) == false || request.auth.uid in d.get('teamUids', []); }
+    function baseProj(cid, pid) { return (isAdmin(cid) || mem(cid).allProjects == true || pid in mem(cid).projects) && live(cid); }
+    function canProj(cid, pid) { return baseProj(cid, pid) && (!exists(/databases/$(db)/documents/companies/$(cid)/projects/$(pid)) || teamAllowed(cid, get(/databases/$(db)/documents/companies/$(cid)/projects/$(pid)).data)); }
     function inv(code) { return get(/databases/$(db)/documents/invites/$(code)).data; }
+    function invLive(code) { return inv(code).used == false && inv(code).get('status', 'valide') == 'valide' && (inv(code).get('expiresAt', null) == null || inv(code).expiresAt > request.time); }
+    function memOf(cid, u) { return get(/databases/$(db)/documents/companies/$(cid)/members/$(u)).data; }
+    // validation des PV (module forms) : brouillon → soumis par l'auteur ; validé / refusé seulement par un responsable
+    // (administrateur, niveau Administrer, ou niveau Valider ET responsable direct de l'auteur) — jamais par l'auteur lui-même
+    function validator(cid, d) {
+      return d.get('aut', '') != request.auth.uid && (isAdmin(cid) || lvl(cid, 'forms') >= 4
+        || (lvl(cid, 'forms') >= 3 && d.get('aut', '') != '' && exists(/databases/$(db)/documents/companies/$(cid)/members/$(d.aut))
+            && memOf(cid, d.aut).get('managerUid', '') == request.auth.uid));
+    }
+    function vOk(cid) {
+      let d = request.resource.data;
+      let n = d.get('vst', 'brouillon');
+      let o = resource == null ? 'brouillon' : resource.data.get('vst', 'brouillon');
+      return (resource == null || d.get('aut', '') == resource.data.get('aut', ''))
+        && ((o != 'valide' && (n == o || n == 'brouillon' || n == 'soumis'))
+          || (n in ['valide', 'refuse'] && d.get('vby', '') == request.auth.uid && validator(cid, d)));
+    }
+    function co(cid) { return get(/databases/$(db)/documents/companies/$(cid)).data; }
+    // code pack (créé par le Super Admin) : ouvre un pack à la personne qui l'entre, une fois par personne, dans la limite des utilisations
+    function pc(code) { return get(/databases/$(db)/documents/packCodes/$(code)).data; }
+    function codeOk(code) {
+      return code is string && exists(/databases/$(db)/documents/packCodes/$(code)) && pc(code).status == 'valide' && pc(code).uses < pc(code).maxUses
+        && !(request.auth.uid in pc(code).usedBy) && (pc(code).get('expiresAt', null) == null || pc(code).expiresAt > request.time);
+    }
+    function codePlanOk(d) {
+      return codeOk(d.packCode) && d.plan == pc(d.packCode).plan
+        && ((pc(d.packCode).days == 0 && d.planStatus == 'actif')
+          || (pc(d.packCode).days > 0 && d.planStatus == 'essai' && d.trialEndsAt <= request.time + duration.value(pc(d.packCode).days + 1, 'd')));
+    }
+    function maxLvl2(p) { return p.keys().hasOnly(['projet', 'plans', 'reserves', 'reception', 'photos', 'forms', 'rapports', 'constats', 'calc', 'equipe', 'files', 'topo', 'centrale', 'materiel', 'pointage', 'hse', 'finance']) && p.get('projet', 0) <= 2 && p.get('plans', 0) <= 2 && p.get('reserves', 0) <= 2 && p.get('reception', 0) <= 2 && p.get('photos', 0) <= 2 && p.get('forms', 0) <= 2 && p.get('rapports', 0) <= 2 && p.get('constats', 0) <= 2 && p.get('calc', 0) <= 2 && p.get('equipe', 0) <= 2 && p.get('files', 0) <= 2 && p.get('topo', 0) <= 2 && p.get('centrale', 0) <= 2 && p.get('materiel', 0) <= 2 && p.get('pointage', 0) <= 2 && p.get('hse', 0) <= 2 && p.get('finance', 0) <= 2; }
+    // espace personnel : seulement des « collaborateurs » sur UN projet, au plus « Modifier », jamais admin, et seulement en pack Pro
+    function persoOK(d) { return co(d.cid).get('kind', 'org') != 'perso' || (d.admin == false && d.allProjects == false && d.projects.size() == 1
+      && d.role == 'collaborateur' && co(d.cid).get('plan', '') == 'pro' && maxLvl2(d.perms)); }
+    // personne autorisée à créer un code d'accès : administrateur, ou poste avec « Équipe » au niveau Valider (3) ou plus,
+    // qui ne peut donner ni plus de droits ni plus de projets qu'elle n'en a, ni le statut d'administrateur
+    function canInvite(cid) { return isMem(cid) && (mem(cid).admin == true || lvl(cid, 'equipe') >= 3 || mem(cid).get('canInvite', false) == true); }
+    function permsWithin(cid, p) {
+      let m = mem(cid).perms;
+      return p.keys().hasOnly(['projet', 'plans', 'reserves', 'reception', 'photos', 'forms', 'rapports', 'constats', 'calc', 'equipe', 'files', 'topo', 'centrale', 'materiel', 'pointage', 'hse', 'finance'])
+        && p.get('projet', 0) <= m.get('projet', 0) && p.get('plans', 0) <= m.get('plans', 0) && p.get('reserves', 0) <= m.get('reserves', 0)
+        && p.get('reception', 0) <= m.get('reception', 0) && p.get('photos', 0) <= m.get('photos', 0) && p.get('forms', 0) <= m.get('forms', 0)
+        && p.get('rapports', 0) <= m.get('rapports', 0) && p.get('constats', 0) <= m.get('constats', 0) && p.get('calc', 0) <= m.get('calc', 0)
+        && p.get('equipe', 0) <= m.get('equipe', 0) && p.get('files', 0) <= m.get('files', 0) && p.get('topo', 0) <= m.get('topo', 0)
+        && p.get('centrale', 0) <= m.get('centrale', 0) && p.get('materiel', 0) <= m.get('materiel', 0) && p.get('pointage', 0) <= m.get('pointage', 0)
+        && p.get('hse', 0) <= m.get('hse', 0) && p.get('finance', 0) <= m.get('finance', 0);
+    }
+    function projWithin(cid, d) { return mem(cid).allProjects == true || (d.allProjects == false && d.projects.hasOnly(mem(cid).projects)); }
+    // projet multi-organisations : une organisation partenaire (BET, MOA, architecte, labo, membre du groupement…) accède au projet
+    // d'une autre organisation, seulement aux modules accordés (au plus « Modifier ») et seulement depuis son espace actif ;
+    // chaque membre du partenaire garde en plus ses propres droits dans sa propre organisation (le plus petit des deux s'applique)
+    function wsOf() { return get(/databases/$(db)/documents/users/$(request.auth.uid)).data.get('companyId', ''); }
+    function partOf(cid, pid, o) { return get(/databases/$(db)/documents/companies/$(cid)/projects/$(pid)/partners/$(o)).data; }
+    function pOk(cid, pid, mod, n) {
+      let o = wsOf();
+      return signed() && o != '' && o != cid && okUser() && live(cid) && exists(/databases/$(db)/documents/companies/$(o)/members/$(request.auth.uid))
+        && exists(/databases/$(db)/documents/companies/$(cid)/projects/$(pid)/partners/$(o))
+        && partOf(cid, pid, o).get('status', '') == 'actif' && partOf(cid, pid, o).mods.get(mod, 0) >= n
+        && memOf(o, request.auth.uid).perms.get(mod, 0) >= n
+        && (memOf(o, request.auth.uid).allProjects == true || pid in memOf(o, request.auth.uid).projects);
+    }
+    // groupement (JV) : l'administrateur de l'organisation « mandataire » gère aussi les partenaires du projet
+    function mandAdmin(cid, pid) {
+      let o = wsOf();
+      return signed() && o != '' && o != cid && get(/databases/$(db)/documents/companies/$(cid)/projects/$(pid)).data.get('jv', {}).get('mand', '') == o
+        && isAdmin(o) && exists(/databases/$(db)/documents/companies/$(cid)/projects/$(pid)/partners/$(o));
+    }
+    function projAcc(cid, pid) { return (isMem(cid) && canProj(cid, pid)) || pOk(cid, pid, 'projet', 1); }
 
-    match /users/{uid} { allow read, write: if signed() && request.auth.uid == uid; }
+    // profil : la personne elle-même ; le blocage (blocked) ne se change que par le Super Admin
+    match /users/{uid} {
+      allow read: if (signed() && request.auth.uid == uid) || licOwner();
+      allow create: if signed() && request.auth.uid == uid && request.resource.data.get('blocked', false) == false;
+      allow update: if (signed() && request.auth.uid == uid && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['blocked', 'blockedAt', 'blockedWhy']))
+        || (licOwner() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['blocked', 'blockedAt', 'blockedWhy']))
+        // v1.0.55 : le Super Admin ouvre à la personne l'espace personnel qu'il vient de lui créer (et seulement un espace dont elle est propriétaire)
+        || (licOwner() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['companyId', 'workspaces'])
+          && get(/databases/$(db)/documents/companies/$(request.resource.data.companyId)).data.ownerUid == uid);
+      allow delete: if signed() && request.auth.uid == uid;
+    }
+    // panneau d'administration (Super Admin) : vues globales en lecture
+    match /{path=**}/projects/{pid} { allow read: if licOwner(); }
+    match /{path=**}/members/{uid} { allow read: if licOwner(); }
+    // erreurs de l'application : chacun envoie les siennes (sans données personnelles), le Super Admin les lit
+    // v1.0.53 : journal du Super Admin (Centre de contrôle) : lui seul l'écrit et le lit, sans modification ni suppression
+    match /adminLog/{id} {
+      allow read, create: if licOwner();
+    }
+    match /errors/{id} {
+      allow create: if signed() && request.resource.data.uid == request.auth.uid && request.resource.data.msg is string && request.resource.data.msg.size() <= 300
+        && request.resource.data.keys().hasOnly(['uid', 'cid', 'msg', 'src', 'stack', 'ver', 'platform', 'at']);
+      allow read, delete: if licOwner();
+    }
+    // codes pack : lus un par un par tout compte connecté ; une utilisation = +1 et son propre identifiant, rien d'autre
+    match /packCodes/{code} {
+      allow get: if signed();
+      allow list, create, delete: if licOwner();
+      allow update: if licOwner() || (signed() && resource.data.status == 'valide' && resource.data.uses < resource.data.maxUses
+        && !(request.auth.uid in resource.data.usedBy)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uses', 'usedBy', 'lastUsedAt'])
+        && request.resource.data.uses == resource.data.uses + 1 && request.resource.data.usedBy == resource.data.usedBy.concat([request.auth.uid]));
+    }
+    // demandes de pack (la facturation n'est pas en ligne) : la personne dépose, le Super Admin traite
+    match /packRequests/{id} {
+      allow create: if signed() && request.resource.data.uid == request.auth.uid && request.resource.data.status == 'attente';
+      allow read: if licOwner() || (signed() && resource.data.uid == request.auth.uid);
+      allow update, delete: if licOwner();
+    }
+    // annonces du Super Admin : à tous (target = 'all') ou à une personne (target = uid)
+    match /annonces/{id} {
+      allow read: if licOwner() || (signed() && (resource.data.target == 'all' || resource.data.target == request.auth.uid));
+      allow write: if licOwner();
+    }
 
     match /invites/{code} {
       allow get: if signed();
-      allow list: if signed() && isAdmin(resource.data.cid);
-      allow create: if signed() && isAdmin(request.resource.data.cid);
-      allow update: if signed() && (isAdmin(resource.data.cid) || (resource.data.used == false
+      allow list: if signed() && (isAdmin(resource.data.cid) || resource.data.createdBy == request.auth.uid);
+      // un code créé par une personne autorisée (non administrateur) passe toujours par l'approbation d'un administrateur
+      allow create: if signed() && request.resource.data.createdBy == request.auth.uid
+        && (request.resource.data.get('kind', '') != 'partner' || (request.resource.data.pid is string && request.resource.data.used == false
+            && maxLvl2(request.resource.data.mods) && request.resource.data.mods.get('projet', 0) == 1
+            && (isAdmin(request.resource.data.cid) || mandAdmin(request.resource.data.cid, request.resource.data.pid))))
+        && (request.resource.data.get('kind', '') == 'partner' || persoOK(request.resource.data)) && (request.resource.data.get('kind', '') == 'partner' || isAdmin(request.resource.data.cid)
+        || (canInvite(request.resource.data.cid) && request.resource.data.admin == false && request.resource.data.get('needsApproval', false) == true
+            && permsWithin(request.resource.data.cid, request.resource.data.perms) && projWithin(request.resource.data.cid, request.resource.data)));
+      allow update: if signed() && (isAdmin(resource.data.cid)
+        || (resource.data.createdBy == request.auth.uid && request.resource.data.status == 'revoque'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'revokedAt']))
+        || (invLive(code)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used', 'usedBy', 'usedAt'])
         && request.resource.data.usedBy == request.auth.uid));
-      allow delete: if signed() && isAdmin(resource.data.cid);
+      allow delete: if signed() && (isAdmin(resource.data.cid) || resource.data.createdBy == request.auth.uid);
     }
 
     // partage externe (projet précis, accès limité) : créé/géré par l'entreprise propriétaire du projet ; l'intervenant externe
@@ -59,38 +191,120 @@ service cloud.firestore {
       }
     }
 
+    // réglages globaux SiteTeam (packs et limites, catalogue) : lus par tous les comptes, modifiés par le Super Admin seulement
+    match /config/{doc} {
+      allow read: if signed();
+      allow write: if licOwner();
+    }
+
     match /companies/{cid} {
-      allow create: if signed() && request.resource.data.ownerUid == request.auth.uid;
-      allow read: if isMem(cid);
-      allow update: if isAdmin(cid);
+      // v1.0.45 : « accès sur code uniquement » (config/app.inviteOnly) — plus de nouvel espace sans le Super Admin ; « allowed » ne se donne que par lui
+      // v1.0.55 : le Super Admin peut créer l'espace personnel d'un compte (Centre de contrôle › « Créer son espace »)
+      allow create: if (licOwner() && request.resource.data.get('kind', '') == 'perso') || signed() && request.resource.data.ownerUid == request.auth.uid
+        && (licOwner() || (request.resource.data.get('allowed', false) == false
+          && (!exists(/databases/$(db)/documents/config/app) || get(/databases/$(db)/documents/config/app).data.get('inviteOnly', false) != true)))
+        && ((request.resource.data.get('planStatus', 'essai') in ['essai', 'gratuit']
+            && (request.resource.data.get('plan', 'basic') == 'basic' || licOwner()
+              || get(/databases/$(db)/documents/config/plans).data.get(request.resource.data.get('plan', 'basic'), {}).get('open', false) == true))
+          || (request.resource.data.get('packCode', null) != null && codePlanOk(request.resource.data)));
+      allow read: if isMem(cid) || licOwner();
+      // v1.1 : suppression définitive de l'espace, par son propriétaire seulement
+      allow delete: if signed() && resource.data.ownerUid == request.auth.uid;
+      // la formule (pack) ne change que par le Super Admin SiteTeam (plus tard : la facturation)
+      allow update: if (isAdmin(cid) && request.resource.data.get('plan', null) == resource.data.get('plan', null)
+          && request.resource.data.get('planStatus', null) == resource.data.get('planStatus', null)
+          && request.resource.data.get('trialEndsAt', null) == resource.data.get('trialEndsAt', null)
+          && request.resource.data.get('allowed', null) == resource.data.get('allowed', null)
+          && request.resource.data.get('accessUntil', null) == resource.data.get('accessUntil', null)
+          && request.resource.data.get('featGrant', null) == resource.data.get('featGrant', null)
+          && request.resource.data.get('modsOn', null) == resource.data.get('modsOn', null)
+          && request.resource.data.get('modsOff', null) == resource.data.get('modsOff', null)) || licOwner()
+        || (isAdmin(cid) && request.resource.data.get('packCode', null) != resource.data.get('packCode', null) && codePlanOk(request.resource.data));
 
       match /members/{uid} {
-        allow read: if isMem(cid);
-        allow create: if signed() && (isAdmin(cid) || (uid == request.auth.uid && (
+        allow read: if isMem(cid) || licOwner() || (signed() && uid == request.auth.uid);   // v1.0.53 : on lit toujours sa propre fiche (accès expiré → écran clair)
+        allow delete: if signed() && get(/databases/$(db)/documents/companies/$(cid)).data.ownerUid == request.auth.uid;   // v1.1 : le propriétaire retire les membres à la suppression de l'espace
+        allow create: if (licOwner() && get(/databases/$(db)/documents/companies/$(cid)).data.ownerUid == uid) || signed() && (isAdmin(cid) || (uid == request.auth.uid && (
           (get(/databases/$(db)/documents/companies/$(cid)).data.ownerUid == request.auth.uid)
           || (request.resource.data.invite is string
+              && inv(request.resource.data.invite).get('kind', '') != 'partner'
               && inv(request.resource.data.invite).cid == cid
-              && inv(request.resource.data.invite).used == false
+              && invLive(request.resource.data.invite)
+              && inv(request.resource.data.invite).get('needsApproval', false) == false
               && request.resource.data.role == inv(request.resource.data.invite).role
               && request.resource.data.perms == inv(request.resource.data.invite).perms
               && request.resource.data.admin == inv(request.resource.data.invite).admin
               && request.resource.data.allProjects == inv(request.resource.data.invite).allProjects
               && request.resource.data.projects == inv(request.resource.data.invite).projects))));
-        allow update: if isAdmin(cid);
+        // délégation en cascade : le responsable direct ajuste les droits, projets, zone et missions de son équipe, sans dépasser les siens
+        allow update: if isAdmin(cid) || (isMem(cid) && uid != request.auth.uid && resource.data.get('managerUid', '') == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['perms', 'missions', 'projects', 'allProjects', 'zone'])
+          && permsWithin(cid, request.resource.data.perms) && projWithin(cid, request.resource.data));
+        // v1.0.63 : le Super Admin règle la durée d'accès et les outils visibles de n'importe quel membre (rien d'autre)
+        allow update: if licOwner() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['until', 'perms']);
         allow delete: if isAdmin(cid) || (signed() && uid == request.auth.uid);
+      }
+      // demandes d'accès (codes « avec approbation ») : la personne dépose sa demande, un administrateur accepte ou refuse
+      match /requests/{uid} {
+        allow create: if signed() && uid == request.auth.uid && request.resource.data.status == 'attente'
+          && request.resource.data.code is string && inv(request.resource.data.code).cid == cid
+          && invLive(request.resource.data.code) && inv(request.resource.data.code).get('needsApproval', false) == true;
+        allow read: if signed() && (uid == request.auth.uid || isAdmin(cid));
+        allow update, delete: if isAdmin(cid);
+      }
+      // postes de l'organisation : administrateur ou niveau « Administrer » sur l'équipe (ex. Directeur qualité)
+      // annonces du Super Admin à une organisation
+      match /annonces/{id} {
+        allow read: if isMem(cid) || licOwner();
+        allow write: if licOwner();
+      }
+      match /postes/{pk} {
+        allow read: if isMem(cid);
+        allow write: if isAdmin(cid) || (isMem(cid) && lvl(cid, 'equipe') >= 4);
       }
       match /private/{doc} {
         allow read: if isMem(cid);
         allow write: if isAdmin(cid);
       }
+      // projets d'autres organisations auxquels cette organisation participe (liste locale, gérée par son administrateur)
+      match /shared/{pid} {
+        allow read: if isMem(cid);
+        allow write: if isAdmin(cid);
+      }
+      // Journal de l'organisation : append-only, administrateurs seulement.
+      match /audit/{aid} {
+        allow read: if isAdmin(cid);
+        allow create: if isAdmin(cid) && request.resource.data.by == request.auth.uid && request.resource.data.at == request.time;
+      }
       match /projects/{pid} {
-        allow read: if isMem(cid) && canProj(cid, pid);
-        allow create: if isMem(cid) && lvl(cid, 'projet') >= 3;
-        allow update: if isMem(cid) && canProj(cid, pid) && lvl(cid, 'projet') >= 2;
+        allow get: if (isMem(cid) && baseProj(cid, pid) && (resource == null || teamAllowed(cid, resource.data))) || pOk(cid, pid, 'projet', 1);
+        // liste : la requête doit elle-même se limiter aux projets ouverts ou à ceux où l'on est affecté (sinon refus)
+        allow list: if isMem(cid) && live(cid) && (isAdmin(cid) || (mem(cid).allProjects == true && (!teamsOn(cid) || resource.data.teamEnabled == false || request.auth.uid in resource.data.teamUids)));
+        allow create: if isMem(cid) && lvl(cid, 'projet') >= 3 && (isAdmin(cid) || (request.resource.data.get('teamEnabled', false) == false && request.resource.data.get('teamUids', []).size() == 0 && request.resource.data.get('affectations', []).size() == 0));
+        // le groupement (jv : nom, mandataire) ne change que par l'administrateur de l'organisation titulaire du projet
+        allow update: if isMem(cid) && canProj(cid, pid) && lvl(cid, 'projet') >= 2
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['jv', 'teamEnabled', 'teamUids', 'affectations']) || isAdmin(cid));
         allow delete: if isAdmin(cid);
         match /m/{mod}/r/{rid} {
-          allow read: if isMem(cid) && canProj(cid, pid) && lvl(cid, mod) >= 1;
-          allow write: if isMem(cid) && canProj(cid, pid) && lvl(cid, mod) >= 2;
+          allow read: if (isMem(cid) && canProj(cid, pid) && lvl(cid, mod) >= 1) || pOk(cid, pid, mod, 1);
+          allow create, update: if ((isMem(cid) && canProj(cid, pid) && lvl(cid, mod) >= 2) || pOk(cid, pid, mod, 2)) && (mod != 'forms' || vOk(cid));
+          allow delete: if (isMem(cid) && canProj(cid, pid) && lvl(cid, mod) >= 2) || pOk(cid, pid, mod, 2);
+        }
+        // organisations partenaires du projet : entrée par code « partenaire » (administrateur du partenaire), gérées par le titulaire ou le mandataire
+        match /partners/{o} {
+          allow read: if projAcc(cid, pid) || isMem(o);
+          allow create: if isAdmin(o) && o != cid && request.resource.data.code is string
+            && inv(request.resource.data.code).get('kind', '') == 'partner' && inv(request.resource.data.code).cid == cid
+            && inv(request.resource.data.code).pid == pid && invLive(request.resource.data.code)
+            && request.resource.data.mods == inv(request.resource.data.code).mods && request.resource.data.role == inv(request.resource.data.code).prole
+            && request.resource.data.status == 'actif';
+          allow update: if (isAdmin(cid) || mandAdmin(cid, pid)) && maxLvl2(request.resource.data.mods) && request.resource.data.mods.get('projet', 0) == 1;
+          allow delete: if isAdmin(cid) || mandAdmin(cid, pid) || isAdmin(o);
+        }
+        // historique du projet : on ajoute (qui, quoi, quand — heure du serveur), personne ne modifie ni n'efface
+        match /audit/{aid} {
+          allow read: if projAcc(cid, pid);
+          allow create: if projAcc(cid, pid) && request.resource.data.by == request.auth.uid && request.resource.data.srv == request.time;
         }
       }
     }
