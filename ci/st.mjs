@@ -1531,6 +1531,30 @@ try {
     document.querySelectorAll('.fullpage').forEach(x => x.remove()); for (const id of ['cp1', 'cp2', 'cp3']) await DB.del('links', id); return o; } catch (e) { return { err: String(e.message || e) }; } });
   log('v1.0.261 [symbole de coupe orientable]', tCp);
   log('errors v1.0.261 coupe', !tCp.err && tCp.rs === 'rotate(90)|rotate(0)|rotate(225)' && tCp.circle && tCp.noOldIcon ? [] : ['v1.0.261 coupe ' + JSON.stringify(tCp)]);
+  const tCc = await A.pg.evaluate(async () => { try { document.querySelectorAll('.fullpage').forEach(x => x.remove()); const p = App.project, a = (await DB.byProject('plans', p.id)).find(x => x.name === 'SW A');
+    const w = (n) => new Promise(r => setTimeout(r, n));
+    const f = await DB.put('files', { projectId: p.id, name: 'coupe.pdf', mime: 'application/pdf', role: 'doc', blob: new Blob(['%PDF-1.4'], { type: 'application/pdf' }) });
+    await DB.put('links', { id: 'cc1', projectId: p.id, planId: a.id, kind: 'planlink', shape: 'point', x: 60, y: 100, rot: 90, fileId: f.id, name: 'Coupe cc1', color: '#1e88e5', items: [] });
+    await openPlanViewer(a, planCtx(() => {})); await w(1000);
+    const o = {}; const g = () => document.querySelector('.fullpage .g-links');
+    o.eye = !!g().querySelector('path[d^="M1 12s4-8"]'); o.name = g().textContent.includes('Coupe cc1');
+    const sc = () => { const t = g().querySelector('g[transform^="translate(60"]').getAttribute('transform'); return +t.match(/scale\(([\d.e-]+)\)/)[1]; };
+    const s1 = sc(); o.s1 = s1 > 0;
+    const vw = document.querySelector('.fullpage .pv-viewer, .fullpage [class*=viewer]');
+    // copie : appui long sur le symbole → menu → Copier → toucher ailleurs
+    const sv = document.querySelector('.fullpage svg'); const r = g().querySelector('circle[r="17"]').getBoundingClientRect(); const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    const tgt = document.elementFromPoint(cx, cy);
+    tgt.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 7, clientX: cx, clientY: cy, pointerType: 'touch', isPrimary: true })); await w(800);
+    o.menu = [...document.querySelectorAll('.sheet .opt, .sheet button')].some(b => /Copier/.test(b.textContent));
+    const btn = [...document.querySelectorAll('.sheet .opt, .sheet button')].find(b => /Copier/.test(b.textContent)); if (btn) btn.click(); await w(300);
+    o.bar = !!document.querySelector('.pv-copy');
+    const ex = document.elementFromPoint(cx + 80, cy + 40);
+    for (const t of ['pointerdown', 'pointerup']) ex.dispatchEvent(new PointerEvent(t, { bubbles: true, pointerId: 8, clientX: cx + 80, clientY: cy + 40, pointerType: 'touch', isPrimary: true })); await w(600);
+    const all = (await DB.all('links')).filter(l => l.kind === 'planlink' && l.name === 'Coupe cc1');
+    o.copy = all.length === 2 && all[0].fileId === all[1].fileId && all[0].rot === all[1].rot && all[0].id !== all[1].id;
+    for (const l of all) await DB.del('links', l.id); await DB.del('files', f.id); document.querySelectorAll('.fullpage').forEach(x => x.remove()); return o; } catch (e) { return { err: String(e.message || e) }; } });
+  log('v1.0.264 [coupe : œil + nom, copier]', tCc);
+  log('errors v1.0.264 coupe copie', !tCc.err && tCc.eye && tCc.name && tCc.s1 && tCc.menu && tCc.bar && tCc.copy ? [] : ['v1.0.264 coupe copie ' + JSON.stringify(tCc)]);
   const tGp = await A.pg.evaluate(async () => { try { document.querySelectorAll('.fullpage').forEach(x => x.remove()); const a = (await DB.byProject('plans', App.project.id)).find(x => x.name === 'SW A');
     await openPlanViewer(a, planCtx(() => {})); const w = (n) => new Promise(r => setTimeout(r, n)); await w(800); const R = () => { const f = document.querySelectorAll('.fullpage'); return f[f.length - 1]; }, q = (s) => R().querySelector(s), qa = (s) => [...R().querySelectorAll(s)];
     const o = {}; if (!q('.tools [data-t=link]')) { q('.tools [data-t=hand]').click(); await w(100); }
