@@ -506,7 +506,8 @@ async function showPdf(blob, caption = 'PDF', opts = {}) {
     nk = Math.max(1, Math.min(24, nk)); const r = scroller.getBoundingClientRect(); mx = mx ?? r.width / 2; my = my ?? r.height / 2;
     const cx = (scroller.scrollLeft + mx) / zk, cy = (scroller.scrollTop + my) / zk; zk = nk; box.style.width = (zk * 100) + '%';
     scroller.scrollLeft = cx * zk - mx; scroller.scrollTop = cy * zk - my; $('[data-a=fit]', el).style.display = zk > 1.02 ? '' : 'none';
-    clearTimeout(hiT); hiT = setTimeout(() => { const R = scroller.getBoundingClientRect(); cs().forEach(c => { const r = c.getBoundingClientRect(); if (c._r && r.bottom > R.top - 200 && r.top < R.bottom + 200) render(c, true); }); }, 380);
+    cs().forEach(c => { if (c._tile) { c._tile.remove(); c._tile = null; } });
+    clearTimeout(hiT); hiT = setTimeout(() => { const R = scroller.getBoundingClientRect(); cs().forEach(c => { const r = c.getBoundingClientRect(); if (c._r && r.bottom > R.top - 200 && r.top < R.bottom + 200) render(c, true).then(() => tuile(c)); }); }, 380);
   };
   scroller.addEventListener('touchstart', (e) => {
     if (e.touches.length === 2) { const [a, b] = e.touches, r = scroller.getBoundingClientRect(); pinch = { d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), k: zk, mx: (a.clientX + b.clientX) / 2 - r.left, my: (a.clientY + b.clientY) / 2 - r.top }; }
@@ -516,7 +517,32 @@ async function showPdf(blob, caption = 'PDF', opts = {}) {
   scroller.addEventListener('touchend', (e) => { if (e.touches.length < 2) pinch = null; }, { passive: true });
   scroller.addEventListener('wheel', (e) => { if (!e.ctrlKey) return; e.preventDefault(); const r = scroller.getBoundingClientRect(); setZoom(zk * (e.deltaY < 0 ? 1.15 : 0.87), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
   ($('[data-a=fit]', el)||{}).onclick = () => setZoom(1); $('[data-a=fit]', el).style.display = 'none';
-  const cs = () => [...box.querySelectorAll('canvas')];
+  const cs = () => [...box.querySelectorAll('canvas:not(.pdf-tile)')];
+  // v1.0.267 : netteté maximale au zoom — seule la zone visible (+ marge) est redessinée à la résolution de l'écran dans une « tuile » posée sur la page (le plafond de 14 Mpx ne limite plus le zoom)
+  box.style.position = 'relative';
+  const tuile = async (c) => {
+    try {
+      if (!pdf || zk < 1.3 || !c._r || c._busy) return;
+      const r = c.getBoundingClientRect(), R = scroller.getBoundingClientRect(); if (!r.width) return;
+      const mx = R.width * 0.25, my = R.height * 0.25;
+      const x0 = Math.max(r.left, R.left - mx), x1 = Math.min(r.right, R.right + mx), y0 = Math.max(r.top, R.top - my), y1 = Math.min(r.bottom, R.bottom + my);
+      if (x1 - x0 < 8 || y1 - y0 < 8) { if (c._tile) { c._tile.remove(); c._tile = null; } return; }
+      const page = await pdf.getPage(+c.dataset.p), vp1 = page.getViewport({ scale: 1 });
+      const dpr = Math.min(window.devicePixelRatio || 1, 3); let S = (r.width / vp1.width) * dpr;
+      if (S <= (c._s || 0) * 1.05) { if (c._tile) { c._tile.remove(); c._tile = null; } return; }
+      const lim = Math.min(8192 / ((x1 - x0) * dpr), 8192 / ((y1 - y0) * dpr), Math.sqrt(16e6 / (((x1 - x0) * dpr) * ((y1 - y0) * dpr))));
+      if (lim < 1) S *= lim;
+      const k = S / (r.width / vp1.width);   // px par pixel CSS
+      const vp = page.getViewport({ scale: S }), key = (c._tk = (c._tk || 0) + 1);
+      const tc = document.createElement('canvas'); tc.className = 'pdf-tile'; tc.width = Math.max(1, Math.round((x1 - x0) * k)); tc.height = Math.max(1, Math.round((y1 - y0) * k));
+      await page.render({ canvasContext: tc.getContext('2d'), viewport: vp, transform: [1, 0, 0, 1, -(x0 - r.left) * k, -(y0 - r.top) * k] }).promise;
+      if (key !== c._tk || !c.isConnected) { tc.width = tc.height = 0; return; }
+      const r2 = c.getBoundingClientRect(); if (Math.abs(r2.width - r.width) > 1) { tc.width = tc.height = 0; return; }
+      tc.style.cssText = `position:absolute;pointer-events:none;left:${c.offsetLeft + (x0 - r.left)}px;top:${c.offsetTop + (y0 - r.top)}px;width:${x1 - x0}px;height:${y1 - y0}px`;
+      if (c._tile) c._tile.remove(); box.appendChild(tc); c._tile = tc;
+    } catch (e) {}
+  };
+  let tsT = null; scroller.addEventListener('scroll', () => { clearTimeout(tsT); tsT = setTimeout(() => { if (zk < 1.3) return; const R = scroller.getBoundingClientRect(); cs().forEach(c => { const r = c.getBoundingClientRect(); if (r.bottom > R.top && r.top < R.bottom) tuile(c); }); }, 350); }, { passive: true });
   const pgInd = () => { const c = cs(); if (!c.length) return; const mid = scroller.scrollTop + scroller.clientHeight / 3; let n = 1; c.forEach((x, j) => { if (x.offsetTop <= mid) n = j + 1; }); $('[data-pg]', el).textContent = `Page ${n} / ${nPages}`; };
   scroller.addEventListener('scroll', pgInd, { passive: true });
   let pdf, q = normTxt(opts.q || ''), texts = null;
