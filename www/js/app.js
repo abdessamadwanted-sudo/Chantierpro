@@ -419,6 +419,7 @@ const SECTIONS = {
   team: { label: 'Équipe', icon: 'team', render: renderTeam },
   orgs: { label: 'Organisations du projet', icon: 'team', render: (r) => Team.openPartners(App.project, r), title: 'Organisations', subtitle: 'MOA · BET · architecte · groupement' },
   histo: { label: 'Historique', icon: 'history', render: (r) => Team.renderHistory(r), title: 'Historique', subtitle: 'qui a fait quoi, et quand' },
+  hseplans: { label: 'Plans HSE', icon: 'plans', render: (r) => HsePlans.render(r), title: 'Plans', subtitle: 'Tous les niveaux · un plan par niveau' },
   fichiers: { label: 'Fichiers', icon: 'file', render: (r) => Fichiers.render(r), title: 'Fichiers', subtitle: 'Plans et documents · taille · par niveau / type' },
   docq: { label: 'Documentation & archives', icon: 'file', render: (r) => ST.renderDocs(r), title: 'Documentation', subtitle: 'PAQ · procédures · PV · essais · archives' },
   settings: { label: 'Paramètres', icon: 'settings', render: renderSettings },

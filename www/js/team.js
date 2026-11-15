@@ -240,7 +240,7 @@ Object.assign(KIND_MOD, { ogt: 'pointage', ogw: 'pointage', ogm: 'pointage', oga
 const modOf = (store, rec) => store === 'items' ? KIND_MOD[(rec || {}).kind] : STORE_MOD[store];
 // section de l'application → module
 // rubriques issues de Chantier : rattachées au module SiteTeam le plus proche (visibilité selon le poste)
-const SECTION_MOD = { fichiers: 'files', avancement: 'projet', suiviq: 'projet', equipes: 'pointage', clauses: 'forms', gestion: 'materiel', finance: 'finance', tce: 'finance', avenants: 'finance', st: 'finance',
+const SECTION_MOD = { fichiers: 'files', hseplans: 'plans', avancement: 'projet', suiviq: 'projet', equipes: 'pointage', clauses: 'forms', gestion: 'materiel', finance: 'finance', tce: 'finance', avenants: 'finance', st: 'finance',
   planning: 'projet', lotsuivi: 'projet', ptools: 'projet', reunions: 'forms', pointage: 'pointage', rfi: 'forms', visa: 'forms', labo: 'reception', hse: 'hse', org: 'equipe',
   dashboard: 'projet', plans: 'plans', tasks: 'reserves', reception: 'reception', beton: 'reception', photos: 'photos', forms: 'forms', reports: 'rapports',
   constat: 'constats', models3d: 'plans', maquette: 'plans', calc: 'calc', team: 'equipe', settings: 'projet', docq: 'files', histo: 'projet', orgs: 'projet', monespace: 'projet', tabproj: 'projet', localisation: 'projet', visio: 'projet' };
@@ -258,7 +258,7 @@ const SVC_LIB = {
   topo: ['calc', 'models3d', 'maquette', 'avancement'],
   qualite: ['reception', 'beton', 'forms', 'constat', 'labo', 'docq', 'clauses', 'visa', 'rfi'],
   labo: ['labo', 'beton', 'forms', 'docq'],
-  hse: ['hse', 'constat', 'forms', 'pointage', 'reunions'],
+  hse: ['hse', 'hseplans', 'constat', 'forms', 'pointage', 'reunions'],
   metre: ['calc', 'finance', 'tce', 'avenants', 'st', 'avancement', 'models3d'], contrats: ['finance', 'tce', 'avenants', 'st', 'clauses', 'docq'],
   bim: ['lotsuivi', 'planning', 'models3d', 'maquette', 'calc', 'avancement', 'rfi', 'visa', 'reunions'], methodes: ['lotsuivi', 'planning', 'models3d', 'maquette', 'calc', 'avancement', 'reunions'],
   etudes: ['calc', 'rfi', 'visa', 'models3d', 'maquette', 'docq'], doc: ['docq', 'forms', 'visa', 'rfi', 'clauses', 'reunions'],
