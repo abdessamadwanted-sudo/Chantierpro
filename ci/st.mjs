@@ -1497,6 +1497,26 @@ try {
   await A.pg.mouse.move(vb.x + 70, vb.y); await A.pg.mouse.down(); for (let i = 1; i <= 8; i++) await A.pg.mouse.move(vb.x + 70 - i * 18, vb.y + 2); await A.pg.mouse.up(); await A.pg.waitForTimeout(1200);
   const tSw2 = await A.pg.evaluate(() => { const e = document.querySelector('.fullpage .pv-h1'); return e ? e.title : ''; });
   log('v1.0.240 [balayage sur le plan]', tSw2); log('errors v1.0.240 swipe plan', tSw2 === 'SW B' ? [] : ['v1.0.240 swipe plan ' + tSw2]);
+  const tPk = await A.pg.evaluate(async () => { try {
+    document.querySelectorAll('.fullpage').forEach(x => x.remove()); const p = App.project, a = (await DB.byProject('plans', p.id)).find(x => x.name === 'SW A');
+    await openPlanViewer(a, planCtx(() => {})); await new Promise(r => setTimeout(r, 900));
+    const o = {}, wait = (n) => new Promise(r => setTimeout(r, n)), title = () => { const e = document.querySelector('.fullpage .pv-h1'); return e ? e.title : ''; };
+    const dots = document.querySelector('.pv-dots'); o.idle = !dots.classList.contains('pick') && getComputedStyle(dots).opacity === '0';
+    document.querySelector('.fullpage .pv-h1').click(); await wait(80);
+    const bs = [...document.querySelectorAll('.pv-dots.pick .pd-v b')]; o.list = bs.length >= 2 && bs.some(b => b.classList.contains('on')) && bs.map(b => b.textContent).join() === 'R+1,RDC';
+    o.touch = getComputedStyle(document.querySelector('.pv-dots .pd-v')).pointerEvents === 'auto';
+    bs.find(b => b.textContent === 'R+1').click(); let blank = 0, two = 0;   // échantillonnage : à aucun instant l'écran ne doit être sans plan visible
+    for (let i = 0; i < 60; i++) { const fp = [...document.querySelectorAll('.fullpage')]; if (!fp.some(x => x.style.visibility !== 'hidden')) blank++; if (fp.length === 2) two++; await wait(10); }
+    o.noBlank = blank === 0 && two > 0;
+    await wait(1100); o.done = document.querySelectorAll('.fullpage .pv-h1').length === 1 && title() === 'SW U' && !document.querySelector('.fullpage.pv-out-d');
+    // retour par la liste (plan zoomé : la liste ne dépend pas du glissement)
+    document.querySelector('.fullpage .pv-h1').click(); await wait(80); [...document.querySelectorAll('.pv-dots.pick .pd-v b')].find(b => b.textContent === 'RDC').click(); await wait(1500);
+    o.back = title().startsWith('SW') && title() !== 'SW U' && document.querySelectorAll('.fullpage').length === 1;
+    document.querySelector('.fullpage .pv-h1').click(); await wait(80); document.querySelector('.fullpage .viewer').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: 200, clientY: 300, pointerId: 3 })); o.dismiss = !document.querySelector('.pv-dots.pick');
+    document.querySelectorAll('.fullpage').forEach(x => x.remove());
+    return o; } catch (e) { return { err: String(e && e.message || e) }; } });
+  log('v1.0.259 [liste des niveaux + changement sans flash]', tPk);
+  log('errors v1.0.259 niveaux', !tPk.err && tPk.idle && tPk.list && tPk.touch && tPk.noBlank && tPk.done && tPk.back && tPk.dismiss ? [] : ['v1.0.259 niveaux ' + JSON.stringify(tPk)]);
   const tDue = await A.pg.evaluate(() => ({ s: String(openDueTable).includes('Point · échéance') && !String(openDueTable).includes("p.mo ? ' · ' + esc(p.mo) : ''}</span></div>") }));
   log('v1.0.176 [échéances + points]', tDue); log('errors v1.0.176 échéances', tDue.s ? [] : ['v1.0.176 échéances']);
   // ---- v1.0.176 : sauvegarde Drive d'un projet = un seul zip mis à jour sur place (+ « précédente ») ----

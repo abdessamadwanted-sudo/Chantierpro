@@ -4243,3 +4243,14 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .dr-row{display:flex;justify-content:space-between;gap:8px;margin-bottom:8px}.dr-row b{display:inline}
 .dr-fb{margin-top:12px}
 .dr-card>.dr-bar+.dr-ms,.dr-card>.dr-ms{margin-top:12px}
+
+/* v1.0.259 : changement de niveau fluide (l'ancien plan sort pendant que le nouveau entre) + liste des niveaux utilisable au toucher */
+@keyframes pvol { to { transform: translateX(-28%); opacity: .2; } } @keyframes pvor { to { transform: translateX(28%); opacity: .2; } }
+@keyframes pvou { to { transform: translateY(-24%); opacity: .2; } } @keyframes pvod { to { transform: translateY(24%); opacity: .2; } }
+.fullpage.pv-out-l { animation: pvol .32s cubic-bezier(.2,.8,.2,1) forwards; } .fullpage.pv-out-r { animation: pvor .32s cubic-bezier(.2,.8,.2,1) forwards; }
+.fullpage.pv-out-u { animation: pvou .32s cubic-bezier(.2,.8,.2,1) forwards; } .fullpage.pv-out-d { animation: pvod .32s cubic-bezier(.2,.8,.2,1) forwards; }
+.pv-dots.pick .pd-v { pointer-events: auto; max-height: 70vh; overflow-y: auto; overscroll-behavior: contain; padding: 6px; gap: 4px; }
+.pv-dots:not(.show) .pd-v { pointer-events: none; }
+.pv-dots.pick .pd-v b { min-width: 54px; padding: 11px 8px; font-size: 13px; }
+.pv-dots.pick .pd-v b.empty { opacity: .35; }
+.topbar h1.pv-h1 { cursor: pointer; }

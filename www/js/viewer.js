@@ -239,7 +239,9 @@ function planNavInfo(plan, folders, plans, p) {
   const li = levels.findIndex(f => f.id === mine);
   const near = (dir) => { if (li < 0) return null; for (let i = li + dir; i >= 0 && i < levels.length; i += dir) { const c = cur.filter(x => topOf(x.folderId) === levels[i].id), t = key(plan);
     const hit = (plan.lotId && c.find(x => x.lotId === plan.lotId)) || (t && c.find(x => key(x) === t)); if (hit) return hit; } return null; };
-  return { row, idx: row.findIndex(x => x.id === plan.id), levels, li, up: near(1), down: near(-1) };
+  const inLv = (i) => cur.filter(x => topOf(x.folderId) === levels[i].id);
+  const at = (i) => { const c = inLv(i), t = key(plan); return (plan.lotId && c.find(x => x.lotId === plan.lotId)) || (t && c.find(x => key(x) === t)) || c[0] || null; };   // niveau choisi dans la liste : même lot / type si possible
+  return { row, idx: row.findIndex(x => x.id === plan.id), levels, li, up: near(1), down: near(-1), at, count: (i) => inLv(i).length };
 }
 async function openPlanViewer(plan, ctx) {
   const file = await DB.get('files', plan.fileId);
@@ -318,14 +320,33 @@ async function openPlanViewer(plan, ctx) {
     const h1 = $('.topbar', el), dots = document.createElement('div'); dots.className = 'pv-dots'; el.appendChild(dots);
     let info = null, hideT = null, t0 = null;
     const load = async () => { try { const pid = plan.projectId; const [fo, pl] = await Promise.all([DB.byProject('folders', pid), DB.byProject('plans', pid)]); info = planNavInfo(plan, fo, pl, App.project); } catch (e) { info = null; } return info; };
+    let pick = false;
+    const closePick = () => { if (!pick) return; pick = false; dots.classList.remove('show', 'pick'); };
+    // v1.0.259 : toucher la carte (niveau · type · lot) ouvre la liste COMPLÈTE des niveaux, utilisable même plan zoomé ; toucher un niveau y va
+    const openPick = async () => {
+      const I = info || await load(); if (!I || !I.levels.length) return toast('Niveaux introuvables');
+      pick = true; const { levels, li } = I, nm = (f) => esc((typeof nivOfFolder === 'function' && nivOfFolder(f.name)) || f.name);
+      dots.innerHTML = `<div class="pd-v">${levels.map((f, i) => `<b data-i="${i}" class="${i === li ? 'on' : ''}${I.count(i) ? '' : ' empty'}">${nm(f)}</b>`).reverse().join('')}</div>`;
+      clearTimeout(hideT); dots.classList.add('show', 'pick'); const on = dots.querySelector('b.on'); if (on) on.scrollIntoView({ block: 'center' });
+    };
+    dots.addEventListener('click', (e) => { const b = e.target.closest('.pd-v b'); if (!pick || !b) return; e.stopPropagation(); const i = +b.dataset.i, I = info; if (!I) return;
+      if (i === I.li) return closePick(); const tg = I.at(i); if (!tg) return toast('Aucun plan dans ce niveau');
+      go(tg, i > I.li ? 'd' : 'u'); });
+    viewer.addEventListener('pointerdown', () => { if (pick) closePick(); }, true);
+    h1.addEventListener('click', (e) => { if (e.target.closest('button')) return; if (pick) closePick(); else openPick(); });
     const showDots = () => {
-      if (!info) return; const { row, idx, levels, li } = info, win = (n, i, k) => { const a = Math.max(0, Math.min(n - k, i - Math.floor(k / 2))); return [a, Math.min(n, a + k)]; };
+      if (!info || pick) return; const { row, idx, levels, li } = info, win = (n, i, k) => { const a = Math.max(0, Math.min(n - k, i - Math.floor(k / 2))); return [a, Math.min(n, a + k)]; };
       const [a, b] = win(row.length, idx, 9), [c, d] = win(levels.length, li, 7);
       dots.innerHTML = (row.length > 1 ? `<div class="pd-h">${row.slice(a, b).map((x, i) => `<i class="${a + i === idx ? 'on' : ''}"></i>`).join('')}</div>` : '') +
         (levels.length > 1 && li >= 0 ? `<div class="pd-v">${levels.slice(c, d).reverse().map((f, i) => `<b class="${f.id === levels[li].id ? 'on' : ''}">${esc((typeof nivOfFolder === 'function' && nivOfFolder(f.name)) || f.name)}</b>`).join('')}</div>` : '');
       dots.classList.add('show'); clearTimeout(hideT); hideT = setTimeout(() => dots.classList.remove('show'), 2000);
     };
-    const go = (target, dir) => { if (!target) return false; if (st.pend) { toast('Terminez ou annulez le tracé en cours'); return true; } close(); openPlanViewer(target, { ...ctx, slide: dir, navHint: true }); return true; };
+    const go = (target, dir) => { if (!target) return false; if (st.pend) { toast('Terminez ou annulez le tracé en cours'); return true; }
+      if (window.__pvSwitch) return true; window.__pvSwitch = true; setTimeout(() => { window.__pvSwitch = false; }, 4500);
+      // v1.0.259 : on ne ferme PLUS le plan avant d'ouvrir le suivant (écran vide = clignotement) : l'ancien reste affiché, le nouveau se prépare caché,
+      // puis les deux glissent ensemble comme des pages ; l'ancien est fermé (mémoire libérée) à la fin du glissement
+      el.style.pointerEvents = 'none'; el.querySelectorAll('canvas.hd').forEach(freeCanvas); try { closePick(); } catch (e) {}
+      openPlanViewer(target, { ...ctx, slide: dir, navHint: true, below: { el, dir, close: () => { window.__pvSwitch = false; close(); } } }); return true; };
     h1.style.touchAction = 'none';   // le navigateur ne prend pas le geste pour un défilement (pas de :has, absent des vieux WebView)
     load();   // préchargé dès l'ouverture : le glissement ne dépend plus d'un chargement tardif
     const act = async (dx, dy) => {
@@ -344,7 +365,14 @@ async function openPlanViewer(plan, ctx) {
     }, { passive: false });
     h1.addEventListener('touchend', () => { t0 = null; }, { passive: true }); h1.addEventListener('touchcancel', () => { t0 = null; }, { passive: true });
     if (ctx && ctx.navHint) load().then(showDots);
-    if (ctx && ctx.slide) { el.classList.add('pv-slide-' + ctx.slide); setTimeout(() => el.classList.remove('pv-slide-' + ctx.slide), 400); }
+    if (ctx && ctx.below) {   // changement de plan sans écran vide : on reste caché jusqu'à la 1re image, l'ancien plan est encore visible dessous
+      const B = ctx.below, im0 = $('.stage > img', el); let done = false; el.style.visibility = 'hidden'; pl.style.display = 'none';
+      const reveal = () => { if (done) return; done = true; if (!el.isConnected) { B.close(); return; }
+        el.style.visibility = ''; el.classList.add('pv-slide-' + B.dir); B.el.classList.add('pv-out-' + B.dir);
+        setTimeout(() => { el.classList.remove('pv-slide-' + B.dir); B.close(); }, 340); };
+      if (im0 && im0.complete && im0.naturalWidth) reveal(); else if (im0) { im0.addEventListener('load', reveal, { once: true }); im0.addEventListener('error', reveal, { once: true }); }
+      const rt = setTimeout(reveal, 3500); cleanups.push(() => { clearTimeout(rt); if (!done) { done = true; B.close(); } });
+    } else if (ctx && ctx.slide) { el.classList.add('pv-slide-' + ctx.slide); setTimeout(() => el.classList.remove('pv-slide-' + ctx.slide), 400); }
     cleanups.push(() => clearTimeout(hideT));
   })();
   ($('[data-a=alerts]', el)||{}).onclick = () => { if (typeof openAlertsTable === 'function') openAlertsTable(alertItems(), { planName: plan.name }); };
