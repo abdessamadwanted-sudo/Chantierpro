@@ -235,7 +235,7 @@ const serviceOf = (k) => TM_SERVICES.find(s => s.k === k) || TM_SERVICES[TM_SERV
 // magasin local → module (sous-collection Firestore)
 const STORE_MOD = { projects: 'projet', folders: 'plans', plans: 'plans', links: 'plans', tasks: 'reserves', receptions: 'reception', dsmodeles: 'reception', dsdossiers: 'reception', forms: 'forms', reports: 'rapports', files: 'files', items: '*' };
 // éléments des espaces (store « items ») : module selon le type
-const KIND_MOD = { impl: 'topo', leve: 'topo', cmd: 'centrale', bl: 'centrale', mat: 'materiel', stock: 'materiel', pt: 'pointage', hse: 'hse', rdt: 'rapports' };
+const KIND_MOD = { impl: 'topo', leve: 'topo', cmd: 'centrale', bl: 'centrale', mat: 'materiel', stock: 'materiel', pt: 'pointage', hse: 'hse', rdt: 'rapports', sqa: 'projet', sqz: 'projet', sqe: 'projet' };   // suivi quantitatif : sans cette entrée un « kind » n'est jamais envoyé au serveur
 const modOf = (store, rec) => store === 'items' ? KIND_MOD[(rec || {}).kind] : STORE_MOD[store];
 // section de l'application → module
 // rubriques issues de Chantier : rattachées au module SiteTeam le plus proche (visibilité selon le poste)
