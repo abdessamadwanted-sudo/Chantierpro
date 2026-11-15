@@ -2128,11 +2128,16 @@ try {
     { const hc = [{ crewId: 'c1', n: 10, from: d(-10), to: d(-4) }, { crewId: 'c1', n: 12, from: d(-3), to: '' }];
       const y2 = C.yields(cr[0], [], [{ crewId: 'c1', artId: 'a1', delta: 600, at: Date.now() - 864e5 }], arts, d(-6), today, hc);
       o.anon = C.anonAt(hc, 'c1', today) === 12 && C.anonAt(hc, 'c1', d(-8)) === 10 && C.anonAt(hc, 'c2', today) === 0 && C.anonHeads(hc, ['c1', 'c2'], today) === 12 && y2.personDays === 78 && y2.byUnit.kg.perWorkerDay === 7.692 && modOf('items', { kind: 'ogh' }) === 'pointage'; }
+    { const tq = [T('dq', 'Directeur qualité', 'dirq', [], true), T('x', 'X', 'conduct', [])]; p.team = tq;   // bug constaté : une équipe créée par un directeur « qualité » sans métier restait invisible
+      const mine_ = [{ id: 'n1', projectId: pid, kind: 'ogt', name: 'Nouvelle', trade: 'coffrage', createdBy: 'dq' }, { id: 'n2', projectId: pid, kind: 'ogt', name: 'Autre', trade: 'coffrage', createdBy: 'x' }];
+      o.vis = C.scope(p, mine_, []).all === true;   // direction niveau 1 : tout le projet
+      p.team = [T('cz', 'Conducteur Z', 'conduct', [], true)]; const mc = [{ id: 'n3', trade: 'coffrage', createdBy: 'cz' }, { id: 'n4', trade: 'coffrage', createdBy: 'x' }];
+      o.vis2 = C.scope(p, mc, []).crews.map(x => x.id).join() === 'n3'; }   // le créateur voit sa propre équipe, pas celle des autres
     o.sep = C.scope({ ...p, team: [{ ...team[0], me: true }] }, [{ id: 'z', trade: 'x' }], []).all === true && modOf('items', { kind: 'ogm' }) === 'pointage' && modOf('items', { kind: 'ogt' }) === 'pointage';
     for (const x of await DB.byProject('items', pid)) if (/^og/.test(x.kind || '')) await DB.del('items', x.id); p.team = hold;
   } catch (e) { o.err = String(e.message || e); } return o; });
   log('organisation équipes', vOg);
-  log('errors organisation équipes', !vOg.err && vOg.head && vOg.dir && vOg.condA && vOg.condF && vOg.noImplicit && vOg.roles && vOg.route && vOg.yield && vOg.fiche && vOg.hist && vOg.sep && vOg.emb && vOg.anon ? [] : ['organisation équipes ' + JSON.stringify(vOg)]);
+  log('errors organisation équipes', !vOg.err && vOg.head && vOg.dir && vOg.condA && vOg.condF && vOg.noImplicit && vOg.roles && vOg.route && vOg.yield && vOg.fiche && vOg.hist && vOg.sep && vOg.emb && vOg.anon && vOg.vis && vOg.vis2 ? [] : ['organisation équipes ' + JSON.stringify(vOg)]);
   log('errors v1.0.246', !v245.err && v245.card && v245.url && v245.ov && v245.closed && v245.cr ? [] : ['v1.0.246 ' + JSON.stringify(v245)]);
   log('errors v1.0.244', !v244.err && v244.acc && v244.met && v244.div && v244.due === '2026-03-01' && v244.fr && v244.loc ? [] : ['v1.0.244 ' + JSON.stringify(v244)]);
   log('errors titre plan', []);

@@ -40,10 +40,10 @@ const OrgCrews = (() => {
   }
   // périmètre : titulaire, direction ou poste sans restriction = tout ; sinon uniquement les équipes de SES métiers ou auxquelles il est rattaché (aucun accès implicite à un autre métier)
   function scope(p, crews, memsAll) {
-    const me = (p.team || []).find(x => x.me), all = !me || (typeof Org !== 'undefined' && Org.owner()) || FULL.includes(me.poste);
+    const me = (p.team || []).find(x => x.me), P = me && typeof posteOf === 'function' ? posteOf(me.poste) : null, all = !me || (typeof Org !== 'undefined' && Org.owner()) || FULL.includes(me.poste) || (P && P.lv <= 1);   // titulaire, direction (niveau 1) ou poste sans restriction
     if (all) return { all: true, me, crews };
     const t = new Set(me.trades || []), roles = (c) => [c.leaderId, c.chefId, ...(c.techIds || []), ...(c.condIds || [])];
-    return { all: false, me, crews: crews.filter(c => t.has(c.trade) || roles(c).includes(me.id) || memsAll.some(m => m.crewId === c.id && m.who === 'm:' + me.id)) };
+    return { all: false, me, crews: crews.filter(c => c.createdBy === me.id || t.has(c.trade) || roles(c).includes(me.id) || memsAll.some(m => m.crewId === c.id && m.who === 'm:' + me.id)) };
   }
   const rolesOf = (c) => [['Chef d\'équipe', c.leaderId], ['Chef de chantier', c.chefId], ...(c.techIds || []).map(i => ['Technicien', i]), ...(c.condIds || []).map(i => ['Conducteur', i])].filter(r => r[1]);
   const crewsOf = (crews, id) => crews.filter(c => rolesOf(c).some(r => r[1] === id));
@@ -144,7 +144,7 @@ const OrgCrews = (() => {
     const r = await formSheet(c ? 'Modifier l\'équipe' : 'Nouvelle équipe', [{ name: 'name', label: 'Nom de l\'équipe', value: c ? c.name : '' }, { name: 'trade', label: 'Métier', value: c ? c.trade : '', list: TRADES },
       { name: 'leaderId', label: 'Chef d\'équipe', type: 'select', value: c ? c.leaderId || '' : '', options: opts }, { name: 'chefId', label: 'Chef de chantier', type: 'select', value: c ? c.chefId || '' : '', options: opts },
       { name: 'techId', label: 'Technicien', type: 'select', value: c ? (c.techIds || [])[0] || '' : '', options: opts }, { name: 'condId', label: 'Conducteur', type: 'select', value: c ? (c.condIds || [])[0] || '' : '', options: opts }], { okLabel: 'Enregistrer' });
-    if (!r || !String(r.name || '').trim()) return null; const x = c || { id: DB.uid(), projectId: p.id, kind: 'ogt', hist: [] };
+    if (!r || !String(r.name || '').trim()) return null; const x = c || { id: DB.uid(), projectId: p.id, kind: 'ogt', hist: [], createdBy: ((p.team || []).find(m => m.me) || {}).id || '' };   // le créateur voit toujours son équipe
     Object.assign(x, { name: r.name.trim(), trade: (r.trade || '').trim(), leaderId: r.leaderId || '', chefId: r.chefId || '', techIds: r.techId ? [r.techId] : [], condIds: r.condId ? [r.condId] : [] }); audit(x, c ? 'modifiée' : 'créée'); await DB.put('items', x); return x;
   }
 
