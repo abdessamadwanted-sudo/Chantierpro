@@ -272,7 +272,7 @@ async function openPlanViewer(plan, ctx) {
   // Taille des pins : proportionnelle au zoom (petits quand on dézoome, limités quand on zoome)
   const strokeW = () => base * st.thick / 3200;
   // v1.0.264 : le symbole de coupe suit le plan (rétrécit au dézoom, grandit au zoom) ; plancher pour rester visible
-  const pinL = () => Math.max(0.15, (st.scale / st.fitScale) * 0.22);   // taille fixe dans le plan : petit au plan entier, grandit seulement en zoomant
+  const pinL = () => Math.max(0.16, (st.scale / st.fitScale) * 0.03);   // taille fixe dans le plan : petit au plan entier, grandit seulement en zoomant
   const pinM = () => Math.max(0.1, Math.min(0.8, Math.pow(st.scale / st.fitScale, 1.15) * 0.18 * st.pinSize));
 
   const el = document.createElement('div');
@@ -666,7 +666,7 @@ async function openPlanViewer(plan, ctx) {
         <circle r="17" fill="#1e88e5" stroke="#fff" stroke-width="2.4"/>
         <g transform="scale(1.05) translate(-12,-12)" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3" fill="#fff"/></g>
         <g transform="rotate(${+l.rot || 0})"><path d="M20,-6.5L29,0L20,6.5Z" fill="#1e88e5" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></g>
-        ${mL >= 0.5 ? `<text x="0" y="31" text-anchor="middle" font-size="12" fill="#1e88e5" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`; }
+        ${mL >= 0.35 ? `<text x="0" y="31" text-anchor="middle" font-size="12" fill="#1e88e5" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`; }
       if (l.kind === 'plansbox') { const P = pinLook(l); return `<g transform="translate(${px},${py}) scale(${s})">
         <rect x="-17" y="-17" width="34" height="34" rx="9" fill="${P.c}" stroke="#fff" stroke-width="2.4"/><text x="0" y="6.5" text-anchor="middle" font-size="18">${P.e}</text>
         ${n ? `<circle cx="16" cy="-16" r="9" fill="#111" stroke="#fff" stroke-width="1.5"/><text x="16" y="-12" text-anchor="middle" font-size="11" font-weight="700" fill="#fff" font-family="Arial">${n}</text>` : ''}
