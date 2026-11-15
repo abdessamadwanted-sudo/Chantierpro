@@ -790,9 +790,11 @@ async function openPlanViewer(plan, ctx) {
     ['arrow', 'arrow', 'Flèche'], ['text', 'text', 'Texte'],
   ];
   const TOOLS = [
-    ['pan', 'hand', 'Déplacer'], ['pin', 'pin', 'Tâche'], ['link', 'link', 'Élément'], ['pill', 'dome', 'Point d\'intérêt'], ['loc', 'pin', 'Localiser'], ['planlink', 'section', 'Lien plan / coupe'], ['plansbox', 'plans', 'Plans de l\'ouvrage'], ['photonote', 'camera', 'Pin photos (dossiers)'],
+    ['pan', 'hand', 'Déplacer'], ['pin', 'pin', 'Tâche'], ['link', 'link', 'Élément'], ['pill', 'dome', 'Point d\'intérêt'], ['loc', 'pin', 'Localiser'], ['planlink', 'coupe', 'Coupe / lien plan'], ['plansbox', 'plans', 'Plans de l\'ouvrage'], ['photonote', 'camera', 'Pin photos (dossiers)'],
     ['draw', 'pen', 'Dessin'], ['select', 'cursor', 'Modifier'], ['erase', 'eraser', 'Gomme'],
   ];
+  // v1.0.262 : « Élément », « Coupe » et « Photos » sont regroupés sous un seul bouton (menu moins long) ; le bouton montre l'outil du groupe en cours
+  const GRP_LINK = ['link', 'planlink', 'photonote'];
   const shapeInfo = () => SHAPES.find(x => x[0] === st.shape) || SHAPES[0];
   const TWO_PT = ['line', 'rect', 'ellipse', 'cloud', 'arrow', 'disc', 'box'];
   Object.defineProperty(st, 'color', { get: () => shadeHex(st.hue, st.shade), set: (v) => { st.hue = v; st.shade = -0.5; }, configurable: true });
@@ -819,11 +821,12 @@ async function openPlanViewer(plan, ctx) {
     const t = $('.tools', el);
     // outil « Formes » : icône formes (carré, rond, triangle) tant qu'aucune forme n'est active, sinon la forme choisie
     const SHP = '<svg class="i" viewBox="0 0 24 24"><rect x="3" y="3.5" width="8" height="8" rx="1.6"/><circle cx="17.2" cy="7.5" r="4.1"/><path d="M7 13.5l4.6 7.5H2.4z"/><path d="M14 15.5h7M14 19.5h5"/></svg>';
-    const ic = (k, i) => k === 'draw' ? (st.tool === 'draw' ? icon(shapeInfo()[1]) : SHP) : icon(i);
+    const ic = (k, i) => k === 'draw' ? (st.tool === 'draw' ? icon(shapeInfo()[1]) : SHP) : k === 'link' && GRP_LINK.includes(st.tool) ? icon((TOOLS.find(x => x[0] === st.tool) || [])[1] || i) : icon(i);
+    const CHV = `<i class="shp-ch ${st.flyout ? 'open' : ''}"><svg viewBox="0 0 10 10"><path d="M6.5 2 3.5 5l3 3"/></svg></i>`;
     const cur = TOOLS.find(x => x[0] === st.tool) || TOOLS[0];
     t.className = 'tools fw';
     t.innerHTML = st.toolsOpen ? `
-      <div class="grp">${TOOLS.map(([k, i, l]) => `<button class="tool ${st.tool === k ? 'on' : ''}" data-t="${k === 'pan' ? 'hand' : k}" title="${l}">${ic(k, i)}${k === 'draw' ? `<i class="shp-ch ${st.flyout ? 'open' : ''}"><svg viewBox="0 0 10 10"><path d="M6.5 2 3.5 5l3 3"/></svg></i>` : ''}</button>`).join('')}</div>
+      <div class="grp">${TOOLS.filter(([k]) => k === 'link' || !GRP_LINK.includes(k)).map(([k, i, l]) => `<button class="tool ${st.tool === k || (k === 'link' && GRP_LINK.includes(st.tool)) ? 'on' : ''}" data-t="${k === 'pan' ? 'hand' : k}" title="${k === 'link' ? 'Élément · Coupe · Photos' : l}">${ic(k, i)}${k === 'link' ? CHV : ''}${k === 'draw' ? `<i class="shp-ch ${st.flyout ? 'open' : ''}"><svg viewBox="0 0 10 10"><path d="M6.5 2 3.5 5l3 3"/></svg></i>` : ''}</button>`).join('')}</div>
       <div class="grp"><button class="tool" data-t="undo" title="Annuler">${icon('undo')}</button></div>`
       : `<div class="grp"><button class="tool ${st.tool === 'pan' ? 'on' : ''}" data-t="hand">${icon('hand')}</button>
            ${st.tool !== 'pan' ? `<button class="tool on" data-t="${st.tool === 'draw' ? 'draw' : st.tool}">${ic(cur[0], cur[1])}</button>` : ''}</div>
@@ -842,7 +845,7 @@ async function openPlanViewer(plan, ctx) {
       if (!bar) { bar = document.createElement('div'); bar.className = 'pbar'; viewer.appendChild(bar); }
       const { kind, obj } = st.selPin;
       const label = kind === 'task' ? `Tâche #${obj.num} ${obj.title || ''}` : kind === 'planlink' ? `Lien : ${obj.name}` : kind === 'plansbox' ? `Plans : ${obj.name}` : kind === 'photonote' ? `Photos : ${obj.name}` : `Élément : ${obj.name}`;
-      bar.innerHTML = `<div class="pb-row"><span class="pb-t" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${icon(kind === 'task' ? 'pin' : kind === 'planlink' ? 'section' : 'link')} ${esc(label)}</span>
+      bar.innerHTML = `<div class="pb-row"><span class="pb-t" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${icon(kind === 'task' ? 'pin' : kind === 'planlink' ? 'coupe' : 'link')} ${esc(label)}</span>
         <button class="pb" data-p="open">${icon('edit')}<span>Modifier</span></button><button class="pb danger" data-p="delpin">${icon('trash')}</button><button class="pb ok" data-p="unsel">${icon('check')}</button></div>
         <div class="muted" style="font-size:12px">Glissez le pin pour le déplacer</div>`;
       ($('[data-p=unsel]', bar)||{}).onclick = () => { st.selPin = null; renderSel(); renderTools(); };
@@ -959,12 +962,24 @@ async function openPlanViewer(plan, ctx) {
     });
     st.flyout = f;
   }
+  // menu du groupe Élément / Coupe / Photos (s'ouvre à gauche du bouton, comme celui des formes)
+  function openToolGroup(btn) {
+    closeFly(); const ch = btn && btn.querySelector('.shp-ch'); if (ch) ch.classList.add('open');
+    const f = document.createElement('div'); f.className = 'flyout shapes grp3';
+    f.innerHTML = GRP_LINK.map(k => { const T = TOOLS.find(x => x[0] === k); return `<button class="${st.tool === k ? 'on' : ''}" data-g="${k}">${icon(T[1])}<small>${k === 'link' ? 'Élément' : k === 'planlink' ? 'Coupe' : 'Photos'}</small></button>`; }).join('');
+    viewer.appendChild(f);
+    const vr = viewer.getBoundingClientRect(), tb = (btn || viewer).getBoundingClientRect();
+    f.style.top = Math.max(6, Math.min(vr.height - f.offsetHeight - 6, tb.top - vr.top)) + 'px';
+    $$('[data-g]', f).forEach(b => b.onclick = (e) => { e.stopPropagation(); closeFly(); st.tool = b.dataset.g; st.pend = null; st.sel = -1; st.selPin = null; st.toolsOpen = false; drawPending(); renderSel(); renderTools(); });
+    st.flyout = f;
+  }
   function closeFly() { if (st.flyout) { st.flyout.remove(); st.flyout = null; } $$('.shp-ch', el).forEach(x => x.classList.remove('open')); }
   function onTool(t, btn) {
     if (t === 'toggle') { closeFly(); st.toolsOpen = !st.toolsOpen; return renderTools(); }
     // la main : ouvre / referme la barre (et revient en mode déplacement)
     if (t === 'hand') { closeFly(); st.toolsOpen = !st.toolsOpen; st.tool = 'pan'; st.pend = null; st.sel = -1; st.selPin = null; drawPending(); renderSel(); return renderTools(); }
     if (t === 'draw') { if (st.flyout) return closeFly(); return openShapePicker(btn); }
+    if (t === 'link' && st.toolsOpen) { if (st.flyout) return closeFly(); return openToolGroup(btn); }
     closeFly();
     if (t === 'undo') {
       // tracé en cours (polyligne / ligne pas encore validée) : annule d'abord son dernier point

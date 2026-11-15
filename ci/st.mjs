@@ -1531,6 +1531,20 @@ try {
     document.querySelectorAll('.fullpage').forEach(x => x.remove()); for (const id of ['cp1', 'cp2', 'cp3']) await DB.del('links', id); return o; } catch (e) { return { err: String(e.message || e) }; } });
   log('v1.0.261 [symbole de coupe orientable]', tCp);
   log('errors v1.0.261 coupe', !tCp.err && tCp.rs === 'rotate(90)|rotate(0)|rotate(225)' && tCp.circle && tCp.noOldIcon ? [] : ['v1.0.261 coupe ' + JSON.stringify(tCp)]);
+  const tGp = await A.pg.evaluate(async () => { try { document.querySelectorAll('.fullpage').forEach(x => x.remove()); const a = (await DB.byProject('plans', App.project.id)).find(x => x.name === 'SW A');
+    await openPlanViewer(a, planCtx(() => {})); const w = (n) => new Promise(r => setTimeout(r, n)); await w(800); const R = () => { const f = document.querySelectorAll('.fullpage'); return f[f.length - 1]; }, q = (s) => R().querySelector(s), qa = (s) => [...R().querySelectorAll(s)];
+    const o = {}; if (!q('.tools [data-t=link]')) { q('.tools [data-t=hand]').click(); await w(100); }
+    o.grouped = !q('.tools [data-t=planlink]') && !q('.tools [data-t=photonote]') && !!q('.tools [data-t=link]') && !!q('.tools [data-t=link] .shp-ch');
+    o.nTools = qa('.tools .tool').length;   // avant : 12 boutons (11 outils + annuler) ; maintenant 10
+    q('.tools [data-t=link]').click(); await w(100);
+    const g = qa('.flyout [data-g]').map(b => b.dataset.g).join(); o.fly = g === 'link,planlink,photonote';
+    q('.flyout [data-g=planlink]').click(); await w(100);
+    o.coupe = !!q('.hint') && q('.hint').textContent.includes('placer un lien') && !q('.flyout');
+    o.headOn = !!q('.tools [data-t=planlink].on') && q('.tools [data-t=planlink]').innerHTML.includes('M8.5 3.8v16.4');   // barre repliée : le bouton actif montre l'icône coupe
+    q('.tools [data-t=hand]').click(); await w(100); q('.tools [data-t=link]').click(); await w(100); q('.flyout [data-g=photonote]').click(); await w(100); o.photo = !!q('.tools [data-t=photonote].on');
+    document.querySelectorAll('.fullpage').forEach(x => x.remove()); return o; } catch (e) { return { err: String(e.message || e) }; } });
+  log('v1.0.262 [menu outils : groupe Élément / Coupe / Photos]', tGp);
+  log('errors v1.0.262 groupe', !tGp.err && tGp.grouped && tGp.nTools === 10 && tGp.fly && tGp.coupe && tGp.headOn && tGp.photo ? [] : ['v1.0.262 groupe ' + JSON.stringify(tGp)]);
   const tDue = await A.pg.evaluate(() => ({ s: String(openDueTable).includes('Point · échéance') && !String(openDueTable).includes("p.mo ? ' · ' + esc(p.mo) : ''}</span></div>") }));
   log('v1.0.176 [échéances + points]', tDue); log('errors v1.0.176 échéances', tDue.s ? [] : ['v1.0.176 échéances']);
   // ---- v1.0.176 : sauvegarde Drive d'un projet = un seul zip mis à jour sur place (+ « précédente ») ----
