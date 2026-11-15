@@ -35,7 +35,7 @@ const HsePlans = (() => {
     $$('.hp-th', root).forEach(t => { if (t.dataset.f && window.Thumbs) Thumbs.get(t.dataset.f).then(u => { if (u) t.innerHTML = `<img alt="" src="${u}">`; }).catch(() => {}); });
     $$('.hp-c', root).forEach(c => {
       const r = M[+c.dataset.i];
-      ($('.hp-open', c) || {}).onclick = () => openPlanViewer(r.plan, planCtx(() => render(root)));
+      ($('.hp-open', c) || {}).onclick = () => (typeof HseSp !== 'undefined' ? HseSp.open(r.plan, { onClose: () => render(root) }) : openPlanViewer(r.plan, planCtx(() => render(root))));
       const mo = $('.hp-more', c);
       if (mo) mo.onclick = async () => {
         const all = [r.plan, ...r.others], v = await menu(`Plan affiché pour ${r.niv || 'ce niveau'}`, all.map((x, k) => ({ label: `${x.name || 'Plan'}${x.indice ? ' · ' + x.indice : ''}${k === 0 ? '  ✓' : ''}`, icon: 'plans', value: String(k) })));

@@ -487,6 +487,10 @@ await t('partenaires : REFUS d\'écrire dans l\'historique d\'une autre identit�
 await t('administrateur : accès complet à son organisation', async () => { await assertSucceeds(RT(ownT, 'finance', 'items', 'a3').get()); await assertSucceeds(RT(ownT, 'reserves', 'tasks', 'o1').set(W('reserves', 'tasks', 'o1'))); });
 await t('administrateur : REFUS de se donner un pack supérieur', () => assertFails(ownT.collection('companies').doc('cT').update({ plan: 'enterprise-plus' })));
 await t('technicien : REFUS hors de ses modules (finance)', () => assertFails(RT(techT, 'finance', 'items', 'a3').get()));
+// calques HSE (kind « hseo », module « hse »)
+await t('calques HSE : le titulaire écrit et lit un objet du module hse', async () => { await assertSucceeds(RT(ownT, 'hse', 'items', 'hseo1').set(W('hse', 'items', 'hseo1', { kind: 'hseo', type: 'mur' }))); await assertSucceeds(RT(ownT, 'hse', 'items', 'hseo1').get()); });
+await t('calques HSE : REFUS d\'écrire sans le module hse (partenaires)', async () => { await assertFails(RT(ent1, 'hse', 'items', 'hseo2').set(W('hse', 'items', 'hseo2', { kind: 'hseo' }))); await assertFails(RT(moa1, 'hse', 'items', 'hseo3').set(W('hse', 'items', 'hseo3', { kind: 'hseo' }))); });
+await t('calques HSE : REFUS de lire sans le module hse', async () => { await assertFails(RT(ent1, 'hse', 'items', 'hseo1').get()); await assertFails(RT(moa1, 'hse', 'items', 'hseo1').get()); });
 // membre à accès limité dans le temps
 await env.withSecurityRulesDisabled(c => c.firestore().collection('companies').doc('cT').collection('members').doc('techT').update({ until: new Date(Date.now() - 86400000) }));
 await t('accès expiré (until) : REFUS de lire le projet', () => assertFails(RT(techT, 'reserves', 'tasks', 'a1').get()));
