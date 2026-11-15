@@ -191,3 +191,4 @@ création d'invitation par un non-admin, écriture de tâche par un rôle en lec
 | Lecteur PDF : zoom max ×12 | `ui.js` (`setZoom`) | Zoom du lecteur PDF porté de ×5 à ×12 (rendu net toujours plafonné ≈14 Mpx) |
 | Coupe : œil dans l’icône, taille fixée au plan | `viewer.js` (`pinL`) | Œil au centre du cercle, flèche de sens sur le bord ; taille liée au plan (petite au plan entier, grandit seulement en zoomant) ; zoom du lecteur PDF jusqu’à ×24 |
 | Coupe : taille alignée sur les symboles de coupe du plan | `viewer.js` (`pinL`) | Symbole ≈ 8× plus petit (0,03 × zoom, plancher 0,16) pour avoir la taille d’une coupe dessinée sur le plan ; nom affiché dès que lisible |
+| Lecteur PDF : tuile haute résolution | `ui.js` (`tuile`, `.pdf-tile`) | Au zoom, la zone visible (+ marge) est redessinée à la résolution de l’écran dans une tuile posée sur la page (le plafond ≈14 Mpx ne rend plus le zoom flou) ; refaite après le zoom et le défilement |
