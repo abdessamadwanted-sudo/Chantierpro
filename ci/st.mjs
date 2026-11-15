@@ -1520,8 +1520,17 @@ try {
   const tFk = await A.pg.evaluate(async () => { try { document.querySelectorAll('.fullpage').forEach(x => x.remove()); const a = (await DB.byProject('plans', App.project.id)).find(x => x.name === 'SW A'); await openPlanViewer(a, { ...planCtx(() => {}), focus: { x: 150, y: 100 } });
     const w = (n) => new Promise(r => setTimeout(r, n)); await w(1500); const o = { pin0: !!document.querySelector('.focus-pin'), ring0: !!document.querySelector('.focus-ring') }; await w(4200);
     o.pin1 = !!document.querySelector('.focus-pin'); o.ring1 = !!document.querySelector('.focus-ring'); document.querySelectorAll('.fullpage').forEach(x => x.remove()); return o; } catch (e) { return { err: String(e.message || e) }; } });
-  log('v1.0.260 [arrivée sur un point : pin retiré après 5 s, cercle gardé]', tFk);
-  log('errors v1.0.260 focus', !tFk.err && tFk.pin0 && tFk.ring0 && !tFk.pin1 && tFk.ring1 ? [] : ['v1.0.260 focus ' + JSON.stringify(tFk)]);
+  log('v1.0.260 [arrivée sur un point : pin et cercle retirés après 5 s]', tFk);
+  log('errors v1.0.260 focus', !tFk.err && tFk.pin0 && tFk.ring0 && !tFk.pin1 && !tFk.ring1 ? [] : ['v1.0.260 focus ' + JSON.stringify(tFk)]);
+  const tCp = await A.pg.evaluate(async () => { try { document.querySelectorAll('.fullpage').forEach(x => x.remove()); const p = App.project, a = (await DB.byProject('plans', p.id)).find(x => x.name === 'SW A');
+    const mk = (id, rot, x) => DB.put('links', { id, projectId: p.id, planId: a.id, kind: 'planlink', shape: 'point', x, y: 100, name: 'Coupe ' + id, color: '#1e88e5', items: [], ...(rot == null ? {} : { rot }) });
+    await mk('cp1', 90, 60); await mk('cp2', null, 150); await mk('cp3', 225, 240);
+    await openPlanViewer(a, planCtx(() => {})); await new Promise(r => setTimeout(r, 1000));
+    const g = document.querySelector('.fullpage .g-links'), rs = [...g.querySelectorAll('g[transform^="rotate("]')].map(x => x.getAttribute('transform')).join('|');
+    const o = { rs, circle: g.querySelectorAll('circle[r="17"]').length === 3, noOldIcon: !g.querySelector('rect[width="30"]'), label: g.textContent.includes('Coupe cp1') };
+    document.querySelectorAll('.fullpage').forEach(x => x.remove()); for (const id of ['cp1', 'cp2', 'cp3']) await DB.del('links', id); return o; } catch (e) { return { err: String(e.message || e) }; } });
+  log('v1.0.261 [symbole de coupe orientable]', tCp);
+  log('errors v1.0.261 coupe', !tCp.err && tCp.rs === 'rotate(90)|rotate(0)|rotate(225)' && tCp.circle && tCp.noOldIcon ? [] : ['v1.0.261 coupe ' + JSON.stringify(tCp)]);
   const tDue = await A.pg.evaluate(() => ({ s: String(openDueTable).includes('Point · échéance') && !String(openDueTable).includes("p.mo ? ' · ' + esc(p.mo) : ''}</span></div>") }));
   log('v1.0.176 [échéances + points]', tDue); log('errors v1.0.176 échéances', tDue.s ? [] : ['v1.0.176 échéances']);
   // ---- v1.0.176 : sauvegarde Drive d'un projet = un seul zip mis à jour sur place (+ « précédente ») ----

@@ -661,8 +661,8 @@ async function openPlanViewer(plan, ctx) {
       const [px, py] = linkXY(l);
       if (focusG && ctx.focus && Math.hypot(px - ctx.focus.x, py - ctx.focus.y) < 2) return '';   // v1.0.86 : un seul pin pendant l'arrivée
       if (l.kind === 'planlink') return `<g transform="translate(${px},${py}) scale(${s})">
-        <rect x="-15" y="-15" width="30" height="30" rx="7" fill="#1e88e5" stroke="#fff" stroke-width="2"/>
-        <g transform="translate(-9,-9) scale(.75)" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${ICONS.section}</g>
+        <circle r="17" fill="#1e88e5" stroke="#fff" stroke-width="2.4"/>
+        <g transform="rotate(${+l.rot || 0})" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"><path d="M0,-11V11" stroke-width="3.4"/><path d="M0,0H10M6,-4.2L10.4,0L6,4.2" stroke-width="2.8"/></g>
         ${showLabel ? `<text x="0" y="29" text-anchor="middle" font-size="12" fill="#1e88e5" font-weight="700" font-family="Arial" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(l.name)}</text>` : ''}</g>`;
       if (l.kind === 'plansbox') { const P = pinLook(l); return `<g transform="translate(${px},${py}) scale(${s})">
         <rect x="-17" y="-17" width="34" height="34" rx="9" fill="${P.c}" stroke="#fff" stroke-width="2.4"/><text x="0" y="6.5" text-anchor="middle" font-size="18">${P.e}</text>
@@ -1023,10 +1023,10 @@ async function openPlanViewer(plan, ctx) {
   async function createPlanLink(x, y) {
     const t = await pickLinkTarget();
     if (!t) return;
-    const r = await formSheet('Nom du lien', [{ name: 'name', label: 'Nom affiché sur le plan (ex : Coupe A-A)', value: t.defName }], { okLabel: 'Créer' });
+    const r = await formSheet('Nom du lien', [{ name: 'name', label: 'Nom affiché sur le plan (ex : Coupe A-A)', value: t.defName }, { name: 'rot', label: 'Sens de la coupe (modifiable ensuite)', type: 'select', value: '0', options: ROTS.map(([a, tx]) => ({ value: String(a), label: tx })) }], { okLabel: 'Créer' });
     if (!r) return;
     const { defName, ...target } = t;
-    await DB.put('links', { projectId: plan.projectId, planId: plan.id, kind: 'planlink', shape: 'point', x, y, ...target, name: r.name || defName, color: '#1e88e5', items: [] });
+    await DB.put('links', { projectId: plan.projectId, planId: plan.id, kind: 'planlink', shape: 'point', x, y, rot: +r.rot || 0, ...target, name: r.name || defName, color: '#1e88e5', items: [] });
     await reloadData();
     toast('Lien créé ✓ — touchez-le pour l\'ouvrir');
   }
@@ -1043,12 +1043,22 @@ async function openPlanViewer(plan, ctx) {
     if (l.url) return openUrl(l.url);
     toast('Fichier introuvable — modifiez le lien (outil Modifier)');
   }
+  // v1.0.261 : symbole de coupe (trait de coupe + flèche = sens de la vue) orientable ; angle en degrés, sens horaire à l'écran (0 = vue vers la droite)
+  const ROTS = [[0, 'Droite →'], [45, 'Bas-droite ↘'], [90, 'Bas ↓'], [135, 'Bas-gauche ↙'], [180, 'Gauche ←'], [225, 'Haut-gauche ↖'], [270, 'Haut ↑'], [315, 'Haut-droite ↗']];
+  async function orientPlanLink(l) {
+    const cur = ((+l.rot || 0) % 360 + 360) % 360, v = await menu('Sens de la coupe', [...ROTS.map(([a, t]) => ({ label: t + (a === cur ? '  ✓' : ''), value: 'r' + a })), { label: 'Autre angle…', icon: 'edit', value: 'custom' }]);
+    if (!v) return;
+    let a = null; if (v === 'custom') { const r = await formSheet('Angle de la coupe', [{ name: 'a', label: 'Angle en degrés (0 = droite, 90 = bas, 180 = gauche, 270 = haut)', value: String(cur) }]); const n = r ? parseFloat(String(r.a).replace(',', '.')) : NaN; if (Number.isFinite(n)) a = ((Math.round(n) % 360) + 360) % 360; else if (r) toast('Angle invalide'); }
+    else a = +v.slice(1);
+    if (a == null) return; l.rot = a; await DB.put('links', l); toast('Coupe orientée ✓');
+  }
   async function editPlanLink(l) {
     const v = await menu(l.name, [
-      { label: 'Ouvrir', icon: 'section', value: 'open' }, { label: 'Changer le fichier / plan lié', icon: 'plans', value: 'change' },
+      { label: 'Ouvrir', icon: 'section', value: 'open' }, { label: 'Orienter la coupe (sens de la vue)', icon: 'section', value: 'orient' }, { label: 'Changer le fichier / plan lié', icon: 'plans', value: 'change' },
       { label: 'Renommer', icon: 'edit', value: 'rename' }, { label: 'Supprimer le lien', icon: 'trash', danger: true, value: 'del' },
     ]);
     if (v === 'open') return openPlanLink(l);
+    if (v === 'orient') await orientPlanLink(l);
     if (v === 'change') { const t = await pickLinkTarget(); if (t) { const { defName, ...tg } = t; if (l.fileId && l.fileId !== tg.fileId) await DB.del('files', l.fileId); Object.assign(l, tg); await DB.put('links', l); toast('Lien modifié ✓'); } }
     if (v === 'rename') { const r = await formSheet('Renommer', [{ name: 'name', label: 'Nom', value: l.name }]); if (r && r.name) { l.name = r.name; await DB.put('links', l); } }
     if (v === 'del' && await confirmBox('Supprimer ce lien ?')) { if (l.fileId) await DB.del('files', l.fileId); await DB.del('links', l.id); }
@@ -1509,8 +1519,8 @@ async function openPlanViewer(plan, ctx) {
         $('.ov', el).appendChild(gp); focusG = gp; }   // v1.0.86 : garde la référence ; v1.0.81 : le pin reste tant qu'on est dans le plan, il part à la fermeture
       const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle'); ring.setAttribute('cx', ctx.focus.x); ring.setAttribute('cy', ctx.focus.y); ring.setAttribute('r', 60 / st.scale); ring.setAttribute('fill', 'none'); ring.setAttribute('stroke', '#facc15'); ring.setAttribute('stroke-width', 6 / st.scale); ring.setAttribute('class', 'focus-ring');
       $('.ov', el).appendChild(ring);
-      // v1.0.260 : après ~5 s le pin d'arrivée disparaît (le cercle jaune reste) ; le vrai marqueur du point (ex. gyrophare d'alerte) reste affiché à sa place
-      const fz = setTimeout(() => { if (closed) return; try { if (focusG) { focusG.remove(); focusG = null; } renderMarkers(); } catch (e) {} }, 5000); cleanups.push(() => clearTimeout(fz)); }
+      // v1.0.260 : après ~5 s le pin d'arrivée ET le cercle jaune disparaissent ; le vrai marqueur du point (ex. gyrophare d'alerte) reste affiché à sa place
+      const fz = setTimeout(() => { if (closed) return; try { ring.remove(); if (focusG) { focusG.remove(); focusG = null; } renderMarkers(); } catch (e) {} }, 5000); cleanups.push(() => clearTimeout(fz)); }
   });
   // v1.0.63 : le clavier (titre d'un pin…) change seulement la hauteur → on garde le zoom ; on recadre seulement si la largeur change (rotation)
   let lastW = window.innerWidth; onResize = () => { if (Math.abs(window.innerWidth - lastW) < 2) { applyT(); return; } lastW = window.innerWidth; fit(); };
