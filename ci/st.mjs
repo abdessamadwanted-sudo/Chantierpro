@@ -234,7 +234,7 @@ try {
   const code5 = (await A.pg.textContent('.sheet:has(.opt:has-text("Fermer")) h3')).split(':').pop().trim(); await A.pg.click('.opt:has-text("Fermer")'); log('code BET', code5);
   await F.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await F.pg.waitForTimeout(800);
   await shot(F.pg, '41_dash_contexte');
-  await F.pg.click('[data-a=wsmenu]'); await F.pg.waitForSelector('.ws-dd [data-wm=switch]'); await F.pg.click('.ws-dd [data-wm=switch]'); await F.pg.waitForSelector('.st-wsl'); await shot(F.pg, '42_switcher');
+  await F.pg.evaluate(() => localStorage.setItem('st.ui.espaces', '0')); await F.pg.click('[data-a=wsmenu]'); await F.pg.waitForSelector('.ws-dd [data-wm=switch]'); await F.pg.click('.ws-dd [data-wm=switch]'); await F.pg.waitForSelector('.st-wsl'); await shot(F.pg, '42_switcher');
   await F.pg.click('.st-wsa [data-a=join]'); await F.pg.fill('[name=code]', code5); await F.pg.click('.sheet [data-a=ok]');
   await F.pg.waitForSelector('[data-a=join-ok]', { timeout: 15000 }); await shot(F.pg, '43_confirm_code'); await F.pg.click('[data-a=join-ok]');
   await F.pg.waitForTimeout(3000); await F.pg.waitForSelector('.home2', { timeout: 30000 }); await F.pg.waitForTimeout(1500);
@@ -257,7 +257,7 @@ try {
   await G.pg.evaluate(async () => { const p = (await DB.all('projects'))[0]; window.__cc = Team.collabFlow(p); }); await G.pg.waitForSelector('[data-cm]', { timeout: 15000 }); await shot(G.pg, '51_collab_form');
   await G.pg.selectOption('[data-cm=reserves]', '2'); await G.pg.click('.tm-form [data-a=ok]'); await G.pg.waitForSelector('.opt:has-text("Fermer")', { timeout: 15000 });
   const code6 = (await G.pg.textContent('.sheet:has(.opt:has-text("Fermer")) h3')).split(':').pop().trim(); await G.pg.click('.opt:has-text("Fermer")'); log('code collaborateur', code6);
-  await C.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); Team.openSwitcher(); }); await C.pg.waitForSelector('.st-wsa [data-a=join]');
+  await C.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); Team.openSwitcher(true); }); await C.pg.waitForSelector('.st-wsa [data-a=join]');
   await C.pg.click('.st-wsa [data-a=join]'); await C.pg.fill('[name=code]', code6); await C.pg.click('.sheet [data-a=ok]');
   await C.pg.waitForSelector('[data-a=join-ok]', { timeout: 15000 }); await shot(C.pg, '52_collab_confirm'); await C.pg.click('[data-a=join-ok]');
   await C.pg.waitForTimeout(3000); await C.pg.waitForSelector('.home2', { timeout: 30000 }); await C.pg.waitForTimeout(1500);
@@ -329,7 +329,7 @@ try {
   await H.pg.click('.st-pt [data-a=inv]'); await H.pg.waitForSelector('.st-pform'); await H.pg.fill('.st-pform [data-f=label]', 'BET Structures'); await shot(H.pg, '71_invite_partenaire');
   await H.pg.click('.st-pform [data-a=ok]'); await H.pg.waitForSelector('.sheet h3:has-text("Code partenaire")', { timeout: 15000 });
   const codeP = (await H.pg.textContent('.sheet h3:has-text("Code partenaire")')).split(':').pop().trim(); await H.pg.click('.opt:has-text("Fermer")'); log('code partenaire', codeP);
-  await F.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); Team.openSwitcher(); }); await F.pg.waitForSelector('.st-wsa [data-a=join]');
+  await F.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); Team.openSwitcher(true); }); await F.pg.waitForSelector('.st-wsa [data-a=join]');
   await F.pg.click('.st-wsa [data-a=join]'); await F.pg.fill('[name=code]', codeP); await F.pg.click('.sheet [data-a=ok]');
   await F.pg.waitForSelector('[data-a=pj-ok]', { timeout: 15000 }); await shot(F.pg, '72_confirm_partenaire'); await F.pg.click('[data-a=pj-ok]');
   await F.pg.waitForTimeout(3000); await F.pg.evaluate(() => Sync.run({ force: true })); await F.pg.waitForTimeout(3000);
@@ -961,7 +961,7 @@ try {
   log('errors v1.0.44', v44);
   // ---- v1.0.45 : accès sur code uniquement (côté application) + démarrage sans attendre le réseau
   const v45 = [];
-  await E.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.ws-dd').forEach(x => x.remove()); localStorage.setItem('team.appCfg', JSON.stringify({ inviteOnly: true })); Team.openSwitcher(); });
+  await E.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg,.ws-dd').forEach(x => x.remove()); localStorage.setItem('team.appCfg', JSON.stringify({ inviteOnly: true })); Team.openSwitcher(true); });
   await E.pg.waitForSelector('.sheet [data-a=new]', { timeout: 8000 }).catch(() => {}); await E.pg.click('.sheet [data-a=new]').catch(() => {}); await E.pg.waitForSelector('.st-onb', { timeout: 8000 }).catch(() => {});
   const ob = await E.pg.evaluate(() => ({ perso: !!document.querySelector('.st-onb [data-a=perso]'), create: !!document.querySelector('.st-onb [data-a=create]'), join: !!document.querySelector('.st-onb [data-a=join]'), txt: (document.querySelector('.st-onb p') || {}).textContent }));
   log('code uniquement : choix à l\'inscription', ob); await shot(E.pg, '190_code_uniquement_inscription'); if (ob.perso || ob.create || !ob.join) v45.push('inscription sans code possible');
