@@ -318,6 +318,7 @@ async function renderHome() {
         { label: 'Langue', sub: 'Français · العربية · English', icon: 'globe', value: 'lang' },
         { label: 'Code PIN et empreinte', icon: 'settings', value: 'pin' },
         { label: 'Fonctions affichées', sub: 'masquer ce qui ne sert pas', icon: 'grid', value: 'feat' },
+        ...(Team.ready() && typeof MesEspaces !== 'undefined' ? [{ label: `Écran « Mes espaces » : ${MesEspaces.enabled() ? 'activé' : 'désactivé'}`, sub: 'toucher pour revenir à l\'ancien sélecteur ou le réactiver', icon: 'layers', value: 'espui' }] : []),
         { label: 'Alertes & automatisations', sub: 'workflows · canaux · simulation', icon: 'alert', value: 'autoalerts' }] },
       { title: 'Application', color: '#64748b', items: [
         ...(() => { try { const T = JSON.parse(localStorage.getItem('boot.t') || 'null'); return T ? [{ label: `⏱ Dernier démarrage : ${(T.total / 1000).toFixed(1)} s`, sub: `fichiers ${(T.scripts / 1000).toFixed(1)} s · connexion ${(T.team / 1000).toFixed(1)} s · accueil ${(T.home / 1000).toFixed(1)} s`, icon: 'calendar', value: 'boott' }] : []; } catch (e) { return []; } })(),
@@ -351,6 +352,7 @@ async function renderHome() {
     if (v === 'company') Team.openCompany();
     if (v === 'profile') Team.openCompany('me');
     if (v === 'ws') Team.openSwitcher();
+    if (v === 'espui') { const on = !(typeof MesEspaces !== 'undefined' && MesEspaces.enabled()); MesEspaces.setEnabled(on); toast(on ? 'Écran « Mes espaces » activé' : 'Ancien sélecteur d\'espace rétabli'); }
     if (v === 'preview') ST.startPreview();
     if (v === 'preview-off') ST.stopPreview();
     if (v === 'invite') Team.inviteFlow();

@@ -1033,8 +1033,10 @@ const Team = (() => {
     try { sessionStorage.removeItem('st.preview'); } catch (e) {}
     location.reload();
   }
-  function openSwitcher() {
+  function openSwitcher(old) {
     if (!S.ready) return;
+    // « Mes espaces » (v1.0.274) : l'ancien sélecteur reste accessible (old = true) et rétabli par le réglage — retour arrière sans perte
+    if (!old && typeof MesEspaces !== 'undefined' && MesEspaces.enabled()) return MesEspaces.open();
     const L = (S.workspaces || []).length ? S.workspaces : [{ cid: S.cid, name: S.company.name, kind: S.company.kind, org: orgType().k, role: S.me.role, plan: myPlan().k }];
     const row = (w) => { const T = orgTypeOf(w.org || (w.kind === 'perso' ? 'independant' : 'entreprise')), on = w.cid === S.cid;
       if (w.pending) return `<button class="st-ws pend" data-pend="${esc(w.cid)}"><span class="e">⏳</span><span class="grow"><b>${esc(w.name || '?')}</b><small>Demande en attente d'approbation · toucher pour vérifier</small></span></button>`;
@@ -2427,7 +2429,7 @@ const Team = (() => {
 
   return {
     boot, push, pull, resetPull, lvl, canSection, svcLib, canProject, isAdmin, openCompany, taille, secureApply, secureOn, saveAffectations, noteProject, projectIds, inviteFlow, inviteFor, shareInvite, canInviteNow: () => canInvite(), logout, decorateSection, removeMember, refreshMembers,
-    isSuper, superConsole, orgType, isPerso, companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, isOwner, deleteEspace, workspaces: () => S.workspaces || [],
+    isSuper, superConsole, orgType, isPerso, companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, isOwner, deleteEspace, workspaces: () => S.workspaces || [], shared: () => S.shared || [], cid: () => S.cid,
     profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
     openProjectShares, claimShare, openPartners, renderHistory, sharedOf, joinWithCode,
     cloudOn, canCloud, cloudUpload, cloudDownload, cloudRemove, cloudCfg, storageRules: STORAGE_RULES,

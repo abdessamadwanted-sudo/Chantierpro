@@ -4291,3 +4291,11 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .hs-bar button{color:#0f172a;font-weight:600}.hs-bar button:disabled{opacity:.55;color:#475569}
 .hs-t{flex-direction:column;width:56px;height:56px;gap:1px;color:#0f172a}.hs-t b{font-size:10px;font-weight:600;line-height:1.1;max-width:54px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hs-t img{width:26px;height:26px}
 .hs-lst{flex:none;border:1px solid #2563eb;background:#eff6ff;color:#1e3a8a;border-radius:10px;padding:0 12px;height:56px;font-size:14px;font-weight:700;max-width:150px}
+
+/* Mes espaces */
+.me-pg{background:var(--bg,#0f172a);z-index:55;display:flex;flex-direction:column}
+.me-body{flex:1;overflow:auto;padding:12px 14px 40px}
+.me-s{margin:0 0 18px}.me-s h3{margin:0 0 8px;font-size:15px;display:flex;align-items:center;gap:8px}.me-s h3 em{font-style:normal;font-size:12px;opacity:.7;background:rgba(148,163,184,.2);padding:1px 8px;border-radius:99px}
+.me-r{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px;margin:0 0 8px;border-radius:14px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.08);color:inherit;font:inherit}
+.me-r.on{border-color:#2563eb;background:rgba(37,99,235,.14)}.me-r .e{font-size:24px}.me-r .grow{flex:1;min-width:0}.me-r b{display:block}.me-r small{display:block;opacity:.7;font-size:12.5px}.me-r i{opacity:.5;font-style:normal;font-size:20px}
+.me-e,.me-n{opacity:.65;font-size:13px;margin:0}.me-act{display:flex;gap:8px;margin:0 0 18px}.me-act .btn{flex:1}
