@@ -1517,6 +1517,11 @@ try {
     return o; } catch (e) { return { err: String(e && e.message || e) }; } });
   log('v1.0.259 [liste des niveaux + changement sans flash]', tPk);
   log('errors v1.0.259 niveaux', !tPk.err && tPk.idle && tPk.list && tPk.touch && tPk.noBlank && tPk.done && tPk.back && tPk.dismiss ? [] : ['v1.0.259 niveaux ' + JSON.stringify(tPk)]);
+  const tFk = await A.pg.evaluate(async () => { try { document.querySelectorAll('.fullpage').forEach(x => x.remove()); const a = (await DB.byProject('plans', App.project.id)).find(x => x.name === 'SW A'); await openPlanViewer(a, { ...planCtx(() => {}), focus: { x: 150, y: 100 } });
+    const w = (n) => new Promise(r => setTimeout(r, n)); await w(1500); const o = { pin0: !!document.querySelector('.focus-pin'), ring0: !!document.querySelector('.focus-ring') }; await w(4200);
+    o.pin1 = !!document.querySelector('.focus-pin'); o.ring1 = !!document.querySelector('.focus-ring'); document.querySelectorAll('.fullpage').forEach(x => x.remove()); return o; } catch (e) { return { err: String(e.message || e) }; } });
+  log('v1.0.260 [arrivée sur un point : pin retiré après 5 s, cercle gardé]', tFk);
+  log('errors v1.0.260 focus', !tFk.err && tFk.pin0 && tFk.ring0 && !tFk.pin1 && tFk.ring1 ? [] : ['v1.0.260 focus ' + JSON.stringify(tFk)]);
   const tDue = await A.pg.evaluate(() => ({ s: String(openDueTable).includes('Point · échéance') && !String(openDueTable).includes("p.mo ? ' · ' + esc(p.mo) : ''}</span></div>") }));
   log('v1.0.176 [échéances + points]', tDue); log('errors v1.0.176 échéances', tDue.s ? [] : ['v1.0.176 échéances']);
   // ---- v1.0.176 : sauvegarde Drive d'un projet = un seul zip mis à jour sur place (+ « précédente ») ----
