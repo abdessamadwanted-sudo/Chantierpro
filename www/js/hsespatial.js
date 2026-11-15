@@ -77,7 +77,7 @@ const HseSp = (() => {
       <div class="hs-vp"><svg class="hs-svg" xmlns="http://www.w3.org/2000/svg"><g class="hs-world"><image class="hs-img" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="none"/><g class="hs-l"></g><g class="hs-d"></g><g class="hs-h"></g></g></svg>
         <div class="hs-hint"></div></div>
       <div class="hs-bar" style="display:none"><button data-a="fin">✓ Terminer</button><button data-a="pop">↶ Point</button><button data-a="can">✕ Annuler</button></div>
-      <div class="hs-pal">${canW ? '' : '<span class="hs-ro">Lecture seule</span>'}<button class="hs-t on" data-t="pan" title="Déplacer / sélectionner">✋</button>${canW ? GROUPS.map(([g, gl]) => T.filter(t => t.g === g).map(t => `<button class="hs-t" data-t="${t.k}" title="${esc(t.l)}"><img src="${IC(t.ic)}" alt="${esc(t.l)}"></button>`).join('')).join('<i></i>') : ''}</div>`;
+      <div class="hs-pal">${canW ? '' : '<span class="hs-ro">Lecture seule</span>'}<button class="hs-t on" data-t="pan" title="Déplacer / sélectionner">✋<b>Choisir</b></button>${canW ? '<button class="hs-lst">☰ Liste des outils</button>' : ''}${canW ? GROUPS.map(([g, gl]) => T.filter(t => t.g === g).map(t => `<button class="hs-t" data-t="${t.k}" title="${esc(t.l)}"><img src="${IC(t.ic)}" alt="${esc(t.l)}"><b>${esc(t.l.split(' / ')[0].replace('Tracé de route (croquis)', 'Route').replace('Point de rassemblement', 'Rassemblt').replace('Accès provisoire', 'Accès'))}</b></button>`).join('')).join('<i></i>') : ''}</div>`;
     document.body.appendChild(el);
     const unBack = typeof pushBack === 'function' ? pushBack(() => shut()) : () => {};
     const $e = (s) => el.querySelector(s), svg = $e('.hs-svg'), world = $e('.hs-world'), gL = $e('.hs-l'), gD = $e('.hs-d'), gH = $e('.hs-h'), vp = $e('.hs-vp');
@@ -100,10 +100,14 @@ const HseSp = (() => {
       if (o.geom.t === 'line') return `<polyline points="${P.map(q => q.join(',')).join(' ')}" fill="none" stroke="${t.c}" stroke-width="${px(sel ? 5 : 3.6)}"${dash} stroke-linecap="round" stroke-linejoin="round"/>`;
       const s = px(34); return `<g transform="translate(${P[0][0]} ${P[0][1]})">${sel ? `<circle r="${px(25)}" fill="none" stroke="#2563eb" stroke-width="${px(3)}"/>` : ''}<image href="${IC(t.ic)}" x="${-s / 2}" y="${-s / 2}" width="${s}" height="${s}"/></g>`;
     }
+    // nom affiché sur chaque objet (type + note) : on sait toujours ce qu'on touche
+    const cen = (o) => { const P = o.geom.pts; if (o.geom.t === 'pt') return [P[0][0], P[0][1] + 24 / S.k]; if (o.geom.t === 'line') { const m = P[Math.floor((P.length - 1) / 2)], n = P[Math.ceil((P.length - 1) / 2)]; return [(m[0] + n[0]) / 2, (m[1] + n[1]) / 2 - 8 / S.k]; } return [P.reduce((a, q) => a + q[0], 0) / P.length, P.reduce((a, q) => a + q[1], 0) / P.length]; };
+    const label = (o) => { const t = TK.get(o.type), c = cen(o), st = (t.st.find(x => x[0] === o.status) || [])[1] || '', tx = t.l.split(' / ')[0] + (o.note ? ' · ' + o.note : '');
+      return `<text x="${c[0]}" y="${c[1]}" text-anchor="middle" font-size="${px(13)}" font-weight="700" fill="#0f172a" stroke="#fff" stroke-width="${px(3.5)}" paint-order="stroke" stroke-linejoin="round" pointer-events="none">${esc(tx)}<tspan x="${c[0]}" dy="${px(14)}" font-size="${px(11)}" font-weight="500" fill="#334155">${esc(st)}</tspan></text>`; };
     function draw() {
       if (!gL) return;
       const vis = objs.filter(o => visible(o, hidden)), order = { poly: 0, line: 1, pt: 2 };
-      gL.innerHTML = vis.sort((a, b) => order[a.geom.t] - order[b.geom.t]).map(o => `<g data-id="${o.id}">${drawObj(o, o.id === S.sel)}</g>`).join('');
+      gL.innerHTML = vis.sort((a, b) => order[a.geom.t] - order[b.geom.t]).map(o => `<g data-id="${o.id}">${drawObj(o, o.id === S.sel)}${label(o)}</g>`).join('');
       const so = selObj(), r = px(7);
       gH.innerHTML = so && canW && visible(so, hidden) && so.geom.t !== 'pt' ? so.geom.pts.map((q, i) => `<circle cx="${q[0]}" cy="${q[1]}" r="${r}" fill="#fff" stroke="#2563eb" stroke-width="${px(2.4)}" data-v="${i}"/>`).join('') : '';
       const tt = TK.get(S.tool), D = S.draft;
@@ -161,7 +165,7 @@ const HseSp = (() => {
 
     // ---------- gestes ----------
     const ptrs = new Map(); let g = null;
-    const setTool = (k) => { S.tool = k; S.draft = []; if (k !== 'pan') S.sel = null; el.querySelectorAll('.hs-t').forEach(b => b.classList.toggle('on', b.dataset.t === k)); const t = TK.get(k);
+    const setTool = (k) => { S.tool = k; S.draft = []; if (k !== 'pan') S.sel = null; el.querySelectorAll('.hs-t').forEach(b => b.classList.toggle('on', b.dataset.t === k)); const t = TK.get(k); const ls = $e('.hs-lst'); if (ls) ls.textContent = '☰ ' + (t ? t.l : 'Liste des outils');
       hint(t ? (t.geo === 'pt' ? `Touchez le plan pour placer : ${t.l}` : `${t.l} : touchez le 1er point`) : ''); draw(); };
     svg.addEventListener('pointerdown', (e) => {
       try { svg.setPointerCapture(e.pointerId); } catch (x) {} ptrs.set(e.pointerId, [e.clientX, e.clientY]);
@@ -194,6 +198,10 @@ const HseSp = (() => {
 
     // ---------- barre / menus ----------
     el.querySelectorAll('.hs-t').forEach(b => b.onclick = () => setTool(b.dataset.t));
+    ($e('.hs-lst') || {}).onclick = async () => {
+      const v = await menu('Outils HSE', [{ label: 'Choisir / déplacer (sans dessiner)', icon: 'edit', value: 'pan' }, ...GROUPS.flatMap(([g, gl]) => T.filter(t => t.g === g).map(t => ({ label: `${gl} · ${t.l}${t.geo === 'pt' ? '' : t.geo === 'line' ? ' (ligne)' : ' (zone)'}`, swatch: t.c, value: t.k })))]);
+      if (v) setTool(v);
+    };
     ($e('[data-a=fin]') || {}).onclick = finish; ($e('[data-a=pop]') || {}).onclick = () => { S.draft = S.draft.slice(0, -1); draw(); }; ($e('[data-a=can]') || {}).onclick = () => { S.draft = []; hint(''); draw(); };
     ($e('[data-a=undo]') || {}).onclick = () => hist.undo(); ($e('[data-a=redo]') || {}).onclick = () => hist.redo();
     ($e('[data-a=more]') || {}).onclick = async () => {
