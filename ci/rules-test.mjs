@@ -486,6 +486,8 @@ await t('partenaires : REFUS qu\'un partenaire en retire un autre', () => assert
 await t('partenaires : REFUS d\'écrire dans l\'historique d\'une autre identité', () => assertFails(PT(bet1).collection('audit').add({ by: 'ownT', srv: SRV() })));
 await t('administrateur : accès complet à son organisation', async () => { await assertSucceeds(RT(ownT, 'finance', 'items', 'a3').get()); await assertSucceeds(RT(ownT, 'reserves', 'tasks', 'o1').set(W('reserves', 'tasks', 'o1'))); });
 await t('administrateur : REFUS de se donner un pack supérieur', () => assertFails(ownT.collection('companies').doc('cT').update({ plan: 'enterprise-plus' })));
+await t('taille d\'organisation : l\'administrateur la choisit, sans pouvoir toucher au pack', async () => { await assertSucceeds(ownT.collection('companies').doc('cT').update({ taille: 'moyenne' })); await assertFails(ownT.collection('companies').doc('cT').update({ taille: 'grande', plan: 'enterprise-plus' })); });
+await t('taille d\'organisation : REFUS pour un membre non administrateur', () => assertFails(techT.collection('companies').doc('cT').update({ taille: 'grande' })));
 await t('technicien : REFUS hors de ses modules (finance)', () => assertFails(RT(techT, 'finance', 'items', 'a3').get()));
 // calques HSE (kind « hseo », module « hse »)
 await t('calques HSE : le titulaire écrit et lit un objet du module hse', async () => { await assertSucceeds(RT(ownT, 'hse', 'items', 'hseo1').set(W('hse', 'items', 'hseo1', { kind: 'hseo', type: 'mur' }))); await assertSucceeds(RT(ownT, 'hse', 'items', 'hseo1').get()); });
