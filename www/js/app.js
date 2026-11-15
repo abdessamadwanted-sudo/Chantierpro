@@ -215,7 +215,7 @@ async function renderHome() {
           return M && M.on && M.text && off !== String(M.id || M.text) ? `<div class="st-msg ${M.level === 'alerte' ? 'al' : ''}"><span>${M.level === 'alerte' ? '⚠️' : '📣'}</span><p>${esc(M.text)}</p><button class="iconbtn sm" data-a="msgoff" aria-label="Masquer">${icon('close')}</button></div>` : ''; })()}
         ${(() => {
           // v1.0.32 : accueil en onglets (barre du bas) — Accueil · Projets · Outils ; chaque onglet est court, sans doublon
-          const card = (p) => { const st = stats(p), [c1, c2] = hue(p.name), open = !!App.homeOpen[p.id];
+          const card = (p) => { p = p.name && String(p.name).trim() ? p : { ...p, name: p.address || p.pdfTitle || 'Projet sans nom' }; const st = stats(p), [c1, c2] = hue(p.name), open = !!App.homeOpen[p.id];
           const due = (x) => x.at && x.at.slice(0, 10) <= today;
           if (!fRec) { st.today = 0; st.pv = 0; } if (!HB.has('pv')) st.pv = 0; if (!fTasks) { st.open = 0; st.late = 0; }
           return `<div class="h2-proj ${open ? 'open' : ''}"><div class="h2-stick"><button class="h2-card" data-id="${p.id}">

@@ -1507,7 +1507,7 @@ const Team = (() => {
     const meta = {};
     for (const d of docs) { const x = d.data(); if (x.deleted) continue;
       meta[d.id] = { teamEnabled: x.teamEnabled === true, teamUids: x.teamUids || [], affectations: x.affectations || [] };
-      const p = await DB.get('projects', d.id); if (p) await DB.putRaw('projects', { ...p, ...meta[d.id] });
+      const p = await DB.get('projects', d.id); if (p) await DB.putRaw('projects', { ...p, ...(!String(p.name || '').trim() && x.name ? { name: x.name } : {}), ...meta[d.id] });
     }
     S.projectTeams = meta; LS.set('projectTeams', meta);
     return Object.keys(meta);

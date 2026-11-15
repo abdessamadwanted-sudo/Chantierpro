@@ -92,6 +92,11 @@ const DB = (() => {
   let chT = null;
   function changed(store) { if (store === 'tomb') return; clearTimeout(chT); chT = setTimeout(() => { try { DB.onChange && DB.onChange(store); } catch (e) {} }, 50); }
 
+  // Un projet ne perd jamais son nom : si l'enregistrement entrant est sans nom, on garde celui déjà présent.
+  const gardeNom = async (obj) => {
+    if (obj && String(obj.name || '').trim()) return;
+    try { const old = obj.id && await run('projects', 'readonly', (os) => os.get(obj.id)); if (old && String(old.name || '').trim()) obj.name = old.name; } catch (e) {}
+  };
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
   return {
@@ -104,6 +109,7 @@ const DB = (() => {
       if (!obj.id) obj.id = uid();
       if (!obj.createdAt) obj.createdAt = Date.now();
       obj.updatedAt = Date.now();
+      if (store === 'projects') await gardeNom(obj);
       await run(store, 'readwrite', (os) => os.put(obj));
       if (store === 'files') await setFlags(obj);
       changed(store);
@@ -119,7 +125,7 @@ const DB = (() => {
       }
     },
     // utilisés par la synchronisation (ne déclenchent pas de nouvel envoi)
-    async putRaw(store, obj) { await run(store, 'readwrite', (os) => os.put(obj)); if (store === 'files') await setFlags(obj); return obj; },
+    async putRaw(store, obj) { if (store === 'projects') await gardeNom(obj); await run(store, 'readwrite', (os) => os.put(obj)); if (store === 'files') await setFlags(obj); return obj; },
     async delRaw(store, id) { const r = await run(store, 'readwrite', (os) => os.delete(id)); if (store === 'files') await dropFlags(id); return r; },
     // fichiers portant un drapeau (prep | bgq | pend) : lit la petite table, puis seulement ces fichiers
     async flagged(k) {

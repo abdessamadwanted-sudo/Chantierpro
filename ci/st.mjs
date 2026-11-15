@@ -2279,6 +2279,16 @@ try {
   log('errors v1.0.246', !v245.err && v245.card && v245.url && v245.ov && v245.closed && v245.cr ? [] : ['v1.0.246 ' + JSON.stringify(v245)]);
   log('errors v1.0.244', !v244.err && v244.acc && v244.met && v244.div && v244.due === '2026-03-01' && v244.fr && v244.loc ? [] : ['v1.0.244 ' + JSON.stringify(v244)]);
   log('errors titre plan', []);
+  // ---- nom de projet jamais perdu (v1.0.264)
+  const vNm = await A.pg.evaluate(async () => { const o = {}; try {
+    const p = await DB.put('projects', { name: 'Villa Test Nom', address: 'Rue 1' });
+    await DB.putRaw('projects', { ...p, name: '', updatedAt: Date.now() + 5 }); o.keepRaw = (await DB.get('projects', p.id)).name === 'Villa Test Nom';
+    const q = await DB.get('projects', p.id); q.name = '   '; await DB.put('projects', q); o.keepPut = (await DB.get('projects', p.id)).name === 'Villa Test Nom';
+    const q2 = await DB.get('projects', p.id); q2.name = 'Villa Renommée'; await DB.put('projects', q2); o.rename = (await DB.get('projects', p.id)).name === 'Villa Renommée';
+    const n = await DB.put('projects', { name: '', address: 'Adresse seule' }); App.showAllP = true; const r = document.createElement('div'); document.body.appendChild(r);
+    await DB.del('projects', p.id); await DB.del('projects', n.id); r.remove(); } catch (e) { o.err = String(e.message || e); } return o; });
+  log('nom projet', vNm);
+  log('errors nom projet', !vNm.err && vNm.keepRaw && vNm.keepPut && vNm.rename ? [] : ['nom projet ' + JSON.stringify(vNm)]);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
