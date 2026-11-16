@@ -284,6 +284,17 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'at']));
         allow delete: if isAdmin(cid) || isAdmin(svc);
       }
+      // miroir côté service : l'administrateur du service y voit les demandes reçues (sans requête sur plusieurs organisations). Même consentement.
+      match /attachIn/{o} {
+        allow read: if isAdmin(cid) || isAdmin(o);
+        allow create: if isAdmin(o) && o != cid && request.resource.data.status == 'demande' && request.resource.data.org == o && request.resource.data.svc == cid
+          && request.resource.data.by == request.auth.uid && co(cid).get('kind', '') == 'service';
+        allow update: if (isAdmin(cid) && resource.data.status == 'demande' && request.resource.data.status in ['actif', 'refuse']
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'at']))
+          || ((isAdmin(cid) || isAdmin(o)) && resource.data.status == 'actif' && request.resource.data.status == 'revoque'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'at']));
+        allow delete: if isAdmin(cid) || isAdmin(o);
+      }
       // Journal de l'organisation : append-only, administrateurs seulement.
       match /audit/{aid} {
         allow read: if isAdmin(cid);

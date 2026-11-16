@@ -513,6 +513,16 @@ await t('rattachement : REFUS de modifier un autre champ', () => assertFails(ATT
 await t('rattachement : rattaché ≠ accès aux données (l\'organisation ne lit pas le service)', () => assertFails(ownT.collection('companies').doc('cSV').collection('members').doc('svcA').get()));
 await t('rattachement : le service révoque', () => assertSucceeds(ATT(svcA).update({ status: 'revoque', at: 2 })));
 await t('rattachement : l\'organisation supprime le rattachement', () => assertSucceeds(ATT(ownT).delete()));
+// miroir « attachIn » côté service
+const AIN = (db) => db.collection('companies').doc('cSV').collection('attachIn').doc('cT');
+const dem2 = { org: 'cT', svc: 'cSV', status: 'demande', by: 'ownT' };
+await t('attachIn : REFUS de la demande par un non-administrateur', () => assertFails(AIN(techT).set(dem2)));
+await t('attachIn : REFUS d\'une fausse identité d\'organisation', () => assertFails(AIN(ownT).set({ ...dem2, org: 'cFOR' })));
+await t('attachIn : l\'administrateur de l\'organisation écrit la demande', () => assertSucceeds(AIN(ownT).set(dem2)));
+await t('attachIn : REFUS que l\'organisation s\'accepte', () => assertFails(AIN(ownT).update({ status: 'actif', at: 1 })));
+await t('attachIn : REFUS de lecture par une tierce organisation', () => assertFails(AIN(forA).get()));
+await t('attachIn : l\'administrateur du service lit et accepte', async () => { await assertSucceeds(AIN(svcA).get()); await assertSucceeds(AIN(svcA).update({ status: 'actif', at: 1 })); });
+await t('attachIn : l\'organisation révoque', () => assertSucceeds(AIN(ownT).update({ status: 'revoque', at: 2 })));
 // membre à accès limité dans le temps
 await env.withSecurityRulesDisabled(c => c.firestore().collection('companies').doc('cT').collection('members').doc('techT').update({ until: new Date(Date.now() - 86400000) }));
 await t('accès expiré (until) : REFUS de lire le projet', () => assertFails(RT(techT, 'reserves', 'tasks', 'a1').get()));
