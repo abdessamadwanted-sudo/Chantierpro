@@ -1620,9 +1620,11 @@ try {
     const R = Catalog.compute(man, { basic: ['m2'], pro: ['m1', 'm2'], business: '*', enterprise: '*' });
     o.calc = R[0].codeMin === 'pro' && !R[0].diff && R[1].codeMin === 'pro' && R[1].diff === true && R[2].status === 'verifier' && R[2].codeMin === null && R[3].codeMin === 'business' && R[0].children.length === 2;
     const L = await Catalog.live(); o.live = L.length === 11 && L.every(r => r.label) && L.find(r => r.id === 'documents').codeMin === 'basic' && L.find(r => r.id === 'laboratoire').status === 'verifier';
+    const D = Catalog.dashboard(L, 'pro', { reception: 2, forms: 0, constats: 0, hse: 4, plans: 1, photos: 0, files: 0, rapports: 0, equipe: 0, pointage: 0 });
+    o.dash = D.length === 3 && D.some(d => d.id === 'qualite' && d.level === 2) && D.some(d => d.id === 'documents' && d.level === 1) && D.some(d => d.id === 'hse' && d.level === 4) && !D.some(d => d.id === 'laboratoire') && Catalog.dashboard(L, 'basic', { hse: 4 }).length === 0 && Team.roleList().length > 5 && !!Team.roleList()[0].perms;
     o.table = /Pack \(code\)/.test(Catalog.table(L)); return o; } catch (e) { return { err: String(e.message || e) }; } });
   log('catalogue', tCt);
-  log('errors catalogue', !tCt.err && ['calc', 'live', 'table'].every(k => tCt[k]) ? [] : ['catalogue ' + JSON.stringify(tCt)]);
+  log('errors catalogue', !tCt.err && ['calc', 'live', 'dash', 'table'].every(k => tCt[k]) ? [] : ['catalogue ' + JSON.stringify(tCt)]);
   const tMx = await A.pg.evaluate(async () => { try { const o = {};
     const defs = { a: 'Fonction A (x)', b: 'Fonction B' }, dflt = { a: { business: 'dev', enterprise: 'dev' }, b: { pro: 'pub' } };
     const R = Matrix.rows(defs, dflt, {}); o.rows = R.length === 2 && R[0].label === 'Fonction A' && R[0].packs.basic === '-' && R[0].packs.business === 'dev' && R[1].packs.pro === 'pub' && !R[0].custom;
