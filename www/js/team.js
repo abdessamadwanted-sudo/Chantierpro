@@ -1031,6 +1031,19 @@ const Team = (() => {
     if (cur && JSON.stringify(cur) === JSON.stringify(w) && (S.workspaces || [])[0] && S.workspaces[0].cid === S.cid) return;
     try { await fs.collection('users').doc(S.user.uid).set({ workspaces: next }, { merge: true }); S.workspaces = next; } catch (e) { console.warn('ws', e); }
   }
+  // Service autonome (Étape 3, PR A) : espace à part (kind « service »), vide, avec son propre abonnement ; mêmes règles serveur que toute organisation (rien de nouveau).
+  // Le rattachement ultérieur à une organisation (avec consentement) viendra séparément. Retourne l'id créé ou null.
+  async function createService(label, key) {
+    if (!S.user) return null;
+    const ld = loading('Création du service…');
+    try {
+      const uid = S.user.uid, ref = fs.collection('companies').doc(), R = tmRoleOf(orgTypeOf('entreprise').owner || 'patron');
+      await withTimeout(ref.set({ name: String(label || 'Service').slice(0, 80), ownerUid: uid, plan: 'basic', planStatus: 'gratuit', kind: 'service', orgType: 'entreprise', services: ['direction'], svcKey: String(key || ''), createdAt: ts() }));
+      const all = Object.fromEntries(MODS.map(([m]) => [m, 4]));
+      await withTimeout(ref.collection('members').doc(uid).set({ name: (S.me || {}).name || S.user.displayName || '', email: S.user.email, role: R.k, service: R.s || 'direction', perms: all, admin: true, allProjects: true, projects: [], managerUid: null, zone: '', createdAt: ts() }));
+      ld.close(); return ref.id;
+    } catch (e) { ld.close(); alertBox(errMsg(e) + (e.code === 'permission-denied' ? '\n\nCréation refusée par le serveur (accès sur code uniquement ?).' : '')); return null; }
+  }
   async function switchTo(cid) {
     if (cid === S.cid) return;
     const ld = loading('Changement d\'espace…');
@@ -2439,7 +2452,7 @@ const Team = (() => {
 
   return {
     boot, push, pull, resetPull, lvl, canSection, svcLib, canProject, isAdmin, openCompany, taille, secureApply, secureOn, saveAffectations, noteProject, projectIds, inviteFlow, inviteFor, shareInvite, canInviteNow: () => canInvite(), logout, decorateSection, removeMember, refreshMembers,
-    isSuper, superConsole, orgType, isPerso, tailleList: () => TAILLES, companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, isOwner, deleteEspace, workspaces: () => S.workspaces || [], shared: () => S.shared || [], cid: () => S.cid,
+    isSuper, superConsole, orgType, isPerso, tailleList: () => TAILLES, companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, createService, isOwner, deleteEspace, workspaces: () => S.workspaces || [], shared: () => S.shared || [], cid: () => S.cid,
     profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
     openProjectShares, claimShare, openPartners, renderHistory, sharedOf, joinWithCode,
     cloudOn, canCloud, cloudUpload, cloudDownload, cloudRemove, cloudCfg, storageRules: STORAGE_RULES,
