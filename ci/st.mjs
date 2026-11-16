@@ -1615,6 +1615,14 @@ try {
     return o; } catch (e) { return { err: String(e.message || e) + ' ' + String(e.stack || '').split('\n')[1] }; } });
   log('v1.0.276 [Architecture Studio]', tSd);
   log('errors v1.0.276 studio', !tSd.err && ['cat','path','count','find','status','alias','alias2','alias3','denied','open','org','legacy','leaf','sim','search','backSearch','closed','resume'].every(k => tSd[k]) ? [] : ['v1.0.276 studio ' + JSON.stringify(tSd)]);
+  const tCt = await A.pg.evaluate(async () => { try { const o = {};
+    const man = { modules: [{ id: 'a', label: 'A', zipMin: 'Pro', children: ['x', 'y'], mods: ['m1'] }, { id: 'b', label: 'B', zipMin: 'Basic', children: [], mods: ['m1', 'm2'] }, { id: 'c', label: 'C', zipMin: 'Pro', children: [], mods: [] }, { id: 'd', label: 'D', zipMin: 'Pro', children: [], mods: ['zz'] }] };
+    const R = Catalog.compute(man, { basic: ['m2'], pro: ['m1', 'm2'], business: '*', enterprise: '*' });
+    o.calc = R[0].codeMin === 'pro' && !R[0].diff && R[1].codeMin === 'pro' && R[1].diff === true && R[2].status === 'verifier' && R[2].codeMin === null && R[3].codeMin === 'business' && R[0].children.length === 2;
+    const L = await Catalog.live(); o.live = L.length === 11 && L.every(r => r.label) && L.find(r => r.id === 'documents').codeMin === 'basic' && L.find(r => r.id === 'laboratoire').status === 'verifier';
+    o.table = /Pack \(code\)/.test(Catalog.table(L)); return o; } catch (e) { return { err: String(e.message || e) }; } });
+  log('catalogue', tCt);
+  log('errors catalogue', !tCt.err && ['calc', 'live', 'table'].every(k => tCt[k]) ? [] : ['catalogue ' + JSON.stringify(tCt)]);
   const tMx = await A.pg.evaluate(async () => { try { const o = {};
     const defs = { a: 'Fonction A (x)', b: 'Fonction B' }, dflt = { a: { business: 'dev', enterprise: 'dev' }, b: { pro: 'pub' } };
     const R = Matrix.rows(defs, dflt, {}); o.rows = R.length === 2 && R[0].label === 'Fonction A' && R[0].packs.basic === '-' && R[0].packs.business === 'dev' && R[1].packs.pro === 'pub' && !R[0].custom;
