@@ -22,6 +22,32 @@ const MesEspaces = (() => {
     return out;
   }
   const typeOf = (w) => orgTypeOf(w.org || (w.kind === 'perso' ? 'independant' : 'entreprise'));
+  // écran de rattachement (côté service : demandes reçues ; côté organisation : services demandés + nouvelle demande)
+  async function attachScreen() {
+    const A = Team.attach, svc = A.isSvc(), me = (Team.company() || {}).id || Team.cid();
+    const back = () => MesEspaces.open();
+    let L; try { L = svc ? await A.listIn() : await A.listOrg(); } catch (e) { alertBox('Rattachement indisponible : ' + (e && e.code === 'permission-denied' ? 'les règles serveur « rattachement » ne sont pas encore publiées par le Super Admin.' : errMsg(e))); return back(); }
+    const items = L.map(x => ({ label: `${svc ? (x.orgName || x.org) : (x.svc)} — ${A.label(x.status)}`, icon: x.status === 'actif' ? 'check' : 'clock', value: x.id }));
+    if (!svc) items.push({ label: '＋ Demander le rattachement d\'un service', icon: 'plus', value: '__new' });
+    if (svc) items.unshift({ label: 'Mon code de rattachement : ' + me, icon: 'link', value: '__code' });
+    const v = await menu(svc ? 'Demandes de rattachement' : 'Services rattachés', items);
+    if (!v) return back();
+    if (v === '__code') { try { await navigator.clipboard.writeText(me); toast('Code copié'); } catch (e) { alertBox('Code : ' + me); } return attachScreen(); }
+    if (v === '__new') {
+      const r = await formSheet('Rattacher un service autonome', [{ name: 'code', label: 'Code de rattachement du service', placeholder: 'Collé depuis l\'espace du service' }], { okLabel: 'Envoyer la demande', intro: 'L\'administrateur du service doit accepter. Le rattachement n\'ouvre aucun accès à ses données.' });
+      if (r && r.code) { try { await A.request(r.code); toast('Demande envoyée ✓'); } catch (e) { alertBox(e && e.code === 'permission-denied' ? 'Refusé par le serveur : code inconnu, ce n\'est pas un service, ou règles non publiées.' : errMsg(e)); } }
+      return attachScreen();
+    }
+    const x = L.find(y => y.id === v); if (!x) return back();
+    const org = svc ? x.org : me, sv = svc ? me : x.svc;
+    const acts = [];
+    if (svc && x.status === 'demande') acts.push({ label: 'Accepter', icon: 'check', value: 'yes' }, { label: 'Refuser', icon: 'close', danger: true, value: 'no' });
+    if (x.status === 'actif') acts.push({ label: 'Révoquer le rattachement', icon: 'close', danger: true, value: 'rev' });
+    if (x.status !== 'actif') acts.push({ label: 'Supprimer cette ligne', icon: 'trash', danger: true, value: 'del' });
+    const a = await menu(svc ? (x.orgName || x.org) : x.svc, acts);
+    try { if (a === 'yes') await A.answer(x.org, true); else if (a === 'no') await A.answer(x.org, false); else if (a === 'rev') await A.revoke(org, sv); else if (a === 'del') await A.remove(org, sv); if (a) toast('Fait ✓'); } catch (e) { alertBox(errMsg(e)); }
+    return attachScreen();
+  }
   function open(opts = {}) {
     if (!Team.ready()) return null;
     const cur = (Team.company() || {}).id || Team.cid();
@@ -60,10 +86,10 @@ const MesEspaces = (() => {
     };
     ($e('[data-a=me]') || {}).onclick = () => { shut(); Team.openCompany('me'); };
     ($e('[data-a=more]') || {}).onclick = async () => {
-      const v = await menu('Mes espaces', [...(Team.isSuper() && typeof Studio !== 'undefined' ? [{ label: 'Architecture Studio', icon: 'layers', value: 'studio' }] : []), { label: 'Ancien sélecteur d\'espace', icon: 'undo', value: 'old' }, { label: 'Désactiver cet écran (revenir à l\'ancien)', icon: 'close', danger: true, value: 'off' }]);
-      if (v === 'studio') { shut(); Studio.open({ onClose: () => MesEspaces.open() }); } else if (v === 'old') { shut(); Team.openSwitcher(true); } else if (v === 'off') { setEnabled(false); toast('Ancien sélecteur rétabli'); shut(); }
+      const v = await menu('Mes espaces', [...(Team.attach && Team.attach.ok() ? [{ label: Team.attach.isSvc() ? 'Demandes de rattachement' : 'Rattacher un service autonome', icon: 'link', value: 'attach' }] : []), ...(Team.isSuper() && typeof Studio !== 'undefined' ? [{ label: 'Architecture Studio', icon: 'layers', value: 'studio' }] : []), { label: 'Ancien sélecteur d\'espace', icon: 'undo', value: 'old' }, { label: 'Désactiver cet écran (revenir à l\'ancien)', icon: 'close', danger: true, value: 'off' }]);
+      if (v === 'attach') { shut(); attachScreen(); } else if (v === 'studio') { shut(); Studio.open({ onClose: () => MesEspaces.open() }); } else if (v === 'old') { shut(); Team.openSwitcher(true); } else if (v === 'off') { setEnabled(false); toast('Ancien sélecteur rétabli'); shut(); }
     };
     return { el, close: shut, counts: { services: C.services.length, perso: C.perso.length, orgs: C.orgs.length, invit: C.invit.length, shared: shared.length + C.shared.length } };
   }
-  return { open, enabled, setEnabled, classify };
+  return { open, enabled, setEnabled, classify, attachScreen };
 })();

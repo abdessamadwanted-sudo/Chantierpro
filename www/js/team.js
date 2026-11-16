@@ -553,6 +553,17 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'at']));
         allow delete: if isAdmin(cid) || isAdmin(svc);
       }
+      // miroir côté service : l'administrateur du service y voit les demandes reçues (sans requête sur plusieurs organisations). Même consentement.
+      match /attachIn/{o} {
+        allow read: if isAdmin(cid) || isAdmin(o);
+        allow create: if isAdmin(o) && o != cid && request.resource.data.status == 'demande' && request.resource.data.org == o && request.resource.data.svc == cid
+          && request.resource.data.by == request.auth.uid && co(cid).get('kind', '') == 'service';
+        allow update: if (isAdmin(cid) && resource.data.status == 'demande' && request.resource.data.status in ['actif', 'refuse']
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'at']))
+          || ((isAdmin(cid) || isAdmin(o)) && resource.data.status == 'actif' && request.resource.data.status == 'revoque'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'at']));
+        allow delete: if isAdmin(cid) || isAdmin(o);
+      }
       // Journal de l'organisation : append-only, administrateurs seulement.
       match /audit/{aid} {
         allow read: if isAdmin(cid);
@@ -1057,6 +1068,43 @@ const Team = (() => {
       ld.close(); return ref.id;
     } catch (e) { ld.close(); alertBox(errMsg(e) + (e.code === 'permission-denied' ? '\n\nCréation refusée par le serveur (accès sur code uniquement ?).' : '')); return null; }
   }
+  // Rattachement service autonome ↔ organisation (consentement). Écrit côté organisation (attachments) et côté service (attachIn).
+  // Nécessite les règles « attachments / attachIn » publiées par le Super Admin : sinon refus serveur → message clair.
+  const att = {
+    isSvc: () => !!S.company && S.company.kind === 'service',
+    ok: () => !!S.ready && !!S.me && S.me.admin === true,
+    async request(svcCid) {
+      if (!att.ok() || att.isSvc()) throw new Error('Réservé à l\'administrateur d\'une organisation');
+      const id = String(svcCid || '').trim(); if (!id || id === S.cid) throw new Error('Code de service invalide');
+      const d = { org: S.cid, svc: id, status: 'demande', by: S.user.uid, orgName: S.company.name || '', at: ts() };
+      const b = fs.batch();
+      b.set(fs.collection('companies').doc(S.cid).collection('attachments').doc(id), d);
+      b.set(fs.collection('companies').doc(id).collection('attachIn').doc(S.cid), d);
+      await withTimeout(b.commit());
+    },
+    async listOrg() { const q = await withTimeout(fs.collection('companies').doc(S.cid).collection('attachments').get()); return q.docs.map(x => ({ id: x.id, ...x.data() })); },
+    async listIn() { const q = await withTimeout(fs.collection('companies').doc(S.cid).collection('attachIn').get()); return q.docs.map(x => ({ id: x.id, ...x.data() })); },
+    // côté service : accepter / refuser une demande reçue (ok) ; côté service ou organisation : révoquer (revoke)
+    async answer(orgCid, yes) {
+      const st = yes ? 'actif' : 'refuse', b = fs.batch(), u = { status: st, at: ts() };
+      b.update(fs.collection('companies').doc(S.cid).collection('attachIn').doc(orgCid), u);
+      b.update(fs.collection('companies').doc(orgCid).collection('attachments').doc(S.cid), u);
+      await withTimeout(b.commit());
+    },
+    async revoke(orgCid, svcCid) {
+      const b = fs.batch(), u = { status: 'revoque', at: ts() };
+      b.update(fs.collection('companies').doc(orgCid).collection('attachments').doc(svcCid), u);
+      b.update(fs.collection('companies').doc(svcCid).collection('attachIn').doc(orgCid), u);
+      await withTimeout(b.commit());
+    },
+    async remove(orgCid, svcCid) {
+      const b = fs.batch();
+      b.delete(fs.collection('companies').doc(orgCid).collection('attachments').doc(svcCid));
+      b.delete(fs.collection('companies').doc(svcCid).collection('attachIn').doc(orgCid));
+      await withTimeout(b.commit());
+    },
+    label: (st) => ({ demande: 'En attente', actif: 'Rattaché', refuse: 'Refusé', revoque: 'Révoqué' }[st] || st),
+  };
   async function switchTo(cid) {
     if (cid === S.cid) return;
     const ld = loading('Changement d\'espace…');
@@ -2465,7 +2513,7 @@ const Team = (() => {
 
   return {
     boot, push, pull, resetPull, lvl, canSection, svcLib, canProject, isAdmin, openCompany, taille, secureApply, secureOn, saveAffectations, noteProject, projectIds, inviteFlow, inviteFor, shareInvite, canInviteNow: () => canInvite(), logout, decorateSection, removeMember, refreshMembers,
-    isSuper, superConsole, orgType, isPerso, tailleList: () => TAILLES, companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, createService, isOwner, deleteEspace, workspaces: () => S.workspaces || [], shared: () => S.shared || [], cid: () => S.cid,
+    isSuper, superConsole, orgType, isPerso, tailleList: () => TAILLES, companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, createService, attach: att, isOwner, deleteEspace, workspaces: () => S.workspaces || [], shared: () => S.shared || [], cid: () => S.cid,
     profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
     openProjectShares, claimShare, openPartners, renderHistory, sharedOf, joinWithCode,
     cloudOn, canCloud, cloudUpload, cloudDownload, cloudRemove, cloudCfg, storageRules: STORAGE_RULES,
