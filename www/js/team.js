@@ -2427,7 +2427,7 @@ const Team = (() => {
 
   async function logout() {
     if (!await confirmBox('Se déconnecter de SiteTeam sur ce téléphone ?', 'Se déconnecter')) return;
-    await auth.signOut(); ['me', 'cid', 'company', 'members', 'profile', 'pullAt'].forEach(LS.del); location.reload();
+    await auth.signOut(); try { sessionStorage.removeItem('st.packasked'); sessionStorage.removeItem('st.preview'); } catch (e) {} ['me', 'cid', 'company', 'members', 'profile', 'pullAt'].forEach(LS.del); location.reload();
   }
 
   // bandeau de lecture seule

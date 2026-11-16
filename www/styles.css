@@ -4315,3 +4315,7 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 /* Feature Matrix */
 .mx-w{overflow:auto;margin-top:10px}.mx{border-collapse:collapse;font-size:12.5px;width:100%}.mx th,.mx td{padding:5px 8px;border-bottom:1px solid rgba(148,163,184,.2);text-align:center}.mx th:first-child,.mx td:first-child{text-align:left}
 .mx-dev{background:rgba(245,158,11,.2)}.mx-test{background:rgba(59,130,246,.22)}.mx-pub{background:rgba(34,197,94,.25)}.mx-x{opacity:.4}.mx-n{font-size:12px;opacity:.65}
+
+/* Choix du pack */
+.pp-pg{background:var(--bg,#0f172a);z-index:57;display:flex;flex-direction:column}.pp-body{flex:1;overflow:auto;padding:14px}.pp-i{font-size:16px;margin:0 0 12px}.pp-i small{display:block;opacity:.65;font-size:12.5px;margin-top:4px}
+.pp-c{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:14px;margin:0 0 10px;border-radius:14px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.08);color:inherit;font:inherit}.pp-c.on{border-color:#2563eb;background:rgba(37,99,235,.14)}.pp-c .e{font-size:28px}.pp-c .grow{flex:1;min-width:0}.pp-c b{display:block;font-size:16px}.pp-c small{display:block;opacity:.7}.pp-c i{opacity:.5;font-style:normal;font-size:20px}
