@@ -1,0 +1,173 @@
+{
+ "version": "c1",
+ "note": "Manifest de lecture. zipMin = pack minimum proposé par le schéma Control Center (illustratif, à valider). mods = modules réels (MODS de team.js) que l'on rattache à cette rubrique ; vide = aucune correspondance établie (statut « à vérifier »). Le pack effectif est calculé depuis PLANS, jamais écrit ici.",
+ "modules": [
+  {
+   "id": "qualite",
+   "label": "Qualité",
+   "icon": "✓",
+   "zipMin": "Pro",
+   "children": [
+    "Réceptions",
+    "PV et signatures",
+    "Non-conformités",
+    "Contrôles",
+    "Plans et réserves",
+    "Archives"
+   ],
+   "mods": [
+    "reception",
+    "forms",
+    "constats"
+   ]
+  },
+  {
+   "id": "hse",
+   "label": "HSE",
+   "icon": "⚠",
+   "zipMin": "Business",
+   "children": [
+    "Incidents",
+    "Observations",
+    "Plans HSE",
+    "Cheminements et escaliers",
+    "Réservations / garde-corps",
+    "Actions correctives"
+   ],
+   "mods": [
+    "hse"
+   ]
+  },
+  {
+   "id": "travaux",
+   "label": "Travaux",
+   "icon": "▣",
+   "zipMin": "Pro",
+   "children": [
+    "Parties d’ouvrage",
+    "Avancement",
+    "Rendement",
+    "Équipes",
+    "Conducteurs et techniciens",
+    "Journal de chantier"
+   ],
+   "mods": [
+    "rapports",
+    "equipe",
+    "pointage"
+   ]
+  },
+  {
+   "id": "planning",
+   "label": "Planning",
+   "icon": "◷",
+   "zipMin": "Pro",
+   "children": [
+    "Gantt",
+    "Jalons",
+    "Dépendances",
+    "Retards",
+    "Rapports"
+   ],
+   "mods": []
+  },
+  {
+   "id": "documents",
+   "label": "Documents",
+   "icon": "▤",
+   "zipMin": "Basic",
+   "children": [
+    "Plans",
+    "Versions",
+    "Dossiers",
+    "Photos",
+    "Partage contrôlé"
+   ],
+   "mods": [
+    "plans",
+    "photos",
+    "files"
+   ]
+  },
+  {
+   "id": "metre",
+   "label": "Métré",
+   "icon": "▥",
+   "zipMin": "Pro",
+   "children": [
+    "Quantités",
+    "Attachements",
+    "Situations",
+    "DGD"
+   ],
+   "mods": []
+  },
+  {
+   "id": "topographie",
+   "label": "Topographie",
+   "icon": "⌖",
+   "zipMin": "Business",
+   "children": [
+    "Implantations",
+    "Relevés",
+    "Points de contrôle",
+    "Rapports"
+   ],
+   "mods": [
+    "topo"
+   ]
+  },
+  {
+   "id": "laboratoire",
+   "label": "Laboratoire",
+   "icon": "◈",
+   "zipMin": "Business",
+   "children": [
+    "Échantillons",
+    "Essais",
+    "Résultats",
+    "Conformité"
+   ],
+   "mods": []
+  },
+  {
+   "id": "opc",
+   "label": "OPC",
+   "icon": "↗",
+   "zipMin": "Business",
+   "children": [
+    "Coordination",
+    "Interfaces",
+    "Réunions",
+    "Suivi décisions"
+   ],
+   "mods": []
+  },
+  {
+   "id": "rh",
+   "label": "RH",
+   "icon": "♙",
+   "zipMin": "Enterprise",
+   "children": [
+    "Collaborateurs",
+    "Affectations",
+    "Compétences"
+   ],
+   "mods": []
+  },
+  {
+   "id": "finance",
+   "label": "Finance",
+   "icon": "◉",
+   "zipMin": "Enterprise",
+   "children": [
+    "Budgets",
+    "Dépenses",
+    "Prévisions"
+   ],
+   "mods": [
+    "finance"
+   ]
+  }
+ ]
+}
