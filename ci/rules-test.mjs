@@ -493,6 +493,26 @@ await t('technicien : REFUS hors de ses modules (finance)', () => assertFails(RT
 await t('calques HSE : le titulaire écrit et lit un objet du module hse', async () => { await assertSucceeds(RT(ownT, 'hse', 'items', 'hseo1').set(W('hse', 'items', 'hseo1', { kind: 'hseo', type: 'mur' }))); await assertSucceeds(RT(ownT, 'hse', 'items', 'hseo1').get()); });
 await t('calques HSE : REFUS d\'écrire sans le module hse (partenaires)', async () => { await assertFails(RT(ent1, 'hse', 'items', 'hseo2').set(W('hse', 'items', 'hseo2', { kind: 'hseo' }))); await assertFails(RT(moa1, 'hse', 'items', 'hseo3').set(W('hse', 'items', 'hseo3', { kind: 'hseo' }))); });
 await t('calques HSE : REFUS de lire sans le module hse', async () => { await assertFails(RT(ent1, 'hse', 'items', 'hseo1').get()); await assertFails(RT(moa1, 'hse', 'items', 'hseo1').get()); });
+// rattachement d'un service autonome (consentement)
+await env.withSecurityRulesDisabled(async (c) => { const db = c.firestore();
+  await db.collection('companies').doc('cSV').set({ name: 'Qualité seule', ownerUid: 'svcA', kind: 'service', plan: 'basic', planStatus: 'gratuit' });
+  await db.collection('companies').doc('cSV').collection('members').doc('svcA').set({ name: 'Resp service', admin: true, perms: ALL4, allProjects: true, projects: [] });
+  await db.collection('users').doc('svcA').set({ companyId: 'cSV' }); });
+const svcA = nu('svcA');
+const ATT = (db) => db.collection('companies').doc('cT').collection('attachments').doc('cSV');
+const dem = { org: 'cT', svc: 'cSV', status: 'demande', by: 'ownT' };
+await t('rattachement : REFUS de la demande par un membre non administrateur', () => assertFails(ATT(techT).set(dem)));
+await t('rattachement : REFUS si la cible n\'est pas un service autonome', () => assertFails(ownT.collection('companies').doc('cT').collection('attachments').doc('cFOR').set({ org: 'cT', svc: 'cFOR', status: 'demande', by: 'ownT' })));
+await t('rattachement : REFUS d\'une demande déjà « actif » (pas de consentement)', () => assertFails(ATT(ownT).set({ ...dem, status: 'actif' })));
+await t('rattachement : l\'administrateur de l\'organisation envoie la demande', () => assertSucceeds(ATT(ownT).set(dem)));
+await t('rattachement : REFUS que l\'organisation s\'accepte elle-même', () => assertFails(ATT(ownT).update({ status: 'actif', at: 1 })));
+await t('rattachement : REFUS pour une tierce organisation (lecture)', () => assertFails(ATT(forA).get()));
+await t('rattachement : l\'administrateur du service lit la demande', () => assertSucceeds(ATT(svcA).get()));
+await t('rattachement : l\'administrateur du service accepte', () => assertSucceeds(ATT(svcA).update({ status: 'actif', at: 1 })));
+await t('rattachement : REFUS de modifier un autre champ', () => assertFails(ATT(svcA).update({ org: 'cFOR' })));
+await t('rattachement : rattaché ≠ accès aux données (l\'organisation ne lit pas le service)', () => assertFails(ownT.collection('companies').doc('cSV').collection('members').doc('svcA').get()));
+await t('rattachement : le service révoque', () => assertSucceeds(ATT(svcA).update({ status: 'revoque', at: 2 })));
+await t('rattachement : l\'organisation supprime le rattachement', () => assertSucceeds(ATT(ownT).delete()));
 // membre à accès limité dans le temps
 await env.withSecurityRulesDisabled(c => c.firestore().collection('companies').doc('cT').collection('members').doc('techT').update({ until: new Date(Date.now() - 86400000) }));
 await t('accès expiré (until) : REFUS de lire le projet', () => assertFails(RT(techT, 'reserves', 'tasks', 'a1').get()));
