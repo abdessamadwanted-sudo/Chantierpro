@@ -1615,6 +1615,17 @@ try {
     return o; } catch (e) { return { err: String(e.message || e) + ' ' + String(e.stack || '').split('\n')[1] }; } });
   log('v1.0.276 [Architecture Studio]', tSd);
   log('errors v1.0.276 studio', !tSd.err && ['cat','path','count','find','status','alias','alias2','alias3','denied','open','org','legacy','leaf','sim','search','backSearch','closed','resume'].every(k => tSd[k]) ? [] : ['v1.0.276 studio ' + JSON.stringify(tSd)]);
+  const tMx = await A.pg.evaluate(async () => { try { const o = {};
+    const defs = { a: 'Fonction A (x)', b: 'Fonction B' }, dflt = { a: { business: 'dev', enterprise: 'dev' }, b: { pro: 'pub' } };
+    const R = Matrix.rows(defs, dflt, {}); o.rows = R.length === 2 && R[0].label === 'Fonction A' && R[0].packs.basic === '-' && R[0].packs.business === 'dev' && R[1].packs.pro === 'pub' && !R[0].custom;
+    const R2 = Matrix.rows(defs, dflt, { a: { basic: 'pub', enterprise: 'bogus' } }); o.over = R2[0].packs.basic === 'pub' && R2[0].packs.enterprise === '-' && R2[0].custom === true && R2[0].packs.business === '-';
+    o.level = Matrix.level(R, 'a', 'enterprise') === 'dev' && Matrix.level(R, 'zz', 'pro') === '-'; o.inPack = Matrix.inPack(R, 'pro').join() === 'b' && Matrix.inPack(R, 'basic').length === 0;
+    const live = Matrix.live(); o.live = live.length === Object.keys(Team.FLAG_DEFS).length && live.every(r => Matrix.PACKS.every(p => Matrix.LV.includes(r.packs[p])));
+    o.table = Matrix.table(R).includes('<table') && Matrix.table(R).includes(Matrix.VERSION) && Matrix.table(R).includes('Fonction A');
+    const M = Studio.build(await (await fetch('assets/studio.json')).json()); o.node = M.byId.has('matrix_view') && M.byId.get('matrix_view').parent === 'packs' && M.status(M.byId.get('matrix_view')) === 'implémenté';
+    return o; } catch (e) { return { err: String(e.message || e) + ' ' + String(e.stack || '').split('\n')[1] }; } });
+  log('v1.0.277 [Feature Matrix]', tMx);
+  log('errors v1.0.277 matrix', !tMx.err && ['rows','over','level','inPack','live','table','node'].every(k => tMx[k]) ? [] : ['v1.0.277 matrix ' + JSON.stringify(tMx)]);
   const tTa = await A.pg.evaluate(async () => { try { const o = {};
     o.auto = tailleOf({}, 'basic') === 'petite' && tailleOf({}, 'business') === 'moyenne' && tailleOf({}, 'enterprise') === 'grande' && tailleOf(null, 'pro') === 'petite';
     o.explicit = tailleOf({ taille: 'grande' }, 'basic') === 'grande' && tailleOf({ taille: 'petite' }, 'enterprise') === 'petite' && tailleOf({ taille: 'moyenne' }, 'business') === 'moyenne';

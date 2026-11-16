@@ -6,12 +6,13 @@ const Studio = (() => {
   const ALIAS_KEY = 'st.studio.alias', ROUTE_KEY = 'st.studio.route.';
   // nœud synthétique : l'espace réel existant, rattaché à Entreprise BTP (alias logique, rien n'est déplacé)
   const LEGACY = { id: 'legacy_ptb', label: 'PTB — espace réel existant', parent: 'org0', kind: 'legacy', detail: 'Tous les projets, plans, documents et outils actuels restent ici, avec l\'interface chantier/plan habituelle.' };
+  const MATRIX = { id: 'matrix_view', label: 'Matrice des fonctions par pack', parent: 'packs', kind: 'matrix', detail: 'Fonctions et niveau de mise en service par pack (valeurs réelles en vigueur, lecture seule).' };
   // branches déjà réelles dans l'application (le reste = placeholder)
-  const IMPL = new Set(['root', 'personal', 'professional', 'businesshub', 'organizations', 'packs', 'org0', 'org0_size0', 'org0_size1', 'org0_size2', 'legacy_ptb', 'pack0', 'pack1', 'pack2', 'pack3']);
+  const IMPL = new Set(['root', 'personal', 'professional', 'businesshub', 'organizations', 'packs', 'org0', 'org0_size0', 'org0_size1', 'org0_size2', 'legacy_ptb', 'matrix_view', 'pack0', 'pack1', 'pack2', 'pack3']);
   const PACKS = ['Basic', 'Pro', 'Business', 'Enterprise'], SIZES = ['Petite', 'Moyenne', 'Grande'];
   // ----- modèle pur (testé) -----
   function build(list) {
-    const nodes = [...(list || []).filter(n => n && n.id), LEGACY], byId = new Map(nodes.map(n => [n.id, n])), kids = new Map();
+    const nodes = [...(list || []).filter(n => n && n.id), LEGACY, MATRIX], byId = new Map(nodes.map(n => [n.id, n])), kids = new Map();
     for (const n of nodes) { if (n.parent && byId.has(n.parent)) { if (!kids.has(n.parent)) kids.set(n.parent, []); kids.get(n.parent).push(n); } }
     const path = (id) => { const P = []; let n = byId.get(id), guard = 0; while (n && guard++ < 30) { P.unshift(n); n = byId.get(n.parent); } return P; };
     const count = (id) => { let c = 0; const st = [...(kids.get(id) || [])]; while (st.length) { const n = st.pop(); c++; st.push(...(kids.get(n.id) || [])); } return c; };
@@ -55,6 +56,7 @@ const Studio = (() => {
       const ws = Team.workspaces(), real = n.kind === 'legacy' ? aliasResolve(ws, Team.cid()) : null;
       $e('.sd-insp').innerHTML = `<h3>Inspecteur</h3><div class="sd-kv"><span>Identifiant</span><b>${esc(n.id)}</b><span>Route</span><b>${esc(P.map(x => x.label).join(' / '))}</b><span>Pack simulé</span><b>${esc(S.pack)}</b><span>Profil simulé</span><b>${esc(S.size)}</b><span>Données réelles</span><b>${n.kind === 'legacy' ? 'oui — espace existant' : 'aucune'}</b></div>`
         + (n.kind === 'legacy' ? `<div class="sd-act"><p>Espace réel : <b>${real ? esc(real.name || real.cid) : '—'}</b></p><button class="btn" data-a="real">Ouvrir l'espace réel</button><button class="btn ghost" data-a="setreal">Choisir l'espace PTB…</button></div>` : '');
+      if (n.kind === 'matrix' && typeof Matrix !== 'undefined') $e('.sd-insp').innerHTML += Matrix.table(Matrix.live());
       el.querySelectorAll('[data-n]').forEach(b => b.onclick = () => { S.q = ''; $e('.sd-q').value = ''; if (b.dataset.n === '__mes') { shut(); try { MesEspaces.open(); } catch (e) {} return; } show(b.dataset.n); rearm(); });
       ($e('[data-a=real]') || {}).onclick = () => { const w = aliasResolve(Team.workspaces(), Team.cid()); if (!w) return toast('Aucun espace'); if (w.cid === Team.cid()) { shut(); toast('Espace réel déjà ouvert'); } else { shut(); Team.switchTo(w.cid); } };
       ($e('[data-a=setreal]') || {}).onclick = async () => { const v = await menu('Quel espace est PTB ?', Team.workspaces().filter(w => !w.pending).map(w => ({ label: `${w.name || w.cid}${w.kind === 'perso' ? ' (personnel)' : ''}`, value: w.cid }))); if (v) { aliasSet({ cid: v, label: 'PTB' }); show(S.cur); } };

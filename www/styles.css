@@ -4311,3 +4311,7 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .sd-n{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:11px 12px;margin:0 0 7px;border-radius:12px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.08);color:inherit;font:inherit}.sd-n .grow{flex:1;min-width:0}.sd-n b{display:block}.sd-n small{opacity:.65}.sd-n i{opacity:.5;font-style:normal;font-size:20px}
 .sd-empty{opacity:.65;padding:16px;text-align:center;border:1px dashed rgba(148,163,184,.4);border-radius:12px}
 .sd-insp{margin-top:14px;padding:10px 12px;border-radius:12px;background:rgba(148,163,184,.08)}.sd-insp h3{margin:0 0 6px;font-size:14px}.sd-kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:13px}.sd-kv span{opacity:.65}.sd-act{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+
+/* Feature Matrix */
+.mx-w{overflow:auto;margin-top:10px}.mx{border-collapse:collapse;font-size:12.5px;width:100%}.mx th,.mx td{padding:5px 8px;border-bottom:1px solid rgba(148,163,184,.2);text-align:center}.mx th:first-child,.mx td:first-child{text-align:left}
+.mx-dev{background:rgba(245,158,11,.2)}.mx-test{background:rgba(59,130,246,.22)}.mx-pub{background:rgba(34,197,94,.25)}.mx-x{opacity:.4}.mx-n{font-size:12px;opacity:.65}
