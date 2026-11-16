@@ -1068,6 +1068,26 @@ const Team = (() => {
       ld.close(); return ref.id;
     } catch (e) { ld.close(); alertBox(errMsg(e) + (e.code === 'permission-denied' ? '\n\nCréation refusée par le serveur (accès sur code uniquement ?).' : '')); return null; }
   }
+  // Comptes de test par pack (écran « Choisir le pack », v1.0.? ) : 4 organisations réelles et permanentes, une par pack
+  // (Basic/Pro/Business/Enterprise), sous l'identité du Super Admin. Vides au départ ; créées une seule fois, à la demande
+  // (jamais au démarrage). L'id de chacune est mémorisé dans users/{uid}.packAccounts, jamais recréé une 2e fois.
+  // Aucune règle serveur nouvelle : la règle companies.create autorise déjà licOwner() à créer un pack fermé (dev:true).
+  function packAccounts() { return S.packAccounts || {}; }
+  async function ensurePackAccount(planKey) {
+    if (!isSuper() || !PLANS[planKey]) return null;
+    const cur = S.packAccounts || {};
+    if (cur[planKey]) return cur[planKey];
+    const ld = loading('Création du compte ' + (PLANS[planKey].l || planKey) + '…');
+    try {
+      const uid = S.user.uid, ref = fs.collection('companies').doc();
+      await withTimeout(ref.set({ name: 'Pack test · ' + (PLANS[planKey].l || planKey), ownerUid: uid, plan: planKey, planStatus: 'gratuit', kind: 'org', orgType: 'entreprise', services: ['direction'], testAccount: true, createdAt: ts() }));
+      const all = Object.fromEntries(MODS.map(([m]) => [m, 4])), R = tmRoleOf(orgTypeOf('entreprise').owner || 'patron');
+      await withTimeout(ref.collection('members').doc(uid).set({ name: (S.me || {}).name || S.user.displayName || '', email: S.user.email, role: R.k, service: R.s || 'direction', perms: all, admin: true, allProjects: true, projects: [], managerUid: null, zone: '', createdAt: ts() }));
+      const next = { ...cur, [planKey]: ref.id };
+      await withTimeout(fs.collection('users').doc(uid).set({ packAccounts: next }, { merge: true }));
+      S.packAccounts = next; ld.close(); return ref.id;
+    } catch (e) { ld.close(); alertBox(errMsg(e)); return null; }
+  }
   // Rattachement service autonome ↔ organisation (consentement). Écrit côté organisation (attachments) et côté service (attachIn).
   // Nécessite les règles « attachments / attachIn » publiées par le Super Admin : sinon refus serveur → message clair.
   const att = {
@@ -1202,6 +1222,7 @@ const Team = (() => {
     // v1.0.130 : version minimale imposée par l'équipe SiteTeam (Centre de contrôle › utilisateur › Version minimale)
     const verLt = (a, b) => { const x = String(a || '0').split('.').map(Number), y = String(b || '0').split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { const p = x[i] || 0, q = y[i] || 0; if (p !== q) return p < q; } return false; };
     fs.collection('users').doc(uid).onSnapshot((d) => { if (d.metadata.fromCache || !d.exists) return; const v = d.data(); LS.set('profile', v);
+      S.packAccounts = v.packAccounts || {};
       if (v.blocked !== true && v.minVersion && typeof APP_VERSION === 'string' && !APP_VERSION.startsWith('__') && verLt(APP_VERSION, v.minVersion)) return gateScreen('⬆ Mise à jour requise', `Votre version (${APP_VERSION}) n'est plus autorisée. Installez la version ${v.minVersion} ou plus récente depuis les Releases GitHub.\nPour toute question : ${SUPPORT_EMAIL}`, false);
       if (v.blocked === true) gateScreen('⛔ Compte bloqué', `Ce compte a été bloqué par SiteTeam.${v.blockedWhy ? '\nMotif : ' + v.blockedWhy : ''}\nPour toute question : ${SUPPORT_EMAIL}`, false); }, (e) => console.warn('accès (profil)', e && e.code));
     fs.collection('companies').doc(cid).onSnapshot((c) => { if (c.metadata.fromCache || !c.exists || S.cid !== cid) return; const was = S.company && S.company.planStatus;
@@ -1224,6 +1245,7 @@ const Team = (() => {
       await onboardScreen(); return loadMembership(); }
     S.workspaces = Array.isArray(prof.workspaces) ? prof.workspaces : [];
     S.profil = prof.profil || {};
+    S.packAccounts = prof.packAccounts || {};
     // espace de travail : chaque organisation a sa base locale ; si l'espace a changé (ici ou sur un autre téléphone), on bascule puis on recharge
     if (WS.bind(prof.companyId)) return new Promise(() => {});
     S.cid = prof.companyId; LS.set('cid', S.cid);
@@ -2513,7 +2535,7 @@ const Team = (() => {
 
   return {
     boot, push, pull, resetPull, lvl, canSection, svcLib, canProject, isAdmin, openCompany, taille, secureApply, secureOn, saveAffectations, noteProject, projectIds, inviteFlow, inviteFor, shareInvite, canInviteNow: () => canInvite(), logout, decorateSection, removeMember, refreshMembers,
-    isSuper, superConsole, orgType, isPerso, tailleList: () => TAILLES, roleList: () => TM_ROLES.map(r => ({ k: r.k, l: r.l, perms: r.perms })), planModules: () => Object.fromEntries(['basic', 'pro', 'business', 'enterprise'].map(k => [k, planOf(k).modules])), companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, createService, attach: att, isOwner, deleteEspace, workspaces: () => S.workspaces || [], shared: () => S.shared || [], cid: () => S.cid,
+    isSuper, superConsole, orgType, isPerso, tailleList: () => TAILLES, roleList: () => TM_ROLES.map(r => ({ k: r.k, l: r.l, perms: r.perms })), planModules: () => Object.fromEntries(['basic', 'pro', 'business', 'enterprise'].map(k => [k, planOf(k).modules])), companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, createService, packAccounts, ensurePackAccount, attach: att, isOwner, deleteEspace, workspaces: () => S.workspaces || [], shared: () => S.shared || [], cid: () => S.cid,
     profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
     openProjectShares, claimShare, openPartners, renderHistory, sharedOf, joinWithCode,
     cloudOn, canCloud, cloudUpload, cloudDownload, cloudRemove, cloudCfg, storageRules: STORAGE_RULES,
