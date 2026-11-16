@@ -29,7 +29,7 @@ const MesEspaces = (() => {
     let L; try { L = svc ? await A.listIn() : await A.listOrg(); } catch (e) { alertBox('Rattachement indisponible : ' + (e && e.code === 'permission-denied' ? 'les règles serveur « rattachement » ne sont pas encore publiées par le Super Admin.' : errMsg(e))); return back(); }
     const items = L.map(x => ({ label: `${svc ? (x.orgName || x.org) : (x.svc)} — ${A.label(x.status)}`, icon: x.status === 'actif' ? 'check' : 'clock', value: x.id }));
     if (!svc) items.push({ label: '＋ Demander le rattachement d\'un service', icon: 'plus', value: '__new' });
-    if (svc) items.unshift({ label: 'Mon code de rattachement : ' + me, icon: 'copy', value: '__code' });
+    if (svc) items.unshift({ label: 'Mon code de rattachement : ' + me, icon: 'link', value: '__code' });
     const v = await menu(svc ? 'Demandes de rattachement' : 'Services rattachés', items);
     if (!v) return back();
     if (v === '__code') { try { await navigator.clipboard.writeText(me); toast('Code copié'); } catch (e) { alertBox('Code : ' + me); } return attachScreen(); }
