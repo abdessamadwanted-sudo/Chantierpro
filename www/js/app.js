@@ -296,7 +296,7 @@ async function renderHome() {
   ($('[data-a=uname]')||{}).onclick = askName;
   const rb = $('[data-a=role]'); if (rb) rb.onclick = async () => { const v = await menu('Mon profil (couleur et titre)', ROLES.map(x => ({ label: `${x.e} ${x.n}`, value: x.k, swatch: ROLE_COLORS[x.k], checked: x.k === myRole() }))); if (v) { try { localStorage.setItem('myRole', v); } catch (e) {} renderHome(); } };
   try { if (!uname && !localStorage.getItem('askedName')) { localStorage.setItem('askedName', '1'); setTimeout(askName, 600); } } catch (e) {}
-  { const pw = $('[data-a=packwork]'); if (pw) pw.onclick = () => ST.quickPack(); const no = $('[data-a=newsoff]'); if (no) no.onclick = () => { const N = (Team.appCfg().news || {})[Team.pack()] || {}; try { localStorage.setItem('st.newsOff', String(N.id)); } catch (e) {} renderHome(); }; }
+  { const pw = $('[data-a=packwork]'); if (pw) pw.onclick = () => (typeof PackPick !== 'undefined' ? PackPick.open() : ST.quickPack()); const no = $('[data-a=newsoff]'); if (no) no.onclick = () => { const N = (Team.appCfg().news || {})[Team.pack()] || {}; try { localStorage.setItem('st.newsOff', String(N.id)); } catch (e) {} renderHome(); }; }
   { const mo = $('[data-a=msgoff]'); if (mo) mo.onclick = () => { const M = Team.appCfg().message || {}; try { localStorage.setItem('st.msgOff', String(M.id || M.text)); } catch (e) {} mo.closest('.st-msg').remove(); }; }
   ($('[data-a=homemore]')||{}).onclick = async () => {
         // menu ⋮ : 6 groupes courts, sans doublon (déconnexion et prénom sont dans « Mon compte », la langue dans Réglages, la version ouvre la mise à jour)
@@ -318,6 +318,7 @@ async function renderHome() {
         { label: 'Langue', sub: 'Français · العربية · English', icon: 'globe', value: 'lang' },
         { label: 'Code PIN et empreinte', icon: 'settings', value: 'pin' },
         { label: 'Fonctions affichées', sub: 'masquer ce qui ne sert pas', icon: 'grid', value: 'feat' },
+        ...(Team.ready() && Team.isSuper() && typeof PackPick !== 'undefined' ? [{ label: 'Choisir le pack (écran)', sub: 'entrer comme Basic, Pro, Business ou Enterprise', icon: 'layers', value: 'packscr' }] : []),
         ...(Team.ready() && typeof MesEspaces !== 'undefined' ? [{ label: `Écran « Mes espaces » : ${MesEspaces.enabled() ? 'activé' : 'désactivé'}`, sub: 'toucher pour revenir à l\'ancien sélecteur ou le réactiver', icon: 'layers', value: 'espui' }] : []),
         { label: 'Alertes & automatisations', sub: 'workflows · canaux · simulation', icon: 'alert', value: 'autoalerts' }] },
       { title: 'Application', color: '#64748b', items: [
@@ -352,6 +353,7 @@ async function renderHome() {
     if (v === 'company') Team.openCompany();
     if (v === 'profile') Team.openCompany('me');
     if (v === 'ws') Team.openSwitcher();
+    if (v === 'packscr') PackPick.open();
     if (v === 'espui') { const on = !(typeof MesEspaces !== 'undefined' && MesEspaces.enabled()); MesEspaces.setEnabled(on); toast(on ? 'Écran « Mes espaces » activé' : 'Ancien sélecteur d\'espace rétabli'); }
     if (v === 'preview') ST.startPreview();
     if (v === 'preview-off') ST.stopPreview();
@@ -2178,7 +2180,7 @@ async function openPlansQuick() {
   setTimeout(() => { try { const C = typeof Career !== 'undefined' && Career.get(); if (C && C.robot && C.robot.on) careerRobotNotif(C.robot); } catch (e) {} }, 4000);   // robot emploi : reprogrammé (notification datée)
   // v1.0.36 : temps de démarrage mesuré (fichiers · connexion · accueil), visible dans le menu ⋮ › Application
   const tTeam0 = Date.now();
-  Team.boot().catch(e => console.error('team', e)).finally(() => { const tTeam1 = Date.now(); Promise.resolve(renderHome()).finally(() => { try { const t0 = window.__t0 || tTeam0, ts = window.__tScripts || tTeam0, now = Date.now();
+  Team.boot().catch(e => console.error('team', e)).finally(() => { const tTeam1 = Date.now(); Promise.resolve(renderHome()).finally(() => { try { if (typeof PackPick !== 'undefined') PackPick.maybe(); } catch (e) {} try { const t0 = window.__t0 || tTeam0, ts = window.__tScripts || tTeam0, now = Date.now();
       localStorage.setItem('boot.t', JSON.stringify({ total: now - t0, scripts: Math.max(0, ts - t0), team: tTeam1 - tTeam0, home: now - tTeam1, at: now })); } catch (e) {} bootTrail('accueil affiché'); if (window.__safe) setTimeout(safeModeInfo, 900); else setTimeout(storageWatch, 20000); }); if (!window.__safe) Sync.start(); setTimeout(() => checkUpdate(false).catch(() => {}), 2500); try { dwgCrashCheck(); } catch (e) {} setTimeout(showWhatsNew, 1800); setTimeout(() => otaBoot().catch(() => {}), 1200); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(false).catch(() => {}); });
   setTimeout(() => { try { cloudAutoCheck(); } catch (e) {} }, 120000);   // v1.0.74 : sauvegarde complète Drive (au plus toutes les 12 h)

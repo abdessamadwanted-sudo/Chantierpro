@@ -101,6 +101,12 @@ const ST = (() => {
     if (pl === '__all') return stopPreview();
     const me = Team.me() || {}; PV.set({ role: me.role || (cur && cur.role) || '', plan: pl, org: (cur && cur.org) || Team.orgType().k, pk: 1 }); applyRole(); App.project = null; refresh();
   }
+  // choix direct d'un pack (écran « Choisir le pack ») : '__all' = tous les packs
+  function setPack(pl) {
+    if (!ready() || !Team.isSuper() || !pl) return;
+    if (pl === '__all') return stopPreview();
+    const cur = PV.get(), me = Team.me() || {}; PV.set({ role: me.role || (cur && cur.role) || '', plan: pl, org: (cur && cur.org) || Team.orgType().k, pk: 1 }); applyRole(); App.project = null; refresh();
+  }
   function stopPreview() { PV.set(null); applyRole(); refresh(); }
 
   // ---------- tableau de bord du poste (accueil) : les cartes du briefing, dans l'ordre du service ----------
@@ -938,5 +944,5 @@ const ST = (() => {
   }
 
   function refreshRole() { applyRole(); try { App.project ? renderSection() : renderHome(); } catch (e) {} }
-  return { families: FAMILIES, openDash, openPro, openTeamHub, openServiceLibrary, profileCardHTML, wsBtnHTML, wsMenu, renderProjectTools, isEnt: () => plan().k === 'enterprise', svcq, quickPack, ivKeyOfRole: (r) => ({ mo: 'moa', mod: 'moa', architecte: 'archi', bet: 'bet', bcontrole: 'bc', labo: 'labo', topoext: 'topo' })[r] || null, directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
+  return { families: FAMILIES, openDash, openPro, openTeamHub, openServiceLibrary, profileCardHTML, wsBtnHTML, wsMenu, renderProjectTools, isEnt: () => plan().k === 'enterprise', svcq, quickPack, setPack, ivKeyOfRole: (r) => ({ mo: 'moa', mod: 'moa', architecte: 'archi', bet: 'bet', bcontrole: 'bc', labo: 'labo', topoext: 'topo' })[r] || null, directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
 })();

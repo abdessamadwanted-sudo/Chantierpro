@@ -32,12 +32,12 @@ const Studio = (() => {
   async function open(opts = {}) {
     if (typeof Team === 'undefined' || !Team.ready() || !Team.isSuper()) { toast('Réservé au propriétaire'); return null; }
     let M; try { M = build(await load()); } catch (e) { toast('Catalogue indisponible : ' + e.message); return null; }
-    const S = { cur: 'root', pack: 'Business', size: 'Moyenne', q: '' }; let closed = false;
+    const S = { cur: 'root', pack: PACKS.includes(opts.pack) ? opts.pack : 'Business', size: 'Moyenne', q: '' }; let closed = false;
     const el = document.createElement('div'); el.className = 'fullpage sd-pg';
     el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="up">${icon('back')}</button><h1>Architecture Studio</h1><button class="iconbtn" data-a="home">${icon('home')}</button></div>
       <div class="sd-body"><div class="sd-warn">Maquette de structure — aucune donnée réelle. Le pack choisi ici est une <b>simulation</b> : il ne change ni l'abonnement ni les accès.</div>
         <div class="sd-crumb"></div><input class="sd-q" type="search" placeholder="Rechercher une branche…" aria-label="Rechercher">
-        <div class="sd-sim"><label>Pack simulé <select data-s="pack">${PACKS.map(p => `<option>${p}</option>`).join('')}</select></label><label>Profil <select data-s="size">${SIZES.map(p => `<option>${p}</option>`).join('')}</select></label><button class="btn ghost small" data-a="resume">↩ Dernière branche</button></div>
+        <div class="sd-sim"><label>Pack simulé <select data-s="pack">${PACKS.map(p => `<option ${p === S.pack ? 'selected' : ''}>${p}</option>`).join('')}</select></label><label>Profil <select data-s="size">${SIZES.map(p => `<option>${p}</option>`).join('')}</select></label><button class="btn ghost small" data-a="resume">↩ Dernière branche</button></div>
         <h2 class="sd-t"></h2><p class="sd-d"></p><div class="sd-chips"></div><div class="sd-list"></div><div class="sd-insp"></div></div>`;
     document.body.appendChild(el);
     const $e = (s) => el.querySelector(s);
