@@ -74,7 +74,7 @@ const HseSp = (() => {
     const el = document.createElement('div'); el.className = 'fullpage hs-ed';
     el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><h1 class="hs-ti"></h1>
       <button class="iconbtn" data-a="undo" title="Annuler">${icon('undo')}</button><button class="iconbtn" data-a="redo" title="Rétablir">${icon('redo')}</button><button class="iconbtn" data-a="more">${icon('more')}</button></div>
-      <div class="hs-vp"><svg class="hs-svg" xmlns="http://www.w3.org/2000/svg"><g class="hs-world"><image class="hs-img" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="none"/><g class="hs-l"></g><g class="hs-d"></g><g class="hs-h"></g></g></svg>
+      <div class="hs-vp"><svg class="hs-svg" xmlns="http://www.w3.org/2000/svg"><g class="hs-world"><image class="hs-img" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="none"/><image class="hs-hd" x="0" y="0" width="0" height="0" preserveAspectRatio="none"/><g class="hs-l"></g><g class="hs-d"></g><g class="hs-h"></g></g></svg>
         <div class="hs-hint"></div></div>
       <div class="hs-bar" style="display:none"><button data-a="fin">✓ Terminer</button><button data-a="pop">↶ Point</button><button data-a="can">✕ Annuler</button></div>
       <div class="hs-pal">${canW ? '' : '<span class="hs-ro">Lecture seule</span>'}<button class="hs-t on" data-t="pan" title="Déplacer / sélectionner">✋<b>Choisir</b></button>${canW ? '<button class="hs-lst">☰ Liste des outils</button>' : ''}${canW ? GROUPS.map(([g, gl]) => T.filter(t => t.g === g).map(t => `<button class="hs-t" data-t="${t.k}" title="${esc(t.l)}"><img src="${IC(t.ic)}" alt="${esc(t.l)}"><b>${esc(t.l.split(' / ')[0].replace('Tracé de route (croquis)', 'Route').replace('Point de rassemblement', 'Rassemblt').replace('Accès provisoire', 'Accès'))}</b></button>`).join('')).join('<i></i>') : ''}</div>`;
@@ -85,7 +85,26 @@ const HseSp = (() => {
     // image de base : A0 → version allégée (mémoire), les coordonnées restent celles du plan
     try { const lite = Math.max(W, H) > 3600 && typeof avLiteURL === 'function'; const f = await DB.get('files', plan.fileId); const u = lite ? await avLiteURL(plan.fileId, 3200, { viewer: true }) : (f ? BlobURL.get(f.id, f.blob) : ''); if (u) $e('.hs-img').setAttribute('href', u); } catch (e) { console.warn('hse img', e); }
     const hint = (t) => { $e('.hs-hint').textContent = t || ''; $e('.hs-hint').style.display = t ? '' : 'none'; };
-    const apply = () => { world.setAttribute('transform', `translate(${S.x} ${S.y}) scale(${S.k})`); draw(); };
+    // plan net en zoom (HD) : au repos, on découpe la zone visible dans l'image d'origine (pleine résolution) et on la pose par-dessus la version allégée
+    let hdT = 0, hdU = '', hdN = 0;
+    const hdOff = () => { const i = $e('.hs-hd'); if (i) { i.setAttribute('width', 0); i.setAttribute('height', 0); } };
+    const hdUpdate = async () => {
+      const my = ++hdN; try {
+        if (S.k < S.k0 * 2.5) return hdOff();
+        const r = vp.getBoundingClientRect(), x0 = Math.max(0, -S.x / S.k), y0 = Math.max(0, -S.y / S.k), x1 = Math.min(W, (r.width - S.x) / S.k), y1 = Math.min(H, (r.height - S.y) / S.k);
+        if (x1 <= x0 || y1 <= y0) return hdOff();
+        const f = await DB.get('files', plan.fileId); if (!f || !f.blob || my !== hdN) return;
+        const sw = x1 - x0, sh = y1 - y0, kk = Math.min(1, 2048 / Math.max(sw, sh)), bm = await createImageBitmap(f.blob, Math.round(x0), Math.round(y0), Math.max(1, Math.round(sw)), Math.max(1, Math.round(sh)), { resizeWidth: Math.max(1, Math.round(sw * kk)), resizeQuality: 'high' });
+        if (my !== hdN) { bm.close && bm.close(); return; }
+        const c = document.createElement('canvas'); c.width = bm.width; c.height = bm.height; c.getContext('2d').drawImage(bm, 0, 0); bm.close && bm.close();
+        const b = await new Promise(res => c.toBlob(res, 'image/jpeg', 0.88)); c.width = c.height = 0; if (!b || my !== hdN) return;
+        const u = URL.createObjectURL(b), i = $e('.hs-hd'); if (!i || closed) { URL.revokeObjectURL(u); return; }
+        i.setAttribute('href', u); i.setAttribute('x', Math.round(x0)); i.setAttribute('y', Math.round(y0)); i.setAttribute('width', Math.round(sw)); i.setAttribute('height', Math.round(sh));
+        if (hdU) URL.revokeObjectURL(hdU); hdU = u;
+      } catch (e) { hdOff(); }
+    };
+    const hdSoon = () => { clearTimeout(hdT); hdT = setTimeout(hdUpdate, 280); };
+    const apply = () => { world.setAttribute('transform', `translate(${S.x} ${S.y}) scale(${S.k})`); draw(); if (S.k < S.k0 * 2.5) hdOff(); hdSoon(); };
     const fit = () => { const r = vp.getBoundingClientRect(); S.k = Math.min(r.width / W, r.height / H) * 0.98 || 1; S.x = (r.width - W * S.k) / 2; S.y = (r.height - H * S.k) / 2; S.k0 = S.k; };
     const toPlan = (cx, cy) => { const r = vp.getBoundingClientRect(); return [(cx - r.left - S.x) / S.k, (cy - r.top - S.y) / S.k]; };
     const zoomAt = (cx, cy, f) => { const r = vp.getBoundingClientRect(), nk = Math.max(S.k0 * 0.8, Math.min(S.k0 * 60, S.k * f)), px = cx - r.left, py = cy - r.top; S.x = px - (px - S.x) * nk / S.k; S.y = py - (py - S.y) * nk / S.k; S.k = nk; apply(); };
@@ -165,8 +184,10 @@ const HseSp = (() => {
 
     // ---------- gestes ----------
     const ptrs = new Map(); let g = null;
-    const setTool = (k) => { S.tool = k; S.draft = []; if (k !== 'pan') S.sel = null; el.querySelectorAll('.hs-t').forEach(b => b.classList.toggle('on', b.dataset.t === k)); const t = TK.get(k); const ls = $e('.hs-lst'); if (ls) ls.textContent = '☰ ' + (t ? t.l : 'Liste des outils');
-      hint(t ? (t.geo === 'pt' ? `Touchez le plan pour placer : ${t.l}` : `${t.l} : touchez le 1er point`) : ''); draw(); };
+    // zoom de travail : choisir un outil de dessin sur un plan « en entier » rapproche la vue (centre de l'écran) pour placer avec précision
+    const workZoom = (cx, cy) => { if (S.k >= S.k0 * 3) return; const r = vp.getBoundingClientRect(); const f = Math.min(3.5, (S.k0 * 4) / S.k); zoomAt(cx == null ? r.left + r.width / 2 : cx, cy == null ? r.top + r.height / 2 : cy, f); };
+    const setTool = (k) => { const was = S.tool; S.tool = k; S.draft = []; if (k !== 'pan') S.sel = null; el.querySelectorAll('.hs-t').forEach(b => b.classList.toggle('on', b.dataset.t === k)); const t = TK.get(k); const ls = $e('.hs-lst'); if (ls) ls.textContent = '☰ ' + (t ? t.l : 'Liste des outils');
+      hint(t ? (t.geo === 'pt' ? `Touchez le plan pour placer : ${t.l}` : `${t.l} : touchez le 1er point`) : ''); if (k !== 'pan' && was !== k) workZoom(); draw(); };
     svg.addEventListener('pointerdown', (e) => {
       try { svg.setPointerCapture(e.pointerId); } catch (x) {} ptrs.set(e.pointerId, [e.clientX, e.clientY]);
       if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; g = { type: 'pinch', d: Math.hypot(a[0] - b[0], a[1] - b[1]), cx: (a[0] + b[0]) / 2, cy: (a[1] + b[1]) / 2 }; return; }
@@ -191,7 +212,7 @@ const HseSp = (() => {
       if (cur.drag && cur.moved) { const o = cur.drag.o, after = JSON.parse(JSON.stringify(o.geom)); o.geom = cur.drag.before; await update(o, { geom: after }, 'déplacé'); return; }
       if (cur.moved) return;
       if (S.tool === 'pan') { const o = pick(objs.filter(x => visible(x, hidden)), cur.pt, px(20)); S.sel = o ? o.id : null; draw(); if (o) sheetOf(o); }
-      else if (canW) addPoint(cur.pt);
+      else if (canW) { const first = !S.draft.length; addPoint(cur.pt); if (first && S.k < S.k0 * 3) workZoom(e.clientX, e.clientY); }
     };
     svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', up);
     svg.addEventListener('wheel', (e) => { e.preventDefault(); zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.2 : 0.83); }, { passive: false });
@@ -208,7 +229,7 @@ const HseSp = (() => {
       const v = await menu('Plan HSE', [{ label: 'Calques', icon: 'layers', value: 'lay' }, { label: `Aimantation aux sommets : ${S.snap ? 'oui' : 'non'}`, icon: 'check', value: 'snap' }, { label: 'Ouvrir le plan (visionneuse)', icon: 'plans', value: 'viewer' }]);
       if (v === 'lay') layersMenu(); else if (v === 'snap') { S.snap = !S.snap; toast('Aimantation ' + (S.snap ? 'activée' : 'désactivée')); } else if (v === 'viewer') openPlanViewer(plan, planCtx(() => {}));
     };
-    function shut() { if (closed) return; closed = true; try { unBack(); } catch (e) {} el.remove(); if (opts.onClose) opts.onClose(); }
+    function shut() { if (closed) return; closed = true; clearTimeout(hdT); if (hdU) { try { URL.revokeObjectURL(hdU); } catch (e) {} } try { unBack(); } catch (e) {} el.remove(); if (opts.onClose) opts.onClose(); }
     ($e('[data-a=x]') || {}).onclick = shut;
     fit(); apply(); await load(); if (!canW) hint('Lecture seule (droits HSE insuffisants)'); else if (!objs.length) hint('Choisissez un outil en bas, puis touchez le plan');
     // contrôleur (tests et futures PR)

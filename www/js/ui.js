@@ -685,7 +685,8 @@ const Thumbs = (() => {
       } finally { try { doc.destroy(); } catch (e) {} }
     } else {
       if (!/^image\//.test(mime)) return '';
-      const bmp = await createImageBitmap(f.blob);
+      // plans A0 : décodage direct à taille réduite (mémoire bornée) ; repli sur l'ancien chemin
+      let bmp; try { bmp = await createImageBitmap(f.blob, { resizeWidth: 480, resizeQuality: 'medium' }); } catch (e) { bmp = await createImageBitmap(f.blob); }
       const k = Math.min(1, 480 / Math.max(bmp.width, bmp.height));
       cv = document.createElement('canvas'); cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
       const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(bmp, 0, 0, cv.width, cv.height); bmp.close && bmp.close();
