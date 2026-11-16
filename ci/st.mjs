@@ -1699,6 +1699,10 @@ try {
     o.names = [...document.querySelectorAll('.hs-l text')].length === 3 && /Mur/.test(document.querySelector('.hs-l').textContent) && /Escalier/.test(document.querySelector('.hs-l').textContent);
     ed.hide(['sec']); o.layer = document.querySelectorAll('.hs-l [data-id]').length === 3; ed.hide(['str']); o.layer2 = document.querySelectorAll('.hs-l [data-id]').length === 1; ed.hide([]);
     // dessin par touches (outil risque)
+    // évacuation indicative (modèle pur)
+    { const E = HseSp.evac([0, 100], [{ type: 'rassemblement', status: 'actif', geom: { t: 'pt', pts: [[100, 100]] } }, { type: 'rassemblement', status: 'inactif', geom: { t: 'pt', pts: [[1, 100]] } }, { type: 'sortie', status: 'actif', geom: { t: 'pt', pts: [[0, 0]] } }]);
+      o.evac = !!E && E.kind === 'rassemblement' && E.deg === 90 && E.dir === 'vers la droite' && Math.round(E.dist) === 100 && HseSp.evac([0, 0], []) === null && HseSp.evac([0, 0], [{ type: 'sortie', status: 'actif', geom: { t: 'pt', pts: [[0, -50]] } }]).deg === 0;
+      o.alert = /ALERTE INCENDIE/.test(HseSp.alertText({ project: 'P', plan: 'RDC', objs: [] })) && /indicative/.test(HseSp.alertText({ objs: [] })); }
     const k0 = ed.state.k; ed.setTool('risque'); o.workZoom = ed.state.k > k0 * 1.5; const r = document.querySelector('.hs-vp').getBoundingClientRect(), sv = document.querySelector('.hs-svg');
     const ev = (t) => sv.dispatchEvent(new PointerEvent(t, { pointerId: 7, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true }));
     ev('pointerdown'); ev('pointerup'); await new Promise(z => setTimeout(z, 100)); o.tap = ed.objs().some(x => x.type === 'risque');
@@ -1717,7 +1721,7 @@ try {
   log('thumb pdf', tTh);
   log('errors thumb pdf', !tTh.err && tTh.pdf ? [] : ['thumb pdf ' + JSON.stringify(tTh)]);
   log('v1.0.271 [Calques HSE]', tHs);
-  log('errors v1.0.271 calques hse', !tHs.err && ['valid','guard','block','snap','pick','types','open','names','add','persist','upd','undo','redo','undoAdd','redoAdd','layer','layer2','workZoom','tap','draft','line','del','closed','kmod','ro'].every(k => tHs[k]) ? [] : ['v1.0.271 calques hse ' + JSON.stringify(tHs)]);
+  log('errors v1.0.271 calques hse', !tHs.err && ['valid','guard','block','snap','pick','types','open','names','add','persist','upd','undo','redo','undoAdd','redoAdd','layer','layer2','workZoom','evac','alert','tap','draft','line','del','closed','kmod','ro'].every(k => tHs[k]) ? [] : ['v1.0.271 calques hse ' + JSON.stringify(tHs)]);
   const tPd = await A.pg.evaluate(async () => { try { const o = {}; document.querySelectorAll('.lightbox').forEach(x => x.remove());
     for (let i = 0; i < 40 && !(window.jspdf || window.jsPDF); i++) await new Promise(r => setTimeout(r, 250)); if (!window.pdfjsLib) return { skip: 'pdf.js absent (lib/ non téléchargée en CI)' }; o.libs = [!!window.pdfjsLib, !!(window.jspdf || window.jsPDF)];
     const J = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF; if (!J) return { skip: 'jsPDF absent', o };
