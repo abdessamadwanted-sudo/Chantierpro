@@ -271,6 +271,19 @@ service cloud.firestore {
         allow read: if isMem(cid);
         allow write: if isAdmin(cid);
       }
+      // v1.0.280 : rattachement d'un service autonome (espace kind « service ») à une organisation, AVEC CONSENTEMENT.
+      // L'organisation demande (statut « demande ») ; seul l'administrateur du service accepte (« actif ») ou refuse. Les deux côtés peuvent révoquer.
+      // Ce document n'ouvre AUCUN accès aux données : aucune autre règle ne le lit.
+      match /attachments/{svc} {
+        allow read: if isAdmin(cid) || isAdmin(svc);
+        allow create: if isAdmin(cid) && svc != cid && request.resource.data.status == 'demande' && request.resource.data.org == cid && request.resource.data.svc == svc
+          && request.resource.data.by == request.auth.uid && exists(/databases/$(db)/documents/companies/$(svc)) && co(svc).get('kind', '') == 'service';
+        allow update: if (isAdmin(svc) && resource.data.status == 'demande' && request.resource.data.status in ['actif', 'refuse']
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'at']))
+          || ((isAdmin(svc) || isAdmin(cid)) && resource.data.status == 'actif' && request.resource.data.status == 'revoque'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'at']));
+        allow delete: if isAdmin(cid) || isAdmin(svc);
+      }
       // Journal de l'organisation : append-only, administrateurs seulement.
       match /audit/{aid} {
         allow read: if isAdmin(cid);
