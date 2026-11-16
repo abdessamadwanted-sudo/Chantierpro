@@ -1596,7 +1596,7 @@ try {
   log('errors v1.0.263 fichiers', !tFi.err && ['rows','total','gNiv','gType','gDate','ui','hdr','chip','open','size','search','sizeTxt','sec'].every(k => tFi[k]) ? [] : ['v1.0.263 fichiers ' + JSON.stringify(tFi)]);
   const tSd = await A.pg.evaluate(async () => { try { const o = {}; document.querySelectorAll('.fullpage,.lightbox,.sheet-bg').forEach(x => x.remove());
     const raw = await (await fetch('assets/studio.json')).json(); const M = Studio.build(raw);
-    o.cat = raw.length > 500 && M.byId.has('org0') && M.byId.has('legacy_ptb') && M.byId.get('legacy_ptb').parent === 'org0' && M.kids('root').length === 3;
+    o.cat = raw.length > 500 && M.byId.has('org0') && M.byId.has('legacy_ptb') && M.byId.get('legacy_ptb').parent === 'org0' && M.kids('root').length === 6 && M.byId.has('common_0') && M.kids('wfq').length === 8 && M.byId.has('secrules');
     o.path = M.path('org0_size1').map(n => n.id).join('>') === 'root>professional>organizations>org0>org0_size1';
     o.count = M.count('root') > 400 && M.count('org0') > 20; o.find = M.find('qualité').length > 3 && M.find('').length === 0;
     o.status = M.status(M.byId.get('legacy_ptb')) === 'réel' && M.status(M.byId.get('personal')) === 'implémenté' && M.status(M.byId.get('aut_5')) === 'placeholder';
