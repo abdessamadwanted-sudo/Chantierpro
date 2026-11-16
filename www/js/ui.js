@@ -671,11 +671,25 @@ const Thumbs = (() => {
     const c = await cacheP, key = '/thumb/' + id;
     if (c) { const r = await c.match(key).catch(() => null); if (r) return URL.createObjectURL(await r.blob()); }
     const f = await DB.get('files', id); if (!f || !f.blob) return '';
-    if (!/^image\//.test(f.mime || f.blob.type || '')) return '';
-    const bmp = await createImageBitmap(f.blob);
-    const k = Math.min(1, 480 / Math.max(bmp.width, bmp.height));
-    const cv = document.createElement('canvas'); cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
-    const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(bmp, 0, 0, cv.width, cv.height); bmp.close && bmp.close();
+    const mime = f.mime || f.blob.type || '';
+    let cv;
+    if (/pdf/i.test(mime) || /\.pdf$/i.test(f.name || '')) {
+      // miniature d'un PDF (plans) : 1re page, 480 px max — tout échec laisse l'icône par défaut
+      if (!(await pdfReadyA())) return '';
+      const doc = await pdfjsLib.getDocument({ data: new Uint8Array(await f.blob.arrayBuffer()) }).promise;
+      try {
+        const pg = await doc.getPage(1), v1 = pg.getViewport({ scale: 1 }), k = 480 / Math.max(v1.width, v1.height), vp = pg.getViewport({ scale: k });
+        cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(vp.width)); cv.height = Math.max(1, Math.round(vp.height));
+        const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height);
+        await pg.render({ canvasContext: g, viewport: vp }).promise;
+      } finally { try { doc.destroy(); } catch (e) {} }
+    } else {
+      if (!/^image\//.test(mime)) return '';
+      const bmp = await createImageBitmap(f.blob);
+      const k = Math.min(1, 480 / Math.max(bmp.width, bmp.height));
+      cv = document.createElement('canvas'); cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
+      const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(bmp, 0, 0, cv.width, cv.height); bmp.close && bmp.close();
+    }
     const tb = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.72));
     if (c && tb) c.put(key, new Response(tb, { headers: { 'Content-Type': 'image/jpeg' } })).catch(() => {});
     return tb ? URL.createObjectURL(tb) : '';
