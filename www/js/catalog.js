@@ -12,7 +12,7 @@ const Catalog = (() => {
       const zip = String(m.zipMin || '').toLowerCase();
       const status = !mods.length ? 'verifier' : codeMin ? 'existant' : 'partiel';
       const diff = status === 'existant' && zip && codeMin !== zip;
-      return { id: m.id, label: m.label, icon: m.icon || '', zipMin: zip, codeMin, status, diff, children: m.children || [], mods };
+      return { id: m.id, label: m.label, icon: m.icon || '', zipMin: zip, codeMin, status, diff, children: m.children || [], mods, features: m.features || [] };
     });
   }
   const LBL = { existant: 'Existant', partiel: 'Partiel', verifier: 'À vérifier' };
@@ -23,11 +23,11 @@ const Catalog = (() => {
     const ord = PACKS.indexOf(pack);
     return (rows || []).filter(r => r.status !== 'verifier' && r.codeMin && PACKS.indexOf(r.codeMin) <= ord).map(r => {
       const lv = Math.max(0, ...r.mods.map(k => (perms || {})[k] || 0));
-      return lv > 0 ? { id: r.id, label: r.label, icon: r.icon, level: lv, children: r.children } : null;
+      return lv > 0 ? { id: r.id, label: r.label, icon: r.icon, level: lv, children: r.children, feats: avail(r.features, pack).length } : null;
     }).filter(Boolean);
   }
   const LV = ['Aucun accès', 'Voir', 'Modifier', 'Valider', 'Administrer'];
-  const cards = (ds) => ds.length ? `<div class="cc-g">${ds.map(d => `<div class="cc-c"><b>${esc(d.icon + ' ' + d.label)}</b><small>${LV[d.level]}</small><span>${d.children.slice(0, 4).map(esc).join(' · ')}</span></div>`).join('')}</div>` : '<p class="mx-n">Aucune rubrique disponible pour ce poste dans ce pack.</p>';
+  const cards = (ds) => ds.length ? `<div class="cc-g">${ds.map(d => `<div class="cc-c"><b>${esc(d.icon + ' ' + d.label)}</b><small>${LV[d.level]}</small><span>${d.children.slice(0, 4).map(esc).join(' · ')}</span>${d.feats ? `<small>${d.feats} fonction(s) disponible(s)</small>` : ''}</div>`).join('')}</div>` : '<p class="mx-n">Aucune rubrique disponible pour ce poste dans ce pack.</p>';
   // bloc interactif (Studio) : pack + poste → aperçu. Données fictives : aucune donnée chantier n'est lue.
   async function previewInto(box) {
     const rows = await live(), roles = Team.roleList(); if (!box) return;
@@ -36,8 +36,40 @@ const Catalog = (() => {
       box.querySelector('[data-p]').onchange = (e) => { pk = e.target.value; draw(); }; box.querySelector('[data-r]').onchange = (e) => { rk = e.target.value; draw(); }; };
     draw();
   }
+  // ---- schéma v2 : fonctionnalités individuelles (PR 1 Control Center). Pur, testé. packMin décrit la CIBLE : il n'applique aucun droit.
+  const STATUS = ['fonctionnel', 'partiel', 'a_developper'], TIERS = ['base', 'avancee', 'individuel', 'collaboratif'];
+  const SLBL = { fonctionnel: 'Fonctionnel', partiel: 'Partiel', a_developper: 'À développer' };
+  const TLBL = { base: 'Base', avancee: 'Avancée', individuel: 'Individuel', collaboratif: 'Collaboratif' };
+  const features = (man) => ((man || {}).modules || []).flatMap(m => (m.features || []).map(f => ({ ...f, module: m.id, moduleLabel: m.label })));
+  const inPack = (f, pack) => PACKS.indexOf(pack) >= PACKS.indexOf(f.packMin);
+  // fonctions réellement disponibles à un pack : statut fonctionnel/partiel ET packMin ≤ pack (« à développer » n'est jamais disponible)
+  const avail = (fs, pack) => (fs || []).filter(f => f.status !== 'a_developper' && inPack(f, pack));
+  // validation de cohérence (pur). exists(chemin) optionnel : vérifie que les preuves existent. Retourne la liste d'erreurs.
+  function check(man, exists) {
+    const err = [], seen = new Set(), v = (man || {}).schemaVersion;
+    if (v !== 2) err.push('schemaVersion ≠ 2');
+    if (!/^\d+\.\d+\.\d+$/.test((man || {}).catalogVersion || '')) err.push('catalogVersion invalide');
+    if (!Array.isArray((man || {}).history) || !man.history.length) err.push('history manquant');
+    features(man).forEach(f => {
+      if (!f.id || seen.has(f.id)) err.push('id dupliqué/absent : ' + f.id); seen.add(f.id);
+      if (!PACKS.includes(f.packMin)) err.push(f.id + ' : packMin invalide');
+      if (!STATUS.includes(f.status)) err.push(f.id + ' : statut invalide');
+      if (!TIERS.includes(f.tier)) err.push(f.id + ' : tier invalide');
+      if (f.status !== 'a_developper' && !(f.evidence || []).length) err.push(f.id + ' : fonctionnel/partiel sans preuve');
+      if (exists) (f.evidence || []).forEach(e => { if (!exists(e)) err.push(f.id + ' : preuve introuvable ' + e); });
+      if (f.status === 'a_developper' && (f.evidence || []).length) err.push(f.id + ' : « à développer » ne doit pas citer de preuve');
+      // décisions propriétaire (16/11)
+      if (f.module === 'finance' && f.tier === 'avancee' && f.packMin !== 'enterprise') err.push(f.id + ' : Finance avancée = Enterprise');
+      if (f.module === 'finance' && f.tier === 'base' && f.packMin === 'enterprise') err.push(f.id + ' : Finance de base ne doit pas être réservée à Enterprise');
+      if (f.module === 'hse' && f.tier === 'individuel' && f.packMin !== 'pro') err.push(f.id + ' : HSE individuel = Pro');
+      if (f.module === 'hse' && f.tier === 'collaboratif' && f.packMin !== 'business') err.push(f.id + ' : HSE collaboratif = Business');
+    });
+    return err;
+  }
+  const featTable = (fs, mod) => { const L = (fs || []).filter(f => !mod || f.module === mod);
+    return `<div class="mx-w"><table class="mx"><thead><tr><th>Fonction</th><th>Type</th>${PACKS.map(p => `<th>${CAP[p]}</th>`).join('')}<th>État</th></tr></thead><tbody>${L.map(f => `<tr><td>${esc(f.moduleLabel)} · ${esc(f.label)}</td><td>${TLBL[f.tier] || ''}</td>${PACKS.map(p => `<td class="mx-${f.status === 'a_developper' ? 'x' : inPack(f, p) ? 'pub' : 'x'}">${inPack(f, p) ? (f.status === 'a_developper' ? 'prévu' : '✓') : '—'}</td>`).join('')}<td>${SLBL[f.status]}</td></tr>`).join('')}</tbody></table></div><p class="mx-n">Pack minimum CIBLE du catalogue (n'applique aucun droit) · « prévu » = pas encore développé, jamais disponible.</p>`; };
   let _man = null;
   async function load() { if (_man) return _man; try { _man = await (await fetch('assets/catalog.json')).json(); } catch (e) { _man = { modules: [] }; } return _man; }
   async function live() { return compute(await load(), Team.planModules()); }
-  return { PACKS, compute, table, load, live, dashboard, previewInto };
+  return { PACKS, compute, table, load, live, dashboard, previewInto, STATUS, TIERS, features, inPack, avail, check, featTable };
 })();

@@ -1625,6 +1625,32 @@ try {
     o.table = /Pack \(code\)/.test(Catalog.table(L)); return o; } catch (e) { return { err: String(e.message || e) }; } });
   log('catalogue', tCt);
   log('errors catalogue', !tCt.err && ['calc', 'live', 'dash', 'table'].every(k => tCt[k]) ? [] : ['catalogue ' + JSON.stringify(tCt)]);
+  // ---- catalogue v2 (PR 1 Control Center) : fonctionnalités, Finance base/avancée, HSE individuel/collaboratif, statuts
+  const tC2 = await A.pg.evaluate(async () => { try { const o = {};
+    const man = await Catalog.load(), fs = Catalog.features(man), by = (id) => fs.find(f => f.id === id);
+    o.schema = man.schemaVersion === 2 && /^\d+\.\d+\.\d+$/.test(man.catalogVersion) && man.history.length >= 1 && fs.length > 30;
+    o.valid = Catalog.check(man).length === 0;
+    // chaque fonction Finance demandée a sa ligne individuelle
+    const adv = ['situations', 'attachements', 'metres', 'avenants', 'tce', 'soustraitants'].map(k => by('finance.adv.' + k));
+    o.fin = adv.every(f => f && f.tier === 'avancee' && f.packMin === 'enterprise' && f.status === 'fonctionnel') && ['synthese', 'factures', 'encaissements', 'export'].every(k => { const f = by('finance.base.' + k); return f && f.tier === 'base' && f.packMin === 'pro'; });
+    // Pro ne reçoit que la Finance de base ; Enterprise reçoit tout
+    o.finPack = Catalog.avail(fs.filter(f => f.module === 'finance'), 'pro').every(f => f.tier === 'base') && Catalog.avail(fs.filter(f => f.module === 'finance'), 'pro').length === 4 && Catalog.avail(fs.filter(f => f.module === 'finance'), 'business').length === 4 && Catalog.avail(fs.filter(f => f.module === 'finance'), 'enterprise').length === 10;
+    // HSE : individuel Pro, collaboratif Business, « à développer » jamais disponible
+    const hse = fs.filter(f => f.module === 'hse');
+    o.hse = hse.filter(f => f.tier === 'individuel').every(f => f.packMin === 'pro') && hse.filter(f => f.tier === 'collaboratif').every(f => f.packMin === 'business' && f.status === 'a_developper' && f.collab);
+    o.hseAvail = Catalog.avail(hse, 'pro').length === 4 && Catalog.avail(hse, 'enterprise').length === 4 && Catalog.avail(hse, 'basic').length === 0;
+    o.alerte = by('hse.alerte').status === 'partiel' && /INDICATIVE/.test(by('hse.alerte').label) && /réglementaire/.test(by('hse.alerte').label);
+    // check() détecte les incohérences
+    const bad = JSON.parse(JSON.stringify(man)); bad.modules.find(m => m.id === 'finance').features.push({ id: 'finance.adv.tce', tier: 'avancee', packMin: 'pro', status: 'fonctionnel', evidence: [] }); bad.modules.find(m => m.id === 'hse').features.push({ id: 'x.y', tier: 'collaboratif', packMin: 'pro', status: 'a_developper', evidence: ['a.js'] });
+    const E = Catalog.check(bad); o.bad = E.some(e => /dupliqué/.test(e)) && E.some(e => /Finance avancée/.test(e)) && E.some(e => /sans preuve/.test(e)) && E.some(e => /HSE collaboratif/.test(e)) && E.some(e => /ne doit pas citer/.test(e)) && Catalog.check(man, () => false).some(e => /introuvable/.test(e));
+    // le catalogue ne change aucun droit : PLANS et planHas inchangés, aucune écriture par la matrice
+    const before = JSON.stringify(Team.planModules()); const html = Catalog.featTable(fs); o.pure = before === JSON.stringify(Team.planModules()) && /Situations de travaux/.test(html) && /prévu/.test(html) && /À développer/.test(html);
+    // dashboard : une fonction « à développer » n'est jamais comptée comme disponible ; la carte annonce le nombre de fonctions disponibles
+    const L = await Catalog.live(), D = Catalog.dashboard(L, 'pro', { hse: 4, reception: 2 }); o.dash = D.find(d => d.id === 'hse').feats === 4 && D.find(d => d.id === 'qualite').feats >= 3 && !JSON.stringify(D).includes('a_developper');
+    o.v1 = Catalog.compute(man, Team.planModules()).length === 11;
+    return o; } catch (e) { return { err: String(e.message || e) + ' ' + String(e.stack || '').split('\n')[1] }; } });
+  log('catalogue v2', tC2);
+  log('errors catalogue v2', !tC2.err && ['schema', 'valid', 'fin', 'finPack', 'hse', 'hseAvail', 'alerte', 'bad', 'pure', 'dash', 'v1'].every(k => tC2[k]) ? [] : ['catalogue v2 ' + JSON.stringify(tC2)]);
   const tMx = await A.pg.evaluate(async () => { try { const o = {};
     const defs = { a: 'Fonction A (x)', b: 'Fonction B' }, dflt = { a: { business: 'dev', enterprise: 'dev' }, b: { pro: 'pub' } };
     const R = Matrix.rows(defs, dflt, {}); o.rows = R.length === 2 && R[0].label === 'Fonction A' && R[0].packs.basic === '-' && R[0].packs.business === 'dev' && R[1].packs.pro === 'pub' && !R[0].custom;
