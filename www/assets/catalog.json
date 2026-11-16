@@ -1,6 +1,9 @@
 {
- "version": "c1",
- "note": "Manifest de lecture. zipMin = pack minimum proposé par le schéma Control Center (illustratif, à valider). mods = modules réels (MODS de team.js) que l'on rattache à cette rubrique ; vide = aucune correspondance établie (statut « à vérifier »). Le pack effectif est calculé depuis PLANS, jamais écrit ici.",
+ "schemaVersion": 2,
+ "catalogVersion": "2.0.0",
+ "updated": "2026-11-16",
+ "version": "c2",
+ "note": "Manifest de lecture. zipMin = pack minimum proposé par le schéma Control Center (illustratif, à valider). mods = modules réels (MODS de team.js) que l'on rattache à cette rubrique ; vide = aucune correspondance établie (statut « à vérifier »). Le pack effectif est calculé depuis PLANS, jamais écrit ici. Schéma v2 : features[] par module ; packMin = pack minimum CIBLE (décrit, n'applique rien) ; status = fonctionnel (prouvé par evidence) | partiel | a_developper (jamais affiché comme disponible).",
  "modules": [
   {
    "id": "qualite",
@@ -19,6 +22,86 @@
     "reception",
     "forms",
     "constats"
+   ],
+   "features": [
+    {
+     "id": "qualite.reception",
+     "label": "Réceptions et bétonnage",
+     "tier": "base",
+     "packMin": "pro",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/reception.js"
+     ],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    },
+    {
+     "id": "qualite.pv",
+     "label": "PV et formulaires (brouillon → validé)",
+     "tier": "base",
+     "packMin": "pro",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/pvsrv.js",
+      "www/js/qualite.js"
+     ],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    },
+    {
+     "id": "qualite.constats",
+     "label": "Constats / non-conformités",
+     "tier": "base",
+     "packMin": "pro",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/app.js"
+     ],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0",
+     "note": "section constat"
+    },
+    {
+     "id": "qualite.reserves",
+     "label": "Plans et réserves",
+     "tier": "base",
+     "packMin": "basic",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/viewer.js"
+     ],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    }
    ]
   },
   {
@@ -36,6 +119,157 @@
    ],
    "mods": [
     "hse"
+   ],
+   "features": [
+    {
+     "id": "hse.fiches",
+     "label": "Fiches HSE : inspections, incidents, causeries (statut ouvert → clos)",
+     "tier": "individuel",
+     "packMin": "pro",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/espace.js"
+     ],
+     "kinds": [
+      "hse"
+     ],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    },
+    {
+     "id": "hse.plans",
+     "label": "Plans HSE (un plan par niveau)",
+     "tier": "individuel",
+     "packMin": "pro",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/hseplans.js"
+     ],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    },
+    {
+     "id": "hse.calques",
+     "label": "Calques HSE sur plans (éditeur spatial)",
+     "tier": "individuel",
+     "packMin": "pro",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/hsespatial.js"
+     ],
+     "kinds": [
+      "hseo"
+     ],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    },
+    {
+     "id": "hse.alerte",
+     "label": "Alerte incendie INDICATIVE (ne remplace aucun système de sécurité réglementaire)",
+     "tier": "individuel",
+     "packMin": "pro",
+     "status": "partiel",
+     "evidence": [
+      "www/js/hsespatial.js"
+     ],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0",
+     "note": "direction à vol d'oiseau ; murs/trémies/escaliers non vérifiés"
+    },
+    {
+     "id": "hse.signalement",
+     "label": "Signalements par les intervenants invités",
+     "tier": "collaboratif",
+     "packMin": "business",
+     "status": "a_developper",
+     "evidence": [],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": true,
+     "hostPays": true,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    },
+    {
+     "id": "hse.incident.assign",
+     "label": "Incidents assignés, suivi et clôture multi-organisations",
+     "tier": "collaboratif",
+     "packMin": "business",
+     "status": "a_developper",
+     "evidence": [],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": true,
+     "hostPays": true,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    },
+    {
+     "id": "hse.validation",
+     "label": "Validation HSE, graphe d'évacuation, routage",
+     "tier": "collaboratif",
+     "packMin": "business",
+     "status": "a_developper",
+     "evidence": [],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": true,
+     "hostPays": true,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    },
+    {
+     "id": "hse.perms",
+     "label": "Permissions granulaires HSE (voir / signaler / valider / clôturer)",
+     "tier": "collaboratif",
+     "packMin": "business",
+     "status": "a_developper",
+     "evidence": [],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": true,
+     "hostPays": true,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    }
    ]
   },
   {
@@ -55,6 +289,88 @@
     "rapports",
     "equipe",
     "pointage"
+   ],
+   "features": [
+    {
+     "id": "travaux.avancement",
+     "label": "Avancement et suivi quantitatif",
+     "tier": "base",
+     "packMin": "pro",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/avancement.js"
+     ],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    },
+    {
+     "id": "travaux.rapports",
+     "label": "Rapports et journal de chantier",
+     "tier": "base",
+     "packMin": "pro",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/app.js"
+     ],
+     "kinds": [
+      "rdt"
+     ],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    },
+    {
+     "id": "travaux.pointage",
+     "label": "Pointage et main d'œuvre",
+     "tier": "base",
+     "packMin": "pro",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/espace.js"
+     ],
+     "kinds": [
+      "pt"
+     ],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    },
+    {
+     "id": "travaux.equipes",
+     "label": "Équipes et affectations",
+     "tier": "base",
+     "packMin": "basic",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/affectations.js"
+     ],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    }
    ]
   },
   {
@@ -69,7 +385,29 @@
     "Retards",
     "Rapports"
    ],
-   "mods": []
+   "mods": [],
+   "features": [
+    {
+     "id": "planning.base",
+     "label": "Planning (outil existant, périmètre à vérifier)",
+     "tier": "base",
+     "packMin": "pro",
+     "status": "partiel",
+     "evidence": [
+      "www/js/planning.js"
+     ],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0",
+     "note": "non relié à un module serveur ; Gantt/dépendances non vérifiés"
+    }
+   ]
   },
   {
    "id": "documents",
@@ -87,6 +425,66 @@
     "plans",
     "photos",
     "files"
+   ],
+   "features": [
+    {
+     "id": "documents.plans",
+     "label": "Plans PDF, versions, annotations",
+     "tier": "base",
+     "packMin": "basic",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/viewer.js",
+      "www/js/planrev.js"
+     ],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    },
+    {
+     "id": "documents.photos",
+     "label": "Photos et studio photo",
+     "tier": "base",
+     "packMin": "basic",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/photo.js"
+     ],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    },
+    {
+     "id": "documents.files",
+     "label": "Fichiers et dossiers",
+     "tier": "base",
+     "packMin": "basic",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/fichiers.js"
+     ],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    }
    ]
   },
   {
@@ -100,7 +498,28 @@
     "Situations",
     "DGD"
    ],
-   "mods": []
+   "mods": [],
+   "features": [
+    {
+     "id": "metre.outils",
+     "label": "Outils de calcul (métré, béton, acier, pente)",
+     "tier": "base",
+     "packMin": "pro",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/calc.js"
+     ],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    }
+   ]
   },
   {
    "id": "topographie",
@@ -115,6 +534,30 @@
    ],
    "mods": [
     "topo"
+   ],
+   "features": [
+    {
+     "id": "topo.implantations",
+     "label": "Implantations et levés",
+     "tier": "base",
+     "packMin": "pro",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/calc.js"
+     ],
+     "kinds": [
+      "impl",
+      "leve"
+     ],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    }
    ]
   },
   {
@@ -128,7 +571,29 @@
     "Résultats",
     "Conformité"
    ],
-   "mods": []
+   "mods": [],
+   "features": [
+    {
+     "id": "labo.volet",
+     "label": "Volet Labo / BET (rôle et rubrique de gestion)",
+     "tier": "base",
+     "packMin": "business",
+     "status": "partiel",
+     "evidence": [
+      "www/js/gestion.js"
+     ],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0",
+     "note": "pas de module serveur dédié"
+    }
+   ]
   },
   {
    "id": "opc",
@@ -141,7 +606,26 @@
     "Réunions",
     "Suivi décisions"
    ],
-   "mods": []
+   "mods": [],
+   "features": [
+    {
+     "id": "opc.base",
+     "label": "OPC (coordination)",
+     "tier": "base",
+     "packMin": "business",
+     "status": "a_developper",
+     "evidence": [],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    }
+   ]
   },
   {
    "id": "rh",
@@ -153,7 +637,26 @@
     "Affectations",
     "Compétences"
    ],
-   "mods": []
+   "mods": [],
+   "features": [
+    {
+     "id": "rh.base",
+     "label": "Ressources humaines",
+     "tier": "base",
+     "packMin": "enterprise",
+     "status": "a_developper",
+     "evidence": [],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    }
+   ]
   },
   {
    "id": "finance",
@@ -167,7 +670,211 @@
    ],
    "mods": [
     "finance"
+   ],
+   "features": [
+    {
+     "id": "finance.base.synthese",
+     "label": "Marché de base, dépenses, marge (synthèse)",
+     "tier": "base",
+     "packMin": "pro",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/fin.js"
+     ],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    },
+    {
+     "id": "finance.base.factures",
+     "label": "Factures fournisseurs",
+     "tier": "base",
+     "packMin": "pro",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/fin.js"
+     ],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    },
+    {
+     "id": "finance.base.encaissements",
+     "label": "Encaissements du maître d'ouvrage",
+     "tier": "base",
+     "packMin": "pro",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/fin.js"
+     ],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    },
+    {
+     "id": "finance.base.export",
+     "label": "Export Excel financier",
+     "tier": "base",
+     "packMin": "pro",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/fin.js"
+     ],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    },
+    {
+     "id": "finance.adv.situations",
+     "label": "Situations de travaux",
+     "tier": "avancee",
+     "packMin": "enterprise",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/fin.js",
+      "www/js/gestion.js"
+     ],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    },
+    {
+     "id": "finance.adv.attachements",
+     "label": "Attachements (BPU) et décomptes PDF / modèle personnalisé",
+     "tier": "avancee",
+     "packMin": "enterprise",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/gestion.js"
+     ],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    },
+    {
+     "id": "finance.adv.metres",
+     "label": "Métrés liés à la facturation (attachements sur BPU)",
+     "tier": "avancee",
+     "packMin": "enterprise",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/gestion.js"
+     ],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    },
+    {
+     "id": "finance.adv.avenants",
+     "label": "Avenants et ordres de service",
+     "tier": "avancee",
+     "packMin": "enterprise",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/reg.js"
+     ],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    },
+    {
+     "id": "finance.adv.tce",
+     "label": "TCE : lots, entreprises, avancement",
+     "tier": "avancee",
+     "packMin": "enterprise",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/fin.js"
+     ],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    },
+    {
+     "id": "finance.adv.soustraitants",
+     "label": "Sous-traitants : contrats, situations, paiements",
+     "tier": "avancee",
+     "packMin": "enterprise",
+     "status": "fonctionnel",
+     "evidence": [
+      "www/js/reg.js"
+     ],
+     "kinds": [],
+     "perm": {
+      "min": 1,
+      "write": 2
+     },
+     "collab": false,
+     "hostPays": false,
+     "downgrade": "readonly",
+     "since": "2.0.0"
+    }
    ]
+  }
+ ],
+ "history": [
+  {
+   "v": "2.0.0",
+   "date": "2026-11-16",
+   "note": "Schéma v2 : fonctionnalités individuelles, Finance base/avancée, HSE individuel/collaboratif."
+  },
+  {
+   "v": "c1",
+   "note": "Rubriques et sous-rubriques (PR 1 Control Center initial)."
   }
  ]
 }
