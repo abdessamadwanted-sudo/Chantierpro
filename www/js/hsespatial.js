@@ -54,6 +54,22 @@ const HseSp = (() => {
   // praticabilité (utilisée par le futur graphe, PR 3) : jamais déduite — seule une dalle explicitement validée par un responsable HSE (PR 2) l'est
   const walkable = (o) => !!o && o.type === 'dalle' && o.status === 'praticable_validee' && !!o.verifiedBy;
   const blocks = (o) => !!o && (o.type === 'mur' && o.status !== 'prevu' || o.type === 'reservation' && o.status === 'ouverte');
+  // Évacuation INDICATIVE (jamais un itinéraire sûr) : vers le point de rassemblement actif le plus proche (sinon la sortie), à vol d'oiseau sur le plan.
+  // Angle : 0° = haut du plan, sens horaire. Aucune traversée de murs / dalles n'est vérifiée (le graphe validé viendra avec la validation HSE).
+  const DIRS = ['vers le haut du plan', 'vers le haut-droite', 'vers la droite', 'vers le bas-droite', 'vers le bas du plan', 'vers le bas-gauche', 'vers la gauche', 'vers le haut-gauche'];
+  function evac(pos, objs) {
+    const cand = (ty) => (objs || []).filter(o => o.type === ty && o.geom && o.geom.t === 'pt' && o.status !== 'inactif');
+    let c = cand('rassemblement'), kind = 'rassemblement'; if (!c.length) { c = cand('sortie'); kind = 'sortie'; }
+    if (!c.length || !Array.isArray(pos)) return null;
+    let best = null, bd = Infinity; for (const o of c) { const d = Math.hypot(o.geom.pts[0][0] - pos[0], o.geom.pts[0][1] - pos[1]); if (d < bd) { bd = d; best = o; } }
+    const dx = best.geom.pts[0][0] - pos[0], dy = best.geom.pts[0][1] - pos[1], deg = (Math.round(Math.atan2(dx, -dy) * 180 / Math.PI) + 360) % 360;
+    return { target: best, kind, dist: bd, deg, dir: DIRS[Math.round(deg / 45) % 8] };
+  }
+  // message d'alerte à envoyer (WhatsApp) : texte seul, sans lien ; la mention « indicatif » est obligatoire
+  function alertText(ctx) {
+    const pts = (ctx.objs || []).filter(o => (o.type === 'rassemblement' || o.type === 'sortie') && o.status !== 'inactif').map(o => (o.type === 'sortie' ? 'Sortie' : 'Rassemblement') + (o.label ? ' « ' + o.label + ' »' : ''));
+    return `🔥 ALERTE INCENDIE — ${ctx.project || 'Chantier'}\nPlan : ${ctx.plan || ''}${ctx.indice ? ' (indice ' + ctx.indice + ')' : ''}\nÉvacuez immédiatement vers le point de rassemblement.${pts.length ? '\nRepères sur le plan : ' + [...new Set(pts)].join(' · ') : ''}\n⚠ Information indicative : suivez les consignes du responsable HSE et les issues de secours balisées.`;
+  }
   // historique annuler / rétablir (opérations réversibles par clé locale)
   function history() {
     const U = [], R = [];
@@ -186,7 +202,7 @@ const HseSp = (() => {
     const ptrs = new Map(); let g = null;
     // zoom de travail : choisir un outil de dessin sur un plan « en entier » rapproche la vue (centre de l'écran) pour placer avec précision
     const workZoom = (cx, cy) => { if (S.k >= S.k0 * 3) return; const r = vp.getBoundingClientRect(); const f = Math.min(3.5, (S.k0 * 4) / S.k); zoomAt(cx == null ? r.left + r.width / 2 : cx, cy == null ? r.top + r.height / 2 : cy, f); };
-    const setTool = (k) => { const was = S.tool; S.tool = k; S.draft = []; if (k !== 'pan') S.sel = null; el.querySelectorAll('.hs-t').forEach(b => b.classList.toggle('on', b.dataset.t === k)); const t = TK.get(k); const ls = $e('.hs-lst'); if (ls) ls.textContent = '☰ ' + (t ? t.l : 'Liste des outils');
+    const setTool = (k) => { const was = S.tool; if (S.evac) { S.evac = false; const ge = el.querySelector('.hs-e'); if (ge) ge.innerHTML = ''; } S.tool = k; S.draft = []; if (k !== 'pan') S.sel = null; el.querySelectorAll('.hs-t').forEach(b => b.classList.toggle('on', b.dataset.t === k)); const t = TK.get(k); const ls = $e('.hs-lst'); if (ls) ls.textContent = '☰ ' + (t ? t.l : 'Liste des outils');
       hint(t ? (t.geo === 'pt' ? `Touchez le plan pour placer : ${t.l}` : `${t.l} : touchez le 1er point`) : ''); if (k !== 'pan' && was !== k) workZoom(); draw(); };
     svg.addEventListener('pointerdown', (e) => {
       try { svg.setPointerCapture(e.pointerId); } catch (x) {} ptrs.set(e.pointerId, [e.clientX, e.clientY]);
@@ -211,6 +227,7 @@ const HseSp = (() => {
       const cur = g; g = null; if (cur.type !== 'one') return;
       if (cur.drag && cur.moved) { const o = cur.drag.o, after = JSON.parse(JSON.stringify(o.geom)); o.geom = cur.drag.before; await update(o, { geom: after }, 'déplacé'); return; }
       if (cur.moved) return;
+      if (S.evac) { evacAt(cur.pt); return; }
       if (S.tool === 'pan') { const o = pick(objs.filter(x => visible(x, hidden)), cur.pt, px(20)); S.sel = o ? o.id : null; draw(); if (o) sheetOf(o); }
       else if (canW) { const first = !S.draft.length; addPoint(cur.pt); if (first && S.k < S.k0 * 3) workZoom(e.clientX, e.clientY); }
     };
@@ -226,14 +243,29 @@ const HseSp = (() => {
     ($e('[data-a=fin]') || {}).onclick = finish; ($e('[data-a=pop]') || {}).onclick = () => { S.draft = S.draft.slice(0, -1); draw(); }; ($e('[data-a=can]') || {}).onclick = () => { S.draft = []; hint(''); draw(); };
     ($e('[data-a=undo]') || {}).onclick = () => hist.undo(); ($e('[data-a=redo]') || {}).onclick = () => hist.redo();
     ($e('[data-a=more]') || {}).onclick = async () => {
-      const v = await menu('Plan HSE', [{ label: 'Calques', icon: 'layers', value: 'lay' }, { label: `Aimantation aux sommets : ${S.snap ? 'oui' : 'non'}`, icon: 'check', value: 'snap' }, { label: 'Ouvrir le plan (visionneuse)', icon: 'plans', value: 'viewer' }]);
-      if (v === 'lay') layersMenu(); else if (v === 'snap') { S.snap = !S.snap; toast('Aimantation ' + (S.snap ? 'activée' : 'désactivée')); } else if (v === 'viewer') openPlanViewer(plan, planCtx(() => {}));
+      const v = await menu('Plan HSE', [{ label: 'Calques', icon: 'layers', value: 'lay' }, { label: `Aimantation aux sommets : ${S.snap ? 'oui' : 'non'}`, icon: 'check', value: 'snap' }, { label: '🔥 Alerte incendie (indicatif)', icon: 'risque', value: 'fire' }, { label: 'Ouvrir le plan (visionneuse)', icon: 'plans', value: 'viewer' }]);
+      if (v === 'lay') layersMenu(); else if (v === 'snap') { S.snap = !S.snap; toast('Aimantation ' + (S.snap ? 'activée' : 'désactivée')); } else if (v === 'viewer') openPlanViewer(plan, planCtx(() => {})); else if (v === 'fire') fireMenu();
     };
+    // ----- alerte incendie (indicative) : envoi WhatsApp + test sur soi (on touche où l'on est → direction vers le rassemblement) -----
+    const gE = (() => { const g = document.createElementNS('http://www.w3.org/2000/svg', 'g'); g.setAttribute('class', 'hs-e'); world.appendChild(g); return g; })();
+    const visObjs = () => objs.filter(o => visible(o, hidden));
+    async function fireMenu() {
+      const v = await menu('Alerte incendie (indicatif)', [{ label: 'Envoyer l\'alerte par WhatsApp', icon: 'share', value: 'wa' }, { label: 'Tester sur moi : je touche où je suis', icon: 'risque', value: 'me' }]);
+      if (v === 'wa') window.open('https://wa.me/?text=' + encodeURIComponent(alertText({ project: p.name, plan: plan.name, indice: plan.indice, objs })), '_blank');
+      else if (v === 'me') { setTool('pan'); S.evac = true; hint('Touchez le plan à l\'endroit où vous êtes'); }
+    }
+    function evacAt(pt) {
+      const r = evac(pt, objs); S.evac = false; gE.innerHTML = '';
+      if (!r) { hint(''); return alertBox('Aucun point de rassemblement ni sortie actif sur ce plan : placez-en un d\'abord.'); }
+      const q = r.target.geom.pts[0], w = px(5);
+      gE.innerHTML = `<line x1="${pt[0]}" y1="${pt[1]}" x2="${q[0]}" y2="${q[1]}" stroke="#dc2626" stroke-width="${w}" stroke-dasharray="${px(14)} ${px(8)}" stroke-linecap="round"/><circle cx="${pt[0]}" cy="${pt[1]}" r="${px(10)}" fill="#2563eb" stroke="#fff" stroke-width="${px(3)}"/>`;
+      hint(`⚠ INDICATIF — ${r.kind === 'sortie' ? 'sortie' : 'rassemblement'}${r.target.label ? ' « ' + r.target.label + ' »' : ''} ${r.dir}. Ligne droite : murs, trémies et escaliers NON vérifiés. Suivez le balisage et les consignes HSE.`);
+    }
     function shut() { if (closed) return; closed = true; clearTimeout(hdT); if (hdU) { try { URL.revokeObjectURL(hdU); } catch (e) {} } try { unBack(); } catch (e) {} el.remove(); if (opts.onClose) opts.onClose(); }
     ($e('[data-a=x]') || {}).onclick = shut;
     fit(); apply(); await load(); if (!canW) hint('Lecture seule (droits HSE insuffisants)'); else if (!objs.length) hint('Choisissez un outil en bas, puis touchez le plan');
     // contrôleur (tests et futures PR)
     return { add: (type, pts) => create(type, pts), update, remove, objs: () => objs, undo: () => hist.undo(), redo: () => hist.redo(), hide: (gs) => { hidden = gs; draw(); }, select: (id) => { S.sel = id; draw(); }, close: shut, el, state: S, setTool, finish, addPoint };
   }
-  return { open, T, TK, GROUPS, make, snap, pick, dist, okPts, area, walkable, blocks, visible, history };
+  return { open, evac, alertText, T, TK, GROUPS, make, snap, pick, dist, okPts, area, walkable, blocks, visible, history };
 })();
