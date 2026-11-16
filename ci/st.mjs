@@ -1632,12 +1632,12 @@ try {
     const C = PackPick.cards(null); o.cards = C.length === 5 && C[0].k === '__all' && C[0].on && C.slice(1).map(c => c.k).join() === 'basic,pro,business,enterprise';
     o.noSuper = PackPick.open() === null;
     const sup = Team.isSuper; Team.isSuper = () => true; const pp = PackPick.open(); o.open = !!pp && document.querySelectorAll('.pp-c').length === 5 && /simulation/.test(document.querySelector('.pp-i').textContent);
-    document.querySelector('.pp-c[data-k=pro]').click(); await new Promise(r => setTimeout(r, 300)); const pv = JSON.parse(sessionStorage.getItem('st.preview') || 'null'); o.pick = !!pv && pv.plan === 'pro' && !document.querySelector('.pp-pg') && Team.pack() === 'pro';
-    PackPick.open(); document.querySelector('.pp-c[data-k=__all]').click(); await new Promise(r => setTimeout(r, 300)); o.all = !sessionStorage.getItem('st.preview'); Team.isSuper = sup;
+    document.querySelector('.pp-c[data-k=pro]').click(); await new Promise(r => setTimeout(r, 300)); const pv = JSON.parse(sessionStorage.getItem('st.preview') || 'null'); o.pick = !!pv && pv.plan === 'pro' && !document.querySelector('.pp-pg') && Team.pack() === 'pro'; o.studio = !!document.querySelector('.sd-pg') && document.querySelector('[data-s=pack]').value === 'Pro' && document.querySelectorAll('.sd-n').length === 3; document.querySelectorAll('.fullpage').forEach(x => x.remove());
+    PackPick.open(); document.querySelector('.pp-c[data-k=__all]').click(); await new Promise(r => setTimeout(r, 300)); o.all = !sessionStorage.getItem('st.preview'); Team.isSuper = sup; document.querySelectorAll('.fullpage').forEach(x => x.remove());
     PackPick.setWanted(false); o.off = PackPick.wanted() === false; PackPick.setWanted(true); o.on = PackPick.wanted() === true;
     return o; } catch (e) { return { err: String(e.message || e) + ' ' + String(e.stack || '').split('\n')[1] }; } });
   log('v1.0.278 [Choix du pack]', tPkx);
-  log('errors v1.0.278 pack', !tPkx.err && ['ask','cards','noSuper','open','pick','all','off','on'].every(k => tPkx[k]) ? [] : ['v1.0.278 pack ' + JSON.stringify(tPkx)]);
+  log('errors v1.0.278 pack', !tPkx.err && ['ask','cards','noSuper','open','pick','studio','all','off','on'].every(k => tPkx[k]) ? [] : ['v1.0.278 pack ' + JSON.stringify(tPkx)]);
   const tTa = await A.pg.evaluate(async () => { try { const o = {};
     o.auto = tailleOf({}, 'basic') === 'petite' && tailleOf({}, 'business') === 'moyenne' && tailleOf({}, 'enterprise') === 'grande' && tailleOf(null, 'pro') === 'petite';
     o.explicit = tailleOf({ taille: 'grande' }, 'basic') === 'grande' && tailleOf({ taille: 'petite' }, 'enterprise') === 'petite' && tailleOf({ taille: 'moyenne' }, 'business') === 'moyenne';

@@ -296,7 +296,7 @@ async function renderHome() {
   ($('[data-a=uname]')||{}).onclick = askName;
   const rb = $('[data-a=role]'); if (rb) rb.onclick = async () => { const v = await menu('Mon profil (couleur et titre)', ROLES.map(x => ({ label: `${x.e} ${x.n}`, value: x.k, swatch: ROLE_COLORS[x.k], checked: x.k === myRole() }))); if (v) { try { localStorage.setItem('myRole', v); } catch (e) {} renderHome(); } };
   try { if (!uname && !localStorage.getItem('askedName')) { localStorage.setItem('askedName', '1'); setTimeout(askName, 600); } } catch (e) {}
-  { const pw = $('[data-a=packwork]'); if (pw) pw.onclick = () => ST.quickPack(); const no = $('[data-a=newsoff]'); if (no) no.onclick = () => { const N = (Team.appCfg().news || {})[Team.pack()] || {}; try { localStorage.setItem('st.newsOff', String(N.id)); } catch (e) {} renderHome(); }; }
+  { const pw = $('[data-a=packwork]'); if (pw) pw.onclick = () => (typeof PackPick !== 'undefined' ? PackPick.open() : ST.quickPack()); const no = $('[data-a=newsoff]'); if (no) no.onclick = () => { const N = (Team.appCfg().news || {})[Team.pack()] || {}; try { localStorage.setItem('st.newsOff', String(N.id)); } catch (e) {} renderHome(); }; }
   { const mo = $('[data-a=msgoff]'); if (mo) mo.onclick = () => { const M = Team.appCfg().message || {}; try { localStorage.setItem('st.msgOff', String(M.id || M.text)); } catch (e) {} mo.closest('.st-msg').remove(); }; }
   ($('[data-a=homemore]')||{}).onclick = async () => {
         // menu ⋮ : 6 groupes courts, sans doublon (déconnexion et prénom sont dans « Mon compte », la langue dans Réglages, la version ouvre la mise à jour)

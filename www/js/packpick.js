@@ -21,7 +21,8 @@ const PackPick = (() => {
     let closed = false; const unBack = pushBack(() => shut());
     function shut() { if (closed) return; closed = true; try { unBack(); } catch (e) {} el.remove(); if (opts.onClose) opts.onClose(); }
     el.querySelector('[data-a=x]').onclick = shut;
-    el.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { shut(); ST.setPack(b.dataset.k); });
+    // le pack choisi ouvre directement ses branches (Architecture Studio, pack simulé) ; Retour revient à ce choix de pack
+    el.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { shut(); ST.setPack(b.dataset.k); const P = b.dataset.k === '__all' ? 'Enterprise' : (planOf(b.dataset.k).l || 'Basic'); if (typeof Studio !== 'undefined') Studio.open({ pack: P, onClose: () => open() }); });
     el.querySelector('[data-a=never]').onclick = () => { setWanted(!wanted()); toast(wanted() ? 'Écran de choix activé' : 'Écran de choix désactivé'); shut(); };
     return { el, close: shut };
   }
