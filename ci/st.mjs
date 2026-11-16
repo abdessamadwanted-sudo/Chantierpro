@@ -1650,6 +1650,7 @@ try {
   const tMe = await A.pg.evaluate(async () => { try { const o = {}; document.querySelectorAll('.fullpage,.lightbox,.sheet,.sheet-bg').forEach(x => x.remove());
     const C = MesEspaces.classify([{ cid: 'a', kind: 'perso' }, { cid: 'b', kind: 'org', role: 'chef' }, { cid: 'c', kind: 'org', role: 'collaborateur' }, { cid: 'd', kind: 'org', pending: true }, null], 'b');
     o.classify = C.perso.length === 1 && C.orgs.length === 1 && C.shared.length === 1 && C.invit.length === 1 && C.cur === 'b';
+    const C2 = MesEspaces.classify([{ cid: 's', kind: 'service' }, { cid: 'o', kind: 'org', role: 'chef' }], 's'); o.svc = C2.services.length === 1 && C2.orgs.length === 1 && typeof Team.createService === 'function' && tmRoleOf(orgTypeOf('entreprise').owner).admin === true;
     o.on = MesEspaces.enabled() === true;
     const m = MesEspaces.open(); o.open = !!m && !!document.querySelector('.me-pg') && document.querySelectorAll('.me-s').length === 5 && !!document.querySelector('.me-act [data-a=join]') && !!document.querySelector('[data-a=me]');
     o.cur = document.querySelectorAll('.me-r.on').length <= 1; m.close(); o.closed = !document.querySelector('.me-pg');
@@ -1658,7 +1659,7 @@ try {
     document.querySelectorAll('.st-wsl').forEach(x => { const sh = x.closest('.sheet,.modal,[class*=sheet]'); (sh || x).remove(); }); MesEspaces.setEnabled(true); o.re = MesEspaces.enabled() === true;
     return o; } catch (e) { return { err: String(e.message || e) + ' ' + String(e.stack || '').split('\n')[1] }; } });
   log('v1.0.274 [Mes espaces]', tMe);
-  log('errors v1.0.274 mes espaces', !tMe.err && ['classify','on','open','cur','closed','viaSwitcher','off','old','re'].every(k => tMe[k]) ? [] : ['v1.0.274 mes espaces ' + JSON.stringify(tMe)]);
+  log('errors v1.0.274 mes espaces', !tMe.err && ['classify','svc','on','open','cur','closed','viaSwitcher','off','old','re'].every(k => tMe[k]) ? [] : ['v1.0.274 mes espaces ' + JSON.stringify(tMe)]);
   const tHp = await A.pg.evaluate(async () => { try { const o = {}, p = App.project; document.querySelectorAll('.fullpage,.lightbox').forEach(x => x.remove());
     const mkF = (name) => DB.put('folders', { projectId: p.id, name, parentId: null }), ids = [];
     const [f1, f2, f3] = [await mkF('R+1'), await mkF('SSL'), await mkF('RDC')]; ids.push(['folders', f1.id], ['folders', f2.id], ['folders', f3.id]);
