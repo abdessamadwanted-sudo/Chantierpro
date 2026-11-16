@@ -1709,6 +1709,13 @@ try {
     // lecture seule
     const ro = await HseSp.open(pl, { readOnly: true }); o.ro = document.querySelectorAll('.hs-pal .hs-t').length === 1 && !!document.querySelector('.hs-ro'); ro.close();
     for (const x of (await DB.byProject('items', p.id)).filter(x => x.kind === 'hseo')) await DB.del('items', x.id); await DB.del('plans', pl.id); await DB.del('folders', fo.id); return o; } catch (e) { return { err: String(e.message || e) + ' ' + String(e.stack || '').split('\n')[1] }; } });
+  // miniature PDF (Plans HSE) : ne doit jamais lever d'exception ; avec le lecteur PDF disponible, retourne une image blob:
+  const tTh = await A.pg.evaluate(async () => { try { const o = {};
+    const pdf = '%PDF-1.1\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 100]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF';
+    const f = await DB.put('files', { name: 'th.pdf', mime: 'application/pdf', blob: new Blob([pdf], { type: 'application/pdf' }) });
+    const u = await Thumbs.get(f.id).catch(() => 'err'); o.pdf = u === '' || u === 'err' || /^blob:/.test(u); o.u = String(u).slice(0, 12); o.css = !!getComputedStyle(document.body); return o; } catch (e) { return { err: String(e) }; } });
+  log('thumb pdf', tTh);
+  log('errors thumb pdf', !tTh.err && tTh.pdf ? [] : ['thumb pdf ' + JSON.stringify(tTh)]);
   log('v1.0.271 [Calques HSE]', tHs);
   log('errors v1.0.271 calques hse', !tHs.err && ['valid','guard','block','snap','pick','types','open','names','add','persist','upd','undo','redo','undoAdd','redoAdd','layer','layer2','tap','draft','line','del','closed','kmod','ro'].every(k => tHs[k]) ? [] : ['v1.0.271 calques hse ' + JSON.stringify(tHs)]);
   const tPd = await A.pg.evaluate(async () => { try { const o = {}; document.querySelectorAll('.lightbox').forEach(x => x.remove());
