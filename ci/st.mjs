@@ -2511,6 +2511,25 @@ try {
     await DB.del('projects', p.id); await DB.del('projects', n.id); r.remove(); } catch (e) { o.err = String(e.message || e); } return o; });
   log('nom projet', vNm);
   log('errors nom projet', !vNm.err && vNm.keepRaw && vNm.keepPut && vNm.rename ? [] : ['nom projet ' + JSON.stringify(vNm)]);
+  // ---- v1.0.290 : liaison automatique service interne ↔ rôle de l'organisation partenaire (point 1 des demandes)
+  // fonction pure testée isolément (pas d'écriture Firestore ici) ; le parcours complet invitation → joinPartner → doc « partners »
+  // avec le champ svc posé automatiquement n'est pas exercé par cette suite (aucun test multi-organisations existant pour partnerInvite/joinPartner) — à vérifier manuellement.
+  const vSvc = await A.pg.evaluate(() => { const o = {}; try {
+    o.bcontrole = autoSvcForRole('bcontrole') === 'qualite';
+    o.bet = autoSvcForRole('bet') === 'etudes';
+    o.architecte = autoSvcForRole('architecte') === 'etudes';
+    o.mo = autoSvcForRole('mo') === 'direction';
+    o.mod = autoSvcForRole('mod') === 'direction';
+    o.labo = autoSvcForRole('labo') === 'labo';
+    o.topoext = autoSvcForRole('topoext') === 'topo';
+    o.soustraitant = autoSvcForRole('soustraitant') === 'travaux';
+    o.entreprise = autoSvcForRole('entreprise') === 'travaux';
+    o.noMap = autoSvcForRole('fournisseur') === '' && autoSvcForRole('loueur') === '' && autoSvcForRole('jv') === '' && autoSvcForRole('autre') === '';
+    o.unknown = autoSvcForRole('xxx') === '';
+    o.allMapped = Object.values(PARTNER_SVC_AUTO).every(k => TM_SERVICES.some(z => z.k === k));
+  } catch (e) { o.err = String(e.message || e); } return o; });
+  log('v1.0.290 [liaison service ↔ intervenant]', vSvc);
+  log('errors v1.0.290', !vSvc.err && ['bcontrole','bet','architecte','mo','mod','labo','topoext','soustraitant','entreprise','noMap','unknown','allMapped'].every(k => vSvc[k]) ? [] : ['v1.0.290 ' + JSON.stringify(vSvc)]);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
