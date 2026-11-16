@@ -48,6 +48,21 @@ const MesEspaces = (() => {
     try { if (a === 'yes') await A.answer(x.org, true); else if (a === 'no') await A.answer(x.org, false); else if (a === 'rev') await A.revoke(org, sv); else if (a === 'del') await A.remove(org, sv); if (a) toast('Fait ✓'); } catch (e) { alertBox(errMsg(e)); }
     return attachScreen();
   }
+  // Business Project (Étape 3, PR D) : projet partagé multi-organisations = projet de l'organisation porteuse + partenaires (mécanisme existant, règles inchangées).
+  // Création réservée au pack Business / Enterprise et à l'administrateur ; l'invitation des organisations passe par « Organisations du projet ».
+  const canBP = () => { try { return Team.isAdmin() && (Team.company() || {}).kind !== 'service' && ['business', 'enterprise'].includes(Team.plan().k); } catch (e) { return false; } };
+  async function newBP() {
+    const r = await formSheet('Nouveau Business Project', [
+      { name: 'name', label: 'Nom du projet *', placeholder: 'Ex : Résidence Les Jardins — équipe complète' },
+      { name: 'address', label: 'Lieu / ville' },
+      { name: 'i', type: 'info', label: 'Collaboration', value: 'Votre organisation porte le projet. Vous invitez ensuite les autres organisations (BET, architecte, contrôle, labo, sous-traitants…) ; chacune ne voit que ce que vous lui partagez.' },
+    ], { okLabel: 'Créer' });
+    if (!r) return null; if (!r.name) { toast('Le nom du projet est obligatoire'); return null; }
+    const p = await DB.put('projects', { name: r.name, address: r.address || '', type: 'bat', bp: true, featOff: {}, team: [] });
+    try { Team.noteProject(p); } catch (e) {}
+    try { if (typeof Sync !== 'undefined' && Sync.enabled && Sync.enabled()) await Sync.run({ quiet: true }); } catch (e) {}
+    toast('Business Project créé ✓'); return p;
+  }
   function open(opts = {}) {
     if (!Team.ready()) return null;
     const cur = (Team.company() || {}).id || Team.cid();
@@ -63,6 +78,7 @@ const MesEspaces = (() => {
         ${sec('Organisations', C.orgs.length, C.orgs.map(row).join(''), 'Aucune organisation — créez-en une ou rejoignez-en avec un code')}
         ${sec('Services autonomes', C.services.length, C.services.map(row).join('') + '<button class="btn ghost" data-a="newsvc">＋ Nouveau service autonome</button>', 'Un service peut vivre seul (Qualité, HSE…), avec ses propres données et son propre abonnement')}
         ${sec('Business Projects', shared.length + C.shared.length, shared.map(x => `<div class="me-r bp"><span class="e">🤝</span><span class="grow"><b>${esc(x.name || x.pid)}</b><small>Projet de « ${esc(x.ownerName || '?')} » · ${esc(x.role || 'intervenant')}${x.status && x.status !== 'actif' ? ' · ' + esc(x.status) : ''}</small></span></div>`).join('') + C.shared.map(row).join(''), 'Aucun projet partagé avec vous')}
+        ${canBP() ? '<div class="me-act"><button class="btn ghost" data-a="newbp">＋ Créer un Business Project</button></div>' : ''}
         ${sec('Invitations', C.invit.length, C.invit.map(w => `<button class="me-r pend" data-pend="${esc(w.cid)}"><span class="e">⏳</span><span class="grow"><b>${esc(w.name || '?')}</b><small>Demande en attente · toucher pour vérifier</small></span></button>`).join(''), 'Aucune invitation en attente')}
         <div class="me-act"><button class="btn" data-a="join">＋ Rejoindre avec un code</button><button class="btn ghost" data-a="new">＋ Créer un espace</button></div>
         <section class="me-s"><h3>Profil</h3><button class="me-r" data-a="me"><span class="e">👤</span><span class="grow"><b>${esc((Team.me() || {}).name || 'Mon compte')}</b><small>Mon compte et mes informations</small></span><i>›</i></button></section>
@@ -77,6 +93,7 @@ const MesEspaces = (() => {
     el.querySelectorAll('[data-pend]').forEach(b => b.onclick = () => { shut(); Team.openSwitcher(true); });
     ($e('[data-a=join]') || {}).onclick = async () => { shut(); const cid = await Team.joinWithCode(); if (cid) Team.switchTo(cid); };
     ($e('[data-a=new]') || {}).onclick = () => { shut(); Team.openSwitcher(true); };
+    ($e('[data-a=newbp]') || {}).onclick = async () => { const p = await newBP(); if (!p) return; shut(); try { await Team.openPartners(p); } catch (e) { alertBox(errMsg(e)); } };
     ($e('[data-a=newsvc]') || {}).onclick = async () => {
       let L = []; try { const raw = await (await fetch('assets/studio.json')).json(); L = raw.filter(n => n.kind === 'service' && n.parent === 'autonomous'); } catch (e) {}
       if (!L.length) return toast('Catalogue indisponible');
@@ -91,5 +108,5 @@ const MesEspaces = (() => {
     };
     return { el, close: shut, counts: { services: C.services.length, perso: C.perso.length, orgs: C.orgs.length, invit: C.invit.length, shared: shared.length + C.shared.length } };
   }
-  return { open, enabled, setEnabled, classify, attachScreen };
+  return { open, enabled, setEnabled, classify, attachScreen, canBP };
 })();
