@@ -1515,8 +1515,11 @@ const Team = (() => {
           <button class="btn" data-a="go">Créer l'organisation</button></div>
           <button class="linkbtn" data-a="back">← Retour</button></div>`;
         back(stepPlan);
+        // rôle du créateur : « patron » (owner de ORG_TYPES.entreprise) — sans ce champ, tmRoleOf(undefined) retombe
+        // silencieusement sur { k: undefined, ... } et Firestore refuse côté client un champ « role » undefined (bug
+        // trouvé en CI : l'erreur finissait dans alertBox, sans jamais atteindre .home2, avant ce correctif).
         ($('[data-a=go]', el)||{}).onclick = () => { const cn = $('[name=cname]', el).value.trim(); if (!cn) return toast('Tapez le nom de l\'organisation');
-          W.org = 'entreprise'; W.svcs = ['direction']; create({ name: cn, me: $('[name=me]', el).value.trim() }); };
+          W.org = 'entreprise'; W.svcs = ['direction']; create({ name: cn, me: $('[name=me]', el).value.trim(), role: 'patron' }); };
       }
       // 3 · type d'organisation (= interface)
       function stepOrg() {
