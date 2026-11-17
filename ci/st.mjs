@@ -400,8 +400,12 @@ try {
   await J.pg.click('[data-req=business]'); await J.pg.waitForSelector('.sheet [name=msg]'); await J.pg.fill('.sheet [name=msg]', '12 utilisateurs, 3 chantiers'); await J.pg.click('.sheet [data-a=ok]');
   await J.pg.waitForSelector('.opt:has-text("OK")', { timeout: 15000 }); log('J demande envoyée', await J.pg.textContent('.sheet h3')); await J.pg.click('.opt:has-text("OK")');
   log('J refus serveur d\'un pack fermé', await J.pg.evaluate(async () => { try { await firebase.firestore().collection('companies').doc('jx1').set({ name: 'X', ownerUid: firebase.auth().currentUser.uid, plan: 'business', planStatus: 'essai' }); return 'ALLOWED (BAD)'; } catch (e) { return 'denied OK: ' + e.code; } }));
-  await J.pg.click('[data-p=basic]'); await J.pg.waitForSelector('.st-orgs'); await J.pg.click('[data-o=entreprise]'); await J.pg.waitForSelector('.st-svcs');
+  // v1.0.? : Basic Organisation simplifié — plus de .st-orgs/.st-svcs pour ce pack, directement le formulaire simple (nom + créateur)
+  await J.pg.click('[data-p=basic]'); await J.pg.waitForSelector('[name=cname]');
   await J.pg.fill('[name=cname]', 'Jamal BTP'); await J.pg.click('[data-a=go]'); await J.pg.waitForSelector('.home2', { timeout: 20000 });
+  const jBasic = await J.pg.evaluate(() => [Team.company().orgType, Team.company().services]);
+  log('J Basic Organisation simplifié', jBasic);
+  if (jBasic[0] !== 'entreprise' || JSON.stringify(jBasic[1]) !== JSON.stringify(['direction'])) throw new Error('Basic Organisation simplifié KO ' + JSON.stringify(jBasic));
   // Super Admin (compte du propriétaire)
   const SA = await newUser('SA'); await signup(SA.pg, 'Super Admin', 'abdessamad.daga94@gmail.com');
   await SA.pg.click('[data-a=create]'); await SA.pg.waitForSelector('.st-offers');
