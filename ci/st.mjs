@@ -1689,6 +1689,9 @@ try {
       try {
         const card = document.querySelector('.st-offer[data-offer=pro]');
         card.querySelector('.st-of-h').click();   // zone neutre de la carte (ni bouton, ni Outils inclus)
+        // v1.0.? : retour visuel immédiat (avant tout appel réseau) — l'overlay doit déjà être là, synchrone, au tap
+        const ldEl = document.querySelector('.loading');
+        o.tapLoadingFeedback = !!ldEl && /Entrée dans/.test(ldEl.textContent) && /Pro/.test(ldEl.textContent);
         await new Promise(r => setTimeout(r, 50));
         o.tapWhole = calledWith === 'pro' && !switchCalled;
         calledWith = null;
@@ -1705,7 +1708,7 @@ try {
     PackPick.setWanted(false); o.off = PackPick.wanted() === false; PackPick.setWanted(true); o.on = PackPick.wanted() === true;
     return o; } catch (e) { return { err: String(e.message || e) + ' ' + String(e.stack || '').split('\n')[1] }; } });
   log('v1.0.278 [Choix du pack]', tPkx);
-  log('errors v1.0.278 pack', !tPkx.err && ['ask','cards','locks','onFromAcc','noSuper','open','lockIcon','lockBtn','tapWhole','tapDetailsNoTrigger','all','studioAll','off','on'].every(k => tPkx[k]) ? [] : ['v1.0.278 pack ' + JSON.stringify(tPkx)]);
+  log('errors v1.0.278 pack', !tPkx.err && ['ask','cards','locks','onFromAcc','noSuper','open','lockIcon','lockBtn','tapWhole','tapLoadingFeedback','tapDetailsNoTrigger','all','studioAll','off','on'].every(k => tPkx[k]) ? [] : ['v1.0.278 pack ' + JSON.stringify(tPkx)]);
   // v1.0.? : comptes de test par pack — création idempotente, sans cliquer sur une carte (Team.switchTo recharge la page : non testable dans ce bloc évaluate ; à vérifier manuellement, voir docs/FEATURES_INVENTORY.md)
   // Enterprise : PAS un nouveau compte — doit toujours résoudre vers le compte d'origine réel (Team.cid() au moment du tout premier appel, avant toute création de compte pack), jamais vers un id créé pour un autre pack.
   const tPkAcc = await A.pg.evaluate(async () => { try { const o = {};

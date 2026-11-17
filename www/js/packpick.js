@@ -44,14 +44,19 @@ const PackPick = (() => {
     el.querySelector('[data-k=__all]').onclick = () => { shut(); ST.setPack('__all'); if (typeof Studio !== 'undefined') Studio.open({ pack: 'Enterprise', onClose: () => open() }); };
     // offerCard : data-p pour les 4 packs réels (toujours actionnable ici, même verrouillé — canAct:true) ; la carte « espace actuel » n'a pas de bouton
     el.querySelectorAll('[data-p]').forEach(b => b.onclick = async () => {
-      const k = b.dataset.p;
+      const k = b.dataset.p, P = PLANS[k];
       b.disabled = true;
-      const cid = await Team.ensurePackAccount(k);
-      b.disabled = false;
-      if (!cid) return;   // échec déjà signalé (alertBox) par ensurePackAccount
-      try { sessionStorage.removeItem('st.preview'); } catch (e) {}
-      shut();
-      await Team.switchTo(cid);   // changement d'espace réel (recharge l'application dans ce compte)
+      // v1.0.? : retour visuel IMMÉDIAT dès le tap, avant le moindre appel réseau — sur 4G, ensurePackAccount/switchTo
+      // peuvent prendre quelques secondes sans que rien ne bouge à l'écran autrement, ce qui a fait croire au propriétaire
+      // que le tap n'avait rien fait (il tapait une 2e fois, appuyait sur « retour »… pendant que l'entrée se faisait déjà).
+      const ld = loading('Entrée dans ' + (P && P.l ? P.l : k) + '…');
+      try {
+        const cid = await Team.ensurePackAccount(k);
+        if (!cid) return;   // échec déjà signalé (alertBox) par ensurePackAccount
+        try { sessionStorage.removeItem('st.preview'); } catch (e) {}
+        shut();
+        await Team.switchTo(cid);   // changement d'espace réel (affiche son propre overlay, puis recharge l'application dans ce compte)
+      } finally { b.disabled = false; ld.close(); }
     });
     // v1.0.? : le propriétaire tape n'importe où sur la carte (pas seulement le petit bouton tout en bas, après la liste
     // des outils) et s'attend à entrer directement — carte entière cliquable, sauf la zone « Outils inclus » (details/summary,
