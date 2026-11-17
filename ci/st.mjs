@@ -1746,6 +1746,28 @@ try {
     return o; } catch (e) { return { err: String(e.message || e) + ' ' + String(e.stack || '').split('\n')[1] }; } });
   log('v1.0.? [comptes de pack]', tPkAcc);
   log('errors v1.0.? comptes de pack', !tPkAcc.err && ['created', 'idempotent', 'remembered', 'badPlan', 'entHome', 'entIdempotent', 'entInAcc', 'notSuper'].every(k => tPkAcc[k]) ? [] : ['v1.0.? comptes de pack ' + JSON.stringify(tPkAcc)]);
+  // v1.0.? : mises à jour figées par pack (Centre de contrôle, config/app.verByPack) — fonction pure packPinnedVersion()
+  // (modules.js), testée isolément de checkUpdate() (qui dépend de APP_VERSION/réseau, non testable ici).
+  const tVbp = await A.pg.evaluate(() => { try { const o = {};
+    const origReady = Team.ready, origSuper = Team.isSuper, origPack = Team.pack, origCfg = Team.appCfg;
+    try {
+      Team.ready = () => true; Team.isSuper = () => false; Team.pack = () => 'basic';
+      Team.appCfg = () => ({ verByPack: { basic: '1.0.250' } });
+      o.pinned = packPinnedVersion() === '1.0.250';
+      Team.pack = () => 'pro';   // aucune entrée pour « pro » dans verByPack : ce pack n'est pas concerné
+      o.noPinForOtherPack = packPinnedVersion() === '';
+      Team.pack = () => 'basic'; Team.appCfg = () => ({ verByPack: { basic: 'bogus' } });
+      o.badFormat = packPinnedVersion() === '';
+      Team.appCfg = () => ({ verByPack: { basic: '1.0.250' } }); Team.isSuper = () => true;
+      o.superBypass = packPinnedVersion() === '';   // le Super Admin n'est jamais concerné, même si son pack courant est figé
+      Team.isSuper = () => false; Team.ready = () => false;
+      o.notReady = packPinnedVersion() === '';
+      Team.ready = () => true; Team.appCfg = () => ({});
+      o.noOverride = packPinnedVersion() === '';   // config/app.verByPack absent = comportement normal (dernière version)
+    } finally { Team.ready = origReady; Team.isSuper = origSuper; Team.pack = origPack; Team.appCfg = origCfg; }
+    return o; } catch (e) { return { err: String(e.message || e) + ' ' + String(e.stack || '').split('\n')[1] }; } });
+  log('v1.0.? [mises à jour par pack]', tVbp);
+  log('errors v1.0.? maj par pack', !tVbp.err && ['pinned', 'noPinForOtherPack', 'badFormat', 'superBypass', 'notReady', 'noOverride'].every(k => tVbp[k]) ? [] : ['v1.0.? maj par pack ' + JSON.stringify(tVbp)]);
   const tTa = await A.pg.evaluate(async () => { try { const o = {};
     o.auto = tailleOf({}, 'basic') === 'petite' && tailleOf({}, 'business') === 'moyenne' && tailleOf({}, 'enterprise') === 'grande' && tailleOf(null, 'pro') === 'petite';
     o.explicit = tailleOf({ taille: 'grande' }, 'basic') === 'grande' && tailleOf({ taille: 'petite' }, 'enterprise') === 'petite' && tailleOf({ taille: 'moyenne' }, 'business') === 'moyenne';

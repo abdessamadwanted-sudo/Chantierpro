@@ -91,12 +91,28 @@ function verCmp(a, b) { const A = verNum(a), B = verNum(b); for (let i = 0; i < 
 // version Google Play : les mises à jour passent uniquement par le Play Store (pas d'APK téléchargé, pas de mise à jour rapide)
 const PLAY_STORE_BUILD = false;
 const PLAY_URL = 'https://play.google.com/store/apps/details?id=com.siteteam.app';
+// version figée pour le pack courant (config/app.verByPack, Centre de contrôle), si applicable — fonction pure
+// (testée séparément de checkUpdate, qui dépend de APP_VERSION/réseau) : '' = pas de figeage, ce pack suit la
+// dernière version publiée. Le Super Admin n'est jamais concerné.
+function packPinnedVersion() {
+  try {
+    if (typeof Team === 'undefined' || !Team.ready || !Team.ready() || Team.isSuper()) return '';
+    const vbp = String(((Team.appCfg().verByPack || {})[Team.pack()]) || '').trim();
+    return /^\d+\.\d+\.\d+$/.test(vbp) ? vbp : '';
+  } catch (e) { return ''; }
+}
 async function checkUpdate(manual = false) {
   if (PLAY_STORE_BUILD) { if (manual) openUrl(PLAY_URL); return; }
   const cur = typeof APP_VERSION === 'string' ? APP_VERSION : '';
   if (!/^\d+\.\d+\.\d+$/.test(cur)) { if (manual) alertBox('Version de développement : la mise à jour se fait depuis le téléphone.'); return; }
   // licence avec une version figée par le titulaire : pas de proposition de mise à jour, on va sur SA version
   const LI = (typeof Lic !== 'undefined' && Lic.get()) || {}; if (LI.mode === 'user' && LI.ver) return pinnedUpdate(LI.ver, cur, manual);
+  // v1.0.? : figeage par pack (Centre de contrôle, config/app.verByPack) — un pack peut être figé sur une version
+  // précise : ses comptes ne voient/reçoivent que cette version, même si une version plus récente est publiée entre-
+  // temps pour les autres packs (la publication reste unique côté GitHub ; seule l'offre de mise à jour est filtrée
+  // ici, par pack). Vide/absent = ce pack suit la dernière version publiée, comme avant. Le Super Admin n'est jamais
+  // concerné (il voit toujours la vraie dernière version, quel que soit le pack dans lequel il se trouve).
+  const vbp = packPinnedVersion(); if (vbp) return pinnedUpdate(vbp, cur, manual);
   if (!manual) { let last = 0; try { last = +localStorage.getItem('upd.at') || 0; } catch (e) {} if (Date.now() - last < 15 * 60e3) return; }
   if (navigator.onLine === false) { updState({ state: 'horsligne' }); if (manual) toast('Pas de connexion internet'); return; }
   const ld = manual ? loading('Recherche d\'une mise à jour…') : null;

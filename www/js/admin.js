@@ -378,6 +378,9 @@
         <label class="ck"><input type="checkbox" name="mon" ${A.maintenance && A.maintenance.on ? 'checked' : ''}> Mode maintenance (application fermée pour tous, sauf vous)</label>
         <label>Texte de maintenance<input name="mtext" value="${esc((A.maintenance || {}).text || '')}" placeholder="SiteTeam est en maintenance. Revenez dans quelques minutes."></label>
         <div class="btns"><button class="btn" data-a="ver">Enregistrer</button></div></div>
+      <div class="card"><h3>Mises à jour par pack</h3><p class="muted">Figez un pack sur une version précise (X.Y.Z) : ses comptes ne voient/reçoivent que cette version, même si une nouvelle version est publiée entre-temps pour les autres packs. Vide = ce pack suit la dernière version publiée (comportement normal). Vous (Super Admin) n'êtes jamais concerné, quel que soit le pack dans lequel vous entrez.</p>
+        ${Object.values(PLANS).map(P => `<label>${P.e || ''} ${esc(PLAN_L(P.k))}<input data-vbp="${P.k}" value="${esc((A.verByPack || {})[P.k] || '')}" placeholder="Vide = dernière version · ex : 1.0.295" inputmode="decimal"></label>`).join('')}
+        <div class="btns"><button class="btn" data-a="vbp">Enregistrer</button></div></div>
       <div class="card"><h3>Anti-capture d'écran</h3><p class="muted">Interdit les captures et l'enregistrement d'écran dans l'application Android, pour toutes les organisations (chaque organisation peut aussi l'activer pour elle-même).</p>
         <label class="ck"><input type="checkbox" name="secall" ${A.secureAll ? 'checked' : ''}> Imposer l'anti-capture à tous</label>
         <div class="btns"><button class="btn" data-a="sec">Enregistrer</button></div></div>
@@ -412,6 +415,11 @@
       draw(); }
     ($('[data-a=ver]', M)||{}).onclick = () => { const v = val('minv').value.trim(); if (v && !/^\d+\.\d+\.\d+$/.test(v)) return toast('Version au format X.Y.Z (ex : 1.0.24)');
       save('app', { minVersion: v, maintenance: { on: val('mon').checked, text: val('mtext').value.trim() } }); };
+    ($('[data-a=vbp]', M)||{}).onclick = () => {
+      const out = {};
+      for (const el of $$('[data-vbp]', M)) { const k = el.dataset.vbp, v = el.value.trim(); if (v && !/^\d+\.\d+\.\d+$/.test(v)) return toast(`Version au format X.Y.Z pour ${PLAN_L(k)} (ex : 1.0.295)`); out[k] = v; }
+      save('app', { verByPack: out }, 'Mises à jour par pack enregistrées ✓');
+    };
     ($('[data-a=inv]', M)||{}).onclick = () => save('app', { inviteOnly: val('inv').checked }, val('inv').checked ? 'Accès sur code uniquement ✓' : 'Accès libre ✓');
     ($('[data-a=sec]', M)||{}).onclick = () => save('app', { secureAll: val('secall').checked }, val('secall').checked ? 'Anti-capture imposé ✓' : 'Anti-capture libre ✓');
     ($('[data-a=msg]', M)||{}).onclick = () => save('app', { message: { on: val('gon').checked, level: val('glev').value, text: val('gtext').value.trim(), id: String(Date.now()) } });
