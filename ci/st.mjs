@@ -2242,7 +2242,8 @@ try {
       o.qaEnterprise = !!root.querySelector('.st-qa');
       sessionStorage.setItem('st.preview', JSON.stringify({ plan: 'basic' })); ST.renderProjectTools(root); await wait(400);
       o.basicInchange = !root.querySelector('details.st-qs') && (!q || !!root.querySelector('details[data-g=qual] [data-tool]'));
-      o.qaBasicAbsente = !root.querySelector('.st-qa') && !root.querySelector('.st-thint2');
+      // .st-thint2 est aussi utilisé par ivHtml() (« Intervenants du projet ») : ne pas vérifier son absence globale, seulement celle de la barre .st-qa elle-même
+      o.qaBasicAbsente = !root.querySelector('.st-qa');
       sessionStorage.setItem('st.preview', JSON.stringify({ plan: 'pro' })); ST.renderProjectTools(root); await wait(400);
       o.qaProPresente = !!root.querySelector('.st-qa');
       sessionStorage.removeItem('st.preview');
