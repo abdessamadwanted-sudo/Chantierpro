@@ -1700,15 +1700,36 @@ try {
         o.tapDetailsNoTrigger = calledWith === null && details.open === true;
       } finally { Team.ensurePackAccount = origEns; Team.switchTo = origSwitch; }
     }
+    // v1.0.? : après un choix de pack RÉUSSI sur cet écran, la prochaine invite « Choisir le pack » (celle du
+    // reload qui suit) doit être sautée une seule fois — sinon le propriétaire retombe dessus juste après être
+    // entré, croit que rien ne s'est passé, et doit fermer avec la flèche « retour » pour voir le tableau de bord
+    // déjà ouvert en dessous (bug réel confirmé par vidéo, v1.0.296).
+    { sessionStorage.removeItem('st.packpick.skip');
+      const origEns = Team.ensurePackAccount, origSwitch = Team.switchTo;
+      Team.ensurePackAccount = async () => 'FAKECID'; Team.switchTo = async () => {};
+      try {
+        document.querySelectorAll('.fullpage').forEach(x => x.remove());
+        const pp2 = PackPick.open();
+        pp2.el.querySelector('[data-p=business]').click();
+        await new Promise(r => setTimeout(r, 50));
+        o.skipFlagSet = sessionStorage.getItem('st.packpick.skip') === '1';
+        const skipped = PackPick.maybe();
+        o.skipOnce = skipped === null && !sessionStorage.getItem('st.packpick.skip');
+        const shown = PackPick.maybe();
+        o.skipConsumed = !!shown && !!document.querySelector('.pp-pg');
+        if (shown) shown.close();
+      } finally { Team.ensurePackAccount = origEns; Team.switchTo = origSwitch; sessionStorage.removeItem('st.packpick.skip'); document.querySelectorAll('.fullpage').forEach(x => x.remove()); }
+    }
     // « Tous les packs » : vue documentaire inchangée (aucun compte réel, pas de bascule) — Basic/Pro/Business/Enterprise ne sont PAS cliqués ici
     // (ils déclenchent désormais Team.ensurePackAccount + Team.switchTo, qui recharge la page : testé séparément, hors de ce bloc, sans clic UI — voir v1.0.? [comptes de pack])
+    PackPick.open();
     document.querySelector('.pp-c[data-k=__all]').click(); await new Promise(r => setTimeout(r, 300));
     o.all = !sessionStorage.getItem('st.preview'); o.studioAll = !!document.querySelector('.sd-pg') && document.querySelector('[data-s=pack]').value === 'Enterprise';
     Team.isSuper = sup; document.querySelectorAll('.fullpage').forEach(x => x.remove());
     PackPick.setWanted(false); o.off = PackPick.wanted() === false; PackPick.setWanted(true); o.on = PackPick.wanted() === true;
     return o; } catch (e) { return { err: String(e.message || e) + ' ' + String(e.stack || '').split('\n')[1] }; } });
   log('v1.0.278 [Choix du pack]', tPkx);
-  log('errors v1.0.278 pack', !tPkx.err && ['ask','cards','locks','onFromAcc','noSuper','open','lockIcon','lockBtn','tapWhole','tapLoadingFeedback','tapDetailsNoTrigger','all','studioAll','off','on'].every(k => tPkx[k]) ? [] : ['v1.0.278 pack ' + JSON.stringify(tPkx)]);
+  log('errors v1.0.278 pack', !tPkx.err && ['ask','cards','locks','onFromAcc','noSuper','open','lockIcon','lockBtn','tapWhole','tapLoadingFeedback','tapDetailsNoTrigger','skipFlagSet','skipOnce','skipConsumed','all','studioAll','off','on'].every(k => tPkx[k]) ? [] : ['v1.0.278 pack ' + JSON.stringify(tPkx)]);
   // v1.0.? : comptes de test par pack — création idempotente, sans cliquer sur une carte (Team.switchTo recharge la page : non testable dans ce bloc évaluate ; à vérifier manuellement, voir docs/FEATURES_INVENTORY.md)
   // Enterprise : PAS un nouveau compte — doit toujours résoudre vers le compte d'origine réel (Team.cid() au moment du tout premier appel, avant toute création de compte pack), jamais vers un id créé pour un autre pack.
   const tPkAcc = await A.pg.evaluate(async () => { try { const o = {};

@@ -17,6 +17,11 @@ const PackPick = (() => {
   const ASK = 'st.packask';   // conservé uniquement pour compat (ancien réglage, plus lu nulle part)
   const wanted = () => { try { return localStorage.getItem(ASK) !== '0'; } catch (e) { return true; } };
   const setWanted = (on) => { try { localStorage.setItem(ASK, on ? '1' : '0'); } catch (e) {} };
+  // v1.0.? : drapeau sessionStorage à usage unique — posé juste avant switchTo() quand le Super Admin vient de
+  // choisir explicitement un pack sur CET écran, pour que maybe() saute l'invite une seule fois juste après (voir
+  // le commentaire sur son utilisation plus bas). sessionStorage survit au reload() mais pas à une fermeture réelle
+  // de l'appli, donc l'invite « à chaque démarrage » reste intacte pour toute relance normale.
+  const SKIP = 'st.packpick.skip';
   // décision pure (testée) : proposer l'écran au Super Admin, à chaque démarrage, sans condition autre que « prêt »
   const shouldAsk = (st) => !!(st && st.ready && st.isSuper);
   const cards = (cur, acc) => [
@@ -54,6 +59,13 @@ const PackPick = (() => {
         const cid = await Team.ensurePackAccount(k);
         if (!cid) return;   // échec déjà signalé (alertBox) par ensurePackAccount
         try { sessionStorage.removeItem('st.preview'); } catch (e) {}
+        // v1.0.? : le choix explicite d'un pack ICI ne doit PAS redéclencher « Choisir le pack » juste après le
+        // rechargement qui suit — sinon le propriétaire retombe immédiatement sur ce même écran par-dessus le
+        // nouveau compte déjà ouvert, croit que son tap n'a rien fait, et doit appuyer sur la flèche « retour » du
+        // topbar pour la fermer et enfin voir le tableau de bord — alors que l'entrée avait réellement réussi dès
+        // le premier tap. Un drapeau à usage unique (survit au reload, pas à une fermeture d'appli) fait sauter
+        // UNE seule fois la prochaine invite ; elle revient normalement à la prochaine vraie relance de l'appli.
+        try { sessionStorage.setItem(SKIP, '1'); } catch (e) {}
         shut();
         await Team.switchTo(cid);   // changement d'espace réel (affiche son propre overlay, puis recharge l'application dans ce compte)
       } finally { b.disabled = false; ld.close(); }
@@ -73,6 +85,11 @@ const PackPick = (() => {
     });
     return { el, close: shut };
   }
-  function maybe() { if (typeof Team === 'undefined' || !Team.ready()) return null; const st = { ready: true, isSuper: Team.isSuper() }; return shouldAsk(st) ? open() : null; }
+  function maybe() {
+    if (typeof Team === 'undefined' || !Team.ready()) return null;
+    try { if (sessionStorage.getItem(SKIP) === '1') { sessionStorage.removeItem(SKIP); return null; } } catch (e) {}
+    const st = { ready: true, isSuper: Team.isSuper() };
+    return shouldAsk(st) ? open() : null;
+  }
   return { open, maybe, shouldAsk, cards, wanted, setWanted };
 })();
