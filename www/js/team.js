@@ -16,7 +16,9 @@ const PLANS = {
   // modules inclus (voir MODS) : la formule limite les outils disponibles, le poste limite ce que chacun voit et fait
   // users / projects : quotas (0 = illimité) · storageGb : indicatif (pas encore mesuré) · hier : hiérarchie avancée · shares : groupements / partage externe
   // org : limites quand le pack sert à une organisation (petite entreprise) plutôt qu'à un espace personnel
-  basic:      { k: 'basic', l: 'Basic', orgLabel: 'Basic Organisation', e: '🌱', open: true, price: 0, period: 'mois', users: 1, projects: 1, storageGb: 1, perso: true, org: { users: 5, projects: 2, services: 3, storageGb: 2 }, for: 'Fonctions essentielles, pour démarrer', orgFor: 'Petite entreprise : quelques utilisateurs, fonctions essentielles',
+  // v1.0.? : orgLabel retiré (demande du propriétaire) — « Basic Organisation » affichait mal pour les utilisateurs
+  // gratuits ; planFor() retombe sur l.l ('Basic') quand orgLabel est absent, donc aucune autre ligne à changer.
+  basic:      { k: 'basic', l: 'Basic', e: '🌱', open: true, price: 0, period: 'mois', users: 1, projects: 1, storageGb: 1, perso: true, org: { users: 5, projects: 2, services: 3, storageGb: 2 }, for: 'Fonctions essentielles, pour démarrer', orgFor: 'Petite entreprise : quelques utilisateurs, fonctions essentielles',
                 modules: ['projet', 'plans', 'reserves', 'photos', 'rapports', 'equipe'] },
   pro:        { k: 'pro', l: 'Pro', e: '⭐', price: 99, period: 'mois', trialDays: 14, users: 1, projects: 0, storageGb: 30, perso: true, orgOffer: false, highlight: true, for: 'Professionnel indépendant — outils avancés',
                 modules: ['projet', 'plans', 'reserves', 'photos', 'rapports', 'equipe', 'reception', 'forms', 'constats', 'calc', 'files', 'topo', 'centrale', 'materiel', 'pointage', 'hse', 'finance'] },
@@ -1497,10 +1499,24 @@ const Team = (() => {
           <button class="btn ghost st-codebtn" data-a="pcode">🎟 J'ai un code pack</button>
           ${perso ? '<p class="st-of-n">Invité par une organisation ? Pas de pack : c\'est elle qui paie pour vous.</p>' : ''}
           <button class="linkbtn" data-a="back">← Retour</button></div>`;
-        $$('[data-p]', el).forEach(b => b.onclick = () => { W.plan = b.dataset.p; W.espace === 'perso' ? stepMetier() : stepOrg(); });
+        $$('[data-p]', el).forEach(b => b.onclick = () => { W.plan = b.dataset.p; W.espace === 'perso' ? stepMetier() : (planOf(W.plan).k === 'basic' ? stepOrgSimple() : stepOrg()); });
         $$('[data-req]', el).forEach(b => b.onclick = () => requestPack(b.dataset.req, perso));
-        ($('[data-a=pcode]', el)||{}).onclick = async () => { const C = await askPackCode(); if (!C) return; W.code = C; W.plan = C.plan; toast(`Code accepté : ${codeLabel(C)} ✓`); W.espace === 'perso' ? stepMetier() : stepOrg(); };
+        ($('[data-a=pcode]', el)||{}).onclick = async () => { const C = await askPackCode(); if (!C) return; W.code = C; W.plan = C.plan; toast(`Code accepté : ${codeLabel(C)} ✓`); W.espace === 'perso' ? stepMetier() : (planOf(W.plan).k === 'basic' ? stepOrgSimple() : stepOrg()); };
         back(stepEspace);
+      }
+      // 3 · Basic Organisation : parcours simplifié (demande explicite du propriétaire) — ni choix de type d'organisation
+      // ni liste de services multiples (dont « Intervenants externes ») : Basic reste le pack simple qu'il était avant
+      // l'ajout des étapes avancées (type d'organisation détaillé, organigramme par service) pensées pour Business/Enterprise.
+      // Un seul service de base (« Direction ») à la création ; pour plus de services, l'organisation passe à un pack supérieur.
+      function stepOrgSimple() {
+        el.innerHTML = `<div class="tm-lg-in">${steps(3, 3)}<h1>🌱 Organisation Basic</h1><p>Pack Basic gratuit : les outils essentiels (projets, plans, tâches, photos, rapports), pour une petite équipe.<br>Pour les services multiples (Qualité, HSE, Intervenants externes…), passez à Pro ou Business.</p>
+          <div class="form"><label>Nom de l'organisation<input name="cname" placeholder="Ex : Mon entreprise…"></label>
+          <label>Votre nom<input name="me" value="${esc(auth.currentUser.displayName || '')}"></label>
+          <button class="btn" data-a="go">Créer l'organisation</button></div>
+          <button class="linkbtn" data-a="back">← Retour</button></div>`;
+        back(stepPlan);
+        ($('[data-a=go]', el)||{}).onclick = () => { const cn = $('[name=cname]', el).value.trim(); if (!cn) return toast('Tapez le nom de l\'organisation');
+          W.org = 'entreprise'; W.svcs = ['direction']; create({ name: cn, me: $('[name=me]', el).value.trim() }); };
       }
       // 3 · type d'organisation (= interface)
       function stepOrg() {

@@ -101,6 +101,20 @@ function packPinnedVersion() {
     return /^\d+\.\d+\.\d+$/.test(vbp) ? vbp : '';
   } catch (e) { return ''; }
 }
+// Centre de contrôle (admin.js, carte « Mises à jour par pack ») : dernière version publiée, pour remplir
+// automatiquement les champs sans la taper à la main — même recherche que checkUpdate() (pages GitHub, puis API
+// GitHub en secours), mais indépendante d'APP_VERSION (utilisable aussi en développement). '' si introuvable.
+async function fetchLatestVersion() {
+  try {
+    const r = await Promise.race([fetch(UPD_LATEST + '?t=' + Date.now(), { cache: 'no-store' }), new Promise((_, j) => setTimeout(() => j(new Error('timeout')), 12000))]);
+    if (r.ok) { const L = await r.json(); const v = String((L && L.version) || '').replace(/^v/, ''); if (/^\d+\.\d+\.\d+$/.test(v)) return v; }
+  } catch (e) { console.warn('dernière version (pages)', e); }
+  try {
+    const r = await Promise.race([fetch(UPD_API, { headers: { Accept: 'application/vnd.github+json' } }), new Promise((_, j) => setTimeout(() => j(new Error('timeout')), 12000))]);
+    if (r.ok) { const list = await r.json(); const rel = (Array.isArray(list) ? list : []).find(x => !x.draft && !x.prerelease && UPD_TAG.test(x.tag_name || '') && (x.assets || []).some(a => /\.apk$/i.test(a.name))); if (rel) return relVer(rel); }
+  } catch (e) { console.warn('dernière version', e); }
+  return '';
+}
 async function checkUpdate(manual = false) {
   if (PLAY_STORE_BUILD) { if (manual) openUrl(PLAY_URL); return; }
   const cur = typeof APP_VERSION === 'string' ? APP_VERSION : '';

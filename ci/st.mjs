@@ -1768,6 +1768,18 @@ try {
     return o; } catch (e) { return { err: String(e.message || e) + ' ' + String(e.stack || '').split('\n')[1] }; } });
   log('v1.0.? [mises à jour par pack]', tVbp);
   log('errors v1.0.? maj par pack', !tVbp.err && ['pinned', 'noPinForOtherPack', 'badFormat', 'superBypass', 'notReady', 'noOverride'].every(k => tVbp[k]) ? [] : ['v1.0.? maj par pack ' + JSON.stringify(tVbp)]);
+  // v1.0.? : Basic simplifié (demande du propriétaire) — « Basic Organisation » devient « Basic » (orgLabel retiré,
+  // planFor() retombe sur l.l) ; fetchLatestVersion() (admin.js « Mises à jour par pack ») existe et ne jette jamais
+  // (réseau bloqué en CI → retombe sur '', jamais d'exception qui casserait le bouton « Remplir avec la dernière version »).
+  const tBasicSimple = await A.pg.evaluate(async () => { try { const o = {};
+    o.orgLabelGone = PLANS.basic.orgLabel === undefined;
+    o.orgLabelFallback = planFor(PLANS.basic, false).l === 'Basic';
+    o.persoUnchanged = planFor(PLANS.basic, true).l === 'Basic';
+    o.fnExists = typeof fetchLatestVersion === 'function';
+    const v = await fetchLatestVersion(); o.noThrow = typeof v === 'string';
+    return o; } catch (e) { return { err: String(e.message || e) + ' ' + String(e.stack || '').split('\n')[1] }; } });
+  log('v1.0.? [Basic simplifié]', tBasicSimple);
+  log('errors v1.0.? Basic simplifié', !tBasicSimple.err && ['orgLabelGone', 'orgLabelFallback', 'persoUnchanged', 'fnExists', 'noThrow'].every(k => tBasicSimple[k]) ? [] : ['v1.0.? Basic simplifié ' + JSON.stringify(tBasicSimple)]);
   const tTa = await A.pg.evaluate(async () => { try { const o = {};
     o.auto = tailleOf({}, 'basic') === 'petite' && tailleOf({}, 'business') === 'moyenne' && tailleOf({}, 'enterprise') === 'grande' && tailleOf(null, 'pro') === 'petite';
     o.explicit = tailleOf({ taille: 'grande' }, 'basic') === 'grande' && tailleOf({ taille: 'petite' }, 'enterprise') === 'petite' && tailleOf({ taille: 'moyenne' }, 'business') === 'moyenne';
