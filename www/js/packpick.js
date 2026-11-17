@@ -53,6 +53,19 @@ const PackPick = (() => {
       shut();
       await Team.switchTo(cid);   // changement d'espace réel (recharge l'application dans ce compte)
     });
+    // v1.0.? : le propriétaire tape n'importe où sur la carte (pas seulement le petit bouton tout en bas, après la liste
+    // des outils) et s'attend à entrer directement — carte entière cliquable, sauf la zone « Outils inclus » (details/summary,
+    // qui doit garder son propre rôle d'ouverture/fermeture de la liste) et le bouton lui-même (déjà géré ci-dessus, pour ne
+    // pas déclencher l'action deux fois). Carte « espace actuel » (pas de bouton data-p) : aucune action, déjà dedans.
+    el.querySelectorAll('.st-offer').forEach(card => {
+      const b = card.querySelector('[data-p]');
+      if (!b) return;
+      card.classList.add('pp-tap');
+      card.addEventListener('click', (ev) => {
+        if (ev.target.closest('[data-p], [data-req], details, summary')) return;
+        b.click();
+      });
+    });
     return { el, close: shut };
   }
   function maybe() { if (typeof Team === 'undefined' || !Team.ready()) return null; const st = { ready: true, isSuper: Team.isSuper() }; return shouldAsk(st) ? open() : null; }

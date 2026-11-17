@@ -1680,6 +1680,23 @@ try {
     o.lockIcon = document.querySelector('.st-offer[data-offer=business]').classList.contains('lk') && document.querySelector('.st-offer[data-offer=enterprise]').classList.contains('lk') && !document.querySelector('.st-offer[data-offer=basic]').classList.contains('lk') && !document.querySelector('.st-offer[data-offer=pro]').classList.contains('lk');
     // verrouillé mais actionnable par le Super Admin (canAct:true) : le bouton data-p existe même sur les cartes verrouillées
     o.lockBtn = !!document.querySelector('.st-offer[data-offer=business] [data-p=business]') && !!document.querySelector('.st-offer[data-offer=enterprise] [data-p=enterprise]');
+    // v1.0.? : le propriétaire tape n'importe où sur la carte (pas seulement le petit bouton tout en bas) et s'attend à
+    // entrer directement — la carte entière doit déclencher la même bascule que le bouton, sauf « Outils inclus »
+    // (details/summary) qui doit garder son propre rôle d'ouvrir/fermer la liste sans rien déclencher d'autre.
+    { const origEns = Team.ensurePackAccount, origSwitch = Team.switchTo; let calledWith = null, switchCalled = false;
+      Team.ensurePackAccount = async (k) => { calledWith = k; return null; };   // null = pas de vraie bascule/reload, juste vérifier le pack visé
+      Team.switchTo = async () => { switchCalled = true; };
+      try {
+        const card = document.querySelector('.st-offer[data-offer=pro]');
+        card.querySelector('.st-of-h').click();   // zone neutre de la carte (ni bouton, ni Outils inclus)
+        await new Promise(r => setTimeout(r, 50));
+        o.tapWhole = calledWith === 'pro' && !switchCalled;
+        calledWith = null;
+        const details = card.querySelector('details'); details.querySelector('summary').click();
+        await new Promise(r => setTimeout(r, 50));
+        o.tapDetailsNoTrigger = calledWith === null && details.open === true;
+      } finally { Team.ensurePackAccount = origEns; Team.switchTo = origSwitch; }
+    }
     // « Tous les packs » : vue documentaire inchangée (aucun compte réel, pas de bascule) — Basic/Pro/Business/Enterprise ne sont PAS cliqués ici
     // (ils déclenchent désormais Team.ensurePackAccount + Team.switchTo, qui recharge la page : testé séparément, hors de ce bloc, sans clic UI — voir v1.0.? [comptes de pack])
     document.querySelector('.pp-c[data-k=__all]').click(); await new Promise(r => setTimeout(r, 300));
@@ -1688,7 +1705,7 @@ try {
     PackPick.setWanted(false); o.off = PackPick.wanted() === false; PackPick.setWanted(true); o.on = PackPick.wanted() === true;
     return o; } catch (e) { return { err: String(e.message || e) + ' ' + String(e.stack || '').split('\n')[1] }; } });
   log('v1.0.278 [Choix du pack]', tPkx);
-  log('errors v1.0.278 pack', !tPkx.err && ['ask','cards','locks','onFromAcc','noSuper','open','lockIcon','lockBtn','all','studioAll','off','on'].every(k => tPkx[k]) ? [] : ['v1.0.278 pack ' + JSON.stringify(tPkx)]);
+  log('errors v1.0.278 pack', !tPkx.err && ['ask','cards','locks','onFromAcc','noSuper','open','lockIcon','lockBtn','tapWhole','tapDetailsNoTrigger','all','studioAll','off','on'].every(k => tPkx[k]) ? [] : ['v1.0.278 pack ' + JSON.stringify(tPkx)]);
   // v1.0.? : comptes de test par pack — création idempotente, sans cliquer sur une carte (Team.switchTo recharge la page : non testable dans ce bloc évaluate ; à vérifier manuellement, voir docs/FEATURES_INVENTORY.md)
   // Enterprise : PAS un nouveau compte — doit toujours résoudre vers le compte d'origine réel (Team.cid() au moment du tout premier appel, avant toute création de compte pack), jamais vers un id créé pour un autre pack.
   const tPkAcc = await A.pg.evaluate(async () => { try { const o = {};
