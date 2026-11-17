@@ -2561,6 +2561,8 @@ body:has(.pst-page) #plansFab, body:has(.rub-page) #plansFab, body:has(.scanpage
 /* v1.0.? : écran « Choisir le pack » (Super Admin) — carte de l'espace où l'on se trouve déjà, dans le même visuel que les cartes d'offre */
 .st-offer.cur { border-color: #22c55e; background: rgba(34,197,94,.08); }
 .st-offer.cur.lk { opacity: 1; } .st-offer.cur .st-of-h b { color: inherit; }
+/* écran « Choisir le pack » (packpick.js) : carte entière cliquable, pas seulement le bouton tout en bas */
+.st-offer.pp-tap { cursor: pointer; }
 .st-of-h i.st-of-cur { color: #22c55e; background: rgba(34,197,94,.15); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
 
 /* ---------- v1.0.28 : écrans d'entrée défilables depuis le haut, espace Free, menus ---------- */
