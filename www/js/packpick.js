@@ -1,12 +1,14 @@
 // ================= Choix du pack (Super Admin) : écran « Avec quel pack voulez-vous entrer ? » =================
-//   v1.0.? : entrée réelle — Basic / Pro / Business / Enterprise sont 4 comptes réels et permanents, créés une seule
-//   fois sous l'identité du Super Admin (Team.ensurePackAccount), vides au départ (il y construit lui-même ses
-//   projets de test). Choisir une carte bascule réellement dans ce compte (Team.switchTo) : ce n'est plus une
-//   simulation d'affichage. « Tous les packs » reste la vue documentaire existante (Architecture Studio), inchangée,
-//   car elle ne correspond à aucun compte réel.
-//   Business et Enterprise affichent un verrou 🔒 pour tout le monde, y compris le Super Admin : lui seul peut
-//   malgré tout appuyer dessus (pour les construire) ; un compte non Super Admin ne voit jamais cet écran (voir
-//   « open » ci-dessous), donc le verrou y est réel pour lui.
+//   Entrée réelle — Basic / Pro / Business / Enterprise sont 4 comptes réels et permanents sous l'identité du Super
+//   Admin (Team.ensurePackAccount) : Basic/Pro/Business vides au départ (construits à la main) ; Enterprise N'EST PAS
+//   un nouveau compte, c'est le compte d'origine réel du Super Admin (ses vrais projets, ex. « Grand stade
+//   Casablanca », inchangés). Choisir une carte bascule réellement dans ce compte (Team.switchTo). « Tous les packs »
+//   reste la vue documentaire existante (Architecture Studio), inchangée, car elle ne correspond à aucun compte réel.
+//   Design : réutilise la carte d'offre existante (offerCard, team.js — même visuel que l'écran de bienvenue et
+//   l'onglet Pro). Business et Enterprise affichent leur verrou 🔒 pour tout le monde, y compris le Super Admin (pour
+//   la cohérence visuelle avec ce que voit un client) — lui seul peut malgré tout appuyer dessus (offerCard reçoit
+//   canAct:true) pour construire ce que ces packs doivent contenir ; un compte non Super Admin ne voit jamais cet
+//   écran (voir « open » ci-dessous), donc le verrou y est réel pour lui.
 const PackPick = (() => {
   const ASK = 'st.packask', SEEN = 'st.packasked';
   const wanted = () => { try { return localStorage.getItem(ASK) !== '0'; } catch (e) { return true; } };
@@ -19,31 +21,29 @@ const PackPick = (() => {
     { k: '__all', e: '👑', l: 'Tous les packs', f: 'Catalogue complet (vue Super Admin, simulation d\'affichage)', on: !cur, locked: false },
     ...Object.values(PLANS).map(P => ({ k: P.k, e: P.e || '', l: P.l, f: P.for || '', on: !cur && !!acc && acc[P.k] && acc[P.k] === Team.cid(), locked: planDev(P) })),
   ];
-  function cardHTML(c) {
-    return `<button class="pp-c ${c.on ? 'on' : ''} ${c.locked ? 'lk' : ''}" data-k="${esc(c.k)}">
+  // carte « Tous les packs » : bouton simple existant (aucun PLANS entry, pas de carte d'offre) ; les 4 packs réels utilisent offerCard
+  const allCardHTML = (c) => `<button class="pp-c ${c.on ? 'on' : ''}" data-k="${esc(c.k)}">
       <span class="e">${c.e}</span>
-      <span class="grow"><b>${esc(c.l)}${c.on ? ' <span class="pp-chk">✓ espace actuel</span>' : ''}</b><small>${esc(c.f)}</small></span>
-      ${c.locked ? `<span class="pp-lock" title="En développement — réservé au Super Admin pour construire ce pack">${icon('lock')}</span>` : '<i>›</i>'}
+      <span class="grow"><b>${esc(c.l)}</b><small>${esc(c.f)}</small></span><i>›</i>
     </button>`;
-  }
   function open(opts = {}) {
     if (typeof Team === 'undefined' || !Team.ready() || !Team.isSuper()) return null;
-    const cur = ST.preview(), acc = Team.packAccounts(), el = document.createElement('div'); el.className = 'fullpage pp-pg';
+    const cur = ST.preview(), acc = Team.packAccounts(), C = cards(cur, acc), el = document.createElement('div'); el.className = 'fullpage pp-pg';
     el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><h1>Choisir le pack</h1></div>
       <div class="pp-body">
         <p class="pp-i">Avec quel pack voulez-vous entrer ? <small>Basic, Pro, Business et Enterprise sont des comptes réels et permanents, séparés de vos autres espaces — vous y entrez vraiment, vous y construisez ce que vous voulez. Business et Enterprise restent verrouillés pour tout le monde ; vous seul pouvez les ouvrir.</small></p>
-        ${cards(cur, acc).map(cardHTML).join('')}
+        ${allCardHTML(C[0])}
+        <div class="st-offers">${C.slice(1).map(c => offerCard(planFor(PLANS[c.k], false), false, true, { forceLock: c.locked, canAct: true, current: c.on })).join('')}</div>
         <button class="linkbtn" data-a="never">${wanted() ? 'Ne plus me demander à chaque connexion' : 'Me demander à chaque connexion'}</button>
       </div>`;
     document.body.appendChild(el); markSeen();
     let closed = false; const unBack = pushBack(() => shut());
     function shut() { if (closed) return; closed = true; try { unBack(); } catch (e) {} el.remove(); if (opts.onClose) opts.onClose(); }
     el.querySelector('[data-a=x]').onclick = shut;
-    el.querySelectorAll('[data-k]').forEach(b => b.onclick = async () => {
-      const k = b.dataset.k;
-      // « Tous les packs » : vue documentaire existante (Architecture Studio), aucun compte réel associé — inchangé
-      if (k === '__all') { shut(); ST.setPack('__all'); if (typeof Studio !== 'undefined') Studio.open({ pack: 'Enterprise', onClose: () => open() }); return; }
-      if (b.classList.contains('on')) return shut();
+    el.querySelector('[data-k=__all]').onclick = () => { shut(); ST.setPack('__all'); if (typeof Studio !== 'undefined') Studio.open({ pack: 'Enterprise', onClose: () => open() }); };
+    // offerCard : data-p pour les 4 packs réels (toujours actionnable ici, même verrouillé — canAct:true) ; la carte « espace actuel » n'a pas de bouton
+    el.querySelectorAll('[data-p]').forEach(b => b.onclick = async () => {
+      const k = b.dataset.p;
       b.disabled = true;
       const cid = await Team.ensurePackAccount(k);
       b.disabled = false;

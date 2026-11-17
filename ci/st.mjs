@@ -1671,8 +1671,11 @@ try {
     // acc seul (compte créé) ne suffit pas à cocher une carte : il faut aussi être réellement dans ce cid (Team.cid())
     o.onFromAcc = PackPick.cards(null, { pro: 'XYZ-non-ouvert' }).find(c => c.k === 'pro').on === false;
     o.noSuper = PackPick.open() === null;
-    const sup = Team.isSuper; Team.isSuper = () => true; const pp = PackPick.open(); o.open = !!pp && document.querySelectorAll('.pp-c').length === 5 && /comptes réels et permanents/.test(document.querySelector('.pp-i').textContent);
-    o.lockIcon = !!document.querySelector('.pp-c[data-k=business] .pp-lock') && !!document.querySelector('.pp-c[data-k=enterprise] .pp-lock') && !document.querySelector('.pp-c[data-k=basic] .pp-lock') && !document.querySelector('.pp-c[data-k=pro] .pp-lock');
+    // design : seule la carte « Tous les packs » reste un .pp-c ; les 4 packs réels réutilisent offerCard (.st-offer, team.js) pour le même visuel que l'écran de bienvenue / l'onglet Pro
+    const sup = Team.isSuper; Team.isSuper = () => true; const pp = PackPick.open(); o.open = !!pp && document.querySelectorAll('.pp-c').length === 1 && document.querySelectorAll('.st-offer').length === 4 && /comptes réels et permanents/.test(document.querySelector('.pp-i').textContent);
+    o.lockIcon = document.querySelector('.st-offer[data-offer=business]').classList.contains('lk') && document.querySelector('.st-offer[data-offer=enterprise]').classList.contains('lk') && !document.querySelector('.st-offer[data-offer=basic]').classList.contains('lk') && !document.querySelector('.st-offer[data-offer=pro]').classList.contains('lk');
+    // verrouillé mais actionnable par le Super Admin (canAct:true) : le bouton data-p existe même sur les cartes verrouillées
+    o.lockBtn = !!document.querySelector('.st-offer[data-offer=business] [data-p=business]') && !!document.querySelector('.st-offer[data-offer=enterprise] [data-p=enterprise]');
     // « Tous les packs » : vue documentaire inchangée (aucun compte réel, pas de bascule) — Basic/Pro/Business/Enterprise ne sont PAS cliqués ici
     // (ils déclenchent désormais Team.ensurePackAccount + Team.switchTo, qui recharge la page : testé séparément, hors de ce bloc, sans clic UI — voir v1.0.? [comptes de pack])
     document.querySelector('.pp-c[data-k=__all]').click(); await new Promise(r => setTimeout(r, 300));
@@ -1681,7 +1684,7 @@ try {
     PackPick.setWanted(false); o.off = PackPick.wanted() === false; PackPick.setWanted(true); o.on = PackPick.wanted() === true;
     return o; } catch (e) { return { err: String(e.message || e) + ' ' + String(e.stack || '').split('\n')[1] }; } });
   log('v1.0.278 [Choix du pack]', tPkx);
-  log('errors v1.0.278 pack', !tPkx.err && ['ask','cards','locks','onFromAcc','noSuper','open','lockIcon','all','studioAll','off','on'].every(k => tPkx[k]) ? [] : ['v1.0.278 pack ' + JSON.stringify(tPkx)]);
+  log('errors v1.0.278 pack', !tPkx.err && ['ask','cards','locks','onFromAcc','noSuper','open','lockIcon','lockBtn','all','studioAll','off','on'].every(k => tPkx[k]) ? [] : ['v1.0.278 pack ' + JSON.stringify(tPkx)]);
   // v1.0.? : comptes de test par pack — création idempotente, sans cliquer sur une carte (Team.switchTo recharge la page : non testable dans ce bloc évaluate ; à vérifier manuellement, voir docs/FEATURES_INVENTORY.md)
   // Enterprise : PAS un nouveau compte — doit toujours résoudre vers le compte d'origine réel (Team.cid() au moment du tout premier appel, avant toute création de compte pack), jamais vers un id créé pour un autre pack.
   const tPkAcc = await A.pg.evaluate(async () => { try { const o = {};
