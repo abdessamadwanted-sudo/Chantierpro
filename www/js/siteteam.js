@@ -402,10 +402,13 @@ const ST = (() => {
         if (w) { M[v] = w; try { localStorage.setItem(qsKey(S), JSON.stringify(M)); } catch (e) {} } }
       renderProjectTools(root); };
     const qualKs = (G.find(x => x[0] === 'qual') || [0, 0, []])[2];
+    // v1.0.? : raccourcis rapides (Plans, Photos en masse…) retirés du pack Basic (demande du propriétaire) —
+    // Basic doit rester simple comme à l'origine ; la barre réapparaît à partir de Pro.
+    const qaOn = plan().k !== 'basic';
     root.innerHTML = `<div class="st-ptools-p">
       <div class="st-hd"><b>${esc(T.e || '🏗️')} ${esc(p.name)}</b><small>${esc(T.n || 'Projet')}${p.address ? ' · ' + esc(p.address) : ''}</small></div>
-      <div class="st-qa ${Math.max(1, QA.length) <= 4 ? 'qa-l' : Math.max(1, QA.length) <= 8 ? 'qa-m' : 'qa-s'}" style="--n:${Math.max(1, QA.length)}">${QA.map(([k, ic, l, c]) => `<button class="st-qa-b" data-a="${k}" style="--c:${c}"><i>${icon(ic)}</i><span>${l}</span></button>`).join('')}${QA.length ? '' : `<button class="st-qa-b st-qa-add" data-a="qaadd" style="--c:#475569"><i>${icon('plus')}</i><span>Ajouter</span></button>`}</div>
-      <p class="st-thint2" style="margin:-4px 0 6px">Appui long sur la barre : ajouter · réorganiser · retirer</p>
+      ${qaOn ? `<div class="st-qa ${Math.max(1, QA.length) <= 4 ? 'qa-l' : Math.max(1, QA.length) <= 8 ? 'qa-m' : 'qa-s'}" style="--n:${Math.max(1, QA.length)}">${QA.map(([k, ic, l, c]) => `<button class="st-qa-b" data-a="${k}" style="--c:${c}"><i>${icon(ic)}</i><span>${l}</span></button>`).join('')}${QA.length ? '' : `<button class="st-qa-b st-qa-add" data-a="qaadd" style="--c:#475569"><i>${icon('plus')}</i><span>Ajouter</span></button>`}</div>
+      <p class="st-thint2" style="margin:-4px 0 6px">Appui long sur la barre : ajouter · réorganiser · retirer</p>` : ''}
       ${ivHtml()}
       ${G.map(([g, l, ks]) => (g === 'qual' && svcq() ? '' : `<details class="st-tcat st-acc" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(l.replace(/^\S+\s/, ''))}<small>${ks.length}</small><i class="st-chev">${icon('chevdown')}</i></summary>
         <div class="st-tgrid">${ks.map(k => toolBtn(k, g)).join('')}</div></details>`) + `${g === 'qual' && svcq() && !entOn() ? svcAcc(SVC_SHELLS[0], ks) : ''}`).join('')}
