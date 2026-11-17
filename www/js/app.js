@@ -318,6 +318,12 @@ async function renderHome() {
         { label: 'Code PIN et empreinte', icon: 'settings', value: 'pin' },
         { label: 'Fonctions affichées', sub: 'masquer ce qui ne sert pas', icon: 'grid', value: 'feat' },
         ...(Team.ready() && Team.isSuper() && typeof PackPick !== 'undefined' ? [{ label: 'Choisir le pack (écran)', sub: 'entrer comme Basic, Pro, Business ou Enterprise', icon: 'layers', value: 'packscr' }] : []),
+        // v1.0.? : point d'entrée retrouvé pour « Pack de travail » (ST.quickPack) — la bannière d'accueil qui l'ouvrait a été
+        // retirée (demande du propriétaire, voir FEATURES_INVENTORY), mais la fonction elle-même n'avait plus aucun moyen de
+        // s'ouvrir depuis l'interface. Contrairement à « Choisir le pack (écran) » (compte réel, Super Admin voit TOUT, y
+        // compris les fonctions des autres packs — pour construire leur contenu), ceci applique les VRAIES restrictions par
+        // pack (flag()) : c'est ce qu'un client de ce pack verrait réellement.
+        ...(Team.ready() && Team.isSuper() && typeof ST !== 'undefined' && ST.quickPack ? [{ label: 'Pack de travail (aperçu réel)', sub: 'voir ce pack avec ses vraies limites, comme un client', icon: 'eye', value: 'quickpack' }] : []),
         ...(Team.ready() && typeof MesEspaces !== 'undefined' ? [{ label: `Écran « Mes espaces » : ${MesEspaces.enabled() ? 'activé' : 'désactivé'}`, sub: 'toucher pour revenir à l\'ancien sélecteur ou le réactiver', icon: 'layers', value: 'espui' }] : []),
         { label: 'Alertes & automatisations', sub: 'workflows · canaux · simulation', icon: 'alert', value: 'autoalerts' }] },
       { title: 'Application', color: '#64748b', items: [
@@ -353,6 +359,7 @@ async function renderHome() {
     if (v === 'profile') Team.openCompany('me');
     if (v === 'ws') Team.openSwitcher();
     if (v === 'packscr') PackPick.open();
+    if (v === 'quickpack') ST.quickPack();
     if (v === 'espui') { const on = !(typeof MesEspaces !== 'undefined' && MesEspaces.enabled()); MesEspaces.setEnabled(on); toast(on ? 'Écran « Mes espaces » activé' : 'Ancien sélecteur d\'espace rétabli'); }
     if (v === 'preview') ST.startPreview();
     if (v === 'preview-off') ST.stopPreview();
