@@ -2238,8 +2238,14 @@ try {
       o.adminToutVoit = true; pr0.team = pm;
       o.adminSeul = ST.isEnt() === true && typeof orgCanAdmin === 'function' && orgCanAdmin() === true;
       o.deuxCat = !root.querySelector('details[data-g=qual]') && !!root.querySelector('details[data-g=sq]') && /Service Qualité/.test(root.querySelector('details[data-g=sq] summary').textContent) && ['reception', 'docq'].every(k => !!root.querySelector('details[data-g=sq] [data-tool=' + k + ']'));
+      // v1.0.? : barre de raccourcis rapides (Plans, Photos en masse…) absente en Basic, visible à partir de Pro
+      o.qaEnterprise = !!root.querySelector('.st-qa');
       sessionStorage.setItem('st.preview', JSON.stringify({ plan: 'basic' })); ST.renderProjectTools(root); await wait(400);
       o.basicInchange = !root.querySelector('details.st-qs') && (!q || !!root.querySelector('details[data-g=qual] [data-tool]'));
+      // .st-thint2 est aussi utilisé par ivHtml() (« Intervenants du projet ») : ne pas vérifier son absence globale, seulement celle de la barre .st-qa elle-même
+      o.qaBasicAbsente = !root.querySelector('.st-qa');
+      sessionStorage.setItem('st.preview', JSON.stringify({ plan: 'pro' })); ST.renderProjectTools(root); await wait(400);
+      o.qaProPresente = !!root.querySelector('.st-qa');
       sessionStorage.removeItem('st.preview');
       root.remove();
     } catch (e) { o.err = String(e.message || e); }
@@ -2267,6 +2273,7 @@ try {
   log('Mises en service', fl1);
   if (!fl1.noProject && !(fl1.fermees && fl1.pasSq && fl1.monEspaceCache && fl1.testAutre && fl1.pub && fl1.autrePack)) throw new Error('mises en service KO ' + JSON.stringify(fl1));
   if (!qs1.noProject && !qs1.pasQual && !(qs1.volets && qs1.adm && qs1.ter && qs1.reglage && qs1.basicInchange && qs1.icones && qs1.adminSeul && qs1.deuxCat && qs1.services)) throw new Error('volets qualité KO ' + JSON.stringify(qs1));
+  if (!qs1.noProject && !(qs1.qaEnterprise && qs1.qaBasicAbsente && qs1.qaProPresente)) throw new Error('barre de raccourcis rapides par pack KO ' + JSON.stringify(qs1));
   // ---- Suivis personnalisés + modèle visuel : cases liées aux colonnes, PDF écrit sur le bon
   const sv2 = await A.pg.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {};
