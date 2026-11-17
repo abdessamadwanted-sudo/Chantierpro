@@ -1663,8 +1663,12 @@ try {
   log('v1.0.277 [Feature Matrix]', tMx);
   log('errors v1.0.277 matrix', !tMx.err && ['rows','over','level','inPack','live','table','node'].every(k => tMx[k]) ? [] : ['v1.0.277 matrix ' + JSON.stringify(tMx)]);
   const tPkx = await A.pg.evaluate(async () => { try { const o = {}; document.querySelectorAll('.fullpage,.lightbox,.sheet-bg').forEach(x => x.remove());
-    const ok = { ready: true, isSuper: true, wanted: true, seen: false, preview: null };
-    o.ask = PackPick.shouldAsk(ok) && !PackPick.shouldAsk({ ...ok, isSuper: false }) && !PackPick.shouldAsk({ ...ok, wanted: false }) && !PackPick.shouldAsk({ ...ok, seen: true }) && !PackPick.shouldAsk({ ...ok, preview: { plan: 'pro' } }) && !PackPick.shouldAsk({ ...ok, ready: false }) && !PackPick.shouldAsk(null);
+    // v1.0.? : écran désormais obligatoire à chaque démarrage pour le Super Admin — plus de case « ne plus me
+    // demander » ni de mémorisation de session ; seules conditions : prêt + Super Admin.
+    const ok = { ready: true, isSuper: true };
+    o.ask = PackPick.shouldAsk(ok) && !PackPick.shouldAsk({ ...ok, isSuper: false }) && !PackPick.shouldAsk({ ...ok, ready: false }) && !PackPick.shouldAsk(null)
+      // conservé par compat (champs ignorés désormais, ne doivent plus influencer la décision)
+      && PackPick.shouldAsk({ ...ok, wanted: false }) && PackPick.shouldAsk({ ...ok, seen: true }) && PackPick.shouldAsk({ ...ok, preview: { plan: 'pro' } });
     const C = PackPick.cards(null); o.cards = C.length === 5 && C[0].k === '__all' && C[0].on && C.slice(1).map(c => c.k).join() === 'basic,pro,business,enterprise';
     // v1.0.? : verrou visuel Business/Enterprise (pour tout le monde, y compris Super Admin) ; Basic/Pro jamais verrouillés
     o.locks = C.find(c => c.k === 'business').locked === true && C.find(c => c.k === 'enterprise').locked === true && C.find(c => c.k === 'basic').locked === false && C.find(c => c.k === 'pro').locked === false;
