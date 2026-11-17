@@ -134,6 +134,10 @@ const PARTNER_DEF = {
   bcontrole: { plans: 1, reserves: 2, reception: 1, photos: 1, forms: 1, rapports: 1, constats: 2, files: 1 }, labo: { plans: 1, reception: 1, photos: 1, forms: 2, rapports: 1, files: 2 },
   topoext: { plans: 2, photos: 1, topo: 2, files: 1 }, soustraitant: { plans: 1, reserves: 2, photos: 2, rapports: 1, files: 1 }, entreprise: { plans: 1, reserves: 2, photos: 2, rapports: 1, files: 1 },
 };
+// liaison automatique service interne ↔ rôle de l'organisation partenaire, à l'acceptation de l'invitation (point 1 des demandes)
+// toujours modifiable ensuite : menu « ⋯ sur l'organisation › Lier à un service interne… » (derrière flag('svclink'))
+const PARTNER_SVC_AUTO = { bcontrole: 'qualite', bet: 'etudes', architecte: 'etudes', mo: 'direction', mod: 'direction', labo: 'labo', topoext: 'topo', soustraitant: 'travaux', entreprise: 'travaux' };
+const autoSvcForRole = (role) => { const k = PARTNER_SVC_AUTO[role]; return k && TM_SERVICES.some(z => z.k === k) ? k : ''; };
 
 // ---------- Services, rôles, permissions ----------
 const TM_SERVICES = [
@@ -1913,7 +1917,7 @@ const Team = (() => {
     const ld = loading('Connexion au projet…');
     try {
       const b = fs.batch(), uid = S.user.uid;
-      b.set(fs.collection('companies').doc(I.cid).collection('projects').doc(I.pid).collection('partners').doc(S.cid), { orgName: S.company.name || '', orgType: orgType().k, role: I.prole, mods: I.mods, status: 'actif', code, by: uid, byName: (S.me || {}).name || '', at: ts() });
+      b.set(fs.collection('companies').doc(I.cid).collection('projects').doc(I.pid).collection('partners').doc(S.cid), { orgName: S.company.name || '', orgType: orgType().k, role: I.prole, mods: I.mods, status: 'actif', svc: autoSvcForRole(I.prole), code, by: uid, byName: (S.me || {}).name || '', at: ts() });
       b.set(fs.collection('companies').doc(S.cid).collection('shared').doc(I.pid), { cid: I.cid, ownerName: I.ownerName || '', name: I.pname || '', role: I.prole, mods: I.mods, status: 'actif', at: ts() });
       b.update(fs.collection('invites').doc(code), { used: true, usedBy: uid, usedAt: ts() });
       await withTimeout(b.commit());
