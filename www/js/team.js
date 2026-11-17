@@ -1072,13 +1072,24 @@ const Team = (() => {
       ld.close(); return ref.id;
     } catch (e) { ld.close(); alertBox(errMsg(e) + (e.code === 'permission-denied' ? '\n\nCréation refusée par le serveur (accès sur code uniquement ?).' : '')); return null; }
   }
-  // Comptes de test par pack (écran « Choisir le pack », v1.0.? ) : 4 organisations réelles et permanentes, une par pack
-  // (Basic/Pro/Business/Enterprise), sous l'identité du Super Admin. Vides au départ ; créées une seule fois, à la demande
-  // (jamais au démarrage). L'id de chacune est mémorisé dans users/{uid}.packAccounts, jamais recréé une 2e fois.
-  // Aucune règle serveur nouvelle : la règle companies.create autorise déjà licOwner() à créer un pack fermé (dev:true).
-  function packAccounts() { return S.packAccounts || {}; }
+  // Comptes de test par pack (écran « Choisir le pack », v1.0.? ) : sous l'identité du Super Admin.
+  // Basic/Pro/Business : 3 organisations réelles, permanentes et VIDES, créées une seule fois, à la demande (jamais au
+  // démarrage) ; leur id est mémorisé dans users/{uid}.packAccounts, jamais recréé une 2e fois.
+  // Enterprise : PAS un nouveau compte — c'est le compte d'origine réel du Super Admin (celui où il travaillait déjà,
+  // avec ses vrais projets). Son id est capturé une seule fois (users/{uid}.homeCid), à la toute première utilisation de
+  // l'écran « Choisir le pack », avant toute création de compte pack — à ce moment-là S.cid est forcément le compte
+  // d'origine, puisqu'aucun compte pack n'a encore été créé.
+  // Aucune règle serveur nouvelle : la règle companies.create autorise déjà licOwner() à créer un pack fermé (dev:true) ;
+  // users/{uid}.update autorise déjà l'écriture d'un champ libre comme homeCid (seuls les champs blocked* sont restreints).
+  function packAccounts() { return { ...(S.packAccounts || {}), ...(S.homeCid ? { enterprise: S.homeCid } : {}) }; }
   async function ensurePackAccount(planKey) {
     if (!isSuper() || !PLANS[planKey]) return null;
+    // mémorise le compte d'origine une seule fois, avant toute création de compte pack (quel que soit le pack demandé en premier)
+    if (!S.homeCid) {
+      try { await withTimeout(fs.collection('users').doc(S.user.uid).set({ homeCid: S.cid }, { merge: true })); S.homeCid = S.cid; }
+      catch (e) { alertBox(errMsg(e)); return null; }
+    }
+    if (planKey === 'enterprise') return S.homeCid;
     const cur = S.packAccounts || {};
     if (cur[planKey]) return cur[planKey];
     const ld = loading('Création du compte ' + (PLANS[planKey].l || planKey) + '…');
@@ -1226,7 +1237,7 @@ const Team = (() => {
     // v1.0.130 : version minimale imposée par l'équipe SiteTeam (Centre de contrôle › utilisateur › Version minimale)
     const verLt = (a, b) => { const x = String(a || '0').split('.').map(Number), y = String(b || '0').split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { const p = x[i] || 0, q = y[i] || 0; if (p !== q) return p < q; } return false; };
     fs.collection('users').doc(uid).onSnapshot((d) => { if (d.metadata.fromCache || !d.exists) return; const v = d.data(); LS.set('profile', v);
-      S.packAccounts = v.packAccounts || {};
+      S.packAccounts = v.packAccounts || {}; S.homeCid = v.homeCid || '';
       if (v.blocked !== true && v.minVersion && typeof APP_VERSION === 'string' && !APP_VERSION.startsWith('__') && verLt(APP_VERSION, v.minVersion)) return gateScreen('⬆ Mise à jour requise', `Votre version (${APP_VERSION}) n'est plus autorisée. Installez la version ${v.minVersion} ou plus récente depuis les Releases GitHub.\nPour toute question : ${SUPPORT_EMAIL}`, false);
       if (v.blocked === true) gateScreen('⛔ Compte bloqué', `Ce compte a été bloqué par SiteTeam.${v.blockedWhy ? '\nMotif : ' + v.blockedWhy : ''}\nPour toute question : ${SUPPORT_EMAIL}`, false); }, (e) => console.warn('accès (profil)', e && e.code));
     fs.collection('companies').doc(cid).onSnapshot((c) => { if (c.metadata.fromCache || !c.exists || S.cid !== cid) return; const was = S.company && S.company.planStatus;
@@ -1249,7 +1260,7 @@ const Team = (() => {
       await onboardScreen(); return loadMembership(); }
     S.workspaces = Array.isArray(prof.workspaces) ? prof.workspaces : [];
     S.profil = prof.profil || {};
-    S.packAccounts = prof.packAccounts || {};
+    S.packAccounts = prof.packAccounts || {}; S.homeCid = prof.homeCid || '';
     // espace de travail : chaque organisation a sa base locale ; si l'espace a changé (ici ou sur un autre téléphone), on bascule puis on recharge
     if (WS.bind(prof.companyId)) return new Promise(() => {});
     S.cid = prof.companyId; LS.set('cid', S.cid);

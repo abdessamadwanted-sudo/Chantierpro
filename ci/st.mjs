@@ -1683,16 +1683,21 @@ try {
   log('v1.0.278 [Choix du pack]', tPkx);
   log('errors v1.0.278 pack', !tPkx.err && ['ask','cards','locks','onFromAcc','noSuper','open','lockIcon','all','studioAll','off','on'].every(k => tPkx[k]) ? [] : ['v1.0.278 pack ' + JSON.stringify(tPkx)]);
   // v1.0.? : comptes de test par pack — création idempotente, sans cliquer sur une carte (Team.switchTo recharge la page : non testable dans ce bloc évaluate ; à vérifier manuellement, voir docs/FEATURES_INVENTORY.md)
+  // Enterprise : PAS un nouveau compte — doit toujours résoudre vers le compte d'origine réel (Team.cid() au moment du tout premier appel, avant toute création de compte pack), jamais vers un id créé pour un autre pack.
   const tPkAcc = await A.pg.evaluate(async () => { try { const o = {};
     const sup = Team.isSuper; Team.isSuper = () => true;
+    const home = Team.cid();   // avant tout appel : aucun compte pack n'existe encore, donc Team.cid() est forcément le compte d'origine
     const cid1 = await Team.ensurePackAccount('pro'); o.created = typeof cid1 === 'string' && cid1.length > 0;
     const cid2 = await Team.ensurePackAccount('pro'); o.idempotent = cid2 === cid1;   // pas de 2e compte créé au 2e appel
     o.remembered = Team.packAccounts().pro === cid1;
     o.badPlan = await Team.ensurePackAccount('bogus') === null;
+    const ent1 = await Team.ensurePackAccount('enterprise'); o.entHome = ent1 === home && ent1 !== cid1;   // résout vers le compte d'origine, jamais un nouveau compte ni celui de « pro »
+    const ent2 = await Team.ensurePackAccount('enterprise'); o.entIdempotent = ent2 === ent1;
+    o.entInAcc = Team.packAccounts().enterprise === home;
     Team.isSuper = () => false; o.notSuper = await Team.ensurePackAccount('basic') === null; Team.isSuper = sup;
     return o; } catch (e) { return { err: String(e.message || e) + ' ' + String(e.stack || '').split('\n')[1] }; } });
   log('v1.0.? [comptes de pack]', tPkAcc);
-  log('errors v1.0.? comptes de pack', !tPkAcc.err && ['created', 'idempotent', 'remembered', 'badPlan', 'notSuper'].every(k => tPkAcc[k]) ? [] : ['v1.0.? comptes de pack ' + JSON.stringify(tPkAcc)]);
+  log('errors v1.0.? comptes de pack', !tPkAcc.err && ['created', 'idempotent', 'remembered', 'badPlan', 'entHome', 'entIdempotent', 'entInAcc', 'notSuper'].every(k => tPkAcc[k]) ? [] : ['v1.0.? comptes de pack ' + JSON.stringify(tPkAcc)]);
   const tTa = await A.pg.evaluate(async () => { try { const o = {};
     o.auto = tailleOf({}, 'basic') === 'petite' && tailleOf({}, 'business') === 'moyenne' && tailleOf({}, 'enterprise') === 'grande' && tailleOf(null, 'pro') === 'petite';
     o.explicit = tailleOf({ taille: 'grande' }, 'basic') === 'grande' && tailleOf({ taille: 'petite' }, 'enterprise') === 'petite' && tailleOf({ taille: 'moyenne' }, 'business') === 'moyenne';
