@@ -44,11 +44,15 @@ const MOD_LABEL = (m) => ((MODS.find(x => x[0] === m) || [m, m])[1]).split(' (')
 const qty = (n, unit) => n ? `${n}${unit ? ' ' + unit : ''}` : 'Illimités';
 const storageL = (g) => (g >= 1000 ? g / 1000 + ' To' : g + ' Go') + ' (indicatif)';
 // carte d'offre : utilisateurs inclus, projets actifs, services, stockage, outils (liste détaillée), prix et essai
-function offerCard(P, perso, btn = true) {
+// opts (écran « Choisir le pack », Super Admin) : forceLock impose le visuel 🔒 indépendamment de ST_SUPER (cohérence avec
+// ce que voit un client) ; canAct garde un bouton data-p actionnable malgré le verrou visuel (le Super Admin construit quand
+// même) ; current ajoute le badge « espace actuel ». Sans opts : comportement strictement inchangé (onboarding, onglet Pro).
+function offerCard(P, perso, btn = true, opts = null) {
   const dev = planDev(P), mods = P.modules === '*' ? MODS.map(([m]) => m) : P.modules, price = dev ? 'En cours de développement' : P.price == null ? 'Sur devis' : P.price ? `${P.price} MAD / ${P.period}` : 'Gratuit';
   const act = P.price == null ? 'Demander un devis · essai' : P.price ? `Démarrer l'essai ${P.trialDays || 14} jours` : 'Commencer gratuitement';
-  const locked = btn && !planOpen(P) && !ST_SUPER;
-  return `<div class="st-offer ${P.highlight && !locked ? 'hl' : ''} ${locked ? 'lk' : ''}" data-offer="${P.k}"><div class="st-of-h"><b>${locked ? '🔒 ' : ''}${esc(P.e || '')} ${esc(P.l)}</b>${P.highlight && !locked ? '<i>Recommandé</i>' : ''}${locked ? `<i class="soon">${dev ? 'Bientôt' : 'Sur demande'}</i>` : ''}<em class="${P.price === 0 ? 'free' : ''}">${esc(price)}</em></div>
+  const locked = opts && typeof opts.forceLock === 'boolean' ? opts.forceLock : (btn && !planOpen(P) && !ST_SUPER);
+  const canAct = !!(opts && opts.canAct), current = !!(opts && opts.current);
+  return `<div class="st-offer ${P.highlight && !locked ? 'hl' : ''} ${locked ? 'lk' : ''} ${current ? 'cur' : ''}" data-offer="${P.k}"><div class="st-of-h"><b>${locked ? '🔒 ' : ''}${esc(P.e || '')} ${esc(P.l)}</b>${current ? '<i class="st-of-cur">✓ espace actuel</i>' : P.highlight && !locked ? '<i>Recommandé</i>' : ''}${locked ? `<i class="soon">${dev ? 'Bientôt' : 'Sur demande'}</i>` : ''}<em class="${P.price === 0 ? 'free' : ''}">${esc(price)}</em></div>
     ${P.price && P.trialDays && !dev ? `<small class="st-of-t">Essai gratuit ${P.trialDays} jours, sans paiement</small>` : ''}<small class="st-of-f">${esc(P.for || '')}</small>
     <div class="st-of-r"><span>Utilisateurs inclus</span><b>${P.users ? (perso && P.users === 1 ? '1 (vous)' : P.users) + (P.extraUserPrice && !dev ? ` (+${P.extraUserPrice} MAD / pers.)` : '') : 'Selon contrat'}</b></div>
     <div class="st-of-r"><span>Projets actifs</span><b>${qty(P.projects)}</b></div>
@@ -57,7 +61,7 @@ function offerCard(P, perso, btn = true) {
     <details class="st-of-d"><summary><span>Outils inclus</span><b>${mods.length} sur ${MODS.length}${P.hier ? ' + hiérarchie' : ''}${P.shares ? ' + groupements' : ''}</b></summary>
       <div>${MODS.map(([m]) => `<i class="${mods.includes(m) ? 'on' : ''}">${mods.includes(m) ? '✓' : '—'} ${esc(MOD_LABEL(m))}</i>`).join('')}</div></details>
     ${P.k === 'enterprise' && !perso ? '<div class="st-of-r st-of-srv"><span>🖥️ Serveur privé (vos données chez vous)</span><b>Contactez-nous</b></div>' : ''}
-    ${btn ? (locked ? `<button class="btn ghost" data-req="${P.k}">Demander l'accès</button>` : `<button class="btn ${P.highlight ? '' : 'ghost'}" data-p="${P.k}">${act}</button>`) : ''}</div>`;
+    ${btn ? ((locked && !canAct) ? `<button class="btn ghost" data-req="${P.k}">Demander l'accès</button>` : current ? '' : `<button class="btn ${P.highlight ? '' : 'ghost'}" data-p="${P.k}">${act}</button>`) : ''}</div>`;
 }
 // état de l'abonnement (la facturation n'existe pas encore : l'activation est faite par le Super Admin)
 function planStateOf(c) {
