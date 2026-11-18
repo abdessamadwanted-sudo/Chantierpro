@@ -15,6 +15,7 @@ const FEATURES = [
   ['models3d', 'Modèles 3D / Maquette 3D'],
   ['calc', 'Calculs & Topo'],
   ['gestion', 'Gestion : stock, rendement, attachements / situations, labo'],
+  ['materiaux', 'Matériaux : suivi du ferraillage (tonnage, écarts, stock)'],
   ['planning', 'Planning (Gantt)'],
   ['reunions', 'Réunions de chantier (comptes rendus)'],
   ['rfi', 'RFI : demandes au BET / architecte'],
@@ -29,7 +30,7 @@ const FEATURES = [
   ['career', 'Emploi & carrière'],
 ];
 // section du menu → fonction qui la commande (les sections absentes sont toujours visibles)
-const SECTION_FEATURE = { reception: 'reception', beton: 'reception', avancement: 'avancement', tasks: 'tasks', photos: 'photos', forms: 'forms', reports: 'reports', constat: 'constat', clauses: 'clauses', models3d: 'models3d', maquette: 'models3d', calc: 'calc', gestion: 'gestion', planning: 'planning', reunions: 'reunions', rfi: 'rfi', visa: 'visa', pointage: 'pointage', hse: 'hse', labo: 'labo', finance: 'finance', avenants: 'finance', tce: 'tce', st: 'st', org: 'org' };
+const SECTION_FEATURE = { reception: 'reception', beton: 'reception', avancement: 'avancement', tasks: 'tasks', photos: 'photos', forms: 'forms', reports: 'reports', constat: 'constat', clauses: 'clauses', models3d: 'models3d', maquette: 'models3d', calc: 'calc', gestion: 'gestion', materiaux: 'materiaux', planning: 'planning', reunions: 'reunions', rfi: 'rfi', visa: 'visa', pointage: 'pointage', hse: 'hse', labo: 'labo', finance: 'finance', avenants: 'finance', tce: 'tce', st: 'st', org: 'org' };
 
 function myFeatures() { try { return JSON.parse(localStorage.getItem('myFeatures') || '{}') || {}; } catch (e) { return {}; } }
 // fonction autorisée par la licence (l'ami ne peut pas la réactiver lui-même)
@@ -42,7 +43,7 @@ function sectionOn(key) { const f = SECTION_FEATURE[key]; return !f || featOn(f)
 function featToggles(title, state, keys, { sub } = {}) {
   return new Promise((resolve) => {
     const f = { ...state }; let res = null;
-    const ICO = { avancement: '🏗️', reception: '🔩', tasks: '⚠️', photos: '📷', forms: '📋', reports: '📝', constat: '🚫', clauses: '📚', models3d: '🧊', calc: '📐', gestion: '📦', planning: '📅', reunions: '🗓️', rfi: '❓', visa: '🛂', pointage: '👷', hse: '🦺', labo: '🧪', finance: '💰', tce: '🏢', st: '🤝', org: '👥', career: '💼' };
+    const ICO = { avancement: '🏗️', reception: '🔩', tasks: '⚠️', photos: '📷', forms: '📋', reports: '📝', constat: '🚫', clauses: '📚', models3d: '🧊', calc: '📐', gestion: '📦', materiaux: '⚖️', planning: '📅', reunions: '🗓️', rfi: '❓', visa: '🛂', pointage: '👷', hse: '🦺', labo: '🧪', finance: '💰', tce: '🏢', st: '🤝', org: '👥', career: '💼' };
     const body = () => `<div class="ft">${sub ? `<p class="ft-sub">${esc(sub)}</p>` : ''}<div class="ft-all"><button class="btn small ghost" data-all="1">Tout activer</button><button class="btn small ghost" data-all="0">Tout désactiver</button><span>${keys.filter(k => f[k] !== false).length} / ${keys.length}</span></div>
       ${keys.map(k => `<button class="ft-r ${f[k] !== false ? 'on' : ''}" data-k="${k}"><span class="ft-e">${ICO[k] || '•'}</span><span class="grow">${esc((FEATURES.find(x => x[0] === k) || [k, k])[1])}</span><i class="ft-sw"><u></u></i></button>`).join('')}
       <button class="btn ft-ok" data-ok>Enregistrer</button></div>`;
