@@ -299,7 +299,14 @@ const ST = (() => {
     // v1.0.112 : ordre des catégories choisi (appui long sur le titre : monter / descendre)
     let grpOrd = []; try { grpOrd = JSON.parse(localStorage.getItem('grp.ord') || '[]'); } catch (e) {}
     const gBase = G0.map(x => x[0]), gKeys = [...grpOrd.filter(g => gBase.includes(g)), ...gBase.filter(g => !grpOrd.includes(g))];
-    const G = gKeys.map(g => G0.find(x => x[0] === g)).filter(Boolean);
+    // v1.0.2xx : Pro Service autonome — quand tout le pack correspond à un seul service du catalogue (ex. Service
+    // Qualité, aut_0), demande du propriétaire : l'écran doit rester IDENTIQUE à celui de l'Entreprise (mêmes
+    // raccourcis, mêmes « Intervenants du projet », mêmes volets Administratif/Terrain/Commun déjà construits —
+    // voir plus bas, SVC_SHELLS/svcAcc), simplement sans les catégories génériques (Travaux/Études/Finance/
+    // Organisation) qui n'ont pas de sens ici puisque la société EST ce service.
+    const AUTO_SHELL = { aut_0: 'qual' };
+    const autoSvc = (Team.company() || {}).kind === 'service' ? AUTO_SHELL[(Team.company() || {}).svcKey] : null;
+    const G = gKeys.map(g => G0.find(x => x[0] === g)).filter(Boolean).filter(g => !autoSvc || g[0] === autoSvc);
     const T = projTypeOf(p.type) || {};
     // v1.0.46 : actions rapides en une rangée compacte, catégories dépliables (état mémorisé), rien sous le bouton « plans »
     let opened = null; try { opened = JSON.parse(localStorage.getItem('ptools.open') || 'null'); } catch (e) {}
@@ -402,25 +409,6 @@ const ST = (() => {
         if (w) { M[v] = w; try { localStorage.setItem(qsKey(S), JSON.stringify(M)); } catch (e) {} } }
       renderProjectTools(root); };
     const qualKs = (G.find(x => x[0] === 'qual') || [0, 0, []])[2];
-    // v1.0.2xx : Pro Service autonome — tout le pack correspond à un seul service du catalogue (ex. Service
-    // Qualité) : demande du propriétaire — l'accueil du projet doit utiliser EXACTEMENT le même gabarit que
-    // les volets Administratif / Terrain / Commun déjà construits pour l'Entreprise (SVC_SHELLS/svcSplit),
-    // sans les catégories génériques (Travaux/Études/Finance/Organisation) ni « Intervenants du projet »,
-    // qui n'ont pas de sens quand la société EST ce service.
-    const C = Team.company() || {};
-    const AUTO_SHELL = { aut_0: 'qual', aut_1: 'hse', aut_2: 'travaux', aut_12: 'topo', aut_13: 'labo' };
-    const autoK = C.kind === 'service' ? AUTO_SHELL[C.svcKey] : null;
-    if (autoK) {
-      const S = SVC_SHELLS.find(x => x.k === autoK) || SVC_SHELLS[0];
-      root.innerHTML = `<div class="st-ptools-p">
-        <div class="st-hd"><b>${esc(T.e || '🏗️')} ${esc(p.name)}</b><small>${esc(T.n || 'Projet')}${p.address ? ' · ' + esc(p.address) : ''}</small></div>
-        ${svcSplit(S, [])}
-      </div>`;
-      root.querySelectorAll('details.st-qs').forEach(d => d.addEventListener('toggle', () => { const L = [...root.querySelectorAll('details.st-qs[open]')].map(x => x.dataset.qs); try { localStorage.setItem('ptools.qs', JSON.stringify(L)); } catch (e) {} }));
-      root.querySelectorAll('[data-a=qsset]').forEach(b => b.onclick = () => qsSet(S, []));
-      root.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { App.section = b.dataset.tool; App.search = ''; renderSection(); });
-      return;
-    }
     // v1.0.? : raccourcis rapides (Plans, Photos en masse…) retirés du pack Basic (demande du propriétaire) —
     // Basic doit rester simple comme à l'origine ; la barre réapparaît à partir de Pro.
     const qaOn = plan().k !== 'basic';
@@ -429,8 +417,8 @@ const ST = (() => {
       ${qaOn ? `<div class="st-qa ${Math.max(1, QA.length) <= 4 ? 'qa-l' : Math.max(1, QA.length) <= 8 ? 'qa-m' : 'qa-s'}" style="--n:${Math.max(1, QA.length)}">${QA.map(([k, ic, l, c]) => `<button class="st-qa-b" data-a="${k}" style="--c:${c}"><i>${icon(ic)}</i><span>${l}</span></button>`).join('')}${QA.length ? '' : `<button class="st-qa-b st-qa-add" data-a="qaadd" style="--c:#475569"><i>${icon('plus')}</i><span>Ajouter</span></button>`}</div>
       <p class="st-thint2" style="margin:-4px 0 6px">Appui long sur la barre : ajouter · réorganiser · retirer</p>` : ''}
       ${ivHtml()}
-      ${G.map(([g, l, ks]) => (g === 'qual' && svcq() ? '' : `<details class="st-tcat st-acc" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(l.replace(/^\S+\s/, ''))}<small>${ks.length}</small><i class="st-chev">${icon('chevdown')}</i></summary>
-        <div class="st-tgrid">${ks.map(k => toolBtn(k, g)).join('')}</div></details>`) + `${g === 'qual' && svcq() && !entOn() ? svcAcc(SVC_SHELLS[0], ks) : ''}`).join('')}
+      ${G.map(([g, l, ks]) => (g === 'qual' && (svcq() || autoSvc === 'qual') ? '' : `<details class="st-tcat st-acc" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(l.replace(/^\S+\s/, ''))}<small>${ks.length}</small><i class="st-chev">${icon('chevdown')}</i></summary>
+        <div class="st-tgrid">${ks.map(k => toolBtn(k, g)).join('')}</div></details>`) + `${g === 'qual' && (svcq() || autoSvc === 'qual') && !entOn() ? svcAcc(SVC_SHELLS[0], ks) : ''}`).join('')}
       ${entOn() ? '' : SVC_SHELLS.slice(1).filter(S => Team.flag(S.flag)).map(S => svcAcc(S, [])).join('')}
       <details class="st-tcat st-acc" data-g="biblio" style="--c:#5B4BA8" ${opened.includes('biblio') ? 'open' : ''}><summary class="st-tcat-h">Bibliothèque métier<small>${esc(plan().l)}</small><i class="st-chev">${icon('chevdown')}</i></summary>
         <div class="st-tgrid" style="grid-template-columns:1fr"><button class="st-pb st-pb-lib" data-a="library" style="margin:0">${icon('grid')}<span><b>Ouvrir la bibliothèque</b><small>Outils réunis et classés selon votre service · pack ${esc(plan().l)}</small></span>${icon('chevright')}</button></div></details>

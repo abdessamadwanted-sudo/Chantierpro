@@ -2601,16 +2601,17 @@ try {
   log('service autonome Travaux (Pro Service autonome)', vSvt);
   log('errors service autonome travaux', !vSvt.err && vSvt.svtHome && vSvt.feat && vSvt.projRow && vSvt.kpiEcart && vSvt.openedProj && vSvt.openedMat && vSvt.standardAfter ? [] : ['service autonome travaux ' + JSON.stringify(vSvt)]);
   // ---- service autonome « Qualité » (Pro Service autonome) : « Outils du projet » (ST.renderProjectTools) doit
-  // afficher DIRECTEMENT les volets Administratif / Terrain / Commun du service Qualité (SVC_SHELLS « qual »), à la
-  // place des catégories génériques (Travaux/Études/Finance/Organisation) et sans « Intervenants du projet » —
-  // uniquement pour kind:'service' & svcKey:'aut_0' ; tout autre compte garde l'écran standard.
+  // rester IDENTIQUE à l'écran de l'Entreprise (demande du propriétaire, capture à l'appui) — mêmes « Intervenants
+  // du projet » (vides ici, faute de vrais intervenants sur ce projet de test — mais pas supprimés) et mêmes volets
+  // Administratif / Terrain / Commun du service Qualité (SVC_SHELLS « qual ») — seules les catégories génériques
+  // (Travaux/Études/Finance/Organisation) disparaissent, puisque la société EST ce service ; uniquement pour
+  // kind:'service' & svcKey:'aut_0' ; tout autre compte garde l'écran standard.
   const vSvq = await A.pg.evaluate(async () => { const o = {}; try { const p = App.project, origCompany = Team.company;
     Team.company = () => ({ name: 'Service Qualité Test', kind: 'service', svcKey: 'aut_0' });
     const root = document.createElement('div'); root.style.display = 'none'; document.body.appendChild(root);
     ST.renderProjectTools(root);
     o.adm = !!root.querySelector('[data-qs=adm]'); o.ter = !!root.querySelector('[data-qs=ter]'); o.com = !!root.querySelector('[data-qs=com]');
     o.noStdGroups = !root.querySelector('[data-g=trav]') && !root.querySelector('[data-g=etu]') && !root.querySelector('[data-g=fin]');
-    o.noInterv = !root.textContent.includes('Intervenants du projet');
     root.remove();
     Team.company = origCompany; App.project = p;
     const root2 = document.createElement('div'); root2.style.display = 'none'; document.body.appendChild(root2);
@@ -2618,7 +2619,7 @@ try {
     root2.remove();
   } catch (e) { o.err = String(e.message || e); } return o; });
   log('service autonome Qualité (volets Administratif/Terrain/Commun)', vSvq);
-  log('errors service autonome qualite', !vSvq.err && vSvq.adm && vSvq.ter && vSvq.com && vSvq.noStdGroups && vSvq.noInterv && vSvq.standardAfter ? [] : ['service autonome qualite ' + JSON.stringify(vSvq)]);
+  log('errors service autonome qualite', !vSvq.err && vSvq.adm && vSvq.ter && vSvq.com && vSvq.noStdGroups && vSvq.standardAfter ? [] : ['service autonome qualite ' + JSON.stringify(vSvq)]);
   // ---- organisation : équipes, affectations datées, effectif unique, rendements, périmètre par métier, projet linéaire
   const vOg = await A.pg.evaluate(async () => { const o = {}; try { const p = App.project, C = OrgCrews.calc, hold = p.team;
     const pid = p.id, T = (id, name, poste, trades, me) => ({ id, name, poste, trades: trades || [], me: !!me }), today = todayISO(), d = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
