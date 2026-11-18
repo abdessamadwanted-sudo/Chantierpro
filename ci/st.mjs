@@ -2562,6 +2562,26 @@ try {
   } catch (e) { o.err = String(e.message || e); } return o; });
   log('module matériaux (ferraillage)', vMt);
   log('errors module matériaux', !vMt.err && vMt.noAlertUnder3 && vMt.stockOk && vMt.alertOver3 && vMt.alerteEcart && vMt.alerteStock && vMt.sep && vMt.list && vMt.fiche && vMt.stockView && vMt.sec ? [] : ['module matériaux ' + JSON.stringify(vMt)]);
+  // ---- service autonome « Travaux » (Pro Service autonome) : accueil dédié (renderSvcTravaux) à la place de renderHome,
+  // uniquement pour la compagnie kind:'service' & svcKey:'aut_2' ; tout autre compte garde l'accueil standard (.home2).
+  const vSvt = await A.pg.evaluate(async () => { const o = {}; try { const p = App.project, origCompany = Team.company;
+    const art = { id: 'svtA1', projectId: p.id, kind: 'mta', nom: 'Voiles', note: '', createdAt: Date.now(), by: 'T' };
+    const dl = { id: 'svtD1', projectId: p.id, kind: 'mtd', artId: 'svtA1', diam: 'HA14', nbBarres: 10, tonnage: 1 };
+    const mvE = { id: 'svtMvE', projectId: p.id, kind: 'mtm', type: 'entree', diam: 'HA14', tonnage: 1, artId: null, bl: 'BL-X', at: Date.now(), by: 'T' };
+    const mvS = { id: 'svtMvS', projectId: p.id, kind: 'mtm', type: 'sortie', diam: 'HA14', tonnage: 0.95, artId: 'svtA1', at: Date.now(), by: 'T' };   // -5 % : alerte écart
+    await DB.put('items', art); await DB.put('items', dl); await DB.put('items', mvE); await DB.put('items', mvS);
+    Team.company = () => ({ name: 'Service Travaux Test', kind: 'service', svcKey: 'aut_2' });
+    await renderHome();
+    o.svtHome = !!document.querySelector('.svt-home'); o.feat = !!document.querySelector('.svt-feat'); o.projRow = !!document.querySelector('.svt-pc');
+    o.kpiEcart = document.querySelector('.svt-kpi.r b') ? document.querySelector('.svt-kpi.r b').textContent.trim() === '1' : false;   // 1 écart agrégé (≥3 %)
+    document.querySelector('.svt-pc').click(); await new Promise(r => setTimeout(r, 50)); o.openedProj = !!App.project && App.section === 'plans';
+    App.project = null; await renderHome(); document.querySelector('[data-mat]').click(); await new Promise(r => setTimeout(r, 50));
+    o.openedMat = !!App.project && App.section === 'materiaux';
+    Team.company = origCompany; App.project = p; App.section = 'plans'; await renderHome(); o.standardAfter = !!document.querySelector('.home2') && !document.querySelector('.svt-home');
+    for (const id of ['svtA1', 'svtD1', 'svtMvE', 'svtMvS']) await DB.del('items', id);
+  } catch (e) { o.err = String(e.message || e); } return o; });
+  log('service autonome Travaux (Pro Service autonome)', vSvt);
+  log('errors service autonome travaux', !vSvt.err && vSvt.svtHome && vSvt.feat && vSvt.projRow && vSvt.kpiEcart && vSvt.openedProj && vSvt.openedMat && vSvt.standardAfter ? [] : ['service autonome travaux ' + JSON.stringify(vSvt)]);
   // ---- organisation : équipes, affectations datées, effectif unique, rendements, périmètre par métier, projet linéaire
   const vOg = await A.pg.evaluate(async () => { const o = {}; try { const p = App.project, C = OrgCrews.calc, hold = p.team;
     const pid = p.id, T = (id, name, poste, trades, me) => ({ id, name, poste, trades: trades || [], me: !!me }), today = todayISO(), d = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
