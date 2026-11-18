@@ -282,15 +282,15 @@ try {
   await L.pg.click('[data-o=aut_2]'); await L.pg.waitForSelector('.svt-home', { timeout: 20000 }); await L.pg.waitForTimeout(800); await shot(L.pg, '55_pro_autonome_travaux');
   log('L service autonome Travaux', await L.pg.evaluate(() => [Team.plan().k, Team.company().kind, Team.company().svcKey, !!document.querySelector('.svt-feat'), !document.querySelector('.home2')]));
   log('errors v1.0.? pro autonome', L.errs);
-  // ---- v1.0.2xx : Pro Service autonome « Qualité » (aut_0) — même parcours que Travaux, mais l'accueil
-  // (renderSvcQualite) réutilise le gabarit visuel .svt-* existant ; les outils, eux, réutilisent EXACTEMENT
-  // les volets Administratif / Terrain / Commun déjà construits pour l'Entreprise (SVC_SHELLS « qual » dans
-  // siteteam.js), vérifié séparément ci-dessous (test logique vSvq, dans le compte Entreprise réel A).
+  // ---- v1.0.2xx : Pro Service autonome « Qualité » (aut_0) — demande du propriétaire (capture à l'appui) :
+  // l'accueil reste l'accueil standard (.home2, barre du bas) comme n'importe quel espace Pro, pas un écran à
+  // part ; seul « Outils du projet » (ST.renderProjectTools) est spécifique au service Qualité, vérifié
+  // séparément ci-dessous (test logique vSvq, dans le compte Entreprise réel A).
   const M = await newUser('M'); await signup(M.pg, 'Samira Qualite', 'samira.qualite@test.ma');
   await M.pg.click('[data-a=perso]'); await M.pg.waitForSelector('.st-offers'); await M.pg.click('[data-p=pro]');
   await M.pg.waitForSelector('[data-a=svc]'); await M.pg.click('[data-a=svc]'); await M.pg.waitForSelector('[data-o]', { timeout: 15000 });
-  await M.pg.click('[data-o=aut_0]'); await M.pg.waitForSelector('.svt-home', { timeout: 20000 }); await M.pg.waitForTimeout(800); await shot(M.pg, '55b_pro_autonome_qualite');
-  log('M service autonome Qualité', await M.pg.evaluate(() => [Team.plan().k, Team.company().kind, Team.company().svcKey, !document.querySelector('.svt-feat'), !document.querySelector('.home2')]));
+  await M.pg.click('[data-o=aut_0]'); await M.pg.waitForSelector('.home2', { timeout: 20000 }); await M.pg.waitForTimeout(800); await shot(M.pg, '55b_pro_autonome_qualite');
+  log('M service autonome Qualité', await M.pg.evaluate(() => [Team.plan().k, Team.company().kind, Team.company().svcKey, !!document.querySelector('.st-bnav'), !document.querySelector('.svt-home')]));
   log('errors v1.0.? pro autonome qualite', M.errs);
   // ---- v1.0.18 : service Qualité — services fermés, organigramme qualité, missions, validation des PV, documentation
   log('services par défaut', await setSvcs(['direction', 'qualite', 'externe', 'perso']));
