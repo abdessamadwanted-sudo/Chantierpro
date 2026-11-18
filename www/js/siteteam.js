@@ -289,6 +289,62 @@ const ST = (() => {
       ${esp ? `<div class="st-tcat st-esp" data-g="esp" style="--c:#3D5A80;${open === 'esp' ? '' : 'display:none'}">${esp}</div>` : ''}
       ${!open ? '<p class="st-thint">Touchez une catégorie pour afficher ses outils.</p>' : ''}</div>`;
   }
+  const toolBtn = (k, g) => `<button class="st-tool" data-tool="${k}" style="--c:${CAT_C[catOf(k)] || CAT_C[g] || 'var(--accent)'}"><i class="st-ico">${icon(SECTIONS[k].icon || 'grid')}</i><span>${esc(toolName(k))}</span></button>`;
+  // ---- Services en volets (Enterprise + Pro Service autonome) : un même gabarit pour chaque service — Administratif /
+  // Terrain / Commun. Pour ajouter ou modifier un service ou ses outils : éditer SVC_SHELLS. Au niveau module (et non
+  // dans renderProjectTools) pour que team.js/packpick.js puissent lister ces mêmes services via ST.SVC_SHELLS /
+  // ST.INTERVENANTS (écran de choix du service, Pro Service autonome) sans dupliquer ces données.
+  const COMMUN = { tabproj: 'com', localisation: 'com', visio: 'com', monespace: 'com', team: 'com', org: 'com', histo: 'com' };
+  const SVC_SHELLS = [
+    { k: 'qual', flag: 'svcqual', nom: 'Service Qualité', c: '#0d9488', side: 'qual.side', tools: [], map: { docq: 'adm', clauses: 'adm', visa: 'adm', rfi: 'adm', reception: 'ter', forms: 'ter', constat: 'ter', labo: 'ter', hse: 'ter', beton: 'ter', ...COMMUN },
+      ui: { adm: 'Documents, archives, clauses', ter: 'Réceptions, contrôles, PV, labo', com: 'Équipe, organigramme, mon espace' } },
+    { k: 'travaux', flag: 'svctravaux', nom: 'Service Travaux', c: '#2563eb', tools: ['planning', 'reunions', 'gestion', 'pointage', 'avancement', 'suiviq', 'equipes', 'lotsuivi', 'beton', 'calc', 'models3d'], map: { planning: 'adm', reunions: 'adm', gestion: 'adm', pointage: 'adm', lotsuivi: 'ter', beton: 'ter', calc: 'ter', models3d: 'ter', suiviq: 'ter', equipes: 'ter', avancement: 'com', ...COMMUN },
+      ui: { adm: 'Planning, réunions, gestion', ter: 'Suivi des lots, béton, avancement', com: 'Équipe, organigramme, mon espace' } },
+    { k: 'hse', flag: 'svchse', nom: 'Service HSE', c: '#ea580c', tools: ['hse', 'hseplans', 'constat', 'forms', 'pointage', 'reunions'], map: { reunions: 'adm', forms: 'adm', pointage: 'adm', hseplans: 'ter', hse: 'ter', constat: 'ter', ...COMMUN },
+      ui: { adm: 'Réunions, formulaires, effectifs', ter: 'Inspections, constats, sécurité', com: 'Équipe, organigramme, mon espace' } },
+    { k: 'topo', flag: 'svctopo', nom: 'Service Topographique', c: '#0891b2', tools: ['calc', 'models3d', 'maquette', 'avancement'], map: { models3d: 'adm', maquette: 'adm', calc: 'ter', avancement: 'ter', ...COMMUN },
+      ui: { adm: 'Plans, maquettes, modèles', ter: 'Calculs, implantation, relevés', com: 'Équipe, organigramme, mon espace' } },
+    { k: 'labo', flag: 'svclabo', nom: 'Service Laboratoire', c: '#8b5cf6', tools: ['labo', 'beton', 'forms', 'docq'], map: { docq: 'adm', forms: 'adm', labo: 'ter', beton: 'ter', ...COMMUN },
+      ui: { adm: 'Documents, formulaires', ter: 'Essais, prélèvements, béton', com: 'Équipe, organigramme, mon espace' } },
+    // v1.0.2xx : Études (aut_5) et Finance (aut_10) — mêmes outils que les catégories génériques « Études & 3D »
+    // et « Gestion & finance » (DR_GROUPS, org.js), simplement répartis en volets pour le Pro Service autonome.
+    { k: 'etu', flag: 'svcetu', nom: 'Service Études', c: '#7c3aed', tools: ['rfi', 'visa', 'calc', 'models3d', 'maquette'], map: { rfi: 'adm', visa: 'adm', calc: 'ter', models3d: 'ter', maquette: 'ter', ...COMMUN },
+      ui: { adm: 'RFI, visas', ter: 'Calculs, maquettes, 3D', com: 'Équipe, organigramme, mon espace' } },
+    { k: 'fin', flag: 'svcfin', nom: 'Service Finance', c: '#16a34a', tools: ['finance', 'gestion', 'tce', 'avenants', 'pointage', 'st'], map: { finance: 'adm', gestion: 'adm', tce: 'adm', avenants: 'ter', pointage: 'ter', st: 'ter', ...COMMUN },
+      ui: { adm: 'Finance, gestion, TCE', ter: 'Avenants, pointage, sous-traitants', com: 'Équipe, organigramme, mon espace' } },
+  ];
+  // ---- Niveau « Intervenants du projet » : l'Entreprise (ses services ci-dessus) + chaque intervenant externe = une organisation avec ses propres services, chacun en 3 volets. Structure seulement ; modifier ici pour ajuster les services d'un intervenant.
+  const UI0 = { adm: 'Documents, plans, visas', ter: 'Terrain, contrôles, suivi', com: 'Équipe, organigramme, mon espace' };
+  const mk = (k, nom, c, adm, ter, com) => ({ k, nom, c, tools: [...adm, ...ter], map: { ...Object.fromEntries(adm.map(t => [t, 'adm'])), ...Object.fromEntries(ter.map(t => [t, 'ter'])), ...(com ? Object.fromEntries(com.map(t => [t, 'com'])) : {}), ...COMMUN }, ui: UI0 });
+  const INTERVENANTS = [
+    { k: 'bet', e: '📐', nom: 'BET', c: '#7c3aed', flag: 'espbet', services: [
+      mk('bet.struct', 'Structure', '#7c3aed', ['plans', 'docq', 'visa'], ['calc']), mk('bet.fluides', 'Fluides / Électricité', '#7c3aed', ['plans', 'docq', 'visa'], ['calc']),
+      mk('bet.metre', 'Métré & estimation', '#7c3aed', ['gestion', 'docq'], ['calc']), mk('bet.exec', 'Suivi d\'exécution (visas)', '#7c3aed', ['visa', 'rfi', 'reunions'], ['constat'])] },
+    { k: 'archi', e: '🏛️', nom: 'Architecte / MOE', c: '#db2777', flag: 'esparchi', services: [
+      mk('archi.concep', 'Conception & plans', '#db2777', ['plans', 'clauses', 'docq'], ['models3d', 'maquette']), mk('archi.exec', 'Suivi d\'exécution', '#db2777', ['visa', 'rfi', 'reunions'], ['constat']),
+      mk('archi.opc', 'Coordination (OPC)', '#db2777', ['planning', 'reunions'], ['avancement', 'lotsuivi'])] },
+    { k: 'moa', e: '🏗️', nom: 'Maître d\'ouvrage / AMO', c: '#b45309', flag: 'espmoa', services: [
+      mk('moa.budget', 'Programme & budget', '#b45309', ['gestion', 'docq', 'reunions'], []), mk('moa.valid', 'Validations & paiements', '#b45309', ['visa', 'gestion'], ['avancement']),
+      mk('moa.tech', 'Suivi technique', '#b45309', ['reunions'], ['avancement', 'constat'])] },
+    { k: 'bc', e: '🔍', nom: 'Bureau de contrôle', c: '#be123c', flag: 'espbc', services: [
+      mk('bc.avis', 'Avis techniques', '#be123c', ['clauses', 'visa', 'docq'], []), mk('bc.ctrl', 'Contrôles chantier', '#be123c', ['forms'], ['constat', 'hse', 'reception']),
+      mk('bc.recep', 'Réception', '#be123c', ['docq'], ['reception', 'constat'])] },
+    { k: 'labo', e: '🧪', nom: 'Laboratoire (externe)', c: '#8b5cf6', flag: 'esplabo', services: [
+      mk('labo.beton', 'Essais béton', '#8b5cf6', ['forms'], ['beton', 'labo']), mk('labo.sols', 'Sols / géotechnique', '#8b5cf6', ['forms', 'docq'], ['labo']),
+      mk('labo.rapp', 'Rapports', '#8b5cf6', ['docq', 'forms'], [])] },
+    { k: 'topo', e: '📍', nom: 'Topographe (externe)', c: '#0891b2', flag: 'esptopo', services: [
+      mk('topo.impl', 'Implantation', '#0891b2', ['models3d'], ['calc']), mk('topo.rel', 'Relevés', '#0891b2', ['maquette'], ['calc', 'avancement']),
+      mk('topo.asb', 'As-built', '#0891b2', ['plans', 'models3d', 'docq'], [])] },
+    { k: 'at', e: '🤝', nom: 'Assistance technique / Délégué', c: '#4d7c0f', flag: 'espat', services: [
+      mk('at.suivi', 'Suivi technique', '#4d7c0f', ['reunions', 'visa'], ['avancement', 'constat'])] },
+  ];
+  const ALL_SHELLS = [...SVC_SHELLS, ...INTERVENANTS.flatMap(I => I.services)];
+  // v1.0.2xx : Pro Service autonome — un intervenant (BET, Architecte, Bureau de contrôle, Laboratoire ou Topographe
+  // externe, Assistance technique) peut aussi être choisi comme service autonome (demande du propriétaire : « même
+  // principe pour les intervenants aussi ») — clé dédiée (iv_*, jamais dans le catalogue studio.json : Team.createService
+  // accepte n'importe quelle clé) ; l'écran affiche alors TOUS les services de cet intervenant (déjà en 3 volets),
+  // comme il les montre déjà aujourd'hui sous « Intervenants du projet » côté Entreprise.
+  const IV_AUTO_KEY = { iv_bet: 'bet', iv_archi: 'archi', iv_moa: 'moa', iv_bc: 'bc', iv_labo: 'labo', iv_topo: 'topo', iv_at: 'at' };
   // ---------- v1.0.38 : accueil du projet — les outils de CE projet (type, fonctions du projet, service, pack), par catégorie ----------
   function renderProjectTools(root) {
     const p = App.project; if (!p) return;
@@ -310,8 +366,11 @@ const ST = (() => {
     // standard » : leur donner de faux volets vides serait plus trompeur que de dire clairement qu'ils
     // attendent encore leurs outils.
     const AUTO_SHELL = { aut_0: 'qual', aut_1: 'hse', aut_2: 'travaux', aut_5: 'etu', aut_10: 'fin', aut_12: 'topo', aut_13: 'labo' };
-    const autoSvc = (Team.company() || {}).kind === 'service' ? AUTO_SHELL[(Team.company() || {}).svcKey] : null;
-    const G = gKeys.map(g => G0.find(x => x[0] === g)).filter(Boolean).filter(g => !autoSvc || g[0] === autoSvc);
+    const company0 = Team.company() || {};
+    const autoSvc = company0.kind === 'service' ? AUTO_SHELL[company0.svcKey] : null;
+    // v1.0.2xx : même principe pour un intervenant choisi comme Pro Service autonome (voir IV_AUTO_KEY, module scope)
+    const autoIv = (!autoSvc && company0.kind === 'service') ? IV_AUTO_KEY[company0.svcKey] : null;
+    const G = gKeys.map(g => G0.find(x => x[0] === g)).filter(Boolean).filter(g => !(autoSvc || autoIv) || g[0] === autoSvc);
     const T = projTypeOf(p.type) || {};
     // v1.0.46 : actions rapides en une rangée compacte, catégories dépliables (état mémorisé), rien sous le bouton « plans »
     let opened = null; try { opened = JSON.parse(localStorage.getItem('ptools.open') || 'null'); } catch (e) {}
@@ -333,53 +392,6 @@ const ST = (() => {
     const QA = qaKeys.filter(k => qaAvailOf(k) && !qaHid.includes(k)).map(k => qaSpecOf(k)).filter(Boolean);
     const qaSave = (ord, hid, add) => { try { localStorage.setItem('qa.ord', JSON.stringify(ord)); localStorage.setItem('qa.hid', JSON.stringify(hid)); if (add) localStorage.setItem('qa.add', JSON.stringify(add)); } catch (e) {} };
     // v1.0.2xx : réservé au pack Enterprise (Basic et autres packs : liste d'origine) — le service Qualité se déplie en deux volets — Administratif (bureau) et Terrain (chantier) — plus un volet Commun ; la répartition se règle (⚙️)
-    const toolBtn = (k, g) => `<button class="st-tool" data-tool="${k}" style="--c:${CAT_C[catOf(k)] || CAT_C[g] || 'var(--accent)'}"><i class="st-ico">${icon(SECTIONS[k].icon || 'grid')}</i><span>${esc(toolName(k))}</span></button>`;
-    // ---- Services en volets (Enterprise) : un même gabarit pour chaque service — Administratif / Terrain / Commun. Pour ajouter ou modifier un service ou ses outils : éditer SVC_SHELLS.
-    const COMMUN = { tabproj: 'com', localisation: 'com', visio: 'com', monespace: 'com', team: 'com', org: 'com', histo: 'com' };
-    const SVC_SHELLS = [
-      { k: 'qual', flag: 'svcqual', nom: 'Service Qualité', c: '#0d9488', side: 'qual.side', tools: [], map: { docq: 'adm', clauses: 'adm', visa: 'adm', rfi: 'adm', reception: 'ter', forms: 'ter', constat: 'ter', labo: 'ter', hse: 'ter', beton: 'ter', ...COMMUN },
-        ui: { adm: 'Documents, archives, clauses', ter: 'Réceptions, contrôles, PV, labo', com: 'Équipe, organigramme, mon espace' } },
-      { k: 'travaux', flag: 'svctravaux', nom: 'Service Travaux', c: '#2563eb', tools: ['planning', 'reunions', 'gestion', 'pointage', 'avancement', 'suiviq', 'equipes', 'lotsuivi', 'beton', 'calc', 'models3d'], map: { planning: 'adm', reunions: 'adm', gestion: 'adm', pointage: 'adm', lotsuivi: 'ter', beton: 'ter', calc: 'ter', models3d: 'ter', suiviq: 'ter', equipes: 'ter', avancement: 'com', ...COMMUN },
-        ui: { adm: 'Planning, réunions, gestion', ter: 'Suivi des lots, béton, avancement', com: 'Équipe, organigramme, mon espace' } },
-      { k: 'hse', flag: 'svchse', nom: 'Service HSE', c: '#ea580c', tools: ['hse', 'hseplans', 'constat', 'forms', 'pointage', 'reunions'], map: { reunions: 'adm', forms: 'adm', pointage: 'adm', hseplans: 'ter', hse: 'ter', constat: 'ter', ...COMMUN },
-        ui: { adm: 'Réunions, formulaires, effectifs', ter: 'Inspections, constats, sécurité', com: 'Équipe, organigramme, mon espace' } },
-      { k: 'topo', flag: 'svctopo', nom: 'Service Topographique', c: '#0891b2', tools: ['calc', 'models3d', 'maquette', 'avancement'], map: { models3d: 'adm', maquette: 'adm', calc: 'ter', avancement: 'ter', ...COMMUN },
-        ui: { adm: 'Plans, maquettes, modèles', ter: 'Calculs, implantation, relevés', com: 'Équipe, organigramme, mon espace' } },
-      { k: 'labo', flag: 'svclabo', nom: 'Service Laboratoire', c: '#8b5cf6', tools: ['labo', 'beton', 'forms', 'docq'], map: { docq: 'adm', forms: 'adm', labo: 'ter', beton: 'ter', ...COMMUN },
-        ui: { adm: 'Documents, formulaires', ter: 'Essais, prélèvements, béton', com: 'Équipe, organigramme, mon espace' } },
-      // v1.0.2xx : Études (aut_5) et Finance (aut_10) — mêmes outils que les catégories génériques « Études & 3D »
-      // et « Gestion & finance » (DR_GROUPS, org.js), simplement répartis en volets pour le Pro Service autonome.
-      { k: 'etu', flag: 'svcetu', nom: 'Service Études', c: '#7c3aed', tools: ['rfi', 'visa', 'calc', 'models3d', 'maquette'], map: { rfi: 'adm', visa: 'adm', calc: 'ter', models3d: 'ter', maquette: 'ter', ...COMMUN },
-        ui: { adm: 'RFI, visas', ter: 'Calculs, maquettes, 3D', com: 'Équipe, organigramme, mon espace' } },
-      { k: 'fin', flag: 'svcfin', nom: 'Service Finance', c: '#16a34a', tools: ['finance', 'gestion', 'tce', 'avenants', 'pointage', 'st'], map: { finance: 'adm', gestion: 'adm', tce: 'adm', avenants: 'ter', pointage: 'ter', st: 'ter', ...COMMUN },
-        ui: { adm: 'Finance, gestion, TCE', ter: 'Avenants, pointage, sous-traitants', com: 'Équipe, organigramme, mon espace' } },
-    ];
-    // ---- Niveau « Intervenants du projet » : l'Entreprise (ses services ci-dessus) + chaque intervenant externe = une organisation avec ses propres services, chacun en 3 volets. Structure seulement ; modifier ici pour ajuster les services d'un intervenant.
-    const UI0 = { adm: 'Documents, plans, visas', ter: 'Terrain, contrôles, suivi', com: 'Équipe, organigramme, mon espace' };
-    const mk = (k, nom, c, adm, ter, com) => ({ k, nom, c, tools: [...adm, ...ter], map: { ...Object.fromEntries(adm.map(t => [t, 'adm'])), ...Object.fromEntries(ter.map(t => [t, 'ter'])), ...(com ? Object.fromEntries(com.map(t => [t, 'com'])) : {}), ...COMMUN }, ui: UI0 });
-    const INTERVENANTS = [
-      { k: 'bet', e: '📐', nom: 'BET', c: '#7c3aed', flag: 'espbet', services: [
-        mk('bet.struct', 'Structure', '#7c3aed', ['plans', 'docq', 'visa'], ['calc']), mk('bet.fluides', 'Fluides / Électricité', '#7c3aed', ['plans', 'docq', 'visa'], ['calc']),
-        mk('bet.metre', 'Métré & estimation', '#7c3aed', ['gestion', 'docq'], ['calc']), mk('bet.exec', 'Suivi d\'exécution (visas)', '#7c3aed', ['visa', 'rfi', 'reunions'], ['constat'])] },
-      { k: 'archi', e: '🏛️', nom: 'Architecte / MOE', c: '#db2777', flag: 'esparchi', services: [
-        mk('archi.concep', 'Conception & plans', '#db2777', ['plans', 'clauses', 'docq'], ['models3d', 'maquette']), mk('archi.exec', 'Suivi d\'exécution', '#db2777', ['visa', 'rfi', 'reunions'], ['constat']),
-        mk('archi.opc', 'Coordination (OPC)', '#db2777', ['planning', 'reunions'], ['avancement', 'lotsuivi'])] },
-      { k: 'moa', e: '🏗️', nom: 'Maître d\'ouvrage / AMO', c: '#b45309', flag: 'espmoa', services: [
-        mk('moa.budget', 'Programme & budget', '#b45309', ['gestion', 'docq', 'reunions'], []), mk('moa.valid', 'Validations & paiements', '#b45309', ['visa', 'gestion'], ['avancement']),
-        mk('moa.tech', 'Suivi technique', '#b45309', ['reunions'], ['avancement', 'constat'])] },
-      { k: 'bc', e: '🔍', nom: 'Bureau de contrôle', c: '#be123c', flag: 'espbc', services: [
-        mk('bc.avis', 'Avis techniques', '#be123c', ['clauses', 'visa', 'docq'], []), mk('bc.ctrl', 'Contrôles chantier', '#be123c', ['forms'], ['constat', 'hse', 'reception']),
-        mk('bc.recep', 'Réception', '#be123c', ['docq'], ['reception', 'constat'])] },
-      { k: 'labo', e: '🧪', nom: 'Laboratoire (externe)', c: '#8b5cf6', flag: 'esplabo', services: [
-        mk('labo.beton', 'Essais béton', '#8b5cf6', ['forms'], ['beton', 'labo']), mk('labo.sols', 'Sols / géotechnique', '#8b5cf6', ['forms', 'docq'], ['labo']),
-        mk('labo.rapp', 'Rapports', '#8b5cf6', ['docq', 'forms'], [])] },
-      { k: 'topo', e: '📍', nom: 'Topographe (externe)', c: '#0891b2', flag: 'esptopo', services: [
-        mk('topo.impl', 'Implantation', '#0891b2', ['models3d'], ['calc']), mk('topo.rel', 'Relevés', '#0891b2', ['maquette'], ['calc', 'avancement']),
-        mk('topo.asb', 'As-built', '#0891b2', ['plans', 'models3d', 'docq'], [])] },
-      { k: 'at', e: '🤝', nom: 'Assistance technique / Délégué', c: '#4d7c0f', flag: 'espat', services: [
-        mk('at.suivi', 'Suivi technique', '#4d7c0f', ['reunions', 'visa'], ['avancement', 'constat'])] },
-    ];
-    const ALL_SHELLS = [...SVC_SHELLS, ...INTERVENANTS.flatMap(I => I.services)];
     // organisation partenaire invitée (Team.sharedOf) : son rôle dans le projet (bet, architecte, bcontrole…) lui ouvre SON espace d'intervenant, et seulement lui — jamais l'Entreprise ni les autres intervenants ; ses outils restent bornés par les accès (voir / modifier) donnés à l'invitation
     const IV_OF_ROLE = { mo: 'moa', mod: 'moa', architecte: 'archi', bet: 'bet', bcontrole: 'bc', labo: 'labo', topoext: 'topo' };
     const partnerSh = () => { try { return Team.sharedOf(p.id) || null; } catch (e) { return null; } };
@@ -432,6 +444,7 @@ const ST = (() => {
         return (shellHere ? '' : `<details class="st-tcat st-acc" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(l.replace(/^\S+\s/, ''))}<small>${ks.length}</small><i class="st-chev">${icon('chevdown')}</i></summary>
         <div class="st-tgrid">${ks.map(k => toolBtn(k, g)).join('')}</div></details>`) + `${shellHere && !entOn() ? svcAcc(shellHere, ks) : ''}`; }).join('')}
       ${entOn() ? '' : SVC_SHELLS.slice(1).filter(S => Team.flag(S.flag) || (S.k === autoSvc && !G.some(x => x[0] === S.k))).map(S => svcAcc(S, [])).join('')}
+      ${autoIv ? (INTERVENANTS.find(I => I.k === autoIv) || { services: [] }).services.map(S => svcAcc(S, [], true)).join('') : ''}
       <details class="st-tcat st-acc" data-g="biblio" style="--c:#5B4BA8" ${opened.includes('biblio') ? 'open' : ''}><summary class="st-tcat-h">Bibliothèque métier<small>${esc(plan().l)}</small><i class="st-chev">${icon('chevdown')}</i></summary>
         <div class="st-tgrid" style="grid-template-columns:1fr"><button class="st-pb st-pb-lib" data-a="library" style="margin:0">${icon('grid')}<span><b>Ouvrir la bibliothèque</b><small>Outils réunis et classés selon votre service · pack ${esc(plan().l)}</small></span>${icon('chevright')}</button></div></details>
       <details class="st-tcat st-acc" data-g="tableaux" style="--c:#2563EB" ${opened.includes('tableaux') ? 'open' : ''}><summary class="st-tcat-h">Tableaux<small>5</small><i class="st-chev">${icon('chevdown')}</i></summary>
@@ -966,5 +979,5 @@ const ST = (() => {
   }
 
   function refreshRole() { applyRole(); try { App.project ? renderSection() : renderHome(); } catch (e) {} }
-  return { families: FAMILIES, openDash, openPro, openTeamHub, openServiceLibrary, profileCardHTML, wsBtnHTML, wsMenu, renderProjectTools, isEnt: () => plan().k === 'enterprise', svcq, quickPack, setPack, ivKeyOfRole: (r) => ({ mo: 'moa', mod: 'moa', architecte: 'archi', bet: 'bet', bcontrole: 'bc', labo: 'labo', topoext: 'topo' })[r] || null, directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
+  return { families: FAMILIES, openDash, openPro, openTeamHub, openServiceLibrary, profileCardHTML, wsBtnHTML, wsMenu, renderProjectTools, isEnt: () => plan().k === 'enterprise', svcq, quickPack, setPack, SVC_SHELLS, INTERVENANTS, ivKeyOfRole: (r) => ({ mo: 'moa', mod: 'moa', architecte: 'archi', bet: 'bet', bcontrole: 'bc', labo: 'labo', topoext: 'topo' })[r] || null, directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
 })();

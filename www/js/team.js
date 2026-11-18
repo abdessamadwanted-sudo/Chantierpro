@@ -1539,13 +1539,21 @@ const Team = (() => {
           <div class="st-orgs st-orgs-svc" data-list><p class="st-of-n">Chargement…</p></div>
           <button class="linkbtn" data-a="back">← Retour</button></div>`;
         back(stepProKind);
+        // v1.0.2xx : un intervenant (BET, Architecte, Bureau de contrôle, Laboratoire ou Topographe externe,
+        // Assistance technique) peut aussi devenir un Pro Service autonome — demande du propriétaire (« même
+        // principe pour les intervenants aussi ») — en réutilisant ST.INTERVENANTS (déjà construit, mêmes volets
+        // que côté Entreprise) ; clé dédiée iv_* (jamais dans studio.json, Team.createService l'accepte librement).
+        const cardHtml = (n) => `<button class="st-svc-c" data-o="${esc(n.id)}" style="--c:${n.c}"><span class="dot">${n.e}</span><span class="grow"><b>${esc(n.label)}</b><small>${esc(n.sub)}</small></span>${n.badge ? `<em>${n.badge}</em>` : ''}<i>›</i></button>`;
         (async () => {
           let L = []; try { const raw = await (await fetch('assets/studio.json')).json(); L = raw.filter(n => n.kind === 'service' && n.parent === 'autonomous'); } catch (e) {}
+          const IV = (typeof ST !== 'undefined' && ST.INTERVENANTS) || [];
           const box = $('[data-list]', el); if (!box) return;
-          if (!L.length) { box.innerHTML = '<p class="st-of-n">Catalogue indisponible — réessayez plus tard.</p>'; return; }
-          box.innerHTML = L.map(n => { const [c, e, vol, sub] = SVC_DESC[n.id] || ['#7c3aed', '🧩', null, 'Interface standard (en attendant sa version dédiée)'];
-            return `<button class="st-svc-c" data-o="${esc(n.id)}" style="--c:${c}"><span class="dot">${e}</span><span class="grow"><b>${esc(n.label)}</b><small>${esc(sub)}</small></span>${vol ? `<em>${vol}</em>` : ''}<i>›</i></button>`; }).join('');
-          $$('[data-o]', box).forEach(b => b.onclick = () => createAutonome(L.find(x => x.id === b.dataset.o)));
+          if (!L.length && !IV.length) { box.innerHTML = '<p class="st-of-n">Catalogue indisponible — réessayez plus tard.</p>'; return; }
+          const cardsA = L.map(n => { const [c, e, vol, sub] = SVC_DESC[n.id] || ['#7c3aed', '🧩', null, 'Interface standard (en attendant sa version dédiée)']; return { id: n.id, label: n.label, c, e, badge: vol, sub }; });
+          const cardsB = IV.map(I => ({ id: 'iv_' + I.k, label: I.nom, c: I.c, e: I.e, badge: I.services.length + ' services', sub: 'Chaque service en 3 volets (Administratif/Terrain/Commun)' }));
+          box.innerHTML = cardsA.map(cardHtml).join('') + (cardsB.length ? `<p class="st-thint2" style="margin:10px 0 4px">Intervenants (organisations partenaires)</p>${cardsB.map(cardHtml).join('')}` : '');
+          const all = [...cardsA, ...cardsB];
+          $$('[data-o]', box).forEach(b => b.onclick = () => createAutonome(all.find(x => x.id === b.dataset.o)));
         })();
       }
       // création directe d'un espace « service autonome » en pack Pro (payé par le service lui-même, essai 14 jours

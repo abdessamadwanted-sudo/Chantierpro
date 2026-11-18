@@ -72,19 +72,25 @@ const PackPick = (() => {
       aut_12: ['#0891b2', '📍', '3 volets', 'Plans, maquettes, calculs, implantation'],
       aut_13: ['#8b5cf6', '🧪', '3 volets', 'Documents, essais, prélèvements béton'],
     };
+    // v1.0.2xx : même liste que team.js (stepAutonomeSvc) — services du catalogue + intervenants (ST.INTERVENANTS,
+    // clé iv_*) — pour que la prévisualisation Super Admin montre exactement les mêmes choix que le parcours réel.
+    const cardHtmlPP = (n) => `<button class="st-svc-c" data-o="${esc(n.id)}" style="--c:${n.c}"><span class="dot">${n.e}</span><span class="grow"><b>${esc(n.label)}</b><small>${esc(n.sub)}</small></span>${n.badge ? `<em>${n.badge}</em>` : ''}<i>›</i></button>`;
     async function pickAutonomeService() {
       let L = []; try { const raw = await (await fetch('assets/studio.json')).json(); L = raw.filter(n => n.kind === 'service' && n.parent === 'autonomous'); } catch (e) {}
-      if (!L.length) return toast('Catalogue indisponible');
+      const IV = (typeof ST !== 'undefined' && ST.INTERVENANTS) || [];
+      if (!L.length && !IV.length) return toast('Catalogue indisponible');
+      const cardsA = L.map(n => { const [c, e, vol, sub] = SVC_DESC[n.id] || ['#7c3aed', '🧩', null, 'Interface standard (en attendant sa version dédiée)']; return { id: n.id, label: n.label, c, e, badge: vol, sub }; });
+      const cardsB = IV.map(I => ({ id: 'iv_' + I.k, label: I.nom, c: I.c, e: I.e, badge: I.services.length + ' services', sub: 'Chaque service en 3 volets (Administratif/Terrain/Commun)' }));
+      const all = [...cardsA, ...cardsB];
       const v = await new Promise((resolve) => {
         let picked = null;
-        const s = sheet(`<div class="st-orgs st-orgs-svc">${L.map(n => { const [c, e, vol, sub] = SVC_DESC[n.id] || ['#7c3aed', '🧩', null, 'Interface standard (en attendant sa version dédiée)'];
-          return `<button class="st-svc-c" data-o="${esc(n.id)}" style="--c:${c}"><span class="dot">${e}</span><span class="grow"><b>${esc(n.label)}</b><small>${esc(sub)}</small></span>${vol ? `<em>${vol}</em>` : ''}<i>›</i></button>`; }).join('')}</div>`, {
+        const s = sheet(`<div class="st-orgs st-orgs-svc">${cardsA.map(cardHtmlPP).join('')}${cardsB.length ? `<p class="st-thint2" style="margin:10px 0 4px">Intervenants (organisations partenaires)</p>${cardsB.map(cardHtmlPP).join('')}` : ''}</div>`, {
           title: 'Pro Service autonome : quel service ?',
           onMount: (el) => $$('[data-o]', el).forEach(b => b.onclick = () => { picked = b.dataset.o; s.close(); }),
         });
         s.onClose = () => resolve(picked);
       });
-      const n = L.find(x => x.id === v); if (!n) return open();
+      const n = all.find(x => x.id === v); if (!n) return open();
       const ld2 = loading('Création du service « ' + n.label + ' »…');
       try { const cid = await Team.createService(n.label, n.id); if (cid) { try { sessionStorage.setItem(SKIP, '1'); } catch (e) {} await Team.switchTo(cid); } }
       finally { ld2.close(); }
