@@ -135,7 +135,8 @@ async function renderHome() {
   // v1.0.? : « Service autonome » Pro (Architecture Studio) — chaque service construit petit à petit sa propre
   // interface dédiée (demande du propriétaire) ; Travaux (svcKey « aut_2 ») est le premier. Tant qu'un service n'a
   // pas encore la sienne, il garde l'accueil standard ci-dessous (inchangé pour tout le reste de l'application).
-  if (Team.ready()) { const C = Team.company(); if (C && C.kind === 'service' && C.svcKey === 'aut_2' && typeof renderSvcTravaux === 'function') return renderSvcTravaux(); }
+  if (Team.ready()) { const C = Team.company(); if (C && C.kind === 'service' && C.svcKey === 'aut_2' && typeof renderSvcTravaux === 'function') return renderSvcTravaux();
+    if (C && C.kind === 'service' && C.svcKey === 'aut_0' && typeof renderSvcQualite === 'function') return renderSvcQualite(); }
   App.fromBrief = null;
   const keepScroll = App.project ? 0 : (($('.h2-body') || {}).scrollTop || 0);
   $('#app').classList.remove('with-bnav');

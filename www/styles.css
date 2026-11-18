@@ -4245,6 +4245,11 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .svt-pc{flex:1;display:flex;align-items:center;gap:10px;background:var(--card,#fff);border:none;border-radius:14px;padding:10px 12px;text-align:left;cursor:pointer}
 .svt-pc .av{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--c1),var(--c2));color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
 .svt-pc small{display:block;color:var(--muted,#687c8b);font-size:11.5px}
+.st-svc-c{width:100%;display:flex;align-items:center;gap:12px;background:var(--card,#fff);border:1px solid var(--c);border-radius:16px;padding:12px 14px;margin-bottom:8px;text-align:left;cursor:pointer}
+.st-svc-c .dot{width:36px;height:36px;border-radius:50%;background:var(--c);color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;flex:none}
+.st-svc-c b{display:block;font-size:14.5px}.st-svc-c small{display:block;color:var(--muted,#687c8b);font-size:11.5px;margin-top:2px}
+.st-svc-c em{font-style:normal;font-size:11px;font-weight:700;color:var(--c);background:color-mix(in srgb,var(--c) 15%,transparent);border-radius:999px;padding:3px 9px;white-space:nowrap}
+.st-svc-c i{color:var(--muted,#687c8b)}
 .svt-pm{width:44px;border:none;border-radius:14px;background:var(--card,#fff);font-size:16px;cursor:pointer}
 
 /* ===== Organisation : équipes, effectifs, rendements (fiche personne / fiche équipe) ===== */

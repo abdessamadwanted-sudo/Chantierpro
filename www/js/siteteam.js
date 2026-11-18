@@ -402,6 +402,25 @@ const ST = (() => {
         if (w) { M[v] = w; try { localStorage.setItem(qsKey(S), JSON.stringify(M)); } catch (e) {} } }
       renderProjectTools(root); };
     const qualKs = (G.find(x => x[0] === 'qual') || [0, 0, []])[2];
+    // v1.0.2xx : Pro Service autonome — tout le pack correspond à un seul service du catalogue (ex. Service
+    // Qualité) : demande du propriétaire — l'accueil du projet doit utiliser EXACTEMENT le même gabarit que
+    // les volets Administratif / Terrain / Commun déjà construits pour l'Entreprise (SVC_SHELLS/svcSplit),
+    // sans les catégories génériques (Travaux/Études/Finance/Organisation) ni « Intervenants du projet »,
+    // qui n'ont pas de sens quand la société EST ce service.
+    const C = Team.company() || {};
+    const AUTO_SHELL = { aut_0: 'qual', aut_1: 'hse', aut_2: 'travaux', aut_12: 'topo', aut_13: 'labo' };
+    const autoK = C.kind === 'service' ? AUTO_SHELL[C.svcKey] : null;
+    if (autoK) {
+      const S = SVC_SHELLS.find(x => x.k === autoK) || SVC_SHELLS[0];
+      root.innerHTML = `<div class="st-ptools-p">
+        <div class="st-hd"><b>${esc(T.e || '🏗️')} ${esc(p.name)}</b><small>${esc(T.n || 'Projet')}${p.address ? ' · ' + esc(p.address) : ''}</small></div>
+        ${svcSplit(S, [])}
+      </div>`;
+      root.querySelectorAll('details.st-qs').forEach(d => d.addEventListener('toggle', () => { const L = [...root.querySelectorAll('details.st-qs[open]')].map(x => x.dataset.qs); try { localStorage.setItem('ptools.qs', JSON.stringify(L)); } catch (e) {} }));
+      root.querySelectorAll('[data-a=qsset]').forEach(b => b.onclick = () => qsSet(S, []));
+      root.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { App.section = b.dataset.tool; App.search = ''; renderSection(); });
+      return;
+    }
     // v1.0.? : raccourcis rapides (Plans, Photos en masse…) retirés du pack Basic (demande du propriétaire) —
     // Basic doit rester simple comme à l'origine ; la barre réapparaît à partir de Pro.
     const qaOn = plan().k !== 'basic';
