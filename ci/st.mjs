@@ -2617,6 +2617,25 @@ try {
   log('errors directeur équipes & ouvrages', !vDv.err && ['counts','avF','rend','rendNone','noDouble','pct','over','multi','cap','unit','v1','v2','v3','v4','v5','nav','perm'].every(k => vDv[k]) && vDv.avV === 37.5 ? [] : ['directeur équipes & ouvrages ' + JSON.stringify(vDv)]);
   log('errors v1.0.246', !v245.err && v245.card && v245.url && v245.ov && v245.closed && v245.cr ? [] : ['v1.0.246 ' + JSON.stringify(v245)]);
   log('errors v1.0.244', !v244.err && v244.acc && v244.met && v244.div && v244.due === '2026-03-01' && v244.fr && v244.loc ? [] : ['v1.0.244 ' + JSON.stringify(v244)]);
+  // v1.0.? : boîte « type » devenue un vrai accordéon <details> (demande du propriétaire) — fermé par défaut,
+  // et « 📚 Tous les types (TOUT) » n'apparaît plus en double dans la liste quand elle est déjà la sélection affichée
+  const qa = await A.pg.evaluate(async () => { const o = {}; try { const p = App.project, f = (await DB.byProject('folders', p.id)).find(x => !x.parentId);
+    const hold = p.planLots; p.planLots = [{ id: 'a', name: 'Peinture', cat: 'CEA' }]; p.catV = 1;
+    App.lotSel = App.lotSel || {}; App.lotSel[f.id] = '__all';
+    const host = document.createElement('div'); host.innerHTML = '<div class="folder-head"></div>'; document.body.appendChild(host);
+    lotBarInto(host, f, [], document.body);
+    const tacc = host.querySelector('.lot-tacc'); o.isDetails = !!tacc && tacc.tagName === 'DETAILS'; o.closedByDefault = !!tacc && !tacc.open;
+    tacc.open = true; tacc.dispatchEvent(new Event('toggle'));
+    o.noDupAll = !tacc.querySelector('.lot-pick [data-lp="__all"]'); host.remove();
+    App.lotSel[f.id] = 'T:CEA';
+    const host2 = document.createElement('div'); host2.innerHTML = '<div class="folder-head"></div>'; document.body.appendChild(host2);
+    lotBarInto(host2, f, [], document.body);
+    const tacc2 = host2.querySelector('.lot-tacc'); tacc2.open = true; tacc2.dispatchEvent(new Event('toggle'));
+    o.hasAllWhenType = !!tacc2.querySelector('.lot-pick [data-lp="__all"]'); host2.remove();
+    App.lotSel[f.id] = '__all'; p.planLots = hold;
+  } catch (e) { o.err = String(e.message || e); } return o; });
+  log('v1.0.? [accordéon Tous les types]', qa);
+  log('errors v1.0.? accordéon type', !qa.err && qa.isDetails && qa.closedByDefault && qa.noDupAll && qa.hasAllWhenType ? [] : ['v1.0.? accordéon type ' + JSON.stringify(qa)]);
   log('errors titre plan', []);
   // ---- nom de projet jamais perdu (v1.0.264)
   const vNm = await A.pg.evaluate(async () => { const o = {}; try {

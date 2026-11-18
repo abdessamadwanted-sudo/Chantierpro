@@ -111,10 +111,13 @@ function lotBarInto(card, f, ps, root) {
   const nOfType = (k) => ps.filter(x => { const L = lots.find(l => l.id === x.lotId); return L && (L.cat || '') === k; }).length;
   const where = sel === '__all' ? '📚 Tous les types (TOUT)' : sel === '__none' ? '📄 Sans lot' : tk ? typeAbOf(tk, p) + ' · ' + typeName(typeLab(tk, p)) : 'Sans type';
   const cntTop = sel === '__all' ? ps.length : sel === '__none' ? nNo : sel.startsWith('T:') ? nOfType(tk) : cnt(sel);
-  // boîte fixe : ouvre / ferme la liste des types dessous
-  const box = document.createElement('button'); box.type = 'button'; box.className = 'lot-tbox';
-  box.innerHTML = `<span>▾ ${esc(where)}</span><small>${cntTop}</small>`;
-  bar.appendChild(box);
+  // v1.0.? : boîte fixe devenue un vrai accordéon natif (<details>/<summary>, comme .st-acc ailleurs dans l'app) —
+  // repli/déploiement natif du système, plus de panneau flottant inséré/retiré à la main
+  const tacc = document.createElement('details'); tacc.className = 'lot-tacc';
+  const box = document.createElement('summary'); box.className = 'lot-tbox';
+  box.innerHTML = `<span>${esc(where)}</span><small>${cntTop}</small><i class="lot-tchev">${icon('chevdown')}</i>`;
+  tacc.appendChild(box);
+  bar.appendChild(tacc);
   // rangée des lots du type choisi (ou de tous les lots pour TOUT)
   const chipOf = (l, on, sub) => { const D = (f.lotData || {})[l.id] || {}, di = dueInfo(D), po = lotStarted(l, D) ? paOpen(l, D).length : 0;
     return `<button type="button" class="lot-c ${on ? 'on' : ''} ${sub ? 'sub' : ''}" data-lp="${l.id}" style="--c:${l.c};--t:${tint(l.c, .16)}">${sub ? '↳ ' : l.e + ' '}${esc(l.name)}${cnt(l.id) ? ` <small>${cnt(l.id)}</small>` : ''}${po ? `<i class="lc-pa">🛑${po}</i>` : ''}${di && di.cls !== 'ok' ? `<i class="lc-due ${di.cls}">⏳</i>` : ''}${avB(l)}${sel === '__all' && on ? `<i class="lc-open" data-open="${l.id}" title="Ouvrir le lot">⤢</i>` : ''}</button>`; };
@@ -146,11 +149,13 @@ function lotBarInto(card, f, ps, root) {
           if (sel === '__all') App.lotF[f.id] = App.lotF[f.id] === K.id ? parL.id : K.id; else App.lotSel[f.id] = focus === K.id ? parL.id : K.id;
           App.keepScrollY = ($('#content') || {}).scrollTop || 0; renderPlans(root); }; } });
   }
-  // liste des types (sous la boîte), fermée par défaut
-  const pickBtn = box;
-  pickBtn.onclick = (e) => { e.stopPropagation(); const old = $('.lot-pick', card); if (old) { old.remove(); return; }
-    const list = document.createElement('div'); list.className = 'lot-pick';
-    const draw = () => {
+  // v1.0.? : liste des types — vrai accordéon <details>, fermé par défaut, construit à la demande (au premier
+  // dépli) ; « 📚 Tous les types (TOUT) » n'est plus répétée dans la liste quand elle est déjà la sélection
+  // affichée sur la boîte au-dessus (redondant) — elle reste proposée quand on est dans un type/lot précis,
+  // pour revenir à « tout » d'un tap.
+  const list = document.createElement('div'); list.className = 'lot-pick';
+  tacc.appendChild(list);
+  const draw = () => {
       const opt = (v, lab, n, cls = '') => `<button type="button" class="lp-type ${cls} ${sel === v || (v.startsWith('T:') && tk === v.slice(2) && sel.startsWith('T:')) ? 'on' : ''}" data-lp="${v}"><span>${lab}</span><small>${n}</small></button>`;
       App.famOpen = App.famOpen || {}; const fo = App.famOpen[f.id] = App.famOpen[f.id] || {}; const curFam = tk ? famOfType(p, tk) : ''; if (curFam && fo[curFam] === undefined) fo[curFam] = true;
       const TV = typesVis(f, p), famHtml = famsOf(p).map(F => { const ts = TV.filter(t => famOfType(p, t.k) === F.k); if (!ts.length) return '';
@@ -158,7 +163,7 @@ function lotBarInto(card, f, ps, root) {
         return `<button type="button" class="lp-fam ${open ? 'open' : ''}" data-fam="${F.k}"><span class="lp-fn">📁 ${esc(F.l)}</span><small>${n}</small><i>${open ? '▴' : '▾'}</i></button>`
           + (open ? `<div class="lp-fbody">${ts.map(t => opt('T:' + t.k, `<b class="lp-ab">${esc(typeAbOf(t.k, p))}</b> ${esc(typeName(t.l))}`, nOfType(t.k))).join('')}</div>` : ''); }).join('');
       const addFnd = !typeShownIn(f, { k: 'FND' }) ? `<button type="button" class="lp-i add" data-lp="__addfnd">＋ Fondations ici</button>` : '';
-      list.innerHTML = opt('__all', '📚 Tous les types (TOUT)', ps.length, 'all') + famHtml
+      list.innerHTML = (sel === '__all' ? '' : opt('__all', '📚 Tous les types (TOUT)', ps.length, 'all')) + famHtml
         + (nNo ? opt('__none', '📄 Sans lot', nNo) : '')
         + `<div class="lp-foot"><button type="button" class="lp-i add" data-lp="__addtype">＋ Nouveau type</button>${addFnd}${nNo ? `<button type="button" class="lp-i add" data-lp="__auto">✨ Classer automatiquement (${nNo})</button>` : ''}${hiddenT(f).length || hiddenL(f).length ? `<button type="button" class="lp-i add" data-lp="__restore">↺ Rétablir masqués</button>` : ''}</div>`;
       list.querySelectorAll('[data-fam]').forEach(h => {
@@ -198,9 +203,9 @@ function lotBarInto(card, f, ps, root) {
           f.hiddenTypes = [...hiddenT(f), k]; if (tk === k) App.lotSel[f.id] = '__all';
           await DB.put('folders', f); renderPlans(root); };
       });
-    };
-    draw();
-    box.after(list); };
+  };
+  // repli natif : (re)construit la liste seulement à l'ouverture (perf + compteurs toujours à jour)
+  tacc.addEventListener('toggle', () => { if (tacc.open) draw(); });
   // lot : appui long = menu (retirer de ce niveau)
   chips.querySelectorAll('[data-lp]').forEach(b => { const L = lots.find(l => l.id === b.dataset.lp); if (L) b.oncontextmenu = (e) => { e.preventDefault(); lotMenu(L, root, f); }; });
   // ajout d'un lot : rangé dans le type affiché
@@ -226,7 +231,7 @@ function lotBarInto(card, f, ps, root) {
       const idx = seq.indexOf(key);
       const ni = idx < 0 ? (dx < 0 ? 0 : n - 1) : ((idx + (dx < 0 ? 1 : -1)) % n + n) % n;
       App.lotSel = App.lotSel || {}; App.lotSel[f.id] = seq[ni]; App.keepScrollY = ($('#content') || {}).scrollTop || 0; renderPlans(root); }, { passive: true }); }
-  if (App.reopenPick === f.id) { App.reopenPick = null; setTimeout(() => pickBtn.onclick({ stopPropagation() {} }), 0); }
+  if (App.reopenPick === f.id) { App.reopenPick = null; tacc.open = true; draw(); }
   const head = $('.folder-head', card); head.after(bar);
   if (sel && sel !== '__all' && sel !== '__none' && !sel.startsWith('T:')) { const L = lots.find(l => l.id === sel); if (L) bar.after(lotPanel(L, f, root)); }
 }
