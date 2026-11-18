@@ -1528,7 +1528,12 @@ const Team = (() => {
         // la même présentation que ce qu'il connaît déjà de l'Entreprise, pas une simple liste de boutons.
         const SVC_DESC = {
           aut_0: ['#0d9488', '🛡️', '3 volets', 'Documents, réceptions, contrôles, laboratoire'],
+          aut_1: ['#ea580c', '⛑️', '3 volets', 'Réunions, inspections, constats sécurité'],
           aut_2: ['#2563eb', '🏗️', '3 volets', 'Planning, suivi des lots, Matériaux (ferraillage)'],
+          aut_5: ['#7c3aed', '📐', '3 volets', 'RFI, visas, calculs, maquettes 3D'],
+          aut_10: ['#16a34a', '💰', '3 volets', 'Finance, gestion, avenants, pointage'],
+          aut_12: ['#0891b2', '📍', '3 volets', 'Plans, maquettes, calculs, implantation'],
+          aut_13: ['#8b5cf6', '🧪', '3 volets', 'Documents, essais, prélèvements béton'],
         };
         el.innerHTML = `<div class="tm-lg-in">${steps(3, tot())}<h1>🧩 Quel service ?</h1><p>Chaque service aura sa propre interface, construite petit à petit, avec les mêmes volets que « Outils du projet ».</p>
           <div class="st-orgs st-orgs-svc" data-list><p class="st-of-n">Chargement…</p></div>

@@ -304,7 +304,12 @@ const ST = (() => {
     // raccourcis, mêmes « Intervenants du projet », mêmes volets Administratif/Terrain/Commun déjà construits —
     // voir plus bas, SVC_SHELLS/svcAcc), simplement sans les catégories génériques (Travaux/Études/Finance/
     // Organisation) qui n'ont pas de sens ici puisque la société EST ce service.
-    const AUTO_SHELL = { aut_0: 'qual' };
+    // v1.0.2xx (suite) : généralisé aux autres services autonomes qui ont déjà un gabarit réel (SVC_SHELLS) —
+    // HSE, Travaux, Études, Finance, Topographie, Laboratoire. Les services encore sans outils dédiés dans
+    // l'appli (Méthodes, Planning, Matériel, Achats, Logistique, RH, Métré, Contrôle, OPC) gardent « Interface
+    // standard » : leur donner de faux volets vides serait plus trompeur que de dire clairement qu'ils
+    // attendent encore leurs outils.
+    const AUTO_SHELL = { aut_0: 'qual', aut_1: 'hse', aut_2: 'travaux', aut_5: 'etu', aut_10: 'fin', aut_12: 'topo', aut_13: 'labo' };
     const autoSvc = (Team.company() || {}).kind === 'service' ? AUTO_SHELL[(Team.company() || {}).svcKey] : null;
     const G = gKeys.map(g => G0.find(x => x[0] === g)).filter(Boolean).filter(g => !autoSvc || g[0] === autoSvc);
     const T = projTypeOf(p.type) || {};
@@ -342,6 +347,12 @@ const ST = (() => {
         ui: { adm: 'Plans, maquettes, modèles', ter: 'Calculs, implantation, relevés', com: 'Équipe, organigramme, mon espace' } },
       { k: 'labo', flag: 'svclabo', nom: 'Service Laboratoire', c: '#8b5cf6', tools: ['labo', 'beton', 'forms', 'docq'], map: { docq: 'adm', forms: 'adm', labo: 'ter', beton: 'ter', ...COMMUN },
         ui: { adm: 'Documents, formulaires', ter: 'Essais, prélèvements, béton', com: 'Équipe, organigramme, mon espace' } },
+      // v1.0.2xx : Études (aut_5) et Finance (aut_10) — mêmes outils que les catégories génériques « Études & 3D »
+      // et « Gestion & finance » (DR_GROUPS, org.js), simplement répartis en volets pour le Pro Service autonome.
+      { k: 'etu', flag: 'svcetu', nom: 'Service Études', c: '#7c3aed', tools: ['rfi', 'visa', 'calc', 'models3d', 'maquette'], map: { rfi: 'adm', visa: 'adm', calc: 'ter', models3d: 'ter', maquette: 'ter', ...COMMUN },
+        ui: { adm: 'RFI, visas', ter: 'Calculs, maquettes, 3D', com: 'Équipe, organigramme, mon espace' } },
+      { k: 'fin', flag: 'svcfin', nom: 'Service Finance', c: '#16a34a', tools: ['finance', 'gestion', 'tce', 'avenants', 'pointage', 'st'], map: { finance: 'adm', gestion: 'adm', tce: 'adm', avenants: 'ter', pointage: 'ter', st: 'ter', ...COMMUN },
+        ui: { adm: 'Finance, gestion, TCE', ter: 'Avenants, pointage, sous-traitants', com: 'Équipe, organigramme, mon espace' } },
     ];
     // ---- Niveau « Intervenants du projet » : l'Entreprise (ses services ci-dessus) + chaque intervenant externe = une organisation avec ses propres services, chacun en 3 volets. Structure seulement ; modifier ici pour ajuster les services d'un intervenant.
     const UI0 = { adm: 'Documents, plans, visas', ter: 'Terrain, contrôles, suivi', com: 'Équipe, organigramme, mon espace' };
@@ -417,9 +428,10 @@ const ST = (() => {
       ${qaOn ? `<div class="st-qa ${Math.max(1, QA.length) <= 4 ? 'qa-l' : Math.max(1, QA.length) <= 8 ? 'qa-m' : 'qa-s'}" style="--n:${Math.max(1, QA.length)}">${QA.map(([k, ic, l, c]) => `<button class="st-qa-b" data-a="${k}" style="--c:${c}"><i>${icon(ic)}</i><span>${l}</span></button>`).join('')}${QA.length ? '' : `<button class="st-qa-b st-qa-add" data-a="qaadd" style="--c:#475569"><i>${icon('plus')}</i><span>Ajouter</span></button>`}</div>
       <p class="st-thint2" style="margin:-4px 0 6px">Appui long sur la barre : ajouter · réorganiser · retirer</p>` : ''}
       ${ivHtml()}
-      ${G.map(([g, l, ks]) => (g === 'qual' && (svcq() || autoSvc === 'qual') ? '' : `<details class="st-tcat st-acc" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(l.replace(/^\S+\s/, ''))}<small>${ks.length}</small><i class="st-chev">${icon('chevdown')}</i></summary>
-        <div class="st-tgrid">${ks.map(k => toolBtn(k, g)).join('')}</div></details>`) + `${g === 'qual' && (svcq() || autoSvc === 'qual') && !entOn() ? svcAcc(SVC_SHELLS[0], ks) : ''}`).join('')}
-      ${entOn() ? '' : SVC_SHELLS.slice(1).filter(S => Team.flag(S.flag)).map(S => svcAcc(S, [])).join('')}
+      ${G.map(([g, l, ks]) => { const shellHere = autoSvc === g ? SVC_SHELLS.find(S => S.k === g) : (g === 'qual' && svcq() ? SVC_SHELLS[0] : null);
+        return (shellHere ? '' : `<details class="st-tcat st-acc" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(l.replace(/^\S+\s/, ''))}<small>${ks.length}</small><i class="st-chev">${icon('chevdown')}</i></summary>
+        <div class="st-tgrid">${ks.map(k => toolBtn(k, g)).join('')}</div></details>`) + `${shellHere && !entOn() ? svcAcc(shellHere, ks) : ''}`; }).join('')}
+      ${entOn() ? '' : SVC_SHELLS.slice(1).filter(S => Team.flag(S.flag) || (S.k === autoSvc && !G.some(x => x[0] === S.k))).map(S => svcAcc(S, [])).join('')}
       <details class="st-tcat st-acc" data-g="biblio" style="--c:#5B4BA8" ${opened.includes('biblio') ? 'open' : ''}><summary class="st-tcat-h">Bibliothèque métier<small>${esc(plan().l)}</small><i class="st-chev">${icon('chevdown')}</i></summary>
         <div class="st-tgrid" style="grid-template-columns:1fr"><button class="st-pb st-pb-lib" data-a="library" style="margin:0">${icon('grid')}<span><b>Ouvrir la bibliothèque</b><small>Outils réunis et classés selon votre service · pack ${esc(plan().l)}</small></span>${icon('chevright')}</button></div></details>
       <details class="st-tcat st-acc" data-g="tableaux" style="--c:#2563EB" ${opened.includes('tableaux') ? 'open' : ''}><summary class="st-tcat-h">Tableaux<small>5</small><i class="st-chev">${icon('chevdown')}</i></summary>
