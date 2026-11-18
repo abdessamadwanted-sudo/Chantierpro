@@ -1523,15 +1523,23 @@ const Team = (() => {
       }
       // 2c · choix du service autonome (catalogue assets/studio.json, kind:'service' & parent:'autonomous')
       function stepAutonomeSvc() {
-        el.innerHTML = `<div class="tm-lg-in">${steps(3, tot())}<h1>🧩 Quel service ?</h1><p>Chaque service aura sa propre interface, construite petit à petit. Déjà prête : Travaux (Matériaux / ferraillage).</p>
-          <div class="st-orgs" data-list><p class="st-of-n">Chargement…</p></div>
+        // v1.0.2xx : cartes dans le même style que les volets « Outils du projet » (pastille colorée, badge « N
+        // volets », chevron) — demande du propriétaire : retrouver, dès le choix du service, les mêmes couleurs et
+        // la même présentation que ce qu'il connaît déjà de l'Entreprise, pas une simple liste de boutons.
+        const SVC_DESC = {
+          aut_0: ['#0d9488', '🛡️', '3 volets', 'Documents, réceptions, contrôles, laboratoire'],
+          aut_2: ['#2563eb', '🏗️', '3 volets', 'Planning, suivi des lots, Matériaux (ferraillage)'],
+        };
+        el.innerHTML = `<div class="tm-lg-in">${steps(3, tot())}<h1>🧩 Quel service ?</h1><p>Chaque service aura sa propre interface, construite petit à petit, avec les mêmes volets que « Outils du projet ».</p>
+          <div class="st-orgs st-orgs-svc" data-list><p class="st-of-n">Chargement…</p></div>
           <button class="linkbtn" data-a="back">← Retour</button></div>`;
         back(stepProKind);
         (async () => {
           let L = []; try { const raw = await (await fetch('assets/studio.json')).json(); L = raw.filter(n => n.kind === 'service' && n.parent === 'autonomous'); } catch (e) {}
           const box = $('[data-list]', el); if (!box) return;
           if (!L.length) { box.innerHTML = '<p class="st-of-n">Catalogue indisponible — réessayez plus tard.</p>'; return; }
-          box.innerHTML = L.map(n => `<button data-o="${esc(n.id)}"><span class="e">${n.id === 'aut_2' ? '🏗️' : '🧩'}</span><b>${esc(n.label)}</b><small>${n.id === 'aut_2' ? 'Interface dédiée disponible' : 'Interface standard (en attendant sa version dédiée)'}</small></button>`).join('');
+          box.innerHTML = L.map(n => { const [c, e, vol, sub] = SVC_DESC[n.id] || ['#7c3aed', '🧩', null, 'Interface standard (en attendant sa version dédiée)'];
+            return `<button class="st-svc-c" data-o="${esc(n.id)}" style="--c:${c}"><span class="dot">${e}</span><span class="grow"><b>${esc(n.label)}</b><small>${esc(sub)}</small></span>${vol ? `<em>${vol}</em>` : ''}<i>›</i></button>`; }).join('');
           $$('[data-o]', box).forEach(b => b.onclick = () => createAutonome(L.find(x => x.id === b.dataset.o)));
         })();
       }
