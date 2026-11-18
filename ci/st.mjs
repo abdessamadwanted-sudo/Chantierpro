@@ -2620,6 +2620,39 @@ try {
   } catch (e) { o.err = String(e.message || e); } return o; });
   log('service autonome Qualité (volets Administratif/Terrain/Commun)', vSvq);
   log('errors service autonome qualite', !vSvq.err && vSvq.adm && vSvq.ter && vSvq.com && vSvq.noStdGroups && vSvq.standardAfter ? [] : ['service autonome qualite ' + JSON.stringify(vSvq)]);
+  // ---- même principe (SVC_SHELLS + AUTO_SHELL), généralisé aux autres services autonomes qui ont déjà un vrai
+  // gabarit construit (HSE, Travaux, Études, Finance, Topographie, Laboratoire) — un seul accordéon « 3 volets »
+  // (sv-<service>) avec Administratif/Terrain/Commun, sans aucune catégorie générique restante.
+  const vSvqAll = await A.pg.evaluate(async () => { const o = {}; try { const p = App.project, origCompany = Team.company;
+    const cases = { aut_1: 'hse', aut_2: 'travaux', aut_5: 'etu', aut_10: 'fin', aut_12: 'topo', aut_13: 'labo' };
+    for (const [svcKey, shellK] of Object.entries(cases)) {
+      Team.company = () => ({ name: 'Service Test', kind: 'service', svcKey });
+      const root = document.createElement('div'); root.style.display = 'none'; document.body.appendChild(root);
+      ST.renderProjectTools(root);
+      o[svcKey] = { acc: !!root.querySelector(`[data-g="sv-${shellK}"]`), adm: !!root.querySelector('[data-qs$=adm]'), ter: !!root.querySelector('[data-qs$=ter]'),
+        noStdGroups: !root.querySelector('[data-g=trav]') && !root.querySelector('[data-g=etu]') && !root.querySelector('[data-g=fin]'), noDup: root.querySelectorAll(`[data-g="sv-${shellK}"]`).length === 1 };
+      root.remove();
+    }
+    Team.company = origCompany; App.project = p;
+  } catch (e) { o.err = String(e.message || e); } return o; });
+  log('service autonome — autres services (HSE/Travaux/Études/Finance/Topo/Labo)', vSvqAll);
+  log('errors service autonome autres', !vSvqAll.err && Object.values(vSvqAll).every(v => v && v.acc && v.adm && v.ter && v.noStdGroups && v.noDup) ? [] : ['service autonome autres ' + JSON.stringify(vSvqAll)]);
+  // ---- un intervenant (BET, Architecte, Bureau de contrôle…) choisi comme Pro Service autonome (clé iv_*, demande du
+  // propriétaire : « même principe pour les intervenants aussi ») — doit afficher TOUS ses services, chacun en 3 volets,
+  // sans catégorie générique ; ST.INTERVENANTS/ST.SVC_SHELLS doivent être exposés (team.js/packpick.js en dépendent).
+  const vSvqIv = await A.pg.evaluate(async () => { const o = {}; try { const p = App.project, origCompany = Team.company;
+    o.exported = Array.isArray(ST.INTERVENANTS) && ST.INTERVENANTS.length > 0 && Array.isArray(ST.SVC_SHELLS) && ST.SVC_SHELLS.length > 0;
+    Team.company = () => ({ name: 'BET Test', kind: 'service', svcKey: 'iv_bet' });
+    const root = document.createElement('div'); root.style.display = 'none'; document.body.appendChild(root);
+    ST.renderProjectTools(root);
+    const betI = ST.INTERVENANTS.find(I => I.k === 'bet');
+    o.allSubSvc = betI.services.every(S => !!root.querySelector(`[data-g="sv-${S.k}"]`));
+    o.noStdGroups = !root.querySelector('[data-g=trav]') && !root.querySelector('[data-g=etu]') && !root.querySelector('[data-g=fin]');
+    root.remove();
+    Team.company = origCompany; App.project = p;
+  } catch (e) { o.err = String(e.message || e); } return o; });
+  log('service autonome — intervenant (BET)', vSvqIv);
+  log('errors service autonome intervenant', !vSvqIv.err && vSvqIv.exported && vSvqIv.allSubSvc && vSvqIv.noStdGroups ? [] : ['service autonome intervenant ' + JSON.stringify(vSvqIv)]);
   // ---- organisation : équipes, affectations datées, effectif unique, rendements, périmètre par métier, projet linéaire
   const vOg = await A.pg.evaluate(async () => { const o = {}; try { const p = App.project, C = OrgCrews.calc, hold = p.team;
     const pid = p.id, T = (id, name, poste, trades, me) => ({ id, name, poste, trades: trades || [], me: !!me }), today = todayISO(), d = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
