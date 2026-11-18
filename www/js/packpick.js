@@ -60,10 +60,25 @@ const PackPick = (() => {
       if (v === 'solo') return 'pro';
       return null;
     };
+    // v1.0.2xx : mêmes cartes (pastille colorée, badge « N volets ») que l'écran réel de choix du service (team.js,
+    // stepAutonomeSvc) — demande du propriétaire : la prévisualisation Super Admin doit montrer la même présentation,
+    // pas une simple liste de boutons.
+    const SVC_DESC = {
+      aut_0: ['#0d9488', '🛡️', '3 volets', 'Documents, réceptions, contrôles, laboratoire'],
+      aut_2: ['#2563eb', '🏗️', '3 volets', 'Planning, suivi des lots, Matériaux (ferraillage)'],
+    };
     async function pickAutonomeService() {
       let L = []; try { const raw = await (await fetch('assets/studio.json')).json(); L = raw.filter(n => n.kind === 'service' && n.parent === 'autonomous'); } catch (e) {}
       if (!L.length) return toast('Catalogue indisponible');
-      const v = await menu('Pro Service autonome : quel service ?', L.map(n => ({ label: n.label, icon: 'layers', value: n.id })));
+      const v = await new Promise((resolve) => {
+        let picked = null;
+        const s = sheet(`<div class="st-orgs st-orgs-svc">${L.map(n => { const [c, e, vol, sub] = SVC_DESC[n.id] || ['#7c3aed', '🧩', null, 'Interface standard (en attendant sa version dédiée)'];
+          return `<button class="st-svc-c" data-o="${esc(n.id)}" style="--c:${c}"><span class="dot">${e}</span><span class="grow"><b>${esc(n.label)}</b><small>${esc(sub)}</small></span>${vol ? `<em>${vol}</em>` : ''}<i>›</i></button>`; }).join('')}</div>`, {
+          title: 'Pro Service autonome : quel service ?',
+          onMount: (el) => $$('[data-o]', el).forEach(b => b.onclick = () => { picked = b.dataset.o; s.close(); }),
+        });
+        s.onClose = () => resolve(picked);
+      });
       const n = L.find(x => x.id === v); if (!n) return open();
       const ld2 = loading('Création du service « ' + n.label + ' »…');
       try { const cid = await Team.createService(n.label, n.id); if (cid) { try { sessionStorage.setItem(SKIP, '1'); } catch (e) {} await Team.switchTo(cid); } }
