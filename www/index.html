@@ -34,6 +34,18 @@
   <div id="sheet-root"></div>
   <div id="toast"></div>
   <script>
+  // v1.0.3xx : capture tôt — avant même les scripts de l'application — toute erreur JS ou promesse rejetée pendant
+  // le chargement. Jusqu'ici, app.js posait ce même filet (err.log, lu par le rapport de diagnostic « mode secours »,
+  // déjà existant, partageable par WhatsApp), mais app.js est l'un des DERNIERS fichiers chargés : une erreur qui
+  // bloque le démarrage avant lui (l'écran reste sur « Ouverture… X % » puis l'appli se ferme) n'était jamais
+  // capturée. Même format (err.log), rien d'autre ne change — purement un filet de diagnostic, aucun comportement modifié.
+  (function () {
+    function keep(m) { try { var L = JSON.parse(localStorage.getItem('err.log') || '[]'); L.push(new Date().toISOString().slice(5, 19).replace('T', ' ') + ' [boot] ' + String(m).slice(0, 220)); localStorage.setItem('err.log', JSON.stringify(L.slice(-20))); } catch (e) {} }
+    window.addEventListener('error', function (e) { keep((e.message || 'erreur') + (e.filename ? ' @' + String(e.filename).split('/').pop() + ':' + e.lineno : '')); });
+    window.addEventListener('unhandledrejection', function (e) { keep('promesse : ' + ((e.reason && (e.reason.message || e.reason)) || '?')); });
+  })();
+  </script>
+  <script>
   // Sécurité des mises à jour rapides (OTA) : si une nouvelle version ne s'affiche pas en 25 s, l'application se ferme
   // et repart sur la version installée (APK) ; cette version n'est plus proposée en mise à jour rapide.
   (function () { try {
@@ -159,8 +171,11 @@
       if (cur !== tgt) raf = requestAnimationFrame(paint); }
     function heads(p) { tgt = Math.max(tgt, Math.min(1, p)); if (!raf) raf = requestAnimationFrame(paint); }
     frame(); addEventListener('resize', frame); setTimeout(function () { heads(0.12); }, 120);
+    // v1.0.3xx : dernier script chargé avec succès, mémorisé à chaque étape (diagnostic « mode secours » existant) —
+    // si le démarrage se bloque (le suivant dans L[] n'arrive jamais), on sait exactement où, au lieu de deviner.
+    try { localStorage.setItem('boot.scripts', JSON.stringify(L)); } catch (e) {}
     function go() { L.forEach(function (src) { var e = document.createElement('script'); e.src = src; e.async = false;
-      e.onerror = function () { if (/pdf\.min/.test(src)) window.pdfjsLib = null; if (/pdf-lib/.test(src)) window.PDFLib = null; step(); }; e.onload = step; function step() { n++; if (bar) bar.style.width = Math.round(8 + 72 * n / L.length) + '%'; heads(0.15 + 0.7 * n / L.length); if (n === L.length) window.__tScripts = Date.now(); }
+      e.onerror = function () { if (/pdf\.min/.test(src)) window.pdfjsLib = null; if (/pdf-lib/.test(src)) window.PDFLib = null; step(); }; e.onload = step; function step() { n++; if (bar) bar.style.width = Math.round(8 + 72 * n / L.length) + '%'; heads(0.15 + 0.7 * n / L.length); try { localStorage.setItem('boot.lastOk', n + '/' + L.length + ' ' + src); } catch (e) {} if (n === L.length) window.__tScripts = Date.now(); }
       document.body.appendChild(e); }); }
     requestAnimationFrame(function () { setTimeout(go, 0); });
     // v1.0.45 : bibliothèques PDF lourdes (pdf.js, pdf-lib, jsPDF ≈ 1,2 Mo) chargées juste après l'accueil, sans retarder l'ouverture
