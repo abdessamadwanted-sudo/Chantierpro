@@ -2333,7 +2333,10 @@ async function storageWatch() {
 async function safeModeInfo() {
   let T = [], E = []; try { T = JSON.parse(localStorage.getItem('boot.trail') || '[]'); E = JSON.parse(localStorage.getItem('err.log') || '[]'); } catch (e) {}
   try { const G = window.Capacitor?.Plugins?.GDriveAuth; if (G && G.lastCrash) { const r = await G.lastCrash({}); if (r && r.last) E.push('ANDROID ' + r.last); } } catch (e) {}
-  const txt = `SiteTeam ${typeof APP_VERSION !== 'undefined' ? APP_VERSION : ''} — ${window.__safe ? 'mode secours' : 'diagnostic'}\n${navigator.userAgent}\n\nDernières étapes :\n${T.slice(-30).join('\n')}\n\nErreurs :\n${E.slice(-10).join('\n') || '—'}`;
+  // v1.0.3xx : dernier fichier chargé avec succès avant un blocage éventuel (index.html, boot.lastOk) — si l'appli
+  // se ferme pendant « Ouverture… X % », ceci montre exactement où elle s'est arrêtée.
+  let lastOk = ''; try { lastOk = localStorage.getItem('boot.lastOk') || ''; } catch (e) {}
+  const txt = `SiteTeam ${typeof APP_VERSION !== 'undefined' ? APP_VERSION : ''} — ${window.__safe ? 'mode secours' : 'diagnostic'}\n${navigator.userAgent}\n${lastOk ? 'Dernier fichier chargé : ' + lastOk + '\n' : ''}\nDernières étapes :\n${T.slice(-30).join('\n')}\n\nErreurs :\n${E.slice(-10).join('\n') || '—'}`;
   const v = await menu(window.__safe ? '🛟 Mode secours' : 'Rapport de diagnostic', [{ label: window.__safe ? 'L\'application s\'est fermée plusieurs fois au démarrage : synchro et envoi des photos sont arrêtés pour cette ouverture. Vos données sont intactes.' : 'Dernières étapes et erreurs de l\'application (aucune donnée de chantier).', value: 'x' },
     { label: 'Envoyer le rapport (WhatsApp)', icon: 'share', value: 'wa' }, { label: 'Continuer', icon: 'check', value: 'ok' }]);
   if (v === 'wa') shareWhatsApp(txt);

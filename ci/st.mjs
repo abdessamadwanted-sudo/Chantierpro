@@ -49,6 +49,16 @@ try {
   await A.pg.waitForSelector('.home2', { timeout: 20000 }); await A.pg.waitForTimeout(800);
   await A.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove()));
   await shot(A.pg, '03_home_patron');
+  // ---- v1.0.3xx : filet de diagnostic du démarrage (index.html) — un démarrage normal ne doit laisser aucune
+  // erreur dans err.log, et boot.lastOk doit indiquer que TOUS les fichiers de la liste ont fini de charger.
+  const vBootDiag = await A.pg.evaluate(() => { const o = {}; try {
+    let E = []; try { E = JSON.parse(localStorage.getItem('err.log') || '[]'); } catch (e) {}
+    o.noBootErr = !E.some(l => /^\S+ \[boot\]/.test(l));
+    const lastOk = localStorage.getItem('boot.lastOk') || '', scripts = JSON.parse(localStorage.getItem('boot.scripts') || '[]');
+    o.allLoaded = !!lastOk && lastOk.startsWith(scripts.length + '/' + scripts.length + ' ');
+  } catch (e) { o.err = String(e.message || e); } return o; });
+  log('diagnostic démarrage (index.html)', vBootDiag);
+  log('errors diagnostic demarrage', !vBootDiag.err && vBootDiag.noBootErr && vBootDiag.allLoaded ? [] : ['diagnostic demarrage ' + JSON.stringify(vBootDiag)]);
   // créer un projet
   log('A pack/type', await A.pg.evaluate(() => [Team.plan().k, Team.orgType().k, Team.company().services.length, Team.canInvite()]));
   await A.pg.click('.fab'); await A.pg.waitForSelector('.st-types'); await shot(A.pg, '03b_types');
