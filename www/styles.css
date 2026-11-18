@@ -3752,8 +3752,16 @@ table.rec th.pinh, table.rec td.pinc { width: 34px; text-align: center; padding-
 
 /* v1.0.108 : boîte « type » fixe sous le niveau (liste dessous) + rangée des lots du type choisi */
 .lot-bar2 { flex-direction: column; align-items: stretch; overflow: visible; }
-.lot-tbox { display: flex; justify-content: space-between; align-items: center; width: 100%; border: 1px solid #334155; background: #1e293b; color: #f8fafc; border-left: 4px solid #64748b; border-radius: 10px; padding: 10px 12px; font-size: 14px; font-weight: 700; text-align: left; }
-.lot-tbox small { font-size: 12px; background: rgba(255,255,255,.18); padding: 1px 8px; border-radius: 8px; color: #e2e8f0; }
+/* v1.0.? : boîte « type » devenue un vrai accordéon <details> (repli/déploiement natif, plus de panneau inséré/retiré à la main) */
+.lot-tacc { margin: 0; }
+.lot-tacc > summary.lot-tbox { cursor: pointer; list-style: none; }
+.lot-tacc > summary.lot-tbox::-webkit-details-marker { display: none; }
+.lot-tbox { display: flex; align-items: center; width: 100%; border: 1px solid #334155; background: #1e293b; color: #f8fafc; border-left: 4px solid #64748b; border-radius: 10px; padding: 10px 12px; font-size: 14px; font-weight: 700; text-align: left; }
+.lot-tbox small { margin-left: auto; font-size: 12px; background: rgba(255,255,255,.18); padding: 1px 8px; border-radius: 8px; color: #e2e8f0; }
+.lot-tchev { display: grid; margin-left: 6px; transition: transform .2s; font-style: normal; color: #cbd5e1; }
+.lot-tchev svg.i { width: 18px; height: 18px; }
+.lot-tacc[open] .lot-tchev { transform: rotate(180deg); }
+.lot-tacc > .lot-pick { animation: accIn .2s ease-out; }
 .lot-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 6px 0 4px; }
 .lot-chips::-webkit-scrollbar { display: none; }
 
