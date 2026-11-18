@@ -250,7 +250,7 @@ try {
   log('logo', await A.pg.evaluate(() => { const c = document.querySelector('.h2-top .st-logo circle'); return [!!c, c ? c.getAttribute('fill') : null]; })); await shot(A.pg, '49_logo_header');
   let G = await newUser('G'); log('logo connexion', await G.pg.evaluate(() => !!document.querySelector('.tm-logo .st-logo'))); await shot(G.pg, '50_logo_connexion');
   await signup(G.pg, 'Nadia Pro', 'nadia@test.ma');
-  await G.pg.click('[data-a=perso]'); await G.pg.waitForSelector('.st-offers'); await G.pg.click('[data-p=pro]'); await G.pg.waitForSelector('[name=role]'); await G.pg.selectOption('[name=role]', 'cheftopo');
+  await G.pg.click('[data-a=perso]'); await G.pg.waitForSelector('.st-offers'); await G.pg.click('[data-p=pro]'); await G.pg.waitForSelector('[data-a=solo]'); await G.pg.click('[data-a=solo]'); await G.pg.waitForSelector('[name=role]'); await G.pg.selectOption('[name=role]', 'cheftopo');
   await G.pg.click('[data-a=go]'); await G.pg.waitForSelector('.home2', { timeout: 20000 }); await G.pg.waitForTimeout(800);
   await G.pg.evaluate(async () => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); await DB.put('projects', { name: 'Lotissement Nadia', type: 'vrd', team: [] }); await Sync.run({ force: true }); }); await G.pg.waitForTimeout(1500);
   log('G pro', await G.pg.evaluate(() => [Team.plan().k, Team.planState().l, Team.isPerso()]));
@@ -274,6 +274,14 @@ try {
   await A.pg.click('[data-t=inv]'); await A.pg.waitForTimeout(1500); await A.pg.click(`[data-del="${code7}"]`); await A.pg.waitForTimeout(400); await A.pg.click('.opt:has-text("Révoquer le code")'); await A.pg.waitForTimeout(1500);
   log('code révoqué', await A.pg.evaluate(async (c) => (await firebase.firestore().collection('invites').doc(c).get()).data().status, code7));
   log('errors v1.0.17', [...G.errs, ...C.errs]);
+  // ---- v1.0.? : pack Pro scindé Individuel / Service autonome — choisir « Autonome » puis un service (Travaux)
+  // crée directement l'espace et entre dans son interface dédiée (renderSvcTravaux), sans passer par stepMetier.
+  const L = await newUser('L'); await signup(L.pg, 'Rachid Autonome', 'rachid.autonome@test.ma');
+  await L.pg.click('[data-a=perso]'); await L.pg.waitForSelector('.st-offers'); await L.pg.click('[data-p=pro]');
+  await L.pg.waitForSelector('[data-a=svc]'); await L.pg.click('[data-a=svc]'); await L.pg.waitForSelector('[data-o]', { timeout: 15000 });
+  await L.pg.click('[data-o=aut_2]'); await L.pg.waitForSelector('.svt-home', { timeout: 20000 }); await L.pg.waitForTimeout(800); await shot(L.pg, '55_pro_autonome_travaux');
+  log('L service autonome Travaux', await L.pg.evaluate(() => [Team.plan().k, Team.company().kind, Team.company().svcKey, !!document.querySelector('.svt-feat'), !document.querySelector('.home2')]));
+  log('errors v1.0.? pro autonome', L.errs);
   // ---- v1.0.18 : service Qualité — services fermés, organigramme qualité, missions, validation des PV, documentation
   log('services par défaut', await setSvcs(['direction', 'qualite', 'externe', 'perso']));
   const H = await newUser('H'); await signup(H.pg, 'Karima Qualité', 'karima@test.ma');
@@ -470,7 +478,7 @@ try {
   // le Super Admin choisit un pack fermé pour son propre espace, puis change de pack sans demande
   await SA.pg.goto('http://127.0.0.1:8765/?emu=1'); await SA.pg.waitForSelector('.tm-choice', { timeout: 30000 });
   await SA.pg.click('[data-a=perso]'); await SA.pg.waitForSelector('.st-offers'); log('Super Admin : Pro choisissable', await SA.pg.evaluate(() => [!!document.querySelector('[data-p=pro]'), !!document.querySelector('[data-req]')]));
-  await SA.pg.click('[data-p=pro]'); await SA.pg.waitForSelector('[name=role]'); await SA.pg.click('[data-a=go]'); await SA.pg.waitForSelector('.home2', { timeout: 30000 });
+  await SA.pg.click('[data-p=pro]'); await SA.pg.waitForSelector('[data-a=solo]'); await SA.pg.click('[data-a=solo]'); await SA.pg.waitForSelector('[name=role]'); await SA.pg.click('[data-a=go]'); await SA.pg.waitForSelector('.home2', { timeout: 30000 });
   log('Super Admin : espace en Pro', await SA.pg.evaluate(() => Team.plan().k));
   await SA.pg.evaluate(() => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); Team.requestPack('basic', true); }); await SA.pg.waitForSelector('.opt:has-text("Activer"), .sheet [data-a=ok]', { timeout: 10000 });
   await SA.pg.click('.opt:has-text("Activer"), .sheet [data-a=ok]'); await SA.pg.waitForTimeout(2500); await SA.pg.waitForSelector('.home2', { timeout: 30000 });
@@ -2562,6 +2570,26 @@ try {
   } catch (e) { o.err = String(e.message || e); } return o; });
   log('module matériaux (ferraillage)', vMt);
   log('errors module matériaux', !vMt.err && vMt.noAlertUnder3 && vMt.stockOk && vMt.alertOver3 && vMt.alerteEcart && vMt.alerteStock && vMt.sep && vMt.list && vMt.fiche && vMt.stockView && vMt.sec ? [] : ['module matériaux ' + JSON.stringify(vMt)]);
+  // ---- service autonome « Travaux » (Pro Service autonome) : accueil dédié (renderSvcTravaux) à la place de renderHome,
+  // uniquement pour la compagnie kind:'service' & svcKey:'aut_2' ; tout autre compte garde l'accueil standard (.home2).
+  const vSvt = await A.pg.evaluate(async () => { const o = {}; try { const p = App.project, origCompany = Team.company;
+    const art = { id: 'svtA1', projectId: p.id, kind: 'mta', nom: 'Voiles', note: '', createdAt: Date.now(), by: 'T' };
+    const dl = { id: 'svtD1', projectId: p.id, kind: 'mtd', artId: 'svtA1', diam: 'HA14', nbBarres: 10, tonnage: 1 };
+    const mvE = { id: 'svtMvE', projectId: p.id, kind: 'mtm', type: 'entree', diam: 'HA14', tonnage: 1, artId: null, bl: 'BL-X', at: Date.now(), by: 'T' };
+    const mvS = { id: 'svtMvS', projectId: p.id, kind: 'mtm', type: 'sortie', diam: 'HA14', tonnage: 0.95, artId: 'svtA1', at: Date.now(), by: 'T' };   // -5 % : alerte écart
+    await DB.put('items', art); await DB.put('items', dl); await DB.put('items', mvE); await DB.put('items', mvS);
+    Team.company = () => ({ name: 'Service Travaux Test', kind: 'service', svcKey: 'aut_2' });
+    await renderHome();
+    o.svtHome = !!document.querySelector('.svt-home'); o.feat = !!document.querySelector('.svt-feat'); o.projRow = !!document.querySelector('.svt-pc');
+    o.kpiEcart = document.querySelector('.svt-kpi.r b') ? document.querySelector('.svt-kpi.r b').textContent.trim() === '1' : false;   // 1 écart agrégé (≥3 %)
+    document.querySelector('.svt-pc').click(); await new Promise(r => setTimeout(r, 50)); o.openedProj = !!App.project && App.section === 'plans';
+    App.project = null; await renderHome(); document.querySelector('[data-mat]').click(); await new Promise(r => setTimeout(r, 50));
+    o.openedMat = !!App.project && App.section === 'materiaux';
+    Team.company = origCompany; App.project = p; App.section = 'plans'; await renderHome(); o.standardAfter = !!document.querySelector('.home2') && !document.querySelector('.svt-home');
+    for (const id of ['svtA1', 'svtD1', 'svtMvE', 'svtMvS']) await DB.del('items', id);
+  } catch (e) { o.err = String(e.message || e); } return o; });
+  log('service autonome Travaux (Pro Service autonome)', vSvt);
+  log('errors service autonome travaux', !vSvt.err && vSvt.svtHome && vSvt.feat && vSvt.projRow && vSvt.kpiEcart && vSvt.openedProj && vSvt.openedMat && vSvt.standardAfter ? [] : ['service autonome travaux ' + JSON.stringify(vSvt)]);
   // ---- organisation : équipes, affectations datées, effectif unique, rendements, périmètre par métier, projet linéaire
   const vOg = await A.pg.evaluate(async () => { const o = {}; try { const p = App.project, C = OrgCrews.calc, hold = p.team;
     const pid = p.id, T = (id, name, poste, trades, me) => ({ id, name, poste, trades: trades || [], me: !!me }), today = todayISO(), d = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);

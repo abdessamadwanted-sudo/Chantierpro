@@ -48,8 +48,31 @@ const PackPick = (() => {
     el.querySelector('[data-a=x]').onclick = shut;
     el.querySelector('[data-k=__all]').onclick = () => { shut(); ST.setPack('__all'); if (typeof Studio !== 'undefined') Studio.open({ pack: 'Enterprise', onClose: () => open() }); };
     // offerCard : data-p pour les 4 packs réels (toujours actionnable ici, même verrouillé — canAct:true) ; la carte « espace actuel » n'a pas de bouton
+    // v1.0.? : pack Pro scindé en deux cartes de choix (demande du propriétaire) — « Individuel » = comportement
+    // historique (compte de test Pro, inchangé) ; « Service autonome » = choisir un service dans le catalogue puis
+    // entrer directement dans sa propre interface dédiée (voir stepProKind côté parcours réel, team.js).
+    const proKind = async () => {
+      const v = await menu('Pack Pro : comment entrer ?', [
+        { label: 'Pro Individuel', icon: 'user', value: 'solo' },
+        { label: 'Pro Service autonome', icon: 'layers', value: 'svc' },
+      ]);
+      if (v === 'svc') { shut(); await pickAutonomeService(); return null; }
+      if (v === 'solo') return 'pro';
+      return null;
+    };
+    async function pickAutonomeService() {
+      let L = []; try { const raw = await (await fetch('assets/studio.json')).json(); L = raw.filter(n => n.kind === 'service' && n.parent === 'autonomous'); } catch (e) {}
+      if (!L.length) return toast('Catalogue indisponible');
+      const v = await menu('Pro Service autonome : quel service ?', L.map(n => ({ label: n.label, icon: 'layers', value: n.id })));
+      const n = L.find(x => x.id === v); if (!n) return open();
+      const ld2 = loading('Création du service « ' + n.label + ' »…');
+      try { const cid = await Team.createService(n.label, n.id); if (cid) { try { sessionStorage.setItem(SKIP, '1'); } catch (e) {} await Team.switchTo(cid); } }
+      finally { ld2.close(); }
+    }
     el.querySelectorAll('[data-p]').forEach(b => b.onclick = async () => {
-      const k = b.dataset.p, P = PLANS[k];
+      let k = b.dataset.p;
+      if (k === 'pro') { k = await proKind(); if (!k) return; }
+      const P = PLANS[k];
       b.disabled = true;
       // v1.0.? : retour visuel IMMÉDIAT dès le tap, avant le moindre appel réseau — sur 4G, ensurePackAccount/switchTo
       // peuvent prendre quelques secondes sans que rien ne bouge à l'écran autrement, ce qui a fait croire au propriétaire

@@ -1500,10 +1500,55 @@ const Team = (() => {
           <button class="btn ghost st-codebtn" data-a="pcode">🎟 J'ai un code pack</button>
           ${perso ? '<p class="st-of-n">Invité par une organisation ? Pas de pack : c\'est elle qui paie pour vous.</p>' : ''}
           <button class="linkbtn" data-a="back">← Retour</button></div>`;
-        $$('[data-p]', el).forEach(b => b.onclick = () => { W.plan = b.dataset.p; W.espace === 'perso' ? stepMetier() : (planOf(W.plan).k === 'basic' ? stepOrgSimple() : stepOrg()); });
+        const afterPlan = () => W.espace === 'perso' ? (W.plan === 'pro' ? stepProKind() : stepMetier()) : (planOf(W.plan).k === 'basic' ? stepOrgSimple() : stepOrg());
+        $$('[data-p]', el).forEach(b => b.onclick = () => { W.plan = b.dataset.p; afterPlan(); });
         $$('[data-req]', el).forEach(b => b.onclick = () => requestPack(b.dataset.req, perso));
-        ($('[data-a=pcode]', el)||{}).onclick = async () => { const C = await askPackCode(); if (!C) return; W.code = C; W.plan = C.plan; toast(`Code accepté : ${codeLabel(C)} ✓`); W.espace === 'perso' ? stepMetier() : (planOf(W.plan).k === 'basic' ? stepOrgSimple() : stepOrg()); };
+        ($('[data-a=pcode]', el)||{}).onclick = async () => { const C = await askPackCode(); if (!C) return; W.code = C; W.plan = C.plan; toast(`Code accepté : ${codeLabel(C)} ✓`); afterPlan(); };
         back(stepEspace);
+      }
+      // 2b · pack Pro scindé (demande du propriétaire) : « Individuel » = parcours historique (ci-dessous, stepMetier)
+      // sans aucun changement ; « Service autonome » = choisir un service dans le catalogue (même liste que « Mes
+      // espaces › Nouveau service autonome ») puis entrer directement dans sa propre interface dédiée, construite
+      // une par une (Service Travaux en premier — voir renderSvcTravaux, app.js).
+      function stepProKind() {
+        el.innerHTML = `<div class="tm-lg-in">${steps(3, tot())}<h1>⭐ Pack Pro</h1><p>Comment voulez-vous utiliser Pro ?</p>
+          <div class="tm-choice">
+            <button data-a="solo"><b>👤 Pro Individuel</b><span>Vous seul : vous entrez directement, comme aujourd'hui</span></button>
+            <button data-a="svc"><b>🧩 Pro Service autonome</b><span>Un service à part (Travaux, Qualité, HSE…), avec son équipe et sa propre interface</span></button>
+          </div>
+          <button class="linkbtn" data-a="back">← Retour</button></div>`;
+        ($('[data-a=solo]', el)||{}).onclick = () => stepMetier();
+        ($('[data-a=svc]', el)||{}).onclick = () => stepAutonomeSvc();
+        back(stepPlan);
+      }
+      // 2c · choix du service autonome (catalogue assets/studio.json, kind:'service' & parent:'autonomous')
+      function stepAutonomeSvc() {
+        el.innerHTML = `<div class="tm-lg-in">${steps(3, tot())}<h1>🧩 Quel service ?</h1><p>Chaque service aura sa propre interface, construite petit à petit. Déjà prête : Travaux (Matériaux / ferraillage).</p>
+          <div class="st-orgs" data-list><p class="st-of-n">Chargement…</p></div>
+          <button class="linkbtn" data-a="back">← Retour</button></div>`;
+        back(stepProKind);
+        (async () => {
+          let L = []; try { const raw = await (await fetch('assets/studio.json')).json(); L = raw.filter(n => n.kind === 'service' && n.parent === 'autonomous'); } catch (e) {}
+          const box = $('[data-list]', el); if (!box) return;
+          if (!L.length) { box.innerHTML = '<p class="st-of-n">Catalogue indisponible — réessayez plus tard.</p>'; return; }
+          box.innerHTML = L.map(n => `<button data-o="${esc(n.id)}"><span class="e">${n.id === 'aut_2' ? '🏗️' : '🧩'}</span><b>${esc(n.label)}</b><small>${n.id === 'aut_2' ? 'Interface dédiée disponible' : 'Interface standard (en attendant sa version dédiée)'}</small></button>`).join('');
+          $$('[data-o]', box).forEach(b => b.onclick = () => createAutonome(L.find(x => x.id === b.dataset.o)));
+        })();
+      }
+      // création directe d'un espace « service autonome » en pack Pro (payé par le service lui-même, essai 14 jours
+      // comme tout pack Pro) — mêmes règles serveur que toute organisation (voir Team.createService, inchangé).
+      async function createAutonome(svc) {
+        if (!svc) return;
+        const ld = loading('Création du service « ' + svc.label + ' »…');
+        try {
+          const uid = auth.currentUser.uid, ref = fs.collection('companies').doc(), P = PLANS.pro;
+          const sub = { planStatus: 'essai', trialEndsAt: firebase.firestore.Timestamp.fromMillis(Date.now() + (P.trialDays || 14) * 864e5) };
+          await withTimeout(ref.set({ name: svc.label, ownerUid: uid, plan: 'pro', ...sub, kind: 'service', orgType: 'entreprise', services: ['direction'], svcKey: String(svc.id), createdAt: ts() }));
+          const all = Object.fromEntries(MODS.map(([m]) => [m, 4])), R = tmRoleOf(orgTypeOf('entreprise').owner || 'patron');
+          await withTimeout(ref.collection('members').doc(uid).set({ name: auth.currentUser.displayName || '', email: auth.currentUser.email, role: R.k, service: 'direction', perms: all, admin: true, allProjects: true, projects: [], managerUid: null, zone: '', createdAt: ts() }));
+          await withTimeout(fs.collection('users').doc(uid).set({ companyId: ref.id, name: auth.currentUser.displayName || '' }, { merge: true }));
+          ld.close(); toast('Service créé ✓'); done();
+        } catch (e) { ld.close(); alertBox(errMsg(e) + (e.code === 'permission-denied' ? '\n\nLes règles de sécurité Firestore sont-elles installées ?' : '')); }
       }
       // 3 · Basic Organisation : parcours simplifié (demande explicite du propriétaire) — ni choix de type d'organisation
       // ni liste de services multiples (dont « Intervenants externes ») : Basic reste le pack simple qu'il était avant
