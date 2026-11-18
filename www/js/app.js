@@ -421,6 +421,8 @@ const SECTIONS = {
   st: { label: 'Sous-traitants', icon: 'hands', render: (r) => renderSt(r), title: 'Sous-traitants', subtitle: 'Contrats · situations · paiements' },
   tabproj: { get hidden() { try { return !Team.flag('tabproj'); } catch (e) { return true; } }, label: 'Table de projet', icon: 'layers', render: (r) => TabProj.render(r), title: 'Table de projet', subtitle: 'Réserves · RFI · visas, par intervenant' },
   suiviq: { label: 'Suivi quantitatif (BPU/DQE)', icon: 'layers', render: (r) => renderSuiviQ(r), title: 'Suivi quantitatif', subtitle: 'Articles BPU/DQE · quantités par zone · prévu vs réalisé' },
+  // v1.0.? : module autonome « Matériaux » (volet Ferraillage), demandé par le propriétaire — hors de l'écran Plans, réservé Pro et plus (flag)
+  materiaux: { get hidden() { try { return !Team.flag('materiaux'); } catch (e) { return true; } }, label: 'Matériaux (Ferraillage)', icon: 'box', render: (r) => renderMateriaux(r), title: 'Matériaux', subtitle: 'Ferraillage · tonnage théorique/réel · écarts · stock' },
   equipes: { label: 'Équipes & rendements', icon: 'org', render: (r) => OrgCrews.render(r), title: 'Équipes', subtitle: 'Dashboard · effectifs · rendements · casques par grade' },
   visio: { label: 'Réunion en ligne', icon: 'meet', render: (r) => Visio.render(r), title: 'Réunion en ligne', subtitle: 'Visio par service ou intervenant' },
   localisation: { label: 'Localisation', icon: 'pin', render: (r) => Localisation.render(r), title: 'Localisation', subtitle: 'Locaux · pin Localiser sur le plan' },

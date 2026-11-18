@@ -2526,6 +2526,42 @@ try {
   } catch (e) { o.err = String(e.message || e); } return o; });
   log('suivi quantitatif', vSq);
   log('errors suivi quantitatif', !vSq.err && vSq.zero && vSq.rec && vSq.noChange && vSq.dup && vSq.sum && vSq.bad && vSq.int && vSq.dec && vSq.needNote && vSq.over && vSq.cor && vSq.corOnce && vSq.ref0 && vSq.recon && vSq.sep && vSq.list && vSq.fiche && vSq.sec && vSq.sync ? [] : ['suivi quantitatif ' + JSON.stringify(vSq)]);
+  // ---- module Matériaux (Ferraillage) : stock par diamètre, fiche par partie d'ouvrage, écarts, alertes, accès Pro et plus
+  const vMt = await A.pg.evaluate(async () => { const o = {}; try { const p = App.project, M = Materiaux, d = (v, w) => Math.abs(v - w) < 1e-6;
+    const art = { id: 'mtA1', projectId: p.id, kind: 'mta', nom: 'Poteaux', note: '', createdAt: Date.now(), by: 'T' };
+    const dl = { id: 'mtD1', projectId: p.id, kind: 'mtd', artId: 'mtA1', diam: 'HA12', nbBarres: 40, tonnage: 2 };
+    await DB.put('items', art); await DB.put('items', dl);
+    // entrée de stock, puis sorties/chute/ajout vers l'article — toujours en dessous du seuil d'alerte (3 %) d'abord
+    const mv = (type, ton, extra) => ({ id: DB.uid(), projectId: p.id, kind: 'mtm', type, diam: 'HA12', tonnage: ton, artId: type === 'entree' ? null : 'mtA1', bloc: 'B1', zone: 'Z1', niv: 'RDC', axe: 'A', fil: '3', note: '', at: Date.now(), by: 'T', ...extra });
+    await DB.put('items', mv('entree', 10, { bl: 'BL-001' })); await DB.put('items', mv('sortie', 1.9)); await DB.put('items', mv('chute', 0.08));
+    const items0 = (await DB.byProject('items', p.id)).filter(x => x.projectId === p.id);
+    const c0 = M.calcArticle(art, items0.filter(x => x.kind === 'mtd'), items0.filter(x => x.kind === 'mtm'));
+    o.noAlertUnder3 = c0.rows[0] && !c0.rows[0].alerte && d(c0.rows[0].reel, 1.98);   // 1,9 + 0,08 = 1,98 t pour 2 t théorique = -1 % : pas d'alerte
+    o.stockOk = M.calcStock(items0.filter(x => x.kind === 'mtm')).HA12 && d(M.calcStock(items0.filter(x => x.kind === 'mtm')).HA12.reste, 8.02);
+    // ajout terrain qui fait dépasser 3 % d'écart → alerte
+    await DB.put('items', mv('ajout', 0.1));
+    const items1 = (await DB.byProject('items', p.id)).filter(x => x.projectId === p.id), moves1 = items1.filter(x => x.kind === 'mtm');
+    const c1 = M.calcArticle(art, items1.filter(x => x.kind === 'mtd'), moves1);
+    o.alertOver3 = c1.rows[0] && c1.rows[0].alerte && c1.rows[0].ecartPct > 3;
+    const al1 = M.calcAlertes([art], items1.filter(x => x.kind === 'mtd'), moves1); o.alerteEcart = al1.some(a => a.type === 'ecart' && a.art.id === 'mtA1');
+    // stock presque épuisé (≤ 10 % du total entré) → alerte « stock »
+    await DB.put('items', mv('sortie', 7.5));
+    const items2 = (await DB.byProject('items', p.id)).filter(x => x.projectId === p.id), moves2 = items2.filter(x => x.kind === 'mtm');
+    const al2 = M.calcAlertes([art], items2.filter(x => x.kind === 'mtd'), moves2); o.alerteStock = al2.some(a => a.type === 'stock' && a.diam === 'HA12');
+    // séparation stricte entre projets : DB.byProject(..., p.id) ne renvoie jamais les mouvements d'un autre projet
+    await DB.put('items', { id: 'mtmAutre', projectId: 'AUTRE_PROJET', kind: 'mtm', type: 'entree', diam: 'HA12', tonnage: 999, at: Date.now(), by: 'T' });
+    o.sep = (await DB.byProject('items', p.id)).every(x => x.id !== 'mtmAutre'); await DB.del('items', 'mtmAutre');
+    // interface : liste, fiche, stock global, lien SECTIONS, accès réservé Pro et plus (flag)
+    const root = document.createElement('div'); document.body.appendChild(root); App.mt = {}; await M.render(root);
+    o.list = !!root.querySelector('.sq-art') && root.textContent.includes('Poteaux');
+    App.mt.sel = 'mtA1'; await M.render(root); o.fiche = !!root.querySelector('.mt-tbl') && root.textContent.includes('HA12');
+    App.mt.sel = null; App.mt.tab = 'stock'; await M.render(root); o.stockView = root.textContent.includes('HA12');
+    o.sec = !!SECTIONS.materiaux && typeof SECTIONS.materiaux.hidden !== 'undefined';   // visibilité pilotée par Team.flag('materiaux') : Pro et plus
+    root.remove(); App.mt = {};
+    for (const x of items2) if (x.kind && x.kind.startsWith('mt') && x.kind !== 'mt') await DB.del('items', x.id);
+  } catch (e) { o.err = String(e.message || e); } return o; });
+  log('module matériaux (ferraillage)', vMt);
+  log('errors module matériaux', !vMt.err && vMt.noAlertUnder3 && vMt.stockOk && vMt.alertOver3 && vMt.alerteEcart && vMt.alerteStock && vMt.sep && vMt.list && vMt.fiche && vMt.stockView && vMt.sec ? [] : ['module matériaux ' + JSON.stringify(vMt)]);
   // ---- organisation : équipes, affectations datées, effectif unique, rendements, périmètre par métier, projet linéaire
   const vOg = await A.pg.evaluate(async () => { const o = {}; try { const p = App.project, C = OrgCrews.calc, hold = p.team;
     const pid = p.id, T = (id, name, poste, trades, me) => ({ id, name, poste, trades: trades || [], me: !!me }), today = todayISO(), d = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
