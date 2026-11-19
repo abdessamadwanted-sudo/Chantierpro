@@ -1181,10 +1181,16 @@ const Team = (() => {
   // Le serveur perd l'espace et ses membres ; les autres membres sont sortis à leur prochaine ouverture (même logique que « retiré »).
   // Les sauvegardes Drive ne sont pas touchées.
   function isOwner() { return !!(S.company && S.user && S.company.ownerUid === S.user.uid); }
-  async function deleteEspace() {
-    const cid = S.cid, name = (S.company && S.company.name) || 'cet espace';
+  // v1.0.3xx : cid optionnel — supprimer un AUTRE espace que celui actif (depuis « Changer d'espace », demande du
+  // propriétaire : des espaces de test « Pro Service autonome » en double, sans avoir à basculer dedans d'abord —
+  // ce qui forçait un rechargement complet juste pour en supprimer un). Sans cid : comportement inchangé (espace actif).
+  async function deleteEspace(cid, nameArg) {
+    cid = cid || S.cid; const isCur = cid === S.cid;
+    const w = isCur ? null : (S.workspaces || []).find(x => x.cid === cid);
+    const name = nameArg || (isCur ? ((S.company && S.company.name) || 'cet espace') : ((w && w.name) || 'cet espace'));
     if (!cid || !S.user) return;
-    if (!isOwner()) return alertBox('Seul le propriétaire de cet espace peut le supprimer.');
+    if (isCur) { if (!isOwner()) return alertBox('Seul le propriétaire de cet espace peut le supprimer.'); }
+    else if (!w || w.role !== 'patron') return alertBox('Seul le propriétaire de cet espace peut le supprimer.');
     if (!await confirmBox(`Supprimer DÉFINITIVEMENT « ${name} » ?\n\nLes membres perdent l'accès, et les données de cet espace sont effacées de ce téléphone. Cette action est irréversible.\n\n(Les sauvegardes Drive restent dans votre Drive.)`, 'Continuer')) return;
     if (!await confirmBox(`Dernière confirmation : supprimer « ${name} » pour toujours ?`, 'Supprimer définitivement')) return;
     const ld = loading('Suppression de l\'espace…');
@@ -1197,11 +1203,13 @@ const Team = (() => {
       await withTimeout(ref.delete(), 30000);
     } catch (e) { ld.close(); console.warn('suppression espace', e); return alertBox('Suppression impossible : ' + errMsg(e)); }
     ld.close();
-    const rest = (S.workspaces || []).filter(w => w.cid !== cid && !w.pending);
-    try { await withTimeout(fs.collection('users').doc(S.user.uid).set({ companyId: rest.length ? rest[0].cid : null, workspaces: rest }, { merge: true })); } catch (e) { console.warn('liste espaces', e); }
-    LS.set('profile', { ...(LS.get('profile') || {}), companyId: rest.length ? rest[0].cid : null, workspaces: rest });
+    const rest = (S.workspaces || []).filter(x => x.cid !== cid && !x.pending);
+    try { await withTimeout(fs.collection('users').doc(S.user.uid).set({ companyId: isCur ? (rest.length ? rest[0].cid : null) : S.cid, workspaces: rest }, { merge: true })); } catch (e) { console.warn('liste espaces', e); }
+    LS.set('profile', { ...(LS.get('profile') || {}), companyId: isCur ? (rest.length ? rest[0].cid : null) : S.cid, workspaces: rest });
+    S.workspaces = rest;
     WS.forget(cid);
     await alertBox(`« ${name} » a été supprimé.`);
+    if (!isCur) return;   // espace actif inchangé : pas besoin de recharger l'application
     if (!rest.length) WS.put('st.db', 'chantier_vide');
     location.reload();
   }
