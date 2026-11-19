@@ -1316,7 +1316,17 @@ const Team = (() => {
       const snap = () => JSON.stringify([S.projectTeams, (S.members || []).map(m => m.uid + m.role), S.company && [S.company.plan, S.company.planStatus], (S.shared || []).map(x => x.pid + x.status)]), before = snap();
       rest().then(() => { if (snap() !== before) { try { gate(); if (typeof App !== 'undefined' && !App.project && document.querySelector('.home2') && !document.querySelector('.sheet-bg, .fullpage')) renderHome(); } catch (e) {} } })
         .catch(e => console.warn('actualisation', e));
-    } else await rest();
+    } else {
+      // v1.0.3xx : premier démarrage sur cet appareil (pas de cache local) — projectIds() et la partie « projets
+      // partagés » de loadShared() n'avaient aucun délai de sécurité ; sur un réseau lent/instable, une requête
+      // Firestore qui ne se termine jamais (ni succès ni erreur) bloquait tout le démarrage indéfiniment, écran
+      // « Ouverture… X % » qui ne bouge plus puis fermeture de l'application (diagnostic : tous les fichiers
+      // chargés, aucune erreur JS — le blocage était ici, après le chargement des scripts). Filet de sécurité
+      // supplémentaire : l'application démarre quand même après 20 s, avec ce qui a déjà pu être chargé ; une
+      // nouvelle tentative se fera à la prochaine ouverture ou au prochain rafraîchissement.
+      try { await withTimeout(rest(), 20000, 'chargement initial (projets/équipes) trop long'); }
+      catch (e) { console.warn('chargement initial', e); }
+    }
     try { if (!localStorage.getItem('userName') && S.me.name) localStorage.setItem('userName', S.me.name.split(' ')[0]); localStorage.setItem('askedName', '1'); } catch (e) {}
     // espaces personnels créés avant v1.0.16 : le métier était rangé comme « poste » ; on le recopie dans le profil (rien n'est effacé)
     if (isPerso() && !S.profil.metier && metierOf(S.me.role)) { S.profil = { ...S.profil, metier: S.me.role }; fs.collection('users').doc(S.user.uid).set({ profil: S.profil }, { merge: true }).catch(e => console.warn('profil', e)); }
