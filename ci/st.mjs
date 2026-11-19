@@ -285,12 +285,14 @@ try {
   log('code révoqué', await A.pg.evaluate(async (c) => (await firebase.firestore().collection('invites').doc(c).get()).data().status, code7));
   log('errors v1.0.17', [...G.errs, ...C.errs]);
   // ---- v1.0.? : pack Pro scindé Individuel / Service autonome — choisir « Autonome » puis un service (Travaux)
-  // crée directement l'espace et entre dans son interface dédiée (renderSvcTravaux), sans passer par stepMetier.
+  // crée directement l'espace et entre dans « Outils du projet » après un premier projet, sans passer par stepMetier.
+  // v1.0.3xx : Travaux a retrouvé l'accueil standard (.home2), comme Qualité ci-dessous (demande du propriétaire :
+  // même interface pour tous les services, chacun gardant seulement sa propre couleur sur ses volets).
   const L = await newUser('L'); await signup(L.pg, 'Rachid Autonome', 'rachid.autonome@test.ma');
   await L.pg.click('[data-a=perso]'); await L.pg.waitForSelector('.st-offers'); await L.pg.click('[data-p=pro]');
   await L.pg.waitForSelector('[data-a=svc]'); await L.pg.click('[data-a=svc]'); await L.pg.waitForSelector('[data-o]', { timeout: 15000 });
-  await L.pg.click('[data-o=aut_2]'); await L.pg.waitForSelector('.svt-home', { timeout: 20000 }); await L.pg.waitForTimeout(800); await shot(L.pg, '55_pro_autonome_travaux');
-  log('L service autonome Travaux', await L.pg.evaluate(() => [Team.plan().k, Team.company().kind, Team.company().svcKey, !!document.querySelector('.svt-feat'), !document.querySelector('.home2')]));
+  await L.pg.click('[data-o=aut_2]'); await L.pg.waitForSelector('.home2', { timeout: 20000 }); await L.pg.waitForTimeout(800); await shot(L.pg, '55_pro_autonome_travaux');
+  log('L service autonome Travaux', await L.pg.evaluate(() => [Team.plan().k, Team.company().kind, Team.company().svcKey, !!document.querySelector('.st-bnav'), !document.querySelector('.svt-home')]));
   log('errors v1.0.? pro autonome', L.errs);
   // ---- v1.0.2xx : Pro Service autonome « Qualité » (aut_0) — demande du propriétaire (capture à l'appui) :
   // l'accueil reste l'accueil standard (.home2, barre du bas) comme n'importe quel espace Pro, pas un écran à
