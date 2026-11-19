@@ -662,7 +662,7 @@ const ST = (() => {
     const r = btn.getBoundingClientRect();
     el.innerHTML = `<div class="ws-bg"></div><div class="ws-pn" role="menu" style="top:${Math.round(r.bottom + 6)}px">
       <div class="ws-cur"><span class="ws-e">${esc(perso() ? '👷' : org().e)}</span><span class="grow"><b>${esc(perso() ? 'Espace personnel' : C.name || '')}</b><small>${esc(plan().l)} · ${esc(perso() ? ((metierOf(Team.profil().metier) || {}).l || 'Indépendant') : R.l)}</small></span><i>✓</i></div>
-      ${W.length ? `<div class="ws-h">Changer d'espace</div>${W.map(w => `<button class="ws-it" data-wsw="${esc(w.cid)}"><span class="ws-ic e">${esc(w.kind === 'perso' ? '👷' : w.role === 'collaborateur' ? '🤝' : orgTypeOf(w.org || 'entreprise').e)}</span><span class="grow"><b>${esc(w.name || '?')}</b><small>${w.kind === 'perso' ? 'Espace personnel' : `${esc(planOf(w.plan).l)} · ${esc(tmRoleOf(w.role).l)}`}</small></span>${icon('chevright')}</button>`).join('')}` : ''}
+      ${W.length ? `<div class="ws-h">Changer d'espace</div>${W.map(w => `<div class="ws-row"><button class="ws-it" data-wsw="${esc(w.cid)}"><span class="ws-ic e">${esc(w.kind === 'perso' ? '👷' : w.role === 'collaborateur' ? '🤝' : orgTypeOf(w.org || 'entreprise').e)}</span><span class="grow"><b>${esc(w.name || '?')}</b><small>${w.kind === 'perso' ? 'Espace personnel' : `${esc(planOf(w.plan).l)} · ${esc(tmRoleOf(w.role).l)}`}</small></span>${icon('chevright')}</button>${w.role === 'patron' ? `<button class="ws-del" data-wsdel="${esc(w.cid)}" data-nm="${esc(w.name || '')}" title="Supprimer cet espace">${icon('trash')}</button>` : ''}</div>`).join('')}` : ''}
       ${item('switch', 'plus', 'Ajouter ou rejoindre un espace', 'Code d\'accès, organisation, espace personnel')}
       ${Team.isOwner && Team.isOwner() ? item('delespace', 'trash', 'Supprimer cet espace', 'Définitif · propriétaire seulement') : ''}
     </div>`;
@@ -670,6 +670,7 @@ const ST = (() => {
     const close = () => { el.remove(); unB(); }, unB = pushBack(() => el.remove());
     ($('.ws-bg', el)||{}).onclick = close;
     $$('[data-wsw]', el).forEach(b => b.onclick = () => { close(); Team.switchTo(b.dataset.wsw); });
+    $$('[data-wsdel]', el).forEach(b => b.onclick = (e) => { e.stopPropagation(); close(); Team.deleteEspace(b.dataset.wsdel, b.dataset.nm); });
     $$('[data-wm]', el).forEach(b => b.onclick = () => { const k = b.dataset.wm; close();
       if (k === 'switch') return Team.openSwitcher();
       if (k === 'delespace') return Team.deleteEspace();
@@ -979,5 +980,5 @@ const ST = (() => {
   }
 
   function refreshRole() { applyRole(); try { App.project ? renderSection() : renderHome(); } catch (e) {} }
-  return { families: FAMILIES, openDash, openPro, openTeamHub, openServiceLibrary, profileCardHTML, wsBtnHTML, wsMenu, renderProjectTools, isEnt: () => plan().k === 'enterprise', svcq, quickPack, setPack, SVC_SHELLS, INTERVENANTS, ivKeyOfRole: (r) => ({ mo: 'moa', mod: 'moa', architecte: 'archi', bet: 'bet', bcontrole: 'bc', labo: 'labo', topoext: 'topo' })[r] || null, directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
+  return { families: FAMILIES, openDash, openPro, openTeamHub, openServiceLibrary, profileCardHTML, wsBtnHTML, wsMenu, renderProjectTools, isEnt: () => plan().k === 'enterprise', svcq, quickPack, setPack, SVC_SHELLS, INTERVENANTS, bottomNav, ivKeyOfRole: (r) => ({ mo: 'moa', mod: 'moa', architecte: 'archi', bet: 'bet', bcontrole: 'bc', labo: 'labo', topoext: 'topo' })[r] || null, directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
 })();

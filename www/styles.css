@@ -2836,6 +2836,8 @@ html.th-st:not(.th-std) .h2-me span { border-color: #fff; }
 .ws-h { padding: 10px 10px 4px; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .ws-it { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border-radius: 12px; text-align: left; color: inherit; background: none; }
 .ws-it:active { background: var(--card2); } .ws-it .grow { min-width: 0; } .ws-it b { font-size: 14px; font-weight: 600; } .ws-it > svg.i { width: 16px; height: 16px; color: var(--muted); }
+.ws-row { display: flex; align-items: center; gap: 2px; } .ws-row .ws-it { flex: 1; }
+.ws-del { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; color: var(--muted); } .ws-del:active { background: var(--card2); color: #ef4444; } .ws-del svg.i { width: 16px; height: 16px; }
 .ws-ic { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--card2); color: var(--accent); flex: none; } .ws-ic svg.i { width: 18px; height: 18px; color: var(--accent); } .ws-ic.e { font-size: 18px; }
 
 /* accueil court */
@@ -4234,6 +4236,7 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .svt-av{font-size:28px;width:52px;height:52px;display:flex;align-items:center;justify-content:center;background:#ffffff22;border-radius:16px}
 .svt-id h1{font-size:19px;margin:0}.svt-id small{opacity:.85;font-size:12.5px}
 .svt-body{padding:14px 16px 40px;max-width:720px;margin:0 auto}
+#app.with-bnav .svt-body{padding-bottom:110px}
 .svt-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
 .svt-kpi{background:var(--card,#fff);border-radius:14px;padding:10px 6px;text-align:center}
 .svt-kpi b{display:block;font-size:18px}.svt-kpi span{font-size:10.5px;color:var(--muted,#687c8b)}

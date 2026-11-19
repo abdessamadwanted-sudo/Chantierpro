@@ -739,6 +739,18 @@ try {
   const wm = await A.pg.evaluate(() => [...document.querySelectorAll('.ws-dd [data-wm]')].map(b => b.dataset.wm)); log('menu de l\'espace', wm);
   if (!wm.includes('switch') || wm.some(k => ['org', 'dossier', 'aff', 'me', 'look'].includes(k))) v35.push('menu de l\'espace : seulement les espaces (v1.0.44)');
   await shot(A.pg, '142_menu_espace'); await A.pg.click('.ws-dd .ws-bg', { position: { x: 20, y: 20 } });
+  // v1.0.3xx : suppression d'un AUTRE espace (pas l'actif) depuis « Changer d'espace » — un bouton 🗑 seulement pour
+  // les espaces dont on est propriétaire (role patron), pas pour les autres (collaborateur, etc.).
+  const vWsDel = await A.pg.evaluate(() => { const o = {}; try { const origWs = Team.workspaces;
+    Team.workspaces = () => [{ cid: 'ws-test-patron', name: 'Test Patron', kind: 'org', role: 'patron', plan: 'basic' }, { cid: 'ws-test-collab', name: 'Test Collab', kind: 'org', role: 'collaborateur', plan: 'basic' }];
+    document.querySelector('[data-a=wsmenu]').click();
+    o.patronHasDel = !!document.querySelector('.ws-dd [data-wsdel="ws-test-patron"]');
+    o.collabNoDel = !document.querySelector('.ws-dd [data-wsdel="ws-test-collab"]');
+    document.querySelector('.ws-dd .ws-bg').click();
+    Team.workspaces = origWs;
+  } catch (e) { o.err = String(e.message || e); } return o; });
+  log('suppression d\'un espace non actif (bouton 🗑 réservé au propriétaire)', vWsDel);
+  log('errors suppression espace non actif', !vWsDel.err && vWsDel.patronHasDel && vWsDel.collabNoDel ? [] : ['suppression espace non actif ' + JSON.stringify(vWsDel)]);
   // outils : pas de « Tous », rien d'ouvert avant le toucher
   await A.pg.evaluate(async () => { App.homeTab = 'tools'; await renderHome(); }); await A.pg.waitForTimeout(400);
   const tl = await A.pg.evaluate(() => { App.toolCat = ''; return null; }); void tl;

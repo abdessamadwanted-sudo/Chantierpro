@@ -5,7 +5,6 @@
 // de l'application (openProject, newProjectDialog…) — seule la page d'accueil est entièrement nouvelle.
 async function renderSvcTravaux() {
   App.fromBrief = null; App.homeFocus = null; App.project = null; BackStack.length = 0;
-  $('#app').classList.remove('with-bnav');
   const C = Team.company() || {};
   const allP = (await DB.all('projects')).filter(p => App.showAllP || Team.canProject(p.id)).sort((a, b) => b.updatedAt - a.updatedAt);
   // alertes Matériaux agrégées sur tous les projets du service (écart ≥3% ou stock ≤10%) — même calcul que le module
@@ -61,4 +60,8 @@ async function renderSvcTravaux() {
     const v = await menu('Matériaux · quel projet ?', allP.map(p => ({ label: p.name || 'Projet sans nom', icon: 'box', value: p.id })));
     const p = allP.find(x => x.id === v); if (p) await openProject(p, 'materiaux');
   };
+  // v1.0.3xx : barre du bas (Projets/Pro/Équipe/Réglages) — manquait sur cet écran dédié, donc pas d'accès direct
+  // aux Réglages (compte, email) depuis l'accueil du service Travaux (demande du propriétaire, même correction déjà
+  // faite pour Qualité). Le bouton « Réglages » réutilise le même menu que le bouton ⋮ déjà présent (data-a=homemore).
+  if (typeof ST !== 'undefined' && ST.bottomNav) ST.bottomNav();
 }
