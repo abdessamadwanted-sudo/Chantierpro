@@ -4226,38 +4226,11 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .mt-tbl td{text-align:right;padding:7px 6px;border-bottom:1px solid var(--line,#eef2f5)}
 .mt-row-alert td{background:#fff3e0}
 
-/* v1.0.? : interface dédiée du service autonome « Travaux » (Pro Service autonome) — accueil propre, distinct de
-   .home2 : même famille visuelle (dégradé, cartes) mais mise en avant du module Matériaux et des projets du service. */
-.svt-home{height:100%;overflow:auto;background:var(--bg,#F2F5F9)}
-.svt-hero{background:linear-gradient(160deg,#0d9488,#134e4a);color:#fff;padding:14px 16px 20px;border-radius:0 0 22px 22px}
-/* v1.0.3xx : « Travaux » (seul service avec un accueil dédié pour l'instant) reprenait telle quelle la couleur de
-   Qualité (.svt-hero d'origine) — demande du propriétaire : chaque service autonome garde sa propre couleur
-   (ici le bleu de SVC_SHELLS « travaux », #2563eb, déjà utilisé pour ses volets dans « Outils du projet »). */
-.svt-home.trav .svt-hero{background:linear-gradient(160deg,#2563eb,#1e3a8a)}
-.svt-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-.svt-badge{display:inline-block;background:#ffffff26;border-radius:999px;padding:4px 10px;font-size:12px;margin-bottom:8px}
-.svt-id{display:flex;align-items:center;gap:12px}
-.svt-av{font-size:28px;width:52px;height:52px;display:flex;align-items:center;justify-content:center;background:#ffffff22;border-radius:16px}
-.svt-id h1{font-size:19px;margin:0}.svt-id small{opacity:.85;font-size:12.5px}
-.svt-body{padding:14px 16px 40px;max-width:720px;margin:0 auto}
-#app.with-bnav .svt-body{padding-bottom:110px}
-.svt-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
-.svt-kpi{background:var(--card,#fff);border-radius:14px;padding:10px 6px;text-align:center}
-.svt-kpi b{display:block;font-size:18px}.svt-kpi span{font-size:10.5px;color:var(--muted,#687c8b)}
-.svt-kpi.r b{color:#d04747}.svt-kpi.o b{color:#b8860b}.svt-kpi.g b{color:#087b69}
-.svt-feat{width:100%;display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,#0d9488,#0891b2);color:#fff;border:none;border-radius:16px;padding:14px 16px;margin-bottom:16px;text-align:left;cursor:pointer}
-.svt-feat .e{font-size:26px}.svt-feat b{display:block;font-size:15px}.svt-feat small{opacity:.85;font-size:12px}
-.svt-sec h3{font-size:14px;color:var(--muted,#687c8b);margin:0 0 8px}
-.svt-proj{display:flex;gap:6px;margin-bottom:6px}
-.svt-pc{flex:1;display:flex;align-items:center;gap:10px;background:var(--card,#fff);border:none;border-radius:14px;padding:10px 12px;text-align:left;cursor:pointer}
-.svt-pc .av{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--c1),var(--c2));color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
-.svt-pc small{display:block;color:var(--muted,#687c8b);font-size:11.5px}
 .st-svc-c{width:100%;display:flex;align-items:center;gap:12px;background:var(--card,#fff);border:1px solid var(--c);border-radius:16px;padding:12px 14px;margin-bottom:8px;text-align:left;cursor:pointer}
 .st-svc-c .dot{width:36px;height:36px;border-radius:50%;background:var(--c);color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;flex:none}
 .st-svc-c b{display:block;font-size:14.5px}.st-svc-c small{display:block;color:var(--muted,#687c8b);font-size:11.5px;margin-top:2px}
 .st-svc-c em{font-style:normal;font-size:11px;font-weight:700;color:var(--c);background:color-mix(in srgb,var(--c) 15%,transparent);border-radius:999px;padding:3px 9px;white-space:nowrap}
 .st-svc-c i{color:var(--muted,#687c8b)}
-.svt-pm{width:44px;border:none;border-radius:14px;background:var(--card,#fff);font-size:16px;cursor:pointer}
 
 /* ===== Organisation : équipes, effectifs, rendements (fiche personne / fiche équipe) ===== */
 .og-kp{display:flex;flex-direction:column;gap:2px;background:var(--card2,#f1f4f7);border-radius:12px;padding:10px 12px;margin:8px 0}.og-kp small{color:var(--muted)}
@@ -4354,6 +4327,10 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
 .me-r{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px;margin:0 0 8px;border-radius:14px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.08);color:inherit;font:inherit}
 .me-r.on{border-color:#2563eb;background:rgba(37,99,235,.14)}.me-r .e{font-size:24px}.me-r .grow{flex:1;min-width:0}.me-r b{display:block}.me-r small{display:block;opacity:.7;font-size:12.5px}.me-r i{opacity:.5;font-style:normal;font-size:20px}
 .me-e,.me-n{opacity:.65;font-size:13px;margin:0}.me-act{display:flex;gap:8px;margin:0 0 18px}.me-act .btn{flex:1}
+/* v1.0.3xx : suppression d'un espace directement depuis « Mes espaces » (demande du propriétaire) — même style que le
+   bouton équivalent de l'ancien sélecteur (.ws-del) ; seules les lignes d'un espace dont on est propriétaire en ont un. */
+.me-rw{display:flex;align-items:center;gap:6px;margin:0 0 8px}.me-rw .me-r{margin:0;flex:1}
+.me-del{flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:12px;color:var(--muted,#687c8b)}.me-del:active{background:rgba(148,163,184,.2);color:#ef4444}.me-del svg.i{width:17px;height:17px}
 
 /* Architecture Studio */
 .sd-pg{background:var(--bg,#0f172a);z-index:56;display:flex;flex-direction:column}.sd-body{flex:1;overflow:auto;padding:12px 14px 40px}
