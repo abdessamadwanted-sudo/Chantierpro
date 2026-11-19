@@ -4230,6 +4230,10 @@ html.th-net .sv-dayr .rec-wrap { background: #fff; }
    .home2 : même famille visuelle (dégradé, cartes) mais mise en avant du module Matériaux et des projets du service. */
 .svt-home{height:100%;overflow:auto;background:var(--bg,#F2F5F9)}
 .svt-hero{background:linear-gradient(160deg,#0d9488,#134e4a);color:#fff;padding:14px 16px 20px;border-radius:0 0 22px 22px}
+/* v1.0.3xx : « Travaux » (seul service avec un accueil dédié pour l'instant) reprenait telle quelle la couleur de
+   Qualité (.svt-hero d'origine) — demande du propriétaire : chaque service autonome garde sa propre couleur
+   (ici le bleu de SVC_SHELLS « travaux », #2563eb, déjà utilisé pour ses volets dans « Outils du projet »). */
+.svt-home.trav .svt-hero{background:linear-gradient(160deg,#2563eb,#1e3a8a)}
 .svt-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 .svt-badge{display:inline-block;background:#ffffff26;border-radius:999px;padding:4px 10px;font-size:12px;margin-bottom:8px}
 .svt-id{display:flex;align-items:center;gap:12px}

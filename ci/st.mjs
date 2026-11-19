@@ -2617,6 +2617,7 @@ try {
     Team.company = () => ({ name: 'Service Travaux Test', kind: 'service', svcKey: 'aut_2' });
     await renderHome();
     o.svtHome = !!document.querySelector('.svt-home'); o.feat = !!document.querySelector('.svt-feat'); o.projRow = !!document.querySelector('.svt-pc');
+    o.ownColor = !!document.querySelector('.svt-home.trav');   // v1.0.3xx : couleur propre à Travaux (bleu), plus la teinte de Qualité
     o.kpiEcart = document.querySelector('.svt-kpi.r b') ? document.querySelector('.svt-kpi.r b').textContent.trim() === '1' : false;   // 1 écart agrégé (≥3 %)
     document.querySelector('.svt-pc').click(); await new Promise(r => setTimeout(r, 50)); o.openedProj = !!App.project && App.section === 'plans';
     App.project = null; await renderHome(); document.querySelector('[data-mat]').click(); await new Promise(r => setTimeout(r, 50));
@@ -2625,7 +2626,7 @@ try {
     for (const id of ['svtA1', 'svtD1', 'svtMvE', 'svtMvS']) await DB.del('items', id);
   } catch (e) { o.err = String(e.message || e); } return o; });
   log('service autonome Travaux (Pro Service autonome)', vSvt);
-  log('errors service autonome travaux', !vSvt.err && vSvt.svtHome && vSvt.feat && vSvt.projRow && vSvt.kpiEcart && vSvt.openedProj && vSvt.openedMat && vSvt.standardAfter ? [] : ['service autonome travaux ' + JSON.stringify(vSvt)]);
+  log('errors service autonome travaux', !vSvt.err && vSvt.svtHome && vSvt.feat && vSvt.projRow && vSvt.kpiEcart && vSvt.openedProj && vSvt.openedMat && vSvt.standardAfter && vSvt.ownColor ? [] : ['service autonome travaux ' + JSON.stringify(vSvt)]);
   // ---- service autonome « Qualité » (Pro Service autonome) : « Outils du projet » (ST.renderProjectTools) doit
   // rester IDENTIQUE à l'écran de l'Entreprise (demande du propriétaire, capture à l'appui) — mêmes « Intervenants
   // du projet » (vides ici, faute de vrais intervenants sur ce projet de test — mais pas supprimés) et mêmes volets

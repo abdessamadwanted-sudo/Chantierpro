@@ -23,7 +23,7 @@ async function renderSvcTravaux() {
   const openT = allTasks.filter(x => allP.some(p => p.id === x.projectId) && !isLifted(x)).length;
   const initials = (n) => String(n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
   $('#app').innerHTML = `
-    <div class="svt-home">
+    <div class="svt-home trav">
       <div class="svt-hero">
         <div class="svt-top"><div class="brand notr"><span class="logo st-lg">${stLogo()}</span><b class="bt">SITETEAM</b></div>
           <div class="h2-acts"><button class="iconbtn h2-quit" data-a="quit" title="Fermer (appui long : verrouiller)">${icon('power')}</button>
