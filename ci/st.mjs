@@ -2298,7 +2298,11 @@ try {
     try {
       App.project = pr0; sessionStorage.setItem('st.preview', JSON.stringify({ plan: 'enterprise' }));
       Team.applyFlags({});
-      o.fermees = !Team.isSuper() && Object.keys(Team.FLAG_DEFS).every(k => Team.flag(k) === false);
+      // v1.0.3xx : orgq/missionzone/terraindoc/qdocs sont désormais ouverts ("pub") par défaut pour l'Entreprise
+      // (demande du propriétaire : équipe réelle sur Service Qualité) — exclus du lot « tout fermé par défaut ».
+      const OUV_ENT = ['orgq', 'missionzone', 'terraindoc', 'qdocs'];
+      o.fermees = !Team.isSuper() && Object.keys(Team.FLAG_DEFS).filter(k => !OUV_ENT.includes(k)).every(k => Team.flag(k) === false);
+      o.qualEquipeOuverte = OUV_ENT.every(k => Team.flag(k) === true);
       const root = document.createElement('div'); document.body.appendChild(root); ST.renderProjectTools(root); await wait(400);
       o.pasSq = !root.querySelector('details[data-g=sq]') && !root.querySelector('details[data-g^=sv-]'); o.monEspaceCache = SECTIONS.monespace.hidden === true;
       Team.applyFlags({ svcqual: { enterprise: 'test' } }, ['autre@example.com']); o.testAutre = Team.flag('svcqual') === false;
@@ -2311,7 +2315,7 @@ try {
     return o;
   });
   log('Mises en service', fl1);
-  if (!fl1.noProject && !(fl1.fermees && fl1.pasSq && fl1.monEspaceCache && fl1.testAutre && fl1.pub && fl1.autrePack)) throw new Error('mises en service KO ' + JSON.stringify(fl1));
+  if (!fl1.noProject && !(fl1.fermees && fl1.qualEquipeOuverte && fl1.pasSq && fl1.monEspaceCache && fl1.testAutre && fl1.pub && fl1.autrePack)) throw new Error('mises en service KO ' + JSON.stringify(fl1));
   if (!qs1.noProject && !qs1.pasQual && !(qs1.volets && qs1.adm && qs1.ter && qs1.reglage && qs1.basicInchange && qs1.icones && qs1.adminSeul && qs1.deuxCat && qs1.services)) throw new Error('volets qualité KO ' + JSON.stringify(qs1));
   if (!qs1.noProject && !(qs1.qaEnterprise && qs1.qaBasicAbsente && qs1.qaProPresente)) throw new Error('barre de raccourcis rapides par pack KO ' + JSON.stringify(qs1));
   // ---- Suivis personnalisés + modèle visuel : cases liées aux colonnes, PDF écrit sur le bon
