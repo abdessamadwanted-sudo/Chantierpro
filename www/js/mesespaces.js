@@ -69,8 +69,12 @@ const MesEspaces = (() => {
     const base = Team.workspaces().length ? Team.workspaces() : [{ cid: cur, name: (Team.company() || {}).name, kind: (Team.company() || {}).kind, org: Team.orgType().k, role: (Team.me() || {}).role, plan: Team.plan().k }];
     const C = classify(base, cur), shared = (Team.shared() || []).filter(x => x && x.status !== 'retire');
     const el = document.createElement('div'); el.className = 'fullpage me-pg';
-    const row = (w) => { const T = typeOf(w), on = w.cid === cur, sv = w.kind === 'service';
-      return `<button class="me-r ${on ? 'on' : ''}" data-ws="${esc(w.cid)}"><span class="e">${w.kind === 'perso' ? '👷' : sv ? '🧩' : T.e}</span><span class="grow"><b>${esc(w.name || '?')}${on ? ' ✓' : ''}</b><small>${w.kind === 'perso' ? 'Espace personnel' : sv ? 'Service autonome' : esc(T.l)} · ${esc(tmRoleOf(w.role).l)} · ${esc(planOf(w.plan).l)}</small></span><i>›</i></button>`; };
+    // v1.0.3xx : bouton « supprimer » par ligne (demande du propriétaire) — réutilise Team.deleteEspace, déjà construit
+    // pour l'ancien sélecteur (wsMenu, « Changer d'espace ») ; même condition (w.role === 'patron', propriétaire de CET
+    // espace) que là-bas, qu'il s'agisse de l'espace actif ou d'un autre — deleteEspace gère les deux cas.
+    const row = (w) => { const T = typeOf(w), on = w.cid === cur, sv = w.kind === 'service', canDel = w.role === 'patron';
+      const btn = `<button class="me-r ${on ? 'on' : ''}" data-ws="${esc(w.cid)}"><span class="e">${w.kind === 'perso' ? '👷' : sv ? '🧩' : T.e}</span><span class="grow"><b>${esc(w.name || '?')}${on ? ' ✓' : ''}</b><small>${w.kind === 'perso' ? 'Espace personnel' : sv ? 'Service autonome' : esc(T.l)} · ${esc(tmRoleOf(w.role).l)} · ${esc(planOf(w.plan).l)}</small></span><i>›</i></button>`;
+      return canDel ? `<div class="me-rw">${btn}<button class="me-del" data-medel="${esc(w.cid)}" data-nm="${esc(w.name || '')}" title="Supprimer cet espace">${icon('trash')}</button></div>` : btn; };
     const sec = (t, n, body, hint) => `<section class="me-s"><h3>${esc(t)}${n != null ? `<em>${n}</em>` : ''}</h3>${body || `<p class="me-e">${esc(hint || 'Aucun')}</p>`}</section>`;
     el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><h1>Mes espaces</h1><button class="iconbtn" data-a="more">${icon('more')}</button></div>
       <div class="me-body">
@@ -90,6 +94,7 @@ const MesEspaces = (() => {
     const $e = (s) => el.querySelector(s);
     ($e('[data-a=x]') || {}).onclick = shut;
     el.querySelectorAll('[data-ws]').forEach(b => b.onclick = () => { if (b.dataset.ws === cur) return shut(); shut(); Team.switchTo(b.dataset.ws); });
+    el.querySelectorAll('[data-medel]').forEach(b => b.onclick = (e) => { e.stopPropagation(); Team.deleteEspace(b.dataset.medel, b.dataset.nm); });
     el.querySelectorAll('[data-pend]').forEach(b => b.onclick = () => { shut(); Team.openSwitcher(true); });
     ($e('[data-a=join]') || {}).onclick = async () => { shut(); const cid = await Team.joinWithCode(); if (cid) Team.switchTo(cid); };
     ($e('[data-a=new]') || {}).onclick = () => { shut(); Team.openSwitcher(true); };

@@ -285,12 +285,14 @@ try {
   log('code révoqué', await A.pg.evaluate(async (c) => (await firebase.firestore().collection('invites').doc(c).get()).data().status, code7));
   log('errors v1.0.17', [...G.errs, ...C.errs]);
   // ---- v1.0.? : pack Pro scindé Individuel / Service autonome — choisir « Autonome » puis un service (Travaux)
-  // crée directement l'espace et entre dans son interface dédiée (renderSvcTravaux), sans passer par stepMetier.
+  // crée directement l'espace et entre dans « Outils du projet » après un premier projet, sans passer par stepMetier.
+  // v1.0.3xx : Travaux a retrouvé l'accueil standard (.home2), comme Qualité ci-dessous (demande du propriétaire :
+  // même interface pour tous les services, chacun gardant seulement sa propre couleur sur ses volets).
   const L = await newUser('L'); await signup(L.pg, 'Rachid Autonome', 'rachid.autonome@test.ma');
   await L.pg.click('[data-a=perso]'); await L.pg.waitForSelector('.st-offers'); await L.pg.click('[data-p=pro]');
   await L.pg.waitForSelector('[data-a=svc]'); await L.pg.click('[data-a=svc]'); await L.pg.waitForSelector('[data-o]', { timeout: 15000 });
-  await L.pg.click('[data-o=aut_2]'); await L.pg.waitForSelector('.svt-home', { timeout: 20000 }); await L.pg.waitForTimeout(800); await shot(L.pg, '55_pro_autonome_travaux');
-  log('L service autonome Travaux', await L.pg.evaluate(() => [Team.plan().k, Team.company().kind, Team.company().svcKey, !!document.querySelector('.svt-feat'), !document.querySelector('.home2')]));
+  await L.pg.click('[data-o=aut_2]'); await L.pg.waitForSelector('.home2', { timeout: 20000 }); await L.pg.waitForTimeout(800); await shot(L.pg, '55_pro_autonome_travaux');
+  log('L service autonome Travaux', await L.pg.evaluate(() => [Team.plan().k, Team.company().kind, Team.company().svcKey, !!document.querySelector('.st-bnav'), !document.querySelector('.svt-home')]));
   log('errors v1.0.? pro autonome', L.errs);
   // ---- v1.0.2xx : Pro Service autonome « Qualité » (aut_0) — demande du propriétaire (capture à l'appui) :
   // l'accueil reste l'accueil standard (.home2, barre du bas) comme n'importe quel espace Pro, pas un écran à
@@ -1846,6 +1848,27 @@ try {
     return o; } catch (e) { return { err: String(e.message || e) + ' ' + String(e.stack || '').split('\n')[1] }; } });
   log('v1.0.274 [Mes espaces]', tMe);
   log('errors v1.0.274 mes espaces', !tMe.err && ['classify','svc','att','bp','on','open','cur','closed','viaSwitcher','off','old','re'].every(k => tMe[k]) ? [] : ['v1.0.274 mes espaces ' + JSON.stringify(tMe)]);
+  // ---- v1.0.3xx : suppression d'un espace directement depuis « Mes espaces » (demande du propriétaire) — un bouton
+  // par ligne, réservé aux espaces dont on est propriétaire (même règle que l'ancien sélecteur, wsMenu/data-wsdel),
+  // qui appelle Team.deleteEspace déjà testé plus haut (ce bloc vérifie seulement l'affichage et le branchement du bouton).
+  const vMeDel = await A.pg.evaluate(async () => { const o = {}; try { document.querySelectorAll('.fullpage,.lightbox,.sheet,.sheet-bg').forEach(x => x.remove());
+    const origWs = Team.workspaces, origCid = Team.cid, origCompany = Team.company, origDel = Team.deleteEspace;
+    Team.workspaces = () => [
+      { cid: 'svc-owned', name: 'Service Qualité Test', kind: 'service', role: 'patron', org: 'entreprise', plan: 'pro' },
+      { cid: 'svc-member', name: 'Service Travaux Test', kind: 'service', role: 'technicien', org: 'entreprise', plan: 'pro' },
+    ];
+    Team.cid = () => 'svc-owned'; Team.company = () => ({ id: 'svc-owned', name: 'Service Qualité Test' });
+    let calledWith = null; Team.deleteEspace = (cid, nm) => { calledWith = [cid, nm]; };
+    const m = MesEspaces.open();
+    o.ownedHasDel = !!document.querySelector('[data-medel="svc-owned"]');
+    o.memberNoDel = !document.querySelector('[data-medel="svc-member"]');
+    document.querySelector('[data-medel="svc-owned"]').click();
+    o.wired = Array.isArray(calledWith) && calledWith[0] === 'svc-owned' && calledWith[1] === 'Service Qualité Test';
+    m.close();
+    Team.workspaces = origWs; Team.cid = origCid; Team.company = origCompany; Team.deleteEspace = origDel;
+  } catch (e) { o.err = String(e.message || e); } return o; });
+  log('Mes espaces — suppression par ligne', vMeDel);
+  log('errors mes espaces suppression', !vMeDel.err && vMeDel.ownedHasDel && vMeDel.memberNoDel && vMeDel.wired ? [] : ['mes espaces suppression ' + JSON.stringify(vMeDel)]);
   const tHp = await A.pg.evaluate(async () => { try { const o = {}, p = App.project; document.querySelectorAll('.fullpage,.lightbox').forEach(x => x.remove());
     const mkF = (name) => DB.put('folders', { projectId: p.id, name, parentId: null }), ids = [];
     const [f1, f2, f3] = [await mkF('R+1'), await mkF('SSL'), await mkF('RDC')]; ids.push(['folders', f1.id], ['folders', f2.id], ['folders', f3.id]);
@@ -2300,7 +2323,9 @@ try {
       Team.applyFlags({});
       // v1.0.3xx : orgq/missionzone/terraindoc/qdocs sont désormais ouverts ("pub") par défaut pour l'Entreprise
       // (demande du propriétaire : équipe réelle sur Service Qualité) — exclus du lot « tout fermé par défaut ».
-      const OUV_ENT = ['orgq', 'missionzone', 'terraindoc', 'qdocs'];
+      // v1.0.3xx (suite) : materiaux aussi, désormais seul accès à l'outil Matériaux (Ferraillage) du service
+      // Travaux depuis le retrait de son ancien accueil dédié (voir SVC_SHELLS/FLAG_DEFAULT.materiaux).
+      const OUV_ENT = ['orgq', 'missionzone', 'terraindoc', 'qdocs', 'materiaux'];
       o.fermees = !Team.isSuper() && Object.keys(Team.FLAG_DEFS).filter(k => !OUV_ENT.includes(k)).every(k => Team.flag(k) === false);
       o.qualEquipeOuverte = OUV_ENT.every(k => Team.flag(k) === true);
       const root = document.createElement('div'); document.body.appendChild(root); ST.renderProjectTools(root); await wait(400);
@@ -2606,27 +2631,23 @@ try {
   } catch (e) { o.err = String(e.message || e); } return o; });
   log('module matériaux (ferraillage)', vMt);
   log('errors module matériaux', !vMt.err && vMt.noAlertUnder3 && vMt.stockOk && vMt.alertOver3 && vMt.alerteEcart && vMt.alerteStock && vMt.sep && vMt.list && vMt.fiche && vMt.stockView && vMt.sec ? [] : ['module matériaux ' + JSON.stringify(vMt)]);
-  // ---- service autonome « Travaux » (Pro Service autonome) : accueil dédié (renderSvcTravaux) à la place de renderHome,
-  // uniquement pour la compagnie kind:'service' & svcKey:'aut_2' ; tout autre compte garde l'accueil standard (.home2).
+  // ---- service autonome « Travaux » (Pro Service autonome) : l'accueil dédié (ex-renderSvcTravaux) a été retiré
+  // (demande du propriétaire : interface standard pour TOUS les services, chacun gardant seulement sa propre couleur
+  // sur ses volets) — kind:'service' & svcKey:'aut_2' garde désormais l'accueil standard (.home2), comme Qualité et
+  // tous les autres services ; Matériaux (Ferraillage) reste accessible, maintenant comme un volet normal du service
+  // (SVC_SHELLS « travaux », siteteam.js) dans « Outils du projet ».
   const vSvt = await A.pg.evaluate(async () => { const o = {}; try { const p = App.project, origCompany = Team.company;
-    const art = { id: 'svtA1', projectId: p.id, kind: 'mta', nom: 'Voiles', note: '', createdAt: Date.now(), by: 'T' };
-    const dl = { id: 'svtD1', projectId: p.id, kind: 'mtd', artId: 'svtA1', diam: 'HA14', nbBarres: 10, tonnage: 1 };
-    const mvE = { id: 'svtMvE', projectId: p.id, kind: 'mtm', type: 'entree', diam: 'HA14', tonnage: 1, artId: null, bl: 'BL-X', at: Date.now(), by: 'T' };
-    const mvS = { id: 'svtMvS', projectId: p.id, kind: 'mtm', type: 'sortie', diam: 'HA14', tonnage: 0.95, artId: 'svtA1', at: Date.now(), by: 'T' };   // -5 % : alerte écart
-    await DB.put('items', art); await DB.put('items', dl); await DB.put('items', mvE); await DB.put('items', mvS);
     Team.company = () => ({ name: 'Service Travaux Test', kind: 'service', svcKey: 'aut_2' });
     await renderHome();
-    o.svtHome = !!document.querySelector('.svt-home'); o.feat = !!document.querySelector('.svt-feat'); o.projRow = !!document.querySelector('.svt-pc');
-    o.ownColor = !!document.querySelector('.svt-home.trav');   // v1.0.3xx : couleur propre à Travaux (bleu), plus la teinte de Qualité
-    o.kpiEcart = document.querySelector('.svt-kpi.r b') ? document.querySelector('.svt-kpi.r b').textContent.trim() === '1' : false;   // 1 écart agrégé (≥3 %)
-    document.querySelector('.svt-pc').click(); await new Promise(r => setTimeout(r, 50)); o.openedProj = !!App.project && App.section === 'plans';
-    App.project = null; await renderHome(); document.querySelector('[data-mat]').click(); await new Promise(r => setTimeout(r, 50));
-    o.openedMat = !!App.project && App.section === 'materiaux';
-    Team.company = origCompany; App.project = p; App.section = 'plans'; await renderHome(); o.standardAfter = !!document.querySelector('.home2') && !document.querySelector('.svt-home');
-    for (const id of ['svtA1', 'svtD1', 'svtMvE', 'svtMvS']) await DB.del('items', id);
+    o.standardHome = !!document.querySelector('.home2') && !document.querySelector('.svt-home');
+    const root = document.createElement('div'); root.style.display = 'none'; document.body.appendChild(root);
+    ST.renderProjectTools(root);
+    o.matTool = !!root.querySelector('[data-tool=materiaux]');
+    root.remove();
+    Team.company = origCompany; App.project = p; App.section = 'plans'; await renderHome();
   } catch (e) { o.err = String(e.message || e); } return o; });
   log('service autonome Travaux (Pro Service autonome)', vSvt);
-  log('errors service autonome travaux', !vSvt.err && vSvt.svtHome && vSvt.feat && vSvt.projRow && vSvt.kpiEcart && vSvt.openedProj && vSvt.openedMat && vSvt.standardAfter && vSvt.ownColor ? [] : ['service autonome travaux ' + JSON.stringify(vSvt)]);
+  log('errors service autonome travaux', !vSvt.err && vSvt.standardHome && vSvt.matTool ? [] : ['service autonome travaux ' + JSON.stringify(vSvt)]);
   // ---- service autonome « Qualité » (Pro Service autonome) : « Outils du projet » (ST.renderProjectTools) doit
   // rester IDENTIQUE à l'écran de l'Entreprise (demande du propriétaire, capture à l'appui) — mêmes « Intervenants
   // du projet » (vides ici, faute de vrais intervenants sur ce projet de test — mais pas supprimés) et mêmes volets
