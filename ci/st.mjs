@@ -2323,7 +2323,9 @@ try {
       Team.applyFlags({});
       // v1.0.3xx : orgq/missionzone/terraindoc/qdocs sont désormais ouverts ("pub") par défaut pour l'Entreprise
       // (demande du propriétaire : équipe réelle sur Service Qualité) — exclus du lot « tout fermé par défaut ».
-      const OUV_ENT = ['orgq', 'missionzone', 'terraindoc', 'qdocs'];
+      // v1.0.3xx (suite) : materiaux aussi, désormais seul accès à l'outil Matériaux (Ferraillage) du service
+      // Travaux depuis le retrait de son ancien accueil dédié (voir SVC_SHELLS/FLAG_DEFAULT.materiaux).
+      const OUV_ENT = ['orgq', 'missionzone', 'terraindoc', 'qdocs', 'materiaux'];
       o.fermees = !Team.isSuper() && Object.keys(Team.FLAG_DEFS).filter(k => !OUV_ENT.includes(k)).every(k => Team.flag(k) === false);
       o.qualEquipeOuverte = OUV_ENT.every(k => Team.flag(k) === true);
       const root = document.createElement('div'); document.body.appendChild(root); ST.renderProjectTools(root); await wait(400);
