@@ -2642,6 +2642,25 @@ try {
   } catch (e) { o.err = String(e.message || e); } return o; });
   log('service autonome Qualité (volets Administratif/Terrain/Commun)', vSvq);
   log('errors service autonome qualite', !vSvq.err && vSvq.adm && vSvq.ter && vSvq.com && vSvq.noStdGroups && vSvq.standardAfter ? [] : ['service autonome qualite ' + JSON.stringify(vSvq)]);
+  // ---- demande du propriétaire : les volets dédiés (SVC_SHELLS) d'un Service autonome ne doivent s'afficher qu'à
+  // partir du pack Pro — le pack Basic (plan:'basic' sur la société) garde l'écran standard d'origine (catégories
+  // génériques, sans Administratif/Terrain/Commun) ; le pack Pro (plan:'pro') garde les volets.
+  const vSvqBasic = await A.pg.evaluate(async () => { const o = {}; try { const p = App.project, origCompany = Team.company;
+    Team.company = () => ({ name: 'Service Qualité Basic Test', kind: 'service', svcKey: 'aut_0', plan: 'basic' });
+    const root = document.createElement('div'); root.style.display = 'none'; document.body.appendChild(root);
+    ST.renderProjectTools(root);
+    o.noShellBasic = !root.querySelector('[data-g=sq]') && !root.querySelector('[data-qs=adm]');
+    o.stdGroupsBasic = !!root.querySelector('[data-g=qual]');
+    root.remove();
+    Team.company = () => ({ name: 'Service Qualité Pro Test', kind: 'service', svcKey: 'aut_0', plan: 'pro' });
+    const root2 = document.createElement('div'); root2.style.display = 'none'; document.body.appendChild(root2);
+    ST.renderProjectTools(root2);
+    o.shellPro = !!root2.querySelector('[data-g=sq]') && !!root2.querySelector('[data-qs=adm]');
+    root2.remove();
+    Team.company = origCompany; App.project = p;
+  } catch (e) { o.err = String(e.message || e); } return o; });
+  log('service autonome Qualité — volets réservés au pack Pro', vSvqBasic);
+  log('errors service autonome qualite basic/pro', !vSvqBasic.err && vSvqBasic.noShellBasic && vSvqBasic.stdGroupsBasic && vSvqBasic.shellPro ? [] : ['service autonome qualite basic/pro ' + JSON.stringify(vSvqBasic)]);
   // ---- même principe (SVC_SHELLS + AUTO_SHELL), généralisé aux autres services autonomes qui ont déjà un vrai
   // gabarit construit (HSE, Travaux, Études, Finance, Topographie, Laboratoire) — un seul accordéon « 3 volets »
   // (sv-<service>) avec Administratif/Terrain/Commun, sans aucune catégorie générique restante.

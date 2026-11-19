@@ -367,9 +367,13 @@ const ST = (() => {
     // attendent encore leurs outils.
     const AUTO_SHELL = { aut_0: 'qual', aut_1: 'hse', aut_2: 'travaux', aut_5: 'etu', aut_10: 'fin', aut_12: 'topo', aut_13: 'labo' };
     const company0 = Team.company() || {};
-    const autoSvc = company0.kind === 'service' ? AUTO_SHELL[company0.svcKey] : null;
+    // v1.0.3xx : demande du propriétaire — les volets dédiés (couleur + Administratif/Terrain/Commun) d'un Service
+    // autonome ne sont offerts qu'à partir du pack Pro ; le pack Basic garde l'écran standard d'origine (catégories
+    // génériques, sans volets) — même principe déjà appliqué à la barre de raccourcis rapides (qaOn, plus bas).
+    const proSvc = company0.kind === 'service' && plan().k !== 'basic';
+    const autoSvc = proSvc ? AUTO_SHELL[company0.svcKey] : null;
     // v1.0.2xx : même principe pour un intervenant choisi comme Pro Service autonome (voir IV_AUTO_KEY, module scope)
-    const autoIv = (!autoSvc && company0.kind === 'service') ? IV_AUTO_KEY[company0.svcKey] : null;
+    const autoIv = (!autoSvc && proSvc) ? IV_AUTO_KEY[company0.svcKey] : null;
     const G = gKeys.map(g => G0.find(x => x[0] === g)).filter(Boolean).filter(g => !(autoSvc || autoIv) || g[0] === autoSvc);
     const T = projTypeOf(p.type) || {};
     // v1.0.46 : actions rapides en une rangée compacte, catégories dépliables (état mémorisé), rien sous le bouton « plans »
