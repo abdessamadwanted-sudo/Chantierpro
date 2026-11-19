@@ -709,6 +709,15 @@ const Team = (() => {
   const FLAG_DEFAULT = Object.fromEntries(Object.keys(FLAG_DEFS).map(k => [k, BIZ_FLAGS.includes(k) ? { business: 'dev', enterprise: 'dev' } : { enterprise: 'dev' }]));
   FLAG_DEFAULT.svclink = { pro: 'dev', business: 'dev', enterprise: 'dev' };
   FLAG_DEFAULT.materiaux = { pro: 'dev', business: 'dev', enterprise: 'dev' };
+  // v1.0.3xx : demande du propriétaire — il veut faire travailler une vraie équipe (technicien·ne·s, responsables,
+  // administration/documentation) sur Service Qualité en pack Entreprise : codes d'accès par poste + organigramme
+  // Qualité (orgq), et en même temps le circuit de documentation (Terrain → Documentation automatique, rangement
+  // par partie d'ouvrage et par mission/zone). Activés (« pub ») pour Entreprise seulement — Business reste « dev »,
+  // ces fonctions restent réservées à l'Entreprise comme décidé précédemment.
+  FLAG_DEFAULT.orgq = { business: 'dev', enterprise: 'pub' };
+  FLAG_DEFAULT.missionzone = { business: 'dev', enterprise: 'pub' };
+  FLAG_DEFAULT.terraindoc = { enterprise: 'pub' };
+  FLAG_DEFAULT.qdocs = { business: 'dev', enterprise: 'pub' };
   const flagCfg = (k) => (appCfg().fp || {})[k] || FLAG_DEFAULT[k] || {};
   // pack en vigueur : aperçu du Super Admin (« Pack de travail »), sinon pack de l'espace
   const packPreview = () => { try { const v = JSON.parse(sessionStorage.getItem('st.preview') || 'null'); return v && v.plan ? (PLAN_ALIAS[v.plan] || v.plan) : ''; } catch (e) { return ''; } };
