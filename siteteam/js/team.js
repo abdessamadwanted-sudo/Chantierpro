@@ -708,7 +708,11 @@ const Team = (() => {
   const BIZ_FLAGS = ['svcqual', 'svctravaux', 'monespace', 'missionzone', 'qdocs', 'orgq', 'tabproj', 'espbet', 'esparchi', 'esplabo', 'espmoa', 'espbc', 'esptopo', 'espat'];
   const FLAG_DEFAULT = Object.fromEntries(Object.keys(FLAG_DEFS).map(k => [k, BIZ_FLAGS.includes(k) ? { business: 'dev', enterprise: 'dev' } : { enterprise: 'dev' }]));
   FLAG_DEFAULT.svclink = { pro: 'dev', business: 'dev', enterprise: 'dev' };
-  FLAG_DEFAULT.materiaux = { pro: 'dev', business: 'dev', enterprise: 'dev' };
+  // v1.0.3xx : Matériaux (Ferraillage) était jusqu'ici accessible côté Travaux par un bouton de l'ancien accueil
+  // dédié (renderSvcTravaux), en dehors de ce réglage de visibilité. Cet accueil est retiré (demande du
+  // propriétaire : interface standard pour tous les services) ; l'outil est maintenant un volet normal du
+  // service Travaux (voir SVC_SHELLS, siteteam.js) et doit donc rester visible pour les mêmes comptes qu'avant.
+  FLAG_DEFAULT.materiaux = { pro: 'pub', business: 'pub', enterprise: 'pub' };
   // v1.0.3xx : demande du propriétaire — il veut faire travailler une vraie équipe (technicien·ne·s, responsables,
   // administration/documentation) sur Service Qualité en pack Entreprise : codes d'accès par poste + organigramme
   // Qualité (orgq), et en même temps le circuit de documentation (Terrain → Documentation automatique, rangement
