@@ -187,6 +187,37 @@
     var done = false; function hide() { var b = document.getElementById('boot'); if (!b || done) return; done = true; if (bar) bar.style.width = '100%'; window.__tHome = Date.now(); heads(1); setTimeout(late, 600); paint.fin = 1; if (LBL) LBL.textContent = 'Prêt ✓'; setTimeout(function () { b.className += ' out'; if (BB) BB.style.opacity = 0; setTimeout(function () { b.remove(); if (BB) BB.remove(); }, 420); }, 380); }
     new MutationObserver(function (m, o) { if (document.querySelector('.home2, .tm-login, .st-onb, .splash, .st-gate, .fullpage, .sheet-bg')) { hide(); o.disconnect(); } }).observe(document.body, { childList: true, subtree: true });
     setTimeout(hide, 30000); setTimeout(late, 8000);
+    // v1.0.3xx : démarrage bloqué (écran « Ouverture… X % » qui n'avance plus et l'appli finit par se fermer) —
+    // le rapport de diagnostic existant (menu Réglages) suppose que l'application a fini de démarrer, donc
+    // injoignable justement dans ce cas précis. Un petit lien apparaît après 12 s si rien ne s'est encore affiché :
+    // il lit les mêmes informations déjà enregistrées pendant le chargement (err.log, boot.lastOk, boot.scripts)
+    // et les montre directement à l'écran pour une capture d'écran — sans dépendre du reste du démarrage.
+    // Purement additif : ne touche ni go(), ni hide(), ni la minuterie des 30 s.
+    setTimeout(function () {
+      if (done) return;
+      var a = document.createElement('div');
+      a.textContent = 'Ça reste bloqué ? Toucher ici pour voir le rapport';
+      a.style.cssText = 'position:fixed;left:0;right:0;bottom:36px;text-align:center;font:600 13px system-ui,-apple-system,Roboto,sans-serif;color:#60a5fa;text-decoration:underline;z-index:10001;padding:8px';
+      a.onclick = function () {
+        var errL, lastOk, scripts;
+        try { errL = JSON.parse(localStorage.getItem('err.log') || '[]'); } catch (e) { errL = []; }
+        try { lastOk = localStorage.getItem('boot.lastOk') || '(aucun fichier confirmé chargé)'; } catch (e) { lastOk = '?'; }
+        try { scripts = JSON.parse(localStorage.getItem('boot.scripts') || '[]'); } catch (e) { scripts = []; }
+        var txt = 'SiteTeam — rapport de blocage au démarrage\n' +
+          'Dernier fichier confirmé chargé : ' + lastOk + (scripts.length ? ' (sur ' + scripts.length + ')' : '') + '\n\n' +
+          'Erreurs récentes :\n' + (errL.length ? errL.slice(-10).join('\n') : '(aucune erreur capturée)');
+        var ov = document.createElement('div');
+        ov.style.cssText = 'position:fixed;inset:0;z-index:10002;background:#0a1a2e;color:#cfd8e6;padding:18px;overflow:auto;font:12px/1.5 ui-monospace,monospace;white-space:pre-wrap';
+        var close = document.createElement('div');
+        close.textContent = '✕ Fermer';
+        close.style.cssText = 'position:sticky;top:0;text-align:right;font:600 15px system-ui,-apple-system,Roboto,sans-serif;color:#fff;padding-bottom:12px;cursor:pointer';
+        close.onclick = function () { ov.remove(); };
+        ov.appendChild(close);
+        var pre = document.createElement('div'); pre.textContent = txt; ov.appendChild(pre);
+        document.body.appendChild(ov);
+      };
+      document.body.appendChild(a);
+    }, 12000);
   })();
   </script>
 </body>
