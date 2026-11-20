@@ -324,8 +324,14 @@ service cloud.firestore {
       return code is string && exists(/databases/$(db)/documents/packCodes/$(code)) && pc(code).status == 'valide' && pc(code).uses < pc(code).maxUses
         && !(request.auth.uid in pc(code).usedBy) && (pc(code).get('expiresAt', null) == null || pc(code).expiresAt > request.time);
     }
+    // v1.0.3xx : accès par service autonome — un code lié à un service précis (packCodes.svc) n'ouvre QUE ce service
+    // (companies.kind == 'service' && companies.svcKey == packCodes.svc) ; un code « pack » sans svc n'ouvre jamais
+    // un service autonome (chaque service se verrouille à part) mais reste valable pour individuel/organisation comme avant
     function codePlanOk(d) {
       return codeOk(d.packCode) && d.plan == pc(d.packCode).plan
+        && (d.get('kind', 'org') != 'service'
+              ? pc(d.packCode).get('svc', null) == null
+              : pc(d.packCode).get('svc', null) == d.get('svcKey', null))
         && ((pc(d.packCode).days == 0 && d.planStatus == 'actif')
           || (pc(d.packCode).days > 0 && d.planStatus == 'essai' && d.trialEndsAt <= request.time + duration.value(pc(d.packCode).days + 1, 'd')));
     }
@@ -873,7 +879,10 @@ const Team = (() => {
     } catch (e) { ld.close(); alertBox(errMsg(e)); return false; }
   }
   // ---------- demande de pack (la facturation n'est pas en ligne : la demande arrive dans le panneau d'administration) ----------
-  async function requestPack(k, perso) {
+  // v1.0.3xx : svcInfo ({ id, label }) optionnel — demande d'accès à UN service autonome précis (Pro Service autonome,
+  // chaque service verrouillé séparément — demande du propriétaire), plutôt qu'au pack « Pro » en général. Sans svcInfo,
+  // comportement strictement inchangé (demande de pack classique, Individuel/Organisation).
+  async function requestPack(k, perso, svcInfo) {
     // Super Admin : pas de demande, le pack s'applique tout de suite à l'espace ouvert (les règles l'autorisent pour lui seul)
     if (isSuper() && S.cid && S.company) {
       const P0 = planFor(planOf(k), (S.company || {}).kind === 'perso');
@@ -881,12 +890,13 @@ const Team = (() => {
       try { await withTimeout(fs.collection('companies').doc(S.cid).update({ plan: k, planStatus: 'actif' })); S.company = { ...S.company, plan: k, planStatus: 'actif' }; LS.set('company', S.company);
         toast(`Pack ${P0.l} activé ✓`); setTimeout(() => location.reload(), 600); return true; } catch (e) { alertBox(errMsg(e)); return false; }
     }
-    const P = planFor(planOf(k), perso), r = await formSheet(`Demander ${P.l}`, [{ name: 'msg', label: 'Message (optionnel)', type: 'textarea', placeholder: 'Ex : nombre d\'utilisateurs, besoin particulier…' }, { name: 'tel', label: 'Téléphone (optionnel)', type: 'tel' }], { okLabel: 'Envoyer la demande' });
+    const P = planFor(planOf(k), perso), lbl = svcInfo ? `${svcInfo.label} (${P.l})` : P.l;
+    const r = await formSheet(`Demander ${lbl}`, [{ name: 'msg', label: 'Message (optionnel)', type: 'textarea', placeholder: 'Ex : nombre d\'utilisateurs, besoin particulier…' }, { name: 'tel', label: 'Téléphone (optionnel)', type: 'tel' }], { okLabel: 'Envoyer la demande' });
     if (!r) return false;
     try {
       await withTimeout(fs.collection('packRequests').add({ uid: S.user.uid, email: S.user.email || '', name: (S.me || {}).name || S.user.displayName || '', cid: S.cid || '', cname: (S.company || {}).name || '',
-        plan: k, perso: !!perso, msg: (r.msg || '').slice(0, 1000), tel: (r.tel || '').slice(0, 40), status: 'attente', at: ts() }));
-      await alertBox(`Demande envoyée ✓\nSiteTeam vous répond et active le pack « ${P.l} ».`); return true;
+        plan: k, perso: !!perso, ...(svcInfo ? { svc: svcInfo.id, svcLabel: svcInfo.label } : {}), msg: (r.msg || '').slice(0, 1000), tel: (r.tel || '').slice(0, 40), status: 'attente', at: ts() }));
+      await alertBox(`Demande envoyée ✓\nSiteTeam vous répond et active ${lbl}.`); return true;
     } catch (e) { alertBox(errMsg(e)); return false; }
   }
   // ---------- fichiers partagés (Cloud Storage) : activés par le Super Admin (config/services.storage), jamais sans son accord ----------
@@ -1584,21 +1594,40 @@ const Team = (() => {
           const cardsB = IV.map(I => ({ id: 'iv_' + I.k, label: I.nom, c: I.c, e: I.e, badge: I.services.length + ' services', sub: 'Chaque service en 3 volets (Administratif/Terrain/Commun)' }));
           box.innerHTML = cardsA.map(cardHtml).join('') + (cardsB.length ? `<p class="st-thint2" style="margin:10px 0 4px">Intervenants (organisations partenaires)</p>${cardsB.map(cardHtml).join('')}` : '');
           const all = [...cardsA, ...cardsB];
-          $$('[data-o]', box).forEach(b => b.onclick = () => createAutonome(all.find(x => x.id === b.dataset.o)));
+          // v1.0.3xx : chaque service autonome (Pro) est verrouillé à part — demande du propriétaire : « كل service على
+          // حدة ». Le Super Admin garde la création immédiate (aperçu interne, comme avant) ; un vrai utilisateur voit
+          // un choix « Demander l'accès » (arrive dans le panneau d'administration) ou « J'ai un code » (code pack lié
+          // à CE service précis, délivré par le propriétaire une fois la demande acceptée et le paiement reçu).
+          $$('[data-o]', box).forEach(b => b.onclick = async () => {
+            const svc = all.find(x => x.id === b.dataset.o); if (!svc) return;
+            if (isSuper()) return createAutonome(svc);
+            const ch = await menu(svc.label, [
+              { label: 'Demander l\'accès', icon: 'mail', value: 'req' },
+              { label: 'J\'ai un code', icon: 'lock', value: 'code' },
+            ]);
+            if (ch === 'req') { await requestPack('pro', false, { id: svc.id, label: svc.label }); return; }
+            if (ch === 'code') {
+              const C = await askPackCode(); if (!C) return;
+              if (C.plan !== 'pro' || C.svc !== svc.id) return alertBox('Ce code ne correspond pas à ce service.');
+              return createAutonome(svc, C);
+            }
+          });
         })();
       }
       // création directe d'un espace « service autonome » en pack Pro (payé par le service lui-même, essai 14 jours
-      // comme tout pack Pro) — mêmes règles serveur que toute organisation (voir Team.createService, inchangé).
-      async function createAutonome(svc) {
+      // comme tout pack Pro, ou activé directement si un code pack valide — réservé à CE service — est fourni) —
+      // mêmes règles serveur que toute organisation (voir Team.createService, inchangé).
+      async function createAutonome(svc, code) {
         if (!svc) return;
         const ld = loading('Création du service « ' + svc.label + ' »…');
         try {
           const uid = auth.currentUser.uid, ref = fs.collection('companies').doc(), P = PLANS.pro;
-          const sub = { planStatus: 'essai', trialEndsAt: firebase.firestore.Timestamp.fromMillis(Date.now() + (P.trialDays || 14) * 864e5) };
-          await withTimeout(ref.set({ name: svc.label, ownerUid: uid, plan: 'pro', ...sub, kind: 'service', orgType: 'entreprise', services: ['direction'], svcKey: String(svc.id), createdAt: ts() }));
+          const sub = code ? codeSub(code) : { planStatus: 'essai', trialEndsAt: firebase.firestore.Timestamp.fromMillis(Date.now() + (P.trialDays || 14) * 864e5) };
+          await withTimeout(ref.set({ name: svc.label, ownerUid: uid, plan: 'pro', ...sub, ...(code ? { packCode: code.code } : {}), kind: 'service', orgType: 'entreprise', services: ['direction'], svcKey: String(svc.id), createdAt: ts() }));
           const all = Object.fromEntries(MODS.map(([m]) => [m, 4])), R = tmRoleOf(orgTypeOf('entreprise').owner || 'patron');
           await withTimeout(ref.collection('members').doc(uid).set({ name: auth.currentUser.displayName || '', email: auth.currentUser.email, role: R.k, service: 'direction', perms: all, admin: true, allProjects: true, projects: [], managerUid: null, zone: '', createdAt: ts() }));
           await withTimeout(fs.collection('users').doc(uid).set({ companyId: ref.id, name: auth.currentUser.displayName || '' }, { merge: true }));
+          if (code) await useCode(code).catch(() => {});
           ld.close(); toast('Service créé ✓'); done();
         } catch (e) { ld.close(); alertBox(errMsg(e) + (e.code === 'permission-denied' ? '\n\nLes règles de sécurité Firestore sont-elles installées ?' : '')); }
       }
@@ -2216,6 +2245,8 @@ const Team = (() => {
             <div style="color:${over ? '#ef4444' : 'var(--muted)'}">${nUsers}${P.users ? ' / ' + P.users : ''} compte(s) · ${nProj}${P.projects ? ' / ' + P.projects : ''} projet(s)${over ? ' — au-delà du pack' : ''}</div>
             <p style="font-size:12.5px;color:var(--muted)">Essai — la facturation n'est pas encore activée. Un membre invité par code n'a pas besoin de pack : seule l'organisation est facturée.</p>
             <div class="btnrow" style="padding:0"><button class="btn ghost small" data-a="catalog">Catalogue des outils</button><button class="btn ghost small" data-a="planchange">Demander un changement de pack</button><button class="btn ghost small" data-a="pcode">🎟 Code pack</button></div></div>
+          ${(S.company || {}).kind === 'service' && P.k !== 'pro' ? `<div class="tm-box"><b>⭐ Passer ce service en Pro</b><p>Outils avancés, projets illimités, 30 Go — réservé à ce service précis (chaque service se demande à part).</p>
+            <div class="btnrow" style="padding:0"><button class="btn small" data-a="svcpro-req">Demander l'accès</button></div></div>` : ''}
           ${isPerso() ? '' : `<div class="tm-box"><b>${T.e} Type d'organisation : ${esc(T.l)}</b><p>Le type choisit l'interface (outils mis en avant). Services actifs : ${companyServices().filter(x => x.k !== 'externe').map(x => esc(x.l)).join(', ')}.</p>
             <div class="btnrow" style="padding:0"><button class="btn ghost small" data-a="otype">Changer le type</button><button class="btn ghost small" data-a="otaille">Taille : ${esc((TAILLES.find(t => t[0] === taille()) || [0, '—'])[1].split(' ')[0])}</button><button class="btn ghost small" data-a="svcs">Services…</button></div></div>`}
           <div class="tm-box"><b>☁ Google Drive de l'entreprise</b><p>Les plans, photos et PDF de toute l'équipe sont rangés dans ce Drive. Les membres le reçoivent automatiquement.</p>
@@ -2254,6 +2285,9 @@ const Team = (() => {
         ($('[data-a=ren]', body)||{}).onclick = async () => { const r = await formSheet('Entreprise', [{ name: 'n', label: 'Nom', value: S.company.name }]); if (r && r.n) { await fs.collection('companies').doc(S.cid).update({ name: r.n }); S.company.name = r.n; LS.set('company', S.company); draw(); } };
         { const pcb = $('[data-a=pcode]', body); if (pcb) pcb.onclick = () => applyPackCode(); }
         ($('[data-a=planchange]', body)||{}).onclick = async () => { const L = offersFor(false).filter(x => x.k !== myPlan().k); const k = await menu('Quel pack demander ?', L.map(x => ({ label: `${x.e || ''} ${x.l} · ${planPrice(x)}`, value: x.k }))); if (k) requestPack(k, false); };
+        // v1.0.3xx : upgrade Pro d'un service autonome Basic — exclu de « Demander un changement de pack » (Pro n'est
+        // pas une offre d'organisation générique) mais demandable ici, rattaché au service précis (svcKey de cet espace).
+        { const spr = $('[data-a=svcpro-req]', body); if (spr) spr.onclick = () => requestPack('pro', false, { id: (S.company || {}).svcKey || '', label: S.company.name }); }
       }
       if (tab === 'prof') {
         const F = S.profil || {}, M2 = metierOf(F.metier);
