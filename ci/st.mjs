@@ -488,6 +488,14 @@ try {
   await M.pg.waitForSelector('.opt:has-text("OK")', { timeout: 15000 });
   log('M : code du service Travaux refusé pour Qualité', await M.pg.evaluate(() => !document.querySelector('.home2')));
   await M.pg.click('.opt:has-text("OK")');
+  // v1.0.3xx (suite) : anti-partage — le code généré ci-dessus est désormais réservé à l'email de L (repris de sa
+  // demande). Même pour le MÊME service (aut_2, Travaux cette fois, pas Qualité), M ne doit pas pouvoir l'utiliser :
+  // ce test isole bien le refus « mauvais compte » du refus « mauvais service » vérifié juste au-dessus.
+  await M.pg.click('[data-o=aut_2]'); await M.pg.waitForSelector('.opt:has-text("J\'ai un code")', { timeout: 15000 });
+  await M.pg.click('.opt:has-text("J\'ai un code")'); await M.pg.waitForSelector('.sheet [name=code]'); await M.pg.fill('.sheet [name=code]', svcCode); await M.pg.click('.sheet [data-a=ok]');
+  await M.pg.waitForSelector('.opt:has-text("OK")', { timeout: 15000 });
+  log('M : code réservé à L refusé (même service, autre compte)', await M.pg.evaluate(() => !document.querySelector('.home2')));
+  await M.pg.click('.opt:has-text("OK")');
   log('errors v1.0.3xx verrou par service', [...L.errs, ...M.errs].filter(x => !/permission/i.test(x)));
   await tabA('ctrl'); await shot(SA.pg, '98_admin_controle');
   await SA.pg.check('[name=gon]'); await SA.pg.fill('[name=gtext]', 'Bienvenue sur SiteTeam 1.0.24 : nouveau panneau de contrôle.'); await SA.pg.click('[data-a=msg]'); await SA.pg.waitForTimeout(1200);

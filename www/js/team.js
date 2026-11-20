@@ -327,11 +327,15 @@ service cloud.firestore {
     // v1.0.3xx : accès par service autonome — un code lié à un service précis (packCodes.svc) n'ouvre QUE ce service
     // (companies.kind == 'service' && companies.svcKey == packCodes.svc) ; un code « pack » sans svc n'ouvre jamais
     // un service autonome (chaque service se verrouille à part) mais reste valable pour individuel/organisation comme avant
+    // v1.0.3xx (suite) : anti-partage — un code créé avec packCodes.email (celui de la personne qui a demandé/payé)
+    // n'est utilisable que par ce compte précis ; sans email sur le code (ancien code, ou code manuel générique
+    // laissé vide), le comportement reste inchangé (n'importe quel compte peut l'utiliser, dans la limite de maxUses).
     function codePlanOk(d) {
       return codeOk(d.packCode) && d.plan == pc(d.packCode).plan
         && (d.get('kind', 'org') != 'service'
               ? pc(d.packCode).get('svc', null) == null
               : pc(d.packCode).get('svc', null) == d.get('svcKey', null))
+        && (pc(d.packCode).get('email', null) == null || pc(d.packCode).email == request.auth.token.get('email', '').lower())
         && ((pc(d.packCode).days == 0 && d.planStatus == 'actif')
           || (pc(d.packCode).days > 0 && d.planStatus == 'essai' && d.trialEndsAt <= request.time + duration.value(pc(d.packCode).days + 1, 'd')));
     }
@@ -853,6 +857,9 @@ const Team = (() => {
     if (C.expiresAt && C.expiresAt.toMillis && C.expiresAt.toMillis() < Date.now()) throw new Error('Ce code a expiré');
     if ((C.usedBy || []).includes(S.user.uid)) throw new Error('Vous avez déjà utilisé ce code');
     if ((C.uses || 0) >= (C.maxUses || 1)) throw new Error('Ce code a déjà été utilisé le nombre de fois prévu');
+    // v1.0.3xx : anti-partage — code réservé à l'email de la personne qui l'a demandé/payé (vérifié aussi côté
+    // serveur par codePlanOk, ceci n'est qu'un message clair avant d'essayer)
+    if (C.email && C.email !== (S.user.email || '').toLowerCase()) throw new Error(`Ce code est réservé à un autre compte (${C.email})`);
     return C;
   }
   const codeSub = (C) => C.days > 0 ? { planStatus: 'essai', trialEndsAt: firebase.firestore.Timestamp.fromMillis(Date.now() + C.days * 864e5) } : { planStatus: 'actif' };
