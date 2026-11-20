@@ -382,6 +382,18 @@ await t('code pack : REFUS « actif » pour un code limité dans le temps', () =
 await t('code pack : l\'administrateur passe son organisation au pack du code', () => assertSucceeds(own9.collection('companies').doc('c9').update({ plan: 'enterprise', planStatus: 'actif', packCode: 'ENT-TEST01' })));
 await t('code pack : REFUS sans code (changement de pack)', () => assertFails(nw1.collection('companies').doc('cn1').update({ plan: 'enterprise', planStatus: 'actif' })));
 
+// --- v1.0.3xx : accès par service autonome — un code lié à un service précis (packCodes.svc) n'ouvre QUE ce service
+const [nw5, nw6, nw7] = ['nw5', 'nw6', 'nw7'].map(nu);
+const coSvc = (db, id, uid, code, svcKey, extra) => db.collection('companies').doc(id).set({ name: 'S', ownerUid: uid, plan: 'pro', planStatus: 'essai', trialEndsAt: futur(14), kind: 'service', svcKey, packCode: code, ...extra });
+await t('code pack service : le Super Admin crée un code lié à un service précis', async () => {
+  await assertSucceeds(owner.collection('packCodes').doc('PRO-SVCQ01').set({ plan: 'pro', days: 30, maxUses: 2, uses: 0, usedBy: [], status: 'valide', expiresAt: futur(30), svc: 'aut_2', svcLabel: 'Qualité' }));
+  await assertSucceeds(owner.collection('packCodes').doc('PRO-TEST02').set({ plan: 'pro', days: 30, maxUses: 1, uses: 0, usedBy: [], status: 'valide', expiresAt: futur(30) })); });
+await t('code pack service : création du service « Qualité » (svcKey correspondant) avec le code', () => assertSucceeds(coSvc(nw5, 'cs1', 'nw5', 'PRO-SVCQ01', 'aut_2')));
+await t('code pack service : REFUS pour un autre service (svcKey différent)', () => assertFails(coSvc(nw6, 'cs2', 'nw6', 'PRO-SVCQ01', 'aut_1')));
+await t('code pack service : REFUS d\'un code de service sur un espace individuel (pas un service autonome)', () => assertFails(coCode(nw6, 'cs3', 'nw6', 'pro', 'PRO-SVCQ01')));
+await t('code pack service : REFUS d\'un code pack « général » (sans svc) sur un service autonome', () => assertFails(coSvc(nw7, 'cs4', 'nw7', 'PRO-TEST02', 'aut_2')));
+await t('code pack service : un code pack « général » (sans svc) reste valable pour un espace individuel', () => assertSucceeds(coCode(nw7, 'cs5', 'nw7', 'pro', 'PRO-TEST02')));
+
  // --- v1.0.32 : équipes projet, accès serveur, projets historiques et audit immuable
  await env.withSecurityRulesDisabled(async c => {
    const db = c.firestore();

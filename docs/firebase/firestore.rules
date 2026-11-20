@@ -45,8 +45,14 @@ service cloud.firestore {
       return code is string && exists(/databases/$(db)/documents/packCodes/$(code)) && pc(code).status == 'valide' && pc(code).uses < pc(code).maxUses
         && !(request.auth.uid in pc(code).usedBy) && (pc(code).get('expiresAt', null) == null || pc(code).expiresAt > request.time);
     }
+    // v1.0.3xx : accès par service autonome — un code lié à un service précis (packCodes.svc) n'ouvre QUE ce service
+    // (companies.kind == 'service' && companies.svcKey == packCodes.svc) ; un code « pack » sans svc n'ouvre jamais
+    // un service autonome (chaque service se verrouille à part) mais reste valable pour individuel/organisation comme avant
     function codePlanOk(d) {
       return codeOk(d.packCode) && d.plan == pc(d.packCode).plan
+        && (d.get('kind', 'org') != 'service'
+              ? pc(d.packCode).get('svc', null) == null
+              : pc(d.packCode).get('svc', null) == d.get('svcKey', null))
         && ((pc(d.packCode).days == 0 && d.planStatus == 'actif')
           || (pc(d.packCode).days > 0 && d.planStatus == 'essai' && d.trialEndsAt <= request.time + duration.value(pc(d.packCode).days + 1, 'd')));
     }
