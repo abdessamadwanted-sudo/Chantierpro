@@ -48,11 +48,15 @@ service cloud.firestore {
     // v1.0.3xx : accès par service autonome — un code lié à un service précis (packCodes.svc) n'ouvre QUE ce service
     // (companies.kind == 'service' && companies.svcKey == packCodes.svc) ; un code « pack » sans svc n'ouvre jamais
     // un service autonome (chaque service se verrouille à part) mais reste valable pour individuel/organisation comme avant
+    // v1.0.3xx (suite) : anti-partage — un code créé avec packCodes.email (celui de la personne qui a demandé/payé)
+    // n'est utilisable que par ce compte précis ; sans email sur le code (ancien code, ou code manuel générique
+    // laissé vide), le comportement reste inchangé (n'importe quel compte peut l'utiliser, dans la limite de maxUses).
     function codePlanOk(d) {
       return codeOk(d.packCode) && d.plan == pc(d.packCode).plan
         && (d.get('kind', 'org') != 'service'
               ? pc(d.packCode).get('svc', null) == null
               : pc(d.packCode).get('svc', null) == d.get('svcKey', null))
+        && (pc(d.packCode).get('email', null) == null || pc(d.packCode).email == request.auth.token.get('email', '').lower())
         && ((pc(d.packCode).days == 0 && d.planStatus == 'actif')
           || (pc(d.packCode).days > 0 && d.planStatus == 'essai' && d.trialEndsAt <= request.time + duration.value(pc(d.packCode).days + 1, 'd')));
     }

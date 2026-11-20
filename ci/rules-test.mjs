@@ -394,6 +394,16 @@ await t('code pack service : REFUS d\'un code de service sur un espace individue
 await t('code pack service : REFUS d\'un code pack « général » (sans svc) sur un service autonome', () => assertFails(coSvc(nw7, 'cs4', 'nw7', 'PRO-TEST02', 'aut_2')));
 await t('code pack service : un code pack « général » (sans svc) reste valable pour un espace individuel', () => assertSucceeds(coCode(nw7, 'cs5', 'nw7', 'pro', 'PRO-TEST02')));
 
+// --- v1.0.3xx : anti-partage — un code créé avec packCodes.email n'est utilisable QUE par ce compte précis
+// (nu(uid) authentifie avec l'email `${uid}@test.ma`, voir plus haut)
+const [nw8, nw9, nw10] = ['nw8', 'nw9', 'nw10'].map(nu);
+await t('code pack email : le Super Admin crée deux codes réservés chacun à un email précis', async () => {
+  await assertSucceeds(owner.collection('packCodes').doc('PRO-EMAIL1').set({ plan: 'pro', days: 30, maxUses: 1, uses: 0, usedBy: [], status: 'valide', expiresAt: futur(30), email: 'nw8@test.ma' }));
+  await assertSucceeds(owner.collection('packCodes').doc('PRO-EMAIL2').set({ plan: 'pro', days: 30, maxUses: 1, uses: 0, usedBy: [], status: 'valide', expiresAt: futur(30), email: 'nw9@test.ma' })); });
+await t('code pack email : le compte réservé peut utiliser son code', () => assertSucceeds(coCode(nw8, 'ce1', 'nw8', 'pro', 'PRO-EMAIL1')));
+await t('code pack email : REFUS pour un autre compte que celui réservé (même code, même plan)', () => assertFails(coCode(nw10, 'ce2', 'nw10', 'pro', 'PRO-EMAIL2')));
+await t('code pack email : le compte réservé (différent du précédent) peut quand même utiliser son propre code', () => assertSucceeds(coCode(nw9, 'ce3', 'nw9', 'pro', 'PRO-EMAIL2')));
+
  // --- v1.0.32 : équipes projet, accès serveur, projets historiques et audit immuable
  await env.withSecurityRulesDisabled(async c => {
    const db = c.firestore();
