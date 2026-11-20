@@ -297,7 +297,9 @@
         if (r.v === 'ok') {
           let code = '';
           if (x.cid) await db.collection('companies').doc(x.cid).update({ plan: x.plan, planStatus: 'actif' });
-          else code = await makeCode({ plan: x.plan, days: 0, maxUses: 1, validDays: 30, note: `Demande de ${x.email}`, svc: x.svc, svcLabel: x.svcLabel });
+          // v1.0.3xx : anti-partage — le code généré à l'acceptation d'une demande est réservé à l'email du demandeur
+          // (déjà connu via packRequests.email) : personne d'autre ne peut l'utiliser, même s'il le transmet.
+          else code = await makeCode({ plan: x.plan, days: 0, maxUses: 1, validDays: 30, note: `Demande de ${x.email}`, svc: x.svc, svcLabel: x.svcLabel, email: x.email });
           await db.collection('packRequests').doc(x.id).update({ status: 'acceptee', doneAt: ts(), ...(code ? { code } : {}) });
           await db.collection('annonces').add({ target: x.uid, title: 'Pack accepté', text: x.cid ? `Votre demande « ${x.svcLabel || planOf(x.plan).l} » est acceptée : le pack est actif sur « ${x.cname || ''} ».`
             : `Votre demande « ${x.svcLabel || planOf(x.plan).l} » est acceptée. Votre code pack : ${code}\nEntrez-le à la création de votre espace (🎟 J'ai un code pack) ou dans Mon abonnement.`, at: ts(), by: auth.currentUser.uid }); }
@@ -310,20 +312,22 @@
 
   // ---------- codes pack ----------
   const PREFIX = { basic: 'BAS', pro: 'PRO', business: 'BUS', enterprise: 'ENT' };
-  async function makeCode({ plan, days, maxUses, validDays, note, svc, svcLabel }) {
+  async function makeCode({ plan, days, maxUses, validDays, note, svc, svcLabel, email }) {
     const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789', rnd = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), b => A[b % A.length]).join('');
     for (let i = 0; i < 5; i++) {
       const code = `${PREFIX[plan] || 'SIT'}-${rnd()}`, ref = db.collection('packCodes').doc(code);
       if ((await ref.get()).exists) continue;
       await ref.set({ plan, days: Math.max(0, +days || 0), maxUses: Math.max(1, +maxUses || 1), uses: 0, usedBy: [], status: 'valide', note: note || '',
         ...(svc ? { svc, svcLabel: svcLabel || svc } : {}),
+        // v1.0.3xx : anti-partage — code réservé à cet email seul (vide = utilisable par n'importe quel compte, comme avant)
+        ...((email || '').trim() ? { email: String(email).trim().toLowerCase() } : {}),
         expiresAt: +validDays > 0 ? firebase.firestore.Timestamp.fromMillis(Date.now() + validDays * 864e5) : null, createdAt: ts(), by: auth.currentUser.uid });
       return code;
     }
     throw new Error('Impossible de créer un code unique, réessayez');
   }
-  const codeTxt = (c) => `${c.svcLabel ? c.svcLabel + ' — ' : ''}${PLAN_L(c.plan)} · ${c.days > 0 ? c.days + ' jours' : 'sans limite'} · ${c.uses || 0}/${c.maxUses} utilisation(s)`;
-  const shareTxt = (c) => `Bonjour,\nVoici votre code pour SiteTeam : *${c.code}*\nPack : ${c.svcLabel ? c.svcLabel + ' (' + planOf(c.plan).l + ')' : planOf(c.plan).l}${c.days > 0 ? ` pendant ${c.days} jours` : ''}.\n\n1️⃣ Installez SiteTeam\n2️⃣ Créez votre compte\n3️⃣ Au choix du pack : « 🎟 J'ai un code pack » (ou Mon abonnement › Code pack si votre espace existe déjà)`;
+  const codeTxt = (c) => `${c.svcLabel ? c.svcLabel + ' — ' : ''}${PLAN_L(c.plan)} · ${c.days > 0 ? c.days + ' jours' : 'sans limite'} · ${c.uses || 0}/${c.maxUses} utilisation(s)${c.email ? ` · réservé à ${c.email}` : ''}`;
+  const shareTxt = (c) => `Bonjour,\nVoici votre code pour SiteTeam : *${c.code}*\nPack : ${c.svcLabel ? c.svcLabel + ' (' + planOf(c.plan).l + ')' : planOf(c.plan).l}${c.days > 0 ? ` pendant ${c.days} jours` : ''}.${c.email ? `\n⚠️ Valable uniquement avec le compte : ${c.email}` : ''}\n\n1️⃣ Installez SiteTeam\n2️⃣ Créez votre compte\n3️⃣ Au choix du pack : « 🎟 J'ai un code pack » (ou Mon abonnement › Code pack si votre espace existe déjà)`;
   function codes(M) {
     const L = [...D.codes].sort((a, b) => ms(b.createdAt) - ms(a.createdAt));
     M.innerHTML = `<h2>Codes pack</h2>
@@ -335,12 +339,13 @@
         <label>Note (pour qui ?)<input name="note" placeholder="Ex : Bureau d'études Atlas — essai"></label>
         <label>Service autonome précis (optionnel — vide = pack Individuel/Organisation, jamais un service)<input name="svc" placeholder="Ex : aut_2 (clé du service, voir la demande)"></label>
         <label>Nom du service à afficher (optionnel)<input name="svclabel" placeholder="Ex : Qualité"></label>
+        <label>Réservé à un email précis (optionnel — anti-partage : vide = n'importe quel compte peut l'utiliser)<input name="email" type="email" placeholder="Ex : client@email.com"></label>
         <div class="btns"><button class="btn" data-a="mk">Créer le code</button></div></div>
       <div class="card">${L.length ? L.map(c => `<div class="row" data-c="${esc(c.code)}"><div class="t grow"><b>${esc(c.code)}</b><small>${esc(codeTxt(c))}${c.note ? ' · ' + esc(c.note) : ''}${c.expiresAt ? ' · valable jusqu\'au ' + esc(dt(c.expiresAt)) : ''}</small></div>
         <span class="pill ${c.status !== 'valide' ? 'bad' : (c.uses || 0) >= c.maxUses ? '' : 'ok'}">${c.status !== 'valide' ? 'Annulé' : (c.uses || 0) >= c.maxUses ? 'Utilisé' : 'Valide'}</span></div>`).join('') : '<div class="empty">Aucun code</div>'}</div>`;
     const v = (n) => $(`[name=${n}]`, M).value;
     ($('[data-a=mk]', M)||{}).onclick = async () => {
-      try { const code = await makeCode({ plan: v('plan'), days: v('days'), maxUses: v('max'), validDays: v('valid'), note: v('note').trim(), svc: v('svc').trim(), svcLabel: v('svclabel').trim() }); D.at = 0; await load(true); codes(M); codeCard(code); }
+      try { const code = await makeCode({ plan: v('plan'), days: v('days'), maxUses: v('max'), validDays: v('valid'), note: v('note').trim(), svc: v('svc').trim(), svcLabel: v('svclabel').trim(), email: v('email').trim() }); D.at = 0; await load(true); codes(M); codeCard(code); }
       catch (e) { fail(e); }
     };
     $$('[data-c]', M).forEach(r => r.onclick = () => codeCard(r.dataset.c));
