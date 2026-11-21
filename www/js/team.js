@@ -330,11 +330,21 @@ service cloud.firestore {
     // v1.0.3xx (suite) : anti-partage — un code créé avec packCodes.email (celui de la personne qui a demandé/payé)
     // n'est utilisable que par ce compte précis ; sans email sur le code (ancien code, ou code manuel générique
     // laissé vide), le comportement reste inchangé (n'importe quel compte peut l'utiliser, dans la limite de maxUses).
+    // v1.0.3xx (point 17) : « Entreprise » (kind « entreprise ») — plusieurs services autonomes dans UN SEUL espace,
+    // chacun verrouillé à part (packCodes.svc == une clé du catalogue, ajoutée à companies.svcKeys) OU débloqué en
+    // un coup par un code « Entreprise complète » (packCodes.svc == 'ALL' → companies.allSvc). Seul companies/update
+    // appelle cette branche (la création d'une Entreprise est toujours gratuite et vide, voir companies.create
+    // ci-dessous) : resource existe donc toujours ici, jamais à la création.
     function codePlanOk(d) {
       return codeOk(d.packCode) && d.plan == pc(d.packCode).plan
-        && (d.get('kind', 'org') != 'service'
-              ? pc(d.packCode).get('svc', null) == null
-              : pc(d.packCode).get('svc', null) == d.get('svcKey', null))
+        && (d.get('kind', 'org') == 'entreprise'
+              ? (pc(d.packCode).get('svc', null) == 'ALL'
+                    ? d.get('allSvc', false) == true
+                    : (pc(d.packCode).get('svc', null) != null && pc(d.packCode).svc != 'ALL'
+                        && d.get('svcKeys', []) == resource.data.get('svcKeys', []).concat([pc(d.packCode).svc])))
+              : (d.get('kind', 'org') != 'service'
+                    ? pc(d.packCode).get('svc', null) == null
+                    : pc(d.packCode).get('svc', null) == d.get('svcKey', null)))
         && (pc(d.packCode).get('email', null) == null || pc(d.packCode).email == request.auth.token.get('email', '').lower())
         && ((pc(d.packCode).days == 0 && d.planStatus == 'actif')
           || (pc(d.packCode).days > 0 && d.planStatus == 'essai' && d.trialEndsAt <= request.time + duration.value(pc(d.packCode).days + 1, 'd')));
@@ -500,7 +510,13 @@ service cloud.firestore {
             // packpick.js). Tout autre compte doit passer par un code pack réservé à CE service (codePlanOk
             // ci-dessous, voir Team.obtainAutonomeSvc) — sinon n'importe qui obtenait, sans payer, le même service
             // (Qualité, Travaux, Planning…) que le parcours Pro verrouillé par service.
-            && (request.resource.data.get('kind', 'org') != 'service' || licOwner()))
+            && (request.resource.data.get('kind', 'org') != 'service' || licOwner())
+            // v1.0.3xx (point 17) : une « Entreprise » (kind « entreprise ») se crée toujours vide et gratuite
+            // (aucun service débloqué d'emblée — demande du propriétaire : « مايكون فيها والو حتا يشري service »).
+            // Débloquer un service (ou l'Entreprise complète) se fait ensuite UNIQUEMENT par companies/update +
+            // un code pack valide (voir codePlanOk et la règle update ci-dessous) — jamais à la création.
+            && (request.resource.data.get('kind', 'org') != 'entreprise'
+                || (request.resource.data.get('svcKeys', []).size() == 0 && request.resource.data.get('allSvc', false) != true)))
           || (request.resource.data.get('packCode', null) != null && codePlanOk(request.resource.data)));
       allow read: if isMem(cid) || licOwner();
       // v1.1 : suppression définitive de l'espace, par son propriétaire seulement
@@ -513,7 +529,11 @@ service cloud.firestore {
           && request.resource.data.get('accessUntil', null) == resource.data.get('accessUntil', null)
           && request.resource.data.get('featGrant', null) == resource.data.get('featGrant', null)
           && request.resource.data.get('modsOn', null) == resource.data.get('modsOn', null)
-          && request.resource.data.get('modsOff', null) == resource.data.get('modsOff', null)) || licOwner()
+          && request.resource.data.get('modsOff', null) == resource.data.get('modsOff', null)
+          // v1.0.3xx (point 17) : les services débloqués d'une Entreprise (svcKeys, allSvc) ne changent que par un
+          // code pack valide (branche codePlanOk ci-dessous), jamais par une modification « libre » de l'administrateur.
+          && request.resource.data.get('svcKeys', []) == resource.data.get('svcKeys', [])
+          && request.resource.data.get('allSvc', false) == resource.data.get('allSvc', false)) || licOwner()
         || (isAdmin(cid) && request.resource.data.get('packCode', null) != resource.data.get('packCode', null) && codePlanOk(request.resource.data));
 
       match /members/{uid} {
@@ -1152,6 +1172,74 @@ const Team = (() => {
       ld.close(); toast('Service créé ✓'); return ref.id;
     } catch (e) { ld.close(); alertBox(errMsg(e) + (e.code === 'permission-denied' ? '\n\nCréation refusée par le serveur (accès sur code uniquement ?).' : '')); return null; }
   }
+  // ========= Point 17 (demande du propriétaire, 21/11/2026) : « Pro Service autonome » → une seule « Entreprise »
+  // contenant plusieurs services, chacun verrouillé et présenté à part, + une option « Entreprise complète ». =========
+  // Clé réservée (jamais dans studio.json) pour un code/une demande qui débloque TOUS les services d'un coup.
+  const ENT_ALL = 'ALL';
+  // v1.0.3xx : l'Entreprise se crée TOUJOURS vide et gratuite (aucun service débloqué, aucun accès projet — la
+  // règle serveur l'impose). Un seul membre (l'administrateur), sans aucun droit tant qu'aucun service n'est acheté.
+  async function createEntreprise(name) {
+    if (!S.user) return null;
+    const ld = loading('Création de l\'Entreprise…');
+    try {
+      const uid = S.user.uid, ref = fs.collection('companies').doc(), R = tmRoleOf(orgTypeOf('entreprise').owner || 'patron');
+      await withTimeout(ref.set({ name: String(name || 'Mon Entreprise').slice(0, 80), ownerUid: uid, plan: 'basic', planStatus: 'gratuit',
+        kind: 'entreprise', orgType: 'entreprise', services: ['direction'], svcKeys: [], allSvc: false, createdAt: ts() }));
+      const none = Object.fromEntries(MODS.map(([m]) => [m, 0]));
+      await withTimeout(ref.collection('members').doc(uid).set({ name: (S.me || {}).name || S.user.displayName || '', email: S.user.email, role: R.k, service: R.s || 'direction',
+        perms: none, admin: true, allProjects: true, projects: [], managerUid: null, zone: '', createdAt: ts() }));
+      ld.close(); return ref.id;
+    } catch (e) { ld.close(); alertBox(errMsg(e) + (e.code === 'permission-denied' ? '\n\nCréation refusée par le serveur (accès sur code uniquement ?).' : '')); return null; }
+  }
+  // services déjà débloqués de l'Entreprise ouverte (ou n'importe quelle company passée) : toujours vrai si allSvc
+  const entSvcKeys = (co) => (co || S.company || {}).svcKeys || [];
+  const entHasAll = (co) => !!(co || S.company || {}).allSvc;
+  const entHasSvc = (id, co) => entHasAll(co) || entSvcKeys(co).includes(id);
+  // dès qu'un service (ou l'Entreprise complète) est débloqué : mêmes droits complets qu'un service autonome classique
+  // (PLANS.pro.modules couvre déjà tout, svcKeys ne fait que piloter le catalogue « Ajouter », pas les droits eux-mêmes)
+  async function entGrantFull() {
+    if (!S.cid || !S.user) return;
+    const all = Object.fromEntries(MODS.map(([m]) => [m, 4]));
+    try { await withTimeout(fs.collection('companies').doc(S.cid).collection('members').doc(S.user.uid).update({ perms: all })); } catch (e) { console.warn('entGrantFull', e); }
+  }
+  // débloque UN service précis (svc = {id,label}) sur l'Entreprise ouverte, via un code pack reçu (réservé à ce
+  // service, ou code « Entreprise complète » si svc.id === ENT_ALL) — même mécanique que applyPackCode, étendue au tableau svcKeys.
+  async function unlockEntService(svc, code) {
+    if (!S.cid || !S.company || S.company.kind !== 'entreprise') return false;
+    const all = svc.id === ENT_ALL;
+    if (code.plan !== 'pro' || (all ? code.svc !== ENT_ALL : code.svc !== svc.id)) { alertBox('Ce code ne correspond pas à ce service.'); return false; }
+    const ld = loading('Activation « ' + svc.label + ' »…');
+    try {
+      const sub = codeSub(code);
+      const patch = all ? { allSvc: true } : { svcKeys: [...entSvcKeys(), svc.id] };
+      await withTimeout(fs.collection('companies').doc(S.cid).update({ plan: 'pro', ...sub, packCode: code.code, ...patch }));
+      await withTimeout(useCode(code)).catch(e => console.warn('code', e));
+      S.company = { ...S.company, plan: 'pro', ...sub, packCode: code.code, ...patch }; LS.set('company', S.company);
+      await entGrantFull();
+      ld.close(); await alertBox(`« ${svc.label} » activé ✓`); location.reload(); return true;
+    } catch (e) { ld.close(); alertBox(errMsg(e)); return false; }
+  }
+  // débloque instantanément (Super Admin seulement, aperçu interne — les règles l'autorisent via licOwner()).
+  async function entUnlockSuper(svc) {
+    if (!S.cid) return false;
+    const all = svc.id === ENT_ALL, patch = all ? { allSvc: true } : { svcKeys: [...entSvcKeys(), svc.id] };
+    try {
+      await withTimeout(fs.collection('companies').doc(S.cid).update({ plan: 'pro', planStatus: 'actif', ...patch }));
+      S.company = { ...S.company, plan: 'pro', planStatus: 'actif', ...patch }; LS.set('company', S.company);
+      await entGrantFull(); toast(`« ${svc.label} » activé ✓`); setTimeout(() => location.reload(), 500); return true;
+    } catch (e) { alertBox(errMsg(e)); return false; }
+  }
+  // écran « Demander l'accès » / « J'ai un code », scopé à UN service (ou à l'Entreprise complète), sur l'Entreprise déjà ouverte.
+  async function requestEntService(svc) {
+    if (isSuper()) return entUnlockSuper(svc);
+    const ch = await menu(svc.label, [
+      { label: 'Demander l\'accès', icon: 'mail', value: 'req' },
+      { label: 'J\'ai un code', icon: 'lock', value: 'code' },
+    ]);
+    if (ch === 'req') { await requestPack('pro', false, { id: svc.id, label: svc.label }); return false; }
+    if (ch === 'code') { const C = await askPackCode(); if (!C) return false; return unlockEntService(svc, C); }
+    return false;
+  }
   // Comptes de test par pack (écran « Choisir le pack », v1.0.? ) : sous l'identité du Super Admin.
   // Basic/Pro/Business : 3 organisations réelles, permanentes et VIDES, créées une seule fois, à la demande (jamais au
   // démarrage) ; leur id est mémorisé dans users/{uid}.packAccounts, jamais recréé une 2e fois.
@@ -1612,74 +1700,27 @@ const Team = (() => {
         ($('[data-a=svc]', el)||{}).onclick = () => stepAutonomeSvc();
         back(stepPlan);
       }
-      // 2c · choix du service autonome (catalogue assets/studio.json, kind:'service' & parent:'autonomous')
+      // 2c · Point 17 (demande du propriétaire, 21/11/2026) : « Pro Service autonome » donne UNE Entreprise (vide,
+      // gratuite), pas un espace par service choisi ici. Le choix du service (catalogue + présentation + demande
+      // d'accès ou code) se fait ENSUITE, une fois entré dans l'Entreprise (voir Ent.openAdd, svc-entreprise.js) —
+      // remplace l'ancien choix immédiat dans l'onboarding (gardé en historique dans git, voir PR #299/#313).
       function stepAutonomeSvc() {
-        // v1.0.2xx : cartes dans le même style que les volets « Outils du projet » (pastille colorée, badge « N
-        // volets », chevron) — demande du propriétaire : retrouver, dès le choix du service, les mêmes couleurs et
-        // la même présentation que ce qu'il connaît déjà de l'Entreprise, pas une simple liste de boutons.
-        const SVC_DESC = {
-          aut_0: ['#0d9488', '🛡️', '3 volets', 'Documents, réceptions, contrôles, laboratoire'],
-          aut_1: ['#ea580c', '⛑️', '3 volets', 'Réunions, inspections, constats sécurité'],
-          aut_2: ['#2563eb', '🏗️', '3 volets', 'Planning, suivi des lots, Matériaux (ferraillage)'],
-          aut_5: ['#7c3aed', '📐', '3 volets', 'RFI, visas, calculs, maquettes 3D'],
-          aut_10: ['#16a34a', '💰', '3 volets', 'Finance, gestion, avenants, pointage'],
-          aut_12: ['#0891b2', '📍', '3 volets', 'Plans, maquettes, calculs, implantation'],
-          aut_13: ['#8b5cf6', '🧪', '3 volets', 'Documents, essais, prélèvements béton'],
-        };
-        el.innerHTML = `<div class="tm-lg-in">${steps(3, tot())}<h1>🧩 Quel service ?</h1><p>Chaque service aura sa propre interface, construite petit à petit, avec les mêmes volets que « Outils du projet ».</p>
-          <div class="st-orgs st-orgs-svc" data-list><p class="st-of-n">Chargement…</p></div>
+        el.innerHTML = `<div class="tm-lg-in">${steps(3, tot())}<h1>🧩 Pro Service autonome</h1>
+          <p>Une seule Entreprise, vide au départ. Une fois entré, ajoutez les services qu'il vous faut (Qualité, Travaux, HSE, Études…) un par un — chacun avec sa présentation et son propre accès.</p>
+          <button class="btn" data-a="go">Créer mon Entreprise</button>
           <button class="linkbtn" data-a="back">← Retour</button></div>`;
         back(stepProKind);
-        // v1.0.2xx : un intervenant (BET, Architecte, Bureau de contrôle, Laboratoire ou Topographe externe,
-        // Assistance technique) peut aussi devenir un Pro Service autonome — demande du propriétaire (« même
-        // principe pour les intervenants aussi ») — en réutilisant ST.INTERVENANTS (déjà construit, mêmes volets
-        // que côté Entreprise) ; clé dédiée iv_* (jamais dans studio.json, Team.createService l'accepte librement).
-        const cardHtml = (n) => `<button class="st-svc-c" data-o="${esc(n.id)}" style="--c:${n.c}"><span class="dot">${n.e}</span><span class="grow"><b>${esc(n.label)}</b><small>${esc(n.sub)}</small></span>${n.badge ? `<em>${n.badge}</em>` : ''}<i>›</i></button>`;
-        (async () => {
-          let L = []; try { const raw = await (await fetch('assets/studio.json')).json(); L = raw.filter(n => n.kind === 'service' && n.parent === 'autonomous'); } catch (e) {}
-          const IV = (typeof ST !== 'undefined' && ST.INTERVENANTS) || [];
-          const box = $('[data-list]', el); if (!box) return;
-          if (!L.length && !IV.length) { box.innerHTML = '<p class="st-of-n">Catalogue indisponible — réessayez plus tard.</p>'; return; }
-          const cardsA = L.map(n => { const [c, e, vol, sub] = SVC_DESC[n.id] || ['#7c3aed', '🧩', null, 'Interface standard (en attendant sa version dédiée)']; return { id: n.id, label: n.label, c, e, badge: vol, sub }; });
-          const cardsB = IV.map(I => ({ id: 'iv_' + I.k, label: I.nom, c: I.c, e: I.e, badge: I.services.length + ' services', sub: 'Chaque service en 3 volets (Administratif/Terrain/Commun)' }));
-          box.innerHTML = cardsA.map(cardHtml).join('') + (cardsB.length ? `<p class="st-thint2" style="margin:10px 0 4px">Intervenants (organisations partenaires)</p>${cardsB.map(cardHtml).join('')}` : '');
-          const all = [...cardsA, ...cardsB];
-          // v1.0.3xx : chaque service autonome (Pro) est verrouillé à part — demande du propriétaire : « كل service على
-          // حدة ». Le Super Admin garde la création immédiate (aperçu interne, comme avant) ; un vrai utilisateur voit
-          // un choix « Demander l'accès » (arrive dans le panneau d'administration) ou « J'ai un code » (code pack lié
-          // à CE service précis, délivré par le propriétaire une fois la demande acceptée et le paiement reçu).
-          $$('[data-o]', box).forEach(b => b.onclick = async () => {
-            const svc = all.find(x => x.id === b.dataset.o); if (!svc) return;
-            if (isSuper()) return createAutonome(svc);
-            const ch = await menu(svc.label, [
-              { label: 'Demander l\'accès', icon: 'mail', value: 'req' },
-              { label: 'J\'ai un code', icon: 'lock', value: 'code' },
-            ]);
-            if (ch === 'req') { await requestPack('pro', false, { id: svc.id, label: svc.label }); return; }
-            if (ch === 'code') {
-              const C = await askPackCode(); if (!C) return;
-              if (C.plan !== 'pro' || C.svc !== svc.id) return alertBox('Ce code ne correspond pas à ce service.');
-              return createAutonome(svc, C);
-            }
-          });
-        })();
-      }
-      // création directe d'un espace « service autonome » en pack Pro (payé par le service lui-même, essai 14 jours
-      // comme tout pack Pro, ou activé directement si un code pack valide — réservé à CE service — est fourni) —
-      // mêmes règles serveur que toute organisation (voir Team.createService, inchangé).
-      async function createAutonome(svc, code) {
-        if (!svc) return;
-        const ld = loading('Création du service « ' + svc.label + ' »…');
-        try {
-          const uid = auth.currentUser.uid, ref = fs.collection('companies').doc(), P = PLANS.pro;
-          const sub = code ? codeSub(code) : { planStatus: 'essai', trialEndsAt: firebase.firestore.Timestamp.fromMillis(Date.now() + (P.trialDays || 14) * 864e5) };
-          await withTimeout(ref.set({ name: svc.label, ownerUid: uid, plan: 'pro', ...sub, ...(code ? { packCode: code.code } : {}), kind: 'service', orgType: 'entreprise', services: ['direction'], svcKey: String(svc.id), createdAt: ts() }));
-          const all = Object.fromEntries(MODS.map(([m]) => [m, 4])), R = tmRoleOf(orgTypeOf('entreprise').owner || 'patron');
-          await withTimeout(ref.collection('members').doc(uid).set({ name: auth.currentUser.displayName || '', email: auth.currentUser.email, role: R.k, service: 'direction', perms: all, admin: true, allProjects: true, projects: [], managerUid: null, zone: '', createdAt: ts() }));
-          await withTimeout(fs.collection('users').doc(uid).set({ companyId: ref.id, name: auth.currentUser.displayName || '' }, { merge: true }));
-          if (code) await useCode(code).catch(() => {});
-          ld.close(); toast('Service créé ✓'); done();
-        } catch (e) { ld.close(); alertBox(errMsg(e) + (e.code === 'permission-denied' ? '\n\nLes règles de sécurité Firestore sont-elles installées ?' : '')); }
+        ($('[data-a=go]', el)||{}).onclick = async () => {
+          const uid = auth.currentUser.uid, ref = fs.collection('companies').doc(), R = tmRoleOf(orgTypeOf('entreprise').owner || 'patron');
+          const ld = loading('Création de l\'Entreprise…');
+          try {
+            await withTimeout(ref.set({ name: 'Mon Entreprise', ownerUid: uid, plan: 'basic', planStatus: 'gratuit', kind: 'entreprise', orgType: 'entreprise', services: ['direction'], svcKeys: [], allSvc: false, createdAt: ts() }));
+            const none = Object.fromEntries(MODS.map(([m]) => [m, 0]));
+            await withTimeout(ref.collection('members').doc(uid).set({ name: auth.currentUser.displayName || '', email: auth.currentUser.email, role: R.k, service: R.s || 'direction', perms: none, admin: true, allProjects: true, projects: [], managerUid: null, zone: '', createdAt: ts() }));
+            await withTimeout(fs.collection('users').doc(uid).set({ companyId: ref.id, name: auth.currentUser.displayName || '' }, { merge: true }));
+            ld.close(); toast('Entreprise créée ✓'); done();
+          } catch (e) { ld.close(); alertBox(errMsg(e) + (e.code === 'permission-denied' ? '\n\nLes règles de sécurité Firestore sont-elles installées ?' : '')); }
+        };
       }
       // 3 · Basic Organisation : parcours simplifié (demande explicite du propriétaire) — ni choix de type d'organisation
       // ni liste de services multiples (dont « Intervenants externes ») : Basic reste le pack simple qu'il était avant
@@ -2755,7 +2796,8 @@ const Team = (() => {
 
   return {
     boot, push, pull, resetPull, lvl, canSection, svcLib, canProject, isAdmin, openCompany, taille, secureApply, secureOn, saveAffectations, noteProject, projectIds, inviteFlow, inviteFor, shareInvite, canInviteNow: () => canInvite(), logout, decorateSection, removeMember, refreshMembers,
-    isSuper, superConsole, orgType, isPerso, tailleList: () => TAILLES, roleList: () => TM_ROLES.map(r => ({ k: r.k, l: r.l, perms: r.perms })), planModules: () => Object.fromEntries(['basic', 'pro', 'business', 'enterprise'].map(k => [k, planOf(k).modules])), companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, createService, obtainAutonomeSvc, packAccounts, ensurePackAccount, attach: att, isOwner, deleteEspace, workspaces: () => S.workspaces || [], shared: () => S.shared || [], cid: () => S.cid,
+    isSuper, superConsole, orgType, isPerso, tailleList: () => TAILLES, roleList: () => TM_ROLES.map(r => ({ k: r.k, l: r.l, perms: r.perms })), planModules: () => Object.fromEntries(['basic', 'pro', 'business', 'enterprise'].map(k => [k, planOf(k).modules])), companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, createService, obtainAutonomeSvc, packAccounts, ensurePackAccount,
+    createEntreprise, requestEntService, unlockEntService, entUnlockSuper, entSvcKeys, entHasSvc, entHasAll, ENT_ALL, attach: att, isOwner, deleteEspace, workspaces: () => S.workspaces || [], shared: () => S.shared || [], cid: () => S.cid,
     profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
     openProjectShares, claimShare, openPartners, renderHistory, sharedOf, joinWithCode,
     cloudOn, canCloud, cloudUpload, cloudDownload, cloudRemove, cloudCfg, storageRules: STORAGE_RULES,

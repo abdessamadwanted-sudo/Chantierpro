@@ -51,11 +51,21 @@ service cloud.firestore {
     // v1.0.3xx (suite) : anti-partage — un code créé avec packCodes.email (celui de la personne qui a demandé/payé)
     // n'est utilisable que par ce compte précis ; sans email sur le code (ancien code, ou code manuel générique
     // laissé vide), le comportement reste inchangé (n'importe quel compte peut l'utiliser, dans la limite de maxUses).
+    // v1.0.3xx (point 17) : « Entreprise » (kind « entreprise ») — plusieurs services autonomes dans UN SEUL espace,
+    // chacun verrouillé à part (packCodes.svc == une clé du catalogue, ajoutée à companies.svcKeys) OU débloqué en
+    // un coup par un code « Entreprise complète » (packCodes.svc == 'ALL' → companies.allSvc). Seul companies/update
+    // appelle cette branche (la création d'une Entreprise est toujours gratuite et vide, voir companies.create
+    // ci-dessous) : resource existe donc toujours ici, jamais à la création.
     function codePlanOk(d) {
       return codeOk(d.packCode) && d.plan == pc(d.packCode).plan
-        && (d.get('kind', 'org') != 'service'
-              ? pc(d.packCode).get('svc', null) == null
-              : pc(d.packCode).get('svc', null) == d.get('svcKey', null))
+        && (d.get('kind', 'org') == 'entreprise'
+              ? (pc(d.packCode).get('svc', null) == 'ALL'
+                    ? d.get('allSvc', false) == true
+                    : (pc(d.packCode).get('svc', null) != null && pc(d.packCode).svc != 'ALL'
+                        && d.get('svcKeys', []) == resource.data.get('svcKeys', []).concat([pc(d.packCode).svc])))
+              : (d.get('kind', 'org') != 'service'
+                    ? pc(d.packCode).get('svc', null) == null
+                    : pc(d.packCode).get('svc', null) == d.get('svcKey', null)))
         && (pc(d.packCode).get('email', null) == null || pc(d.packCode).email == request.auth.token.get('email', '').lower())
         && ((pc(d.packCode).days == 0 && d.planStatus == 'actif')
           || (pc(d.packCode).days > 0 && d.planStatus == 'essai' && d.trialEndsAt <= request.time + duration.value(pc(d.packCode).days + 1, 'd')));
@@ -221,7 +231,13 @@ service cloud.firestore {
             // packpick.js). Tout autre compte doit passer par un code pack réservé à CE service (codePlanOk
             // ci-dessous, voir Team.obtainAutonomeSvc) — sinon n'importe qui obtenait, sans payer, le même service
             // (Qualité, Travaux, Planning…) que le parcours Pro verrouillé par service.
-            && (request.resource.data.get('kind', 'org') != 'service' || licOwner()))
+            && (request.resource.data.get('kind', 'org') != 'service' || licOwner())
+            // v1.0.3xx (point 17) : une « Entreprise » (kind « entreprise ») se crée toujours vide et gratuite
+            // (aucun service débloqué d'emblée — demande du propriétaire : « مايكون فيها والو حتا يشري service »).
+            // Débloquer un service (ou l'Entreprise complète) se fait ensuite UNIQUEMENT par companies/update +
+            // un code pack valide (voir codePlanOk et la règle update ci-dessous) — jamais à la création.
+            && (request.resource.data.get('kind', 'org') != 'entreprise'
+                || (request.resource.data.get('svcKeys', []).size() == 0 && request.resource.data.get('allSvc', false) != true)))
           || (request.resource.data.get('packCode', null) != null && codePlanOk(request.resource.data)));
       allow read: if isMem(cid) || licOwner();
       // v1.1 : suppression définitive de l'espace, par son propriétaire seulement
@@ -234,7 +250,11 @@ service cloud.firestore {
           && request.resource.data.get('accessUntil', null) == resource.data.get('accessUntil', null)
           && request.resource.data.get('featGrant', null) == resource.data.get('featGrant', null)
           && request.resource.data.get('modsOn', null) == resource.data.get('modsOn', null)
-          && request.resource.data.get('modsOff', null) == resource.data.get('modsOff', null)) || licOwner()
+          && request.resource.data.get('modsOff', null) == resource.data.get('modsOff', null)
+          // v1.0.3xx (point 17) : les services débloqués d'une Entreprise (svcKeys, allSvc) ne changent que par un
+          // code pack valide (branche codePlanOk ci-dessous), jamais par une modification « libre » de l'administrateur.
+          && request.resource.data.get('svcKeys', []) == resource.data.get('svcKeys', [])
+          && request.resource.data.get('allSvc', false) == resource.data.get('allSvc', false)) || licOwner()
         || (isAdmin(cid) && request.resource.data.get('packCode', null) != resource.data.get('packCode', null) && codePlanOk(request.resource.data));
 
       match /members/{uid} {

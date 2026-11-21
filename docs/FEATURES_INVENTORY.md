@@ -225,3 +225,51 @@ création d'invitation par un non-admin, écriture de tâche par un rôle en lec
 **Mise à jour v1.0.3xx (anti-partage)** : un code peut désormais être réservé à un **email précis** (`packCodes.email`) — rempli automatiquement avec l'email du demandeur quand le code vient d'une demande acceptée (`packRequests.email`), ou saisi à la main pour un code créé manuellement dans « Codes » (optionnel, vide = comportement inchangé, utilisable par n'importe quel compte dans la limite de `maxUses`). Vérifié côté serveur dans `codePlanOk` (`request.auth.token.email` comparé en minuscule) ET côté client dans `readPackCode` (message clair avant même d'essayer : « Ce code est réservé à un autre compte »). Objectif : empêcher qu'un code transmis à un tiers avant sa première utilisation profite à ce tiers plutôt qu'à la personne qui a payé. `codeTxt`/`shareTxt` (admin.js) affichent/mentionnent l'email réservé quand il existe. Testé : `ci/rules-test.mjs` (compte réservé accepté, autre compte refusé, un deuxième compte réservé différent reste accepté pour son propre code — non-régression), `ci/st.mjs` (le code généré à l'acceptation de la demande de L est refusé à M même sur le même service, en plus du refus déjà testé pour un service différent). **Important pour le propriétaire** : aucune nouvelle action de sa part au-delà de celles déjà demandées pour le verrou par service ci-dessus (règles Firestore à republier, « Pro » à garder fermé). |
 
 **Correction v1.0.3xx (ثغرة « Nouveau service autonome »)** : le propriétaire a signalé que « Mes espaces » › « ＋ Nouveau service autonome » (`mesespaces.js`) contournait entièrement le verrou ci-dessus — ce bouton appelait `Team.createService` directement, ce qui créait, gratuitement et sans limite, n'importe quel service du **même catalogue payant** (`assets/studio.json`, Qualité, Travaux, Planning, HSE…) en pack Basic, pour n'importe quel compte. Corrigé des deux côtés : côté client, `mesespaces.js` appelle désormais `Team.obtainAutonomeSvc({id, label})` (nouvelle fonction, team.js) qui propose le même choix « Demander l'accès » / « J'ai un code » que `stepAutonomeSvc()` pour tout compte non Super Admin (le Super Admin garde la création immédiate, aperçu interne, `packpick.js` inchangé) ; côté serveur, FIRESTORE_RULES (`companies.create`) refuse désormais la création d'un espace `kind:'service'` en gratuit/essai (sans `packCode`) sauf pour le Super Admin — avant ce correctif, la règle l'autorisait déjà même sans passer par l'interface (faille exploitable directement via le SDK Firestore, pas seulement via ce bouton). `Team.createService` reste exporté et utilisé tel quel uniquement par `packpick.js` (écran réservé au Super Admin). **Important pour le propriétaire** : publier les nouvelles règles Firestore (`companies.create`) dans la console Firebase après fusion — sans cela, l'ancienne règle (sans ce verrou) reste active côté serveur malgré le nouveau code client. Testé : `node --check`, `ci/rules.mjs`, `ci/guards.mjs`, `ci/rules-test.mjs` (création gratuite d'un service autonome refusée pour un compte normal, toujours permise au Super Admin). |
+
+## Point 17 (v1.0.3xx) — « Pro Service autonome » : une Entreprise, plusieurs services ajoutés et verrouillés à part
+
+Refonte demandée par le propriétaire le 21/11/2026, juste après la correction de la brèche ci-dessus : « Pro Service
+autonome » ne crée plus un espace séparé par service choisi — il crée **une seule « Entreprise »** (`kind: 'entreprise'`),
+**vide et gratuite**, sans aucun accès fonctionnel (aucun projet, aucun droit) tant qu'aucun service n'est débloqué.
+
+- **Modèle de données** : `companies.{kind:'entreprise', svcKeys: string[], allSvc: boolean}`. `svcKeys` liste les clés
+  du catalogue (`aut_0`…`aut_15`, ou `iv_bet`/`iv_archi`/`iv_moa`/`iv_bc`/`iv_labo`/`iv_topo`/`iv_at` pour les
+  intervenants) déjà débloquées une par une ; `allSvc:true` (« Entreprise complète ») les débloque toutes d'un coup.
+  Dès qu'au moins un service est débloqué (ou `allSvc`), le membre administrateur reçoit les droits complets
+  (`Team.entGrantFull`, comme un service autonome classique — les modules du pack Pro ne dépendent pas de `svcKey`,
+  seul le catalogue « Ajouter » en dépend).
+- **Catalogue « Ajouter un service »** (`mesespaces.js`, `MesEspaces.openEntAdd`/`entCatalog`) : les 16 services
+  (`assets/studio.json`, `kind:'service' & parent:'autonomous'`) + les 7 intervenants (`ST.INTERVENANTS`), moins ceux
+  déjà ajoutés. Les 7 services qui ont déjà une interface réelle (Qualité, HSE, Travaux, Études, Finance, Topographie,
+  Laboratoire — `ST.SVC_SHELLS`) reprennent leurs volets existants (Administratif/Terrain/Commun) ; les 9 autres
+  (Méthodes, Planning, Matériel, Achats, Logistique, RH, Métré, Contrôle, OPC) reçoivent une présentation conçue pour
+  ce point (couleur, émoji, accroche, 3 volets), en attendant leurs outils dédiés ; les intervenants reprennent leurs
+  propres services (déjà construits) comme liste de volets. Cliquer un service **n'active rien** : une page de
+  présentation (`MesEspaces.presentSheet`) montre sa description et ses volets, avec au bas « Demander l'accès à
+  « X » » — même choix que l'ancien verrou par service (« Demander l'accès » / « J'ai un code », `Team.requestEntService`).
+- **Deux façons de débloquer** : un service précis (code réservé à sa clé, `packCodes.svc = 'aut_X'`/`'iv_x'`) OU
+  l'Entreprise complète (`packCodes.svc = 'ALL'`, option en tête du catalogue). Les deux passent par `companies/update`
+  (jamais par la création) : FIRESTORE_RULES `codePlanOk` étendu pour `kind:'entreprise'` — ajoute exactement la clé du
+  code à `svcKeys` (`.concat()`, comparé par égalité stricte) ou pose `allSvc:true`, jamais les deux à la fois, jamais
+  sans code valide (les deux champs sont gelés hors de cette branche, comme `plan`/`planStatus`/`trialEndsAt`).
+  Super Admin : déblocage immédiat, aperçu interne (`Team.entUnlockSuper`), inchangé pour les autres.
+- **Panneau d'administration** (`admin.js`, `reqs()`) : une demande visant une Entreprise (`o.kind === 'entreprise'`)
+  ajoute le service à `svcKeys` (ou pose `allSvc`) au lieu d'écraser le pack global, et accorde aussitôt les droits
+  complets à son administrateur.
+- **Aucune migration des espaces « service » existants** (demande explicite du propriétaire, confirmée deux fois le
+  21/11/2026) : les espaces autonomes créés avant ce point (Planning, Travaux, Qualité…) restent affichés tels quels
+  dans « Mes espaces » (section « Services autonomes (historique) »), inchangés, à part de toute Entreprise.
+- **Limite connue, à signaler au propriétaire** : la suspension/réactivation (panneau d'administration, Statut) agit
+  sur l'Entreprise **entière**, pas service par service — suspendre une Entreprise coupe l'accès à tous ses services
+  débloqués à la fois. Un verrou par service à l'intérieur d'une même Entreprise, indépendant des autres, n'est pas
+  construit dans cette version.
+
+Testé : `node --check`, `ci/rules.mjs`, `ci/guards.mjs`, `ci/rules-test.mjs` (création d'une Entreprise vide acceptée,
+refusée si des services ou `allSvc` sont déjà présents à la création ; ajout d'un service avec le code réservé à sa
+clé accepté, refusé avec le code d'un autre service, refusé sans changer de code ; `allSvc` avec le code `ALL`
+accepté, refusé avec un code de service précis). **Non testé** : aucun parcours de bout en bout (`ci/st.mjs`) pour ce
+point — à ajouter ; vérification manuelle sur téléphone encore à faire par le propriétaire (onboarding « Pro Service
+autonome », écran « Entreprise vide », « Ajouter un service », demande/code, panneau d'administration). **Important
+pour le propriétaire** : publier les nouvelles règles Firestore (`codePlanOk`, `companies.create`/`update`) dans la
+console Firebase après fusion — sans cela, aucun déblocage de service ne fonctionnera côté serveur malgré le nouveau
+code client.
