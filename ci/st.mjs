@@ -284,34 +284,43 @@ try {
   await A.pg.click('[data-t=inv]'); await A.pg.waitForTimeout(1500); await A.pg.click(`[data-del="${code7}"]`); await A.pg.waitForTimeout(400); await A.pg.click('.opt:has-text("Révoquer le code")'); await A.pg.waitForTimeout(1500);
   log('code révoqué', await A.pg.evaluate(async (c) => (await firebase.firestore().collection('invites').doc(c).get()).data().status, code7));
   log('errors v1.0.17', [...G.errs, ...C.errs]);
-  // ---- v1.0.? : pack Pro scindé Individuel / Service autonome — choisir « Autonome » puis un service (Travaux)
-  // crée directement l'espace et entre dans « Outils du projet » après un premier projet, sans passer par stepMetier.
-  // v1.0.3xx : chaque service autonome est désormais verrouillé À PART (demande du propriétaire : « كل service على
-  // حدة ») — un vrai utilisateur ne crée plus l'espace directement en cliquant la carte : il choisit « Demander
-  // l'accès » (arrive dans le panneau d'administration, voir plus bas une fois SA créé) ou « J'ai un code » (un code
-  // réservé à CE service précis). L termine son parcours plus bas, une fois le Super Admin SA créé et sa demande
-  // acceptée (code réservé au service Travaux) — ce qui vérifie tout le circuit demande → acceptation → code → accès.
+  // ---- v1.0.? : pack Pro scindé Individuel / Service autonome — choisir « Autonome » crée désormais une seule
+  // « Entreprise » vide et gratuite (plus de catalogue dans l'assistant) ; les services s'ajoutent ensuite un par un
+  // depuis l'accueil (« ＋ Ajouter un service »), chacun avec sa page de présentation et son propre choix « Demander
+  // l'accès » / « J'ai un code » (point 17, demande du propriétaire 21/11/2026 — remplace l'ancien catalogue direct
+  // dans l'assistant, qui créait directement un espace kind:'service' par service choisi).
+  // v1.0.3xx : chaque service reste verrouillé À PART (demande du propriétaire : « كل service على حدة ») — choisir
+  // « Demander l'accès » ouvre la demande vue plus bas (panneau d'administration, une fois le Super Admin SA créé) ;
+  // « J'ai un code » reste disponible pour un code déjà reçu (voir ci/rules-test.mjs pour le verrou serveur par code).
   const L = await newUser('L'); await signup(L.pg, 'Rachid Autonome', 'rachid.autonome@test.ma');
   await L.pg.click('[data-a=perso]'); await L.pg.waitForSelector('.st-offers'); await L.pg.click('[data-p=pro]');
-  await L.pg.waitForSelector('[data-a=svc]'); await L.pg.click('[data-a=svc]'); await L.pg.waitForSelector('[data-o]', { timeout: 15000 });
-  await L.pg.click('[data-o=aut_2]'); await L.pg.waitForSelector('.opt:has-text("Demander l\'accès")', { timeout: 15000 });
-  log('L service Travaux verrouillé (choix demande/code, pas de création immédiate)', await L.pg.evaluate(() => [...document.querySelectorAll('.opt')].map(o => o.textContent.trim())));
+  await L.pg.waitForSelector('[data-a=svc]'); await L.pg.click('[data-a=svc]');
+  await L.pg.waitForSelector('[data-a=go]', { timeout: 15000 }); await L.pg.click('[data-a=go]');
+  await L.pg.waitForSelector('[data-a=add]', { timeout: 15000 }); await shot(L.pg, '55a_pro_entreprise_vide');
+  log('L Entreprise créée vide (demande du propriétaire : aucun service par défaut)', await L.pg.evaluate(() => [Team.company().kind, (Team.company().svcKeys || []).length, Team.company().allSvc, !document.querySelector('.home2')]));
+  await L.pg.click('[data-a=add]'); await L.pg.waitForSelector('.opt', { timeout: 15000 });
+  await L.pg.click('.opt:has-text("Travaux")'); await L.pg.waitForSelector('.ent-present [data-a=go]', { timeout: 15000 });
+  await L.pg.click('.ent-present [data-a=go]'); await L.pg.waitForSelector('.opt:has-text("Demander l\'accès")', { timeout: 15000 });
+  log('L service Travaux verrouillé (choix demande/code, pas de déblocage immédiat)', await L.pg.evaluate(() => [...document.querySelectorAll('.opt')].map(o => o.textContent.trim())));
   await L.pg.click('.opt:has-text("Demander l\'accès")'); await L.pg.waitForSelector('.sheet [name=msg]'); await L.pg.fill('.sheet [name=msg]', 'Essai Travaux'); await L.pg.click('.sheet [data-a=ok]');
   await L.pg.waitForSelector('.opt:has-text("OK")', { timeout: 15000 }); await L.pg.click('.opt:has-text("OK")'); await L.pg.waitForTimeout(500); await shot(L.pg, '55_pro_autonome_travaux_verrou');
-  log('L demande envoyée, pas de société créée', await L.pg.evaluate(() => !document.querySelector('.home2')));
+  log('L demande envoyée, service toujours verrouillé', await L.pg.evaluate(() => [(Team.company().svcKeys || []).length, !document.querySelector('.home2')]));
   log('errors v1.0.? pro autonome', L.errs);
   // ---- v1.0.2xx : Pro Service autonome « Qualité » (aut_0) — demande du propriétaire (capture à l'appui) :
   // l'accueil reste l'accueil standard (.home2, barre du bas) comme n'importe quel espace Pro, pas un écran à
   // part ; seul « Outils du projet » (ST.renderProjectTools) est spécifique au service Qualité, vérifié
   // séparément ci-dessous (test logique vSvq, dans le compte Entreprise réel A).
-  // v1.0.3xx : même verrou par service que Travaux ci-dessus (demande seulement, pas de création immédiate).
+  // v1.0.3xx : même verrou par service que Travaux ci-dessus (demande seulement, pas de déblocage immédiat).
   const M = await newUser('M'); await signup(M.pg, 'Samira Qualite', 'samira.qualite@test.ma');
   await M.pg.click('[data-a=perso]'); await M.pg.waitForSelector('.st-offers'); await M.pg.click('[data-p=pro]');
-  await M.pg.waitForSelector('[data-a=svc]'); await M.pg.click('[data-a=svc]'); await M.pg.waitForSelector('[data-o]', { timeout: 15000 });
-  await M.pg.click('[data-o=aut_0]'); await M.pg.waitForSelector('.opt:has-text("Demander l\'accès")', { timeout: 15000 });
+  await M.pg.waitForSelector('[data-a=svc]'); await M.pg.click('[data-a=svc]');
+  await M.pg.waitForSelector('[data-a=go]', { timeout: 15000 }); await M.pg.click('[data-a=go]');
+  await M.pg.waitForSelector('[data-a=add]', { timeout: 15000 }); await M.pg.click('[data-a=add]'); await M.pg.waitForSelector('.opt', { timeout: 15000 });
+  await M.pg.click('.opt:has-text("Qualité")'); await M.pg.waitForSelector('.ent-present [data-a=go]', { timeout: 15000 });
+  await M.pg.click('.ent-present [data-a=go]'); await M.pg.waitForSelector('.opt:has-text("Demander l\'accès")', { timeout: 15000 });
   await M.pg.click('.opt:has-text("Demander l\'accès")'); await M.pg.waitForSelector('.sheet [name=msg]'); await M.pg.fill('.sheet [name=msg]', 'Essai Qualité'); await M.pg.click('.sheet [data-a=ok]');
   await M.pg.waitForSelector('.opt:has-text("OK")', { timeout: 15000 }); await M.pg.click('.opt:has-text("OK")'); await M.pg.waitForTimeout(500); await shot(M.pg, '55b_pro_autonome_qualite_verrou');
-  log('M demande envoyée, pas de société créée', await M.pg.evaluate(() => !document.querySelector('.home2')));
+  log('M demande envoyée, service toujours verrouillé', await M.pg.evaluate(() => [(Team.company().svcKeys || []).length, !document.querySelector('.home2')]));
   log('errors v1.0.? pro autonome qualite', M.errs);
   // ---- v1.0.18 : service Qualité — services fermés, organigramme qualité, missions, validation des PV, documentation
   log('services par défaut', await setSvcs(['direction', 'qualite', 'externe', 'perso']));
@@ -472,30 +481,17 @@ try {
   // → plusieurs lignes désormais dans la liste, on cible chacune par son texte plutôt que « la première ligne ».
   log('admin demandes', await SA.pg.evaluate(() => [...document.querySelectorAll('#rl .row')].map(r => r.innerText.replace(/\s+/g, ' ').slice(0, 90))));
   await SA.pg.click('#rl .row:has-text("Business")'); await SA.pg.waitForSelector('dialog'); await SA.pg.click('dialog button:has-text("Accepter")'); await SA.pg.waitForTimeout(1500);
-  // demande de L pour le service Travaux (aut_2) : pas encore d'espace (cid vide) → acceptation = code pack réservé
-  // à CE service (svc/svcLabel repris de la demande) ; L l'entre ensuite pour obtenir enfin l'accès.
+  // v1.0.3xx (point 17) : une demande visant une Entreprise (o.kind === 'entreprise') ajoute DIRECTEMENT le service
+  // demandé à svcKeys (plan pro, statut actif, droits complets pour la créatrice) — pas de code pack à saisir
+  // ensuite (voir admin.js reqs()) ; le verrou par CODE (service correspondant, anti-partage par e-mail) reste
+  // vérifié au niveau des règles serveur (ci/rules-test.mjs) puisqu'il ne s'applique qu'à la voie « J'ai un code ».
   await SA.pg.click('#rl .row:has-text("Travaux")'); await SA.pg.waitForSelector('dialog'); await SA.pg.click('dialog button:has-text("Accepter")'); await SA.pg.waitForTimeout(1500);
-  await tabA('codes'); await SA.pg.waitForTimeout(600);
-  const svcCode = await SA.pg.evaluate(() => { const r = [...document.querySelectorAll('[data-c]')].find(x => /Travaux/.test(x.innerText)); return r ? r.querySelector('b').textContent.trim() : ''; });
-  log('code service Travaux généré (réservé à aut_2)', svcCode);
-  await L.pg.click('[data-o=aut_2]'); await L.pg.waitForSelector('.opt:has-text("J\'ai un code")', { timeout: 15000 });
-  await L.pg.click('.opt:has-text("J\'ai un code")'); await L.pg.waitForSelector('.sheet [name=code]'); await L.pg.fill('.sheet [name=code]', svcCode); await L.pg.click('.sheet [data-a=ok]');
-  await L.pg.waitForSelector('.home2', { timeout: 20000 }); await L.pg.waitForTimeout(800); await shot(L.pg, '55c_pro_autonome_travaux_code');
-  log('L service autonome Travaux créé via le code réservé', await L.pg.evaluate(() => [Team.plan().k, Team.company().kind, Team.company().svcKey, !!document.querySelector('.st-bnav'), !document.querySelector('.svt-home')]));
-  // un code réservé à Travaux (aut_2) ne doit PAS ouvrir un autre service (aut_0, Qualité) à M
-  await M.pg.click('[data-o=aut_0]'); await M.pg.waitForSelector('.opt:has-text("J\'ai un code")', { timeout: 15000 });
-  await M.pg.click('.opt:has-text("J\'ai un code")'); await M.pg.waitForSelector('.sheet [name=code]'); await M.pg.fill('.sheet [name=code]', svcCode); await M.pg.click('.sheet [data-a=ok]');
-  await M.pg.waitForSelector('.opt:has-text("OK")', { timeout: 15000 });
-  log('M : code du service Travaux refusé pour Qualité', await M.pg.evaluate(() => !document.querySelector('.home2')));
-  await M.pg.click('.opt:has-text("OK")');
-  // v1.0.3xx (suite) : anti-partage — le code généré ci-dessus est désormais réservé à l'email de L (repris de sa
-  // demande). Même pour le MÊME service (aut_2, Travaux cette fois, pas Qualité), M ne doit pas pouvoir l'utiliser :
-  // ce test isole bien le refus « mauvais compte » du refus « mauvais service » vérifié juste au-dessus.
-  await M.pg.click('[data-o=aut_2]'); await M.pg.waitForSelector('.opt:has-text("J\'ai un code")', { timeout: 15000 });
-  await M.pg.click('.opt:has-text("J\'ai un code")'); await M.pg.waitForSelector('.sheet [name=code]'); await M.pg.fill('.sheet [name=code]', svcCode); await M.pg.click('.sheet [data-a=ok]');
-  await M.pg.waitForSelector('.opt:has-text("OK")', { timeout: 15000 });
-  log('M : code réservé à L refusé (même service, autre compte)', await M.pg.evaluate(() => !document.querySelector('.home2')));
-  await M.pg.click('.opt:has-text("OK")');
+  await L.pg.reload(); await L.pg.waitForSelector('.home2', { timeout: 20000 }); await L.pg.waitForTimeout(800); await shot(L.pg, '55c_pro_autonome_travaux_debloque');
+  log('L service Travaux débloqué directement (Entreprise, acceptation sans code)', await L.pg.evaluate(() => [Team.plan().k, Team.company().kind, Team.company().svcKeys, !!document.querySelector('.st-bnav')]));
+  log('M service Qualité toujours verrouillé (sa demande n\'est pas encore traitée)', await M.pg.evaluate(() => (Team.company().svcKeys || []).length));
+  await SA.pg.click('#rl .row:has-text("Qualité")'); await SA.pg.waitForSelector('dialog'); await SA.pg.click('dialog button:has-text("Accepter")'); await SA.pg.waitForTimeout(1500);
+  await M.pg.reload(); await M.pg.waitForSelector('.home2', { timeout: 20000 }); await M.pg.waitForTimeout(800); await shot(M.pg, '55d_pro_autonome_qualite_debloque');
+  log('M service Qualité débloqué, sans affecter les services de L', await M.pg.evaluate(() => Team.company().svcKeys));
   log('errors v1.0.3xx verrou par service', [...L.errs, ...M.errs].filter(x => !/permission/i.test(x)));
   await tabA('ctrl'); await shot(SA.pg, '98_admin_controle');
   await SA.pg.check('[name=gon]'); await SA.pg.fill('[name=gtext]', 'Bienvenue sur SiteTeam 1.0.24 : nouveau panneau de contrôle.'); await SA.pg.click('[data-a=msg]'); await SA.pg.waitForTimeout(1200);
