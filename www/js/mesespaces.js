@@ -104,7 +104,7 @@ const MesEspaces = (() => {
       if (!L.length) return toast('Catalogue indisponible');
       const v = await menu('Nouveau service autonome', L.map(n => ({ label: n.label, icon: 'layers', value: n.id })));
       const n = L.find(x => x.id === v); if (!n) return;
-      shut(); const cid = await Team.createService(n.label, n.id); if (cid) Team.switchTo(cid); else MesEspaces.open();
+      shut(); const cid = await Team.obtainAutonomeSvc({ id: n.id, label: n.label }); if (cid) Team.switchTo(cid); else MesEspaces.open();
     };
     ($e('[data-a=me]') || {}).onclick = () => { shut(); Team.openCompany('me'); };
     ($e('[data-a=more]') || {}).onclick = async () => {
