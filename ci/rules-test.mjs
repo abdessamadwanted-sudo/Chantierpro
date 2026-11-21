@@ -401,6 +401,38 @@ const coSvcFree = (db, id, uid, svcKey) => db.collection('companies').doc(id).se
 await t('service autonome gratuit (sans code) : REFUS pour un compte normal', () => assertFails(coSvcFree(nw11, 'cs6', 'nw11', 'aut_2')));
 await t('service autonome gratuit (sans code) : toujours permis au Super Admin (aperçu interne)', () => assertSucceeds(coSvcFree(owner, 'cs7', OWNER.uid, 'aut_2')));
 
+// --- v1.0.3xx (point 17, demande du propriétaire 21/11/2026) : « Entreprise » (kind « entreprise ») regroupant
+// plusieurs services, chacun verrouillé et débloqué à part, + option « Entreprise complète » (packCodes.svc === 'ALL').
+const [nw12, nw13, nw14] = ['nw12', 'nw13', 'nw14'].map(nu);
+const coEnt = (db, id, uid, extra) => db.collection('companies').doc(id).set({ name: 'E', ownerUid: uid, plan: 'basic', planStatus: 'gratuit', kind: 'entreprise', svcKeys: [], allSvc: false, createdAt: SRV(), ...extra });
+await t('Entreprise : création vide et gratuite, par un compte normal', () => assertSucceeds(coEnt(nw12, 'ce1', 'nw12')));
+await t('Entreprise : REFUS si des services sont déjà présents à la création (sans code)', () => assertFails(coEnt(nw13, 'ce2', 'nw13', { svcKeys: ['aut_2'] })));
+await t('Entreprise : REFUS si « Entreprise complète » (allSvc) est déjà activé à la création (sans code)', () => assertFails(coEnt(nw14, 'ce3', 'nw14', { allSvc: true })));
+await t('Entreprise : le Super Admin crée des codes « service » et « Entreprise complète »', async () => {
+  await assertSucceeds(owner.collection('packCodes').doc('PRO-ENTQ01').set({ plan: 'pro', days: 14, maxUses: 1, uses: 0, usedBy: [], status: 'valide', expiresAt: futur(30), svc: 'aut_0', svcLabel: 'Qualité' }));
+  await assertSucceeds(owner.collection('packCodes').doc('PRO-ENTALL').set({ plan: 'pro', days: 0, maxUses: 1, uses: 0, usedBy: [], status: 'valide', expiresAt: futur(30), svc: 'ALL', svcLabel: 'Entreprise complète' })); });
+// isAdmin(ce1) est requis pour que nw12 puisse ajouter un service — comme dans l'app réelle (Team.createEntreprise),
+// nw12 crée elle-même sa fiche membre juste après la création de l'Entreprise (autorisé : elle en est ownerUid).
+await t('Entreprise : la créatrice crée sa propre fiche membre (administratrice, sans droit tant que rien n\'est débloqué)', () => assertSucceeds(
+  nw12.collection('companies').doc('ce1').collection('members').doc('nw12').set({ name: 'N12', admin: true, perms: { projet: 0 }, allProjects: true, projects: [] })));
+await t('Entreprise : ajoute « Qualité » (aut_0) à svcKeys avec le code réservé à ce service', () => assertSucceeds(
+  nw12.collection('companies').doc('ce1').update({ plan: 'pro', planStatus: 'essai', trialEndsAt: futur(14), packCode: 'PRO-ENTQ01', svcKeys: ['aut_0'] })));
+await t('Entreprise : REFUS d\'ajouter un AUTRE service (svcKey différent) avec ce même code', () => assertFails(
+  nw13.collection('companies').doc('ce2b').set({ name: 'E', ownerUid: 'nw13', plan: 'basic', planStatus: 'gratuit', kind: 'entreprise', svcKeys: [], allSvc: false, createdAt: SRV() })
+    .then(() => nw13.collection('companies').doc('ce2b').update({ plan: 'pro', planStatus: 'essai', trialEndsAt: futur(14), packCode: 'PRO-ENTQ01', svcKeys: ['aut_1'] }))));
+await t('Entreprise : REFUS de poser svcKeys sans changer packCode (pas de code valide)', () => assertFails(
+  nw12.collection('companies').doc('ce1').update({ svcKeys: ['aut_0', 'aut_2'] })));
+await t('Entreprise : « Entreprise complète » (allSvc) avec le code réservé ALL', () => assertSucceeds(
+  nw14.collection('companies').doc('ce3').set({ name: 'E', ownerUid: 'nw14', plan: 'basic', planStatus: 'gratuit', kind: 'entreprise', svcKeys: [], allSvc: false, createdAt: SRV() })
+    .then(() => nw14.collection('companies').doc('ce3').collection('members').doc('nw14').set({ name: 'N14', admin: true, perms: {}, allProjects: true, projects: [] }))
+    .then(() => nw14.collection('companies').doc('ce3').update({ plan: 'pro', planStatus: 'essai', trialEndsAt: futur(14), packCode: 'PRO-ENTALL', allSvc: true }))));
+await t('Entreprise : REFUS d\'un code « service » (svc=aut_0) pour activer allSvc', async () => {
+  await owner.collection('packCodes').doc('PRO-ENTQ02').set({ plan: 'pro', days: 14, maxUses: 1, uses: 0, usedBy: [], status: 'valide', expiresAt: futur(30), svc: 'aut_0', svcLabel: 'Qualité' });
+  const uid = 'nw15', db = nu(uid);
+  await db.collection('companies').doc('ce4').set({ name: 'E', ownerUid: uid, plan: 'basic', planStatus: 'gratuit', kind: 'entreprise', svcKeys: [], allSvc: false, createdAt: SRV() });
+  await assertFails(db.collection('companies').doc('ce4').update({ plan: 'pro', planStatus: 'essai', trialEndsAt: futur(14), packCode: 'PRO-ENTQ02', allSvc: true }));
+});
+
 // --- v1.0.3xx : anti-partage — un code créé avec packCodes.email n'est utilisable QUE par ce compte précis
 // (nu(uid) authentifie avec l'email `${uid}@test.ma`, voir plus haut)
 const [nw8, nw9, nw10] = ['nw8', 'nw9', 'nw10'].map(nu);

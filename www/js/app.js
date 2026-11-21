@@ -145,6 +145,21 @@ async function renderHome() {
   App.homeFocus = null;   // plus de page intermédiaire : la liste des chantiers, un toucher = on entre
   App.project = null;
   BackStack.length = 0;
+  // v1.0.3xx (point 17) : une Entreprise toute neuve, sans aucun service débloqué, n'a aucun accès projet (demande
+  // du propriétaire — « مايكون فيها والو حتا يشري service ») : accueil dédié avec seulement « Ajouter un service »,
+  // plutôt que le tableau de bord standard (vide et sans droits, trompeur).
+  if (Team.ready() && (Team.company() || {}).kind === 'entreprise' && !Team.entHasAll() && !(Team.entSvcKeys() || []).length) {
+    $('#app').innerHTML = `<div class="topbar dark"><h1>${esc((Team.company() || {}).name || 'Entreprise')}</h1><button class="iconbtn" data-a="ws">⇄</button></div>
+      <div class="h2-body" style="padding:22px 16px;text-align:center">
+        <div style="font-size:52px;margin-bottom:6px">🏢</div>
+        <h2 style="margin:0 0 6px">Votre Entreprise est prête</h2>
+        <p class="muted" style="max-width:320px;margin:0 auto 18px">Ajoutez votre premier service (Qualité, Travaux, HSE, Études…) pour commencer à créer des projets et inviter votre équipe.</p>
+        <button class="btn" data-a="add">＋ Ajouter un service</button>
+      </div>`;
+    ($('[data-a=add]') || {}).onclick = () => MesEspaces.openEntAdd().then(() => renderHome());
+    ($('[data-a=ws]') || {}).onclick = () => Team.openSwitcher(true);
+    return;
+  }
   const allP = await DB.all('projects');
   let projects = allP.filter(p => App.showAllP || Team.canProject(p.id)).sort((a, b) => b.updatedAt - a.updatedAt);
   // v1.0.73 : projets sur le téléphone mais masqués par le contrôle d'accès (connexion / compte non confirmé) → jamais « disparus » sans explication
