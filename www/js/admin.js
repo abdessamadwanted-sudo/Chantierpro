@@ -296,10 +296,15 @@
       try {
         if (r.v === 'ok') {
           let code = '';
-          // v1.0.3xx (point 17) : une demande visant une Entreprise (o.kind === 'entreprise') ajoute le service demandé
-          // (x.svc) à son tableau svcKeys — ou débloque tout (allSvc) si x.svc === 'ALL' (« Entreprise complète ») —
-          // au lieu d'écraser son pack global (une Entreprise n'a pas un seul pack, mais un pack par service ajouté).
-          if (x.cid && o.kind === 'entreprise') {
+          // v1.0.3xx (point 17) : une demande visant une Entreprise (o.kind === 'entreprise') AVEC un service précisé
+          // (x.svc) ajoute ce service à son tableau svcKeys — ou débloque tout (allSvc) si x.svc === 'ALL' («
+          // Entreprise complète ») — au lieu d'écraser son pack global (une Entreprise n'a pas un seul pack, mais un
+          // pack par service ajouté).
+          // v1.0.3xx : pack Organisation payant (Business/Enterprise, « Mon abonnement ») — demande SANS x.svc (ce
+          // n'est pas une demande de service mais un changement de pack pour toute l'Entreprise) : condition x.svc
+          // ajoutée pour que cette demande tombe dans la branche générique ci-dessous (plan + planStatus actif) au
+          // lieu de pousser « undefined » dans svcKeys.
+          if (x.cid && o.kind === 'entreprise' && x.svc) {
             await db.collection('companies').doc(x.cid).update(
               x.svc === 'ALL' ? { allSvc: true, plan: 'pro', planStatus: 'actif' } : { svcKeys: [...(o.svcKeys || []), x.svc], plan: 'pro', planStatus: 'actif' });
             // dès le premier service débloqué : droits complets pour l'administrateur (voir Team.entGrantFull, même principe)

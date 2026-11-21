@@ -2271,8 +2271,16 @@ const Team = (() => {
     if (collab) tab = 'me';
     const draw = async () => {
       const M = S.members, byUid = Object.fromEntries(M.map(m => [m.uid, m]));
+      // v1.0.3xx : « Mon abonnement » existait seulement pour l'espace personnel (Basic/Pro) — demande du propriétaire
+      // (21/11/2026) : une Organisation (kind « org » : Basic/Business/Enterprise, l'assistant stepOrg/stepSvcs) doit
+      // pouvoir, de la même façon, voir son pack actuel et demander/activer un pack supérieur depuis l'application —
+      // pas seulement par code pack ou par le panneau d'administration. Réservé à l'administrateur de l'organisation
+      // (c'est son abonnement, pas celui d'un membre) ; volontairement PAS ajouté pour une Entreprise « Pro Service
+      // autonome » (kind « entreprise », point 17) — son modèle est différent (un service débloqué à la fois,
+      // svcKeys/allSvc), pas un pack global unique à faire monter de gamme.
+      const isRealOrg = (S.company || {}).kind === 'org';
       const tabs = collab ? [['me', 'Mon compte']] : perso ? [['prof', 'Mon profil'], ['abo', 'Mon abonnement'], ['set', 'Paramètres'], ['me', 'Mon compte']]
-        : [['org', 'Organigramme'], ['mem', 'Membres'], ...(canInvite() ? [['inv', 'Codes d\'accès']] : []), ...(isAdmin() ? [['set', 'Réglages']] : []), ['me', 'Mon compte']];
+        : [['org', 'Organigramme'], ['mem', 'Membres'], ...(canInvite() ? [['inv', 'Codes d\'accès']] : []), ...(isAdmin() && isRealOrg ? [['abo', 'Mon abonnement']] : []), ...(isAdmin() ? [['set', 'Réglages']] : []), ['me', 'Mon compte']];
       el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><h1 style="flex:1;font-size:17px">${perso ? 'Mon espace personnel' : esc(S.company.name)}</h1>
           ${canInvite() ? `<button class="btn small" data-a="invite" style="flex:none">${icon('plus')} Inviter</button>` : ''}</div>
         <div class="tm-tabs">${tabs.map(([k, l]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
@@ -2399,15 +2407,19 @@ const Team = (() => {
         };
       }
       if (tab === 'abo') {
-        const P = myPlan(), stt = planStateOf(S.company), nProj = projects.filter(p => !p.deleted).length, up = offersFor(true).filter(x => x.k !== P.k);
+        // v1.0.3xx : perso était codé en dur ici (offersFor(true)/offerCard(…, true, …)) — l'onglet n'existait alors
+        // que pour l'espace personnel. Maintenant ouvert aussi aux Organisations (Business/Enterprise) : on utilise
+        // le vrai « perso » de cet espace, sinon une Organisation verrait les packs Basic/Pro personnels au lieu de
+        // Basic/Business/Enterprise Organisation.
+        const P = myPlan(), stt = planStateOf(S.company), nProj = projects.filter(p => !p.deleted).length, up = offersFor(perso).filter(x => x.k !== P.k);
         body.innerHTML = `<div class="form">
-          <div class="tm-box"><b>Mon abonnement <span class="st-state" style="--c:${stt.c}">${esc(stt.l)}</span></b>
+          <div class="tm-box"><b>${perso ? 'Mon abonnement' : 'Abonnement de l\'organisation'} <span class="st-state" style="--c:${stt.c}">${esc(stt.l)}</span></b>
             <div class="st-of-r"><span>Projets actifs</span><b>${nProj}${P.projects ? ' / ' + P.projects : ''}</b></div></div>
-          ${offerCard(P, true, false)}
-          ${up.length ? `<div class="tm-box"><b>Passer à un autre pack</b>${up.map(x => offerCard(x, true, false)).join('')}<button class="btn" data-a="askup">${isSuper() ? 'Activer' : 'Demander'} ${esc(up[0].l)}</button><button class="btn ghost" data-a="pcode">🎟 J'ai un code pack</button>
+          ${offerCard(P, perso, false)}
+          ${up.length ? `<div class="tm-box"><b>Passer à un autre pack</b>${up.map(x => offerCard(x, perso, false)).join('')}<button class="btn" data-a="askup">${isSuper() ? 'Activer' : 'Demander'} ${esc(up[0].l)}</button><button class="btn ghost" data-a="pcode">🎟 J'ai un code pack</button>
             <small class="muted">La facturation n'est pas encore en ligne : la demande part à SiteTeam, qui active le pack.</small></div>` : ''}</div>`;
         const pcb = $('[data-a=pcode]', body); if (pcb) pcb.onclick = () => applyPackCode();
-        const a = $('[data-a=askup]', body); if (a) a.onclick = async () => { const k = isSuper() && up.length > 1 ? await menu('Quel pack ?', up.map(x => ({ label: `${x.e || ''} ${x.l} · ${planPrice(x)}`, value: x.k }))) : up[0].k; if (k) requestPack(k, true); };
+        const a = $('[data-a=askup]', body); if (a) a.onclick = async () => { const k = isSuper() && up.length > 1 ? await menu('Quel pack ?', up.map(x => ({ label: `${x.e || ''} ${x.l} · ${planPrice(x)}`, value: x.k }))) : up[0].k; if (k) requestPack(k, perso); };
       }
       if (tab === 'me') {
         const R = tmRoleOf(S.me.role), mine = await myShares();
