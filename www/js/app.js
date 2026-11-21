@@ -149,13 +149,16 @@ async function renderHome() {
   // du propriétaire — « مايكون فيها والو حتا يشري service ») : accueil dédié avec seulement « Ajouter un service »,
   // plutôt que le tableau de bord standard (vide et sans droits, trompeur).
   if (Team.ready() && (Team.company() || {}).kind === 'entreprise' && !Team.entHasAll() && !(Team.entSvcKeys() || []).length) {
-    $('#app').innerHTML = `<div class="topbar dark"><h1>${esc((Team.company() || {}).name || 'Entreprise')}</h1><button class="iconbtn" data-a="ws">⇄</button></div>
+    // IMPORTANT : classe « home2 » obligatoire — c'est elle que l'écran de démarrage (index.html, MutationObserver)
+    // attend pour se refermer après le chargement. Sans elle, l'application reste bloquée sur « Ouverture… » pour
+    // tout compte dont l'espace actif est une Entreprise sans aucun service débloqué (bug v1.0.321, corrigé ici).
+    $('#app').innerHTML = `<div class="home2"><div class="topbar dark"><h1>${esc((Team.company() || {}).name || 'Entreprise')}</h1><button class="iconbtn" data-a="ws">⇄</button></div>
       <div class="h2-body" style="padding:22px 16px;text-align:center">
         <div style="font-size:52px;margin-bottom:6px">🏢</div>
         <h2 style="margin:0 0 6px">Votre Entreprise est prête</h2>
         <p class="muted" style="max-width:320px;margin:0 auto 18px">Ajoutez votre premier service (Qualité, Travaux, HSE, Études…) pour commencer à créer des projets et inviter votre équipe.</p>
         <button class="btn" data-a="add">＋ Ajouter un service</button>
-      </div>`;
+      </div></div>`;
     ($('[data-a=add]') || {}).onclick = () => MesEspaces.openEntAdd().then(() => renderHome());
     ($('[data-a=ws]') || {}).onclick = () => Team.openSwitcher(true);
     return;
