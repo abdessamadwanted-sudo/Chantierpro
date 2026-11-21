@@ -500,9 +500,13 @@ try {
   // plus retomber dans la branche « Entreprise/svcKeys » qui ne concerne que le modèle Point 17) change seulement
   // le pack, sans toucher à l'organigramme/aux membres déjà construits.
   await H.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); Team.openCompany('abo'); }); await H.pg.waitForSelector('[data-a=askup]', { timeout: 15000 }); await shot(H.pg, '99a_abo_organisation');
-  log('H Mon abonnement (organisation, pas Entreprise point17)', await H.pg.evaluate(() => [Team.plan().k, document.querySelector('.tm-box b').textContent.trim(), [...document.querySelectorAll('.st-offer b')].map(x => x.textContent.trim())]));
+  log('H Mon abonnement (organisation, pas Entreprise point17)', await H.pg.evaluate(() => [Team.plan().k, document.querySelector('.tm-box b').textContent.trim(), [...document.querySelectorAll('.st-of-h b')].map(x => x.textContent.trim())]));
   await H.pg.click('[data-a=askup]'); await H.pg.waitForSelector('.sheet [name=msg]'); await H.pg.fill('.sheet [name=msg]', 'Test Mon abonnement organisation'); await H.pg.click('.sheet [data-a=ok]');
   await H.pg.waitForSelector('.opt:has-text("OK")', { timeout: 15000 }); await H.pg.click('.opt:has-text("OK")'); await H.pg.waitForTimeout(500);
+  // admin.js : la liste des demandes (D.reqs) n'est pas relue à chaque clic d'onglet (seul le bouton « ↻ Actualiser »,
+  // ou une action qui mute déjà les données, force un rechargement) — sans ce clic, la demande de H (créée APRÈS le
+  // dernier rechargement, lui-même déclenché par l'acceptation de la demande de M plus haut) resterait invisible.
+  await SA.pg.click('[data-a=reload]'); await SA.pg.waitForTimeout(1200);
   await tabA('reqs'); await SA.pg.click('#rl .row:has-text("Qualité Maroc SA")'); await SA.pg.waitForSelector('dialog'); await SA.pg.click('dialog button:has-text("Accepter")'); await SA.pg.waitForTimeout(1500);
   await H.pg.reload(); await H.pg.waitForSelector('.home2', { timeout: 30000 }); await H.pg.waitForTimeout(800); await shot(H.pg, '99b_abo_organisation_acceptee');
   log('H pack changé, organigramme intact (demande sans svc ≠ Entreprise point17)', await H.pg.evaluate(() => [Team.plan().k, Team.company().kind, Team.company().services, Team.members().length]));
