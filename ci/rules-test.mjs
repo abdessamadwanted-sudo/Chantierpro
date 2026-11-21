@@ -394,6 +394,13 @@ await t('code pack service : REFUS d\'un code de service sur un espace individue
 await t('code pack service : REFUS d\'un code pack « général » (sans svc) sur un service autonome', () => assertFails(coSvc(nw7, 'cs4', 'nw7', 'PRO-TEST02', 'aut_2')));
 await t('code pack service : un code pack « général » (sans svc) reste valable pour un espace individuel', () => assertSucceeds(coCode(nw7, 'cs5', 'nw7', 'pro', 'PRO-TEST02')));
 
+// --- v1.0.3xx : ثغرة corrigée — un service autonome ne se crée plus gratuitement (plan basic, sans packCode) que
+// pour le Super Admin ; tout autre compte doit passer par un code pack (voir Team.obtainAutonomeSvc, mesespaces.js)
+const nw11 = nu('nw11');
+const coSvcFree = (db, id, uid, svcKey) => db.collection('companies').doc(id).set({ name: 'S', ownerUid: uid, plan: 'basic', planStatus: 'gratuit', kind: 'service', svcKey, createdAt: SRV() });
+await t('service autonome gratuit (sans code) : REFUS pour un compte normal', () => assertFails(coSvcFree(nw11, 'cs6', 'nw11', 'aut_2')));
+await t('service autonome gratuit (sans code) : toujours permis au Super Admin (aperçu interne)', () => assertSucceeds(coSvcFree(owner, 'cs7', OWNER.uid, 'aut_2')));
+
 // --- v1.0.3xx : anti-partage — un code créé avec packCodes.email n'est utilisable QUE par ce compte précis
 // (nu(uid) authentifie avec l'email `${uid}@test.ma`, voir plus haut)
 const [nw8, nw9, nw10] = ['nw8', 'nw9', 'nw10'].map(nu);

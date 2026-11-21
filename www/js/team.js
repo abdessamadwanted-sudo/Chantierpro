@@ -494,7 +494,13 @@ service cloud.firestore {
           && (!exists(/databases/$(db)/documents/config/app) || get(/databases/$(db)/documents/config/app).data.get('inviteOnly', false) != true)))
         && ((request.resource.data.get('planStatus', 'essai') in ['essai', 'gratuit']
             && (request.resource.data.get('plan', 'basic') == 'basic' || licOwner()
-              || get(/databases/$(db)/documents/config/plans).data.get(request.resource.data.get('plan', 'basic'), {}).get('open', false) == true))
+              || get(/databases/$(db)/documents/config/plans).data.get(request.resource.data.get('plan', 'basic'), {}).get('open', false) == true)
+            // v1.0.3xx : ثغرة corrigée — un service autonome (kind « service », svcKey du catalogue payant) ne se
+            // crée plus gratuitement (essai/gratuit, sans packCode) que pour le Super Admin (aperçu interne,
+            // packpick.js). Tout autre compte doit passer par un code pack réservé à CE service (codePlanOk
+            // ci-dessous, voir Team.obtainAutonomeSvc) — sinon n'importe qui obtenait, sans payer, le même service
+            // (Qualité, Travaux, Planning…) que le parcours Pro verrouillé par service.
+            && (request.resource.data.get('kind', 'org') != 'service' || licOwner()))
           || (request.resource.data.get('packCode', null) != null && codePlanOk(request.resource.data)));
       allow read: if isMem(cid) || licOwner();
       // v1.1 : suppression définitive de l'espace, par son propriétaire seulement
@@ -1107,6 +1113,43 @@ const Team = (() => {
       const all = Object.fromEntries(MODS.map(([m]) => [m, 4]));
       await withTimeout(ref.collection('members').doc(uid).set({ name: (S.me || {}).name || S.user.displayName || '', email: S.user.email, role: R.k, service: R.s || 'direction', perms: all, admin: true, allProjects: true, projects: [], managerUid: null, zone: '', createdAt: ts() }));
       ld.close(); return ref.id;
+    } catch (e) { ld.close(); alertBox(errMsg(e) + (e.code === 'permission-denied' ? '\n\nCréation refusée par le serveur (accès sur code uniquement ?).' : '')); return null; }
+  }
+  // v1.0.3xx : ثغرة signalée par le propriétaire — « Mes espaces » (＋ Nouveau service autonome, mesespaces.js)
+  // appelait createService() directement, ce qui permettait à n'importe quel utilisateur de créer, gratuitement et
+  // sans limite, n'importe quel service du MÊME catalogue payant (Qualité, Travaux, Planning…) que le parcours Pro
+  // verrouillé par service (stepAutonomeSvc). createService reste réservé au Super Admin (aperçu interne,
+  // packpick.js, inchangé — lui seul atteint cet écran) ; tout autre utilisateur passe désormais par le même choix
+  // « Demander l'accès » / « J'ai un code » qu'à l'inscription, pour CE service précis.
+  async function obtainAutonomeSvc(svc) {
+    if (!svc || !svc.id) return null;
+    if (isSuper()) return createService(svc.label, svc.id);
+    const ch = await menu(svc.label, [
+      { label: 'Demander l\'accès', icon: 'mail', value: 'req' },
+      { label: 'J\'ai un code', icon: 'lock', value: 'code' },
+    ]);
+    if (ch === 'req') { await requestPack('pro', false, { id: svc.id, label: svc.label }); return null; }
+    if (ch === 'code') {
+      const C = await askPackCode(); if (!C) return null;
+      if (C.plan !== 'pro' || C.svc !== svc.id) { alertBox('Ce code ne correspond pas à ce service.'); return null; }
+      return createAutonomePro(svc, C);
+    }
+    return null;
+  }
+  // création en pack Pro d'un service autonome (payé par le service lui-même, essai 14 jours, ou activé directement
+  // par un code pack réservé à CE service) — même logique que createAutonome() dans l'onboarding (team.js,
+  // stepAutonomeSvc), extraite ici pour être réutilisable depuis « Mes espaces ».
+  async function createAutonomePro(svc, code) {
+    if (!S.user || !svc) return null;
+    const ld = loading('Création du service « ' + svc.label + ' »…');
+    try {
+      const uid = S.user.uid, ref = fs.collection('companies').doc(), P = PLANS.pro;
+      const sub = code ? codeSub(code) : { planStatus: 'essai', trialEndsAt: firebase.firestore.Timestamp.fromMillis(Date.now() + (P.trialDays || 14) * 864e5) };
+      await withTimeout(ref.set({ name: svc.label, ownerUid: uid, plan: 'pro', ...sub, ...(code ? { packCode: code.code } : {}), kind: 'service', orgType: 'entreprise', services: ['direction'], svcKey: String(svc.id), createdAt: ts() }));
+      const all = Object.fromEntries(MODS.map(([m]) => [m, 4])), R = tmRoleOf(orgTypeOf('entreprise').owner || 'patron');
+      await withTimeout(ref.collection('members').doc(uid).set({ name: (S.me || {}).name || S.user.displayName || '', email: S.user.email, role: R.k, service: R.s || 'direction', perms: all, admin: true, allProjects: true, projects: [], managerUid: null, zone: '', createdAt: ts() }));
+      if (code) await useCode(code).catch(() => {});
+      ld.close(); toast('Service créé ✓'); return ref.id;
     } catch (e) { ld.close(); alertBox(errMsg(e) + (e.code === 'permission-denied' ? '\n\nCréation refusée par le serveur (accès sur code uniquement ?).' : '')); return null; }
   }
   // Comptes de test par pack (écran « Choisir le pack », v1.0.? ) : sous l'identité du Super Admin.
@@ -2712,7 +2755,7 @@ const Team = (() => {
 
   return {
     boot, push, pull, resetPull, lvl, canSection, svcLib, canProject, isAdmin, openCompany, taille, secureApply, secureOn, saveAffectations, noteProject, projectIds, inviteFlow, inviteFor, shareInvite, canInviteNow: () => canInvite(), logout, decorateSection, removeMember, refreshMembers,
-    isSuper, superConsole, orgType, isPerso, tailleList: () => TAILLES, roleList: () => TM_ROLES.map(r => ({ k: r.k, l: r.l, perms: r.perms })), planModules: () => Object.fromEntries(['basic', 'pro', 'business', 'enterprise'].map(k => [k, planOf(k).modules])), companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, createService, packAccounts, ensurePackAccount, attach: att, isOwner, deleteEspace, workspaces: () => S.workspaces || [], shared: () => S.shared || [], cid: () => S.cid,
+    isSuper, superConsole, orgType, isPerso, tailleList: () => TAILLES, roleList: () => TM_ROLES.map(r => ({ k: r.k, l: r.l, perms: r.perms })), planModules: () => Object.fromEntries(['basic', 'pro', 'business', 'enterprise'].map(k => [k, planOf(k).modules])), companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, createService, obtainAutonomeSvc, packAccounts, ensurePackAccount, attach: att, isOwner, deleteEspace, workspaces: () => S.workspaces || [], shared: () => S.shared || [], cid: () => S.cid,
     profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
     openProjectShares, claimShare, openPartners, renderHistory, sharedOf, joinWithCode,
     cloudOn, canCloud, cloudUpload, cloudDownload, cloudRemove, cloudCfg, storageRules: STORAGE_RULES,

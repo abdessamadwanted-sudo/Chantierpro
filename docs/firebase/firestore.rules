@@ -215,7 +215,13 @@ service cloud.firestore {
           && (!exists(/databases/$(db)/documents/config/app) || get(/databases/$(db)/documents/config/app).data.get('inviteOnly', false) != true)))
         && ((request.resource.data.get('planStatus', 'essai') in ['essai', 'gratuit']
             && (request.resource.data.get('plan', 'basic') == 'basic' || licOwner()
-              || get(/databases/$(db)/documents/config/plans).data.get(request.resource.data.get('plan', 'basic'), {}).get('open', false) == true))
+              || get(/databases/$(db)/documents/config/plans).data.get(request.resource.data.get('plan', 'basic'), {}).get('open', false) == true)
+            // v1.0.3xx : ثغرة corrigée — un service autonome (kind « service », svcKey du catalogue payant) ne se
+            // crée plus gratuitement (essai/gratuit, sans packCode) que pour le Super Admin (aperçu interne,
+            // packpick.js). Tout autre compte doit passer par un code pack réservé à CE service (codePlanOk
+            // ci-dessous, voir Team.obtainAutonomeSvc) — sinon n'importe qui obtenait, sans payer, le même service
+            // (Qualité, Travaux, Planning…) que le parcours Pro verrouillé par service.
+            && (request.resource.data.get('kind', 'org') != 'service' || licOwner()))
           || (request.resource.data.get('packCode', null) != null && codePlanOk(request.resource.data)));
       allow read: if isMem(cid) || licOwner();
       // v1.1 : suppression définitive de l'espace, par son propriétaire seulement
