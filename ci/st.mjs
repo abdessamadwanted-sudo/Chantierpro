@@ -493,6 +493,31 @@ try {
   await M.pg.reload(); await M.pg.waitForSelector('.home2', { timeout: 20000 }); await M.pg.waitForTimeout(800); await shot(M.pg, '55d_pro_autonome_qualite_debloque');
   log('M service Qualité débloqué, sans affecter les services de L', await M.pg.evaluate(() => Team.company().svcKeys));
   log('errors v1.0.3xx verrou par service', [...L.errs, ...M.errs].filter(x => !/permission/i.test(x)));
+  // ---- v1.0.3xx : « Mon abonnement » pour une Organisation (kind « org », demande du propriétaire 21/11/2026) —
+  // même mécanisme que l'espace personnel (demander/activer un pack supérieur), réservé à l'administrateur ; H
+  // (« Qualité Maroc SA », créée plus haut en pack Enterprise via stepOrg/stepSvcs) l'utilise pour demander un
+  // autre pack. Vérifie aussi que l'acceptation (admin.js reqs(), branche générique SANS x.svc — corrigée pour ne
+  // plus retomber dans la branche « Entreprise/svcKeys » qui ne concerne que le modèle Point 17) change seulement
+  // le pack, sans toucher à l'organigramme/aux membres déjà construits.
+  await H.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); Team.openCompany('abo'); }); await H.pg.waitForSelector('[data-a=askup]', { timeout: 15000 }); await shot(H.pg, '99a_abo_organisation');
+  log('H Mon abonnement (organisation, pas Entreprise point17)', await H.pg.evaluate(() => [Team.plan().k, document.querySelector('.tm-box b').textContent.trim(), [...document.querySelectorAll('.st-of-h b')].map(x => x.textContent.trim())]));
+  await H.pg.click('[data-a=askup]'); await H.pg.waitForSelector('.sheet [name=msg]'); await H.pg.fill('.sheet [name=msg]', 'Test Mon abonnement organisation'); await H.pg.click('.sheet [data-a=ok]');
+  await H.pg.waitForSelector('.opt:has-text("OK")', { timeout: 15000 }); await H.pg.click('.opt:has-text("OK")'); await H.pg.waitForTimeout(500);
+  // admin.js : la liste des demandes (D.reqs) n'est pas relue à chaque clic d'onglet (seul le bouton « ↻ Actualiser »,
+  // ou une action qui mute déjà les données, force un rechargement) — sans ce clic, la demande de H (créée APRÈS le
+  // dernier rechargement, lui-même déclenché par l'acceptation de la demande de M plus haut) resterait invisible.
+  await SA.pg.click('[data-a=reload]'); await SA.pg.waitForTimeout(1200);
+  await tabA('reqs'); await SA.pg.click('#rl .row:has-text("Qualité Maroc SA")'); await SA.pg.waitForSelector('dialog'); await SA.pg.click('dialog button:has-text("Accepter")'); await SA.pg.waitForTimeout(1500);
+  await H.pg.reload(); await H.pg.waitForSelector('.home2', { timeout: 30000 }); await H.pg.waitForTimeout(800); await shot(H.pg, '99b_abo_organisation_acceptee');
+  log('H pack changé, organigramme intact (demande sans svc ≠ Entreprise point17)', await H.pg.evaluate(() => [Team.plan().k, Team.company().kind, Team.company().services, Team.members().length]));
+  // H sert encore plus loin dans ce scénario (bibliothèque Qualité, etc.) avec le pack Enterprise d'origine — on
+  // restaure ce pack (via le Super Admin, seul à pouvoir le faire librement) pour ne pas changer ses outils disponibles
+  // pour la suite du test ; ce test porte sur le mécanisme de demande/acceptation, pas sur un vrai changement durable.
+  const hcid = await H.pg.evaluate(() => Team.company().id);
+  await SA.pg.evaluate((cid) => firebase.firestore().collection('companies').doc(cid).update({ plan: 'enterprise', planStatus: 'actif' }), hcid);
+  await H.pg.evaluate(() => Sync.run({ force: true })); await H.pg.waitForTimeout(1500);
+  log('H pack restauré Enterprise (pour ne pas perturber la suite du scénario)', await H.pg.evaluate(() => Team.plan().k));
+  log('errors v1.0.3xx abo organisation', H.errs);
   await tabA('ctrl'); await shot(SA.pg, '98_admin_controle');
   await SA.pg.check('[name=gon]'); await SA.pg.fill('[name=gtext]', 'Bienvenue sur SiteTeam 1.0.24 : nouveau panneau de contrôle.'); await SA.pg.click('[data-a=msg]'); await SA.pg.waitForTimeout(1200);
   await SA.pg.check('[data-off=finance]'); await SA.pg.click('[data-a=off]'); await SA.pg.waitForTimeout(1200);
