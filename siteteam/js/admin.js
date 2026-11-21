@@ -296,7 +296,17 @@
       try {
         if (r.v === 'ok') {
           let code = '';
-          if (x.cid) await db.collection('companies').doc(x.cid).update({ plan: x.plan, planStatus: 'actif' });
+          // v1.0.3xx (point 17) : une demande visant une Entreprise (o.kind === 'entreprise') ajoute le service demandé
+          // (x.svc) à son tableau svcKeys — ou débloque tout (allSvc) si x.svc === 'ALL' (« Entreprise complète ») —
+          // au lieu d'écraser son pack global (une Entreprise n'a pas un seul pack, mais un pack par service ajouté).
+          if (x.cid && o.kind === 'entreprise') {
+            await db.collection('companies').doc(x.cid).update(
+              x.svc === 'ALL' ? { allSvc: true, plan: 'pro', planStatus: 'actif' } : { svcKeys: [...(o.svcKeys || []), x.svc], plan: 'pro', planStatus: 'actif' });
+            // dès le premier service débloqué : droits complets pour l'administrateur (voir Team.entGrantFull, même principe)
+            const all = Object.fromEntries(MODS.map(([m]) => [m, 4]));
+            await db.collection('companies').doc(x.cid).collection('members').doc(o.ownerUid).update({ perms: all }).catch(() => {});
+          }
+          else if (x.cid) await db.collection('companies').doc(x.cid).update({ plan: x.plan, planStatus: 'actif' });
           // v1.0.3xx : anti-partage — le code généré à l'acceptation d'une demande est réservé à l'email du demandeur
           // (déjà connu via packRequests.email) : personne d'autre ne peut l'utiliser, même s'il le transmet.
           else code = await makeCode({ plan: x.plan, days: 0, maxUses: 1, validDays: 30, note: `Demande de ${x.email}`, svc: x.svc, svcLabel: x.svcLabel, email: x.email });
