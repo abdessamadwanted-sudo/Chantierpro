@@ -510,6 +510,13 @@ try {
   await tabA('reqs'); await SA.pg.click('#rl .row:has-text("Qualité Maroc SA")'); await SA.pg.waitForSelector('dialog'); await SA.pg.click('dialog button:has-text("Accepter")'); await SA.pg.waitForTimeout(1500);
   await H.pg.reload(); await H.pg.waitForSelector('.home2', { timeout: 30000 }); await H.pg.waitForTimeout(800); await shot(H.pg, '99b_abo_organisation_acceptee');
   log('H pack changé, organigramme intact (demande sans svc ≠ Entreprise point17)', await H.pg.evaluate(() => [Team.plan().k, Team.company().kind, Team.company().services, Team.members().length]));
+  // H sert encore plus loin dans ce scénario (bibliothèque Qualité, etc.) avec le pack Enterprise d'origine — on
+  // restaure ce pack (via le Super Admin, seul à pouvoir le faire librement) pour ne pas changer ses outils disponibles
+  // pour la suite du test ; ce test porte sur le mécanisme de demande/acceptation, pas sur un vrai changement durable.
+  const hcid = await H.pg.evaluate(() => Team.company().id);
+  await SA.pg.evaluate((cid) => firebase.firestore().collection('companies').doc(cid).update({ plan: 'enterprise', planStatus: 'actif' }), hcid);
+  await H.pg.evaluate(() => Sync.run({ force: true })); await H.pg.waitForTimeout(1500);
+  log('H pack restauré Enterprise (pour ne pas perturber la suite du scénario)', await H.pg.evaluate(() => Team.plan().k));
   log('errors v1.0.3xx abo organisation', H.errs);
   await tabA('ctrl'); await shot(SA.pg, '98_admin_controle');
   await SA.pg.check('[name=gon]'); await SA.pg.fill('[name=gtext]', 'Bienvenue sur SiteTeam 1.0.24 : nouveau panneau de contrôle.'); await SA.pg.click('[data-a=msg]'); await SA.pg.waitForTimeout(1200);
