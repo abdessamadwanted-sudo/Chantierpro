@@ -1763,7 +1763,7 @@ const Team = (() => {
       // 4 · services (modèle modifiable : on ne force pas 12 services à un petit entrepreneur)
       function stepSvcs() {
         const T = orgTypeOf(W.org), L = TM_SERVICES.filter(s => s.k !== 'externe' && !SERVICES_LEGACY.includes(s.k) && (s.k === 'direction' || T.svcs.includes(s.k)));
-        W.svcs = W.svcs.filter(svcOpen); if (!W.svcs.includes('direction')) W.svcs.unshift('direction');
+        W.svcs = [...new Set(W.svcs.filter(k => (k === 'direction' || T.svcs.includes(k)) && svcOpen(k)))]; if (!W.svcs.includes('direction')) W.svcs.unshift('direction');
         el.innerHTML = `<div class="tm-lg-in">${steps(4, tot())}<h1>${T.e} ${esc(T.l)}</h1><p>Vos services : gardez seulement ceux que vous avez (modifiable plus tard dans Réglages).</p>
           <div class="st-ent-head"><small>SiteTeam Entreprise · Catalogue des Services</small><div class="st-ent-trigger" aria-label="Organisation sélectionnée">${T.e} ${esc(T.l)}</div></div>
           <div class="st-ent-modes" role="group" aria-label="Mode de sélection"><button type="button" data-tpl="petite" aria-pressed="false">◉ À la carte — Services indépendants</button><button type="button" data-tpl="grande" aria-pressed="false">◯ All Services — جميع الخدمات</button></div>
