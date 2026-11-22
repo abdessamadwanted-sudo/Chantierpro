@@ -15,3 +15,16 @@
 .st-ent-current strong{font-size:23px}
 .st-ent-current p{color:#657085;margin-bottom:0}
 @media(max-width:480px){.st-ent-head{padding:16px}.st-ent-trigger{font-size:17px}.st-ent-current strong{font-size:20px}}
+
+/* Cartes de services dans l'écran de création existant. */
+.st-onb .st-ent-modes{display:grid;gap:10px;margin:18px 0}
+.st-onb .st-ent-modes button{background:#f8fafc;border:1px solid #d7dde7;border-radius:18px;min-height:54px;padding:12px;text-align:right;font:500 16px system-ui;color:#1c2636;cursor:pointer}
+.st-onb .st-ent-modes button.on,.st-onb .st-ent-modes button[aria-pressed=true]{background:#eaf3ff;border-color:#237bd0;color:#0f549b}
+.st-onb .st-ent-count{text-align:right;color:#2478c4;font-weight:600}
+.st-onb .st-svcs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.st-onb .st-svcs button[data-s]{display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;gap:14px;min-height:122px;padding:16px;border:2px solid #e7e9ed;border-radius:22px;background:#f3f4f6;color:#19202a;text-align:right;cursor:pointer}
+.st-onb .st-svcs button[data-s].on{background:#eaf4ff;border-color:#237bc4}
+.st-onb .st-ent-card-icon{color:#237bc4;font-size:25px}
+.st-onb .st-ent-card-label{font-size:17px}
+.st-onb .st-ent-card-mark{align-self:flex-start;color:#237bc4}
+.st-onb .st-svcs button[data-s]:focus-visible,.st-onb .st-ent-modes button:focus-visible{outline:3px solid #60a5fa;outline-offset:2px}
