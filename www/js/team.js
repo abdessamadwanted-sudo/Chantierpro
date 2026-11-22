@@ -1757,7 +1757,7 @@ const Team = (() => {
         const menu = $('[data-a=orgmenu]', el), options = $('#st-ent-options', el);
         menu.onclick = () => { options.hidden = !options.hidden; menu.setAttribute('aria-expanded', String(!options.hidden)); };
         $('[data-o]', el).forEach(b => b.onclick = () => { W.org = b.dataset.o; stepOrg(); });
-        $('[data-a=orgnext]', el).onclick = () => { W.org = W.org || current.k; W.svcs = [...orgTypeOf(W.org).svcs]; stepSvcs(); };
+        ($('[data-a=orgnext]', el)||{}).onclick = () => { W.org = W.org || current.k; W.svcs = [...orgTypeOf(W.org).svcs]; stepSvcs(); };
         back(stepPlan);
       }
       // 4 · services (modèle modifiable : on ne force pas 12 services à un petit entrepreneur)
