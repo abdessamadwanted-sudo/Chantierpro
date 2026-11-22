@@ -1,0 +1,17 @@
+/* Sélecteur d'organisation intégré à l'onboarding SiteTeam. */
+.st-ent-head{position:relative;background:linear-gradient(155deg,#405069,#142238 34%,#0f1c30);padding:22px;border-radius:26px;color:#fff;margin:18px 0 12px}
+.st-ent-head>small{display:block;text-align:right;color:#bed0e6;margin-bottom:16px;font-size:14px}
+.st-ent-trigger{display:flex;justify-content:space-between;align-items:center;width:100%;gap:12px;border:2px solid #ffffff45;border-radius:40px;min-height:66px;background:transparent;color:#fff;padding:12px 20px;font:600 19px system-ui;cursor:pointer;text-align:left}
+.st-ent-trigger:focus-visible,.st-ent-options button:focus-visible{outline:3px solid #60a5fa;outline-offset:2px}
+.st-ent-options{max-height:320px;overflow:auto;background:#fff;border-radius:20px;margin-top:12px;padding:7px;color:#17253b;box-shadow:0 12px 26px #0003}
+.st-ent-options[hidden]{display:none}
+.st-ent-options button{display:flex;align-items:center;gap:12px;width:100%;min-height:58px;border:0;border-radius:14px;background:#fff;color:#152239;padding:11px;text-align:left;cursor:pointer}
+.st-ent-options button:hover,.st-ent-options button[aria-pressed=true]{background:#eaf3ff}
+.st-ent-options .e{font-size:25px}
+.st-ent-options button span:nth-child(2){flex:1}
+.st-ent-options b,.st-ent-options small{display:block}
+.st-ent-options small{color:#64748b;font-size:12px;margin-top:3px}
+.st-ent-current{background:#f3f5f8;border:1px solid #e5e9f0;border-radius:22px;padding:20px;text-align:right;margin-bottom:18px}
+.st-ent-current strong{font-size:23px}
+.st-ent-current p{color:#657085;margin-bottom:0}
+@media(max-width:480px){.st-ent-head{padding:16px}.st-ent-trigger{font-size:17px}.st-ent-current strong{font-size:20px}}
