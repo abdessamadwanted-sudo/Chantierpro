@@ -1741,10 +1741,23 @@ const Team = (() => {
       }
       // 3 · type d'organisation (= interface)
       function stepOrg() {
-        el.innerHTML = `<div class="tm-lg-in">${steps(3, tot())}<h1>Type d'organisation</h1><p>Chaque type a son interface : les outils de votre métier passent en premier.</p>
-          <div class="st-orgs">${ORG_TYPES.map(t => `<button data-o="${t.k}"><span class="e">${t.e}</span><b>${esc(t.l)}</b><small>${esc(t.d)}</small></button>`).join('')}</div>
+        // Sélecteur graphique basé sur les types historiques ; aucune nouvelle clé persistée.
+        const current = orgTypeOf(W.org || 'entreprise');
+        el.innerHTML = `<div class="tm-lg-in">${steps(3, tot())}
+          <div class="st-ent-head"><small>SiteTeam Entreprise · Configuration de l'organisation</small>
+            <button class="st-ent-trigger" data-a="orgmenu" aria-expanded="false" aria-controls="st-ent-options" type="button">
+              <span>${current.e} ${esc(current.l)}</span><span aria-hidden="true">⌄</span></button>
+            <div id="st-ent-options" class="st-ent-options" hidden role="group" aria-label="Types d'organisation">
+              ${ORG_TYPES.map(t => `<button type="button" data-o="${t.k}" aria-pressed="${t.k === current.k}"><span class="e">${t.e}</span><span><b>${esc(t.l)}</b><small>${esc(t.d)}</small></span>${t.k === current.k ? '<span aria-hidden="true">✓</span>' : ''}</button>`).join('')}
+            </div>
+          </div>
+          <div class="st-ent-current"><strong>${current.e} ${esc(current.l)}</strong><p>${esc(current.d)}</p></div>
+          <button class="btn" data-a="orgnext">Continuer avec cette organisation</button>
           <button class="linkbtn" data-a="back">← Retour</button></div>`;
-        $$('[data-o]', el).forEach(b => b.onclick = () => { W.org = b.dataset.o; W.svcs = [...orgTypeOf(W.org).svcs]; stepSvcs(); });
+        const menu = $('[data-a=orgmenu]', el), options = $('#st-ent-options', el);
+        menu.onclick = () => { options.hidden = !options.hidden; menu.setAttribute('aria-expanded', String(!options.hidden)); };
+        $('[data-o]', el).forEach(b => b.onclick = () => { W.org = b.dataset.o; stepOrg(); });
+        $('[data-a=orgnext]', el).onclick = () => { W.org = W.org || current.k; W.svcs = [...orgTypeOf(W.org).svcs]; stepSvcs(); };
         back(stepPlan);
       }
       // 4 · services (modèle modifiable : on ne force pas 12 services à un petit entrepreneur)
