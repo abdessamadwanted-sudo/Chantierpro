@@ -24,7 +24,8 @@
     portefeuille_projets:'Portefeuille projets',budget_contrats:'Budget / Contrats',validations:'Validations',suivi_global:'Suivi global',decisions:'Décisions',receptions:'Réceptions',
     implantations:'Implantations',releves:'Relevés',controles_geometriques:'Contrôles géométriques',plans_topo:'Plans topo'
   });
-  // Clés conformes à ORG_TYPES de team.js ; aucune conversion implicite de formule commerciale.\n  function organisationTypes() {
+  // Clés conformes à ORG_TYPES de team.js ; aucune conversion implicite de formule commerciale.
+  function organisationTypes() {
     return Object.keys(TYPES).map(id => ({ id, label:TYPES[id].label, icon:TYPES[id].icon }));
   }
   function servicesFor(type) {
