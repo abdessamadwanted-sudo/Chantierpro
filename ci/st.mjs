@@ -517,6 +517,14 @@ try {
   await SA.pg.evaluate((cid) => firebase.firestore().collection('companies').doc(cid).update({ plan: 'enterprise', planStatus: 'actif' }), hcid);
   await H.pg.evaluate(() => Sync.run({ force: true })); await H.pg.waitForTimeout(1500);
   log('H pack restauré Enterprise (pour ne pas perturber la suite du scénario)', await H.pg.evaluate(() => Team.plan().k));
+  // v1.0.3xx : « Besoin d'un autre type de pack ? » (demande du propriétaire, 22/11/2026) — Entreprise (point 17) et
+  // Business/Enterprise (organisation) sont des espaces différents, pas un pack supérieur du même espace : le lien
+  // rouvre l'écran de choix d'espace (onboardScreen add:true), déjà utilisé par « Changer d'espace ». On annule ici
+  // (« ← Retour à mon espace ») : ce test vérifie juste que le lien fonctionne, sans créer un espace de plus pour H.
+  await H.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); Team.openCompany('abo'); }); await H.pg.waitForSelector('[data-a=newesp]', { timeout: 15000 });
+  await H.pg.click('[data-a=newesp]'); await H.pg.waitForSelector('[data-a=cancel]', { timeout: 15000 }); await shot(H.pg, '99c_abo_nouvel_espace');
+  log('H « Créer un autre espace » ouvre bien le choix Espace personnel / Organisation', await H.pg.evaluate(() => [!!document.querySelector('[data-a=perso]'), !!document.querySelector('[data-a=create]'), !!document.querySelector('[data-a=cancel]')]));
+  await H.pg.click('[data-a=cancel]'); await H.pg.waitForTimeout(500);
   log('errors v1.0.3xx abo organisation', H.errs);
   await tabA('ctrl'); await shot(SA.pg, '98_admin_controle');
   await SA.pg.check('[name=gon]'); await SA.pg.fill('[name=gtext]', 'Bienvenue sur SiteTeam 1.0.24 : nouveau panneau de contrôle.'); await SA.pg.click('[data-a=msg]'); await SA.pg.waitForTimeout(1200);

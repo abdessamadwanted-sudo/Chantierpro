@@ -2417,9 +2417,16 @@ const Team = (() => {
             <div class="st-of-r"><span>Projets actifs</span><b>${nProj}${P.projects ? ' / ' + P.projects : ''}</b></div></div>
           ${offerCard(P, perso, false)}
           ${up.length ? `<div class="tm-box"><b>Passer à un autre pack</b>${up.map(x => offerCard(x, perso, false)).join('')}<button class="btn" data-a="askup">${isSuper() ? 'Activer' : 'Demander'} ${esc(up[0].l)}</button><button class="btn ghost" data-a="pcode">🎟 J'ai un code pack</button>
-            <small class="muted">La facturation n'est pas encore en ligne : la demande part à SiteTeam, qui active le pack.</small></div>` : ''}</div>`;
+            <small class="muted">La facturation n'est pas encore en ligne : la demande part à SiteTeam, qui active le pack.</small></div>` : ''}
+          <div class="tm-box"><b>Besoin d'un autre type de pack ?</b>
+            <p class="muted" style="margin:4px 0 10px">${perso ? '« Entreprise » (Pro Service autonome) et « Business » (Organisation, avec organigramme) sont des espaces à part — pas une suite de ce pack.' : '« Entreprise » (Pro Service autonome, un service à la fois) est un espace à part, différent d\'une Organisation.'} Créez-le à côté : « ${esc((S.company||{}).name || 'cet espace')} » reste tel quel, accessible à tout moment depuis « Changer d'espace ».</p>
+            <button class="btn ghost" data-a="newesp">＋ Créer un autre espace</button></div></div>`;
         const pcb = $('[data-a=pcode]', body); if (pcb) pcb.onclick = () => applyPackCode();
         const a = $('[data-a=askup]', body); if (a) a.onclick = async () => { const k = isSuper() && up.length > 1 ? await menu('Quel pack ?', up.map(x => ({ label: `${x.e || ''} ${x.l} · ${planPrice(x)}`, value: x.k }))) : up[0].k; if (k) requestPack(k, perso); };
+        // v1.0.3xx : « Mon abonnement » ne change que le pack DE CET espace (demande/code) — pour un type différent
+        // (Entreprise ↔ Organisation), c'est un autre espace (onboardScreen({add:true}), déjà utilisé par « Changer
+        // d'espace ») : l'espace actuel n'est jamais supprimé, demande du propriétaire (22/11/2026).
+        const ne = $('[data-a=newesp]', body); if (ne) ne.onclick = async () => { const ok = await onboardScreen({ add: true }); if (ok) { try { if (typeof Sync !== 'undefined' && Sync.enabled && Sync.enabled()) await Sync.run({ quiet: true }); } catch (e) {} location.reload(); } };
       }
       if (tab === 'me') {
         const R = tmRoleOf(S.me.role), mine = await myShares();
