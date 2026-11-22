@@ -524,7 +524,7 @@ try {
   await H.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); Team.openCompany('abo'); }); await H.pg.waitForSelector('[data-a=newesp]', { timeout: 15000 });
   await H.pg.click('[data-a=newesp]'); await H.pg.waitForSelector('[data-a=cancel]', { timeout: 15000 }); await shot(H.pg, '99c_abo_nouvel_espace');
   log('H « Créer un autre espace » ouvre bien le choix Espace personnel / Organisation', await H.pg.evaluate(() => [!!document.querySelector('[data-a=perso]'), !!document.querySelector('[data-a=create]'), !!document.querySelector('[data-a=cancel]')]));
-  await H.pg.click('[data-a=cancel]'); await H.pg.waitForTimeout(500);
+  await H.pg.evaluate(() => document.querySelector('[data-a=cancel]').click()); await H.pg.waitForTimeout(500);
   log('errors v1.0.3xx abo organisation', H.errs);
   await tabA('ctrl'); await shot(SA.pg, '98_admin_controle');
   await SA.pg.check('[name=gon]'); await SA.pg.fill('[name=gtext]', 'Bienvenue sur SiteTeam 1.0.24 : nouveau panneau de contrôle.'); await SA.pg.click('[data-a=msg]'); await SA.pg.waitForTimeout(1200);
