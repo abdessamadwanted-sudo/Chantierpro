@@ -1,5 +1,5 @@
 (function(){'use strict';const catalogue=window.SiteTeamCatalogueOrganisations;if(!catalogue)return;
-const descriptions={entreprise:"Entreprise chargée de l'exécution des travaux",bet:"Études et ingénierie technique",architecte:"Conception et suivi architectural",controle:"Contrôle technique et inspections",laboratoire:"Essais, prélèvements et traçabilité",opc:"Ordonnancement, pilotage et coordination",moa:"Pilotage du maître d'ouvrage",topographe:"Implantations, levés et contrôles topographiques"};
+const descriptions={entreprise:"Entreprise chargée de l'exécution des travaux",bet:"Études et ingénierie technique",archi:"Conception et suivi architectural",bc:"Contrôle technique et inspections",labo:"Essais, prélèvements et traçabilité",opc:"Ordonnancement, pilotage et coordination",moa:"Pilotage du maître d'ouvrage",topo:"Implantations, levés et contrôles topographiques"};
 const state={type:'entreprise',mode:'carte',tab:'services',selected:new Set(),open:false};const $=id=>document.getElementById(id);
 function make(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el}
 function toggle(open){state.open=open;$('st-org-list').hidden=!open;$('st-org-trigger').setAttribute('aria-expanded',String(open))}
