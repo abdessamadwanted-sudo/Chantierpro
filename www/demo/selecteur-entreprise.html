@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SiteTeam Entreprise — Démonstration</title>
+<link rel="stylesheet" href="selecteur-entreprise.css"></head><body>
+<main class="st-wrap" id="st-selector">
+<section class="st-panel">
+<header class="st-head"><div><span class="st-badge">DEMO</span></div><div class="st-brand"><h1>SiteTeam Entreprise</h1><p>Configuration de l'organisation</p></div><span class="st-logo" aria-hidden="true">♙</span></header>
+<div class="st-menu-wrap"><button id="st-org-trigger" class="st-org-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="st-org-list"><span id="st-org-current">Entreprise BTP</span><span id="st-arrow">⌄</span></button><div id="st-org-list" class="st-org-list" role="listbox" aria-label="Type d'organisation" hidden></div></div>
+</section>
+<section class="st-body">
+<div class="st-identity"><div><h2 id="st-title">Entreprise BTP</h2><p id="st-description">Entreprise chargée de l'exécution des travaux</p></div><span class="st-identity-icon" id="st-icon">🏗️</span></div>
+<div class="st-tabs" role="tablist" aria-label="Rubriques"><button type="button" role="tab" data-tab="dashboard" aria-selected="false">Dashboard</button><button type="button" role="tab" data-tab="direction" aria-selected="false">Direction</button><button type="button" role="tab" data-tab="services" aria-selected="true">Services</button></div>
+<div id="st-content" role="tabpanel"><h3>Catalogue des Services</h3><p class="st-help">كل مؤسسة كتلقى Services ديالها، وتقدر تختار واحد أو أكثر أو All Services.</p><fieldset class="st-modes"><legend class="st-sr">Mode de sélection</legend><label><input type="radio" name="st-mode" value="carte" checked> À la carte — Services indépendants</label><label><input type="radio" name="st-mode" value="all"> All Services — جميع الخدمات</label></fieldset><div id="st-services" class="st-grid"></div><div class="st-summary" id="st-summary" aria-live="polite">0 service sélectionné</div></div>
+</section>
+</main><script src="../js/catalogue-organisations.js"></script><script src="selecteur-entreprise.js"></script></body></html>

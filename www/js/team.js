@@ -1741,19 +1741,34 @@ const Team = (() => {
       }
       // 3 · type d'organisation (= interface)
       function stepOrg() {
-        el.innerHTML = `<div class="tm-lg-in">${steps(3, tot())}<h1>Type d'organisation</h1><p>Chaque type a son interface : les outils de votre métier passent en premier.</p>
-          <div class="st-orgs">${ORG_TYPES.map(t => `<button data-o="${t.k}"><span class="e">${t.e}</span><b>${esc(t.l)}</b><small>${esc(t.d)}</small></button>`).join('')}</div>
+        // Sélecteur graphique basé sur les types historiques ; aucune nouvelle clé persistée.
+        const current = orgTypeOf(W.org || 'entreprise');
+        el.innerHTML = `<div class="tm-lg-in">${steps(3, tot())}
+          <div class="st-ent-head"><small>SiteTeam Entreprise · Configuration de l'organisation</small>
+            <button class="st-ent-trigger" data-a="orgmenu" aria-expanded="false" aria-controls="st-ent-options" type="button">
+              <span>${current.e} ${esc(current.l)}</span><span aria-hidden="true">⌄</span></button>
+            <div id="st-ent-options" class="st-ent-options st-orgs" hidden role="group" aria-label="Types d'organisation">
+              ${ORG_TYPES.map(t => `<button type="button" data-o="${t.k}" aria-pressed="${t.k === current.k}"><span class="e">${t.e}</span><span><b>${esc(t.l)}</b><small>${esc(t.d)}</small></span>${t.k === current.k ? '<span aria-hidden="true">✓</span>' : ''}</button>`).join('')}
+            </div>
+          </div>
+          <div class="st-ent-current"><strong>${current.e} ${esc(current.l)}</strong><p>${esc(current.d)}</p></div>
+          <button class="btn" data-a="orgnext">Continuer avec cette organisation</button>
           <button class="linkbtn" data-a="back">← Retour</button></div>`;
-        $$('[data-o]', el).forEach(b => b.onclick = () => { W.org = b.dataset.o; W.svcs = [...orgTypeOf(W.org).svcs]; stepSvcs(); });
+        const menu = $('[data-a=orgmenu]', el), options = $('#st-ent-options', el);
+        menu.onclick = () => { options.hidden = !options.hidden; menu.setAttribute('aria-expanded', String(!options.hidden)); };
+        $$('[data-o]', el).forEach(b => b.onclick = () => { W.org = b.dataset.o; stepOrg(); });
+        ($('[data-a=orgnext]', el)||{}).onclick = () => { W.org = W.org || current.k; W.svcs = [...orgTypeOf(W.org).svcs]; stepSvcs(); };
         back(stepPlan);
       }
       // 4 · services (modèle modifiable : on ne force pas 12 services à un petit entrepreneur)
       function stepSvcs() {
-        const T = orgTypeOf(W.org), L = TM_SERVICES.filter(s => s.k !== 'externe' && !SERVICES_LEGACY.includes(s.k));
-        W.svcs = W.svcs.filter(svcOpen); if (!W.svcs.includes('direction')) W.svcs.unshift('direction');
+        const T = orgTypeOf(W.org), L = TM_SERVICES.filter(s => s.k !== 'externe' && !SERVICES_LEGACY.includes(s.k) && (s.k === 'direction' || T.svcs.includes(s.k)));
+        W.svcs = [...new Set(W.svcs.filter(k => (k === 'direction' || T.svcs.includes(k)) && svcOpen(k)))]; if (!W.svcs.includes('direction')) W.svcs.unshift('direction');
         el.innerHTML = `<div class="tm-lg-in">${steps(4, tot())}<h1>${T.e} ${esc(T.l)}</h1><p>Vos services : gardez seulement ceux que vous avez (modifiable plus tard dans Réglages).</p>
-          <div class="seg st-tpl"><button data-tpl="petite">Petite entreprise</button><button data-tpl="grande">Grande entreprise</button></div>
-          <div class="st-svcs">${L.map(s => svcOpen(s.k) ? `<button data-s="${s.k}" class="${W.svcs.includes(s.k) ? 'on' : ''}" style="--c:${s.c}">${esc(s.l)}</button>` : `<button class="lk" data-lk="${s.k}" style="--c:${s.c}">🔒 ${esc(s.l)}</button>`).join('')}</div>
+          <div class="st-ent-head"><small>SiteTeam Entreprise · Catalogue des Services</small><div class="st-ent-trigger" aria-label="Organisation sélectionnée">${T.e} ${esc(T.l)}</div></div>
+          <div class="st-ent-modes" role="group" aria-label="Mode de sélection"><button type="button" data-tpl="petite" aria-pressed="false">◉ À la carte — Services indépendants</button><button type="button" data-tpl="grande" aria-pressed="false">◯ All Services — جميع الخدمات</button></div>
+          <p class="st-ent-count" aria-live="polite"></p>
+          <div class="st-svcs">${L.map(s => svcOpen(s.k) ? `<button type="button" data-s="${s.k}" aria-pressed="${W.svcs.includes(s.k)}" class="${W.svcs.includes(s.k) ? 'on' : ''}" style="--c:${s.c}"><span class="st-ent-card-icon" aria-hidden="true">◇</span><span class="st-ent-card-label">${esc(s.l)}</span><span class="st-ent-card-mark" aria-hidden="true">${W.svcs.includes(s.k) ? '✓' : '○'}</span></button>` : `<button class="lk" data-lk="${s.k}" style="--c:${s.c}">🔒 ${esc(s.l)}</button>`).join('')}</div>
           <small class="st-lknote">🔒 Services en préparation : ils s'ouvriront un par un.</small>
           <div class="form"><label>Nom de l'organisation<input name="cname" placeholder="Ex : ${T.k === 'entreprise' ? 'Entreprise BTP …' : esc(T.l) + ' …'}"></label>
           <label>Votre nom<input name="me" value="${esc(auth.currentUser.displayName || '')}"></label>
@@ -1762,13 +1777,23 @@ const Team = (() => {
           <button class="linkbtn" data-a="back">← Retour</button></div>`;
         const maxS = planFor(planOf(W.plan), false).services || 0;
         if (maxS && W.svcs.length > maxS) W.svcs = W.svcs.slice(0, maxS);
+        const refresh = () => {
+          $$('[data-s]', el).forEach(b => {
+            const on = W.svcs.includes(b.dataset.s);
+            b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
+            const mark = $('.st-ent-card-mark', b); if (mark) mark.textContent = on ? '✓' : '○';
+          });
+          const count = $('.st-ent-count', el);
+          if (count) count.textContent = W.svcs.length + ' service(s) sélectionné(s)' + (maxS ? ' · limite : ' + maxS : '');
+        };
+        refresh();
         $$('[data-s]', el).forEach(b => { b.classList.toggle('on', W.svcs.includes(b.dataset.s)); b.onclick = () => { const k = b.dataset.s;
           if (!W.svcs.includes(k) && maxS && W.svcs.length >= maxS) return toast(`Pack ${planOf(W.plan).l} : ${maxS} services au maximum`);
-          W.svcs = W.svcs.includes(k) ? W.svcs.filter(x => x !== k) : [...W.svcs, k]; b.classList.toggle('on'); }; });
+          W.svcs = W.svcs.includes(k) ? W.svcs.filter(x => x !== k) : [...W.svcs, k]; refresh(); }; });
         // modèles : petite entreprise (3 services de base) ou grande entreprise (tout le modèle du type d'organisation) — modifiables ensuite
         $$('[data-lk]', el).forEach(b => b.onclick = () => toast('🔒 Ce service ouvrira bientôt'));
         $$('[data-tpl]', el).forEach(b => b.onclick = () => { const full = orgTypeOf(W.org).svcs.filter(svcOpen); W.svcs = b.dataset.tpl === 'petite' ? full.slice(0, 3) : [...full]; if (maxS && W.svcs.length > maxS) { W.svcs = W.svcs.slice(0, maxS); toast(`Pack ${planOf(W.plan).l} : ${maxS} services au maximum`); }
-          $$('[data-s]', el).forEach(x => x.classList.toggle('on', W.svcs.includes(x.dataset.s))); $$('[data-tpl]', el).forEach(x => x.classList.toggle('on', x === b)); });
+          refresh(); $$('[data-tpl]', el).forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', String(x === b)); }); });
         back(stepOrg);
         ($('[data-a=go]', el)||{}).onclick = () => { const cn = $('[name=cname]', el).value.trim(); if (!cn) return toast('Tapez le nom de l\'organisation');
           const rs = $('[name=role]', el); create({ name: cn, me: $('[name=me]', el).value.trim(), role: rs ? rs.value : T.owner }); };
