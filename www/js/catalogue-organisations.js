@@ -7,12 +7,12 @@
   const TYPES = Object.freeze({
     entreprise: { label: 'Entreprise BTP', icon: '🏗️', services: ['travaux','qualite','hse','methodes','planning','materiel','achats','topographie','finance','rh'] },
     bet: { label: 'Bureau d’Études Techniques', icon: '📐', services: ['etudes_structure','etudes_techniques','plans_dao','calculs_notes','visa_plans','suivi_technique','synthese','rfi'] },
-    architecte: { label: 'Cabinet d’Architecture', icon: '🏛️', services: ['conception','plans_architecturaux','bim','visa_architecte','suivi_architectural','finitions','coordination'] },
-    controle: { label: 'Bureau de Contrôle', icon: '🔎', services: ['controle_technique','avis_techniques','inspections','visas_rapports','reserves','levee_reserves'] },
-    laboratoire: { label: 'Laboratoire BTP', icon: '🧪', services: ['essais_beton','essais_sol','prelevements','resultats','rapports','tracabilite'] },
+    archi: { label: 'Cabinet d’Architecture', icon: '🏛️', services: ['conception','plans_architecturaux','bim','visa_architecte','suivi_architectural','finitions','coordination'] },
+    bc: { label: 'Bureau de Contrôle', icon: '🔎', services: ['controle_technique','avis_techniques','inspections','visas_rapports','reserves','levee_reserves'] },
+    labo: { label: 'Laboratoire BTP', icon: '🧪', services: ['essais_beton','essais_sol','prelevements','resultats','rapports','tracabilite'] },
     opc: { label: 'OPC', icon: '📅', services: ['planning_general','coordination','reunions','suivi_avancement','retards','reporting'] },
     moa: { label: 'Maîtrise d’Ouvrage', icon: '🏢', services: ['portefeuille_projets','budget_contrats','validations','suivi_global','decisions','receptions'] },
-    topographe: { label: 'Cabinet Topographique', icon: '📍', services: ['implantations','releves','controles_geometriques','plans_topo','rapports'] }
+    topo: { label: 'Cabinet Topographique', icon: '📍', services: ['implantations','releves','controles_geometriques','plans_topo','rapports'] }
   });
   const LABELS = Object.freeze({
     travaux:'Travaux',qualite:'Qualité',hse:'HSE',methodes:'Méthodes',planning:'Planning',materiel:'Matériel',achats:'Achats',topographie:'Topographie',finance:'Finance',rh:'RH',
@@ -24,7 +24,7 @@
     portefeuille_projets:'Portefeuille projets',budget_contrats:'Budget / Contrats',validations:'Validations',suivi_global:'Suivi global',decisions:'Décisions',receptions:'Réceptions',
     implantations:'Implantations',releves:'Relevés',controles_geometriques:'Contrôles géométriques',plans_topo:'Plans topo'
   });
-  function organisationTypes() {
+  // Clés conformes à ORG_TYPES de team.js ; aucune conversion implicite de formule commerciale.\n  function organisationTypes() {
     return Object.keys(TYPES).map(id => ({ id, label:TYPES[id].label, icon:TYPES[id].icon }));
   }
   function servicesFor(type) {
