@@ -1747,7 +1747,7 @@ const Team = (() => {
           <div class="st-ent-head"><small>SiteTeam Entreprise · Configuration de l'organisation</small>
             <button class="st-ent-trigger" data-a="orgmenu" aria-expanded="false" aria-controls="st-ent-options" type="button">
               <span>${current.e} ${esc(current.l)}</span><span aria-hidden="true">⌄</span></button>
-            <div id="st-ent-options" class="st-ent-options" hidden role="group" aria-label="Types d'organisation">
+            <div id="st-ent-options" class="st-ent-options st-orgs" hidden role="group" aria-label="Types d'organisation">
               ${ORG_TYPES.map(t => `<button type="button" data-o="${t.k}" aria-pressed="${t.k === current.k}"><span class="e">${t.e}</span><span><b>${esc(t.l)}</b><small>${esc(t.d)}</small></span>${t.k === current.k ? '<span aria-hidden="true">✓</span>' : ''}</button>`).join('')}
             </div>
           </div>
