@@ -95,6 +95,11 @@ const ORG_TYPES = [
     mods: ['projet', 'plans', 'reserves', 'photos', 'forms', 'rapports', 'constats', 'equipe', 'files', 'finance'], svcs: ['direction', 'qualite', 'doc', 'admin'] },
   { k: 'bc', e: '🔍', l: 'Bureau de contrôle', d: 'Contrôle technique, visites, avis, PV', owner: 'bcontrole',
     mods: ['projet', 'plans', 'reserves', 'reception', 'photos', 'forms', 'rapports', 'constats', 'equipe', 'files'], svcs: ['direction', 'qualite', 'doc'] },
+  // v1.0.3xx (demande du propriétaire, 22/11/2026, comparaison avec un kit d'architecture externe) : OPC n'existait
+  // qu'en tant que service à l'intérieur d'une Entreprise (point 17, aut_15) — ajouté ici comme organisme à part
+  // entière, au même niveau que BET/Architecte/MOA/Bureau de contrôle, sans toucher à aucun type existant.
+  { k: 'opc', e: '🧭', l: 'OPC (Ordonnancement, Pilotage, Coordination)', d: 'Coordination des lots, planning général, réunions de chantier', owner: 'opc',
+    mods: ['projet', 'plans', 'reserves', 'photos', 'forms', 'rapports', 'constats', 'equipe', 'files'], svcs: ['direction', 'methodes', 'doc'] },
   { k: 'labo', e: '🧪', l: 'Laboratoire', d: 'Essais béton, sols, granulats, aciers', owner: 'labo',
     mods: ['projet', 'plans', 'reception', 'photos', 'forms', 'rapports', 'constats', 'calc', 'equipe', 'files'], svcs: ['direction', 'labo', 'doc'] },
   { k: 'topo', e: '📍', l: 'Cabinet de topographie', d: 'Implantations, levés, récolements', owner: 'cheftopo',
@@ -126,7 +131,7 @@ const SUPPORT_EMAIL = 'contact@chantierpro.ma';
 const SHARE_ENTITIES = [
   ['mo', "Maître d'ouvrage"], ['mod', "Maître d'ouvrage délégué"], ['architecte', 'Architecte'], ['bet', "BET (bureau d'études)"],
   ['bcontrole', 'Bureau de contrôle'], ['labo', 'Laboratoire'], ['topoext', 'Topographe externe'], ['soustraitant', 'Sous-traitant'],
-  ['entreprise', 'Entreprise (lot)'], ['autre', 'Autre'],
+  ['entreprise', 'Entreprise (lot)'], ['opc', 'OPC (coordination)'], ['autre', 'Autre'],
 ];
 const shareEntityLabel = (k) => (SHARE_ENTITIES.find(x => x[0] === k) || [k, k])[1];
 // projet multi-organisations (v1.0.19) : rôle d'une organisation partenaire dans le projet
@@ -142,7 +147,7 @@ const PARTNER_DEF = {
 };
 // liaison automatique service interne ↔ rôle de l'organisation partenaire, à l'acceptation de l'invitation (point 1 des demandes)
 // toujours modifiable ensuite : menu « ⋯ sur l'organisation › Lier à un service interne… » (derrière flag('svclink'))
-const PARTNER_SVC_AUTO = { bcontrole: 'qualite', bet: 'etudes', architecte: 'etudes', mo: 'direction', mod: 'direction', labo: 'labo', topoext: 'topo', soustraitant: 'travaux', entreprise: 'travaux' };
+const PARTNER_SVC_AUTO = { bcontrole: 'qualite', bet: 'etudes', architecte: 'etudes', mo: 'direction', mod: 'direction', labo: 'labo', topoext: 'topo', soustraitant: 'travaux', entreprise: 'travaux', opc: 'methodes' };
 const autoSvcForRole = (role) => { const k = PARTNER_SVC_AUTO[role]; return k && TM_SERVICES.some(z => z.k === k) ? k : ''; };
 
 // ---------- Services, rôles, permissions ----------
@@ -213,6 +218,8 @@ const TM_ROLES = [
   ['mo', "Maître d'ouvrage", 'externe', '1111111101111001'], ['mod', "Maître d'ouvrage délégué", 'externe', '1111111101111001'], ['architecte', 'Architecte', 'externe', '1221101101110000'],
   ['bet', "BET (bureau d'études)", 'externe', '1221111211111001'], ['bcontrole', 'Bureau de contrôle', 'externe', '1121111201111001'], ['labo', 'Laboratoire', 'externe', '1001220000102000'],
   ['soustraitant', 'Sous-traitant', 'externe', '1120201001211011'],
+  // v1.0.3xx (22/11/2026) : organisme OPC — même service « externe » que les autres intervenants (bet, bcontrole, labo…)
+  ['opc', 'OPC (Ordonnancement, Pilotage, Coordination)', 'externe', '1121111211111001'],
   ['respdoc', 'Responsable documentation', 'qualite', '2311131101300000'], ['agentdoc', 'Agent documentation', 'qualite', '1211121101200000'],
   ['resplabo', 'Responsable laboratoire', 'labo', '2113232221202001'], ['techlabo', 'Technicien laboratoire', 'labo', '1112221121201001'],
   ['respadmin', 'Responsable administratif & financier', 'travaux', '2110111012200131'], ['comptable', 'Comptable / RH', 'travaux', '1000011011200120'],

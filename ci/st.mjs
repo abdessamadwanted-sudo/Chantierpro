@@ -399,6 +399,13 @@ try {
   await F.pg.evaluate(() => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); App.section = 'orgs'; renderSection(); }); await F.pg.waitForTimeout(2500); await shot(F.pg, '76_orgs_partenaire');
   log('F voit le groupement', await F.pg.evaluate(() => [...document.querySelectorAll('.st-jv p')].map(x => x.textContent.trim()).concat([!!document.querySelector('.st-pt [data-a=inv]'), !!document.querySelector('.st-pt [data-a=leave]')])));
   log('types d\'organisation', await H.pg.evaluate(() => ORG_TYPES.map(t => t.k)));
+  // v1.0.3xx (22/11/2026) : OPC ajouté comme organisme à part (type d'organisation + rôle de partenaire), sans
+  // migration ni changement des types existants — vérifie juste qu'il est bien proposé dans les deux écrans.
+  log('OPC proposé (type d\'organisation + rôle partenaire de projet)', await H.pg.evaluate(() => [
+    ORG_TYPES.find(t => t.k === 'opc') ? ORG_TYPES.find(t => t.k === 'opc').l : null,
+    PARTNER_ROLES.some(([k]) => k === 'opc'),
+    SHARE_ENTITIES.some(([k]) => k === 'opc'),
+  ]));
   log('errors v1.0.19', [...H.errs, ...F.errs]);
   // ---- v1.0.20 : fichiers partagés (Cloud Storage) entre le titulaire (H) et le BET partenaire (F)
   log('stockage activé (Super Admin)', await setSvcs(['direction', 'qualite', 'externe', 'perso'], true));
