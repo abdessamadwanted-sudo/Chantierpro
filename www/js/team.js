@@ -1756,7 +1756,7 @@ const Team = (() => {
           <button class="linkbtn" data-a="back">← Retour</button></div>`;
         const menu = $('[data-a=orgmenu]', el), options = $('#st-ent-options', el);
         menu.onclick = () => { options.hidden = !options.hidden; menu.setAttribute('aria-expanded', String(!options.hidden)); };
-        $('[data-o]', el).forEach(b => b.onclick = () => { W.org = b.dataset.o; stepOrg(); });
+        $$('[data-o]', el).forEach(b => b.onclick = () => { W.org = b.dataset.o; stepOrg(); });
         ($('[data-a=orgnext]', el)||{}).onclick = () => { W.org = W.org || current.k; W.svcs = [...orgTypeOf(W.org).svcs]; stepSvcs(); };
         back(stepPlan);
       }
@@ -1778,7 +1778,7 @@ const Team = (() => {
         const maxS = planFor(planOf(W.plan), false).services || 0;
         if (maxS && W.svcs.length > maxS) W.svcs = W.svcs.slice(0, maxS);
         const refresh = () => {
-          $('[data-s]', el).forEach(b => {
+          $$('[data-s]', el).forEach(b => {
             const on = W.svcs.includes(b.dataset.s);
             b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
             const mark = $('.st-ent-card-mark', b); if (mark) mark.textContent = on ? '✓' : '○';
