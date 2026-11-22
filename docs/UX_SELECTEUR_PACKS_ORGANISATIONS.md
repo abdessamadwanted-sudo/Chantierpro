@@ -32,3 +32,15 @@ Reproduire dans l'application mobile et web le parcours interactif validé en co
 - Aucune écriture Firestore pour une simple navigation.
 - Les modules verrouillés restent verrouillés malgré les choix UI.
 - La PR cible `siteteam` et la CI est verte avant toute fusion.
+
+## Référence visuelle approuvée — capture du 22/11/2026
+Le sélecteur doit reproduire **le composant SiteTeam Entreprise montré dans la capture de la conversation**, et non un `select` HTML natif : en-tête bleu nuit à coins arrondis, badge DEMO, titre « SiteTeam Entreprise », sous-titre « Configuration de l'organisation », grand champ « Entreprise BTP » avec chevron, zone blanche, pictogramme bleu, onglets pilules Dashboard / Direction / Services, radios « À la carte » / « All Services », grille de cartes gris clair à pictogrammes bleus et indicateur de sélection.
+
+### Comportement du champ « Entreprise BTP »
+- Appuyer n'importe où sur le champ ouvre un **menu déroulant graphique** dans le même composant, animé discrètement ; appuyer à nouveau ou en dehors le referme.
+- Chaque ligne est une carte avec icône, nom du métier et brève description : Entreprise BTP, Architecte, BET, Bureau de contrôle, Laboratoire BTP, OPC, MOA, Cabinet topographique.
+- La sélection remplace immédiatement le texte, l'icône, la description et le catalogue ; l'onglet actif reste inchangé. Une coche indique le choix courant.
+- Les cartes de services et le mode À la carte / All Services restent visuellement cohérents avec la capture ; une sélection se marque aussi par bordure et coche, pas seulement par couleur.
+- Sur Android : menu scrollable, zone tactile ≥44 px, aucune carte masquée sous le clavier ou la barre système. Clavier et lecteur d'écran accessibles.
+- Les noms affichés et les clés persistées sont séparés. **Ne pas écraser les types historiques** déjà enregistrés dans `ORG_TYPES` ; prévoir une correspondance explicite et des tests de migration.
+- La capture constitue une **référence UX**, pas une preuve que le sélecteur est déjà intégré ou que les abonnements sont actifs.
