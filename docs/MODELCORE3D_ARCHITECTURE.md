@@ -10,11 +10,7 @@ Le prototype actuel utilise **Three.js r147 et OrbitControls déjà livrés
 dans `www/vendor/3d`**. Le chargement est différé au clic; aucune
 synchronisation ou écriture projet n'est effectuée.
 
-**Ce qui est opérationnel dans ce PR :** scène WebGL 3D volumétrique de stade,
-orbite libre, zoom, vues supérieure/inférieure, Raycaster pour sélectionner
-chaque ouvrage, inspecteur, état démonstratif, filtres Zone/Niveau/Type/État,
-Isoler, Masquer, Afficher tout, couleurs d'état et import local d'un manifeste
-JSON neutre par ouvrage.
+**Ce qui est proposé dans ce PR :** scène WebGL volumétrique, un sélecteur de familles de projets et des maquettes de démonstration indépendantes : stade, hôpital, immeubles, villa, pont, VRD/route, industrie, autre bâtiment. Chaque ouvrage a un identifiant. Orbite, zoom, Raycaster, propriétés, filtres Bâtiment/Lot/Zone/Niveau/Type/État, Isoler/Masquer/Afficher tout, couleurs d'état et import expérimental d'un manifeste JSON neutre par ouvrage. Tests automatisés et tests sur téléphone restent à confirmer.
 
 **Ce qui n'est PAS opérationnel :** import brut `.rvt`, `.ifc`, `.glb`,
 géométrie BIM réelle, modèle fédéré, mise à jour des réceptions SiteTeam,
@@ -35,11 +31,13 @@ pas activer chez des clients comme « import IFC » avant implémentation et tes
 ```json
 {
   "schema": "siteteam-modelcore-v1",
-  "projectType": "stade",
+  "projectType": "batiment",
   "elements": [
     {
       "id": "ST-OUVR-00001",
       "type": "Poutre",
+      "building": "Bloc B",
+      "lot": "Gros œuvre",
       "zone": "Nord",
       "level": "N+4",
       "status": "En attente",
@@ -59,6 +57,8 @@ pas activer chez des clients comme « import IFC » avant implémentation et tes
 }
 ```
 
+Les catégories `type` ne sont pas limitées à une liste fixe : un ouvrage `Pieu foré`, `Conduite` ou `Tablier` garde sa catégorie. `building` et `lot` sont optionnels avec valeurs de repli.
+
 Le format accepte `box` (size/position), `beam` (start/end/width/depth),
 `mesh` (positions xyz/index triangles) ; `mesh` couvre formes courbes,
 escaliers, rampes et poutres à section variable, si le convertisseur fournit
@@ -69,6 +69,15 @@ Limites provisoires : 5 000 objets, 10 Mo par JSON, max. 50 000 sommets
 et 100 000 triangles par ouvrage. Un grand stade dépassera ces limites :
 la version production devra employer une représentation compactée,
 fragmentée, paginée avec streaming, et un cache contrôlé.
+
+
+## Multi-projets : pas de modèle unique imposé
+
+La structure de SiteTeam est universelle : **organisation → projet → bâtiment/ouvrage → zone → niveau → lot → élément**. Un pont n'a pas forcément d'étages; pour le VRD on emploie PK/tronçons, pour l'industrie des halles/portiques, pour un hôpital des blocs/locaux. Les filtres sont des métadonnées dynamiques, non des suppositions structurelles. La création d'un nouveau type de projet ne nécessite pas de refondre le moteur d'affichage.
+
+Le sélecteur dans ModelCore propose les maquettes de démonstration `stade`, `hopital`, `immeuble`, `villa`, `pont`, `vrd`, `industriel`, `batiment`. Il essaie de détecter la famille depuis `App.project.type` et laisse l'utilisateur la choisir. **Ce sont des scènes fictives, même sous le nom d'un projet réel.**
+
+Le contrat de sortie d'import est universel : un élément = un identifiant unique, un maillage/solide et un index de métadonnées. L'import IFC brut **n'est pas implémenté** et exige un pipeline de conversion dédié, conservant les ouvrages séparés et leurs GlobalId.
 
 ## Revit / Archicad / Tekla / autres
 
