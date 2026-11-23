@@ -98,7 +98,7 @@
     const el = document.createElement('div'); el.className = 'fullpage st-mc3d'; el.style.cssText = 'position:fixed;inset:0;z-index:1100;display:flex;flex-direction:column;background:#081324;color:#e7f1ff;font:13px system-ui,sans-serif;overflow:hidden';
     el.innerHTML = '<style>.st-mc3d *{box-sizing:border-box}.st-mc3d button,.st-mc3d select{background:#223954;color:#e7f1ff;border:1px solid #3c5876;border-radius:7px;padding:8px;font-size:12px}.st-mc3d button:disabled{opacity:.4}.st-mc3d .mcbar{display:flex;gap:6px;padding:8px;align-items:center;overflow:auto;flex-wrap:wrap;background:#14233a}.st-mc3d .mctitle{font-weight:700;flex:1;min-width:155px}.st-mc3d .mcview{flex:1;min-height:100px;position:relative;touch-action:none}.st-mc3d .mcview canvas{display:block;touch-action:none}.st-mc3d .mcdetail{background:#122138;padding:10px;display:flex;gap:7px;flex-wrap:wrap;align-items:center;max-height:32%;overflow:auto}.st-mc3d .mcinfo{flex:1;min-width:180px;line-height:1.6}.st-mc3d .mcsub{font-size:11px;color:#a8bed6}.st-mc3d .mcwarn{font-size:10px;color:#ffd58f}.st-mc3d .mcstatus{display:flex;gap:4px;flex-wrap:wrap}.st-mc3d .mcstatus button{white-space:nowrap}</style>'+
       '<div class="mcbar"><button data-act="close">✕</button><div class="mctitle">◈ SiteTeam ModelCore 3D<div class="mcsub" data-val="project"></div></div><button data-act="reset">↺</button><button data-act="top">Dessus</button><button data-act="under">Dessous</button><button data-act="zoomplus">＋</button><button data-act="zoomminus">－</button></div>'+
-      '<div class="mcbar"><select data-role="projecttype"><option value="stade">Stade</option><option value="hopital">Hôpital</option><option value="immeuble">Immeubles</option><option value="villa">Villa</option><option value="pont">Pont</option><option value="vrd">VRD / Route</option><option value="industriel">Industrie</option><option value="batiment">Autre bâtiment</option></select><select data-filter="zone"><option value="all">Toutes zones</option></select><select data-filter="level"><option value="all">Tous niveaux</option></select><select data-filter="type"><option value="all">Tous ouvrages</option></select><select data-filter="status"><option value="all">Tous états</option></select><button data-act="all">Afficher tout</button><button data-act="roof">Toiture</button><button data-act="color">Couleurs état</button><button data-act="import">Importer JSON</button><input data-role="file" type="file" accept=".json,application/json" style="display:none"></div>'+
+      '<div class="mcbar"><select data-role="projecttype"><option value="stade">Stade</option><option value="hopital">Hôpital</option><option value="immeuble">Immeubles</option><option value="villa">Villa</option><option value="pont">Pont</option><option value="vrd">VRD / Route</option><option value="industriel">Industrie</option><option value="batiment">Autre bâtiment</option></select><select data-filter="building"><option value="all">Tous bâtiments</option></select><select data-filter="lot"><option value="all">Tous lots</option></select><select data-filter="zone"><option value="all">Toutes zones</option></select><select data-filter="level"><option value="all">Tous niveaux</option></select><select data-filter="type"><option value="all">Tous ouvrages</option></select><select data-filter="status"><option value="all">Tous états</option></select><button data-act="all">Afficher tout</button><button data-act="roof">Toiture</button><button data-act="color">Couleurs état</button><button data-act="import">Importer JSON</button><input data-role="file" type="file" accept=".json,application/json" style="display:none"></div>'+
       '<div class="mcview" data-role="stage"><div style="position:absolute;left:10px;bottom:10px;color:#cde2f6;font-size:11px;pointer-events:none">Orbit 360° · toucher un ouvrage · zoom pincement / molette</div></div>'+
       '<div class="mcdetail"><div class="mcinfo"><b data-val="id">Aucun ouvrage sélectionné</b><div class="mcsub" data-val="info">Cliquez sur un élément. Données fictives non synchronisées.</div><div class="mcwarn" data-val="warning">Prototype — ne modifie pas votre projet et ne lit pas encore IFC/RVT.</div></div><button data-act="isolate" disabled>Isoler</button><button data-act="hide" disabled>Masquer</button><select data-role="editstatus" disabled>'+STATES.map(s=>'<option>'+s+'</option>').join('')+'</select></div>';
     document.body.appendChild(el);
@@ -135,7 +135,7 @@
       mesh.material=getMat(type,palette[type] || palette.Autre,type==='Charpente'?.15:0);
       return mesh;
     }
-    function resetCamera(){camera.position.set(32,29,36); controls.target.set(0,2.5,0); controls.update(); schedule();}
+    function resetCamera(){const bounds=new T.Box3().setFromObject(grp),ctr=bounds.getCenter(new T.Vector3()),size=bounds.getSize(new T.Vector3());const d=Math.max(15,size.length()*1.12);camera.position.set(ctr.x+d*.7,ctr.y+d*.56,ctr.z+d*.8);controls.target.copy(ctr);controls.update();schedule();}
     function populate(elements) {
       for(const child of [...grp.children]) grp.remove(child);
       geometryCache.splice(0).forEach(g=>g.dispose()); registry.clear(); hidden.clear(); isolated=null; selected=null; dataset=elements;
@@ -145,17 +145,16 @@
       refreshFilters();visibility();resetCamera();updateDetails();
     }
     function refreshFilters(){
-      for(const key of ['building','zone','level','type','status']){
-        if(key==='building' && !$('[data-filter="building"]'))continue;
-        const s=$('[data-filter="'+key+'"]');s.replaceChildren(new Option(key==='zone'?'Toutes zones':key==='level'?'Tous niveaux':key==='type'?'Tous ouvrages':key==='building'?'Tous bâtiments':'Tous états','all'));
+      for(const key of ['building','lot','zone','level','type','status']){
+        const s=$('[data-filter="'+key+'"]');s.replaceChildren(new Option(key==='zone'?'Toutes zones':key==='level'?'Tous niveaux':key==='type'?'Tous ouvrages':key==='building'?'Tous bâtiments':key==='lot'?'Tous lots':'Tous états','all'));
         [...new Set(dataset.map(e=>e[key]))].sort().forEach(v=>s.add(new Option(v,v)));
       }
     }
     function visibility(){
       for(const entry of registry.values()){
         const e=entry.meta;
-        entry.mesh.visible=!hidden.has(e.id) && (!isolated || e.id===isolated) && (!roofHidden || e.type!=='Charpente') &&
-          ['zone','level','type','status'].every(k=>$('[data-filter="'+k+'"]').value==='all'||$('[data-filter="'+k+'"]').value===e[k]);
+        entry.mesh.visible=!hidden.has(e.id) && (!isolated || e.id===isolated) && (!roofHidden || !(e.type==='Charpente'||e.type==='Couverture'||e.level==='Toiture')) &&
+          ['building','lot','zone','level','type','status'].every(k=>$('[data-filter="'+k+'"]').value==='all'||$('[data-filter="'+k+'"]').value===e[k]);
         entry.mesh.material=e.id===selected?selectedMat:statusColors?getMat('s:'+e.status,STATUS_COLOR[e.status]):entry.baseMat;
       }
       schedule();
@@ -192,15 +191,15 @@
     const on=(act,fn)=>$('[data-act="'+act+'"]').addEventListener('click',fn);
     on('close',close);on('top',()=>{camera.position.set(.001,54,.001);controls.target.set(0,2.5,0);controls.update();});
     on('under',()=>{camera.position.set(.001,-40,.001);controls.target.set(0,2.5,0);controls.update();});
-    on('reset',()=>{isolated=null;hidden.clear();roofHidden=false;statusColors=false;for(const k of ['zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';resetCamera();select(null);});
+    on('reset',()=>{isolated=null;hidden.clear();roofHidden=false;statusColors=false;for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';resetCamera();select(null);});
     on('zoomplus',()=>{camera.position.sub(controls.target).multiplyScalar(.78).add(controls.target);controls.update();});
     on('zoomminus',()=>{camera.position.sub(controls.target).multiplyScalar(1.25).add(controls.target);controls.update();});
-    on('isolate',()=>{if(!selected)return;isolated=selected;hidden.delete(selected);roofHidden=false;for(const k of ['zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';visibility();});
+    on('isolate',()=>{if(!selected)return;isolated=selected;hidden.delete(selected);roofHidden=false;for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';visibility();});
     on('hide',()=>{if(!selected)return;hidden.add(selected);if(isolated===selected)isolated=null;select(null);});
-    on('all',()=>{isolated=null;hidden.clear();roofHidden=false;for(const k of ['zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';select(null);});
+    on('all',()=>{isolated=null;hidden.clear();roofHidden=false;for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';select(null);});
     on('roof',()=>{roofHidden=!roofHidden;visibility();});
     on('color',()=>{statusColors=!statusColors;visibility();});
-    for(const k of ['zone','level','type','status'])$('[data-filter="'+k+'"]').addEventListener('change',()=>{select(null);});
+    for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').addEventListener('change',()=>{select(null);});
     $('[data-role="editstatus"]').addEventListener('change',e=>{
       if(!selected)return;const item=registry.get(selected);if(item && STATES.includes(e.target.value)){item.meta.status=e.target.value;item.meta.progress=e.target.value==='Réceptionné'?100:item.meta.progress;updateDetails();visibility();}
     });
