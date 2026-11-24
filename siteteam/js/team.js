@@ -1135,6 +1135,24 @@ const Team = (() => {
     if (cur && JSON.stringify(cur) === JSON.stringify(w) && (S.workspaces || [])[0] && S.workspaces[0].cid === S.cid) return;
     try { await fs.collection('users').doc(S.user.uid).set({ workspaces: next }, { merge: true }); S.workspaces = next; } catch (e) { console.warn('ws', e); }
   }
+  // v1.0.3xx (24/11/2026, demande du propriétaire : retirer « Pro Service autonome », tout passe par Entreprise) :
+  // correspondance clé du catalogue (assets/studio.json, aut_X) → clé TM_SERVICES, pour migrateServiceKind ci-dessous.
+  // « aut_14 » (Contrôle) et « aut_15 » (OPC) n'ont pas d'équivalent TM_SERVICES précis → repli sur 'direction' (toujours valide).
+  const SVCKEY_TO_TM = { aut_0: 'qualite', aut_1: 'hse', aut_2: 'travaux', aut_3: 'methodes', aut_4: 'bim', aut_5: 'etudes', aut_6: 'materiel', aut_7: 'achats', aut_8: 'transport', aut_9: 'rh', aut_10: 'admin', aut_11: 'metre', aut_12: 'topo', aut_13: 'labo' };
+  let svcMigrating = false;
+  // migration automatique : une Entreprise autonome « kind: service » (créée avant le 24/11/2026) devient une
+  // Entreprise normale (kind: entreprise) — mêmes données (projets, membres), rien de perdu. Son svcKey est conservé
+  // (siteteam.js continue d'afficher ses volets dédiés grâce à lui) et son équivalent TM_SERVICES est ajouté à
+  // `services` pour qu'elle apparaisse normalement partout où un service d'organisation est listé.
+  async function migrateServiceKind() {
+    if (svcMigrating || !S.company || S.company.kind !== 'service' || !S.me || !S.me.admin) return;
+    svcMigrating = true;
+    try {
+      const tm = SVCKEY_TO_TM[S.company.svcKey] || 'direction';
+      await withTimeout(fs.collection('companies').doc(S.cid).update({ kind: 'entreprise', services: firebase.firestore.FieldValue.arrayUnion(tm) }));
+      S.company = { ...S.company, kind: 'entreprise', services: [...new Set([...(S.company.services || []), tm])] }; LS.set('company', S.company);
+    } catch (e) { console.warn('migration service → entreprise', e); } finally { svcMigrating = false; }
+  }
   // Service autonome (Étape 3, PR A) : espace à part (kind « service »), vide, avec son propre abonnement ; mêmes règles serveur que toute organisation (rien de nouveau).
   // Le rattachement ultérieur à une organisation (avec consentement) viendra séparément. Retourne l'id créé ou null.
   async function createService(label, key) {
@@ -1470,6 +1488,7 @@ const Team = (() => {
       if (denied(e)) await refreshMe();   // v1.0.53 : membre dont l'accès a expiré : sa fiche dit pourquoi (écran « Accès terminé »)
       if (!S.me || S.me.uid !== S.user.uid) { await alertBox('Connexion impossible : ' + errMsg(e)); return loadMembership(); } }
     S.ready = true;
+    migrateServiceKind();   // v1.0.3xx : « Pro Service autonome » retiré — conversion automatique, silencieuse, sans perte de données
     watchAccess();
     // v1.0.35 : configuration en arrière-plan si déjà connue — v1.0.57 : puis contrôle d'accès refait (« accès sur code uniquement » activé entre-temps)
     if (LS.get('plansCfg')) loadPlanCfg().then(() => { try { gate(); } catch (e) {} }).catch(() => {}); else await loadPlanCfg();
@@ -1692,49 +1711,20 @@ const Team = (() => {
           <button class="btn ghost st-codebtn" data-a="pcode">🎟 J'ai un code pack</button>
           ${perso ? '<p class="st-of-n">Invité par une organisation ? Pas de pack : c\'est elle qui paie pour vous.</p>' : ''}
           <button class="linkbtn" data-a="back">← Retour</button></div>`;
-        const afterPlan = () => W.espace === 'perso' ? (W.plan === 'pro' ? stepProKind() : stepMetier()) : (planOf(W.plan).k === 'basic' ? stepOrgSimple() : stepOrg());
+        // v1.0.3xx (24/11/2026, demande du propriétaire) : « Pro Service autonome » retiré de l'inscription — Pro
+        // redevient simplement l'upgrade individuel de Basic (comme avant le point 16). Pour un service à part,
+        // l'organisation passe par « Mes espaces › Créer mon Entreprise » puis « Ajouter un service », inchangé.
+        const afterPlan = () => W.espace === 'perso' ? stepMetier() : (planOf(W.plan).k === 'basic' ? stepOrgSimple() : stepOrg());
         $$('[data-p]', el).forEach(b => b.onclick = () => { W.plan = b.dataset.p; afterPlan(); });
         $$('[data-req]', el).forEach(b => b.onclick = () => requestPack(b.dataset.req, perso));
         ($('[data-a=pcode]', el)||{}).onclick = async () => { const C = await askPackCode(); if (!C) return; W.code = C; W.plan = C.plan; toast(`Code accepté : ${codeLabel(C)} ✓`); afterPlan(); };
         back(stepEspace);
       }
-      // 2b · pack Pro scindé (demande du propriétaire) : « Individuel » = parcours historique (ci-dessous, stepMetier)
-      // sans aucun changement ; « Service autonome » = choisir un service dans le catalogue (même liste que « Mes
-      // espaces › Nouveau service autonome ») puis entrer directement dans sa propre interface dédiée, construite
-      // une par une (Service Travaux en premier — voir renderSvcTravaux, app.js).
-      function stepProKind() {
-        el.innerHTML = `<div class="tm-lg-in">${steps(3, tot())}<h1>⭐ Pack Pro</h1><p>Comment voulez-vous utiliser Pro ?</p>
-          <div class="tm-choice">
-            <button data-a="solo"><b>👤 Pro Individuel</b><span>Vous seul : vous entrez directement, comme aujourd'hui</span></button>
-            <button data-a="svc"><b>🧩 Pro Service autonome</b><span>Un service à part (Travaux, Qualité, HSE…), avec son équipe et sa propre interface</span></button>
-          </div>
-          <button class="linkbtn" data-a="back">← Retour</button></div>`;
-        ($('[data-a=solo]', el)||{}).onclick = () => stepMetier();
-        ($('[data-a=svc]', el)||{}).onclick = () => stepAutonomeSvc();
-        back(stepPlan);
-      }
-      // 2c · Point 17 (demande du propriétaire, 21/11/2026) : « Pro Service autonome » donne UNE Entreprise (vide,
-      // gratuite), pas un espace par service choisi ici. Le choix du service (catalogue + présentation + demande
-      // d'accès ou code) se fait ENSUITE, une fois entré dans l'Entreprise (voir Ent.openAdd, svc-entreprise.js) —
-      // remplace l'ancien choix immédiat dans l'onboarding (gardé en historique dans git, voir PR #299/#313).
-      function stepAutonomeSvc() {
-        el.innerHTML = `<div class="tm-lg-in">${steps(3, tot())}<h1>🧩 Pro Service autonome</h1>
-          <p>Une seule Entreprise, vide au départ. Une fois entré, ajoutez les services qu'il vous faut (Qualité, Travaux, HSE, Études…) un par un — chacun avec sa présentation et son propre accès.</p>
-          <button class="btn" data-a="go">Créer mon Entreprise</button>
-          <button class="linkbtn" data-a="back">← Retour</button></div>`;
-        back(stepProKind);
-        ($('[data-a=go]', el)||{}).onclick = async () => {
-          const uid = auth.currentUser.uid, ref = fs.collection('companies').doc(), R = tmRoleOf(orgTypeOf('entreprise').owner || 'patron');
-          const ld = loading('Création de l\'Entreprise…');
-          try {
-            await withTimeout(ref.set({ name: 'Mon Entreprise', ownerUid: uid, plan: 'basic', planStatus: 'gratuit', kind: 'entreprise', orgType: 'entreprise', services: ['direction'], svcKeys: [], allSvc: false, createdAt: ts() }));
-            const none = Object.fromEntries(MODS.map(([m]) => [m, 0]));
-            await withTimeout(ref.collection('members').doc(uid).set({ name: auth.currentUser.displayName || '', email: auth.currentUser.email, role: R.k, service: R.s || 'direction', perms: none, admin: true, allProjects: true, projects: [], managerUid: null, zone: '', createdAt: ts() }));
-            await withTimeout(fs.collection('users').doc(uid).set({ companyId: ref.id, name: auth.currentUser.displayName || '' }, { merge: true }));
-            ld.close(); toast('Entreprise créée ✓'); done();
-          } catch (e) { ld.close(); alertBox(errMsg(e) + (e.code === 'permission-denied' ? '\n\nLes règles de sécurité Firestore sont-elles installées ?' : '')); }
-        };
-      }
+      // v1.0.3xx (24/11/2026, demande du propriétaire) : l'étape 2b/2c « Pro Service autonome » (stepProKind /
+      // stepAutonomeSvc) est retirée d'ici — Pro va directement à stepMetier (ci-dessus, afterPlan), comme avant le
+      // point 16. Elle restait de toute façon redondante avec « Mes espaces › Créer mon Entreprise » + « Ajouter un
+      // service », qui remplaçait déjà sa variante côté Mes espaces depuis le point 17 (v1.0.3xx, mesespaces.js).
+      // Historique conservé dans git (voir PR #299/#316/#317) si besoin de la retrouver.
       // 3 · Basic Organisation : parcours simplifié (demande explicite du propriétaire) — ni choix de type d'organisation
       // ni liste de services multiples (dont « Intervenants externes ») : Basic reste le pack simple qu'il était avant
       // l'ajout des étapes avancées (type d'organisation détaillé, organigramme par service) pensées pour Business/Enterprise.
