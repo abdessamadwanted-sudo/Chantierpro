@@ -28,7 +28,7 @@ async function renderModels3D(root, filter) {
   const list = (p.models3d || []).filter(m => !filter || m.linkId === filter).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   const PT = (p.poutres || []);
   root.innerHTML = `<div class="pagehead"><h2>Modèles 3D</h2><p>Coffrage tracé sur plan · ferraillage depuis la nomenclature</p></div>
-    <button class="pt-entry" data-a="modelcore"><span>🏗️</span><div class="grow"><b>SiteTeam ModelCore 3D · Démonstration multi-projets</b><small>Stade, hôpital, immeubles, villa, pont, VRD, industrie · sélection d'ouvrages · données fictives</small></div>${icon('chevright')}</button>
+    <button class="pt-entry ${Team.plan().k === 'basic' ? 'lk' : ''}" data-a="modelcore"><span>${Team.plan().k === 'basic' ? '🔒' : '🏗️'}</span><div class="grow"><b>SiteTeam ModelCore 3D · Démonstration multi-projets</b><small>${Team.plan().k === 'basic' ? 'Disponible à partir du pack Pro' : 'Stade, hôpital, immeubles, villa, pont, VRD, industrie · sélection d\'ouvrages · données fictives'}</small></div>${icon('chevright')}</button>
     <button class="pt-entry" data-a="pt3"><span>🧱</span><div class="grow"><b>Poutres 3D</b><small>${PT.length ? `${PT.length} poutre(s) · ` : ''}depuis le plan de ferraillage (Arche / Graitec) ou saisie</small></div>${icon('chevright')}</button>
     ${PT.length ? `<div class="list">${PT.map(P => `<div class="row" data-pt="${P.id}"><span class="m3-ic" style="background:linear-gradient(135deg,#a855f7,#4c1d95)">🧱</span><div class="grow"><div class="title">${esc(P.name || 'Poutre')}${P.niv ? ' · ' + esc(P.niv) : ''}</div><div class="sub">${P.b}×${P.h} · portée ${P.L} cm · ${(P.bars || []).length} positions · ${nfx(ptTotKg(P), 1)} kg</div></div></div>`).join('')}</div>` : ''}
     ${list.length ? `<div class="list">${list.map(m => `<div class="row" data-id="${m.id}"><span class="m3-ic" style="background:${m.type === 'ferraillage' ? 'linear-gradient(135deg,#ef4444,#7f1d1d)' : m.type === 'dxf' ? 'linear-gradient(135deg,#22c55e,#14532d)' : 'linear-gradient(135deg,#60a5fa,#1e40af)'}">${icon(m.type === 'ferraillage' ? 'rows' : m.type === 'dxf' ? 'layers' : 'cube')}</span>
@@ -37,7 +37,9 @@ async function renderModels3D(root, filter) {
   $$('.row[data-id]', root).forEach(r => r.onclick = async () => { await openAnyModel(list.find(m => m.id === r.dataset.id)); renderModels3D(root, filter); });
   $$('.row[data-pt]', root).forEach(r => r.onclick = async () => { const P = PT.find(x => x.id === r.dataset.pt); if (P) await ptOpen(p, P); renderModels3D(root, filter); });
   // Prototype autonome : chargé uniquement au clic, sans toucher aux données du projet.
+  // v1.0.3xx (demande du propriétaire, 24/11/2026) : réservé à partir du pack Pro, comme les autres fonctions avancées (qaOn, proSvc dans siteteam.js).
   ($('[data-a=modelcore]', root)||{}).onclick = async () => {
+    if (Team.plan().k === 'basic') return toast('🔒 ModelCore 3D est disponible à partir du pack Pro');
     try {
       await loadScript('js/modelcore3d-templates.js');
       await loadScript('js/modelcore3d.js');
