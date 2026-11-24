@@ -2455,6 +2455,8 @@ try {
       o.sqOuvert = !!root.querySelector('details[data-g=sq]');
       o.travHseOuverts = !!root.querySelector('details[data-g=sv-travaux]') && !!root.querySelector('details[data-g=sv-hse]');
       o.autresFermes = !root.querySelector('details[data-g=sv-topo]') && !root.querySelector('details[data-g=sv-labo]') && !root.querySelector('details[data-g=sv-etu]') && !root.querySelector('details[data-g=sv-fin]');
+      // DIAGNOSTIC TEMPORAIRE (à retirer) : comprendre pourquoi sqOuvert est false malgré svcqual=pub
+      o.dbgSvcqual = Team.flag('svcqual'); o.dbgQualGenerique = !!root.querySelector('details[data-g=qual]'); o.dbgIvEnt = !!root.querySelector('details[data-g=iv-ent]');
       o.monEspaceCache = SECTIONS.monespace.hidden === true;
       Team.applyFlags({ svcqual: { enterprise: 'test' } }, ['autre@example.com']); o.testAutre = Team.flag('svcqual') === false;
       Team.applyFlags({ svcqual: { enterprise: 'pub' } }); o.pub = Team.flag('svcqual') === true;
