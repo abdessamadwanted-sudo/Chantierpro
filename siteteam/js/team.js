@@ -771,6 +771,18 @@ const Team = (() => {
   FLAG_DEFAULT.missionzone = { business: 'dev', enterprise: 'pub' };
   FLAG_DEFAULT.terraindoc = { enterprise: 'pub' };
   FLAG_DEFAULT.qdocs = { business: 'dev', enterprise: 'pub' };
+  // v1.0.3xx (24/11/2026, nuit) : signalé par le propriétaire (capture d'écran) — en entrant dans le service
+  // Qualité d'une vraie Entreprise, il retombait sur l'interface standard (catégories génériques) au lieu des
+  // volets dédiés Administratif/Terrain/Commun déjà construits (SVC_SHELLS, siteteam.js). Cause : le drapeau
+  // MAÎTRE qui affiche ces volets (svcqual) était resté « dev » (réservé au Super Admin) alors que ses drapeaux
+  // compagnons (orgq, missionzone, qdocs juste au-dessus) avaient déjà été activés en « pub » — l'organigramme
+  // Qualité et la documentation automatique existaient donc sans que les volets eux-mêmes ne s'affichent jamais
+  // pour un vrai compte. Corrigé pour les 3 services prioritaires confirmés par le propriétaire (Qualité, Travaux,
+  // HSE — les autres restent fermés, voir config/services) : svcqual et svctravaux étaient déjà prévus pour
+  // Business (commentaire ci-dessus, BIZ_FLAGS) mais figés à « dev » ; svchse n'avait même pas d'entrée Business.
+  FLAG_DEFAULT.svcqual = { business: 'pub', enterprise: 'pub' };
+  FLAG_DEFAULT.svctravaux = { business: 'pub', enterprise: 'pub' };
+  FLAG_DEFAULT.svchse = { business: 'pub', enterprise: 'pub' };
   const flagCfg = (k) => (appCfg().fp || {})[k] || FLAG_DEFAULT[k] || {};
   // pack en vigueur : aperçu du Super Admin (« Pack de travail »), sinon pack de l'espace
   const packPreview = () => { try { const v = JSON.parse(sessionStorage.getItem('st.preview') || 'null'); return v && v.plan ? (PLAN_ALIAS[v.plan] || v.plan) : ''; } catch (e) { return ''; } };
