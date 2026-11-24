@@ -2651,6 +2651,12 @@ html.th-st input, html.th-st select, html.th-st textarea { background: #fff; col
 .st-perf-c .gl { stroke: var(--line); stroke-dasharray: 4 4; } .st-perf-c .ln { fill: none; stroke: #2164A8; stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
 .st-perf-c .ar { fill: #2164A81f; } .st-perf-c .pt { fill: #2164A8; stroke: #fff; stroke-width: 2; }
 .st-perf-x { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); margin-top: 4px; }
+/* v1.0.3xx : Vue Direction — ventilation par service (demande du propriétaire, 24/11/2026) */
+.st-dirsvc { margin-top: 4px; }
+.st-dsv { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); border-left: 3px solid var(--c, var(--accent)); margin-bottom: 6px; }
+.st-dsv b { font-size: 13.5px; color: var(--navy, var(--text)); font-weight: 600; }
+.st-dsv span { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--muted); min-width: 28px; text-align: right; }
+.st-dsv span.warn { color: #c2410c; font-weight: 700; }
 .st-svcs2 { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
 .st-svc2 { flex: none; display: grid; justify-items: start; gap: 1px; min-width: 112px; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--line); border-top: 3px solid var(--c); background: var(--card); color: var(--text); text-align: left; }
 .st-svc2 span { font-size: 18px; } .st-svc2 b { font-size: 13.5px; } .st-svc2 small { font-size: 11.5px; color: var(--muted); }

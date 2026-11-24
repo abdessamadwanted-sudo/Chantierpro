@@ -183,7 +183,32 @@ const ST = (() => {
         <button class="st-kpi" data-k="dec"><span class="ic" style="--c:#18866B">${icon('check')}</span><b>…</b><small>Décisions</small></button>
         <button class="st-kpi" data-k="al"><span class="ic" style="--c:#C2410C">${icon('alert')}</span><b>…</b><small>Alertes</small></button></div>
       <div class="st-perf"><div class="st-perf-h"><b>Activité des projets</b><small>8 dernières semaines</small></div><div class="st-perf-c" data-perf></div></div>
+      ${svcs.length ? `<div class="st-dirsvc" data-dirsvc><div class="st-perf-h"><b>Par service</b><small>${svcs.length} actif${svcs.length > 1 ? 's' : ''}</small></div>
+        ${svcs.map(s => `<div class="st-dsv" data-dsv="${esc(s.k)}" style="--c:${esc(s.c)}"><b>${esc(s.l)}</b><span data-dsv-av>…</span><span data-dsv-dec>…</span><span data-dsv-al>…</span></div>`).join('')}
+      </div>` : ''}
     </div>`;
+  }
+  // v1.0.3xx (24/11/2026, demande du propriétaire : ventilation par service dans la Vue Direction) : attribution au mieux
+  // (le modèle de données n'a pas de champ « service » direct sur les tâches) — tâche attribuée par correspondance du nom
+  // saisi dans « Responsable » (task.assignee, texte libre) avec le nom d'un membre de ce service ; décision attribuée par
+  // l'auteur du formulaire (f.aut, uid fiable) quand ce membre appartient au service.
+  async function dirSvcBind(box, svcs, T, forms, ids) {
+    if (!svcs.length) return;
+    const M = Team.members() || [];
+    const svcOfMember = (m) => m.service || tmRoleOf(m.role).s;
+    const svcOfName = (name) => { if (!name) return ''; const n = String(name).trim().toLowerCase(); const m = M.find(x => (x.name || '').trim().toLowerCase() === n); return m ? svcOfMember(m) : ''; };
+    const svcOfUid = (uid) => { const m = M.find(x => x.uid === uid); return m ? svcOfMember(m) : ''; };
+    for (const s of svcs) {
+      const row = box.querySelector(`[data-dsv="${s.k}"]`); if (!row) continue;
+      const Ts = T.filter(t => svcOfName(t.assignee) === s.k);
+      const av = Ts.length ? Math.round(100 * Ts.filter(isLifted).length / Ts.length) : null;
+      const al = Ts.filter(isLate).length;
+      const dec = forms.filter(f => ids.has(f.projectId) && f.vst === 'soumis' && svcOfUid(f.aut) === s.k).length;
+      const av2 = row.querySelector('[data-dsv-av]'), dec2 = row.querySelector('[data-dsv-dec]'), al2 = row.querySelector('[data-dsv-al]');
+      if (av2) av2.textContent = av == null ? '—' : av + '%'; if (av2) av2.title = 'Avancement';
+      if (dec2) { dec2.textContent = String(dec); dec2.title = 'Décisions en attente'; dec2.classList.toggle('warn', dec > 0); }
+      if (al2) { al2.textContent = String(al); al2.title = 'Alertes'; al2.classList.toggle('warn', al > 0); }
+    }
   }
   async function dirBind(root) {
     const box = root && root.querySelector('[data-stdir]'); if (!box) return;
@@ -205,6 +230,7 @@ const ST = (() => {
       set('av', pct == null ? '—' : pct + '%'); set('pj', String(projects.length).padStart(2, '0')); set('dec', String(dec).padStart(2, '0'), dec > 0); set('al', String(al).padStart(2, '0'), al > 0);
       box.querySelector('[data-k=al]').onclick = box.querySelector('[data-k=dec]').onclick = async () => { if (typeof briefingShow === 'function') { const act = await briefingShow(); if (act) act(); } };
       box.querySelector('[data-k=pj]').onclick = () => { const n = document.querySelector('.st-bnav [data-n=proj]'); if (n) n.click(); };
+      const dsv = box.querySelector('[data-dirsvc]'); if (dsv) await dirSvcBind(box, Team.taille() === 'petite' ? [] : Team.companyServices().filter(x => x.k !== 'externe'), T, forms, ids);
       // activité : éléments créés ou modifiés par semaine (réserves, réceptions, PV, rapports)
       const W = 8, now = Date.now(), wk = 7 * 864e5, bins = Array(W).fill(0);
       for (const x of [...T, ...recs, ...forms, ...reps]) { if (!ids.has(x.projectId)) continue; const i = W - 1 - Math.floor((now - (x.updatedAt || 0)) / wk); if (i >= 0 && i < W) bins[i]++; }

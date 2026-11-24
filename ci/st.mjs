@@ -638,6 +638,11 @@ try {
   await A.pg.waitForFunction(() => !document.querySelector('.st-kpi b') || document.querySelector('.st-kpi b').textContent !== '…', null, { timeout: 15000 }); await A.pg.waitForTimeout(600);
   await shot(A.pg, '107_vue_direction');
   log('Vue Direction (A, Business)', await A.pg.evaluate(() => [Team.taille(), document.querySelector('.st-hd b').textContent, document.querySelectorAll('.st-kpi').length, [...document.querySelectorAll('.st-kpi b')].every(b => b.textContent !== '…'), !!document.querySelector('.st-perf-c svg'), document.querySelectorAll('.st-svc2').length > 0, document.documentElement.classList.contains('th-st'), document.querySelectorAll('.st-bnav button').length]));
+  // v1.0.3xx (24/11/2026, demande du propriétaire : ventilation par service dans la Vue Direction) : une ligne par service actif, chiffres bien remplis (pas restés à « … »)
+  await A.pg.waitForFunction(() => { const d = document.querySelectorAll('.st-dsv'); return !d.length || [...d].every(r => r.querySelector('[data-dsv-av]').textContent !== '…'); }, null, { timeout: 10000 });
+  const dsv = await A.pg.evaluate(() => { const rows = [...document.querySelectorAll('.st-dsv')]; return [rows.length, rows.every(r => r.querySelector('b').textContent && r.querySelector('[data-dsv-av]').textContent !== '…' && r.querySelector('[data-dsv-dec]').textContent !== '…' && r.querySelector('[data-dsv-al]').textContent !== '…')]; });
+  log('Vue Direction : ventilation par service', dsv);
+  if (!dsv[0] || !dsv[1]) log('errors v1.0.3xx [ventilation par service]', ['FAIL ' + JSON.stringify(dsv)]);
   await A.pg.evaluate(() => document.querySelector('.st-dashc').scrollTo(0, 99999)); await A.pg.waitForTimeout(400); await shot(A.pg, '108_vue_direction_bas');
   log('Free (E) : pas de Vue Direction, barre du bas', await E.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.project = null; renderHome(); return new Promise(r => setTimeout(() => r([Team.taille(), !!document.querySelector('.st-dir'), [...document.querySelectorAll('.st-bnav span')].map(x => x.textContent)]), 800)); }));
   await shot(E.pg, '109_free_ui_kit');
