@@ -399,7 +399,11 @@ const ST = (() => {
     // v1.0.3xx : demande du propriétaire — les volets dédiés (couleur + Administratif/Terrain/Commun) d'un Service
     // autonome ne sont offerts qu'à partir du pack Pro ; le pack Basic garde l'écran standard d'origine (catégories
     // génériques, sans volets) — même principe déjà appliqué à la barre de raccourcis rapides (qaOn, plus bas).
-    const proSvc = company0.kind === 'service' && plan().k !== 'basic';
+    // v1.0.3xx (24/11/2026) : « Pro Service autonome » (kind « service ») est retiré de l'onboarding et les comptes
+    // déjà créés sont convertis en Entreprise normale (Team.migrateServiceKind, team.js) — mais leur svcKey est
+    // conservé exprès pour que ce bypass continue de les reconnaître et de leur garder leurs volets dédiés, sans
+    // aucun changement visible pour eux.
+    const proSvc = !!company0.svcKey && plan().k !== 'basic';
     const autoSvc = proSvc ? AUTO_SHELL[company0.svcKey] : null;
     // v1.0.2xx : même principe pour un intervenant choisi comme Pro Service autonome (voir IV_AUTO_KEY, module scope)
     const autoIv = (!autoSvc && proSvc) ? IV_AUTO_KEY[company0.svcKey] : null;

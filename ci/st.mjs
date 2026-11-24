@@ -260,7 +260,7 @@ try {
   log('logo', await A.pg.evaluate(() => { const c = document.querySelector('.h2-top .st-logo circle'); return [!!c, c ? c.getAttribute('fill') : null]; })); await shot(A.pg, '49_logo_header');
   let G = await newUser('G'); log('logo connexion', await G.pg.evaluate(() => !!document.querySelector('.tm-logo .st-logo'))); await shot(G.pg, '50_logo_connexion');
   await signup(G.pg, 'Nadia Pro', 'nadia@test.ma');
-  await G.pg.click('[data-a=perso]'); await G.pg.waitForSelector('.st-offers'); await G.pg.click('[data-p=pro]'); await G.pg.waitForSelector('[data-a=solo]'); await G.pg.click('[data-a=solo]'); await G.pg.waitForSelector('[name=role]'); await G.pg.selectOption('[name=role]', 'cheftopo');
+  await G.pg.click('[data-a=perso]'); await G.pg.waitForSelector('.st-offers'); await G.pg.click('[data-p=pro]'); await G.pg.waitForSelector('[name=role]'); await G.pg.selectOption('[name=role]', 'cheftopo');
   await G.pg.click('[data-a=go]'); await G.pg.waitForSelector('.home2', { timeout: 20000 }); await G.pg.waitForTimeout(800);
   await G.pg.evaluate(async () => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); await DB.put('projects', { name: 'Lotissement Nadia', type: 'vrd', team: [] }); await Sync.run({ force: true }); }); await G.pg.waitForTimeout(1500);
   log('G pro', await G.pg.evaluate(() => [Team.plan().k, Team.planState().l, Team.isPerso()]));
@@ -292,10 +292,17 @@ try {
   // v1.0.3xx : chaque service reste verrouillé À PART (demande du propriétaire : « كل service على حدة ») — choisir
   // « Demander l'accès » ouvre la demande vue plus bas (panneau d'administration, une fois le Super Admin SA créé) ;
   // « J'ai un code » reste disponible pour un code déjà reçu (voir ci/rules-test.mjs pour le verrou serveur par code).
+  // v1.0.3xx (24/11/2026, demande du propriétaire) : « Pro Service autonome » retiré de l'onboarding — l'Entreprise
+  // vide se crée désormais uniquement via Team.createEntreprise (même mécanisme que « Mes espaces › Créer mon
+  // Entreprise », point 17, inchangé) ; le choix Pro de l'onboarding va directement à l'espace personnel (stepMetier).
   const L = await newUser('L'); await signup(L.pg, 'Rachid Autonome', 'rachid.autonome@test.ma');
   await L.pg.click('[data-a=perso]'); await L.pg.waitForSelector('.st-offers'); await L.pg.click('[data-p=pro]');
-  await L.pg.waitForSelector('[data-a=svc]'); await L.pg.click('[data-a=svc]');
-  await L.pg.waitForSelector('[data-a=go]', { timeout: 15000 }); await L.pg.click('[data-a=go]');
+  await L.pg.waitForSelector('[name=role]', { timeout: 15000 }); await L.pg.click('[data-a=go]');
+  await L.pg.waitForSelector('.home2', { timeout: 20000 });
+  log('L pack Pro Individuel direct (plus de choix « Service autonome »)', await L.pg.evaluate(() => [Team.company().kind, Team.plan().k]));
+  const lEntId = await L.pg.evaluate(() => Team.createEntreprise());
+  try { await L.pg.evaluate((c) => Team.switchTo(c), lEntId); } catch (e) {}
+  await L.pg.waitForTimeout(2000); await L.pg.waitForSelector('.home2', { timeout: 30000 }); await L.pg.waitForTimeout(500);
   await L.pg.waitForSelector('[data-a=add]', { timeout: 15000 }); await shot(L.pg, '55a_pro_entreprise_vide');
   log('L Entreprise créée vide (demande du propriétaire : aucun service par défaut)', await L.pg.evaluate(() => [Team.company().kind, (Team.company().svcKeys || []).length, Team.company().allSvc, !document.querySelector('.home2')]));
   await L.pg.click('[data-a=add]'); await L.pg.waitForSelector('.opt', { timeout: 15000 });
@@ -313,8 +320,11 @@ try {
   // v1.0.3xx : même verrou par service que Travaux ci-dessus (demande seulement, pas de déblocage immédiat).
   const M = await newUser('M'); await signup(M.pg, 'Samira Qualite', 'samira.qualite@test.ma');
   await M.pg.click('[data-a=perso]'); await M.pg.waitForSelector('.st-offers'); await M.pg.click('[data-p=pro]');
-  await M.pg.waitForSelector('[data-a=svc]'); await M.pg.click('[data-a=svc]');
-  await M.pg.waitForSelector('[data-a=go]', { timeout: 15000 }); await M.pg.click('[data-a=go]');
+  await M.pg.waitForSelector('[name=role]', { timeout: 15000 }); await M.pg.click('[data-a=go]');
+  await M.pg.waitForSelector('.home2', { timeout: 20000 });
+  const mEntId = await M.pg.evaluate(() => Team.createEntreprise());
+  try { await M.pg.evaluate((c) => Team.switchTo(c), mEntId); } catch (e) {}
+  await M.pg.waitForTimeout(2000); await M.pg.waitForSelector('.home2', { timeout: 30000 }); await M.pg.waitForTimeout(500);
   await M.pg.waitForSelector('[data-a=add]', { timeout: 15000 }); await M.pg.click('[data-a=add]'); await M.pg.waitForSelector('.opt', { timeout: 15000 });
   await M.pg.click('.opt:has-text("Qualité")'); await M.pg.waitForSelector('.ent-present [data-a=go]', { timeout: 15000 });
   await M.pg.click('.ent-present [data-a=go]'); await M.pg.waitForSelector('.opt:has-text("Demander l\'accès")', { timeout: 15000 });
@@ -322,6 +332,38 @@ try {
   await M.pg.waitForSelector('.opt:has-text("OK")', { timeout: 15000 }); await M.pg.click('.opt:has-text("OK")'); await M.pg.waitForTimeout(500); await shot(M.pg, '55b_pro_autonome_qualite_verrou');
   log('M demande envoyée, service toujours verrouillé', await M.pg.evaluate(() => [(Team.company().svcKeys || []).length, !document.querySelector('.home2')]));
   log('errors v1.0.? pro autonome qualite', M.errs);
+  // v1.0.3xx (24/11/2026, demande du propriétaire) : migration automatique au chargement (Team.migrateServiceKind,
+  // team.js) d'un compte « Pro Service autonome » créé par l'ANCIEN mécanisme direct (Team.createService, encore
+  // utilisé par l'aperçu Super Admin « Pack de travail », packpick.js — inchangé) : kind « service » → « entreprise »,
+  // sans perte de données ; svcKey conservé, équivalent TM_SERVICES ajouté à services.
+  // Team.createService (kind « service ») est désormais réservée au Super Admin (règle Firestore déjà en place,
+  // ثغرة corrigée avant ce travail) : pour simuler fidèlement un compte Pro Service autonome EXISTANT créé par
+  // l'ancien mécanisme direct (avant cette correction), on écrit directement le document Firestore via le
+  // bypass émulateur (Bearer owner, même procédé que setSvcs/setPacks plus haut) plutôt que d'appeler la
+  // fonction cliente — exactement l'état réel d'un tel compte en base, indépendamment de la règle de création.
+  const N = await newUser('N'); await signup(N.pg, 'Nadia Migration', 'nadia.migration@test.ma');
+  await N.pg.click('[data-a=perso]'); await N.pg.waitForSelector('.st-offers'); await N.pg.click('[data-p=basic]');
+  await N.pg.waitForSelector('[data-a=go]', { timeout: 15000 }); await N.pg.click('[data-a=go]'); await N.pg.waitForSelector('.home2', { timeout: 20000 });
+  const nUid = await N.pg.evaluate(() => Team.uid());
+  const nRoleK = await N.pg.evaluate(() => tmRoleOf(orgTypeOf('entreprise').owner || 'patron').k);
+  const nMods = await N.pg.evaluate(() => MODS.map(([m]) => m));
+  const FS = 'http://127.0.0.1:8080/v1/projects/siteteam/databases/(default)/documents/';
+  const compN = await fetch(FS + 'companies', { method: 'POST', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: {
+    name: { stringValue: 'HSE Legacy Test' }, ownerUid: { stringValue: nUid }, plan: { stringValue: 'basic' }, planStatus: { stringValue: 'gratuit' },
+    kind: { stringValue: 'service' }, orgType: { stringValue: 'entreprise' }, services: { arrayValue: { values: [{ stringValue: 'direction' }] } },
+    svcKey: { stringValue: 'aut_1' }, createdAt: { timestampValue: new Date().toISOString() },
+  } }) }).then(r => r.json());
+  const nCid = compN.name.split('/').pop();
+  await fetch(FS + `companies/${nCid}/members?documentId=${nUid}`, { method: 'POST', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: {
+    name: { stringValue: 'Nadia Migration' }, email: { stringValue: 'nadia.migration@test.ma' }, role: { stringValue: nRoleK }, service: { stringValue: 'direction' },
+    perms: { mapValue: { fields: Object.fromEntries(nMods.map(m => [m, { integerValue: '4' }])) } }, admin: { booleanValue: true }, allProjects: { booleanValue: true },
+    projects: { arrayValue: {} }, zone: { stringValue: '' }, createdAt: { timestampValue: new Date().toISOString() },
+  } }) });
+  await fetch(FS + `users/${nUid}?updateMask.fieldPaths=companyId`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { companyId: { stringValue: nCid } } }) });
+  await N.pg.reload(); await N.pg.waitForSelector('.home2', { timeout: 30000 }); await N.pg.waitForTimeout(800);
+  const vMig = await N.pg.evaluate(() => [Team.company().kind, Team.company().svcKey, (Team.company().services || []).includes('hse')]);
+  log('N migration kind:service → entreprise', vMig);
+  log('errors v1.0.291', vMig[0] === 'entreprise' && vMig[1] === 'aut_1' && vMig[2] === true ? [] : ['v1.0.291 migration ' + JSON.stringify(vMig)]);
   // ---- v1.0.18 : service Qualité — services fermés, organigramme qualité, missions, validation des PV, documentation
   log('services par défaut', await setSvcs(['direction', 'qualite', 'externe', 'perso']));
   const H = await newUser('H'); await signup(H.pg, 'Karima Qualité', 'karima@test.ma');
@@ -572,7 +614,7 @@ try {
   // le Super Admin choisit un pack fermé pour son propre espace, puis change de pack sans demande
   await SA.pg.goto('http://127.0.0.1:8765/?emu=1'); await SA.pg.waitForSelector('.tm-choice', { timeout: 30000 });
   await SA.pg.click('[data-a=perso]'); await SA.pg.waitForSelector('.st-offers'); log('Super Admin : Pro choisissable', await SA.pg.evaluate(() => [!!document.querySelector('[data-p=pro]'), !!document.querySelector('[data-req]')]));
-  await SA.pg.click('[data-p=pro]'); await SA.pg.waitForSelector('[data-a=solo]'); await SA.pg.click('[data-a=solo]'); await SA.pg.waitForSelector('[name=role]'); await SA.pg.click('[data-a=go]'); await SA.pg.waitForSelector('.home2', { timeout: 30000 });
+  await SA.pg.click('[data-p=pro]'); await SA.pg.waitForSelector('[name=role]'); await SA.pg.click('[data-a=go]'); await SA.pg.waitForSelector('.home2', { timeout: 30000 });
   log('Super Admin : espace en Pro', await SA.pg.evaluate(() => Team.plan().k));
   await SA.pg.evaluate(() => { document.querySelectorAll('.sheet-bg').forEach(x => x.remove()); Team.requestPack('basic', true); }); await SA.pg.waitForSelector('.opt:has-text("Activer"), .sheet [data-a=ok]', { timeout: 10000 });
   await SA.pg.click('.opt:has-text("Activer"), .sheet [data-a=ok]'); await SA.pg.waitForTimeout(2500); await SA.pg.waitForSelector('.home2', { timeout: 30000 });
