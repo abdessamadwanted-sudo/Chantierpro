@@ -2370,6 +2370,9 @@ body:has(.pst-page) #plansFab, body:has(.rub-page) #plansFab, body:has(.scanpage
 /* ===== Poutre 3D ===== */
 .pt-entry { display: flex; align-items: center; gap: 12px; width: 100%; margin: 4px 0 12px; padding: 14px; border-radius: 16px; text-align: left; color: inherit; background: linear-gradient(135deg, rgba(168,85,247,.18), rgba(76,29,149,.12)); border: 1px solid rgba(168,85,247,.4); }
 .pt-entry > span { font-size: 26px; } .pt-entry b { display: block; font-size: 15.5px; } .pt-entry small { color: var(--muted); font-size: 12.5px; } .pt-entry svg { width: 18px; height: 18px; opacity: .6; }
+/* v1.0.3xx (demande du propriétaire, 24/11/2026) : ModelCore 3D réservé à partir du pack Pro — même traitement visuel « verrouillé » que les autres fonctions avancées (st-pt.off, st-svcs .lk). */
+.pt-entry.lk { opacity: .6; background: rgba(148,163,184,.08); border-style: dashed; border-color: rgba(148,163,184,.35); }
+.pt-entry.lk b { color: var(--muted); }
 .pt3 .v3-stage { flex: 1 1 52%; min-height: 240px; }
 .pt-panel { max-height: 46vh; overflow: auto; padding: 10px 12px calc(14px + var(--safe-bottom, 0px)) !important; }
 .pt-kpi { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
