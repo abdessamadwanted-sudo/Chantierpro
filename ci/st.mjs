@@ -2474,6 +2474,39 @@ try {
   });
   log('Mises en service', fl1);
   if (!fl1.noProject && !(fl1.fermees && fl1.qualEquipeOuverte && fl1.sqOuvert && fl1.travHseOuverts && fl1.autresFermes && fl1.monEspaceCache && fl1.testAutre && fl1.pub && fl1.autrePack)) throw new Error('mises en service KO ' + JSON.stringify(fl1));
+  // ---- v1.0.3xx (24/11/2026, nuit, suite) : demande du propriétaire (signalé sur son compte réel « Ghomari ») —
+  // un volet de service dédié ne doit s'afficher que si CETTE Entreprise a elle-même choisi ce service (onboarding
+  // « stepSvcs », Team.companyServices()), pas seulement parce que le drapeau est ouvert pour tout le pack. Avant
+  // ce correctif, une Entreprise n'ayant choisi QUE Qualité se retrouvait quand même avec Travaux et HSE affichés,
+  // dès que ces drapeaux étaient « pub » pour tout le monde (voir FLAG_DEFAULT ci-dessus) — c'est exactement le
+  // souci que le propriétaire a signalé en capture d'écran.
+  const fl2 = await A.pg.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {}; const pr0 = (await DB.all('projects'))[0]; if (!pr0) return { noProject: true };
+    try {
+      App.project = pr0;
+      sessionStorage.setItem('st.preview', JSON.stringify({ plan: 'enterprise', role: 'patron' }));
+      const co = Team.company(), prevServices = co.services;
+      const root = document.createElement('div'); document.body.appendChild(root);
+      // Entreprise n'ayant choisi que Direction + Qualité (pas Travaux, pas HSE)
+      co.services = ['direction', 'qualite'];
+      ST.renderProjectTools(root); await wait(400);
+      o.qualSeuleOuverte = !!root.querySelector('details[data-g=sq]');
+      o.travauxCacheSansChoix = !root.querySelector('details[data-g=sv-travaux]');
+      o.hseCacheSansChoix = !root.querySelector('details[data-g=sv-hse]');
+      // en rajoutant Travaux au choix de l'Entreprise, son volet apparaît sans toucher à HSE (toujours non choisi)
+      co.services = ['direction', 'qualite', 'travaux'];
+      ST.renderProjectTools(root); await wait(400);
+      o.travauxApparaitUneFoisChoisi = !!root.querySelector('details[data-g=sv-travaux]');
+      o.hseResteCache = !root.querySelector('details[data-g=sv-hse]');
+      co.services = prevServices; ST.renderProjectTools(root); await wait(400);
+      o.restaure = !!root.querySelector('details[data-g=sv-travaux]') && !!root.querySelector('details[data-g=sv-hse]');
+      sessionStorage.removeItem('st.preview'); root.remove();
+    } catch (e) { o.err = String(e.message || e); }
+    return o;
+  });
+  log('Mises en service par choix de l\'Entreprise', fl2);
+  const fl2ok = !fl2.noProject && !fl2.err && fl2.qualSeuleOuverte && fl2.travauxCacheSansChoix && fl2.hseCacheSansChoix && fl2.travauxApparaitUneFoisChoisi && fl2.hseResteCache && fl2.restaure;
+  log('errors v1.0.3xx services choisis', fl2ok ? [] : ['v1.0.3xx services choisis ' + JSON.stringify(fl2)]);
   if (!qs1.noProject && !qs1.pasQual && !(qs1.volets && qs1.adm && qs1.ter && qs1.reglage && qs1.basicInchange && qs1.icones && qs1.adminSeul && qs1.deuxCat && qs1.services)) throw new Error('volets qualité KO ' + JSON.stringify(qs1));
   if (!qs1.noProject && !(qs1.qaEnterprise && qs1.qaBasicAbsente && qs1.qaProPresente)) throw new Error('barre de raccourcis rapides par pack KO ' + JSON.stringify(qs1));
   // ---- Suivis personnalisés + modèle visuel : cases liées aux colonnes, PDF écrit sur le bon

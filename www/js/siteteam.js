@@ -46,6 +46,15 @@ const ST = (() => {
   const plan = () => planOf(planKey());
   const isEnt = () => plan().k === 'enterprise';
   const svcq = () => Team.flag('svcqual');   // Service Qualité : fermé tant que la fonction n'est pas mise en service
+  // v1.0.3xx (24/11/2026, nuit, demande du propriétaire, signalé sur son compte réel « Ghomari ») : un volet de
+  // service dédié (Qualité/Travaux/HSE…) ne doit s'afficher QUE si CETTE Entreprise a elle-même choisi ce service
+  // (onboarding stepSvcs, Team.companyServices()) — pas seulement parce que la fonction est globalement en service
+  // (« pub ») pour tout le pack Business/Enterprise. Sinon une Entreprise qui n'a demandé que Qualité se retrouve
+  // quand même avec Travaux et HSE en plus, dès que ces drapeaux sont ouverts pour tout le monde.
+  // Ne s'applique PAS au Service autonome (point 17, company0.svcKey/autoSvc plus bas) : celui-ci a son propre
+  // verrou par service (svcKeys/allSvc, Team.entHasSvc) et ne passe jamais par ce choix de services à l'onboarding.
+  const SVC_TM_KEY = { qual: 'qualite', travaux: 'travaux', hse: 'hse', topo: 'topo', labo: 'labo', etu: 'etudes', fin: 'admin' };
+  const svcChosen = (k) => { const tm = SVC_TM_KEY[k]; if (!tm) return true; try { return Team.companyServices().some(x => x.k === tm); } catch (e) { return true; } };
   const org = () => { const p = PV.get(); return p && p.org ? orgTypeOf(p.org) : (ready() ? Team.orgType() : orgTypeOf('entreprise')); };
   // interface de la jiha : un module hors du métier de l'organisation est masqué (pas verrouillé)
   const orgHas = (mod) => { const m = org().mods; return m === '*' || !mod || m.includes(mod); };
@@ -457,7 +466,7 @@ const ST = (() => {
       : `<details class="st-tcat st-acc" data-g="${S.k === 'qual' ? 'sq' : 'sv-' + S.k}" style="--c:${S.c}" ${opened.includes(S.k === 'qual' ? 'sq' : 'sv-' + S.k) ? 'open' : ''}><summary class="st-tcat-h">${esc(S.nom)}<small>3 volets</small><i class="st-chev">${icon('chevdown')}</i></summary>${svcSplit(S, ks)}</details>`;
     // organisation (Entreprise ou intervenant) : un accordéon qui contient ses services
     const orgAcc = (g, titre, c, inner, n) => `<details class="st-tcat st-acc" data-g="${g}" style="--c:${c}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(titre)}<small>${n} services</small><i class="st-chev">${icon('chevdown')}</i></summary><div class="st-orgin">${inner}</div></details>`;
-    const entSvcs = () => [...(svcq() ? [svcAcc(SVC_SHELLS[0], (G.find(x => x[0] === 'qual') || [0, 0, []])[2], true)] : []), ...SVC_SHELLS.slice(1).filter(S => Team.flag(S.flag)).map(S => svcAcc(S, [], true))];
+    const entSvcs = () => [...(svcq() && svcChosen('qual') ? [svcAcc(SVC_SHELLS[0], (G.find(x => x[0] === 'qual') || [0, 0, []])[2], true)] : []), ...SVC_SHELLS.slice(1).filter(S => Team.flag(S.flag) && svcChosen(S.k)).map(S => svcAcc(S, [], true))];
     const ivHtml = () => { if (!ivOn()) return ''; const E = entOn() ? entSvcs() : [];
       return `<p class="st-thint2" style="margin:6px 0 4px"><b>Intervenants du projet</b> · chaque organisation a ses services</p>`
         + (entOn() ? orgAcc('iv-ent', '🏢 Entreprise', '#0d9488', E.join('') || '<p class="st-thint2" style="padding:8px">Aucun service activé</p>', E.length) : '')
@@ -477,10 +486,10 @@ const ST = (() => {
       ${qaOn ? `<div class="st-qa ${Math.max(1, QA.length) <= 4 ? 'qa-l' : Math.max(1, QA.length) <= 8 ? 'qa-m' : 'qa-s'}" style="--n:${Math.max(1, QA.length)}">${QA.map(([k, ic, l, c]) => `<button class="st-qa-b" data-a="${k}" style="--c:${c}"><i>${icon(ic)}</i><span>${l}</span></button>`).join('')}${QA.length ? '' : `<button class="st-qa-b st-qa-add" data-a="qaadd" style="--c:#475569"><i>${icon('plus')}</i><span>Ajouter</span></button>`}</div>
       <p class="st-thint2" style="margin:-4px 0 6px">Appui long sur la barre : ajouter · réorganiser · retirer</p>` : ''}
       ${ivHtml()}
-      ${G.map(([g, l, ks]) => { const shellHere = autoSvc === g ? SVC_SHELLS.find(S => S.k === g) : (g === 'qual' && svcq() ? SVC_SHELLS[0] : null);
+      ${G.map(([g, l, ks]) => { const shellHere = autoSvc === g ? SVC_SHELLS.find(S => S.k === g) : (g === 'qual' && svcq() && svcChosen('qual') ? SVC_SHELLS[0] : null);
         return (shellHere ? '' : `<details class="st-tcat st-acc" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(l.replace(/^\S+\s/, ''))}<small>${ks.length}</small><i class="st-chev">${icon('chevdown')}</i></summary>
         <div class="st-tgrid">${ks.map(k => toolBtn(k, g)).join('')}</div></details>`) + `${shellHere && !entOn() ? svcAcc(shellHere, ks) : ''}`; }).join('')}
-      ${entOn() ? '' : SVC_SHELLS.slice(1).filter(S => Team.flag(S.flag) || (S.k === autoSvc && !G.some(x => x[0] === S.k))).map(S => svcAcc(S, [])).join('')}
+      ${entOn() ? '' : SVC_SHELLS.slice(1).filter(S => (Team.flag(S.flag) && svcChosen(S.k)) || (S.k === autoSvc && !G.some(x => x[0] === S.k))).map(S => svcAcc(S, [])).join('')}
       ${autoIv ? (INTERVENANTS.find(I => I.k === autoIv) || { services: [] }).services.map(S => svcAcc(S, [], true)).join('') : ''}
       <details class="st-tcat st-acc" data-g="biblio" style="--c:#5B4BA8" ${opened.includes('biblio') ? 'open' : ''}><summary class="st-tcat-h">Bibliothèque métier<small>${esc(plan().l)}</small><i class="st-chev">${icon('chevdown')}</i></summary>
         <div class="st-tgrid" style="grid-template-columns:1fr"><button class="st-pb st-pb-lib" data-a="library" style="margin:0">${icon('grid')}<span><b>Ouvrir la bibliothèque</b><small>Outils réunis et classés selon votre service · pack ${esc(plan().l)}</small></span>${icon('chevright')}</button></div></details>
