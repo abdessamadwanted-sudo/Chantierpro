@@ -2444,11 +2444,18 @@ try {
       // (demande du propriétaire : équipe réelle sur Service Qualité) — exclus du lot « tout fermé par défaut ».
       // v1.0.3xx (suite) : materiaux aussi, désormais seul accès à l'outil Matériaux (Ferraillage) du service
       // Travaux depuis le retrait de son ancien accueil dédié (voir SVC_SHELLS/FLAG_DEFAULT.materiaux).
-      const OUV_ENT = ['orgq', 'missionzone', 'terraindoc', 'qdocs', 'materiaux'];
+      // v1.0.3xx (24/11/2026, nuit) : svcqual/svctravaux/svchse aussi désormais « pub » par défaut (Business ET
+      // Enterprise) — demande du propriétaire (capture d'écran : les volets Qualité ne s'affichaient pas en vrai
+      // compte Entreprise, alors que leurs drapeaux compagnons l'étaient déjà). Les 3 services prioritaires
+      // confirmés (Qualité, Travaux, HSE) ; les autres (topo/labo/etu/fin) restent fermés par défaut.
+      const OUV_ENT = ['orgq', 'missionzone', 'terraindoc', 'qdocs', 'materiaux', 'svcqual', 'svctravaux', 'svchse'];
       o.fermees = !Team.isSuper() && Object.keys(Team.FLAG_DEFS).filter(k => !OUV_ENT.includes(k)).every(k => Team.flag(k) === false);
       o.qualEquipeOuverte = OUV_ENT.every(k => Team.flag(k) === true);
       const root = document.createElement('div'); document.body.appendChild(root); ST.renderProjectTools(root); await wait(400);
-      o.pasSq = !root.querySelector('details[data-g=sq]') && !root.querySelector('details[data-g^=sv-]'); o.monEspaceCache = SECTIONS.monespace.hidden === true;
+      o.sqOuvert = !!root.querySelector('details[data-g=sq]');
+      o.travHseOuverts = !!root.querySelector('details[data-g=sv-travaux]') && !!root.querySelector('details[data-g=sv-hse]');
+      o.autresFermes = !root.querySelector('details[data-g=sv-topo]') && !root.querySelector('details[data-g=sv-labo]') && !root.querySelector('details[data-g=sv-etu]') && !root.querySelector('details[data-g=sv-fin]');
+      o.monEspaceCache = SECTIONS.monespace.hidden === true;
       Team.applyFlags({ svcqual: { enterprise: 'test' } }, ['autre@example.com']); o.testAutre = Team.flag('svcqual') === false;
       Team.applyFlags({ svcqual: { enterprise: 'pub' } }); o.pub = Team.flag('svcqual') === true;
       sessionStorage.setItem('st.preview', JSON.stringify({ plan: 'basic' })); o.autrePack = Team.flag('svcqual') === false && Team.pack() === 'basic';
@@ -2459,7 +2466,7 @@ try {
     return o;
   });
   log('Mises en service', fl1);
-  if (!fl1.noProject && !(fl1.fermees && fl1.qualEquipeOuverte && fl1.pasSq && fl1.monEspaceCache && fl1.testAutre && fl1.pub && fl1.autrePack)) throw new Error('mises en service KO ' + JSON.stringify(fl1));
+  if (!fl1.noProject && !(fl1.fermees && fl1.qualEquipeOuverte && fl1.sqOuvert && fl1.travHseOuverts && fl1.autresFermes && fl1.monEspaceCache && fl1.testAutre && fl1.pub && fl1.autrePack)) throw new Error('mises en service KO ' + JSON.stringify(fl1));
   if (!qs1.noProject && !qs1.pasQual && !(qs1.volets && qs1.adm && qs1.ter && qs1.reglage && qs1.basicInchange && qs1.icones && qs1.adminSeul && qs1.deuxCat && qs1.services)) throw new Error('volets qualité KO ' + JSON.stringify(qs1));
   if (!qs1.noProject && !(qs1.qaEnterprise && qs1.qaBasicAbsente && qs1.qaProPresente)) throw new Error('barre de raccourcis rapides par pack KO ' + JSON.stringify(qs1));
   // ---- Suivis personnalisés + modèle visuel : cases liées aux colonnes, PDF écrit sur le bon
