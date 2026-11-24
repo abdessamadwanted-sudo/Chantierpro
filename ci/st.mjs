@@ -43,8 +43,8 @@ try {
   await shot(A.pg, '02_onboard');
   await A.pg.click('[data-a=create]'); await A.pg.waitForSelector('.st-offers'); await shot(A.pg, '02b_packs');
   log('A offres organisation', await A.pg.evaluate(() => [...document.querySelectorAll('.st-offers [data-offer]')].map(b => b.dataset.offer + ':' + b.querySelector('.st-of-h b').textContent.trim())));
-  await A.pg.click('[data-p=business]'); await A.pg.waitForSelector('.st-orgs'); await shot(A.pg, '02c_orgs');
-  await A.pg.click('[data-o=entreprise]'); await A.pg.waitForSelector('.st-svcs'); await shot(A.pg, '02d_services');
+  await A.pg.click('[data-p=business]'); await A.pg.waitForSelector('.st-ent-trigger'); await A.pg.click('[data-a=orgmenu]'); await shot(A.pg, '02c_orgs');
+  await A.pg.click('[data-o=entreprise]'); await A.pg.click('[data-a=orgnext]'); await A.pg.waitForSelector('.st-svcs'); await shot(A.pg, '02d_services');
   await A.pg.fill('[name=cname]', 'BTP Test SARL'); await A.pg.click('[data-a=go]');
   await A.pg.waitForSelector('.home2', { timeout: 20000 }); await A.pg.waitForTimeout(800);
   await A.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove()));
@@ -222,8 +222,8 @@ try {
   log('E limite projets', await E.pg.evaluate(() => (document.querySelector('.sheet h3') || {}).textContent || 'pas de message')); await shot(E.pg, '32_limite_basic');
   await E.pg.click('.opt:has-text("Fermer")'); log('E limite résultat', await E.pg.evaluate(() => window.__lim));
   F = await newUser('F'); await signup(F.pg, 'Sara BET', 'sara@test.ma');
-  await F.pg.click('[data-a=create]'); await F.pg.waitForSelector('.st-offers'); await F.pg.click('[data-p=business]'); await F.pg.waitForSelector('.st-orgs');
-  await F.pg.click('[data-o=bet]'); await F.pg.waitForSelector('.st-svcs'); log('F services proposés', await F.pg.evaluate(() => [...document.querySelectorAll('.st-svcs .on')].map(b => b.dataset.s)));
+  await F.pg.click('[data-a=create]'); await F.pg.waitForSelector('.st-offers'); await F.pg.click('[data-p=business]'); await F.pg.waitForSelector('.st-ent-trigger'); await F.pg.click('[data-a=orgmenu]');
+  await F.pg.click('[data-o=bet]'); await F.pg.click('[data-a=orgnext]'); await F.pg.waitForSelector('.st-svcs'); log('F services proposés', await F.pg.evaluate(() => [...document.querySelectorAll('.st-svcs .on')].map(b => b.dataset.s)));
   await F.pg.fill('[name=cname]', 'BET Structures'); await F.pg.click('[data-a=go]'); await F.pg.waitForSelector('.home2', { timeout: 20000 }); await F.pg.waitForTimeout(800);
   await F.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove())); await shot(F.pg, '33_bet_home');
   log('F espaces BET', await F.pg.evaluate(() => [...document.querySelectorAll('[data-es]')].map(b => b.dataset.es)));
@@ -325,8 +325,8 @@ try {
   // ---- v1.0.18 : service Qualité — services fermés, organigramme qualité, missions, validation des PV, documentation
   log('services par défaut', await setSvcs(['direction', 'qualite', 'externe', 'perso']));
   const H = await newUser('H'); await signup(H.pg, 'Karima Qualité', 'karima@test.ma');
-  await H.pg.click('[data-a=create]'); await H.pg.waitForSelector('.st-offers'); await H.pg.click('[data-p=enterprise]'); await H.pg.waitForSelector('.st-orgs');
-  await H.pg.click('[data-o=entreprise]'); await H.pg.waitForSelector('.st-svcs'); await shot(H.pg, '60_services_fermes');
+  await H.pg.click('[data-a=create]'); await H.pg.waitForSelector('.st-offers'); await H.pg.click('[data-p=enterprise]'); await H.pg.waitForSelector('.st-ent-trigger'); await H.pg.click('[data-a=orgmenu]');
+  await H.pg.click('[data-o=entreprise]'); await H.pg.click('[data-a=orgnext]'); await H.pg.waitForSelector('.st-svcs'); await shot(H.pg, '60_services_fermes');
   log('H services ouverts / fermés', await H.pg.evaluate(() => [[...document.querySelectorAll('.st-svcs [data-s]')].map(b => b.dataset.s + (b.classList.contains('on') ? '+' : '')), [...document.querySelectorAll('.st-svcs .lk')].map(b => b.dataset.lk)]));
   await H.pg.click('.st-svcs .lk'); await H.pg.waitForTimeout(300);
   log('H service fermé reste fermé', await H.pg.evaluate(() => document.querySelectorAll('.st-svcs .on.lk').length));
@@ -524,6 +524,14 @@ try {
   await SA.pg.evaluate((cid) => firebase.firestore().collection('companies').doc(cid).update({ plan: 'enterprise', planStatus: 'actif' }), hcid);
   await H.pg.evaluate(() => Sync.run({ force: true })); await H.pg.waitForTimeout(1500);
   log('H pack restauré Enterprise (pour ne pas perturber la suite du scénario)', await H.pg.evaluate(() => Team.plan().k));
+  // v1.0.3xx : « Besoin d'un autre type de pack ? » (demande du propriétaire, 22/11/2026) — Entreprise (point 17) et
+  // Business/Enterprise (organisation) sont des espaces différents, pas un pack supérieur du même espace : le lien
+  // rouvre l'écran de choix d'espace (onboardScreen add:true), déjà utilisé par « Changer d'espace ». On annule ici
+  // (« ← Retour à mon espace ») : ce test vérifie juste que le lien fonctionne, sans créer un espace de plus pour H.
+  await H.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); Team.openCompany('abo'); }); await H.pg.waitForSelector('[data-a=newesp]', { timeout: 15000 });
+  await H.pg.click('[data-a=newesp]'); await H.pg.waitForSelector('[data-a=cancel]', { timeout: 15000 }); await shot(H.pg, '99c_abo_nouvel_espace');
+  log('H « Créer un autre espace » ouvre bien le choix Espace personnel / Organisation', await H.pg.evaluate(() => [!!document.querySelector('[data-a=perso]'), !!document.querySelector('[data-a=create]'), !!document.querySelector('[data-a=cancel]')]));
+  await H.pg.evaluate(() => document.querySelector('[data-a=cancel]').click()); await H.pg.waitForTimeout(500);
   log('errors v1.0.3xx abo organisation', H.errs);
   await tabA('ctrl'); await shot(SA.pg, '98_admin_controle');
   await SA.pg.check('[name=gon]'); await SA.pg.fill('[name=gtext]', 'Bienvenue sur SiteTeam 1.0.24 : nouveau panneau de contrôle.'); await SA.pg.click('[data-a=msg]'); await SA.pg.waitForTimeout(1200);
@@ -549,7 +557,7 @@ try {
   await SA.pg.click('dialog button:has-text("Fermer")');
   const K = await newUser('K'); await signup(K.pg, 'Karim Code', 'karim@test.ma');
   await K.pg.click('[data-a=create]'); await K.pg.waitForSelector('[data-a=pcode]'); await K.pg.click('[data-a=pcode]'); await K.pg.fill('.sheet [name=code]', codeB.toLowerCase()); await K.pg.click('.sheet [data-a=ok]');
-  await K.pg.waitForSelector('.st-orgs', { timeout: 15000 }); await K.pg.click('[data-o=entreprise]'); await K.pg.waitForSelector('.st-svcs'); await K.pg.fill('[name=cname]', 'Karim Travaux'); await K.pg.click('[data-a=go]');
+  await K.pg.waitForSelector('.st-ent-trigger', { timeout: 15000 }); await K.pg.click('[data-a=orgmenu]'); await K.pg.click('[data-o=entreprise]'); await K.pg.click('[data-a=orgnext]'); await K.pg.waitForSelector('.st-svcs'); await K.pg.fill('[name=cname]', 'Karim Travaux'); await K.pg.click('[data-a=go]');
   await K.pg.waitForSelector('.home2', { timeout: 30000 });
   log('K pack par code', await K.pg.evaluate(() => [Team.plan().k, Team.company().planStatus, Team.company().packCode ? 'code' : '']));
   log('K utilisation enregistrée', await K.pg.evaluate(async (c) => { try { const d = await firebase.firestore().collection('packCodes').doc(c).get(); return [d.data().uses, d.data().usedBy.length]; } catch (e) { return e.code; } }, codeB));
