@@ -336,12 +336,31 @@ try {
   // team.js) d'un compte « Pro Service autonome » créé par l'ANCIEN mécanisme direct (Team.createService, encore
   // utilisé par l'aperçu Super Admin « Pack de travail », packpick.js — inchangé) : kind « service » → « entreprise »,
   // sans perte de données ; svcKey conservé, équivalent TM_SERVICES ajouté à services.
+  // Team.createService (kind « service ») est désormais réservée au Super Admin (règle Firestore déjà en place,
+  // ثغرة corrigée avant ce travail) : pour simuler fidèlement un compte Pro Service autonome EXISTANT créé par
+  // l'ancien mécanisme direct (avant cette correction), on écrit directement le document Firestore via le
+  // bypass émulateur (Bearer owner, même procédé que setSvcs/setPacks plus haut) plutôt que d'appeler la
+  // fonction cliente — exactement l'état réel d'un tel compte en base, indépendamment de la règle de création.
   const N = await newUser('N'); await signup(N.pg, 'Nadia Migration', 'nadia.migration@test.ma');
   await N.pg.click('[data-a=perso]'); await N.pg.waitForSelector('.st-offers'); await N.pg.click('[data-p=basic]');
   await N.pg.waitForSelector('[data-a=go]', { timeout: 15000 }); await N.pg.click('[data-a=go]'); await N.pg.waitForSelector('.home2', { timeout: 20000 });
-  const nSvcId = await N.pg.evaluate(() => Team.createService('HSE Legacy Test', 'aut_1'));
-  try { await N.pg.evaluate((c) => Team.switchTo(c), nSvcId); } catch (e) {}
-  await N.pg.waitForTimeout(2500); await N.pg.waitForSelector('.home2', { timeout: 30000 }); await N.pg.waitForTimeout(800);
+  const nUid = await N.pg.evaluate(() => Team.uid());
+  const nRoleK = await N.pg.evaluate(() => tmRoleOf(orgTypeOf('entreprise').owner || 'patron').k);
+  const nMods = await N.pg.evaluate(() => MODS.map(([m]) => m));
+  const FS = 'http://127.0.0.1:8080/v1/projects/siteteam/databases/(default)/documents/';
+  const compN = await fetch(FS + 'companies', { method: 'POST', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: {
+    name: { stringValue: 'HSE Legacy Test' }, ownerUid: { stringValue: nUid }, plan: { stringValue: 'basic' }, planStatus: { stringValue: 'gratuit' },
+    kind: { stringValue: 'service' }, orgType: { stringValue: 'entreprise' }, services: { arrayValue: { values: [{ stringValue: 'direction' }] } },
+    svcKey: { stringValue: 'aut_1' }, createdAt: { timestampValue: new Date().toISOString() },
+  } }) }).then(r => r.json());
+  const nCid = compN.name.split('/').pop();
+  await fetch(FS + `companies/${nCid}/members?documentId=${nUid}`, { method: 'POST', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: {
+    name: { stringValue: 'Nadia Migration' }, email: { stringValue: 'nadia.migration@test.ma' }, role: { stringValue: nRoleK }, service: { stringValue: 'direction' },
+    perms: { mapValue: { fields: Object.fromEntries(nMods.map(m => [m, { integerValue: '4' }])) } }, admin: { booleanValue: true }, allProjects: { booleanValue: true },
+    projects: { arrayValue: {} }, zone: { stringValue: '' }, createdAt: { timestampValue: new Date().toISOString() },
+  } }) });
+  await fetch(FS + `users/${nUid}?updateMask.fieldPaths=companyId`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { companyId: { stringValue: nCid } } }) });
+  await N.pg.reload(); await N.pg.waitForSelector('.home2', { timeout: 30000 }); await N.pg.waitForTimeout(800);
   const vMig = await N.pg.evaluate(() => [Team.company().kind, Team.company().svcKey, (Team.company().services || []).includes('hse')]);
   log('N migration kind:service → entreprise', vMig);
   log('errors v1.0.291', vMig[0] === 'entreprise' && vMig[1] === 'aut_1' && vMig[2] === true ? [] : ['v1.0.291 migration ' + JSON.stringify(vMig)]);
