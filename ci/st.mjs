@@ -344,7 +344,7 @@ try {
   await N.pg.waitForTimeout(2500); await N.pg.waitForSelector('.home2', { timeout: 30000 }); await N.pg.waitForTimeout(800);
   const vMig = await N.pg.evaluate(() => [Team.company().kind, Team.company().svcKey, (Team.company().services || []).includes('hse')]);
   log('N migration kind:service → entreprise', vMig);
-  log('errors migration service→entreprise', vMig[0] === 'entreprise' && vMig[1] === 'aut_1' && vMig[2] === true ? [] : ['migration ' + JSON.stringify(vMig)]);
+  log('errors v1.0.291', vMig[0] === 'entreprise' && vMig[1] === 'aut_1' && vMig[2] === true ? [] : ['v1.0.291 migration ' + JSON.stringify(vMig)]);
   // ---- v1.0.18 : service Qualité — services fermés, organigramme qualité, missions, validation des PV, documentation
   log('services par défaut', await setSvcs(['direction', 'qualite', 'externe', 'perso']));
   const H = await newUser('H'); await signup(H.pg, 'Karima Qualité', 'karima@test.ma');
