@@ -2932,6 +2932,24 @@ try {
   } catch (e) { o.err = String(e.message || e); } return o; });
   log('v1.0.290 [liaison service ↔ intervenant]', vSvc);
   log('errors v1.0.290', !vSvc.err && ['bcontrole','bet','architecte','mo','mod','labo','topoext','soustraitant','entreprise','noMap','unknown','allMapped'].every(k => vSvc[k]) ? [] : ['v1.0.290 ' + JSON.stringify(vSvc)]);
+  // v1.0.3xx (24/11/2026, demande du propriétaire : délégation + audit formalisés) : journal d'organisation
+  // (companies/{cid}/audit, règle déjà en place jusqu'ici inutilisée) — A (administrateur) écrit puis consulte le journal ;
+  // un compte non-administrateur de la même organisation ne doit pas pouvoir le lire.
+  const vAudit = await A.pg.evaluate(async () => { const o = {};
+    try {
+      Team.logAudit('admin_grant', { targetUid: 'xyz', targetName: 'Test Audit' });
+      Team.logAudit('perms_change', { targetUid: 'xyz', targetName: 'Test Audit', detail: 'Plans: 1→2' });
+      await new Promise(r => setTimeout(r, 1200));
+      await Team.openAuditLog(); await new Promise(r => setTimeout(r, 400));
+      const t = document.querySelector('.sheet')?.textContent || '';
+      o.hasGrant = t.includes('Statut Administrateur donné') && t.includes('Test Audit');
+      o.hasPerms = t.includes('Permissions modifiées') && t.includes('Plans: 1→2');
+      document.querySelectorAll('.sheet-bg').forEach(x => x.remove());
+    } catch (e) { o.err = String(e.message || e); } return o; });
+  log('v1.0.3xx [journal d\'audit]', vAudit);
+  const vAuditDeny = await B.pg.evaluate(async (cid) => { try { await firebase.firestore().collection('companies').doc(cid).collection('audit').get(); return 'ALLOWED (BAD)'; } catch (e) { return 'denied OK: ' + e.code; } }, await A.pg.evaluate(() => Team.company().id));
+  log('B (non-admin, autre organisation) lecture journal A', vAuditDeny);
+  log('errors v1.0.3xx [journal d\'audit]', !vAudit.err && vAudit.hasGrant && vAudit.hasPerms && /^denied OK/.test(vAuditDeny) ? [] : ['v1.0.3xx ' + JSON.stringify(vAudit) + ' ' + vAuditDeny]);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
