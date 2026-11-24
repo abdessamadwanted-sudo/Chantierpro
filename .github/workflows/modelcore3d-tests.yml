@@ -1,0 +1,27 @@
+name: ModelCore3D — Prototype Tests
+on:
+  pull_request:
+    branches: [siteteam]
+    paths:
+      - 'www/js/modelcore3d.js'
+      - 'www/js/modelcore3d-templates.js'
+      - 'www/js/m3d.js'
+      - 'ci/modelcore3d.test.mjs'
+      - '.github/workflows/modelcore3d-tests.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  schema-and-js:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node --check www/js/modelcore3d-templates.js
+      - run: node --check www/js/modelcore3d.js
+      - run: node --check www/js/m3d.js
+      - run: node --check ci/modelcore3d.test.mjs
+      - run: node ci/modelcore3d.test.mjs
