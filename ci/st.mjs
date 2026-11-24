@@ -2438,7 +2438,14 @@ try {
   const fl1 = await A.pg.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {}; const pr0 = (await DB.all('projects'))[0]; if (!pr0) return { noProject: true };
     try {
-      App.project = pr0; sessionStorage.setItem('st.preview', JSON.stringify({ plan: 'enterprise' }));
+      App.project = pr0;
+      // v1.0.3xx (24/11/2026, nuit, suite) : l'aperçu (« st.preview ») exige toujours un rôle réel en production
+      // (ST.startPreview, siteteam.js : PV.set({ role, plan, org })) — Team.canSection() en mode aperçu bascule sur
+      // ce rôle (tmRoleOf(p.role)) et, sans rôle, retombe sur un rôle inconnu à 0 droit sur tout, masquant alors
+      // TOUT le groupe Qualité (ok() vide) avant même que le remplacement par les volets dédiés (SVC_SHELLS) ne soit
+      // atteint. D'où le rôle « patron » (admin) ajouté ici, pour simuler fidèlement le même aperçu qu'utilise
+      // réellement l'admin de l'Entreprise (et non un aperçu générique de pack qui n'existe pas en production).
+      sessionStorage.setItem('st.preview', JSON.stringify({ plan: 'enterprise', role: 'patron' }));
       Team.applyFlags({});
       // v1.0.3xx : orgq/missionzone/terraindoc/qdocs sont désormais ouverts ("pub") par défaut pour l'Entreprise
       // (demande du propriétaire : équipe réelle sur Service Qualité) — exclus du lot « tout fermé par défaut ».
@@ -2455,8 +2462,6 @@ try {
       o.sqOuvert = !!root.querySelector('details[data-g=sq]');
       o.travHseOuverts = !!root.querySelector('details[data-g=sv-travaux]') && !!root.querySelector('details[data-g=sv-hse]');
       o.autresFermes = !root.querySelector('details[data-g=sv-topo]') && !root.querySelector('details[data-g=sv-labo]') && !root.querySelector('details[data-g=sv-etu]') && !root.querySelector('details[data-g=sv-fin]');
-      // DIAGNOSTIC TEMPORAIRE (à retirer) : comprendre pourquoi sqOuvert est false malgré svcqual=pub
-      o.dbgSvcqual = Team.flag('svcqual'); o.dbgQualGenerique = !!root.querySelector('details[data-g=qual]'); o.dbgIvEnt = !!root.querySelector('details[data-g=iv-ent]');
       o.monEspaceCache = SECTIONS.monespace.hidden === true;
       Team.applyFlags({ svcqual: { enterprise: 'test' } }, ['autre@example.com']); o.testAutre = Team.flag('svcqual') === false;
       Team.applyFlags({ svcqual: { enterprise: 'pub' } }); o.pub = Team.flag('svcqual') === true;
