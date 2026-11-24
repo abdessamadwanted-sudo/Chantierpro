@@ -2581,6 +2581,16 @@ body:has(.pst-page) #plansFab, body:has(.rub-page) #plansFab, body:has(.scanpage
 @media (min-width: 600px) { .st-offers { gap: 16px; } }
 @media (min-width: 1024px) { .st-offers { gap: 18px; } .st-offer { padding: 22px; } }
 
+/* v1.0.3xx (demande du propriétaire, 22/11/2026, suite) : même habillage « SaaS pro » pour l'écran Organisation
+   (openCompany : Organigramme/Membres/Codes d'accès/Mon abonnement/Réglages/Mon compte) — purement visuel, aucune
+   classe/attribut data-* touché, additif donc sans risque pour la logique ou les tests existants (ci/st.mjs). */
+.tm-tabs { gap: 8px; padding: 10px 12px; }
+.tm-tabs button { padding: 8px 15px; font-weight: 650; transition: background .15s ease, color .15s ease; }
+.tm-tabs button.on { box-shadow: 0 6px 16px -6px rgba(37,99,235,.55); }
+.tm-mem { border-radius: 14px; padding: 11px 12px; transition: transform .12s ease, box-shadow .12s ease; }
+.tm-mem:hover, .tm-mem:focus-visible { transform: translateY(-1px); box-shadow: 0 6px 18px -10px rgba(0,0,0,.35); }
+.tm-box { border-radius: 16px; padding: 14px; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+
 /* ---------- v1.0.28 : écrans d'entrée défilables depuis le haut, espace Free, menus ---------- */
 .tm-login { justify-content: flex-start; align-items: stretch; } .tm-login > .tm-lg-in { margin: auto; flex: none; }
 .st-promo { margin: 0 4px 12px; padding: 14px; border-radius: 14px; border: 1px solid rgba(245,158,11,.45); background: linear-gradient(135deg, rgba(245,158,11,.14), rgba(59,130,246,.10)); display: grid; gap: 6px; }
