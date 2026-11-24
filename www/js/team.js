@@ -723,6 +723,12 @@ const Team = (() => {
   }
   const ts = () => firebase.firestore.FieldValue.serverTimestamp();
   const withTimeout = (p, ms = 30000, msg = 'Délai dépassé (connexion lente ?)') => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(msg)), ms))]);
+  // v1.0.3xx (24/11/2026, demande du propriétaire : délégation + audit formalisés) : journal d'organisation, append-only,
+  // lu par les administrateurs seulement. La règle Firestore companies/{cid}/audit existait déjà (préparée, jamais utilisée) —
+  // ce point l'exploite enfin : statut Administrateur donné/retiré, permissions modifiées, membre retiré.
+  function logAudit(action, extra = {}) {
+    try { fs.collection('companies').doc(S.cid).collection('audit').add({ by: S.user.uid, byName: (S.me || {}).name || S.user.displayName || '', at: ts(), action, ...extra }); } catch (e) { console.warn('logAudit', e); }
+  }
   const errMsg = (e) => {
     const c = (e && e.code) || '';
     return ({ 'auth/invalid-email': 'Adresse e-mail invalide', 'auth/user-not-found': 'Compte introuvable', 'auth/wrong-password': 'Mot de passe incorrect',
@@ -2380,6 +2386,8 @@ const Team = (() => {
             <div class="btnrow" style="padding:0"><button class="btn small" data-a="svcpro-req">Demander l'accès</button></div></div>` : ''}
           ${isPerso() ? '' : `<div class="tm-box"><b>${T.e} Type d'organisation : ${esc(T.l)}</b><p>Le type choisit l'interface (outils mis en avant). Services actifs : ${companyServices().filter(x => x.k !== 'externe').map(x => esc(x.l)).join(', ')}.</p>
             <div class="btnrow" style="padding:0"><button class="btn ghost small" data-a="otype">Changer le type</button><button class="btn ghost small" data-a="otaille">Taille : ${esc((TAILLES.find(t => t[0] === taille()) || [0, '—'])[1].split(' ')[0])}</button><button class="btn ghost small" data-a="svcs">Services…</button></div></div>`}
+          ${!isPerso() && isAdmin() ? `<div class="tm-box"><b>📜 Journal d'audit</b><p>Historique des changements de statut Administrateur, de permissions et des retraits de membres — lecture réservée aux administrateurs.</p>
+            <button class="btn ghost small" data-a="auditlog">Consulter le journal</button></div>` : ''}
           <div class="tm-box"><b>☁ Google Drive de l'entreprise</b><p>Les plans, photos et PDF de toute l'équipe sont rangés dans ce Drive. Les membres le reçoivent automatiquement.</p>
             <div>${c && c.mode === 'g' ? `<span style="color:#22c55e">✓ Connecté avec Google${c.email ? ' (' + esc(c.email) + ')' : ''}</span><br><span style="font-size:12.5px;color:var(--muted)">Drive personnel de ce compte (chaque membre peut connecter le sien).</span>` : c && c.url ? '<span style="color:#22c55e">✓ Connecté</span>' : '<span style="color:#f59e0b">Non connecté — les fichiers restent sur chaque téléphone</span>'}</div>
             <div class="btnrow" style="padding:0"><button class="btn ghost small" data-a="drive">${c && (c.url || c.mode === 'g') ? 'Réglages Drive' : 'Connecter Google Drive'}</button>${c && c.url ? '<button class="btn ghost small" data-a="share">Partager avec l\'équipe</button>' : ''}</div></div>
@@ -2407,6 +2415,7 @@ const Team = (() => {
           const k = await menu('Taille de l\'organisation', [...TAILLES.map(t => ({ label: `${t[1]} — ${t[2]}`, value: t[0], checked: t[0] === taille() })), ...(S.company.taille ? [{ label: 'Revenir au calcul automatique (selon le pack)', icon: 'undo', value: 'auto' }] : [])]);
           if (!k) return; const v = k === 'auto' ? firebase.firestore.FieldValue.delete() : k;
           try { await fs.collection('companies').doc(S.cid).update({ taille: v }); if (k === 'auto') delete S.company.taille; else S.company.taille = k; LS.set('company', S.company); toast('Taille enregistrée ✓'); draw(); } catch (e) { alertBox(errMsg(e)); } };
+        { const alb = $('[data-a=auditlog]', body); if (alb) alb.onclick = () => openAuditLog(); }
         const sv = $('[data-a=svcs]', body); if (sv) sv.onclick = async () => { const L = await pickServices(Array.isArray(S.company.services) ? S.company.services : TM_SERVICES.map(x => x.k));
           if (!L) return; try { await fs.collection('companies').doc(S.cid).update({ services: L }); S.company.services = L; LS.set('company', S.company); toast('Services enregistrés ✓'); draw(); } catch (e) { alertBox(errMsg(e)); } };
         const sh = $('[data-a=share]', body); if (sh) sh.onclick = shareDrive;
@@ -2636,6 +2645,10 @@ const Team = (() => {
     const R = tmRoleOf(o.role);
     try {
       await withTimeout(ref.update({ role: R.k, service: R.s, managerUid: o.managerUid, zone: o.zone, allProjects: o.allProjects, projects: o.projects, admin: o.admin, perms: o.perms, ...(isAdmin() ? { postes: (o.postes || []).filter(k => k !== R.k), canInvite: !!o.canInvite } : {}) }));
+      // v1.0.3xx (24/11/2026) : journal d'audit — statut Administrateur et permissions
+      if (!!o.admin !== !!m.admin) logAudit(o.admin ? 'admin_grant' : 'admin_revoke', { targetUid: m.uid, targetName: m.name || m.email || '' });
+      const permDiff = MODS.filter(([mk]) => (+((m.perms || {})[mk]) || 0) !== (+((o.perms || {})[mk]) || 0)).map(([mk, l]) => `${l.split(' (')[0]}: ${+((m.perms || {})[mk]) || 0}→${+((o.perms || {})[mk]) || 0}`);
+      if (permDiff.length) logAudit('perms_change', { targetUid: m.uid, targetName: m.name || m.email || '', detail: permDiff.join(', ') });
       toast('Enregistré ✓');
       return true;
     } catch (e) { alertBox(errMsg(e)); return false; }
@@ -2651,7 +2664,19 @@ const Team = (() => {
   }
   async function removeMember(m) {
     if (!await confirmBox(`Retirer ${m.name || m.email} de l'entreprise ?`, 'Retirer')) return false;
-    await fs.collection('companies').doc(S.cid).collection('members').doc(m.uid).delete(); toast('Retiré ✓'); return true;
+    await fs.collection('companies').doc(S.cid).collection('members').doc(m.uid).delete();
+    logAudit('member_removed', { targetUid: m.uid, targetName: m.name || m.email || '' }); // v1.0.3xx (24/11/2026) : journal d'audit
+    toast('Retiré ✓'); return true;
+  }
+  // v1.0.3xx (24/11/2026) : lecture du journal d'audit (admin seulement, règle Firestore companies/{cid}/audit)
+  async function openAuditLog() {
+    const ld = loading('Chargement du journal…');
+    let L = [];
+    try { const q = await withTimeout(fs.collection('companies').doc(S.cid).collection('audit').orderBy('at', 'desc').limit(200).get(), 15000); L = q.docs.map(d => d.data()); }
+    catch (e) { ld.close(); return alertBox(errMsg(e)); }
+    ld.close();
+    const LBL = { admin_grant: 'Statut Administrateur donné', admin_revoke: 'Statut Administrateur retiré', perms_change: 'Permissions modifiées', member_removed: 'Membre retiré' };
+    sheet(`<div class="list">${L.length ? L.map(e => `<div class="st-pa"><span>${esc(LBL[e.action] || e.action)}${e.targetName ? ' — ' + esc(e.targetName) : ''}${e.detail ? '<br><small class="muted">' + esc(e.detail) + '</small>' : ''}</span><small>${esc(e.byName || '?')}${e.at && e.at.toDate ? ' · ' + e.at.toDate().toLocaleString('fr-FR') : ''}</small></div>`).join('') : '<div class="empty">Aucun événement enregistré.</div>'}</div>`, { title: 'Journal d\'audit' });
   }
 
   // ---------- importer les projets de l'application Chantier (code de connexion Drive) ----------
@@ -2846,7 +2871,7 @@ const Team = (() => {
   }
 
   return {
-    boot, push, pull, resetPull, lvl, canSection, svcLib, canProject, isAdmin, openCompany, taille, secureApply, secureOn, saveAffectations, noteProject, projectIds, inviteFlow, inviteFor, shareInvite, canInviteNow: () => canInvite(), logout, decorateSection, removeMember, refreshMembers,
+    boot, push, pull, resetPull, lvl, canSection, svcLib, canProject, isAdmin, openCompany, taille, secureApply, secureOn, saveAffectations, noteProject, projectIds, inviteFlow, inviteFor, shareInvite, canInviteNow: () => canInvite(), logout, decorateSection, removeMember, refreshMembers, logAudit, openAuditLog,
     isSuper, superConsole, orgType, isPerso, tailleList: () => TAILLES, roleList: () => TM_ROLES.map(r => ({ k: r.k, l: r.l, perms: r.perms })), planModules: () => Object.fromEntries(['basic', 'pro', 'business', 'enterprise'].map(k => [k, planOf(k).modules])), companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, createService, obtainAutonomeSvc, packAccounts, ensurePackAccount,
     createEntreprise, requestEntService, unlockEntService, entUnlockSuper, entSvcKeys, entHasSvc, entHasAll, ENT_ALL, attach: att, isOwner, deleteEspace, workspaces: () => S.workspaces || [], shared: () => S.shared || [], cid: () => S.cid,
     profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
