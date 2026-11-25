@@ -3090,11 +3090,21 @@ try {
       button('isolate').click();o.isolate=button('isolate').textContent==='Quitter';
       button('restore-hidden').click();o.restored=button('isolate').textContent==='Isoler';
       button('selection-close').click();o.selectionClosed=inspector.hidden&&!instance.getSelected()&&stage.clientHeight===height;
+      button('plancher').click();
+      const level=root.querySelector('[data-filter="level"]');level.value='R+2';level.dispatchEvent(new Event('change'));
+      const report=root.querySelector('[data-val="foot-report"]');
+      await new Promise(requestAnimationFrame);
+      o.floor=button('plancher').getAttribute('aria-pressed')==='true'&&!root.querySelector('[data-role="foot-controls"]').hidden;
+      o.supports=Number(report.textContent.match(/^(\d+) dessous/)?.[1])>0;
+      const side=root.querySelector('[data-role="foot-side"]');side.value='both';side.dispatchEvent(new Event('change'));
+      await new Promise(requestAnimationFrame);
+      o.above=Number(report.textContent.match(/(\d+) dessus/)?.[1])>0;
+      button('plancher').click();o.floorClosed=root.querySelector('[data-role="foot-controls"]').hidden;
       instance.close();instance=null;o.removed=!document.querySelector('.st-mc3d');
     }catch(e){o.err=String(e.message||e);}finally{if(instance)instance.close();}return o;
   });
   log('ModelCore X viewport mobile',vMc);
-  log('errors v1.0.x ModelCore X viewport',!vMc.err&&['closed','open','filters','architecture','reclosed','cut','selected','geometry','detail','isolate','restored','selectionClosed','removed'].every(k=>vMc[k])?[]:['ModelCore X '+JSON.stringify(vMc)]);
+  log('errors v1.0.x ModelCore X viewport',!vMc.err&&['closed','open','filters','architecture','reclosed','cut','selected','geometry','detail','isolate','restored','selectionClosed','floor','supports','above','floorClosed','removed'].every(k=>vMc[k])?[]:['ModelCore X '+JSON.stringify(vMc)]);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
