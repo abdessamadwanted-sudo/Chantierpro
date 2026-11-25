@@ -117,3 +117,18 @@ assert.equal(M.pointDansCoupe({x:1000,y:1000,z:0},[]),true);
 assert.ok(code.includes('renderer.clippingPlanes=planes'),'Découpe de triangles par le moteur WebGL');
 assert.ok(code.includes('.find(h=>pointDansCoupe(h.point,renderer.clippingPlanes))'),'Pas de sélection derrière une surface découpée');
 console.log('ModelCore X — coupes H/V, inversion et raycast : tests OK.');
+
+// Déplacement à deux doigts : translation du milieu, indépendamment du pincement.
+const pan=M.gestePan();
+const touch=(pointerId,clientX,clientY)=>({pointerId,clientX,clientY,pointerType:'touch'});
+pan.down(touch(1,10,10));assert.equal(pan.move(touch(1,20,20)),null);
+pan.down(touch(2,60,20));
+let d=pan.move(touch(1,30,30));assert.equal(d.x,5);assert.equal(d.y,5);
+d=pan.move(touch(2,70,30));assert.equal(d.x,5);assert.equal(d.y,5);
+let a=pan.move(touch(1,20,30)),b=pan.move(touch(2,80,30));assert.equal(a.x+b.x,0,'pincement symétrique sans déplacement');
+pan.up(touch(2,80,30));assert.equal(pan.move(touch(1,10,10)),null);
+pan.reset();assert.equal(pan.move(touch(1,50,50)),null);
+assert.ok(code.includes('camera.setViewOffset(w,h,-pan.x*w,-pan.y*h,w,h)'),'Pan sans déplacement du pivot');
+assert.ok(code.includes('data-role="tools-panel" hidden'),'Tiroir replié au démarrage');
+assert.ok(code.includes('data-role="inspector" hidden'),'Fiche repliée au démarrage');
+console.log('ModelCore X — pan tactile et viewport prioritaire : tests OK.');
