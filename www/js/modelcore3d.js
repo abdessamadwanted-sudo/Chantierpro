@@ -87,16 +87,11 @@
     }
     return { schema: SCHEMA, projectType: 'stade', elements };
   }
-  // Les états métier du studio restent strictement locaux, sans écriture chantier.
-  const METIERS = {
-    Travaux: {'Non commencé':0x8096a8,'En cours':0xffc34a,'Terminé':0x40dba0,'Bloqué':0xf87171},
-    Qualité: {'À contrôler':0x7eaef1,'Réceptionné':0x40dba0,'Non conforme':0xfb7185,'En attente':0xffc34a},
-    HSE: {'À inspecter':0x7eaef1,'Conforme':0x40dba0,'Risque':0xfb7185}
-  };
-  function suiviInitial(e) {
-    return {Travaux: e.status==='Réceptionné'?'Terminé':e.status==='Non conforme'?'Bloqué':e.status==='En cours'?'En cours':'Non commencé',
-      Qualité: ['Réceptionné','Non conforme','En attente'].includes(e.status)?e.status:'À contrôler',
-      HSE:'À inspecter', journal:[]};
+  // Fiche géométrique neutre : aucune dépendance aux services métier.
+  function ficheGeometrique(g) {
+    if(g.kind==='box')return 'Dimensions X/Y/Z : '+g.size.map(x=>x.toFixed(2)).join(' × ')+' m · Volume géométrique : '+g.size.reduce((a,b)=>a*b,1).toFixed(3)+' m³';
+    if(g.kind==='beam')return 'Longueur : '+Math.hypot(...g.end.map((x,i)=>x-g.start[i])).toFixed(2)+' m · Section : '+g.width.toFixed(2)+' × '+g.depth.toFixed(2)+' m';
+    return 'Maillage : '+g.positions.length/3+' sommets · '+g.indices.length/3+' triangles';
   }
   function maquetteParametrique(p) {
     const {hauteur,epaisseur,niveaux,entraxe}=p;
@@ -127,21 +122,21 @@
 .st-mc3d button:disabled{opacity:.4}.st-mc3d button.active{border-color:#45def6;color:#7cecff;background:#103a4c}.st-mc3d option{background:#132c42}.st-mc3d .mcbar{display:flex;gap:6px;padding:7px 10px;align-items:center;overflow:auto;flex-shrink:0;background:#091a29}.st-mc3d .mcbar button{white-space:nowrap;flex-shrink:0}.st-mc3d .mchead{background:linear-gradient(120deg,#173b54,#081727);border-bottom:1px solid var(--mc-line);padding:12px}.st-mc3d .mctitle{font-size:18px;font-weight:750;flex:1;min-width:0;letter-spacing:-.5px}.st-mc3d .mcsub{font-size:11px;color:var(--mc-muted);line-height:1.45;overflow-wrap:anywhere}.st-mc3d .mcwarn{font-size:10px;color:#ffd58f}.st-mc3d .mcnav button{flex:1}.st-mc3d .mckpis{display:flex;gap:6px;padding:7px 10px;flex-shrink:0}.st-mc3d .mckpi{flex:1;padding:7px 9px;border-radius:10px;border:1px solid #29485e;background:#10283d}.st-mc3d .mckpi b{display:block;font-size:17px;color:#6ae7f7}.st-mc3d .mcfilters{display:none;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:8px;max-height:32%;overflow:auto;background:#0c2235}.st-mc3d .mcfilters.open{display:grid}.st-mc3d .mcview{flex:1;min-height:120px;position:relative;touch-action:none;overflow:hidden}.st-mc3d .mcview canvas{display:block;touch-action:none}.st-mc3d .mcover{position:absolute;top:10px;left:12px;color:#98cce0;font-size:10px;pointer-events:none}.st-mc3d .mcside{position:absolute;left:8px;top:45px;display:grid;gap:5px}.st-mc3d .mcside button{width:38px;background:#10283be8;padding:4px;font-size:16px}.st-mc3d .mclevels{position:absolute;right:8px;top:45px;display:grid;gap:4px;max-height:65%;overflow:auto;padding:4px;background:#091e31df;border-radius:10px;border:1px solid #34556b}.st-mc3d .mclevels button{min-height:28px;font-size:10px;padding:4px;max-width:86px;overflow:hidden;text-overflow:ellipsis}.st-mc3d .mclegend{display:flex;gap:9px;flex-wrap:wrap;justify-content:center;padding:7px;background:#0a1b2b;font-size:10px;flex-shrink:0}.st-mc3d .mclegend i{display:inline-block;width:8px;height:8px;border-radius:3px;margin-right:4px}.st-mc3d .mcdetail{background:linear-gradient(145deg,#173549,#0d2133);padding:10px;display:flex;gap:7px;flex-wrap:wrap;align-items:center;max-height:40%;overflow:auto;border-top:1px solid #36566e;flex-shrink:0}.st-mc3d .mcinfo{flex:1;min-width:170px;line-height:1.55}.st-mc3d .mcinfo b{font-size:15px}.st-mc3d .mcprogress{height:6px;width:100%;background:#29495e;border-radius:8px;overflow:hidden}.st-mc3d .mcprogress i{display:block;height:100%;background:#44def6}.st-mc3d .mcpage{flex:1;min-height:0;overflow:auto;padding:15px}.st-mc3d .mccard{border:1px solid #29485e;background:linear-gradient(145deg,#102b40,#0a1e30);padding:12px;border-radius:12px;margin:10px 0;line-height:1.55}.st-mc3d .mccard h3{margin:0 0 8px}.st-mc3d .mcgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.st-mc3d .mcgrid input{width:100%}.st-mc3d .mcviewer{display:flex;flex-direction:column;min-height:0;flex:1}.st-mc3d .mcinspector-extra{width:100%;padding:4px 0}.st-mc3d .mcinspector-extra button{margin:3px}.st-mc3d [hidden]{display:none!important}.st-mc3d .mcsplit{position:absolute;left:50%;top:0;bottom:0;border-left:1px solid #46677d;pointer-events:none}.st-mc3d .mclabel{position:absolute;top:28px;left:53%;font-size:10px;color:#a1cce1;pointer-events:none}
 </style>
 <div class="mcbar mchead"><button data-act="close" aria-label="Fermer">✕</button><div class="mctitle">◈ ModelCore <span style="color:#5ce5fc">X</span><div class="mcsub" data-val="project"></div></div><span class="mcwarn">DÉMO LOCALE</span></div>
-<div class="mcbar mcnav"><button data-page="viewer" class="active">◇ Explorer</button><button data-page="import">⇩ Import</button><button data-page="ai">✧ AI Studio</button><button data-page="dash">▥ Pilotage</button></div>
+<div class="mcbar mcnav"><button data-page="viewer" class="active">◇ Explorer</button><button data-page="import">⇩ Import</button><button data-page="ai">✧ AI Studio</button><button data-page="dash">▥ Maquette</button></div>
 <div class="mcviewer" data-pane="viewer">
 <div class="mcbar"><select data-role="projecttype" aria-label="Famille de démonstration" style="flex:1;min-width:0"><option value="stade">Stade</option><option value="hopital">Hôpital</option><option value="immeuble">Résidence · 2 bâtiments</option><option value="villa">Villa</option><option value="pont">Pont</option><option value="vrd">VRD / Route</option><option value="industriel">Industrie</option><option value="batiment">Autre bâtiment</option></select><button data-act="reset" aria-label="Réinitialiser">↺</button></div>
-<div class="mckpis"><div class="mckpi">Ouvrages<b data-val="total">0</b></div><div class="mckpi">Avanc. moyen<b data-val="avg">0%</b></div><div class="mckpi">NC démo<b data-val="nc">0</b></div></div>
+<div class="mckpis"><div class="mckpi">Ouvrages<b data-val="total">0</b></div><div class="mckpi">Lots<b data-val="avg">0</b></div><div class="mckpi">Niveaux<b data-val="nc">0</b></div></div>
 <div class="mcbar"><button data-act="structure">▤ Structure</button><button data-act="architecture">◇ Architecture</button><button data-act="color" class="active">◉ États</button><button data-act="filters">☷ Filtres</button><button data-act="layers">Calques</button></div>
-<div class="mcbar"><button data-act="view">Vue 3D</button><select data-role="service" aria-label="Service"><option>Travaux</option><option>Qualité</option><option>HSE</option><option>BET</option><option>OPC</option><option>Finance</option><option>Direction</option><option>Topographie</option></select><button data-act="explode">Éclaté</button><button data-act="all">Tout</button><button data-act="roof">Toiture</button></div>
+<div class="mcbar"><button data-act="view">Vue 3D</button><button data-act="explode">Éclaté</button><button data-act="all">Tout</button><button data-act="roof">Toiture</button></div>
 <div class="mcfilters" data-role="filters"><select data-filter="building" aria-label="Bâtiment"></select><select data-filter="lot" aria-label="Lot"></select><select data-filter="zone" aria-label="Zone"></select><select data-filter="level" aria-label="Niveau"></select><select data-filter="type" aria-label="Type"></select><select data-filter="status" aria-label="État"></select></div>
 <div class="mcfilters" data-role="layers"></div>
 <div class="mcview" data-role="stage"><div class="mcover" data-val="visible"></div><div class="mcside"><button data-act="top" title="Dessus">↑</button><button data-act="under" title="Dessous">↓</button><button data-act="zoomplus" title="Zoom avant">＋</button><button data-act="zoomminus" title="Zoom arrière">−</button><button data-act="cut" title="Masquer une moitié">◫</button><button data-act="fit" title="Ajuster">⛶</button></div><div class="mclevels" data-role="levels"></div><div class="mcsplit" hidden></div><div class="mclabel" hidden>PLAN ZÉNITHAL</div><div class="mcsub" style="position:absolute;bottom:6px;left:12px;pointer-events:none">Orbite · toucher un ouvrage · pincement</div></div>
 <div class="mclegend" data-role="legend"></div>
-<div class="mcdetail"><div class="mcinfo"><b data-val="id">Aucun ouvrage sélectionné</b><div class="mcsub" data-val="info">Touchez un élément.</div><div class="mcwarn" data-val="warning">Données locales non synchronisées.</div></div><button data-act="isolate" disabled>Isoler</button><button data-act="hide" disabled>Masquer</button><button data-act="detail" disabled>Fiche</button><select data-role="editstatus" aria-label="État métier" disabled></select><div class="mcprogress"><i data-role="progressbar" style="width:0%"></i></div><div class="mcinspector-extra" data-role="extra" hidden><button data-tab="Infos">Infos</button><button data-tab="Métier">Métier</button><button data-tab="Docs">Docs</button><button data-tab="Journal">Journal</button><div data-val="extra" class="mcsub"></div><label data-role="progresslabel">Avancement local <input data-role="progress" type="range" min="0" max="100" step="1"></label></div></div>
+<div class="mcdetail"><div class="mcinfo"><b data-val="id">Aucun ouvrage sélectionné</b><div class="mcsub" data-val="info">Touchez un élément.</div><div class="mcwarn" data-val="warning">Données locales non synchronisées.</div></div><button data-act="isolate" disabled>Isoler</button><button data-act="hide" disabled>Masquer</button><button data-act="detail" disabled>Fiche</button><select data-role="editstatus" aria-label="État local de démonstration" disabled></select><div class="mcprogress"><i data-role="progressbar" style="width:0%"></i></div><div class="mcinspector-extra" data-role="extra" hidden><button data-tab="Infos">Infos</button><button data-tab="Géométrie">Géométrie</button><button data-tab="Docs">Docs</button><button data-tab="Journal">Journal</button><div data-val="extra" class="mcsub"></div><label data-role="progresslabel">Avancement fictif <input data-role="progress" type="range" min="0" max="100" step="1"></label></div></div>
 </div>
 <div class="mcpage" data-pane="import" hidden><h2>Import Studio</h2><div class="mccard"><h3>Maquette BIM · IFC</h3>Revit / Tekla / Archicad → IFC. Convertisseur non connecté : aucun import IFC/RVT direct.</div><div class="mccard"><h3>Manifeste JSON ModelCore v1</h3>Import local réel, 10 Mo / 5 000 ouvrages maximum.<br><button data-act="import">Sélectionner JSON</button><input data-role="file" type="file" accept=".json,application/json" hidden></div><div class="mccard"><h3>Plans 2D</h3>Reconstruction assistée (simulation).<br><button data-page="ai">Ouvrir AI Studio</button></div><div class="mccard">GlobalId · révisions · géoréférencement · contrôle des droits : étapes futures.</div></div>
 <div class="mcpage" data-pane="ai" hidden><h2>AI Geometry Studio</h2><div class="mccard"><h3>Plan de coffrage fictif</h3><svg data-role="aiplan" viewBox="0 0 340 190" style="width:100%;background:#081c2c;border-radius:8px"></svg><button data-act="detect">Détection simulée</button><p data-val="airesult">Aucune analyse de PDF réel.</p></div><div class="mccard"><h3>Paramètres à confirmer</h3><div class="mcgrid"><label>Hauteur (m)<input data-ai="hauteur" type="number" value="3.2" min="2.5" max="5" step=".1"></label><label>Épaisseur (cm)<input data-ai="epaisseur" type="number" value="25" min="15" max="45"></label><label>Niveaux<input data-ai="niveaux" type="number" value="3" min="1" max="7"></label><label>Entraxe (m)<input data-ai="entraxe" type="number" value="5" min="3" max="8"></label></div><label><input data-role="confirm" type="checkbox"> Je confirme les valeurs fictives.</label><br><button data-act="generate">Générer une maquette paramétrique</button><p class="mcwarn" data-val="aierror"></p></div></div>
-<div class="mcpage" data-pane="dash" hidden><h2>Pilotage du projet</h2><div class="mccard" data-role="dashboard"></div><div class="mccard"><h3>Copilot · filtres rapides</h3><button data-command="quality">Ouvrages non conformes</button> <button data-command="blocked">Ouvrages bloqués</button><p class="mcsub">Actions déterministes locales, pas un assistant IA connecté.</p></div></div>`;
+<div class="mcpage" data-pane="dash" hidden><h2>Explorateur de maquette</h2><div class="mccard" data-role="dashboard"></div><div class="mccard"><h3>Raccourcis géométriques</h3><div data-role="shortcuts" class="mcgrid"></div><p class="mcsub">Filtres locaux par type d’ouvrage.</p></div></div>`;
     document.body.appendChild(el);
     const $ = s => el.querySelector(s);
     $('[data-val="project"]').textContent = projectName + ' · Démo locale';
@@ -164,19 +159,18 @@
       return matCache.get(key);
     };
     let selected=null, isolated=null, hidden=new Set(), roofHidden=false, statusColors=true, dataset=null, disposed=false, raf=0, press=null, backRemove=null;
-    let service='Travaux', mode='structure', view='3D', page='viewer', exploded=false, cut=false, detail=false, tab='Infos', detected=false;
+    let mode='structure', view='3D', page='viewer', exploded=false, cut=false, detail=false, tab='Infos', detected=false;
     let hiddenLots=new Set(), outline=null;
-    const champ = ()=>METIERS[service]?service:'Travaux';
-    const etat = e => e.suivi[champ()];
-    const couleur = ()=>METIERS[champ()];
+    const etat = e => e.status;
+    const couleur = ()=>STATUS_COLOR;
     const hex = n=>'#'+n.toString(16).padStart(6,'0');
     const levelRank = level => {const m=/^(?:R|N)\+(\d+)$/.exec(level);return m?Number(m[1]):level==='Toiture'?8:0;};
     function clearOutline(){if(outline){outline.parent?.remove(outline);outline.geometry.dispose();outline.material.dispose();outline=null;}}
     function selectedOutline(){clearOutline();const v=registry.get(selected);if(!v||!v.mesh.visible)return;outline=new T.LineSegments(new T.EdgesGeometry(v.mesh.geometry,20),new T.LineBasicMaterial({color:0x63efff,depthTest:true,transparent:true,opacity:1}));outline.renderOrder=10;v.mesh.add(outline);}
-    function kpis(){const a=dataset||[];$('[data-val="total"]').textContent=a.length;$('[data-val="avg"]').textContent=(a.length?Math.round(a.reduce((t,e)=>t+e.progress,0)/a.length):0)+'%';$('[data-val="nc"]').textContent=a.filter(e=>e.suivi.Qualité==='Non conforme').length;}
+    function kpis(){const a=dataset||[];$('[data-val="total"]').textContent=a.length;$('[data-val="avg"]').textContent=new Set(a.map(e=>e.lot)).size;$('[data-val="nc"]').textContent=new Set(a.map(e=>e.level)).size;}
     function legend(){const l=$('[data-role="legend"]');l.replaceChildren();for(const [name,c] of Object.entries(couleur())){const span=document.createElement('span'),dot=document.createElement('i');dot.style.background=hex(c);span.append(dot,document.createTextNode(name));l.append(span);}}
     function modeUI(){for(const a of ['structure','architecture','color','explode','cut'])$('[data-act="'+a+'"]').classList.toggle('active',a==='color'?statusColors:a==='explode'?exploded:a==='cut'?cut:mode===a);$('[data-act="view"]').textContent='Vue '+view;}
-    function dash(){const d=$('[data-role="dashboard"]');d.replaceChildren();const a=dataset||[];const h=document.createElement('h3');h.textContent='Avancement moyen (non pondéré)';d.append(h);for(const [k,v] of Object.entries(METIERS.Travaux)){const p=document.createElement('p');p.textContent=k+' : '+a.filter(e=>e.suivi.Travaux===k).length;p.style.color=hex(v);d.append(p);}const p=document.createElement('p');p.textContent='NC : '+a.filter(e=>e.suivi.Qualité==='Non conforme').length+' · Risques HSE : '+a.filter(e=>e.suivi.HSE==='Risque').length;d.append(p);}
+    function dash(){const d=$('[data-role="dashboard"]'),q=$('[data-role="shortcuts"]');d.replaceChildren();q.replaceChildren();const a=dataset||[],counts=new Map();for(const e of a)counts.set(e.type,(counts.get(e.type)||0)+1);const h=document.createElement('h3');h.textContent='Inventaire géométrique · '+a.length+' ouvrages';d.append(h);for(const [k,n] of [...counts].sort((a,b)=>b[1]-a[1])){const p=document.createElement('p');p.textContent=k+' : '+n;d.append(p);const b=document.createElement('button');b.textContent=k+' ('+n+')';b.onclick=()=>{hidden.clear();hiddenLots.clear();isolated=null;cut=false;roofHidden=false;mode='all';statusColors=false;for(const key of ['building','lot','zone','level','type','status'])$('[data-filter="'+key+'"]').value='all';$('[data-filter="type"]').value=k;select(null);setPage('viewer');resetCamera();};q.append(b);}}
     function setPage(p){page=p;el.querySelectorAll('[data-pane]').forEach(n=>n.hidden=n.dataset.pane!==p);el.querySelectorAll('.mcnav [data-page]').forEach(n=>n.classList.toggle('active',n.dataset.page===p));if(p==='viewer')onResize();if(p==='dash')dash();if(p==='ai')drawPlan();}
     function drawPlan(){const svg=$('[data-role="aiplan"]');let shapes='';for(let i=0;i<4;i++){const x=25+i*96;shapes+='<path d="M'+x+' 10V180" stroke="#526f86" stroke-dasharray="4 4"/>';for(let j=0;j<3;j++){const y=25+j*70;shapes+='<rect x="'+(x-6)+'" y="'+(y-6)+'" width="12" height="12" fill="'+(detected?'#ee9476':'#b6ccda')+'"/>';if(i<3)shapes+='<rect x="'+(x+6)+'" y="'+(y-3)+'" width="84" height="6" fill="'+(detected?'#dbad55':'#7e99ac')+'"/>';if(j<2)shapes+='<rect x="'+(x-3)+'" y="'+(y+6)+'" width="6" height="58" fill="'+(detected?'#dbad55':'#7e99ac')+'"/>';}}svg.innerHTML=shapes;}
 
@@ -197,7 +191,7 @@
       clearOutline(); for(const child of [...grp.children]) grp.remove(child);
       geometryCache.splice(0).forEach(g=>g.dispose()); registry.clear(); hidden.clear(); hiddenLots.clear(); isolated=null; selected=null; dataset=elements; exploded=false;cut=false;mode='structure';detail=false;roofHidden=false;for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';
       for(const e of elements){
-        e.suivi=suiviInitial(e); let mesh=createMesh(e.geometry,e.type); mesh.userData.modelcoreId=e.id; grp.add(mesh);registry.set(e.id,{mesh,meta:e,baseMat:mesh.material,baseY:mesh.position.y});
+        e.journal=[]; let mesh=createMesh(e.geometry,e.type); mesh.userData.modelcoreId=e.id; grp.add(mesh);registry.set(e.id,{mesh,meta:e,baseMat:mesh.material,baseY:mesh.position.y});
       }
       refreshFilters();visibility();resetCamera();updateDetails();kpis();
     }
@@ -217,7 +211,7 @@
         entry.mesh.position.y=entry.baseY+(exploded?levelRank(e.level)*1.2:0);
         entry.mesh.visible=!hidden.has(e.id)&&!hiddenLots.has(e.lot)&&(!isolated||e.id===isolated)&&(!roofHidden||!(e.type==='Charpente'||e.type==='Couverture'||e.level==='Toiture'))&&(!cut||new T.Box3().setFromObject(entry.mesh).getCenter(new T.Vector3()).z<=0)&&(mode!=='structure'||(!arch&&!technique))&&(mode!=='architecture'||!technique)&&
           ['building','lot','zone','level','type','status'].every(k=>$('[data-filter="'+k+'"]').value==='all'||$('[data-filter="'+k+'"]').value===(k==='status'?etat(e):e[k]));
-        entry.mesh.material=statusColors?getMat('s:'+champ()+':'+etat(e),couleur()[etat(e)]):entry.baseMat;
+        entry.mesh.material=statusColors?getMat('s:'+etat(e),couleur()[etat(e)]):entry.baseMat;
       }
       if(selected&&!registry.get(selected)?.mesh.visible){selected=null;isolated=null;}
       selectedOutline();const count=[...registry.values()].filter(e=>e.mesh.visible).length;$('[data-val="visible"]').textContent=count+' / '+registry.size+' OUVRAGES';
@@ -234,7 +228,7 @@
       $('[data-role="progressbar"]').style.width=(e?e.progress:0)+'%';
       $('[data-role="extra"]').hidden=!e||!detail;if(!e)return;
       const p=$('[data-role="progress"]');p.value=e.progress;$('[data-role="progresslabel"]').hidden=tab!=='Infos';
-      const value=$('[data-val="extra"]');value.textContent=tab==='Infos'?'Source : '+(e.sourceFormat||'JSON')+' · ID source : '+(e.sourceId||'non fourni')+' · Géométrie : '+e.geometry.kind:tab==='Métier'?service+' · '+etat(e)+' · Responsable non associé':tab==='Docs'?'Aucun PV, plan ou photo associé à cette démo.':e.suivi.journal.join(' | ')||'Aucune modification locale.';
+      const value=$('[data-val="extra"]');value.textContent=tab==='Infos'?'Source : '+(e.sourceFormat||'JSON')+' · ID source : '+(e.sourceId||'non fourni')+' · Géométrie : '+e.geometry.kind:tab==='Géométrie'?ficheGeometrique(e.geometry):tab==='Docs'?'Aucun PV, plan ou photo associé à cette démo.':e.journal.join(' | ')||'Aucune modification locale.';
       el.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
     }
     function select(id){selected=registry.has(id)?id:null; if(!selected)isolated=null; visibility();updateDetails();}
@@ -287,14 +281,12 @@
     on('detail',()=>{detail=!detail;updateDetails();});
     el.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>setPage(b.dataset.page));
     el.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;updateDetails();});
-    $('[data-role="service"]').onchange=e=>{service=e.target.value;statusColors=true;$('[data-filter="status"]').value='all';refreshFilters();visibility();updateDetails();};
-    $('[data-role="progress"]').onchange=e=>{const o=registry.get(selected)?.meta;if(!o)return;o.progress=Number(e.target.value);o.suivi.journal.unshift('Avancement : '+o.progress+'%');kpis();updateDetails();};
+    $('[data-role="progress"]').onchange=e=>{const o=registry.get(selected)?.meta;if(!o)return;o.progress=Number(e.target.value);o.journal.unshift('Avancement fictif : '+o.progress+'%');kpis();updateDetails();};
     on('detect',()=>{detected=true;drawPlan();$('[data-val="airesult"]').textContent='Simulation : 12 poteaux · 17 poutres · 6 dalles. Vérifiez les paramètres.';});
     on('generate',()=>{try{if(!detected||!$('[data-role="confirm"]').checked)throw Error('Lancez la détection simulée et confirmez les paramètres.');const p={};el.querySelectorAll('[data-ai]').forEach(i=>p[i.dataset.ai]=Number(i.value));p.epaisseur/=100;populate(validateManifest(maquetteParametrique(p)));$('[data-val="project"]').textContent=projectName+' · Maquette paramétrique fictive';$('[data-val="aierror"]').textContent='';setPage('viewer');}catch(e){$('[data-val="aierror"]').textContent=e.message;}});
-    el.querySelectorAll('[data-command]').forEach(b=>b.onclick=()=>{service=b.dataset.command==='quality'?'Qualité':'Travaux';$('[data-role="service"]').value=service;hidden.clear();hiddenLots.clear();isolated=null;cut=false;roofHidden=false;mode='all';statusColors=true;for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';refreshFilters();$('[data-filter="status"]').value=service==='Qualité'?'Non conforme':'Bloqué';select(null);setPage('viewer');});
     for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').addEventListener('change',()=>{select(null);});
     $('[data-role="editstatus"]').addEventListener('change',e=>{
-      if(!selected)return;const item=registry.get(selected);if(item&&Object.keys(couleur()).includes(e.target.value)){const o=item.meta,k=champ(),old=o.suivi[k];o.suivi[k]=e.target.value;o.suivi.journal.unshift(k+' : '+old+' → '+e.target.value);if(k==='Travaux'&&e.target.value==='Terminé')o.progress=100;if(k==='Travaux'&&e.target.value==='Non commencé')o.progress=0;kpis();visibility();updateDetails();}
+      if(!selected)return;const item=registry.get(selected);if(item&&STATES.includes(e.target.value)){const o=item.meta,old=o.status;o.status=e.target.value;o.journal.unshift('État fictif : '+old+' → '+o.status);if(o.status==='Réceptionné')o.progress=100;if(o.status==='Non commencé')o.progress=0;visibility();updateDetails();}
     });
     on('import',()=>{$('[data-role="file"]').click();});
     $('[data-role="file"]').addEventListener('change',async(e)=>{
@@ -314,5 +306,5 @@
     chooseTemplate(initialType);onResize();
     return { close, getSelected:()=>registry.get(selected)?.meta||null, projectId, schema:SCHEMA };
   }
-  window.ModelCore3D = { open, validateManifest, suiviInitial, maquetteParametrique, demo:(type='stade')=>type==='stade'?createDemo():window.ModelCoreTemplates?window.ModelCoreTemplates.make(type):createDemo(), schema:SCHEMA };
+  window.ModelCore3D = { open, validateManifest, ficheGeometrique, maquetteParametrique, demo:(type='stade')=>type==='stade'?createDemo():window.ModelCoreTemplates?window.ModelCoreTemplates.make(type):createDemo(), schema:SCHEMA };
 })();
