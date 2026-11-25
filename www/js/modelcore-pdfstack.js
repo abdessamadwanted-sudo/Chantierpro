@@ -23,7 +23,7 @@
       '<div class="ps-head"><button data-a="close">✕</button><div class="ps-grow"><b>◈ ModelCore X · PDF Stack</b><div class="ps-small" data-r="project"></div></div><button data-a="layers" aria-expanded="true">☷ Plans</button></div>'+
       '<div class="ps-bar"><button data-a="3d" class="active">3D</button><button data-a="top">Dessus</button><button data-a="fit">Ajuster</button><button data-a="zoomout">−</button><button data-a="zoomin">+</button><label class="ps-small">Écart <select data-r="explode"><option value="1">Réel</option><option value="2">×2</option><option value="4">×4</option></select></label></div>'+
       '<div class="ps-stage" data-r="stage"><div class="ps-top"><span data-r="count">0 plan calé</span><span>1 doigt orbite · 2 doigts zoom/pan</span></div></div>'+
-      '<div class="ps-cal" data-r="cal" hidden><div class="ps-bar"><b class="ps-grow" data-r="calname"></b><button data-a="calclose">Terminer</button></div><div class="ps-bar"><button data-a="pointA" class="active">Point A</button><button data-a="pointB">Point B</button><button data-a="calminus">−</button><button data-a="calplus">+</button><button data-a="clear">Effacer</button></div><div class="ps-small" data-r="instructions"></div><div class="ps-preview" data-r="preview"><canvas data-r="paper"></canvas></div><div class="ps-bar"><label>Distance A–B (m) <input data-r="distance" type="number" min=".01" max="10000" step=".01" value=""></label><button data-a="apply">Valider le calage</button></div></div>'+
+      '<div class="ps-cal" data-r="cal" hidden><div class="ps-bar"><b class="ps-grow" data-r="calname"></b><button data-a="calclose">Terminer</button></div><div class="ps-bar"><button data-a="pointA" class="active">Point A</button><button data-a="pointB">Point B</button><button data-a="calminus">−</button><button data-a="calplus">+</button><button data-a="precision">◎ Précision</button><button data-a="fullpaper" hidden>Plan entier</button><button data-a="clear">Effacer</button></div><div class="ps-small" data-r="instructions"></div><div class="ps-preview" data-r="preview"><canvas data-r="paper"></canvas></div><div class="ps-bar"><label>Distance A–B (m) <input data-r="distance" type="number" min=".01" max="10000" step=".01" value=""></label><button data-a="apply">Valider le calage</button></div></div>'+
       '<div class="ps-drawer" data-r="drawer"><div class="ps-row"><button data-a="add">＋ PDF</button><input data-r="file" type="file" accept=".pdf,application/pdf" multiple hidden><label class="ps-small">Page <input data-r="page" type="number" value="1" min="1" step="1" aria-label="Page PDF"></label><label class="ps-small">Opacité <input data-r="opacity" type="range" min="20" max="100" value="100"></label></div><div class="ps-small">Premier PDF = référence. Même point A et B sur chaque plan; saisir les altitudes en mètres. Max. 8 plans. Session locale.</div><div data-r="list"></div></div><div class="ps-status" data-r="status" aria-live="polite">Ajoutez le PDF de référence.</div>';
     document.body.appendChild(el);
     const $=s=>el.querySelector(s),stage=$('[data-r="stage"]'),paper=$('[data-r="paper"]'),rows=$('[data-r="list"]');
@@ -38,7 +38,7 @@
     controls.enableDamping=false;controls.enablePan=true;controls.touches.ONE=T.TOUCH.ROTATE;controls.touches.TWO=T.TOUCH.DOLLY_PAN;
     renderer.domElement.style.touchAction='none';
     const grid=new T.GridHelper(100,20,0x436679,0x2c495d);grid.material.transparent=true;grid.material.opacity=.22;scene.add(grid);
-    const layers=[];let ref=null,current=null,point='A',zoom=1,closed=false,busy=false,raf=0,task=null,renderTask=null,backRemove=null,distance=null,view='3d',serial=0;
+    const layers=[];let ref=null,current=null,point='A',zoom=1,crop=null,closed=false,busy=false,raf=0,task=null,renderTask=null,backRemove=null,distance=null,view='3d',serial=0;
     function msg(s){$('[data-r="status"]').textContent=s;}
     function schedule(){if(closed||raf)return;raf=requestAnimationFrame(()=>{raf=0;if(!stage.hidden)renderer.render(scene,camera);});}
     controls.addEventListener('change',schedule);
@@ -97,23 +97,24 @@
         const geo=new T.PlaneGeometry(1,1);geo.rotateX(-Math.PI/2);
         const mat=new T.MeshBasicMaterial({map:texture,side:T.DoubleSide,toneMapped:false,transparent:false});
         const mesh=new T.Mesh(geo,mat);mesh.visible=false;group.add(mesh);
-        const l={id:++serial,name:String(file.name).slice(0,120),page:pageNo,width:v.width,height:v.height,canvas,texture,mesh,z:layers.length*3,visible:true,A:null,B:null,validated:false,t:null,color:COLORS[layers.length%COLORS.length]};
+        const l={id:++serial,name:String(file.name).slice(0,120),page:pageNo,file,width:v.width,height:v.height,canvas,texture,mesh,z:layers.length*3,visible:true,A:null,B:null,validated:false,t:null,color:COLORS[layers.length%COLORS.length]};
         layers.push(l);committed=true;if(!ref)ref=l;update();msg('PDF importé. Calage requis avant affichage.');return l.id;
       }finally{
         renderTask=null;const t=task;task=null;if(t)await t.destroy().catch(()=>{});if(canvas&&!committed)canvas.width=canvas.height=0;busy=false;
       }
     }
+    function releaseCrop(){if(crop){crop.canvas.width=crop.canvas.height=0;crop=null;}$('[data-a="fullpaper"]').hidden=true;}
     function drawPaper(){
-      if(!current)return;const c=current.canvas;paper.width=c.width;paper.height=c.height;paper.style.width=(zoom*100)+'%';paper.style.height='auto';
+      if(!current)return;const c=crop?.canvas||current.canvas,region=crop||{x:0,y:0,w:current.width,h:current.height};paper.width=c.width;paper.height=c.height;paper.style.width=(zoom*100)+'%';paper.style.height='auto';
       const ctx=paper.getContext('2d');ctx.drawImage(c,0,0);
       const radius=Math.max(6,c.width/120);
       for(const k of ['A','B'])if(current[k]){
-        const x=current[k][0]/current.width*c.width,y=current[k][1]/current.height*c.height;ctx.strokeStyle=k==='A'?'#0086b0':'#c37300';ctx.lineWidth=Math.max(2,radius/4);ctx.beginPath();ctx.arc(x,y,radius,0,Math.PI*2);ctx.moveTo(x-radius*2,y);ctx.lineTo(x+radius*2,y);ctx.moveTo(x,y-radius*2);ctx.lineTo(x,y+radius*2);ctx.stroke();ctx.fillStyle=ctx.strokeStyle;ctx.font='bold '+radius*2+'px sans-serif';ctx.fillText(k,x+radius,y-radius);
+        const x=(current[k][0]-region.x)/region.w*c.width,y=(current[k][1]-region.y)/region.h*c.height;ctx.strokeStyle=k==='A'?'#0086b0':'#c37300';ctx.lineWidth=Math.max(2,radius/4);ctx.beginPath();ctx.arc(x,y,radius,0,Math.PI*2);ctx.moveTo(x-radius*2,y);ctx.lineTo(x+radius*2,y);ctx.moveTo(x,y-radius*2);ctx.lineTo(x,y+radius*2);ctx.stroke();ctx.fillStyle=ctx.strokeStyle;ctx.font='bold '+radius*2+'px sans-serif';ctx.fillText(k,x+radius,y-radius);
       }
-      if(current.A&&current.B){ctx.strokeStyle='#087baf';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(current.A[0]/current.width*c.width,current.A[1]/current.height*c.height);ctx.lineTo(current.B[0]/current.width*c.width,current.B[1]/current.height*c.height);ctx.stroke();}
+      if(current.A&&current.B){ctx.strokeStyle='#087baf';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo((current.A[0]-region.x)/region.w*c.width,(current.A[1]-region.y)/region.h*c.height);ctx.lineTo((current.B[0]-region.x)/region.w*c.width,(current.B[1]-region.y)/region.h*c.height);ctx.stroke();}
     }
     function edit(l){
-      current=l;zoom=1;point='A';stage.hidden=true;$('[data-r="cal"]').hidden=false;$('[data-r="drawer"]').hidden=true;
+      if(busy)return;releaseCrop();current=l;zoom=1;point='A';stage.hidden=true;$('[data-r="cal"]').hidden=false;$('[data-r="drawer"]').hidden=true;
       $('[data-r="calname"]').textContent=l.name+(l===ref?' · Référence':'');
       $('[data-r="distance"]').value=distance||'';$('[data-r="distance"]').disabled=l!==ref;
       $('[data-r="instructions"]').textContent=l===ref?'Choisissez A puis B, saisissez la distance réelle A–B (m).':'Repérez exactement les mêmes axes A puis B que sur le PDF de référence.';
@@ -124,9 +125,9 @@
       if(!l||!['A','B'].includes(k)||!Array.isArray(p)||p.length!==2||!p.every(Number.isFinite)||p[0]<0||p[1]<0||p[0]>l.width||p[1]>l.height)throw Error('Point hors plan.');
       l[k]=p.slice();l.validated=false;update();if(current===l)drawPaper();
     }
-    function finish(){current=null;paper.width=paper.height=0;$('[data-r="cal"]').hidden=true;stage.hidden=false;$('[data-r="drawer"]').hidden=false;$('[data-a="layers"]').setAttribute('aria-expanded','true');resize();update();fit();}
+    function finish(){if(busy)return;releaseCrop();current=null;paper.width=paper.height=0;$('[data-r="cal"]').hidden=true;stage.hidden=false;$('[data-r="drawer"]').hidden=false;$('[data-a="layers"]').setAttribute('aria-expanded','true');resize();update();fit();}
     function valider(){
-      if(!current?.A||!current?.B)throw Error('Choisissez A et B.');
+      if(busy)throw Error('Lecture PDF en cours.');if(!current?.A||!current?.B)throw Error('Choisissez A et B.');
       if(current===ref){const d=Number($('[data-r="distance"]').value);reference(current.A,current.B,d);distance=d;}
       else{if(!distance)throw Error('Calez d’abord la référence.');calage(current.A,current.B,[0,0],[distance,0]);}
       current.validated=true;update();finish();msg('Calage validé. Vérifiez un troisième point indépendant sur les plans.');
@@ -134,12 +135,33 @@
     let down=null;
     paper.addEventListener('pointerdown',e=>{down=[e.clientX,e.clientY,e.pointerId];});
     paper.addEventListener('pointercancel',()=>{down=null;});
-    paper.addEventListener('pointerup',e=>{if(!current||!down||down[2]!==e.pointerId||Math.hypot(e.clientX-down[0],e.clientY-down[1])>8){down=null;return;}down=null;const r=paper.getBoundingClientRect();setPoint(current,point,[Math.max(0,Math.min(current.width,(e.clientX-r.left)/r.width*current.width)),Math.max(0,Math.min(current.height,(e.clientY-r.top)/r.height*current.height))]);if(point==='A')pointMode('B');});
+    paper.addEventListener('pointerup',e=>{if(!current||!down||down[2]!==e.pointerId||Math.hypot(e.clientX-down[0],e.clientY-down[1])>8){down=null;return;}down=null;const r=paper.getBoundingClientRect(),region=crop||{x:0,y:0,w:current.width,h:current.height};if(busy)return;setPoint(current,point,[Math.max(0,Math.min(current.width,region.x+(e.clientX-r.left)/r.width*region.w)),Math.max(0,Math.min(current.height,region.y+(e.clientY-r.top)/r.height*region.h))]);if(point==='A'&&!crop)pointMode('B');});
+    // Rendu natif d'une petite région du PDF original, sans bitmap A0 géant.
+    async function precision(){
+      if(busy||!current)return;
+      const l=current,anchor=l[point];
+      if(!anchor){msg('Placez approximativement le point '+point+' avant de zoomer en précision.');return;}
+      busy=true;let c=null;
+      try{
+        const span=Math.max(8,Math.min(l.width,l.height)/(crop?30:6));
+        const x=Math.max(0,Math.min(l.width-span,anchor[0]-span/2)),y=Math.max(0,Math.min(l.height-span,anchor[1]-span/2));
+        task=pdfjsLib.getDocument({data:new Uint8Array(await l.file.arrayBuffer())});
+        const doc=await task.promise,p=await doc.getPage(l.page),scale=1200/span;
+        c=document.createElement('canvas');c.width=c.height=1200;
+        const vp=p.getViewport({scale,offsetX:-x*scale,offsetY:-y*scale});
+        renderTask=p.render({canvasContext:c.getContext('2d'),viewport:vp,background:'rgb(255,255,255)'});
+        await renderTask.promise;
+        if(closed||current!==l)return;
+        releaseCrop();crop={canvas:c,x,y,w:span,h:span};c=null;zoom=1;drawPaper();
+        $('[data-a="fullpaper"]').hidden=false;msg('Précision : cliquez sur le même repère '+point+' dans le détail PDF.');
+      }catch(e){if(!closed)msg(e.message||String(e));}
+      finally{renderTask=null;const t=task;task=null;if(t)await t.destroy().catch(()=>{});if(c)c.width=c.height=0;busy=false;}
+    }
     function close(){
       if(closed)return;closed=true;renderTask?.cancel();task?.destroy().catch(()=>{});if(raf)cancelAnimationFrame(raf);observer.disconnect();controls.dispose();
       if(backRemove)try{backRemove();}catch(e){}
       for(const l of layers){l.mesh.geometry.dispose();l.mesh.material.dispose();l.texture.dispose();l.canvas.width=l.canvas.height=0;}
-      grid.geometry.dispose();grid.material.dispose();paper.width=paper.height=0;renderer.dispose();renderer.forceContextLoss();el.remove();if(typeof options.onClose==='function')options.onClose();
+      grid.geometry.dispose();grid.material.dispose();releaseCrop();paper.width=paper.height=0;renderer.dispose();renderer.forceContextLoss();el.remove();if(typeof options.onClose==='function')options.onClose();
     }
     if(typeof pushBack==='function')backRemove=pushBack(close);
     const on=(a,fn)=>{const b=$('[data-a="'+a+'"]');b.addEventListener('click',()=>{try{fn();}catch(e){msg(e.message);}});};
@@ -150,7 +172,7 @@
     on('top',()=>{view='top';controls.enableRotate=false;$('[data-a="top"]').classList.add('active');$('[data-a="3d"]').classList.remove('active');fit();});
     on('fit',fit);on('zoomin',()=>{camera.position.sub(controls.target).multiplyScalar(.8).add(controls.target);controls.update();});on('zoomout',()=>{camera.position.sub(controls.target).multiplyScalar(1.25).add(controls.target);controls.update();});
     on('pointA',()=>pointMode('A'));on('pointB',()=>pointMode('B'));on('calplus',()=>{zoom=Math.min(6,zoom*1.5);drawPaper();});on('calminus',()=>{zoom=Math.max(1,zoom/1.5);drawPaper();});
-    on('clear',()=>{if(current){current.A=current.B=null;current.validated=false;update();drawPaper();}});on('calclose',finish);on('apply',valider);
+    on('precision',precision);on('fullpaper',()=>{if(!busy){releaseCrop();zoom=1;drawPaper();}});on('clear',()=>{if(current&&!busy){current.A=current.B=null;current.validated=false;update();drawPaper();}});on('calclose',finish);on('apply',valider);
     $('[data-r="explode"]').onchange=()=>{update();fit();};$('[data-r="opacity"]').oninput=update;
     resize();fit();
     return {close,addFile,edit:id=>{const l=layers.find(x=>x.id===id);if(l)edit(l);},setPoint:(id,k,p)=>setPoint(layers.find(x=>x.id===id),k,p),setDistance:d=>{if(!ref||!ref.A||!ref.B)throw Error('Référence incomplète.');reference(ref.A,ref.B,d);distance=d;ref.validated=true;update();},validate:id=>{const l=layers.find(x=>x.id===id);if(!l||!l.A||!l.B||!distance||!ref?.validated)throw Error('Calage incomplet.');calage(l.A,l.B,[0,0],[distance,0]);l.validated=true;update();},state:()=>layers.map(l=>({id:l.id,width:l.width,height:l.height,z:l.z,calibrated:!!l.t,visible:l.mesh.visible,transform:l.t?{...l.t}:null}))};
