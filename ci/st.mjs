@@ -2482,31 +2482,41 @@ try {
   // souci que le propriétaire a signalé en capture d'écran.
   const fl2 = await A.pg.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {}; const pr0 = (await DB.all('projects'))[0]; if (!pr0) return { noProject: true };
+    const prevFp = JSON.parse(JSON.stringify((JSON.parse(localStorage.getItem('team.appCfg') || 'null') || {}).fp || {}));
+    const prevCompanyServices = Team.companyServices;
     try {
       App.project = pr0;
       sessionStorage.setItem('st.preview', JSON.stringify({ plan: 'enterprise', role: 'patron' }));
-      const co = Team.company(), prevServices = co.services;
+      // on ne garde QUE les 3 drapeaux testés ici en « pub » (le test précédent « Mises en service » laisse tous les
+      // drapeaux en « pub », y compris ceux des espaces d'intervenants (espbet/esparchi…) — ça activerait ivOn()/entOn()
+      // et ferait passer le volet Qualité par un tout autre chemin d'affichage (data-sg dans l'accordéon « Entreprise »),
+      // faussant ce test qui porte uniquement sur le choix des services de CETTE Entreprise)
+      Team.applyFlags({ svcqual: { business: 'pub', enterprise: 'pub' }, svctravaux: { business: 'pub', enterprise: 'pub' }, svchse: { business: 'pub', enterprise: 'pub' } }, []);
+      // Team.companyServices() mélange company.services avec le service individuel de chaque membre de l'équipe
+      // (voulu : un membre affecté à un service ne doit jamais perdre son volet) — sur le compte de test, d'anciens
+      // membres créés plus haut dans ce script ont service:'travaux'/'topo', ce qui fausserait la simulation « cette
+      // Entreprise n'a choisi que Qualité ». On isole donc ce test en remplaçant temporairement companyServices().
       const root = document.createElement('div'); document.body.appendChild(root);
       // Entreprise n'ayant choisi que Direction + Qualité (pas Travaux, pas HSE)
-      co.services = ['direction', 'qualite'];
+      Team.companyServices = () => [{ k: 'direction' }, { k: 'qualite' }];
       ST.renderProjectTools(root); await wait(400);
       o.qualSeuleOuverte = !!root.querySelector('details[data-g=sq]');
       o.travauxCacheSansChoix = !root.querySelector('details[data-g=sv-travaux]');
       o.hseCacheSansChoix = !root.querySelector('details[data-g=sv-hse]');
-      // DIAGNOSTIC TEMPORAIRE (à retirer)
-      o.dbgServices = Team.companyServices().map(x => x.k);
-      o.dbgFlag = Team.flag('svcqual');
-      o.dbgQualGenerique = !!root.querySelector('details[data-g=qual]');
-      o.dbgSameObj = Team.company() === co;
       // en rajoutant Travaux au choix de l'Entreprise, son volet apparaît sans toucher à HSE (toujours non choisi)
-      co.services = ['direction', 'qualite', 'travaux'];
+      Team.companyServices = () => [{ k: 'direction' }, { k: 'qualite' }, { k: 'travaux' }];
       ST.renderProjectTools(root); await wait(400);
       o.travauxApparaitUneFoisChoisi = !!root.querySelector('details[data-g=sv-travaux]');
       o.hseResteCache = !root.querySelector('details[data-g=sv-hse]');
-      co.services = prevServices; ST.renderProjectTools(root); await wait(400);
-      o.restaure = !!root.querySelector('details[data-g=sv-travaux]') && !!root.querySelector('details[data-g=sv-hse]');
+      // restauration : on revient aux vrais Team.companyServices()/drapeaux de ce compte (celui-ci a « travaux » parmi
+      // ses services réels, via ses membres) et on vérifie juste que le rendu continue de fonctionner sans planter
+      Team.companyServices = prevCompanyServices;
+      Team.applyFlags(Team.allFlags('pub'), []);
+      ST.renderProjectTools(root); await wait(400);
+      o.restaure = !!root.querySelector('.st-ptools-p') && !!root.querySelector('details[data-g=sv-travaux]');
       sessionStorage.removeItem('st.preview'); root.remove();
     } catch (e) { o.err = String(e.message || e); }
+    finally { Team.companyServices = prevCompanyServices; Team.applyFlags(prevFp, []); }
     return o;
   });
   log('Mises en service par choix de l\'Entreprise', fl2);
