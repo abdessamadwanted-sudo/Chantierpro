@@ -82,3 +82,17 @@ assert.equal(M.suggestionsPlan('Hauteur étage 3 m ; Hauteur étage 4 m').hauteu
 assert.equal(M.suggestionsPlan('Épaisseur dalle 4 m').epaisseur,undefined);
 assert.equal(Object.keys(M.suggestionsPlan('D01 P02 3.20 25')).length,0);
 console.log('ModelCore AI — extraction de cotes et rejet des ambiguïtés OK.');
+
+// ModelCore X : un geste tactile ne sélectionne jamais un ouvrage par erreur.
+const gesture=M.gesteSelection();
+const finger=(pointerId,clientX,clientY,button=0)=>({pointerId,clientX,clientY,button});
+gesture.down(finger(1,10,10));assert.equal(gesture.up(finger(1,12,11)),true);
+gesture.down(finger(1,10,10));gesture.move(finger(1,90,10));gesture.move(finger(1,10,10));assert.equal(gesture.up(finger(1,10,10)),false,'rotation avec retour au point initial');
+gesture.down(finger(1,10,10));gesture.down(finger(2,50,50));gesture.move(finger(2,80,80));assert.equal(gesture.up(finger(2,80,80)),false);assert.equal(gesture.up(finger(1,10,10)),false,'fin du pincement sans sélection');
+gesture.down(finger(1,10,10));gesture.cancel(finger(1,10,10));assert.equal(gesture.up(finger(1,10,10)),false);
+gesture.down(finger(1,10,10,2));assert.equal(gesture.up(finger(1,10,10,2)),false);
+gesture.down(finger(3,10,10));assert.equal(gesture.up(finger(3,10,10)),true,'tap après un geste multiple');
+assert.ok(code.includes('controls.enablePan=false'));
+assert.ok(code.includes('controls.target.copy(projectCenter)'));
+assert.ok(code.includes('controls.touches.TWO=T.TOUCH.DOLLY_PAN'));
+console.log('ModelCore X — sélection tactile, pincement et pivot projet : garde-fous OK.');
