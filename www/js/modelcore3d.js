@@ -209,6 +209,28 @@
   }
   function typePlancher(type){return /^(dalle|plancher|ifcslab)(\b|$)/i.test(type);}
   function typeSupport(type){return /^(poteau|voile|mur|poutre|pile|ifccolumn|ifcwall|ifcbeam)(\b|$)/i.test(type);}
+  // Profils explicites, sans dépendance à un service ni promesse de fréquence d'image.
+  function profilRendu(mode,objects=0,maxTexture=2048){
+    const studio=mode==='studio',high=studio||mode==='high',heavy=objects>1800;
+    return {high,studio,shadows:high&&!heavy,edges:high&&!heavy,reflection:high&&!heavy,
+      pixelRatio:studio&&!heavy?2:high&&!heavy?1.5:1,
+      shadowSize:Math.min(maxTexture,studio?2048:1024),exposure:studio?.93:.9};
+  }
+  // Panorama de studio procédural : ciel, sol et deux grands diffuseurs.
+  function studioPixels(w=256,h=128){
+    const data=new Uint8Array(w*h*4);
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+      const u=x/w,v=y/h,sky=Math.max(0,1-v*1.8),ground=Math.max(0,(v-.55)*2);
+      const wrap=(a,b)=>Math.min(Math.abs(a-b),1-Math.abs(a-b));
+      const panel=(cx,cy,sx,sy)=>Math.exp(-((wrap(u,cx)/sx)**4+((v-cy)/sy)**4));
+      const key=panel(.22,.31,.105,.15),rim=panel(.72,.39,.07,.12);
+      const i=(y*w+x)*4;
+      data[i]=Math.min(255,49+85*sky+25*ground+170*key+100*rim);
+      data[i+1]=Math.min(255,60+92*sky+18*ground+165*key+124*rim);
+      data[i+2]=Math.min(255,72+105*sky+9*ground+152*key+160*rim);data[i+3]=255;
+    }
+    return data;
+  }
   async function open(options) {
     if (typeof need3D !== 'function') throw new Error('Chargeur Three.js indisponible.');
     await need3D();
@@ -225,7 +247,7 @@
 </style>
 <div class="mcbar mchead"><button data-act="close" aria-label="Fermer">✕</button><div class="mctitle">◈ ModelCore <span style="color:#5ce5fc">X</span><div class="mcsub" data-val="project"></div></div><span class="mcwarn">DÉMO LOCALE</span></div>
 <div class="mcbar mcnav"><button data-page="viewer" class="active">◇ Explorer</button><button data-page="import">⇩ Import</button><button data-page="ai">✧ AI Studio</button><button data-page="dash">▥ Maquette</button></div>
-<div class="mcviewer" data-pane="viewer"><div class="mcbar mcquick"><button data-act="tools" aria-expanded="false">☷ Outils · Filtres</button><button data-act="plancher" title="Plancher et empreintes des appuis" aria-pressed="false">▧ Plancher</button><button data-act="restorequick" hidden title="Restaurer les ouvrages masqués">↶</button><button data-act="fitquick" title="Recentrer le projet">⛶ Ajuster</button></div><div class="mctoolpanel" data-role="tools-panel" hidden><div class="mctoolhead"><b>OUTILS DE MAQUETTE</b><select data-role="quality" aria-label="Qualité graphique"><option value="standard">Fluide</option><option value="high">Détaillé</option></select><button data-act="tools-close" aria-label="Replier les outils">⌄</button></div>
+<div class="mcviewer" data-pane="viewer"><div class="mcbar mcquick"><button data-act="tools" aria-expanded="false">☷ Outils · Filtres</button><button data-act="plancher" title="Plancher et empreintes des appuis" aria-pressed="false">▧ Plancher</button><button data-act="restorequick" hidden title="Restaurer les ouvrages masqués">↶</button><button data-act="fitquick" title="Recentrer le projet">⛶ Ajuster</button></div><div class="mctoolpanel" data-role="tools-panel" hidden><div class="mctoolhead"><b>OUTILS DE MAQUETTE</b><select data-role="quality" aria-label="Qualité graphique"><option value="standard">Fluide</option><option value="high">Détaillé</option><option value="studio">Studio</option></select><button data-act="tools-close" aria-label="Replier les outils">⌄</button></div><div class="mcsub" data-val="render-profile" style="padding:4px 12px">Fluide · rendu optimisé</div>
 <div class="mcbar"><select data-role="projecttype" aria-label="Famille de démonstration" style="flex:1;min-width:0"><option value="stade">Stade</option><option value="hopital">Hôpital</option><option value="immeuble">Résidence · 2 bâtiments</option><option value="villa">Villa</option><option value="pont">Pont</option><option value="vrd">VRD / Route</option><option value="industriel">Industrie</option><option value="batiment">Autre bâtiment</option></select><button data-act="reset" aria-label="Réinitialiser">↺</button></div>
 <div class="mckpis"><div class="mckpi">Ouvrages<b data-val="total">0</b></div><div class="mckpi">Lots<b data-val="avg">0</b></div><div class="mckpi">Niveaux<b data-val="nc">0</b></div></div>
 <div class="mcbar"><button data-act="structure">▤ Structure</button><button data-act="architecture">◇ Architecture</button><button data-act="color" class="active">◉ États</button><button data-act="filters">☷ Filtres</button><button data-act="layers">Calques</button></div>
@@ -242,14 +264,14 @@
     document.body.appendChild(el);
     const $ = s => el.querySelector(s);
     $('[data-val="project"]').textContent = projectName + ' · Démo locale';
-    const stage = $('[data-role="stage"]'), scene = new T.Scene();scene.background = new T.Color('#061525');
+    const stage = $('[data-role="stage"]'), scene = new T.Scene();scene.background=null;stage.style.background="radial-gradient(ellipse at 48% 38%, #20394c 0%, #10283a 43%, #061321 100%)";
     const camera = new T.PerspectiveCamera(45, 1, .1, 500); const planCam = new T.OrthographicCamera(-10,10,10,-10,.1,2000);
     let renderer;
-    try { renderer = new T.WebGLRenderer({ antialias: window.innerWidth > 650, powerPreference:'low-power' }); }
+    try { renderer = new T.WebGLRenderer({ antialias: window.innerWidth > 650, alpha:true, powerPreference:'default' }); }
     catch(e){ el.remove(); throw new Error('WebGL indisponible sur cet appareil.'); }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, window.innerWidth < 650 ? 1 : 1.5));
-    renderer.outputEncoding = T.sRGBEncoding;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=.9;
-    renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.shadowMap.enabled=false;
+    renderer.setClearColor(0x000000,0);renderer.outputEncoding = T.sRGBEncoding;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=.9;
+    renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.shadowMap.enabled=false;renderer.shadowMap.autoUpdate=false;
     stage.prepend(renderer.domElement);
     const controls = new T.OrbitControls(camera, renderer.domElement);
     controls.enableDamping=false;controls.enableZoom=true;controls.enableRotate=true;
@@ -258,7 +280,7 @@
     controls.zoomSpeed=1;controls.rotateSpeed=.85;controls.maxDistance=150;controls.minDistance=.05;
     renderer.domElement.style.touchAction='none';
     const projectCenter=new T.Vector3();let fitDistance=15;const gesture=gesteSelection(),panGesture=gestePan();const pan={x:0,y:0};
-    scene.add(new T.HemisphereLight('#e8f2ff', '#526077', .65));
+    const hemi=new T.HemisphereLight('#e8f2ff','#526077',.65);scene.add(hemi);
     const sun = new T.DirectionalLight('#fff5e8', .85); sun.position.set(-12, 30, 24); scene.add(sun);
     const fill = new T.DirectionalLight('#75bdff', .22); fill.position.set(18, 10, -18);scene.add(fill);
     const grp = new T.Group();scene.add(grp); const grid = new T.GridHelper(120,60,0x315b73,0x1b3448); grid.position.y=-1.15;grid.material.transparent=true;grid.material.opacity=.24;scene.add(grid);
@@ -267,15 +289,45 @@
     const noiseSize=64,noise=new Uint8Array(noiseSize*noiseSize*4);let seed=137;
     for(let i=0;i<noise.length;i+=4){seed=(Math.imul(seed,1664525)+1013904223)>>>0;const v=110+(seed>>>26);noise[i]=noise[i+1]=noise[i+2]=v;noise[i+3]=255;}
     const concreteBump=new T.DataTexture(noise,noiseSize,noiseSize,T.RGBAFormat);concreteBump.wrapS=concreteBump.wrapT=T.RepeatWrapping;concreteBump.repeat.set(5,5);concreteBump.magFilter=T.LinearFilter;concreteBump.minFilter=T.LinearFilter;concreteBump.needsUpdate=true;
-    let quality='standard';
+    let quality='standard',renderProfile=profilRendu(quality),envTarget=null,envUnavailable=false,edgesDirty=true;
     const ground=new T.Mesh(new T.PlaneGeometry(1,1),new T.ShadowMaterial({opacity:.22}));ground.rotation.x=-Math.PI/2;ground.visible=false;ground.receiveShadow=true;scene.add(ground);
-    sun.shadow.mapSize.set(1024,1024);sun.shadow.bias=-.0003;sun.shadow.normalBias=.025;
+    sun.shadow.mapSize.set(1024,1024);sun.shadow.bias=-.00015;sun.shadow.normalBias=.018;
+    const modelEdges=new T.LineSegments(new T.BufferGeometry(),new T.LineBasicMaterial({color:0x243a48,transparent:true,opacity:.27,depthTest:true,depthWrite:false,toneMapped:false}));modelEdges.visible=false;modelEdges.renderOrder=2;scene.add(modelEdges);
+    const stageBase=new T.Mesh(new T.PlaneGeometry(1,1),new T.MeshStandardMaterial({color:0x435668,roughness:.95,metalness:0}));stageBase.rotation.x=-Math.PI/2;stageBase.visible=false;stageBase.receiveShadow=true;scene.add(stageBase);
+    function environnementStudio(){
+      if(envTarget||envUnavailable)return;
+      let source=null,pmrem=null;
+      try{
+        source=new T.DataTexture(studioPixels(),256,128,T.RGBAFormat);source.mapping=T.EquirectangularReflectionMapping;source.encoding=T.sRGBEncoding;source.minFilter=T.LinearFilter;source.magFilter=T.LinearFilter;source.needsUpdate=true;
+        pmrem=new T.PMREMGenerator(renderer);envTarget=pmrem.fromEquirectangular(source);
+      }catch(e){envUnavailable=true;if(envTarget){envTarget.dispose();envTarget=null;}}
+      finally{source?.dispose();pmrem?.dispose();}
+    }
+    function appliquerOmbres(){
+      // Une coupe ne doit jamais laisser une ombre de la partie masquée.
+      const high=renderProfile.shadows&&!sectionActive()&&mode!=='plancher';
+      renderer.shadowMap.enabled=high;sun.castShadow=high;ground.visible=high&&!renderProfile.studio;stageBase.visible=high&&renderProfile.studio;
+      renderer.shadowMap.needsUpdate=high;
+    }
     function configQualite(){
-      const high=quality==='high';
-      renderer.shadowMap.enabled=high;sun.castShadow=high;ground.visible=high;
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,high?1.5:1));
-      for(const m of matCache.values()){if(m.userData.mcConcrete){m.bumpMap=high?concreteBump:null;m.bumpScale=.045;m.needsUpdate=true;}}
-      for(const e of registry.values()){e.mesh.castShadow=high;e.mesh.receiveShadow=high;}
+      renderProfile=profilRendu(quality,registry.size,renderer.capabilities.maxTextureSize);
+      if(renderProfile.reflection)environnementStudio();
+      scene.environment=renderProfile.reflection&&envTarget?envTarget.texture:null;
+      hemi.intensity=scene.environment ? .42 : .65;
+      sun.intensity=scene.environment ? 1.05 : .85;
+      fill.intensity=renderProfile.studio?.28:.22;
+      renderer.toneMappingExposure=renderProfile.exposure;
+      if(sun.shadow.mapSize.x!==renderProfile.shadowSize){if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}sun.shadow.mapSize.set(renderProfile.shadowSize,renderProfile.shadowSize);}
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,renderProfile.pixelRatio));
+      for(const m of matCache.values()){
+        if(m.userData.mcConcrete){m.bumpMap=renderProfile.high?concreteBump:null;m.bumpScale=.035;}
+        if(m.userData.mcGlass){m.envMapIntensity=scene.environment?1.1:.15;m.clearcoat=scene.environment ? .5 : 0;}
+        m.needsUpdate=true;
+      }
+      for(const e of registry.values()){e.mesh.castShadow=renderProfile.shadows&&!e.mesh.material.userData.mcGlass;e.mesh.receiveShadow=renderProfile.shadows;}
+      grid.material.opacity=renderProfile.studio?.08:renderProfile.high?.15:.24;
+      edgesDirty=true;appliquerOmbres();
+      $('[data-val="render-profile"]').textContent=(quality==='studio'?'Studio':quality==='high'?'Détaillé':'Fluide')+(quality!=='standard'&&!renderProfile.shadows?' · allégé (grande maquette)':'')+(envUnavailable&&renderProfile.reflection?' · reflets indisponibles':'');
       onResize();
     }
     const getMat = (key, hex, metalness=0) => {
@@ -307,7 +359,7 @@
         $('[data-section-slider="'+key+'"]').value=c.value;
         $('[data-section-value="'+key+'"]').textContent=Math.round(c.value)+'%';
       }
-      renderer.clippingPlanes=planes;capsDirty=true;
+      renderer.clippingPlanes=planes;capsDirty=true;appliquerOmbres();
       $('[data-act="cut"]').classList.toggle('active',sectionActive());
       $('[data-val="section-note"]').textContent=(sections.h.active?'H : '+(sections.h.inverse?'bas → haut':'haut → bas'):'')+(sections.h.active&&sections.v.active?' · ':'')+(sections.v.active?'V : '+(sections.v.inverse?'−X → +X':'+X → −X'):'');
       schedule();
@@ -342,19 +394,20 @@
       geometryCache.push(geo);
       const profile=profilMateriau(type,lot),key='m:'+profile.kind+':'+profile.color+(geo.getAttribute('uv')?':uv':':sans-uv');
       if(!matCache.has(key)){
-        const m=new T.MeshStandardMaterial({color:profile.color,roughness:profile.roughness,metalness:profile.metalness,side:T.DoubleSide});
+        const m=profile.kind==='verre'?new T.MeshPhysicalMaterial({color:profile.color,roughness:.18,metalness:.18,clearcoat:scene.environment?.5:0,clearcoatRoughness:.12,envMapIntensity:scene.environment?1.1:.15,side:T.DoubleSide}):new T.MeshStandardMaterial({color:profile.color,roughness:profile.roughness,metalness:profile.metalness,side:T.DoubleSide,envMapIntensity:profile.kind==='metal'||profile.kind==='acier'?.85:.38});
+        m.userData.mcGlass=profile.kind==='verre';
         m.userData.mcConcrete=profile.kind==='beton'&&!!geo.getAttribute('uv');
-        if(m.userData.mcConcrete&&quality==='high'){m.bumpMap=concreteBump;m.bumpScale=.045;}
+        if(m.userData.mcConcrete&&renderProfile.high){m.bumpMap=concreteBump;m.bumpScale=.045;}
         matCache.set(key,m);
       }
       // Les maillages IFC ne disposent pas forcément d'UV : pas de bump sur ces éléments.
       mesh.material=matCache.get(key);
       if(!geo.getAttribute('uv')&&mesh.material.userData.mcConcrete){const plainKey=key+':sans-uv';if(!matCache.has(plainKey)){const m=mesh.material.clone();m.userData.mcConcrete=false;m.bumpMap=null;matCache.set(plainKey,m);}mesh.material=matCache.get(plainKey);}
-      mesh.castShadow=mesh.receiveShadow=quality==='high';
+      mesh.castShadow=renderProfile.shadows&&!mesh.material.userData.mcGlass;mesh.receiveShadow=renderProfile.shadows;
       return mesh;
     }
     function resetCamera(){
-      const bounds=new T.Box3().setFromObject(grp),size=bounds.getSize(new T.Vector3());bounds.getCenter(projectCenter);const span=Math.max(2,size.length());ground.position.set(projectCenter.x,bounds.min.y-.03,projectCenter.z);ground.scale.set(span*2,span*2,1);grid.position.set(projectCenter.x,bounds.min.y-.04,projectCenter.z);grid.scale.setScalar(Math.max(.1,span/95));sun.target.position.copy(projectCenter);scene.add(sun.target);sun.position.copy(projectCenter).add(new T.Vector3(-.65,1,.7).multiplyScalar(span));Object.assign(sun.shadow.camera,{left:-span,right:span,top:span,bottom:-span,near:.1,far:span*5});sun.shadow.camera.updateProjectionMatrix();pan.x=0;pan.y=0;appliquerPan();sectionBounds.copy(bounds);appliquerCoupes();
+      const bounds=new T.Box3().setFromObject(grp),size=bounds.getSize(new T.Vector3());bounds.getCenter(projectCenter);const span=Math.max(2,size.length());ground.position.set(projectCenter.x,bounds.min.y-.03,projectCenter.z);ground.scale.set(span*2,span*2,1);stageBase.position.copy(ground.position);stageBase.scale.set(span*1.7,span*1.7,1);grid.position.set(projectCenter.x,bounds.min.y-.04,projectCenter.z);grid.scale.setScalar(Math.max(.1,span/95));sun.target.position.copy(projectCenter);scene.add(sun.target);sun.position.copy(projectCenter).add(new T.Vector3(-.65,1,.7).multiplyScalar(span));Object.assign(sun.shadow.camera,{left:-span,right:span,top:span,bottom:-span,near:.1,far:span*5});sun.shadow.camera.updateProjectionMatrix();pan.x=0;pan.y=0;appliquerPan();sectionBounds.copy(bounds);appliquerCoupes();
       const radius=Math.max(.05,size.length()/2),vertical=T.MathUtils.degToRad(camera.fov/2),horizontal=Math.atan(Math.tan(vertical)*Math.max(.1,camera.aspect));
       // Ajustement des huit coins dans le repère caméra : moins d'espace vide qu'une sphère englobante.
       const direction=new T.Vector3(.7,.56,.8).normalize(),right=new T.Vector3(0,1,0).cross(direction).normalize(),up=direction.clone().cross(right);
@@ -372,7 +425,7 @@
       for(const e of elements){
         e.journal=[]; let mesh=createMesh(e.geometry,e.type,e.lot); mesh.userData.modelcoreId=e.id; grp.add(mesh);registry.set(e.id,{mesh,meta:e,baseMat:mesh.material,baseY:mesh.position.y});
       }
-      refreshFilters();visibility();resetCamera();fitPending=page!=='viewer';updateDetails();kpis();
+      refreshFilters();configQualite();visibility();resetCamera();fitPending=page!=='viewer';updateDetails();kpis();
     }
     function refreshFilters(){
       for(const key of ['building','lot','zone','level','type','status']){
@@ -383,7 +436,7 @@
       const layers=$('[data-role="layers"]');layers.replaceChildren();for(const lot of [...new Set(dataset.map(e=>e.lot))].sort()){const b=document.createElement('button');b.textContent=lot;b.dataset.lot=lot;b.onclick=()=>{mode='all';hiddenLots.has(lot)?hiddenLots.delete(lot):hiddenLots.add(lot);visibility();updateDetails();};layers.append(b);}
       legend();
     }
-    function visibility(){capsDirty=true;feetDirty=true;
+    function visibility(){capsDirty=true;feetDirty=true;edgesDirty=true;appliquerOmbres();
       for(const entry of registry.values()){
         const e=entry.meta;
         const arch=/façade|architecture|second œuvre|vitrage|étanchéité/i.test(e.lot); const technique=/ferraillage|CFO|CFA|plomberie|CVC|électricité|assainissement/i.test(e.lot);
@@ -514,7 +567,22 @@
       }
       $('[data-val="foot-report"]').textContent=counts.below.size+' dessous · '+counts.above.size+' dessus'+(skipped?' · '+skipped+' dalles non traitées':'')+(truncated?' · calcul partiel (limite)':'')+' · contacts indicatifs';
     }
-    function render(){if(disposed||page!=='viewer')return;actualiserCaps();actualiserEmpreintes();const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;renderer.setScissorTest(false);renderer.setViewport(0,0,w,h);
+    function actualiserAretes(){
+      if(!edgesDirty)return;edgesDirty=false;
+      const p=[];
+      if(renderProfile.edges&&mode!=='plancher'){
+        grp.updateMatrixWorld(true);
+        // Un seul draw call, contours des primitives uniquement, pas de coût sur l'IFC dense.
+        for(const e of registry.values()){
+          if(!e.mesh.visible||e.meta.geometry.kind==='mesh'||p.length>=180000)continue;
+          const m=e.mesh,g=m.geometry;if(!g.boundingBox)g.computeBoundingBox();const b=g.boundingBox;
+          const corners=Array.from({length:8},(_,i)=>new T.Vector3(i&1?b.max.x:b.min.x,i&2?b.max.y:b.min.y,i&4?b.max.z:b.min.z).applyMatrix4(m.matrixWorld));
+          for(let i=0;i<8;i++)for(const bit of [1,2,4])if((i^bit)>i)p.push(...corners[i].toArray(),...corners[i^bit].toArray());
+        }
+      }
+      modelEdges.geometry.dispose();modelEdges.geometry=new T.BufferGeometry();modelEdges.geometry.setAttribute('position',new T.Float32BufferAttribute(p,3));modelEdges.visible=p.length>0;
+    }
+    function render(){if(disposed||page!=='viewer')return;actualiserCaps();actualiserEmpreintes();actualiserAretes();const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;renderer.setScissorTest(false);renderer.setViewport(0,0,w,h);
       if(view==='3D'){renderer.render(scene,camera);return;}
       const ctr=projectCenter,sz=sectionBounds.getSize(new T.Vector3()),pw=view==='Hybride'?w/2:w,asp=pw/h,half=Math.max(sz.z/2,sz.x/(2*asp),.1)*1.15*Math.max(.01,camera.position.distanceTo(projectCenter)/fitDistance);
       const dx=-2*half*asp*pan.x,dy=2*half*pan.y;
@@ -552,7 +620,7 @@
       if(disposed)return;disposed=true;stopIfc();if(ocrWorker)ocrWorker.terminate().catch(()=>{});if(pdfTask)pdfTask.destroy().catch(()=>{});
       if(backRemove)try{backRemove();}catch(e){}
       if(raf)cancelAnimationFrame(raf);observer.disconnect();controls.dispose();
-      clearOutline();for(const lines of [footBelow,footAbove]){lines.geometry.dispose();lines.material.dispose();}capMesh.geometry.dispose();capMesh.material.dispose();concreteBump.dispose();ground.geometry.dispose();ground.material.dispose();grid.geometry.dispose();grid.material.dispose();for(const g of geometryCache)g.dispose();for(const m of matCache.values())m.dispose();
+      clearOutline();scene.environment=null;envTarget?.dispose();sun.shadow.map?.dispose();modelEdges.geometry.dispose();modelEdges.material.dispose();stageBase.geometry.dispose();stageBase.material.dispose();for(const lines of [footBelow,footAbove]){lines.geometry.dispose();lines.material.dispose();}capMesh.geometry.dispose();capMesh.material.dispose();concreteBump.dispose();ground.geometry.dispose();ground.material.dispose();grid.geometry.dispose();grid.material.dispose();for(const g of geometryCache)g.dispose();for(const m of matCache.values())m.dispose();
       renderer.dispose();renderer.forceContextLoss();el.remove();
     }
     if(typeof pushBack==='function') backRemove=pushBack(close);
@@ -673,5 +741,5 @@
     onResize();chooseTemplate(initialType);
     return { close, getSelected:()=>registry.get(selected)?.meta||null, selectById:id=>{if(disposed||!registry.get(id)?.mesh.visible)return false;select(id);return selected===id;}, projectId, schema:SCHEMA };
   }
-  window.ModelCore3D = { open, validateManifest, ficheGeometrique, suggestionsPlan, gesteSelection, gestePan, profilMateriau, contourCoupe, contactPlancher, segmentDansPolygone, fusionIntervalles, typePlancher, typeSupport, coupeParametres, pointDansCoupe, maquetteParametrique, demo:(type='stade')=>type==='stade'?createDemo():window.ModelCoreTemplates?window.ModelCoreTemplates.make(type):createDemo(), schema:SCHEMA };
+  window.ModelCore3D = { open, validateManifest, ficheGeometrique, suggestionsPlan, gesteSelection, gestePan, profilMateriau, profilRendu, studioPixels, contourCoupe, contactPlancher, segmentDansPolygone, fusionIntervalles, typePlancher, typeSupport, coupeParametres, pointDansCoupe, maquetteParametrique, demo:(type='stade')=>type==='stade'?createDemo():window.ModelCoreTemplates?window.ModelCoreTemplates.make(type):createDemo(), schema:SCHEMA };
 })();
