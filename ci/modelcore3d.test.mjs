@@ -153,3 +153,21 @@ for(const family of ['immeuble','batiment','villa','hopital']){
 assert.ok(code.includes('capMesh.geometry.setAttribute'));
 assert.ok(code.includes('renderer.shadowMap.enabled=high'));
 console.log('ModelCore X — matières, détails architecturaux et fermeture des primitives : tests OK.');
+
+// Plancher : appuis géométriques, pas d'association par nom de niveau.
+assert.equal(M.contactPlancher(3,3.25,0,3,'below')!==null,true);
+assert.equal(M.contactPlancher(3,3.25,3.25,6,'above')!==null,true);
+assert.equal(M.contactPlancher(3,3.25,0,2.8,'below'),null);
+assert.equal(M.contactPlancher(3,3.25,3.25,6,'below'),null);
+assert.equal(M.contactPlancher(3,3.25,0,3,'above'),null);
+assert.equal(M.contactPlancher(3,3.25,3.1,3.2,'above'),null);
+const floorPoly=[[0,0],[4,0],[4,4],[0,4]];
+const floorSegment=M.segmentDansPolygone([-2,2],[6,2],floorPoly);
+assert.ok(Math.abs(floorSegment[0]-.25)<1e-6&&Math.abs(floorSegment[1]-.75)<1e-6);
+assert.equal(M.segmentDansPolygone([-2,5],[6,5],floorPoly),null);
+assert.ok(M.segmentDansPolygone([1,1],[2,2],[[0,0],[4,0],[0,4]]));
+assert.equal(M.segmentDansPolygone([3,3],[4,4],[[0,0],[4,0],[0,4]]),null);
+assert.equal(JSON.stringify(M.fusionIntervalles([[.5,1],[0,.5],[.2,.4]])),'[[0,1]]');
+assert.ok(M.typeSupport('Voile / mur')&&M.typeSupport('Poteau')&&M.typeSupport('Poutre'));
+assert.ok(M.typePlancher('Dalle')&&!M.typePlancher('Poteau'));
+console.log('ModelCore X — contacts plancher, découpage des empreintes et côtés : tests OK.');
