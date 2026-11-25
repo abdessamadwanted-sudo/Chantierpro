@@ -43,3 +43,10 @@ Limite : pas de capuchon ni de hachure sur les surfaces coupées (coupe visuelle
 - Deux doigts : le pincement conserve le zoom OrbitControls; le déplacement du milieu des doigts translate la projection à l'écran sans modifier le pivot 3D. La vue zénithale reçoit le même décalage. Ajuster annule le décalage et recentre le projet.
 - Première correction visuelle après photographie de l'application : exposition ACES réduite, lumières moins fortes, grille atténuée et couleurs géométriques par défaut. Pas encore de matériaux texturés, de Section Caps ni de refonte détaillée de tous les modèles.
 - Test de calcul du déplacement et parcours navigateur du tiroir ajoutés; contrôle tactile et rendu Android réel non encore validés.
+
+## Rendu V3 — retour du propriétaire
+- Modes Fluide (par défaut) / Détaillé (ombres PCF 1024, relief procédural partagé 64 × 64 sur primitives béton avec UV, densité de pixels limitée à 1,5). Pas d'actif distant. Matériaux indicatifs différenciés béton, vitrage, acier, métal, enduit, réseaux. Vitrage teinté opaque, pas de reflets physiques ni de matériau IFC certifié.
+- Contour cyan non soumis au tone mapping, surbrillance légère conservant la couleur de base; réutilisation pendant la sélection, libération à la fermeture. Cadrage par projection des huit coins de la boîte englobante; légende masquée en mode matériaux.
+- Maquettes fictives enrichies (résidence, bâtiment, villa, hôpital) : menuiseries, garde-corps, cloisons, portes, locaux de toiture. Les anciens identifiants de démo restent inchangés. Pas de validation structurelle.
+- Coupe : fermeture visuelle exacte des primitives pleines box/beam, intersection de leurs arêtes orientées avec le plan de coupe. Maillage de fermeture groupé, maximum 1 500 primitives visibles examinées; pas de fermeture des maillages IFC arbitraires ni de hachure, pas de sélection directe de la surface de fermeture. La source reste intacte.
+- Tests unitaires ajoutés; vérifier CI, rendu et fluidité Android, notamment ombres en mode Détaillé, sélection, coupe et navigation simultanées.
