@@ -2493,6 +2493,11 @@ try {
       o.qualSeuleOuverte = !!root.querySelector('details[data-g=sq]');
       o.travauxCacheSansChoix = !root.querySelector('details[data-g=sv-travaux]');
       o.hseCacheSansChoix = !root.querySelector('details[data-g=sv-hse]');
+      // DIAGNOSTIC TEMPORAIRE (à retirer)
+      o.dbgServices = Team.companyServices().map(x => x.k);
+      o.dbgFlag = Team.flag('svcqual');
+      o.dbgQualGenerique = !!root.querySelector('details[data-g=qual]');
+      o.dbgSameObj = Team.company() === co;
       // en rajoutant Travaux au choix de l'Entreprise, son volet apparaît sans toucher à HSE (toujours non choisi)
       co.services = ['direction', 'qualite', 'travaux'];
       ST.renderProjectTools(root); await wait(400);
@@ -2506,7 +2511,7 @@ try {
   });
   log('Mises en service par choix de l\'Entreprise', fl2);
   const fl2ok = !fl2.noProject && !fl2.err && fl2.qualSeuleOuverte && fl2.travauxCacheSansChoix && fl2.hseCacheSansChoix && fl2.travauxApparaitUneFoisChoisi && fl2.hseResteCache && fl2.restaure;
-  log('errors v1.0.3xx services choisis', fl2ok ? [] : ['v1.0.3xx services choisis ' + JSON.stringify(fl2)]);
+  if (!fl2ok) throw new Error('services choisis KO ' + JSON.stringify(fl2));
   if (!qs1.noProject && !qs1.pasQual && !(qs1.volets && qs1.adm && qs1.ter && qs1.reglage && qs1.basicInchange && qs1.icones && qs1.adminSeul && qs1.deuxCat && qs1.services)) throw new Error('volets qualité KO ' + JSON.stringify(qs1));
   if (!qs1.noProject && !(qs1.qaEnterprise && qs1.qaBasicAbsente && qs1.qaProPresente)) throw new Error('barre de raccourcis rapides par pack KO ' + JSON.stringify(qs1));
   // ---- Suivis personnalisés + modèle visuel : cases liées aux colonnes, PDF écrit sur le bon
