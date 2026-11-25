@@ -3082,11 +3082,19 @@ try {
       button('cut').click();o.cut=!root.querySelector('[data-role="section-panel"]').hidden;
       button('section-reset').click();
       button('fitquick').click();
+      const specimen=ModelCore3D.demo('immeuble').elements.find(e=>e.type==='Poteau');
+      const inspector=root.querySelector('[data-role="inspector"]');
+      o.selected=instance.selectById(specimen.id)&&instance.getSelected()?.id===specimen.id&&!inspector.hidden&&stage.clientHeight===height;
+      o.geometry=!!root.querySelector('[data-val="object-geo"]').textContent;
+      button('detail').click();o.detail=!root.querySelector('[data-role="extra"]').hidden;
+      button('isolate').click();o.isolate=button('isolate').textContent==='Quitter';
+      button('restore-hidden').click();o.restored=button('isolate').textContent==='Isoler';
+      button('selection-close').click();o.selectionClosed=inspector.hidden&&!instance.getSelected()&&stage.clientHeight===height;
       instance.close();instance=null;o.removed=!document.querySelector('.st-mc3d');
     }catch(e){o.err=String(e.message||e);}finally{if(instance)instance.close();}return o;
   });
   log('ModelCore X viewport mobile',vMc);
-  log('errors v1.0.x ModelCore X viewport',!vMc.err&&['closed','open','filters','architecture','reclosed','cut','removed'].every(k=>vMc[k])?[]:['ModelCore X '+JSON.stringify(vMc)]);
+  log('errors v1.0.x ModelCore X viewport',!vMc.err&&['closed','open','filters','architecture','reclosed','cut','selected','geometry','detail','isolate','restored','selectionClosed','removed'].every(k=>vMc[k])?[]:['ModelCore X '+JSON.stringify(vMc)]);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
