@@ -2474,6 +2474,57 @@ try {
   });
   log('Mises en service', fl1);
   if (!fl1.noProject && !(fl1.fermees && fl1.qualEquipeOuverte && fl1.sqOuvert && fl1.travHseOuverts && fl1.autresFermes && fl1.monEspaceCache && fl1.testAutre && fl1.pub && fl1.autrePack)) throw new Error('mises en service KO ' + JSON.stringify(fl1));
+  // ---- v1.0.3xx (24/11/2026, nuit, suite) : demande du propriétaire (signalé sur son compte réel « Ghomari ») —
+  // un volet de service dédié ne doit s'afficher que si CETTE Entreprise a elle-même choisi ce service (onboarding
+  // « stepSvcs », Team.companyServices()), pas seulement parce que le drapeau est ouvert pour tout le pack. Avant
+  // ce correctif, une Entreprise n'ayant choisi QUE Qualité se retrouvait quand même avec Travaux et HSE affichés,
+  // dès que ces drapeaux étaient « pub » pour tout le monde (voir FLAG_DEFAULT ci-dessus) — c'est exactement le
+  // souci que le propriétaire a signalé en capture d'écran.
+  const fl2 = await A.pg.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms)), o = {}; const pr0 = (await DB.all('projects'))[0]; if (!pr0) return { noProject: true };
+    const prevFp = JSON.parse(JSON.stringify((JSON.parse(localStorage.getItem('team.appCfg') || 'null') || {}).fp || {}));
+    const prevCompanyServices = Team.companyServices;
+    try {
+      App.project = pr0;
+      sessionStorage.setItem('st.preview', JSON.stringify({ plan: 'enterprise', role: 'patron' }));
+      // on ne garde QUE les 3 drapeaux testés ici en « pub » (le test précédent « Mises en service » laisse tous les
+      // drapeaux en « pub », y compris ceux des espaces d'intervenants (espbet/esparchi…) — ça activerait ivOn()/entOn()
+      // et ferait passer le volet Qualité par un tout autre chemin d'affichage (data-sg dans l'accordéon « Entreprise »),
+      // faussant ce test qui porte uniquement sur le choix des services de CETTE Entreprise)
+      Team.applyFlags({ svcqual: { business: 'pub', enterprise: 'pub' }, svctravaux: { business: 'pub', enterprise: 'pub' }, svchse: { business: 'pub', enterprise: 'pub' } }, []);
+      // Team.companyServices() mélange company.services avec le service individuel de chaque membre de l'équipe
+      // (voulu : un membre affecté à un service ne doit jamais perdre son volet) — sur le compte de test, d'anciens
+      // membres créés plus haut dans ce script ont service:'travaux'/'topo', ce qui fausserait la simulation « cette
+      // Entreprise n'a choisi que Qualité ». On isole donc ce test en remplaçant temporairement companyServices().
+      const root = document.createElement('div'); document.body.appendChild(root);
+      // Entreprise n'ayant choisi que Direction + Qualité (pas Travaux, pas HSE)
+      Team.companyServices = () => [{ k: 'direction' }, { k: 'qualite' }];
+      ST.renderProjectTools(root); await wait(400);
+      o.qualSeuleOuverte = !!root.querySelector('details[data-g=sq]');
+      o.travauxCacheSansChoix = !root.querySelector('details[data-g=sv-travaux]');
+      o.hseCacheSansChoix = !root.querySelector('details[data-g=sv-hse]');
+      // en rajoutant Travaux au choix de l'Entreprise, son volet apparaît sans toucher à HSE (toujours non choisi)
+      Team.companyServices = () => [{ k: 'direction' }, { k: 'qualite' }, { k: 'travaux' }];
+      ST.renderProjectTools(root); await wait(400);
+      o.travauxApparaitUneFoisChoisi = !!root.querySelector('details[data-g=sv-travaux]');
+      o.hseResteCache = !root.querySelector('details[data-g=sv-hse]');
+      // restauration : on revient aux vrais Team.companyServices()/drapeaux de ce compte (celui-ci a « travaux » parmi
+      // ses services réels, via ses membres) et on vérifie juste que le rendu continue de fonctionner sans planter —
+      // avec tous les drapeaux repassés « pub » (comme les laisse le test précédent), les espaces d'intervenants
+      // (espbet…) se rallument aussi, et le volet Travaux de l'Entreprise passe alors par l'accordéon « Entreprise »
+      // (data-sg="travaux") plutôt que par data-g="sv-travaux" directement — les deux formes sont donc acceptées ici
+      Team.companyServices = prevCompanyServices;
+      Team.applyFlags(Team.allFlags('pub'), []);
+      ST.renderProjectTools(root); await wait(400);
+      o.restaure = !!root.querySelector('.st-ptools-p') && !!root.querySelector('details[data-g=sv-travaux], details[data-sg=travaux]');
+      sessionStorage.removeItem('st.preview'); root.remove();
+    } catch (e) { o.err = String(e.message || e); }
+    finally { Team.companyServices = prevCompanyServices; Team.applyFlags(prevFp, []); }
+    return o;
+  });
+  log('Mises en service par choix de l\'Entreprise', fl2);
+  const fl2ok = !fl2.noProject && !fl2.err && fl2.qualSeuleOuverte && fl2.travauxCacheSansChoix && fl2.hseCacheSansChoix && fl2.travauxApparaitUneFoisChoisi && fl2.hseResteCache && fl2.restaure;
+  if (!fl2ok) throw new Error('services choisis KO ' + JSON.stringify(fl2));
   if (!qs1.noProject && !qs1.pasQual && !(qs1.volets && qs1.adm && qs1.ter && qs1.reglage && qs1.basicInchange && qs1.icones && qs1.adminSeul && qs1.deuxCat && qs1.services)) throw new Error('volets qualité KO ' + JSON.stringify(qs1));
   if (!qs1.noProject && !(qs1.qaEnterprise && qs1.qaBasicAbsente && qs1.qaProPresente)) throw new Error('barre de raccourcis rapides par pack KO ' + JSON.stringify(qs1));
   // ---- Suivis personnalisés + modèle visuel : cases liées aux colonnes, PDF écrit sur le bon
