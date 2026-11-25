@@ -53,7 +53,7 @@ const custom=M.validateManifest({schema:M.schema,elements:[{
 assert.equal(custom[0].type,'Pieu foré','catégorie IFC libre conservée');
 console.log('ModelCore 3D multi-projets OK — '+families.join(', '));
 
- // ModelCore X : contrat géométrique, résidence et séparation des états.
+ // ModelCore X : contrat géométrique, résidence et indépendance métier.
 const twin=M.validateManifest(M.demo('immeuble'));
 assert.deepEqual([...new Set(twin.map(x=>x.building))].sort(),['Bloc A','Bloc B']);
 for(const block of ['Bloc A','Bloc B']){
@@ -62,11 +62,13 @@ for(const block of ['Bloc A','Bloc B']){
   for(const lot of ['Fondations','Gros œuvre','Architecture','Ferraillage','CFO/CFA','Plomberie','CVC'])
     assert.ok(twin.some(x=>x.building===block&&x.lot===lot));
 }
-const local=M.suiviInitial({status:'Réceptionné'});
-assert.equal(local.Travaux,'Terminé');assert.equal(local.Qualité,'Réceptionné');
-local.Travaux='Bloqué';assert.equal(local.Qualité,'Réceptionné');
+assert.equal(M.suiviInitial,undefined,'Le moteur ne crée aucun état métier par service');
+assert.ok(!code.includes('data-role="service"'),'Aucun sélecteur de service métier');
+assert.match(M.ficheGeometrique({kind:'box',size:[2,3,4]}),/24\.000 m³/);
+assert.match(M.ficheGeometrique({kind:'beam',start:[0,0,0],end:[3,4,0],width:.4,depth:.5}),/5\.00 m/);
+assert.match(M.ficheGeometrique({kind:'mesh',positions:[0,0,0,1,0,0,0,1,0],indices:[0,1,2]}),/3 sommets · 1 triangles/);
 const generated=M.validateManifest(M.maquetteParametrique({hauteur:3.2,epaisseur:.25,niveaux:3,entraxe:5}));
 assert.equal(generated.length,105);
 assert.equal(generated.filter(x=>x.type==='Poteau').length,36);
 assert.throws(()=>M.maquetteParametrique({hauteur:0,epaisseur:.25,niveaux:3,entraxe:5}),/limites/);
-console.log('ModelCore X — résidence, suivi indépendant et génération paramétrique OK.');
+console.log('ModelCore X — résidence, fiche géométrique et génération paramétrique OK.');
