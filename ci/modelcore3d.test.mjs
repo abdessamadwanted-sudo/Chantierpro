@@ -117,3 +117,72 @@ assert.equal(M.pointDansCoupe({x:1000,y:1000,z:0},[]),true);
 assert.ok(code.includes('renderer.clippingPlanes=planes'),'Découpe de triangles par le moteur WebGL');
 assert.ok(code.includes('.find(h=>pointDansCoupe(h.point,renderer.clippingPlanes))'),'Pas de sélection derrière une surface découpée');
 console.log('ModelCore X — coupes H/V, inversion et raycast : tests OK.');
+
+// Déplacement à deux doigts : translation du milieu, indépendamment du pincement.
+const pan=M.gestePan();
+const touch=(pointerId,clientX,clientY)=>({pointerId,clientX,clientY,pointerType:'touch'});
+pan.down(touch(1,10,10));assert.equal(pan.move(touch(1,20,20)),null);
+pan.down(touch(2,60,20));
+let d=pan.move(touch(1,30,30));assert.equal(d.x,5);assert.equal(d.y,5);
+d=pan.move(touch(2,70,30));assert.equal(d.x,5);assert.equal(d.y,5);
+let a=pan.move(touch(1,20,30)),b=pan.move(touch(2,80,30));assert.equal(a.x+b.x,0,'pincement symétrique sans déplacement');
+pan.up(touch(2,80,30));assert.equal(pan.move(touch(1,10,10)),null);
+pan.reset();assert.equal(pan.move(touch(1,50,50)),null);
+assert.ok(code.includes('camera.setViewOffset(w,h,-pan.x*w,-pan.y*h,w,h)'),'Pan sans déplacement du pivot');
+assert.ok(code.includes('data-role="tools-panel" hidden'),'Tiroir replié au démarrage');
+assert.ok(code.includes('data-role="inspector" hidden'),'Fiche repliée au démarrage');
+console.log('ModelCore X — pan tactile et viewport prioritaire : tests OK.');
+
+// Rendu différencié et fermeture géométrique (boîtes/poutres).
+assert.equal(M.profilMateriau('Poteau','Gros œuvre').kind,'beton');
+assert.equal(M.profilMateriau('Vitrage','Architecture').kind,'verre');
+assert.equal(M.profilMateriau('Poteau','Charpente métallique').kind,'metal');
+assert.equal(M.profilMateriau('Armature','Ferraillage').kind,'acier');
+const cube=Array.from({length:8},(_,i)=>[i&1?2:0,i&2?2:0,i&4?2:0]);
+const poly=M.contourCoupe(cube,[0,-1,0],1);
+assert.equal(poly.length,4);assert.ok(poly.every(p=>Math.abs(p[1]-1)<1e-8));
+assert.equal(M.contourCoupe(cube,[-1,0,0],3).length,0);
+assert.equal(M.contourCoupe(cube,[0,1,0],-2).length,0);
+const diag=cube.map(([x,y,z])=>[x-y,x+y,z]);
+assert.equal(M.contourCoupe(diag,[1,0,0],-.5).length,4);
+for(const family of ['immeuble','batiment','villa','hopital']){
+  const model=M.validateManifest(M.demo(family));
+  assert.ok(model.some(e=>e.type==='Menuiserie')&&model.some(e=>e.type==='Cloison'));
+  assert.ok(new Set(model.map(e=>e.id)).size===model.length);
+}
+assert.ok(code.includes('capMesh.geometry.setAttribute'));
+assert.ok(code.includes('renderer.shadowMap.enabled=high'));
+console.log('ModelCore X — matières, détails architecturaux et fermeture des primitives : tests OK.');
+
+// Plancher : appuis géométriques, pas d'association par nom de niveau.
+assert.equal(M.contactPlancher(3,3.25,0,3,'below')!==null,true);
+assert.equal(M.contactPlancher(3,3.25,3.25,6,'above')!==null,true);
+assert.equal(M.contactPlancher(3,3.25,0,2.8,'below'),null);
+assert.equal(M.contactPlancher(3,3.25,3.25,6,'below'),null);
+assert.equal(M.contactPlancher(3,3.25,0,3,'above'),null);
+assert.equal(M.contactPlancher(3,3.25,3.1,3.2,'above'),null);
+const floorPoly=[[0,0],[4,0],[4,4],[0,4]];
+const floorSegment=M.segmentDansPolygone([-2,2],[6,2],floorPoly);
+assert.ok(Math.abs(floorSegment[0]-.25)<1e-6&&Math.abs(floorSegment[1]-.75)<1e-6);
+assert.equal(M.segmentDansPolygone([-2,5],[6,5],floorPoly),null);
+assert.ok(M.segmentDansPolygone([1,1],[2,2],[[0,0],[4,0],[0,4]]));
+assert.equal(M.segmentDansPolygone([3,3],[4,4],[[0,0],[4,0],[0,4]]),null);
+assert.equal(JSON.stringify(M.fusionIntervalles([[.5,1],[0,.5],[.2,.4]])),'[[0,1]]');
+assert.ok(M.typeSupport('Voile / mur')&&M.typeSupport('Poteau')&&M.typeSupport('Poutre'));
+assert.ok(M.typePlancher('Dalle')&&!M.typePlancher('Poteau'));
+console.log('ModelCore X — contacts plancher, découpage des empreintes et côtés : tests OK.');
+
+// Studio : plafonds GPU, environnement local et profils sans mutation de géométrie.
+assert.equal(M.profilRendu('standard',100).shadows,false);
+assert.equal(M.profilRendu('high',100).shadows,true);
+assert.equal(M.profilRendu('studio',100).pixelRatio,2);
+assert.equal(M.profilRendu('studio',2000).shadows,false);
+assert.equal(M.profilRendu('studio',2000).edges,false);
+assert.equal(M.profilRendu('studio',2000).pixelRatio,1);
+assert.equal(M.profilRendu('studio',100,1024).shadowSize,1024);
+const pixels=M.studioPixels(16,8);
+assert.equal(pixels.length,16*8*4);assert.ok(pixels.every((v,i)=>i%4!==3||v===255));
+assert.ok(new Set(pixels).size>20);
+assert.ok(code.includes('pmrem.fromEquirectangular(source)'));
+assert.ok(code.includes('renderer.shadowMap.autoUpdate=false'));
+console.log('ModelCore X — profils Studio, environnement procédural et plafonds GPU : tests OK.');

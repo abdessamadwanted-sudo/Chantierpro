@@ -37,3 +37,34 @@ IFC direct limité et non encore validé sur Android; pas d'IA générative conn
 Le bouton ◫ ouvre un panneau compact superposé au viewport. H = axe Y vertical, haut vers bas. V = axe X du modèle, +X vers −X (droite/gauche en vue de référence). Glisser chaque curseur découpe les triangles en temps réel; les deux axes peuvent être activés simultanément. Les boutons d'inversion changent le côté supprimé. Reset désactive les plans. Replier le panneau conserve les coupes actives.
 Les plans Three.js sont globaux et non destructifs : ils s'appliquent aux géométries importées IFC/JSON et aux maquettes paramétriques, ainsi qu'aux vues 2D zénithale et hybride. La position du pivot reste indépendante de la coupe; les bornes sont recalculées à l'ajustement et en vue éclatée. Le raycast ignore les intersections masquées par les plans. Les coupes n'affectent pas les volumes, identifiants ou données stockés.
 Limite : pas de capuchon ni de hachure sur les surfaces coupées (coupe visuelle ouverte). Les axes restent fixes au modèle pendant la rotation, pas à l'écran. Essais sur Android et validation graphique nécessaires.
+
+## Retour utilisateur sur Android — viewport et navigation
+- Le panneau Outils/Filtres remonte en feuille superposée, fermé par défaut. Il regroupe le choix de famille, les compteurs, Structure/Architecture/États, Filtres, Calques, Vue, Éclaté et Toiture. Le viewport ne rétrécit pas lorsque le tiroir s'ouvre; la fiche d'ouvrage est masquée tant qu'aucun ouvrage n'est sélectionné.
+- Deux doigts : le pincement conserve le zoom OrbitControls; le déplacement du milieu des doigts translate la projection à l'écran sans modifier le pivot 3D. La vue zénithale reçoit le même décalage. Ajuster annule le décalage et recentre le projet.
+- Première correction visuelle après photographie de l'application : exposition ACES réduite, lumières moins fortes, grille atténuée et couleurs géométriques par défaut. Pas encore de matériaux texturés, de Section Caps ni de refonte détaillée de tous les modèles.
+- Test de calcul du déplacement et parcours navigateur du tiroir ajoutés; contrôle tactile et rendu Android réel non encore validés.
+
+## Rendu V3 — retour du propriétaire
+- Modes Fluide (par défaut) / Détaillé (ombres PCF 1024, relief procédural partagé 64 × 64 sur primitives béton avec UV, densité de pixels limitée à 1,5). Pas d'actif distant. Matériaux indicatifs différenciés béton, vitrage, acier, métal, enduit, réseaux. Vitrage teinté opaque, pas de reflets physiques ni de matériau IFC certifié.
+- Contour cyan non soumis au tone mapping, surbrillance légère conservant la couleur de base; réutilisation pendant la sélection, libération à la fermeture. Cadrage par projection des huit coins de la boîte englobante; légende masquée en mode matériaux.
+- Maquettes fictives enrichies (résidence, bâtiment, villa, hôpital) : menuiseries, garde-corps, cloisons, portes, locaux de toiture. Les anciens identifiants de démo restent inchangés. Pas de validation structurelle.
+- Coupe : fermeture visuelle exacte des primitives pleines box/beam, intersection de leurs arêtes orientées avec le plan de coupe. Maillage de fermeture groupé, maximum 1 500 primitives visibles examinées; pas de fermeture des maillages IFC arbitraires ni de hachure, pas de sélection directe de la surface de fermeture. La source reste intacte.
+- Tests unitaires ajoutés; vérifier CI, rendu et fluidité Android, notamment ombres en mode Détaillé, sélection, coupe et navigation simultanées.
+
+### Fiche flottante et cadrage
+- L'inspecteur apparaît en surimpression sans redimensionner la maquette. Identité, localisation, géométrie, état local, avancement et actions; fermeture et restauration des éléments masqués indépendamment des coupes et filtres.
+- Si la fiche est ouverte, les réglages de coupe se placent en haut de la vue. Le recalcul de cadrage après import attend le retour au viewport. La projection 2D réutilise les bornes déjà calculées au lieu de parcourir le modèle à chaque rendu.
+- API locale selectById limitée aux éléments visibles pour le futur lien plan/maquette. Le parcours navigateur vérifie la fiche, l'isolation et la restauration. Validation Android réelle encore nécessaire.
+
+### Mode Plancher — empreintes géométriques
+- Bouton Plancher dans la barre rapide, puis choix du niveau et des empreintes : dessous (trait bleu foncé), dessus (pointillé ocre) ou les deux. Les dalles restent visibles; les appuis ne sont pas affichés en volume.
+- Les contacts sont recherchés sur la géométrie chargée, dans le même bâtiment, indépendamment du nom du niveau des appuis. Tolérance indicative de 3 cm; section des primitives orientées ou intersection des triangles de maillage, puis découpage des traits à l'emprise de la dalle. Les filtres de dalle et les masquages d'appuis restent appliqués.
+- Dalles horizontales uniquement : rectangle pour les boîtes, triangles horizontaux supérieurs pour les maillages. Les dalles non traitées et les limites de calcul sont indiquées. Les contacts sont indicatifs, pas une vérification de portance ni un plan de coffrage d'exécution; les contours des maillages complexes peuvent être incomplets. Mode éclaté incompatible.
+- Tests de contact, découpe de segments et parcours navigateur ajoutés. Contrôle visuel des traits et du rendu sur Android réel encore requis.
+
+### Studio Render — troisième profil graphique
+- Fluide : profil par défaut, densité de pixels plafonnée à 1. Détaillé : ombres 1024, reflets et relief léger. Studio : résolution jusqu'à 2 fois la densité logique, ombres jusqu'à 2048, fond dégradé et socle de présentation.
+- Environnement PBR local (panorama procédural 256 × 128, préfiltré PMREM), reflets indicatifs sur les matériaux. Vitrage physique teinté avec clearcoat, mais opaque : pas de transmission ni de réfraction. Aucun actif externe.
+- Arêtes des primitives regroupées en un seul objet de rendu; ombres recalculées après modifications de visibilité/géométrie, pas à chaque orbite. Ombres désactivées pendant les coupes et le mode Plancher. Au-delà de 1 800 objets, les profils coûteux sont allégés; la limite est indicative et non un benchmark.
+- Le profil graphique ne modifie ni géométrie BIM, ni identifiants, ni données. En cas d'échec de l'environnement, le moteur reste en éclairage direct.
+- Tests des profils, panorama et changements en navigateur; deux captures réelles du rendu Studio (structure et architecture) prévues dans les artefacts CI. Le résultat visuel et la fluidité sur Android doivent être évalués, sans assimiler ce moteur temps réel à un rendu photoréaliste hors ligne.

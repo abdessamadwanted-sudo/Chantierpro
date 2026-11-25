@@ -131,6 +131,37 @@
       box('Rampe','Bâtiment A','Accès','RDC','VRD',[10,.35,4],[17,.25,0]);
       box('Local technique','Bâtiment A','Technique','RDC','CVC',[5,3,5],[-6,1.5,0]);
     }
+    // Détails architecturaux ajoutés après le modèle initial pour préserver les identifiants existants.
+    if(type==='immeuble'||type==='batiment'||type==='villa'||type==='hopital'){
+      const frames=type==='immeuble'?[['Bloc A',-10,0,12,10,7,3.15],['Bloc B',10,-1,13,11,7,3.15]]:type==='batiment'?[['Bâtiment A',0,0,23,17,5,3.2]]:type==='villa'?[['Villa A',0,0,14,11,2,3.2]]:[['Bloc A — soins',-12,0,19,13,5,3.2],['Bloc B — consultations',12,0,18,13,4,3.2]];
+      for(const [b,cx,cz,w,d,n,h] of frames){
+        for(let f=0;f<n;f++){
+          const y=f*h,l=f?'R+'+f:'RDC',lot='Architecture';
+          for(const z of [cz-d/2,cz+d/2])for(let i=0;i<3;i++){
+            const x=cx-w/2+(i+.5)*w/3,bw=w/3-.65;
+            if(type!=='immeuble'){
+              box('Façade',b,'Enveloppe',l,lot,[bw,.68,.18],[x,y+.48,z]);
+              box('Vitrage',b,'Enveloppe',l,lot,[bw-.25,1.5,.09],[x,y+1.58,z]);
+              box('Façade',b,'Enveloppe',l,lot,[bw,.48,.18],[x,y+h-.32,z]);
+            }
+            for(const xx of [x-bw/2,x,x+bw/2])box('Menuiserie',b,'Façade',l,lot,[.065,1.6,.20],[xx,y+1.65,z]);
+            for(const yy of [y+.88,y+2.42])box('Menuiserie',b,'Façade',l,lot,[bw,.065,.20],[x,yy,z]);
+            if(type==='immeuble'&&f>0&&z>cz){
+              const zz=z+1.25;
+              beam('Garde-corps',b,'Balcon',l,lot,[x-bw/2,y+1.03,zz],[x+bw/2,y+1.03,zz],.055,.055);
+              for(let j=0;j<3;j++)box('Garde-corps',b,'Balcon',l,lot,[.045,.95,.045],[x-bw/2+j*bw/2,y+.55,zz]);
+            }
+          }
+          // Cloisons et portes fictives : pas de plan réel ni d'ouverture structurale garantie.
+          for(const x of [cx-w*.26,cx+w*.26])box('Cloison',b,'Locaux',l,'Second œuvre',[.12,h-.35,d*.43],[x,y+h/2,cz+d*.12]);
+          box('Porte',b,'Circulation',l,'Second œuvre',[.9,2.1,.09],[cx+w*.12,y+1.18,cz+d*.335]);
+        }
+        const top=n*h;
+        box('Local technique',b,'Toiture','Toiture','Architecture',[2.1,1.9,2.2],[cx,top+1.05,cz]);
+        box('Couverture',b,'Toiture','Toiture','Architecture',[2.35,.18,2.45],[cx,top+2.08,cz]);
+        if(type!=='immeuble')for(const z of [cz-d/2,cz+d/2])box('Acrotère',b,'Toiture','Toiture','Architecture',[w,.65,.18],[cx,top+.42,z]);
+      }
+    }
     return {schema,projectType:type,elements:els};
   }
   window.ModelCoreTemplates={types:TYPES,normalize,make};

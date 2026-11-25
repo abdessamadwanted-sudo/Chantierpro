@@ -3062,6 +3062,75 @@ try {
   const vAuditDeny = await B.pg.evaluate(async (cid) => { try { await firebase.firestore().collection('companies').doc(cid).collection('audit').get(); return 'ALLOWED (BAD)'; } catch (e) { return 'denied OK: ' + e.code; } }, await A.pg.evaluate(() => Team.company().id));
   log('B (non-admin, autre organisation) lecture journal A', vAuditDeny);
   log('errors v1.0.3xx [journal d\'audit]', !vAudit.err && vAudit.hasGrant && vAudit.hasPerms && /^denied OK/.test(vAuditDeny) ? [] : ['v1.0.3xx ' + JSON.stringify(vAudit) + ' ' + vAuditDeny]);
+  // ---- v1.0.x : ModelCore X — tiroir de filtres et viewport mobile
+  const vMc = await A.pg.evaluate(async () => {
+    const o={};let instance=null;
+    try{
+      for(const src of ['vendor/3d/three.min.js','vendor/3d/OrbitControls.js','js/modelcore3d-templates.js','js/modelcore3d.js']){
+        if(![...document.scripts].some(s=>s.src.endsWith('/'+src)))await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=src;s.onload=resolve;s.onerror=()=>reject(Error(src));document.head.append(s);});
+      }
+      instance=await ModelCore3D.open({projectName:'Test maquette',projectType:'immeuble'});
+      const root=document.querySelector('.st-mc3d'),panel=root.querySelector('[data-role="tools-panel"]'),stage=root.querySelector('[data-role="stage"]');
+      const button=a=>root.querySelector('[data-act="'+a+'"]');
+      await new Promise(requestAnimationFrame);
+      const height=stage.clientHeight;
+      o.closed=panel.hidden&&root.querySelector('[data-role="inspector"]').hidden&&height>200;
+      button('tools').click();o.open=!panel.hidden&&button('tools').getAttribute('aria-expanded')==='true'&&stage.clientHeight===height;
+      button('filters').click();o.filters=root.querySelector('[data-role="filters"]').classList.contains('open');
+      button('architecture').click();o.architecture=button('architecture').classList.contains('active');
+      const quality=root.querySelector('[data-role="quality"]');
+      quality.value='studio';quality.dispatchEvent(new Event('change'));
+      await new Promise(requestAnimationFrame);
+      o.studio=root.querySelector('[data-val="render-profile"]').textContent.startsWith('Studio');
+      quality.value='standard';quality.dispatchEvent(new Event('change'));
+      await new Promise(requestAnimationFrame);
+      o.fluide=root.querySelector('[data-val="render-profile"]').textContent.startsWith('Fluide');
+      button('tools-close').click();o.reclosed=panel.hidden&&stage.clientHeight===height;
+      button('cut').click();o.cut=!root.querySelector('[data-role="section-panel"]').hidden;
+      button('section-reset').click();
+      button('fitquick').click();
+      const specimen=ModelCore3D.demo('immeuble').elements.find(e=>e.type==='Poteau');
+      const inspector=root.querySelector('[data-role="inspector"]');
+      o.selected=instance.selectById(specimen.id)&&instance.getSelected()?.id===specimen.id&&!inspector.hidden&&stage.clientHeight===height;
+      o.geometry=!!root.querySelector('[data-val="object-geo"]').textContent;
+      button('detail').click();o.detail=!root.querySelector('[data-role="extra"]').hidden;
+      button('isolate').click();o.isolate=button('isolate').textContent==='Quitter';
+      button('restore-hidden').click();o.restored=button('isolate').textContent==='Isoler';
+      button('selection-close').click();o.selectionClosed=inspector.hidden&&!instance.getSelected()&&stage.clientHeight===height;
+      button('plancher').click();
+      const level=root.querySelector('[data-filter="level"]');level.value='R+2';level.dispatchEvent(new Event('change'));
+      const report=root.querySelector('[data-val="foot-report"]');
+      await new Promise(requestAnimationFrame);
+      o.floor=button('plancher').getAttribute('aria-pressed')==='true'&&!root.querySelector('[data-role="foot-controls"]').hidden;
+      o.supports=Number(report.textContent.match(/^(\d+) dessous/)?.[1])>0;
+      const side=root.querySelector('[data-role="foot-side"]');side.value='both';side.dispatchEvent(new Event('change'));
+      await new Promise(requestAnimationFrame);
+      o.above=Number(report.textContent.match(/(\d+) dessus/)?.[1])>0;
+      button('plancher').click();o.floorClosed=root.querySelector('[data-role="foot-controls"]').hidden;
+      instance.close();instance=null;o.removed=!document.querySelector('.st-mc3d');
+    }catch(e){o.err=String(e.message||e);}finally{if(instance)instance.close();}return o;
+  });
+  log('ModelCore X viewport mobile',vMc);
+  log('errors v1.0.x ModelCore X viewport',!vMc.err&&['closed','open','filters','architecture','studio','fluide','reclosed','cut','selected','geometry','detail','isolate','restored','selectionClosed','floor','supports','above','floorClosed','removed'].every(k=>vMc[k])?[]:['ModelCore X '+JSON.stringify(vMc)]);
+  // Captures du vrai rendu WebGL (non maquettes graphiques), dans les artefacts CI.
+  if(!vMc.err){
+    try{
+      await A.pg.evaluate(async()=>{
+        window.__mcCapture=await ModelCore3D.open({projectName:'Résidence — rendu de référence',projectType:'immeuble'});
+        const root=document.querySelector('.st-mc3d');
+        const q=root.querySelector('[data-role="quality"]');q.value='studio';q.dispatchEvent(new Event('change'));
+        await new Promise(requestAnimationFrame);
+      });
+      await shot(A.pg,'26_modelcore_studio_structure');
+      await A.pg.evaluate(async()=>{
+        const root=document.querySelector('.st-mc3d');
+        root.querySelector('[data-act="architecture"]').click();
+        await new Promise(requestAnimationFrame);
+      });
+      await shot(A.pg,'27_modelcore_studio_architecture');
+    }catch(e){log('errors ModelCore captures',[String(e.message||e)]);}
+    finally{await A.pg.evaluate(()=>{window.__mcCapture?.close();delete window.__mcCapture;});}
+  }
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
