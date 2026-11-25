@@ -68,3 +68,9 @@ Limite : pas de capuchon ni de hachure sur les surfaces coupées (coupe visuelle
 - Arêtes des primitives regroupées en un seul objet de rendu; ombres recalculées après modifications de visibilité/géométrie, pas à chaque orbite. Ombres désactivées pendant les coupes et le mode Plancher. Au-delà de 1 800 objets, les profils coûteux sont allégés; la limite est indicative et non un benchmark.
 - Le profil graphique ne modifie ni géométrie BIM, ni identifiants, ni données. En cas d'échec de l'environnement, le moteur reste en éclairage direct.
 - Tests des profils, panorama et changements en navigateur; deux captures réelles du rendu Studio (structure et architecture) prévues dans les artefacts CI. Le résultat visuel et la fluidité sur Android doivent être évalués, sans assimiler ce moteur temps réel à un rendu photoréaliste hors ligne.
+
+## PDF Stack — superposition de plans réels
+- Entrée PDF dans Explorer et Import Studio. Import local de 8 pages au maximum, fichiers PDF <=25 Mo; choix de page, altitude, visibilité et opacité globale. Pas de transfert serveur.
+- Premier plan de référence. Repérer A et B (axes homologues) et renseigner leur distance réelle en mètres, puis répéter les deux repères sur les autres pages. La similitude conserve les proportions et corrige translation, rotation et échelle. Validation explicite avant affichage; orientation arbitraire A–B = axe X du repère local. Vérifier un troisième point indépendant.
+- WebGL : plans horizontaux avec leurs textures, vue 3D ou dessus, écart réel ou multiplié, navigation tactile, calage par aperçu et loupe locale de région PDF à haute résolution. Aucun volume BIM inféré.
+- Limites : session temporaire, pas de liaison aux fichiers déjà enregistrés ni de persistance. Texture générale 1536 px max; scans déformés et pages obliques non rectifiés. Import et rendu réels à valider sur Android et PDF A0 de chantier. Tests de similitude et scénario navigateur avec deux PDF générés ajoutés.
