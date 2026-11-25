@@ -3131,6 +3131,37 @@ try {
     }catch(e){log('errors ModelCore captures',[String(e.message||e)]);}
     finally{await A.pg.evaluate(()=>{window.__mcCapture?.close();delete window.__mcCapture;});}
   }
+  // ---- v1.0.x : PDF Stack — deux PDF réels et calage métrique
+  const pdfStackTest=await A.pg.evaluate(async()=>{
+    const result={};let stack=null;
+    try{
+      await window.__late;
+      await loadScript('js/modelcore-pdfstack.js');
+      const makePDF=async(name,w,h)=>{
+        const doc=await PDFLib.PDFDocument.create(),page=doc.addPage([w,h]);
+        page.drawRectangle({x:20,y:20,width:w-40,height:h-40,borderWidth:2,borderColor:PDFLib.rgb(.1,.25,.4)});
+        page.drawLine({start:{x:20,y:20},end:{x:w-20,y:h-20},thickness:1});
+        return new File([await doc.save()],name,{type:'application/pdf'});
+      };
+      stack=await ModelCorePDFStack.open({projectName:'PDF Stack test'});
+      const a=await stack.addFile(await makePDF('RDC.pdf',300,200),1);
+      const b=await stack.addFile(await makePDF('R+1.pdf',200,300),1);
+      result.pending=stack.state().every(l=>!l.visible);
+      stack.setPoint(a,'A',[20,20]);stack.setPoint(a,'B',[220,20]);stack.setDistance(20);
+      stack.setPoint(b,'A',[20,20]);stack.setPoint(b,'B',[20,220]);stack.validate(b);
+      const layers=stack.state();result.visible=layers.every(l=>l.visible&&l.calibrated);
+      result.metric=layers.every(l=>Math.abs(l.transform.scale-.1)<1e-8);
+      result.levels=layers[0].z===0&&layers[1].z===3;
+      result.rotation=Math.abs(layers[1].transform.angle+Math.PI/2)<1e-8;
+      const root=document.querySelector('.mc-pdfstack');root.querySelector('[data-a="fit"]').click();
+      await new Promise(requestAnimationFrame);
+      result.canvas=!!root.querySelector('[data-r="stage"] canvas');
+      stack.close();stack=null;result.closed=!document.querySelector('.mc-pdfstack');
+    }catch(e){result.err=String(e.message||e);}finally{stack?.close();}
+    return result;
+  });
+  log('PDF Stack PDF réels',pdfStackTest);
+  log('errors v1.0.x PDF Stack',!pdfStackTest.err&&['pending','visible','metric','levels','rotation','canvas','closed'].every(k=>pdfStackTest[k])?[]:['PDF Stack '+JSON.stringify(pdfStackTest)]);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
