@@ -2509,11 +2509,14 @@ try {
       o.travauxApparaitUneFoisChoisi = !!root.querySelector('details[data-g=sv-travaux]');
       o.hseResteCache = !root.querySelector('details[data-g=sv-hse]');
       // restauration : on revient aux vrais Team.companyServices()/drapeaux de ce compte (celui-ci a « travaux » parmi
-      // ses services réels, via ses membres) et on vérifie juste que le rendu continue de fonctionner sans planter
+      // ses services réels, via ses membres) et on vérifie juste que le rendu continue de fonctionner sans planter —
+      // avec tous les drapeaux repassés « pub » (comme les laisse le test précédent), les espaces d'intervenants
+      // (espbet…) se rallument aussi, et le volet Travaux de l'Entreprise passe alors par l'accordéon « Entreprise »
+      // (data-sg="travaux") plutôt que par data-g="sv-travaux" directement — les deux formes sont donc acceptées ici
       Team.companyServices = prevCompanyServices;
       Team.applyFlags(Team.allFlags('pub'), []);
       ST.renderProjectTools(root); await wait(400);
-      o.restaure = !!root.querySelector('.st-ptools-p') && !!root.querySelector('details[data-g=sv-travaux]');
+      o.restaure = !!root.querySelector('.st-ptools-p') && !!root.querySelector('details[data-g=sv-travaux], details[data-sg=travaux]');
       sessionStorage.removeItem('st.preview'); root.remove();
     } catch (e) { o.err = String(e.message || e); }
     finally { Team.companyServices = prevCompanyServices; Team.applyFlags(prevFp, []); }
