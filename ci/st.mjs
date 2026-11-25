@@ -3112,6 +3112,25 @@ try {
   });
   log('ModelCore X viewport mobile',vMc);
   log('errors v1.0.x ModelCore X viewport',!vMc.err&&['closed','open','filters','architecture','studio','fluide','reclosed','cut','selected','geometry','detail','isolate','restored','selectionClosed','floor','supports','above','floorClosed','removed'].every(k=>vMc[k])?[]:['ModelCore X '+JSON.stringify(vMc)]);
+  // Captures du vrai rendu WebGL (non maquettes graphiques), dans les artefacts CI.
+  if(!vMc.err){
+    try{
+      await A.pg.evaluate(async()=>{
+        window.__mcCapture=await ModelCore3D.open({projectName:'Résidence — rendu de référence',projectType:'immeuble'});
+        const root=document.querySelector('.st-mc3d');
+        const q=root.querySelector('[data-role="quality"]');q.value='studio';q.dispatchEvent(new Event('change'));
+        await new Promise(requestAnimationFrame);
+      });
+      await shot(A.pg,'26_modelcore_studio_structure');
+      await A.pg.evaluate(async()=>{
+        const root=document.querySelector('.st-mc3d');
+        root.querySelector('[data-act="architecture"]').click();
+        await new Promise(requestAnimationFrame);
+      });
+      await shot(A.pg,'27_modelcore_studio_architecture');
+    }catch(e){log('errors ModelCore captures',[String(e.message||e)]);}
+    finally{await A.pg.evaluate(()=>{window.__mcCapture?.close();delete window.__mcCapture;});}
+  }
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
