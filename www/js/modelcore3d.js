@@ -147,6 +147,21 @@
       reset(){points.clear();previous=null;}
     };
   }
+  // Matériaux indicatifs, jamais des propriétés certifiées du modèle IFC.
+  function profilMateriau(type,lot=''){
+    const k=(type+' '+lot).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    if(/vitrage|fenetre|ifcwindow/.test(k))return {kind:'verre',color:0x426c80,roughness:.22,metalness:.12};
+    if(/armature|ferraillage/.test(k))return {kind:'acier',color:0xa46b42,roughness:.5,metalness:.55};
+    if(/charpente metallique|garde-corps|menuiserie|arbaletrier|metal/.test(k))return {kind:'metal',color:0x637686,roughness:.38,metalness:.55};
+    if(/gaine|cvc/.test(k))return {kind:'technique',color:0x6ba89e,roughness:.5,metalness:.25};
+    if(/conduite|canalisation|plomberie/.test(k))return {kind:'technique',color:0x508ba6,roughness:.55,metalness:.12};
+    if(/terrain|jardin/.test(k))return {kind:'sol',color:0x69796b,roughness:1,metalness:0};
+    if(/facade|cloison|acrotere/.test(k))return {kind:'enduit',color:0xc1b7a7,roughness:.9,metalness:0};
+    if(/chaussee|voirie/.test(k))return {kind:'sol',color:0x515b63,roughness:1,metalness:0};
+    if(/poutre/.test(k))return {kind:'beton',color:0x909ba1,roughness:.88,metalness:0};
+    if(/poteau|voile|pile/.test(k))return {kind:'beton',color:0xb2b9ba,roughness:.85,metalness:0};
+    return {kind:'beton',color:0xa5afb3,roughness:.9,metalness:0};
+  }
   async function open(options) {
     if (typeof need3D !== 'function') throw new Error('Chargeur Three.js indisponible.');
     await need3D();
@@ -163,7 +178,7 @@
 </style>
 <div class="mcbar mchead"><button data-act="close" aria-label="Fermer">✕</button><div class="mctitle">◈ ModelCore <span style="color:#5ce5fc">X</span><div class="mcsub" data-val="project"></div></div><span class="mcwarn">DÉMO LOCALE</span></div>
 <div class="mcbar mcnav"><button data-page="viewer" class="active">◇ Explorer</button><button data-page="import">⇩ Import</button><button data-page="ai">✧ AI Studio</button><button data-page="dash">▥ Maquette</button></div>
-<div class="mcviewer" data-pane="viewer"><div class="mcbar mcquick"><button data-act="tools" aria-expanded="false">☷ Outils · Filtres</button><button data-act="fitquick" title="Recentrer le projet">⛶ Ajuster</button></div><div class="mctoolpanel" data-role="tools-panel" hidden><div class="mctoolhead"><b>OUTILS DE MAQUETTE</b><button data-act="tools-close" aria-label="Replier les outils">⌄</button></div>
+<div class="mcviewer" data-pane="viewer"><div class="mcbar mcquick"><button data-act="tools" aria-expanded="false">☷ Outils · Filtres</button><button data-act="fitquick" title="Recentrer le projet">⛶ Ajuster</button></div><div class="mctoolpanel" data-role="tools-panel" hidden><div class="mctoolhead"><b>OUTILS DE MAQUETTE</b><select data-role="quality" aria-label="Qualité graphique"><option value="standard">Fluide</option><option value="high">Détaillé</option></select><button data-act="tools-close" aria-label="Replier les outils">⌄</button></div>
 <div class="mcbar"><select data-role="projecttype" aria-label="Famille de démonstration" style="flex:1;min-width:0"><option value="stade">Stade</option><option value="hopital">Hôpital</option><option value="immeuble">Résidence · 2 bâtiments</option><option value="villa">Villa</option><option value="pont">Pont</option><option value="vrd">VRD / Route</option><option value="industriel">Industrie</option><option value="batiment">Autre bâtiment</option></select><button data-act="reset" aria-label="Réinitialiser">↺</button></div>
 <div class="mckpis"><div class="mckpi">Ouvrages<b data-val="total">0</b></div><div class="mckpi">Lots<b data-val="avg">0</b></div><div class="mckpi">Niveaux<b data-val="nc">0</b></div></div>
 <div class="mcbar"><button data-act="structure">▤ Structure</button><button data-act="architecture">◇ Architecture</button><button data-act="color" class="active">◉ États</button><button data-act="filters">☷ Filtres</button><button data-act="layers">Calques</button></div>
@@ -186,7 +201,8 @@
     try { renderer = new T.WebGLRenderer({ antialias: window.innerWidth > 650, powerPreference:'low-power' }); }
     catch(e){ el.remove(); throw new Error('WebGL indisponible sur cet appareil.'); }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, window.innerWidth < 650 ? 1 : 1.5));
-    renderer.outputEncoding = T.sRGBEncoding;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=.85;
+    renderer.outputEncoding = T.sRGBEncoding;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=.9;
+    renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.shadowMap.enabled=false;
     stage.prepend(renderer.domElement);
     const controls = new T.OrbitControls(camera, renderer.domElement);
     controls.enableDamping=false;controls.enableZoom=true;controls.enableRotate=true;
@@ -200,13 +216,28 @@
     const fill = new T.DirectionalLight('#75bdff', .22); fill.position.set(18, 10, -18);scene.add(fill);
     const grp = new T.Group();scene.add(grp); const grid = new T.GridHelper(120,60,0x315b73,0x1b3448); grid.position.y=-1.15;grid.material.transparent=true;grid.material.opacity=.24;scene.add(grid);
     const geometryCache = [], matCache = new Map(), registry = new Map();
+    // Une petite texture de relief partagée, générée localement et sans téléchargement.
+    const noiseSize=64,noise=new Uint8Array(noiseSize*noiseSize*4);let seed=137;
+    for(let i=0;i<noise.length;i+=4){seed=(Math.imul(seed,1664525)+1013904223)>>>0;const v=110+(seed>>>26);noise[i]=noise[i+1]=noise[i+2]=v;noise[i+3]=255;}
+    const concreteBump=new T.DataTexture(noise,noiseSize,noiseSize,T.RGBAFormat);concreteBump.wrapS=concreteBump.wrapT=T.RepeatWrapping;concreteBump.repeat.set(5,5);concreteBump.magFilter=T.LinearFilter;concreteBump.minFilter=T.LinearFilter;concreteBump.needsUpdate=true;
+    let quality='standard';
+    const ground=new T.Mesh(new T.PlaneGeometry(1,1),new T.ShadowMaterial({opacity:.22}));ground.rotation.x=-Math.PI/2;ground.visible=false;ground.receiveShadow=true;scene.add(ground);
+    sun.shadow.mapSize.set(1024,1024);sun.shadow.bias=-.0003;sun.shadow.normalBias=.025;
+    function configQualite(){
+      const high=quality==='high';
+      renderer.shadowMap.enabled=high;sun.castShadow=high;ground.visible=high;
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,high?1.5:1));
+      for(const m of matCache.values()){if(m.userData.mcConcrete){m.bumpMap=high?concreteBump:null;m.bumpScale=.045;m.needsUpdate=true;}}
+      for(const e of registry.values()){e.mesh.castShadow=high;e.mesh.receiveShadow=high;}
+      onResize();
+    }
     const getMat = (key, hex, metalness=0) => {
       if(!matCache.has(key))matCache.set(key,new T.MeshStandardMaterial({color:hex,roughness:metalness?.45:.83,metalness,side:T.DoubleSide}));
       return matCache.get(key);
     };
     let selected=null, isolated=null, hidden=new Set(), roofHidden=false, statusColors=false, dataset=null, disposed=false, raf=0, press=null, backRemove=null;
     let mode='structure', view='3D', page='viewer', exploded=false, detail=false, tab='Infos', detected=false;
-    let hiddenLots=new Set(), outline=null; let ifcWorker=null, ifcTimer=0, ifcRequest=0, ocrWorker=null, pdfTask=null, reading=false, ocrSuggestions={};
+    let hiddenLots=new Set(), outline=null,highlight=null,highlightId=null; let ifcWorker=null, ifcTimer=0, ifcRequest=0, ocrWorker=null, pdfTask=null, reading=false, ocrSuggestions={};
     // Plans globaux Three.js : toutes les surfaces (y compris contours) sont découpées.
     const sectionBounds=new T.Box3();
     const sections={h:{active:false,inverse:false,value:0,axis:'y',plane:new T.Plane()},v:{active:false,inverse:false,value:0,axis:'x',plane:new T.Plane()}};
@@ -236,8 +267,13 @@
     const couleur = ()=>STATUS_COLOR;
     const hex = n=>'#'+n.toString(16).padStart(6,'0');
     const levelRank = level => {const m=/^(?:R|N)\+(\d+)$/.exec(level);return m?Number(m[1]):level==='Toiture'?8:0;};
-    function clearOutline(){if(outline){outline.parent?.remove(outline);outline.geometry.dispose();outline.material.dispose();outline=null;}}
-    function selectedOutline(){clearOutline();const v=registry.get(selected);if(!v||!v.mesh.visible)return;outline=new T.LineSegments(new T.EdgesGeometry(v.mesh.geometry,20),new T.LineBasicMaterial({color:0x63efff,depthTest:true,transparent:true,opacity:1}));outline.renderOrder=10;v.mesh.add(outline);}
+    function clearOutline(){if(outline){outline.parent?.remove(outline);outline.geometry.dispose();outline.material.dispose();outline=null;}if(highlight){highlight.parent?.remove(highlight);highlight.material.dispose();highlight=null;}highlightId=null;}
+    function selectedOutline(){
+      const v=registry.get(selected);if(!v||!v.mesh.visible){clearOutline();return;}if(highlightId===selected)return;
+      clearOutline();highlightId=selected;
+      outline=new T.LineSegments(new T.EdgesGeometry(v.mesh.geometry,18),new T.LineBasicMaterial({color:0x67efff,toneMapped:false,depthTest:true,transparent:true,opacity:1}));outline.renderOrder=12;v.mesh.add(outline);
+      highlight=new T.Mesh(v.mesh.geometry,new T.MeshBasicMaterial({color:0x35d9f4,toneMapped:false,transparent:true,opacity:.18,depthWrite:false,depthTest:true,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-2,side:T.DoubleSide}));highlight.renderOrder=11;v.mesh.add(highlight);
+    }
     function kpis(){const a=dataset||[];$('[data-val="total"]').textContent=a.length;$('[data-val="avg"]').textContent=new Set(a.map(e=>e.lot)).size;$('[data-val="nc"]').textContent=new Set(a.map(e=>e.level)).size;}
     function legend(){const l=$('[data-role="legend"]');l.replaceChildren();for(const [name,c] of Object.entries(couleur())){const span=document.createElement('span'),dot=document.createElement('i');dot.style.background=hex(c);span.append(dot,document.createTextNode(name));l.append(span);}}
     function modeUI(){for(const a of ['structure','architecture','color','explode','cut'])$('[data-act="'+a+'"]').classList.toggle('active',a==='color'?statusColors:a==='explode'?exploded:a==='cut'?sectionActive():mode===a);$('[data-act="view"]').textContent='Vue '+view;}
@@ -247,18 +283,27 @@
 
     // La sélection ne remplace jamais le matériau d'état.
     const pos = v => new T.Vector3(v[0],v[1],v[2]);
-    function createMesh(g, type) {
+    function createMesh(g, type, lot) {
       let geo, mesh;
       if(g.kind==='box'){ geo=new T.BoxGeometry(...g.size); mesh=new T.Mesh(geo); mesh.position.set(...g.position); if(vec(g.rotation,3))mesh.rotation.set(...g.rotation); }
       else if(g.kind==='beam'){let a=pos(g.start),b=pos(g.end),d=b.clone().sub(a),len=d.length();geo=new T.BoxGeometry(g.width,Math.max(.01,len),g.depth);mesh=new T.Mesh(geo);mesh.position.copy(a).add(b).multiplyScalar(.5);mesh.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),d.normalize());}
       else {geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(g.positions,3));geo.setIndex(g.indices);geo.computeVertexNormals();mesh=new T.Mesh(geo);}
       geometryCache.push(geo);
-      const palette={Terrain:0x31794f,Gradin:0xc9d5df,Escalier:0xa5b6c5,Poteau:0xe0e6ea,Poutre:0xa9bdcd,Voile:0xc1ced9,Charpente:0x8aafcf,Dalle:0xc8d4df,Façade:0xe0d9c9,Vitrage:0x3f7897,Balcon:0xb7c6d4,Armature:0xee9a54,Conduite:0x41c7f2,Gaine:0x54d8ae,Autre:0x93a6bd};
-      mesh.material=getMat(type,palette[type] || palette.Autre,type==='Charpente'?.15:0);
+      const profile=profilMateriau(type,lot),key='m:'+profile.kind+':'+profile.color+(geo.getAttribute('uv')?':uv':':sans-uv');
+      if(!matCache.has(key)){
+        const m=new T.MeshStandardMaterial({color:profile.color,roughness:profile.roughness,metalness:profile.metalness,side:T.DoubleSide});
+        m.userData.mcConcrete=profile.kind==='beton'&&!!geo.getAttribute('uv');
+        if(m.userData.mcConcrete&&quality==='high'){m.bumpMap=concreteBump;m.bumpScale=.045;}
+        matCache.set(key,m);
+      }
+      // Les maillages IFC ne disposent pas forcément d'UV : pas de bump sur ces éléments.
+      mesh.material=matCache.get(key);
+      if(!geo.getAttribute('uv')&&mesh.material.userData.mcConcrete){const plainKey=key+':sans-uv';if(!matCache.has(plainKey)){const m=mesh.material.clone();m.userData.mcConcrete=false;m.bumpMap=null;matCache.set(plainKey,m);}mesh.material=matCache.get(plainKey);}
+      mesh.castShadow=mesh.receiveShadow=quality==='high';
       return mesh;
     }
     function resetCamera(){
-      const bounds=new T.Box3().setFromObject(grp),size=bounds.getSize(new T.Vector3());bounds.getCenter(projectCenter);pan.x=0;pan.y=0;appliquerPan();sectionBounds.copy(bounds);appliquerCoupes();
+      const bounds=new T.Box3().setFromObject(grp),size=bounds.getSize(new T.Vector3());bounds.getCenter(projectCenter);const span=Math.max(2,size.length());ground.position.set(projectCenter.x,bounds.min.y-.03,projectCenter.z);ground.scale.set(span*2,span*2,1);grid.position.set(projectCenter.x,bounds.min.y-.04,projectCenter.z);grid.scale.setScalar(Math.max(.1,span/95));sun.target.position.copy(projectCenter);scene.add(sun.target);sun.position.copy(projectCenter).add(new T.Vector3(-.65,1,.7).multiplyScalar(span));Object.assign(sun.shadow.camera,{left:-span,right:span,top:span,bottom:-span,near:.1,far:span*5});sun.shadow.camera.updateProjectionMatrix();pan.x=0;pan.y=0;appliquerPan();sectionBounds.copy(bounds);appliquerCoupes();
       const radius=Math.max(.05,size.length()/2),vertical=T.MathUtils.degToRad(camera.fov/2),horizontal=Math.atan(Math.tan(vertical)*Math.max(.1,camera.aspect));
       fitDistance=Math.max(.3,radius/Math.sin(Math.min(vertical,horizontal))*1.08);
       controls.minDistance=Math.max(.025,radius*.035);controls.maxDistance=fitDistance*5;
@@ -270,7 +315,7 @@
       clearOutline(); for(const child of [...grp.children]) grp.remove(child);
       geometryCache.splice(0).forEach(g=>g.dispose()); registry.clear(); hidden.clear(); hiddenLots.clear(); isolated=null; selected=null; dataset=elements; exploded=false;resetCoupes();mode='structure';detail=false;roofHidden=false;for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';
       for(const e of elements){
-        e.journal=[]; let mesh=createMesh(e.geometry,e.type); mesh.userData.modelcoreId=e.id; grp.add(mesh);registry.set(e.id,{mesh,meta:e,baseMat:mesh.material,baseY:mesh.position.y});
+        e.journal=[]; let mesh=createMesh(e.geometry,e.type,e.lot); mesh.userData.modelcoreId=e.id; grp.add(mesh);registry.set(e.id,{mesh,meta:e,baseMat:mesh.material,baseY:mesh.position.y});
       }
       refreshFilters();visibility();resetCamera();updateDetails();kpis();
     }
@@ -350,16 +395,17 @@
       if(disposed)return;disposed=true;stopIfc();if(ocrWorker)ocrWorker.terminate().catch(()=>{});if(pdfTask)pdfTask.destroy().catch(()=>{});
       if(backRemove)try{backRemove();}catch(e){}
       if(raf)cancelAnimationFrame(raf);observer.disconnect();controls.dispose();
-      clearOutline();grid.geometry.dispose();grid.material.dispose();for(const g of geometryCache)g.dispose();for(const m of matCache.values())m.dispose();
+      clearOutline();concreteBump.dispose();ground.geometry.dispose();ground.material.dispose();grid.geometry.dispose();grid.material.dispose();for(const g of geometryCache)g.dispose();for(const m of matCache.values())m.dispose();
       renderer.dispose();renderer.forceContextLoss();el.remove();
     }
     if(typeof pushBack==='function') backRemove=pushBack(close);
     const on=(act,fn)=>$('[data-act="'+act+'"]').addEventListener('click',fn);
     function setTools(open){$('[data-role="tools-panel"]').hidden=!open;$('[data-act="tools"]').setAttribute('aria-expanded',String(open));}
+    $('[data-role="quality"]').onchange=e=>{quality=e.target.value;configQualite();};
     on('tools',()=>setTools($('[data-role="tools-panel"]').hidden));on('tools-close',()=>setTools(false));on('fitquick',resetCamera);
     on('close',close);on('top',()=>orienterDessus(1));
     on('under',()=>orienterDessus(-1));
-    on('reset',()=>{isolated=null;hidden.clear();roofHidden=false;statusColors=true;hiddenLots.clear();resetCoupes();exploded=false;mode='structure';for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';select(null);resetCamera();});
+    on('reset',()=>{isolated=null;hidden.clear();roofHidden=false;statusColors=false;hiddenLots.clear();resetCoupes();exploded=false;mode='structure';for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';select(null);resetCamera();});
     on('zoomplus',()=>{camera.position.sub(controls.target).multiplyScalar(.78).add(controls.target);controls.update();});
     on('zoomminus',()=>{camera.position.sub(controls.target).multiplyScalar(1.25).add(controls.target);controls.update();});
     on('isolate',()=>{if(!selected)return;isolated=isolated?null:selected;visibility();updateDetails();});
@@ -459,5 +505,5 @@
     onResize();chooseTemplate(initialType);
     return { close, getSelected:()=>registry.get(selected)?.meta||null, projectId, schema:SCHEMA };
   }
-  window.ModelCore3D = { open, validateManifest, ficheGeometrique, suggestionsPlan, gesteSelection, gestePan, coupeParametres, pointDansCoupe, maquetteParametrique, demo:(type='stade')=>type==='stade'?createDemo():window.ModelCoreTemplates?window.ModelCoreTemplates.make(type):createDemo(), schema:SCHEMA };
+  window.ModelCore3D = { open, validateManifest, ficheGeometrique, suggestionsPlan, gesteSelection, gestePan, profilMateriau, coupeParametres, pointDansCoupe, maquetteParametrique, demo:(type='stade')=>type==='stade'?createDemo():window.ModelCoreTemplates?window.ModelCoreTemplates.make(type):createDemo(), schema:SCHEMA };
 })();
