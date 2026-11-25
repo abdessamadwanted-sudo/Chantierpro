@@ -180,6 +180,35 @@
     pts.sort((a,b)=>Math.atan2(a[v]-mid[v],a[u]-mid[u])-Math.atan2(b[v]-mid[v],b[u]-mid[u]));
     return pts;
   }
+  // Empreintes de contact, en mètres. Ne pas confondre proximité géométrique et validation structurelle.
+  function contactPlancher(slabMin,slabMax,supportMin,supportMax,side,tol=.03){
+    if(side==='below'&&supportMin<slabMin-tol&&supportMax>=slabMin-tol){
+      return Math.max(supportMin+1e-6,Math.min(slabMin,supportMax-1e-6));
+    }
+    if(side==='above'&&supportMax>slabMax+tol&&supportMin<=slabMax+tol){
+      return Math.max(supportMin+1e-6,Math.min(slabMax,supportMax-1e-6));
+    }
+    return null;
+  }
+  // Découpe 2D d'un segment par un polygone convexe CCW (rectangle/triangle de dalle).
+  function segmentDansPolygone(a,b,poly){
+    let lo=0,hi=1;
+    for(let i=0;i<poly.length;i++){
+      const p=poly[i],q=poly[(i+1)%poly.length],ex=q[0]-p[0],ez=q[1]-p[1];
+      const u=ex*(a[1]-p[1])-ez*(a[0]-p[0]),v=ex*(b[1]-a[1])-ez*(b[0]-a[0]);
+      if(Math.abs(v)<1e-10){if(u< -1e-8)return null;continue;}
+      const t=(-1e-8-u)/v;if(v>0)lo=Math.max(lo,t);else hi=Math.min(hi,t);
+      if(hi-lo<1e-7)return null;
+    }
+    return [lo,hi];
+  }
+  function fusionIntervalles(intervals){
+    const out=[];for(const x of intervals.sort((a,b)=>a[0]-b[0])){
+      const last=out[out.length-1];if(last&&x[0]<=last[1]+1e-6)last[1]=Math.max(last[1],x[1]);else out.push(x.slice());
+    }return out;
+  }
+  function typePlancher(type){return /^(dalle|plancher|ifcslab)(\b|$)/i.test(type);}
+  function typeSupport(type){return /^(poteau|voile|mur|poutre|pile|ifccolumn|ifcwall|ifcbeam)(\b|$)/i.test(type);}
   async function open(options) {
     if (typeof need3D !== 'function') throw new Error('Chargeur Three.js indisponible.');
     await need3D();
@@ -192,18 +221,18 @@
     el.innerHTML = `<style>
 .st-mc3d{--mc-cyan:#45def6;--mc-muted:#91b2ca;--mc-line:#31546b;background:#06121f!important;color:#e9f5ff!important;min-height:0}
 .st-mc3d *{box-sizing:border-box}.st-mc3d button,.st-mc3d select,.st-mc3d input{font:inherit;color:#e7f1ff;background:linear-gradient(145deg,#18364c,#0c2133);border:1px solid #31546b;border-radius:9px;padding:8px;min-height:36px}
-.st-mc3d button:disabled{opacity:.4}.st-mc3d button.active{border-color:#45def6;color:#7cecff;background:#103a4c}.st-mc3d option{background:#132c42}.st-mc3d .mcbar{display:flex;gap:6px;padding:7px 10px;align-items:center;overflow:auto;flex-shrink:0;background:#091a29}.st-mc3d .mcbar button{white-space:nowrap;flex-shrink:0}.st-mc3d .mchead{background:linear-gradient(120deg,#173b54,#081727);border-bottom:1px solid var(--mc-line);padding:12px}.st-mc3d .mctitle{font-size:18px;font-weight:750;flex:1;min-width:0;letter-spacing:-.5px}.st-mc3d .mcsub{font-size:11px;color:var(--mc-muted);line-height:1.45;overflow-wrap:anywhere}.st-mc3d .mcwarn{font-size:10px;color:#ffd58f}.st-mc3d .mcnav button{flex:1}.st-mc3d .mckpis{display:flex;gap:6px;padding:7px 10px;flex-shrink:0}.st-mc3d .mckpi{flex:1;padding:7px 9px;border-radius:10px;border:1px solid #29485e;background:#10283d}.st-mc3d .mckpi b{display:block;font-size:17px;color:#6ae7f7}.st-mc3d .mcfilters{display:none;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:8px;max-height:32%;overflow:auto;background:#0c2235}.st-mc3d .mcfilters.open{display:grid}.st-mc3d .mcview{flex:1;min-height:120px;position:relative;touch-action:none;overflow:hidden}.st-mc3d .mcview canvas{display:block;touch-action:none}.st-mc3d .mcover{position:absolute;top:10px;left:12px;color:#98cce0;font-size:10px;pointer-events:none}.st-mc3d .mcside{position:absolute;left:8px;top:45px;display:grid;gap:5px}.st-mc3d .mcside button{width:38px;background:#10283be8;padding:4px;font-size:16px}.st-mc3d .mclevels{position:absolute;right:8px;top:45px;display:grid;gap:4px;max-height:65%;overflow:auto;padding:4px;background:#091e31df;border-radius:10px;border:1px solid #34556b}.st-mc3d .mclevels button{min-height:28px;font-size:10px;padding:4px;max-width:86px;overflow:hidden;text-overflow:ellipsis}.st-mc3d .mclegend{display:flex;gap:9px;flex-wrap:wrap;justify-content:center;padding:7px;background:#0a1b2b;font-size:10px;flex-shrink:0}.st-mc3d .mclegend i{display:inline-block;width:8px;height:8px;border-radius:3px;margin-right:4px}.st-mc3d .mcdetail{background:linear-gradient(145deg,#173549,#0d2133);padding:10px;display:flex;gap:7px;flex-wrap:wrap;align-items:center;max-height:40%;overflow:auto;border-top:1px solid #36566e;flex-shrink:0}.st-mc3d .mcinfo{flex:1;min-width:170px;line-height:1.55}.st-mc3d .mcinfo b{font-size:15px}.st-mc3d .mcprogress{height:6px;width:100%;background:#29495e;border-radius:8px;overflow:hidden}.st-mc3d .mcprogress i{display:block;height:100%;background:#44def6}.st-mc3d .mcpage{flex:1;min-height:0;overflow:auto;padding:15px}.st-mc3d .mccard{border:1px solid #29485e;background:linear-gradient(145deg,#102b40,#0a1e30);padding:12px;border-radius:12px;margin:10px 0;line-height:1.55}.st-mc3d .mccard h3{margin:0 0 8px}.st-mc3d .mcgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.st-mc3d .mcgrid input{width:100%}.st-mc3d .mcviewer{display:flex;flex-direction:column;min-height:0;flex:1}.st-mc3d .mcinspector-extra{width:100%;padding:4px 0}.st-mc3d .mcinspector-extra button{margin:3px}.st-mc3d .mcsection{position:absolute;left:52px;right:52px;bottom:24px;z-index:5;padding:9px;background:#0b2235f2;border:1px solid #3b7d96;border-radius:12px;box-shadow:0 5px 20px #0006;touch-action:none}.st-mc3d .mcsection-head{display:flex;align-items:center;gap:4px;margin-bottom:5px}.st-mc3d .mcsection-head b{flex:1;color:#78e6fb;font-size:11px}.st-mc3d .mcsection button{min-height:29px;padding:5px;font-size:11px;touch-action:manipulation}.st-mc3d .mcsection-row{display:flex;gap:6px;align-items:center;margin-top:5px}.st-mc3d .mcsection-row span{font-size:11px;color:#cae7f4;min-width:22px}.st-mc3d .mcsection input[type=range]{min-width:0;flex:1;width:100%;min-height:28px;padding:0;accent-color:#43def6;touch-action:none}.st-mc3d .mcsection output{font-size:10px;color:#9ddded;min-width:43px;text-align:right}.st-mc3d .mcviewer{position:relative}.st-mc3d .mctoolpanel{position:absolute;bottom:0;left:0;right:0;z-index:12;max-height:65%;overflow:auto;background:#0a2033fa;border:1px solid #365a73;border-radius:17px 17px 0 0;box-shadow:0 -12px 32px #0008;touch-action:pan-y}.st-mc3d .mctoolpanel .mcfilters{max-height:unset}.st-mc3d .mctoolpanel .mcbar{flex-wrap:wrap;overflow:visible}.st-mc3d .mctoolpanel .mcbar button{flex:1}.st-mc3d .mctoolpanel .mcbar select{min-width:0}.st-mc3d .mctoolhead{display:flex;justify-content:space-between;align-items:center;padding:7px 12px;color:#8fe9f8;border-bottom:1px solid #254559}.st-mc3d .mcquick{padding:4px 8px}.st-mc3d .mcquick button{min-height:32px}.st-mc3d .mcquick [data-act=tools]{flex:1}.st-mc3d .mcdetail{padding:7px 10px}.st-mc3d .mcinfo b{color:#eaf6ff!important}.st-mc3d .mclegend{padding:4px;font-size:10px}.st-mc3d .mcview{min-height:140px}.st-mc3d .mcdetail{position:absolute;bottom:0;left:0;right:0;z-index:8;max-height:48%;border:1px solid #3b657a;border-radius:16px 16px 0 0;background:linear-gradient(155deg,#17384af7,#0a1c2df8);box-shadow:0 -7px 26px #0007;touch-action:pan-y}.st-mc3d .mcinfo{flex-basis:100%;min-width:0;display:grid;grid-template-columns:38px minmax(0,1fr) auto;gap:8px;align-items:start}.st-mc3d .mcobject-icon{display:grid;place-items:center;background:#0b2639;border:1px solid #4ccfe4;border-radius:10px;color:#64e9f9;font-size:21px;height:40px}.st-mc3d .mcobject-copy{min-width:0;overflow-wrap:anywhere}.st-mc3d .mcinfo b{font-size:14px;line-height:1.3;color:#eaf6ff!important}.st-mc3d .mcobject-geo{font-size:11px;color:#a5d2df;margin-top:3px}.st-mc3d .mcobject-actions{display:flex;width:100%;gap:5px}.st-mc3d .mcobject-actions button{flex:1;min-width:0;padding:6px;min-height:34px}.st-mc3d .mcobject-progress{display:flex;align-items:center;gap:8px;width:100%}.st-mc3d .mcobject-progress select{flex:1;min-width:0}.st-mc3d .mcobject-progress .mcprogress{flex:1}.st-mc3d .mcobject-percent{font-weight:700;color:#62e5f7}.st-mc3d .mcsection{z-index:10}.st-mc3d .mcviewer.mc-has-selection .mcsection{bottom:auto;top:8px}.st-mc3d .mclevels{touch-action:pan-y}.st-mc3d [hidden]{display:none!important}.st-mc3d .mcsplit{position:absolute;left:50%;top:0;bottom:0;border-left:1px solid #46677d;pointer-events:none}.st-mc3d .mclabel{position:absolute;top:28px;left:53%;font-size:10px;color:#a1cce1;pointer-events:none}
+.st-mc3d button:disabled{opacity:.4}.st-mc3d button.active{border-color:#45def6;color:#7cecff;background:#103a4c}.st-mc3d option{background:#132c42}.st-mc3d .mcbar{display:flex;gap:6px;padding:7px 10px;align-items:center;overflow:auto;flex-shrink:0;background:#091a29}.st-mc3d .mcbar button{white-space:nowrap;flex-shrink:0}.st-mc3d .mchead{background:linear-gradient(120deg,#173b54,#081727);border-bottom:1px solid var(--mc-line);padding:12px}.st-mc3d .mctitle{font-size:18px;font-weight:750;flex:1;min-width:0;letter-spacing:-.5px}.st-mc3d .mcsub{font-size:11px;color:var(--mc-muted);line-height:1.45;overflow-wrap:anywhere}.st-mc3d .mcwarn{font-size:10px;color:#ffd58f}.st-mc3d .mcnav button{flex:1}.st-mc3d .mckpis{display:flex;gap:6px;padding:7px 10px;flex-shrink:0}.st-mc3d .mckpi{flex:1;padding:7px 9px;border-radius:10px;border:1px solid #29485e;background:#10283d}.st-mc3d .mckpi b{display:block;font-size:17px;color:#6ae7f7}.st-mc3d .mcfilters{display:none;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:8px;max-height:32%;overflow:auto;background:#0c2235}.st-mc3d .mcfilters.open{display:grid}.st-mc3d .mcview{flex:1;min-height:120px;position:relative;touch-action:none;overflow:hidden}.st-mc3d .mcview canvas{display:block;touch-action:none}.st-mc3d .mcover{position:absolute;top:10px;left:12px;color:#98cce0;font-size:10px;pointer-events:none}.st-mc3d .mcside{position:absolute;left:8px;top:45px;display:grid;gap:5px}.st-mc3d .mcside button{width:38px;background:#10283be8;padding:4px;font-size:16px}.st-mc3d .mclevels{position:absolute;right:8px;top:45px;display:grid;gap:4px;max-height:65%;overflow:auto;padding:4px;background:#091e31df;border-radius:10px;border:1px solid #34556b}.st-mc3d .mclevels button{min-height:28px;font-size:10px;padding:4px;max-width:86px;overflow:hidden;text-overflow:ellipsis}.st-mc3d .mclegend{display:flex;gap:9px;flex-wrap:wrap;justify-content:center;padding:7px;background:#0a1b2b;font-size:10px;flex-shrink:0}.st-mc3d .mclegend i{display:inline-block;width:8px;height:8px;border-radius:3px;margin-right:4px}.st-mc3d .mcdetail{background:linear-gradient(145deg,#173549,#0d2133);padding:10px;display:flex;gap:7px;flex-wrap:wrap;align-items:center;max-height:40%;overflow:auto;border-top:1px solid #36566e;flex-shrink:0}.st-mc3d .mcinfo{flex:1;min-width:170px;line-height:1.55}.st-mc3d .mcinfo b{font-size:15px}.st-mc3d .mcprogress{height:6px;width:100%;background:#29495e;border-radius:8px;overflow:hidden}.st-mc3d .mcprogress i{display:block;height:100%;background:#44def6}.st-mc3d .mcpage{flex:1;min-height:0;overflow:auto;padding:15px}.st-mc3d .mccard{border:1px solid #29485e;background:linear-gradient(145deg,#102b40,#0a1e30);padding:12px;border-radius:12px;margin:10px 0;line-height:1.55}.st-mc3d .mccard h3{margin:0 0 8px}.st-mc3d .mcgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.st-mc3d .mcgrid input{width:100%}.st-mc3d .mcviewer{display:flex;flex-direction:column;min-height:0;flex:1}.st-mc3d .mcinspector-extra{width:100%;padding:4px 0}.st-mc3d .mcinspector-extra button{margin:3px}.st-mc3d .mcsection{position:absolute;left:52px;right:52px;bottom:24px;z-index:5;padding:9px;background:#0b2235f2;border:1px solid #3b7d96;border-radius:12px;box-shadow:0 5px 20px #0006;touch-action:none}.st-mc3d .mcsection-head{display:flex;align-items:center;gap:4px;margin-bottom:5px}.st-mc3d .mcsection-head b{flex:1;color:#78e6fb;font-size:11px}.st-mc3d .mcsection button{min-height:29px;padding:5px;font-size:11px;touch-action:manipulation}.st-mc3d .mcsection-row{display:flex;gap:6px;align-items:center;margin-top:5px}.st-mc3d .mcsection-row span{font-size:11px;color:#cae7f4;min-width:22px}.st-mc3d .mcsection input[type=range]{min-width:0;flex:1;width:100%;min-height:28px;padding:0;accent-color:#43def6;touch-action:none}.st-mc3d .mcsection output{font-size:10px;color:#9ddded;min-width:43px;text-align:right}.st-mc3d .mcviewer{position:relative}.st-mc3d .mctoolpanel{position:absolute;bottom:0;left:0;right:0;z-index:12;max-height:65%;overflow:auto;background:#0a2033fa;border:1px solid #365a73;border-radius:17px 17px 0 0;box-shadow:0 -12px 32px #0008;touch-action:pan-y}.st-mc3d .mctoolpanel .mcfilters{max-height:unset}.st-mc3d .mctoolpanel .mcbar{flex-wrap:wrap;overflow:visible}.st-mc3d .mctoolpanel .mcbar button{flex:1}.st-mc3d .mctoolpanel .mcbar select{min-width:0}.st-mc3d .mctoolhead{display:flex;justify-content:space-between;align-items:center;padding:7px 12px;color:#8fe9f8;border-bottom:1px solid #254559}.st-mc3d .mcquick{padding:4px 8px}.st-mc3d .mcquick button{min-height:32px}.st-mc3d .mcquick [data-act=tools]{flex:1}.st-mc3d .mcdetail{padding:7px 10px}.st-mc3d .mcinfo b{color:#eaf6ff!important}.st-mc3d .mclegend{padding:4px;font-size:10px}.st-mc3d .mcview{min-height:140px}.st-mc3d .mcdetail{position:absolute;bottom:0;left:0;right:0;z-index:8;max-height:48%;border:1px solid #3b657a;border-radius:16px 16px 0 0;background:linear-gradient(155deg,#17384af7,#0a1c2df8);box-shadow:0 -7px 26px #0007;touch-action:pan-y}.st-mc3d .mcinfo{flex-basis:100%;min-width:0;display:grid;grid-template-columns:38px minmax(0,1fr) auto;gap:8px;align-items:start}.st-mc3d .mcobject-icon{display:grid;place-items:center;background:#0b2639;border:1px solid #4ccfe4;border-radius:10px;color:#64e9f9;font-size:21px;height:40px}.st-mc3d .mcobject-copy{min-width:0;overflow-wrap:anywhere}.st-mc3d .mcinfo b{font-size:14px;line-height:1.3;color:#eaf6ff!important}.st-mc3d .mcobject-geo{font-size:11px;color:#a5d2df;margin-top:3px}.st-mc3d .mcobject-actions{display:flex;width:100%;gap:5px}.st-mc3d .mcobject-actions button{flex:1;min-width:0;padding:6px;min-height:34px}.st-mc3d .mcobject-progress{display:flex;align-items:center;gap:8px;width:100%}.st-mc3d .mcobject-progress select{flex:1;min-width:0}.st-mc3d .mcobject-progress .mcprogress{flex:1}.st-mc3d .mcobject-percent{font-weight:700;color:#62e5f7}.st-mc3d .mcsection{z-index:10}.st-mc3d .mcviewer.mc-has-selection .mcsection{bottom:auto;top:8px}.st-mc3d .mclevels{touch-action:pan-y}.st-mc3d .mcfoot-controls{position:absolute;top:25px;left:50px;right:88px;z-index:4;padding:5px;border:1px solid #31546b;border-radius:8px;background:#0b2033e8;touch-action:pan-y}.st-mc3d .mcfoot-controls select{width:100%;min-height:28px;padding:3px;font-size:11px}.st-mc3d [hidden]{display:none!important}.st-mc3d .mcsplit{position:absolute;left:50%;top:0;bottom:0;border-left:1px solid #46677d;pointer-events:none}.st-mc3d .mclabel{position:absolute;top:28px;left:53%;font-size:10px;color:#a1cce1;pointer-events:none}
 </style>
 <div class="mcbar mchead"><button data-act="close" aria-label="Fermer">✕</button><div class="mctitle">◈ ModelCore <span style="color:#5ce5fc">X</span><div class="mcsub" data-val="project"></div></div><span class="mcwarn">DÉMO LOCALE</span></div>
 <div class="mcbar mcnav"><button data-page="viewer" class="active">◇ Explorer</button><button data-page="import">⇩ Import</button><button data-page="ai">✧ AI Studio</button><button data-page="dash">▥ Maquette</button></div>
-<div class="mcviewer" data-pane="viewer"><div class="mcbar mcquick"><button data-act="tools" aria-expanded="false">☷ Outils · Filtres</button><button data-act="restorequick" hidden title="Restaurer les ouvrages masqués">↶</button><button data-act="fitquick" title="Recentrer le projet">⛶ Ajuster</button></div><div class="mctoolpanel" data-role="tools-panel" hidden><div class="mctoolhead"><b>OUTILS DE MAQUETTE</b><select data-role="quality" aria-label="Qualité graphique"><option value="standard">Fluide</option><option value="high">Détaillé</option></select><button data-act="tools-close" aria-label="Replier les outils">⌄</button></div>
+<div class="mcviewer" data-pane="viewer"><div class="mcbar mcquick"><button data-act="tools" aria-expanded="false">☷ Outils · Filtres</button><button data-act="plancher" title="Plancher et empreintes des appuis" aria-pressed="false">▧ Plancher</button><button data-act="restorequick" hidden title="Restaurer les ouvrages masqués">↶</button><button data-act="fitquick" title="Recentrer le projet">⛶ Ajuster</button></div><div class="mctoolpanel" data-role="tools-panel" hidden><div class="mctoolhead"><b>OUTILS DE MAQUETTE</b><select data-role="quality" aria-label="Qualité graphique"><option value="standard">Fluide</option><option value="high">Détaillé</option></select><button data-act="tools-close" aria-label="Replier les outils">⌄</button></div>
 <div class="mcbar"><select data-role="projecttype" aria-label="Famille de démonstration" style="flex:1;min-width:0"><option value="stade">Stade</option><option value="hopital">Hôpital</option><option value="immeuble">Résidence · 2 bâtiments</option><option value="villa">Villa</option><option value="pont">Pont</option><option value="vrd">VRD / Route</option><option value="industriel">Industrie</option><option value="batiment">Autre bâtiment</option></select><button data-act="reset" aria-label="Réinitialiser">↺</button></div>
 <div class="mckpis"><div class="mckpi">Ouvrages<b data-val="total">0</b></div><div class="mckpi">Lots<b data-val="avg">0</b></div><div class="mckpi">Niveaux<b data-val="nc">0</b></div></div>
 <div class="mcbar"><button data-act="structure">▤ Structure</button><button data-act="architecture">◇ Architecture</button><button data-act="color" class="active">◉ États</button><button data-act="filters">☷ Filtres</button><button data-act="layers">Calques</button></div>
 <div class="mcbar"><button data-act="view">Vue 3D</button><button data-act="explode">Éclaté</button><button data-act="all">Tout</button><button data-act="roof">Toiture</button></div>
 <div class="mcfilters" data-role="filters"><select data-filter="building" aria-label="Bâtiment"></select><select data-filter="lot" aria-label="Lot"></select><select data-filter="zone" aria-label="Zone"></select><select data-filter="level" aria-label="Niveau"></select><select data-filter="type" aria-label="Type"></select><select data-filter="status" aria-label="État"></select></div>
 <div class="mcfilters" data-role="layers"></div></div>
-<div class="mcview" data-role="stage"><div class="mcover" data-val="visible"></div><div class="mcside"><button data-act="top" title="Dessus">↑</button><button data-act="under" title="Dessous">↓</button><button data-act="zoomplus" title="Zoom avant">＋</button><button data-act="zoomminus" title="Zoom arrière">−</button><button data-act="cut" title="Coupe interactive">◫</button><button data-act="fit" title="Ajuster">⛶</button></div><div class="mclevels" data-role="levels"></div><div class="mcsection" data-role="section-panel" hidden><div class="mcsection-head"><b>COUPE LIVE</b><button data-act="section-h" aria-label="Coupe horizontale">H</button><button data-act="section-v" aria-label="Coupe verticale">V</button><button data-act="section-reset" title="Réinitialiser les coupes">↺</button><button data-act="section-close" title="Replier les réglages">−</button></div><div class="mcsection-row" data-section-row="h" hidden><span>H ↕</span><input data-section-slider="h" aria-label="Profondeur de coupe horizontale" type="range" min="0" max="100" step=".1" value="0"><output data-section-value="h">0%</output><button data-invert="h" title="Inverser la coupe horizontale">⇅</button></div><div class="mcsection-row" data-section-row="v" hidden><span>V ↔</span><input data-section-slider="v" aria-label="Profondeur de coupe verticale" type="range" min="0" max="100" step=".1" value="0"><output data-section-value="v">0%</output><button data-invert="v" title="Inverser la coupe verticale">⇄</button></div><div class="mcsub" data-val="section-note">H : haut vers bas · V : +X vers −X</div></div><div class="mcsplit" hidden></div><div class="mclabel" hidden>PLAN ZÉNITHAL</div><div class="mcsub" style="position:absolute;bottom:6px;left:12px;pointer-events:none">1 doigt : orbite · 2 doigts : zoom / déplacement</div></div>
+<div class="mcview" data-role="stage"><div class="mcover" data-val="visible"></div><div class="mcfoot-controls" data-role="foot-controls" hidden><select data-role="foot-side" aria-label="Empreintes des appuis"><option value="below">Appuis dessous</option><option value="above">Éléments dessus</option><option value="both">Les deux</option></select><div data-val="foot-report" class="mcsub"></div></div><div class="mcside"><button data-act="top" title="Dessus">↑</button><button data-act="under" title="Dessous">↓</button><button data-act="zoomplus" title="Zoom avant">＋</button><button data-act="zoomminus" title="Zoom arrière">−</button><button data-act="cut" title="Coupe interactive">◫</button><button data-act="fit" title="Ajuster">⛶</button></div><div class="mclevels" data-role="levels"></div><div class="mcsection" data-role="section-panel" hidden><div class="mcsection-head"><b>COUPE LIVE</b><button data-act="section-h" aria-label="Coupe horizontale">H</button><button data-act="section-v" aria-label="Coupe verticale">V</button><button data-act="section-reset" title="Réinitialiser les coupes">↺</button><button data-act="section-close" title="Replier les réglages">−</button></div><div class="mcsection-row" data-section-row="h" hidden><span>H ↕</span><input data-section-slider="h" aria-label="Profondeur de coupe horizontale" type="range" min="0" max="100" step=".1" value="0"><output data-section-value="h">0%</output><button data-invert="h" title="Inverser la coupe horizontale">⇅</button></div><div class="mcsection-row" data-section-row="v" hidden><span>V ↔</span><input data-section-slider="v" aria-label="Profondeur de coupe verticale" type="range" min="0" max="100" step=".1" value="0"><output data-section-value="v">0%</output><button data-invert="v" title="Inverser la coupe verticale">⇄</button></div><div class="mcsub" data-val="section-note">H : haut vers bas · V : +X vers −X</div></div><div class="mcsplit" hidden></div><div class="mclabel" hidden>PLAN ZÉNITHAL</div><div class="mcsub" style="position:absolute;bottom:6px;left:12px;pointer-events:none">1 doigt : orbite · 2 doigts : zoom / déplacement</div></div>
 <div class="mclegend" data-role="legend"></div>
 <div class="mcdetail" data-role="inspector" hidden><div class="mcinfo"><div class="mcobject-icon" data-val="object-icon">◇</div><div class="mcobject-copy"><div class="mcsub" style="color:#61dfef;letter-spacing:1px;font-size:10px">OUVRAGE SÉLECTIONNÉ</div><b data-val="id">Aucun ouvrage sélectionné</b><div class="mcsub" data-val="info">Touchez un élément.</div><div class="mcobject-geo" data-val="object-geo"></div><div class="mcwarn" data-val="warning">Données locales non synchronisées.</div></div><button data-act="selection-close" title="Fermer la sélection" aria-label="Fermer la sélection">✕</button></div><div class="mcobject-actions"><button data-act="isolate" disabled>Isoler</button><button data-act="hide" disabled>Masquer</button><button data-act="restore-hidden" disabled>Restaurer</button><button data-act="detail" aria-expanded="false" disabled>Fiche ↑</button></div><div class="mcobject-progress"><select data-role="editstatus" aria-label="État local de démonstration" disabled></select><span class="mcobject-percent" data-val="progress-percent">0%</span><div class="mcprogress"><i data-role="progressbar" style="width:0%"></i></div></div><div class="mcinspector-extra" data-role="extra" hidden><button data-tab="Infos">Infos</button><button data-tab="Géométrie">Géométrie</button><button data-tab="Docs">Docs</button><button data-tab="Journal">Journal</button><div data-val="extra" class="mcsub"></div><label data-role="progresslabel">Avancement fictif <input data-role="progress" type="range" min="0" max="100" step="1"></label></div></div>
 </div>
@@ -259,6 +288,9 @@
     // Plans globaux Three.js : toutes les surfaces (y compris contours) sont découpées.
     const sectionBounds=new T.Box3();
     const capMesh=new T.Mesh(new T.BufferGeometry(),new T.MeshBasicMaterial({color:0xc8ac8c,side:T.DoubleSide,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}));capMesh.visible=false;scene.add(capMesh);let capsDirty=true;
+    const footBelow=new T.LineSegments(new T.BufferGeometry(),new T.LineBasicMaterial({color:0x17374e,toneMapped:false,depthTest:true}));
+    const footAbove=new T.LineSegments(new T.BufferGeometry(),new T.LineDashedMaterial({color:0xd38a24,toneMapped:false,depthTest:true,dashSize:.12,gapSize:.07}));
+    for(const lines of [footBelow,footAbove]){lines.visible=false;lines.renderOrder=6;scene.add(lines);}let feetDirty=true;
     const sections={h:{active:false,inverse:false,value:0,axis:'y',plane:new T.Plane()},v:{active:false,inverse:false,value:0,axis:'x',plane:new T.Plane()}};
     function sectionActive(){return sections.h.active||sections.v.active;}
     function appliquerCoupes(){
@@ -295,7 +327,7 @@
     }
     function kpis(){const a=dataset||[];$('[data-val="total"]').textContent=a.length;$('[data-val="avg"]').textContent=new Set(a.map(e=>e.lot)).size;$('[data-val="nc"]').textContent=new Set(a.map(e=>e.level)).size;}
     function legend(){const l=$('[data-role="legend"]');l.replaceChildren();for(const [name,c] of Object.entries(couleur())){const span=document.createElement('span'),dot=document.createElement('i');dot.style.background=hex(c);span.append(dot,document.createTextNode(name));l.append(span);}}
-    function modeUI(){$('[data-act="restorequick"]').hidden=hidden.size===0&&!isolated;$('[data-role="legend"]').hidden=!statusColors;for(const a of ['structure','architecture','color','explode','cut'])$('[data-act="'+a+'"]').classList.toggle('active',a==='color'?statusColors:a==='explode'?exploded:a==='cut'?sectionActive():mode===a);$('[data-act="view"]').textContent='Vue '+view;}
+    function modeUI(){$('[data-act="plancher"]').classList.toggle('active',mode==='plancher');$('[data-act="plancher"]').setAttribute('aria-pressed',String(mode==='plancher'));$('[data-role="foot-controls"]').hidden=mode!=='plancher';$('[data-act="restorequick"]').hidden=hidden.size===0&&!isolated;$('[data-role="legend"]').hidden=!statusColors;for(const a of ['structure','architecture','color','explode','cut'])$('[data-act="'+a+'"]').classList.toggle('active',a==='color'?statusColors:a==='explode'?exploded:a==='cut'?sectionActive():mode===a);$('[data-act="view"]').textContent='Vue '+view;}
     function dash(){const d=$('[data-role="dashboard"]'),q=$('[data-role="shortcuts"]');d.replaceChildren();q.replaceChildren();const a=dataset||[],counts=new Map();for(const e of a)counts.set(e.type,(counts.get(e.type)||0)+1);const h=document.createElement('h3');h.textContent='Inventaire géométrique · '+a.length+' ouvrages';d.append(h);for(const [k,n] of [...counts].sort((a,b)=>b[1]-a[1])){const p=document.createElement('p');p.textContent=k+' : '+n;d.append(p);const b=document.createElement('button');b.textContent=k+' ('+n+')';b.onclick=()=>{hidden.clear();hiddenLots.clear();isolated=null;resetCoupes();roofHidden=false;mode='all';statusColors=false;for(const key of ['building','lot','zone','level','type','status'])$('[data-filter="'+key+'"]').value='all';$('[data-filter="type"]').value=k;select(null);setPage('viewer');resetCamera();};q.append(b);}}
     function setPage(p){const previous=page;page=p;el.querySelectorAll('[data-pane]').forEach(n=>n.hidden=n.dataset.pane!==p);el.querySelectorAll('.mcnav [data-page]').forEach(n=>n.classList.toggle('active',n.dataset.page===p));if(p==='viewer'){onResize();if(previous!=='viewer'&&fitPending){fitPending=false;resetCamera();}}if(p==='dash')dash();if(p==='ai')drawPlan();}
     function drawPlan(){const svg=$('[data-role="aiplan"]');let shapes='';for(let i=0;i<4;i++){const x=25+i*96;shapes+='<path d="M'+x+' 10V180" stroke="#526f86" stroke-dasharray="4 4"/>';for(let j=0;j<3;j++){const y=25+j*70;shapes+='<rect x="'+(x-6)+'" y="'+(y-6)+'" width="12" height="12" fill="'+(detected?'#ee9476':'#b6ccda')+'"/>';if(i<3)shapes+='<rect x="'+(x+6)+'" y="'+(y-3)+'" width="84" height="6" fill="'+(detected?'#dbad55':'#7e99ac')+'"/>';if(j<2)shapes+='<rect x="'+(x-3)+'" y="'+(y+6)+'" width="6" height="58" fill="'+(detected?'#dbad55':'#7e99ac')+'"/>';}}svg.innerHTML=shapes;}
@@ -351,12 +383,12 @@
       const layers=$('[data-role="layers"]');layers.replaceChildren();for(const lot of [...new Set(dataset.map(e=>e.lot))].sort()){const b=document.createElement('button');b.textContent=lot;b.dataset.lot=lot;b.onclick=()=>{mode='all';hiddenLots.has(lot)?hiddenLots.delete(lot):hiddenLots.add(lot);visibility();updateDetails();};layers.append(b);}
       legend();
     }
-    function visibility(){capsDirty=true;
+    function visibility(){capsDirty=true;feetDirty=true;
       for(const entry of registry.values()){
         const e=entry.meta;
         const arch=/façade|architecture|second œuvre|vitrage|étanchéité/i.test(e.lot); const technique=/ferraillage|CFO|CFA|plomberie|CVC|électricité|assainissement/i.test(e.lot);
         entry.mesh.position.y=entry.baseY+(exploded?levelRank(e.level)*1.2:0);
-        entry.mesh.visible=!hidden.has(e.id)&&!hiddenLots.has(e.lot)&&(!isolated||e.id===isolated)&&(!roofHidden||!(e.type==='Charpente'||e.type==='Couverture'||e.level==='Toiture'))&&(mode!=='structure'||(!arch&&!technique))&&(mode!=='architecture'||!technique)&&
+        entry.mesh.visible=!hidden.has(e.id)&&!hiddenLots.has(e.lot)&&(!isolated||e.id===isolated)&&(!roofHidden||!(e.type==='Charpente'||e.type==='Couverture'||e.level==='Toiture'))&&(mode!=='plancher'||typePlancher(e.type))&&(mode!=='structure'||(!arch&&!technique))&&(mode!=='architecture'||!technique)&&
           ['building','lot','zone','level','type','status'].every(k=>$('[data-filter="'+k+'"]').value==='all'||$('[data-filter="'+k+'"]').value===(k==='status'?etat(e):e[k]));
         entry.mesh.material=statusColors?getMat('s:'+etat(e),couleur()[etat(e)]):entry.baseMat;
       }
@@ -385,7 +417,7 @@
       const value=$('[data-val="extra"]');value.textContent=tab==='Infos'?'Source : '+(e.sourceFormat||'JSON')+' · ID source : '+(e.sourceId||'non fourni')+' · Géométrie : '+e.geometry.kind:tab==='Géométrie'?ficheGeometrique(e.geometry):tab==='Docs'?'Aucun PV, plan ou photo associé à cette démo.':e.journal.join(' | ')||'Aucune modification locale.';
       el.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
     }
-    function select(id){const next=registry.has(id)?id:null;if(next!==selected)detail=false;selected=next;if(!selected)isolated=null;visibility();updateDetails();}
+    function select(id){if(mode==='plancher'&&$('[data-filter="level"]').value==='all')mode='structure';const next=registry.has(id)?id:null;if(next!==selected)detail=false;selected=next;if(!selected)isolated=null;visibility();updateDetails();}
     // Surfaces de fermeture des boîtes et poutres seulement; maillages IFC arbitraires exclus.
     function actualiserCaps(){
       if(!capsDirty)return;capsDirty=false;
@@ -406,7 +438,83 @@
       }
       capMesh.geometry.dispose();capMesh.geometry=new T.BufferGeometry();capMesh.geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));capMesh.visible=positions.length>0;
     }
-    function render(){if(disposed||page!=='viewer')return;actualiserCaps();const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;renderer.setScissorTest(false);renderer.setViewport(0,0,w,h);
+    // Les empreintes utilisent les géométries réellement chargées, y compris les triangles IFC.
+    // Les dalles inclinées, surfaces non horizontales et budgets dépassés sont signalés.
+    function actualiserEmpreintes(){
+      if(!feetDirty)return;feetDirty=false;
+      const positions={below:[],above:[]},counts={below:new Set(),above:new Set()};let skipped=0,truncated=false,budget=180000;
+      const side=$('[data-role="foot-side"]').value;
+      function consume(n=1){budget-=n;if(budget<0){truncated=true;return false;}return true;}
+      if(mode==='plancher'&&dataset){
+        grp.updateMatrixWorld(true);
+        const entries=[...registry.values()],slabs=[],supports=[];
+        for(const e of entries){
+          if(!typeSupport(e.meta.type)&&!(e.mesh.visible&&typePlancher(e.meta.type)))continue;
+          const bounds=new T.Box3().setFromObject(e.mesh);
+          if(typeSupport(e.meta.type)){if(!hidden.has(e.meta.id)&&!hiddenLots.has(e.meta.lot))supports.push({e,bounds});continue;}
+          if(bounds.isEmpty())continue;
+          const m=e.mesh,geo=m.geometry,polys=[],top=bounds.max.y;
+          if(e.meta.geometry.kind==='box'&&Math.abs(m.rotation.x)<1e-7&&Math.abs(m.rotation.z)<1e-7){
+            if(!geo.boundingBox)geo.computeBoundingBox();const b=geo.boundingBox;
+            for(const [x,z] of [[b.min.x,b.min.z],[b.max.x,b.min.z],[b.max.x,b.max.z],[b.min.x,b.max.z]]){
+              const p=new T.Vector3(x,b.max.y,z).applyMatrix4(m.matrixWorld);polys.push([p.x,p.z]);
+            }
+            slabs.push({e,bounds,polys:[polys]});continue;
+          }
+          if(e.meta.geometry.kind!=='mesh'){skipped++;continue;}
+          const pos=geo.getAttribute('position'),idx=geo.index;
+          for(let i=0;i<(idx?idx.count:pos.count);i+=3){
+            if(!consume())break;
+            const tri=[0,1,2].map(j=>new T.Vector3().fromBufferAttribute(pos,idx?idx.getX(i+j):i+j).applyMatrix4(m.matrixWorld));
+            if(tri.some(p=>Math.abs(p.y-top)>.0005))continue;
+            const p=tri.map(v=>[v.x,v.z]),area=(p[1][0]-p[0][0])*(p[2][1]-p[0][1])-(p[1][1]-p[0][1])*(p[2][0]-p[0][0]);
+            if(Math.abs(area)<1e-10)continue;if(area<0)p.reverse();polys.push(p);
+          }
+          if(polys.length&&!truncated)slabs.push({e,bounds,polys});else skipped++;
+          if(truncated)break;
+        }
+        const cache=new Map();
+        function segments(support,y){
+          const key=support.e.meta.id+'|'+y.toFixed(6);if(cache.has(key))return cache.get(key);
+          const m=support.e.mesh,g=m.geometry,out=[];
+          if(support.e.meta.geometry.kind!=='mesh'){
+            if(!g.boundingBox)g.computeBoundingBox();const b=g.boundingBox,corners=Array.from({length:8},(_,i)=>new T.Vector3(i&1?b.max.x:b.min.x,i&2?b.max.y:b.min.y,i&4?b.max.z:b.min.z).applyMatrix4(m.matrixWorld).toArray());
+            const p=contourCoupe(corners,[0,1,0],-y);for(let i=0;i<p.length;i++)out.push([[p[i][0],p[i][2]],[p[(i+1)%p.length][0],p[(i+1)%p.length][2]]]);
+          }else{
+            const pos=g.getAttribute('position'),idx=g.index;
+            for(let i=0;i<(idx?idx.count:pos.count);i+=3){
+              if(!consume())break;const tri=[0,1,2].map(j=>new T.Vector3().fromBufferAttribute(pos,idx?idx.getX(i+j):i+j).applyMatrix4(m.matrixWorld)),pts=[];
+              const add=p=>{if(!pts.some(q=>Math.hypot(p[0]-q[0],p[1]-q[1])<1e-7))pts.push(p);};
+              for(let j=0;j<3;j++){const a=tri[j],b=tri[(j+1)%3],d=a.y-y,e=b.y-y;if(Math.abs(d)<1e-8)add([a.x,a.z]);if(d*e<0){const t=d/(d-e);add([a.x+(b.x-a.x)*t,a.z+(b.z-a.z)*t]);}}
+              if(pts.length===2)out.push(pts);
+            }
+          }
+          cache.set(key,out);return out;
+        }
+        outer:for(const slab of slabs)for(const support of supports){
+          if(!consume())break outer;
+          const a=slab.bounds,b=support.bounds;
+          if(slab.e.meta.building!==support.e.meta.building||a.max.x<b.min.x||a.min.x>b.max.x||a.max.z<b.min.z||a.min.z>b.max.z)continue;
+          for(const k of (side==='both'?['below','above']:[side])){
+            const y=contactPlancher(a.min.y,a.max.y,b.min.y,b.max.y,k);if(y===null)continue;
+            for(const [p,q] of segments(support,y)){
+              if(truncated)break outer;
+              const intervals=[];for(const poly of slab.polys){if(!consume())break outer;const v=segmentDansPolygone(p,q,poly);if(v)intervals.push(v);}
+              for(const [lo,hi] of fusionIntervalles(intervals)){
+                const top=a.max.y+(k==='above'?.006:.003);
+                for(const t of [lo,hi])positions[k].push(p[0]+(q[0]-p[0])*t,top,p[1]+(q[1]-p[1])*t);
+                counts[k].add(support.e.meta.id);
+              }
+            }
+          }
+        }
+      }
+      for(const [key,lines] of [['below',footBelow],['above',footAbove]]){
+        lines.geometry.dispose();lines.geometry=new T.BufferGeometry();lines.geometry.setAttribute('position',new T.Float32BufferAttribute(positions[key],3));lines.visible=positions[key].length>0;if(lines.visible&&key==='above')lines.computeLineDistances();
+      }
+      $('[data-val="foot-report"]').textContent=counts.below.size+' dessous · '+counts.above.size+' dessus'+(skipped?' · '+skipped+' dalles non traitées':'')+(truncated?' · calcul partiel (limite)':'')+' · contacts indicatifs';
+    }
+    function render(){if(disposed||page!=='viewer')return;actualiserCaps();actualiserEmpreintes();const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;renderer.setScissorTest(false);renderer.setViewport(0,0,w,h);
       if(view==='3D'){renderer.render(scene,camera);return;}
       const ctr=projectCenter,sz=sectionBounds.getSize(new T.Vector3()),pw=view==='Hybride'?w/2:w,asp=pw/h,half=Math.max(sz.z/2,sz.x/(2*asp),.1)*1.15*Math.max(.01,camera.position.distanceTo(projectCenter)/fitDistance);
       const dx=-2*half*asp*pan.x,dy=2*half*pan.y;
@@ -444,7 +552,7 @@
       if(disposed)return;disposed=true;stopIfc();if(ocrWorker)ocrWorker.terminate().catch(()=>{});if(pdfTask)pdfTask.destroy().catch(()=>{});
       if(backRemove)try{backRemove();}catch(e){}
       if(raf)cancelAnimationFrame(raf);observer.disconnect();controls.dispose();
-      clearOutline();capMesh.geometry.dispose();capMesh.material.dispose();concreteBump.dispose();ground.geometry.dispose();ground.material.dispose();grid.geometry.dispose();grid.material.dispose();for(const g of geometryCache)g.dispose();for(const m of matCache.values())m.dispose();
+      clearOutline();for(const lines of [footBelow,footAbove]){lines.geometry.dispose();lines.material.dispose();}capMesh.geometry.dispose();capMesh.material.dispose();concreteBump.dispose();ground.geometry.dispose();ground.material.dispose();grid.geometry.dispose();grid.material.dispose();for(const g of geometryCache)g.dispose();for(const m of matCache.values())m.dispose();
       renderer.dispose();renderer.forceContextLoss();el.remove();
     }
     if(typeof pushBack==='function') backRemove=pushBack(close);
@@ -467,7 +575,7 @@
     on('fit',resetCamera);
     on('filters',()=>{$('[data-role="filters"]').classList.toggle('open');$('[data-role="layers"]').classList.remove('open');});
     on('layers',()=>{if(!$('[data-role="layers"]').classList.contains('open')&&mode!=='all'){for(const e of dataset){const arch=/façade|architecture|second œuvre|vitrage|étanchéité/i.test(e.lot),tech=/ferraillage|CFO|CFA|plomberie|CVC|électricité|assainissement/i.test(e.lot);if(tech||(mode==='structure'&&arch))hiddenLots.add(e.lot);}mode='all';visibility();} $('[data-role="layers"]').classList.toggle('open');$('[data-role="filters"]').classList.remove('open');});
-    on('explode',()=>{exploded=!exploded;visibility();resetCamera();});
+    on('explode',()=>{if(mode==='plancher')mode='structure';exploded=!exploded;visibility();resetCamera();});
     on('cut',ouvrirCoupes);
     on('section-close',()=>{$('[data-role="section-panel"]').hidden=true;});
     on('section-reset',resetCoupes);
@@ -477,6 +585,15 @@
       $('[data-section-slider="'+key+'"]').addEventListener('input',e=>{sections[key].value=Number(e.target.value);appliquerCoupes();});
     }
     on('view',()=>{view=['3D','2D','Hybride'][(['3D','2D','Hybride'].indexOf(view)+1)%3];gesture.reset();panGesture.reset();controls.enableRotate=view!=='2D';$('.mcsplit').hidden=$('.mclabel').hidden=view!=='Hybride';modeUI();onResize();});
+    on('plancher',()=>{
+      if(mode==='plancher'){mode='structure';select(null);return;}
+      const level=$('[data-filter="level"]'),building=$('[data-filter="building"]').value;
+      const levels=[...new Set(dataset.filter(e=>typePlancher(e.type)&&(building==='all'||e.building===building)).map(e=>e.level))];
+      if(!levels.length){toast('Aucun plancher identifié dans ce bâtiment.');return;}
+      if(!levels.includes(level.value))level.value=levels.includes('RDC')?'RDC':levels[0];
+      exploded=false;mode='plancher';statusColors=false;isolated=null;roofHidden=false;$('[data-filter="type"]').value='all';select(null);setTools(false);
+    });
+    $('[data-role="foot-side"]').onchange=()=>{feetDirty=true;schedule();};
     on('detail',()=>{detail=!detail;updateDetails();});
     on('selection-close',()=>select(null));
     const restoreHidden=()=>{hidden.clear();isolated=null;visibility();updateDetails();};on('restore-hidden',restoreHidden);on('restorequick',restoreHidden);
@@ -556,5 +673,5 @@
     onResize();chooseTemplate(initialType);
     return { close, getSelected:()=>registry.get(selected)?.meta||null, selectById:id=>{if(disposed||!registry.get(id)?.mesh.visible)return false;select(id);return selected===id;}, projectId, schema:SCHEMA };
   }
-  window.ModelCore3D = { open, validateManifest, ficheGeometrique, suggestionsPlan, gesteSelection, gestePan, profilMateriau, contourCoupe, coupeParametres, pointDansCoupe, maquetteParametrique, demo:(type='stade')=>type==='stade'?createDemo():window.ModelCoreTemplates?window.ModelCoreTemplates.make(type):createDemo(), schema:SCHEMA };
+  window.ModelCore3D = { open, validateManifest, ficheGeometrique, suggestionsPlan, gesteSelection, gestePan, profilMateriau, contourCoupe, contactPlancher, segmentDansPolygone, fusionIntervalles, typePlancher, typeSupport, coupeParametres, pointDansCoupe, maquetteParametrique, demo:(type='stade')=>type==='stade'?createDemo():window.ModelCoreTemplates?window.ModelCoreTemplates.make(type):createDemo(), schema:SCHEMA };
 })();
