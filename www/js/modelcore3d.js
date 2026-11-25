@@ -296,12 +296,12 @@
     const stageBase=new T.Mesh(new T.PlaneGeometry(1,1),new T.MeshStandardMaterial({color:0x435668,roughness:.95,metalness:0}));stageBase.rotation.x=-Math.PI/2;stageBase.visible=false;stageBase.receiveShadow=true;scene.add(stageBase);
     function environnementStudio(){
       if(envTarget||envUnavailable)return;
-      let source=null,pmrem=null;
-      try{
+      let source=null,pmrem=null;const planes=renderer.clippingPlanes;
+      try{renderer.clippingPlanes=[];
         source=new T.DataTexture(studioPixels(),256,128,T.RGBAFormat);source.mapping=T.EquirectangularReflectionMapping;source.encoding=T.sRGBEncoding;source.minFilter=T.LinearFilter;source.magFilter=T.LinearFilter;source.needsUpdate=true;
         pmrem=new T.PMREMGenerator(renderer);envTarget=pmrem.fromEquirectangular(source);
       }catch(e){envUnavailable=true;if(envTarget){envTarget.dispose();envTarget=null;}}
-      finally{source?.dispose();pmrem?.dispose();}
+      finally{renderer.clippingPlanes=planes;source?.dispose();pmrem?.dispose();}
     }
     function appliquerOmbres(){
       // Une coupe ne doit jamais laisser une ombre de la partie masquée.
@@ -315,17 +315,17 @@
       scene.environment=renderProfile.reflection&&envTarget?envTarget.texture:null;
       hemi.intensity=scene.environment ? .42 : .65;
       sun.intensity=scene.environment ? 1.05 : .85;
-      fill.intensity=renderProfile.studio?.28:.22;
+      fill.intensity=renderProfile.studio ? .28 : .22;
       renderer.toneMappingExposure=renderProfile.exposure;
       if(sun.shadow.mapSize.x!==renderProfile.shadowSize){if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}sun.shadow.mapSize.set(renderProfile.shadowSize,renderProfile.shadowSize);}
       renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,renderProfile.pixelRatio));
       for(const m of matCache.values()){
-        if(m.userData.mcConcrete){m.bumpMap=renderProfile.high?concreteBump:null;m.bumpScale=.035;}
+        if(m.userData.mcConcrete){m.bumpMap=renderProfile.edges?concreteBump:null;m.bumpScale=.035;}
         if(m.userData.mcGlass){m.envMapIntensity=scene.environment?1.1:.15;m.clearcoat=scene.environment ? .5 : 0;}
         m.needsUpdate=true;
       }
       for(const e of registry.values()){e.mesh.castShadow=renderProfile.shadows&&!e.mesh.material.userData.mcGlass;e.mesh.receiveShadow=renderProfile.shadows;}
-      grid.material.opacity=renderProfile.studio?.08:renderProfile.high?.15:.24;
+      grid.material.opacity=renderProfile.studio ? .08 : renderProfile.high ? .15 : .24;
       edgesDirty=true;appliquerOmbres();
       $('[data-val="render-profile"]').textContent=(quality==='studio'?'Studio':quality==='high'?'Détaillé':'Fluide')+(quality!=='standard'&&!renderProfile.shadows?' · allégé (grande maquette)':'')+(envUnavailable&&renderProfile.reflection?' · reflets indisponibles':'');
       onResize();
@@ -394,10 +394,10 @@
       geometryCache.push(geo);
       const profile=profilMateriau(type,lot),key='m:'+profile.kind+':'+profile.color+(geo.getAttribute('uv')?':uv':':sans-uv');
       if(!matCache.has(key)){
-        const m=profile.kind==='verre'?new T.MeshPhysicalMaterial({color:profile.color,roughness:.18,metalness:.18,clearcoat:scene.environment?.5:0,clearcoatRoughness:.12,envMapIntensity:scene.environment?1.1:.15,side:T.DoubleSide}):new T.MeshStandardMaterial({color:profile.color,roughness:profile.roughness,metalness:profile.metalness,side:T.DoubleSide,envMapIntensity:profile.kind==='metal'||profile.kind==='acier'?.85:.38});
+        const m=profile.kind==='verre'?new T.MeshPhysicalMaterial({color:profile.color,roughness:.18,metalness:.18,clearcoat:scene.environment ? .5 : 0,clearcoatRoughness:.12,envMapIntensity:scene.environment?1.1:.15,side:T.DoubleSide}):new T.MeshStandardMaterial({color:profile.color,roughness:profile.roughness,metalness:profile.metalness,side:T.DoubleSide,envMapIntensity:(profile.kind==='metal'||profile.kind==='acier') ? .85 : .38});
         m.userData.mcGlass=profile.kind==='verre';
         m.userData.mcConcrete=profile.kind==='beton'&&!!geo.getAttribute('uv');
-        if(m.userData.mcConcrete&&renderProfile.high){m.bumpMap=concreteBump;m.bumpScale=.045;}
+        if(m.userData.mcConcrete&&renderProfile.edges){m.bumpMap=concreteBump;m.bumpScale=.045;}
         matCache.set(key,m);
       }
       // Les maillages IFC ne disposent pas forcément d'UV : pas de bump sur ces éléments.
