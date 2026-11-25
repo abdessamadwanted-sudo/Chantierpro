@@ -2558,10 +2558,26 @@ try {
       const d = DocumentStudio.remplir(base, { Surface: 12.5, Date: '2026-11-12' }, SuivisPerso.ctxOf(pr0));
       await DB.putRaw('dsdossiers', { ...d, id: 'd_vis', creeLe: Date.now() });
       App.recTab = { pid: pr0.id, id: 's_vis' }; const root = document.createElement('div'); document.body.appendChild(root); await SuivisTabs.render(root, pr0, 'Ferraillage'); await (await need('.mcard .prow', root)).click(); (await need('[data-pdf]', document)).click(); setTimeout(() => { root.remove(); document.querySelectorAll('.sv-dayr').forEach(x => x.remove()); }, 4000);
-      for (let i = 0; i < 100 && !opened; i++) await wait(100);
+      // Le parcours Qualité peut demander la destination du PDF : choisir réellement « Ouvrir ».
+      for (let i = 0; i < 150 && !opened; i++) {
+        const choix = [...(top()?.querySelectorAll('button.opt') || [])].find(b => b.textContent.trim() === 'Ouvrir le PDF');
+        if (choix) choix.click();
+        await wait(100);
+      }
       o.pdf = !!opened && opened.blob.size > 500 && opened.mime === 'application/pdf';
-      const txt = opened ? new TextDecoder('latin1').decode(new Uint8Array(await opened.blob.arrayBuffer())) : '';
-      o.pdfPages = txt.startsWith('%PDF') && opened.blob.size > 5000;   // plus gros que la page vierge : les cases sont bien écrites
+      o.pdfPages = false;
+      if (o.pdf) {
+        // Vérifier le contenu réel, pas une taille arbitraire de fichier.
+        const bytes = new Uint8Array(await opened.blob.arrayBuffer());
+        const task = pdfjsLib.getDocument({data:bytes});
+        try {
+          const doc = await task.promise, page = await doc.getPage(1);
+          const tc = await page.getTextContent();
+          const text = tc.items.map(t => t.str).join(' ');
+          o.pdfPages = doc.numPages === 1 && /12[.,]5/.test(text);
+          o.pdfText = text.slice(0,200);
+        } finally { await task.destroy(); }
+      }
     } catch (e) { o.err = String(e.message || e); }
     window.openFileRecord = oldOpen;
     for (const m of (await DB.all('dsmodeles')).filter(m => m.id === 's_vis')) await DB.delRaw('dsmodeles', m.id);
