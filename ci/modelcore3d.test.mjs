@@ -171,3 +171,18 @@ assert.equal(JSON.stringify(M.fusionIntervalles([[.5,1],[0,.5],[.2,.4]])),'[[0,1
 assert.ok(M.typeSupport('Voile / mur')&&M.typeSupport('Poteau')&&M.typeSupport('Poutre'));
 assert.ok(M.typePlancher('Dalle')&&!M.typePlancher('Poteau'));
 console.log('ModelCore X — contacts plancher, découpage des empreintes et côtés : tests OK.');
+
+// Studio : plafonds GPU, environnement local et profils sans mutation de géométrie.
+assert.equal(M.profilRendu('standard',100).shadows,false);
+assert.equal(M.profilRendu('high',100).shadows,true);
+assert.equal(M.profilRendu('studio',100).pixelRatio,2);
+assert.equal(M.profilRendu('studio',2000).shadows,false);
+assert.equal(M.profilRendu('studio',2000).edges,false);
+assert.equal(M.profilRendu('studio',2000).pixelRatio,1);
+assert.equal(M.profilRendu('studio',100,1024).shadowSize,1024);
+const pixels=M.studioPixels(16,8);
+assert.equal(pixels.length,16*8*4);assert.ok(pixels.every((v,i)=>i%4!==3||v===255));
+assert.ok(new Set(pixels).size>20);
+assert.ok(code.includes('pmrem.fromEquirectangular(source)'));
+assert.ok(code.includes('renderer.shadowMap.autoUpdate=false'));
+console.log('ModelCore X — profils Studio, environnement procédural et plafonds GPU : tests OK.');
