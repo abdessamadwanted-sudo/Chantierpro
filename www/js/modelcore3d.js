@@ -164,7 +164,7 @@
       return matCache.get(key);
     };
     let selected=null, isolated=null, hidden=new Set(), roofHidden=false, statusColors=true, dataset=null, disposed=false, raf=0, press=null, backRemove=null;
-    let service='Travaux', mode='all', view='3D', page='viewer', exploded=false, cut=false, detail=false, tab='Infos', detected=false;
+    let service='Travaux', mode='structure', view='3D', page='viewer', exploded=false, cut=false, detail=false, tab='Infos', detected=false;
     let hiddenLots=new Set(), outline=null;
     const champ = ()=>METIERS[service]?service:'Travaux';
     const etat = e => e.suivi[champ()];
@@ -180,7 +180,7 @@
     function setPage(p){page=p;el.querySelectorAll('[data-pane]').forEach(n=>n.hidden=n.dataset.pane!==p);el.querySelectorAll('.mcnav [data-page]').forEach(n=>n.classList.toggle('active',n.dataset.page===p));if(p==='viewer')onResize();if(p==='dash')dash();if(p==='ai')drawPlan();}
     function drawPlan(){const svg=$('[data-role="aiplan"]');let shapes='';for(let i=0;i<4;i++){const x=25+i*96;shapes+='<path d="M'+x+' 10V180" stroke="#526f86" stroke-dasharray="4 4"/>';for(let j=0;j<3;j++){const y=25+j*70;shapes+='<rect x="'+(x-6)+'" y="'+(y-6)+'" width="12" height="12" fill="'+(detected?'#ee9476':'#b6ccda')+'"/>';if(i<3)shapes+='<rect x="'+(x+6)+'" y="'+(y-3)+'" width="84" height="6" fill="'+(detected?'#dbad55':'#7e99ac')+'"/>';if(j<2)shapes+='<rect x="'+(x-3)+'" y="'+(y+6)+'" width="6" height="58" fill="'+(detected?'#dbad55':'#7e99ac')+'"/>';}}svg.innerHTML=shapes;}
 
-    const selectedMat = new T.MeshStandardMaterial({color:0xffe29a,roughness:.65,side:T.DoubleSide});
+    // La sélection ne remplace jamais le matériau d'état.
     const pos = v => new T.Vector3(v[0],v[1],v[2]);
     function createMesh(g, type) {
       let geo, mesh;
@@ -195,7 +195,7 @@
     function resetCamera(){const bounds=new T.Box3().setFromObject(grp),ctr=bounds.getCenter(new T.Vector3()),size=bounds.getSize(new T.Vector3());const d=Math.max(15,size.length()*1.12);camera.far=Math.max(500,d*6);camera.updateProjectionMatrix();controls.maxDistance=d*4;camera.position.set(ctr.x+d*.7,ctr.y+d*.56,ctr.z+d*.8);controls.target.copy(ctr);controls.update();schedule();}
     function populate(elements) {
       clearOutline(); for(const child of [...grp.children]) grp.remove(child);
-      geometryCache.splice(0).forEach(g=>g.dispose()); registry.clear(); hidden.clear(); hiddenLots.clear(); isolated=null; selected=null; dataset=elements; exploded=false;cut=false;mode='all';detail=false;
+      geometryCache.splice(0).forEach(g=>g.dispose()); registry.clear(); hidden.clear(); hiddenLots.clear(); isolated=null; selected=null; dataset=elements; exploded=false;cut=false;mode='structure';detail=false;roofHidden=false;for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';
       for(const e of elements){
         e.suivi=suiviInitial(e); let mesh=createMesh(e.geometry,e.type); mesh.userData.modelcoreId=e.id; grp.add(mesh);registry.set(e.id,{mesh,meta:e,baseMat:mesh.material,baseY:mesh.position.y});
       }
@@ -207,15 +207,15 @@
         const values=key==='status'?Object.keys(couleur()):[...new Set(dataset.map(e=>e[key]))].sort();values.forEach(v=>f.add(new Option(v,v)));f.value=values.includes(old)?old:'all';
       }
       const levels=$('[data-role="levels"]');levels.replaceChildren();for(const v of ['all',...new Set(dataset.map(e=>e.level))]){const b=document.createElement('button');b.textContent=v==='all'?'Tous':v;b.title=v;b.onclick=()=>{$('[data-filter="level"]').value=v;isolated=null;select(null);};b.dataset.level=v;levels.append(b);}
-      const layers=$('[data-role="layers"]');layers.replaceChildren();for(const lot of [...new Set(dataset.map(e=>e.lot))].sort()){const b=document.createElement('button');b.textContent=lot;b.dataset.lot=lot;b.onclick=()=>{hiddenLots.has(lot)?hiddenLots.delete(lot):hiddenLots.add(lot);visibility();updateDetails();};layers.append(b);}
+      const layers=$('[data-role="layers"]');layers.replaceChildren();for(const lot of [...new Set(dataset.map(e=>e.lot))].sort()){const b=document.createElement('button');b.textContent=lot;b.dataset.lot=lot;b.onclick=()=>{mode='all';hiddenLots.has(lot)?hiddenLots.delete(lot):hiddenLots.add(lot);visibility();updateDetails();};layers.append(b);}
       legend();
     }
     function visibility(){
       for(const entry of registry.values()){
         const e=entry.meta;
-        const arch=/façade|architecture|second œuvre|vitrage|étanchéité/i.test(e.lot);
+        const arch=/façade|architecture|second œuvre|vitrage|étanchéité/i.test(e.lot); const technique=/ferraillage|CFO|CFA|plomberie|CVC|électricité|assainissement/i.test(e.lot);
         entry.mesh.position.y=entry.baseY+(exploded?levelRank(e.level)*1.2:0);
-        entry.mesh.visible=!hidden.has(e.id)&&!hiddenLots.has(e.lot)&&(!isolated||e.id===isolated)&&(!roofHidden||!(e.type==='Charpente'||e.type==='Couverture'||e.level==='Toiture'))&&(!cut||new T.Box3().setFromObject(entry.mesh).getCenter(new T.Vector3()).z<=0)&&(mode!=='structure'||!arch)&&
+        entry.mesh.visible=!hidden.has(e.id)&&!hiddenLots.has(e.lot)&&(!isolated||e.id===isolated)&&(!roofHidden||!(e.type==='Charpente'||e.type==='Couverture'||e.level==='Toiture'))&&(!cut||new T.Box3().setFromObject(entry.mesh).getCenter(new T.Vector3()).z<=0)&&(mode!=='structure'||(!arch&&!technique))&&(mode!=='architecture'||!technique)&&
           ['building','lot','zone','level','type','status'].every(k=>$('[data-filter="'+k+'"]').value==='all'||$('[data-filter="'+k+'"]').value===(k==='status'?etat(e):e[k]));
         entry.mesh.material=statusColors?getMat('s:'+champ()+':'+etat(e),couleur()[etat(e)]):entry.baseMat;
       }
@@ -261,26 +261,26 @@
       if(disposed)return;disposed=true;
       if(backRemove)try{backRemove();}catch(e){}
       if(raf)cancelAnimationFrame(raf);observer.disconnect();controls.dispose();
-      clearOutline();grid.geometry.dispose();grid.material.dispose();for(const g of geometryCache)g.dispose();for(const m of matCache.values())m.dispose();selectedMat.dispose();
+      clearOutline();grid.geometry.dispose();grid.material.dispose();for(const g of geometryCache)g.dispose();for(const m of matCache.values())m.dispose();
       renderer.dispose();renderer.forceContextLoss();el.remove();
     }
     if(typeof pushBack==='function') backRemove=pushBack(close);
     const on=(act,fn)=>$('[data-act="'+act+'"]').addEventListener('click',fn);
     on('close',close);on('top',()=>{camera.position.set(.001,54,.001);controls.target.set(0,2.5,0);controls.update();});
     on('under',()=>{camera.position.set(.001,-40,.001);controls.target.set(0,2.5,0);controls.update();});
-    on('reset',()=>{isolated=null;hidden.clear();roofHidden=false;statusColors=true;hiddenLots.clear();cut=false;exploded=false;mode='all';for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';resetCamera();select(null);});
+    on('reset',()=>{isolated=null;hidden.clear();roofHidden=false;statusColors=true;hiddenLots.clear();cut=false;exploded=false;mode='structure';for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';select(null);resetCamera();});
     on('zoomplus',()=>{camera.position.sub(controls.target).multiplyScalar(.78).add(controls.target);controls.update();});
     on('zoomminus',()=>{camera.position.sub(controls.target).multiplyScalar(1.25).add(controls.target);controls.update();});
     on('isolate',()=>{if(!selected)return;isolated=isolated?null:selected;visibility();updateDetails();});
     on('hide',()=>{if(!selected)return;hidden.add(selected);if(isolated===selected)isolated=null;select(null);});
     on('all',()=>{isolated=null;hidden.clear();hiddenLots.clear();cut=false;mode='all';roofHidden=false;for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';select(null);});
-    on('roof',()=>{roofHidden=!roofHidden;visibility();});
+    on('roof',()=>{roofHidden=!roofHidden;visibility();updateDetails();});
     on('color',()=>{statusColors=!statusColors;visibility();});
     on('structure',()=>{mode='structure';hiddenLots.clear();statusColors=false;select(null);});
-    on('architecture',()=>{mode='all';hiddenLots.clear();statusColors=false;select(null);});
+    on('architecture',()=>{mode='architecture';hiddenLots.clear();statusColors=false;select(null);});
     on('fit',resetCamera);
     on('filters',()=>{$('[data-role="filters"]').classList.toggle('open');$('[data-role="layers"]').classList.remove('open');});
-    on('layers',()=>{$('[data-role="layers"]').classList.toggle('open');$('[data-role="filters"]').classList.remove('open');});
+    on('layers',()=>{if(!$('[data-role="layers"]').classList.contains('open')&&mode!=='all'){for(const e of dataset){const arch=/façade|architecture|second œuvre|vitrage|étanchéité/i.test(e.lot),tech=/ferraillage|CFO|CFA|plomberie|CVC|électricité|assainissement/i.test(e.lot);if(tech||(mode==='structure'&&arch))hiddenLots.add(e.lot);}mode='all';visibility();} $('[data-role="layers"]').classList.toggle('open');$('[data-role="filters"]').classList.remove('open');});
     on('explode',()=>{exploded=!exploded;visibility();resetCamera();});
     on('cut',()=>{cut=!cut;visibility();updateDetails();});
     on('view',()=>{view=['3D','2D','Hybride'][(['3D','2D','Hybride'].indexOf(view)+1)%3];$('.mcsplit').hidden=$('.mclabel').hidden=view!=='Hybride';modeUI();onResize();});
