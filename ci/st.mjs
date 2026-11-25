@@ -3161,7 +3161,7 @@ try {
     return result;
   });
   log('PDF Stack PDF réels',pdfStackTest);
-  log('errors v1.0.x PDF Stack',!pdfStackTest.err&&['pending','visible','metric','levels','rotation','canvas','closed'].every(k=>pdfStackTest[k])?[]:['PDF Stack '+JSON.stringify(pdfStackTest)]);
+  log('errors v1.0.337',!pdfStackTest.err&&['pending','visible','metric','levels','rotation','canvas','closed'].every(k=>pdfStackTest[k])?[]:['PDF Stack '+JSON.stringify(pdfStackTest)]);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
