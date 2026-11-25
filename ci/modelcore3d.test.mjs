@@ -52,3 +52,68 @@ const custom=M.validateManifest({schema:M.schema,elements:[{
 }]});
 assert.equal(custom[0].type,'Pieu foré','catégorie IFC libre conservée');
 console.log('ModelCore 3D multi-projets OK — '+families.join(', '));
+
+ // ModelCore X : contrat géométrique, résidence et indépendance métier.
+const twin=M.validateManifest(M.demo('immeuble'));
+assert.deepEqual([...new Set(twin.map(x=>x.building))].sort(),['Bloc A','Bloc B']);
+for(const block of ['Bloc A','Bloc B']){
+  for(const level of ['RDC','R+1','R+2','R+3','R+4','R+5','R+6'])
+    assert.ok(twin.some(x=>x.building===block&&x.level===level&&x.type==='Poteau'));
+  for(const lot of ['Fondations','Gros œuvre','Architecture','Ferraillage','CFO/CFA','Plomberie','CVC'])
+    assert.ok(twin.some(x=>x.building===block&&x.lot===lot));
+}
+assert.equal(M.suiviInitial,undefined,'Le moteur ne crée aucun état métier par service');
+assert.ok(!code.includes('data-role="service"'),'Aucun sélecteur de service métier');
+assert.match(M.ficheGeometrique({kind:'box',size:[2,3,4]}),/24\.000 m³/);
+assert.match(M.ficheGeometrique({kind:'beam',start:[0,0,0],end:[3,4,0],width:.4,depth:.5}),/5\.00 m/);
+assert.match(M.ficheGeometrique({kind:'mesh',positions:[0,0,0,1,0,0,0,1,0],indices:[0,1,2]}),/3 sommets · 1 triangles/);
+const generated=M.validateManifest(M.maquetteParametrique({hauteur:3.2,epaisseur:.25,niveaux:3,entraxe:5}));
+assert.equal(generated.length,105);
+assert.equal(generated.filter(x=>x.type==='Poteau').length,36);
+assert.throws(()=>M.maquetteParametrique({hauteur:0,epaisseur:.25,niveaux:3,entraxe:5}),/limites/);
+console.log('ModelCore X — résidence, fiche géométrique et génération paramétrique OK.');
+
+ // OCR : les valeurs sont des propositions explicites, jamais inventées.
+const cotes=M.suggestionsPlan("Hauteur d'étage : 3,20 m ; Épaisseur de dalle : 250 mm ; Entraxe : 500 cm");
+assert.equal(cotes.hauteur.value,3.2);assert.equal(cotes.epaisseur.value,25);assert.equal(cotes.entraxe.value,5);
+assert.ok(cotes.hauteur.evidence.includes('3,20'));
+assert.equal(M.suggestionsPlan('Hauteur étage 3,20').hauteur,undefined);
+assert.equal(M.suggestionsPlan('Hauteur étage 3 m ; Hauteur étage 4 m').hauteur,undefined);
+assert.equal(M.suggestionsPlan('Épaisseur dalle 4 m').epaisseur,undefined);
+assert.equal(Object.keys(M.suggestionsPlan('D01 P02 3.20 25')).length,0);
+console.log('ModelCore AI — extraction de cotes et rejet des ambiguïtés OK.');
+
+// ModelCore X : un geste tactile ne sélectionne jamais un ouvrage par erreur.
+const gesture=M.gesteSelection();
+const finger=(pointerId,clientX,clientY,button=0)=>({pointerId,clientX,clientY,button});
+gesture.down(finger(1,10,10));assert.equal(gesture.up(finger(1,12,11)),true);
+gesture.down(finger(1,10,10));gesture.move(finger(1,90,10));gesture.move(finger(1,10,10));assert.equal(gesture.up(finger(1,10,10)),false,'rotation avec retour au point initial');
+gesture.down(finger(1,10,10));gesture.down(finger(2,50,50));gesture.move(finger(2,80,80));assert.equal(gesture.up(finger(2,80,80)),false);assert.equal(gesture.up(finger(1,10,10)),false,'fin du pincement sans sélection');
+gesture.down(finger(1,10,10));gesture.cancel(finger(1,10,10));assert.equal(gesture.up(finger(1,10,10)),false);
+gesture.down(finger(1,10,10,2));assert.equal(gesture.up(finger(1,10,10,2)),false);
+gesture.down(finger(3,10,10));assert.equal(gesture.up(finger(3,10,10)),true,'tap après un geste multiple');
+assert.ok(code.includes('controls.enablePan=false'));
+assert.ok(code.includes('controls.target.copy(projectCenter)'));
+assert.ok(code.includes('controls.touches.TWO=T.TOUCH.DOLLY_PAN'));
+console.log('ModelCore X — sélection tactile, pincement et pivot projet : garde-fous OK.');
+
+// Coupes continues : bornes, inversion et filtrage des intersections raycast.
+const h=M.coupeParametres(-2,22,50);
+assert.equal(h.normal,-1);assert.ok(Math.abs(h.position-10)<1e-8);
+const v=M.coupeParametres(100,120,25);
+assert.ok(Math.abs(v.position-115)<.001);
+const inv=M.coupeParametres(100,120,25,true);
+assert.equal(inv.normal,1);assert.ok(Math.abs(inv.position-105)<.001);
+assert.ok(M.coupeParametres(100,120,0).position>120);
+assert.ok(M.coupeParametres(100,120,100).position<100);
+assert.ok(M.coupeParametres(100,120,0,true).position<100);
+assert.ok(M.coupeParametres(100,120,100,true).position>120);
+assert.throws(()=>M.coupeParametres(10,0,50),/Bornes/);
+const planes=[{normal:{x:0,y:-1,z:0},constant:10},{normal:{x:-1,y:0,z:0},constant:115}];
+assert.equal(M.pointDansCoupe({x:110,y:5,z:0},planes),true);
+assert.equal(M.pointDansCoupe({x:110,y:12,z:0},planes),false);
+assert.equal(M.pointDansCoupe({x:118,y:5,z:0},planes),false);
+assert.equal(M.pointDansCoupe({x:1000,y:1000,z:0},[]),true);
+assert.ok(code.includes('renderer.clippingPlanes=planes'),'Découpe de triangles par le moteur WebGL');
+assert.ok(code.includes('.find(h=>pointDansCoupe(h.point,renderer.clippingPlanes))'),'Pas de sélection derrière une surface découpée');
+console.log('ModelCore X — coupes H/V, inversion et raycast : tests OK.');
