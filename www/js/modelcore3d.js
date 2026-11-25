@@ -1,5 +1,5 @@
 /* SiteTeam ModelCore 3D — prototype expérimental, chargement différé.
- * Affichage WebGL, géométrie fictive; aucun import IFC/RVT ni données de chantier réelles.
+ * Affichage WebGL, import IFC local expérimental; aucune synchronisation chantier.
  * La géométrie et les fiches d'ouvrage sont indépendantes pour préparer le futur mapping BIM.
  */
 (function () {
@@ -107,6 +107,14 @@
     }
     return {schema:SCHEMA,projectType:'batiment',elements};
   }
+  // Seules les cotes explicitement libellées et unitaires sont proposées.
+  function suggestionsPlan(text) {
+    const t=String(text||'').slice(0,50000).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\u00a0/g,' ');
+    const fields=[['hauteur',/(?:hauteur\s*(?:d['’ ]?etage|sous\s*plafond)|h\s*etage)\s*[:=]?\s*(\d+(?:[.,]\d+)?)\s*(mm|cm|m)\b/gi,2.5,5],['epaisseur',/(?:epaisseur\s*(?:de\s*(?:la\s*)?)?dalle|ep\.?\s*dalle)\s*[:=]?\s*(\d+(?:[.,]\d+)?)\s*(mm|cm|m)\b/gi,.15,.45],['entraxe',/entraxe\s*[:=]?\s*(\d+(?:[.,]\d+)?)\s*(mm|cm|m)\b/gi,3,8]];
+    const out={};
+    for(const [key,pattern,min,max] of fields){const all=[...t.matchAll(pattern)].map(m=>({value:Number(m[1].replace(',','.'))*({mm:.001,cm:.01,m:1}[m[2].toLowerCase()]),evidence:m[0]}));if(!all.length)continue;const x=all[0];if(x.value>=min&&x.value<=max&&all.every(a=>Math.abs(a.value-x.value)<1e-6))out[key]={value:key==='epaisseur'?Math.round(x.value*1000)/10:x.value,evidence:x.evidence};}
+    return out;
+  }
   async function open(options) {
     if (typeof need3D !== 'function') throw new Error('Chargeur Three.js indisponible.');
     await need3D();
@@ -134,8 +142,8 @@
 <div class="mclegend" data-role="legend"></div>
 <div class="mcdetail"><div class="mcinfo"><b data-val="id">Aucun ouvrage sélectionné</b><div class="mcsub" data-val="info">Touchez un élément.</div><div class="mcwarn" data-val="warning">Données locales non synchronisées.</div></div><button data-act="isolate" disabled>Isoler</button><button data-act="hide" disabled>Masquer</button><button data-act="detail" disabled>Fiche</button><select data-role="editstatus" aria-label="État local de démonstration" disabled></select><div class="mcprogress"><i data-role="progressbar" style="width:0%"></i></div><div class="mcinspector-extra" data-role="extra" hidden><button data-tab="Infos">Infos</button><button data-tab="Géométrie">Géométrie</button><button data-tab="Docs">Docs</button><button data-tab="Journal">Journal</button><div data-val="extra" class="mcsub"></div><label data-role="progresslabel">Avancement fictif <input data-role="progress" type="range" min="0" max="100" step="1"></label></div></div>
 </div>
-<div class="mcpage" data-pane="import" hidden><h2>Import Studio</h2><div class="mccard"><h3>Maquette BIM · IFC</h3>Revit / Tekla / Archicad → IFC. Convertisseur non connecté : aucun import IFC/RVT direct.</div><div class="mccard"><h3>Manifeste JSON ModelCore v1</h3>Import local réel, 10 Mo / 5 000 ouvrages maximum.<br><button data-act="import">Sélectionner JSON</button><input data-role="file" type="file" accept=".json,application/json" hidden></div><div class="mccard"><h3>Plans 2D</h3>Reconstruction assistée (simulation).<br><button data-page="ai">Ouvrir AI Studio</button></div><div class="mccard">GlobalId · révisions · géoréférencement · contrôle des droits : étapes futures.</div></div>
-<div class="mcpage" data-pane="ai" hidden><h2>AI Geometry Studio</h2><div class="mccard"><h3>Plan de coffrage fictif</h3><svg data-role="aiplan" viewBox="0 0 340 190" style="width:100%;background:#081c2c;border-radius:8px"></svg><button data-act="detect">Détection simulée</button><p data-val="airesult">Aucune analyse de PDF réel.</p></div><div class="mccard"><h3>Paramètres à confirmer</h3><div class="mcgrid"><label>Hauteur (m)<input data-ai="hauteur" type="number" value="3.2" min="2.5" max="5" step=".1"></label><label>Épaisseur (cm)<input data-ai="epaisseur" type="number" value="25" min="15" max="45"></label><label>Niveaux<input data-ai="niveaux" type="number" value="3" min="1" max="7"></label><label>Entraxe (m)<input data-ai="entraxe" type="number" value="5" min="3" max="8"></label></div><label><input data-role="confirm" type="checkbox"> Je confirme les valeurs fictives.</label><br><button data-act="generate">Générer une maquette paramétrique</button><p class="mcwarn" data-val="aierror"></p></div></div>
+<div class="mcpage" data-pane="import" hidden><h2>Import Studio</h2><div class="mccard"><h3>Maquette BIM · IFC</h3>Revit / Tekla / Archicad → IFC. Import direct local expérimental, 8 Mo et 5 000 ouvrages maximum, budget de triangles limité. Aucun fichier envoyé.<br><button data-act="ifc">Sélectionner IFC</button> <button data-act="ifccancel" hidden>Annuler</button><input data-role="ifcfile" type="file" accept=".ifc" hidden><p class="mcsub" data-val="ifcreport">Choisissez un IFC exporté depuis votre logiciel BIM. RVT direct non pris en charge.</p></div><div class="mccard"><h3>Manifeste JSON ModelCore v1</h3>Import local réel, 10 Mo / 5 000 ouvrages maximum.<br><button data-act="import">Sélectionner JSON</button><input data-role="file" type="file" accept=".json,application/json" hidden></div><div class="mccard"><h3>Plans 2D</h3>Lecture PDF et OCR local, puis création paramétrique assistée.<br><button data-page="ai">Ouvrir AI Studio</button></div><div class="mccard">GlobalId · révisions · géoréférencement · contrôle des droits : étapes futures.</div></div>
+<div class="mcpage" data-pane="ai" hidden><h2>AI Geometry Studio</h2><div class="mccard"><h3>Assistant de lecture · PDF / image</h3><p>Extraction de texte PDF ou OCR neuronal local (première page). Les cotes explicites sont des suggestions à vérifier, pas une reconnaissance de la géométrie.</p><button data-act="planfile">Choisir un plan</button><input data-role="planfile" type="file" accept=".pdf,image/png,image/jpeg" hidden><p data-val="ocrstatus" class="mcsub"></p><textarea data-role="ocrtext" readonly rows="5" style="width:100%;background:#0b2033;color:#d6ecfa;border:1px solid #31546b;border-radius:8px" placeholder="Texte reconnu"></textarea><p data-val="suggestions" class="mcsub"></p><button data-act="applysuggestions" disabled>Reporter les cotes proposées</button></div><div class="mccard"><h3>Plan de coffrage fictif · exemple</h3><svg data-role="aiplan" viewBox="0 0 340 190" style="width:100%;background:#081c2c;border-radius:8px"></svg><button data-act="detect">Détection simulée</button><p data-val="airesult">Aucune analyse de PDF réel.</p></div><div class="mccard"><h3>Paramètres à confirmer</h3><div class="mcgrid"><label>Hauteur (m)<input data-ai="hauteur" type="number" value="3.2" min="2.5" max="5" step=".1"></label><label>Épaisseur (cm)<input data-ai="epaisseur" type="number" value="25" min="15" max="45"></label><label>Niveaux<input data-ai="niveaux" type="number" value="3" min="1" max="7"></label><label>Entraxe (m)<input data-ai="entraxe" type="number" value="5" min="3" max="8"></label></div><label><input data-role="confirm" type="checkbox"> Je confirme les dimensions pour une trame paramétrique illustrative (pas une reproduction du plan).</label><br><button data-act="generate">Générer une maquette paramétrique</button><p class="mcwarn" data-val="aierror"></p></div></div>
 <div class="mcpage" data-pane="dash" hidden><h2>Explorateur de maquette</h2><div class="mccard" data-role="dashboard"></div><div class="mccard"><h3>Raccourcis géométriques</h3><div data-role="shortcuts" class="mcgrid"></div><p class="mcsub">Filtres locaux par type d’ouvrage.</p></div></div>`;
     document.body.appendChild(el);
     const $ = s => el.querySelector(s);
@@ -160,7 +168,7 @@
     };
     let selected=null, isolated=null, hidden=new Set(), roofHidden=false, statusColors=true, dataset=null, disposed=false, raf=0, press=null, backRemove=null;
     let mode='structure', view='3D', page='viewer', exploded=false, cut=false, detail=false, tab='Infos', detected=false;
-    let hiddenLots=new Set(), outline=null;
+    let hiddenLots=new Set(), outline=null; let ifcWorker=null, ifcTimer=0, ocrWorker=null, pdfTask=null, reading=false, ocrSuggestions={};
     const etat = e => e.status;
     const couleur = ()=>STATUS_COLOR;
     const hex = n=>'#'+n.toString(16).padStart(6,'0');
@@ -252,7 +260,7 @@
     });
     controls.addEventListener('change',schedule);
     function close(){
-      if(disposed)return;disposed=true;
+      if(disposed)return;disposed=true;stopIfc();if(ocrWorker)ocrWorker.terminate().catch(()=>{});if(pdfTask)pdfTask.destroy().catch(()=>{});
       if(backRemove)try{backRemove();}catch(e){}
       if(raf)cancelAnimationFrame(raf);observer.disconnect();controls.dispose();
       clearOutline();grid.geometry.dispose();grid.material.dispose();for(const g of geometryCache)g.dispose();for(const m of matCache.values())m.dispose();
@@ -282,12 +290,61 @@
     el.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>setPage(b.dataset.page));
     el.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;updateDetails();});
     $('[data-role="progress"]').onchange=e=>{const o=registry.get(selected)?.meta;if(!o)return;o.progress=Number(e.target.value);o.journal.unshift('Avancement fictif : '+o.progress+'%');kpis();updateDetails();};
-    on('detect',()=>{detected=true;drawPlan();$('[data-val="airesult"]').textContent='Simulation : 12 poteaux · 17 poutres · 6 dalles. Vérifiez les paramètres.';});
-    on('generate',()=>{try{if(!detected||!$('[data-role="confirm"]').checked)throw Error('Lancez la détection simulée et confirmez les paramètres.');const p={};el.querySelectorAll('[data-ai]').forEach(i=>p[i.dataset.ai]=Number(i.value));p.epaisseur/=100;populate(validateManifest(maquetteParametrique(p)));$('[data-val="project"]').textContent=projectName+' · Maquette paramétrique fictive';$('[data-val="aierror"]').textContent='';setPage('viewer');}catch(e){$('[data-val="aierror"]').textContent=e.message;}});
+    on('detect',()=>{detected=true;$('[data-role="confirm"]').checked=false;drawPlan();$('[data-val="airesult"]').textContent='Simulation : 12 poteaux · 17 poutres · 6 dalles. Vérifiez les paramètres.';});
+    on('generate',()=>{try{if(!detected||!$('[data-role="confirm"]').checked)throw Error('Chargez un plan ou lancez la détection simulée, puis confirmez les paramètres.');const p={};el.querySelectorAll('[data-ai]').forEach(i=>p[i.dataset.ai]=Number(i.value));p.epaisseur/=100;populate(validateManifest(maquetteParametrique(p)));$('[data-val="project"]').textContent=projectName+' · Trame paramétrique illustrative';$('[data-val="aierror"]').textContent='';setPage('viewer');}catch(e){$('[data-val="aierror"]').textContent=e.message;}});
     for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').addEventListener('change',()=>{select(null);});
     $('[data-role="editstatus"]').addEventListener('change',e=>{
       if(!selected)return;const item=registry.get(selected);if(item&&STATES.includes(e.target.value)){const o=item.meta,old=o.status;o.status=e.target.value;o.journal.unshift('État fictif : '+old+' → '+o.status);if(o.status==='Réceptionné')o.progress=100;if(o.status==='Non commencé')o.progress=0;visibility();updateDetails();}
     });
+    // Conversion IFC en Worker : annulation, délai maximal, contrôle du manifeste.
+    function stopIfc(){if(ifcTimer)clearTimeout(ifcTimer);ifcTimer=0;if(ifcWorker)ifcWorker.terminate();ifcWorker=null;$('[data-act="ifccancel"]').hidden=true;$('[data-act="ifc"]').disabled=false;}
+    on('ifc',()=>$('[data-role="ifcfile"]').click());
+    on('ifccancel',()=>{stopIfc();$('[data-val="ifcreport"]').textContent='Import annulé.';});
+    $('[data-role="ifcfile"]').onchange=async e=>{
+      const file=e.target.files[0];e.target.value='';if(!file||disposed)return;
+      const report=$('[data-val="ifcreport"]');
+      if(!/\.ifc$/i.test(file.name)||file.size>8*1024*1024){report.textContent='IFC .ifc uniquement, 8 Mo maximum.';return;}
+      stopIfc();$('[data-act="ifc"]').disabled=true;$('[data-act="ifccancel"]').hidden=false;report.textContent='Lecture IFC locale…';
+      try{
+        const bytes=await file.arrayBuffer();if(disposed||!$('[data-act="ifc"]').disabled)return;
+        const w=new Worker(new URL('js/modelcore-ifc-worker.js',location.href));ifcWorker=w;
+        ifcTimer=setTimeout(()=>{stopIfc();report.textContent='Délai dépassé (120 s). Découpez la maquette.';},120000);
+        w.onerror=()=>{stopIfc();report.textContent='Worker IFC indisponible. Vérifiez que le build inclut WebIFC.';};
+        w.onmessage=event=>{if(disposed||ifcWorker!==w)return;try{const v=event.data;if(!v.ok)throw Error(v.error);const data=validateManifest(v.data);const r=v.data.report;populate(data);mode='all';statusColors=false;visibility();$('[data-val="project"]').textContent=projectName+' · IFC '+clean(file.name)+' (local)';report.textContent=r.schema+' · '+r.imported+' ouvrages · '+r.triangles+' triangles · '+r.skipped+' maillages exclus · '+r.missing+' sans GlobalId. '+r.scope;setPage('viewer');}catch(err){report.textContent='Import IFC : '+clean(err.message);}finally{stopIfc();}};
+        w.postMessage(bytes,[bytes]);
+      }catch(err){stopIfc();report.textContent='Import IFC : '+clean(err.message);}
+    };
+    // PDF vectoriel : texte natif. Plan image/scanné : OCR Tesseract embarqué.
+    async function lirePlan(file){
+      const status=$('[data-val="ocrstatus"]');let text='',canvas=null,doc=null,bitmap=null;
+      if(file.size>15*1024*1024)throw Error('Plan limité à 15 Mo.');
+      try{
+        if(/\.pdf$/i.test(file.name)||file.type==='application/pdf'){
+          if(typeof pdfjsLib==='undefined')throw Error('PDF.js indisponible.');
+          pdfTask=pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())});doc=await pdfTask.promise;const page=await doc.getPage(1);
+          const tc=await page.getTextContent();text=tc.items.map(i=>i.str||'').join(' ');
+          if(text.trim().length>=40)return {text,method:'Texte PDF natif'};
+          const v=page.getViewport({scale:1}),vp=page.getViewport({scale:Math.min(3,2200/Math.max(v.width,v.height))});canvas=document.createElement('canvas');canvas.width=Math.ceil(vp.width);canvas.height=Math.ceil(vp.height);await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
+        }else if(/^image\/(png|jpeg)$/.test(file.type)||/\.(png|jpe?g)$/i.test(file.name)){
+          bitmap=await createImageBitmap(file);const scale=Math.min(1,2200/Math.max(bitmap.width,bitmap.height));canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);
+        }else throw Error('PDF, PNG ou JPEG uniquement.');
+        if(disposed)throw Error('Studio fermé.');
+        await needOCR();if(disposed)throw Error('Studio fermé.');
+        const base=new URL('vendor/3d/',location.href).href;
+        const worker=await Tesseract.createWorker('eng',1,{workerPath:base+'worker.min.js',corePath:base,langPath:base,gzip:true,logger:m=>{if(!disposed&&m.status==='recognizing text')status.textContent='OCR local : '+Math.round(m.progress*100)+' %';}});
+        ocrWorker=worker;try{if(disposed)throw Error('Studio fermé.');const r=await worker.recognize(canvas);return {text:r.data.text||'',method:'OCR neuronal local (eng)'};}finally{if(ocrWorker===worker)ocrWorker=null;await worker.terminate().catch(()=>{});}
+      }finally{bitmap?.close();if(canvas){canvas.width=0;canvas.height=0;}if(pdfTask){const task=pdfTask;pdfTask=null;await task.destroy().catch(()=>{});}}
+    }
+    on('planfile',()=>$('[data-role="planfile"]').click());
+    $('[data-role="planfile"]').onchange=async e=>{
+      const f=e.target.files[0];e.target.value='';if(!f||reading||disposed)return;
+      reading=true;detected=false;ocrSuggestions={};$('[data-act="planfile"]').disabled=true;$('[data-act="applysuggestions"]').disabled=true;$('[data-role="confirm"]').checked=false;$('[data-role="ocrtext"]').value='';$('[data-val="suggestions"]').textContent='';el.querySelectorAll('[data-ai]').forEach(i=>i.value='');$('[data-val="ocrstatus"]').textContent='Analyse locale de la première page…';
+      try{const r=await lirePlan(f);if(disposed)return;const text=r.text.slice(0,50000);$('[data-role="ocrtext"]').value=text;ocrSuggestions=suggestionsPlan(text);const keys=Object.keys(ocrSuggestions);$('[data-val="ocrstatus"]').textContent=r.method+' · '+(text.trim()?'texte extrait':'aucun texte reconnu');$('[data-val="suggestions"]').textContent=keys.length?keys.map(k=>k+' : '+ocrSuggestions[k].value+' ('+ocrSuggestions[k].evidence+')').join(' | ') : 'Aucune cote explicite non ambiguë détectée. Renseignez manuellement les dimensions.';$('[data-act="applysuggestions"]').disabled=!keys.length;detected=!!text.trim();}
+      catch(err){if(!disposed)$('[data-val="ocrstatus"]').textContent='Analyse : '+clean(err.message);}
+      finally{reading=false;if(!disposed)$('[data-act="planfile"]').disabled=false;}
+    };
+    on('applysuggestions',()=>{for(const [k,v] of Object.entries(ocrSuggestions))$('[data-ai="'+k+'"]').value=v.value;$('[data-role="confirm"]').checked=false;});
+    el.querySelectorAll('[data-ai]').forEach(i=>i.addEventListener('input',()=>{$('[data-role="confirm"]').checked=false;}));
     on('import',()=>{$('[data-role="file"]').click();});
     $('[data-role="file"]').addEventListener('change',async(e)=>{
       const f=e.target.files[0];e.target.value='';if(!f)return;
@@ -306,5 +363,5 @@
     chooseTemplate(initialType);onResize();
     return { close, getSelected:()=>registry.get(selected)?.meta||null, projectId, schema:SCHEMA };
   }
-  window.ModelCore3D = { open, validateManifest, ficheGeometrique, maquetteParametrique, demo:(type='stade')=>type==='stade'?createDemo():window.ModelCoreTemplates?window.ModelCoreTemplates.make(type):createDemo(), schema:SCHEMA };
+  window.ModelCore3D = { open, validateManifest, ficheGeometrique, suggestionsPlan, maquetteParametrique, demo:(type='stade')=>type==='stade'?createDemo():window.ModelCoreTemplates?window.ModelCoreTemplates.make(type):createDemo(), schema:SCHEMA };
 })();
