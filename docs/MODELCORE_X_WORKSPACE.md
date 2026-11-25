@@ -50,3 +50,8 @@ Limite : pas de capuchon ni de hachure sur les surfaces coupées (coupe visuelle
 - Maquettes fictives enrichies (résidence, bâtiment, villa, hôpital) : menuiseries, garde-corps, cloisons, portes, locaux de toiture. Les anciens identifiants de démo restent inchangés. Pas de validation structurelle.
 - Coupe : fermeture visuelle exacte des primitives pleines box/beam, intersection de leurs arêtes orientées avec le plan de coupe. Maillage de fermeture groupé, maximum 1 500 primitives visibles examinées; pas de fermeture des maillages IFC arbitraires ni de hachure, pas de sélection directe de la surface de fermeture. La source reste intacte.
 - Tests unitaires ajoutés; vérifier CI, rendu et fluidité Android, notamment ombres en mode Détaillé, sélection, coupe et navigation simultanées.
+
+### Fiche flottante et cadrage
+- L'inspecteur apparaît en surimpression sans redimensionner la maquette. Identité, localisation, géométrie, état local, avancement et actions; fermeture et restauration des éléments masqués indépendamment des coupes et filtres.
+- Si la fiche est ouverte, les réglages de coupe se placent en haut de la vue. Le recalcul de cadrage après import attend le retour au viewport. La projection 2D réutilise les bornes déjà calculées au lieu de parcourir le modèle à chaque rendu.
+- API locale selectById limitée aux éléments visibles pour le futur lien plan/maquette. Le parcours navigateur vérifie la fiche, l'isolation et la restauration. Validation Android réelle encore nécessaire.
