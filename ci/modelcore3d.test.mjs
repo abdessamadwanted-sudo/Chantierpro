@@ -72,3 +72,13 @@ assert.equal(generated.length,105);
 assert.equal(generated.filter(x=>x.type==='Poteau').length,36);
 assert.throws(()=>M.maquetteParametrique({hauteur:0,epaisseur:.25,niveaux:3,entraxe:5}),/limites/);
 console.log('ModelCore X — résidence, fiche géométrique et génération paramétrique OK.');
+
+ // OCR : les valeurs sont des propositions explicites, jamais inventées.
+const cotes=M.suggestionsPlan("Hauteur d'étage : 3,20 m ; Épaisseur de dalle : 250 mm ; Entraxe : 500 cm");
+assert.equal(cotes.hauteur.value,3.2);assert.equal(cotes.epaisseur.value,25);assert.equal(cotes.entraxe.value,5);
+assert.ok(cotes.hauteur.evidence.includes('3,20'));
+assert.equal(M.suggestionsPlan('Hauteur étage 3,20').hauteur,undefined);
+assert.equal(M.suggestionsPlan('Hauteur étage 3 m ; Hauteur étage 4 m').hauteur,undefined);
+assert.equal(M.suggestionsPlan('Épaisseur dalle 4 m').epaisseur,undefined);
+assert.equal(Object.keys(M.suggestionsPlan('D01 P02 3.20 25')).length,0);
+console.log('ModelCore AI — extraction de cotes et rejet des ambiguïtés OK.');
