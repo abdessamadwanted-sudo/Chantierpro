@@ -87,6 +87,31 @@
     }
     return { schema: SCHEMA, projectType: 'stade', elements };
   }
+  // Les états métier du studio restent strictement locaux, sans écriture chantier.
+  const METIERS = {
+    Travaux: {'Non commencé':0x8096a8,'En cours':0xffc34a,'Terminé':0x40dba0,'Bloqué':0xf87171},
+    Qualité: {'À contrôler':0x7eaef1,'Réceptionné':0x40dba0,'Non conforme':0xfb7185,'En attente':0xffc34a},
+    HSE: {'À inspecter':0x7eaef1,'Conforme':0x40dba0,'Risque':0xfb7185}
+  };
+  function suiviInitial(e) {
+    return {Travaux: e.status==='Réceptionné'?'Terminé':e.status==='Non conforme'?'Bloqué':e.status==='En cours'?'En cours':'Non commencé',
+      Qualité: ['Réceptionné','Non conforme','En attente'].includes(e.status)?e.status:'À contrôler',
+      HSE:'À inspecter', journal:[]};
+  }
+  function maquetteParametrique(p) {
+    const {hauteur,epaisseur,niveaux,entraxe}=p;
+    if(![hauteur,epaisseur,niveaux,entraxe].every(Number.isFinite)||hauteur<2.5||hauteur>5||epaisseur<.15||epaisseur>.45||!Number.isInteger(niveaux)||niveaux<1||niveaux>7||entraxe<3||entraxe>8)throw Error('Paramètres hors limites.');
+    const elements=[];let id=0;
+    const add=(type,level,geometry)=>elements.push({id:'AI-DEMO-'+(++id),type,building:'Studio',lot:'Gros œuvre',zone:'Structure',level,sourceFormat:'DEMO',status:'Non commencé',geometry});
+    for(let l=0;l<niveaux;l++){
+      const y=l*hauteur,level=l?'R+'+l:'RDC';
+      for(let i=0;i<3;i++)for(let j=0;j<2;j++)add('Dalle',level,{kind:'box',size:[entraxe-.02,epaisseur,entraxe-.02],position:[(i-1)*entraxe,y,(j-.5)*entraxe]});
+      for(let i=0;i<4;i++)for(let j=0;j<3;j++)add('Poteau',level,{kind:'box',size:[.4,hauteur-epaisseur,.4],position:[(i-1.5)*entraxe,y+hauteur/2,(j-1)*entraxe]});
+      for(let i=0;i<3;i++)for(let j=0;j<3;j++)add('Poutre',level,{kind:'beam',start:[(i-1.5)*entraxe,y+hauteur-.3,(j-1)*entraxe],end:[(i-.5)*entraxe,y+hauteur-.3,(j-1)*entraxe],width:.35,depth:.5});
+      for(let i=0;i<4;i++)for(let j=0;j<2;j++)add('Poutre',level,{kind:'beam',start:[(i-1.5)*entraxe,y+hauteur-.3,(j-1)*entraxe],end:[(i-1.5)*entraxe,y+hauteur-.3,j*entraxe],width:.35,depth:.5});
+    }
+    return {schema:SCHEMA,projectType:'batiment',elements};
+  }
   async function open(options) {
     if (typeof need3D !== 'function') throw new Error('Chargeur Three.js indisponible.');
     await need3D();
@@ -96,16 +121,32 @@
     const templates = window.ModelCoreTemplates;
     const initialType = templates ? templates.normalize(options && options.projectType) : 'stade';
     const el = document.createElement('div'); el.className = 'fullpage st-mc3d'; el.style.cssText = 'position:fixed;inset:0;z-index:1100;display:flex;flex-direction:column;background:#081324;color:#e7f1ff;font:13px system-ui,sans-serif;overflow:hidden';
-    el.innerHTML = '<style>.st-mc3d *{box-sizing:border-box}.st-mc3d button,.st-mc3d select{background:#223954;color:#e7f1ff;border:1px solid #3c5876;border-radius:7px;padding:8px;font-size:12px}.st-mc3d button:disabled{opacity:.4}.st-mc3d .mcbar{display:flex;gap:6px;padding:8px;align-items:center;overflow:auto;flex-wrap:wrap;background:#14233a}.st-mc3d .mctitle{font-weight:700;flex:1;min-width:155px}.st-mc3d .mcview{flex:1;min-height:100px;position:relative;touch-action:none}.st-mc3d .mcview canvas{display:block;touch-action:none}.st-mc3d .mcdetail{background:#122138;padding:10px;display:flex;gap:7px;flex-wrap:wrap;align-items:center;max-height:32%;overflow:auto}.st-mc3d .mcinfo{flex:1;min-width:180px;line-height:1.6}.st-mc3d .mcsub{font-size:11px;color:#a8bed6}.st-mc3d .mcwarn{font-size:10px;color:#ffd58f}.st-mc3d .mcstatus{display:flex;gap:4px;flex-wrap:wrap}.st-mc3d .mcstatus button{white-space:nowrap}</style>'+
-      '<div class="mcbar"><button data-act="close">✕</button><div class="mctitle">◈ SiteTeam ModelCore 3D<div class="mcsub" data-val="project"></div></div><button data-act="reset">↺</button><button data-act="top">Dessus</button><button data-act="under">Dessous</button><button data-act="zoomplus">＋</button><button data-act="zoomminus">－</button></div>'+
-      '<div class="mcbar"><select data-role="projecttype"><option value="stade">Stade</option><option value="hopital">Hôpital</option><option value="immeuble">Immeubles</option><option value="villa">Villa</option><option value="pont">Pont</option><option value="vrd">VRD / Route</option><option value="industriel">Industrie</option><option value="batiment">Autre bâtiment</option></select><select data-filter="building"><option value="all">Tous bâtiments</option></select><select data-filter="lot"><option value="all">Tous lots</option></select><select data-filter="zone"><option value="all">Toutes zones</option></select><select data-filter="level"><option value="all">Tous niveaux</option></select><select data-filter="type"><option value="all">Tous ouvrages</option></select><select data-filter="status"><option value="all">Tous états</option></select><button data-act="all">Afficher tout</button><button data-act="roof">Toiture</button><button data-act="color">Couleurs état</button><button data-act="import">Importer JSON</button><input data-role="file" type="file" accept=".json,application/json" style="display:none"></div>'+
-      '<div class="mcview" data-role="stage"><div style="position:absolute;left:10px;bottom:10px;color:#cde2f6;font-size:11px;pointer-events:none">Orbit 360° · toucher un ouvrage · zoom pincement / molette</div></div>'+
-      '<div class="mcdetail"><div class="mcinfo"><b data-val="id">Aucun ouvrage sélectionné</b><div class="mcsub" data-val="info">Cliquez sur un élément. Données fictives non synchronisées.</div><div class="mcwarn" data-val="warning">Prototype — ne modifie pas votre projet et ne lit pas encore IFC/RVT.</div></div><button data-act="isolate" disabled>Isoler</button><button data-act="hide" disabled>Masquer</button><select data-role="editstatus" disabled>'+STATES.map(s=>'<option>'+s+'</option>').join('')+'</select></div>';
+    el.innerHTML = `<style>
+.st-mc3d{--mc-cyan:#45def6;--mc-muted:#91b2ca;--mc-line:#31546b;background:#06121f!important;color:#e9f5ff!important;min-height:0}
+.st-mc3d *{box-sizing:border-box}.st-mc3d button,.st-mc3d select,.st-mc3d input{font:inherit;color:#e7f1ff;background:linear-gradient(145deg,#18364c,#0c2133);border:1px solid #31546b;border-radius:9px;padding:8px;min-height:36px}
+.st-mc3d button:disabled{opacity:.4}.st-mc3d button.active{border-color:#45def6;color:#7cecff;background:#103a4c}.st-mc3d option{background:#132c42}.st-mc3d .mcbar{display:flex;gap:6px;padding:7px 10px;align-items:center;overflow:auto;flex-shrink:0;background:#091a29}.st-mc3d .mcbar button{white-space:nowrap;flex-shrink:0}.st-mc3d .mchead{background:linear-gradient(120deg,#173b54,#081727);border-bottom:1px solid var(--mc-line);padding:12px}.st-mc3d .mctitle{font-size:18px;font-weight:750;flex:1;min-width:0;letter-spacing:-.5px}.st-mc3d .mcsub{font-size:11px;color:var(--mc-muted);line-height:1.45;overflow-wrap:anywhere}.st-mc3d .mcwarn{font-size:10px;color:#ffd58f}.st-mc3d .mcnav button{flex:1}.st-mc3d .mckpis{display:flex;gap:6px;padding:7px 10px;flex-shrink:0}.st-mc3d .mckpi{flex:1;padding:7px 9px;border-radius:10px;border:1px solid #29485e;background:#10283d}.st-mc3d .mckpi b{display:block;font-size:17px;color:#6ae7f7}.st-mc3d .mcfilters{display:none;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:8px;max-height:32%;overflow:auto;background:#0c2235}.st-mc3d .mcfilters.open{display:grid}.st-mc3d .mcview{flex:1;min-height:120px;position:relative;touch-action:none;overflow:hidden}.st-mc3d .mcview canvas{display:block;touch-action:none}.st-mc3d .mcover{position:absolute;top:10px;left:12px;color:#98cce0;font-size:10px;pointer-events:none}.st-mc3d .mcside{position:absolute;left:8px;top:45px;display:grid;gap:5px}.st-mc3d .mcside button{width:38px;background:#10283be8;padding:4px;font-size:16px}.st-mc3d .mclevels{position:absolute;right:8px;top:45px;display:grid;gap:4px;max-height:65%;overflow:auto;padding:4px;background:#091e31df;border-radius:10px;border:1px solid #34556b}.st-mc3d .mclevels button{min-height:28px;font-size:10px;padding:4px;max-width:86px;overflow:hidden;text-overflow:ellipsis}.st-mc3d .mclegend{display:flex;gap:9px;flex-wrap:wrap;justify-content:center;padding:7px;background:#0a1b2b;font-size:10px;flex-shrink:0}.st-mc3d .mclegend i{display:inline-block;width:8px;height:8px;border-radius:3px;margin-right:4px}.st-mc3d .mcdetail{background:linear-gradient(145deg,#173549,#0d2133);padding:10px;display:flex;gap:7px;flex-wrap:wrap;align-items:center;max-height:40%;overflow:auto;border-top:1px solid #36566e;flex-shrink:0}.st-mc3d .mcinfo{flex:1;min-width:170px;line-height:1.55}.st-mc3d .mcinfo b{font-size:15px}.st-mc3d .mcprogress{height:6px;width:100%;background:#29495e;border-radius:8px;overflow:hidden}.st-mc3d .mcprogress i{display:block;height:100%;background:#44def6}.st-mc3d .mcpage{flex:1;min-height:0;overflow:auto;padding:15px}.st-mc3d .mccard{border:1px solid #29485e;background:linear-gradient(145deg,#102b40,#0a1e30);padding:12px;border-radius:12px;margin:10px 0;line-height:1.55}.st-mc3d .mccard h3{margin:0 0 8px}.st-mc3d .mcgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.st-mc3d .mcgrid input{width:100%}.st-mc3d .mcviewer{display:flex;flex-direction:column;min-height:0;flex:1}.st-mc3d .mcinspector-extra{width:100%;padding:4px 0}.st-mc3d .mcinspector-extra button{margin:3px}.st-mc3d [hidden]{display:none!important}.st-mc3d .mcsplit{position:absolute;left:50%;top:0;bottom:0;border-left:1px solid #46677d;pointer-events:none}.st-mc3d .mclabel{position:absolute;top:28px;left:53%;font-size:10px;color:#a1cce1;pointer-events:none}
+</style>
+<div class="mcbar mchead"><button data-act="close" aria-label="Fermer">✕</button><div class="mctitle">◈ ModelCore <span style="color:#5ce5fc">X</span><div class="mcsub" data-val="project"></div></div><span class="mcwarn">DÉMO LOCALE</span></div>
+<div class="mcbar mcnav"><button data-page="viewer" class="active">◇ Explorer</button><button data-page="import">⇩ Import</button><button data-page="ai">✧ AI Studio</button><button data-page="dash">▥ Pilotage</button></div>
+<div class="mcviewer" data-pane="viewer">
+<div class="mcbar"><select data-role="projecttype" aria-label="Famille de démonstration" style="flex:1;min-width:0"><option value="stade">Stade</option><option value="hopital">Hôpital</option><option value="immeuble">Résidence · 2 bâtiments</option><option value="villa">Villa</option><option value="pont">Pont</option><option value="vrd">VRD / Route</option><option value="industriel">Industrie</option><option value="batiment">Autre bâtiment</option></select><button data-act="reset" aria-label="Réinitialiser">↺</button></div>
+<div class="mckpis"><div class="mckpi">Ouvrages<b data-val="total">0</b></div><div class="mckpi">Avanc. moyen<b data-val="avg">0%</b></div><div class="mckpi">NC démo<b data-val="nc">0</b></div></div>
+<div class="mcbar"><button data-act="structure">▤ Structure</button><button data-act="architecture">◇ Architecture</button><button data-act="color" class="active">◉ États</button><button data-act="filters">☷ Filtres</button><button data-act="layers">Calques</button></div>
+<div class="mcbar"><button data-act="view">Vue 3D</button><select data-role="service" aria-label="Service"><option>Travaux</option><option>Qualité</option><option>HSE</option><option>BET</option><option>OPC</option><option>Finance</option><option>Direction</option><option>Topographie</option></select><button data-act="explode">Éclaté</button><button data-act="all">Tout</button><button data-act="roof">Toiture</button></div>
+<div class="mcfilters" data-role="filters"><select data-filter="building" aria-label="Bâtiment"></select><select data-filter="lot" aria-label="Lot"></select><select data-filter="zone" aria-label="Zone"></select><select data-filter="level" aria-label="Niveau"></select><select data-filter="type" aria-label="Type"></select><select data-filter="status" aria-label="État"></select></div>
+<div class="mcfilters" data-role="layers"></div>
+<div class="mcview" data-role="stage"><div class="mcover" data-val="visible"></div><div class="mcside"><button data-act="top" title="Dessus">↑</button><button data-act="under" title="Dessous">↓</button><button data-act="zoomplus" title="Zoom avant">＋</button><button data-act="zoomminus" title="Zoom arrière">−</button><button data-act="cut" title="Masquer une moitié">◫</button><button data-act="fit" title="Ajuster">⛶</button></div><div class="mclevels" data-role="levels"></div><div class="mcsplit" hidden></div><div class="mclabel" hidden>PLAN ZÉNITHAL</div><div class="mcsub" style="position:absolute;bottom:6px;left:12px;pointer-events:none">Orbite · toucher un ouvrage · pincement</div></div>
+<div class="mclegend" data-role="legend"></div>
+<div class="mcdetail"><div class="mcinfo"><b data-val="id">Aucun ouvrage sélectionné</b><div class="mcsub" data-val="info">Touchez un élément.</div><div class="mcwarn" data-val="warning">Données locales non synchronisées.</div></div><button data-act="isolate" disabled>Isoler</button><button data-act="hide" disabled>Masquer</button><button data-act="detail" disabled>Fiche</button><select data-role="editstatus" aria-label="État métier" disabled></select><div class="mcprogress"><i data-role="progressbar" style="width:0%"></i></div><div class="mcinspector-extra" data-role="extra" hidden><button data-tab="Infos">Infos</button><button data-tab="Métier">Métier</button><button data-tab="Docs">Docs</button><button data-tab="Journal">Journal</button><div data-val="extra" class="mcsub"></div><label data-role="progresslabel">Avancement local <input data-role="progress" type="range" min="0" max="100" step="1"></label></div></div>
+</div>
+<div class="mcpage" data-pane="import" hidden><h2>Import Studio</h2><div class="mccard"><h3>Maquette BIM · IFC</h3>Revit / Tekla / Archicad → IFC. Convertisseur non connecté : aucun import IFC/RVT direct.</div><div class="mccard"><h3>Manifeste JSON ModelCore v1</h3>Import local réel, 10 Mo / 5 000 ouvrages maximum.<br><button data-act="import">Sélectionner JSON</button><input data-role="file" type="file" accept=".json,application/json" hidden></div><div class="mccard"><h3>Plans 2D</h3>Reconstruction assistée (simulation).<br><button data-page="ai">Ouvrir AI Studio</button></div><div class="mccard">GlobalId · révisions · géoréférencement · contrôle des droits : étapes futures.</div></div>
+<div class="mcpage" data-pane="ai" hidden><h2>AI Geometry Studio</h2><div class="mccard"><h3>Plan de coffrage fictif</h3><svg data-role="aiplan" viewBox="0 0 340 190" style="width:100%;background:#081c2c;border-radius:8px"></svg><button data-act="detect">Détection simulée</button><p data-val="airesult">Aucune analyse de PDF réel.</p></div><div class="mccard"><h3>Paramètres à confirmer</h3><div class="mcgrid"><label>Hauteur (m)<input data-ai="hauteur" type="number" value="3.2" min="2.5" max="5" step=".1"></label><label>Épaisseur (cm)<input data-ai="epaisseur" type="number" value="25" min="15" max="45"></label><label>Niveaux<input data-ai="niveaux" type="number" value="3" min="1" max="7"></label><label>Entraxe (m)<input data-ai="entraxe" type="number" value="5" min="3" max="8"></label></div><label><input data-role="confirm" type="checkbox"> Je confirme les valeurs fictives.</label><br><button data-act="generate">Générer une maquette paramétrique</button><p class="mcwarn" data-val="aierror"></p></div></div>
+<div class="mcpage" data-pane="dash" hidden><h2>Pilotage du projet</h2><div class="mccard" data-role="dashboard"></div><div class="mccard"><h3>Copilot · filtres rapides</h3><button data-command="quality">Ouvrages non conformes</button> <button data-command="blocked">Ouvrages bloqués</button><p class="mcsub">Actions déterministes locales, pas un assistant IA connecté.</p></div></div>`;
     document.body.appendChild(el);
     const $ = s => el.querySelector(s);
     $('[data-val="project"]').textContent = projectName + ' · Démo locale';
-    const stage = $('[data-role="stage"]'), scene = new T.Scene();scene.background = new T.Color('#142338');
-    const camera = new T.PerspectiveCamera(45, 1, .1, 500);
+    const stage = $('[data-role="stage"]'), scene = new T.Scene();scene.background = new T.Color('#061525');
+    const camera = new T.PerspectiveCamera(45, 1, .1, 500); const planCam = new T.OrthographicCamera(-10,10,10,-10,.1,2000);
     let renderer;
     try { renderer = new T.WebGLRenderer({ antialias: window.innerWidth > 650, powerPreference:'low-power' }); }
     catch(e){ el.remove(); throw new Error('WebGL indisponible sur cet appareil.'); }
@@ -116,13 +157,29 @@
     scene.add(new T.HemisphereLight('#e8f2ff', '#526077', 1.2));
     const sun = new T.DirectionalLight('#ffffff', 1.45); sun.position.set(-12, 30, 24); scene.add(sun);
     const fill = new T.DirectionalLight('#75bdff', .5); fill.position.set(18, 10, -18);scene.add(fill);
-    const grp = new T.Group();scene.add(grp);
+    const grp = new T.Group();scene.add(grp); const grid = new T.GridHelper(120,60,0x315b73,0x1b3448); grid.position.y=-1.15; scene.add(grid);
     const geometryCache = [], matCache = new Map(), registry = new Map();
     const getMat = (key, hex, metalness=0) => {
       if(!matCache.has(key))matCache.set(key,new T.MeshStandardMaterial({color:hex,roughness:metalness?.45:.83,metalness,side:T.DoubleSide}));
       return matCache.get(key);
     };
-    let selected=null, isolated=null, hidden=new Set(), roofHidden=false, statusColors=false, dataset=null, disposed=false, raf=0, press=null, backRemove=null;
+    let selected=null, isolated=null, hidden=new Set(), roofHidden=false, statusColors=true, dataset=null, disposed=false, raf=0, press=null, backRemove=null;
+    let service='Travaux', mode='all', view='3D', page='viewer', exploded=false, cut=false, detail=false, tab='Infos', detected=false;
+    let hiddenLots=new Set(), outline=null;
+    const champ = ()=>METIERS[service]?service:'Travaux';
+    const etat = e => e.suivi[champ()];
+    const couleur = ()=>METIERS[champ()];
+    const hex = n=>'#'+n.toString(16).padStart(6,'0');
+    const levelRank = level => {const m=/^(?:R|N)\+(\d+)$/.exec(level);return m?Number(m[1]):level==='Toiture'?8:0;};
+    function clearOutline(){if(outline){outline.parent?.remove(outline);outline.geometry.dispose();outline.material.dispose();outline=null;}}
+    function selectedOutline(){clearOutline();const v=registry.get(selected);if(!v||!v.mesh.visible)return;outline=new T.LineSegments(new T.EdgesGeometry(v.mesh.geometry,20),new T.LineBasicMaterial({color:0x63efff,depthTest:true,transparent:true,opacity:1}));outline.renderOrder=10;v.mesh.add(outline);}
+    function kpis(){const a=dataset||[];$('[data-val="total"]').textContent=a.length;$('[data-val="avg"]').textContent=(a.length?Math.round(a.reduce((t,e)=>t+e.progress,0)/a.length):0)+'%';$('[data-val="nc"]').textContent=a.filter(e=>e.suivi.Qualité==='Non conforme').length;}
+    function legend(){const l=$('[data-role="legend"]');l.replaceChildren();for(const [name,c] of Object.entries(couleur())){const span=document.createElement('span'),dot=document.createElement('i');dot.style.background=hex(c);span.append(dot,document.createTextNode(name));l.append(span);}}
+    function modeUI(){for(const a of ['structure','architecture','color','explode','cut'])$('[data-act="'+a+'"]').classList.toggle('active',a==='color'?statusColors:a==='explode'?exploded:a==='cut'?cut:mode===a);$('[data-act="view"]').textContent='Vue '+view;}
+    function dash(){const d=$('[data-role="dashboard"]');d.replaceChildren();const a=dataset||[];const h=document.createElement('h3');h.textContent='Avancement moyen (non pondéré)';d.append(h);for(const [k,v] of Object.entries(METIERS.Travaux)){const p=document.createElement('p');p.textContent=k+' : '+a.filter(e=>e.suivi.Travaux===k).length;p.style.color=hex(v);d.append(p);}const p=document.createElement('p');p.textContent='NC : '+a.filter(e=>e.suivi.Qualité==='Non conforme').length+' · Risques HSE : '+a.filter(e=>e.suivi.HSE==='Risque').length;d.append(p);}
+    function setPage(p){page=p;el.querySelectorAll('[data-pane]').forEach(n=>n.hidden=n.dataset.pane!==p);el.querySelectorAll('.mcnav [data-page]').forEach(n=>n.classList.toggle('active',n.dataset.page===p));if(p==='viewer')onResize();if(p==='dash')dash();if(p==='ai')drawPlan();}
+    function drawPlan(){const svg=$('[data-role="aiplan"]');let shapes='';for(let i=0;i<4;i++){const x=25+i*96;shapes+='<path d="M'+x+' 10V180" stroke="#526f86" stroke-dasharray="4 4"/>';for(let j=0;j<3;j++){const y=25+j*70;shapes+='<rect x="'+(x-6)+'" y="'+(y-6)+'" width="12" height="12" fill="'+(detected?'#ee9476':'#b6ccda')+'"/>';if(i<3)shapes+='<rect x="'+(x+6)+'" y="'+(y-3)+'" width="84" height="6" fill="'+(detected?'#dbad55':'#7e99ac')+'"/>';if(j<2)shapes+='<rect x="'+(x-3)+'" y="'+(y+6)+'" width="6" height="58" fill="'+(detected?'#dbad55':'#7e99ac')+'"/>';}}svg.innerHTML=shapes;}
+
     const selectedMat = new T.MeshStandardMaterial({color:0xffe29a,roughness:.65,side:T.DoubleSide});
     const pos = v => new T.Vector3(v[0],v[1],v[2]);
     function createMesh(g, type) {
@@ -131,52 +188,72 @@
       else if(g.kind==='beam'){let a=pos(g.start),b=pos(g.end),d=b.clone().sub(a),len=d.length();geo=new T.BoxGeometry(g.width,Math.max(.01,len),g.depth);mesh=new T.Mesh(geo);mesh.position.copy(a).add(b).multiplyScalar(.5);mesh.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),d.normalize());}
       else {geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(g.positions,3));geo.setIndex(g.indices);geo.computeVertexNormals();mesh=new T.Mesh(geo);}
       geometryCache.push(geo);
-      const palette={Terrain:0x31794f,Gradin:0xc9d5df,Escalier:0xa5b6c5,Poteau:0xe0e6ea,Poutre:0xa9bdcd,Voile:0xc1ced9,Charpente:0xd34e5e,Dalle:0xc8d4df,Autre:0x93a6bd};
+      const palette={Terrain:0x31794f,Gradin:0xc9d5df,Escalier:0xa5b6c5,Poteau:0xe0e6ea,Poutre:0xa9bdcd,Voile:0xc1ced9,Charpente:0x8aafcf,Dalle:0xc8d4df,Façade:0xe0d9c9,Vitrage:0x3f7897,Balcon:0xb7c6d4,Armature:0xee9a54,Conduite:0x41c7f2,Gaine:0x54d8ae,Autre:0x93a6bd};
       mesh.material=getMat(type,palette[type] || palette.Autre,type==='Charpente'?.15:0);
       return mesh;
     }
-    function resetCamera(){const bounds=new T.Box3().setFromObject(grp),ctr=bounds.getCenter(new T.Vector3()),size=bounds.getSize(new T.Vector3());const d=Math.max(15,size.length()*1.12);camera.position.set(ctr.x+d*.7,ctr.y+d*.56,ctr.z+d*.8);controls.target.copy(ctr);controls.update();schedule();}
+    function resetCamera(){const bounds=new T.Box3().setFromObject(grp),ctr=bounds.getCenter(new T.Vector3()),size=bounds.getSize(new T.Vector3());const d=Math.max(15,size.length()*1.12);camera.far=Math.max(500,d*6);camera.updateProjectionMatrix();controls.maxDistance=d*4;camera.position.set(ctr.x+d*.7,ctr.y+d*.56,ctr.z+d*.8);controls.target.copy(ctr);controls.update();schedule();}
     function populate(elements) {
-      for(const child of [...grp.children]) grp.remove(child);
-      geometryCache.splice(0).forEach(g=>g.dispose()); registry.clear(); hidden.clear(); isolated=null; selected=null; dataset=elements;
+      clearOutline(); for(const child of [...grp.children]) grp.remove(child);
+      geometryCache.splice(0).forEach(g=>g.dispose()); registry.clear(); hidden.clear(); hiddenLots.clear(); isolated=null; selected=null; dataset=elements; exploded=false;cut=false;mode='all';detail=false;
       for(const e of elements){
-        let mesh=createMesh(e.geometry,e.type); mesh.userData.modelcoreId=e.id; grp.add(mesh);registry.set(e.id,{mesh,meta:e,baseMat:mesh.material});
+        e.suivi=suiviInitial(e); let mesh=createMesh(e.geometry,e.type); mesh.userData.modelcoreId=e.id; grp.add(mesh);registry.set(e.id,{mesh,meta:e,baseMat:mesh.material,baseY:mesh.position.y});
       }
-      refreshFilters();visibility();resetCamera();updateDetails();
+      refreshFilters();visibility();resetCamera();updateDetails();kpis();
     }
     function refreshFilters(){
       for(const key of ['building','lot','zone','level','type','status']){
-        const s=$('[data-filter="'+key+'"]');s.replaceChildren(new Option(key==='zone'?'Toutes zones':key==='level'?'Tous niveaux':key==='type'?'Tous ouvrages':key==='building'?'Tous bâtiments':key==='lot'?'Tous lots':'Tous états','all'));
-        [...new Set(dataset.map(e=>e[key]))].sort().forEach(v=>s.add(new Option(v,v)));
+        const f=$('[data-filter="'+key+'"]'),old=f.value;f.replaceChildren(new Option(key==='zone'?'Toutes zones':key==='level'?'Tous niveaux':key==='type'?'Tous ouvrages':key==='building'?'Tous bâtiments':key==='lot'?'Tous lots':'Tous états','all'));
+        const values=key==='status'?Object.keys(couleur()):[...new Set(dataset.map(e=>e[key]))].sort();values.forEach(v=>f.add(new Option(v,v)));f.value=values.includes(old)?old:'all';
       }
+      const levels=$('[data-role="levels"]');levels.replaceChildren();for(const v of ['all',...new Set(dataset.map(e=>e.level))]){const b=document.createElement('button');b.textContent=v==='all'?'Tous':v;b.title=v;b.onclick=()=>{$('[data-filter="level"]').value=v;isolated=null;select(null);};b.dataset.level=v;levels.append(b);}
+      const layers=$('[data-role="layers"]');layers.replaceChildren();for(const lot of [...new Set(dataset.map(e=>e.lot))].sort()){const b=document.createElement('button');b.textContent=lot;b.dataset.lot=lot;b.onclick=()=>{hiddenLots.has(lot)?hiddenLots.delete(lot):hiddenLots.add(lot);visibility();updateDetails();};layers.append(b);}
+      legend();
     }
     function visibility(){
       for(const entry of registry.values()){
         const e=entry.meta;
-        entry.mesh.visible=!hidden.has(e.id) && (!isolated || e.id===isolated) && (!roofHidden || !(e.type==='Charpente'||e.type==='Couverture'||e.level==='Toiture')) &&
-          ['building','lot','zone','level','type','status'].every(k=>$('[data-filter="'+k+'"]').value==='all'||$('[data-filter="'+k+'"]').value===e[k]);
-        entry.mesh.material=e.id===selected?selectedMat:statusColors?getMat('s:'+e.status,STATUS_COLOR[e.status]):entry.baseMat;
+        const arch=/façade|architecture|second œuvre|vitrage|étanchéité/i.test(e.lot);
+        entry.mesh.position.y=entry.baseY+(exploded?levelRank(e.level)*1.2:0);
+        entry.mesh.visible=!hidden.has(e.id)&&!hiddenLots.has(e.lot)&&(!isolated||e.id===isolated)&&(!roofHidden||!(e.type==='Charpente'||e.type==='Couverture'||e.level==='Toiture'))&&(!cut||new T.Box3().setFromObject(entry.mesh).getCenter(new T.Vector3()).z<=0)&&(mode!=='structure'||!arch)&&
+          ['building','lot','zone','level','type','status'].every(k=>$('[data-filter="'+k+'"]').value==='all'||$('[data-filter="'+k+'"]').value===(k==='status'?etat(e):e[k]));
+        entry.mesh.material=statusColors?getMat('s:'+champ()+':'+etat(e),couleur()[etat(e)]):entry.baseMat;
       }
-      schedule();
+      if(selected&&!registry.get(selected)?.mesh.visible){selected=null;isolated=null;}
+      selectedOutline();const count=[...registry.values()].filter(e=>e.mesh.visible).length;$('[data-val="visible"]').textContent=count+' / '+registry.size+' OUVRAGES';
+      el.querySelectorAll('[data-level]').forEach(b=>b.classList.toggle('active',b.dataset.level===$('[data-filter="level"]').value));el.querySelectorAll('[data-lot]').forEach(b=>b.classList.toggle('active',!hiddenLots.has(b.dataset.lot)));modeUI();schedule();
     }
     function updateDetails(){
-      const e=selected && registry.get(selected)?.meta;
-      $('[data-val="id"]').textContent=e?e.type+' · '+e.id:'Aucun ouvrage sélectionné';
-      $('[data-val="info"]').textContent=e?('Bâtiment '+e.building+' · Zone '+e.zone+' · '+e.level+' · Lot '+e.lot+' · '+e.status+' · Avancement '+e.progress+' %'+(e.sourceId?' · ID source '+e.sourceId:'')):'Cliquez sur un élément. Données fictives non synchronisées.';
-      $('[data-val="warning"]').textContent=e?.sourceFormat && e.sourceFormat!=='DEMO'?'Géométrie importée depuis un manifeste JSON; état non synchronisé.':'Prototype — données fictives. Aucun IFC/RVT lu directement.';
-      for(const a of ['isolate','hide'])$('[data-act="'+a+'"]').disabled=!e;
-      const status=$('[data-role="editstatus"]');status.disabled=!e;if(e)status.value=e.status;
+      const e=selected&&registry.get(selected)?.meta;
+      $('[data-val="id"]').textContent=e?e.type+' · '+e.id:'Smart Object Inspector';
+      $('[data-val="info"]').textContent=e?e.building+' · '+e.zone+' · '+e.level+' · '+e.lot+' · '+e.progress+'%':'Touchez un ouvrage pour consulter sa fiche.';
+      $('[data-val="warning"]').textContent='Données locales · aucune modification du chantier.';
+      for(const a of ['isolate','hide','detail'])$('[data-act="'+a+'"]').disabled=!e;
+      $('[data-act="isolate"]').textContent=isolated?'Quitter':'Isoler';
+      const status=$('[data-role="editstatus"]');status.replaceChildren(...Object.keys(couleur()).map(v=>new Option(v,v)));status.disabled=!e;if(e)status.value=etat(e);
+      $('[data-role="progressbar"]').style.width=(e?e.progress:0)+'%';
+      $('[data-role="extra"]').hidden=!e||!detail;if(!e)return;
+      const p=$('[data-role="progress"]');p.value=e.progress;$('[data-role="progresslabel"]').hidden=tab!=='Infos';
+      const value=$('[data-val="extra"]');value.textContent=tab==='Infos'?'Source : '+(e.sourceFormat||'JSON')+' · ID source : '+(e.sourceId||'non fourni')+' · Géométrie : '+e.geometry.kind:tab==='Métier'?service+' · '+etat(e)+' · Responsable non associé':tab==='Docs'?'Aucun PV, plan ou photo associé à cette démo.':e.suivi.journal.join(' | ')||'Aucune modification locale.';
+      el.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
     }
-    function select(id){selected=registry.has(id)?id:null; updateDetails();visibility();}
-    function schedule(){if(disposed||raf)return;raf=requestAnimationFrame(()=>{raf=0;if(!disposed)renderer.render(scene,camera);});}
-    const onResize=()=>{let w=Math.max(1,stage.clientWidth),h=Math.max(1,stage.clientHeight);renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();schedule();};
+    function select(id){selected=registry.has(id)?id:null; if(!selected)isolated=null; visibility();updateDetails();}
+    function render(){if(disposed||page!=='viewer')return;const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;renderer.setScissorTest(false);renderer.setViewport(0,0,w,h);
+      if(view==='3D'){renderer.render(scene,camera);return;}
+      const bounds=new T.Box3().setFromObject(grp),ctr=bounds.getCenter(new T.Vector3()),sz=bounds.getSize(new T.Vector3()),pw=view==='Hybride'?w/2:w,asp=pw/h,half=Math.max(sz.z/2,sz.x/(2*asp),2)*1.15;
+      planCam.left=-half*asp;planCam.right=half*asp;planCam.top=half;planCam.bottom=-half;planCam.far=Math.max(2000,sz.y*5+100);planCam.position.set(ctr.x,ctr.y+Math.max(100,sz.y*3),ctr.z);planCam.up.set(0,0,-1);planCam.lookAt(ctr);planCam.updateProjectionMatrix();
+      if(view==='2D'){renderer.render(scene,planCam);return;}
+      renderer.setScissorTest(true);renderer.setViewport(0,0,w/2,h);renderer.setScissor(0,0,w/2,h);renderer.render(scene,camera);renderer.setViewport(w/2,0,w/2,h);renderer.setScissor(w/2,0,w/2,h);renderer.render(scene,planCam);renderer.setScissorTest(false);renderer.setViewport(0,0,w,h);
+    }
+    function schedule(){if(disposed||raf)return;raf=requestAnimationFrame(()=>{raf=0;render();});}
+    const onResize=()=>{let w=Math.max(1,stage.clientWidth),h=Math.max(1,stage.clientHeight);renderer.setSize(w,h);camera.aspect=(view==='Hybride'?w/2:w)/h;camera.updateProjectionMatrix();schedule();};
     const observer=new ResizeObserver(onResize);observer.observe(stage);
     const raycaster=new T.Raycaster(), mouse=new T.Vector2();
     renderer.domElement.addEventListener('pointerdown',e=>{press={x:e.clientX,y:e.clientY};});
     renderer.domElement.addEventListener('pointerup',e=>{
       if(!press || Math.hypot(e.clientX-press.x,e.clientY-press.y)>7){press=null;return;}press=null;
-      const r=renderer.domElement.getBoundingClientRect();mouse.x=((e.clientX-r.left)/r.width)*2-1;mouse.y=-((e.clientY-r.top)/r.height)*2+1;
-      raycaster.setFromCamera(mouse,camera);const hit=raycaster.intersectObjects([...registry.values()].map(x=>x.mesh).filter(x=>x.visible),false)[0];
+      const r=renderer.domElement.getBoundingClientRect();let x=e.clientX-r.left,cam=camera,w=r.width;if(view==='2D')cam=planCam;if(view==='Hybride'){w/=2;if(x>=w){x-=w;cam=planCam;}}mouse.x=(x/w)*2-1;mouse.y=-((e.clientY-r.top)/r.height)*2+1;
+      raycaster.setFromCamera(mouse,cam);const hit=raycaster.intersectObjects([...registry.values()].map(x=>x.mesh).filter(x=>x.visible),false)[0];
       select(hit?.object?.userData?.modelcoreId||null);
     });
     controls.addEventListener('change',schedule);
@@ -184,31 +261,47 @@
       if(disposed)return;disposed=true;
       if(backRemove)try{backRemove();}catch(e){}
       if(raf)cancelAnimationFrame(raf);observer.disconnect();controls.dispose();
-      for(const g of geometryCache)g.dispose();for(const m of matCache.values())m.dispose();selectedMat.dispose();
+      clearOutline();grid.geometry.dispose();grid.material.dispose();for(const g of geometryCache)g.dispose();for(const m of matCache.values())m.dispose();selectedMat.dispose();
       renderer.dispose();renderer.forceContextLoss();el.remove();
     }
     if(typeof pushBack==='function') backRemove=pushBack(close);
     const on=(act,fn)=>$('[data-act="'+act+'"]').addEventListener('click',fn);
     on('close',close);on('top',()=>{camera.position.set(.001,54,.001);controls.target.set(0,2.5,0);controls.update();});
     on('under',()=>{camera.position.set(.001,-40,.001);controls.target.set(0,2.5,0);controls.update();});
-    on('reset',()=>{isolated=null;hidden.clear();roofHidden=false;statusColors=false;for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';resetCamera();select(null);});
+    on('reset',()=>{isolated=null;hidden.clear();roofHidden=false;statusColors=true;hiddenLots.clear();cut=false;exploded=false;mode='all';for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';resetCamera();select(null);});
     on('zoomplus',()=>{camera.position.sub(controls.target).multiplyScalar(.78).add(controls.target);controls.update();});
     on('zoomminus',()=>{camera.position.sub(controls.target).multiplyScalar(1.25).add(controls.target);controls.update();});
-    on('isolate',()=>{if(!selected)return;isolated=selected;hidden.delete(selected);roofHidden=false;for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';visibility();});
+    on('isolate',()=>{if(!selected)return;isolated=isolated?null:selected;visibility();updateDetails();});
     on('hide',()=>{if(!selected)return;hidden.add(selected);if(isolated===selected)isolated=null;select(null);});
-    on('all',()=>{isolated=null;hidden.clear();roofHidden=false;for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';select(null);});
+    on('all',()=>{isolated=null;hidden.clear();hiddenLots.clear();cut=false;mode='all';roofHidden=false;for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';select(null);});
     on('roof',()=>{roofHidden=!roofHidden;visibility();});
     on('color',()=>{statusColors=!statusColors;visibility();});
+    on('structure',()=>{mode='structure';hiddenLots.clear();statusColors=false;select(null);});
+    on('architecture',()=>{mode='all';hiddenLots.clear();statusColors=false;select(null);});
+    on('fit',resetCamera);
+    on('filters',()=>{$('[data-role="filters"]').classList.toggle('open');$('[data-role="layers"]').classList.remove('open');});
+    on('layers',()=>{$('[data-role="layers"]').classList.toggle('open');$('[data-role="filters"]').classList.remove('open');});
+    on('explode',()=>{exploded=!exploded;visibility();resetCamera();});
+    on('cut',()=>{cut=!cut;visibility();updateDetails();});
+    on('view',()=>{view=['3D','2D','Hybride'][(['3D','2D','Hybride'].indexOf(view)+1)%3];$('.mcsplit').hidden=$('.mclabel').hidden=view!=='Hybride';modeUI();onResize();});
+    on('detail',()=>{detail=!detail;updateDetails();});
+    el.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>setPage(b.dataset.page));
+    el.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;updateDetails();});
+    $('[data-role="service"]').onchange=e=>{service=e.target.value;statusColors=true;$('[data-filter="status"]').value='all';refreshFilters();visibility();updateDetails();};
+    $('[data-role="progress"]').onchange=e=>{const o=registry.get(selected)?.meta;if(!o)return;o.progress=Number(e.target.value);o.suivi.journal.unshift('Avancement : '+o.progress+'%');kpis();updateDetails();};
+    on('detect',()=>{detected=true;drawPlan();$('[data-val="airesult"]').textContent='Simulation : 12 poteaux · 17 poutres · 6 dalles. Vérifiez les paramètres.';});
+    on('generate',()=>{try{if(!detected||!$('[data-role="confirm"]').checked)throw Error('Lancez la détection simulée et confirmez les paramètres.');const p={};el.querySelectorAll('[data-ai]').forEach(i=>p[i.dataset.ai]=Number(i.value));p.epaisseur/=100;populate(validateManifest(maquetteParametrique(p)));$('[data-val="project"]').textContent=projectName+' · Maquette paramétrique fictive';$('[data-val="aierror"]').textContent='';setPage('viewer');}catch(e){$('[data-val="aierror"]').textContent=e.message;}});
+    el.querySelectorAll('[data-command]').forEach(b=>b.onclick=()=>{service=b.dataset.command==='quality'?'Qualité':'Travaux';$('[data-role="service"]').value=service;hidden.clear();hiddenLots.clear();isolated=null;cut=false;roofHidden=false;mode='all';statusColors=true;for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';refreshFilters();$('[data-filter="status"]').value=service==='Qualité'?'Non conforme':'Bloqué';select(null);setPage('viewer');});
     for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').addEventListener('change',()=>{select(null);});
     $('[data-role="editstatus"]').addEventListener('change',e=>{
-      if(!selected)return;const item=registry.get(selected);if(item && STATES.includes(e.target.value)){item.meta.status=e.target.value;item.meta.progress=e.target.value==='Réceptionné'?100:item.meta.progress;updateDetails();visibility();}
+      if(!selected)return;const item=registry.get(selected);if(item&&Object.keys(couleur()).includes(e.target.value)){const o=item.meta,k=champ(),old=o.suivi[k];o.suivi[k]=e.target.value;o.suivi.journal.unshift(k+' : '+old+' → '+e.target.value);if(k==='Travaux'&&e.target.value==='Terminé')o.progress=100;if(k==='Travaux'&&e.target.value==='Non commencé')o.progress=0;kpis();visibility();updateDetails();}
     });
     on('import',()=>{$('[data-role="file"]').click();});
     $('[data-role="file"]').addEventListener('change',async(e)=>{
       const f=e.target.files[0];e.target.value='';if(!f)return;
       try{if(f.size>10*1024*1024)throw new Error('Fichier supérieur à 10 Mo.');
         const json=JSON.parse(await f.text()),data=validateManifest(json);
-        populate(data);$('[data-val="project"]').textContent=projectName+' · JSON '+clean(f.name)+' (local)';
+        if(disposed)return;populate(data);$('[data-val="project"]').textContent=projectName+' · JSON '+clean(f.name)+' (local)';setPage('viewer');
       }catch(err){alert('Import ModelCore : '+clean(err.message));}
     });
     const chooseTemplate = key => {
@@ -221,5 +314,5 @@
     chooseTemplate(initialType);onResize();
     return { close, getSelected:()=>registry.get(selected)?.meta||null, projectId, schema:SCHEMA };
   }
-  window.ModelCore3D = { open, validateManifest, demo:(type='stade')=>type==='stade'?createDemo():window.ModelCoreTemplates?window.ModelCoreTemplates.make(type):createDemo(), schema:SCHEMA };
+  window.ModelCore3D = { open, validateManifest, suiviInitial, maquetteParametrique, demo:(type='stade')=>type==='stade'?createDemo():window.ModelCoreTemplates?window.ModelCoreTemplates.make(type):createDemo(), schema:SCHEMA };
 })();
