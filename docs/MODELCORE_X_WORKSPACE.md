@@ -55,3 +55,9 @@ Limite : pas de capuchon ni de hachure sur les surfaces coupées (coupe visuelle
 - L'inspecteur apparaît en surimpression sans redimensionner la maquette. Identité, localisation, géométrie, état local, avancement et actions; fermeture et restauration des éléments masqués indépendamment des coupes et filtres.
 - Si la fiche est ouverte, les réglages de coupe se placent en haut de la vue. Le recalcul de cadrage après import attend le retour au viewport. La projection 2D réutilise les bornes déjà calculées au lieu de parcourir le modèle à chaque rendu.
 - API locale selectById limitée aux éléments visibles pour le futur lien plan/maquette. Le parcours navigateur vérifie la fiche, l'isolation et la restauration. Validation Android réelle encore nécessaire.
+
+### Mode Plancher — empreintes géométriques
+- Bouton Plancher dans la barre rapide, puis choix du niveau et des empreintes : dessous (trait bleu foncé), dessus (pointillé ocre) ou les deux. Les dalles restent visibles; les appuis ne sont pas affichés en volume.
+- Les contacts sont recherchés sur la géométrie chargée, dans le même bâtiment, indépendamment du nom du niveau des appuis. Tolérance indicative de 3 cm; section des primitives orientées ou intersection des triangles de maillage, puis découpage des traits à l'emprise de la dalle. Les filtres de dalle et les masquages d'appuis restent appliqués.
+- Dalles horizontales uniquement : rectangle pour les boîtes, triangles horizontaux supérieurs pour les maillages. Les dalles non traitées et les limites de calcul sont indiquées. Les contacts sont indicatifs, pas une vérification de portance ni un plan de coffrage d'exécution; les contours des maillages complexes peuvent être incomplets. Mode éclaté incompatible.
+- Tests de contact, découpe de segments et parcours navigateur ajoutés. Contrôle visuel des traits et du rendu sur Android réel encore requis.
