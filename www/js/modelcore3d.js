@@ -142,7 +142,7 @@
 <div class="mclegend" data-role="legend"></div>
 <div class="mcdetail"><div class="mcinfo"><b data-val="id">Aucun ouvrage sélectionné</b><div class="mcsub" data-val="info">Touchez un élément.</div><div class="mcwarn" data-val="warning">Données locales non synchronisées.</div></div><button data-act="isolate" disabled>Isoler</button><button data-act="hide" disabled>Masquer</button><button data-act="detail" disabled>Fiche</button><select data-role="editstatus" aria-label="État local de démonstration" disabled></select><div class="mcprogress"><i data-role="progressbar" style="width:0%"></i></div><div class="mcinspector-extra" data-role="extra" hidden><button data-tab="Infos">Infos</button><button data-tab="Géométrie">Géométrie</button><button data-tab="Docs">Docs</button><button data-tab="Journal">Journal</button><div data-val="extra" class="mcsub"></div><label data-role="progresslabel">Avancement fictif <input data-role="progress" type="range" min="0" max="100" step="1"></label></div></div>
 </div>
-<div class="mcpage" data-pane="import" hidden><h2>Import Studio</h2><div class="mccard"><h3>Maquette BIM · IFC</h3>Revit / Tekla / Archicad → IFC. Import direct local expérimental, 8 Mo et 5 000 ouvrages maximum, budget de triangles limité. Aucun fichier envoyé.<br><button data-act="ifc">Sélectionner IFC</button> <button data-act="ifccancel" hidden>Annuler</button><input data-role="ifcfile" type="file" accept=".ifc" hidden><p class="mcsub" data-val="ifcreport">Choisissez un IFC exporté depuis votre logiciel BIM. RVT direct non pris en charge.</p></div><div class="mccard"><h3>Manifeste JSON ModelCore v1</h3>Import local réel, 10 Mo / 5 000 ouvrages maximum.<br><button data-act="import">Sélectionner JSON</button><input data-role="file" type="file" accept=".json,application/json" hidden></div><div class="mccard"><h3>Plans 2D</h3>Lecture PDF et OCR local, puis création paramétrique assistée.<br><button data-page="ai">Ouvrir AI Studio</button></div><div class="mccard">GlobalId · révisions · géoréférencement · contrôle des droits : étapes futures.</div></div>
+<div class="mcpage" data-pane="import" hidden><h2>Import Studio</h2><div class="mccard"><h3>Maquette BIM · IFC</h3>Revit / Tekla / Archicad → IFC. Import direct local expérimental, 8 Mo et 5 000 ouvrages maximum, budget de triangles limité. Aucun fichier envoyé.<br><button data-act="ifc">Sélectionner IFC</button> <button data-act="ifccancel" hidden>Annuler</button><input data-role="ifcfile" type="file" accept=".ifc" hidden><p class="mcsub" data-val="ifcreport">Choisissez un IFC exporté depuis votre logiciel BIM. RVT direct non pris en charge.</p></div><div class="mccard"><h3>Manifeste JSON ModelCore v1</h3>Import local réel, 10 Mo / 5 000 ouvrages maximum.<br><button data-act="import">Sélectionner JSON</button><input data-role="file" type="file" accept=".json,application/json" hidden></div><div class="mccard"><h3>Plans 2D</h3>Lecture PDF et OCR local, puis création paramétrique assistée.<br><button data-page="ai">Ouvrir AI Studio</button></div><div class="mccard">GlobalId préservé si présent. Lots proposés à vérifier. Coordonnées recentrées pour affichage; versions, géoréférencement et contrôle des droits restent à développer.</div></div>
 <div class="mcpage" data-pane="ai" hidden><h2>AI Geometry Studio</h2><div class="mccard"><h3>Assistant de lecture · PDF / image</h3><p>Extraction de texte PDF ou OCR neuronal local (première page). Les cotes explicites sont des suggestions à vérifier, pas une reconnaissance de la géométrie.</p><button data-act="planfile">Choisir un plan</button><input data-role="planfile" type="file" accept=".pdf,image/png,image/jpeg" hidden><p data-val="ocrstatus" class="mcsub"></p><textarea data-role="ocrtext" readonly rows="5" style="width:100%;background:#0b2033;color:#d6ecfa;border:1px solid #31546b;border-radius:8px" placeholder="Texte reconnu"></textarea><p data-val="suggestions" class="mcsub"></p><button data-act="applysuggestions" disabled>Reporter les cotes proposées</button></div><div class="mccard"><h3>Plan de coffrage fictif · exemple</h3><svg data-role="aiplan" viewBox="0 0 340 190" style="width:100%;background:#081c2c;border-radius:8px"></svg><button data-act="detect">Détection simulée</button><p data-val="airesult">Aucune analyse de PDF réel.</p></div><div class="mccard"><h3>Paramètres à confirmer</h3><div class="mcgrid"><label>Hauteur (m)<input data-ai="hauteur" type="number" value="3.2" min="2.5" max="5" step=".1"></label><label>Épaisseur (cm)<input data-ai="epaisseur" type="number" value="25" min="15" max="45"></label><label>Niveaux<input data-ai="niveaux" type="number" value="3" min="1" max="7"></label><label>Entraxe (m)<input data-ai="entraxe" type="number" value="5" min="3" max="8"></label></div><label><input data-role="confirm" type="checkbox"> Je confirme les dimensions pour une trame paramétrique illustrative (pas une reproduction du plan).</label><br><button data-act="generate">Générer une maquette paramétrique</button><p class="mcwarn" data-val="aierror"></p></div></div>
 <div class="mcpage" data-pane="dash" hidden><h2>Explorateur de maquette</h2><div class="mccard" data-role="dashboard"></div><div class="mccard"><h3>Raccourcis géométriques</h3><div data-role="shortcuts" class="mcgrid"></div><p class="mcsub">Filtres locaux par type d’ouvrage.</p></div></div>`;
     document.body.appendChild(el);
@@ -168,7 +168,7 @@
     };
     let selected=null, isolated=null, hidden=new Set(), roofHidden=false, statusColors=true, dataset=null, disposed=false, raf=0, press=null, backRemove=null;
     let mode='structure', view='3D', page='viewer', exploded=false, cut=false, detail=false, tab='Infos', detected=false;
-    let hiddenLots=new Set(), outline=null; let ifcWorker=null, ifcTimer=0, ocrWorker=null, pdfTask=null, reading=false, ocrSuggestions={};
+    let hiddenLots=new Set(), outline=null; let ifcWorker=null, ifcTimer=0, ifcRequest=0, ocrWorker=null, pdfTask=null, reading=false, ocrSuggestions={};
     const etat = e => e.status;
     const couleur = ()=>STATUS_COLOR;
     const hex = n=>'#'+n.toString(16).padStart(6,'0');
@@ -229,7 +229,7 @@
       const e=selected&&registry.get(selected)?.meta;
       $('[data-val="id"]').textContent=e?e.type+' · '+e.id:'Smart Object Inspector';
       $('[data-val="info"]').textContent=e?e.building+' · '+e.zone+' · '+e.level+' · '+e.lot+' · '+e.progress+'%':'Touchez un ouvrage pour consulter sa fiche.';
-      $('[data-val="warning"]').textContent='Données locales · aucune modification du chantier.';
+      $('[data-val="warning"]').textContent=e?.sourceFormat==='IFC'?'IFC local · classification à vérifier · état non synchronisé.':'Données locales · aucune modification du chantier.';
       for(const a of ['isolate','hide','detail'])$('[data-act="'+a+'"]').disabled=!e;
       $('[data-act="isolate"]').textContent=isolated?'Quitter':'Isoler';
       const status=$('[data-role="editstatus"]');status.replaceChildren(...Object.keys(couleur()).map(v=>new Option(v,v)));status.disabled=!e;if(e)status.value=etat(e);
@@ -297,22 +297,22 @@
       if(!selected)return;const item=registry.get(selected);if(item&&STATES.includes(e.target.value)){const o=item.meta,old=o.status;o.status=e.target.value;o.journal.unshift('État fictif : '+old+' → '+o.status);if(o.status==='Réceptionné')o.progress=100;if(o.status==='Non commencé')o.progress=0;visibility();updateDetails();}
     });
     // Conversion IFC en Worker : annulation, délai maximal, contrôle du manifeste.
-    function stopIfc(){if(ifcTimer)clearTimeout(ifcTimer);ifcTimer=0;if(ifcWorker)ifcWorker.terminate();ifcWorker=null;$('[data-act="ifccancel"]').hidden=true;$('[data-act="ifc"]').disabled=false;}
+    function stopIfc(){ifcRequest++;if(ifcTimer)clearTimeout(ifcTimer);ifcTimer=0;if(ifcWorker)ifcWorker.terminate();ifcWorker=null;$('[data-act="ifccancel"]').hidden=true;$('[data-act="ifc"]').disabled=false;}
     on('ifc',()=>$('[data-role="ifcfile"]').click());
     on('ifccancel',()=>{stopIfc();$('[data-val="ifcreport"]').textContent='Import annulé.';});
     $('[data-role="ifcfile"]').onchange=async e=>{
       const file=e.target.files[0];e.target.value='';if(!file||disposed)return;
       const report=$('[data-val="ifcreport"]');
       if(!/\.ifc$/i.test(file.name)||file.size>8*1024*1024){report.textContent='IFC .ifc uniquement, 8 Mo maximum.';return;}
-      stopIfc();$('[data-act="ifc"]').disabled=true;$('[data-act="ifccancel"]').hidden=false;report.textContent='Lecture IFC locale…';
+      stopIfc();const request=ifcRequest;$('[data-act="ifc"]').disabled=true;$('[data-act="ifccancel"]').hidden=false;report.textContent='Lecture IFC locale…';
       try{
-        const bytes=await file.arrayBuffer();if(disposed||!$('[data-act="ifc"]').disabled)return;
+        const bytes=await file.arrayBuffer();if(disposed||request!==ifcRequest)return;
         const w=new Worker(new URL('js/modelcore-ifc-worker.js',location.href));ifcWorker=w;
         ifcTimer=setTimeout(()=>{stopIfc();report.textContent='Délai dépassé (120 s). Découpez la maquette.';},120000);
         w.onerror=()=>{stopIfc();report.textContent='Worker IFC indisponible. Vérifiez que le build inclut WebIFC.';};
         w.onmessage=event=>{if(disposed||ifcWorker!==w)return;try{const v=event.data;if(!v.ok)throw Error(v.error);const data=validateManifest(v.data);const r=v.data.report;populate(data);mode='all';statusColors=false;visibility();$('[data-val="project"]').textContent=projectName+' · IFC '+clean(file.name)+' (local)';report.textContent=r.schema+' · '+r.imported+' ouvrages · '+r.triangles+' triangles · '+r.skipped+' maillages exclus · '+r.missing+' sans GlobalId. '+r.scope;setPage('viewer');}catch(err){report.textContent='Import IFC : '+clean(err.message);}finally{stopIfc();}};
         w.postMessage(bytes,[bytes]);
-      }catch(err){stopIfc();report.textContent='Import IFC : '+clean(err.message);}
+      }catch(err){if(request===ifcRequest){stopIfc();report.textContent='Import IFC : '+clean(err.message);}}
     };
     // PDF vectoriel : texte natif. Plan image/scanné : OCR Tesseract embarqué.
     async function lirePlan(file){
@@ -339,7 +339,7 @@
     $('[data-role="planfile"]').onchange=async e=>{
       const f=e.target.files[0];e.target.value='';if(!f||reading||disposed)return;
       reading=true;detected=false;ocrSuggestions={};$('[data-act="planfile"]').disabled=true;$('[data-act="applysuggestions"]').disabled=true;$('[data-role="confirm"]').checked=false;$('[data-role="ocrtext"]').value='';$('[data-val="suggestions"]').textContent='';el.querySelectorAll('[data-ai]').forEach(i=>i.value='');$('[data-val="ocrstatus"]').textContent='Analyse locale de la première page…';
-      try{const r=await lirePlan(f);if(disposed)return;const text=r.text.slice(0,50000);$('[data-role="ocrtext"]').value=text;ocrSuggestions=suggestionsPlan(text);const keys=Object.keys(ocrSuggestions);$('[data-val="ocrstatus"]').textContent=r.method+' · '+(text.trim()?'texte extrait':'aucun texte reconnu');$('[data-val="suggestions"]').textContent=keys.length?keys.map(k=>k+' : '+ocrSuggestions[k].value+' ('+ocrSuggestions[k].evidence+')').join(' | ') : 'Aucune cote explicite non ambiguë détectée. Renseignez manuellement les dimensions.';$('[data-act="applysuggestions"]').disabled=!keys.length;detected=!!text.trim();}
+      try{const r=await lirePlan(f);if(disposed)return;const text=r.text.slice(0,50000);$('[data-role="ocrtext"]').value=text;ocrSuggestions=suggestionsPlan(text);const keys=Object.keys(ocrSuggestions);$('[data-val="ocrstatus"]').textContent=r.method+' · '+(text.trim()?'texte extrait':'aucun texte reconnu');$('[data-val="suggestions"]').textContent=keys.length?keys.map(k=>k+' : '+ocrSuggestions[k].value+' ('+ocrSuggestions[k].evidence+')').join(' | ') : 'Aucune cote explicite non ambiguë détectée. Renseignez manuellement les dimensions.';$('[data-act="applysuggestions"]').disabled=!keys.length;detected=true;}
       catch(err){if(!disposed)$('[data-val="ocrstatus"]').textContent='Analyse : '+clean(err.message);}
       finally{reading=false;if(!disposed)$('[data-act="planfile"]').disabled=false;}
     };
