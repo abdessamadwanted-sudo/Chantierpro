@@ -3062,6 +3062,31 @@ try {
   const vAuditDeny = await B.pg.evaluate(async (cid) => { try { await firebase.firestore().collection('companies').doc(cid).collection('audit').get(); return 'ALLOWED (BAD)'; } catch (e) { return 'denied OK: ' + e.code; } }, await A.pg.evaluate(() => Team.company().id));
   log('B (non-admin, autre organisation) lecture journal A', vAuditDeny);
   log('errors v1.0.3xx [journal d\'audit]', !vAudit.err && vAudit.hasGrant && vAudit.hasPerms && /^denied OK/.test(vAuditDeny) ? [] : ['v1.0.3xx ' + JSON.stringify(vAudit) + ' ' + vAuditDeny]);
+  // ---- v1.0.x : ModelCore X — tiroir de filtres et viewport mobile
+  const vMc = await A.pg.evaluate(async () => {
+    const o={};let instance=null;
+    try{
+      for(const src of ['vendor/3d/three.min.js','vendor/3d/OrbitControls.js','js/modelcore3d-templates.js','js/modelcore3d.js']){
+        if(![...document.scripts].some(s=>s.src.endsWith('/'+src)))await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=src;s.onload=resolve;s.onerror=()=>reject(Error(src));document.head.append(s);});
+      }
+      instance=await ModelCore3D.open({projectName:'Test maquette',projectType:'immeuble'});
+      const root=document.querySelector('.st-mc3d'),panel=root.querySelector('[data-role="tools-panel"]'),stage=root.querySelector('[data-role="stage"]');
+      const button=a=>root.querySelector('[data-act="'+a+'"]');
+      await new Promise(requestAnimationFrame);
+      const height=stage.clientHeight;
+      o.closed=panel.hidden&&root.querySelector('[data-role="inspector"]').hidden&&height>200;
+      button('tools').click();o.open=!panel.hidden&&button('tools').getAttribute('aria-expanded')==='true'&&stage.clientHeight===height;
+      button('filters').click();o.filters=root.querySelector('[data-role="filters"]').classList.contains('open');
+      button('architecture').click();o.architecture=button('architecture').classList.contains('active');
+      button('tools-close').click();o.reclosed=panel.hidden&&stage.clientHeight===height;
+      button('cut').click();o.cut=!root.querySelector('[data-role="section-panel"]').hidden;
+      button('section-reset').click();
+      button('fitquick').click();
+      instance.close();instance=null;o.removed=!document.querySelector('.st-mc3d');
+    }catch(e){o.err=String(e.message||e);}finally{if(instance)instance.close();}return o;
+  });
+  log('ModelCore X viewport mobile',vMc);
+  log('errors v1.0.x ModelCore X viewport',!vMc.err&&['closed','open','filters','architecture','reclosed','cut','removed'].every(k=>vMc[k])?[]:['ModelCore X '+JSON.stringify(vMc)]);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
