@@ -96,3 +96,24 @@ assert.ok(code.includes('controls.enablePan=false'));
 assert.ok(code.includes('controls.target.copy(projectCenter)'));
 assert.ok(code.includes('controls.touches.TWO=T.TOUCH.DOLLY_PAN'));
 console.log('ModelCore X — sélection tactile, pincement et pivot projet : garde-fous OK.');
+
+// Coupes continues : bornes, inversion et filtrage des intersections raycast.
+const h=M.coupeParametres(-2,22,50);
+assert.equal(h.normal,-1);assert.ok(Math.abs(h.position-10)<1e-8);
+const v=M.coupeParametres(100,120,25);
+assert.ok(Math.abs(v.position-115)<.001);
+const inv=M.coupeParametres(100,120,25,true);
+assert.equal(inv.normal,1);assert.ok(Math.abs(inv.position-105)<.001);
+assert.ok(M.coupeParametres(100,120,0).position>120);
+assert.ok(M.coupeParametres(100,120,100).position<100);
+assert.ok(M.coupeParametres(100,120,0,true).position<100);
+assert.ok(M.coupeParametres(100,120,100,true).position>120);
+assert.throws(()=>M.coupeParametres(10,0,50),/Bornes/);
+const planes=[{normal:{x:0,y:-1,z:0},constant:10},{normal:{x:-1,y:0,z:0},constant:115}];
+assert.equal(M.pointDansCoupe({x:110,y:5,z:0},planes),true);
+assert.equal(M.pointDansCoupe({x:110,y:12,z:0},planes),false);
+assert.equal(M.pointDansCoupe({x:118,y:5,z:0},planes),false);
+assert.equal(M.pointDansCoupe({x:1000,y:1000,z:0},[]),true);
+assert.ok(code.includes('renderer.clippingPlanes=planes'),'Découpe de triangles par le moteur WebGL');
+assert.ok(code.includes('.find(h=>pointDansCoupe(h.point,renderer.clippingPlanes))'),'Pas de sélection derrière une surface découpée');
+console.log('ModelCore X — coupes H/V, inversion et raycast : tests OK.');
