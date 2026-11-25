@@ -2567,16 +2567,28 @@ try {
       o.pdf = !!opened && opened.blob.size > 500 && opened.mime === 'application/pdf';
       o.pdfPages = false;
       if (o.pdf) {
-        // Vérifier le contenu réel, pas une taille arbitraire de fichier.
+        // ftMake utilise pvgInk/pvgCompose : l'écriture manuscrite est un PNG,
+        // pas du texte PDF extractible. Rendre la page et vérifier l'encre dans la case.
         const bytes = new Uint8Array(await opened.blob.arrayBuffer());
         const task = pdfjsLib.getDocument({data:bytes});
+        let canvas;
         try {
-          const doc = await task.promise, page = await doc.getPage(1);
-          const tc = await page.getTextContent();
-          const text = tc.items.map(t => t.str).join(' ');
-          o.pdfPages = doc.numPages === 1 && /12[.,]5/.test(text);
-          o.pdfText = text.slice(0,200);
-        } finally { await task.destroy(); }
+          const doc = await task.promise, page = await doc.getPage(1), scale = 2;
+          const vp = page.getViewport({scale});
+          canvas = document.createElement('canvas');
+          canvas.width = Math.ceil(vp.width); canvas.height = Math.ceil(vp.height);
+          const ctx = canvas.getContext('2d');
+          await page.render({canvasContext:ctx,viewport:vp,background:'rgb(255,255,255)'}).promise;
+          const field = visuel.fields[0], x = Math.max(0, Math.floor(field.x*scale)), y = Math.max(0, Math.floor(field.y*scale));
+          const w = Math.min(canvas.width-x,Math.ceil(field.w*scale)), h = Math.min(canvas.height-y,Math.ceil(field.h*scale));
+          let ink = 0;
+          if (w>0 && h>0) {
+            const rgba = ctx.getImageData(x,y,w,h).data;
+            for (let i=0;i<rgba.length;i+=4) if(rgba[i+2]>rgba[i]+12 && rgba[i]<220 && rgba[i+1]<235) ink++;
+          }
+          o.pdfInkPixels = ink;
+          o.pdfPages = doc.numPages === 1 && ink>20;
+        } finally { if(canvas) canvas.width=canvas.height=0; await task.destroy(); }
       }
     } catch (e) { o.err = String(e.message || e); }
     window.openFileRecord = oldOpen;
