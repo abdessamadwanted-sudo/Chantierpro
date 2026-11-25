@@ -115,6 +115,17 @@
     for(const [key,pattern,min,max] of fields){const all=[...t.matchAll(pattern)].map(m=>({value:Number(m[1].replace(',','.'))*({mm:.001,cm:.01,m:1}[m[2].toLowerCase()]),evidence:m[0]}));if(!all.length)continue;const x=all[0];if(x.value>=min&&x.value<=max&&all.every(a=>Math.abs(a.value-x.value)<1e-6))out[key]={value:key==='epaisseur'?Math.round(x.value*1000)/10:x.value,evidence:x.evidence};}
     return out;
   }
+  // Un tap ne peut jamais provenir d'un pincement, d'une rotation ou d'une annulation.
+  function gesteSelection(seuil=7) {
+    const points=new Set();let start=null,blocked=false;
+    return {
+      down(e){if(points.size===0){start={id:e.pointerId,x:e.clientX,y:e.clientY};blocked=e.button!==undefined&&e.button!==0;}points.add(e.pointerId);if(points.size>1)blocked=true;},
+      move(e){if(start&&points.has(e.pointerId)&&(e.pointerId!==start.id||Math.hypot(e.clientX-start.x,e.clientY-start.y)>seuil))blocked=true;},
+      up(e){this.move(e);const tap=points.has(e.pointerId)&&points.size===1&&!blocked&&start?.id===e.pointerId;points.delete(e.pointerId);if(!points.size){start=null;blocked=false;}return tap;},
+      cancel(e){blocked=true;points.delete(e.pointerId);if(!points.size){start=null;blocked=false;}},
+      reset(){points.clear();start=null;blocked=false;}
+    };
+  }
   async function open(options) {
     if (typeof need3D !== 'function') throw new Error('Chargeur Three.js indisponible.');
     await need3D();
@@ -138,7 +149,7 @@
 <div class="mcbar"><button data-act="view">Vue 3D</button><button data-act="explode">Éclaté</button><button data-act="all">Tout</button><button data-act="roof">Toiture</button></div>
 <div class="mcfilters" data-role="filters"><select data-filter="building" aria-label="Bâtiment"></select><select data-filter="lot" aria-label="Lot"></select><select data-filter="zone" aria-label="Zone"></select><select data-filter="level" aria-label="Niveau"></select><select data-filter="type" aria-label="Type"></select><select data-filter="status" aria-label="État"></select></div>
 <div class="mcfilters" data-role="layers"></div>
-<div class="mcview" data-role="stage"><div class="mcover" data-val="visible"></div><div class="mcside"><button data-act="top" title="Dessus">↑</button><button data-act="under" title="Dessous">↓</button><button data-act="zoomplus" title="Zoom avant">＋</button><button data-act="zoomminus" title="Zoom arrière">−</button><button data-act="cut" title="Masquer une moitié">◫</button><button data-act="fit" title="Ajuster">⛶</button></div><div class="mclevels" data-role="levels"></div><div class="mcsplit" hidden></div><div class="mclabel" hidden>PLAN ZÉNITHAL</div><div class="mcsub" style="position:absolute;bottom:6px;left:12px;pointer-events:none">Orbite · toucher un ouvrage · pincement</div></div>
+<div class="mcview" data-role="stage"><div class="mcover" data-val="visible"></div><div class="mcside"><button data-act="top" title="Dessus">↑</button><button data-act="under" title="Dessous">↓</button><button data-act="zoomplus" title="Zoom avant">＋</button><button data-act="zoomminus" title="Zoom arrière">−</button><button data-act="cut" title="Masquer une moitié">◫</button><button data-act="fit" title="Ajuster">⛶</button></div><div class="mclevels" data-role="levels"></div><div class="mcsplit" hidden></div><div class="mclabel" hidden>PLAN ZÉNITHAL</div><div class="mcsub" style="position:absolute;bottom:6px;left:12px;pointer-events:none">1 doigt : orbite · 2 doigts : zoom · toucher : sélection</div></div>
 <div class="mclegend" data-role="legend"></div>
 <div class="mcdetail"><div class="mcinfo"><b data-val="id">Aucun ouvrage sélectionné</b><div class="mcsub" data-val="info">Touchez un élément.</div><div class="mcwarn" data-val="warning">Données locales non synchronisées.</div></div><button data-act="isolate" disabled>Isoler</button><button data-act="hide" disabled>Masquer</button><button data-act="detail" disabled>Fiche</button><select data-role="editstatus" aria-label="État local de démonstration" disabled></select><div class="mcprogress"><i data-role="progressbar" style="width:0%"></i></div><div class="mcinspector-extra" data-role="extra" hidden><button data-tab="Infos">Infos</button><button data-tab="Géométrie">Géométrie</button><button data-tab="Docs">Docs</button><button data-tab="Journal">Journal</button><div data-val="extra" class="mcsub"></div><label data-role="progresslabel">Avancement fictif <input data-role="progress" type="range" min="0" max="100" step="1"></label></div></div>
 </div>
@@ -156,7 +167,13 @@
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, window.innerWidth < 650 ? 1 : 1.5));
     renderer.outputEncoding = T.sRGBEncoding;
     stage.prepend(renderer.domElement);
-    const controls = new T.OrbitControls(camera, renderer.domElement); controls.enableDamping = false; controls.maxDistance = 150; controls.minDistance = 3;
+    const controls = new T.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping=false;controls.enableZoom=true;controls.enableRotate=true;
+    // Pas de pan implicite : le pivot reste au centre du projet, même après un pincement.
+    controls.enablePan=false;controls.touches.ONE=T.TOUCH.ROTATE;controls.touches.TWO=T.TOUCH.DOLLY_PAN;
+    controls.zoomSpeed=1;controls.rotateSpeed=.85;controls.maxDistance=150;controls.minDistance=.05;
+    renderer.domElement.style.touchAction='none';
+    const projectCenter=new T.Vector3();let fitDistance=15;const gesture=gesteSelection();
     scene.add(new T.HemisphereLight('#e8f2ff', '#526077', 1.2));
     const sun = new T.DirectionalLight('#ffffff', 1.45); sun.position.set(-12, 30, 24); scene.add(sun);
     const fill = new T.DirectionalLight('#75bdff', .5); fill.position.set(18, 10, -18);scene.add(fill);
@@ -194,7 +211,15 @@
       mesh.material=getMat(type,palette[type] || palette.Autre,type==='Charpente'?.15:0);
       return mesh;
     }
-    function resetCamera(){const bounds=new T.Box3().setFromObject(grp),ctr=bounds.getCenter(new T.Vector3()),size=bounds.getSize(new T.Vector3());const d=Math.max(15,size.length()*1.12);camera.far=Math.max(500,d*6);camera.updateProjectionMatrix();controls.maxDistance=d*4;camera.position.set(ctr.x+d*.7,ctr.y+d*.56,ctr.z+d*.8);controls.target.copy(ctr);controls.update();schedule();}
+    function resetCamera(){
+      const bounds=new T.Box3().setFromObject(grp),size=bounds.getSize(new T.Vector3());bounds.getCenter(projectCenter);
+      const radius=Math.max(.05,size.length()/2),vertical=T.MathUtils.degToRad(camera.fov/2),horizontal=Math.atan(Math.tan(vertical)*Math.max(.1,camera.aspect));
+      fitDistance=Math.max(.3,radius/Math.sin(Math.min(vertical,horizontal))*1.08);
+      controls.minDistance=Math.max(.025,radius*.035);controls.maxDistance=fitDistance*5;
+      camera.near=Math.max(.001,radius*.0002);camera.far=Math.max(500,controls.maxDistance+radius*3);camera.updateProjectionMatrix();
+      controls.target.copy(projectCenter);camera.position.copy(projectCenter).add(new T.Vector3(.7,.56,.8).normalize().multiplyScalar(fitDistance));controls.update();schedule();
+    }
+    function orienterDessus(signe){const d=Math.max(controls.minDistance,camera.position.distanceTo(projectCenter));controls.target.copy(projectCenter);camera.position.copy(projectCenter).add(new T.Vector3(0,signe*d,d*.0001));controls.update();schedule();}
     function populate(elements) {
       clearOutline(); for(const child of [...grp.children]) grp.remove(child);
       geometryCache.splice(0).forEach(g=>g.dispose()); registry.clear(); hidden.clear(); hiddenLots.clear(); isolated=null; selected=null; dataset=elements; exploded=false;cut=false;mode='structure';detail=false;roofHidden=false;for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';
@@ -242,7 +267,7 @@
     function select(id){selected=registry.has(id)?id:null; if(!selected)isolated=null; visibility();updateDetails();}
     function render(){if(disposed||page!=='viewer')return;const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;renderer.setScissorTest(false);renderer.setViewport(0,0,w,h);
       if(view==='3D'){renderer.render(scene,camera);return;}
-      const bounds=new T.Box3().setFromObject(grp),ctr=bounds.getCenter(new T.Vector3()),sz=bounds.getSize(new T.Vector3()),pw=view==='Hybride'?w/2:w,asp=pw/h,half=Math.max(sz.z/2,sz.x/(2*asp),2)*1.15;
+      const bounds=new T.Box3().setFromObject(grp),ctr=bounds.getCenter(new T.Vector3()),sz=bounds.getSize(new T.Vector3()),pw=view==='Hybride'?w/2:w,asp=pw/h,half=Math.max(sz.z/2,sz.x/(2*asp),.1)*1.15*Math.max(.01,camera.position.distanceTo(projectCenter)/fitDistance);
       planCam.left=-half*asp;planCam.right=half*asp;planCam.top=half;planCam.bottom=-half;planCam.far=Math.max(2000,sz.y*5+100);planCam.position.set(ctr.x,ctr.y+Math.max(100,sz.y*3),ctr.z);planCam.up.set(0,0,-1);planCam.lookAt(ctr);planCam.updateProjectionMatrix();
       if(view==='2D'){renderer.render(scene,planCam);return;}
       renderer.setScissorTest(true);renderer.setViewport(0,0,w/2,h);renderer.setScissor(0,0,w/2,h);renderer.render(scene,camera);renderer.setViewport(w/2,0,w/2,h);renderer.setScissor(w/2,0,w/2,h);renderer.render(scene,planCam);renderer.setScissorTest(false);renderer.setViewport(0,0,w,h);
@@ -251,13 +276,22 @@
     const onResize=()=>{let w=Math.max(1,stage.clientWidth),h=Math.max(1,stage.clientHeight);renderer.setSize(w,h);camera.aspect=(view==='Hybride'?w/2:w)/h;camera.updateProjectionMatrix();schedule();};
     const observer=new ResizeObserver(onResize);observer.observe(stage);
     const raycaster=new T.Raycaster(), mouse=new T.Vector2();
-    renderer.domElement.addEventListener('pointerdown',e=>{press={x:e.clientX,y:e.clientY};});
-    renderer.domElement.addEventListener('pointerup',e=>{
-      if(!press || Math.hypot(e.clientX-press.x,e.clientY-press.y)>7){press=null;return;}press=null;
-      const r=renderer.domElement.getBoundingClientRect();let x=e.clientX-r.left,cam=camera,w=r.width;if(view==='2D')cam=planCam;if(view==='Hybride'){w/=2;if(x>=w){x-=w;cam=planCam;}}mouse.x=(x/w)*2-1;mouse.y=-((e.clientY-r.top)/r.height)*2+1;
-      raycaster.setFromCamera(mouse,cam);const hit=raycaster.intersectObjects([...registry.values()].map(x=>x.mesh).filter(x=>x.visible),false)[0];
+    const surface=renderer.domElement;
+    surface.addEventListener('pointerdown',e=>{
+      gesture.down(e);
+      // En 2D, garder le plan horizontal : le zoom est synchronisé avec la caméra 3D.
+      const r=surface.getBoundingClientRect();controls.enableRotate=view==='3D'||(view==='Hybride'&&e.clientX-r.left<r.width/2);
+    },true);
+    surface.addEventListener('pointermove',e=>gesture.move(e),true);
+    surface.addEventListener('pointercancel',e=>gesture.cancel(e),true);
+    surface.addEventListener('lostpointercapture',e=>gesture.cancel(e),true);
+    surface.addEventListener('pointerup',e=>{
+      if(!gesture.up(e))return;
+      const r=surface.getBoundingClientRect();let x=e.clientX-r.left,cam=camera,w=r.width;if(view==='2D')cam=planCam;if(view==='Hybride'){w/=2;if(x>=w){x-=w;cam=planCam;}}if(!w||!r.height)return;
+      mouse.x=(x/w)*2-1;mouse.y=-((e.clientY-r.top)/r.height)*2+1;
+      cam.updateMatrixWorld(true);grp.updateMatrixWorld(true);raycaster.setFromCamera(mouse,cam);const hit=raycaster.intersectObjects([...registry.values()].map(x=>x.mesh).filter(x=>x.visible),false)[0];
       select(hit?.object?.userData?.modelcoreId||null);
-    });
+    },true);
     controls.addEventListener('change',schedule);
     function close(){
       if(disposed)return;disposed=true;stopIfc();if(ocrWorker)ocrWorker.terminate().catch(()=>{});if(pdfTask)pdfTask.destroy().catch(()=>{});
@@ -268,8 +302,8 @@
     }
     if(typeof pushBack==='function') backRemove=pushBack(close);
     const on=(act,fn)=>$('[data-act="'+act+'"]').addEventListener('click',fn);
-    on('close',close);on('top',()=>{camera.position.set(.001,54,.001);controls.target.set(0,2.5,0);controls.update();});
-    on('under',()=>{camera.position.set(.001,-40,.001);controls.target.set(0,2.5,0);controls.update();});
+    on('close',close);on('top',()=>orienterDessus(1));
+    on('under',()=>orienterDessus(-1));
     on('reset',()=>{isolated=null;hidden.clear();roofHidden=false;statusColors=true;hiddenLots.clear();cut=false;exploded=false;mode='structure';for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';select(null);resetCamera();});
     on('zoomplus',()=>{camera.position.sub(controls.target).multiplyScalar(.78).add(controls.target);controls.update();});
     on('zoomminus',()=>{camera.position.sub(controls.target).multiplyScalar(1.25).add(controls.target);controls.update();});
@@ -285,7 +319,7 @@
     on('layers',()=>{if(!$('[data-role="layers"]').classList.contains('open')&&mode!=='all'){for(const e of dataset){const arch=/façade|architecture|second œuvre|vitrage|étanchéité/i.test(e.lot),tech=/ferraillage|CFO|CFA|plomberie|CVC|électricité|assainissement/i.test(e.lot);if(tech||(mode==='structure'&&arch))hiddenLots.add(e.lot);}mode='all';visibility();} $('[data-role="layers"]').classList.toggle('open');$('[data-role="filters"]').classList.remove('open');});
     on('explode',()=>{exploded=!exploded;visibility();resetCamera();});
     on('cut',()=>{cut=!cut;visibility();updateDetails();});
-    on('view',()=>{view=['3D','2D','Hybride'][(['3D','2D','Hybride'].indexOf(view)+1)%3];$('.mcsplit').hidden=$('.mclabel').hidden=view!=='Hybride';modeUI();onResize();});
+    on('view',()=>{view=['3D','2D','Hybride'][(['3D','2D','Hybride'].indexOf(view)+1)%3];gesture.reset();controls.enableRotate=view!=='2D';$('.mcsplit').hidden=$('.mclabel').hidden=view!=='Hybride';modeUI();onResize();});
     on('detail',()=>{detail=!detail;updateDetails();});
     el.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>setPage(b.dataset.page));
     el.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;updateDetails();});
@@ -360,8 +394,8 @@
     };
     $('[data-role="projecttype"]').value = initialType;
     $('[data-role="projecttype"]').addEventListener('change',e=>chooseTemplate(e.target.value));
-    chooseTemplate(initialType);onResize();
+    onResize();chooseTemplate(initialType);
     return { close, getSelected:()=>registry.get(selected)?.meta||null, projectId, schema:SCHEMA };
   }
-  window.ModelCore3D = { open, validateManifest, ficheGeometrique, suggestionsPlan, maquetteParametrique, demo:(type='stade')=>type==='stade'?createDemo():window.ModelCoreTemplates?window.ModelCoreTemplates.make(type):createDemo(), schema:SCHEMA };
+  window.ModelCore3D = { open, validateManifest, ficheGeometrique, suggestionsPlan, gesteSelection, maquetteParametrique, demo:(type='stade')=>type==='stade'?createDemo():window.ModelCoreTemplates?window.ModelCoreTemplates.make(type):createDemo(), schema:SCHEMA };
 })();
