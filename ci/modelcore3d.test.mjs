@@ -132,3 +132,24 @@ assert.ok(code.includes('camera.setViewOffset(w,h,-pan.x*w,-pan.y*h,w,h)'),'Pan 
 assert.ok(code.includes('data-role="tools-panel" hidden'),'Tiroir replié au démarrage');
 assert.ok(code.includes('data-role="inspector" hidden'),'Fiche repliée au démarrage');
 console.log('ModelCore X — pan tactile et viewport prioritaire : tests OK.');
+
+// Rendu différencié et fermeture géométrique (boîtes/poutres).
+assert.equal(M.profilMateriau('Poteau','Gros œuvre').kind,'beton');
+assert.equal(M.profilMateriau('Vitrage','Architecture').kind,'verre');
+assert.equal(M.profilMateriau('Poteau','Charpente métallique').kind,'metal');
+assert.equal(M.profilMateriau('Armature','Ferraillage').kind,'acier');
+const cube=Array.from({length:8},(_,i)=>[i&1?2:0,i&2?2:0,i&4?2:0]);
+const poly=M.contourCoupe(cube,[0,-1,0],1);
+assert.equal(poly.length,4);assert.ok(poly.every(p=>Math.abs(p[1]-1)<1e-8));
+assert.equal(M.contourCoupe(cube,[-1,0,0],3).length,0);
+assert.equal(M.contourCoupe(cube,[0,1,0],-2).length,0);
+const diag=cube.map(([x,y,z])=>[x-y,x+y,z]);
+assert.equal(M.contourCoupe(diag,[1,0,0],-.5).length,4);
+for(const family of ['immeuble','batiment','villa','hopital']){
+  const model=M.validateManifest(M.demo(family));
+  assert.ok(model.some(e=>e.type==='Menuiserie')&&model.some(e=>e.type==='Cloison'));
+  assert.ok(new Set(model.map(e=>e.id)).size===model.length);
+}
+assert.ok(code.includes('capMesh.geometry.setAttribute'));
+assert.ok(code.includes('renderer.shadowMap.enabled=high'));
+console.log('ModelCore X — matières, détails architecturaux et fermeture des primitives : tests OK.');
