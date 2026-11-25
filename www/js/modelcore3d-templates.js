@@ -61,9 +61,31 @@
         box('Gaine CVC','Bloc B — consultations','Technique','R+'+f,'CVC',[9,.38,.55],[12,f*3.2+2.8,-2]);
       }
     }else if(type==='immeuble'){
-      buildFrame('Tour A',-16,0,9,13,12);buildFrame('Tour B',0,0,12,13,12);buildFrame('Tour C',16,0,7,13,12);
-      for(let j=0;j<3;j++)for(let f=0;f<5+j;f++){
-        box('Façade','Tour '+['A','B','C'][j],'Façade Est','R+'+f,'Façade',[.22,2.5,10],[-16+16*j+6.4,f*3.2+1.6,0]);
+      // Résidence Horizon : deux bâtiments R+6, éléments indépendants et lots distincts.
+      for(const [b,cx,cz,w,d] of [['Bloc A',-10,0,12,10],['Bloc B',10,-1,13,11]]){
+        const h=3.15,t=.25,x0=cx-w/2,z0=cz-d/2,xs=[.4,w/3,2*w/3,w-.7],zs=[.4,d/2,d-.7];
+        for(const x of xs)for(const z of zs)box('Semelle',b,'Infrastructure','Fondations','Fondations',[1.5,.75,1.5],[x0+x,-.5,z0+z]);
+        for(let f=0;f<7;f++){
+          const y=f*h,l=f?'R+'+f:'RDC',g='Gros œuvre';
+          for(let i=0;i<3;i++)for(let j=0;j<2;j++)box('Dalle',b,'Trame '+(i+1)+'-'+(j+1),l,g,[w/3-.025,t,d/2-.025],[x0+(i+.5)*w/3,y,z0+(j+.5)*d/2]);
+          for(const x of xs)for(const z of zs)box('Poteau',b,'Structure',l,g,[.42,h-t,.42],[x0+x,y+h/2,z0+z]);
+          for(const z of zs)for(let i=0;i<3;i++)beam('Poutre',b,'Structure',l,g,[x0+xs[i],y+h-.28,z0+z],[x0+xs[i+1],y+h-.28,z0+z],.35,.52);
+          for(const x of xs)for(let j=0;j<2;j++)beam('Poutre',b,'Structure',l,g,[x0+x,y+h-.28,z0+zs[j]],[x0+x,y+h-.28,z0+zs[j+1]],.35,.48);
+          for(const x of [cx-.7,cx+1.5])box('Voile',b,'Noyau',l,g,[.25,h-t,3],[x,y+h/2,cz]);
+          box('Voile',b,'Noyau',l,g,[2.2,h-t,.25],[cx+.4,y+h/2,cz-1.5]);
+          for(let k=0;k<9;k++){const step=(h-t)/18;box('Marche',b,'Escalier',l,'Circulation',[1.05,step,.29],[cx-3,y+t+(k+.5)*step,cz-2+k*.28]);box('Marche',b,'Escalier',l,'Circulation',[1.05,step,.29],[cx-1.85,y+t+(k+9.5)*step,cz-2+(8-k)*.28]);}
+          box('Palier',b,'Escalier',l,'Circulation',[2.2,.18,.65],[cx-2.4,y+h/2,cz+.65]);
+          for(let i=0;i<3;i++){const x=x0+(i+.5)*w/3,bw=w/3-.4;if(f>0){box('Balcon',b,'Façade',l,'Architecture',[bw,.2,1.3],[x,y,cz+d/2+.65]);box('Vitrage',b,'Façade',l,'Architecture',[bw,.9,.06],[x,y+.55,cz+d/2+1.26]);}
+            for(const z of [z0,cz+d/2]){box('Façade',b,'Enveloppe',l,'Architecture',[bw,.7,.18],[x,y+.5,z]);box('Vitrage',b,'Enveloppe',l,'Architecture',[bw-.65,1.55,.13],[x,y+1.65,z]);box('Façade',b,'Enveloppe',l,'Architecture',[bw,.55,.18],[x,y+h-.28,z]);}}
+          for(const x of [x0,cx+w/2])for(let j=0;j<3;j++){const z=z0+(j+.5)*d/3;box('Façade',b,'Enveloppe',l,'Architecture',[.18,.72,d/3-.08],[x,y+.5,z]);box('Vitrage',b,'Enveloppe',l,'Architecture',[.13,1.5,d/3-.65],[x,y+1.65,z]);}
+          for(let i=0;i<4;i++)box('Armature',b,'Poteau témoin',l,'Ferraillage',[.026,h,.026],[x0+.31+i*.09,y+h/2,z0+.4]);
+          box('Chemin de câbles',b,'Technique',l,'CFO/CFA',[w-2,.08,.12],[cx,y+h-.62,cz+.7]);
+          box('Conduite',b,'Technique',l,'Plomberie',[.12,h,.12],[cx+.4,y+h/2,cz+1.4]);
+          box('Gaine',b,'Technique',l,'CVC',[w-2,.26,.45],[cx,y+h-.8,cz+1.8]);
+        }
+        box('Dalle',b,'Toiture','Toiture','Gros œuvre',[w,t,d],[cx,7*h,cz]);
+        for(const z of [z0,cz+d/2])box('Acrotère',b,'Toiture','Toiture','Architecture',[w,.85,.18],[cx,7*h+.55,z]);
+        for(const x of [x0,cx+w/2])box('Acrotère',b,'Toiture','Toiture','Architecture',[.18,.85,d],[x,7*h+.55,cz]);
       }
     }else if(type==='villa'){
       buildFrame('Villa A',0,0,2,14,11);
