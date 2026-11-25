@@ -162,6 +162,24 @@
     if(/poteau|voile|pile/.test(k))return {kind:'beton',color:0xb2b9ba,roughness:.85,metalness:0};
     return {kind:'beton',color:0xa5afb3,roughness:.9,metalness:0};
   }
+  // Contour plan/boîte orientée : polygone exact sur les primitives pleines.
+  function contourCoupe(corners,normal,constant){
+    if(corners.length!==8)return [];
+    const dots=corners.map(p=>p.reduce((a,v,i)=>a+v*normal[i],constant)),eps=1e-7;
+    if(!dots.some(x=>x>eps)||!dots.some(x=>x< -eps))return [];
+    const pts=[];
+    function add(p){if(!pts.some(q=>Math.hypot(...p.map((x,i)=>x-q[i]))<eps))pts.push(p);}
+    for(let i=0;i<8;i++)for(const bit of [1,2,4]){
+      const j=i^bit;if(j<=i)continue;
+      const a=dots[i],b=dots[j];if(Math.abs(a)<=eps)add(corners[i]);if(Math.abs(b)<=eps)add(corners[j]);
+      if(a*b<0){const t=a/(a-b);add(corners[i].map((x,k)=>x+(corners[j][k]-x)*t));}
+    }
+    if(pts.length<3)return [];
+    const axis=Math.abs(normal[0])>.5?0:Math.abs(normal[1])>.5?1:2,u=(axis+1)%3,v=(axis+2)%3;
+    const mid=[0,0,0];for(const p of pts)for(let i=0;i<3;i++)mid[i]+=p[i]/pts.length;
+    pts.sort((a,b)=>Math.atan2(a[v]-mid[v],a[u]-mid[u])-Math.atan2(b[v]-mid[v],b[u]-mid[u]));
+    return pts;
+  }
   async function open(options) {
     if (typeof need3D !== 'function') throw new Error('Chargeur Three.js indisponible.');
     await need3D();
@@ -240,6 +258,7 @@
     let hiddenLots=new Set(), outline=null,highlight=null,highlightId=null; let ifcWorker=null, ifcTimer=0, ifcRequest=0, ocrWorker=null, pdfTask=null, reading=false, ocrSuggestions={};
     // Plans globaux Three.js : toutes les surfaces (y compris contours) sont découpées.
     const sectionBounds=new T.Box3();
+    const capMesh=new T.Mesh(new T.BufferGeometry(),new T.MeshBasicMaterial({color:0xc8ac8c,side:T.DoubleSide,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}));capMesh.visible=false;scene.add(capMesh);let capsDirty=true;
     const sections={h:{active:false,inverse:false,value:0,axis:'y',plane:new T.Plane()},v:{active:false,inverse:false,value:0,axis:'x',plane:new T.Plane()}};
     function sectionActive(){return sections.h.active||sections.v.active;}
     function appliquerCoupes(){
@@ -256,7 +275,7 @@
         $('[data-section-slider="'+key+'"]').value=c.value;
         $('[data-section-value="'+key+'"]').textContent=Math.round(c.value)+'%';
       }
-      renderer.clippingPlanes=planes;
+      renderer.clippingPlanes=planes;capsDirty=true;
       $('[data-act="cut"]').classList.toggle('active',sectionActive());
       $('[data-val="section-note"]').textContent=(sections.h.active?'H : '+(sections.h.inverse?'bas → haut':'haut → bas'):'')+(sections.h.active&&sections.v.active?' · ':'')+(sections.v.active?'V : '+(sections.v.inverse?'−X → +X':'+X → −X'):'');
       schedule();
@@ -328,7 +347,7 @@
       const layers=$('[data-role="layers"]');layers.replaceChildren();for(const lot of [...new Set(dataset.map(e=>e.lot))].sort()){const b=document.createElement('button');b.textContent=lot;b.dataset.lot=lot;b.onclick=()=>{mode='all';hiddenLots.has(lot)?hiddenLots.delete(lot):hiddenLots.add(lot);visibility();updateDetails();};layers.append(b);}
       legend();
     }
-    function visibility(){
+    function visibility(){capsDirty=true;
       for(const entry of registry.values()){
         const e=entry.meta;
         const arch=/façade|architecture|second œuvre|vitrage|étanchéité/i.test(e.lot); const technique=/ferraillage|CFO|CFA|plomberie|CVC|électricité|assainissement/i.test(e.lot);
@@ -357,7 +376,27 @@
       el.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
     }
     function select(id){selected=registry.has(id)?id:null; if(!selected)isolated=null; visibility();updateDetails();}
-    function render(){if(disposed||page!=='viewer')return;const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;renderer.setScissorTest(false);renderer.setViewport(0,0,w,h);
+    // Surfaces de fermeture des boîtes et poutres seulement; maillages IFC arbitraires exclus.
+    function actualiserCaps(){
+      if(!capsDirty)return;capsDirty=false;
+      const planes=renderer.clippingPlanes,positions=[];
+      if(planes.length){
+        grp.updateMatrixWorld(true);let processed=0;
+        for(const e of registry.values()){
+          if(!e.mesh.visible||e.meta.geometry.kind==='mesh')continue;
+          if(++processed>1500)break;
+          const g=e.mesh.geometry;if(!g.boundingBox)g.computeBoundingBox();const b=g.boundingBox;
+          const corners=Array.from({length:8},(_,i)=>new T.Vector3(i&1?b.max.x:b.min.x,i&2?b.max.y:b.min.y,i&4?b.max.z:b.min.z).applyMatrix4(e.mesh.matrixWorld).toArray());
+          for(const plane of planes){
+            const normal=plane.normal.toArray(),poly=contourCoupe(corners,normal,plane.constant);
+            // Décalage infinitésimal du côté conservé pour éviter le rejet par le clipping.
+            for(let j=1;j+1<poly.length;j++)for(const p of [poly[0],poly[j],poly[j+1]])positions.push(...p.map((x,k)=>x+normal[k]*.00002));
+          }
+        }
+      }
+      capMesh.geometry.dispose();capMesh.geometry=new T.BufferGeometry();capMesh.geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));capMesh.visible=positions.length>0;
+    }
+    function render(){if(disposed||page!=='viewer')return;actualiserCaps();const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;renderer.setScissorTest(false);renderer.setViewport(0,0,w,h);
       if(view==='3D'){renderer.render(scene,camera);return;}
       const bounds=new T.Box3().setFromObject(grp),ctr=bounds.getCenter(new T.Vector3()),sz=bounds.getSize(new T.Vector3()),pw=view==='Hybride'?w/2:w,asp=pw/h,half=Math.max(sz.z/2,sz.x/(2*asp),.1)*1.15*Math.max(.01,camera.position.distanceTo(projectCenter)/fitDistance);
       const dx=-2*half*asp*pan.x,dy=2*half*pan.y;
@@ -395,7 +434,7 @@
       if(disposed)return;disposed=true;stopIfc();if(ocrWorker)ocrWorker.terminate().catch(()=>{});if(pdfTask)pdfTask.destroy().catch(()=>{});
       if(backRemove)try{backRemove();}catch(e){}
       if(raf)cancelAnimationFrame(raf);observer.disconnect();controls.dispose();
-      clearOutline();concreteBump.dispose();ground.geometry.dispose();ground.material.dispose();grid.geometry.dispose();grid.material.dispose();for(const g of geometryCache)g.dispose();for(const m of matCache.values())m.dispose();
+      clearOutline();capMesh.geometry.dispose();capMesh.material.dispose();concreteBump.dispose();ground.geometry.dispose();ground.material.dispose();grid.geometry.dispose();grid.material.dispose();for(const g of geometryCache)g.dispose();for(const m of matCache.values())m.dispose();
       renderer.dispose();renderer.forceContextLoss();el.remove();
     }
     if(typeof pushBack==='function') backRemove=pushBack(close);
@@ -505,5 +544,5 @@
     onResize();chooseTemplate(initialType);
     return { close, getSelected:()=>registry.get(selected)?.meta||null, projectId, schema:SCHEMA };
   }
-  window.ModelCore3D = { open, validateManifest, ficheGeometrique, suggestionsPlan, gesteSelection, gestePan, profilMateriau, coupeParametres, pointDansCoupe, maquetteParametrique, demo:(type='stade')=>type==='stade'?createDemo():window.ModelCoreTemplates?window.ModelCoreTemplates.make(type):createDemo(), schema:SCHEMA };
+  window.ModelCore3D = { open, validateManifest, ficheGeometrique, suggestionsPlan, gesteSelection, gestePan, profilMateriau, contourCoupe, coupeParametres, pointDansCoupe, maquetteParametrique, demo:(type='stade')=>type==='stade'?createDemo():window.ModelCoreTemplates?window.ModelCoreTemplates.make(type):createDemo(), schema:SCHEMA };
 })();
