@@ -4,6 +4,10 @@ on:
     branches: [siteteam]
     paths:
       - 'www/js/modelcore3d.js'
+      - 'www/js/modelcore-ifc-worker.js'
+      - 'ci/modelcore-ifc.test.mjs'
+      - 'ci/fixtures/modelcore-column.ifc'
+      - 'package.json'
       - 'www/js/modelcore3d-templates.js'
       - 'www/js/m3d.js'
       - 'ci/modelcore3d.test.mjs'
@@ -14,7 +18,7 @@ permissions:
 jobs:
   schema-and-js:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,3 +29,10 @@ jobs:
       - run: node --check www/js/m3d.js
       - run: node --check ci/modelcore3d.test.mjs
       - run: node ci/modelcore3d.test.mjs
+      - run: node --check www/js/modelcore-ifc-worker.js
+      - name: Installer le moteur IFC versionné
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Contrôler les fichiers embarqués
+        run: npm run copy-libs && test -s www/vendor/ifc/web-ifc.wasm && test -s www/vendor/ifc/web-ifc-api-iife.js && test -s www/vendor/ifc/LICENSE.md
+      - name: Test IFC réel
+        run: node ci/modelcore-ifc.test.mjs
