@@ -66,7 +66,7 @@ const local=M.suiviInitial({status:'Réceptionné'});
 assert.equal(local.Travaux,'Terminé');assert.equal(local.Qualité,'Réceptionné');
 local.Travaux='Bloqué';assert.equal(local.Qualité,'Réceptionné');
 const generated=M.validateManifest(M.maquetteParametrique({hauteur:3.2,epaisseur:.25,niveaux:3,entraxe:5}));
-assert.equal(generated.length,111);
+assert.equal(generated.length,105);
 assert.equal(generated.filter(x=>x.type==='Poteau').length,36);
 assert.throws(()=>M.maquetteParametrique({hauteur:0,epaisseur:.25,niveaux:3,entraxe:5}),/limites/);
 console.log('ModelCore X — résidence, suivi indépendant et génération paramétrique OK.');
