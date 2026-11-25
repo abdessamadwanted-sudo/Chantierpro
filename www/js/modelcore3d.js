@@ -126,6 +126,16 @@
       reset(){points.clear();start=null;blocked=false;}
     };
   }
+  // Plans de coupe en coordonnées monde. 0 % conserve tout; 100 % retire tout.
+  function coupeParametres(min,max,pourcent,inverse=false){
+    if(![min,max,pourcent].every(Number.isFinite)||max<min)throw Error('Bornes de coupe invalides.');
+    const t=Math.max(0,Math.min(100,pourcent))/100,pad=Math.max(.00001,(max-min)*.00001);
+    const lo=min-pad,hi=max+pad,position=inverse?lo+(hi-lo)*t:hi-(hi-lo)*t;
+    return {position,normal:inverse?1:-1,constant:inverse?-position:position};
+  }
+  function pointDansCoupe(point,planes,epsilon=1e-6){
+    return planes.every(p=>p.normal.x*point.x+p.normal.y*point.y+p.normal.z*point.z+p.constant>=-epsilon);
+  }
   async function open(options) {
     if (typeof need3D !== 'function') throw new Error('Chargeur Three.js indisponible.');
     await need3D();
@@ -138,7 +148,7 @@
     el.innerHTML = `<style>
 .st-mc3d{--mc-cyan:#45def6;--mc-muted:#91b2ca;--mc-line:#31546b;background:#06121f!important;color:#e9f5ff!important;min-height:0}
 .st-mc3d *{box-sizing:border-box}.st-mc3d button,.st-mc3d select,.st-mc3d input{font:inherit;color:#e7f1ff;background:linear-gradient(145deg,#18364c,#0c2133);border:1px solid #31546b;border-radius:9px;padding:8px;min-height:36px}
-.st-mc3d button:disabled{opacity:.4}.st-mc3d button.active{border-color:#45def6;color:#7cecff;background:#103a4c}.st-mc3d option{background:#132c42}.st-mc3d .mcbar{display:flex;gap:6px;padding:7px 10px;align-items:center;overflow:auto;flex-shrink:0;background:#091a29}.st-mc3d .mcbar button{white-space:nowrap;flex-shrink:0}.st-mc3d .mchead{background:linear-gradient(120deg,#173b54,#081727);border-bottom:1px solid var(--mc-line);padding:12px}.st-mc3d .mctitle{font-size:18px;font-weight:750;flex:1;min-width:0;letter-spacing:-.5px}.st-mc3d .mcsub{font-size:11px;color:var(--mc-muted);line-height:1.45;overflow-wrap:anywhere}.st-mc3d .mcwarn{font-size:10px;color:#ffd58f}.st-mc3d .mcnav button{flex:1}.st-mc3d .mckpis{display:flex;gap:6px;padding:7px 10px;flex-shrink:0}.st-mc3d .mckpi{flex:1;padding:7px 9px;border-radius:10px;border:1px solid #29485e;background:#10283d}.st-mc3d .mckpi b{display:block;font-size:17px;color:#6ae7f7}.st-mc3d .mcfilters{display:none;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:8px;max-height:32%;overflow:auto;background:#0c2235}.st-mc3d .mcfilters.open{display:grid}.st-mc3d .mcview{flex:1;min-height:120px;position:relative;touch-action:none;overflow:hidden}.st-mc3d .mcview canvas{display:block;touch-action:none}.st-mc3d .mcover{position:absolute;top:10px;left:12px;color:#98cce0;font-size:10px;pointer-events:none}.st-mc3d .mcside{position:absolute;left:8px;top:45px;display:grid;gap:5px}.st-mc3d .mcside button{width:38px;background:#10283be8;padding:4px;font-size:16px}.st-mc3d .mclevels{position:absolute;right:8px;top:45px;display:grid;gap:4px;max-height:65%;overflow:auto;padding:4px;background:#091e31df;border-radius:10px;border:1px solid #34556b}.st-mc3d .mclevels button{min-height:28px;font-size:10px;padding:4px;max-width:86px;overflow:hidden;text-overflow:ellipsis}.st-mc3d .mclegend{display:flex;gap:9px;flex-wrap:wrap;justify-content:center;padding:7px;background:#0a1b2b;font-size:10px;flex-shrink:0}.st-mc3d .mclegend i{display:inline-block;width:8px;height:8px;border-radius:3px;margin-right:4px}.st-mc3d .mcdetail{background:linear-gradient(145deg,#173549,#0d2133);padding:10px;display:flex;gap:7px;flex-wrap:wrap;align-items:center;max-height:40%;overflow:auto;border-top:1px solid #36566e;flex-shrink:0}.st-mc3d .mcinfo{flex:1;min-width:170px;line-height:1.55}.st-mc3d .mcinfo b{font-size:15px}.st-mc3d .mcprogress{height:6px;width:100%;background:#29495e;border-radius:8px;overflow:hidden}.st-mc3d .mcprogress i{display:block;height:100%;background:#44def6}.st-mc3d .mcpage{flex:1;min-height:0;overflow:auto;padding:15px}.st-mc3d .mccard{border:1px solid #29485e;background:linear-gradient(145deg,#102b40,#0a1e30);padding:12px;border-radius:12px;margin:10px 0;line-height:1.55}.st-mc3d .mccard h3{margin:0 0 8px}.st-mc3d .mcgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.st-mc3d .mcgrid input{width:100%}.st-mc3d .mcviewer{display:flex;flex-direction:column;min-height:0;flex:1}.st-mc3d .mcinspector-extra{width:100%;padding:4px 0}.st-mc3d .mcinspector-extra button{margin:3px}.st-mc3d [hidden]{display:none!important}.st-mc3d .mcsplit{position:absolute;left:50%;top:0;bottom:0;border-left:1px solid #46677d;pointer-events:none}.st-mc3d .mclabel{position:absolute;top:28px;left:53%;font-size:10px;color:#a1cce1;pointer-events:none}
+.st-mc3d button:disabled{opacity:.4}.st-mc3d button.active{border-color:#45def6;color:#7cecff;background:#103a4c}.st-mc3d option{background:#132c42}.st-mc3d .mcbar{display:flex;gap:6px;padding:7px 10px;align-items:center;overflow:auto;flex-shrink:0;background:#091a29}.st-mc3d .mcbar button{white-space:nowrap;flex-shrink:0}.st-mc3d .mchead{background:linear-gradient(120deg,#173b54,#081727);border-bottom:1px solid var(--mc-line);padding:12px}.st-mc3d .mctitle{font-size:18px;font-weight:750;flex:1;min-width:0;letter-spacing:-.5px}.st-mc3d .mcsub{font-size:11px;color:var(--mc-muted);line-height:1.45;overflow-wrap:anywhere}.st-mc3d .mcwarn{font-size:10px;color:#ffd58f}.st-mc3d .mcnav button{flex:1}.st-mc3d .mckpis{display:flex;gap:6px;padding:7px 10px;flex-shrink:0}.st-mc3d .mckpi{flex:1;padding:7px 9px;border-radius:10px;border:1px solid #29485e;background:#10283d}.st-mc3d .mckpi b{display:block;font-size:17px;color:#6ae7f7}.st-mc3d .mcfilters{display:none;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:8px;max-height:32%;overflow:auto;background:#0c2235}.st-mc3d .mcfilters.open{display:grid}.st-mc3d .mcview{flex:1;min-height:120px;position:relative;touch-action:none;overflow:hidden}.st-mc3d .mcview canvas{display:block;touch-action:none}.st-mc3d .mcover{position:absolute;top:10px;left:12px;color:#98cce0;font-size:10px;pointer-events:none}.st-mc3d .mcside{position:absolute;left:8px;top:45px;display:grid;gap:5px}.st-mc3d .mcside button{width:38px;background:#10283be8;padding:4px;font-size:16px}.st-mc3d .mclevels{position:absolute;right:8px;top:45px;display:grid;gap:4px;max-height:65%;overflow:auto;padding:4px;background:#091e31df;border-radius:10px;border:1px solid #34556b}.st-mc3d .mclevels button{min-height:28px;font-size:10px;padding:4px;max-width:86px;overflow:hidden;text-overflow:ellipsis}.st-mc3d .mclegend{display:flex;gap:9px;flex-wrap:wrap;justify-content:center;padding:7px;background:#0a1b2b;font-size:10px;flex-shrink:0}.st-mc3d .mclegend i{display:inline-block;width:8px;height:8px;border-radius:3px;margin-right:4px}.st-mc3d .mcdetail{background:linear-gradient(145deg,#173549,#0d2133);padding:10px;display:flex;gap:7px;flex-wrap:wrap;align-items:center;max-height:40%;overflow:auto;border-top:1px solid #36566e;flex-shrink:0}.st-mc3d .mcinfo{flex:1;min-width:170px;line-height:1.55}.st-mc3d .mcinfo b{font-size:15px}.st-mc3d .mcprogress{height:6px;width:100%;background:#29495e;border-radius:8px;overflow:hidden}.st-mc3d .mcprogress i{display:block;height:100%;background:#44def6}.st-mc3d .mcpage{flex:1;min-height:0;overflow:auto;padding:15px}.st-mc3d .mccard{border:1px solid #29485e;background:linear-gradient(145deg,#102b40,#0a1e30);padding:12px;border-radius:12px;margin:10px 0;line-height:1.55}.st-mc3d .mccard h3{margin:0 0 8px}.st-mc3d .mcgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.st-mc3d .mcgrid input{width:100%}.st-mc3d .mcviewer{display:flex;flex-direction:column;min-height:0;flex:1}.st-mc3d .mcinspector-extra{width:100%;padding:4px 0}.st-mc3d .mcinspector-extra button{margin:3px}.st-mc3d .mcsection{position:absolute;left:52px;right:52px;bottom:24px;z-index:5;padding:9px;background:#0b2235f2;border:1px solid #3b7d96;border-radius:12px;box-shadow:0 5px 20px #0006;touch-action:none}.st-mc3d .mcsection-head{display:flex;align-items:center;gap:4px;margin-bottom:5px}.st-mc3d .mcsection-head b{flex:1;color:#78e6fb;font-size:11px}.st-mc3d .mcsection button{min-height:29px;padding:5px;font-size:11px;touch-action:manipulation}.st-mc3d .mcsection-row{display:flex;gap:6px;align-items:center;margin-top:5px}.st-mc3d .mcsection-row span{font-size:11px;color:#cae7f4;min-width:22px}.st-mc3d .mcsection input[type=range]{min-width:0;flex:1;width:100%;min-height:28px;padding:0;accent-color:#43def6;touch-action:none}.st-mc3d .mcsection output{font-size:10px;color:#9ddded;min-width:43px;text-align:right}.st-mc3d [hidden]{display:none!important}.st-mc3d .mcsplit{position:absolute;left:50%;top:0;bottom:0;border-left:1px solid #46677d;pointer-events:none}.st-mc3d .mclabel{position:absolute;top:28px;left:53%;font-size:10px;color:#a1cce1;pointer-events:none}
 </style>
 <div class="mcbar mchead"><button data-act="close" aria-label="Fermer">✕</button><div class="mctitle">◈ ModelCore <span style="color:#5ce5fc">X</span><div class="mcsub" data-val="project"></div></div><span class="mcwarn">DÉMO LOCALE</span></div>
 <div class="mcbar mcnav"><button data-page="viewer" class="active">◇ Explorer</button><button data-page="import">⇩ Import</button><button data-page="ai">✧ AI Studio</button><button data-page="dash">▥ Maquette</button></div>
@@ -149,7 +159,7 @@
 <div class="mcbar"><button data-act="view">Vue 3D</button><button data-act="explode">Éclaté</button><button data-act="all">Tout</button><button data-act="roof">Toiture</button></div>
 <div class="mcfilters" data-role="filters"><select data-filter="building" aria-label="Bâtiment"></select><select data-filter="lot" aria-label="Lot"></select><select data-filter="zone" aria-label="Zone"></select><select data-filter="level" aria-label="Niveau"></select><select data-filter="type" aria-label="Type"></select><select data-filter="status" aria-label="État"></select></div>
 <div class="mcfilters" data-role="layers"></div>
-<div class="mcview" data-role="stage"><div class="mcover" data-val="visible"></div><div class="mcside"><button data-act="top" title="Dessus">↑</button><button data-act="under" title="Dessous">↓</button><button data-act="zoomplus" title="Zoom avant">＋</button><button data-act="zoomminus" title="Zoom arrière">−</button><button data-act="cut" title="Masquer une moitié">◫</button><button data-act="fit" title="Ajuster">⛶</button></div><div class="mclevels" data-role="levels"></div><div class="mcsplit" hidden></div><div class="mclabel" hidden>PLAN ZÉNITHAL</div><div class="mcsub" style="position:absolute;bottom:6px;left:12px;pointer-events:none">1 doigt : orbite · 2 doigts : zoom · toucher : sélection</div></div>
+<div class="mcview" data-role="stage"><div class="mcover" data-val="visible"></div><div class="mcside"><button data-act="top" title="Dessus">↑</button><button data-act="under" title="Dessous">↓</button><button data-act="zoomplus" title="Zoom avant">＋</button><button data-act="zoomminus" title="Zoom arrière">−</button><button data-act="cut" title="Coupe interactive">◫</button><button data-act="fit" title="Ajuster">⛶</button></div><div class="mclevels" data-role="levels"></div><div class="mcsection" data-role="section-panel" hidden><div class="mcsection-head"><b>COUPE LIVE</b><button data-act="section-h" aria-label="Coupe horizontale">H</button><button data-act="section-v" aria-label="Coupe verticale">V</button><button data-act="section-reset" title="Réinitialiser les coupes">↺</button><button data-act="section-close" title="Replier les réglages">−</button></div><div class="mcsection-row" data-section-row="h" hidden><span>H ↕</span><input data-section-slider="h" aria-label="Profondeur de coupe horizontale" type="range" min="0" max="100" step=".1" value="0"><output data-section-value="h">0%</output><button data-invert="h" title="Inverser la coupe horizontale">⇅</button></div><div class="mcsection-row" data-section-row="v" hidden><span>V ↔</span><input data-section-slider="v" aria-label="Profondeur de coupe verticale" type="range" min="0" max="100" step=".1" value="0"><output data-section-value="v">0%</output><button data-invert="v" title="Inverser la coupe verticale">⇄</button></div><div class="mcsub" data-val="section-note">H : haut vers bas · V : +X vers −X</div></div><div class="mcsplit" hidden></div><div class="mclabel" hidden>PLAN ZÉNITHAL</div><div class="mcsub" style="position:absolute;bottom:6px;left:12px;pointer-events:none">1 doigt : orbite · 2 doigts : zoom · toucher : sélection</div></div>
 <div class="mclegend" data-role="legend"></div>
 <div class="mcdetail"><div class="mcinfo"><b data-val="id">Aucun ouvrage sélectionné</b><div class="mcsub" data-val="info">Touchez un élément.</div><div class="mcwarn" data-val="warning">Données locales non synchronisées.</div></div><button data-act="isolate" disabled>Isoler</button><button data-act="hide" disabled>Masquer</button><button data-act="detail" disabled>Fiche</button><select data-role="editstatus" aria-label="État local de démonstration" disabled></select><div class="mcprogress"><i data-role="progressbar" style="width:0%"></i></div><div class="mcinspector-extra" data-role="extra" hidden><button data-tab="Infos">Infos</button><button data-tab="Géométrie">Géométrie</button><button data-tab="Docs">Docs</button><button data-tab="Journal">Journal</button><div data-val="extra" class="mcsub"></div><label data-role="progresslabel">Avancement fictif <input data-role="progress" type="range" min="0" max="100" step="1"></label></div></div>
 </div>
@@ -184,8 +194,33 @@
       return matCache.get(key);
     };
     let selected=null, isolated=null, hidden=new Set(), roofHidden=false, statusColors=true, dataset=null, disposed=false, raf=0, press=null, backRemove=null;
-    let mode='structure', view='3D', page='viewer', exploded=false, cut=false, detail=false, tab='Infos', detected=false;
+    let mode='structure', view='3D', page='viewer', exploded=false, detail=false, tab='Infos', detected=false;
     let hiddenLots=new Set(), outline=null; let ifcWorker=null, ifcTimer=0, ifcRequest=0, ocrWorker=null, pdfTask=null, reading=false, ocrSuggestions={};
+    // Plans globaux Three.js : toutes les surfaces (y compris contours) sont découpées.
+    const sectionBounds=new T.Box3();
+    const sections={h:{active:false,inverse:false,value:0,axis:'y',plane:new T.Plane()},v:{active:false,inverse:false,value:0,axis:'x',plane:new T.Plane()}};
+    function sectionActive(){return sections.h.active||sections.v.active;}
+    function appliquerCoupes(){
+      const planes=[];
+      for(const [key,c] of Object.entries(sections)){
+        if(c.active&&!sectionBounds.isEmpty()){
+          const p=coupeParametres(sectionBounds.min[c.axis],sectionBounds.max[c.axis],c.value,c.inverse);
+          c.plane.normal.set(c.axis==='x'?p.normal:0,c.axis==='y'?p.normal:0,0);c.plane.constant=p.constant;
+          if(c.value>0)planes.push(c.plane);
+        }
+        $('[data-section-row="'+key+'"]').hidden=!c.active;
+        $('[data-act="section-'+key+'"]').classList.toggle('active',c.active);
+        $('[data-invert="'+key+'"]').classList.toggle('active',c.inverse);
+        $('[data-section-slider="'+key+'"]').value=c.value;
+        $('[data-section-value="'+key+'"]').textContent=Math.round(c.value)+'%';
+      }
+      renderer.clippingPlanes=planes;
+      $('[data-act="cut"]').classList.toggle('active',sectionActive());
+      $('[data-val="section-note"]').textContent=(sections.h.active?'H : '+(sections.h.inverse?'bas → haut':'haut → bas'):'')+(sections.h.active&&sections.v.active?' · ':'')+(sections.v.active?'V : '+(sections.v.inverse?'−X → +X':'+X → −X'):'');
+      schedule();
+    }
+    function resetCoupes(){for(const c of Object.values(sections)){c.active=false;c.inverse=false;c.value=0;} $('[data-role="section-panel"]').hidden=true;appliquerCoupes();}
+    function ouvrirCoupes(){const p=$('[data-role="section-panel"]');if(!p.hidden){p.hidden=true;return;}p.hidden=false;if(!sectionActive())sections.h.active=true;appliquerCoupes();}
     const etat = e => e.status;
     const couleur = ()=>STATUS_COLOR;
     const hex = n=>'#'+n.toString(16).padStart(6,'0');
@@ -194,8 +229,8 @@
     function selectedOutline(){clearOutline();const v=registry.get(selected);if(!v||!v.mesh.visible)return;outline=new T.LineSegments(new T.EdgesGeometry(v.mesh.geometry,20),new T.LineBasicMaterial({color:0x63efff,depthTest:true,transparent:true,opacity:1}));outline.renderOrder=10;v.mesh.add(outline);}
     function kpis(){const a=dataset||[];$('[data-val="total"]').textContent=a.length;$('[data-val="avg"]').textContent=new Set(a.map(e=>e.lot)).size;$('[data-val="nc"]').textContent=new Set(a.map(e=>e.level)).size;}
     function legend(){const l=$('[data-role="legend"]');l.replaceChildren();for(const [name,c] of Object.entries(couleur())){const span=document.createElement('span'),dot=document.createElement('i');dot.style.background=hex(c);span.append(dot,document.createTextNode(name));l.append(span);}}
-    function modeUI(){for(const a of ['structure','architecture','color','explode','cut'])$('[data-act="'+a+'"]').classList.toggle('active',a==='color'?statusColors:a==='explode'?exploded:a==='cut'?cut:mode===a);$('[data-act="view"]').textContent='Vue '+view;}
-    function dash(){const d=$('[data-role="dashboard"]'),q=$('[data-role="shortcuts"]');d.replaceChildren();q.replaceChildren();const a=dataset||[],counts=new Map();for(const e of a)counts.set(e.type,(counts.get(e.type)||0)+1);const h=document.createElement('h3');h.textContent='Inventaire géométrique · '+a.length+' ouvrages';d.append(h);for(const [k,n] of [...counts].sort((a,b)=>b[1]-a[1])){const p=document.createElement('p');p.textContent=k+' : '+n;d.append(p);const b=document.createElement('button');b.textContent=k+' ('+n+')';b.onclick=()=>{hidden.clear();hiddenLots.clear();isolated=null;cut=false;roofHidden=false;mode='all';statusColors=false;for(const key of ['building','lot','zone','level','type','status'])$('[data-filter="'+key+'"]').value='all';$('[data-filter="type"]').value=k;select(null);setPage('viewer');resetCamera();};q.append(b);}}
+    function modeUI(){for(const a of ['structure','architecture','color','explode','cut'])$('[data-act="'+a+'"]').classList.toggle('active',a==='color'?statusColors:a==='explode'?exploded:a==='cut'?sectionActive():mode===a);$('[data-act="view"]').textContent='Vue '+view;}
+    function dash(){const d=$('[data-role="dashboard"]'),q=$('[data-role="shortcuts"]');d.replaceChildren();q.replaceChildren();const a=dataset||[],counts=new Map();for(const e of a)counts.set(e.type,(counts.get(e.type)||0)+1);const h=document.createElement('h3');h.textContent='Inventaire géométrique · '+a.length+' ouvrages';d.append(h);for(const [k,n] of [...counts].sort((a,b)=>b[1]-a[1])){const p=document.createElement('p');p.textContent=k+' : '+n;d.append(p);const b=document.createElement('button');b.textContent=k+' ('+n+')';b.onclick=()=>{hidden.clear();hiddenLots.clear();isolated=null;resetCoupes();roofHidden=false;mode='all';statusColors=false;for(const key of ['building','lot','zone','level','type','status'])$('[data-filter="'+key+'"]').value='all';$('[data-filter="type"]').value=k;select(null);setPage('viewer');resetCamera();};q.append(b);}}
     function setPage(p){page=p;el.querySelectorAll('[data-pane]').forEach(n=>n.hidden=n.dataset.pane!==p);el.querySelectorAll('.mcnav [data-page]').forEach(n=>n.classList.toggle('active',n.dataset.page===p));if(p==='viewer')onResize();if(p==='dash')dash();if(p==='ai')drawPlan();}
     function drawPlan(){const svg=$('[data-role="aiplan"]');let shapes='';for(let i=0;i<4;i++){const x=25+i*96;shapes+='<path d="M'+x+' 10V180" stroke="#526f86" stroke-dasharray="4 4"/>';for(let j=0;j<3;j++){const y=25+j*70;shapes+='<rect x="'+(x-6)+'" y="'+(y-6)+'" width="12" height="12" fill="'+(detected?'#ee9476':'#b6ccda')+'"/>';if(i<3)shapes+='<rect x="'+(x+6)+'" y="'+(y-3)+'" width="84" height="6" fill="'+(detected?'#dbad55':'#7e99ac')+'"/>';if(j<2)shapes+='<rect x="'+(x-3)+'" y="'+(y+6)+'" width="6" height="58" fill="'+(detected?'#dbad55':'#7e99ac')+'"/>';}}svg.innerHTML=shapes;}
 
@@ -212,7 +247,7 @@
       return mesh;
     }
     function resetCamera(){
-      const bounds=new T.Box3().setFromObject(grp),size=bounds.getSize(new T.Vector3());bounds.getCenter(projectCenter);
+      const bounds=new T.Box3().setFromObject(grp),size=bounds.getSize(new T.Vector3());bounds.getCenter(projectCenter);sectionBounds.copy(bounds);appliquerCoupes();
       const radius=Math.max(.05,size.length()/2),vertical=T.MathUtils.degToRad(camera.fov/2),horizontal=Math.atan(Math.tan(vertical)*Math.max(.1,camera.aspect));
       fitDistance=Math.max(.3,radius/Math.sin(Math.min(vertical,horizontal))*1.08);
       controls.minDistance=Math.max(.025,radius*.035);controls.maxDistance=fitDistance*5;
@@ -222,7 +257,7 @@
     function orienterDessus(signe){const d=Math.max(controls.minDistance,camera.position.distanceTo(projectCenter));controls.target.copy(projectCenter);camera.position.copy(projectCenter).add(new T.Vector3(0,signe*d,d*.0001));controls.update();schedule();}
     function populate(elements) {
       clearOutline(); for(const child of [...grp.children]) grp.remove(child);
-      geometryCache.splice(0).forEach(g=>g.dispose()); registry.clear(); hidden.clear(); hiddenLots.clear(); isolated=null; selected=null; dataset=elements; exploded=false;cut=false;mode='structure';detail=false;roofHidden=false;for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';
+      geometryCache.splice(0).forEach(g=>g.dispose()); registry.clear(); hidden.clear(); hiddenLots.clear(); isolated=null; selected=null; dataset=elements; exploded=false;resetCoupes();mode='structure';detail=false;roofHidden=false;for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';
       for(const e of elements){
         e.journal=[]; let mesh=createMesh(e.geometry,e.type); mesh.userData.modelcoreId=e.id; grp.add(mesh);registry.set(e.id,{mesh,meta:e,baseMat:mesh.material,baseY:mesh.position.y});
       }
@@ -242,7 +277,7 @@
         const e=entry.meta;
         const arch=/façade|architecture|second œuvre|vitrage|étanchéité/i.test(e.lot); const technique=/ferraillage|CFO|CFA|plomberie|CVC|électricité|assainissement/i.test(e.lot);
         entry.mesh.position.y=entry.baseY+(exploded?levelRank(e.level)*1.2:0);
-        entry.mesh.visible=!hidden.has(e.id)&&!hiddenLots.has(e.lot)&&(!isolated||e.id===isolated)&&(!roofHidden||!(e.type==='Charpente'||e.type==='Couverture'||e.level==='Toiture'))&&(!cut||new T.Box3().setFromObject(entry.mesh).getCenter(new T.Vector3()).z<=0)&&(mode!=='structure'||(!arch&&!technique))&&(mode!=='architecture'||!technique)&&
+        entry.mesh.visible=!hidden.has(e.id)&&!hiddenLots.has(e.lot)&&(!isolated||e.id===isolated)&&(!roofHidden||!(e.type==='Charpente'||e.type==='Couverture'||e.level==='Toiture'))&&(mode!=='structure'||(!arch&&!technique))&&(mode!=='architecture'||!technique)&&
           ['building','lot','zone','level','type','status'].every(k=>$('[data-filter="'+k+'"]').value==='all'||$('[data-filter="'+k+'"]').value===(k==='status'?etat(e):e[k]));
         entry.mesh.material=statusColors?getMat('s:'+etat(e),couleur()[etat(e)]):entry.baseMat;
       }
@@ -289,7 +324,7 @@
       if(!gesture.up(e))return;
       const r=surface.getBoundingClientRect();let x=e.clientX-r.left,cam=camera,w=r.width;if(view==='2D')cam=planCam;if(view==='Hybride'){w/=2;if(x>=w){x-=w;cam=planCam;}}if(!w||!r.height)return;
       mouse.x=(x/w)*2-1;mouse.y=-((e.clientY-r.top)/r.height)*2+1;
-      cam.updateMatrixWorld(true);grp.updateMatrixWorld(true);raycaster.setFromCamera(mouse,cam);const hit=raycaster.intersectObjects([...registry.values()].map(x=>x.mesh).filter(x=>x.visible),false)[0];
+      cam.updateMatrixWorld(true);grp.updateMatrixWorld(true);raycaster.setFromCamera(mouse,cam);const hit=raycaster.intersectObjects([...registry.values()].map(x=>x.mesh).filter(x=>x.visible),false).find(h=>pointDansCoupe(h.point,renderer.clippingPlanes));
       select(hit?.object?.userData?.modelcoreId||null);
     },true);
     controls.addEventListener('change',schedule);
@@ -304,12 +339,12 @@
     const on=(act,fn)=>$('[data-act="'+act+'"]').addEventListener('click',fn);
     on('close',close);on('top',()=>orienterDessus(1));
     on('under',()=>orienterDessus(-1));
-    on('reset',()=>{isolated=null;hidden.clear();roofHidden=false;statusColors=true;hiddenLots.clear();cut=false;exploded=false;mode='structure';for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';select(null);resetCamera();});
+    on('reset',()=>{isolated=null;hidden.clear();roofHidden=false;statusColors=true;hiddenLots.clear();resetCoupes();exploded=false;mode='structure';for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';select(null);resetCamera();});
     on('zoomplus',()=>{camera.position.sub(controls.target).multiplyScalar(.78).add(controls.target);controls.update();});
     on('zoomminus',()=>{camera.position.sub(controls.target).multiplyScalar(1.25).add(controls.target);controls.update();});
     on('isolate',()=>{if(!selected)return;isolated=isolated?null:selected;visibility();updateDetails();});
     on('hide',()=>{if(!selected)return;hidden.add(selected);if(isolated===selected)isolated=null;select(null);});
-    on('all',()=>{isolated=null;hidden.clear();hiddenLots.clear();cut=false;mode='all';roofHidden=false;for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';select(null);});
+    on('all',()=>{isolated=null;hidden.clear();hiddenLots.clear();resetCoupes();mode='all';roofHidden=false;for(const k of ['building','lot','zone','level','type','status'])$('[data-filter="'+k+'"]').value='all';select(null);});
     on('roof',()=>{roofHidden=!roofHidden;visibility();updateDetails();});
     on('color',()=>{statusColors=!statusColors;visibility();});
     on('structure',()=>{mode='structure';hiddenLots.clear();statusColors=false;select(null);});
@@ -318,7 +353,14 @@
     on('filters',()=>{$('[data-role="filters"]').classList.toggle('open');$('[data-role="layers"]').classList.remove('open');});
     on('layers',()=>{if(!$('[data-role="layers"]').classList.contains('open')&&mode!=='all'){for(const e of dataset){const arch=/façade|architecture|second œuvre|vitrage|étanchéité/i.test(e.lot),tech=/ferraillage|CFO|CFA|plomberie|CVC|électricité|assainissement/i.test(e.lot);if(tech||(mode==='structure'&&arch))hiddenLots.add(e.lot);}mode='all';visibility();} $('[data-role="layers"]').classList.toggle('open');$('[data-role="filters"]').classList.remove('open');});
     on('explode',()=>{exploded=!exploded;visibility();resetCamera();});
-    on('cut',()=>{cut=!cut;visibility();updateDetails();});
+    on('cut',ouvrirCoupes);
+    on('section-close',()=>{$('[data-role="section-panel"]').hidden=true;});
+    on('section-reset',resetCoupes);
+    for(const key of ['h','v']){
+      on('section-'+key,()=>{sections[key].active=!sections[key].active;appliquerCoupes();});
+      $('[data-invert="'+key+'"]').onclick=()=>{sections[key].inverse=!sections[key].inverse;appliquerCoupes();};
+      $('[data-section-slider="'+key+'"]').addEventListener('input',e=>{sections[key].value=Number(e.target.value);appliquerCoupes();});
+    }
     on('view',()=>{view=['3D','2D','Hybride'][(['3D','2D','Hybride'].indexOf(view)+1)%3];gesture.reset();controls.enableRotate=view!=='2D';$('.mcsplit').hidden=$('.mclabel').hidden=view!=='Hybride';modeUI();onResize();});
     on('detail',()=>{detail=!detail;updateDetails();});
     el.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>setPage(b.dataset.page));
@@ -397,5 +439,5 @@
     onResize();chooseTemplate(initialType);
     return { close, getSelected:()=>registry.get(selected)?.meta||null, projectId, schema:SCHEMA };
   }
-  window.ModelCore3D = { open, validateManifest, ficheGeometrique, suggestionsPlan, gesteSelection, maquetteParametrique, demo:(type='stade')=>type==='stade'?createDemo():window.ModelCoreTemplates?window.ModelCoreTemplates.make(type):createDemo(), schema:SCHEMA };
+  window.ModelCore3D = { open, validateManifest, ficheGeometrique, suggestionsPlan, gesteSelection, coupeParametres, pointDansCoupe, maquetteParametrique, demo:(type='stade')=>type==='stade'?createDemo():window.ModelCoreTemplates?window.ModelCoreTemplates.make(type):createDemo(), schema:SCHEMA };
 })();
