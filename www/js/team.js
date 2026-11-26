@@ -1865,7 +1865,7 @@ const Team = (() => {
           if (count) count.textContent = W.svcs.length + ' service(s) sélectionné(s)' + (maxS ? ' · limite : ' + maxS : '');
           const full = L.filter(s => svcOpen(s.k)).map(s => s.k);
           const all = full.length > 0 && full.every(k => W.svcs.includes(k));
-          $('[data-tpl]', el).forEach(b => { const on = b.dataset.tpl === 'grande' ? all : !all; b.classList.toggle('on',on); b.setAttribute('aria-pressed',String(on)); });
+          $$('[data-tpl]', el).forEach(b => { const on = b.dataset.tpl === 'grande' ? all : !all; b.classList.toggle('on',on); b.setAttribute('aria-pressed',String(on)); });
         };
         refresh();
         $$('[data-s]', el).forEach(b => { b.classList.toggle('on', W.svcs.includes(b.dataset.s)); b.onclick = () => { const k = b.dataset.s;
