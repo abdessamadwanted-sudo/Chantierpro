@@ -32,6 +32,15 @@
     if(!Number.isFinite(d)||d<=0||d>10000)throw Error('Distance A–B en mètres requise.');
     return calage(a,b,[0,0],[d,0]);
   }
+  // Coordonnées dans le repère PDF à l'échelle 1, indépendantes du zoom et du DPR.
+  function calViewport(w,h,W,H,z,cx,cy){
+    const fit=Math.min(W/w,H/h),scale=fit*Math.max(1,Math.min(64,z));
+    const clamp=(v,min,max)=>Math.min(max,Math.max(min,v));
+    const halfX=W/(2*scale),halfY=H/(2*scale);
+    cx=halfX>=w/2?w/2:clamp(cx,halfX,w-halfX);
+    cy=halfY>=h/2?h/2:clamp(cy,halfY,h-halfY);
+    return {scale,cx,cy,x:W/2-cx*scale,y:H/2-cy*scale};
+  }
   const writes=new Map();
   function makeWorkspace(pid,name,count,height,custom=''){
     const names=String(custom||'').split(/[,;\n]+/).map(n=>n.trim()).filter(Boolean);
@@ -67,11 +76,11 @@
     if(ws&&(!options.projectId||ws.id!==options.projectId||!Array.isArray(ws.levels)||!ws.levels.length||ws.levels.length>MAX_LEVELS))throw Error('Projet ModelCore invalide.');
     const levels=ws?ws.levels.map(v=>({...v})):[];
     const el=document.createElement('div');el.className='mc-pdfstack'+(ws?' mc-workspace':'');
-    el.innerHTML='<style>.mc-pdfstack{position:fixed;inset:0;z-index:1000000;display:flex;flex-direction:column;background:#08192a;color:#e6f4ff;font:13px system-ui,sans-serif;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}.mc-pdfstack *{box-sizing:border-box}.mc-pdfstack [hidden]{display:none!important}.mc-pdfstack button,.mc-pdfstack input,.mc-pdfstack select{background:#163348;color:#e6f4ff;border:1px solid #34586d;border-radius:8px;padding:8px;min-height:36px;font:inherit}.mc-pdfstack button.active{border-color:#55d9ee;color:#8af0ff;background:#155064}.mc-pdfstack button:disabled{opacity:.4}.mc-pdfstack .ps-head,.mc-pdfstack .ps-bar{display:flex;gap:6px;align-items:center;padding:8px;flex-shrink:0}.mc-pdfstack .ps-head{background:#0b2236}.mc-pdfstack .ps-head b{font-size:16px}.mc-pdfstack .ps-small{font-size:11px;color:#9bbacc}.mc-pdfstack .ps-grow{flex:1;min-width:0}.mc-pdfstack .ps-stage{position:relative;flex:1;min-height:100px;overflow:hidden;background:radial-gradient(ellipse,#24465b,#071625 75%)}.mc-pdfstack .ps-stage>canvas{width:100%;height:100%;display:block;touch-action:none}.mc-pdfstack .ps-cal{display:flex;flex-direction:column;flex:1;min-height:0;padding:8px;gap:5px}.mc-pdfstack .ps-preview{flex:1;min-height:120px;overflow:auto;background:#172b3c;touch-action:pan-x pan-y}.mc-pdfstack .ps-preview canvas{display:block;max-width:none;touch-action:pan-x pan-y}.mc-pdfstack .ps-drawer{max-height:43%;overflow:auto;padding:8px;background:#0d2538;border-top:1px solid #315267}.mc-pdfstack .ps-row{display:flex;align-items:center;gap:5px;margin:6px 0}.mc-pdfstack .ps-row input[type=number]{width:74px}.mc-pdfstack .ps-row b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}.mc-pdfstack .ps-status{padding:5px 10px;color:#a8d4e2;min-height:25px;font-size:11px}.mc-pdfstack .ps-top{position:absolute;top:8px;left:8px;right:8px;pointer-events:none;display:flex;justify-content:space-between}.mc-pdfstack .ps-top span{background:#0a2035dd;padding:6px;border-radius:6px}.mc-pdfstack .ps-cal .ps-bar{padding:0;flex-wrap:wrap}.mc-pdfstack .ps-cal .ps-bar input{width:90px}.mc-pdfstack .ps-point{color:#64e4ff}.mc-pdfstack .ps-source{border:1px solid #34586d;border-radius:8px;padding:6px;margin:6px 0}.mc-pdfstack .ps-source input[type=search]{width:100%}.mc-pdfstack .ps-source-list{max-height:180px;overflow:auto}.mc-pdfstack .ps-source-list button{text-align:left;width:100%;margin:3px 0;white-space:normal;overflow-wrap:anywhere}.mc-pdfstack .ps-source-list small{display:block;color:#a8c7d8}.mc-pdfstack .ps-bar{overflow-x:auto}.mc-pdfstack .ps-drawer .ps-row{flex-wrap:wrap}.mc-pdfstack .ps-levels{position:absolute;right:10px;top:52px;max-height:calc(100% - 65px);overflow:auto;display:flex;flex-direction:column;gap:6px;padding:5px;background:#0b2236dd;border:1px solid #34586d;border-radius:14px;max-width:94px}.mc-pdfstack .ps-levels button{min-height:44px;min-width:56px;padding:6px 4px;overflow-wrap:anywhere}.mc-pdfstack .ps-levels small{display:block;font-size:10px;color:#a8c7d8}.mc-pdfstack .ps-empty{position:absolute;top:38%;left:10%;right:27%;text-align:center;color:#a8c7d8;pointer-events:none}.mc-pdfstack .ps-empty b{display:block;font-size:17px;color:#e6f4ff;margin-bottom:8px}.mc-pdfstack .ps-level-tools{border-bottom:1px solid #34586d;padding-bottom:6px;margin-bottom:8px}.mc-pdfstack .ps-level-tools input[type=text]{width:110px;min-width:0}.mc-pdfstack .ps-level-tools input[type=number]{width:72px}.mc-workspace .ps-head b{font-size:19px}.mc-workspace .ps-stage{background:radial-gradient(ellipse,#24465b,#071625 75%)}</style>'+
+    el.innerHTML='<style>.mc-pdfstack{position:fixed;inset:0;z-index:1000000;display:flex;flex-direction:column;background:#08192a;color:#e6f4ff;font:13px system-ui,sans-serif;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}.mc-pdfstack *{box-sizing:border-box}.mc-pdfstack [hidden]{display:none!important}.mc-pdfstack button,.mc-pdfstack input,.mc-pdfstack select{background:#163348;color:#e6f4ff;border:1px solid #34586d;border-radius:8px;padding:8px;min-height:36px;font:inherit}.mc-pdfstack button.active{border-color:#55d9ee;color:#8af0ff;background:#155064}.mc-pdfstack button:disabled{opacity:.4}.mc-pdfstack .ps-head,.mc-pdfstack .ps-bar{display:flex;gap:6px;align-items:center;padding:8px;flex-shrink:0}.mc-pdfstack .ps-head{background:#0b2236}.mc-pdfstack .ps-head b{font-size:16px}.mc-pdfstack .ps-small{font-size:11px;color:#9bbacc}.mc-pdfstack .ps-grow{flex:1;min-width:0}.mc-pdfstack .ps-stage{position:relative;flex:1;min-height:100px;overflow:hidden;background:radial-gradient(ellipse,#24465b,#071625 75%)}.mc-pdfstack .ps-stage>canvas{width:100%;height:100%;display:block;touch-action:none}.mc-pdfstack .ps-cal{display:flex;flex-direction:column;flex:1;min-height:0;padding:8px;gap:5px}.mc-pdfstack .ps-preview{flex:1;min-height:120px;overflow:auto;background:#172b3c;touch-action:pan-x pan-y}.mc-pdfstack .ps-preview canvas{display:block;max-width:none;touch-action:pan-x pan-y}.mc-pdfstack .ps-drawer{max-height:43%;overflow:auto;padding:8px;background:#0d2538;border-top:1px solid #315267}.mc-pdfstack .ps-row{display:flex;align-items:center;gap:5px;margin:6px 0}.mc-pdfstack .ps-row input[type=number]{width:74px}.mc-pdfstack .ps-row b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}.mc-pdfstack .ps-status{padding:5px 10px;color:#a8d4e2;min-height:25px;font-size:11px}.mc-pdfstack .ps-top{position:absolute;top:8px;left:8px;right:8px;pointer-events:none;display:flex;justify-content:space-between}.mc-pdfstack .ps-top span{background:#0a2035dd;padding:6px;border-radius:6px}.mc-pdfstack .ps-cal .ps-bar{padding:0;flex-wrap:wrap}.mc-pdfstack .ps-cal .ps-bar input{width:90px}.mc-pdfstack .ps-point{color:#64e4ff}.mc-pdfstack .ps-source{border:1px solid #34586d;border-radius:8px;padding:6px;margin:6px 0}.mc-pdfstack .ps-source input[type=search]{width:100%}.mc-pdfstack .ps-source-list{max-height:180px;overflow:auto}.mc-pdfstack .ps-source-list button{text-align:left;width:100%;margin:3px 0;white-space:normal;overflow-wrap:anywhere}.mc-pdfstack .ps-source-list small{display:block;color:#a8c7d8}.mc-pdfstack .ps-bar{overflow-x:auto}.mc-pdfstack .ps-drawer .ps-row{flex-wrap:wrap}.mc-pdfstack .ps-levels{position:absolute;right:10px;top:52px;max-height:calc(100% - 65px);overflow:auto;display:flex;flex-direction:column;gap:6px;padding:5px;background:#0b2236dd;border:1px solid #34586d;border-radius:14px;max-width:94px}.mc-pdfstack .ps-levels button{min-height:44px;min-width:56px;padding:6px 4px;overflow-wrap:anywhere}.mc-pdfstack .ps-levels small{display:block;font-size:10px;color:#a8c7d8}.mc-pdfstack .ps-empty{position:absolute;top:38%;left:10%;right:27%;text-align:center;color:#a8c7d8;pointer-events:none}.mc-pdfstack .ps-empty b{display:block;font-size:17px;color:#e6f4ff;margin-bottom:8px}.mc-pdfstack .ps-level-tools{border-bottom:1px solid #34586d;padding-bottom:6px;margin-bottom:8px}.mc-pdfstack .ps-level-tools input[type=text]{width:110px;min-width:0}.mc-pdfstack .ps-level-tools input[type=number]{width:72px}.mc-pdfstack .ps-preview{position:relative;overflow:hidden;touch-action:none;min-height:100px}.mc-pdfstack .ps-preview canvas{width:100%;height:100%;touch-action:none;cursor:crosshair}.mc-pdfstack .ps-cal-zoom{font-size:11px;color:#93d3e6}.mc-workspace .ps-head b{font-size:19px}.mc-workspace .ps-stage{background:radial-gradient(ellipse,#24465b,#071625 75%)}</style>'+
       '<div class="ps-head"><button data-a="close">✕</button><div class="ps-grow"><b>◈ ModelCore <span style="color:#5ce5fc">X</span></b><div class="ps-small" data-r="project"></div></div><button data-a="layers" aria-expanded="true">☷ Plans</button></div>'+
       '<div class="ps-bar"><button data-a="3d" class="active">3D</button><button data-a="top">Dessus 3D</button><button data-a="planview" hidden>Vue en plan</button><button data-a="fit">Ajuster</button><button data-a="zoomout">−</button><button data-a="zoomin">+</button><label class="ps-small">Écart <select data-r="explode"><option value="1">Réel</option><option value="2">×2</option><option value="4">×4</option></select></label></div>'+
       '<div class="ps-stage" data-r="stage"><div class="ps-top"><span data-r="count">0 plan calé</span><span>1 doigt orbite · 2 doigts zoom/pan</span></div><div class="ps-empty" data-r="empty" hidden><b>Projet vide</b><span>Choisissez un niveau à droite pour ajouter son PDF.</span></div><div class="ps-levels" data-r="levels" hidden></div></div>'+
-      '<div class="ps-cal" data-r="cal" hidden><div class="ps-bar"><b class="ps-grow" data-r="calname"></b><button data-a="calclose">Terminer</button></div><div class="ps-bar"><button data-a="pointA" class="active">Point A</button><button data-a="pointB">Point B</button><button data-a="calminus">−</button><button data-a="calplus">+</button><button data-a="precision">◎ Précision</button><button data-a="fullpaper" hidden>Plan entier</button><button data-a="clear">Effacer</button></div><div class="ps-bar"><label>Calage <select data-r="cal-mode"><option value="point">1 point commun</option><option value="two">2 points (avancé)</option></select></label><label data-r="scale-label">Échelle 1:<input data-r="denom" type="number" min="1" max="10000" step="1" placeholder="100"></label></div><div class="ps-small" data-r="instructions"></div><div class="ps-preview" data-r="preview"><canvas data-r="paper"></canvas></div><div class="ps-bar"><label data-r="distance-label">Distance A–B (m) <input data-r="distance" type="number" min=".01" max="10000" step=".01" value=""></label><button data-a="apply">Valider le calage</button></div></div>'+
+      '<div class="ps-cal" data-r="cal" hidden><div class="ps-bar"><b class="ps-grow" data-r="calname"></b><button data-a="calclose">Terminer</button></div><div class="ps-bar"><button data-a="pointA" class="active">Point A</button><button data-a="pointB">Point B</button><button data-a="calminus">−</button><button data-a="calplus">+</button><button data-a="precision">◎ Précision</button><button data-a="fullpaper">Plan entier</button><span class="ps-cal-zoom" data-r="cal-zoom">100 %</span><button data-a="clear">Effacer</button></div><div class="ps-bar"><label>Calage <select data-r="cal-mode"><option value="point">1 point commun</option><option value="two">2 points (avancé)</option></select></label><label data-r="scale-label">Échelle 1:<input data-r="denom" type="number" min="1" max="10000" step="1" placeholder="100"></label></div><div class="ps-small" data-r="instructions"></div><div class="ps-preview" data-r="preview"><canvas data-r="paper" aria-label="Plan PDF : pincez pour zoomer, glissez pour déplacer, touchez pour choisir le point"></canvas></div><div class="ps-bar"><label data-r="distance-label">Distance A–B (m) <input data-r="distance" type="number" min=".01" max="10000" step=".01" value=""></label><button data-a="apply">Valider le calage</button></div></div>'+
       '<div class="ps-drawer" data-r="drawer"><div class="ps-level-tools" data-r="level-tools" hidden><div class="ps-row"><b class="ps-grow" data-r="selected-level"></b><button data-a="retry-save">Enregistrer</button><button data-a="drawerclose">✕</button></div><div class="ps-row"><label>Nom <input type="text" maxlength="24" data-r="level-name"></label><label>Altitude (m) <input type="number" step=".01" data-r="level-z"></label></div><div class="ps-row"><input type="text" maxlength="24" data-r="new-level" placeholder="Ex. Sous-sol"><input type="number" step=".01" data-r="new-z" placeholder="Altitude"><button data-a="newlevel">＋ Niveau</button></div></div><div class="ps-row"><button data-a="projectplans">▤ Plans du projet</button><button data-a="add">＋ Téléphone</button><input data-r="file" type="file" accept="*/*" multiple hidden><label class="ps-small">Page <input data-r="page" type="number" value="1" min="1" step="1" aria-label="Page PDF"></label><label class="ps-small">Opacité <input data-r="opacity" type="range" min="20" max="100" value="100"></label></div><div class="ps-source" data-r="sources" hidden><div class="ps-row"><b class="ps-grow">Niveaux · PDF du projet</b><button data-a="sourceclose">✕</button></div><input type="search" data-r="search" placeholder="Rechercher niveau, dossier ou plan…" aria-label="Rechercher un plan"><div class="ps-source-list" data-r="source-list"></div></div><div class="ps-small">Premier PDF = référence. Calage par point commun (même échelle/orientation) ou par 2 points. Jusqu’à 16 niveaux dans Mon projet (8 en session PDF Stack) · 60 Mo/PDF · stockage local.</div><div data-r="list"></div></div><div class="ps-status" data-r="status" aria-live="polite">Ajoutez le PDF de référence.</div>';
     document.body.appendChild(el);
     const $=s=>el.querySelector(s),stage=$('[data-r="stage"]'),paper=$('[data-r="paper"]'),rows=$('[data-r="list"]');
@@ -86,7 +95,7 @@
     controls.enableDamping=false;controls.enablePan=true;controls.touches.ONE=T.TOUCH.ROTATE;controls.touches.TWO=T.TOUCH.DOLLY_PAN;
     renderer.domElement.style.touchAction='none';
     const grid=new T.GridHelper(100,20,0x436679,0x2c495d);grid.material.transparent=true;grid.material.opacity=.22;scene.add(grid);
-    const layers=[];let ref=null,current=null,point='A',zoom=1,crop=null,closed=false,busy=false,raf=0,task=null,renderTask=null,backRemove=null,distance=null,view='3d',serial=0,sources=[],selectedLevel='all',restoring=!!ws,saveFailed=false,reading=false,closeReader=null,calMode=ws?(ws.calibrationMode||((ws.plans||[]).length?'two':'point')):'two',denominator=ws?.denominator||null;
+    const layers=[];let ref=null,current=null,point='A',zoom=1,closed=false,busy=false,raf=0,task=null,renderTask=null,backRemove=null,distance=null,view='3d',serial=0,sources=[],selectedLevel='all',restoring=!!ws,saveFailed=false,reading=false,closeReader=null,calMode=ws?(ws.calibrationMode||((ws.plans||[]).length?'two':'point')):'two',denominator=ws?.denominator||null;
     function msg(s){$('[data-r="status"]').textContent=s;}
     function save(){
       if(!ws||restoring)return Promise.resolve(true);
@@ -274,20 +283,86 @@
       try{sources=await projectSources();if(!closed)drawSources();}
       catch(e){if(!closed){$('[data-r="source-list"]').textContent=e.message||String(e);msg(e.message||String(e));}}
     }
-    function releaseCrop(){if(crop){crop.canvas.width=crop.canvas.height=0;crop=null;}$('[data-a="fullpaper"]').hidden=true;}
-    function drawPaper(){
-      if(!current)return;const c=crop?.canvas||current.canvas,region=crop||{x:0,y:0,w:current.width,h:current.height};paper.width=c.width;paper.height=c.height;paper.style.width=(zoom*100)+'%';paper.style.height='auto';
-      const ctx=paper.getContext('2d');ctx.drawImage(c,0,0);
-      const radius=Math.max(6,c.width/120);
-      for(const k of (calMode==='point'?['A']:['A','B']))if(current[k]){
-        const x=(current[k][0]-region.x)/region.w*c.width,y=(current[k][1]-region.y)/region.h*c.height;ctx.strokeStyle=k==='A'?'#0086b0':'#c37300';ctx.lineWidth=Math.max(2,radius/4);ctx.beginPath();ctx.arc(x,y,radius,0,Math.PI*2);ctx.moveTo(x-radius*2,y);ctx.lineTo(x+radius*2,y);ctx.moveTo(x,y-radius*2);ctx.lineTo(x,y+radius*2);ctx.stroke();ctx.fillStyle=ctx.strokeStyle;ctx.font='bold '+radius*2+'px sans-serif';ctx.fillText(k,x+radius,y-radius);
-      }
-      if(calMode==='two'&&current.A&&current.B){ctx.strokeStyle='#087baf';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo((current.A[0]-region.x)/region.w*c.width,(current.A[1]-region.y)/region.h*c.height);ctx.lineTo((current.B[0]-region.x)/region.w*c.width,(current.B[1]-region.y)/region.h*c.height);ctx.stroke();}
+    const preview=$('[data-r="preview"]');
+    let calCenter=null,calV=null,calHD=null,calTimer=null,calEpoch=0,calTask=null,calPagePromise=null,calRender=null,calRendering=false,calPending=false;
+    const pointers=new Map();let gesture=null;
+    function releaseCrop(){
+      ++calEpoch;clearTimeout(calTimer);calTimer=null;calPending=false;
+      if(calRender)try{calRender.cancel();}catch(e){}
+      if(calTask)calTask.destroy().catch(()=>{});
+      calTask=null;calPagePromise=null;
+      if(calHD){calHD.canvas.width=calHD.canvas.height=0;calHD=null;}
+      pointers.clear();gesture=null;
     }
+    function viewState(){
+      if(!current||!calCenter)return null;
+      const W=preview.clientWidth,H=preview.clientHeight;if(W<2||H<2)return null;
+      const v=calViewport(current.width,current.height,W,H,zoom,calCenter[0],calCenter[1]);calCenter=[v.cx,v.cy];
+      return {...v,W,H,dpr:Math.min(window.devicePixelRatio||1,2,Math.sqrt(3000000/(W*H)))};
+    }
+    function drawPaper(){
+      if(!current)return;const v=viewState();if(!v)return;calV=v;
+      const W=Math.max(1,Math.round(v.W*v.dpr)),H=Math.max(1,Math.round(v.H*v.dpr));
+      if(paper.width!==W)paper.width=W;if(paper.height!==H)paper.height=H;
+      const ctx=paper.getContext('2d');ctx.setTransform(v.dpr,0,0,v.dpr,0,0);ctx.fillStyle='#172b3c';ctx.fillRect(0,0,v.W,v.H);
+      ctx.drawImage(current.canvas,v.x,v.y,current.width*v.scale,current.height*v.scale);
+      if(calHD&&calHD.layer===current){
+        const q=calHD.v;ctx.drawImage(calHD.canvas,(v.x-q.x*v.scale/q.scale),(v.y-q.y*v.scale/q.scale),q.W*v.scale/q.scale,q.H*v.scale/q.scale);
+      }
+      const xy=p=>[v.x+p[0]*v.scale,v.y+p[1]*v.scale];
+      if(calMode==='two'&&current.A&&current.B){const a=xy(current.A),b=xy(current.B);ctx.strokeStyle='#087baf';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.stroke();}
+      for(const k of (calMode==='point'?['A']:['A','B']))if(current[k]){
+        const [x,y]=xy(current[k]);ctx.strokeStyle=k==='A'?'#0086b0':'#c37300';ctx.lineWidth=1.5;
+        ctx.beginPath();ctx.arc(x,y,9,0,Math.PI*2);ctx.moveTo(x-17,y);ctx.lineTo(x+17,y);ctx.moveTo(x,y-17);ctx.lineTo(x,y+17);ctx.stroke();
+        ctx.fillStyle=ctx.strokeStyle;ctx.font='bold 13px sans-serif';ctx.fillText(k,x+11,y-10);
+      }
+      $('[data-r="cal-zoom"]').textContent=Math.round(zoom*100)+' %';
+    }
+    function queueHD(){
+      if(!current||closed)return;
+      const epoch=++calEpoch;
+      if(calRender)try{calRender.cancel();}catch(e){}
+      clearTimeout(calTimer);calTimer=setTimeout(()=>{if(epoch===calEpoch)renderCalHD();},150);
+    }
+    async function renderCalHD(){
+      if(!current||closed)return;
+      if(calRendering){calPending=true;return;}
+      const l=current,v=viewState(),epoch=calEpoch;if(!v)return;
+      calRendering=true;let c=null;
+      try{
+        if(!calPagePromise){
+          calPagePromise=(async()=>{
+            const bytes=new Uint8Array(await l.file.arrayBuffer());
+            if(closed||current!==l)throw Error('Calage fermé');
+            const t=pdfjsLib.getDocument({data:bytes,isEvalSupported:false});calTask=t;
+            const doc=await t.promise;return doc.getPage(l.page);
+          })();
+        }
+        const p=await calPagePromise;if(closed||current!==l||epoch!==calEpoch)return;
+        c=document.createElement('canvas');c.width=Math.max(1,Math.round(v.W*v.dpr));c.height=Math.max(1,Math.round(v.H*v.dpr));
+        const ctx=c.getContext('2d');ctx.fillStyle='#172b3c';ctx.fillRect(0,0,c.width,c.height);
+        // Le viewport PDF est calculé à la résolution de l'écran, jamais un A0 géant.
+        const vp=p.getViewport({scale:v.scale*v.dpr,offsetX:v.x*v.dpr,offsetY:v.y*v.dpr});
+        calRender=p.render({canvasContext:ctx,viewport:vp,background:'rgb(255,255,255)'});
+        await calRender.promise;
+        if(closed||current!==l||epoch!==calEpoch)return;
+        if(calHD)calHD.canvas.width=calHD.canvas.height=0;calHD={canvas:c,layer:l,v};c=null;
+        paper.dataset.hd=String(epoch);drawPaper();
+      }catch(e){if(!closed&&current===l&&epoch===calEpoch&&e?.name!=='RenderingCancelledException'){msg('Rendu HD indisponible : '+(e.message||e));if(!calTask)calPagePromise=null;}}
+      finally{if(c)c.width=c.height=0;calRender=null;calRendering=false;if(calPending){calPending=false;queueHD();}}
+    }
+    function zoomAt(z,x,y){
+      if(!current||!calV)return;
+      const v=calV,px=(x-v.x)/v.scale,py=(y-v.y)/v.scale;
+      zoom=Math.max(1,Math.min(64,z));
+      const n=Math.min(v.W/current.width,v.H/current.height)*zoom;
+      calCenter=[px-(x-v.W/2)/n,py-(y-v.H/2)/n];drawPaper();queueHD();
+    }
+    const calObserver=new ResizeObserver(()=>{if(current){drawPaper();queueHD();}});calObserver.observe(preview);
     function edit(l){
-      if(busy)return;releaseCrop();current=l;zoom=1;point='A';stage.hidden=true;$('[data-r="cal"]').hidden=false;$('[data-r="drawer"]').hidden=true;
+      if(busy||!l)return;releaseCrop();current=l;zoom=1;calCenter=[l.width/2,l.height/2];calV=null;delete paper.dataset.hd;point='A';stage.hidden=true;$('[data-r="cal"]').hidden=false;$('[data-r="drawer"]').hidden=true;
       $('[data-r="calname"]').textContent=l.name+(l===ref?' · Référence':'');
-      updateCalControls();drawPaper();pointMode('A');
+      updateCalControls();drawPaper();pointMode('A');queueHD();
     }
     function updateCalControls(){
       $('[data-r="cal-mode"]').value=calMode;
@@ -325,33 +400,35 @@
       }
       current.validated=true;update();finish();msg(calMode==='point'?'Point commun aligné. Vérifiez un deuxième repère et l’échelle réelle.':'Calage validé. Vérifiez un troisième point indépendant.');save();
     }
-    let down=null;
-    paper.addEventListener('pointerdown',e=>{down=[e.clientX,e.clientY,e.pointerId];});
-    paper.addEventListener('pointercancel',()=>{down=null;});
-    paper.addEventListener('pointerup',e=>{if(!current||!down||down[2]!==e.pointerId||Math.hypot(e.clientX-down[0],e.clientY-down[1])>8){down=null;return;}down=null;const r=paper.getBoundingClientRect(),region=crop||{x:0,y:0,w:current.width,h:current.height};if(busy)return;setPoint(current,point,[Math.max(0,Math.min(current.width,region.x+(e.clientX-r.left)/r.width*region.w)),Math.max(0,Math.min(current.height,region.y+(e.clientY-r.top)/r.height*region.h))]);if(calMode==='two'&&point==='A'&&!crop)pointMode('B');});
-    // Rendu natif d'une petite région du PDF original, sans bitmap A0 géant.
-    async function precision(){
-      if(busy||!current)return;
-      const l=current,anchor=l[point];
-      if(!anchor){msg('Placez approximativement le point '+point+' avant de zoomer en précision.');return;}
-      busy=true;let c=null;
-      try{
-        const span=Math.max(8,Math.min(l.width,l.height)/(crop?30:6));
-        const x=Math.max(0,Math.min(l.width-span,anchor[0]-span/2)),y=Math.max(0,Math.min(l.height-span,anchor[1]-span/2));
-        task=pdfjsLib.getDocument({data:new Uint8Array(await l.file.arrayBuffer()),isEvalSupported:false});
-        const doc=await task.promise,p=await doc.getPage(l.page),scale=1200/span;
-        c=document.createElement('canvas');c.width=c.height=1200;
-        const vp=p.getViewport({scale,offsetX:-x*scale,offsetY:-y*scale});
-        renderTask=p.render({canvasContext:c.getContext('2d'),viewport:vp,background:'rgb(255,255,255)'});
-        await renderTask.promise;
-        if(closed||current!==l)return;
-        releaseCrop();crop={canvas:c,x,y,w:span,h:span};c=null;zoom=1;drawPaper();
-        $('[data-a="fullpaper"]').hidden=false;msg('Précision : cliquez sur le même repère '+point+' dans le détail PDF.');
-      }catch(e){if(!closed)msg(e.message||String(e));}
-      finally{renderTask=null;const t=task;task=null;if(t)await t.destroy().catch(()=>{});if(c)c.width=c.height=0;busy=false;}
-    }
+    function local(e){const r=paper.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top];}
+    paper.addEventListener('pointerdown',e=>{
+      if(!current||!calV||busy)return;e.preventDefault();paper.setPointerCapture(e.pointerId);
+      pointers.set(e.pointerId,local(e));const p=[...pointers.values()];
+      if(p.length===1)gesture={start:p[0],last:p[0],moved:false,multi:false};
+      else if(p.length===2){gesture={multi:true,last:[(p[0][0]+p[1][0])/2,(p[0][1]+p[1][1])/2],d:Math.max(1,Math.hypot(p[0][0]-p[1][0],p[0][1]-p[1][1]))};}
+    });
+    paper.addEventListener('pointermove',e=>{
+      if(!pointers.has(e.pointerId)||!gesture||!calV)return;
+      pointers.set(e.pointerId,local(e));const p=[...pointers.values()],v=calV;
+      if(p.length===2){const mid=[(p[0][0]+p[1][0])/2,(p[0][1]+p[1][1])/2],d=Math.max(1,Math.hypot(p[0][0]-p[1][0],p[0][1]-p[1][1]));
+        calCenter=[v.cx-(mid[0]-gesture.last[0])/v.scale,v.cy-(mid[1]-gesture.last[1])/v.scale];drawPaper();
+        zoomAt(zoom*d/gesture.d,mid[0],mid[1]);gesture.last=mid;gesture.d=d;
+      }else if(p.length===1&&!gesture.multi){const q=p[0];if(!gesture.moved&&Math.hypot(q[0]-gesture.start[0],q[1]-gesture.start[1])>6)gesture.moved=true;
+        if(gesture.moved){calCenter=[v.cx-(q[0]-gesture.last[0])/v.scale,v.cy-(q[1]-gesture.last[1])/v.scale];drawPaper();queueHD();}gesture.last=q;}
+    });
+    paper.addEventListener('pointercancel',()=>{pointers.clear();gesture=null;});
+    paper.addEventListener('pointerup',e=>{
+      if(!pointers.has(e.pointerId))return;const q=local(e),g=gesture;pointers.delete(e.pointerId);
+      if(!pointers.size){gesture=null;if(!current||busy||!calV||!g||g.multi||g.moved||Math.hypot(q[0]-g.start[0],q[1]-g.start[1])>6)return;
+        const v=calV,x=(q[0]-v.x)/v.scale,y=(q[1]-v.y)/v.scale;
+        if(x<0||y<0||x>current.width||y>current.height)return;
+        setPoint(current,point,[x,y]);if(calMode==='two'&&point==='A')pointMode('B');
+      }
+    });
+    paper.addEventListener('wheel',e=>{if(!current)return;e.preventDefault();const p=local(e);zoomAt(zoom*(e.deltaY<0?1.25:.8),...p);},{passive:false});
+    function precision(){if(!current||!calV)return;const p=current[point];if(p)zoomAt(zoom*2,calV.x+p[0]*calV.scale,calV.y+p[1]*calV.scale);else zoomAt(zoom*2,calV.W/2,calV.H/2);}
     function close(){
-      if(closed)return;closed=true;if(closeReader)closeReader();renderTask?.cancel();task?.destroy().catch(()=>{});if(raf)cancelAnimationFrame(raf);observer.disconnect();controls.dispose();
+      if(closed)return;closed=true;if(closeReader)closeReader();renderTask?.cancel();task?.destroy().catch(()=>{});if(raf)cancelAnimationFrame(raf);observer.disconnect();calObserver.disconnect();controls.dispose();
       if(backRemove)try{backRemove();}catch(e){}
       for(const l of layers){l.mesh.geometry.dispose();l.mesh.material.dispose();l.texture.dispose();l.canvas.width=l.canvas.height=0;}
       grid.geometry.dispose();grid.material.dispose();releaseCrop();paper.width=paper.height=0;renderer.dispose();renderer.forceContextLoss();el.remove();if(typeof options.onClose==='function')options.onClose();
@@ -384,8 +461,8 @@
     on('top',()=>{view='top';controls.enableRotate=false;$('[data-a="top"]').classList.add('active');$('[data-a="3d"]').classList.remove('active');fit();});
     on('fit',fit);on('zoomin',()=>{camera.position.sub(controls.target).multiplyScalar(.8).add(controls.target);controls.update();});on('zoomout',()=>{camera.position.sub(controls.target).multiplyScalar(1.25).add(controls.target);controls.update();});
     $('[data-r="cal-mode"]').onchange=e=>changeCalMode(e.target.value);
-    on('pointA',()=>pointMode('A'));on('pointB',()=>pointMode('B'));on('calplus',()=>{zoom=Math.min(6,zoom*1.5);drawPaper();});on('calminus',()=>{zoom=Math.max(1,zoom/1.5);drawPaper();});
-    on('precision',precision);on('fullpaper',()=>{if(!busy){releaseCrop();zoom=1;drawPaper();}});on('clear',()=>{if(current&&!busy){current.A=current.B=null;current.validated=false;update();save();drawPaper();}});on('calclose',finish);on('apply',valider);
+    on('pointA',()=>pointMode('A'));on('pointB',()=>pointMode('B'));on('calplus',()=>{if(calV)zoomAt(zoom*1.5,calV.W/2,calV.H/2);});on('calminus',()=>{if(calV)zoomAt(zoom/1.5,calV.W/2,calV.H/2);});
+    on('precision',precision);on('fullpaper',()=>{if(current&&!busy){zoom=1;calCenter=[current.width/2,current.height/2];drawPaper();queueHD();}});on('clear',()=>{if(current&&!busy){current.A=current.B=null;current.validated=false;update();save();drawPaper();}});on('calclose',finish);on('apply',valider);
     $('[data-r="explode"]').onchange=()=>{update();fit();};$('[data-r="opacity"]').oninput=update;
     if(ws){$('[data-r="file"]').multiple=false;$('[data-r="drawer"]').hidden=true;$('[data-a="layers"]').setAttribute('aria-expanded','false');
       try{for(const p of (ws.plans||[])){const file=new File([p.file],p.name,{type:'application/pdf'});const id=await addFile(file,p.page,p.levelId);const l=layers.find(l=>l.id===id);l.A=p.A;l.B=p.B;l.validated=!!p.validated;l.visible=p.visible!==false;}ref=layers.find(l=>l.levelId===ws.referenceLevel)||layers[0]||null;distance=ws.distance||null;}
@@ -394,5 +471,5 @@
     resize();update();fit();
     return {close,addFile,addProjectPlan,projectSources,selectLevel:setLevel,flush:()=>ws?(writes.get(DB.name()+'|'+ws.id)||Promise.resolve(!saveFailed)):Promise.resolve(true),edit:id=>{const l=layers.find(x=>x.id===id);if(l)edit(l);},setPoint:(id,k,p)=>setPoint(layers.find(x=>x.id===id),k,p),setDistance:d=>{if(!ref||!ref.A||!ref.B)throw Error('Référence incomplète.');reference(ref.A,ref.B,d);distance=d;ref.validated=true;update();save();},validate:id=>{const l=layers.find(x=>x.id===id);if(!l||!l.A||!l.B||!distance||!ref?.validated)throw Error('Calage incomplet.');calage(l.A,l.B,[0,0],[distance,0]);l.validated=true;update();save();},state:()=>layers.map(l=>({id:l.id,levelId:l.levelId,width:l.width,height:l.height,z:l.z,calibrated:!!l.t,visible:l.mesh.visible,transform:l.t?{...l.t}:null}))};
   }
-  window.ModelCorePDFStack={open,openWorkspace,makeWorkspace,calage,calagePoint,appliquer,reference,transferView};
+  window.ModelCorePDFStack={open,openWorkspace,makeWorkspace,calage,calagePoint,appliquer,reference,transferView,calViewport};
 })();
