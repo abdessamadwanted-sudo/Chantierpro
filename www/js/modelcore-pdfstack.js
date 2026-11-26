@@ -19,7 +19,7 @@
     if(!d||!a.scale||!b.scale)return null;
     const x=(b.c*X+b.s*Y)/d,y=(-b.s*X+b.c*Y)/d;
     if(x< -1e-7||y< -1e-7||x>to.width+1e-7||y>to.height+1e-7)return null;
-    return {u:Math.max(0,Math.min(1,x/to.width)),v:Math.max(0,Math.min(1,y/to.height)),cssWidth:pos.cssWidth*to.width*b.scale/(from.width*a.scale)};
+    return {u:Math.max(0,Math.min(1,x/to.width)),v:Math.max(0,Math.min(1,y/to.height)),cssWidth:pos.cssWidth*to.width*b.scale/(from.width*a.scale),zoom:Number.isFinite(pos.zoom)?pos.zoom*to.width*b.scale/(from.width*a.scale):null};
   }
   // Un point fixe la translation. L'échelle papier doit être connue et
   // l'orientation identique sur tous les plans (aucune estimation automatique).
