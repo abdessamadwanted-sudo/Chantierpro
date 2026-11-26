@@ -1,5 +1,13 @@
 // Outils d'interface partagés
 const ICONS = {
+  st_subcontract: "<path d=\"m2 9 5-4 5 3 5-3 5 4-4 7-4 4-3-1-3 1-6-7zM7 5l4 5 2-2 5 6M5 14l3-3m0 6 3-3m0 5 3-3\"/>",
+  st_training: "<path fill=\"currentColor\" stroke=\"none\" d=\"m12 2 12 6-12 6L0 8zM5 12l7 4 7-4v6q-7 6-14 0z\"/><path d=\"M23 9v9\"/>",
+  st_property: "<path fill=\"currentColor\" stroke=\"none\" fill-rule=\"evenodd\" d=\"M1 12 8 5l7 7v10H1z M5 15h5v7H5z M15 7l4-4 5 5v14h-7V11z M19 12h2v3h-2z M19 17h2v3h-2z\"/>",
+  st_rental: "<path d=\"M4 22V2h3v20M2 22h7M2 5h20L7 2M7 9h15V5M19 9v5l-2 2v2h4v-2M7 11l-3 3 3 3-3 3\"/>",
+  st_supply: "<path d=\"m2 9 10-5 10 5-10 5zM2 9v10l10 4 10-4V9M12 14v9M7 6.5l10 5\"/>",
+  st_craft: "<path d=\"m3 21 9-9m0-9 5 5-3 3-5-5zM12 3l2-2 7 7-2 2M3 3l5 5-2 2-4-4zM12 15l6 6 3-3-6-6\"/>",
+  st_coordination: "<rect x=\"2\" y=\"4\" width=\"20\" height=\"18\" rx=\"2\"/><path d=\"M7 2v5m10-5v5M2 9h20M6 13h6m-3 4h8m-2-4h3\"/>",
+  st_inspection: "<path fill=\"currentColor\" stroke=\"none\" fill-rule=\"evenodd\" d=\"M8 2h8v3h5v10h-3V8H6v12h7v2H3V5h5z M10 4v2h4V4z\"/><path d=\"m9 11 2 2 4-4\"/><circle cx=\"17\" cy=\"17\" r=\"3.5\"/><path d=\"m19.5 19.5 3 3\"/>",
   st_flask: "<path fill=\"currentColor\" stroke=\"none\" fill-rule=\"evenodd\" d=\"M8 2h8v2h-1v6l6 10q1 2-2 2H5q-3 0-2-2l6-10V4H8z M11 4v7l-2.5 4h7L13 11V4z M8 18a1 1 0 1 0 2 0 1 1 0 0 0-2 0z M14 19a1 1 0 1 0 2 0 1 1 0 0 0-2 0z\"/>",
   st_helmet: "<path fill=\"currentColor\" stroke=\"none\" d=\"M2 17h20v3H2zM4 15v-2a8 8 0 0 1 5-7.4V13h2V4h2v9h2V5.6a8 8 0 0 1 5 7.4v2z\"/>",
   // Pictogrammes métier SiteTeam, tracés SVG locaux (24 × 24).
