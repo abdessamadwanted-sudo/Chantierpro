@@ -1,14 +1,16 @@
 // Outils d'interface partagés
 const ICONS = {
+  st_flask: "<path fill=\"currentColor\" stroke=\"none\" fill-rule=\"evenodd\" d=\"M8 2h8v2h-1v6l6 10q1 2-2 2H5q-3 0-2-2l6-10V4H8z M11 4v7l-2.5 4h7L13 11V4z M8 18a1 1 0 1 0 2 0 1 1 0 0 0-2 0z M14 19a1 1 0 1 0 2 0 1 1 0 0 0-2 0z\"/>",
+  st_helmet: "<path fill=\"currentColor\" stroke=\"none\" d=\"M2 17h20v3H2zM4 15v-2a8 8 0 0 1 5-7.4V13h2V4h2v9h2V5.6a8 8 0 0 1 5 7.4v2z\"/>",
   // Pictogrammes métier SiteTeam, tracés SVG locaux (24 × 24).
-  st_building: "<path d=\"M3 21V9h7v12M10 21V3h11v18M2 21h20M6 12v1m0 3v1m8-10h3m-3 4h3m-3 4h3m-3 4h3\"/>",
+  st_building: "<path fill=\"currentColor\" stroke=\"none\" fill-rule=\"evenodd\" d=\"M2 22V10h8V2h12v20z M5 13h2v2H5z M5 17h2v2H5z M13 5h2v3h-2z M17 5h2v3h-2z M13 10h2v3h-2z M17 10h2v3h-2z M13 15h2v3h-2z M17 15h2v7h-2z\"/>",
   st_orgchart: "<rect x=\"9\" y=\"2\" width=\"6\" height=\"5\" rx=\"1\"/><path d=\"M12 7v6M4 17v-4h16v4\"/><rect x=\"1\" y=\"17\" width=\"6\" height=\"5\" rx=\"1\"/><rect x=\"9\" y=\"17\" width=\"6\" height=\"5\" rx=\"1\"/><rect x=\"17\" y=\"17\" width=\"6\" height=\"5\" rx=\"1\"/>",
-  st_quality: "<path d=\"m12 2 2.7 2.2 3.5-.1 1.1 3.3 2.7 2.1-1.1 3.3.7 3.4-3 1.8-1.4 3.2-3.5-.4L12 22l-2.7-2.2-3.5.1-1.1-3.3L2 14.5l1.1-3.3-.7-3.4 3-1.8 1.4-3.2 3.5.4Z\"/><path d=\"m7.5 12 3 3 6-6\"/>",
+  st_quality: "<path fill=\"currentColor\" stroke=\"none\" fill-rule=\"evenodd\" d=\"m12 1 3 2 3.5-.2 1.2 3.4 2.8 2.2-1.2 3.4.7 3.5-3 2-1.4 3.3-3.6-.4L12 23l-3-2.1-3.5.2-1.2-3.4L1.5 15.5l1.2-3.4L2 8.6l3-2 1.4-3.3 3.6.4z M6.5 12.5l4 4 7.5-8-1.8-1.7-5.8 6.2-2.2-2.2z\"/>",
   st_hse: "<path d=\"M4 11V9a8 8 0 0 1 16 0v2M9 2v6m6-6v6M2 11h20v3H2zM4 17h6l2 2 2-2h6v3a2 2 0 0 1-2 2h-3l-3-2-3 2H6a2 2 0 0 1-2-2z\"/>",
   st_excavator: "<rect x=\"2\" y=\"17\" width=\"13\" height=\"5\" rx=\"2.5\"/><path d=\"M5 17v-6h6l3 6M7 11V8h4l2 4M13 12l4-8 3 2-2 8 4 1v5h-5l-2-3M6 19.5h5\"/>",
-  st_station: "<rect x=\"7\" y=\"3\" width=\"10\" height=\"8\" rx=\"2\"/><circle cx=\"12\" cy=\"7\" r=\"2.2\"/><path d=\"M10 3V1m4 0v2M9 11v3h6v-3M12 14v8M9 14l-5 8M15 14l5 8\"/>",
+  st_station: "<path fill=\"currentColor\" stroke=\"none\" fill-rule=\"evenodd\" d=\"M8 2h8v2h2v9H6V4h2z M12 6a3 3 0 1 0 0 6 3 3 0 0 0 0-6z\"/><path d=\"M9 14h6M12 14v8M9 14l-5 8M15 14l5 8\"/>",
   st_coins: "<ellipse cx=\"8\" cy=\"5\" rx=\"5\" ry=\"2.5\"/><path d=\"M3 5v11c0 3.3 10 3.3 10 0V5M3 9c0 3.3 10 3.3 10 0M3 13c0 3.3 10 3.3 10 0\"/><ellipse cx=\"18\" cy=\"12\" rx=\"4\" ry=\"2\"/><path d=\"M14 12v7c0 2.7 8 2.7 8 0v-7M14 15.5c0 2.7 8 2.7 8 0\"/>",
-  st_compass: "<circle cx=\"12\" cy=\"4\" r=\"2.3\"/><path d=\"m11 6-7 15m9-15 7 15M7 14h10M12 10v7M2 22l2-1m16 0 2 1\"/>",
+  st_compass: "<circle cx=\"12\" cy=\"4\" r=\"3\" fill=\"currentColor\" stroke=\"none\"/><path d=\"m10.5 7-7 15m10-15 7 15M7 15h10M12 10v7\"/>",
   st_beam: "<path d=\"m3 5 13-3 5 3-13 4zM3 5v3l5 3v6l-5 1v3l5 1 13-4v-3l-5-2V8M8 9v2m0 6 8-2m-8 7v-4M21 5v3l-5 2\"/>",
   st_fan: "<circle cx=\"12\" cy=\"12\" r=\"2.3\"/><path d=\"M10 10C1 7 5 1 11 3c4 2 2 5 1 7m2 1c7-7 12-1 7 4-3 3-5 0-7-2m-2 2c2 9-6 10-8 4-1-4 3-5 6-5\"/>",
   st_bim: "<path d=\"m2 15 5-3 5 3v6l-5 3-5-3zm5 3v6m-5-9 5 3 5-3M9 9l5-3 5 3v9l-5 3-2-1m2-8v9m-5-12 5 3 5-3M15 5l4-3 4 2v9l-4 2m0-8v2m-4-4 4 2 4-3\" transform=\"translate(0 -1)\"/>",
