@@ -71,3 +71,7 @@ Depuis un niveau avec PDF importé, bouton « Vue en plan » ou PDF dans la list
 
 ### Extension des niveaux personnalisés
 Mon projet accepte désormais 16 niveaux (session PDF Stack historique : 8). Saisie facultative de noms du bas vers le haut, par exemple SSL, Mezz, RDC, R+1… R+9; renommage et altitude éditables. Si RDC est nommé, il sert de zéro provisoire; les altitudes initiales déduites du pas choisi doivent être corrigées d'après les plans réels. Textures 3D limitées à 768 px pour un projet configuré à plus de 8 niveaux; le lecteur Vue en plan conserve le PDF original. Le test unitaire couvre les 12 noms du stade, mais le chargement de 12 PDF A0 réels en simultané et la mémoire Android ne sont pas encore validés.
+
+
+### Navigation continue en Vue en plan
+Barre latérale des niveaux dans le lecteur PDF lui-même, niveaux non importés désactivés, zoom tactile et boutons +/−/ajuster, retour 3D. Changement direct de PDF/page, sans repasser par la scène. Si les deux plans sont calés, transfert du point au centre du viewport et de l'échelle métrique par similitude commune, sous réserve des bords du papier et de la plage de zoom disponible. Sans calage ou si le point tombe hors de la page cible, la nouvelle page s'ouvre ajustée. Une seule page PDF est lue à la fois. Tests unitaires du transfert (rotation/échelle) et parcours navigateur de navigation/zoom ajoutés. Essai tactile et performance sur les PDF réels Android encore nécessaires.
