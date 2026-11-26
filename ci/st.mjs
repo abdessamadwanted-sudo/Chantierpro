@@ -3161,7 +3161,7 @@ try {
   }
   // ---- v1.0.x : PDF Stack — deux PDF réels et calage métrique
   const pdfStackTest=await A.pg.evaluate(async()=>{
-    const result={};let stack=null;
+    const result={};let stack=null,workerBefore=null,fixture=null;
     try{
       await window.__late;
       await loadScript('js/modelcore-pdfstack.js');
@@ -3171,9 +3171,36 @@ try {
         page.drawLine({start:{x:20,y:20},end:{x:w-20,y:h-20},thickness:1});
         return new File([await doc.save()],name,{type:'application/pdf'});
       };
-      stack=await ModelCorePDFStack.open({projectName:'PDF Stack test'});
+      // Simuler un premier démarrage : aucun worker PDF initialisé auparavant.
+      workerBefore=pdfjsLib.GlobalWorkerOptions.workerSrc;
+      pdfjsLib.GlobalWorkerOptions.workerSrc='';
+      const pid='pdfstack-ci-'+DB.uid(),fid=pid+'-file',planid=pid+'-plan',folderid=pid+'-folder',foreignid=pid+'-foreign';
+      fixture={fid,planid,folderid,foreignid};
+      const multi=await PDFLib.PDFDocument.create();
+      multi.addPage([100,100]);
+      const pg=multi.addPage([200,300]);pg.drawRectangle({x:20,y:20,width:160,height:260,borderWidth:2});
+      await DB.putRaw('folders',{id:folderid,projectId:pid,name:'R+1'});
+      await DB.putRaw('files',{id:fid,projectId:pid,name:'Niveaux.pdf',mime:'application/pdf',role:'plansrc',blob:new Blob([await multi.save()],{type:'application/pdf'})});
+      await DB.putRaw('plans',{id:planid,projectId:pid,folderId:folderid,name:'Coffrage niveau 1',pdfFileId:fid,pdfPage:2,annotations:[]});
+      await DB.putRaw('plans',{id:foreignid,projectId:pid+'-other',name:'Autre projet',pdfFileId:fid,pdfPage:1});
+      stack=await ModelCorePDFStack.open({projectId:pid,projectName:'PDF Stack test'});
+      result.worker=!!pdfjsLib.GlobalWorkerOptions.workerSrc&&pdfjsLib.GlobalWorkerOptions.workerSrc.includes('pdf.worker.min.js');
+      const sources=await stack.projectSources();
+      result.sources=sources.length===1&&sources[0].folder==='R+1'&&sources[0].page===2;
+      try{await stack.addProjectPlan(foreignid);result.isolation=false;}catch(e){result.isolation=true;}
       const a=await stack.addFile(await makePDF('RDC.pdf',300,200),1);
-      const b=await stack.addFile(await makePDF('R+1.pdf',200,300),1);
+      // Choix du niveau dans le sélecteur visible (pas seulement appel direct à l'API).
+      const panel=document.querySelector('.mc-pdfstack');
+      panel.querySelector('[data-a="projectplans"]').click();
+      const wait=ms=>new Promise(r=>setTimeout(r,ms));
+      let choice=null;
+      for(let i=0;i<100&&!choice;i++){choice=[...panel.querySelectorAll('[data-r="source-list"] button')].find(b=>b.textContent.includes('Coffrage niveau 1'));if(!choice)await wait(100);}
+      if(!choice)throw Error('Sélecteur de niveaux absent.');
+      choice.click();
+      for(let i=0;i<150&&stack.state().length<2;i++)await wait(100);
+      if(stack.state().length!==2)throw Error('Import niveau : '+panel.querySelector('[data-r="status"]').textContent);
+      const second=stack.state()[1],b=second.id;result.page=second.width===200&&second.height===300;
+      panel.querySelector('[data-a="calclose"]').click();
       result.pending=stack.state().every(l=>!l.visible);
       stack.setPoint(a,'A',[20,20]);stack.setPoint(a,'B',[220,20]);stack.setDistance(20);
       stack.setPoint(b,'A',[20,20]);stack.setPoint(b,'B',[20,220]);stack.validate(b);
@@ -3185,11 +3212,11 @@ try {
       await new Promise(requestAnimationFrame);
       result.canvas=!!root.querySelector('[data-r="stage"] canvas');
       stack.close();stack=null;result.closed=!document.querySelector('.mc-pdfstack');
-    }catch(e){result.err=String(e.message||e);}finally{stack?.close();}
+    }catch(e){result.err=String(e.message||e);}finally{stack?.close();if(workerBefore!==null)pdfjsLib.GlobalWorkerOptions.workerSrc=workerBefore;if(fixture){await DB.delRaw('plans',fixture.planid);await DB.delRaw('plans',fixture.foreignid);await DB.delRaw('folders',fixture.folderid);await DB.delRaw('files',fixture.fid);}}
     return result;
   });
   log('PDF Stack PDF réels',pdfStackTest);
-  log('errors v1.0.337',!pdfStackTest.err&&['pending','visible','metric','levels','rotation','canvas','closed'].every(k=>pdfStackTest[k])?[]:['PDF Stack '+JSON.stringify(pdfStackTest)]);
+  log('errors v1.0.337',!pdfStackTest.err&&['worker','sources','isolation','page','pending','visible','metric','levels','rotation','canvas','closed'].every(k=>pdfStackTest[k])?[]:['PDF Stack '+JSON.stringify(pdfStackTest)]);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
