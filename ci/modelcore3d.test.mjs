@@ -203,7 +203,9 @@ console.log('PDF Stack — calage métrique, rotation, translation et échelle :
 const ws=S.makeWorkspace('p1','Stade réel',3,4.2);
 assert.equal(ws.id,'p1');assert.equal(ws.plans.length,0);assert.equal(ws.levels.length,3);
 assert.equal(ws.levels[0].name,'RDC');assert.equal(ws.levels[2].name,'R+2');assert.equal(ws.levels[2].z,8.4);
-assert.throws(()=>S.makeWorkspace('p1','Stade',17,3),/niveaux/);
+assert.equal(S.makeWorkspace('p1','Stade',17,3).levels.length,17);
+assert.equal(S.makeWorkspace('p1','Stade',64,3).levels.length,64);
+assert.throws(()=>S.makeWorkspace('p1','Stade',65,3),/niveaux/);
 const stade=S.makeWorkspace('p1','Stade',4,3,'SSL, Mezz, RDC, R+1, R+2, R+3, R+4, R+5, R+6, R+7, R+8, R+9');
 assert.equal(stade.levels.length,12);
 assert.equal(stade.levels[0].name,'SSL');assert.equal(stade.levels[0].z,-6);
