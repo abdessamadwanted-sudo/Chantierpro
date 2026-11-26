@@ -3242,7 +3242,8 @@ try {
       stack.setPoint(a,'A',[20,20]);stack.setPoint(a,'B',[220,20]);root.querySelector('[data-r=distance]').value='20';root.querySelector('[data-a=apply]').click();
       o.first=stack.state()[0].visible&&stack.state()[0].calibrated;
       root.querySelector('[data-level=n1]').click();
-      const b=await stack.addFile(await mk('R+1.pdf'),1);
+      const two=await PDFLib.PDFDocument.create();two.addPage([100,100]);const levelPage=two.addPage([300,200]);levelPage.drawLine({start:{x:10,y:10},end:{x:290,y:190},thickness:2});
+      const b=await stack.addFile(new File([await two.save()],'R+1.pdf',{type:'application/pdf'}),2);
       stack.setPoint(b,'A',[20,20]);stack.setPoint(b,'B',[220,20]);stack.validate(b);
       o.isolate=stack.state().filter(l=>l.visible).length===1&&stack.state()[1].visible;
       // Ouvrir le vrai lecteur PDF depuis la barre du niveau sélectionné.
@@ -3250,10 +3251,10 @@ try {
       root.querySelector('[data-a=planview]').click();
       let reader=null,canvas=null;
       for(let i=0;i<150;i++){
-        reader=document.querySelector('.mc-plan-reader');canvas=reader?.querySelector('.pdf-zoom canvas[data-p="1"]');
+        reader=document.querySelector('.mc-plan-reader');canvas=reader?.querySelector('.pdf-zoom canvas[data-p="2"]');
         if(canvas&&canvas._sOk>0)break;await wait(100);
       }
-      o.reader=!!reader&&!!canvas&&canvas._sOk>0&&reader.querySelector('h1').textContent.includes('R+1')&&getComputedStyle(reader).zIndex==='1000001';
+      o.reader=!!reader&&!!canvas&&canvas._sOk>0&&reader.querySelector('h1').textContent.includes('R+1')&&reader.querySelectorAll('.pdf-zoom canvas').length===1&&getComputedStyle(reader).zIndex==='1000001';
       if(!o.reader)throw Error('Vue en plan non rendue.');
       const ctx=canvas.getContext('2d'),pixels=ctx.getImageData(0,0,canvas.width,canvas.height).data;
       let ink=0;for(let i=0;i<pixels.length;i+=4)if(pixels[i+3]>200&&pixels[i]<100&&pixels[i+1]<100&&pixels[i+2]<100)ink++;
