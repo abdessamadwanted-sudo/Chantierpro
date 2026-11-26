@@ -3239,12 +3239,15 @@ try {
       for(let i=0;i<150&&root.querySelector('[data-r=cal]').hidden;i++)await wait(100);
       if(root.querySelector('[data-r=cal]').hidden)throw Error(root.querySelector('[data-r=status]').textContent);
       const a=stack.state()[0].id;o.phone=stack.state()[0].levelId==='n0';
-      stack.setPoint(a,'A',[20,20]);stack.setPoint(a,'B',[220,20]);root.querySelector('[data-r=distance]').value='20';root.querySelector('[data-a=apply]').click();
+      o.pointDefault=root.querySelector('[data-r=cal-mode]').value==='point'&&root.querySelector('[data-a=pointB]').hidden;
+      stack.setPoint(a,'A',[20,20]);root.querySelector('[data-r=denom]').value='100';root.querySelector('[data-a=apply]').click();
       o.first=stack.state()[0].visible&&stack.state()[0].calibrated;
       root.querySelector('[data-level=n1]').click();
       const two=await PDFLib.PDFDocument.create();two.addPage([100,100]);const levelPage=two.addPage([300,200]);levelPage.drawLine({start:{x:10,y:10},end:{x:290,y:190},thickness:2});
       const b=await stack.addFile(new File([await two.save()],'R+1.pdf',{type:'application/pdf'}),2);
-      stack.setPoint(b,'A',[20,20]);stack.setPoint(b,'B',[220,20]);stack.validate(b);
+      stack.edit(b);stack.setPoint(b,'A',[40,30]);root.querySelector('[data-a=apply]').click();
+      const pair=stack.state(),aWorld=ModelCorePDFStack.appliquer(pair[0].transform,[20,20]),bWorld=ModelCorePDFStack.appliquer(pair[1].transform,[40,30]);
+      o.pointAligned=[...aWorld,...bWorld].every(x=>Math.abs(x)<1e-8)&&pair.every(l=>Math.abs(l.transform.scale-100*.0254/72)<1e-8);
       o.isolate=stack.state().filter(l=>l.visible).length===1&&stack.state()[1].visible;
       // Ouvrir le vrai lecteur PDF depuis la barre du niveau sélectionné.
       const before=JSON.stringify(stack.state());
@@ -3278,25 +3281,25 @@ try {
       reader.querySelector('[data-mc-level=n0]').click();
       reader=await waitReader('n0',reader);
       o.readerSwitch=reader.querySelector('.pdf-zoom canvas').dataset.p==='1'&&root.querySelector('[data-level=n0]').classList.contains('active');
-      o.readerScale=Math.abs(readZoom(reader)-oldZoom)<5;
+      o.readerScale=Math.abs(readZoom(reader)-oldZoom)<5;o.zoomValues=[oldZoom,readZoom(reader)];
       reader.querySelector('[data-mc-level=n1]').click();
       reader=await waitReader('n1',reader);
       o.readerSwitch=o.readerSwitch&&reader.querySelector('.pdf-zoom canvas').dataset.p==='2';
-      reader.querySelector('[data-mc-zoom=3d]').click();
+      reader.querySelector('[data-mc-zoom="3d"]').click();
       o.readerReturn=!document.querySelector('.mc-plan-reader')&&JSON.stringify(stack.state())===before&&root.querySelector('[data-level=n1]').classList.contains('active');
       root.querySelector('[data-level=all]').click();
       o.stack=stack.state().every(l=>l.visible&&l.calibrated)&&Math.abs(stack.state()[1].z-4.2)<.001;
       o.saved=await stack.flush();stack.close();stack=null;
       stack=await ModelCorePDFStack.openWorkspace({projectId:pid,projectName:'Stade test local'});
-      root=document.querySelector('.mc-workspace');o.reopen=stack.state().length===2&&stack.state().every(l=>l.visible&&l.calibrated)&&Math.abs(stack.state()[1].transform.scale-.1)<1e-8&&Math.abs(stack.state()[1].z-4.2)<.001;
-      o.local=(await DB.get('mcworkspaces',pid)).plans.length===2;
+      root=document.querySelector('.mc-workspace');o.reopen=stack.state().length===2&&stack.state().every(l=>l.visible&&l.calibrated)&&Math.abs(stack.state()[1].transform.scale-100*.0254/72)<1e-8&&Math.abs(stack.state()[1].z-4.2)<.001;
+      const persisted=await DB.get('mcworkspaces',pid);o.local=persisted.plans.length===2&&persisted.calibrationMode==='point'&&persisted.denominator===100&&persisted.plans.every(p=>!p.B);
       stack.close();stack=null;
       await DB.deleteProject(pid);o.cleanup=!await DB.get('mcworkspaces',pid);
     }catch(e){o.err=String(e.message||e);}finally{if(stack){await stack.flush();stack.close();}await DB.delRaw('mcworkspaces',pid);await DB.delRaw('projects',pid);}
     return o;
   });
   log('ModelCore X projet vide et niveaux',mcWorkspace);
-  log('errors v1.0.339',!mcWorkspace.err&&['empty','levels','drawer','phone','first','isolate','reader','readerInk','readerZoom','readerSwitch','readerScale','readerReturn','stack','saved','reopen','local','cleanup'].every(k=>mcWorkspace[k])?[]:['Projet ModelCore '+JSON.stringify(mcWorkspace)]);
+  log('errors v1.0.339',!mcWorkspace.err&&['empty','levels','drawer','phone','pointDefault','first','pointAligned','isolate','reader','readerInk','readerZoom','readerSwitch','readerScale','readerReturn','stack','saved','reopen','local','cleanup'].every(k=>mcWorkspace[k])?[]:['Projet ModelCore '+JSON.stringify(mcWorkspace)]);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
