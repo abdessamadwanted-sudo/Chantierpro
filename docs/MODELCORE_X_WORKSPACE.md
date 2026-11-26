@@ -109,3 +109,7 @@ Zoom tactile par pincement et boutons +/− (1 à 64×), déplacement par glisse
 
 ### Précision et détail 3D par niveau
 Viseur fixe au centre du plan : déplacer/zoomer le PDF puis « Placer au viseur » pour enregistrer le repère sans le masquer par le doigt. Le bouton « HD niveau » recrée à la demande la texture du PDF original du niveau isolé, au maximum 3072 px de côté et 6 Mpx; une seule texture HD supplémentaire en mémoire, libérée en changeant de niveau ou en fermant le module. La texture légère reste disponible en cas d'échec. Les coordonnées et le fichier source restent inchangés. Il s'agit d'une texture raster HD en 3D, pas d'un moteur vectoriel 3D. Tests navigateur du viseur, de la texture HD et de sa libération ajoutés; validation sur téléphone et A0 réels encore nécessaire.
+
+
+### Parcours d'ajout des niveaux
+Bouton Niveaux : liste de tous les niveaux avec altitude, nom du PDF et état (vide, à caler, calé), progression des imports et raccourcis pour importer/ouvrir/caler. « Valider + suivant » ouvre le prochain niveau sans PDF, puis le premier plan non calé, puis la 3D globale. Le bouton « 3D · Tous », y compris depuis le lecteur PDF, sélectionne Tous et réaffiche l'ensemble des plans calibrés à leur altitude (les masques manuels sont réinitialisés). Les PDF non calés restent signalés, sans placement géométrique fictif. Tests navigateur ajoutés. Un PDF par niveau, stockage local et limites antérieures inchangés.
