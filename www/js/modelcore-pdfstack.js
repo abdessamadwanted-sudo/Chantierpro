@@ -77,9 +77,11 @@
   }
   async function openWorkspace(options={}){
     const pid=options.projectId;if(!pid||typeof DB==='undefined'||!await DB.get('projects',pid))throw Error('Ouvrez un projet SiteTeam.');
-    const key=DB.name()+'|'+pid;await writes.get(key);
+    const dbName=DB.name(),key=dbName+'|'+pid;await writes.get(key);
     const context=await readChantier(pid);
+    if(DB.name()!==dbName)throw Error('Espace changé.');
     let data=await DB.get('mcworkspaces',pid);
+    if(DB.name()!==dbName)throw Error('Espace changé.');
     if(!data&&context.candidates.length){
       data={id:pid,name:context.project.name||options.projectName||'Projet',levels:bindLevels([],context.candidates).levels,plans:[],distance:null,referenceLevel:null,calibrationMode:'point',denominator:null};
       await DB.putRaw('mcworkspaces',data);
@@ -92,8 +94,10 @@
         {name:'height',label:'Hauteur provisoire entre niveaux (m) — à vérifier et corriger ensuite',type:'number',value:3}
       ],{okLabel:'Créer le projet vide'});
       if(!r)return null;
+      if(DB.name()!==dbName)throw Error('Espace changé.');
       data=makeWorkspace(pid,r.name,Number(r.count),Number(r.height),r.names);await DB.putRaw('mcworkspaces',data);
     }
+    if(DB.name()!==dbName)throw Error('Espace changé.');
     const linked=bindLevels(data.levels,context.candidates);
     return open({...options,workspace:{...data,levels:linked.levels},context,unmatched:linked.unmatched.length});
   }
@@ -142,7 +146,16 @@
     function levelBy(id){return levels.find(v=>v.id===id);}
     function chosenLayer(id,preferredLot=''){
       const list=layers.filter(l=>l.levelId===id&&(!layerFilter||l.lot===layerFilter));
-      return list.find(l=>preferredLot&&l.lot===preferredLot&&l.visible)||list.find(l=>l.key===activeByLevel.get(id)&&l.visible)||list.find(l=>l.visible&&l.t)||list.find(l=>l.visible)||list[0];
+      return list.find(l=>preferredLot&&l.lot===preferredLot&&l.visible&&l.t)||list.find(l=>l.key===activeByLevel.get(id)&&l.visible&&l.t)||list.find(l=>l.visible&&l.t)||list.find(l=>l.key===activeByLevel.get(id)&&l.visible)||list.find(l=>l.visible)||list[0];
+    }
+    async function openNative(l){
+      if(!ws||closed||busy||!l.sourceId||DB.name()!==workspaceDb||typeof App==='undefined'||App.project?.id!==ws.id)throw Error('Plan SiteTeam indisponible.');
+      const plan=await DB.get('plans',l.sourceId);
+      if(!plan||plan.projectId!==ws.id||DB.name()!==workspaceDb||App.project?.id!==ws.id)throw Error('Plan original absent de ce projet.');
+      if(typeof openPlanViewer!=='function'||typeof planCtx!=='function'||(typeof sectionOn==='function'&&!sectionOn('plans')))throw Error('Outils du plan indisponibles pour ce profil.');
+      if(!await save())throw Error('Enregistrez le workspace avant de quitter.');
+      if(closed||DB.name()!==workspaceDb||App.project?.id!==ws.id)return;
+      close();await openPlanViewer(plan,planCtx(()=>{}));
     }
     function setActive(l){if(!l)return;activeByLevel.set(l.levelId,l.key);l.visible=true;update();save();}
     function refreshLayerFilter(){const sel=$('[data-r="layerfilter"]');const lots=[...new Set(layers.map(l=>l.lot))].sort();sel.replaceChildren(new Option('Tous les lots',''));for(const lot of lots)sel.add(new Option(lot,lot));if(!lots.includes(layerFilter))layerFilter='';sel.value=layerFilter;}
@@ -262,7 +275,7 @@
         const z=document.createElement('input');z.type='number';z.step='.01';z.value=l.z;z.setAttribute('aria-label','Altitude en mètres');z.onchange=()=>{const n=Number(z.value);if(Number.isFinite(n)&&Math.abs(n)<=10000){l.z=n;if(ws){levelBy(l.levelId).z=n;levelBy(l.levelId).provisional=false;for(const x of layers)if(x.levelId===l.levelId)x.z=n;}}else z.value=l.z;update();save();};
         const c=document.createElement('button');c.textContent='Caler';c.onclick=()=>edit(l);
         const del=document.createElement('button');del.textContent='✕';del.title=ws?'Retirer le PDF du niveau (original inchangé)':'Retirer ce plan de la session';del.onclick=()=>{if(busy)return;if(l===ref&&layers.length>1){msg('Retirez les autres plans avant la référence.');return;}if(ws&&!window.confirm('Retirer ce PDF du niveau ? Le fichier original reste inchangé.'))return;remove(l);};
-        const pdf=document.createElement('button');pdf.textContent='PDF';pdf.title='Vue en plan · PDF original';pdf.setAttribute('aria-label','Vue en plan '+l.name);pdf.onclick=()=>{if(ws)setActive(l);viewPlan(l);};const primary=document.createElement('button');primary.textContent=activeByLevel.get(l.levelId)===l.key?'★':'☆';primary.title='Plan actif du niveau';primary.hidden=!ws;primary.onclick=()=>setActive(l);row.append(cb,info,z,primary,pdf,c,del);rows.append(row);
+        const pdf=document.createElement('button');pdf.textContent='PDF';pdf.title='Vue en plan · PDF original';pdf.setAttribute('aria-label','Vue en plan '+l.name);pdf.onclick=()=>{if(ws)setActive(l);viewPlan(l);};const primary=document.createElement('button');primary.textContent=activeByLevel.get(l.levelId)===l.key?'★':'☆';primary.title='Plan actif du niveau';primary.hidden=!ws;primary.onclick=()=>setActive(l);row.append(cb,info,z,primary,pdf,c,del);if(ws&&l.sourceId){const tools=document.createElement('button');tools.textContent='Outils';tools.title='Ouvrir le plan dans SiteTeam (points, annotations et outils autorisés)';tools.onclick=()=>openNative(l).catch(e=>{if(!closed)msg(e.message||String(e));else if(typeof toast==='function')toast(e.message||String(e));});row.append(tools);}rows.append(row);
       }
     }
     function remove(l){if(current===l)finish();group.remove(l.mesh);l.mesh.geometry.dispose();l.mesh.material.dispose();l.texture.dispose();l.canvas.width=l.canvas.height=0;layers.splice(layers.indexOf(l),1);if(ref===l){ref=null;distance=null;}update();fit();save();}
@@ -287,7 +300,7 @@
         const max=Math.min(ws?768:layers.length>=4?1024:1536,renderer.capabilities.maxTextureSize),vp=p.getViewport({scale:max/Math.max(v.width,v.height)});
         canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.ceil(vp.width));canvas.height=Math.max(1,Math.ceil(vp.height));
         renderTask=p.render({canvasContext:canvas.getContext('2d'),viewport:vp,background:'rgb(255,255,255)'});await renderTask.promise;renderTask=null;
-        if(closed)throw Error('Session fermée.');
+        if(closed||(ws&&DB.name()!==workspaceDb))throw Error('Session fermée ou espace changé.');
         const texture=new T.CanvasTexture(canvas);texture.encoding=T.sRGBEncoding;texture.anisotropy=Math.min(4,renderer.capabilities.getMaxAnisotropy());
         const geo=new T.PlaneGeometry(1,1);geo.rotateX(-Math.PI/2);
         const mat=new T.MeshBasicMaterial({map:texture,side:T.DoubleSide,toneMapped:false,transparent:false});
