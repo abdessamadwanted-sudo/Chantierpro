@@ -27,6 +27,8 @@ jobs:
         run: node ci/guards.mjs
       - name: Outils de test
         run: npm i -g firebase-tools@13 && npm i --no-save playwright@1.47.2 @firebase/rules-unit-testing@3 firebase@10.14.1 && npx playwright install --with-deps chromium
+      - name: Installer les lecteurs PDF et IFC utilisés en production
+        run: npm run copy-libs && test -s www/lib/pdf.min.js && test -s www/lib/pdf.worker.min.js && test -s www/lib/pdf-lib.min.js
       - name: Règles Firestore et Storage (extraites de team.js)
         run: node ci/rules.mjs && test -s ci/firestore.rules && test -s ci/storage.rules
       - name: Tests (émulateurs Firebase + parcours complet)

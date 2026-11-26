@@ -49,3 +49,6 @@ Constatés en lisant le code et les builds (octobre 2026). « Non vérifié » =
   le 14/10/2026 : scénario complet sans erreur (`errors []`).
 - **Android** : APK installés et utilisés par le propriétaire (retours d'usage dans le projet) ; aucun test automatisé sur appareil.
 - Tablette Android, iPhone/iPad, navigateurs desktop : **non vérifié**.
+
+## PDF Stack — limites initiales
+Les pages PDF sont affichées comme textures de résolution bornée à 1536 px sur leur plus grand côté. La loupe de précision relit une région du PDF original, ce qui ne recrée pas les détails perdus d'un scan. Le calage à deux points est une similitude 2D sans déformation ; vérifier un troisième point indépendant et les altitudes. La session est temporaire, sans sauvegarde ni liaison aux plans du projet pour l'instant. Aucun IFC ou volume structurel n'est généré à partir des PDF.

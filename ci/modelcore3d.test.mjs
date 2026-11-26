@@ -186,3 +186,16 @@ assert.ok(new Set(pixels).size>20);
 assert.ok(code.includes('pmrem.fromEquirectangular(source)'));
 assert.ok(code.includes('renderer.shadowMap.autoUpdate=false'));
 console.log('ModelCore X — profils Studio, environnement procédural et plafonds GPU : tests OK.');
+
+vm.runInNewContext(fs.readFileSync('www/js/modelcore-pdfstack.js','utf8'),context,{filename:'modelcore-pdfstack.js',timeout:5000});
+const S=context.window.ModelCorePDFStack;
+const eqPoint=(a,b)=>assert.ok(a.every((v,i)=>Math.abs(v-b[i])<1e-8));
+const tr=S.calage([10,20],[10,120],[0,0],[50,0]);
+eqPoint(S.appliquer(tr,[10,20]),[0,0]);eqPoint(S.appliquer(tr,[10,120]),[50,0]);
+eqPoint(S.appliquer(tr,[30,20]),[0,-10]);assert.equal(tr.scale,.5);
+const r=S.reference([25,15],[225,15],40);
+eqPoint(S.appliquer(r,[125,65]),[20,10]);
+assert.throws(()=>S.reference([1,1],[1,1],10),/distincts/);
+assert.throws(()=>S.reference([1,1],[2,2],0),/Distance/);
+assert.throws(()=>S.calage([1,1],[2,2],[0,0],[0,0]),/distincts/);
+console.log('PDF Stack — calage métrique, rotation, translation et échelle : OK.');

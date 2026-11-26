@@ -273,3 +273,6 @@ autonome », écran « Entreprise vide », « Ajouter un service », demande/cod
 pour le propriétaire** : publier les nouvelles règles Firestore (`codePlanOk`, `companies.create`/`update`) dans la
 console Firebase après fusion — sans cela, aucun déblocage de service ne fonctionnera côté serveur malgré le nouveau
 code client.
+
+## ModelCore X — PDF Stack (proposition en validation)
+Empilement de pages PDF locales, calage métrique par deux points homologues A/B et distance réelle sur le plan de référence, altitude par couche, affichage WebGL, opacité, vue dessus, écart visuel et loupe de précision PDF. Aucune mutation des documents ni synchronisation. Limites de session : 8 plans, 25 Mo par PDF. Tests de géométrie et scénario navigateur avec PDF générés ; validation Android et documents réels à faire.

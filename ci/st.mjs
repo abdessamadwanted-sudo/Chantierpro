@@ -2558,10 +2558,38 @@ try {
       const d = DocumentStudio.remplir(base, { Surface: 12.5, Date: '2026-11-12' }, SuivisPerso.ctxOf(pr0));
       await DB.putRaw('dsdossiers', { ...d, id: 'd_vis', creeLe: Date.now() });
       App.recTab = { pid: pr0.id, id: 's_vis' }; const root = document.createElement('div'); document.body.appendChild(root); await SuivisTabs.render(root, pr0, 'Ferraillage'); await (await need('.mcard .prow', root)).click(); (await need('[data-pdf]', document)).click(); setTimeout(() => { root.remove(); document.querySelectorAll('.sv-dayr').forEach(x => x.remove()); }, 4000);
-      for (let i = 0; i < 100 && !opened; i++) await wait(100);
+      // Le parcours Qualité peut demander la destination du PDF : choisir réellement « Ouvrir ».
+      for (let i = 0; i < 150 && !opened; i++) {
+        const choix = [...(top()?.querySelectorAll('button.opt') || [])].find(b => b.textContent.trim() === 'Ouvrir le PDF');
+        if (choix) choix.click();
+        await wait(100);
+      }
       o.pdf = !!opened && opened.blob.size > 500 && opened.mime === 'application/pdf';
-      const txt = opened ? new TextDecoder('latin1').decode(new Uint8Array(await opened.blob.arrayBuffer())) : '';
-      o.pdfPages = txt.startsWith('%PDF') && opened.blob.size > 5000;   // plus gros que la page vierge : les cases sont bien écrites
+      o.pdfPages = false;
+      if (o.pdf) {
+        // ftMake utilise pvgInk/pvgCompose : l'écriture manuscrite est un PNG,
+        // pas du texte PDF extractible. Rendre la page et vérifier l'encre dans la case.
+        const bytes = new Uint8Array(await opened.blob.arrayBuffer());
+        const task = pdfjsLib.getDocument({data:bytes});
+        let canvas;
+        try {
+          const doc = await task.promise, page = await doc.getPage(1), scale = 2;
+          const vp = page.getViewport({scale});
+          canvas = document.createElement('canvas');
+          canvas.width = Math.ceil(vp.width); canvas.height = Math.ceil(vp.height);
+          const ctx = canvas.getContext('2d');
+          await page.render({canvasContext:ctx,viewport:vp,background:'rgb(255,255,255)'}).promise;
+          const field = visuel.fields[0], x = Math.max(0, Math.floor(field.x*scale)), y = Math.max(0, Math.floor(field.y*scale));
+          const w = Math.min(canvas.width-x,Math.ceil(field.w*scale)), h = Math.min(canvas.height-y,Math.ceil(field.h*scale));
+          let ink = 0;
+          if (w>0 && h>0) {
+            const rgba = ctx.getImageData(x,y,w,h).data;
+            for (let i=0;i<rgba.length;i+=4) if(rgba[i+2]>rgba[i]+12 && rgba[i]<220 && rgba[i+1]<235) ink++;
+          }
+          o.pdfInkPixels = ink;
+          o.pdfPages = doc.numPages === 1 && ink>20;
+        } finally { if(canvas) canvas.width=canvas.height=0; await task.destroy(); }
+      }
     } catch (e) { o.err = String(e.message || e); }
     window.openFileRecord = oldOpen;
     for (const m of (await DB.all('dsmodeles')).filter(m => m.id === 's_vis')) await DB.delRaw('dsmodeles', m.id);
@@ -3131,6 +3159,37 @@ try {
     }catch(e){log('errors ModelCore captures',[String(e.message||e)]);}
     finally{await A.pg.evaluate(()=>{window.__mcCapture?.close();delete window.__mcCapture;});}
   }
+  // ---- v1.0.x : PDF Stack — deux PDF réels et calage métrique
+  const pdfStackTest=await A.pg.evaluate(async()=>{
+    const result={};let stack=null;
+    try{
+      await window.__late;
+      await loadScript('js/modelcore-pdfstack.js');
+      const makePDF=async(name,w,h)=>{
+        const doc=await PDFLib.PDFDocument.create(),page=doc.addPage([w,h]);
+        page.drawRectangle({x:20,y:20,width:w-40,height:h-40,borderWidth:2,borderColor:PDFLib.rgb(.1,.25,.4)});
+        page.drawLine({start:{x:20,y:20},end:{x:w-20,y:h-20},thickness:1});
+        return new File([await doc.save()],name,{type:'application/pdf'});
+      };
+      stack=await ModelCorePDFStack.open({projectName:'PDF Stack test'});
+      const a=await stack.addFile(await makePDF('RDC.pdf',300,200),1);
+      const b=await stack.addFile(await makePDF('R+1.pdf',200,300),1);
+      result.pending=stack.state().every(l=>!l.visible);
+      stack.setPoint(a,'A',[20,20]);stack.setPoint(a,'B',[220,20]);stack.setDistance(20);
+      stack.setPoint(b,'A',[20,20]);stack.setPoint(b,'B',[20,220]);stack.validate(b);
+      const layers=stack.state();result.visible=layers.every(l=>l.visible&&l.calibrated);
+      result.metric=layers.every(l=>Math.abs(l.transform.scale-.1)<1e-8);
+      result.levels=layers[0].z===0&&layers[1].z===3;
+      result.rotation=Math.abs(layers[1].transform.angle+Math.PI/2)<1e-8;
+      const root=document.querySelector('.mc-pdfstack');root.querySelector('[data-a="fit"]').click();
+      await new Promise(requestAnimationFrame);
+      result.canvas=!!root.querySelector('[data-r="stage"] canvas');
+      stack.close();stack=null;result.closed=!document.querySelector('.mc-pdfstack');
+    }catch(e){result.err=String(e.message||e);}finally{stack?.close();}
+    return result;
+  });
+  log('PDF Stack PDF réels',pdfStackTest);
+  log('errors v1.0.337',!pdfStackTest.err&&['pending','visible','metric','levels','rotation','canvas','closed'].every(k=>pdfStackTest[k])?[]:['PDF Stack '+JSON.stringify(pdfStackTest)]);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
