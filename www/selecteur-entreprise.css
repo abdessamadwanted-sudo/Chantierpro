@@ -81,3 +81,17 @@
 .st-svc-node .st-tool span{color:#e4efff;overflow-wrap:anywhere}
 .st-svc-node .st-tgrid{grid-template-columns:repeat(2,minmax(0,1fr))}
 .st-ptools-p .st-svc-node .st-chev,.st-ptools-p .st-service-tree .st-chev{color:var(--st-tone,#67e8f9)}
+
+/* Tableau de bord service : statistiques réelles existantes, habillage cohérent. */
+.st-dir.st-svc-home{background:linear-gradient(135deg,#152e49,#0d2035);border:1px solid var(--st-edge,#385771);border-radius:19px;padding:12px;color:#edf5ff}
+.st-svc-home .st-hd{background:linear-gradient(125deg,var(--st-tint,#1d3b56),#0c2137);border:1px solid var(--st-edge,#3f607b);border-radius:14px;padding:13px;color:#f0f6ff;display:grid;grid-template-columns:40px minmax(0,1fr);gap:3px 10px;align-items:center}
+.st-svc-home .st-hd .st-node-icon{grid-row:span 2}
+.st-svc-home .st-hd b{color:#f4f8ff;overflow-wrap:anywhere}
+.st-svc-home .st-hd small{color:#c0d0e4;overflow-wrap:anywhere}
+.st-svc-home .st-kpis.k4{grid-template-columns:repeat(2,minmax(0,1fr))}
+.st-svc-home .st-kpi{background:#132a41;border-color:var(--st-edge,#435d77);min-width:0;color:#f4f8ff}
+.st-svc-home .st-kpi b{color:#f4f8ff}
+.st-svc-home .st-kpi small{color:#c1d1e4;white-space:normal}
+.st-svc-home .st-kpi .ic{background:var(--st-tint,#1c4059);color:var(--st-tone,#67e8f9)}
+.st-svc-home .st-kpi.warn{border-color:#fbbf24}
+@media(min-width:600px){.st-svc-home .st-kpis.k4{grid-template-columns:repeat(4,minmax(0,1fr))}}
