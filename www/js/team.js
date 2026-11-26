@@ -49,12 +49,33 @@ const storageL = (g) => (g >= 1000 ? g / 1000 + ' To' : g + ' Go') + ' (indicati
 // opts (écran « Choisir le pack », Super Admin) : forceLock impose le visuel 🔒 indépendamment de ST_SUPER (cohérence avec
 // ce que voit un client) ; canAct garde un bouton data-p actionnable malgré le verrou visuel (le Super Admin construit quand
 // même) ; current ajoute le badge « espace actuel ». Sans opts : comportement strictement inchangé (onboarding, onglet Pro).
+// Identité visuelle uniquement : aucune modification des droits, quotas ou clés métier.
+const ST_PACK_THEME = { basic:'#4ade80', pro:'#60a5fa', business:'#22d3ee', enterprise:'#fbbf24' };
+const ST_SERVICE_THEME = {
+ direction:['#60a5fa','team','Pilotage et décisions'], travaux:['#4ade80','hard','Exécution et avancement'],
+ qualite:['#c084fc','shield','Réceptions, contrôles, PV'], qual:['#c084fc','shield','Réceptions, contrôles, PV'],
+ hse:['#fb7185','alert','Prévention et sécurité'], materiel:['#fbbf24','wrench','Parc et disponibilité'],
+ topo:['#2dd4bf','pin','Implantations et levés'], labo:['#38bdf8','calc','Essais et traçabilité'],
+ admin:['#fbbf24','sheet','Administration et finance'], fin:['#fbbf24','sheet','Budget et contrats'],
+ methodes:['#22d3ee','calendar','Méthodes et planning'], etudes:['#818cf8','ruler','Études techniques'],
+ etu:['#818cf8','ruler','Études et visas'], bim:['#818cf8','layers','Maquettes et coordination'],
+ achats:['#fb923c','bag','Approvisionnement'], magasin:['#eab308','box','Stocks et inventaire'],
+ maintenance:['#f59e0b','wrench','Maintenance du parc'], transport:['#a3e635','truck','Transport et logistique'],
+ pointage:['#2dd4bf','clock','Effectifs et pointage'], rh:['#f472b6','users','Personnel et RH'],
+ contrats:['#a78bfa','form','Marchés et métrés'], doc:['#38bdf8','folder','Documents et archives'],
+ metre:['#a78bfa','ruler','Quantités et estimations'], ferraillage:['#f87171','layers','Armatures et suivi'],
+ centrale:['#94a3b8','hard','Commandes et béton'], logistique:['#f59e0b','box','Logistique']
+};
+const ST_ORG_THEME = {entreprise:['#fbbf24','hard'],soustraitant:['#fb923c','team'],bet:['#818cf8','ruler'],archi:['#f472b6','layers'],moa:['#60a5fa','team'],bc:['#fb7185','shield'],opc:['#22d3ee','calendar'],labo:['#38bdf8','calc'],topo:['#2dd4bf','pin']};
+const stVisual = (k, fallback='#60a5fa') => ST_SERVICE_THEME[k] || [fallback,'grid','Outils métier'];
+const stOrgVisual = (k) => ST_ORG_THEME[k] || ['#94a3b8','grid'];
+const stVisualStyle = (c) => '--st-tone:'+c+';--st-tint:'+c+'20;--st-edge:'+c+'70';
 function offerCard(P, perso, btn = true, opts = null) {
   const dev = planDev(P), mods = P.modules === '*' ? MODS.map(([m]) => m) : P.modules, price = dev ? 'En cours de développement' : P.price == null ? 'Sur devis' : P.price ? `${P.price} MAD / ${P.period}` : 'Gratuit';
   const act = P.price == null ? 'Demander un devis · essai' : P.price ? `Démarrer l'essai ${P.trialDays || 14} jours` : 'Commencer gratuitement';
   const locked = opts && typeof opts.forceLock === 'boolean' ? opts.forceLock : (btn && !planOpen(P) && !ST_SUPER);
   const canAct = !!(opts && opts.canAct), current = !!(opts && opts.current);
-  return `<div class="st-offer ${P.highlight && !locked ? 'hl' : ''} ${locked ? 'lk' : ''} ${current ? 'cur' : ''}" data-offer="${P.k}"><div class="st-of-h"><b>${locked ? '🔒 ' : ''}${esc(P.e || '')} ${esc(P.l)}</b>${current ? '<i class="st-of-cur">✓ espace actuel</i>' : P.highlight && !locked ? '<i>Recommandé</i>' : ''}${locked ? `<i class="soon">${dev ? 'Bientôt' : 'Sur demande'}</i>` : ''}<em class="${P.price === 0 ? 'free' : ''}">${esc(price)}</em></div>
+  return `<div class="st-offer ${P.highlight && !locked ? 'hl' : ''} ${locked ? 'lk' : ''} ${current ? 'cur' : ''}" data-offer="${P.k}" style="${stVisualStyle(ST_PACK_THEME[P.k] || '#60a5fa')}"><div class="st-of-h"><b>${locked ? '🔒 ' : ''}${esc(P.e || '')} ${esc(P.l)}</b>${current ? '<i class="st-of-cur">✓ espace actuel</i>' : P.highlight && !locked ? '<i>Recommandé</i>' : ''}${locked ? `<i class="soon">${dev ? 'Bientôt' : 'Sur demande'}</i>` : ''}<em class="${P.price === 0 ? 'free' : ''}">${esc(price)}</em></div>
     ${P.price && P.trialDays && !dev ? `<small class="st-of-t">Essai gratuit ${P.trialDays} jours, sans paiement</small>` : ''}<small class="st-of-f">${esc(P.for || '')}</small>
     <div class="st-of-r"><span>Utilisateurs inclus</span><b>${P.users ? (perso && P.users === 1 ? '1 (vous)' : P.users) + (P.extraUserPrice && !dev ? ` (+${P.extraUserPrice} MAD / pers.)` : '') : 'Selon contrat'}</b></div>
     <div class="st-of-r"><span>Projets actifs</span><b>${qty(P.projects)}</b></div>
@@ -1757,13 +1778,16 @@ const Team = (() => {
       // 3 · type d'organisation (= interface)
       function stepOrg() {
         // Sélecteur graphique basé sur les types historiques ; aucune nouvelle clé persistée.
-        const current = orgTypeOf(W.org || 'entreprise');
-        el.innerHTML = `<div class="tm-lg-in">${steps(3, tot())}
-          <div class="st-ent-head"><small>SiteTeam Entreprise · Configuration de l'organisation</small>
-            <button class="st-ent-trigger" data-a="orgmenu" aria-expanded="false" aria-controls="st-ent-options" type="button">
+        const current = orgTypeOf(W.org || 'entreprise'), P = planOf(W.plan);
+        el.innerHTML = `<div class="tm-lg-in st-architecture">${steps(3, tot())}
+          <h1>Choisissez votre organisation</h1><p>Un espace métier adapté à chaque acteur du BTP.</p>
+          <div class="st-ent-head" style="${stVisualStyle(ST_PACK_THEME[P.k] || '#60a5fa')}"><small>SiteTeam · Pack ${esc(P.l)}</small>
+            <div class="st-tree-root"><span class="st-node-icon">${icon('layers')}</span><span><b>Pack ${esc(P.l)}</b><small>Organisations · services · outils</small></span></div>
+            <div class="st-tree-connector" aria-hidden="true"></div>
+            <button class="st-ent-trigger" data-a="orgmenu" aria-expanded="true" aria-controls="st-ent-options" type="button">
               <span>${current.e} ${esc(current.l)}</span><span aria-hidden="true">⌄</span></button>
-            <div id="st-ent-options" class="st-ent-options st-orgs" hidden role="group" aria-label="Types d'organisation">
-              ${ORG_TYPES.map(t => `<button type="button" data-o="${t.k}" aria-pressed="${t.k === current.k}"><span class="e">${t.e}</span><span><b>${esc(t.l)}</b><small>${esc(t.d)}</small></span>${t.k === current.k ? '<span aria-hidden="true">✓</span>' : ''}</button>`).join('')}
+            <div id="st-ent-options" class="st-ent-options st-orgs st-node-grid" role="group" aria-label="Types d'organisation">
+              ${ORG_TYPES.map(t => { const [c,ic]=stOrgVisual(t.k); return `<button type="button" data-o="${t.k}" aria-pressed="${t.k === current.k}" style="${stVisualStyle(c)}"><span class="st-node-icon">${icon(ic)}</span><span class="st-node-copy"><b>${esc(t.l)}</b><small>${esc(t.d)}</small></span><span class="st-node-check" aria-hidden="true">${t.k === current.k ? '✓' : '○'}</span></button>`; }).join('')}
             </div>
           </div>
           <div class="st-ent-current"><strong>${current.e} ${esc(current.l)}</strong><p>${esc(current.d)}</p></div>
@@ -1777,13 +1801,13 @@ const Team = (() => {
       }
       // 4 · services (modèle modifiable : on ne force pas 12 services à un petit entrepreneur)
       function stepSvcs() {
-        const T = orgTypeOf(W.org), L = TM_SERVICES.filter(s => s.k !== 'externe' && !SERVICES_LEGACY.includes(s.k) && (s.k === 'direction' || T.svcs.includes(s.k)));
+        const T = orgTypeOf(W.org), P = planOf(W.plan), L = TM_SERVICES.filter(s => s.k !== 'externe' && !SERVICES_LEGACY.includes(s.k) && (s.k === 'direction' || T.svcs.includes(s.k)));
         W.svcs = [...new Set(W.svcs.filter(k => (k === 'direction' || T.svcs.includes(k)) && svcOpen(k)))]; if (!W.svcs.includes('direction')) W.svcs.unshift('direction');
-        el.innerHTML = `<div class="tm-lg-in">${steps(4, tot())}<h1>${T.e} ${esc(T.l)}</h1><p>Vos services : gardez seulement ceux que vous avez (modifiable plus tard dans Réglages).</p>
-          <div class="st-ent-head"><small>SiteTeam Entreprise · Catalogue des Services</small><div class="st-ent-trigger" aria-label="Organisation sélectionnée">${T.e} ${esc(T.l)}</div></div>
-          <div class="st-ent-modes" role="group" aria-label="Mode de sélection"><button type="button" data-tpl="petite" aria-pressed="false">◉ À la carte — Services indépendants</button><button type="button" data-tpl="grande" aria-pressed="false">◯ All Services — جميع الخدمات</button></div>
+        el.innerHTML = `<div class="tm-lg-in st-architecture">${steps(4, tot())}<h1>Choisissez vos services</h1><p>Chaque service a ses propres outils. Configuration modifiable dans Réglages.</p>
+          <div class="st-ent-head" style="${stVisualStyle(stOrgVisual(T.k)[0])}"><small>Pack ${esc(P.l)} › Organisation</small><div class="st-tree-root" aria-label="Organisation sélectionnée"><span class="st-node-icon">${icon(stOrgVisual(T.k)[1])}</span><span><b>${esc(T.l)}</b><small>Catalogue métier</small></span></div><div class="st-tree-connector" aria-hidden="true"></div></div>
+          <div class="st-ent-modes" role="group" aria-label="Mode de sélection"><button type="button" data-tpl="petite" aria-pressed="false">À la carte · Services indépendants</button><button type="button" data-tpl="grande" aria-pressed="false">Tous les services</button></div>
           <p class="st-ent-count" aria-live="polite"></p>
-          <div class="st-svcs">${L.map(s => svcOpen(s.k) ? `<button type="button" data-s="${s.k}" aria-pressed="${W.svcs.includes(s.k)}" class="${W.svcs.includes(s.k) ? 'on' : ''}" style="--c:${s.c}"><span class="st-ent-card-icon" aria-hidden="true">◇</span><span class="st-ent-card-label">${esc(s.l)}</span><span class="st-ent-card-mark" aria-hidden="true">${W.svcs.includes(s.k) ? '✓' : '○'}</span></button>` : `<button class="lk" data-lk="${s.k}" style="--c:${s.c}">🔒 ${esc(s.l)}</button>`).join('')}</div>
+          <div class="st-svcs st-node-grid">${L.map(s => { const [c,ic,sub]=stVisual(s.k,s.c); return `<button type="button" ${svcOpen(s.k) ? `data-s="${s.k}" aria-pressed="${W.svcs.includes(s.k)}" class="${W.svcs.includes(s.k) ? 'on' : ''}"` : `class="lk" data-lk="${s.k}"`} style="--c:${c};${stVisualStyle(c)}"><span class="st-node-icon st-ent-card-icon" aria-hidden="true">${icon(ic)}</span><span class="st-node-copy"><b class="st-ent-card-label">${esc(s.l)}</b><small>${esc(sub)}</small></span><span class="st-node-check st-ent-card-mark" aria-hidden="true">${!svcOpen(s.k) ? '🔒' : W.svcs.includes(s.k) ? '✓' : '○'}</span></button>`; }).join('')}</div>
           <small class="st-lknote">🔒 Services en préparation : ils s'ouvriront un par un.</small>
           <div class="form"><label>Nom de l'organisation<input name="cname" placeholder="Ex : ${T.k === 'entreprise' ? 'Entreprise BTP …' : esc(T.l) + ' …'}"></label>
           <label>Votre nom<input name="me" value="${esc(auth.currentUser.displayName || '')}"></label>
@@ -1800,6 +1824,9 @@ const Team = (() => {
           });
           const count = $('.st-ent-count', el);
           if (count) count.textContent = W.svcs.length + ' service(s) sélectionné(s)' + (maxS ? ' · limite : ' + maxS : '');
+          const full = L.filter(s => svcOpen(s.k)).map(s => s.k);
+          const all = full.length > 0 && full.every(k => W.svcs.includes(k));
+          $('[data-tpl]', el).forEach(b => { const on = b.dataset.tpl === 'grande' ? all : !all; b.classList.toggle('on',on); b.setAttribute('aria-pressed',String(on)); });
         };
         refresh();
         $$('[data-s]', el).forEach(b => { b.classList.toggle('on', W.svcs.includes(b.dataset.s)); b.onclick = () => { const k = b.dataset.s;
@@ -1807,8 +1834,8 @@ const Team = (() => {
           W.svcs = W.svcs.includes(k) ? W.svcs.filter(x => x !== k) : [...W.svcs, k]; refresh(); }; });
         // modèles : petite entreprise (3 services de base) ou grande entreprise (tout le modèle du type d'organisation) — modifiables ensuite
         $$('[data-lk]', el).forEach(b => b.onclick = () => toast('🔒 Ce service ouvrira bientôt'));
-        $$('[data-tpl]', el).forEach(b => b.onclick = () => { const full = orgTypeOf(W.org).svcs.filter(svcOpen); W.svcs = b.dataset.tpl === 'petite' ? full.slice(0, 3) : [...full]; if (maxS && W.svcs.length > maxS) { W.svcs = W.svcs.slice(0, maxS); toast(`Pack ${planOf(W.plan).l} : ${maxS} services au maximum`); }
-          refresh(); $$('[data-tpl]', el).forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', String(x === b)); }); });
+        $$('[data-tpl]', el).forEach(b => b.onclick = () => { const full = orgTypeOf(W.org).svcs.filter(svcOpen); W.svcs = b.dataset.tpl === 'petite' ? full.filter(k => k === 'direction') : [...full]; if (maxS && W.svcs.length > maxS) { W.svcs = W.svcs.slice(0, maxS); toast(`Pack ${planOf(W.plan).l} : ${maxS} services au maximum`); }
+          refresh(); });
         back(stepOrg);
         ($('[data-a=go]', el)||{}).onclick = () => { const cn = $('[name=cname]', el).value.trim(); if (!cn) return toast('Tapez le nom de l\'organisation');
           const rs = $('[name=role]', el); create({ name: cn, me: $('[name=me]', el).value.trim(), role: rs ? rs.value : T.owner }); };
