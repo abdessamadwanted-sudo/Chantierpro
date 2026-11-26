@@ -235,11 +235,13 @@ try {
   await F.pg.click('[data-a=create]'); await F.pg.waitForSelector('.st-offers'); await F.pg.click('[data-p=business]'); await F.pg.waitForSelector('.st-ent-trigger'); if (await F.pg.locator('#st-ent-options').isHidden()) await F.pg.click('[data-a=orgmenu]');
   await F.pg.click('[data-o=bet]'); await F.pg.click('[data-a=orgnext]'); await F.pg.waitForSelector('.st-svcs'); log('F services proposés', await F.pg.evaluate(() => [...document.querySelectorAll('.st-svcs .on')].map(b => b.dataset.s)));
   const betVisual=await F.pg.evaluate(()=>{
-    const labels=[...document.querySelectorAll('.st-svcs .st-branch-list>span')].map(x=>x.textContent.trim());
+    const labels=[...document.querySelectorAll('.st-svcs [data-branch] .st-ent-card-label')].map(x=>x.textContent.trim());
     const types=['bet','archi','topo','labo','bc','moa','opc','soustraitant'];
     const valid=types.every(k=>Object.keys(ST_ORG_BRANCHES[k]).every(s=>orgTypeOf(k).svcs.includes(s)));
     return {valid,structure:labels.includes('Structure'),bim:labels.includes('BIM & coordination'),visa:labels.includes('Visa & RFI'),noBtp:!document.querySelector('.st-svcs [data-s=travaux]'),noNewKeys:[...document.querySelectorAll('.st-svcs [data-s]')].every(x=>orgTypeOf('bet').svcs.includes(x.dataset.s))};
   });
+  const betToggle=await F.pg.evaluate(()=>{const a=document.querySelector('[data-branch="bet.struct"]'),b=document.querySelector('[data-branch="bet.bim"]');if(!a||!b)return false;const before=b.getAttribute('aria-pressed'),first=a.getAttribute('aria-pressed');a.click();const ok=a.getAttribute('aria-pressed')!==first&&b.getAttribute('aria-pressed')===before;a.click();return ok;});
+  betVisual.independent=betToggle;
   log('Catalogue métier BET',betVisual);
   log('errors Catalogue métier BET',Object.values(betVisual).every(Boolean)?[]:['Catalogue métier BET '+JSON.stringify(betVisual)]);
   await F.pg.fill('[name=cname]', 'BET Structures'); await F.pg.click('[data-a=go]'); await F.pg.waitForSelector('.home2', { timeout: 20000 }); await F.pg.waitForTimeout(800);
