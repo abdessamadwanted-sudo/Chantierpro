@@ -56,3 +56,10 @@ Les pages PDF sont affichées comme textures de résolution bornée à 1536 px s
 
 ### PDF Stack — import des niveaux (correctif en validation)
 Le lecteur doit passer par `pdfReadyA()` pour initialiser son worker au premier démarrage. Le sélecteur de niveaux lit les métadonnées du projet courant et récupère le PDF original à la demande via DB.get. Si le PDF original manque, synchroniser ou importer depuis le téléphone. Limite portée à 60 Mo/fichier et 8 plans/session; textures à 1024 px à partir du 5e plan. Les gros scans peuvent encore dépasser la mémoire disponible. Essai réel Android et PDF de stade non réalisé.
+
+
+### ModelCore X — projet réel et niveaux (en validation)
+- Entrée « Mon projet » indépendante des démonstrations BIM : création d'un espace PDF vide associé au projet SiteTeam, sans géométrie fictive. Aucune dépendance aux dossiers de niveaux existants.
+- Barre latérale Tous / RDC / R+…; création de 1 à 8 niveaux, ajout de niveaux personnalisés et réglage de leur altitude. Un PDF par niveau (60 Mo maximum), depuis le téléphone ou les plans du projet. Calage A/B et distance réelle requis avant affichage; sélectionner Tous superpose les plans aux altitudes définies.
+- Magasin local IndexedDB `mcworkspaces` (migration additive v7, isolé par base d'espace et id projet). Sauvegarde des PDF, pages, niveaux et repères, restauration à la réouverture. Suppression avec le projet SiteTeam. Pas de synchronisation, de partage serveur ni de sauvegarde Drive de cet espace local; garder les originaux. Les imports IFC/JSON et maquettes fictives restent accessibles via l'entrée BIM séparée. Limite mémoire des gros PDF et validation sur Android réel encore ouvertes.
+- Parcours CI : formulaire de création, barre de niveaux, import PDF par le champ fichier, calage, filtrage, superposition, réouverture et nettoyage. Les tests doivent passer avant livraison.
