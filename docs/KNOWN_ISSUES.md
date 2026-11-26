@@ -52,3 +52,7 @@ Constatés en lisant le code et les builds (octobre 2026). « Non vérifié » =
 
 ## PDF Stack — limites initiales
 Les pages PDF sont affichées comme textures de résolution bornée à 1536 px sur leur plus grand côté. La loupe de précision relit une région du PDF original, ce qui ne recrée pas les détails perdus d'un scan. Le calage à deux points est une similitude 2D sans déformation ; vérifier un troisième point indépendant et les altitudes. La session est temporaire, sans sauvegarde ni liaison aux plans du projet pour l'instant. Aucun IFC ou volume structurel n'est généré à partir des PDF.
+
+
+### PDF Stack — import des niveaux (correctif en validation)
+Le lecteur doit passer par `pdfReadyA()` pour initialiser son worker au premier démarrage. Le sélecteur de niveaux lit les métadonnées du projet courant et récupère le PDF original à la demande via DB.get. Si le PDF original manque, synchroniser ou importer depuis le téléphone. Limite portée à 60 Mo/fichier et 8 plans/session; textures à 1024 px à partir du 5e plan. Les gros scans peuvent encore dépasser la mémoire disponible. Essai réel Android et PDF de stade non réalisé.
