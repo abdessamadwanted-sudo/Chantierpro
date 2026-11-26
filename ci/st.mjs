@@ -3240,6 +3240,20 @@ try {
       if(root.querySelector('[data-r=cal]').hidden)throw Error(root.querySelector('[data-r=status]').textContent);
       const a=stack.state()[0].id;o.phone=stack.state()[0].levelId==='n0';
       o.pointDefault=root.querySelector('[data-r=cal-mode]').value==='point'&&root.querySelector('[data-a=pointB]').hidden;
+      const paper=root.querySelector('[data-r=paper]'),zoomLabel=root.querySelector('[data-r=cal-zoom]');
+      for(let i=0;i<150&&!paper.dataset.hd;i++)await wait(100);
+      o.calHD=!!paper.dataset.hd;const firstHD=paper.dataset.hd;
+      for(let i=0;i<4;i++)root.querySelector('[data-a=calplus]').click();
+      for(let i=0;i<150&&paper.dataset.hd===firstHD;i++)await wait(100);
+      o.calZoom=parseInt(zoomLabel.textContent)>400&&paper.dataset.hd!==firstHD&&paper.width*paper.height<=3100000;
+      const rect=paper.getBoundingClientRect(),x=rect.left+rect.width/2,y=rect.top+rect.height/2;
+      const gesture=(type,px,py)=>paper.dispatchEvent(new PointerEvent(type,{pointerId:1,clientX:px,clientY:py,bubbles:true,cancelable:true}));
+      gesture('pointerdown',x,y);gesture('pointerup',x,y);await stack.flush();
+      const picked=(await DB.get('mcworkspaces',pid)).plans[0].A;
+      o.calPick=!!picked&&Math.abs(picked[0]-150)<1&&Math.abs(picked[1]-100)<1;
+      gesture('pointerdown',x,y);gesture('pointermove',x+30,y+20);gesture('pointerup',x+30,y+20);await stack.flush();
+      o.calPan=JSON.stringify((await DB.get('mcworkspaces',pid)).plans[0].A)===JSON.stringify(picked);
+      root.querySelector('[data-a=fullpaper]').click();o.calFit=parseInt(zoomLabel.textContent)===100;
       stack.setPoint(a,'A',[20,20]);root.querySelector('[data-r=denom]').value='100';root.querySelector('[data-a=apply]').click();
       o.first=stack.state()[0].visible&&stack.state()[0].calibrated;
       root.querySelector('[data-level=n1]').click();
@@ -3299,7 +3313,7 @@ try {
     return o;
   });
   log('ModelCore X projet vide et niveaux',mcWorkspace);
-  log('errors v1.0.339',!mcWorkspace.err&&['empty','levels','drawer','phone','pointDefault','first','pointAligned','isolate','reader','readerInk','readerZoom','readerSwitch','readerScale','readerReturn','stack','saved','reopen','local','cleanup'].every(k=>mcWorkspace[k])?[]:['Projet ModelCore '+JSON.stringify(mcWorkspace)]);
+  log('errors v1.0.339',!mcWorkspace.err&&['empty','levels','drawer','phone','pointDefault','calHD','calZoom','calPick','calPan','calFit','first','pointAligned','isolate','reader','readerInk','readerZoom','readerSwitch','readerScale','readerReturn','stack','saved','reopen','local','cleanup'].every(k=>mcWorkspace[k])?[]:['Projet ModelCore '+JSON.stringify(mcWorkspace)]);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
