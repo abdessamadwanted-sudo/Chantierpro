@@ -212,3 +212,12 @@ assert.equal(stade.levels[11].name,'R+9');assert.equal(stade.levels[11].z,27);
 assert.throws(()=>S.makeWorkspace('p1','Stade',4,3,'RDC,rdc'),/uniques/);
 assert.throws(()=>S.makeWorkspace('p1','Stade',2,0),/hauteur/);
 console.log('ModelCore X — création vide, niveaux et altitudes : OK.');
+
+const from={width:300,height:200,t:S.calage([20,20],[220,20],[0,0],[20,0])};
+const target={width:200,height:300,t:S.calage([20,20],[20,120],[0,0],[20,0])};
+const pos=S.transferView(from,target,{u:120/300,v:10/200,cssWidth:900});
+assert.ok(Math.abs(pos.u-25/200)<1e-8);
+assert.ok(Math.abs(pos.v-70/300)<1e-8);
+assert.ok(Math.abs(pos.cssWidth-1200)<1e-8);
+assert.equal(S.transferView(from,{width:200,height:300,t:null},{u:.5,v:.5,cssWidth:900}),null);
+console.log('ModelCore X — transfert de centre et échelle métrique entre plans : OK.');
