@@ -41,10 +41,49 @@
     const rdc=Math.max(0,names.findIndex(n=>n.toUpperCase()==='RDC'));
     return {id:pid,name:String(name).trim().slice(0,120),levels:Array.from({length:count},(_,i)=>({id:'n'+i,name:names[i]||(i?'R+'+i:'RDC'),z:(i-rdc)*height})),plans:[],distance:null,referenceLevel:null,calibrationMode:'point',denominator:null};
   }
+  // Références aux niveaux métier, sans modifier les objets existants.
+  function chantierLevels(p,folders){
+    const fm=new Map(folders.filter(f=>f.projectId===p.id).map(f=>[f.id,f])),out=[];
+    const norm=s=>String(s||'').trim().toLowerCase();
+    const rank=n=>{const t=norm(n).replace(/\s/g,''),m=t.match(/^r\+(\d+)$/);return m?+m[1]:t==='rdc'?0:/^ss/.test(t)?-(Number(t.match(/\d+/)?.[0])||1):/^fond/.test(t)?-3:/^mezz/.test(t)?0.5:50;};
+    for(const n of p.avNiveaux||[])if(n.id&&norm(n.name))out.push({key:'av:'+n.id,avId:n.id,folderId:fm.has(n.folderId)?n.folderId:null,name:n.name,rank:rank(n.name)});
+    for(const f of fm.values()){
+      const n=typeof nivOfFolder==='function'?nivOfFolder(f.name):'';
+      if(!n||out.some(v=>v.folderId===f.id))continue;
+      // Un dossier homonyme n'est pas automatiquement le même niveau.
+      out.push({key:'folder:'+f.id,avId:null,folderId:f.id,name:f.name,rank:rank(n)});
+    }
+    return out.sort((a,b)=>a.rank-b.rank||a.name.localeCompare(b.name,'fr',{numeric:true}));
+  }
+  function bindLevels(existing,candidates){
+    const levels=existing.map(x=>({...x})),unmatched=[];
+    const norm=s=>String(s||'').trim().toLowerCase();
+    for(const c of candidates){
+      let v=levels.find(x=>x.sourceKey===c.key||(c.folderId&&x.folderId===c.folderId)||(c.avId&&x.avId===c.avId));
+      if(!v){const same=levels.filter(x=>!x.sourceKey&&norm(x.name)===norm(c.name));if(same.length===1&&candidates.filter(x=>norm(x.name)===norm(c.name)).length===1)v=same[0];}
+      if(!v){if(levels.length>=MAX_LEVELS){unmatched.push(c);continue;}v={id:'st:'+c.key,name:c.name,z:(c.rank<50?c.rank:levels.length)*3,provisional:true};levels.push(v);}
+      v.sourceKey=c.key;v.avId=c.avId;v.folderId=c.folderId;
+    }
+    return {levels,unmatched};
+  }
+  function levelOwnsFolder(level,id,folders){
+    if(!level?.folderId||!id)return false;
+    const seen=new Set();while(id&&!seen.has(id)){if(id===level.folderId)return true;seen.add(id);id=folders.get(id)?.parentId;}return false;
+  }
+  async function readChantier(pid){
+    const project=await DB.get('projects',pid);if(!project)throw Error('Projet indisponible.');
+    const folders=(await DB.byProject('folders',pid)).filter(f=>f.projectId===pid);
+    return {project,folders,candidates:chantierLevels(project,folders)};
+  }
   async function openWorkspace(options={}){
     const pid=options.projectId;if(!pid||typeof DB==='undefined'||!await DB.get('projects',pid))throw Error('Ouvrez un projet SiteTeam.');
     const key=DB.name()+'|'+pid;await writes.get(key);
+    const context=await readChantier(pid);
     let data=await DB.get('mcworkspaces',pid);
+    if(!data&&context.candidates.length){
+      data={id:pid,name:context.project.name||options.projectName||'Projet',levels:bindLevels([],context.candidates).levels,plans:[],distance:null,referenceLevel:null,calibrationMode:'point',denominator:null};
+      await DB.putRaw('mcworkspaces',data);
+    }
     if(!data){
       const r=await formSheet('Créer le projet ModelCore X',[
         {name:'name',label:'Nom du projet 3D',value:options.projectName||'Mon projet'},
@@ -55,7 +94,8 @@
       if(!r)return null;
       data=makeWorkspace(pid,r.name,Number(r.count),Number(r.height),r.names);await DB.putRaw('mcworkspaces',data);
     }
-    return open({...options,workspace:data});
+    const linked=bindLevels(data.levels,context.candidates);
+    return open({...options,workspace:{...data,levels:linked.levels},context,unmatched:linked.unmatched.length});
   }
   async function open(options={}){
     await need3D();
@@ -66,13 +106,14 @@
     const ws=options.workspace||null;
     if(ws&&(!options.projectId||ws.id!==options.projectId||!Array.isArray(ws.levels)||!ws.levels.length||ws.levels.length>MAX_LEVELS))throw Error('Projet ModelCore invalide.');
     const levels=ws?ws.levels.map(v=>({...v})):[];
+    const workspaceDb=ws?DB.name():null;
     const el=document.createElement('div');el.className='mc-pdfstack'+(ws?' mc-workspace':'');
     el.innerHTML='<style>.mc-pdfstack{position:fixed;inset:0;z-index:1000000;display:flex;flex-direction:column;background:#08192a;color:#e6f4ff;font:13px system-ui,sans-serif;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}.mc-pdfstack *{box-sizing:border-box}.mc-pdfstack [hidden]{display:none!important}.mc-pdfstack button,.mc-pdfstack input,.mc-pdfstack select{background:#163348;color:#e6f4ff;border:1px solid #34586d;border-radius:8px;padding:8px;min-height:36px;font:inherit}.mc-pdfstack button.active{border-color:#55d9ee;color:#8af0ff;background:#155064}.mc-pdfstack button:disabled{opacity:.4}.mc-pdfstack .ps-head,.mc-pdfstack .ps-bar{display:flex;gap:6px;align-items:center;padding:8px;flex-shrink:0}.mc-pdfstack .ps-head{background:#0b2236}.mc-pdfstack .ps-head b{font-size:16px}.mc-pdfstack .ps-small{font-size:11px;color:#9bbacc}.mc-pdfstack .ps-grow{flex:1;min-width:0}.mc-pdfstack .ps-stage{position:relative;flex:1;min-height:100px;overflow:hidden;background:radial-gradient(ellipse,#24465b,#071625 75%)}.mc-pdfstack .ps-stage>canvas{width:100%;height:100%;display:block;touch-action:none}.mc-pdfstack .ps-cal{display:flex;flex-direction:column;flex:1;min-height:0;padding:8px;gap:5px}.mc-pdfstack .ps-preview{flex:1;min-height:120px;overflow:auto;background:#172b3c;touch-action:pan-x pan-y}.mc-pdfstack .ps-preview canvas{display:block;max-width:none;touch-action:pan-x pan-y}.mc-pdfstack .ps-drawer{max-height:43%;overflow:auto;padding:8px;background:#0d2538;border-top:1px solid #315267}.mc-pdfstack .ps-row{display:flex;align-items:center;gap:5px;margin:6px 0}.mc-pdfstack .ps-row input[type=number]{width:74px}.mc-pdfstack .ps-row b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}.mc-pdfstack .ps-status{padding:5px 10px;color:#a8d4e2;min-height:25px;font-size:11px}.mc-pdfstack .ps-top{position:absolute;top:8px;left:8px;right:8px;pointer-events:none;display:flex;justify-content:space-between}.mc-pdfstack .ps-top span{background:#0a2035dd;padding:6px;border-radius:6px}.mc-pdfstack .ps-cal .ps-bar{padding:0;flex-wrap:wrap}.mc-pdfstack .ps-cal .ps-bar input{width:90px}.mc-pdfstack .ps-point{color:#64e4ff}.mc-pdfstack .ps-source{border:1px solid #34586d;border-radius:8px;padding:6px;margin:6px 0}.mc-pdfstack .ps-source input[type=search]{width:100%}.mc-pdfstack .ps-source-list{max-height:180px;overflow:auto}.mc-pdfstack .ps-source-list button{text-align:left;width:100%;margin:3px 0;white-space:normal;overflow-wrap:anywhere}.mc-pdfstack .ps-source-list small{display:block;color:#a8c7d8}.mc-pdfstack .ps-bar{overflow-x:auto}.mc-pdfstack .ps-drawer .ps-row{flex-wrap:wrap}.mc-pdfstack .ps-levels{position:absolute;right:10px;top:52px;max-height:calc(100% - 65px);overflow:auto;display:flex;flex-direction:column;gap:6px;padding:5px;background:#0b2236dd;border:1px solid #34586d;border-radius:14px;max-width:94px}.mc-pdfstack .ps-levels button{min-height:44px;min-width:56px;padding:6px 4px;overflow-wrap:anywhere}.mc-pdfstack .ps-levels small{display:block;font-size:10px;color:#a8c7d8}.mc-pdfstack .ps-empty{position:absolute;top:38%;left:10%;right:27%;text-align:center;color:#a8c7d8;pointer-events:none}.mc-pdfstack .ps-empty b{display:block;font-size:17px;color:#e6f4ff;margin-bottom:8px}.mc-pdfstack .ps-level-tools{border-bottom:1px solid #34586d;padding-bottom:6px;margin-bottom:8px}.mc-pdfstack .ps-level-tools input[type=text]{width:110px;min-width:0}.mc-pdfstack .ps-level-tools input[type=number]{width:72px}.mc-workspace .ps-head b{font-size:19px}.mc-workspace .ps-stage{background:radial-gradient(ellipse,#24465b,#071625 75%)}</style>'+
       '<div class="ps-head"><button data-a="close">✕</button><div class="ps-grow"><b>◈ ModelCore <span style="color:#5ce5fc">X</span></b><div class="ps-small" data-r="project"></div></div><button data-a="layers" aria-expanded="true">☷ Plans</button></div>'+
       '<div class="ps-bar"><button data-a="3d" class="active">3D</button><button data-a="top">Dessus 3D</button><button data-a="planview" hidden>Vue en plan</button><button data-a="fit">Ajuster</button><button data-a="zoomout">−</button><button data-a="zoomin">+</button><label class="ps-small">Écart <select data-r="explode"><option value="1">Réel</option><option value="2">×2</option><option value="4">×4</option></select></label></div>'+
       '<div class="ps-stage" data-r="stage"><div class="ps-top"><span data-r="count">0 plan calé</span><span>1 doigt orbite · 2 doigts zoom/pan</span></div><div class="ps-empty" data-r="empty" hidden><b>Projet vide</b><span>Choisissez un niveau à droite pour ajouter son PDF.</span></div><div class="ps-levels" data-r="levels" hidden></div></div>'+
       '<div class="ps-cal" data-r="cal" hidden><div class="ps-bar"><b class="ps-grow" data-r="calname"></b><button data-a="calclose">Terminer</button></div><div class="ps-bar"><button data-a="pointA" class="active">Point A</button><button data-a="pointB">Point B</button><button data-a="calminus">−</button><button data-a="calplus">+</button><button data-a="precision">◎ Précision</button><button data-a="fullpaper" hidden>Plan entier</button><button data-a="clear">Effacer</button></div><div class="ps-bar"><label>Calage <select data-r="cal-mode"><option value="point">1 point commun</option><option value="two">2 points (avancé)</option></select></label><label data-r="scale-label">Échelle 1:<input data-r="denom" type="number" min="1" max="10000" step="1" placeholder="100"></label></div><div class="ps-small" data-r="instructions"></div><div class="ps-preview" data-r="preview"><canvas data-r="paper"></canvas></div><div class="ps-bar"><label data-r="distance-label">Distance A–B (m) <input data-r="distance" type="number" min=".01" max="10000" step=".01" value=""></label><button data-a="apply">Valider le calage</button></div></div>'+
-      '<div class="ps-drawer" data-r="drawer"><div class="ps-level-tools" data-r="level-tools" hidden><div class="ps-row"><b class="ps-grow" data-r="selected-level"></b><button data-a="retry-save">Enregistrer</button><button data-a="drawerclose">✕</button></div><div class="ps-row"><label>Nom <input type="text" maxlength="24" data-r="level-name"></label><label>Altitude (m) <input type="number" step=".01" data-r="level-z"></label></div><div class="ps-row"><input type="text" maxlength="24" data-r="new-level" placeholder="Ex. Sous-sol"><input type="number" step=".01" data-r="new-z" placeholder="Altitude"><button data-a="newlevel">＋ Niveau</button></div></div><div class="ps-row"><button data-a="projectplans">▤ Plans du projet</button><button data-a="add">＋ Téléphone</button><input data-r="file" type="file" accept="*/*" multiple hidden><label class="ps-small">Page <input data-r="page" type="number" value="1" min="1" step="1" aria-label="Page PDF"></label><label class="ps-small">Opacité <input data-r="opacity" type="range" min="20" max="100" value="100"></label></div><div class="ps-source" data-r="sources" hidden><div class="ps-row"><b class="ps-grow">Niveaux · PDF du projet</b><button data-a="sourceclose">✕</button></div><input type="search" data-r="search" placeholder="Rechercher niveau, dossier ou plan…" aria-label="Rechercher un plan"><div class="ps-source-list" data-r="source-list"></div></div><div class="ps-small">Premier PDF = référence. Calage par point commun (même échelle/orientation) ou par 2 points. Jusqu’à 16 niveaux dans Mon projet (8 en session PDF Stack) · 60 Mo/PDF · stockage local.</div><div data-r="list"></div></div><div class="ps-status" data-r="status" aria-live="polite">Ajoutez le PDF de référence.</div>';
+      '<div class="ps-drawer" data-r="drawer"><div class="ps-level-tools" data-r="level-tools" hidden><div class="ps-row"><b class="ps-grow" data-r="selected-level"></b><button data-a="retry-save">Enregistrer</button><button data-a="drawerclose">✕</button></div><div class="ps-row"><label>Nom <input type="text" maxlength="24" data-r="level-name"></label><label>Altitude (m) <input type="number" step=".01" data-r="level-z"></label></div><div class="ps-row"><input type="text" maxlength="24" data-r="new-level" placeholder="Ex. Sous-sol"><input type="number" step=".01" data-r="new-z" placeholder="Altitude"><button data-a="newlevel">＋ Niveau</button></div></div><div class="ps-row"><button data-a="projectplans">▤ Plans du projet</button><button data-a="chantier">▦ Data chantier</button><button data-a="add">＋ Téléphone</button><input data-r="file" type="file" accept="*/*" multiple hidden><label class="ps-small">Page <input data-r="page" type="number" value="1" min="1" step="1" aria-label="Page PDF"></label><label class="ps-small">Opacité <input data-r="opacity" type="range" min="20" max="100" value="100"></label></div><div class="ps-source" data-r="sources" hidden><div class="ps-row"><b class="ps-grow">Niveaux · PDF du projet</b><button data-a="sourceclose">✕</button></div><div class="ps-row"><select data-r="scope" aria-label="Périmètre"><option value="level">Ce niveau</option><option value="all">Tout le projet</option></select><select data-r="type" aria-label="Type"><option value="">Tous types</option></select><select data-r="lot" aria-label="Lot"><option value="">Tous lots</option></select></div><input type="search" data-r="search" placeholder="Rechercher niveau, dossier ou plan…" aria-label="Rechercher un plan"><div class="ps-source-list" data-r="source-list"></div></div><div class="ps-small">Premier PDF = référence. Calage par point commun (même échelle/orientation) ou par 2 points. Jusqu’à 16 niveaux dans Mon projet (8 en session PDF Stack) · 60 Mo/PDF · stockage local.</div><div data-r="list"></div></div><div class="ps-status" data-r="status" aria-live="polite">Ajoutez le PDF de référence.</div>';
     document.body.appendChild(el);
     const $=s=>el.querySelector(s),stage=$('[data-r="stage"]'),paper=$('[data-r="paper"]'),rows=$('[data-r="list"]');
     $('[data-r="project"]').textContent=(ws?ws.name:String(options.projectName||'Projet'))+(ws?' · Projet réel · local':' · PDF Stack · session locale');
@@ -90,13 +131,41 @@
     function msg(s){$('[data-r="status"]').textContent=s;}
     function save(){
       if(!ws||restoring)return Promise.resolve(true);
+      if(DB.name()!==workspaceDb){saveFailed=true;return Promise.resolve(false);}
       const data={id:ws.id,name:ws.name,levels:levels.map(v=>({...v})),distance,referenceLevel:ref?.levelId||null,calibrationMode:calMode,denominator,
         plans:layers.map(l=>({levelId:l.levelId,name:l.name,page:l.page,file:l.file,A:l.A?.slice()||null,B:l.B?.slice()||null,validated:l.validated,visible:l.visible}))};
       const key=DB.name()+'|'+ws.id;
-      const promise=(writes.get(key)||Promise.resolve()).then(async()=>{if(!await DB.get('projects',ws.id))throw Error('Projet SiteTeam supprimé.');await DB.putRaw('mcworkspaces',data);}).then(()=>{saveFailed=false;return true;}).catch(e=>{saveFailed=true;const message='Sauvegarde locale échouée : '+(e.message||e);if(!closed)msg(message);else if(typeof toast==='function')toast(message);return false;});
+      const promise=(writes.get(key)||Promise.resolve()).then(async()=>{if(DB.name()!==workspaceDb||!await DB.get('projects',ws.id)||DB.name()!==workspaceDb)throw Error('Projet SiteTeam supprimé ou espace changé.');await DB.putRaw('mcworkspaces',data);}).then(()=>{saveFailed=false;return true;}).catch(e=>{saveFailed=true;const message='Sauvegarde locale échouée : '+(e.message||e);if(!closed)msg(message);else if(typeof toast==='function')toast(message);return false;});
       writes.set(key,promise);promise.then(()=>{if(writes.get(key)===promise)writes.delete(key);});return promise;
     }
     function levelBy(id){return levels.find(v=>v.id===id);}
+    async function chantierData(){
+      if(!ws||closed||busy)return;
+      const pid=ws.id,level=levelBy(selectedLevel),context=await readChantier(pid);
+      if(closed||DB.name()!==workspaceDb)return;
+      const fm=new Map(context.folders.map(f=>[f.id,f])), entries=[];
+      for(const f of context.folders.filter(f=>!level||levelOwnsFolder(level,f.id,fm)))for(const [id,d] of Object.entries(f.lotData||{})){
+        if(!d||typeof d!=='object')continue;
+        const lot=(context.project.planLots||[]).find(x=>x.id===id),alerts=typeof lotAlerts==='function'?lotAlerts(d).filter(a=>!a.done):[];
+        entries.push({folder:f.name,lot:lot?.name||id,alerts});
+      }
+      const allowed=typeof sectionOn==='function'&&typeof App!=='undefined'&&App.project?.id===pid&&sectionOn('avancement');
+      let stats=[];
+      if(allowed){
+        const links=(await DB.byProject('links',pid)).filter(l=>l.projectId===pid&&l.kind==='local'&&(!level||(level.avId&&l.nivId===level.avId)));
+        if(links.length&&typeof avStats==='function')stats=(context.project.lots||[]).map(l=>({name:l.name,...avStats(links,l.id)}));
+      }
+      if(closed||DB.name()!==workspaceDb)return;
+      const e=document.createElement('div');e.className='ps-source';e.dataset.chantier='1';
+      const line=(t,tag='div')=>{const x=document.createElement(tag);x.textContent=t;e.append(x);return x;};
+      line((level?.name||'Tous les niveaux')+' · Data SiteTeam (lecture seule)','b');
+      if(level?.provisional)line('Altitude provisoire : à vérifier.').className='ps-small';
+      for(const a of entries){line(a.folder+' · '+a.lot+' · '+a.alerts.length+' alerte(s)');for(const al of a.alerts)line('⚑ '+al.d+' · '+(al.obj||al.type||'Échéance')).className='ps-small';}
+      for(const a of stats)line(a.name+' · '+a.pct+' % · '+a.fin+'/'+a.n+' terminé(s) · '+a.late+' en retard');
+      if(!entries.length&&!stats.length)line('Aucune donnée de suivi liée à ce niveau.');
+      const shut=document.createElement('button');shut.textContent='Fermer Data';shut.onclick=()=>e.remove();e.append(shut);
+      const drawer=$('[data-r="drawer"]');drawer.querySelector('[data-chantier]')?.remove();drawer.prepend(e);drawer.hidden=false;$('[data-a="layers"]').setAttribute('aria-expanded','true');
+    }
     async function viewPlan(l,initialView=null){
       if(closed||busy||reading||!l)return;
       if(typeof showPdf!=='function'){msg('Lecteur PDF indisponible.');return;}
@@ -124,7 +193,7 @@
       if(!ws||busy||closed||current)return;
       if(id!=='all'&&!levelBy(id))return;
       selectedLevel=id;
-      const d=$('[data-r="drawer"]');d.hidden=id==='all';
+      const d=$('[data-r="drawer"]');d.querySelector('[data-chantier]')?.remove();d.hidden=id==='all';
       $('[data-a="layers"]').setAttribute('aria-expanded',String(!d.hidden));
       $('[data-r="sources"]').hidden=true;update();fit();
       if(id!=='all'&&!layers.some(l=>l.levelId===id))msg('Niveau '+levelBy(id).name+' : choisissez Téléphone ou Plans du projet.');
@@ -140,7 +209,7 @@
       }
       const plus=document.createElement('button');plus.textContent='+ Niv.';plus.disabled=levels.length>=MAX_LEVELS;plus.onclick=()=>{if(busy)return;const d=$('[data-r="drawer"]');d.hidden=false;$('[data-a="layers"]').setAttribute('aria-expanded','true');$('[data-r="new-level"]').focus();};rail.append(plus);
       const v=levelBy(selectedLevel);$('[data-r="level-tools"]').hidden=false;
-      $('[data-r="selected-level"]').textContent=v?v.name+' · '+(layers.some(l=>l.levelId===v.id)?'PDF importé':'Aucun plan'):'Niveaux du projet';
+      $('[data-r="selected-level"]').textContent=v?v.name+' · '+(v.sourceKey?'SiteTeam · ':'')+(v.provisional?'Altitude à confirmer · ':'')+(layers.some(l=>l.levelId===v.id)?'PDF importé':'Aucun plan'):'Niveaux du projet';
       const z=$('[data-r="level-z"]'),name=$('[data-r="level-name"]');z.disabled=!v;z.value=v?v.z:'';name.disabled=!v;name.value=v?v.name:'';
       const planButton=$('[data-a="planview"]');planButton.hidden=!v;planButton.disabled=!layers.some(l=>l.levelId===selectedLevel);
       $('[data-a="projectplans"]').disabled=!v||layers.some(l=>l.levelId===v.id);
@@ -180,7 +249,7 @@
         const row=document.createElement('div');row.className='ps-row';
         const cb=document.createElement('input');cb.type='checkbox';cb.checked=l.visible;cb.setAttribute('aria-label','Afficher '+l.name);cb.onchange=()=>{l.visible=cb.checked;update();save();};
         const info=document.createElement('div');info.className='ps-grow';const title=document.createElement('b');title.textContent=(ws?levelBy(l.levelId)?.name+' · ':'')+l.name+' · p.'+l.page;const sub=document.createElement('div');sub.className='ps-small';sub.textContent=(l===ref?'RÉFÉRENCE · ':'')+(l.t?'Calé':'À caler');sub.style.color=l.t?'#8de5c5':'#f2ca80';info.append(title,sub);
-        const z=document.createElement('input');z.type='number';z.step='.01';z.value=l.z;z.setAttribute('aria-label','Altitude en mètres');z.onchange=()=>{const n=Number(z.value);if(Number.isFinite(n)&&Math.abs(n)<=10000){l.z=n;if(ws)levelBy(l.levelId).z=n;}else z.value=l.z;update();save();};
+        const z=document.createElement('input');z.type='number';z.step='.01';z.value=l.z;z.setAttribute('aria-label','Altitude en mètres');z.onchange=()=>{const n=Number(z.value);if(Number.isFinite(n)&&Math.abs(n)<=10000){l.z=n;if(ws){levelBy(l.levelId).z=n;levelBy(l.levelId).provisional=false;}}else z.value=l.z;update();save();};
         const c=document.createElement('button');c.textContent='Caler';c.onclick=()=>edit(l);
         const del=document.createElement('button');del.textContent='✕';del.title=ws?'Retirer le PDF du niveau (original inchangé)':'Retirer ce plan de la session';del.onclick=()=>{if(busy)return;if(l===ref&&layers.length>1){msg('Retirez les autres plans avant la référence.');return;}if(ws&&!window.confirm('Retirer ce PDF du niveau ? Le fichier original reste inchangé.'))return;remove(l);};
         const pdf=document.createElement('button');pdf.textContent='PDF';pdf.title='Vue en plan · PDF original';pdf.setAttribute('aria-label','Vue en plan '+l.name);pdf.onclick=()=>viewPlan(l);row.append(cb,info,z,pdf,c,del);rows.append(row);
@@ -223,11 +292,13 @@
     async function projectSources(){
       if(!options.projectId||typeof DB==='undefined')throw Error('Ouvrez un projet SiteTeam avant d’importer ses plans.');
       const pid=options.projectId;
-      const [plans,folders]=await Promise.all([DB.byProject('plans',pid),DB.byProject('folders',pid)]);
+      const [plans,folders,project]=await Promise.all([DB.byProject('plans',pid),DB.byProject('folders',pid),DB.get('projects',pid)]);
+      if(!project)throw Error('Projet indisponible.');
       const fm=new Map(folders.filter(f=>f.projectId===pid).map(f=>[f.id,f]));
       const folderPath=id=>{const names=[],seen=new Set();while(id&&fm.has(id)&&!seen.has(id)&&names.length<12){seen.add(id);const f=fm.get(id);names.unshift(f.name||'Dossier');id=f.parentId;}return names.join(' › ')||'Sans dossier';};
       return plans.filter(p=>p.projectId===pid&&p.pdfFileId&&(typeof isCurrentPlan!=='function'||isCurrentPlan(p)))
-        .map(p=>({id:p.id,name:p.name||'Plan',folder:folderPath(p.folderId),page:p.pdfPage||1}))
+        .map(p=>{const f=fm.get(p.folderId),lot=(project.planLots||[]).find(l=>l.id===p.lotId);return {id:p.id,name:p.name||'Plan',folder:folderPath(p.folderId),folderId:p.folderId,page:p.pdfPage||1,type:f?.discName||f?.disc||lot?.cat||'Sans type',lot:lot?.name||p.lotId||'Sans lot',
+          levelIds:(project.avNiveaux||[]).filter(n=>[n.serieId,...(n.plans||[]).map(x=>x.serieId)].some(id=>id&&(id===p.id||id===p.serieId||(typeof planSerie==='function'&&id===planSerie(p))))).map(n=>n.id)};})
         .sort((a,b)=>(a.folder+' '+a.name).localeCompare(b.folder+' '+b.name,'fr',{numeric:true}));
     }
     async function addProjectPlan(id,levelId=selectedLevel){
@@ -251,11 +322,13 @@
     function drawSources(){
       const box=$('[data-r="source-list"]'),q=$('[data-r="search"]').value.trim().toLocaleLowerCase();
       box.replaceChildren();
-      const matches=sources.filter(p=>(p.folder+' '+p.name).toLocaleLowerCase().includes(q));
+      const l=levelBy(selectedLevel),fm=new Map((options.context?.folders||[]).map(f=>[f.id,f]));
+      const type=$('[data-r="type"]').value,lot=$('[data-r="lot"]').value,local=ws&&l?.sourceKey&&$('[data-r="scope"]').value==='level';
+      const matches=sources.filter(p=>(!local||levelOwnsFolder(l,p.folderId,fm)||p.levelIds.includes(l.avId))&&(!type||p.type===type)&&(!lot||p.lot===lot)&&(p.folder+' '+p.name+' '+p.type+' '+p.lot).toLocaleLowerCase().includes(q));
       for(const p of matches.slice(0,150)){
         const b=document.createElement('button');b.type='button';
         const title=document.createElement('span');title.textContent=p.name;
-        const sub=document.createElement('small');sub.textContent=p.folder+' · PDF p.'+p.page;
+        const sub=document.createElement('small');sub.textContent=p.folder+' · '+p.type+' · '+p.lot+' · PDF p.'+p.page;
         b.append(title,sub);b.onclick=async()=>{
           if(busy||closed)return;
           b.disabled=true;try{const id=await addProjectPlan(p.id);if(closed)return;
@@ -271,7 +344,7 @@
       if(busy||closed)return;
       const panel=$('[data-r="sources"]');panel.hidden=false;
       $('[data-r="source-list"]').textContent='Lecture des niveaux…';
-      try{sources=await projectSources();if(!closed)drawSources();}
+      try{sources=await projectSources();if(!closed){for(const field of ['type','lot']){const sel=$('[data-r="'+field+'"]');sel.replaceChildren(new Option(field==='type'?'Tous types':'Tous lots',''));for(const val of [...new Set(sources.map(p=>p[field]))].sort())sel.add(new Option(val,val));}$('[data-r="scope"]').value=levelBy(selectedLevel)?.sourceKey?'level':'all';drawSources();}}
       catch(e){if(!closed){$('[data-r="source-list"]').textContent=e.message||String(e);msg(e.message||String(e));}}
     }
     function releaseCrop(){if(crop){crop.canvas.width=crop.canvas.height=0;crop=null;}$('[data-a="fullpaper"]').hidden=true;}
@@ -368,7 +441,8 @@
       const v={id:DB.uid(),name,z};levels.push(v);input.value=alt.value='';setLevel(v.id);save();
     });
     $('[data-r="level-name"]').onchange=e=>{const v=levelBy(selectedLevel),name=e.target.value.trim();if(!v||!name||name.length>24||levels.some(x=>x!==v&&x.name.toLowerCase()===name.toLowerCase())){drawLevels();msg('Nom de niveau unique requis.');return;}v.name=name;update();save();};
-    $('[data-r="level-z"]').onchange=e=>{const v=levelBy(selectedLevel),z=Number(e.target.value);if(!v||!e.target.value.trim()||!Number.isFinite(z)||Math.abs(z)>10000){drawLevels();return;}v.z=z;const l=layers.find(l=>l.levelId===v.id);if(l)l.z=z;update();fit();save();};
+    $('[data-r="level-z"]').onchange=e=>{const v=levelBy(selectedLevel),z=Number(e.target.value);if(!v||!e.target.value.trim()||!Number.isFinite(z)||Math.abs(z)>10000){drawLevels();return;}v.z=z;v.provisional=false;const l=layers.find(l=>l.levelId===v.id);if(l)l.z=z;update();fit();save();};
+    on('chantier',()=>chantierData().catch(e=>msg(e.message||String(e))));for(const k of ['scope','type','lot'])$('[data-r="'+k+'"]').onchange=drawSources;
     on('projectplans',showSources);on('sourceclose',()=>{$('[data-r="sources"]').hidden=true;});$('[data-r="search"]').oninput=drawSources;
     on('add',()=>{if(!busy)$('[data-r="file"]').click();});
     $('[data-r="file"]').onchange=async e=>{
@@ -390,9 +464,9 @@
     if(ws){$('[data-r="file"]').multiple=false;$('[data-r="drawer"]').hidden=true;$('[data-a="layers"]').setAttribute('aria-expanded','false');
       try{for(const p of (ws.plans||[])){const file=new File([p.file],p.name,{type:'application/pdf'});const id=await addFile(file,p.page,p.levelId);const l=layers.find(l=>l.id===id);l.A=p.A;l.B=p.B;l.validated=!!p.validated;l.visible=p.visible!==false;}ref=layers.find(l=>l.levelId===ws.referenceLevel)||layers[0]||null;distance=ws.distance||null;}
       catch(e){close();throw Error('Restauration du projet : '+(e.message||e));}finally{restoring=false;}
-      msg('Projet local · choisissez un niveau pour importer ou consulter son PDF.');}
+      msg(options.unmatched?'Limite de 16 niveaux : '+options.unmatched+' niveau(x) non intégré(s).':'Projet local · niveaux SiteTeam liés · vérifiez les altitudes provisoires.');await save();}
     resize();update();fit();
     return {close,addFile,addProjectPlan,projectSources,selectLevel:setLevel,flush:()=>ws?(writes.get(DB.name()+'|'+ws.id)||Promise.resolve(!saveFailed)):Promise.resolve(true),edit:id=>{const l=layers.find(x=>x.id===id);if(l)edit(l);},setPoint:(id,k,p)=>setPoint(layers.find(x=>x.id===id),k,p),setDistance:d=>{if(!ref||!ref.A||!ref.B)throw Error('Référence incomplète.');reference(ref.A,ref.B,d);distance=d;ref.validated=true;update();save();},validate:id=>{const l=layers.find(x=>x.id===id);if(!l||!l.A||!l.B||!distance||!ref?.validated)throw Error('Calage incomplet.');calage(l.A,l.B,[0,0],[distance,0]);l.validated=true;update();save();},state:()=>layers.map(l=>({id:l.id,levelId:l.levelId,width:l.width,height:l.height,z:l.z,calibrated:!!l.t,visible:l.mesh.visible,transform:l.t?{...l.t}:null}))};
   }
-  window.ModelCorePDFStack={open,openWorkspace,makeWorkspace,calage,calagePoint,appliquer,reference,transferView};
+  window.ModelCorePDFStack={open,openWorkspace,makeWorkspace,calage,calagePoint,appliquer,reference,transferView,chantierLevels,bindLevels,levelOwnsFolder};
 })();
