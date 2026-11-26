@@ -3241,6 +3241,14 @@ try {
       if(root.querySelector('[data-r=cal]').hidden)throw Error(root.querySelector('[data-r=status]').textContent);
       const a=stack.state()[0].id;o.phone=stack.state()[0].levelId==='n0';
       o.pointDefault=root.querySelector('[data-r=cal-mode]').value==='point'&&root.querySelector('[data-a=pointB]').hidden;
+      root.querySelector('[data-a=calclose]').click();
+      o.preview=stack.state()[0].visible&&!stack.state()[0].calibrated&&!root.querySelector('[data-r=preview-note]').hidden;
+      root.querySelector('[data-level=all]').click();o.noFakeStack=!stack.state()[0].visible&&root.querySelector('[data-r=preview-note]').hidden;
+      root.querySelector('[data-level=n0]').click();stack.edit(a);
+      const paper=root.querySelector('[data-r=paper]'),low=paper.width;
+      root.querySelector('[data-a=hd]').click();
+      for(let i=0;i<100&&paper.width<=low;i++)await wait(100);
+      await wait(200);o.hd=paper.width>low&&paper.width<=2401&&paper.width*paper.height<=3610000;
       stack.setPoint(a,'A',[20,20]);root.querySelector('[data-r=denom]').value='100';root.querySelector('[data-a=apply]').click();
       o.first=stack.state()[0].visible&&stack.state()[0].calibrated;
       root.querySelector('[data-level=n1]').click();
@@ -3318,7 +3326,7 @@ try {
     return o;
   });
   log('ModelCore X projet vide et niveaux',mcWorkspace);
-  log('errors v1.0.339',!mcWorkspace.err&&['empty','levels','drawer','phone','pointDefault','first','pointAligned','isolate','reader','readerInk','readerZoom','readerSwitch','readerScale','readerReturn','stack','saved','reopen','local','multi','primary','overlay','filter','sameAltitude','multiReopen','cleanup'].every(k=>mcWorkspace[k])?[]:['Projet ModelCore '+JSON.stringify(mcWorkspace)]);
+  log('errors v1.0.339',!mcWorkspace.err&&['empty','levels','drawer','phone','pointDefault','preview','noFakeStack','hd','first','pointAligned','isolate','reader','readerInk','readerZoom','readerSwitch','readerScale','readerReturn','stack','saved','reopen','local','multi','primary','overlay','filter','sameAltitude','multiReopen','cleanup'].every(k=>mcWorkspace[k])?[]:['Projet ModelCore '+JSON.stringify(mcWorkspace)]);
   // ModelCore X — rattachement en lecture seule, identités stables et niveaux homonymes.
   const mcContext=await A.pg.evaluate(()=>{
     const api=ModelCorePDFStack,p={id:'mc-test',avNiveaux:[{id:'a',name:'RDC',folderId:'f'}]};
