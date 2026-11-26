@@ -276,3 +276,7 @@ code client.
 
 ## ModelCore X — PDF Stack (proposition en validation)
 Empilement de pages PDF locales, calage métrique par deux points homologues A/B et distance réelle sur le plan de référence, altitude par couche, affichage WebGL, opacité, vue dessus, écart visuel et loupe de précision PDF. Aucune mutation des documents ni synchronisation. Limites de session : 8 plans, 25 Mo par PDF. Tests de géométrie et scénario navigateur avec PDF générés ; validation Android et documents réels à faire.
+
+
+### PDF Stack — import depuis les niveaux du projet (correctif en validation)
+Sélecteur des plans PDF courants avec dossier/niveau et page d’origine, recherche, récupération locale/Drive à la demande via DB.get, refus d'un document d’un autre projet. Import téléphone accepte les fournisseurs Android génériques et vérifie l'en-tête PDF; 60 Mo maximum par fichier, 8 plans par session, résolution bornée et réduite à partir du cinquième. Initialisation du worker avec `pdfReadyA`, accès au calage directement après chaque import et erreurs explicites. Test navigateur avec PDF multipage, niveau IndexedDB, démarrage à froid et isolation. Pas de persistance du calage ni d'essai sur téléphone réel.
