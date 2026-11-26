@@ -137,7 +137,7 @@
       if(ws){for(const l of layers)l.visible=true;setLevel('all');save();}
       else{for(const l of layers)l.visible=true;update();fit();}
       const pending=layers.filter(l=>!l.t).length;
-      msg(layers.filter(l=>l.t).length+' plans affichés en 3D'+(pending?' · '+pending+' PDF à caler avant superposition':''));
+      msg(layers.filter(l=>l.t).length+' plans affichés en 3D'+(pending?' · '+pending+' PDF à caler avant superposition':'')+(ws&&levels.length>layers.length?' · '+(levels.length-layers.length)+' niveaux sans PDF':''));
     }
     function nextEmpty(){
       if(!ws||busy||current||closed)return;
