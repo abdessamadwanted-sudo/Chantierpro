@@ -69,6 +69,15 @@ const ST_SERVICE_THEME = {
 const ST_ORG_THEME = {entreprise:['#fbbf24','hard'],soustraitant:['#fb923c','team'],bet:['#22d3ee','ruler'],archi:['#c084fc','layers'],moa:['#4ade80','team'],bc:['#fb7185','shield'],opc:['#22d3ee','calendar'],labo:['#38bdf8','flask'],topo:['#2dd4bf','pin']};
 // Les sous-services externes gardent leurs clés et leurs droits existants.
 const ST_EXTERNAL_THEME = {
+ 'bet.bim':['#c084fc','layers','Coordination BIM'], 'bet.doc':['#fbbf24','folder','Documentation'],
+ 'archi.bim':['#c084fc','layers','Maquettes'], 'archi.finitions':['#f472b6','pen','Détails'],
+ 'archi.doc':['#60a5fa','folder','Documentation'], 'topo.ctrl':['#60a5fa','check','Contrôles'],
+ 'topo.calc':['#2dd4bf','ruler','Calculs'], 'topo.mat':['#fbbf24','wrench','Matériel'],
+ 'labo.prelev':['#c084fc','flask','Prélèvements'], 'labo.trace':['#2dd4bf','form','Traçabilité'],
+ 'labo.conf':['#4ade80','shield','Conformité'], 'opc.plan':['#60a5fa','calendar','Planning'],
+ 'opc.coord':['#22d3ee','team','Coordination'], 'opc.rapp':['#c084fc','report','Reporting'],
+ 'st.prod':['#4ade80','hard','Production'], 'st.fer':['#fb7185','layers','Ferraillage'],
+ 'st.mat':['#fbbf24','wrench','Matériel'], 'st.hse':['#fb7185','shield','Sécurité'],
  'bet.struct':['#38bdf8','cube','Structure'], 'bet.fluides':['#2dd4bf','wrench','Réseaux et installations'],
  'bet.metre':['#60a5fa','ruler','Quantités et estimation'], 'bet.exec':['#22d3ee','check','Visas et suivi'],
  'archi.concep':['#c084fc','pen','Conception et plans'], 'archi.exec':['#22d3ee','check','Suivi de chantier'],
