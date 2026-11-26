@@ -67,7 +67,20 @@ const ST_SERVICE_THEME = {
  centrale:['#94a3b8','hard','Commandes et béton'], logistique:['#f59e0b','box','Logistique']
 };
 const ST_ORG_THEME = {entreprise:['#fbbf24','hard'],soustraitant:['#fb923c','team'],bet:['#22d3ee','ruler'],archi:['#c084fc','layers'],moa:['#4ade80','team'],bc:['#fb7185','shield'],opc:['#22d3ee','calendar'],labo:['#38bdf8','flask'],topo:['#2dd4bf','pin']};
-const stVisual = (k, fallback='#60a5fa') => ST_SERVICE_THEME[k] || [fallback,'grid','Outils métier'];
+// Les sous-services externes gardent leurs clés et leurs droits existants.
+const ST_EXTERNAL_THEME = {
+ 'bet.struct':['#38bdf8','cube','Structure'], 'bet.fluides':['#2dd4bf','wrench','Réseaux et installations'],
+ 'bet.metre':['#60a5fa','ruler','Quantités et estimation'], 'bet.exec':['#22d3ee','check','Visas et suivi'],
+ 'archi.concep':['#c084fc','pen','Conception et plans'], 'archi.exec':['#22d3ee','check','Suivi de chantier'],
+ 'archi.opc':['#60a5fa','calendar','Coordination'], 'moa.budget':['#fbbf24','sheet','Programme et budget'],
+ 'moa.valid':['#4ade80','check','Validations'], 'moa.tech':['#60a5fa','layers','Suivi technique'],
+ 'bc.avis':['#fb923c','file','Avis techniques'], 'bc.ctrl':['#fb7185','shield','Contrôles'],
+ 'bc.recep':['#4ade80','check','Réceptions'], 'labo.beton':['#38bdf8','flask','Essais béton'],
+ 'labo.sols':['#2dd4bf','layers','Sols et géotechnique'], 'labo.rapp':['#60a5fa','report','Rapports'],
+ 'topo.impl':['#22d3ee','pin','Implantations'], 'topo.rel':['#4ade80','ruler','Relevés'],
+ 'topo.asb':['#38bdf8','plans','Récolement'], 'at.suivi':['#4ade80','check','Suivi technique']
+};
+const stVisual = (k, fallback='#60a5fa') => ST_SERVICE_THEME[k] || ST_EXTERNAL_THEME[k] || [fallback,'grid','Outils métier'];
 const stOrgVisual = (k) => ST_ORG_THEME[k] || ['#94a3b8','grid'];
 const stVisualStyle = (c) => '--st-tone:'+c+';--st-tint:'+c+'20;--st-edge:'+c+'70';
 function offerCard(P, perso, btn = true, opts = null) {
