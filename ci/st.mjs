@@ -3254,6 +3254,7 @@ try {
       gesture('pointerdown',x,y);gesture('pointermove',x+30,y+20);gesture('pointerup',x+30,y+20);await stack.flush();
       o.calPan=JSON.stringify((await DB.get('mcworkspaces',pid)).plans[0].A)===JSON.stringify(picked);
       root.querySelector('[data-a=fullpaper]').click();o.calFit=parseInt(zoomLabel.textContent)===100;
+      root.querySelector('[data-a=aim]').click();await stack.flush();const aimed=(await DB.get('mcworkspaces',pid)).plans[0].A;o.calAim=Math.abs(aimed[0]-150)<1&&Math.abs(aimed[1]-100)<1;
       stack.setPoint(a,'A',[20,20]);root.querySelector('[data-r=denom]').value='100';root.querySelector('[data-a=apply]').click();
       o.first=stack.state()[0].visible&&stack.state()[0].calibrated;
       root.querySelector('[data-level=n1]').click();
@@ -3263,6 +3264,8 @@ try {
       const pair=stack.state(),aWorld=ModelCorePDFStack.appliquer(pair[0].transform,[20,20]),bWorld=ModelCorePDFStack.appliquer(pair[1].transform,[40,30]);
       o.pointAligned=[...aWorld,...bWorld].every(x=>Math.abs(x)<1e-8)&&pair.every(l=>Math.abs(l.transform.scale-100*.0254/72)<1e-8);
       o.isolate=stack.state().filter(l=>l.visible).length===1&&stack.state()[1].visible;
+      root.querySelector('[data-a=detail3d]').click();for(let i=0;i<150&&!stack.detailState();i++)await wait(100);const detail=stack.detailState();o.detailHD=!!detail&&detail.levelId==='n1'&&detail.width>=3000&&detail.width*detail.height<=6000000;
+      root.querySelector('[data-level=n0]').click();o.detailRelease=stack.detailState()===null;root.querySelector('[data-level=n1]').click();
       // Ouvrir le vrai lecteur PDF depuis la barre du niveau sélectionné.
       const before=JSON.stringify(stack.state());
       root.querySelector('[data-a=planview]').click();
@@ -3313,7 +3316,7 @@ try {
     return o;
   });
   log('ModelCore X projet vide et niveaux',mcWorkspace);
-  log('errors v1.0.339',!mcWorkspace.err&&['empty','levels','drawer','phone','pointDefault','calHD','calZoom','calPick','calPan','calFit','first','pointAligned','isolate','reader','readerInk','readerZoom','readerSwitch','readerScale','readerReturn','stack','saved','reopen','local','cleanup'].every(k=>mcWorkspace[k])?[]:['Projet ModelCore '+JSON.stringify(mcWorkspace)]);
+  log('errors v1.0.339',!mcWorkspace.err&&['empty','levels','drawer','phone','pointDefault','calHD','calZoom','calPick','calPan','calFit','calAim','first','pointAligned','isolate','detailHD','detailRelease','reader','readerInk','readerZoom','readerSwitch','readerScale','readerReturn','stack','saved','reopen','local','cleanup'].every(k=>mcWorkspace[k])?[]:['Projet ModelCore '+JSON.stringify(mcWorkspace)]);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
