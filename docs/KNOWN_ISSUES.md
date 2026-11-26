@@ -60,10 +60,14 @@ Le lecteur doit passer par `pdfReadyA()` pour initialiser son worker au premier 
 
 ### ModelCore X — projet réel et niveaux (en validation)
 - Entrée « Mon projet » indépendante des démonstrations BIM : création d'un espace PDF vide associé au projet SiteTeam, sans géométrie fictive. Aucune dépendance aux dossiers de niveaux existants.
-- Barre latérale Tous / RDC / R+…; création de 1 à 8 niveaux, ajout de niveaux personnalisés et réglage de leur altitude. Un PDF par niveau (60 Mo maximum), depuis le téléphone ou les plans du projet. Calage A/B et distance réelle requis avant affichage; sélectionner Tous superpose les plans aux altitudes définies.
+- Barre latérale Tous / RDC / R+…; création de 1 à 16 niveaux, ajout de niveaux personnalisés et réglage de leur altitude. Un PDF par niveau (60 Mo maximum), depuis le téléphone ou les plans du projet. Calage A/B et distance réelle requis avant affichage; sélectionner Tous superpose les plans aux altitudes définies.
 - Magasin local IndexedDB `mcworkspaces` (migration additive v7, isolé par base d'espace et id projet). Sauvegarde des PDF, pages, niveaux et repères, restauration à la réouverture. Suppression avec le projet SiteTeam. Pas de synchronisation, de partage serveur ni de sauvegarde Drive de cet espace local; garder les originaux. Les imports IFC/JSON et maquettes fictives restent accessibles via l'entrée BIM séparée. Limite mémoire des gros PDF et validation sur Android réel encore ouvertes.
 - Parcours CI : formulaire de création, barre de niveaux, import PDF par le champ fichier, calage, filtrage, superposition, réouverture et nettoyage. Les tests doivent passer avant livraison.
 
 
 ### Vue en plan PDF du niveau (en validation)
 Depuis un niveau avec PDF importé, bouton « Vue en plan » ou PDF dans la liste : ouvre le lecteur SiteTeam `showPdf` plein écran au-dessus de ModelCore, sur la page exacte du PDF original, même sans calage. Zoom tactile, double tap, déplacement, rendu HD par tuiles et recherche textuelle sur cette page. Fermer le lecteur revient au niveau sélectionné sans modifier le calage ni la caméra; la vue Dessus 3D reste distincte. Le lecteur suspend les nouveaux rendus de la scène sous-jacente et libère ses ressources à la fermeture. Test navigateur : ouverture de la page 2 d'un PDF multipage, présence d'encre et retour à l'état précédent. Qualité/performances sur Android et grands PDF réels encore à valider.
+
+
+### Extension des niveaux personnalisés
+Mon projet accepte désormais 16 niveaux (session PDF Stack historique : 8). Saisie facultative de noms du bas vers le haut, par exemple SSL, Mezz, RDC, R+1… R+9; renommage et altitude éditables. Si RDC est nommé, il sert de zéro provisoire; les altitudes initiales déduites du pas choisi doivent être corrigées d'après les plans réels. Textures 3D limitées à 768 px pour un projet configuré à plus de 8 niveaux; le lecteur Vue en plan conserve le PDF original. Le test unitaire couvre les 12 noms du stade, mais le chargement de 12 PDF A0 réels en simultané et la mémoire Android ne sont pas encore validés.
