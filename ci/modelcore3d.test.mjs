@@ -221,3 +221,11 @@ assert.ok(Math.abs(pos.v-70/300)<1e-8);
 assert.ok(Math.abs(pos.cssWidth-1200)<1e-8);
 assert.equal(S.transferView(from,{width:200,height:300,t:null},{u:.5,v:.5,cssWidth:900}),null);
 console.log('ModelCore X — transfert de centre et échelle métrique entre plans : OK.');
+
+const single1=S.calagePoint([20,30],100),single2=S.calagePoint([90,65],100);
+eqPoint(S.appliquer(single1,[20,30]),[0,0]);eqPoint(S.appliquer(single2,[90,65]),[0,0]);
+eqPoint(S.appliquer(single1,[30,40]),S.appliquer(single2,[100,75]));
+assert.ok(Math.abs(single1.scale-100*.0254/72)<1e-10);
+assert.throws(()=>S.calagePoint([20,30],0),/échelle/);
+assert.equal(ws.calibrationMode,'point');
+console.log('ModelCore X — calage par point commun à échelle connue : OK.');
