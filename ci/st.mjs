@@ -3321,13 +3321,34 @@ try {
       stack=await secondOpening;const summaries=await ModelCorePDFStack.workspaceSummaries(pid);
       const second=summaries.find(v=>v.name==='Bloc B');o.multiProject=!!second&&second.id!==pid&&summaries.length===2&&second.levels===3&&second.plans===0&&stack.state().length===0;
       stack.close();stack=null;
-      stack=await ModelCorePDFStack.openWorkspace({projectId:pid,workspaceId:pid});o.multiRestore=stack.state().length===2&&stack.state().every(l=>l.calibrated);stack.close();stack=null;
+      stack=await ModelCorePDFStack.openWorkspace({projectId:pid,workspaceId:pid});o.multiRestore=stack.state().length===2&&stack.state().every(l=>l.calibrated);
+      root=document.querySelector('.mc-workspace');
+      const folder=pid+'-level',srcId=pid+'-src',pdfId=pid+'-pdf',alertId=pid+'-alert';
+      await DB.putRaw('folders',{id:folder,projectId:pid,name:'0-SSL'});
+      await DB.putRaw('files',{id:pdfId,projectId:pid,blob:await mk('Architecture.pdf'),name:'Architecture.pdf'});
+      const original={id:srcId,projectId:pid,folderId:folder,name:'Architecture',disc:'ARCH',lotId:'arch',pdfFileId:pdfId,pdfPage:1,w:300,h:200,annotations:[{type:'line',pts:[[20,20],[30,30]]}]};
+      await DB.putRaw('plans',original);
+      await DB.putRaw('links',{id:alertId,projectId:pid,planId:srcId,kind:'local',x:50,y:50,hold:true});
+      const third=await stack.addProjectPlan(srcId,'n0');
+      stack.edit(third);stack.setPoint(third,'A',[20,20]);root.querySelector('[data-a=apply]').click();
+      root.querySelector('[data-a="3d"]').click();
+      o.multiPDF=stack.state().length===3&&stack.state().every(l=>l.visible&&l.calibrated)&&stack.state().filter(l=>l.levelId==='n0').length===2;
+      const type=root.querySelector('[data-r=type3d]');type.value='ARCH';type.dispatchEvent(new Event('change'));
+      o.typeFilter=stack.state().filter(l=>l.visible).length===1&&stack.state().find(l=>l.visible).sourcePlanId===srcId;
+      const lot=root.querySelector('[data-r=lot3d]');lot.value='arch';lot.dispatchEvent(new Event('change'));o.lotFilter=stack.state().filter(l=>l.visible).length===1;
+      root.querySelector('[data-a=data3d]').click();for(let i=0;i<100&&stack.dataState().markers<2;i++)await wait(100);
+      o.sceneData=stack.dataState().markers===2&&root.querySelector('[data-r=data-summary]').textContent.includes('1 alerte(s)');
+      root.querySelector('[data-a=data3d]').click();o.sceneClear=stack.dataState().markers===0;
+      root.querySelector('[data-a="3d"]').click();await stack.flush();stack.close();stack=null;
+      stack=await ModelCorePDFStack.openWorkspace({projectId:pid,workspaceId:pid});
+      o.linkRestore=stack.state().length===3&&stack.state().some(l=>l.sourcePlanId===srcId&&l.type==='ARCH'&&l.calibrated)&&JSON.stringify((await DB.get('plans',srcId)).annotations)===JSON.stringify(original.annotations);
+      stack.close();stack=null;
       await DB.deleteProject(pid);o.cleanup=!await DB.get('mcworkspaces',pid)&&(await DB.modelcoreIds(pid)).length===0;
-    }catch(e){o.err=String(e.message||e);}finally{if(stack){await stack.flush();stack.close();}for(const id of await DB.modelcoreIds(pid))await DB.delRaw('mcworkspaces',id);await DB.delRaw('projects',pid);}
+    }catch(e){o.err=String(e.message||e);}finally{if(stack){await stack.flush();stack.close();}for(const id of await DB.modelcoreIds(pid))await DB.delRaw('mcworkspaces',id);for(const [store,id] of [['folders',pid+'-level'],['plans',pid+'-src'],['files',pid+'-pdf'],['links',pid+'-alert']])await DB.delRaw(store,id);await DB.delRaw('projects',pid);}
     return o;
   });
   log('ModelCore X projet vide et niveaux',mcWorkspace);
-  log('errors v1.0.339',!mcWorkspace.err&&['empty','levels','overview','drawer','phone','pointDefault','calHD','calZoom','calPick','calPan','calFit','calAim','first','nextLevel','pointAligned','isolate','detailHD','detailRelease','reader','readerInk','readerZoom','readerSwitch','readerScale','readerReturn','allFrom3D','stack','saved','reopen','local','multiProject','multiRestore','cleanup'].every(k=>mcWorkspace[k])?[]:['Projet ModelCore '+JSON.stringify(mcWorkspace)]);
+  log('errors v1.0.339',!mcWorkspace.err&&['empty','levels','overview','drawer','phone','pointDefault','calHD','calZoom','calPick','calPan','calFit','calAim','first','nextLevel','pointAligned','isolate','detailHD','detailRelease','reader','readerInk','readerZoom','readerSwitch','readerScale','readerReturn','allFrom3D','stack','saved','reopen','local','multiProject','multiRestore','multiPDF','typeFilter','lotFilter','sceneData','sceneClear','linkRestore','cleanup'].every(k=>mcWorkspace[k])?[]:['Projet ModelCore '+JSON.stringify(mcWorkspace)]);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
