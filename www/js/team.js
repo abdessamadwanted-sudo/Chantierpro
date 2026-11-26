@@ -104,6 +104,14 @@ const ST_ORG_BRANCHES = {
  soustraitant:{travaux:[['st.prod','Production & rendement']],ferraillage:[['st.fer','Armatures & suivi']],materiel:[['st.mat','Matériel & affectations']],hse:[['st.hse','Sécurité terrain']]}
 };
 const stOrgBranches = (orgKey,svcKey) => (ST_ORG_BRANCHES[orgKey] || {})[svcKey] || [];
+const ST_BRANCH_DESC={
+ 'bet.struct':'Études, calculs et plans d’exécution.', 'bet.fluides':'Études des réseaux CVC, plomberie et électricité.', 'bet.bim':'Maquettes et coordination multi-lots.', 'bet.exec':'Visa des documents et demandes d’information.', 'bet.metre':'Métrés, quantités et estimations.', 'bet.doc':'Dossiers techniques et livrables d’études.',
+ 'topo.impl':'Points, axes et repères sur le terrain.', 'topo.rel':'Mesures et relevés topographiques.', 'topo.ctrl':'Altimétries, alignements et tolérances.', 'topo.asb':'Plans topographiques et récolement.', 'topo.calc':'Surfaces, volumes et coordonnées XYZ.', 'topo.mat':'Instruments, disponibilité et entretien.',
+ 'labo.beton':'Essais et contrôles du béton frais et durci.', 'labo.sols':'Portance, granulométrie et classification.', 'labo.prelev':'Suivi des prélèvements et échantillons.', 'labo.trace':'Identification et chaîne de contrôle.', 'labo.rapp':'Rapports d’essais et résultats.', 'labo.conf':'Contrôle de la conformité des matériaux.',
+ 'archi.concep':'Conception, plans et dossiers architecturaux.', 'archi.bim':'Maquettes et coordination.', 'archi.exec':'Visa, visites et suivi d’exécution.', 'archi.finitions':'Détails, finitions et matériaux.', 'archi.opc':'Coordination et interfaces.', 'archi.doc':'Livrables et documentation.'
+};
+const ST_BRANCH_ORDER={bet:['bet.struct','bet.fluides','bet.bim','bet.exec','bet.metre','bet.doc'],topo:['topo.impl','topo.rel','topo.ctrl','topo.asb','topo.calc','topo.mat'],labo:['labo.beton','labo.sols','labo.prelev','labo.trace','labo.rapp','labo.conf']};
+const stBranchCards=(orgKey,services)=>{const list=services.flatMap(s=>{const rows=stOrgBranches(orgKey,s.k);return rows.length?rows.map(([k,label])=>({k,parent:s.k,label,branch:true,desc:ST_BRANCH_DESC[k]||stVisual(k,s.c)[2]})):[{k:s.k,parent:s.k,label:s.l,branch:false,desc:stVisual(s.k,s.c)[2]}];});const order=ST_BRANCH_ORDER[orgKey]||[];return list.sort((a,b)=>(order.includes(a.k)?order.indexOf(a.k):99)-(order.includes(b.k)?order.indexOf(b.k):99));};
 const stOrgServiceTitle = (orgKey, svc) => (({bet:{bim:'Études & BIM',doc:'Visa & documentation',metre:'Métré & quantités'},archi:{bim:'Conception & BIM',doc:'Suivi & documentation'},topo:{topo:'Missions topographiques'},labo:{labo:'Essais & analyses',doc:'Rapports & résultats'},bc:{qualite:'Contrôle technique'},opc:{methodes:'Planning & coordination'}}[orgKey] || {})[svc.k] || svc.l);
 const stVisualStyle = (c) => '--st-tone:'+c+';--st-tint:'+c+'20;--st-edge:'+c+'70';
 function offerCard(P, perso, btn = true, opts = null) {
@@ -1749,7 +1757,7 @@ const Team = (() => {
     return new Promise((resolve) => {
       const el = document.createElement('div'); el.className = 'fullpage tm-login st-onb';
       const nm = (auth.currentUser.displayName || '').split(' ')[0];
-      const W = { espace: null, plan: null, org: null, svcs: [] };
+      const W = { espace: null, plan: null, org: null, svcs: [], branches: null };
       document.body.appendChild(el);
       const done = () => { el.remove(); resolve(true); };
       const brand = () => `<div class="st-entry-brand"><span class="st-entry-logo">${stLogo()}</span><span><b>SiteTeam</b><small>BTP · Chantiers · Collaboration</small></span></div>`;
@@ -1832,7 +1840,7 @@ const Team = (() => {
           <button class="linkbtn" data-a="back">← Retour</button></div>`;
         const menu = $('[data-a=orgmenu]', el), options = $('#st-ent-options', el);
         menu.onclick = () => { options.hidden = !options.hidden; menu.setAttribute('aria-expanded', String(!options.hidden)); };
-        $$('[data-o]', el).forEach(b => b.onclick = () => { if(W.org!==b.dataset.o){W.org=b.dataset.o;W.svcs=[];} stepOrg(); });
+        $$('[data-o]', el).forEach(b => b.onclick = () => { if(W.org!==b.dataset.o){W.org=b.dataset.o;W.svcs=[];W.branches=null;} stepOrg(); });
         ($('[data-a=orgnext]', el)||{}).onclick = () => { W.org = W.org || current.k; if(!W.svcs.length) W.svcs = [...orgTypeOf(W.org).svcs]; stepSvcs(); };
         back(stepPlan);
       }
@@ -1842,38 +1850,46 @@ const Team = (() => {
         const priority = ['direction','travaux','materiel','topo','qualite','hse','labo','admin'];
         if(T.k==='entreprise') L.sort((a,b)=>(priority.includes(a.k)?priority.indexOf(a.k):99)-(priority.includes(b.k)?priority.indexOf(b.k):99));
         W.svcs = [...new Set(W.svcs.filter(k => (k === 'direction' || T.svcs.includes(k)) && svcOpen(k)))]; if (!W.svcs.includes('direction')) W.svcs.unshift('direction');
-        el.innerHTML = `<div class="tm-lg-in st-architecture">${brand()}${steps(4, tot())}<h1>Pack ${esc(P.l)}</h1><p>Chaque service a ses propres outils. Configuration modifiable dans Réglages.</p>
+        const cards=stBranchCards(T.k,L), hasBranches=cards.some(c=>c.branch);
+        const maxS = planFor(P,false).services || 0;
+        if(maxS && W.svcs.length>maxS) W.svcs=W.svcs.slice(0,maxS);
+        if(hasBranches && W.branches===null) W.branches=cards.filter(c=>c.branch&&W.svcs.includes(c.parent)&&svcOpen(c.parent)).map(c=>c.k);
+        const isOn=c=>W.svcs.includes(c.parent)&&(!c.branch||W.branches.includes(c.k));
+        el.innerHTML = `<div class="tm-lg-in st-architecture st-service-screen">${brand()}${steps(4, tot())}<h1>Pack ${esc(P.l)}</h1><p>Chaque service a ses propres outils. Configuration modifiable dans Réglages.</p>
           <div class="st-ent-head" style="${stVisualStyle(stOrgVisual(T.k)[0])}"><small>Pack ${esc(P.l)} › Organisation</small><div class="st-tree-root" aria-label="Organisation sélectionnée"><span class="st-node-icon">${icon(stOrgVisual(T.k)[1])}</span><span><b>${esc(T.l)}</b><small>Catalogue métier</small></span></div><div class="st-tree-connector" aria-hidden="true"></div></div>
           <div class="st-ent-modes" role="group" aria-label="Mode de sélection"><button type="button" data-tpl="petite" aria-pressed="false">À la carte · Services indépendants</button><button type="button" data-tpl="grande" aria-pressed="false">Tous les services</button></div>
           <p class="st-ent-count" aria-live="polite"></p>
-          <div class="st-svcs st-node-grid">${L.map(s => { const [c,ic,sub]=stVisual(s.k,s.c), branches=stOrgBranches(T.k,s.k); return `<button type="button" ${svcOpen(s.k) ? `data-s="${s.k}" aria-pressed="${W.svcs.includes(s.k)}" class="${W.svcs.includes(s.k) ? 'on' : ''}"` : `class="lk" data-lk="${s.k}"`} style="--c:${c};${stVisualStyle(c)}"><span class="st-node-icon st-ent-card-icon" aria-hidden="true">${icon(ic)}</span><span class="st-node-copy"><b class="st-ent-card-label">${esc(stOrgServiceTitle(T.k,s))}</b><small>${esc(sub)}</small>${branches.length ? `<span class="st-branch-list">${branches.map(([k,label])=>`<span>${esc(label)}</span>`).join('')}</span>` : ''}</span><span class="st-node-check st-ent-card-mark" aria-hidden="true">${!svcOpen(s.k) ? '🔒' : W.svcs.includes(s.k) ? '✓' : '○'}</span></button>`; }).join('')}</div>
-          <small class="st-lknote">Sélection par service. Les sous-services sont inclus dans leur service parent ; les outils restent soumis à vos droits. 🔒 En préparation si verrouillé.</small>
+          <div class="st-svcs st-node-grid">${cards.map(c=>{const parent=L.find(s=>s.k===c.parent),[tone,ic]=stVisual(c.k,parent.c),locked=!svcOpen(c.parent);return `<button type="button" ${locked?`class="lk" data-lk="${c.parent}"`:`${c.branch?`data-branch="${c.k}" data-parent="${c.parent}"`:`data-s="${c.k}"`} aria-pressed="${isOn(c)}" class="${isOn(c)?'on':''}"`} style="--c:${tone};${stVisualStyle(tone)}"><span class="st-node-icon st-ent-card-icon" aria-hidden="true">${icon(ic)}</span><span class="st-node-copy"><b class="st-ent-card-label">${esc(c.label)}</b><small>${esc(c.desc)}</small></span><span class="st-node-check st-ent-card-mark" aria-hidden="true">${locked?'🔒':isOn(c)?'✓':'○'}</span></button>`;}).join('')}</div>
+          <small class="st-lknote">${hasBranches?'Pôles sélectionnables séparément pour organiser votre espace. Droits et abonnement gérés par service parent.':'Services sélectionnables indépendamment.'}</small>
           <div class="form"><label>Nom de l'organisation<input name="cname" placeholder="Ex : ${T.k === 'entreprise' ? 'Entreprise BTP …' : esc(T.l) + ' …'}"></label>
           <label>Votre nom<input name="me" value="${esc(auth.currentUser.displayName || '')}"></label>
           ${T.k === 'entreprise' ? `<label>Votre poste<select name="role">${TM_ROLES.filter(x => x.admin).map(x => `<option value="${x.k}">${esc(x.l)}</option>`).join('')}</select></label>` : ''}
           <button class="btn" data-a="go">Créer l'organisation</button></div>
           <button class="linkbtn" data-a="back">← Retour</button></div>`;
-        const maxS = planFor(planOf(W.plan), false).services || 0;
-        if (maxS && W.svcs.length > maxS) W.svcs = W.svcs.slice(0, maxS);
+
         const refresh = () => {
-          $$('[data-s]', el).forEach(b => {
-            const on = W.svcs.includes(b.dataset.s);
+          $$('[data-s],[data-branch]', el).forEach(b => {
+            const c=cards.find(c=>c.k===(b.dataset.branch||b.dataset.s)); const on=isOn(c);
             b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
             const mark = $('.st-ent-card-mark', b); if (mark) mark.textContent = on ? '✓' : '○';
           });
           const count = $('.st-ent-count', el);
-          if (count) count.textContent = W.svcs.length + ' service(s) sélectionné(s)' + (maxS ? ' · limite : ' + maxS : '');
+          if (count) count.textContent = cards.filter(isOn).length + (hasBranches?' pôle(s) sélectionné(s)':' service(s) sélectionné(s)') + (maxS ? ' · limite : ' + maxS : '');
           const full = L.filter(s => svcOpen(s.k)).map(s => s.k);
-          const all = full.length > 0 && full.every(k => W.svcs.includes(k));
+          const all = full.length > 0 && cards.filter(c=>svcOpen(c.parent)).every(isOn);
           $$('[data-tpl]', el).forEach(b => { const on = b.dataset.tpl === 'grande' ? all : !all; b.classList.toggle('on',on); b.setAttribute('aria-pressed',String(on)); });
         };
         refresh();
         $$('[data-s]', el).forEach(b => { b.classList.toggle('on', W.svcs.includes(b.dataset.s)); b.onclick = () => { const k = b.dataset.s;
           if (!W.svcs.includes(k) && maxS && W.svcs.length >= maxS) return toast(`Pack ${planOf(W.plan).l} : ${maxS} services au maximum`);
           W.svcs = W.svcs.includes(k) ? W.svcs.filter(x => x !== k) : [...W.svcs, k]; refresh(); }; });
+        $$('[data-branch]',el).forEach(b=>b.onclick=()=>{const c=cards.find(x=>x.k===b.dataset.branch);if(!c||!svcOpen(c.parent))return;
+          if(isOn(c)){W.branches=W.branches.filter(k=>k!==c.k);if(!cards.some(x=>x.branch&&x.parent===c.parent&&W.branches.includes(x.k))&&c.parent!=='direction')W.svcs=W.svcs.filter(k=>k!==c.parent);}
+          else {if(!W.svcs.includes(c.parent)&&maxS&&W.svcs.length>=maxS)return toast(`Pack ${P.l} : ${maxS} services au maximum`);W.svcs=[...new Set([...W.svcs,c.parent])];W.branches=[...new Set([...W.branches,c.k])];}refresh();});
         // modèles : petite entreprise (3 services de base) ou grande entreprise (tout le modèle du type d'organisation) — modifiables ensuite
         $$('[data-lk]', el).forEach(b => b.onclick = () => toast('🔒 Ce service ouvrira bientôt'));
         $$('[data-tpl]', el).forEach(b => b.onclick = () => { const full = orgTypeOf(W.org).svcs.filter(svcOpen); W.svcs = b.dataset.tpl === 'petite' ? full.filter(k => k === 'direction') : [...full]; if (maxS && W.svcs.length > maxS) { W.svcs = W.svcs.slice(0, maxS); toast(`Pack ${planOf(W.plan).l} : ${maxS} services au maximum`); }
+          if(hasBranches)W.branches=b.dataset.tpl==='petite'?[]:cards.filter(c=>c.branch&&W.svcs.includes(c.parent)&&svcOpen(c.parent)).map(c=>c.k);
           refresh(); });
         back(stepOrg);
         ($('[data-a=go]', el)||{}).onclick = () => { const cn = $('[name=cname]', el).value.trim(); if (!cn) return toast('Tapez le nom de l\'organisation');
@@ -1906,7 +1922,7 @@ const Team = (() => {
           // nouvel espace : « gratuit » ou « essai » (avec date de fin) ; « actif » ne se donne que par le Super Admin
           const viaCode = W.code && W.code.plan === W.plan;
           const sub = viaCode ? { ...codeSub(W.code), packCode: W.code.code } : P.price === 0 ? { planStatus: 'gratuit' } : { planStatus: 'essai', trialEndsAt: firebase.firestore.Timestamp.fromMillis(Date.now() + (P.trialDays || 14) * 864e5) };
-          await withTimeout(ref.set({ name: r.name, ownerUid: uid, plan: W.plan, ...sub, kind: W.espace, orgType: W.org, services: W.svcs, createdAt: ts() }));
+          await withTimeout(ref.set({ name: r.name, ownerUid: uid, plan: W.plan, ...sub, kind: W.espace, orgType: W.org, services: W.svcs, ...(!perso && Array.isArray(W.branches) ? { metierBranches: { org: W.org, keys: W.branches } } : {}), createdAt: ts() }));
           if (viaCode) await withTimeout(useCode(W.code)).catch(e => console.warn('code', e));
           // espace personnel : « propriétaire » (pas un poste, pas de service) ; organisation : le créateur est l'administrateur initial, de CETTE organisation seulement
           const all = Object.fromEntries(MODS.map(([m]) => [m, 4]));
