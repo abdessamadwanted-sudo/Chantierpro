@@ -377,7 +377,30 @@ const ST = (() => {
     { k: 'at', e: '🤝', nom: 'Assistance technique / Délégué', c: '#4d7c0f', flag: 'espat', services: [
       mk('at.suivi', 'Suivi technique', '#4d7c0f', ['reunions', 'visa'], ['avancement', 'constat'])] },
   ];
-  const ALL_SHELLS = [...SVC_SHELLS, ...INTERVENANTS.flatMap(I => I.services)];
+  // Branches propres à une organisation titulaire, sans modifier le catalogue des partenaires invités.
+  // Les boutons pointent exclusivement vers les sections natives et restent filtrés par ok().
+  const OWN_BRANCH_SHELLS = [
+    mk('bet.bim','BIM & coordination','#c084fc',['plans','docq'],['models3d','maquette']),
+    mk('bet.doc','Documentation technique','#fbbf24',['docq','clauses','plans'],[]),
+    mk('archi.bim','BIM & maquette','#c084fc',['plans'],['models3d','maquette']),
+    mk('archi.finitions','Finitions & détails','#f472b6',['plans','clauses'],['constat']),
+    mk('archi.doc','Documentation','#60a5fa',['docq','plans'],[]),
+    mk('topo.ctrl','Contrôles géométriques','#60a5fa',['plans','docq'],['calc','constat']),
+    mk('topo.calc','Calculs & coordonnées','#2dd4bf',['plans'],['calc']),
+    mk('topo.mat','Instruments & matériel','#fbbf24',['docq'],['materiel']),
+    mk('labo.prelev','Prélèvements','#c084fc',['forms'],['labo','beton']),
+    mk('labo.trace','Traçabilité','#2dd4bf',['docq','forms'],['labo']),
+    mk('labo.conf','Conformité matériaux','#4ade80',['docq','forms'],['labo','constat']),
+    mk('opc.plan','Planning & jalons','#60a5fa',['planning'],['avancement']),
+    mk('opc.coord','Coordination des lots','#22d3ee',['reunions','planning'],['lotsuivi','avancement']),
+    mk('opc.rapp','Reporting & comptes rendus','#c084fc',['reunions','docq','rapports'],[]),
+    mk('st.prod','Production & rendement','#4ade80',['planning','pointage'],['avancement','lotsuivi']),
+    mk('st.fer','Armatures & suivi','#fb7185',['plans'],['materiaux','suiviq']),
+    mk('st.mat','Matériel & affectations','#fbbf24',['docq'],['materiel']),
+    mk('st.hse','Sécurité terrain','#fb7185',['forms'],['hse','constat'])
+  ];
+  const ALL_SHELLS = [...SVC_SHELLS, ...INTERVENANTS.flatMap(I => I.services), ...OWN_BRANCH_SHELLS];
+  const ownBranchesOf = (orgKey, active) => Object.entries(ST_ORG_BRANCHES[orgKey] || {}).filter(([key])=>active.includes(key)).flatMap(([,branches])=>branches.map(([key,label])=>{const shell=ALL_SHELLS.find(S=>S.k===key);return shell?{...shell,nom:label}:null;}).filter(Boolean));
   // v1.0.2xx : Pro Service autonome — un intervenant (BET, Architecte, Bureau de contrôle, Laboratoire ou Topographe
   // externe, Assistance technique) peut aussi être choisi comme service autonome (demande du propriétaire : « même
   // principe pour les intervenants aussi ») — clé dédiée (iv_*, jamais dans le catalogue studio.json : Team.createService
@@ -445,7 +468,10 @@ const ST = (() => {
     const ivMine = () => { const sh = partnerSh(); return sh ? INTERVENANTS.find(I => I.k === IV_OF_ROLE[sh.role]) || null : null; };
     const ivList = () => { const sh = partnerSh(); return sh ? [ivMine()].filter(I => I && Team.flag(I.flag)) : INTERVENANTS.filter(I => Team.flag(I.flag)); };
     const ivOn = () => ivList().length > 0;
-    const entOn = () => ivOn() && !partnerSh();
+    const ownType = ready() && !Team.isPerso() && !partnerSh() && ['business','enterprise'].includes(plan().k) ? Team.orgType() : null;
+    const ownBranches = ownType ? ownBranchesOf(ownType.k,Team.companyServices().filter(S=>Team.svcOpen(S.k)).map(S=>S.k)) : [];
+    const ownOn = ownBranches.length > 0;
+    const entOn = () => ivOn() && !partnerSh() && !ownOn;
     const QS_NAMES = { adm: ['📁', 'Administratif'], ter: ['🏗️', 'Terrain'], com: ['🔗', 'Commun'] };
     const QS_COL = { adm: ['folder', '#2563eb'], ter: ['hard', '#16a34a'], com: ['team', '#7c3aed'] };
     // volets autorisés à la personne : choisis par l'administrateur dans l'organigramme (vide = les deux) ; l'administrateur voit tout
@@ -473,10 +499,17 @@ const ST = (() => {
       return `<details class="st-tcat st-acc st-org-node" data-g="${g}" style="--c:${tone};${stVisualStyle(tone)}" ${opened.includes(g)?'open':''}><summary class="st-tcat-h">${nodeTitle(titre,ic,n+' services')}</summary><div class="st-orgin"><div class="st-tree-connector" aria-hidden="true"></div>${inner}</div></details>`;
     };
     const entSvcs = () => [...(svcq() && svcChosen('qual') ? [svcAcc(SVC_SHELLS[0], (G.find(x => x[0] === 'qual') || [0, 0, []])[2], true)] : []), ...SVC_SHELLS.slice(1).filter(S => Team.flag(S.flag) && svcChosen(S.k)).map(S => svcAcc(S, [], true))];
+    const ownHtml = () => {
+      if(!ownOn)return '';
+      const shells=ownBranches.filter(S=>qsTools(S,[]).some(k=>qsAllowed().includes(qsMap(S)[k]||'ter')));
+      if(!shells.length)return '';
+      const [tone,ic]=stOrgVisual(ownType.k);
+      return `<div class="st-service-tree st-own-tree" data-own-org="${esc(ownType.k)}" style="${stVisualStyle(tone)}"><div class="st-tree-root"><span class="st-node-icon">${icon(ic)}</span><span><b>${esc(ownType.l)}</b><small>Mon organisation · ${shells.length} pôles métier accessibles</small></span></div><div class="st-tree-connector" aria-hidden="true"></div><div class="st-own-grid">${shells.map(S=>svcAcc(S,[],true)).join('')}</div></div>`;
+    };
     const ivHtml = () => { if (!ivOn()) return ''; const E = entOn() ? entSvcs() : [];
       return `<div class="st-service-tree"><div class="st-tree-root"><span class="st-node-icon">${icon('layers')}</span><span><b>Intervenants du projet</b><small>Organisations · services · outils métier</small></span></div><div class="st-tree-connector" aria-hidden="true"></div>`
         + (entOn() ? orgAcc('iv-ent', 'Entreprise BTP', '#0d9488', E.join('') || '<p class="st-thint2" style="padding:8px">Aucun service activé</p>', E.length) : '')
-        + ivList().map(I => orgAcc('iv-' + I.k, I.nom, I.c, I.services.map(S => svcAcc(S, [], true)).join(''), I.services.length)).join('')+'</div>'; };
+        + ivList().filter(I=>!ownOn||I.k!==ownType.k).map(I => orgAcc('iv-' + I.k, I.nom, I.c, I.services.map(S => svcAcc(S, [], true)).join(''), I.services.length)).join('')+'</div>'; };
     const qsSet = async (S, ks) => {
       const M = qsMap(S), all = qsTools(S, ks);
       for (;;) { const v = await menu(`${S.nom} : où ranger chaque outil ?`, [...all.map(k => ({ label: `${toolName(k)} — ${QS_NAMES[M[k] || 'ter'][1]}`, value: k })), { label: 'Terminé', icon: 'check', value: '__ok' }]); if (!v || v === '__ok') break;
@@ -491,6 +524,7 @@ const ST = (() => {
       <div class="st-hd"><b>${esc(T.e || '🏗️')} ${esc(p.name)}</b><small>${esc(T.n || 'Projet')}${p.address ? ' · ' + esc(p.address) : ''}</small></div>
       ${qaOn ? `<div class="st-qa ${Math.max(1, QA.length) <= 4 ? 'qa-l' : Math.max(1, QA.length) <= 8 ? 'qa-m' : 'qa-s'}" style="--n:${Math.max(1, QA.length)}">${QA.map(([k, ic, l, c]) => `<button class="st-qa-b" data-a="${k}" style="--c:${c}"><i>${icon(ic)}</i><span>${l}</span></button>`).join('')}${QA.length ? '' : `<button class="st-qa-b st-qa-add" data-a="qaadd" style="--c:#475569"><i>${icon('plus')}</i><span>Ajouter</span></button>`}</div>
       <p class="st-thint2" style="margin:-4px 0 6px">Appui long sur la barre : ajouter · réorganiser · retirer</p>` : ''}
+      ${ownHtml()}
       ${ivHtml()}
       ${G.map(([g, l, ks]) => { const shellHere = autoSvc === g ? SVC_SHELLS.find(S => S.k === g) : (g === 'qual' && svcq() && svcChosen('qual') ? SVC_SHELLS[0] : null);
         return (shellHere ? '' : `<details class="st-tcat st-acc" data-g="${g}" style="--c:${CAT_C[g] || 'var(--accent)'}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(l.replace(/^\S+\s/, ''))}<small>${ks.length}</small><i class="st-chev">${icon('chevdown')}</i></summary>
