@@ -55,18 +55,18 @@ const ST_SERVICE_THEME = {
  direction:['#60a5fa','team','Pilotage et décisions'], travaux:['#4ade80','hard','Exécution et avancement'],
  qualite:['#c084fc','shield','Réceptions, contrôles, PV'], qual:['#c084fc','shield','Réceptions, contrôles, PV'],
  hse:['#fb7185','alert','Prévention et sécurité'], materiel:['#fbbf24','wrench','Parc et disponibilité'],
- topo:['#2dd4bf','pin','Implantations et levés'], labo:['#38bdf8','calc','Essais et traçabilité'],
+ topo:['#2dd4bf','pin','Implantations et levés'], labo:['#38bdf8','flask','Essais et traçabilité'],
  admin:['#fbbf24','sheet','Administration et finance'], fin:['#fbbf24','sheet','Budget et contrats'],
  methodes:['#22d3ee','calendar','Méthodes et planning'], etudes:['#818cf8','ruler','Études techniques'],
  etu:['#818cf8','ruler','Études et visas'], bim:['#818cf8','layers','Maquettes et coordination'],
  achats:['#fb923c','bag','Approvisionnement'], magasin:['#eab308','box','Stocks et inventaire'],
- maintenance:['#f59e0b','wrench','Maintenance du parc'], transport:['#a3e635','truck','Transport et logistique'],
- pointage:['#2dd4bf','clock','Effectifs et pointage'], rh:['#f472b6','users','Personnel et RH'],
+ maintenance:['#f59e0b','wrench','Maintenance du parc'], transport:['#a3e635','box','Transport et logistique'],
+ pointage:['#2dd4bf','clock','Effectifs et pointage'], rh:['#f472b6','team','Personnel et RH'],
  contrats:['#a78bfa','form','Marchés et métrés'], doc:['#38bdf8','folder','Documents et archives'],
  metre:['#a78bfa','ruler','Quantités et estimations'], ferraillage:['#f87171','layers','Armatures et suivi'],
  centrale:['#94a3b8','hard','Commandes et béton'], logistique:['#f59e0b','box','Logistique']
 };
-const ST_ORG_THEME = {entreprise:['#fbbf24','hard'],soustraitant:['#fb923c','team'],bet:['#818cf8','ruler'],archi:['#f472b6','layers'],moa:['#60a5fa','team'],bc:['#fb7185','shield'],opc:['#22d3ee','calendar'],labo:['#38bdf8','calc'],topo:['#2dd4bf','pin']};
+const ST_ORG_THEME = {entreprise:['#fbbf24','hard'],soustraitant:['#fb923c','team'],bet:['#818cf8','ruler'],archi:['#f472b6','layers'],moa:['#60a5fa','team'],bc:['#fb7185','shield'],opc:['#22d3ee','calendar'],labo:['#38bdf8','flask'],topo:['#2dd4bf','pin']};
 const stVisual = (k, fallback='#60a5fa') => ST_SERVICE_THEME[k] || [fallback,'grid','Outils métier'];
 const stOrgVisual = (k) => ST_ORG_THEME[k] || ['#94a3b8','grid'];
 const stVisualStyle = (c) => '--st-tone:'+c+';--st-tint:'+c+'20;--st-edge:'+c+'70';
