@@ -120,10 +120,10 @@
     if(ws&&(!options.projectId||!belongs(ws,options.projectId)||!Array.isArray(ws.levels)||!ws.levels.length||ws.levels.length>MAX_LEVELS))throw Error('Projet ModelCore invalide.');
     const levels=ws?ws.levels.map(v=>({...v})):[];
     const el=document.createElement('div');el.className='mc-pdfstack'+(ws?' mc-workspace':'');
-    el.innerHTML='<style>.mc-pdfstack{position:fixed;inset:0;z-index:1000000;display:flex;flex-direction:column;background:#08192a;color:#e6f4ff;font:13px system-ui,sans-serif;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}.mc-pdfstack *{box-sizing:border-box}.mc-pdfstack [hidden]{display:none!important}.mc-pdfstack button,.mc-pdfstack input,.mc-pdfstack select{background:#163348;color:#e6f4ff;border:1px solid #34586d;border-radius:8px;padding:8px;min-height:36px;font:inherit}.mc-pdfstack button.active{border-color:#55d9ee;color:#8af0ff;background:#155064}.mc-pdfstack button:disabled{opacity:.4}.mc-pdfstack .ps-head,.mc-pdfstack .ps-bar{display:flex;gap:6px;align-items:center;padding:8px;flex-shrink:0}.mc-pdfstack .ps-head{background:#0b2236}.mc-pdfstack .ps-head b{font-size:16px}.mc-pdfstack .ps-small{font-size:11px;color:#9bbacc}.mc-pdfstack .ps-grow{flex:1;min-width:0}.mc-pdfstack .ps-stage{position:relative;flex:1;min-height:100px;overflow:hidden;background:radial-gradient(ellipse,#24465b,#071625 75%)}.mc-pdfstack .ps-stage>canvas{width:100%;height:100%;display:block;touch-action:none}.mc-pdfstack .ps-cal{display:flex;flex-direction:column;flex:1;min-height:0;padding:8px;gap:5px}.mc-pdfstack .ps-preview{flex:1;min-height:120px;overflow:auto;background:#172b3c;touch-action:pan-x pan-y}.mc-pdfstack .ps-preview canvas{display:block;max-width:none;touch-action:pan-x pan-y}.mc-pdfstack .ps-drawer{max-height:43%;overflow:auto;padding:8px;background:#0d2538;border-top:1px solid #315267}.mc-pdfstack .ps-row{display:flex;align-items:center;gap:5px;margin:6px 0}.mc-pdfstack .ps-row input[type=number]{width:74px}.mc-pdfstack .ps-row b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}.mc-pdfstack .ps-status{padding:5px 10px;color:#a8d4e2;min-height:25px;font-size:11px}.mc-pdfstack .ps-top{position:absolute;top:8px;left:8px;right:8px;pointer-events:none;display:flex;justify-content:space-between}.mc-pdfstack .ps-top span{background:#0a2035dd;padding:6px;border-radius:6px}.mc-pdfstack .ps-cal .ps-bar{padding:0;flex-wrap:wrap}.mc-pdfstack .ps-cal .ps-bar input{width:90px}.mc-pdfstack .ps-point{color:#64e4ff}.mc-pdfstack .ps-source{border:1px solid #34586d;border-radius:8px;padding:6px;margin:6px 0}.mc-pdfstack .ps-source input[type=search]{width:100%}.mc-pdfstack .ps-source-list{max-height:180px;overflow:auto}.mc-pdfstack .ps-source-list button{text-align:left;width:100%;margin:3px 0;white-space:normal;overflow-wrap:anywhere}.mc-pdfstack .ps-source-list small{display:block;color:#a8c7d8}.mc-pdfstack .ps-bar{overflow-x:auto}.mc-pdfstack .ps-drawer .ps-row{flex-wrap:wrap}.mc-pdfstack .ps-levels{position:absolute;right:10px;top:52px;max-height:calc(100% - 65px);overflow:auto;display:flex;flex-direction:column;gap:6px;padding:5px;background:#0b2236dd;border:1px solid #34586d;border-radius:14px;max-width:94px}.mc-pdfstack .ps-levels button{min-height:44px;min-width:56px;padding:6px 4px;overflow-wrap:anywhere}.mc-pdfstack .ps-levels small{display:block;font-size:10px;color:#a8c7d8}.mc-pdfstack .ps-empty{position:absolute;top:38%;left:10%;right:27%;text-align:center;color:#a8c7d8;pointer-events:none}.mc-pdfstack .ps-empty b{display:block;font-size:17px;color:#e6f4ff;margin-bottom:8px}.mc-pdfstack .ps-overview-row{display:flex;align-items:center;gap:6px;border:1px solid #34586d;border-radius:10px;padding:7px;margin:5px 0}.mc-pdfstack .ps-overview-row b{display:block;overflow-wrap:anywhere}.mc-pdfstack .ps-overview-row button{min-width:64px}.mc-pdfstack .ps-level-tools{border-bottom:1px solid #34586d;padding-bottom:6px;margin-bottom:8px}.mc-pdfstack .ps-level-tools input[type=text]{width:110px;min-width:0}.mc-pdfstack .ps-level-tools input[type=number]{width:72px}.mc-pdfstack .ps-preview{position:relative;overflow:hidden;touch-action:none;min-height:100px}.mc-pdfstack .ps-preview canvas{width:100%;height:100%;touch-action:none;cursor:crosshair}.mc-pdfstack .ps-cal-zoom{font-size:11px;color:#93d3e6}.mc-pdfstack .ps-sight{position:absolute;left:50%;top:50%;width:28px;height:28px;transform:translate(-50%,-50%);border:1px solid #0098c1;border-radius:50%;pointer-events:none;filter:drop-shadow(0 0 1px white)}.mc-pdfstack .ps-sight:before,.mc-pdfstack .ps-sight:after{content:"";position:absolute;background:#0098c1;left:50%;top:50%;transform:translate(-50%,-50%)}.mc-pdfstack .ps-sight:before{width:40px;height:1px}.mc-pdfstack .ps-sight:after{width:1px;height:40px}.mc-workspace .ps-head b{font-size:19px}.mc-workspace .ps-stage{background:radial-gradient(ellipse,#24465b,#071625 75%)}</style>'+
+    el.innerHTML='<style>.mc-pdfstack{position:fixed;inset:0;z-index:1000000;display:flex;flex-direction:column;background:#08192a;color:#e6f4ff;font:13px system-ui,sans-serif;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}.mc-pdfstack *{box-sizing:border-box}.mc-pdfstack [hidden]{display:none!important}.mc-pdfstack button,.mc-pdfstack input,.mc-pdfstack select{background:#163348;color:#e6f4ff;border:1px solid #34586d;border-radius:8px;padding:8px;min-height:36px;font:inherit}.mc-pdfstack button.active{border-color:#55d9ee;color:#8af0ff;background:#155064}.mc-pdfstack button:disabled{opacity:.4}.mc-pdfstack .ps-head,.mc-pdfstack .ps-bar{display:flex;gap:6px;align-items:center;padding:8px;flex-shrink:0}.mc-pdfstack .ps-head{background:#0b2236}.mc-pdfstack .ps-head b{font-size:16px}.mc-pdfstack .ps-small{font-size:11px;color:#9bbacc}.mc-pdfstack .ps-grow{flex:1;min-width:0}.mc-pdfstack .ps-stage{position:relative;flex:1;min-height:100px;overflow:hidden;background:radial-gradient(ellipse,#24465b,#071625 75%)}.mc-pdfstack .ps-stage>canvas{width:100%;height:100%;display:block;touch-action:none}.mc-pdfstack .ps-cal{display:flex;flex-direction:column;flex:1;min-height:0;padding:8px;gap:5px}.mc-pdfstack .ps-preview{flex:1;min-height:120px;overflow:auto;background:#172b3c;touch-action:pan-x pan-y}.mc-pdfstack .ps-preview canvas{display:block;max-width:none;touch-action:pan-x pan-y}.mc-pdfstack .ps-drawer{max-height:43%;overflow:auto;padding:8px;background:#0d2538;border-top:1px solid #315267}.mc-pdfstack .ps-row{display:flex;align-items:center;gap:5px;margin:6px 0}.mc-pdfstack .ps-row input[type=number]{width:74px}.mc-pdfstack .ps-row b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}.mc-pdfstack .ps-status{padding:5px 10px;color:#a8d4e2;min-height:25px;font-size:11px}.mc-pdfstack .ps-top{position:absolute;top:8px;left:8px;right:8px;pointer-events:none;display:flex;justify-content:space-between}.mc-pdfstack .ps-top span{background:#0a2035dd;padding:6px;border-radius:6px}.mc-pdfstack .ps-cal .ps-bar{padding:0;flex-wrap:wrap}.mc-pdfstack .ps-cal .ps-bar input{width:90px}.mc-pdfstack .ps-point{color:#64e4ff}.mc-pdfstack .ps-source{border:1px solid #34586d;border-radius:8px;padding:6px;margin:6px 0}.mc-pdfstack .ps-source input[type=search]{width:100%}.mc-pdfstack .ps-source-list{max-height:180px;overflow:auto}.mc-pdfstack .ps-source-list button{text-align:left;width:100%;margin:3px 0;white-space:normal;overflow-wrap:anywhere}.mc-pdfstack .ps-source-list small{display:block;color:#a8c7d8}.mc-pdfstack .ps-bar{overflow-x:auto}.mc-pdfstack .ps-drawer .ps-row{flex-wrap:wrap}.mc-pdfstack .ps-levels{position:absolute;right:10px;top:52px;max-height:calc(100% - 65px);overflow:auto;display:flex;flex-direction:column;gap:6px;padding:5px;background:#0b2236dd;border:1px solid #34586d;border-radius:14px;max-width:94px}.mc-pdfstack .ps-levels button{min-height:44px;min-width:56px;padding:6px 4px;overflow-wrap:anywhere}.mc-pdfstack .ps-levels small{display:block;font-size:10px;color:#a8c7d8}.mc-pdfstack .ps-empty{position:absolute;top:38%;left:10%;right:27%;text-align:center;color:#a8c7d8;pointer-events:none}.mc-pdfstack .ps-empty b{display:block;font-size:17px;color:#e6f4ff;margin-bottom:8px}.mc-pdfstack .ps-data-summary{position:absolute;bottom:8px;left:8px;right:100px;max-height:30%;overflow:auto;background:#0b2236ed;padding:8px;border:1px solid #34586d;border-radius:9px;font-size:11px}.mc-pdfstack .ps-overview-row{display:flex;align-items:center;gap:6px;border:1px solid #34586d;border-radius:10px;padding:7px;margin:5px 0}.mc-pdfstack .ps-overview-row b{display:block;overflow-wrap:anywhere}.mc-pdfstack .ps-overview-row button{min-width:64px}.mc-pdfstack .ps-level-tools{border-bottom:1px solid #34586d;padding-bottom:6px;margin-bottom:8px}.mc-pdfstack .ps-level-tools input[type=text]{width:110px;min-width:0}.mc-pdfstack .ps-level-tools input[type=number]{width:72px}.mc-pdfstack .ps-preview{position:relative;overflow:hidden;touch-action:none;min-height:100px}.mc-pdfstack .ps-preview canvas{width:100%;height:100%;touch-action:none;cursor:crosshair}.mc-pdfstack .ps-cal-zoom{font-size:11px;color:#93d3e6}.mc-pdfstack .ps-sight{position:absolute;left:50%;top:50%;width:28px;height:28px;transform:translate(-50%,-50%);border:1px solid #0098c1;border-radius:50%;pointer-events:none;filter:drop-shadow(0 0 1px white)}.mc-pdfstack .ps-sight:before,.mc-pdfstack .ps-sight:after{content:"";position:absolute;background:#0098c1;left:50%;top:50%;transform:translate(-50%,-50%)}.mc-pdfstack .ps-sight:before{width:40px;height:1px}.mc-pdfstack .ps-sight:after{width:1px;height:40px}.mc-workspace .ps-head b{font-size:19px}.mc-workspace .ps-stage{background:radial-gradient(ellipse,#24465b,#071625 75%)}</style>'+
       '<div class="ps-head"><button data-a="close">✕</button><div class="ps-grow"><b>◈ ModelCore <span style="color:#5ce5fc">X</span></b><div class="ps-small" data-r="project"></div></div><button data-a="projects" hidden>▤ Projets</button><button data-a="layers" aria-expanded="true">☷ Plans</button></div>'+
-      '<div class="ps-bar"><button data-a="3d" class="active">3D · Tous</button><button data-a="overview" hidden>▤ Niveaux</button><select data-r="type3d" aria-label="Type affiché"><option value="">Tous types</option></select><select data-r="lot3d" aria-label="Lot affiché"><option value="">Tous lots</option></select><button data-a="data3d" hidden>Data 3D</button><button data-a="top">Dessus 3D</button><button data-a="planview" hidden>Vue en plan</button><button data-a="fit">Ajuster</button><button data-a="detail3d" disabled>HD niveau</button><button data-a="zoomout">−</button><button data-a="zoomin">+</button><label class="ps-small">Écart <select data-r="explode"><option value="1">Réel</option><option value="2">×2</option><option value="4">×4</option></select></label></div>'+
-      '<div class="ps-stage" data-r="stage"><div class="ps-top"><span data-r="count">0 plan calé</span><span>1 doigt orbite · 2 doigts zoom/pan</span></div><div class="ps-empty" data-r="empty" hidden><b>Projet vide</b><span>Choisissez un niveau à droite pour ajouter son PDF.</span></div><div class="ps-levels" data-r="levels" hidden></div></div>'+
+      '<div class="ps-bar"><button data-a="3d" class="active">3D · Tous</button><button data-a="overview" hidden>▤ Niveaux</button><select data-r="type3d" aria-label="Type affiché"><option value="">Tous types</option></select><select data-r="lot3d" aria-label="Lot affiché"><option value="">Tous lots</option></select><button data-a="data3d" hidden>Data 3D</button><button data-a="refresh-data" hidden>↻ Data</button><button data-a="top">Dessus 3D</button><button data-a="planview" hidden>Vue en plan</button><button data-a="fit">Ajuster</button><button data-a="detail3d" disabled>HD niveau</button><button data-a="zoomout">−</button><button data-a="zoomin">+</button><label class="ps-small">Écart <select data-r="explode"><option value="1">Réel</option><option value="2">×2</option><option value="4">×4</option></select></label></div>'+
+      '<div class="ps-stage" data-r="stage"><div class="ps-top"><span data-r="count">0 plan calé</span><span>1 doigt orbite · 2 doigts zoom/pan</span></div><div class="ps-empty" data-r="empty" hidden><b>Projet vide</b><span>Choisissez un niveau à droite pour ajouter son PDF.</span></div><div class="ps-levels" data-r="levels" hidden></div><div data-r="data-summary" class="ps-data-summary" hidden></div></div>'+
       '<div class="ps-cal" data-r="cal" hidden><div class="ps-bar"><b class="ps-grow" data-r="calname"></b><button data-a="calclose">Terminer</button></div><div class="ps-bar"><button data-a="pointA" class="active">Point A</button><button data-a="pointB">Point B</button><button data-a="calminus">−</button><button data-a="calplus">+</button><button data-a="precision">◎ Précision</button><button data-a="fullpaper">Plan entier</button><span class="ps-cal-zoom" data-r="cal-zoom">100 %</span><button data-a="aim">⊕ Placer au viseur</button><button data-a="clear">Effacer</button></div><div class="ps-bar"><label>Calage <select data-r="cal-mode"><option value="point">1 point commun</option><option value="two">2 points (avancé)</option></select></label><label data-r="scale-label">Échelle 1:<input data-r="denom" type="number" min="1" max="10000" step="1" placeholder="100"></label></div><div class="ps-small" data-r="instructions"></div><div class="ps-preview" data-r="preview"><canvas data-r="paper" aria-label="Plan PDF : pincez pour zoomer, glissez pour déplacer, touchez pour choisir le point"></canvas><div class="ps-sight" aria-hidden="true"></div></div><div class="ps-bar"><label data-r="distance-label">Distance A–B (m) <input data-r="distance" type="number" min=".01" max="10000" step=".01" value=""></label><button data-a="apply">Valider le calage</button><button data-a="apply-next" hidden>Valider + suivant</button></div></div>'+
       '<div class="ps-drawer" data-r="drawer"><div data-r="overview-panel" hidden><div class="ps-row"><b class="ps-grow" data-r="progress"></b><button data-a="next-empty">＋ Plan suivant</button><button data-a="show-all">3D Tous</button></div><div data-r="overview-list"></div></div><div class="ps-level-tools" data-r="level-tools" hidden><div class="ps-row"><b class="ps-grow" data-r="selected-level"></b><button data-a="retry-save">Enregistrer</button><button data-a="drawerclose">✕</button></div><div class="ps-row"><label>Nom <input type="text" maxlength="24" data-r="level-name"></label><button data-a="bind-folder">Lier niveau</button><label>Altitude (m) <input type="number" step=".01" data-r="level-z"></label></div><div class="ps-row"><input type="text" maxlength="24" data-r="new-level" placeholder="Ex. Sous-sol"><input type="number" step=".01" data-r="new-z" placeholder="Altitude"><button data-a="newlevel">＋ Niveau</button></div></div><div class="ps-row"><button data-a="projectplans">▤ Plans du chantier</button><button data-a="add">＋ Téléphone</button><input data-r="file" type="file" accept="*/*" multiple hidden><label class="ps-small">Page <input data-r="page" type="number" value="1" min="1" step="1" aria-label="Page PDF"></label><label class="ps-small">Opacité <input data-r="opacity" type="range" min="20" max="100" value="100"></label></div><div class="ps-source" data-r="sources" hidden><div class="ps-row"><b class="ps-grow">Niveaux · PDF du projet</b><button data-a="sourceclose">✕</button></div><select data-r="source-filter" aria-label="Type de plan"><option value="">Tous les types</option></select><input type="search" data-r="search" placeholder="Rechercher niveau, type, lot ou plan…" aria-label="Rechercher un plan"><div class="ps-source-list" data-r="source-list"></div></div><div class="ps-small">Premier PDF = référence. Calage par point commun (même échelle/orientation) ou par 2 points. Jusqu’à 16 niveaux dans Mon projet (8 en session PDF Stack) · 60 Mo/PDF · stockage local.</div><div data-r="list"></div></div><div class="ps-status" data-r="status" aria-live="polite">Ajoutez le PDF de référence.</div>';
     document.body.appendChild(el);
@@ -134,13 +134,13 @@
     catch(e){el.remove();throw Error('WebGL indisponible.');}
     renderer.setClearColor(0,0);renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));renderer.outputEncoding=T.sRGBEncoding;
     stage.prepend(renderer.domElement);
-    const scene=new T.Scene(),group=new T.Group();scene.add(group);
+    const scene=new T.Scene(),group=new T.Group(),dataGroup=new T.Group();scene.add(group,dataGroup);
     const camera=new T.PerspectiveCamera(42,1,.01,10000),controls=new T.OrbitControls(camera,renderer.domElement);
     controls.enableDamping=false;controls.enablePan=true;controls.touches.ONE=T.TOUCH.ROTATE;controls.touches.TWO=T.TOUCH.DOLLY_PAN;
     renderer.domElement.style.touchAction='none';
     const grid=new T.GridHelper(100,20,0x436679,0x2c495d);grid.material.transparent=true;grid.material.opacity=.22;scene.add(grid);
     const layers=[];let ref=null,current=null,point='A',zoom=1,closed=false,busy=false,raf=0,task=null,renderTask=null,backRemove=null,distance=null,view='3d',serial=0,sources=[],selectedLevel='all',restoring=!!ws,saveFailed=false,reading=false,closeReader=null,calMode=ws?(ws.calibrationMode||((ws.plans||[]).length?'two':'point')):'two',denominator=ws?.denominator||null;
-    let typeFilter='',lotFilter='',dataVisible=false,dataEpoch=0;
+    let typeFilter='',lotFilter='',dataVisible=false,dataEpoch=0,sceneData=new Map(),markerObjects=[];
     let detailLayer=null,detailTex=null,detailCanvas=null,detailTask=null,detailRender=null,detailEpoch=0,detailBusy=false;
     function msg(s){$('[data-r="status"]').textContent=s;}
     function save(){
@@ -164,7 +164,7 @@
         if(!p||p.projectId!==options.projectId||!await DB.get('files',p.fileId))throw Error('Plan chantier indisponible. Synchronisez son original.');
         if(!await save())throw Error('Sauvegarde locale requise.');
         if(closed)return;el.style.display='none';
-        await openPlanViewer(p,{...planCtx(()=>{if(!document.querySelector('.mc-native-plan')){reading=false;if(!closed){el.style.display='';resize();schedule();}}}),modelcoreBridge:true,...(focus?{focus}: {})});
+        await openPlanViewer(p,{...planCtx(()=>{if(!document.querySelector('.mc-native-plan')){reading=false;if(!closed){el.style.display='';resize();schedule();if(dataVisible)refreshData();}}}),modelcoreBridge:true,...(focus?{focus}: {})});
       }catch(e){reading=false;if(!closed){el.style.display='';msg(e.message||String(e));}}
     }
     async function openLot(source){
@@ -208,7 +208,7 @@
       if(ws){typeFilter=lotFilter='';for(const l of layers)l.visible=true;setLevel('all');save();}
       else{for(const l of layers)l.visible=true;update();fit();}
       const pending=layers.filter(l=>!l.t).length;
-      msg(layers.filter(l=>l.t).length+' plans affichés en 3D'+(pending?' · '+pending+' PDF à caler avant superposition':'')+(ws&&levels.length>layers.length?' · '+(levels.length-layers.length)+' niveaux sans PDF':''));
+      msg(layers.filter(l=>l.t).length+' plans affichés en 3D'+(pending?' · '+pending+' PDF à caler avant superposition':'')+(ws&&levels.some(v=>!layers.some(l=>l.levelId===v.id))?' · '+levels.filter(v=>!layers.some(l=>l.levelId===v.id)).length+' niveaux sans PDF':''));
     }
     function nextEmpty(){
       if(!ws||busy||current||closed)return;
@@ -322,6 +322,69 @@
       }catch(e){if(!closed&&epoch===detailEpoch)msg('HD indisponible, texture légère conservée : '+(e.message||e));}
       finally{if(c)c.width=c.height=0;if(t)await t.destroy().catch(()=>{});if(detailTask===t)detailTask=null;detailRender=null;detailBusy=false;if(!closed){detailUI();schedule();}}
     }
+    function clearDataMeshes(){
+      for(const o of [...dataGroup.children]){dataGroup.remove(o);o.geometry?.dispose();o.material?.dispose();}
+      markerObjects=[];
+    }
+    function worldPoint(l,p,xy){
+      if(!l.t||!p.w||!p.h||!Array.isArray(xy)||!xy.every(Number.isFinite)||xy[0]<0||xy[1]<0||xy[0]>p.w||xy[1]>p.h)return null;
+      const q=appliquer(l.t,[xy[0]/p.w*l.width,xy[1]/p.h*l.height]);
+      return new T.Vector3(q[0],l.mesh.position.y+.08,q[1]);
+    }
+    function rebuildData(){
+      clearDataMeshes();
+      const panel=$('[data-r="data-summary"]');panel.hidden=!dataVisible;panel.replaceChildren();
+      if(!dataVisible)return;
+      let count=0,alerts=0,skipped=0,visible=0;
+      const header=document.createElement('b');panel.append(header);
+      for(const l of layers){
+        if(!l.mesh.visible||!l.sourcePlanId)continue;
+        const d=sceneData.get(l.sourcePlanId);
+        if(!d||d.plan.pdfFileId!==l.sourcePdfId||Number(d.plan.pdfPage||1)!==l.page){skipped++;continue;}
+        visible++;
+        const line=document.createElement('div');line.textContent=(levelBy(l.levelId)?.name||'')+' · '+(l.lotName||l.type)+' · '+(d.progress==null?'Avancement non lié':d.progress+' %')+' · '+d.alerts.length+' alerte(s)';panel.append(line);
+        const items=[...d.alerts.map(a=>({xy:[a.x,a.y],kind:'Alerte',color:0xef4444})),...d.tasks.map(a=>({xy:[a.x,a.y],kind:'Tâche',color:0xf59e0b})),...d.annotations.map(a=>({xy:a.pts?.[0],kind:'Annotation',color:0x20c4e8,annotation:a}))];
+        alerts+=d.alerts.length;
+        for(const item of items){
+          if(count>=300)break;const v=worldPoint(l,d.plan,item.xy);if(!v)continue;
+          const size=Math.max(.09,Math.min(.75,Math.max(l.width,l.height)*l.t.scale*.004));
+          const mesh=new T.Mesh(new T.SphereGeometry(size,8,6),new T.MeshBasicMaterial({color:item.color,depthTest:false,transparent:true,opacity:.95}));
+          mesh.position.copy(v);mesh.renderOrder=1000;mesh.userData={planId:d.plan.id,focus:{x:item.xy[0],y:item.xy[1]},kind:item.kind};dataGroup.add(mesh);markerObjects.push(mesh);count++;
+          if(item.annotation){
+            const a=item.annotation;let pts=a.pts||[];
+            if(['rect','box'].includes(a.type)&&pts.length>=2){const [p,q]=pts;pts=[p,[q[0],p[1]],q,[p[0],q[1]],p];}
+            else if(a.type==='polygon'&&pts.length>2)pts=[...pts,pts[0]];
+            else if(!['pen','poly','line','arrow'].includes(a.type))continue;
+            const points=pts.slice(0,200).map(x=>worldPoint(l,d.plan,x)).filter(Boolean);
+            if(points.length>1){const line3=new T.Line(new T.BufferGeometry().setFromPoints(points),new T.LineBasicMaterial({color:0x20c4e8,depthTest:false,transparent:true,opacity:.9}));line3.renderOrder=999;dataGroup.add(line3);}
+          }
+        }
+      }
+      header.textContent=count+' repères · '+alerts+' alertes · '+visible+' plans liés'+(skipped?' · '+skipped+' sources indisponibles/modifiées':'')+(count>=300?' · limite 300':'');
+    }
+    async function refreshData(){
+      if(!dataVisible||closed)return;const epoch=++dataEpoch,pid=options.projectId;
+      try{
+        const [plans,links,tasks,project,folders]=await Promise.all([DB.byProject('plans',pid),DB.byProject('links',pid),DB.byProject('tasks',pid),DB.get('projects',pid),DB.byProject('folders',pid)]);
+        if(closed||epoch!==dataEpoch||!dataVisible)return;
+        const map=new Map();
+        for(const p of plans){
+          if(p.projectId!==pid||!layers.some(l=>l.sourcePlanId===p.id))continue;
+          const local=links.filter(x=>x.projectId===pid&&x.planId===p.id&&x.kind==='local'&&x.x!=null&&x.y!=null);
+          let progress=null;
+          try{const L=(project?.planLots||[]).find(x=>x.id===p.lotId),f=rootFolder(p.folderId,folders),niv=L&&f&&avNivOfFolder(project,f),lot=L&&avLotOfPlanLot(project,L);if(niv&&lot){const x=avLotPlanning(project,niv,lot,links.filter(a=>a.kind==='local'&&a.nivId===niv.id));if(x.s.n)progress=x.s.pct;}}catch(e){}
+          map.set(p.id,{plan:p,alerts:local.filter(x=>typeof pointAlert==='function'&&pointAlert(x)),tasks:tasks.filter(x=>x.projectId===pid&&x.planId===p.id&&x.x!=null&&x.y!=null),annotations:Array.isArray(p.annotations)?p.annotations:[],progress});
+        }
+        sceneData=map;rebuildData();schedule();
+      }catch(e){if(!closed&&epoch===dataEpoch)msg('Data 3D : '+(e.message||e));}
+    }
+    let markerDown=null;
+    renderer.domElement.addEventListener('pointerdown',e=>{markerDown=e.isPrimary?[e.clientX,e.clientY]:null;});
+    renderer.domElement.addEventListener('pointerup',e=>{
+      const down=markerDown;markerDown=null;if(!dataVisible||!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return;
+      const r=renderer.domElement.getBoundingClientRect(),ray=new T.Raycaster();ray.setFromCamera(new T.Vector2((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1),camera);
+      const hit=ray.intersectObjects(markerObjects,false)[0];if(hit){const d=hit.object.userData;nativePlan(d.planId,d.focus);}
+    });
     function update(){
       drawFilters();let n=0;const gap=Number($('[data-r="explode"]').value),opacity=Number($('[data-r="opacity"]').value)/100;
       for(const l of layers){
@@ -330,7 +393,7 @@
         if(t){const c=appliquer(t,[l.width/2,l.height/2]);const same=layers.filter(x=>x.levelId===l.levelId&&x.visible&&matchesFilter(x)&&transform(x));const offset=ws&&same.length>1?same.indexOf(l)*.025:0;l.mesh.position.set(c[0],l.z*gap+offset,c[1]);l.mesh.rotation.y=-t.angle;l.mesh.scale.set(l.width*t.scale,1,l.height*t.scale);const alpha=ws&&same.length>1?Math.min(opacity,.65):opacity;l.mesh.material.opacity=alpha;l.mesh.material.transparent=alpha<1;l.mesh.material.depthWrite=alpha===1;l.mesh.material.needsUpdate=true;if(l.mesh.visible)n++;}
       }
       if(detailLayer&&!detailLayer.mesh.visible)clearDetail();
-      $('[data-r="count"]').textContent=n+' affichés · '+layers.filter(l=>l.t).length+' calés / '+layers.length+' PDF';list();drawLevels();detailUI();schedule();
+      $('[data-r="count"]').textContent=n+' affichés · '+layers.filter(l=>l.t).length+' calés / '+layers.length+' PDF';list();drawLevels();detailUI();rebuildData();schedule();
     }
     function list(){
       rows.replaceChildren();
@@ -373,7 +436,7 @@
         const mat=new T.MeshBasicMaterial({map:texture,side:T.DoubleSide,toneMapped:false,transparent:false});
         const mesh=new T.Mesh(geo,mat);mesh.visible=false;group.add(mesh);
         const l={id:++serial,key:source?.key||DB.uid(),type:source?.type||source?.disc||'Non classé',lotId:source?.lotId||'',lotName:source?.lotName||'',name:String(file.name).slice(0,120),page:pageNo,file,width:v.width,height:v.height,canvas,texture,mesh,levelId:ws?levelId:null,sourcePlanId:source?.id||null,sourcePdfId:source?.pdfFileId||null,z:ws?levelBy(levelId).z:layers.length*3,visible:true,A:null,B:null,validated:false,t:null,color:COLORS[layers.length%COLORS.length]};
-        layers.push(l);committed=true;if(!ref)ref=l;update();msg('PDF importé. Calage requis avant affichage.');if(!await save())throw Error('PDF chargé mais sauvegarde locale échouée. Réessayez via Plans.');return l.id;
+        layers.push(l);committed=true;if(!ref)ref=l;update();msg('PDF importé. Calage requis avant affichage.');if(!await save())throw Error('PDF chargé mais sauvegarde locale échouée. Réessayez via Plans.');if(dataVisible)refreshData();return l.id;
       }finally{
         renderTask=null;const t=task;task=null;if(t)await t.destroy().catch(()=>{});if(canvas&&!committed)canvas.width=canvas.height=0;busy=false;
       }
@@ -586,7 +649,7 @@
       if(closed)return;closed=true;clearDetail();if(closeReader)closeReader();renderTask?.cancel();task?.destroy().catch(()=>{});if(raf)cancelAnimationFrame(raf);observer.disconnect();calObserver.disconnect();controls.dispose();
       if(backRemove)try{backRemove();}catch(e){}
       for(const l of layers){l.mesh.geometry.dispose();l.mesh.material.dispose();l.texture.dispose();l.canvas.width=l.canvas.height=0;}
-      grid.geometry.dispose();grid.material.dispose();releaseCrop();paper.width=paper.height=0;renderer.dispose();renderer.forceContextLoss();el.remove();if(typeof options.onClose==='function')options.onClose();
+      ++dataEpoch;clearDataMeshes();grid.geometry.dispose();grid.material.dispose();releaseCrop();paper.width=paper.height=0;renderer.dispose();renderer.forceContextLoss();el.remove();if(typeof options.onClose==='function')options.onClose();
     }
     if(typeof pushBack==='function')backRemove=pushBack(close);
     const on=(a,fn)=>{const b=$('[data-a="'+a+'"]');b.addEventListener('click',()=>{try{fn();}catch(e){msg(e.message);}});};
@@ -618,6 +681,7 @@
     $('[data-r="type3d"]').onchange=e=>{typeFilter=e.target.value;update();fit();};$('[data-r="lot3d"]').onchange=e=>{lotFilter=e.target.value;update();fit();};
     on('3d',showAll);on('show-all',showAll);on('overview',showOverview);on('next-empty',nextEmpty);
     on('top',()=>{view='top';controls.enableRotate=false;$('[data-a="top"]').classList.add('active');$('[data-a="3d"]').classList.remove('active');fit();});
+    on('data3d',()=>{dataVisible=!dataVisible;$('[data-a="data3d"]').classList.toggle('active',dataVisible);$('[data-a="refresh-data"]').hidden=!dataVisible;if(dataVisible)refreshData();else{++dataEpoch;sceneData.clear();rebuildData();schedule();}});on('refresh-data',refreshData);
     on('detail3d',toggleDetail);
     on('fit',fit);on('zoomin',()=>{camera.position.sub(controls.target).multiplyScalar(.8).add(controls.target);controls.update();});on('zoomout',()=>{camera.position.sub(controls.target).multiplyScalar(1.25).add(controls.target);controls.update();});
     $('[data-r="cal-mode"]').onchange=e=>changeCalMode(e.target.value);
@@ -625,12 +689,12 @@
     on('aim',()=>{if(!current||busy||!calV)return;setPoint(current,point,[calV.cx,calV.cy]);if(calMode==='two'&&point==='A')pointMode('B');});
     on('precision',precision);on('fullpaper',()=>{if(current&&!busy){zoom=1;calCenter=[current.width/2,current.height/2];drawPaper();queueHD();}});on('clear',()=>{if(current&&!busy){current.A=current.B=null;current.validated=false;update();save();drawPaper();}});on('calclose',finish);on('apply',()=>valider());on('apply-next',()=>valider(true));
     $('[data-r="explode"]').onchange=()=>{update();fit();};$('[data-r="opacity"]').oninput=update;
-    if(ws){$('[data-a="projects"]').hidden=false;$('[data-r="file"]').multiple=false;$('[data-r="drawer"]').hidden=true;$('[data-a="layers"]').setAttribute('aria-expanded','false');
+    if(ws){$('[data-a="data3d"]').hidden=false;$('[data-a="projects"]').hidden=false;$('[data-r="file"]').multiple=false;$('[data-r="drawer"]').hidden=true;$('[data-a="layers"]').setAttribute('aria-expanded','false');
       try{for(const p of (ws.plans||[])){const file=new File([p.file],p.name,{type:'application/pdf'});const id=await addFile(file,p.page,p.levelId,{id:p.sourcePlanId,pdfFileId:p.sourcePdfId,key:p.key,type:p.type,lotId:p.lotId,lotName:p.lotName});const l=layers.find(l=>l.id===id);l.A=p.A;l.B=p.B;l.validated=!!p.validated;l.visible=p.visible!==false;}ref=layers.find(l=>ws.referenceKey&&l.key===ws.referenceKey)||layers.find(l=>l.levelId===ws.referenceLevel)||layers[0]||null;distance=ws.distance||null;}
       catch(e){close();throw Error('Restauration du projet : '+(e.message||e));}finally{restoring=false;}
       msg('Projet local · choisissez un niveau pour importer ou consulter son PDF.');}
     resize();update();fit();
-    return {close,addFile,addProjectPlan,projectSources,selectLevel:setLevel,flush:()=>ws?(writes.get(DB.name()+'|'+ws.id)||Promise.resolve(!saveFailed)):Promise.resolve(true),edit:id=>{const l=layers.find(x=>x.id===id);if(l)edit(l);},setPoint:(id,k,p)=>setPoint(layers.find(x=>x.id===id),k,p),setDistance:d=>{if(!ref||!ref.A||!ref.B)throw Error('Référence incomplète.');reference(ref.A,ref.B,d);distance=d;ref.validated=true;update();save();},validate:id=>{const l=layers.find(x=>x.id===id);if(!l||!l.A||!l.B||!distance||!ref?.validated)throw Error('Calage incomplet.');calage(l.A,l.B,[0,0],[distance,0]);l.validated=true;update();save();},detailState:()=>detailLayer?{levelId:detailLayer.levelId,width:detailCanvas.width,height:detailCanvas.height}:null,state:()=>layers.map(l=>({id:l.id,levelId:l.levelId,type:l.type,lotId:l.lotId,sourcePlanId:l.sourcePlanId,width:l.width,height:l.height,z:l.z,calibrated:!!l.t,visible:l.mesh.visible,transform:l.t?{...l.t}:null}))};
+    return {close,addFile,addProjectPlan,projectSources,selectLevel:setLevel,flush:()=>ws?(writes.get(DB.name()+'|'+ws.id)||Promise.resolve(!saveFailed)):Promise.resolve(true),edit:id=>{const l=layers.find(x=>x.id===id);if(l)edit(l);},setPoint:(id,k,p)=>setPoint(layers.find(x=>x.id===id),k,p),setDistance:d=>{if(!ref||!ref.A||!ref.B)throw Error('Référence incomplète.');reference(ref.A,ref.B,d);distance=d;ref.validated=true;update();save();},validate:id=>{const l=layers.find(x=>x.id===id);if(!l||!l.A||!l.B||!distance||!ref?.validated)throw Error('Calage incomplet.');calage(l.A,l.B,[0,0],[distance,0]);l.validated=true;update();save();},dataState:()=>({markers:markerObjects.length,linked:sceneData.size}),detailState:()=>detailLayer?{levelId:detailLayer.levelId,width:detailCanvas.width,height:detailCanvas.height}:null,state:()=>layers.map(l=>({id:l.id,levelId:l.levelId,type:l.type,lotId:l.lotId,sourcePlanId:l.sourcePlanId,width:l.width,height:l.height,z:l.z,calibrated:!!l.t,visible:l.mesh.visible,transform:l.t?{...l.t}:null}))};
   }
   window.ModelCorePDFStack={open,openWorkspace,openProjects,workspaceSummaries,rootFolder,sourceLevels,makeWorkspace,calage,calagePoint,appliquer,reference,transferView,calViewport};
 })();
