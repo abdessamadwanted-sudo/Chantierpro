@@ -113,7 +113,13 @@ const ST_BRANCH_DESC={
 const ST_BRANCH_ORDER={bet:['bet.struct','bet.fluides','bet.bim','bet.exec','bet.metre','bet.doc'],topo:['topo.impl','topo.rel','topo.ctrl','topo.asb','topo.calc','topo.mat'],labo:['labo.beton','labo.sols','labo.prelev','labo.trace','labo.rapp','labo.conf']};
 const stBranchCards=(orgKey,services)=>{const list=services.flatMap(s=>{const rows=stOrgBranches(orgKey,s.k);return rows.length?rows.map(([k,label])=>({k,parent:s.k,label,branch:true,desc:ST_BRANCH_DESC[k]||stVisual(k,s.c)[2]})):[{k:s.k,parent:s.k,label:s.l,branch:false,desc:stVisual(s.k,s.c)[2]}];});const order=ST_BRANCH_ORDER[orgKey]||[];return list.sort((a,b)=>(order.includes(a.k)?order.indexOf(a.k):99)-(order.includes(b.k)?order.indexOf(b.k):99));};
 const stOrgServiceTitle = (orgKey, svc) => (({bet:{bim:'Études & BIM',doc:'Visa & documentation',metre:'Métré & quantités'},archi:{bim:'Conception & BIM',doc:'Suivi & documentation'},topo:{topo:'Missions topographiques'},labo:{labo:'Essais & analyses',doc:'Rapports & résultats'},bc:{qualite:'Contrôle technique'},opc:{methodes:'Planning & coordination'}}[orgKey] || {})[svc.k] || svc.l);
-const stVisualStyle = (c) => '--st-tone:'+c+';--st-tint:'+c+'20;--st-edge:'+c+'b0';
+// Mélange opaque sur bleu nuit : aucune composante blanche de reflet.
+const stMatteColor = (c,ratio) => {
+  const hex=/^#[0-9a-f]{6}$/i.test(c)?c:'#60a5fa';
+  const base=[7,29,53];
+  return '#'+base.map((v,i)=>Math.round(v*(1-ratio)+parseInt(hex.slice(1+i*2,3+i*2),16)*ratio).toString(16).padStart(2,'0')).join('');
+};
+const stVisualStyle = (c) => '--st-tone:'+c+';--st-tint:'+c+'20;--st-edge:'+c+'b0;--st-matte:'+stMatteColor(c,.075)+';--st-matte-on:'+stMatteColor(c,.15)+';--st-matte-icon:'+stMatteColor(c,.22);
 function offerCard(P, perso, btn = true, opts = null) {
   const dev = planDev(P), mods = P.modules === '*' ? MODS.map(([m]) => m) : P.modules, price = dev ? 'En cours de développement' : P.price == null ? 'Sur devis' : P.price ? `${P.price} MAD / ${P.period}` : 'Gratuit';
   const act = P.price == null ? 'Demander un devis · essai' : P.price ? `Démarrer l'essai ${P.trialDays || 14} jours` : 'Commencer gratuitement';
