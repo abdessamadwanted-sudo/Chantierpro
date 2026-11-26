@@ -543,7 +543,7 @@ async function showPdf(blob, caption = 'PDF', opts = {}) {
   function restoreView(pos) {
     if (!pos || closed) return;
     const c=cs()[0],base=c?.getBoundingClientRect().width;if(!base)return;
-    setZoom(pos.cssWidth>0?pos.cssWidth/base:pos.zoom||1);
+    setZoom(Number.isFinite(pos.zoom)?pos.zoom:pos.cssWidth>0?pos.cssWidth/base:1);
     const p=c.getBoundingClientRect(),r=scroller.getBoundingClientRect();
     scroller.scrollLeft+=p.left+Math.max(0,Math.min(1,pos.u))*p.width-r.left-r.width/2;
     scroller.scrollTop+=p.top+Math.max(0,Math.min(1,pos.v))*p.height-r.top-r.height/2;
