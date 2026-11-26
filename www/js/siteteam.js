@@ -268,8 +268,9 @@ const ST = (() => {
     const P = Org.poste && Org.poste(), R = tmRoleOf(roleKey()), sv = serviceOf((Team.me() || {}).service || R.s), C = Team.company() || {};
     const uni = Team.taille() === 'petite', K = uni ? SVC_KPI.trav : SVC_KPI[grpOf()] || SVC_KPI.trav;
     // v1.0.34 : petite entreprise (Basic) = interface unique, sans service ; Business / Enterprise = tableau du service
-    return `<div class="st-dir" data-stsvc>
-      <div class="st-hd"><b>${uni ? 'Mon entreprise' : `Service ${esc(sv.l)}`}</b><small>${esc([Team.me() && Team.me().role, ...((Team.me() || {}).postes || [])].filter(Boolean).map(k => tmRoleOf(k).l).join(' + ') || R.l)} · aujourd'hui</small></div>
+    const [tone,ic] = stVisual(sv.k,sv.c);
+    return `<div class="st-dir${uni?'':' st-svc-home'}" data-stsvc style="${stVisualStyle(tone)}">
+      <div class="st-hd">${uni?'':`<span class="st-node-icon">${icon(ic)}</span>`}<b>${uni ? 'Mon entreprise' : `Service ${esc(sv.l)}`}</b><small>${esc([Team.me() && Team.me().role, ...((Team.me() || {}).postes || [])].filter(Boolean).map(k => tmRoleOf(k).l).join(' + ') || R.l)} · aujourd'hui</small></div>
       <div class="st-kpis k4">${K.map(([k, e, l, c]) => `<button class="st-kpi" data-k="${k}"><span class="ic" style="--c:${c}">${icon(e)}</span><b>…</b><small>${l}</small></button>`).join('')}</div>
     </div>`;
   }
