@@ -66,7 +66,7 @@ const ST_SERVICE_THEME = {
  metre:['#a78bfa','ruler','Quantités et estimations'], ferraillage:['#f87171','layers','Armatures et suivi'],
  centrale:['#94a3b8','hard','Commandes et béton'], logistique:['#f59e0b','box','Logistique']
 };
-const ST_ORG_THEME = {entreprise:['#fbbf24','hard'],soustraitant:['#fb923c','team'],bet:['#818cf8','ruler'],archi:['#f472b6','layers'],moa:['#60a5fa','team'],bc:['#fb7185','shield'],opc:['#22d3ee','calendar'],labo:['#38bdf8','flask'],topo:['#2dd4bf','pin']};
+const ST_ORG_THEME = {entreprise:['#fbbf24','hard'],soustraitant:['#fb923c','team'],bet:['#22d3ee','ruler'],archi:['#c084fc','layers'],moa:['#4ade80','team'],bc:['#fb7185','shield'],opc:['#22d3ee','calendar'],labo:['#38bdf8','flask'],topo:['#2dd4bf','pin']};
 const stVisual = (k, fallback='#60a5fa') => ST_SERVICE_THEME[k] || [fallback,'grid','Outils métier'];
 const stOrgVisual = (k) => ST_ORG_THEME[k] || ['#94a3b8','grid'];
 const stVisualStyle = (c) => '--st-tone:'+c+';--st-tint:'+c+'20;--st-edge:'+c+'70';
@@ -1716,6 +1716,7 @@ const Team = (() => {
       const W = { espace: null, plan: null, org: null, svcs: [] };
       document.body.appendChild(el);
       const done = () => { el.remove(); resolve(true); };
+      const brand = () => `<div class="st-entry-brand"><span class="st-entry-logo">${stLogo()}</span><span><b>SiteTeam</b><small>BTP · Chantiers · Collaboration</small></span></div>`;
       const steps = (n, tot) => `<div class="st-steps">${Array.from({ length: tot }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</div>`;
       const back = (fn) => { const b = $('[data-a=back]', el); if (b) b.onclick = fn; };
       const tot = () => W.espace === 'perso' ? 4 : 6;
@@ -1723,11 +1724,11 @@ const Team = (() => {
       function stepEspace() {
         // v1.0.45 : « Accès sur code uniquement » (Panneau d'administration) — seul le code d'accès ouvre l'application
         const io = inviteOnly();
-        el.innerHTML = `<div class="tm-lg-in"><div class="tm-logo st-lg">${stLogo()}</div><h1>Bienvenue${nm ? ' ' + esc(nm) : ''}</h1><p>${io ? 'SiteTeam est accessible sur invitation. Entrez le code d\'accès donné par votre responsable.' : 'Comment voulez-vous utiliser SiteTeam ?'}</p>
+        el.innerHTML = `<div class="tm-lg-in st-architecture st-welcome">${brand()}<div class="st-entry-hero" style="${stVisualStyle('#fbbf24')}"><span class="st-node-icon">${icon('layers')}</span></div><h1>Bienvenue sur SiteTeam</h1><p>${io ? 'SiteTeam est accessible sur invitation. Entrez le code d\'accès donné par votre responsable.' : 'Comment voulez-vous utiliser SiteTeam ?'}</p>
           <div class="tm-choice">
-            ${io ? '' : `<button data-a="perso"><b>👷 Espace personnel</b><span>Professionnel indépendant : vos outils et vos projets</span></button>
-            <button data-a="create"><b>🏢 Créer une organisation</b><span>Entreprise, BET, architecte, labo, MOA… vous invitez ensuite l'équipe</span></button>`}
-            <button data-a="join"><b>🔑 ${io ? 'Entrer mon code d\'accès' : 'Rejoindre avec un code'}</b><span>Code d'accès donné par votre responsable</span></button></div>
+            ${io ? '' : `<button data-a="perso" style="${stVisualStyle('#4ade80')}"><i class="st-node-icon">${icon('hard')}</i><span><b>Espace personnel</b><small>Basic ou Pro · vos projets et outils métier</small></span></button>
+            <button data-a="create" style="${stVisualStyle('#22d3ee')}"><i class="st-node-icon">${icon('team')}</i><span><b>Créer une organisation</b><small>Entreprise BTP, BET, architecte, labo… services et équipe</small></span></button>`}
+            <button data-a="join" style="${stVisualStyle('#60a5fa')}"><i class="st-node-icon">${icon('lock')}</i><span><b>${io ? 'Entrer mon code d\'accès' : 'Rejoindre avec un code'}</b><small>Accès donné par votre responsable</small></span></button></div>
           ${opt.add ? '<button class="linkbtn" data-a="cancel">← Retour à mon espace</button>' : `<button class="linkbtn" data-a="out">Se déconnecter (${esc(auth.currentUser.email || '')})</button>`}</div>`;
         const out = $('[data-a=out]', el); if (out) out.onclick = async () => { await auth.signOut(); LS.del('me'); LS.del('cid'); location.reload(); };
         const cc = $('[data-a=cancel]', el); if (cc) cc.onclick = () => { el.remove(); resolve(false); };
@@ -1738,7 +1739,7 @@ const Team = (() => {
       // 2 · formule
       function stepPlan() {
         const perso = W.espace === 'perso', L = offersFor(perso);
-        el.innerHTML = `<div class="tm-lg-in">${steps(2, tot())}<h1>Choisir un pack · ${perso ? 'Espace personnel' : 'Organisation'}</h1>
+        el.innerHTML = `<div class="tm-lg-in st-architecture st-pack-screen">${brand()}${steps(2, tot())}<div class="st-entry-hero" style="${stVisualStyle('#fbbf24')}"><span class="st-node-icon">${icon('layers')}</span></div><h1>Choisissez votre pack</h1><div class="st-entry-scope">${perso ? 'Espace personnel' : 'Organisation'}</div>
           <p>${perso ? 'Pour vous seul. Une organisation a son propre pack, payé par elle.' : 'Payé par l\'organisation, il couvre tous ses membres.'} La facturation n'est pas encore activée : rien n'est payé aujourd'hui.</p>
           <div class="st-offers">${L.map(P => offerCard(P, perso)).join('')}</div>
           <button class="btn ghost st-codebtn" data-a="pcode">🎟 J'ai un code pack</button>
@@ -1779,7 +1780,7 @@ const Team = (() => {
       function stepOrg() {
         // Sélecteur graphique basé sur les types historiques ; aucune nouvelle clé persistée.
         const current = orgTypeOf(W.org || 'entreprise'), P = planOf(W.plan);
-        el.innerHTML = `<div class="tm-lg-in st-architecture">${steps(3, tot())}
+        el.innerHTML = `<div class="tm-lg-in st-architecture">${brand()}${steps(3, tot())}
           <h1>Choisissez votre organisation</h1><p>Un espace métier adapté à chaque acteur du BTP.</p>
           <div class="st-ent-head" style="${stVisualStyle(ST_PACK_THEME[P.k] || '#60a5fa')}"><small>SiteTeam · Pack ${esc(P.l)}</small>
             <div class="st-tree-root"><span class="st-node-icon">${icon('layers')}</span><span><b>Pack ${esc(P.l)}</b><small>Organisations · services · outils</small></span></div>
@@ -1795,15 +1796,17 @@ const Team = (() => {
           <button class="linkbtn" data-a="back">← Retour</button></div>`;
         const menu = $('[data-a=orgmenu]', el), options = $('#st-ent-options', el);
         menu.onclick = () => { options.hidden = !options.hidden; menu.setAttribute('aria-expanded', String(!options.hidden)); };
-        $$('[data-o]', el).forEach(b => b.onclick = () => { W.org = b.dataset.o; stepOrg(); });
-        ($('[data-a=orgnext]', el)||{}).onclick = () => { W.org = W.org || current.k; W.svcs = [...orgTypeOf(W.org).svcs]; stepSvcs(); };
+        $$('[data-o]', el).forEach(b => b.onclick = () => { if(W.org!==b.dataset.o){W.org=b.dataset.o;W.svcs=[];} stepOrg(); });
+        ($('[data-a=orgnext]', el)||{}).onclick = () => { W.org = W.org || current.k; if(!W.svcs.length) W.svcs = [...orgTypeOf(W.org).svcs]; stepSvcs(); };
         back(stepPlan);
       }
       // 4 · services (modèle modifiable : on ne force pas 12 services à un petit entrepreneur)
       function stepSvcs() {
         const T = orgTypeOf(W.org), P = planOf(W.plan), L = TM_SERVICES.filter(s => s.k !== 'externe' && !SERVICES_LEGACY.includes(s.k) && (s.k === 'direction' || T.svcs.includes(s.k)));
+        const priority = ['direction','travaux','materiel','topo','qualite','hse','labo','admin'];
+        if(T.k==='entreprise') L.sort((a,b)=>(priority.includes(a.k)?priority.indexOf(a.k):99)-(priority.includes(b.k)?priority.indexOf(b.k):99));
         W.svcs = [...new Set(W.svcs.filter(k => (k === 'direction' || T.svcs.includes(k)) && svcOpen(k)))]; if (!W.svcs.includes('direction')) W.svcs.unshift('direction');
-        el.innerHTML = `<div class="tm-lg-in st-architecture">${steps(4, tot())}<h1>Choisissez vos services</h1><p>Chaque service a ses propres outils. Configuration modifiable dans Réglages.</p>
+        el.innerHTML = `<div class="tm-lg-in st-architecture">${brand()}${steps(4, tot())}<h1>Pack ${esc(P.l)}</h1><p>Chaque service a ses propres outils. Configuration modifiable dans Réglages.</p>
           <div class="st-ent-head" style="${stVisualStyle(stOrgVisual(T.k)[0])}"><small>Pack ${esc(P.l)} › Organisation</small><div class="st-tree-root" aria-label="Organisation sélectionnée"><span class="st-node-icon">${icon(stOrgVisual(T.k)[1])}</span><span><b>${esc(T.l)}</b><small>Catalogue métier</small></span></div><div class="st-tree-connector" aria-hidden="true"></div></div>
           <div class="st-ent-modes" role="group" aria-label="Mode de sélection"><button type="button" data-tpl="petite" aria-pressed="false">À la carte · Services indépendants</button><button type="button" data-tpl="grande" aria-pressed="false">Tous les services</button></div>
           <p class="st-ent-count" aria-live="polite"></p>
