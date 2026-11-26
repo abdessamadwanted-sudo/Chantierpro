@@ -3259,7 +3259,30 @@ try {
       const ctx=canvas.getContext('2d'),pixels=ctx.getImageData(0,0,canvas.width,canvas.height).data;
       let ink=0;for(let i=0;i<pixels.length;i+=4)if(pixels[i+3]>200&&pixels[i]<100&&pixels[i+1]<100&&pixels[i+2]<100)ink++;
       o.readerInk=ink>20;
-      reader.querySelector('[data-a=x]').click();
+      // Rester en 2D, zoomer et changer de niveau via la barre latérale.
+      await wait(200);
+      const readZoom=r=>parseFloat(r.querySelector('.pdf-zoom').style.width)||100;
+      reader.querySelector('[data-mc-zoom=plus]').click();reader.querySelector('[data-mc-zoom=plus]').click();
+      reader.querySelector('[data-mc-zoom=plus]').click();
+      const oldZoom=readZoom(reader),sc=reader.querySelector('.pdf-pages');
+      sc.scrollLeft=sc.scrollWidth*.24;sc.scrollTop=sc.scrollHeight*.18;
+      o.readerZoom=oldZoom>200;
+      const waitReader=async(id,previous)=>{
+        for(let i=0;i<150;i++){
+          const r=document.querySelector('.mc-plan-reader'),c=r?.querySelector('.pdf-zoom canvas:not(.pdf-tile)');
+          if(r&&r!==previous&&r.querySelector('[data-mc-level='+id+'].active')&&c?._sOk>0){await wait(200);return r;}
+          await wait(100);
+        }
+        throw Error('Changement de niveau PDF non terminé : '+id);
+      };
+      reader.querySelector('[data-mc-level=n0]').click();
+      reader=await waitReader('n0',reader);
+      o.readerSwitch=reader.querySelector('.pdf-zoom canvas').dataset.p==='1'&&root.querySelector('[data-level=n0]').classList.contains('active');
+      o.readerScale=Math.abs(readZoom(reader)-oldZoom)<5;
+      reader.querySelector('[data-mc-level=n1]').click();
+      reader=await waitReader('n1',reader);
+      o.readerSwitch=o.readerSwitch&&reader.querySelector('.pdf-zoom canvas').dataset.p==='2';
+      reader.querySelector('[data-mc-zoom=3d]').click();
       o.readerReturn=!document.querySelector('.mc-plan-reader')&&JSON.stringify(stack.state())===before&&root.querySelector('[data-level=n1]').classList.contains('active');
       root.querySelector('[data-level=all]').click();
       o.stack=stack.state().every(l=>l.visible&&l.calibrated)&&Math.abs(stack.state()[1].z-4.2)<.001;
@@ -3273,7 +3296,7 @@ try {
     return o;
   });
   log('ModelCore X projet vide et niveaux',mcWorkspace);
-  log('errors v1.0.339',!mcWorkspace.err&&['empty','levels','drawer','phone','first','isolate','reader','readerInk','readerReturn','stack','saved','reopen','local','cleanup'].every(k=>mcWorkspace[k])?[]:['Projet ModelCore '+JSON.stringify(mcWorkspace)]);
+  log('errors v1.0.339',!mcWorkspace.err&&['empty','levels','drawer','phone','first','isolate','reader','readerInk','readerZoom','readerSwitch','readerScale','readerReturn','stack','saved','reopen','local','cleanup'].every(k=>mcWorkspace[k])?[]:['Projet ModelCore '+JSON.stringify(mcWorkspace)]);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
