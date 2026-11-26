@@ -2,7 +2,7 @@
 (function(){
   'use strict';
   if(window.ModelCorePDFStack)return;
-  const MAX=8, MAX_BYTES=60*1024*1024, COLORS=[0x70d9ff,0x9ae6bb,0xffd17a,0xd0b5ff,0xffa6b6,0x9abaff,0x80d8cb,0xffbe8f];
+  const MAX=8, MAX_LEVELS=16, MAX_BYTES=60*1024*1024, COLORS=[0x70d9ff,0x9ae6bb,0xffd17a,0xd0b5ff,0xffa6b6,0x9abaff,0x80d8cb,0xffbe8f];
   function calage(a,b,A,B){
     if(![a,b,A,B].every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)))throw Error('Repères invalides.');
     const x=b[0]-a[0],y=b[1]-a[1],X=B[0]-A[0],Y=B[1]-A[1],d=x*x+y*y;
@@ -16,9 +16,13 @@
     return calage(a,b,[0,0],[d,0]);
   }
   const writes=new Map();
-  function makeWorkspace(pid,name,count,height){
-    if(!pid||!String(name||'').trim()||!Number.isInteger(count)||count<1||count>MAX||!Number.isFinite(height)||height<=0||height>100)throw Error('Nom, 1 à 8 niveaux et hauteur (0 à 100 m) requis.');
-    return {id:pid,name:String(name).trim().slice(0,120),levels:Array.from({length:count},(_,i)=>({id:'n'+i,name:i?'R+'+i:'RDC',z:i*height})),plans:[],distance:null,referenceLevel:null};
+  function makeWorkspace(pid,name,count,height,custom=''){
+    const names=String(custom||'').split(/[,;\n]+/).map(n=>n.trim()).filter(Boolean);
+    if(names.length)count=names.length;
+    if(!pid||!String(name||'').trim()||!Number.isInteger(count)||count<1||count>MAX_LEVELS||!Number.isFinite(height)||height<=0||height>100)throw Error('Nom, 1 à 16 niveaux et hauteur (0 à 100 m) requis.');
+    if(names.some(n=>n.length>24)||new Set(names.map(n=>n.toLocaleLowerCase())).size!==names.length)throw Error('Noms de niveaux uniques, 24 caractères maximum.');
+    const rdc=Math.max(0,names.findIndex(n=>n.toUpperCase()==='RDC'));
+    return {id:pid,name:String(name).trim().slice(0,120),levels:Array.from({length:count},(_,i)=>({id:'n'+i,name:names[i]||(i?'R+'+i:'RDC'),z:(i-rdc)*height})),plans:[],distance:null,referenceLevel:null};
   }
   async function openWorkspace(options={}){
     const pid=options.projectId;if(!pid||typeof DB==='undefined'||!await DB.get('projects',pid))throw Error('Ouvrez un projet SiteTeam.');
@@ -27,11 +31,12 @@
     if(!data){
       const r=await formSheet('Créer le projet ModelCore X',[
         {name:'name',label:'Nom du projet 3D',value:options.projectName||'Mon projet'},
-        {name:'count',label:'Nombre de niveaux (RDC compris, max. 8)',type:'number',value:4},
-        {name:'height',label:'Hauteur entre niveaux (m)',type:'number',value:3}
+        {name:'count',label:'Nombre de niveaux standard (RDC compris, max. 16)',type:'number',value:4},
+        {name:'names',label:'Ou noms personnalisés, du bas vers le haut (séparés par virgules)',placeholder:'SSL, Mezz, RDC, R+1, R+2…'},
+        {name:'height',label:'Hauteur provisoire entre niveaux (m) — à vérifier et corriger ensuite',type:'number',value:3}
       ],{okLabel:'Créer le projet vide'});
       if(!r)return null;
-      data=makeWorkspace(pid,r.name,Number(r.count),Number(r.height));await DB.putRaw('mcworkspaces',data);
+      data=makeWorkspace(pid,r.name,Number(r.count),Number(r.height),r.names);await DB.putRaw('mcworkspaces',data);
     }
     return open({...options,workspace:data});
   }
@@ -42,7 +47,7 @@
     if(typeof pdfReadyA!=='function'||!(await pdfReadyA()))throw Error('Lecteur PDF indisponible. Vérifiez la mise à jour.');
     const T=window.THREE;if(!T||!T.OrbitControls)throw Error('WebGL indisponible.');
     const ws=options.workspace||null;
-    if(ws&&(!options.projectId||ws.id!==options.projectId||!Array.isArray(ws.levels)||!ws.levels.length||ws.levels.length>MAX))throw Error('Projet ModelCore invalide.');
+    if(ws&&(!options.projectId||ws.id!==options.projectId||!Array.isArray(ws.levels)||!ws.levels.length||ws.levels.length>MAX_LEVELS))throw Error('Projet ModelCore invalide.');
     const levels=ws?ws.levels.map(v=>({...v})):[];
     const el=document.createElement('div');el.className='mc-pdfstack'+(ws?' mc-workspace':'');
     el.innerHTML='<style>.mc-pdfstack{position:fixed;inset:0;z-index:1000000;display:flex;flex-direction:column;background:#08192a;color:#e6f4ff;font:13px system-ui,sans-serif;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}.mc-pdfstack *{box-sizing:border-box}.mc-pdfstack [hidden]{display:none!important}.mc-pdfstack button,.mc-pdfstack input,.mc-pdfstack select{background:#163348;color:#e6f4ff;border:1px solid #34586d;border-radius:8px;padding:8px;min-height:36px;font:inherit}.mc-pdfstack button.active{border-color:#55d9ee;color:#8af0ff;background:#155064}.mc-pdfstack button:disabled{opacity:.4}.mc-pdfstack .ps-head,.mc-pdfstack .ps-bar{display:flex;gap:6px;align-items:center;padding:8px;flex-shrink:0}.mc-pdfstack .ps-head{background:#0b2236}.mc-pdfstack .ps-head b{font-size:16px}.mc-pdfstack .ps-small{font-size:11px;color:#9bbacc}.mc-pdfstack .ps-grow{flex:1;min-width:0}.mc-pdfstack .ps-stage{position:relative;flex:1;min-height:100px;overflow:hidden;background:radial-gradient(ellipse,#24465b,#071625 75%)}.mc-pdfstack .ps-stage>canvas{width:100%;height:100%;display:block;touch-action:none}.mc-pdfstack .ps-cal{display:flex;flex-direction:column;flex:1;min-height:0;padding:8px;gap:5px}.mc-pdfstack .ps-preview{flex:1;min-height:120px;overflow:auto;background:#172b3c;touch-action:pan-x pan-y}.mc-pdfstack .ps-preview canvas{display:block;max-width:none;touch-action:pan-x pan-y}.mc-pdfstack .ps-drawer{max-height:43%;overflow:auto;padding:8px;background:#0d2538;border-top:1px solid #315267}.mc-pdfstack .ps-row{display:flex;align-items:center;gap:5px;margin:6px 0}.mc-pdfstack .ps-row input[type=number]{width:74px}.mc-pdfstack .ps-row b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}.mc-pdfstack .ps-status{padding:5px 10px;color:#a8d4e2;min-height:25px;font-size:11px}.mc-pdfstack .ps-top{position:absolute;top:8px;left:8px;right:8px;pointer-events:none;display:flex;justify-content:space-between}.mc-pdfstack .ps-top span{background:#0a2035dd;padding:6px;border-radius:6px}.mc-pdfstack .ps-cal .ps-bar{padding:0;flex-wrap:wrap}.mc-pdfstack .ps-cal .ps-bar input{width:90px}.mc-pdfstack .ps-point{color:#64e4ff}.mc-pdfstack .ps-source{border:1px solid #34586d;border-radius:8px;padding:6px;margin:6px 0}.mc-pdfstack .ps-source input[type=search]{width:100%}.mc-pdfstack .ps-source-list{max-height:180px;overflow:auto}.mc-pdfstack .ps-source-list button{text-align:left;width:100%;margin:3px 0;white-space:normal;overflow-wrap:anywhere}.mc-pdfstack .ps-source-list small{display:block;color:#a8c7d8}.mc-pdfstack .ps-bar{overflow-x:auto}.mc-pdfstack .ps-drawer .ps-row{flex-wrap:wrap}.mc-pdfstack .ps-levels{position:absolute;right:10px;top:52px;max-height:calc(100% - 65px);overflow:auto;display:flex;flex-direction:column;gap:6px;padding:5px;background:#0b2236dd;border:1px solid #34586d;border-radius:14px;max-width:94px}.mc-pdfstack .ps-levels button{min-height:44px;min-width:56px;padding:6px 4px;overflow-wrap:anywhere}.mc-pdfstack .ps-levels small{display:block;font-size:10px;color:#a8c7d8}.mc-pdfstack .ps-empty{position:absolute;top:38%;left:10%;right:27%;text-align:center;color:#a8c7d8;pointer-events:none}.mc-pdfstack .ps-empty b{display:block;font-size:17px;color:#e6f4ff;margin-bottom:8px}.mc-pdfstack .ps-level-tools{border-bottom:1px solid #34586d;padding-bottom:6px;margin-bottom:8px}.mc-pdfstack .ps-level-tools input[type=text]{width:110px;min-width:0}.mc-pdfstack .ps-level-tools input[type=number]{width:72px}.mc-workspace .ps-head b{font-size:19px}.mc-workspace .ps-stage{background:radial-gradient(ellipse,#24465b,#071625 75%)}</style>'+
@@ -50,7 +55,7 @@
       '<div class="ps-bar"><button data-a="3d" class="active">3D</button><button data-a="top">Dessus 3D</button><button data-a="planview" hidden>Vue en plan</button><button data-a="fit">Ajuster</button><button data-a="zoomout">−</button><button data-a="zoomin">+</button><label class="ps-small">Écart <select data-r="explode"><option value="1">Réel</option><option value="2">×2</option><option value="4">×4</option></select></label></div>'+
       '<div class="ps-stage" data-r="stage"><div class="ps-top"><span data-r="count">0 plan calé</span><span>1 doigt orbite · 2 doigts zoom/pan</span></div><div class="ps-empty" data-r="empty" hidden><b>Projet vide</b><span>Choisissez un niveau à droite pour ajouter son PDF.</span></div><div class="ps-levels" data-r="levels" hidden></div></div>'+
       '<div class="ps-cal" data-r="cal" hidden><div class="ps-bar"><b class="ps-grow" data-r="calname"></b><button data-a="calclose">Terminer</button></div><div class="ps-bar"><button data-a="pointA" class="active">Point A</button><button data-a="pointB">Point B</button><button data-a="calminus">−</button><button data-a="calplus">+</button><button data-a="precision">◎ Précision</button><button data-a="fullpaper" hidden>Plan entier</button><button data-a="clear">Effacer</button></div><div class="ps-small" data-r="instructions"></div><div class="ps-preview" data-r="preview"><canvas data-r="paper"></canvas></div><div class="ps-bar"><label>Distance A–B (m) <input data-r="distance" type="number" min=".01" max="10000" step=".01" value=""></label><button data-a="apply">Valider le calage</button></div></div>'+
-      '<div class="ps-drawer" data-r="drawer"><div class="ps-level-tools" data-r="level-tools" hidden><div class="ps-row"><b class="ps-grow" data-r="selected-level"></b><button data-a="retry-save">Enregistrer</button><button data-a="drawerclose">✕</button></div><div class="ps-row"><label>Altitude (m) <input type="number" step=".01" data-r="level-z"></label></div><div class="ps-row"><input type="text" maxlength="24" data-r="new-level" placeholder="Ex. Sous-sol"><input type="number" step=".01" data-r="new-z" placeholder="Altitude"><button data-a="newlevel">＋ Niveau</button></div></div><div class="ps-row"><button data-a="projectplans">▤ Plans du projet</button><button data-a="add">＋ Téléphone</button><input data-r="file" type="file" accept="*/*" multiple hidden><label class="ps-small">Page <input data-r="page" type="number" value="1" min="1" step="1" aria-label="Page PDF"></label><label class="ps-small">Opacité <input data-r="opacity" type="range" min="20" max="100" value="100"></label></div><div class="ps-source" data-r="sources" hidden><div class="ps-row"><b class="ps-grow">Niveaux · PDF du projet</b><button data-a="sourceclose">✕</button></div><input type="search" data-r="search" placeholder="Rechercher niveau, dossier ou plan…" aria-label="Rechercher un plan"><div class="ps-source-list" data-r="source-list"></div></div><div class="ps-small">Premier PDF = référence. Les plans importés apparaissent dans la liste; appuyez sur Caler pour les afficher en 3D. Max. 8 plans · 60 Mo/PDF · stockage local.</div><div data-r="list"></div></div><div class="ps-status" data-r="status" aria-live="polite">Ajoutez le PDF de référence.</div>';
+      '<div class="ps-drawer" data-r="drawer"><div class="ps-level-tools" data-r="level-tools" hidden><div class="ps-row"><b class="ps-grow" data-r="selected-level"></b><button data-a="retry-save">Enregistrer</button><button data-a="drawerclose">✕</button></div><div class="ps-row"><label>Nom <input type="text" maxlength="24" data-r="level-name"></label><label>Altitude (m) <input type="number" step=".01" data-r="level-z"></label></div><div class="ps-row"><input type="text" maxlength="24" data-r="new-level" placeholder="Ex. Sous-sol"><input type="number" step=".01" data-r="new-z" placeholder="Altitude"><button data-a="newlevel">＋ Niveau</button></div></div><div class="ps-row"><button data-a="projectplans">▤ Plans du projet</button><button data-a="add">＋ Téléphone</button><input data-r="file" type="file" accept="*/*" multiple hidden><label class="ps-small">Page <input data-r="page" type="number" value="1" min="1" step="1" aria-label="Page PDF"></label><label class="ps-small">Opacité <input data-r="opacity" type="range" min="20" max="100" value="100"></label></div><div class="ps-source" data-r="sources" hidden><div class="ps-row"><b class="ps-grow">Niveaux · PDF du projet</b><button data-a="sourceclose">✕</button></div><input type="search" data-r="search" placeholder="Rechercher niveau, dossier ou plan…" aria-label="Rechercher un plan"><div class="ps-source-list" data-r="source-list"></div></div><div class="ps-small">Premier PDF = référence. Les plans importés apparaissent dans la liste; appuyez sur Caler pour les afficher en 3D. Jusqu’à 16 niveaux dans Mon projet (8 en session PDF Stack) · 60 Mo/PDF · stockage local.</div><div data-r="list"></div></div><div class="ps-status" data-r="status" aria-live="polite">Ajoutez le PDF de référence.</div>';
     document.body.appendChild(el);
     const $=s=>el.querySelector(s),stage=$('[data-r="stage"]'),paper=$('[data-r="paper"]'),rows=$('[data-r="list"]');
     $('[data-r="project"]').textContent=(ws?ws.name:String(options.projectName||'Projet'))+(ws?' · Projet réel · local':' · PDF Stack · session locale');
@@ -107,10 +112,10 @@
         const l=layers.find(l=>l.levelId===v.id),b=document.createElement('button');b.dataset.level=v.id;b.classList.toggle('active',selectedLevel===v.id);
         b.append(document.createTextNode(v.name));const small=document.createElement('small');small.textContent=l?(l.t?'✓ PDF':'À caler'):'+ PDF';b.append(small);b.onclick=()=>setLevel(v.id);rail.append(b);
       }
-      const plus=document.createElement('button');plus.textContent='+ Niv.';plus.disabled=levels.length>=MAX;plus.onclick=()=>{if(busy)return;const d=$('[data-r="drawer"]');d.hidden=false;$('[data-a="layers"]').setAttribute('aria-expanded','true');$('[data-r="new-level"]').focus();};rail.append(plus);
+      const plus=document.createElement('button');plus.textContent='+ Niv.';plus.disabled=levels.length>=MAX_LEVELS;plus.onclick=()=>{if(busy)return;const d=$('[data-r="drawer"]');d.hidden=false;$('[data-a="layers"]').setAttribute('aria-expanded','true');$('[data-r="new-level"]').focus();};rail.append(plus);
       const v=levelBy(selectedLevel);$('[data-r="level-tools"]').hidden=false;
       $('[data-r="selected-level"]').textContent=v?v.name+' · '+(layers.some(l=>l.levelId===v.id)?'PDF importé':'Aucun plan'):'Niveaux du projet';
-      const z=$('[data-r="level-z"]');z.disabled=!v;z.value=v?v.z:'';
+      const z=$('[data-r="level-z"]'),name=$('[data-r="level-name"]');z.disabled=!v;z.value=v?v.z:'';name.disabled=!v;name.value=v?v.name:'';
       const planButton=$('[data-a="planview"]');planButton.hidden=!v;planButton.disabled=!layers.some(l=>l.levelId===selectedLevel);
       $('[data-a="projectplans"]').disabled=!v||layers.some(l=>l.levelId===v.id);
       $('[data-a="add"]').disabled=!v||layers.some(l=>l.levelId===v.id);
@@ -158,7 +163,7 @@
     function remove(l){if(current===l)finish();group.remove(l.mesh);l.mesh.geometry.dispose();l.mesh.material.dispose();l.texture.dispose();l.canvas.width=l.canvas.height=0;layers.splice(layers.indexOf(l),1);if(ref===l){ref=null;distance=null;}update();fit();save();}
     async function addFile(file,pageNo=1,levelId=selectedLevel){
       if(closed||busy)throw Error('Import déjà en cours ou fermé.');
-      if(layers.length>=MAX)throw Error('Maximum '+MAX+' plans par session.');
+      if(layers.length>=(ws?MAX_LEVELS:MAX))throw Error('Maximum '+(ws?MAX_LEVELS:MAX)+' plans.');
       if(ws&&(!levelBy(levelId)||layers.some(l=>l.levelId===levelId)))throw Error('Choisissez un niveau vide avant l’import.');
       if(!file||typeof file.arrayBuffer!=='function'||!file.size)throw Error('Fichier PDF vide ou inaccessible.');
       if(file.size>MAX_BYTES)throw Error('PDF trop volumineux ('+Math.ceil(file.size/1048576)+' Mo). Limite 60 Mo; exportez le niveau seul.');
@@ -173,7 +178,7 @@
         msg('PDF ouvert · page '+pageNo+' / '+doc.numPages+' · préparation du plan…');
         if(pageNo>doc.numPages)throw Error('Le PDF ne contient que '+doc.numPages+' pages.');
         const p=await doc.getPage(pageNo),v=p.getViewport({scale:1});
-        const max=Math.min(layers.length>=4?1024:1536,renderer.capabilities.maxTextureSize),vp=p.getViewport({scale:max/Math.max(v.width,v.height)});
+        const max=Math.min(ws&&levels.length>8?768:layers.length>=4?1024:1536,renderer.capabilities.maxTextureSize),vp=p.getViewport({scale:max/Math.max(v.width,v.height)});
         canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.ceil(vp.width));canvas.height=Math.max(1,Math.ceil(vp.height));
         renderTask=p.render({canvasContext:canvas.getContext('2d'),viewport:vp,background:'rgb(255,255,255)'});await renderTask.promise;renderTask=null;
         if(closed)throw Error('Session fermée.');
@@ -201,7 +206,7 @@
     }
     async function addProjectPlan(id,levelId=selectedLevel){
       if(busy||closed)throw Error('Import en cours ou session fermée.');
-      if(layers.length>=MAX)throw Error('Maximum '+MAX+' plans par session.');
+      if(layers.length>=(ws?MAX_LEVELS:MAX))throw Error('Maximum '+(ws?MAX_LEVELS:MAX)+' plans.');
       const pid=options.projectId;if(!pid||typeof DB==='undefined')throw Error('Projet indisponible.');
       busy=true;let plan,rec;
       try{
@@ -309,11 +314,12 @@
     on('retry-save',async()=>{if(await save())msg('Projet enregistré sur cet appareil.');});
     on('drawerclose',()=>{$('[data-r="drawer"]').hidden=true;$('[data-a="layers"]').setAttribute('aria-expanded','false');});
     on('newlevel',()=>{
-      if(!ws||busy||levels.length>=MAX)return;
+      if(!ws||busy||levels.length>=MAX_LEVELS)return;
       const input=$('[data-r="new-level"]'),alt=$('[data-r="new-z"]'),name=input.value.trim(),z=Number(alt.value);
       if(!name||!alt.value.trim()||!Number.isFinite(z)||Math.abs(z)>10000||levels.some(v=>v.name.toLowerCase()===name.toLowerCase())){msg('Nom unique et altitude en mètres requis.');return;}
       const v={id:DB.uid(),name,z};levels.push(v);input.value=alt.value='';setLevel(v.id);save();
     });
+    $('[data-r="level-name"]').onchange=e=>{const v=levelBy(selectedLevel),name=e.target.value.trim();if(!v||!name||name.length>24||levels.some(x=>x!==v&&x.name.toLowerCase()===name.toLowerCase())){drawLevels();msg('Nom de niveau unique requis.');return;}v.name=name;update();save();};
     $('[data-r="level-z"]').onchange=e=>{const v=levelBy(selectedLevel),z=Number(e.target.value);if(!v||!e.target.value.trim()||!Number.isFinite(z)||Math.abs(z)>10000){drawLevels();return;}v.z=z;const l=layers.find(l=>l.levelId===v.id);if(l)l.z=z;update();fit();save();};
     on('projectplans',showSources);on('sourceclose',()=>{$('[data-r="sources"]').hidden=true;});$('[data-r="search"]').oninput=drawSources;
     on('add',()=>{if(!busy)$('[data-r="file"]').click();});
