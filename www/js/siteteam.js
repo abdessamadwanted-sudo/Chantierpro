@@ -325,7 +325,9 @@ const ST = (() => {
       ${esp ? `<div class="st-tcat st-esp" data-g="esp" style="--c:#3D5A80;${open === 'esp' ? '' : 'display:none'}">${esp}</div>` : ''}
       ${!open ? '<p class="st-thint">Touchez une catégorie pour afficher ses outils.</p>' : ''}</div>`;
   }
-  const toolBtn = (k, g, tone) => `<button class="st-tool" data-tool="${k}" style="--c:${tone || CAT_C[catOf(k)] || CAT_C[g] || 'var(--accent)'}"><i class="st-ico">${icon(SECTIONS[k].icon || 'grid')}</i><span>${esc(toolName(k))}</span></button>`;
+  // Les outils des volets métier gardent des pictogrammes sémantiques, indépendants de leur couleur.
+  const ST_TOOL_ICONS={docq:'st_binders',clauses:'st_contract',visa:'st_stamp',rfi:'st_rfi',reception:'check',forms:'form',constat:'alert',labo:'flask',beton:'st_mixer',hse:'st_hse',hseplans:'plans',team:'team',org:'st_orgchart',reunions:'calendar',monespace:'user',models3d:'st_bim',maquette:'st_bim',calc:'st_calculator',materiaux:'st_rebar',materiel:'st_excavator',finance:'st_coins',avancement:'st_chart',lotsuivi:'layers',pointage:'clock',planning:'calendar'};
+  const toolBtn = (k, g, tone) => `<button class="st-tool" data-tool="${k}" style="--c:${tone || CAT_C[catOf(k)] || CAT_C[g] || 'var(--accent)'}"><i class="st-ico">${icon((tone && ST_TOOL_ICONS[k]) || SECTIONS[k].icon || 'grid')}</i><span>${esc(toolName(k))}</span></button>`;
   // ---- Services en volets (Enterprise + Pro Service autonome) : un même gabarit pour chaque service — Administratif /
   // Terrain / Commun. Pour ajouter ou modifier un service ou ses outils : éditer SVC_SHELLS. Au niveau module (et non
   // dans renderProjectTools) pour que team.js/packpick.js puissent lister ces mêmes services via ST.SVC_SHELLS /
