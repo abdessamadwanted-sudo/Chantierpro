@@ -52,45 +52,45 @@ const storageL = (g) => (g >= 1000 ? g / 1000 + ' To' : g + ' Go') + ' (indicati
 // Identité visuelle uniquement : aucune modification des droits, quotas ou clés métier.
 const ST_PACK_THEME = { basic:'#4ade80', pro:'#60a5fa', business:'#22d3ee', enterprise:'#fbbf24' };
 const ST_SERVICE_THEME = {
- direction:['#60a5fa','team','Pilotage et décisions'], travaux:['#4ade80','hard','Exécution et avancement'],
- qualite:['#c084fc','shield','Réceptions, contrôles, PV'], qual:['#c084fc','shield','Réceptions, contrôles, PV'],
- hse:['#fb7185','alert','Prévention et sécurité'], materiel:['#fbbf24','wrench','Parc et disponibilité'],
- topo:['#2dd4bf','pin','Implantations et levés'], labo:['#38bdf8','flask','Essais et traçabilité'],
- admin:['#fbbf24','sheet','Administration et finance'], fin:['#fbbf24','sheet','Budget et contrats'],
- methodes:['#22d3ee','calendar','Méthodes et planning'], etudes:['#818cf8','ruler','Études techniques'],
- etu:['#818cf8','ruler','Études et visas'], bim:['#818cf8','layers','Maquettes et coordination'],
- achats:['#fb923c','bag','Approvisionnement'], magasin:['#eab308','box','Stocks et inventaire'],
- maintenance:['#f59e0b','wrench','Maintenance du parc'], transport:['#a3e635','box','Transport et logistique'],
+ direction:['#60a5fa','st_orgchart','Pilotage et décisions'], travaux:['#4ade80','hard','Exécution et avancement'],
+ qualite:['#c084fc','st_quality','Réceptions, contrôles, PV'], qual:['#c084fc','st_quality','Réceptions, contrôles, PV'],
+ hse:['#fb7185','st_hse','Prévention et sécurité'], materiel:['#fbbf24','st_excavator','Parc et disponibilité'],
+ topo:['#2dd4bf','st_station','Implantations et levés'], labo:['#38bdf8','flask','Essais et traçabilité'],
+ admin:['#fbbf24','st_coins','Administration et finance'], fin:['#fbbf24','st_coins','Budget et contrats'],
+ methodes:['#22d3ee','calendar','Méthodes et planning'], etudes:['#818cf8','st_compass','Études techniques'],
+ etu:['#818cf8','st_compass','Études et visas'], bim:['#818cf8','st_bim','Maquettes et coordination'],
+ achats:['#fb923c','bag','Approvisionnement'], magasin:['#eab308','st_inventory','Stocks et inventaire'],
+ maintenance:['#f59e0b','wrench','Maintenance du parc'], transport:['#a3e635','st_truck','Transport et logistique'],
  pointage:['#2dd4bf','clock','Effectifs et pointage'], rh:['#f472b6','team','Personnel et RH'],
- contrats:['#a78bfa','form','Marchés et métrés'], doc:['#38bdf8','folder','Documents et archives'],
- metre:['#a78bfa','ruler','Quantités et estimations'], ferraillage:['#f87171','layers','Armatures et suivi'],
- centrale:['#94a3b8','hard','Commandes et béton'], logistique:['#f59e0b','box','Logistique']
+ contrats:['#a78bfa','st_contract','Marchés et métrés'], doc:['#38bdf8','st_binders','Documents et archives'],
+ metre:['#a78bfa','st_calculator','Quantités et estimations'], ferraillage:['#f87171','st_rebar','Armatures et suivi'],
+ centrale:['#94a3b8','st_mixer','Commandes et béton'], logistique:['#f59e0b','st_truck','Logistique']
 };
-const ST_ORG_THEME = {entreprise:['#fbbf24','hard'],soustraitant:['#fb923c','team'],bet:['#22d3ee','ruler'],archi:['#c084fc','layers'],moa:['#4ade80','team'],bc:['#fb7185','shield'],opc:['#22d3ee','calendar'],labo:['#38bdf8','flask'],topo:['#2dd4bf','pin']};
+const ST_ORG_THEME = {entreprise:['#fbbf24','st_building'],soustraitant:['#fb923c','hard'],bet:['#22d3ee','st_compass'],archi:['#c084fc','st_archi'],moa:['#4ade80','st_landmark'],bc:['#fb7185','shield'],opc:['#22d3ee','calendar'],labo:['#38bdf8','flask'],topo:['#2dd4bf','st_station']};
 // Les sous-services externes gardent leurs clés et leurs droits existants.
 const ST_EXTERNAL_THEME = {
- 'bet.bim':['#c084fc','layers','Coordination BIM'], 'bet.doc':['#fbbf24','folder','Documentation'],
- 'archi.bim':['#c084fc','layers','Maquettes'], 'archi.finitions':['#f472b6','pen','Détails'],
- 'archi.doc':['#60a5fa','folder','Documentation'], 'topo.ctrl':['#60a5fa','check','Contrôles'],
- 'topo.calc':['#2dd4bf','ruler','Calculs'], 'topo.mat':['#fbbf24','wrench','Matériel'],
- 'labo.prelev':['#c084fc','flask','Prélèvements'], 'labo.trace':['#2dd4bf','form','Traçabilité'],
- 'labo.conf':['#4ade80','shield','Conformité'], 'opc.plan':['#60a5fa','calendar','Planning'],
- 'opc.coord':['#22d3ee','team','Coordination'], 'opc.rapp':['#c084fc','report','Reporting'],
- 'st.prod':['#4ade80','hard','Production'], 'st.fer':['#fb7185','layers','Ferraillage'],
- 'st.mat':['#fbbf24','wrench','Matériel'], 'st.hse':['#fb7185','shield','Sécurité'],
- 'bet.struct':['#38bdf8','cube','Structure'], 'bet.fluides':['#2dd4bf','wrench','Réseaux et installations'],
- 'bet.metre':['#60a5fa','ruler','Quantités et estimation'], 'bet.exec':['#22d3ee','check','Visas et suivi'],
- 'archi.concep':['#c084fc','pen','Conception et plans'], 'archi.exec':['#22d3ee','check','Suivi de chantier'],
- 'archi.opc':['#60a5fa','calendar','Coordination'], 'moa.budget':['#fbbf24','sheet','Programme et budget'],
- 'moa.valid':['#4ade80','check','Validations'], 'moa.tech':['#60a5fa','layers','Suivi technique'],
- 'bc.avis':['#fb923c','file','Avis techniques'], 'bc.ctrl':['#fb7185','shield','Contrôles'],
- 'bc.recep':['#4ade80','check','Réceptions'], 'labo.beton':['#38bdf8','flask','Essais béton'],
- 'labo.sols':['#2dd4bf','layers','Sols et géotechnique'], 'labo.rapp':['#60a5fa','report','Rapports'],
- 'topo.impl':['#22d3ee','pin','Implantations'], 'topo.rel':['#4ade80','ruler','Relevés'],
- 'topo.asb':['#38bdf8','plans','Récolement'], 'at.suivi':['#4ade80','check','Suivi technique']
+ 'bet.bim':['#c084fc','st_bim','Coordination BIM'], 'bet.doc':['#fbbf24','st_binders','Documentation'],
+ 'archi.bim':['#c084fc','st_bim','Maquettes'], 'archi.finitions':['#f472b6','pen','Détails'],
+ 'archi.doc':['#60a5fa','st_binders','Documentation'], 'topo.ctrl':['#60a5fa','st_triangle','Contrôles'],
+ 'topo.calc':['#2dd4bf','st_calculator','Calculs'], 'topo.mat':['#fbbf24','st_excavator','Matériel'],
+ 'labo.prelev':['#c084fc','st_sample','Prélèvements'], 'labo.trace':['#2dd4bf','st_barcode','Traçabilité'],
+ 'labo.conf':['#4ade80','st_quality','Conformité'], 'opc.plan':['#60a5fa','calendar','Planning'],
+ 'opc.coord':['#22d3ee','st_orgchart','Coordination'], 'opc.rapp':['#c084fc','st_chart','Reporting'],
+ 'st.prod':['#4ade80','hard','Production'], 'st.fer':['#fb7185','st_rebar','Ferraillage'],
+ 'st.mat':['#fbbf24','st_excavator','Matériel'], 'st.hse':['#fb7185','st_hse','Sécurité'],
+ 'bet.struct':['#38bdf8','st_beam','Structure'], 'bet.fluides':['#2dd4bf','st_fan','Réseaux et installations'],
+ 'bet.metre':['#60a5fa','st_calculator','Quantités et estimation'], 'bet.exec':['#22d3ee','st_stamp','Visas et suivi'],
+ 'archi.concep':['#c084fc','st_archi','Conception et plans'], 'archi.exec':['#22d3ee','st_stamp','Suivi de chantier'],
+ 'archi.opc':['#60a5fa','st_orgchart','Coordination'], 'moa.budget':['#fbbf24','st_coins','Programme et budget'],
+ 'moa.valid':['#4ade80','st_stamp','Validations'], 'moa.tech':['#60a5fa','st_chart','Suivi technique'],
+ 'bc.avis':['#fb923c','st_contract','Avis techniques'], 'bc.ctrl':['#fb7185','shield','Contrôles'],
+ 'bc.recep':['#4ade80','check','Réceptions'], 'labo.beton':['#38bdf8','st_concrete','Essais béton'],
+ 'labo.sols':['#2dd4bf','st_soil','Sols et géotechnique'], 'labo.rapp':['#60a5fa','report','Rapports'],
+ 'topo.impl':['#22d3ee','st_station','Implantations'], 'topo.rel':['#4ade80','st_map','Relevés'],
+ 'topo.asb':['#38bdf8','layers','Récolement'], 'at.suivi':['#4ade80','st_chart','Suivi technique']
 };
 const stVisual = (k, fallback='#60a5fa') => ST_SERVICE_THEME[k] || ST_EXTERNAL_THEME[k] || [fallback,'grid','Outils métier'];
-const stOrgVisual = (k) => ST_ORG_THEME[k] || ['#94a3b8','grid'];
+const stOrgVisual = (k) => ST_ORG_THEME[k] || (k==='at'?['#4ade80','net']:['#94a3b8','st_building']);
 // Branches métier : sous-services de présentation rattachés aux clés d'abonnement existantes.
  // Ne crée ni droit, ni abonnement supplémentaire, ni nouvelle clé Firestore.
 const ST_ORG_BRANCHES = {
