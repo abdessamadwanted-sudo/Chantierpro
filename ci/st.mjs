@@ -43,8 +43,18 @@ try {
   await shot(A.pg, '02_onboard');
   await A.pg.click('[data-a=create]'); await A.pg.waitForSelector('.st-offers'); await shot(A.pg, '02b_packs');
   log('A offres organisation', await A.pg.evaluate(() => [...document.querySelectorAll('.st-offers [data-offer]')].map(b => b.dataset.offer + ':' + b.querySelector('.st-of-h b').textContent.trim())));
-  await A.pg.click('[data-p=business]'); await A.pg.waitForSelector('.st-ent-trigger'); await A.pg.click('[data-a=orgmenu]'); await shot(A.pg, '02c_orgs');
+  await A.pg.click('[data-p=business]'); await A.pg.waitForSelector('.st-ent-trigger'); if (await A.pg.locator('#st-ent-options').isHidden()) await A.pg.click('[data-a=orgmenu]'); await shot(A.pg, '02c_orgs');
   await A.pg.click('[data-o=entreprise]'); await A.pg.click('[data-a=orgnext]'); await A.pg.waitForSelector('.st-svcs'); await shot(A.pg, '02d_services');
+  // Vérification du catalogue réel sur le viewport mobile, sans modifier les droits ni créer un faux service.
+  const packVisual=await A.pg.evaluate(()=>{
+    const q=document.querySelector('.st-svcs [data-s=qualite], .st-svcs [data-lk=qualite]');
+    const g=document.querySelector('.st-svcs.st-node-grid');
+    const buttons=g?[...g.querySelectorAll('button')]:[];
+    const r=g?.getBoundingClientRect();
+    return {root:!!document.querySelector('.st-tree-root'),violet:q?.style.getPropertyValue('--st-tone')==='#c084fc',icons:buttons.length>0&&buttons.every(b=>!!b.querySelector('.st-node-icon svg path, .st-node-icon svg *')),noOverflow:!!r&&buttons.every(b=>{const p=b.getBoundingClientRect();return p.left>=r.left-1&&p.right<=r.right+1}),mode:document.querySelectorAll('[data-tpl][aria-pressed=true]').length===1};
+  });
+  log('Design packs/services mobile',packVisual);
+  log('errors Design packs/services',Object.values(packVisual).every(Boolean)?[]:['Design packs/services '+JSON.stringify(packVisual)]);
   await A.pg.fill('[name=cname]', 'BTP Test SARL'); await A.pg.click('[data-a=go]');
   await A.pg.waitForSelector('.home2', { timeout: 20000 }); await A.pg.waitForTimeout(800);
   await A.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove()));
@@ -222,7 +232,7 @@ try {
   log('E limite projets', await E.pg.evaluate(() => (document.querySelector('.sheet h3') || {}).textContent || 'pas de message')); await shot(E.pg, '32_limite_basic');
   await E.pg.click('.opt:has-text("Fermer")'); log('E limite résultat', await E.pg.evaluate(() => window.__lim));
   F = await newUser('F'); await signup(F.pg, 'Sara BET', 'sara@test.ma');
-  await F.pg.click('[data-a=create]'); await F.pg.waitForSelector('.st-offers'); await F.pg.click('[data-p=business]'); await F.pg.waitForSelector('.st-ent-trigger'); await F.pg.click('[data-a=orgmenu]');
+  await F.pg.click('[data-a=create]'); await F.pg.waitForSelector('.st-offers'); await F.pg.click('[data-p=business]'); await F.pg.waitForSelector('.st-ent-trigger'); if (await F.pg.locator('#st-ent-options').isHidden()) await F.pg.click('[data-a=orgmenu]');
   await F.pg.click('[data-o=bet]'); await F.pg.click('[data-a=orgnext]'); await F.pg.waitForSelector('.st-svcs'); log('F services proposés', await F.pg.evaluate(() => [...document.querySelectorAll('.st-svcs .on')].map(b => b.dataset.s)));
   await F.pg.fill('[name=cname]', 'BET Structures'); await F.pg.click('[data-a=go]'); await F.pg.waitForSelector('.home2', { timeout: 20000 }); await F.pg.waitForTimeout(800);
   await F.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove())); await shot(F.pg, '33_bet_home');
@@ -367,7 +377,7 @@ try {
   // ---- v1.0.18 : service Qualité — services fermés, organigramme qualité, missions, validation des PV, documentation
   log('services par défaut', await setSvcs(['direction', 'qualite', 'externe', 'perso']));
   const H = await newUser('H'); await signup(H.pg, 'Karima Qualité', 'karima@test.ma');
-  await H.pg.click('[data-a=create]'); await H.pg.waitForSelector('.st-offers'); await H.pg.click('[data-p=enterprise]'); await H.pg.waitForSelector('.st-ent-trigger'); await H.pg.click('[data-a=orgmenu]');
+  await H.pg.click('[data-a=create]'); await H.pg.waitForSelector('.st-offers'); await H.pg.click('[data-p=enterprise]'); await H.pg.waitForSelector('.st-ent-trigger'); if (await H.pg.locator('#st-ent-options').isHidden()) await H.pg.click('[data-a=orgmenu]');
   await H.pg.click('[data-o=entreprise]'); await H.pg.click('[data-a=orgnext]'); await H.pg.waitForSelector('.st-svcs'); await shot(H.pg, '60_services_fermes');
   log('H services ouverts / fermés', await H.pg.evaluate(() => [[...document.querySelectorAll('.st-svcs [data-s]')].map(b => b.dataset.s + (b.classList.contains('on') ? '+' : '')), [...document.querySelectorAll('.st-svcs .lk')].map(b => b.dataset.lk)]));
   await H.pg.click('.st-svcs .lk'); await H.pg.waitForTimeout(300);
@@ -599,7 +609,7 @@ try {
   await SA.pg.click('dialog button:has-text("Fermer")');
   const K = await newUser('K'); await signup(K.pg, 'Karim Code', 'karim@test.ma');
   await K.pg.click('[data-a=create]'); await K.pg.waitForSelector('[data-a=pcode]'); await K.pg.click('[data-a=pcode]'); await K.pg.fill('.sheet [name=code]', codeB.toLowerCase()); await K.pg.click('.sheet [data-a=ok]');
-  await K.pg.waitForSelector('.st-ent-trigger', { timeout: 15000 }); await K.pg.click('[data-a=orgmenu]'); await K.pg.click('[data-o=entreprise]'); await K.pg.click('[data-a=orgnext]'); await K.pg.waitForSelector('.st-svcs'); await K.pg.fill('[name=cname]', 'Karim Travaux'); await K.pg.click('[data-a=go]');
+  await K.pg.waitForSelector('.st-ent-trigger', { timeout: 15000 }); if (await K.pg.locator('#st-ent-options').isHidden()) await K.pg.click('[data-a=orgmenu]'); await K.pg.click('[data-o=entreprise]'); await K.pg.click('[data-a=orgnext]'); await K.pg.waitForSelector('.st-svcs'); await K.pg.fill('[name=cname]', 'Karim Travaux'); await K.pg.click('[data-a=go]');
   await K.pg.waitForSelector('.home2', { timeout: 30000 });
   log('K pack par code', await K.pg.evaluate(() => [Team.plan().k, Team.company().planStatus, Team.company().packCode ? 'code' : '']));
   log('K utilisation enregistrée', await K.pg.evaluate(async (c) => { try { const d = await firebase.firestore().collection('packCodes').doc(c).get(); return [d.data().uses, d.data().usedBy.length]; } catch (e) { return e.code; } }, codeB));
@@ -2410,6 +2420,7 @@ try {
       if (!q) { o.pasQual = true; } else {
         o.volets = q.querySelectorAll('details.st-qs').length >= 2;
         o.adm = !!q.querySelector('details[data-qs=adm] [data-tool=docq]');
+        o.violet = q.style.getPropertyValue('--st-tone') === '#c084fc' && [...q.querySelectorAll('details.st-qs > summary')].every(x=>x.style.getPropertyValue('--c')==='#c084fc');
         o.ter = !!q.querySelector('details[data-qs=ter] [data-tool=reception]');
         o.reglage = !!q.querySelector('[data-a=qsset]');
         o.services = ['travaux', 'hse', 'topo', 'labo'].every(k => { const d = root.querySelector('details[data-g=sv-' + k + ']'); return !!d && /^Service /.test(d.querySelector('summary').textContent) && d.querySelectorAll('details.st-qs').length >= 1; })
