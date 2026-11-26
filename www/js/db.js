@@ -104,6 +104,13 @@ const DB = (() => {
     uid,
     async get(store, id) { return run(store, 'readonly', (os) => os.get(id)); },
     async all(store) { return run(store, 'readonly', (os) => os.getAll()); },
+    // Identifiants des espaces ModelCore locaux, sans lire les PDF.
+    async modelcoreIds(projectId) {
+      const prefix='mc:'+encodeURIComponent(projectId)+':';
+      const ids=await run('mcworkspaces','readonly',os=>os.getAllKeys(IDBKeyRange.bound(prefix,prefix+'\uffff')));
+      const old=await run('mcworkspaces','readonly',os=>os.getKey(projectId));
+      return old===undefined?ids:[old,...ids];
+    },
     async byProject(store, projectId) { return run(store, 'readonly', (os) => os.index('projectId').getAll(projectId)); },
     async put(store, obj) {
       if (!obj.id) obj.id = uid();
@@ -141,7 +148,7 @@ const DB = (() => {
         const items = await this.byProject(s, projectId);
         for (const it of items) await this.del(s, it.id);
       }
-      await this.delRaw('mcworkspaces', projectId);
+      for(const id of await this.modelcoreIds(projectId))await this.delRaw('mcworkspaces',id);
       await this.del('projects', projectId);
     },
   };
