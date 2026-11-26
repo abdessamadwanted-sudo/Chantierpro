@@ -11,6 +11,16 @@
     return {c,s,tx:A[0]-c*a[0]+s*a[1],tz:A[1]-s*a[0]-c*a[1],scale:Math.hypot(c,s),angle:Math.atan2(s,c)};
   }
   function appliquer(t,p){return [t.c*p[0]-t.s*p[1]+t.tx,t.s*p[0]+t.c*p[1]+t.tz];}
+  // Transférer le centre et l'échelle métrique de la vue 2D, via le repère commun.
+  function transferView(from,to,pos){
+    if(!from?.t||!to?.t||!pos||!Number.isFinite(pos.cssWidth)||pos.cssWidth<=0||!Number.isFinite(pos.u)||!Number.isFinite(pos.v))return null;
+    const a=from.t,b=to.t,world=appliquer(a,[pos.u*from.width,pos.v*from.height]);
+    const X=world[0]-b.tx,Y=world[1]-b.tz,d=b.c*b.c+b.s*b.s;
+    if(!d||!a.scale||!b.scale)return null;
+    const x=(b.c*X+b.s*Y)/d,y=(-b.s*X+b.c*Y)/d;
+    if(x<0||y<0||x>to.width||y>to.height)return null;
+    return {u:x/to.width,v:y/to.height,cssWidth:pos.cssWidth*to.width*b.scale/(from.width*a.scale)};
+  }
   function reference(a,b,d){
     if(!Number.isFinite(d)||d<=0||d>10000)throw Error('Distance A–B en mètres requise.');
     return calage(a,b,[0,0],[d,0]);
@@ -80,7 +90,7 @@
       writes.set(key,promise);promise.then(()=>{if(writes.get(key)===promise)writes.delete(key);});return promise;
     }
     function levelBy(id){return levels.find(v=>v.id===id);}
-    async function viewPlan(l){
+    async function viewPlan(l,initialView=null){
       if(closed||busy||reading||!l)return;
       if(typeof showPdf!=='function'){msg('Lecteur PDF indisponible.');return;}
       reading=true;
@@ -88,8 +98,17 @@
       // La caméra, les repères et la sélection restent intacts au retour.
       try{
         await showPdf(l.file,(ws?levelBy(l.levelId)?.name+' · ':'')+l.name,{
-          page:l.page,onlyPage:true,overlay:true,
-          onOpen:shut=>{closeReader=shut;},onClose:()=>{reading=false;closeReader=null;if(!closed)schedule();}
+          page:l.page,onlyPage:true,overlay:true,initialView,
+          levels:ws?[...levels].sort((a,b)=>b.z-a.z).map(v=>({id:v.id,name:v.name,available:layers.some(x=>x.levelId===v.id)})):undefined,
+          activeLevel:l.levelId,
+          onLevel:(id,pos)=>{
+            const target=layers.find(x=>x.levelId===id);
+            if(!target||closed||!closeReader)return;
+            const next=transferView(l,target,pos);
+            closeReader();setLevel(id);viewPlan(target,next);
+            if(!next)msg('Vue ajustée : calage commun absent ou point hors du plan cible.');
+          },
+          onOpen:shut=>{if(closed){shut();return;}closeReader=shut;},onClose:()=>{reading=false;closeReader=null;if(!closed)schedule();}
         });
         if(!closeReader)reading=false;
       }catch(e){reading=false;closeReader=null;if(!closed)msg('Vue en plan : '+(e.message||e));}
@@ -345,5 +364,5 @@
     resize();update();fit();
     return {close,addFile,addProjectPlan,projectSources,selectLevel:setLevel,flush:()=>ws?(writes.get(DB.name()+'|'+ws.id)||Promise.resolve(!saveFailed)):Promise.resolve(true),edit:id=>{const l=layers.find(x=>x.id===id);if(l)edit(l);},setPoint:(id,k,p)=>setPoint(layers.find(x=>x.id===id),k,p),setDistance:d=>{if(!ref||!ref.A||!ref.B)throw Error('Référence incomplète.');reference(ref.A,ref.B,d);distance=d;ref.validated=true;update();save();},validate:id=>{const l=layers.find(x=>x.id===id);if(!l||!l.A||!l.B||!distance||!ref?.validated)throw Error('Calage incomplet.');calage(l.A,l.B,[0,0],[distance,0]);l.validated=true;update();save();},state:()=>layers.map(l=>({id:l.id,levelId:l.levelId,width:l.width,height:l.height,z:l.z,calibrated:!!l.t,visible:l.mesh.visible,transform:l.t?{...l.t}:null}))};
   }
-  window.ModelCorePDFStack={open,openWorkspace,makeWorkspace,calage,appliquer,reference};
+  window.ModelCorePDFStack={open,openWorkspace,makeWorkspace,calage,appliquer,reference,transferView};
 })();
