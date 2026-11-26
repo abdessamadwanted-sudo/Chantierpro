@@ -119,7 +119,7 @@ const stMatteColor = (c,ratio) => {
   const base=[7,29,53];
   return '#'+base.map((v,i)=>Math.round(v*(1-ratio)+parseInt(hex.slice(1+i*2,3+i*2),16)*ratio).toString(16).padStart(2,'0')).join('');
 };
-const stVisualStyle = (c) => '--st-tone:'+c+';--st-tint:'+c+'20;--st-edge:'+c+'b0;--st-matte:'+stMatteColor(c,.075)+';--st-matte-on:'+stMatteColor(c,.15)+';--st-matte-icon:'+stMatteColor(c,.22);
+const stVisualStyle = (c) => '--st-tone:'+c+';--st-tint:'+c+'20;--st-edge:'+stMatteColor(c,.72)+';--st-matte:'+stMatteColor(c,.12)+';--st-matte-on:'+stMatteColor(c,.22)+';--st-matte-icon:'+stMatteColor(c,.28);
 function offerCard(P, perso, btn = true, opts = null) {
   const dev = planDev(P), mods = P.modules === '*' ? MODS.map(([m]) => m) : P.modules, price = dev ? 'En cours de développement' : P.price == null ? 'Sur devis' : P.price ? `${P.price} MAD / ${P.period}` : 'Gratuit';
   const act = P.price == null ? 'Demander un devis · essai' : P.price ? `Démarrer l'essai ${P.trialDays || 14} jours` : 'Commencer gratuitement';
