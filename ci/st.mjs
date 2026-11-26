@@ -3231,7 +3231,9 @@ try {
       stack=await opening;let root=document.querySelector('.mc-workspace');
       o.empty=stack.state().length===0&&!root.querySelector('[data-r=empty]').hidden;
       o.levels=[...root.querySelectorAll('[data-level]')].map(b=>b.dataset.level).join(',')==='all,n0,n1';
-      root.querySelector('[data-level=n0]').click();
+      root.querySelector('[data-a=overview]').click();
+      o.overview=!root.querySelector('[data-r=overview-panel]').hidden&&root.querySelector('[data-r=progress]').textContent.includes('0/2');
+      root.querySelector('[data-import-level=n0]').click();
       o.drawer=!root.querySelector('[data-r=drawer]').hidden&&!root.querySelector('[data-a=add]').disabled;
       const mk=async(name)=>{const d=await PDFLib.PDFDocument.create(),p=d.addPage([300,200]);p.drawLine({start:{x:10,y:10},end:{x:290,y:190},thickness:2});return new File([await d.save()],name,{type:'application/pdf'});};
       // Le même champ que celui déclenché par le bouton Téléphone.
@@ -3255,9 +3257,9 @@ try {
       o.calPan=JSON.stringify((await DB.get('mcworkspaces',pid)).plans[0].A)===JSON.stringify(picked);
       root.querySelector('[data-a=fullpaper]').click();o.calFit=parseInt(zoomLabel.textContent)===100;
       root.querySelector('[data-a=aim]').click();await stack.flush();const aimed=(await DB.get('mcworkspaces',pid)).plans[0].A;o.calAim=Math.abs(aimed[0]-150)<1&&Math.abs(aimed[1]-100)<1;
-      stack.setPoint(a,'A',[20,20]);root.querySelector('[data-r=denom]').value='100';root.querySelector('[data-a=apply]').click();
-      o.first=stack.state()[0].visible&&stack.state()[0].calibrated;
-      root.querySelector('[data-level=n1]').click();
+      stack.setPoint(a,'A',[20,20]);root.querySelector('[data-r=denom]').value='100';root.querySelector('[data-a=apply-next]').click();
+      o.first=stack.state()[0].calibrated;
+      o.nextLevel=root.querySelector('[data-level=n1]').classList.contains('active')&&!root.querySelector('[data-r=drawer]').hidden&&!root.querySelector('[data-a=add]').disabled;
       const two=await PDFLib.PDFDocument.create();two.addPage([100,100]);const levelPage=two.addPage([300,200]);levelPage.drawLine({start:{x:10,y:10},end:{x:290,y:190},thickness:2});
       const b=await stack.addFile(new File([await two.save()],'R+1.pdf',{type:'application/pdf'}),2);
       stack.edit(b);stack.setPoint(b,'A',[40,30]);root.querySelector('[data-a=apply]').click();
@@ -3303,8 +3305,9 @@ try {
       reader=await waitReader('n1',reader);
       o.readerSwitch=o.readerSwitch&&reader.querySelector('.pdf-zoom canvas').dataset.p==='2';
       reader.querySelector('[data-mc-zoom="3d"]').click();
-      o.readerReturn=!document.querySelector('.mc-plan-reader')&&JSON.stringify(stack.state())===before&&root.querySelector('[data-level=n1]').classList.contains('active');
-      root.querySelector('[data-level=all]').click();
+      o.readerReturn=!document.querySelector('.mc-plan-reader')&&stack.state().every(l=>l.visible&&l.calibrated)&&root.querySelector('[data-level=all]').classList.contains('active')&&stack.state().every((l,i)=>JSON.stringify(l.transform)===JSON.stringify(JSON.parse(before)[i].transform));
+      root.querySelector('[data-level=n0]').click();root.querySelector('[data-a=3d]').click();
+      o.allFrom3D=root.querySelector('[data-level=all]').classList.contains('active')&&stack.state().every(l=>l.visible);
       o.stack=stack.state().every(l=>l.visible&&l.calibrated)&&Math.abs(stack.state()[1].z-4.2)<.001;
       o.saved=await stack.flush();stack.close();stack=null;
       stack=await ModelCorePDFStack.openWorkspace({projectId:pid,projectName:'Stade test local'});
@@ -3316,7 +3319,7 @@ try {
     return o;
   });
   log('ModelCore X projet vide et niveaux',mcWorkspace);
-  log('errors v1.0.339',!mcWorkspace.err&&['empty','levels','drawer','phone','pointDefault','calHD','calZoom','calPick','calPan','calFit','calAim','first','pointAligned','isolate','detailHD','detailRelease','reader','readerInk','readerZoom','readerSwitch','readerScale','readerReturn','stack','saved','reopen','local','cleanup'].every(k=>mcWorkspace[k])?[]:['Projet ModelCore '+JSON.stringify(mcWorkspace)]);
+  log('errors v1.0.339',!mcWorkspace.err&&['empty','levels','overview','drawer','phone','pointDefault','calHD','calZoom','calPick','calPan','calFit','calAim','first','nextLevel','pointAligned','isolate','detailHD','detailRelease','reader','readerInk','readerZoom','readerSwitch','readerScale','readerReturn','allFrom3D','stack','saved','reopen','local','cleanup'].every(k=>mcWorkspace[k])?[]:['Projet ModelCore '+JSON.stringify(mcWorkspace)]);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
