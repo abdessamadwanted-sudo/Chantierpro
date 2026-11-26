@@ -504,7 +504,7 @@ async function showPdf(blob, caption = 'PDF', opts = {}) {
     <div class="pdf-pages"><div class="pdf-zoom"></div></div><div class="pdf-ind"><span data-pg></span><button data-a="fit">⤢</button></div>`;
   document.body.appendChild(el);
   // v1.0.59 : fermer le lecteur libère le PDF et les pages dessinées (mémoire)
-  let closed = false, loadingTask = null;
+  let closed = false, loadingTask = null, navReady = false;
   const shut = () => {
     if (closed) return; closed = true; unBack();
     io.disconnect(); [hiT, evT, tsT, ft].forEach(clearTimeout);
@@ -533,6 +533,36 @@ async function showPdf(blob, caption = 'PDF', opts = {}) {
   scroller.addEventListener('wheel', (e) => { if (!e.ctrlKey) return; e.preventDefault(); const r = scroller.getBoundingClientRect(); setZoom(zk * (e.deltaY < 0 ? 1.15 : 0.87), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
   ($('[data-a=fit]', el)||{}).onclick = () => setZoom(1); $('[data-a=fit]', el).style.display = 'none';
   const cs = () => [...box.querySelectorAll('canvas:not(.pdf-tile)')];
+  // Les coordonnées sont relatives à la page PDF et non au bitmap de rendu.
+  function captureView() {
+    const c = cs()[0]; if (!c) return null;
+    const p = c.getBoundingClientRect(), r = scroller.getBoundingClientRect();
+    if (!p.width || !p.height) return null;
+    return {u:Math.max(0,Math.min(1,(r.left+r.width/2-p.left)/p.width)),v:Math.max(0,Math.min(1,(r.top+r.height/2-p.top)/p.height)),cssWidth:p.width,zoom:zk};
+  }
+  function restoreView(pos) {
+    if (!pos || closed) return;
+    const c=cs()[0],base=c?.getBoundingClientRect().width;if(!base)return;
+    setZoom(pos.cssWidth>0?pos.cssWidth/base:pos.zoom||1);
+    const p=c.getBoundingClientRect(),r=scroller.getBoundingClientRect();
+    scroller.scrollLeft+=p.left+Math.max(0,Math.min(1,pos.u))*p.width-r.left-r.width/2;
+    scroller.scrollTop+=p.top+Math.max(0,Math.min(1,pos.v))*p.height-r.top-r.height/2;
+  }
+  if (opts.onlyPage && Array.isArray(opts.levels)) {
+    const style=document.createElement('style');style.textContent='.mc-plan-reader .mc-pdf-nav{position:absolute;left:8px;top:22%;max-height:62%;overflow:auto;display:flex;flex-direction:column;gap:5px;padding:5px;background:#13273be8;border:1px solid #46617a;border-radius:14px;z-index:4;max-width:90px}.mc-plan-reader .mc-pdf-nav button,.mc-plan-reader .mc-pdf-zoomtools button{min-height:40px;min-width:44px;border:1px solid #41637b;border-radius:8px;color:#e5f2ff;background:#203b51;font-size:12px;padding:5px;overflow-wrap:anywhere}.mc-plan-reader .mc-pdf-nav button.active{background:#285c9a;border-color:#85b9ff}.mc-plan-reader .mc-pdf-nav button:disabled{opacity:.48}.mc-plan-reader .mc-pdf-zoomtools{position:absolute;right:8px;top:24%;display:flex;flex-direction:column;gap:5px;z-index:4}.mc-plan-reader .mc-pdf-zoomtools button{font-size:17px}.mc-plan-reader .pdf-pages{touch-action:pan-x pan-y}';
+    const rail=document.createElement('div');rail.className='mc-pdf-nav';rail.setAttribute('aria-label','Niveaux');
+    for(const level of opts.levels){
+      const b=document.createElement('button');b.type='button';b.dataset.mcLevel=level.id;b.textContent=level.name;b.classList.toggle('active',level.id===opts.activeLevel);
+      b.disabled=!level.available;b.title=level.available?'Afficher le PDF du niveau':'PDF non importé';
+      b.onclick=()=>{if(navReady&&!closed&&level.id!==opts.activeLevel&&typeof opts.onLevel==='function')opts.onLevel(level.id,captureView());};
+      rail.append(b);
+    }
+    const tools=document.createElement('div');tools.className='mc-pdf-zoomtools';
+    for(const [a,label,fn] of [['plus','+',()=>setZoom(zk*1.35)],['minus','−',()=>setZoom(zk/1.35)],['fit','⤢',()=>setZoom(1)],['3d','3D',shut]]){
+      const b=document.createElement('button');b.type='button';b.dataset.mcZoom=a;b.textContent=label;b.onclick=()=>{if(a==='3d'||navReady)fn();};tools.append(b);
+    }
+    el.append(style,rail,tools);
+  }
   // v1.0.267 : netteté maximale au zoom — seule la zone visible (+ marge) est redessinée à la résolution de l'écran dans une « tuile » posée sur la page (le plafond de 14 Mpx ne limite plus le zoom)
   box.style.position = 'relative';
   const tuile = async (c) => {
@@ -601,8 +631,8 @@ async function showPdf(blob, caption = 'PDF', opts = {}) {
     const first = opts.onlyPage ? start : 1, last = opts.onlyPage ? start : nPages;
     const v1 = (await pdf.getPage(first)).getViewport({ scale: 1 }); if (closed) return;
     for (let p = first; p <= last; p++) { const c = document.createElement('canvas'); c.dataset.p = p; c.width = 600; c.height = Math.round(600 * v1.height / v1.width); box.appendChild(c); io.observe(c); }
-    if (opts.onlyPage || start > 1) { await render(cs().find(c => +c.dataset.p === start)); if (!closed) requestAnimationFrame(() => goPage(start)); }
-    if (closed) return; pgInd();
+    if (opts.onlyPage || start > 1) { await render(cs().find(c => +c.dataset.p === start)); if (!closed) { if(opts.onlyPage&&opts.initialView)restoreView(opts.initialView);else requestAnimationFrame(() => {if(!closed)goPage(start);}); } }
+    if (closed) return; navReady=true; pgInd();
   } catch (e) { if (!closed) box.innerHTML = `<div class="empty">Impossible d'ouvrir ce PDF</div>`; return; }
   // recherche dans le document
   const fb = $('.pdf-find', el), fi = $('input', fb); let hits = [], hi = 0;
