@@ -3245,6 +3245,21 @@ try {
       const b=await stack.addFile(await mk('R+1.pdf'),1);
       stack.setPoint(b,'A',[20,20]);stack.setPoint(b,'B',[220,20]);stack.validate(b);
       o.isolate=stack.state().filter(l=>l.visible).length===1&&stack.state()[1].visible;
+      // Ouvrir le vrai lecteur PDF depuis la barre du niveau sélectionné.
+      const before=JSON.stringify(stack.state());
+      root.querySelector('[data-a=planview]').click();
+      let reader=null,canvas=null;
+      for(let i=0;i<150;i++){
+        reader=document.querySelector('.mc-plan-reader');canvas=reader?.querySelector('.pdf-zoom canvas[data-p="1"]');
+        if(canvas&&canvas._sOk>0)break;await wait(100);
+      }
+      o.reader=!!reader&&!!canvas&&canvas._sOk>0&&reader.querySelector('h1').textContent.includes('R+1')&&getComputedStyle(reader).zIndex==='1000001';
+      if(!o.reader)throw Error('Vue en plan non rendue.');
+      const ctx=canvas.getContext('2d'),pixels=ctx.getImageData(0,0,canvas.width,canvas.height).data;
+      let ink=0;for(let i=0;i<pixels.length;i+=4)if(pixels[i+3]>200&&pixels[i]<100&&pixels[i+1]<100&&pixels[i+2]<100)ink++;
+      o.readerInk=ink>20;
+      reader.querySelector('[data-a=x]').click();
+      o.readerReturn=!document.querySelector('.mc-plan-reader')&&JSON.stringify(stack.state())===before&&root.querySelector('[data-level=n1]').classList.contains('active');
       root.querySelector('[data-level=all]').click();
       o.stack=stack.state().every(l=>l.visible&&l.calibrated)&&Math.abs(stack.state()[1].z-4.2)<.001;
       o.saved=await stack.flush();stack.close();stack=null;
@@ -3257,7 +3272,7 @@ try {
     return o;
   });
   log('ModelCore X projet vide et niveaux',mcWorkspace);
-  log('errors v1.0.339',!mcWorkspace.err&&['empty','levels','drawer','phone','first','isolate','stack','saved','reopen','local','cleanup'].every(k=>mcWorkspace[k])?[]:['Projet ModelCore '+JSON.stringify(mcWorkspace)]);
+  log('errors v1.0.339',!mcWorkspace.err&&['empty','levels','drawer','phone','first','isolate','reader','readerInk','readerReturn','stack','saved','reopen','local','cleanup'].every(k=>mcWorkspace[k])?[]:['Projet ModelCore '+JSON.stringify(mcWorkspace)]);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
