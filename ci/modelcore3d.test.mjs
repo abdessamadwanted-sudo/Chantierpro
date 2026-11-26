@@ -229,3 +229,14 @@ assert.ok(Math.abs(single1.scale-100*.0254/72)<1e-10);
 assert.throws(()=>S.calagePoint([20,30],0),/échelle/);
 assert.equal(ws.calibrationMode,'point');
 console.log('ModelCore X — calage par point commun à échelle connue : OK.');
+
+const vfit=S.calViewport(300,200,600,600,1,150,100);
+assert.equal(vfit.scale,2);assert.equal(vfit.x,0);assert.equal(vfit.y,100);
+const vzoom=S.calViewport(300,200,600,600,8,120,90);
+assert.equal(vzoom.scale,16);assert.equal((300-vzoom.x)/vzoom.scale,120);assert.equal((300-vzoom.y)/vzoom.scale,90);
+const vedge=S.calViewport(300,200,600,600,64,0,0);assert.equal(vedge.x,0);assert.equal(vedge.y,0);
+console.log('ModelCore X — repère PDF invariant au zoom et limites du viewport : OK.');
+
+const roots=S.sourceLevels([{id:'s',name:'0-SSL'},{id:'m',name:'1-MEZZ'},{id:'r',name:'2-RDC'},{id:'sub',parentId:'r',name:'Coffrage'}],3);
+assert.equal(roots.length,3);assert.equal(roots[2].z,0);assert.equal(roots[0].folderId,'s');assert.equal(S.rootFolder('sub',[{id:'r'},{id:'sub',parentId:'r'}]).id,'r');
+console.log('ModelCore X — reprise des niveaux du chantier : OK.');
