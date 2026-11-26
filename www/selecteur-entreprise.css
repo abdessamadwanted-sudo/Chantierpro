@@ -139,3 +139,15 @@
 @media(min-width:410px){.st-onb .st-architecture .st-node-grid>button{display:grid;grid-template-columns:42px minmax(0,1fr);align-items:start;padding:13px 10px;min-height:115px}.st-onb .st-architecture .st-node-copy{padding-right:7px;padding-top:23px}.st-onb .st-architecture .st-node-icon{width:42px;height:42px}}
 @media(max-width:330px){.st-onb .st-pack-screen .st-offers{grid-template-columns:1fr}.st-onb .tm-lg-in.st-architecture{padding-inline:9px!important}}
 @media(prefers-reduced-motion:no-preference){.st-onb .st-node-grid>button,.st-onb .st-offer{transition:box-shadow .18s,border-color .18s,transform .18s}.st-onb .st-node-grid>button:active{transform:scale(.98)}}
+
+/* Sous-services métier : une carte sélectionnable, une liste lisible des pôles inclus. */
+.st-onb .st-architecture .st-branch-list{display:grid;gap:5px;border-top:1px solid var(--st-edge);padding-top:8px;margin-top:8px;text-align:left}
+.st-onb .st-architecture .st-branch-list>span{display:block;color:#d8e9fb;font-size:11px;line-height:1.3;padding-left:10px;position:relative;overflow-wrap:anywhere}
+.st-onb .st-architecture .st-branch-list>span:before{content:'';position:absolute;left:0;top:.45em;width:4px;height:4px;border-radius:50%;background:var(--st-tone)}
+.st-onb .st-architecture .st-node-grid>button{align-content:start;min-height:126px}
+.st-own-tree .st-tree-root{--st-tone:inherit;--st-tint:inherit;--st-edge:inherit}
+.st-own-tree .st-own-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+.st-own-tree .st-svc-node{margin:0}
+.st-own-tree .st-node-copy b{font-size:15px}
+@media(min-width:700px){.st-own-tree .st-own-grid{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}}
+@media(min-width:410px){.st-onb .st-architecture .st-node-grid>button{grid-template-columns:40px minmax(0,1fr);padding:12px 9px}.st-onb .st-architecture .st-node-copy{padding-top:20px;padding-right:0}}
