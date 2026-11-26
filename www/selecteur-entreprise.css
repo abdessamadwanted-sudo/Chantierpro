@@ -170,3 +170,104 @@
 .st-onb .st-service-screen .st-lknote{display:block;color:#c0d3e8;font-size:11px;line-height:1.4;margin:14px 4px}
 @media(max-width:380px){.st-onb .st-service-screen .st-node-grid>button{grid-template-columns:1fr;gap:7px;min-height:133px}.st-onb .st-service-screen .st-node-grid .st-node-copy{padding:0}.st-onb .st-service-screen .st-node-grid .st-node-copy b{font-size:14px}}
 @media(min-width:600px){.st-onb .st-service-screen .st-node-grid>button{grid-template-columns:44px minmax(0,1fr);min-height:150px}.st-onb .st-service-screen .st-node-grid .st-node-copy b{font-size:16px}.st-onb .st-service-screen .st-node-grid .st-node-copy small{font-size:12px}}
+
+/* Charte précision — surfaces opaques, contraste net, pictogrammes SVG sans halo.
+   Aucun backdrop-filter ni filtre de flou : compatible WebView Android ancien. */
+.st-onb{background:#071d35!important;color:#f8fbff!important}
+.st-onb .tm-lg-in.st-architecture{padding:12px 12px 24px!important;max-width:720px}
+.st-entry-brand{margin:5px 0 14px}
+.st-entry-brand small{color:#d3e2f5}
+.st-entry-hero{margin:10px 0}
+.st-entry-hero .st-node-icon{width:52px;height:52px;border-radius:13px}
+.st-architecture h1{font-size:clamp(23px,6vw,32px);font-weight:800;color:#fff;letter-spacing:-.035em;margin:10px 0 7px}
+.st-architecture>p{color:#cfdef0;font-size:13px}
+.st-onb .st-architecture .st-ent-head{border:0;background:none;padding:0;margin:14px 0 10px}
+.st-onb .st-architecture .st-tree-root,.st-service-tree .st-tree-root{background:#102a44;box-shadow:none;border-color:var(--st-tone,#67e8f9)}
+.st-onb .st-org-screen .st-tree-root{width:fit-content;max-width:100%;margin:auto;padding:6px 13px;border-radius:24px}
+.st-onb .st-org-screen .st-tree-root .st-node-icon{width:29px;height:29px;border:none;background:none}
+.st-onb .st-org-screen .st-tree-root small,.st-onb .st-org-screen .st-ent-head>small{display:none}
+.st-onb .st-org-screen .st-tree-root b{font-size:14px}
+.st-onb .st-org-screen .st-tree-connector{height:18px}
+.st-onb .st-org-screen .st-tree-connector:before{height:8px}
+.st-onb .st-org-screen .st-tree-connector:after{top:7px;height:9px}
+.st-onb .st-org-screen .st-ent-trigger{min-height:36px;font-size:12px;background:#102a44;border-color:#345471;padding:6px 10px}
+.st-onb .st-org-screen .st-ent-current{display:none}
+.st-onb .st-architecture .st-node-grid{gap:9px;margin:10px 0 14px}
+.st-onb .st-architecture .st-node-grid>button,.st-welcome .tm-choice button{
+  background:#102a43;border:1px solid var(--st-edge,#527a9b);box-shadow:none;filter:none;min-width:0;color:#fff
+}
+.st-onb .st-architecture .st-node-grid>button[aria-pressed=true],.st-onb .st-architecture .st-node-grid>button.on{
+  background:#142d47;border-color:var(--st-tone);box-shadow:inset 0 0 0 1px var(--st-tone),0 0 5px var(--st-tint);filter:none
+}
+.st-onb .st-architecture .st-node-grid>button{display:grid;grid-template-columns:34px minmax(0,1fr);gap:8px;align-items:start;align-content:start;min-height:116px;border-radius:13px;padding:11px 9px}
+.st-onb .st-architecture .st-node-grid .st-node-copy{padding:23px 0 0;min-width:0}
+.st-onb .st-architecture .st-node-grid .st-node-copy b{font-size:14px;font-weight:750;line-height:1.2;color:#fff;letter-spacing:-.01em}
+.st-onb .st-architecture .st-node-grid .st-node-copy small{font-size:12px;line-height:1.35;color:#d2e0f1;margin-top:6px}
+.st-onb .st-architecture .st-node-icon,.st-service-tree .st-node-icon,.st-svc-node .st-node-icon{
+  background:#102942;border:1px solid var(--st-tone,#67e8f9);color:var(--st-tone,#67e8f9);box-shadow:none;filter:none;opacity:1
+}
+.st-onb .st-architecture .st-node-grid .st-node-icon{width:34px;height:34px;border-radius:9px}
+.st-onb .st-architecture .st-node-icon svg,.st-service-tree .st-node-icon svg,.st-svc-node .st-node-icon svg{
+  stroke-width:2.3;stroke:currentColor;filter:none;opacity:1;shape-rendering:geometricPrecision
+}
+.st-onb .st-architecture .st-node-grid .st-node-icon svg{width:24px;height:24px}
+.st-onb .st-architecture .st-node-check{border-color:#7896b5;background:#0b2137;width:18px;height:18px;right:8px;top:8px;box-shadow:none}
+.st-onb .st-architecture button[aria-pressed=true] .st-node-check{color:#071d35;background:var(--st-tone);border-color:var(--st-tone)}
+.st-onb .st-architecture .lk{opacity:.75}
+.st-welcome .tm-choice button{min-height:76px;padding:12px 13px;border-left:3px solid var(--st-tone);border-radius:13px}
+.st-welcome .tm-choice .st-node-icon{width:45px;height:45px}
+.st-welcome .tm-choice b{color:#fff;font-size:16px}
+.st-welcome .tm-choice small{color:#d2e0f1;font-size:12px}
+.st-onb .st-architecture .btn:not(.ghost){background:#087b9d;color:#fff;border:1px solid #67e8f9;box-shadow:none;border-radius:24px;font-weight:750}
+.st-onb .st-architecture .btn:not(.ghost):active{background:#09617c}
+.st-onb .st-pack-screen .st-offer,.pp-pg .st-offer{background:#102a43;box-shadow:none;border-color:var(--st-edge,#547a9b)}
+.st-onb .st-pack-screen .st-offer.hl,.pp-pg .st-offer.hl{border-color:var(--st-tone);box-shadow:inset 0 0 0 1px var(--st-tone)}
+.st-onb .st-pack-screen .st-offer .btn,.pp-pg .st-offer .btn{background:#102942;color:var(--st-tone);border-color:var(--st-tone);box-shadow:none}
+.st-onb .st-pack-screen .st-offer.hl .btn,.pp-pg .st-offer.hl .btn{background:var(--st-tone);color:#071d35}
+.st-ptools-p .st-service-tree,.st-ptools-p .st-svc-node,.st-ptools-p .st-svc-node .st-qs,.st-dir.st-svc-home,.st-svc-home .st-hd,.st-svc-home .st-kpi{
+  background:#102a43;box-shadow:none;color:#fff
+}
+.st-ptools-p .st-svc-node[open]{box-shadow:none;border-color:var(--st-tone)}
+.st-ptools-p .st-svc-node .st-tool{background:#102942;border-color:var(--st-edge);box-shadow:none}
+.st-ptools-p .st-svc-node .st-tool .st-ico,.st-svc-node .st-qs .st-qs-ic{background:#0b2038;color:var(--st-tone);box-shadow:none}
+.st-ptools-p .st-svc-node .st-tool svg,.st-ptools-p .st-svc-node .st-qs-ic svg{stroke-width:2.3;filter:none}
+@media(max-width:390px){
+  .st-onb .st-architecture .st-node-grid>button{grid-template-columns:1fr;min-height:116px;gap:6px;padding:9px}
+  .st-onb .st-architecture .st-node-grid .st-node-copy{padding:0}
+}
+@media(min-width:600px){
+  .st-onb .st-architecture .st-node-grid>button{grid-template-columns:44px minmax(0,1fr);min-height:114px;padding:13px}
+  .st-onb .st-architecture .st-node-grid .st-node-icon{width:42px;height:42px}
+  .st-onb .st-architecture .st-node-grid .st-node-copy b{font-size:15px}
+}
+
+/* Finition mate : supprimer les reflets blancs, conserver les couleurs métier. */
+.st-onb .st-architecture .st-node-grid>button,
+.st-onb .st-welcome .tm-choice button,
+.st-onb .st-pack-screen .st-offer,.pp-pg .st-offer,
+.st-ptools-p .st-svc-node,.st-ptools-p .st-svc-node .st-qs,
+.st-ptools-p .st-svc-node .st-tool{
+  background:var(--st-matte,#102a43);box-shadow:none;filter:none;
+  text-shadow:none;-webkit-tap-highlight-color:transparent
+}
+.st-onb .st-architecture .st-node-grid>button[aria-pressed=true],
+.st-onb .st-architecture .st-node-grid>button.on,
+.st-onb .st-pack-screen .st-offer.hl,.pp-pg .st-offer.hl,
+.st-ptools-p .st-svc-node[open]{
+  background:var(--st-matte-on,#142d47);border-color:var(--st-tone,#67e8f9);
+  box-shadow:inset 0 0 0 1px var(--st-tone,#67e8f9)
+}
+.st-onb .st-architecture .st-node-icon,
+.st-service-tree .st-node-icon,.st-svc-node .st-node-icon,
+.st-ptools-p .st-svc-node .st-tool .st-ico,.st-svc-node .st-qs .st-qs-ic{
+  background:var(--st-matte-icon,#102942);box-shadow:none;text-shadow:none;filter:none
+}
+.st-onb .st-org-screen .st-tree-root .st-node-icon,
+.st-onb .st-service-screen .st-tree-root .st-node-icon{background:none}
+.st-onb .st-architecture .st-node-grid>button::before,
+.st-onb .st-architecture .st-node-grid>button::after{content:none}
+.st-onb .st-architecture .btn:not(.ghost){background:#0891b2;border-color:#22d3ee;box-shadow:none;text-shadow:none}
+.st-onb .st-pack-screen .st-offer .btn{background:var(--st-matte-icon,#102942);color:var(--st-tone);border-color:var(--st-tone)}
+.st-onb .st-pack-screen .st-offer.hl .btn{background:var(--st-tone);color:#071d35}
+.st-onb .st-architecture .st-node-grid>button:focus-visible,
+.st-onb .st-architecture .btn:focus-visible{outline:2px solid var(--st-tone,#22d3ee);outline-offset:3px}

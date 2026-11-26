@@ -53,6 +53,13 @@ try {
     const r=g?.getBoundingClientRect();
     return {root:!!document.querySelector('.st-tree-root'),violet:q?.style.getPropertyValue('--st-tone')==='#c084fc',icons:buttons.length>0&&buttons.every(b=>!!b.querySelector('.st-node-icon svg path, .st-node-icon svg *')),noOverflow:!!r&&buttons.every(b=>{const p=b.getBoundingClientRect();return p.left>=r.left-1&&p.right<=r.right+1}),mode:document.querySelectorAll('[data-tpl][aria-pressed=true]').length===1};
   });
+  const clarity=await A.pg.evaluate(()=>{
+    const cards=[...document.querySelectorAll('.st-svcs.st-node-grid>button')];
+    const quality=document.querySelector('.st-svcs [data-s=qualite] .st-node-icon svg, .st-svcs [data-lk=qualite] .st-node-icon svg');
+    const matte=cards.every(b=>{const st=getComputedStyle(b), expected=b.style.getPropertyValue(b.getAttribute('aria-pressed')==='true'?'--st-matte-on':'--st-matte');if(!/^#[0-9a-f]{6}$/i.test(expected))return false;const rgb=[1,3,5].map(i=>parseInt(expected.slice(i,i+2),16));return st.backgroundColor==='rgb('+rgb.join(', ')+')'&&st.textShadow==='none'&&(st.boxShadow==='none'||(b.getAttribute('aria-pressed')==='true'&&st.boxShadow.includes('inset')));});
+    return {matte,opaque:cards.length>0&&cards.every(b=>getComputedStyle(b).backgroundImage==='none'),vector:!!quality?.querySelector('path[fill="currentColor"]'),noBlur:cards.every(b=>getComputedStyle(b).filter==='none'),stroke:!!quality&&parseFloat(getComputedStyle(quality).strokeWidth)>=2};
+  });
+  log('errors Clarte vectorielle',Object.values(clarity).every(Boolean)?[]:['Clarte vectorielle '+JSON.stringify(clarity)]);
   log('Design packs/services mobile',packVisual);
   log('errors Design packs/services',Object.values(packVisual).every(Boolean)?[]:['Design packs/services '+JSON.stringify(packVisual)]);
   await A.pg.fill('[name=cname]', 'BTP Test SARL'); await A.pg.click('[data-a=go]');
