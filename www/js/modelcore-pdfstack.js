@@ -440,7 +440,7 @@
     function edit(l){
       if(busy||!l)return;clearDetail();releaseCrop();current=l;zoom=1;calCenter=[l.width/2,l.height/2];calV=null;delete paper.dataset.hd;point='A';stage.hidden=true;$('[data-r="cal"]').hidden=false;$('[data-r="drawer"]').hidden=true;
       $('[data-r="calname"]').textContent=l.name+(l===ref?' · Référence':'');
-      updateCalControls();drawPaper();pointMode('A');queueHD();
+      updateCalControls();$('[data-a="apply-next"]').hidden=!ws;drawPaper();pointMode('A');queueHD();
     }
     function updateCalControls(){
       $('[data-r="cal-mode"]').value=calMode;
