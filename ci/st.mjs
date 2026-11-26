@@ -3217,6 +3217,89 @@ try {
   });
   log('PDF Stack PDF réels',pdfStackTest);
   log('errors v1.0.337',!pdfStackTest.err&&['worker','sources','isolation','page','pending','visible','metric','levels','rotation','canvas','closed'].every(k=>pdfStackTest[k])?[]:['PDF Stack '+JSON.stringify(pdfStackTest)]);
+  // ---- v1.0.x : ModelCore X — création réelle, niveaux indépendants et réouverture locale
+  const mcWorkspace=await A.pg.evaluate(async()=>{
+    const o={};let stack=null,pid='mc-workspace-ci-'+DB.uid();
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    try{
+      await DB.putRaw('projects',{id:pid,name:'Stade test local'});
+      const opening=ModelCorePDFStack.openWorkspace({projectId:pid,projectName:'Stade test local'});
+      let form=null;
+      for(let i=0;i<100&&!form;i++){form=[...document.querySelectorAll('.sheet-bg')].find(e=>e.querySelector('[name=count]')&&e.querySelector('[name=height]'));if(!form)await wait(100);}
+      if(!form)throw Error('Formulaire de création absent.');
+      form.querySelector('[name=count]').value='2';form.querySelector('[name=height]').value='4.2';form.querySelector('[data-a=ok]').click();
+      stack=await opening;let root=document.querySelector('.mc-workspace');
+      o.empty=stack.state().length===0&&!root.querySelector('[data-r=empty]').hidden;
+      o.levels=[...root.querySelectorAll('[data-level]')].map(b=>b.dataset.level).join(',')==='all,n0,n1';
+      root.querySelector('[data-level=n0]').click();
+      o.drawer=!root.querySelector('[data-r=drawer]').hidden&&!root.querySelector('[data-a=add]').disabled;
+      const mk=async(name)=>{const d=await PDFLib.PDFDocument.create(),p=d.addPage([300,200]);p.drawLine({start:{x:10,y:10},end:{x:290,y:190},thickness:2});return new File([await d.save()],name,{type:'application/pdf'});};
+      // Le même champ que celui déclenché par le bouton Téléphone.
+      const dt=new DataTransfer();dt.items.add(await mk('RDC.pdf'));const input=root.querySelector('[data-r=file]');input.files=dt.files;input.dispatchEvent(new Event('change'));
+      for(let i=0;i<150&&root.querySelector('[data-r=cal]').hidden;i++)await wait(100);
+      if(root.querySelector('[data-r=cal]').hidden)throw Error(root.querySelector('[data-r=status]').textContent);
+      const a=stack.state()[0].id;o.phone=stack.state()[0].levelId==='n0';
+      o.pointDefault=root.querySelector('[data-r=cal-mode]').value==='point'&&root.querySelector('[data-a=pointB]').hidden;
+      stack.setPoint(a,'A',[20,20]);root.querySelector('[data-r=denom]').value='100';root.querySelector('[data-a=apply]').click();
+      o.first=stack.state()[0].visible&&stack.state()[0].calibrated;
+      root.querySelector('[data-level=n1]').click();
+      const two=await PDFLib.PDFDocument.create();two.addPage([100,100]);const levelPage=two.addPage([300,200]);levelPage.drawLine({start:{x:10,y:10},end:{x:290,y:190},thickness:2});
+      const b=await stack.addFile(new File([await two.save()],'R+1.pdf',{type:'application/pdf'}),2);
+      stack.edit(b);stack.setPoint(b,'A',[40,30]);root.querySelector('[data-a=apply]').click();
+      const pair=stack.state(),aWorld=ModelCorePDFStack.appliquer(pair[0].transform,[20,20]),bWorld=ModelCorePDFStack.appliquer(pair[1].transform,[40,30]);
+      o.pointAligned=[...aWorld,...bWorld].every(x=>Math.abs(x)<1e-8)&&pair.every(l=>Math.abs(l.transform.scale-100*.0254/72)<1e-8);
+      o.isolate=stack.state().filter(l=>l.visible).length===1&&stack.state()[1].visible;
+      // Ouvrir le vrai lecteur PDF depuis la barre du niveau sélectionné.
+      const before=JSON.stringify(stack.state());
+      root.querySelector('[data-a=planview]').click();
+      let reader=null,canvas=null;
+      for(let i=0;i<150;i++){
+        reader=document.querySelector('.mc-plan-reader');canvas=reader?.querySelector('.pdf-zoom canvas[data-p="2"]');
+        if(canvas&&canvas._sOk>0)break;await wait(100);
+      }
+      o.reader=!!reader&&!!canvas&&canvas._sOk>0&&reader.querySelector('h1').textContent.includes('R+1')&&reader.querySelectorAll('.pdf-zoom canvas').length===1&&getComputedStyle(reader).zIndex==='1000001';
+      if(!o.reader)throw Error('Vue en plan non rendue.');
+      const ctx=canvas.getContext('2d'),pixels=ctx.getImageData(0,0,canvas.width,canvas.height).data;
+      let ink=0;for(let i=0;i<pixels.length;i+=4)if(pixels[i+3]>200&&pixels[i]<100&&pixels[i+1]<100&&pixels[i+2]<100)ink++;
+      o.readerInk=ink>20;
+      // Rester en 2D, zoomer et changer de niveau via la barre latérale.
+      await wait(200);
+      const readZoom=r=>parseFloat(r.querySelector('.pdf-zoom').style.width)||100;
+      reader.querySelector('[data-mc-zoom=plus]').click();reader.querySelector('[data-mc-zoom=plus]').click();
+      reader.querySelector('[data-mc-zoom=plus]').click();
+      const oldZoom=readZoom(reader),sc=reader.querySelector('.pdf-pages');
+      sc.scrollLeft=sc.scrollWidth*.24;sc.scrollTop=sc.scrollHeight*.18;
+      o.readerZoom=oldZoom>200;
+      const waitReader=async(id,previous)=>{
+        for(let i=0;i<150;i++){
+          const r=document.querySelector('.mc-plan-reader'),c=r?.querySelector('.pdf-zoom canvas:not(.pdf-tile)');
+          if(r&&r!==previous&&r.querySelector('[data-mc-level='+id+'].active')&&c?._sOk>0){await wait(200);return r;}
+          await wait(100);
+        }
+        throw Error('Changement de niveau PDF non terminé : '+id);
+      };
+      reader.querySelector('[data-mc-level=n0]').click();
+      reader=await waitReader('n0',reader);
+      o.readerSwitch=reader.querySelector('.pdf-zoom canvas').dataset.p==='1'&&root.querySelector('[data-level=n0]').classList.contains('active');
+      o.readerScale=Math.abs(readZoom(reader)-oldZoom)<5;o.zoomValues=[oldZoom,readZoom(reader)];
+      reader.querySelector('[data-mc-level=n1]').click();
+      reader=await waitReader('n1',reader);
+      o.readerSwitch=o.readerSwitch&&reader.querySelector('.pdf-zoom canvas').dataset.p==='2';
+      reader.querySelector('[data-mc-zoom="3d"]').click();
+      o.readerReturn=!document.querySelector('.mc-plan-reader')&&JSON.stringify(stack.state())===before&&root.querySelector('[data-level=n1]').classList.contains('active');
+      root.querySelector('[data-level=all]').click();
+      o.stack=stack.state().every(l=>l.visible&&l.calibrated)&&Math.abs(stack.state()[1].z-4.2)<.001;
+      o.saved=await stack.flush();stack.close();stack=null;
+      stack=await ModelCorePDFStack.openWorkspace({projectId:pid,projectName:'Stade test local'});
+      root=document.querySelector('.mc-workspace');o.reopen=stack.state().length===2&&stack.state().every(l=>l.visible&&l.calibrated)&&Math.abs(stack.state()[1].transform.scale-100*.0254/72)<1e-8&&Math.abs(stack.state()[1].z-4.2)<.001;
+      const persisted=await DB.get('mcworkspaces',pid);o.local=persisted.plans.length===2&&persisted.calibrationMode==='point'&&persisted.denominator===100&&persisted.plans.every(p=>!p.B);
+      stack.close();stack=null;
+      await DB.deleteProject(pid);o.cleanup=!await DB.get('mcworkspaces',pid);
+    }catch(e){o.err=String(e.message||e);}finally{if(stack){await stack.flush();stack.close();}await DB.delRaw('mcworkspaces',pid);await DB.delRaw('projects',pid);}
+    return o;
+  });
+  log('ModelCore X projet vide et niveaux',mcWorkspace);
+  log('errors v1.0.339',!mcWorkspace.err&&['empty','levels','drawer','phone','pointDefault','first','pointAligned','isolate','reader','readerInk','readerZoom','readerSwitch','readerScale','readerReturn','stack','saved','reopen','local','cleanup'].every(k=>mcWorkspace[k])?[]:['Projet ModelCore '+JSON.stringify(mcWorkspace)]);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');

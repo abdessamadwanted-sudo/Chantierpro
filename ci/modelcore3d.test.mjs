@@ -199,3 +199,33 @@ assert.throws(()=>S.reference([1,1],[1,1],10),/distincts/);
 assert.throws(()=>S.reference([1,1],[2,2],0),/Distance/);
 assert.throws(()=>S.calage([1,1],[2,2],[0,0],[0,0]),/distincts/);
 console.log('PDF Stack — calage métrique, rotation, translation et échelle : OK.');
+
+const ws=S.makeWorkspace('p1','Stade réel',3,4.2);
+assert.equal(ws.id,'p1');assert.equal(ws.plans.length,0);assert.equal(ws.levels.length,3);
+assert.equal(ws.levels[0].name,'RDC');assert.equal(ws.levels[2].name,'R+2');assert.equal(ws.levels[2].z,8.4);
+assert.throws(()=>S.makeWorkspace('p1','Stade',17,3),/niveaux/);
+const stade=S.makeWorkspace('p1','Stade',4,3,'SSL, Mezz, RDC, R+1, R+2, R+3, R+4, R+5, R+6, R+7, R+8, R+9');
+assert.equal(stade.levels.length,12);
+assert.equal(stade.levels[0].name,'SSL');assert.equal(stade.levels[0].z,-6);
+assert.equal(stade.levels[2].name,'RDC');assert.equal(stade.levels[2].z,0);
+assert.equal(stade.levels[11].name,'R+9');assert.equal(stade.levels[11].z,27);
+assert.throws(()=>S.makeWorkspace('p1','Stade',4,3,'RDC,rdc'),/uniques/);
+assert.throws(()=>S.makeWorkspace('p1','Stade',2,0),/hauteur/);
+console.log('ModelCore X — création vide, niveaux et altitudes : OK.');
+
+const from={width:300,height:200,t:S.calage([20,20],[220,20],[0,0],[20,0])};
+const target={width:200,height:300,t:S.calage([20,20],[20,120],[0,0],[20,0])};
+const pos=S.transferView(from,target,{u:120/300,v:10/200,cssWidth:900});
+assert.ok(Math.abs(pos.u-25/200)<1e-8);
+assert.ok(Math.abs(pos.v-70/300)<1e-8);
+assert.ok(Math.abs(pos.cssWidth-1200)<1e-8);
+assert.equal(S.transferView(from,{width:200,height:300,t:null},{u:.5,v:.5,cssWidth:900}),null);
+console.log('ModelCore X — transfert de centre et échelle métrique entre plans : OK.');
+
+const single1=S.calagePoint([20,30],100),single2=S.calagePoint([90,65],100);
+eqPoint(S.appliquer(single1,[20,30]),[0,0]);eqPoint(S.appliquer(single2,[90,65]),[0,0]);
+eqPoint(S.appliquer(single1,[30,40]),S.appliquer(single2,[100,75]));
+assert.ok(Math.abs(single1.scale-100*.0254/72)<1e-10);
+assert.throws(()=>S.calagePoint([20,30],0),/échelle/);
+assert.equal(ws.calibrationMode,'point');
+console.log('ModelCore X — calage par point commun à échelle connue : OK.');

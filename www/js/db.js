@@ -7,7 +7,7 @@ const DB = (() => {
   try { const L = JSON.parse(localStorage.getItem('st.dbPurge') || '[]'), keep = L.filter(n => n === NAME);
     L.filter(n => n !== NAME).forEach(n => { try { indexedDB.deleteDatabase(n); } catch (e) {} });
     keep.length ? localStorage.setItem('st.dbPurge', JSON.stringify(keep)) : localStorage.removeItem('st.dbPurge'); } catch (e) {}
-  const VERSION = 6;   // v6 : tables locales Document Studio (dsmodeles, dsdossiers) — jamais synchronisées ; v5 : fflags
+  const VERSION = 7;   // v6 : tables locales Document Studio (dsmodeles, dsdossiers) — jamais synchronisées ; v5 : fflags
   // v5 : petite table « fflags » (drapeaux des fichiers) — le démarrage ne charge plus tous les fichiers avec leurs blobs
   const STORES = ['projects', 'folders', 'plans', 'tasks', 'links', 'files', 'forms', 'reports', 'receptions', 'items', 'tomb'];  // tomb = suppressions à synchroniser
   let dbp = null;
@@ -29,7 +29,7 @@ const DB = (() => {
         }
         if (!db.objectStoreNames.contains('fflags')) db.createObjectStore('fflags', { keyPath: 'id' });
         // v6 : Document Studio — migration additive, hors STORES donc ni synchronisé ni touché par la suppression de projet
-        for (const s of ['dsmodeles', 'dsdossiers']) if (!db.objectStoreNames.contains(s)) db.createObjectStore(s, { keyPath: 'id' });
+        for (const s of ['dsmodeles', 'dsdossiers', 'mcworkspaces']) if (!db.objectStoreNames.contains(s)) db.createObjectStore(s, { keyPath: 'id' });
       };
       req.onsuccess = () => {
         const db = req.result;
@@ -141,6 +141,7 @@ const DB = (() => {
         const items = await this.byProject(s, projectId);
         for (const it of items) await this.del(s, it.id);
       }
+      await this.delRaw('mcworkspaces', projectId);
       await this.del('projects', projectId);
     },
   };
