@@ -469,7 +469,9 @@ const ST = (() => {
     const ivList = () => { const sh = partnerSh(); return sh ? [ivMine()].filter(I => I && Team.flag(I.flag)) : INTERVENANTS.filter(I => Team.flag(I.flag)); };
     const ivOn = () => ivList().length > 0;
     const ownType = ready() && !Team.isPerso() && !partnerSh() && ['business','enterprise'].includes(plan().k) ? Team.orgType() : null;
-    const ownBranches = ownType ? ownBranchesOf(ownType.k,Team.companyServices().filter(S=>Team.svcOpen(S.k)).map(S=>S.k)) : [];
+    // Préférence de navigation uniquement, jamais une autorisation. Les anciennes sociétés sans préférence gardent tous leurs pôles.
+    const pref=company0.metierBranches;
+    const ownBranches = ownType ? ownBranchesOf(ownType.k,Team.companyServices().filter(S=>Team.svcOpen(S.k)).map(S=>S.k)).filter(S=>!pref||pref.org!==ownType.k||!Array.isArray(pref.keys)||pref.keys.includes(S.k)) : [];
     const ownOn = ownBranches.length > 0;
     const entOn = () => ivOn() && !partnerSh() && !ownOn;
     const QS_NAMES = { adm: ['📁', 'Administratif'], ter: ['🏗️', 'Terrain'], com: ['🔗', 'Commun'] };
