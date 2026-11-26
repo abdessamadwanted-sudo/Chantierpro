@@ -3323,7 +3323,7 @@ try {
       stack.close();stack=null;
       stack=await ModelCorePDFStack.openWorkspace({projectId:pid,workspaceId:pid});o.multiRestore=stack.state().length===2&&stack.state().every(l=>l.calibrated);stack.close();stack=null;
       await DB.deleteProject(pid);o.cleanup=!await DB.get('mcworkspaces',pid)&&(await DB.modelcoreIds(pid)).length===0;
-    }catch(e){o.err=String(e.message||e);}finally{if(stack){await stack.flush();stack.close();}await DB.delRaw('mcworkspaces',pid);await DB.delRaw('projects',pid);}
+    }catch(e){o.err=String(e.message||e);}finally{if(stack){await stack.flush();stack.close();}for(const id of await DB.modelcoreIds(pid))await DB.delRaw('mcworkspaces',id);await DB.delRaw('projects',pid);}
     return o;
   });
   log('ModelCore X projet vide et niveaux',mcWorkspace);
