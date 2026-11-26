@@ -236,3 +236,7 @@ const vzoom=S.calViewport(300,200,600,600,8,120,90);
 assert.equal(vzoom.scale,16);assert.equal((300-vzoom.x)/vzoom.scale,120);assert.equal((300-vzoom.y)/vzoom.scale,90);
 const vedge=S.calViewport(300,200,600,600,64,0,0);assert.equal(vedge.x,0);assert.equal(vedge.y,0);
 console.log('ModelCore X — repère PDF invariant au zoom et limites du viewport : OK.');
+
+const roots=S.sourceLevels([{id:'s',name:'0-SSL'},{id:'m',name:'1-MEZZ'},{id:'r',name:'2-RDC'},{id:'sub',parentId:'r',name:'Coffrage'}],3);
+assert.equal(roots.length,3);assert.equal(roots[2].z,0);assert.equal(roots[0].folderId,'s');assert.equal(S.rootFolder('sub',[{id:'r'},{id:'sub',parentId:'r'}]).id,'r');
+console.log('ModelCore X — reprise des niveaux du chantier : OK.');
