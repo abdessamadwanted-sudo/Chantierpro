@@ -324,21 +324,21 @@ const ST = (() => {
       ${esp ? `<div class="st-tcat st-esp" data-g="esp" style="--c:#3D5A80;${open === 'esp' ? '' : 'display:none'}">${esp}</div>` : ''}
       ${!open ? '<p class="st-thint">Touchez une catégorie pour afficher ses outils.</p>' : ''}</div>`;
   }
-  const toolBtn = (k, g) => `<button class="st-tool" data-tool="${k}" style="--c:${CAT_C[catOf(k)] || CAT_C[g] || 'var(--accent)'}"><i class="st-ico">${icon(SECTIONS[k].icon || 'grid')}</i><span>${esc(toolName(k))}</span></button>`;
+  const toolBtn = (k, g, tone) => `<button class="st-tool" data-tool="${k}" style="--c:${tone || CAT_C[catOf(k)] || CAT_C[g] || 'var(--accent)'}"><i class="st-ico">${icon(SECTIONS[k].icon || 'grid')}</i><span>${esc(toolName(k))}</span></button>`;
   // ---- Services en volets (Enterprise + Pro Service autonome) : un même gabarit pour chaque service — Administratif /
   // Terrain / Commun. Pour ajouter ou modifier un service ou ses outils : éditer SVC_SHELLS. Au niveau module (et non
   // dans renderProjectTools) pour que team.js/packpick.js puissent lister ces mêmes services via ST.SVC_SHELLS /
   // ST.INTERVENANTS (écran de choix du service, Pro Service autonome) sans dupliquer ces données.
   const COMMUN = { tabproj: 'com', localisation: 'com', visio: 'com', monespace: 'com', team: 'com', org: 'com', histo: 'com' };
   const SVC_SHELLS = [
-    { k: 'qual', flag: 'svcqual', nom: 'Service Qualité', c: '#0d9488', side: 'qual.side', tools: [], map: { docq: 'adm', clauses: 'adm', visa: 'adm', rfi: 'adm', reception: 'ter', forms: 'ter', constat: 'ter', labo: 'ter', hse: 'ter', beton: 'ter', ...COMMUN },
+    { k: 'qual', flag: 'svcqual', nom: 'Service Qualité', c: '#c084fc', side: 'qual.side', tools: [], map: { docq: 'adm', clauses: 'adm', visa: 'adm', rfi: 'adm', reception: 'ter', forms: 'ter', constat: 'ter', labo: 'ter', hse: 'ter', beton: 'ter', ...COMMUN },
       ui: { adm: 'Documents, archives, clauses', ter: 'Réceptions, contrôles, PV, labo', com: 'Équipe, organigramme, mon espace' } },
     // v1.0.3xx : « Matériaux (Ferraillage) » ajouté au volet Terrain — c'était jusqu'ici l'unique outil mis en avant
     // sur l'ancien accueil dédié de Travaux (renderSvcTravaux, retiré) ; il reste donc accessible exactement comme
     // avant, maintenant via « Outils du projet » comme tous les autres outils du service (voir aussi FLAG_DEFAULT.materiaux, team.js).
-    { k: 'travaux', flag: 'svctravaux', nom: 'Service Travaux', c: '#2563eb', tools: ['planning', 'reunions', 'gestion', 'pointage', 'avancement', 'suiviq', 'equipes', 'lotsuivi', 'beton', 'calc', 'models3d', 'materiaux'], map: { planning: 'adm', reunions: 'adm', gestion: 'adm', pointage: 'adm', lotsuivi: 'ter', beton: 'ter', calc: 'ter', models3d: 'ter', suiviq: 'ter', equipes: 'ter', materiaux: 'ter', avancement: 'com', ...COMMUN },
+    { k: 'travaux', flag: 'svctravaux', nom: 'Service Travaux', c: '#4ade80', tools: ['planning', 'reunions', 'gestion', 'pointage', 'avancement', 'suiviq', 'equipes', 'lotsuivi', 'beton', 'calc', 'models3d', 'materiaux'], map: { planning: 'adm', reunions: 'adm', gestion: 'adm', pointage: 'adm', lotsuivi: 'ter', beton: 'ter', calc: 'ter', models3d: 'ter', suiviq: 'ter', equipes: 'ter', materiaux: 'ter', avancement: 'com', ...COMMUN },
       ui: { adm: 'Planning, réunions, gestion', ter: 'Suivi des lots, béton, avancement', com: 'Équipe, organigramme, mon espace' } },
-    { k: 'hse', flag: 'svchse', nom: 'Service HSE', c: '#ea580c', tools: ['hse', 'hseplans', 'constat', 'forms', 'pointage', 'reunions'], map: { reunions: 'adm', forms: 'adm', pointage: 'adm', hseplans: 'ter', hse: 'ter', constat: 'ter', ...COMMUN },
+    { k: 'hse', flag: 'svchse', nom: 'Service HSE', c: '#fb7185', tools: ['hse', 'hseplans', 'constat', 'forms', 'pointage', 'reunions'], map: { reunions: 'adm', forms: 'adm', pointage: 'adm', hseplans: 'ter', hse: 'ter', constat: 'ter', ...COMMUN },
       ui: { adm: 'Réunions, formulaires, effectifs', ter: 'Inspections, constats, sécurité', com: 'Équipe, organigramme, mon espace' } },
     { k: 'topo', flag: 'svctopo', nom: 'Service Topographique', c: '#0891b2', tools: ['calc', 'models3d', 'maquette', 'avancement'], map: { models3d: 'adm', maquette: 'adm', calc: 'ter', avancement: 'ter', ...COMMUN },
       ui: { adm: 'Plans, maquettes, modèles', ter: 'Calculs, implantation, relevés', com: 'Équipe, organigramme, mon espace' } },
@@ -454,23 +454,28 @@ const ST = (() => {
     const qsMine = () => { try { const k = (typeof Org !== 'undefined' && Org.poste && (Org.poste() || {}).k) || ''; return ['tsq', 'ctrl'].includes(k) ? 'ter' : 'adm'; } catch (e) { return 'adm'; } };
     const qsTools = (S, ks) => [...new Set([...(ks || []), ...S.tools, ...Object.keys(S.map)])].filter(k => SECTIONS[k] && ok(k));
     const svcSplit = (S, ks) => {
-      const M = qsMap(S), all = qsTools(S, ks), pre = S.k === 'qual' ? '' : S.k + '.';
+      const M = qsMap(S), all = qsTools(S, ks), pre = S.k === 'qual' ? '' : S.k + '.', tone=stVisual(S.k,S.c)[0];
       let op = null; try { op = JSON.parse(localStorage.getItem('ptools.qs') || 'null'); } catch (e) {} if (!Array.isArray(op)) op = [pre + qsMine()];
       return qsAllowed().map(v => { const L = all.filter(k => (M[k] || 'ter') === v); if (!L.length) return '';
-        return `<details class="st-qs" data-qs="${pre}${v}" ${op.includes(pre + v) ? 'open' : ''}><summary style="--c:${QS_COL[v][1]}"><i class="st-qs-ic">${icon(QS_COL[v][0])}</i><span><b>${QS_NAMES[v][1]}</b><small>${esc(S.ui[v])}</small></span><em>${L.length}</em><i class="st-chev">${icon('chevdown')}</i></summary><div class="st-tgrid">${L.map(k => toolBtn(k, 'qual')).join('')}</div></details>`; }).join('')
+        return `<details class="st-qs" data-qs="${pre}${v}" ${op.includes(pre + v) ? 'open' : ''}><summary style="--c:${tone}"><i class="st-qs-ic">${icon(QS_COL[v][0])}</i><span><b>${QS_NAMES[v][1]}</b><small>${esc(S.ui[v])}</small></span><em>${L.length}</em><i class="st-chev">${icon('chevdown')}</i></summary><div class="st-tgrid">${L.map(k => toolBtn(k, 'qual', tone)).join('')}</div></details>`; }).join('')
         + `<button class="st-qs-set" data-a="qsset" data-svc="${S.k}">⚙️ Répartition Administratif / Terrain / Commun</button>`;
     };
     let subOp = null; try { subOp = JSON.parse(localStorage.getItem('ptools.sub') || 'null'); } catch (e) {} if (!Array.isArray(subOp)) subOp = [];
-    const svcAcc = (S, ks, sub) => sub
-      ? `<details class="st-tcat st-sub" data-sg="${S.k}" style="--c:${S.c}" ${subOp.includes(S.k) ? 'open' : ''}><summary class="st-tcat-h">${esc(S.nom)}<small>3 volets</small><i class="st-chev">${icon('chevdown')}</i></summary>${svcSplit(S, ks)}</details>`
-      : `<details class="st-tcat st-acc" data-g="${S.k === 'qual' ? 'sq' : 'sv-' + S.k}" style="--c:${S.c}" ${opened.includes(S.k === 'qual' ? 'sq' : 'sv-' + S.k) ? 'open' : ''}><summary class="st-tcat-h">${esc(S.nom)}<small>3 volets</small><i class="st-chev">${icon('chevdown')}</i></summary>${svcSplit(S, ks)}</details>`;
-    // organisation (Entreprise ou intervenant) : un accordéon qui contient ses services
-    const orgAcc = (g, titre, c, inner, n) => `<details class="st-tcat st-acc" data-g="${g}" style="--c:${c}" ${opened.includes(g) ? 'open' : ''}><summary class="st-tcat-h">${esc(titre)}<small>${n} services</small><i class="st-chev">${icon('chevdown')}</i></summary><div class="st-orgin">${inner}</div></details>`;
+    const nodeTitle=(title,ic,sub)=>`<span class="st-node-icon">${icon(ic)}</span><span class="st-node-copy"><b>${esc(title)}</b><small>${esc(sub)}</small></span><i class="st-chev">${icon('chevdown')}</i>`;
+    const svcAcc = (S, ks, sub) => {
+      const [tone,ic]=stVisual(S.k,S.c), g=S.k==='qual'?'sq':'sv-'+S.k, openedNow=sub?subOp.includes(S.k):opened.includes(g);
+      const label=qsAllowed().filter(v=>qsTools(S,ks).some(k=>(qsMap(S)[k]||'ter')===v)).length+' volets accessibles';
+      return `<details class="st-tcat st-svc-node ${sub?'st-sub':'st-acc'}" ${sub?'data-sg="'+S.k+'"':'data-g="'+g+'"'} style="--c:${tone};${stVisualStyle(tone)}" ${openedNow?'open':''}><summary class="st-tcat-h">${nodeTitle(S.nom,ic,label)}</summary><div class="st-volets"><div class="st-tree-connector" aria-hidden="true"></div>${svcSplit(S,ks)}</div></details>`;
+    };
+    // Organisation → services → volets → outils existants ; les filtres d'accès restent ceux de qsTools/ok.
+    const orgAcc = (g, titre, c, inner, n) => { const [tone,ic]=stOrgVisual(g==='iv-ent'?'entreprise':g.slice(3));
+      return `<details class="st-tcat st-acc st-org-node" data-g="${g}" style="--c:${tone};${stVisualStyle(tone)}" ${opened.includes(g)?'open':''}><summary class="st-tcat-h">${nodeTitle(titre,ic,n+' services')}</summary><div class="st-orgin"><div class="st-tree-connector" aria-hidden="true"></div>${inner}</div></details>`;
+    };
     const entSvcs = () => [...(svcq() && svcChosen('qual') ? [svcAcc(SVC_SHELLS[0], (G.find(x => x[0] === 'qual') || [0, 0, []])[2], true)] : []), ...SVC_SHELLS.slice(1).filter(S => Team.flag(S.flag) && svcChosen(S.k)).map(S => svcAcc(S, [], true))];
     const ivHtml = () => { if (!ivOn()) return ''; const E = entOn() ? entSvcs() : [];
-      return `<p class="st-thint2" style="margin:6px 0 4px"><b>Intervenants du projet</b> · chaque organisation a ses services</p>`
-        + (entOn() ? orgAcc('iv-ent', '🏢 Entreprise', '#0d9488', E.join('') || '<p class="st-thint2" style="padding:8px">Aucun service activé</p>', E.length) : '')
-        + ivList().map(I => orgAcc('iv-' + I.k, I.e + ' ' + I.nom, I.c, I.services.map(S => svcAcc(S, [], true)).join(''), I.services.length)).join(''); };
+      return `<div class="st-service-tree"><div class="st-tree-root"><span class="st-node-icon">${icon('layers')}</span><span><b>Intervenants du projet</b><small>Organisations · services · outils métier</small></span></div><div class="st-tree-connector" aria-hidden="true"></div>`
+        + (entOn() ? orgAcc('iv-ent', 'Entreprise BTP', '#0d9488', E.join('') || '<p class="st-thint2" style="padding:8px">Aucun service activé</p>', E.length) : '')
+        + ivList().map(I => orgAcc('iv-' + I.k, I.nom, I.c, I.services.map(S => svcAcc(S, [], true)).join(''), I.services.length)).join('')+'</div>'; };
     const qsSet = async (S, ks) => {
       const M = qsMap(S), all = qsTools(S, ks);
       for (;;) { const v = await menu(`${S.nom} : où ranger chaque outil ?`, [...all.map(k => ({ label: `${toolName(k)} — ${QS_NAMES[M[k] || 'ter'][1]}`, value: k })), { label: 'Terminé', icon: 'check', value: '__ok' }]); if (!v || v === '__ok') break;
