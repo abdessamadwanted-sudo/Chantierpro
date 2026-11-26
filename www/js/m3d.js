@@ -28,7 +28,7 @@ async function renderModels3D(root, filter) {
   const list = (p.models3d || []).filter(m => !filter || m.linkId === filter).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   const PT = (p.poutres || []);
   root.innerHTML = `<div class="pagehead"><h2>Modèles 3D</h2><p>Coffrage tracé sur plan · ferraillage depuis la nomenclature</p></div>
-    <button class="pt-entry ${Team.plan().k === 'basic' ? 'lk' : ''}" data-a="modelcore"><span>${Team.plan().k === 'basic' ? '🔒' : '🏗️'}</span><div class="grow"><b>ModelCore X · Mon projet</b><small>${Team.plan().k === 'basic' ? 'Disponible à partir du pack Pro' : 'Créer / ouvrir le projet réel · niveaux, PDF et calage local'}</small></div>${icon('chevright')}</button>
+    <button class="pt-entry ${Team.plan().k === 'basic' ? 'lk' : ''}" data-a="modelcore"><span>${Team.plan().k === 'basic' ? '🔒' : '🏗️'}</span><div class="grow"><b>ModelCore X · Mes projets</b><small>${Team.plan().k === 'basic' ? 'Disponible à partir du pack Pro' : 'Créer, ouvrir et changer de projet 3D · niveaux, PDF et calage local'}</small></div>${icon('chevright')}</button>
     <button class="pt-entry ${Team.plan().k === 'basic' ? 'lk' : ''}" data-a="modelcoredemo"><span>◇</span><div class="grow"><b>ModelCore X · Démonstrations BIM</b><small>Maquettes fictives · stade, immeuble, hôpital et import IFC / JSON</small></div>${icon('chevright')}</button>
     <button class="pt-entry" data-a="pt3"><span>🧱</span><div class="grow"><b>Poutres 3D</b><small>${PT.length ? `${PT.length} poutre(s) · ` : ''}depuis le plan de ferraillage (Arche / Graitec) ou saisie</small></div>${icon('chevright')}</button>
     ${PT.length ? `<div class="list">${PT.map(P => `<div class="row" data-pt="${P.id}"><span class="m3-ic" style="background:linear-gradient(135deg,#a855f7,#4c1d95)">🧱</span><div class="grow"><div class="title">${esc(P.name || 'Poutre')}${P.niv ? ' · ' + esc(P.niv) : ''}</div><div class="sub">${P.b}×${P.h} · portée ${P.L} cm · ${(P.bars || []).length} positions · ${nfx(ptTotKg(P), 1)} kg</div></div></div>`).join('')}</div>` : ''}
@@ -46,7 +46,7 @@ async function renderModels3D(root, filter) {
     const p=App.project;
     try {
       await loadScript('js/modelcore-pdfstack.js');
-      await ModelCorePDFStack.openWorkspace({projectId:p.id,projectName:p.name});
+      await ModelCorePDFStack.openProjects({projectId:p.id,projectName:p.name});
     } catch(e){toast('ModelCore X : '+(e.message||e));}
     finally{openingWorkspace=false;}
   };
