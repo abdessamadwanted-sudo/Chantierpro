@@ -3175,7 +3175,8 @@ try {
       workerBefore=pdfjsLib.GlobalWorkerOptions.workerSrc;
       pdfjsLib.GlobalWorkerOptions.workerSrc='';
       const pid='pdfstack-ci-'+DB.uid(),fid=pid+'-file',planid=pid+'-plan',folderid=pid+'-folder',foreignid=pid+'-foreign';
-      fixture={fid,planid,folderid,foreignid};
+      fixture={fid,planid,folderid,foreignid,pid};
+      await DB.putRaw('projects',{id:pid,name:'PDF Stack test'});
       const multi=await PDFLib.PDFDocument.create();
       multi.addPage([100,100]);
       const pg=multi.addPage([200,300]);pg.drawRectangle({x:20,y:20,width:160,height:260,borderWidth:2});
@@ -3212,7 +3213,7 @@ try {
       await new Promise(requestAnimationFrame);
       result.canvas=!!root.querySelector('[data-r="stage"] canvas');
       stack.close();stack=null;result.closed=!document.querySelector('.mc-pdfstack');
-    }catch(e){result.err=String(e.message||e);}finally{stack?.close();if(workerBefore!==null)pdfjsLib.GlobalWorkerOptions.workerSrc=workerBefore;if(fixture){await DB.delRaw('plans',fixture.planid);await DB.delRaw('plans',fixture.foreignid);await DB.delRaw('folders',fixture.folderid);await DB.delRaw('files',fixture.fid);}}
+    }catch(e){result.err=String(e.message||e);}finally{stack?.close();if(workerBefore!==null)pdfjsLib.GlobalWorkerOptions.workerSrc=workerBefore;if(fixture){await DB.delRaw('plans',fixture.planid);await DB.delRaw('plans',fixture.foreignid);await DB.delRaw('folders',fixture.folderid);await DB.delRaw('files',fixture.fid);await DB.delRaw('projects',fixture.pid);}}
     return result;
   });
   log('PDF Stack PDF réels',pdfStackTest);
@@ -3293,13 +3294,41 @@ try {
       stack=await ModelCorePDFStack.openWorkspace({projectId:pid,projectName:'Stade test local'});
       root=document.querySelector('.mc-workspace');o.reopen=stack.state().length===2&&stack.state().every(l=>l.visible&&l.calibrated)&&Math.abs(stack.state()[1].transform.scale-100*.0254/72)<1e-8&&Math.abs(stack.state()[1].z-4.2)<.001;
       const persisted=await DB.get('mcworkspaces',pid);o.local=persisted.plans.length===2&&persisted.calibrationMode==='point'&&persisted.denominator===100&&persisted.plans.every(p=>!p.B);
+      // Un niveau peut maintenant contenir plusieurs plans indépendants et une référence stable.
+      root.querySelector('[data-level=n0]').click();
+      const original=stack.state()[0],extra=await stack.addFile(await mk('CFO.pdf'),1,'n0',{lot:'CFO',type:'Électricité'});
+      stack.edit(extra);stack.setPoint(extra,'A',[50,40]);root.querySelector('[data-a=apply]').click();
+      o.multi=stack.state().length===3&&stack.state().filter(l=>l.levelId==='n0').every(l=>l.calibrated);
+      root.querySelector('[data-level=all]').click();
+      o.primary=stack.state().filter(l=>l.visible).length===2;
+      root.querySelector('[data-a=overlay]').click();
+      o.overlay=stack.state().every(l=>l.visible);
+      const select=root.querySelector('[data-r=layerfilter]');select.value='CFO';select.dispatchEvent(new Event('change'));
+      o.filter=stack.state().filter(l=>l.visible).length===1&&stack.state().find(l=>l.visible).lot==='CFO';
+      root.querySelector('[data-level=n0]').click();
+      const z=root.querySelector('[data-r=level-z]');z.value='1.25';z.dispatchEvent(new Event('change'));
+      o.sameAltitude=stack.state().filter(l=>l.levelId==='n0').every(l=>l.z===1.25);
+      await stack.flush();stack.close();stack=null;
+      stack=await ModelCorePDFStack.openWorkspace({projectId:pid,projectName:'Stade test local'});
+      const reopened=stack.state(),stored=await DB.get('mcworkspaces',pid);
+      o.multiReopen=reopened.length===3&&reopened.every(l=>l.calibrated)&&stored.referenceKey===original.key&&reopened.filter(l=>l.levelId==='n0').every(l=>l.z===1.25);
       stack.close();stack=null;
       await DB.deleteProject(pid);o.cleanup=!await DB.get('mcworkspaces',pid);
     }catch(e){o.err=String(e.message||e);}finally{if(stack){await stack.flush();stack.close();}await DB.delRaw('mcworkspaces',pid);await DB.delRaw('projects',pid);}
     return o;
   });
   log('ModelCore X projet vide et niveaux',mcWorkspace);
-  log('errors v1.0.339',!mcWorkspace.err&&['empty','levels','drawer','phone','pointDefault','first','pointAligned','isolate','reader','readerInk','readerZoom','readerSwitch','readerScale','readerReturn','stack','saved','reopen','local','cleanup'].every(k=>mcWorkspace[k])?[]:['Projet ModelCore '+JSON.stringify(mcWorkspace)]);
+  log('errors v1.0.339',!mcWorkspace.err&&['empty','levels','drawer','phone','pointDefault','first','pointAligned','isolate','reader','readerInk','readerZoom','readerSwitch','readerScale','readerReturn','stack','saved','reopen','local','multi','primary','overlay','filter','sameAltitude','multiReopen','cleanup'].every(k=>mcWorkspace[k])?[]:['Projet ModelCore '+JSON.stringify(mcWorkspace)]);
+  // ModelCore X — rattachement en lecture seule, identités stables et niveaux homonymes.
+  const mcContext=await A.pg.evaluate(()=>{
+    const api=ModelCorePDFStack,p={id:'mc-test',avNiveaux:[{id:'a',name:'RDC',folderId:'f'}]};
+    const folders=[{id:'f',projectId:p.id,name:'RDC'},{id:'g',projectId:p.id,name:'R+1'},{id:'h',projectId:p.id,name:'RDC'},{id:'sub',projectId:p.id,name:'Structure',parentId:'g'},{id:'foreign',projectId:'other',name:'R+2'}];
+    const candidates=api.chantierLevels(p,folders),linked=api.bindLevels([{id:'old',name:'R+1',z:4.2}],candidates);
+    const again=api.bindLevels(linked.levels,candidates),fm=new Map(folders.map(f=>[f.id,f]));
+    return {isolation:!candidates.some(c=>c.folderId==='foreign'),distinct:candidates.filter(c=>c.name==='RDC').length===2,preserved:linked.levels.find(v=>v.id==='old')?.z===4.2,stable:again.levels.length===linked.levels.length,ancestry:api.levelOwnsFolder(linked.levels.find(v=>v.folderId==='g'),'sub',fm),provisional:linked.levels.filter(v=>v.id!=='old').every(v=>v.provisional)};
+  });
+  log('ModelCore X contexte chantier',mcContext);
+  log('errors ModelCore X contexte',Object.values(mcContext).every(Boolean)?[]:['Contexte ModelCore '+JSON.stringify(mcContext)]);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');

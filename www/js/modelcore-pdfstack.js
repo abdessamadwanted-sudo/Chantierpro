@@ -2,7 +2,7 @@
 (function(){
   'use strict';
   if(window.ModelCorePDFStack)return;
-  const MAX=8, MAX_LEVELS=16, MAX_BYTES=60*1024*1024, COLORS=[0x70d9ff,0x9ae6bb,0xffd17a,0xd0b5ff,0xffa6b6,0x9abaff,0x80d8cb,0xffbe8f];
+  const MAX=8, MAX_LEVELS=64, MAX_PLANS=32, MAX_BYTES=60*1024*1024, COLORS=[0x70d9ff,0x9ae6bb,0xffd17a,0xd0b5ff,0xffa6b6,0x9abaff,0x80d8cb,0xffbe8f];
   function calage(a,b,A,B){
     if(![a,b,A,B].every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)))throw Error('Repères invalides.');
     const x=b[0]-a[0],y=b[1]-a[1],X=B[0]-A[0],Y=B[1]-A[1],d=x*x+y*y;
@@ -36,26 +36,70 @@
   function makeWorkspace(pid,name,count,height,custom=''){
     const names=String(custom||'').split(/[,;\n]+/).map(n=>n.trim()).filter(Boolean);
     if(names.length)count=names.length;
-    if(!pid||!String(name||'').trim()||!Number.isInteger(count)||count<1||count>MAX_LEVELS||!Number.isFinite(height)||height<=0||height>100)throw Error('Nom, 1 à 16 niveaux et hauteur (0 à 100 m) requis.');
+    if(!pid||!String(name||'').trim()||!Number.isInteger(count)||count<1||count>MAX_LEVELS||!Number.isFinite(height)||height<=0||height>100)throw Error('Nom, 1 à 64 niveaux et hauteur (0 à 100 m) requis.');
     if(names.some(n=>n.length>24)||new Set(names.map(n=>n.toLocaleLowerCase())).size!==names.length)throw Error('Noms de niveaux uniques, 24 caractères maximum.');
     const rdc=Math.max(0,names.findIndex(n=>n.toUpperCase()==='RDC'));
     return {id:pid,name:String(name).trim().slice(0,120),levels:Array.from({length:count},(_,i)=>({id:'n'+i,name:names[i]||(i?'R+'+i:'RDC'),z:(i-rdc)*height})),plans:[],distance:null,referenceLevel:null,calibrationMode:'point',denominator:null};
   }
+  // Références aux niveaux métier, sans modifier les objets existants.
+  function chantierLevels(p,folders){
+    const fm=new Map(folders.filter(f=>f.projectId===p.id).map(f=>[f.id,f])),out=[];
+    const norm=s=>String(s||'').trim().toLowerCase();
+    const rank=n=>{const t=norm(n).replace(/\s/g,''),m=t.match(/^r\+(\d+)$/);return m?+m[1]:t==='rdc'?0:/^ss/.test(t)?-(Number(t.match(/\d+/)?.[0])||1):/^fond/.test(t)?-3:/^mezz/.test(t)?0.5:50;};
+    for(const n of p.avNiveaux||[])if(n.id&&norm(n.name))out.push({key:'av:'+n.id,avId:n.id,folderId:fm.has(n.folderId)?n.folderId:null,name:n.name,rank:rank(n.name)});
+    for(const f of fm.values()){
+      const n=typeof nivOfFolder==='function'?nivOfFolder(f.name):'';
+      if(!n||out.some(v=>v.folderId===f.id))continue;
+      // Un dossier homonyme n'est pas automatiquement le même niveau.
+      out.push({key:'folder:'+f.id,avId:null,folderId:f.id,name:f.name,rank:rank(n)});
+    }
+    return out.sort((a,b)=>a.rank-b.rank||a.name.localeCompare(b.name,'fr',{numeric:true}));
+  }
+  function bindLevels(existing,candidates){
+    const levels=existing.map(x=>({...x})),unmatched=[];
+    const norm=s=>String(s||'').trim().toLowerCase();
+    for(const c of candidates){
+      let v=levels.find(x=>x.sourceKey===c.key||(c.folderId&&x.folderId===c.folderId)||(c.avId&&x.avId===c.avId));
+      if(!v){const same=levels.filter(x=>!x.sourceKey&&norm(x.name)===norm(c.name));if(same.length===1&&candidates.filter(x=>norm(x.name)===norm(c.name)).length===1)v=same[0];}
+      if(!v){if(levels.length>=MAX_LEVELS){unmatched.push(c);continue;}v={id:'st:'+c.key,name:c.name,z:(c.rank<50?c.rank:levels.length)*3,provisional:true};levels.push(v);}
+      v.sourceKey=c.key;v.avId=c.avId;v.folderId=c.folderId;
+    }
+    return {levels,unmatched};
+  }
+  function levelOwnsFolder(level,id,folders){
+    if(!level?.folderId||!id)return false;
+    const seen=new Set();while(id&&!seen.has(id)){if(id===level.folderId)return true;seen.add(id);id=folders.get(id)?.parentId;}return false;
+  }
+  async function readChantier(pid){
+    const project=await DB.get('projects',pid);if(!project)throw Error('Projet indisponible.');
+    const folders=(await DB.byProject('folders',pid)).filter(f=>f.projectId===pid);
+    return {project,folders,candidates:chantierLevels(project,folders)};
+  }
   async function openWorkspace(options={}){
     const pid=options.projectId;if(!pid||typeof DB==='undefined'||!await DB.get('projects',pid))throw Error('Ouvrez un projet SiteTeam.');
-    const key=DB.name()+'|'+pid;await writes.get(key);
+    const dbName=DB.name(),key=dbName+'|'+pid;await writes.get(key);
+    const context=await readChantier(pid);
+    if(DB.name()!==dbName)throw Error('Espace changé.');
     let data=await DB.get('mcworkspaces',pid);
+    if(DB.name()!==dbName)throw Error('Espace changé.');
+    if(!data&&context.candidates.length){
+      data={id:pid,name:context.project.name||options.projectName||'Projet',levels:bindLevels([],context.candidates).levels,plans:[],distance:null,referenceLevel:null,calibrationMode:'point',denominator:null};
+      await DB.putRaw('mcworkspaces',data);
+    }
     if(!data){
       const r=await formSheet('Créer le projet ModelCore X',[
         {name:'name',label:'Nom du projet 3D',value:options.projectName||'Mon projet'},
-        {name:'count',label:'Nombre de niveaux standard (RDC compris, max. 16)',type:'number',value:4},
+        {name:'count',label:'Nombre de niveaux standard (RDC compris, max. 64)',type:'number',value:4},
         {name:'names',label:'Ou noms personnalisés, du bas vers le haut (séparés par virgules)',placeholder:'SSL, Mezz, RDC, R+1, R+2…'},
         {name:'height',label:'Hauteur provisoire entre niveaux (m) — à vérifier et corriger ensuite',type:'number',value:3}
       ],{okLabel:'Créer le projet vide'});
       if(!r)return null;
+      if(DB.name()!==dbName)throw Error('Espace changé.');
       data=makeWorkspace(pid,r.name,Number(r.count),Number(r.height),r.names);await DB.putRaw('mcworkspaces',data);
     }
-    return open({...options,workspace:data});
+    if(DB.name()!==dbName)throw Error('Espace changé.');
+    const linked=bindLevels(data.levels,context.candidates);
+    return open({...options,workspace:{...data,levels:linked.levels},context,unmatched:linked.unmatched.length});
   }
   async function open(options={}){
     await need3D();
@@ -66,13 +110,14 @@
     const ws=options.workspace||null;
     if(ws&&(!options.projectId||ws.id!==options.projectId||!Array.isArray(ws.levels)||!ws.levels.length||ws.levels.length>MAX_LEVELS))throw Error('Projet ModelCore invalide.');
     const levels=ws?ws.levels.map(v=>({...v})):[];
+    const workspaceDb=ws?DB.name():null;
     const el=document.createElement('div');el.className='mc-pdfstack'+(ws?' mc-workspace':'');
     el.innerHTML='<style>.mc-pdfstack{position:fixed;inset:0;z-index:1000000;display:flex;flex-direction:column;background:#08192a;color:#e6f4ff;font:13px system-ui,sans-serif;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}.mc-pdfstack *{box-sizing:border-box}.mc-pdfstack [hidden]{display:none!important}.mc-pdfstack button,.mc-pdfstack input,.mc-pdfstack select{background:#163348;color:#e6f4ff;border:1px solid #34586d;border-radius:8px;padding:8px;min-height:36px;font:inherit}.mc-pdfstack button.active{border-color:#55d9ee;color:#8af0ff;background:#155064}.mc-pdfstack button:disabled{opacity:.4}.mc-pdfstack .ps-head,.mc-pdfstack .ps-bar{display:flex;gap:6px;align-items:center;padding:8px;flex-shrink:0}.mc-pdfstack .ps-head{background:#0b2236}.mc-pdfstack .ps-head b{font-size:16px}.mc-pdfstack .ps-small{font-size:11px;color:#9bbacc}.mc-pdfstack .ps-grow{flex:1;min-width:0}.mc-pdfstack .ps-stage{position:relative;flex:1;min-height:100px;overflow:hidden;background:radial-gradient(ellipse,#24465b,#071625 75%)}.mc-pdfstack .ps-stage>canvas{width:100%;height:100%;display:block;touch-action:none}.mc-pdfstack .ps-cal{display:flex;flex-direction:column;flex:1;min-height:0;padding:8px;gap:5px}.mc-pdfstack .ps-preview{flex:1;min-height:120px;overflow:auto;background:#172b3c;touch-action:pan-x pan-y}.mc-pdfstack .ps-preview canvas{display:block;max-width:none;touch-action:pan-x pan-y}.mc-pdfstack .ps-drawer{max-height:43%;overflow:auto;padding:8px;background:#0d2538;border-top:1px solid #315267}.mc-pdfstack .ps-row{display:flex;align-items:center;gap:5px;margin:6px 0}.mc-pdfstack .ps-row input[type=number]{width:74px}.mc-pdfstack .ps-row b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}.mc-pdfstack .ps-status{padding:5px 10px;color:#a8d4e2;min-height:25px;font-size:11px}.mc-pdfstack .ps-top{position:absolute;top:8px;left:8px;right:8px;pointer-events:none;display:flex;justify-content:space-between}.mc-pdfstack .ps-top span{background:#0a2035dd;padding:6px;border-radius:6px}.mc-pdfstack .ps-cal .ps-bar{padding:0;flex-wrap:wrap}.mc-pdfstack .ps-cal .ps-bar input{width:90px}.mc-pdfstack .ps-point{color:#64e4ff}.mc-pdfstack .ps-source{border:1px solid #34586d;border-radius:8px;padding:6px;margin:6px 0}.mc-pdfstack .ps-source input[type=search]{width:100%}.mc-pdfstack .ps-source-list{max-height:180px;overflow:auto}.mc-pdfstack .ps-source-list button{text-align:left;width:100%;margin:3px 0;white-space:normal;overflow-wrap:anywhere}.mc-pdfstack .ps-source-list small{display:block;color:#a8c7d8}.mc-pdfstack .ps-bar{overflow-x:auto}.mc-pdfstack .ps-drawer .ps-row{flex-wrap:wrap}.mc-pdfstack .ps-levels{position:absolute;right:10px;top:52px;max-height:calc(100% - 65px);overflow:auto;display:flex;flex-direction:column;gap:6px;padding:5px;background:#0b2236dd;border:1px solid #34586d;border-radius:14px;max-width:94px}.mc-pdfstack .ps-levels button{min-height:44px;min-width:56px;padding:6px 4px;overflow-wrap:anywhere}.mc-pdfstack .ps-levels small{display:block;font-size:10px;color:#a8c7d8}.mc-pdfstack .ps-empty{position:absolute;top:38%;left:10%;right:27%;text-align:center;color:#a8c7d8;pointer-events:none}.mc-pdfstack .ps-empty b{display:block;font-size:17px;color:#e6f4ff;margin-bottom:8px}.mc-pdfstack .ps-level-tools{border-bottom:1px solid #34586d;padding-bottom:6px;margin-bottom:8px}.mc-pdfstack .ps-level-tools input[type=text]{width:110px;min-width:0}.mc-pdfstack .ps-level-tools input[type=number]{width:72px}.mc-workspace .ps-head b{font-size:19px}.mc-workspace .ps-stage{background:radial-gradient(ellipse,#24465b,#071625 75%)}</style>'+
       '<div class="ps-head"><button data-a="close">✕</button><div class="ps-grow"><b>◈ ModelCore <span style="color:#5ce5fc">X</span></b><div class="ps-small" data-r="project"></div></div><button data-a="layers" aria-expanded="true">☷ Plans</button></div>'+
-      '<div class="ps-bar"><button data-a="3d" class="active">3D</button><button data-a="top">Dessus 3D</button><button data-a="planview" hidden>Vue en plan</button><button data-a="fit">Ajuster</button><button data-a="zoomout">−</button><button data-a="zoomin">+</button><label class="ps-small">Écart <select data-r="explode"><option value="1">Réel</option><option value="2">×2</option><option value="4">×4</option></select></label></div>'+
+      '<div class="ps-bar"><button data-a="3d" class="active">3D</button><button data-a="top">Dessus 3D</button><button data-a="planview" hidden>Vue en plan</button><button data-a="fit">Ajuster</button><button data-a="zoomout">−</button><button data-a="zoomin">+</button><label class="ps-small">Écart <select data-r="explode"><option value="1">Réel</option><option value="2">×2</option><option value="4">×4</option></select></label><label>Calques <select data-r="layerfilter" aria-label="Filtrer les calques"><option value="">Tous les lots</option></select></label><button data-a="overlay" aria-pressed="false">Superposer</button></div>'+
       '<div class="ps-stage" data-r="stage"><div class="ps-top"><span data-r="count">0 plan calé</span><span>1 doigt orbite · 2 doigts zoom/pan</span></div><div class="ps-empty" data-r="empty" hidden><b>Projet vide</b><span>Choisissez un niveau à droite pour ajouter son PDF.</span></div><div class="ps-levels" data-r="levels" hidden></div></div>'+
       '<div class="ps-cal" data-r="cal" hidden><div class="ps-bar"><b class="ps-grow" data-r="calname"></b><button data-a="calclose">Terminer</button></div><div class="ps-bar"><button data-a="pointA" class="active">Point A</button><button data-a="pointB">Point B</button><button data-a="calminus">−</button><button data-a="calplus">+</button><button data-a="precision">◎ Précision</button><button data-a="fullpaper" hidden>Plan entier</button><button data-a="clear">Effacer</button></div><div class="ps-bar"><label>Calage <select data-r="cal-mode"><option value="point">1 point commun</option><option value="two">2 points (avancé)</option></select></label><label data-r="scale-label">Échelle 1:<input data-r="denom" type="number" min="1" max="10000" step="1" placeholder="100"></label></div><div class="ps-small" data-r="instructions"></div><div class="ps-preview" data-r="preview"><canvas data-r="paper"></canvas></div><div class="ps-bar"><label data-r="distance-label">Distance A–B (m) <input data-r="distance" type="number" min=".01" max="10000" step=".01" value=""></label><button data-a="apply">Valider le calage</button></div></div>'+
-      '<div class="ps-drawer" data-r="drawer"><div class="ps-level-tools" data-r="level-tools" hidden><div class="ps-row"><b class="ps-grow" data-r="selected-level"></b><button data-a="retry-save">Enregistrer</button><button data-a="drawerclose">✕</button></div><div class="ps-row"><label>Nom <input type="text" maxlength="24" data-r="level-name"></label><label>Altitude (m) <input type="number" step=".01" data-r="level-z"></label></div><div class="ps-row"><input type="text" maxlength="24" data-r="new-level" placeholder="Ex. Sous-sol"><input type="number" step=".01" data-r="new-z" placeholder="Altitude"><button data-a="newlevel">＋ Niveau</button></div></div><div class="ps-row"><button data-a="projectplans">▤ Plans du projet</button><button data-a="add">＋ Téléphone</button><input data-r="file" type="file" accept="*/*" multiple hidden><label class="ps-small">Page <input data-r="page" type="number" value="1" min="1" step="1" aria-label="Page PDF"></label><label class="ps-small">Opacité <input data-r="opacity" type="range" min="20" max="100" value="100"></label></div><div class="ps-source" data-r="sources" hidden><div class="ps-row"><b class="ps-grow">Niveaux · PDF du projet</b><button data-a="sourceclose">✕</button></div><input type="search" data-r="search" placeholder="Rechercher niveau, dossier ou plan…" aria-label="Rechercher un plan"><div class="ps-source-list" data-r="source-list"></div></div><div class="ps-small">Premier PDF = référence. Calage par point commun (même échelle/orientation) ou par 2 points. Jusqu’à 16 niveaux dans Mon projet (8 en session PDF Stack) · 60 Mo/PDF · stockage local.</div><div data-r="list"></div></div><div class="ps-status" data-r="status" aria-live="polite">Ajoutez le PDF de référence.</div>';
+      '<div class="ps-drawer" data-r="drawer"><div class="ps-level-tools" data-r="level-tools" hidden><div class="ps-row"><b class="ps-grow" data-r="selected-level"></b><button data-a="retry-save">Enregistrer</button><button data-a="drawerclose">✕</button></div><div class="ps-row"><label>Nom <input type="text" maxlength="24" data-r="level-name"></label><label>Altitude (m) <input type="number" step=".01" data-r="level-z"></label></div><div class="ps-row"><input type="text" maxlength="24" data-r="new-level" placeholder="Ex. Sous-sol"><input type="number" step=".01" data-r="new-z" placeholder="Altitude"><button data-a="newlevel">＋ Niveau</button></div></div><div class="ps-row"><button data-a="projectplans">▤ Plans du projet</button><button data-a="chantier">▦ Data chantier</button><button data-a="add">＋ Téléphone</button><input data-r="file" type="file" accept="*/*" multiple hidden><label class="ps-small">Page <input data-r="page" type="number" value="1" min="1" step="1" aria-label="Page PDF"></label><label class="ps-small">Opacité <input data-r="opacity" type="range" min="20" max="100" value="100"></label></div><div class="ps-source" data-r="sources" hidden><div class="ps-row"><b class="ps-grow">Niveaux · PDF du projet</b><button data-a="sourceclose">✕</button></div><div class="ps-row"><select data-r="scope" aria-label="Périmètre"><option value="level">Ce niveau</option><option value="all">Tout le projet</option></select><select data-r="type" aria-label="Type"><option value="">Tous types</option></select><select data-r="lot" aria-label="Lot"><option value="">Tous lots</option></select></div><input type="search" data-r="search" placeholder="Rechercher niveau, dossier ou plan…" aria-label="Rechercher un plan"><div class="ps-source-list" data-r="source-list"></div></div><div class="ps-small">Premier PDF = référence. Calage par point commun (même échelle/orientation) ou par 2 points. 64 niveaux · 32 PDF en projet (8 en session PDF Stack) · 60 Mo/PDF · stockage local.</div><div data-r="list"></div></div><div class="ps-status" data-r="status" aria-live="polite">Ajoutez le PDF de référence.</div>';
     document.body.appendChild(el);
     const $=s=>el.querySelector(s),stage=$('[data-r="stage"]'),paper=$('[data-r="paper"]'),rows=$('[data-r="list"]');
     $('[data-r="project"]').textContent=(ws?ws.name:String(options.projectName||'Projet'))+(ws?' · Projet réel · local':' · PDF Stack · session locale');
@@ -87,16 +132,60 @@
     renderer.domElement.style.touchAction='none';
     const grid=new T.GridHelper(100,20,0x436679,0x2c495d);grid.material.transparent=true;grid.material.opacity=.22;scene.add(grid);
     const layers=[];let ref=null,current=null,point='A',zoom=1,crop=null,closed=false,busy=false,raf=0,task=null,renderTask=null,backRemove=null,distance=null,view='3d',serial=0,sources=[],selectedLevel='all',restoring=!!ws,saveFailed=false,reading=false,closeReader=null,calMode=ws?(ws.calibrationMode||((ws.plans||[]).length?'two':'point')):'two',denominator=ws?.denominator||null;
+    let layerFilter='',overlay=false;const activeByLevel=new Map(Object.entries(ws?.activeByLevel||{}));
     function msg(s){$('[data-r="status"]').textContent=s;}
     function save(){
       if(!ws||restoring)return Promise.resolve(true);
-      const data={id:ws.id,name:ws.name,levels:levels.map(v=>({...v})),distance,referenceLevel:ref?.levelId||null,calibrationMode:calMode,denominator,
-        plans:layers.map(l=>({levelId:l.levelId,name:l.name,page:l.page,file:l.file,A:l.A?.slice()||null,B:l.B?.slice()||null,validated:l.validated,visible:l.visible}))};
+      if(DB.name()!==workspaceDb){saveFailed=true;return Promise.resolve(false);}
+      const data={id:ws.id,name:ws.name,levels:levels.map(v=>({...v})),distance,referenceLevel:ref?.levelId||null,referenceKey:ref?.key||null,activeByLevel:Object.fromEntries(activeByLevel),calibrationMode:calMode,denominator,
+        plans:layers.map(l=>({key:l.key,sourceId:l.sourceId||null,type:l.type,lot:l.lot,levelId:l.levelId,name:l.name,page:l.page,file:l.file,A:l.A?.slice()||null,B:l.B?.slice()||null,validated:l.validated,visible:l.visible}))};
       const key=DB.name()+'|'+ws.id;
-      const promise=(writes.get(key)||Promise.resolve()).then(async()=>{if(!await DB.get('projects',ws.id))throw Error('Projet SiteTeam supprimé.');await DB.putRaw('mcworkspaces',data);}).then(()=>{saveFailed=false;return true;}).catch(e=>{saveFailed=true;const message='Sauvegarde locale échouée : '+(e.message||e);if(!closed)msg(message);else if(typeof toast==='function')toast(message);return false;});
+      const promise=(writes.get(key)||Promise.resolve()).then(async()=>{if(DB.name()!==workspaceDb||!await DB.get('projects',ws.id)||DB.name()!==workspaceDb)throw Error('Projet SiteTeam supprimé ou espace changé.');await DB.putRaw('mcworkspaces',data);}).then(()=>{saveFailed=false;return true;}).catch(e=>{saveFailed=true;const message='Sauvegarde locale échouée : '+(e.message||e);if(!closed)msg(message);else if(typeof toast==='function')toast(message);return false;});
       writes.set(key,promise);promise.then(()=>{if(writes.get(key)===promise)writes.delete(key);});return promise;
     }
     function levelBy(id){return levels.find(v=>v.id===id);}
+    function chosenLayer(id,preferredLot=''){
+      const list=layers.filter(l=>l.levelId===id&&(!layerFilter||l.lot===layerFilter));
+      return list.find(l=>preferredLot&&l.lot===preferredLot&&l.visible&&l.t)||list.find(l=>l.key===activeByLevel.get(id)&&l.visible&&l.t)||list.find(l=>l.visible&&l.t)||list.find(l=>l.key===activeByLevel.get(id)&&l.visible)||list.find(l=>l.visible)||list[0];
+    }
+    async function openNative(l){
+      if(!ws||closed||busy||!l.sourceId||DB.name()!==workspaceDb||typeof App==='undefined'||App.project?.id!==ws.id)throw Error('Plan SiteTeam indisponible.');
+      const plan=await DB.get('plans',l.sourceId);
+      if(!plan||plan.projectId!==ws.id||DB.name()!==workspaceDb||App.project?.id!==ws.id)throw Error('Plan original absent de ce projet.');
+      if(typeof openPlanViewer!=='function'||typeof planCtx!=='function'||(typeof sectionOn==='function'&&!sectionOn('plans')))throw Error('Outils du plan indisponibles pour ce profil.');
+      if(!await save())throw Error('Enregistrez le workspace avant de quitter.');
+      if(closed||DB.name()!==workspaceDb||App.project?.id!==ws.id)return;
+      close();await openPlanViewer(plan,planCtx(()=>{}));
+    }
+    function setActive(l){if(!l)return;activeByLevel.set(l.levelId,l.key);l.visible=true;update();save();}
+    function refreshLayerFilter(){const sel=$('[data-r="layerfilter"]');const lots=[...new Set(layers.map(l=>l.lot))].sort();sel.replaceChildren(new Option('Tous les lots',''));for(const lot of lots)sel.add(new Option(lot,lot));if(!lots.includes(layerFilter))layerFilter='';sel.value=layerFilter;}
+    async function chantierData(){
+      if(!ws||closed||busy||DB.name()!==workspaceDb)return;
+      const pid=ws.id,level=levelBy(selectedLevel),context=await readChantier(pid);
+      if(closed||DB.name()!==workspaceDb)return;
+      const fm=new Map(context.folders.map(f=>[f.id,f])), entries=[];
+      for(const f of context.folders.filter(f=>!level||levelOwnsFolder(level,f.id,fm)))for(const [id,d] of Object.entries(f.lotData||{})){
+        if(!d||typeof d!=='object')continue;
+        const lot=(context.project.planLots||[]).find(x=>x.id===id),alerts=typeof lotAlerts==='function'?lotAlerts(d).filter(a=>!a.done):[];
+        entries.push({folder:f.name,lot:lot?.name||id,alerts});
+      }
+      const allowed=typeof sectionOn==='function'&&typeof App!=='undefined'&&App.project?.id===pid&&sectionOn('avancement');
+      let stats=[];
+      if(allowed){
+        const links=(await DB.byProject('links',pid)).filter(l=>l.projectId===pid&&l.kind==='local'&&(!level||(level.avId&&l.nivId===level.avId)));
+        if(links.length&&typeof avStats==='function')stats=(context.project.lots||[]).map(l=>({name:l.name,...avStats(links,l.id)}));
+      }
+      if(closed||DB.name()!==workspaceDb)return;
+      const e=document.createElement('div');e.className='ps-source';e.dataset.chantier='1';
+      const line=(t,tag='div')=>{const x=document.createElement(tag);x.textContent=t;e.append(x);return x;};
+      line((level?.name||'Tous les niveaux')+' · Data SiteTeam (lecture seule)','b');
+      if(level?.provisional)line('Altitude provisoire : à vérifier.').className='ps-small';
+      for(const a of entries){line(a.folder+' · '+a.lot+' · '+a.alerts.length+' alerte(s)');for(const al of a.alerts)line('⚑ '+al.d+' · '+(al.obj||al.type||'Échéance')).className='ps-small';}
+      for(const a of stats)line(a.name+' · '+a.pct+' % · '+a.fin+'/'+a.n+' terminé(s) · '+a.late+' en retard');
+      if(!entries.length&&!stats.length)line('Aucune donnée de suivi liée à ce niveau.');
+      const shut=document.createElement('button');shut.textContent='Fermer Data';shut.onclick=()=>e.remove();e.append(shut);
+      const drawer=$('[data-r="drawer"]');drawer.querySelector('[data-chantier]')?.remove();drawer.prepend(e);drawer.hidden=false;$('[data-a="layers"]').setAttribute('aria-expanded','true');
+    }
     async function viewPlan(l,initialView=null){
       if(closed||busy||reading||!l)return;
       if(typeof showPdf!=='function'){msg('Lecteur PDF indisponible.');return;}
@@ -109,7 +198,7 @@
           levels:ws?[...levels].sort((a,b)=>b.z-a.z).map(v=>({id:v.id,name:v.name,available:layers.some(x=>x.levelId===v.id)})):undefined,
           activeLevel:l.levelId,
           onLevel:(id,pos)=>{
-            const target=layers.find(x=>x.levelId===id);
+            const target=chosenLayer(id,l.lot);
             if(!target||closed||!closeReader)return;
             const next=transferView(l,target,pos);
             closeReader();setLevel(id);viewPlan(target,next);
@@ -124,7 +213,7 @@
       if(!ws||busy||closed||current)return;
       if(id!=='all'&&!levelBy(id))return;
       selectedLevel=id;
-      const d=$('[data-r="drawer"]');d.hidden=id==='all';
+      const d=$('[data-r="drawer"]');d.querySelector('[data-chantier]')?.remove();d.hidden=id==='all';
       $('[data-a="layers"]').setAttribute('aria-expanded',String(!d.hidden));
       $('[data-r="sources"]').hidden=true;update();fit();
       if(id!=='all'&&!layers.some(l=>l.levelId===id))msg('Niveau '+levelBy(id).name+' : choisissez Téléphone ou Plans du projet.');
@@ -135,16 +224,16 @@
       const rail=$('[data-r="levels"]');rail.hidden=false;rail.replaceChildren();
       const all=document.createElement('button');all.textContent='Tous';all.dataset.level='all';all.classList.toggle('active',selectedLevel==='all');all.onclick=()=>setLevel('all');rail.append(all);
       for(const v of [...levels].sort((a,b)=>a.z-b.z)){
-        const l=layers.find(l=>l.levelId===v.id),b=document.createElement('button');b.dataset.level=v.id;b.classList.toggle('active',selectedLevel===v.id);
-        b.append(document.createTextNode(v.name));const small=document.createElement('small');small.textContent=l?(l.t?'✓ PDF':'À caler'):'+ PDF';b.append(small);b.onclick=()=>setLevel(v.id);rail.append(b);
+        const ll=layers.filter(l=>l.levelId===v.id),l=chosenLayer(v.id),b=document.createElement('button');b.dataset.level=v.id;b.classList.toggle('active',selectedLevel===v.id);
+        b.append(document.createTextNode(v.name));const small=document.createElement('small');small.textContent=ll.length?ll.filter(x=>x.t).length+'/'+ll.length+' PDF':'+ PDF';b.append(small);b.onclick=()=>setLevel(v.id);rail.append(b);
       }
       const plus=document.createElement('button');plus.textContent='+ Niv.';plus.disabled=levels.length>=MAX_LEVELS;plus.onclick=()=>{if(busy)return;const d=$('[data-r="drawer"]');d.hidden=false;$('[data-a="layers"]').setAttribute('aria-expanded','true');$('[data-r="new-level"]').focus();};rail.append(plus);
       const v=levelBy(selectedLevel);$('[data-r="level-tools"]').hidden=false;
-      $('[data-r="selected-level"]').textContent=v?v.name+' · '+(layers.some(l=>l.levelId===v.id)?'PDF importé':'Aucun plan'):'Niveaux du projet';
+      $('[data-r="selected-level"]').textContent=v?v.name+' · '+(v.sourceKey?'SiteTeam · ':'')+(v.provisional?'Altitude à confirmer · ':'')+(layers.some(l=>l.levelId===v.id)?layers.filter(l=>l.levelId===v.id).length+' PDF':'Aucun plan'):'Niveaux du projet';
       const z=$('[data-r="level-z"]'),name=$('[data-r="level-name"]');z.disabled=!v;z.value=v?v.z:'';name.disabled=!v;name.value=v?v.name:'';
       const planButton=$('[data-a="planview"]');planButton.hidden=!v;planButton.disabled=!layers.some(l=>l.levelId===selectedLevel);
-      $('[data-a="projectplans"]').disabled=!v||layers.some(l=>l.levelId===v.id);
-      $('[data-a="add"]').disabled=!v||layers.some(l=>l.levelId===v.id);
+      $('[data-a="projectplans"]').disabled=!v||layers.length>=MAX_PLANS;
+      $('[data-a="add"]').disabled=!v||layers.length>=MAX_PLANS;
       const empty=$('[data-r="empty"]');empty.hidden=layers.some(l=>l.mesh.visible);
       empty.querySelector('b').textContent=layers.length?'Aucun plan calé visible':'Projet vide';
       empty.querySelector('span').textContent=layers.length?'Sélectionnez Tous ou terminez le calage du niveau.':'Choisissez un niveau à droite pour ajouter son PDF.';
@@ -166,10 +255,13 @@
     function transform(l){if(!ref?.validated||!ref.A||!l.validated||!l.A)return null;if(calMode==='point')return denominator?calagePoint(l.A,denominator):null;if(!ref.B||!distance||!l.B)return null;return l===ref?reference(l.A,l.B,distance):calage(l.A,l.B,[0,0],[distance,0]);}
     function update(){
       let n=0;const gap=Number($('[data-r="explode"]').value),opacity=Number($('[data-r="opacity"]').value)/100;
+      refreshLayerFilter();
+      for(const l of layers){try{l.t=transform(l);}catch(e){l.t=null;}}
+      const preferred=new Map(levels.map(v=>[v.id,chosenLayer(v.id)]));
       for(const l of layers){
-        let t=null;try{t=transform(l);}catch(e){}
-        l.t=t;l.mesh.visible=!!t&&l.visible&&(!ws||selectedLevel==='all'||selectedLevel===l.levelId);
-        if(t){const c=appliquer(t,[l.width/2,l.height/2]);l.mesh.position.set(c[0],l.z*gap,c[1]);l.mesh.rotation.y=-t.angle;l.mesh.scale.set(l.width*t.scale,1,l.height*t.scale);l.mesh.material.opacity=opacity;l.mesh.material.transparent=opacity<1;l.mesh.material.depthWrite=opacity===1;l.mesh.material.needsUpdate=true;if(l.mesh.visible)n++;}
+        const t=l.t;
+        l.mesh.visible=!!t&&l.visible&&(!layerFilter||l.lot===layerFilter)&&(!ws||((selectedLevel==='all'||selectedLevel===l.levelId)&&(overlay||preferred.get(l.levelId)===l)));
+        if(t){const c=appliquer(t,[l.width/2,l.height/2]);l.mesh.position.set(c[0],l.z*gap+(ws&&overlay?layers.filter(x=>x.levelId===l.levelId).indexOf(l)*.002:0),c[1]);l.mesh.rotation.y=-t.angle;l.mesh.scale.set(l.width*t.scale,1,l.height*t.scale);const alpha=ws&&overlay&&layers.filter(x=>x.levelId===l.levelId&&x.visible&&x.t&&(!layerFilter||x.lot===layerFilter)).length>1?Math.min(opacity,.55):opacity;l.mesh.material.opacity=alpha;l.mesh.material.transparent=alpha<1;l.mesh.material.depthWrite=alpha===1;l.mesh.material.needsUpdate=true;if(l.mesh.visible)n++;}
       }
       $('[data-r="count"]').textContent=n+' / '+layers.length+' plans calés visibles';list();drawLevels();schedule();
     }
@@ -179,18 +271,19 @@
         if(ws&&selectedLevel!=='all'&&l.levelId!==selectedLevel)continue;
         const row=document.createElement('div');row.className='ps-row';
         const cb=document.createElement('input');cb.type='checkbox';cb.checked=l.visible;cb.setAttribute('aria-label','Afficher '+l.name);cb.onchange=()=>{l.visible=cb.checked;update();save();};
-        const info=document.createElement('div');info.className='ps-grow';const title=document.createElement('b');title.textContent=(ws?levelBy(l.levelId)?.name+' · ':'')+l.name+' · p.'+l.page;const sub=document.createElement('div');sub.className='ps-small';sub.textContent=(l===ref?'RÉFÉRENCE · ':'')+(l.t?'Calé':'À caler');sub.style.color=l.t?'#8de5c5':'#f2ca80';info.append(title,sub);
-        const z=document.createElement('input');z.type='number';z.step='.01';z.value=l.z;z.setAttribute('aria-label','Altitude en mètres');z.onchange=()=>{const n=Number(z.value);if(Number.isFinite(n)&&Math.abs(n)<=10000){l.z=n;if(ws)levelBy(l.levelId).z=n;}else z.value=l.z;update();save();};
+        const info=document.createElement('div');info.className='ps-grow';const title=document.createElement('b');title.textContent=(ws?levelBy(l.levelId)?.name+' · ':'')+l.name+' · p.'+l.page;const sub=document.createElement('div');sub.className='ps-small';sub.textContent=(l===ref?'RÉFÉRENCE · ':'')+l.type+' · '+l.lot+' · '+(l.t?'Calé':'À caler');sub.style.color=l.t?'#8de5c5':'#f2ca80';info.append(title,sub);
+        const z=document.createElement('input');z.type='number';z.step='.01';z.value=l.z;z.setAttribute('aria-label','Altitude en mètres');z.onchange=()=>{const n=Number(z.value);if(Number.isFinite(n)&&Math.abs(n)<=10000){l.z=n;if(ws){levelBy(l.levelId).z=n;levelBy(l.levelId).provisional=false;for(const x of layers)if(x.levelId===l.levelId)x.z=n;}}else z.value=l.z;update();save();};
         const c=document.createElement('button');c.textContent='Caler';c.onclick=()=>edit(l);
         const del=document.createElement('button');del.textContent='✕';del.title=ws?'Retirer le PDF du niveau (original inchangé)':'Retirer ce plan de la session';del.onclick=()=>{if(busy)return;if(l===ref&&layers.length>1){msg('Retirez les autres plans avant la référence.');return;}if(ws&&!window.confirm('Retirer ce PDF du niveau ? Le fichier original reste inchangé.'))return;remove(l);};
-        const pdf=document.createElement('button');pdf.textContent='PDF';pdf.title='Vue en plan · PDF original';pdf.setAttribute('aria-label','Vue en plan '+l.name);pdf.onclick=()=>viewPlan(l);row.append(cb,info,z,pdf,c,del);rows.append(row);
+        const pdf=document.createElement('button');pdf.textContent='PDF';pdf.title='Vue en plan · PDF original';pdf.setAttribute('aria-label','Vue en plan '+l.name);pdf.onclick=()=>{if(ws)setActive(l);viewPlan(l);};const primary=document.createElement('button');primary.textContent=activeByLevel.get(l.levelId)===l.key?'★':'☆';primary.title='Plan actif du niveau';primary.hidden=!ws;primary.onclick=()=>setActive(l);row.append(cb,info,z,primary,pdf,c,del);if(ws&&l.sourceId){const tools=document.createElement('button');tools.textContent='Outils';tools.title='Ouvrir le plan dans SiteTeam (points, annotations et outils autorisés)';tools.onclick=()=>openNative(l).catch(e=>{if(!closed)msg(e.message||String(e));else if(typeof toast==='function')toast(e.message||String(e));});row.append(tools);}rows.append(row);
       }
     }
     function remove(l){if(current===l)finish();group.remove(l.mesh);l.mesh.geometry.dispose();l.mesh.material.dispose();l.texture.dispose();l.canvas.width=l.canvas.height=0;layers.splice(layers.indexOf(l),1);if(ref===l){ref=null;distance=null;}update();fit();save();}
-    async function addFile(file,pageNo=1,levelId=selectedLevel){
-      if(closed||busy)throw Error('Import déjà en cours ou fermé.');
-      if(layers.length>=(ws?MAX_LEVELS:MAX))throw Error('Maximum '+(ws?MAX_LEVELS:MAX)+' plans.');
-      if(ws&&(!levelBy(levelId)||layers.some(l=>l.levelId===levelId)))throw Error('Choisissez un niveau vide avant l’import.');
+    async function addFile(file,pageNo=1,levelId=selectedLevel,meta={}){
+      if(closed||busy||(ws&&DB.name()!==workspaceDb))throw Error('Import déjà en cours, espace changé ou fermé.');
+      if(layers.length>=(ws?MAX_PLANS:MAX))throw Error('Maximum '+(ws?MAX_PLANS:MAX)+' plans.');
+      if(ws&&!levelBy(levelId))throw Error('Choisissez un niveau avant l’import.');
+      if(ws&&meta.sourceId&&layers.some(l=>l.levelId===levelId&&l.sourceId===meta.sourceId&&l.page===pageNo))throw Error('Ce plan est déjà importé dans ce niveau.');
       if(!file||typeof file.arrayBuffer!=='function'||!file.size)throw Error('Fichier PDF vide ou inaccessible.');
       if(file.size>MAX_BYTES)throw Error('PDF trop volumineux ('+Math.ceil(file.size/1048576)+' Mo). Limite 60 Mo; exportez le niveau seul.');
       if(!Number.isInteger(pageNo)||pageNo<1)throw Error('Numéro de page invalide.');
@@ -204,16 +297,16 @@
         msg('PDF ouvert · page '+pageNo+' / '+doc.numPages+' · préparation du plan…');
         if(pageNo>doc.numPages)throw Error('Le PDF ne contient que '+doc.numPages+' pages.');
         const p=await doc.getPage(pageNo),v=p.getViewport({scale:1});
-        const max=Math.min(ws&&levels.length>8?768:layers.length>=4?1024:1536,renderer.capabilities.maxTextureSize),vp=p.getViewport({scale:max/Math.max(v.width,v.height)});
+        const max=Math.min(ws?768:layers.length>=4?1024:1536,renderer.capabilities.maxTextureSize),vp=p.getViewport({scale:max/Math.max(v.width,v.height)});
         canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.ceil(vp.width));canvas.height=Math.max(1,Math.ceil(vp.height));
         renderTask=p.render({canvasContext:canvas.getContext('2d'),viewport:vp,background:'rgb(255,255,255)'});await renderTask.promise;renderTask=null;
-        if(closed)throw Error('Session fermée.');
+        if(closed||(ws&&DB.name()!==workspaceDb))throw Error('Session fermée ou espace changé.');
         const texture=new T.CanvasTexture(canvas);texture.encoding=T.sRGBEncoding;texture.anisotropy=Math.min(4,renderer.capabilities.getMaxAnisotropy());
         const geo=new T.PlaneGeometry(1,1);geo.rotateX(-Math.PI/2);
         const mat=new T.MeshBasicMaterial({map:texture,side:T.DoubleSide,toneMapped:false,transparent:false});
         const mesh=new T.Mesh(geo,mat);mesh.visible=false;group.add(mesh);
-        const l={id:++serial,name:String(file.name).slice(0,120),page:pageNo,file,width:v.width,height:v.height,canvas,texture,mesh,levelId:ws?levelId:null,z:ws?levelBy(levelId).z:layers.length*3,visible:true,A:null,B:null,validated:false,t:null,color:COLORS[layers.length%COLORS.length]};
-        layers.push(l);committed=true;if(!ref)ref=l;update();msg('PDF importé. Calage requis avant affichage.');if(!await save())throw Error('PDF chargé mais sauvegarde locale échouée. Réessayez via Plans.');return l.id;
+        const l={id:++serial,key:meta.key||(ws?DB.uid():'session-'+serial),sourceId:meta.sourceId||null,type:meta.type||'Sans type',lot:meta.lot||'Sans lot',name:String(file.name).slice(0,120),page:pageNo,file,width:v.width,height:v.height,canvas,texture,mesh,levelId:ws?levelId:null,z:ws?levelBy(levelId).z:layers.length*3,visible:true,A:null,B:null,validated:false,t:null,color:COLORS[layers.length%COLORS.length]};
+        layers.push(l);committed=true;if(!ref)ref=l;if(ws&&!activeByLevel.has(levelId))activeByLevel.set(levelId,l.key);update();msg('PDF importé. Calage requis avant affichage.');if(!await save())throw Error('PDF chargé mais sauvegarde locale échouée. Réessayez via Plans.');return l.id;
       }finally{
         renderTask=null;const t=task;task=null;if(t)await t.destroy().catch(()=>{});if(canvas&&!committed)canvas.width=canvas.height=0;busy=false;
       }
@@ -223,16 +316,18 @@
     async function projectSources(){
       if(!options.projectId||typeof DB==='undefined')throw Error('Ouvrez un projet SiteTeam avant d’importer ses plans.');
       const pid=options.projectId;
-      const [plans,folders]=await Promise.all([DB.byProject('plans',pid),DB.byProject('folders',pid)]);
+      const [plans,folders,project]=await Promise.all([DB.byProject('plans',pid),DB.byProject('folders',pid),DB.get('projects',pid)]);
+      if(!project||(ws&&DB.name()!==workspaceDb))throw Error('Projet indisponible ou espace changé.');
       const fm=new Map(folders.filter(f=>f.projectId===pid).map(f=>[f.id,f]));
       const folderPath=id=>{const names=[],seen=new Set();while(id&&fm.has(id)&&!seen.has(id)&&names.length<12){seen.add(id);const f=fm.get(id);names.unshift(f.name||'Dossier');id=f.parentId;}return names.join(' › ')||'Sans dossier';};
       return plans.filter(p=>p.projectId===pid&&p.pdfFileId&&(typeof isCurrentPlan!=='function'||isCurrentPlan(p)))
-        .map(p=>({id:p.id,name:p.name||'Plan',folder:folderPath(p.folderId),page:p.pdfPage||1}))
+        .map(p=>{const f=fm.get(p.folderId),lot=(project.planLots||[]).find(l=>l.id===p.lotId);return {id:p.id,name:p.name||'Plan',folder:folderPath(p.folderId),folderId:p.folderId,page:p.pdfPage||1,type:f?.discName||f?.disc||lot?.cat||'Sans type',lot:lot?.name||p.lotId||'Sans lot',
+          levelIds:(project.avNiveaux||[]).filter(n=>[n.serieId,...(n.plans||[]).map(x=>x.serieId)].some(id=>id&&(id===p.id||id===p.serieId||(typeof planSerie==='function'&&id===planSerie(p))))).map(n=>n.id)};})
         .sort((a,b)=>(a.folder+' '+a.name).localeCompare(b.folder+' '+b.name,'fr',{numeric:true}));
     }
     async function addProjectPlan(id,levelId=selectedLevel){
-      if(busy||closed)throw Error('Import en cours ou session fermée.');
-      if(layers.length>=(ws?MAX_LEVELS:MAX))throw Error('Maximum '+(ws?MAX_LEVELS:MAX)+' plans.');
+      if(busy||closed||(ws&&DB.name()!==workspaceDb))throw Error('Import en cours, espace changé ou session fermée.');
+      if(layers.length>=(ws?MAX_PLANS:MAX))throw Error('Maximum '+(ws?MAX_PLANS:MAX)+' plans.');
       const pid=options.projectId;if(!pid||typeof DB==='undefined')throw Error('Projet indisponible.');
       busy=true;let plan,rec;
       try{
@@ -240,23 +335,25 @@
         if(!plan||plan.projectId!==pid||!plan.pdfFileId)throw Error('PDF original absent de ce niveau.');
         msg('Récupération du PDF original : '+plan.name+'…');
         rec=await DB.get('files',plan.pdfFileId);
-        if(closed)throw Error('Session fermée.');
+        if(closed||(ws&&DB.name()!==workspaceDb))throw Error('Session fermée ou espace changé.');
         if(!rec||rec.projectId!==pid||!rec.blob)throw Error('PDF original indisponible. Synchronisez ce plan dans SiteTeam puis réessayez.');
       }finally{busy=false;}
       // Blob d'origine conservé en lecture seule; respect de la page du niveau.
       const blob=rec.blob, name=plan.name||rec.name||'Plan PDF';
       const file=new File([blob],name+'.pdf',{type:'application/pdf'});
-      return addFile(file,Number(plan.pdfPage)||1,levelId);
+      const meta=sources.find(p=>p.id===id)||(await projectSources()).find(p=>p.id===id);return addFile(file,Number(plan.pdfPage)||1,levelId,{sourceId:id,type:meta?.type,lot:meta?.lot});
     }
     function drawSources(){
       const box=$('[data-r="source-list"]'),q=$('[data-r="search"]').value.trim().toLocaleLowerCase();
       box.replaceChildren();
-      const matches=sources.filter(p=>(p.folder+' '+p.name).toLocaleLowerCase().includes(q));
+      const l=levelBy(selectedLevel),fm=new Map((options.context?.folders||[]).map(f=>[f.id,f]));
+      const type=$('[data-r="type"]').value,lot=$('[data-r="lot"]').value,local=ws&&l?.sourceKey&&$('[data-r="scope"]').value==='level';
+      const matches=sources.filter(p=>(!local||levelOwnsFolder(l,p.folderId,fm)||p.levelIds.includes(l.avId))&&(!type||p.type===type)&&(!lot||p.lot===lot)&&(p.folder+' '+p.name+' '+p.type+' '+p.lot).toLocaleLowerCase().includes(q));
       for(const p of matches.slice(0,150)){
         const b=document.createElement('button');b.type='button';
         const title=document.createElement('span');title.textContent=p.name;
-        const sub=document.createElement('small');sub.textContent=p.folder+' · PDF p.'+p.page;
-        b.append(title,sub);b.onclick=async()=>{
+        const sub=document.createElement('small');sub.textContent=p.folder+' · '+p.type+' · '+p.lot+' · PDF p.'+p.page;
+        b.append(title,sub);b.disabled=!!(ws&&layers.some(l=>l.levelId===selectedLevel&&l.sourceId===p.id&&l.page===p.page));if(b.disabled)sub.textContent+=' · Déjà ajouté';b.onclick=async()=>{
           if(busy||closed)return;
           b.disabled=true;try{const id=await addProjectPlan(p.id);if(closed)return;
             $('[data-r="sources"]').hidden=true;edit(layers.find(l=>l.id===id));}
@@ -271,7 +368,7 @@
       if(busy||closed)return;
       const panel=$('[data-r="sources"]');panel.hidden=false;
       $('[data-r="source-list"]').textContent='Lecture des niveaux…';
-      try{sources=await projectSources();if(!closed)drawSources();}
+      try{sources=await projectSources();if(!closed){for(const field of ['type','lot']){const sel=$('[data-r="'+field+'"]');sel.replaceChildren(new Option(field==='type'?'Tous types':'Tous lots',''));for(const val of [...new Set(sources.map(p=>p[field]))].sort())sel.add(new Option(val,val));}$('[data-r="scope"]').value=levelBy(selectedLevel)?.sourceKey?'level':'all';drawSources();}}
       catch(e){if(!closed){$('[data-r="source-list"]').textContent=e.message||String(e);msg(e.message||String(e));}}
     }
     function releaseCrop(){if(crop){crop.canvas.width=crop.canvas.height=0;crop=null;}$('[data-a="fullpaper"]').hidden=true;}
@@ -368,7 +465,8 @@
       const v={id:DB.uid(),name,z};levels.push(v);input.value=alt.value='';setLevel(v.id);save();
     });
     $('[data-r="level-name"]').onchange=e=>{const v=levelBy(selectedLevel),name=e.target.value.trim();if(!v||!name||name.length>24||levels.some(x=>x!==v&&x.name.toLowerCase()===name.toLowerCase())){drawLevels();msg('Nom de niveau unique requis.');return;}v.name=name;update();save();};
-    $('[data-r="level-z"]').onchange=e=>{const v=levelBy(selectedLevel),z=Number(e.target.value);if(!v||!e.target.value.trim()||!Number.isFinite(z)||Math.abs(z)>10000){drawLevels();return;}v.z=z;const l=layers.find(l=>l.levelId===v.id);if(l)l.z=z;update();fit();save();};
+    $('[data-r="level-z"]').onchange=e=>{const v=levelBy(selectedLevel),z=Number(e.target.value);if(!v||!e.target.value.trim()||!Number.isFinite(z)||Math.abs(z)>10000){drawLevels();return;}v.z=z;v.provisional=false;for(const l of layers)if(l.levelId===v.id)l.z=z;update();fit();save();};
+    on('chantier',()=>chantierData().catch(e=>msg(e.message||String(e))));for(const k of ['scope','type','lot'])$('[data-r="'+k+'"]').onchange=drawSources;
     on('projectplans',showSources);on('sourceclose',()=>{$('[data-r="sources"]').hidden=true;});$('[data-r="search"]').oninput=drawSources;
     on('add',()=>{if(!busy)$('[data-r="file"]').click();});
     $('[data-r="file"]').onchange=async e=>{
@@ -379,7 +477,9 @@
       if(first!==null){const l=layers.find(x=>x.id===first);if(l)edit(l);}
       if(errors.length)msg(errors.join(' · '));else if(first!==null)msg(calMode==='point'?'Import réussi · choisissez le point commun.':'Import réussi · choisissez A et B.');
     };
-    on('planview',()=>viewPlan(layers.find(l=>l.levelId===selectedLevel)));
+    on('planview',()=>viewPlan(chosenLayer(selectedLevel)));
+    $('[data-r="layerfilter"]').onchange=e=>{layerFilter=e.target.value;update();fit();};
+    on('overlay',()=>{overlay=!overlay;const b=$('[data-a="overlay"]');b.classList.toggle('active',overlay);b.setAttribute('aria-pressed',String(overlay));update();fit();});
     on('3d',()=>{view='3d';controls.enableRotate=true;$('[data-a="3d"]').classList.add('active');$('[data-a="top"]').classList.remove('active');fit();});
     on('top',()=>{view='top';controls.enableRotate=false;$('[data-a="top"]').classList.add('active');$('[data-a="3d"]').classList.remove('active');fit();});
     on('fit',fit);on('zoomin',()=>{camera.position.sub(controls.target).multiplyScalar(.8).add(controls.target);controls.update();});on('zoomout',()=>{camera.position.sub(controls.target).multiplyScalar(1.25).add(controls.target);controls.update();});
@@ -388,11 +488,11 @@
     on('precision',precision);on('fullpaper',()=>{if(!busy){releaseCrop();zoom=1;drawPaper();}});on('clear',()=>{if(current&&!busy){current.A=current.B=null;current.validated=false;update();save();drawPaper();}});on('calclose',finish);on('apply',valider);
     $('[data-r="explode"]').onchange=()=>{update();fit();};$('[data-r="opacity"]').oninput=update;
     if(ws){$('[data-r="file"]').multiple=false;$('[data-r="drawer"]').hidden=true;$('[data-a="layers"]').setAttribute('aria-expanded','false');
-      try{for(const p of (ws.plans||[])){const file=new File([p.file],p.name,{type:'application/pdf'});const id=await addFile(file,p.page,p.levelId);const l=layers.find(l=>l.id===id);l.A=p.A;l.B=p.B;l.validated=!!p.validated;l.visible=p.visible!==false;}ref=layers.find(l=>l.levelId===ws.referenceLevel)||layers[0]||null;distance=ws.distance||null;}
+      try{for(const p of (ws.plans||[])){const file=new File([p.file],p.name,{type:'application/pdf'});const id=await addFile(file,p.page,p.levelId,p);const l=layers.find(l=>l.id===id);l.A=p.A;l.B=p.B;l.validated=!!p.validated;l.visible=p.visible!==false;}ref=layers.find(l=>l.key===ws.referenceKey)||layers.find(l=>l.levelId===ws.referenceLevel)||layers[0]||null;distance=ws.distance||null;}
       catch(e){close();throw Error('Restauration du projet : '+(e.message||e));}finally{restoring=false;}
-      msg('Projet local · choisissez un niveau pour importer ou consulter son PDF.');}
+      msg(options.unmatched?'Limite de 64 niveaux : '+options.unmatched+' niveau(x) non intégré(s).':'Projet local · niveaux SiteTeam liés · vérifiez les altitudes provisoires.');await save();}
     resize();update();fit();
-    return {close,addFile,addProjectPlan,projectSources,selectLevel:setLevel,flush:()=>ws?(writes.get(DB.name()+'|'+ws.id)||Promise.resolve(!saveFailed)):Promise.resolve(true),edit:id=>{const l=layers.find(x=>x.id===id);if(l)edit(l);},setPoint:(id,k,p)=>setPoint(layers.find(x=>x.id===id),k,p),setDistance:d=>{if(!ref||!ref.A||!ref.B)throw Error('Référence incomplète.');reference(ref.A,ref.B,d);distance=d;ref.validated=true;update();save();},validate:id=>{const l=layers.find(x=>x.id===id);if(!l||!l.A||!l.B||!distance||!ref?.validated)throw Error('Calage incomplet.');calage(l.A,l.B,[0,0],[distance,0]);l.validated=true;update();save();},state:()=>layers.map(l=>({id:l.id,levelId:l.levelId,width:l.width,height:l.height,z:l.z,calibrated:!!l.t,visible:l.mesh.visible,transform:l.t?{...l.t}:null}))};
+    return {close,addFile,addProjectPlan,projectSources,selectLevel:setLevel,flush:()=>ws?(writes.get(DB.name()+'|'+ws.id)||Promise.resolve(!saveFailed)):Promise.resolve(true),edit:id=>{const l=layers.find(x=>x.id===id);if(l)edit(l);},setPoint:(id,k,p)=>setPoint(layers.find(x=>x.id===id),k,p),setDistance:d=>{if(!ref||!ref.A||!ref.B)throw Error('Référence incomplète.');reference(ref.A,ref.B,d);distance=d;ref.validated=true;update();save();},validate:id=>{const l=layers.find(x=>x.id===id);if(!l||!l.A||!l.B||!distance||!ref?.validated)throw Error('Calage incomplet.');calage(l.A,l.B,[0,0],[distance,0]);l.validated=true;update();save();},state:()=>layers.map(l=>({id:l.id,key:l.key,sourceId:l.sourceId,lot:l.lot,type:l.type,levelId:l.levelId,width:l.width,height:l.height,z:l.z,calibrated:!!l.t,visible:l.mesh.visible,transform:l.t?{...l.t}:null}))};
   }
-  window.ModelCorePDFStack={open,openWorkspace,makeWorkspace,calage,calagePoint,appliquer,reference,transferView};
+  window.ModelCorePDFStack={open,openWorkspace,makeWorkspace,calage,calagePoint,appliquer,reference,transferView,chantierLevels,bindLevels,levelOwnsFolder};
 })();
