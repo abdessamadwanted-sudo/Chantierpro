@@ -42,18 +42,43 @@
     return {scale,cx,cy,x:W/2-cx*scale,y:H/2-cy*scale};
   }
   const writes=new Map();
-  function makeWorkspace(pid,name,count,height,custom=''){
+  function makeWorkspace(pid,name,count,height,custom='',id=pid){
     const names=String(custom||'').split(/[,;\n]+/).map(n=>n.trim()).filter(Boolean);
     if(names.length)count=names.length;
     if(!pid||!String(name||'').trim()||!Number.isInteger(count)||count<1||count>MAX_LEVELS||!Number.isFinite(height)||height<=0||height>100)throw Error('Nom, 1 à 16 niveaux et hauteur (0 à 100 m) requis.');
     if(names.some(n=>n.length>24)||new Set(names.map(n=>n.toLocaleLowerCase())).size!==names.length)throw Error('Noms de niveaux uniques, 24 caractères maximum.');
     const rdc=Math.max(0,names.findIndex(n=>n.toUpperCase()==='RDC'));
-    return {id:pid,name:String(name).trim().slice(0,120),levels:Array.from({length:count},(_,i)=>({id:'n'+i,name:names[i]||(i?'R+'+i:'RDC'),z:(i-rdc)*height})),plans:[],distance:null,referenceLevel:null,calibrationMode:'point',denominator:null};
+    return {id,projectId:pid,name:String(name).trim().slice(0,120),levels:Array.from({length:count},(_,i)=>({id:'n'+i,name:names[i]||(i?'R+'+i:'RDC'),z:(i-rdc)*height})),plans:[],distance:null,referenceLevel:null,calibrationMode:'point',denominator:null};
+  }
+  function belongs(data,pid){
+    return !!data&&(data.id===pid?(!data.projectId||data.projectId===pid):data.projectId===pid&&data.id.startsWith('mc:'+encodeURIComponent(pid)+':'));
+  }
+  async function workspaceSummaries(pid){
+    const out=[];
+    for(const id of await DB.modelcoreIds(pid)){
+      await writes.get(DB.name()+'|'+id);
+      const data=await DB.get('mcworkspaces',id);
+      if(belongs(data,pid))out.push({id,name:data.name,levels:data.levels?.length||0,plans:data.plans?.length||0});
+    }
+    return out;
+  }
+  async function openProjects(options={}){
+    const pid=options.projectId;if(!pid||typeof DB==='undefined'||!await DB.get('projects',pid))throw Error('Ouvrez un projet SiteTeam.');
+    const list=await workspaceSummaries(pid);
+    if(!list.length)return openWorkspace({...options,create:true});
+    const picked=await menu('Mes projets · ModelCore X',[
+      {label:'＋ Créer un autre projet',icon:'plus',value:'new'},
+      ...list.map(v=>({label:v.name+' · '+v.plans+'/'+v.levels+' PDF',icon:'cube',value:'open:'+v.id}))
+    ]);
+    if(picked==='new')return openWorkspace({...options,create:true});
+    if(typeof picked==='string'&&picked.startsWith('open:'))return openWorkspace({...options,workspaceId:picked.slice(5),create:false});
+    return null;
   }
   async function openWorkspace(options={}){
     const pid=options.projectId;if(!pid||typeof DB==='undefined'||!await DB.get('projects',pid))throw Error('Ouvrez un projet SiteTeam.');
-    const key=DB.name()+'|'+pid;await writes.get(key);
-    let data=await DB.get('mcworkspaces',pid);
+    const id=options.workspaceId||pid,key=DB.name()+'|'+id;await writes.get(key);
+    let data=options.create?null:await DB.get('mcworkspaces',id);
+    if(options.workspaceId&&!belongs(data,pid))throw Error('Projet ModelCore introuvable dans ce chantier.');
     if(!data){
       const r=await formSheet('Créer le projet ModelCore X',[
         {name:'name',label:'Nom du projet 3D',value:options.projectName||'Mon projet'},
@@ -62,9 +87,14 @@
         {name:'height',label:'Hauteur provisoire entre niveaux (m) — à vérifier et corriger ensuite',type:'number',value:3}
       ],{okLabel:'Créer le projet vide'});
       if(!r)return null;
-      data=makeWorkspace(pid,r.name,Number(r.count),Number(r.height),r.names);await DB.putRaw('mcworkspaces',data);
+      if(!await DB.get('projects',pid))throw Error('Projet SiteTeam supprimé.');
+      const old=await DB.get('mcworkspaces',pid);
+      const newId=old?'mc:'+encodeURIComponent(pid)+':'+DB.uid():pid;
+      data=makeWorkspace(pid,r.name,Number(r.count),Number(r.height),r.names,newId);
+      await DB.putRaw('mcworkspaces',data);
     }
-    return open({...options,workspace:data});
+    if(!belongs(data,pid))throw Error('Projet ModelCore invalide.');
+    return open({...options,create:false,workspaceId:data.id,workspace:data});
   }
   async function open(options={}){
     await need3D();
@@ -73,11 +103,11 @@
     if(typeof pdfReadyA!=='function'||!(await pdfReadyA()))throw Error('Lecteur PDF indisponible. Vérifiez la mise à jour.');
     const T=window.THREE;if(!T||!T.OrbitControls)throw Error('WebGL indisponible.');
     const ws=options.workspace||null;
-    if(ws&&(!options.projectId||ws.id!==options.projectId||!Array.isArray(ws.levels)||!ws.levels.length||ws.levels.length>MAX_LEVELS))throw Error('Projet ModelCore invalide.');
+    if(ws&&(!options.projectId||!belongs(ws,options.projectId)||!Array.isArray(ws.levels)||!ws.levels.length||ws.levels.length>MAX_LEVELS))throw Error('Projet ModelCore invalide.');
     const levels=ws?ws.levels.map(v=>({...v})):[];
     const el=document.createElement('div');el.className='mc-pdfstack'+(ws?' mc-workspace':'');
     el.innerHTML='<style>.mc-pdfstack{position:fixed;inset:0;z-index:1000000;display:flex;flex-direction:column;background:#08192a;color:#e6f4ff;font:13px system-ui,sans-serif;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}.mc-pdfstack *{box-sizing:border-box}.mc-pdfstack [hidden]{display:none!important}.mc-pdfstack button,.mc-pdfstack input,.mc-pdfstack select{background:#163348;color:#e6f4ff;border:1px solid #34586d;border-radius:8px;padding:8px;min-height:36px;font:inherit}.mc-pdfstack button.active{border-color:#55d9ee;color:#8af0ff;background:#155064}.mc-pdfstack button:disabled{opacity:.4}.mc-pdfstack .ps-head,.mc-pdfstack .ps-bar{display:flex;gap:6px;align-items:center;padding:8px;flex-shrink:0}.mc-pdfstack .ps-head{background:#0b2236}.mc-pdfstack .ps-head b{font-size:16px}.mc-pdfstack .ps-small{font-size:11px;color:#9bbacc}.mc-pdfstack .ps-grow{flex:1;min-width:0}.mc-pdfstack .ps-stage{position:relative;flex:1;min-height:100px;overflow:hidden;background:radial-gradient(ellipse,#24465b,#071625 75%)}.mc-pdfstack .ps-stage>canvas{width:100%;height:100%;display:block;touch-action:none}.mc-pdfstack .ps-cal{display:flex;flex-direction:column;flex:1;min-height:0;padding:8px;gap:5px}.mc-pdfstack .ps-preview{flex:1;min-height:120px;overflow:auto;background:#172b3c;touch-action:pan-x pan-y}.mc-pdfstack .ps-preview canvas{display:block;max-width:none;touch-action:pan-x pan-y}.mc-pdfstack .ps-drawer{max-height:43%;overflow:auto;padding:8px;background:#0d2538;border-top:1px solid #315267}.mc-pdfstack .ps-row{display:flex;align-items:center;gap:5px;margin:6px 0}.mc-pdfstack .ps-row input[type=number]{width:74px}.mc-pdfstack .ps-row b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}.mc-pdfstack .ps-status{padding:5px 10px;color:#a8d4e2;min-height:25px;font-size:11px}.mc-pdfstack .ps-top{position:absolute;top:8px;left:8px;right:8px;pointer-events:none;display:flex;justify-content:space-between}.mc-pdfstack .ps-top span{background:#0a2035dd;padding:6px;border-radius:6px}.mc-pdfstack .ps-cal .ps-bar{padding:0;flex-wrap:wrap}.mc-pdfstack .ps-cal .ps-bar input{width:90px}.mc-pdfstack .ps-point{color:#64e4ff}.mc-pdfstack .ps-source{border:1px solid #34586d;border-radius:8px;padding:6px;margin:6px 0}.mc-pdfstack .ps-source input[type=search]{width:100%}.mc-pdfstack .ps-source-list{max-height:180px;overflow:auto}.mc-pdfstack .ps-source-list button{text-align:left;width:100%;margin:3px 0;white-space:normal;overflow-wrap:anywhere}.mc-pdfstack .ps-source-list small{display:block;color:#a8c7d8}.mc-pdfstack .ps-bar{overflow-x:auto}.mc-pdfstack .ps-drawer .ps-row{flex-wrap:wrap}.mc-pdfstack .ps-levels{position:absolute;right:10px;top:52px;max-height:calc(100% - 65px);overflow:auto;display:flex;flex-direction:column;gap:6px;padding:5px;background:#0b2236dd;border:1px solid #34586d;border-radius:14px;max-width:94px}.mc-pdfstack .ps-levels button{min-height:44px;min-width:56px;padding:6px 4px;overflow-wrap:anywhere}.mc-pdfstack .ps-levels small{display:block;font-size:10px;color:#a8c7d8}.mc-pdfstack .ps-empty{position:absolute;top:38%;left:10%;right:27%;text-align:center;color:#a8c7d8;pointer-events:none}.mc-pdfstack .ps-empty b{display:block;font-size:17px;color:#e6f4ff;margin-bottom:8px}.mc-pdfstack .ps-overview-row{display:flex;align-items:center;gap:6px;border:1px solid #34586d;border-radius:10px;padding:7px;margin:5px 0}.mc-pdfstack .ps-overview-row b{display:block;overflow-wrap:anywhere}.mc-pdfstack .ps-overview-row button{min-width:64px}.mc-pdfstack .ps-level-tools{border-bottom:1px solid #34586d;padding-bottom:6px;margin-bottom:8px}.mc-pdfstack .ps-level-tools input[type=text]{width:110px;min-width:0}.mc-pdfstack .ps-level-tools input[type=number]{width:72px}.mc-pdfstack .ps-preview{position:relative;overflow:hidden;touch-action:none;min-height:100px}.mc-pdfstack .ps-preview canvas{width:100%;height:100%;touch-action:none;cursor:crosshair}.mc-pdfstack .ps-cal-zoom{font-size:11px;color:#93d3e6}.mc-pdfstack .ps-sight{position:absolute;left:50%;top:50%;width:28px;height:28px;transform:translate(-50%,-50%);border:1px solid #0098c1;border-radius:50%;pointer-events:none;filter:drop-shadow(0 0 1px white)}.mc-pdfstack .ps-sight:before,.mc-pdfstack .ps-sight:after{content:"";position:absolute;background:#0098c1;left:50%;top:50%;transform:translate(-50%,-50%)}.mc-pdfstack .ps-sight:before{width:40px;height:1px}.mc-pdfstack .ps-sight:after{width:1px;height:40px}.mc-workspace .ps-head b{font-size:19px}.mc-workspace .ps-stage{background:radial-gradient(ellipse,#24465b,#071625 75%)}</style>'+
-      '<div class="ps-head"><button data-a="close">✕</button><div class="ps-grow"><b>◈ ModelCore <span style="color:#5ce5fc">X</span></b><div class="ps-small" data-r="project"></div></div><button data-a="layers" aria-expanded="true">☷ Plans</button></div>'+
+      '<div class="ps-head"><button data-a="close">✕</button><div class="ps-grow"><b>◈ ModelCore <span style="color:#5ce5fc">X</span></b><div class="ps-small" data-r="project"></div></div><button data-a="projects" hidden>▤ Projets</button><button data-a="layers" aria-expanded="true">☷ Plans</button></div>'+
       '<div class="ps-bar"><button data-a="3d" class="active">3D · Tous</button><button data-a="overview" hidden>▤ Niveaux</button><button data-a="top">Dessus 3D</button><button data-a="planview" hidden>Vue en plan</button><button data-a="fit">Ajuster</button><button data-a="detail3d" disabled>HD niveau</button><button data-a="zoomout">−</button><button data-a="zoomin">+</button><label class="ps-small">Écart <select data-r="explode"><option value="1">Réel</option><option value="2">×2</option><option value="4">×4</option></select></label></div>'+
       '<div class="ps-stage" data-r="stage"><div class="ps-top"><span data-r="count">0 plan calé</span><span>1 doigt orbite · 2 doigts zoom/pan</span></div><div class="ps-empty" data-r="empty" hidden><b>Projet vide</b><span>Choisissez un niveau à droite pour ajouter son PDF.</span></div><div class="ps-levels" data-r="levels" hidden></div></div>'+
       '<div class="ps-cal" data-r="cal" hidden><div class="ps-bar"><b class="ps-grow" data-r="calname"></b><button data-a="calclose">Terminer</button></div><div class="ps-bar"><button data-a="pointA" class="active">Point A</button><button data-a="pointB">Point B</button><button data-a="calminus">−</button><button data-a="calplus">+</button><button data-a="precision">◎ Précision</button><button data-a="fullpaper">Plan entier</button><span class="ps-cal-zoom" data-r="cal-zoom">100 %</span><button data-a="aim">⊕ Placer au viseur</button><button data-a="clear">Effacer</button></div><div class="ps-bar"><label>Calage <select data-r="cal-mode"><option value="point">1 point commun</option><option value="two">2 points (avancé)</option></select></label><label data-r="scale-label">Échelle 1:<input data-r="denom" type="number" min="1" max="10000" step="1" placeholder="100"></label></div><div class="ps-small" data-r="instructions"></div><div class="ps-preview" data-r="preview"><canvas data-r="paper" aria-label="Plan PDF : pincez pour zoomer, glissez pour déplacer, touchez pour choisir le point"></canvas><div class="ps-sight" aria-hidden="true"></div></div><div class="ps-bar"><label data-r="distance-label">Distance A–B (m) <input data-r="distance" type="number" min=".01" max="10000" step=".01" value=""></label><button data-a="apply">Valider le calage</button><button data-a="apply-next" hidden>Valider + suivant</button></div></div>'+
@@ -100,10 +130,10 @@
     function msg(s){$('[data-r="status"]').textContent=s;}
     function save(){
       if(!ws||restoring)return Promise.resolve(true);
-      const data={id:ws.id,name:ws.name,levels:levels.map(v=>({...v})),distance,referenceLevel:ref?.levelId||null,calibrationMode:calMode,denominator,
+      const data={id:ws.id,projectId:options.projectId,name:ws.name,levels:levels.map(v=>({...v})),distance,referenceLevel:ref?.levelId||null,calibrationMode:calMode,denominator,
         plans:layers.map(l=>({levelId:l.levelId,name:l.name,page:l.page,file:l.file,A:l.A?.slice()||null,B:l.B?.slice()||null,validated:l.validated,visible:l.visible}))};
       const key=DB.name()+'|'+ws.id;
-      const promise=(writes.get(key)||Promise.resolve()).then(async()=>{if(!await DB.get('projects',ws.id))throw Error('Projet SiteTeam supprimé.');await DB.putRaw('mcworkspaces',data);}).then(()=>{saveFailed=false;return true;}).catch(e=>{saveFailed=true;const message='Sauvegarde locale échouée : '+(e.message||e);if(!closed)msg(message);else if(typeof toast==='function')toast(message);return false;});
+      const promise=(writes.get(key)||Promise.resolve()).then(async()=>{if(!await DB.get('projects',options.projectId))throw Error('Projet SiteTeam supprimé.');await DB.putRaw('mcworkspaces',data);}).then(()=>{saveFailed=false;return true;}).catch(e=>{saveFailed=true;const message='Sauvegarde locale échouée : '+(e.message||e);if(!closed)msg(message);else if(typeof toast==='function')toast(message);return false;});
       writes.set(key,promise);promise.then(()=>{if(writes.get(key)===promise)writes.delete(key);});return promise;
     }
     function levelBy(id){return levels.find(v=>v.id===id);}
@@ -513,6 +543,7 @@
     }
     if(typeof pushBack==='function')backRemove=pushBack(close);
     const on=(a,fn)=>{const b=$('[data-a="'+a+'"]');b.addEventListener('click',()=>{try{fn();}catch(e){msg(e.message);}});};
+    on('projects',async()=>{if(!ws||busy||closed||reading)return;const saved=await save();if(!saved||closed)return;close();try{await openProjects({projectId:options.projectId,projectName:options.projectName});}catch(e){toast('ModelCore X : '+(e.message||e));}});
     on('close',close);on('layers',()=>{if(current){finish();return;}const d=$('[data-r="drawer"]');if(ws&&selectedLevel==='all'&&d.hidden){showOverview();return;}d.hidden=!d.hidden;$('[data-a="layers"]').setAttribute('aria-expanded',String(!d.hidden));});
     on('retry-save',async()=>{if(await save())msg('Projet enregistré sur cet appareil.');});
     on('drawerclose',()=>{$('[data-r="drawer"]').hidden=true;$('[data-a="layers"]').setAttribute('aria-expanded','false');});
@@ -544,12 +575,12 @@
     on('aim',()=>{if(!current||busy||!calV)return;setPoint(current,point,[calV.cx,calV.cy]);if(calMode==='two'&&point==='A')pointMode('B');});
     on('precision',precision);on('fullpaper',()=>{if(current&&!busy){zoom=1;calCenter=[current.width/2,current.height/2];drawPaper();queueHD();}});on('clear',()=>{if(current&&!busy){current.A=current.B=null;current.validated=false;update();save();drawPaper();}});on('calclose',finish);on('apply',()=>valider());on('apply-next',()=>valider(true));
     $('[data-r="explode"]').onchange=()=>{update();fit();};$('[data-r="opacity"]').oninput=update;
-    if(ws){$('[data-r="file"]').multiple=false;$('[data-r="drawer"]').hidden=true;$('[data-a="layers"]').setAttribute('aria-expanded','false');
+    if(ws){$('[data-a="projects"]').hidden=false;$('[data-r="file"]').multiple=false;$('[data-r="drawer"]').hidden=true;$('[data-a="layers"]').setAttribute('aria-expanded','false');
       try{for(const p of (ws.plans||[])){const file=new File([p.file],p.name,{type:'application/pdf'});const id=await addFile(file,p.page,p.levelId);const l=layers.find(l=>l.id===id);l.A=p.A;l.B=p.B;l.validated=!!p.validated;l.visible=p.visible!==false;}ref=layers.find(l=>l.levelId===ws.referenceLevel)||layers[0]||null;distance=ws.distance||null;}
       catch(e){close();throw Error('Restauration du projet : '+(e.message||e));}finally{restoring=false;}
       msg('Projet local · choisissez un niveau pour importer ou consulter son PDF.');}
     resize();update();fit();
     return {close,addFile,addProjectPlan,projectSources,selectLevel:setLevel,flush:()=>ws?(writes.get(DB.name()+'|'+ws.id)||Promise.resolve(!saveFailed)):Promise.resolve(true),edit:id=>{const l=layers.find(x=>x.id===id);if(l)edit(l);},setPoint:(id,k,p)=>setPoint(layers.find(x=>x.id===id),k,p),setDistance:d=>{if(!ref||!ref.A||!ref.B)throw Error('Référence incomplète.');reference(ref.A,ref.B,d);distance=d;ref.validated=true;update();save();},validate:id=>{const l=layers.find(x=>x.id===id);if(!l||!l.A||!l.B||!distance||!ref?.validated)throw Error('Calage incomplet.');calage(l.A,l.B,[0,0],[distance,0]);l.validated=true;update();save();},detailState:()=>detailLayer?{levelId:detailLayer.levelId,width:detailCanvas.width,height:detailCanvas.height}:null,state:()=>layers.map(l=>({id:l.id,levelId:l.levelId,width:l.width,height:l.height,z:l.z,calibrated:!!l.t,visible:l.mesh.visible,transform:l.t?{...l.t}:null}))};
   }
-  window.ModelCorePDFStack={open,openWorkspace,makeWorkspace,calage,calagePoint,appliquer,reference,transferView,calViewport};
+  window.ModelCorePDFStack={open,openWorkspace,openProjects,workspaceSummaries,makeWorkspace,calage,calagePoint,appliquer,reference,transferView,calViewport};
 })();
