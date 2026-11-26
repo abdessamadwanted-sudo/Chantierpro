@@ -446,7 +446,7 @@ const ST = (() => {
     const ivOn = () => ivList().length > 0;
     const entOn = () => ivOn() && !partnerSh();
     const QS_NAMES = { adm: ['📁', 'Administratif'], ter: ['🏗️', 'Terrain'], com: ['🔗', 'Commun'] };
-    const QS_COL = { adm: ['folder', '#2563eb'], ter: ['hard', '#16a34a'], com: ['users', '#7c3aed'] };
+    const QS_COL = { adm: ['folder', '#2563eb'], ter: ['hard', '#16a34a'], com: ['team', '#7c3aed'] };
     // volets autorisés à la personne : choisis par l'administrateur dans l'organigramme (vide = les deux) ; l'administrateur voit tout
     const qsAllowed = () => { try { if (!ready() || Team.isAdmin()) return ['adm', 'ter', 'com']; const m = window.MonEspace && MonEspace.meOf(p), v = m && m.volet; return v === 'adm' ? ['adm', 'com'] : v === 'ter' ? ['ter', 'com'] : ['adm', 'ter', 'com']; } catch (e) { return ['adm', 'ter', 'com']; } };
     const qsKey = (S) => S.side || ('svc.side.' + S.k);
