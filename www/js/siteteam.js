@@ -472,7 +472,7 @@ const ST = (() => {
     // Préférence de navigation uniquement, jamais une autorisation. Les anciennes sociétés sans préférence gardent tous leurs pôles.
     const pref=company0.metierBranches;
     const ownBranches = ownType ? ownBranchesOf(ownType.k,Team.companyServices().filter(S=>Team.svcOpen(S.k)).map(S=>S.k)).filter(S=>!pref||pref.org!==ownType.k||!Array.isArray(pref.keys)||pref.keys.includes(S.k)) : [];
-    const ownOn = ownBranches.length > 0;
+    const ownOn = !!(ownType && ST_ORG_BRANCHES[ownType.k]);
     const entOn = () => ivOn() && !partnerSh() && !ownOn;
     const QS_NAMES = { adm: ['📁', 'Administratif'], ter: ['🏗️', 'Terrain'], com: ['🔗', 'Commun'] };
     const QS_COL = { adm: ['folder', '#2563eb'], ter: ['hard', '#16a34a'], com: ['team', '#7c3aed'] };
