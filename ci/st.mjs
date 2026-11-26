@@ -3300,6 +3300,16 @@ try {
   });
   log('ModelCore X projet vide et niveaux',mcWorkspace);
   log('errors v1.0.339',!mcWorkspace.err&&['empty','levels','drawer','phone','pointDefault','first','pointAligned','isolate','reader','readerInk','readerZoom','readerSwitch','readerScale','readerReturn','stack','saved','reopen','local','cleanup'].every(k=>mcWorkspace[k])?[]:['Projet ModelCore '+JSON.stringify(mcWorkspace)]);
+  // ModelCore X — rattachement en lecture seule, identités stables et niveaux homonymes.
+  const mcContext=await A.pg.evaluate(()=>{
+    const api=ModelCorePDFStack,p={id:'mc-test',avNiveaux:[{id:'a',name:'RDC',folderId:'f'}]};
+    const folders=[{id:'f',projectId:p.id,name:'RDC'},{id:'g',projectId:p.id,name:'R+1'},{id:'h',projectId:p.id,name:'RDC'},{id:'sub',projectId:p.id,name:'Structure',parentId:'g'},{id:'foreign',projectId:'other',name:'R+2'}];
+    const candidates=api.chantierLevels(p,folders),linked=api.bindLevels([{id:'old',name:'R+1',z:4.2}],candidates);
+    const again=api.bindLevels(linked.levels,candidates),fm=new Map(folders.map(f=>[f.id,f]));
+    return {isolation:!candidates.some(c=>c.folderId==='foreign'),distinct:candidates.filter(c=>c.name==='RDC').length===2,preserved:linked.levels.find(v=>v.id==='old')?.z===4.2,stable:again.levels.length===linked.levels.length,ancestry:api.levelOwnsFolder(linked.levels.find(v=>v.folderId==='g'),'sub',fm),provisional:linked.levels.filter(v=>v.id!=='old').every(v=>v.provisional)};
+  });
+  log('ModelCore X contexte chantier',mcContext);
+  log('errors ModelCore X contexte',Object.values(mcContext).every(Boolean)?[]:['Contexte ModelCore '+JSON.stringify(mcContext)]);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
