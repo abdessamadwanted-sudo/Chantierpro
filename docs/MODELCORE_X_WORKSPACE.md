@@ -78,3 +78,10 @@ Limite : pas de capuchon ni de hachure sur les surfaces coupées (coupe visuelle
 
 ### PDF Stack — import depuis les niveaux du projet (correctif en validation)
 Sélecteur des plans PDF courants avec dossier/niveau et page d’origine, recherche, récupération locale/Drive à la demande via DB.get, refus d'un document d’un autre projet. Import téléphone accepte les fournisseurs Android génériques et vérifie l'en-tête PDF; 60 Mo maximum par fichier, 8 plans par session, résolution bornée et réduite à partir du cinquième. Initialisation du worker avec `pdfReadyA`, accès au calage directement après chaque import et erreurs explicites. Test navigateur avec PDF multipage, niveau IndexedDB, démarrage à froid et isolation. Pas de persistance du calage ni d'essai sur téléphone réel.
+
+
+### ModelCore X — projet réel et niveaux (en validation)
+- Entrée « Mon projet » indépendante des démonstrations BIM : création d'un espace PDF vide associé au projet SiteTeam, sans géométrie fictive. Aucune dépendance aux dossiers de niveaux existants.
+- Barre latérale Tous / RDC / R+…; création de 1 à 8 niveaux, ajout de niveaux personnalisés et réglage de leur altitude. Un PDF par niveau (60 Mo maximum), depuis le téléphone ou les plans du projet. Calage A/B et distance réelle requis avant affichage; sélectionner Tous superpose les plans aux altitudes définies.
+- Magasin local IndexedDB `mcworkspaces` (migration additive v7, isolé par base d'espace et id projet). Sauvegarde des PDF, pages, niveaux et repères, restauration à la réouverture. Suppression avec le projet SiteTeam. Pas de synchronisation, de partage serveur ni de sauvegarde Drive de cet espace local; garder les originaux. Les imports IFC/JSON et maquettes fictives restent accessibles via l'entrée BIM séparée. Limite mémoire des gros PDF et validation sur Android réel encore ouvertes.
+- Parcours CI : formulaire de création, barre de niveaux, import PDF par le champ fichier, calage, filtrage, superposition, réouverture et nettoyage. Les tests doivent passer avant livraison.
