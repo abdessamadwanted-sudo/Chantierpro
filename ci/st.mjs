@@ -3314,12 +3314,20 @@ try {
       root=document.querySelector('.mc-workspace');o.reopen=stack.state().length===2&&stack.state().every(l=>l.visible&&l.calibrated)&&Math.abs(stack.state()[1].transform.scale-100*.0254/72)<1e-8&&Math.abs(stack.state()[1].z-4.2)<.001;
       const persisted=await DB.get('mcworkspaces',pid);o.local=persisted.plans.length===2&&persisted.calibrationMode==='point'&&persisted.denominator===100&&persisted.plans.every(p=>!p.B);
       stack.close();stack=null;
-      await DB.deleteProject(pid);o.cleanup=!await DB.get('mcworkspaces',pid);
+      const secondOpening=ModelCorePDFStack.openWorkspace({projectId:pid,projectName:'Bloc B',create:true});
+      let form2=null;for(let i=0;i<100&&!form2;i++){form2=[...document.querySelectorAll('.sheet-bg')].find(e=>e.querySelector('[name=count]')&&e.querySelector('[name=height]'));if(!form2)await wait(100);}
+      if(!form2)throw Error('Formulaire deuxième projet absent.');
+      form2.querySelector('[name=name]').value='Bloc B';form2.querySelector('[name=count]').value='3';form2.querySelector('[data-a=ok]').click();
+      stack=await secondOpening;const summaries=await ModelCorePDFStack.workspaceSummaries(pid);
+      const second=summaries.find(v=>v.name==='Bloc B');o.multiProject=!!second&&second.id!==pid&&summaries.length===2&&second.levels===3&&second.plans===0&&stack.state().length===0;
+      stack.close();stack=null;
+      stack=await ModelCorePDFStack.openWorkspace({projectId:pid,workspaceId:pid});o.multiRestore=stack.state().length===2&&stack.state().every(l=>l.calibrated);stack.close();stack=null;
+      await DB.deleteProject(pid);o.cleanup=!await DB.get('mcworkspaces',pid)&&(await DB.modelcoreIds(pid)).length===0;
     }catch(e){o.err=String(e.message||e);}finally{if(stack){await stack.flush();stack.close();}await DB.delRaw('mcworkspaces',pid);await DB.delRaw('projects',pid);}
     return o;
   });
   log('ModelCore X projet vide et niveaux',mcWorkspace);
-  log('errors v1.0.339',!mcWorkspace.err&&['empty','levels','overview','drawer','phone','pointDefault','calHD','calZoom','calPick','calPan','calFit','calAim','first','nextLevel','pointAligned','isolate','detailHD','detailRelease','reader','readerInk','readerZoom','readerSwitch','readerScale','readerReturn','allFrom3D','stack','saved','reopen','local','cleanup'].every(k=>mcWorkspace[k])?[]:['Projet ModelCore '+JSON.stringify(mcWorkspace)]);
+  log('errors v1.0.339',!mcWorkspace.err&&['empty','levels','overview','drawer','phone','pointDefault','calHD','calZoom','calPick','calPan','calFit','calAim','first','nextLevel','pointAligned','isolate','detailHD','detailRelease','reader','readerInk','readerZoom','readerSwitch','readerScale','readerReturn','allFrom3D','stack','saved','reopen','local','multiProject','multiRestore','cleanup'].every(k=>mcWorkspace[k])?[]:['Projet ModelCore '+JSON.stringify(mcWorkspace)]);
   // ---- suppression de compte (exigence Google Play) : le topographe D supprime son compte
   await D.pg.evaluate(() => { document.querySelectorAll('.fullpage,.es-page,.sheet-bg,.firebase-emulator-warning').forEach(x => x.remove()); Team.openCompany('me'); }); await D.pg.waitForTimeout(1500);
   await D.pg.$eval('[data-a=delacc]', (b) => { b.scrollIntoView(); b.click(); }); await D.pg.waitForTimeout(400); await shot(D.pg, '25_delete_confirm');
