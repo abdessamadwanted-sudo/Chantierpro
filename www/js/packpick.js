@@ -64,13 +64,13 @@ const PackPick = (() => {
     // stepAutonomeSvc) — demande du propriétaire : la prévisualisation Super Admin doit montrer la même présentation,
     // pas une simple liste de boutons.
     const SVC_DESC = {
-      aut_0: ['#0d9488', '🛡️', '3 volets', 'Documents, réceptions, contrôles, laboratoire'],
-      aut_1: ['#ea580c', '⛑️', '3 volets', 'Réunions, inspections, constats sécurité'],
-      aut_2: ['#2563eb', '🏗️', '3 volets', 'Planning, suivi des lots, Matériaux (ferraillage)'],
-      aut_5: ['#7c3aed', '📐', '3 volets', 'RFI, visas, calculs, maquettes 3D'],
-      aut_10: ['#16a34a', '💰', '3 volets', 'Finance, gestion, avenants, pointage'],
-      aut_12: ['#0891b2', '📍', '3 volets', 'Plans, maquettes, calculs, implantation'],
-      aut_13: ['#8b5cf6', '🧪', '3 volets', 'Documents, essais, prélèvements béton'],
+      aut_0: ['#c084fc', '🛡️', '3 volets', 'Documents, réceptions, contrôles, laboratoire'],
+      aut_1: ['#fb7185', '⛑️', '3 volets', 'Réunions, inspections, constats sécurité'],
+      aut_2: ['#4ade80', '🏗️', '3 volets', 'Planning, suivi des lots, Matériaux (ferraillage)'],
+      aut_5: ['#818cf8', '📐', '3 volets', 'RFI, visas, calculs, maquettes 3D'],
+      aut_10: ['#fbbf24', '💰', '3 volets', 'Finance, gestion, avenants, pointage'],
+      aut_12: ['#2dd4bf', '📍', '3 volets', 'Plans, maquettes, calculs, implantation'],
+      aut_13: ['#38bdf8', '🧪', '3 volets', 'Documents, essais, prélèvements béton'],
     };
     // v1.0.2xx : même liste que team.js (stepAutonomeSvc) — services du catalogue + intervenants (ST.INTERVENANTS,
     // clé iv_*) — pour que la prévisualisation Super Admin montre exactement les mêmes choix que le parcours réel.
