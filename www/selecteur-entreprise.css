@@ -151,3 +151,22 @@
 .st-own-tree .st-node-copy b{font-size:15px}
 @media(min-width:700px){.st-own-tree .st-own-grid{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}}
 @media(min-width:410px){.st-onb .st-architecture .st-node-grid>button{grid-template-columns:40px minmax(0,1fr);padding:12px 9px}.st-onb .st-architecture .st-node-copy{padding-top:20px;padding-right:0}}
+
+/* Cartes individuelles, proportions des références mobiles. */
+.st-onb .st-service-screen .st-ent-head{border:0;padding:0;margin:14px 0 18px}
+.st-onb .st-service-screen .st-ent-head>small,.st-onb .st-service-screen .st-tree-root small{display:none}
+.st-onb .st-service-screen .st-tree-root{width:fit-content;max-width:100%;margin:auto;padding:7px 14px;border-radius:28px;gap:9px}
+.st-onb .st-service-screen .st-tree-root .st-node-icon{width:30px;height:30px;border:0;background:none;box-shadow:none}
+.st-onb .st-service-screen .st-tree-root b{font-size:15px}
+.st-onb .st-service-screen .st-tree-connector{display:none}
+.st-onb .st-service-screen .st-node-grid>button{min-height:142px;position:relative;display:grid;grid-template-columns:36px minmax(0,1fr);align-items:start;gap:8px;padding:12px 10px;background:radial-gradient(ellipse at 8% 5%,var(--st-tint),transparent 85%),linear-gradient(145deg,#102e48,#061b2e);border-color:var(--st-edge);box-shadow:inset 0 0 19px var(--st-tint)}
+.st-onb .st-service-screen .st-node-grid>button.on{border-color:var(--st-tone);box-shadow:inset 0 0 18px var(--st-edge),0 0 10px var(--st-edge)}
+.st-onb .st-service-screen .st-node-grid .st-node-icon{width:36px;height:36px;border-radius:10px}
+.st-onb .st-service-screen .st-node-grid .st-node-icon svg{width:23px;height:23px}
+.st-onb .st-service-screen .st-node-grid .st-node-copy{padding:17px 0 0;min-width:0}
+.st-onb .st-service-screen .st-node-grid .st-node-copy b{font-size:14px;line-height:1.16;word-break:normal;overflow-wrap:anywhere}
+.st-onb .st-service-screen .st-node-grid .st-node-copy small{font-size:11px;line-height:1.35;margin-top:7px;color:#c9daef}
+.st-onb .st-service-screen .st-node-check{right:8px;top:8px;width:17px;height:17px}
+.st-onb .st-service-screen .st-lknote{display:block;color:#c0d3e8;font-size:11px;line-height:1.4;margin:14px 4px}
+@media(max-width:380px){.st-onb .st-service-screen .st-node-grid>button{grid-template-columns:1fr;gap:7px;min-height:133px}.st-onb .st-service-screen .st-node-grid .st-node-copy{padding:0}.st-onb .st-service-screen .st-node-grid .st-node-copy b{font-size:14px}}
+@media(min-width:600px){.st-onb .st-service-screen .st-node-grid>button{grid-template-columns:44px minmax(0,1fr);min-height:150px}.st-onb .st-service-screen .st-node-grid .st-node-copy b{font-size:16px}.st-onb .st-service-screen .st-node-grid .st-node-copy small{font-size:12px}}
