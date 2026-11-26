@@ -558,7 +558,7 @@ async function showPdf(blob, caption = 'PDF', opts = {}) {
       rail.append(b);
     }
     const tools=document.createElement('div');tools.className='mc-pdf-zoomtools';
-    for(const [a,label,fn] of [['plus','+',()=>setZoom(zk*1.35)],['minus','−',()=>setZoom(zk/1.35)],['fit','⤢',()=>setZoom(1)],['3d','3D',shut]]){
+    for(const [a,label,fn] of [['plus','+',()=>setZoom(zk*1.35)],['minus','−',()=>setZoom(zk/1.35)],['fit','⤢',()=>setZoom(1)],['3d','3D',typeof opts.on3D==='function'?opts.on3D:shut]]){
       const b=document.createElement('button');b.type='button';b.dataset.mcZoom=a;b.textContent=label;b.onclick=()=>{if(a==='3d'||navReady)fn();};tools.append(b);
     }
     el.append(style,rail,tools);
