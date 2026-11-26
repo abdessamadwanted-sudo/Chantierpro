@@ -53,6 +53,17 @@
   function belongs(data,pid){
     return !!data&&(data.id===pid?(!data.projectId||data.projectId===pid):data.projectId===pid&&data.id.startsWith('mc:'+encodeURIComponent(pid)+':'));
   }
+  function rootFolder(id,folders){
+    const byId=new Map(folders.map(f=>[f.id,f])),seen=new Set();let f=byId.get(id);
+    while(f&&f.parentId&&byId.has(f.parentId)){if(seen.has(f.id))return null;seen.add(f.id);f=byId.get(f.parentId);}
+    return f||null;
+  }
+  function sourceLevels(folders,height){
+    const roots=folders.filter(f=>rootFolder(f.id,folders)?.id===f.id).sort((a,b)=>String(a.name).localeCompare(String(b.name),'fr',{numeric:true}));
+    if(!roots.length||roots.length>MAX_LEVELS)throw Error('Choisissez un projet de 1 à 16 dossiers de niveau.');
+    const zero=Math.max(0,roots.findIndex(f=>/^(?:\d+[-_ ]*)?RDC$/i.test(String(f.name).trim())));
+    return roots.map((f,i)=>({id:'n'+i,name:String(f.name||'Niveau').slice(0,24),z:(i-zero)*height,folderId:f.id}));
+  }
   async function workspaceSummaries(pid){
     const out=[];
     for(const id of await DB.modelcoreIds(pid)){
@@ -80,8 +91,10 @@
     let data=options.create?null:await DB.get('mcworkspaces',id);
     if(options.workspaceId&&!belongs(data,pid))throw Error('Projet ModelCore introuvable dans ce chantier.');
     if(!data){
+      const folders=await DB.byProject('folders',pid),hasFolders=folders.some(f=>rootFolder(f.id,folders)?.id===f.id);
       const r=await formSheet('Créer le projet ModelCore X',[
         {name:'name',label:'Nom du projet 3D',value:options.projectName||'Mon projet'},
+        ...(hasFolders?[{name:'source',label:'Structure des niveaux',type:'select',value:'existing',options:[{value:'existing',label:'Reprendre les dossiers Plans de ce chantier'},{value:'manual',label:'Créer des niveaux indépendants'}]}]:[]),
         {name:'count',label:'Nombre de niveaux standard (RDC compris, max. 16)',type:'number',value:4},
         {name:'names',label:'Ou noms personnalisés, du bas vers le haut (séparés par virgules)',placeholder:'SSL, Mezz, RDC, R+1, R+2…'},
         {name:'height',label:'Hauteur provisoire entre niveaux (m) — à vérifier et corriger ensuite',type:'number',value:3}
@@ -90,7 +103,8 @@
       if(!await DB.get('projects',pid))throw Error('Projet SiteTeam supprimé.');
       const old=await DB.get('mcworkspaces',pid);
       const newId=old?'mc:'+encodeURIComponent(pid)+':'+DB.uid():pid;
-      data=makeWorkspace(pid,r.name,Number(r.count),Number(r.height),r.names,newId);
+      data=makeWorkspace(pid,r.name,r.source==='existing'?1:Number(r.count),Number(r.height),r.source==='existing'?'':r.names,newId);
+      if(r.source==='existing')data.levels=sourceLevels(folders,Number(r.height));
       await DB.putRaw('mcworkspaces',data);
     }
     if(!belongs(data,pid))throw Error('Projet ModelCore invalide.');
@@ -111,7 +125,7 @@
       '<div class="ps-bar"><button data-a="3d" class="active">3D · Tous</button><button data-a="overview" hidden>▤ Niveaux</button><button data-a="top">Dessus 3D</button><button data-a="planview" hidden>Vue en plan</button><button data-a="fit">Ajuster</button><button data-a="detail3d" disabled>HD niveau</button><button data-a="zoomout">−</button><button data-a="zoomin">+</button><label class="ps-small">Écart <select data-r="explode"><option value="1">Réel</option><option value="2">×2</option><option value="4">×4</option></select></label></div>'+
       '<div class="ps-stage" data-r="stage"><div class="ps-top"><span data-r="count">0 plan calé</span><span>1 doigt orbite · 2 doigts zoom/pan</span></div><div class="ps-empty" data-r="empty" hidden><b>Projet vide</b><span>Choisissez un niveau à droite pour ajouter son PDF.</span></div><div class="ps-levels" data-r="levels" hidden></div></div>'+
       '<div class="ps-cal" data-r="cal" hidden><div class="ps-bar"><b class="ps-grow" data-r="calname"></b><button data-a="calclose">Terminer</button></div><div class="ps-bar"><button data-a="pointA" class="active">Point A</button><button data-a="pointB">Point B</button><button data-a="calminus">−</button><button data-a="calplus">+</button><button data-a="precision">◎ Précision</button><button data-a="fullpaper">Plan entier</button><span class="ps-cal-zoom" data-r="cal-zoom">100 %</span><button data-a="aim">⊕ Placer au viseur</button><button data-a="clear">Effacer</button></div><div class="ps-bar"><label>Calage <select data-r="cal-mode"><option value="point">1 point commun</option><option value="two">2 points (avancé)</option></select></label><label data-r="scale-label">Échelle 1:<input data-r="denom" type="number" min="1" max="10000" step="1" placeholder="100"></label></div><div class="ps-small" data-r="instructions"></div><div class="ps-preview" data-r="preview"><canvas data-r="paper" aria-label="Plan PDF : pincez pour zoomer, glissez pour déplacer, touchez pour choisir le point"></canvas><div class="ps-sight" aria-hidden="true"></div></div><div class="ps-bar"><label data-r="distance-label">Distance A–B (m) <input data-r="distance" type="number" min=".01" max="10000" step=".01" value=""></label><button data-a="apply">Valider le calage</button><button data-a="apply-next" hidden>Valider + suivant</button></div></div>'+
-      '<div class="ps-drawer" data-r="drawer"><div data-r="overview-panel" hidden><div class="ps-row"><b class="ps-grow" data-r="progress"></b><button data-a="next-empty">＋ Plan suivant</button><button data-a="show-all">3D Tous</button></div><div data-r="overview-list"></div></div><div class="ps-level-tools" data-r="level-tools" hidden><div class="ps-row"><b class="ps-grow" data-r="selected-level"></b><button data-a="retry-save">Enregistrer</button><button data-a="drawerclose">✕</button></div><div class="ps-row"><label>Nom <input type="text" maxlength="24" data-r="level-name"></label><label>Altitude (m) <input type="number" step=".01" data-r="level-z"></label></div><div class="ps-row"><input type="text" maxlength="24" data-r="new-level" placeholder="Ex. Sous-sol"><input type="number" step=".01" data-r="new-z" placeholder="Altitude"><button data-a="newlevel">＋ Niveau</button></div></div><div class="ps-row"><button data-a="projectplans">▤ Plans du projet</button><button data-a="add">＋ Téléphone</button><input data-r="file" type="file" accept="*/*" multiple hidden><label class="ps-small">Page <input data-r="page" type="number" value="1" min="1" step="1" aria-label="Page PDF"></label><label class="ps-small">Opacité <input data-r="opacity" type="range" min="20" max="100" value="100"></label></div><div class="ps-source" data-r="sources" hidden><div class="ps-row"><b class="ps-grow">Niveaux · PDF du projet</b><button data-a="sourceclose">✕</button></div><input type="search" data-r="search" placeholder="Rechercher niveau, dossier ou plan…" aria-label="Rechercher un plan"><div class="ps-source-list" data-r="source-list"></div></div><div class="ps-small">Premier PDF = référence. Calage par point commun (même échelle/orientation) ou par 2 points. Jusqu’à 16 niveaux dans Mon projet (8 en session PDF Stack) · 60 Mo/PDF · stockage local.</div><div data-r="list"></div></div><div class="ps-status" data-r="status" aria-live="polite">Ajoutez le PDF de référence.</div>';
+      '<div class="ps-drawer" data-r="drawer"><div data-r="overview-panel" hidden><div class="ps-row"><b class="ps-grow" data-r="progress"></b><button data-a="next-empty">＋ Plan suivant</button><button data-a="show-all">3D Tous</button></div><div data-r="overview-list"></div></div><div class="ps-level-tools" data-r="level-tools" hidden><div class="ps-row"><b class="ps-grow" data-r="selected-level"></b><button data-a="retry-save">Enregistrer</button><button data-a="drawerclose">✕</button></div><div class="ps-row"><label>Nom <input type="text" maxlength="24" data-r="level-name"></label><button data-a="bind-folder">Lier niveau</button><label>Altitude (m) <input type="number" step=".01" data-r="level-z"></label></div><div class="ps-row"><input type="text" maxlength="24" data-r="new-level" placeholder="Ex. Sous-sol"><input type="number" step=".01" data-r="new-z" placeholder="Altitude"><button data-a="newlevel">＋ Niveau</button></div></div><div class="ps-row"><button data-a="projectplans">▤ Plans du chantier</button><button data-a="add">＋ Téléphone</button><input data-r="file" type="file" accept="*/*" multiple hidden><label class="ps-small">Page <input data-r="page" type="number" value="1" min="1" step="1" aria-label="Page PDF"></label><label class="ps-small">Opacité <input data-r="opacity" type="range" min="20" max="100" value="100"></label></div><div class="ps-source" data-r="sources" hidden><div class="ps-row"><b class="ps-grow">Niveaux · PDF du projet</b><button data-a="sourceclose">✕</button></div><select data-r="source-filter" aria-label="Type de plan"><option value="">Tous les types</option></select><input type="search" data-r="search" placeholder="Rechercher niveau, type, lot ou plan…" aria-label="Rechercher un plan"><div class="ps-source-list" data-r="source-list"></div></div><div class="ps-small">Premier PDF = référence. Calage par point commun (même échelle/orientation) ou par 2 points. Jusqu’à 16 niveaux dans Mon projet (8 en session PDF Stack) · 60 Mo/PDF · stockage local.</div><div data-r="list"></div></div><div class="ps-status" data-r="status" aria-live="polite">Ajoutez le PDF de référence.</div>';
     document.body.appendChild(el);
     const $=s=>el.querySelector(s),stage=$('[data-r="stage"]'),paper=$('[data-r="paper"]'),rows=$('[data-r="list"]');
     $('[data-r="project"]').textContent=(ws?ws.name:String(options.projectName||'Projet'))+(ws?' · Projet réel · local':' · PDF Stack · session locale');
@@ -131,12 +145,35 @@
     function save(){
       if(!ws||restoring)return Promise.resolve(true);
       const data={id:ws.id,projectId:options.projectId,name:ws.name,levels:levels.map(v=>({...v})),distance,referenceLevel:ref?.levelId||null,calibrationMode:calMode,denominator,
-        plans:layers.map(l=>({levelId:l.levelId,name:l.name,page:l.page,file:l.file,A:l.A?.slice()||null,B:l.B?.slice()||null,validated:l.validated,visible:l.visible}))};
+        plans:layers.map(l=>({levelId:l.levelId,sourcePlanId:l.sourcePlanId||null,sourcePdfId:l.sourcePdfId||null,name:l.name,page:l.page,file:l.file,A:l.A?.slice()||null,B:l.B?.slice()||null,validated:l.validated,visible:l.visible}))};
       const key=DB.name()+'|'+ws.id;
       const promise=(writes.get(key)||Promise.resolve()).then(async()=>{if(!await DB.get('projects',options.projectId))throw Error('Projet SiteTeam supprimé.');await DB.putRaw('mcworkspaces',data);}).then(()=>{saveFailed=false;return true;}).catch(e=>{saveFailed=true;const message='Sauvegarde locale échouée : '+(e.message||e);if(!closed)msg(message);else if(typeof toast==='function')toast(message);return false;});
       writes.set(key,promise);promise.then(()=>{if(writes.get(key)===promise)writes.delete(key);});return promise;
     }
     function levelBy(id){return levels.find(v=>v.id===id);}
+    async function nativePlan(id){
+      if(closed||busy||reading||current||!id)return;
+      if(typeof App==='undefined'||App.project?.id!==options.projectId||typeof openPlanViewer!=='function'||typeof planCtx!=='function')return msg('Lecteur chantier indisponible.');
+      reading=true;
+      try{
+        const p=await DB.get('plans',id);
+        if(!p||p.projectId!==options.projectId||!await DB.get('files',p.fileId))throw Error('Plan chantier indisponible. Synchronisez son original.');
+        if(!await save())throw Error('Sauvegarde locale requise.');
+        if(closed)return;el.style.display='none';
+        await openPlanViewer(p,{...planCtx(()=>{if(!document.querySelector('.mc-native-plan')){reading=false;if(!closed){el.style.display='';resize();schedule();}}}),modelcoreBridge:true});
+      }catch(e){reading=false;if(!closed){el.style.display='';msg(e.message||String(e));}}
+    }
+    async function openLot(source){
+      if(closed||busy||reading||current||typeof App==='undefined'||App.project?.id!==options.projectId)return;
+      try{
+        const p=await DB.get('plans',source.id),folders=await DB.byProject('folders',options.projectId),f=p&&rootFolder(p.folderId,folders);
+        if(!p||p.projectId!==options.projectId||!f||!p.lotId)throw Error('Lot de ce plan indisponible.');
+        if(!await save())throw Error('Sauvegarde locale requise.');
+        App.openFolders=App.openFolders||{};App.openFolders[f.id]=true;
+        App.lotSel=App.lotSel||{};App.lotSel[f.id]=p.lotId;
+        App.search='';App.section='plans';App.scrollFolder=f.id;close();await renderSection();
+      }catch(e){if(!closed)msg(e.message||String(e));}
+    }
     async function viewPlan(l,initialView=null){
       if(closed||busy||reading||!l)return;
       if(typeof showPdf!=='function'){msg('Lecteur PDF indisponible.');return;}
@@ -222,7 +259,8 @@
       const z=$('[data-r="level-z"]'),name=$('[data-r="level-name"]');z.disabled=!v;z.value=v?v.z:'';name.disabled=!v;name.value=v?v.name:'';
       $('[data-a="apply-next"]').hidden=!current||!ws;
       const planButton=$('[data-a="planview"]');planButton.hidden=!v;planButton.disabled=!layers.some(l=>l.levelId===selectedLevel);
-      $('[data-a="projectplans"]').disabled=!v||layers.some(l=>l.levelId===v.id);
+      $('[data-a="bind-folder"]').disabled=!v;
+      $('[data-a="projectplans"]').disabled=!v;
       $('[data-a="add"]').disabled=!v||layers.some(l=>l.levelId===v.id);
       const empty=$('[data-r="empty"]');empty.hidden=layers.some(l=>l.mesh.visible);
       empty.querySelector('b').textContent=layers.length?'Aucun plan calé visible':'Projet vide';
@@ -300,11 +338,12 @@
         const z=document.createElement('input');z.type='number';z.step='.01';z.value=l.z;z.setAttribute('aria-label','Altitude en mètres');z.onchange=()=>{const n=Number(z.value);if(Number.isFinite(n)&&Math.abs(n)<=10000){l.z=n;if(ws)levelBy(l.levelId).z=n;}else z.value=l.z;update();save();};
         const c=document.createElement('button');c.textContent='Caler';c.onclick=()=>edit(l);
         const del=document.createElement('button');del.textContent='✕';del.title=ws?'Retirer le PDF du niveau (original inchangé)':'Retirer ce plan de la session';del.onclick=()=>{if(busy)return;if(l===ref&&layers.length>1){msg('Retirez les autres plans avant la référence.');return;}if(ws&&!window.confirm('Retirer ce PDF du niveau ? Le fichier original reste inchangé.'))return;remove(l);};
-        const pdf=document.createElement('button');pdf.textContent='PDF';pdf.title='Vue en plan · PDF original';pdf.setAttribute('aria-label','Vue en plan '+l.name);pdf.onclick=()=>viewPlan(l);row.append(cb,info,z,pdf,c,del);rows.append(row);
+        const native=document.createElement('button');native.textContent='Outils';native.hidden=!l.sourcePlanId;native.onclick=()=>nativePlan(l.sourcePlanId);
+        const pdf=document.createElement('button');pdf.textContent='PDF';pdf.title='Vue en plan · PDF original';pdf.setAttribute('aria-label','Vue en plan '+l.name);pdf.onclick=()=>viewPlan(l);row.append(cb,info,z,pdf,native,c,del);rows.append(row);
       }
     }
     function remove(l){if(current===l)finish();if(detailLayer===l||detailBusy)clearDetail();group.remove(l.mesh);l.mesh.geometry.dispose();l.mesh.material.dispose();l.texture.dispose();l.canvas.width=l.canvas.height=0;layers.splice(layers.indexOf(l),1);if(ref===l){ref=null;distance=null;}update();fit();save();}
-    async function addFile(file,pageNo=1,levelId=selectedLevel){
+    async function addFile(file,pageNo=1,levelId=selectedLevel,source=null){
       if(closed||busy)throw Error('Import déjà en cours ou fermé.');
       if(layers.length>=(ws?MAX_LEVELS:MAX))throw Error('Maximum '+(ws?MAX_LEVELS:MAX)+' plans.');
       if(ws&&(!levelBy(levelId)||layers.some(l=>l.levelId===levelId)))throw Error('Choisissez un niveau vide avant l’import.');
@@ -329,7 +368,7 @@
         const geo=new T.PlaneGeometry(1,1);geo.rotateX(-Math.PI/2);
         const mat=new T.MeshBasicMaterial({map:texture,side:T.DoubleSide,toneMapped:false,transparent:false});
         const mesh=new T.Mesh(geo,mat);mesh.visible=false;group.add(mesh);
-        const l={id:++serial,name:String(file.name).slice(0,120),page:pageNo,file,width:v.width,height:v.height,canvas,texture,mesh,levelId:ws?levelId:null,z:ws?levelBy(levelId).z:layers.length*3,visible:true,A:null,B:null,validated:false,t:null,color:COLORS[layers.length%COLORS.length]};
+        const l={id:++serial,name:String(file.name).slice(0,120),page:pageNo,file,width:v.width,height:v.height,canvas,texture,mesh,levelId:ws?levelId:null,sourcePlanId:source?.id||null,sourcePdfId:source?.pdfFileId||null,z:ws?levelBy(levelId).z:layers.length*3,visible:true,A:null,B:null,validated:false,t:null,color:COLORS[layers.length%COLORS.length]};
         layers.push(l);committed=true;if(!ref)ref=l;update();msg('PDF importé. Calage requis avant affichage.');if(!await save())throw Error('PDF chargé mais sauvegarde locale échouée. Réessayez via Plans.');return l.id;
       }finally{
         renderTask=null;const t=task;task=null;if(t)await t.destroy().catch(()=>{});if(canvas&&!committed)canvas.width=canvas.height=0;busy=false;
@@ -340,11 +379,11 @@
     async function projectSources(){
       if(!options.projectId||typeof DB==='undefined')throw Error('Ouvrez un projet SiteTeam avant d’importer ses plans.');
       const pid=options.projectId;
-      const [plans,folders]=await Promise.all([DB.byProject('plans',pid),DB.byProject('folders',pid)]);
+      const [plans,folders,project]=await Promise.all([DB.byProject('plans',pid),DB.byProject('folders',pid),DB.get('projects',pid)]);
       const fm=new Map(folders.filter(f=>f.projectId===pid).map(f=>[f.id,f]));
       const folderPath=id=>{const names=[],seen=new Set();while(id&&fm.has(id)&&!seen.has(id)&&names.length<12){seen.add(id);const f=fm.get(id);names.unshift(f.name||'Dossier');id=f.parentId;}return names.join(' › ')||'Sans dossier';};
       return plans.filter(p=>p.projectId===pid&&p.pdfFileId&&(typeof isCurrentPlan!=='function'||isCurrentPlan(p)))
-        .map(p=>({id:p.id,name:p.name||'Plan',folder:folderPath(p.folderId),page:p.pdfPage||1}))
+        .map(p=>{const L=(project?.planLots||[]).find(l=>l.id===p.lotId),type=p.disc||L?.cat||'Sans type';return {id:p.id,name:p.name||'Plan',folder:folderPath(p.folderId),topFolderId:rootFolder(p.folderId,folders)?.id||null,type,lot:L?.name||p.lotId||'',lotId:p.lotId||null,indice:p.indice||'',page:p.pdfPage||1};})
         .sort((a,b)=>(a.folder+' '+a.name).localeCompare(b.folder+' '+b.name,'fr',{numeric:true}));
     }
     async function addProjectPlan(id,levelId=selectedLevel){
@@ -363,23 +402,26 @@
       // Blob d'origine conservé en lecture seule; respect de la page du niveau.
       const blob=rec.blob, name=plan.name||rec.name||'Plan PDF';
       const file=new File([blob],name+'.pdf',{type:'application/pdf'});
-      return addFile(file,Number(plan.pdfPage)||1,levelId);
+      const level=levelBy(levelId);if(level?.folderId){const folders=await DB.byProject('folders',pid);if(rootFolder(plan.folderId,folders)?.id!==level.folderId)throw Error('Ce PDF appartient à un autre niveau du chantier.');}
+      return addFile(file,Number(plan.pdfPage)||1,levelId,plan);
     }
     function drawSources(){
       const box=$('[data-r="source-list"]'),q=$('[data-r="search"]').value.trim().toLocaleLowerCase();
       box.replaceChildren();
-      const matches=sources.filter(p=>(p.folder+' '+p.name).toLocaleLowerCase().includes(q));
+      const level=levelBy(selectedLevel),type=$('[data-r="source-filter"]').value;
+      const matches=sources.filter(p=>(!level?.folderId||p.topFolderId===level.folderId)&&(!type||p.type===type)&&(p.folder+' '+p.name+' '+p.type+' '+p.lot).toLocaleLowerCase().includes(q));
       for(const p of matches.slice(0,150)){
         const b=document.createElement('button');b.type='button';
         const title=document.createElement('span');title.textContent=p.name;
-        const sub=document.createElement('small');sub.textContent=p.folder+' · PDF p.'+p.page;
+        const sub=document.createElement('small');sub.textContent=p.folder+' · '+p.type+(p.lot?' · '+p.lot:'')+(p.indice?' · Ind. '+p.indice:'')+' · PDF p.'+p.page;
         b.append(title,sub);b.onclick=async()=>{
           if(busy||closed)return;
+          if(layers.some(l=>l.levelId===selectedLevel)){await nativePlan(p.id);return;}
           b.disabled=true;try{const id=await addProjectPlan(p.id);if(closed)return;
             $('[data-r="sources"]').hidden=true;edit(layers.find(l=>l.id===id));}
           catch(e){if(!closed)msg('Import '+p.name+' : '+(e.message||e));}
           finally{b.disabled=false;}
-        };box.append(b);
+        };const wrap=document.createElement('div');wrap.append(b);const tools=document.createElement('button');tools.textContent='Plan & outils';tools.onclick=()=>nativePlan(p.id);wrap.append(tools);if(p.lotId){const lot=document.createElement('button');lot.textContent='Suivi du lot';lot.onclick=()=>openLot(p);wrap.append(lot);}box.append(wrap);
       }
       if(!matches.length)box.textContent='Aucun PDF original dans ces niveaux. Utilisez Téléphone ou synchronisez les plans.';
       else if(matches.length>150){const sub=document.createElement('div');sub.className='ps-small';sub.textContent='Affinez la recherche ('+matches.length+' plans).';box.append(sub);}
@@ -388,7 +430,7 @@
       if(busy||closed)return;
       const panel=$('[data-r="sources"]');panel.hidden=false;
       $('[data-r="source-list"]').textContent='Lecture des niveaux…';
-      try{sources=await projectSources();if(!closed)drawSources();}
+      try{sources=await projectSources();if(!closed){const sel=$('[data-r="source-filter"]');sel.replaceChildren(new Option('Tous les types',''));for(const t of [...new Set(sources.map(p=>p.type))].sort())sel.append(new Option(t,t));drawSources();}}
       catch(e){if(!closed){$('[data-r="source-list"]').textContent=e.message||String(e);msg(e.message||String(e));}}
     }
     const preview=$('[data-r="preview"]');
@@ -555,6 +597,8 @@
     });
     $('[data-r="level-name"]').onchange=e=>{const v=levelBy(selectedLevel),name=e.target.value.trim();if(!v||!name||name.length>24||levels.some(x=>x!==v&&x.name.toLowerCase()===name.toLowerCase())){drawLevels();msg('Nom de niveau unique requis.');return;}v.name=name;update();save();};
     $('[data-r="level-z"]').onchange=e=>{const v=levelBy(selectedLevel),z=Number(e.target.value);if(!v||!e.target.value.trim()||!Number.isFinite(z)||Math.abs(z)>10000){drawLevels();return;}v.z=z;const l=layers.find(l=>l.levelId===v.id);if(l)l.z=z;update();fit();save();};
+    on('bind-folder',async()=>{const v=levelBy(selectedLevel);if(!v||busy||current)return;const folders=await DB.byProject('folders',options.projectId);const f=await menu('Lier au niveau du chantier',[{label:'Aucun lien',value:'none'},...folders.filter(x=>rootFolder(x.id,folders)?.id===x.id).map(x=>({label:x.name,value:x.id}))]);if(f==null||closed)return;v.folderId=f==='none'?null:f;update();await save();});
+    $('[data-r="source-filter"]').onchange=drawSources;
     on('projectplans',showSources);on('sourceclose',()=>{$('[data-r="sources"]').hidden=true;});$('[data-r="search"]').oninput=drawSources;
     on('add',()=>{if(!busy)$('[data-r="file"]').click();});
     $('[data-r="file"]').onchange=async e=>{
@@ -576,11 +620,11 @@
     on('precision',precision);on('fullpaper',()=>{if(current&&!busy){zoom=1;calCenter=[current.width/2,current.height/2];drawPaper();queueHD();}});on('clear',()=>{if(current&&!busy){current.A=current.B=null;current.validated=false;update();save();drawPaper();}});on('calclose',finish);on('apply',()=>valider());on('apply-next',()=>valider(true));
     $('[data-r="explode"]').onchange=()=>{update();fit();};$('[data-r="opacity"]').oninput=update;
     if(ws){$('[data-a="projects"]').hidden=false;$('[data-r="file"]').multiple=false;$('[data-r="drawer"]').hidden=true;$('[data-a="layers"]').setAttribute('aria-expanded','false');
-      try{for(const p of (ws.plans||[])){const file=new File([p.file],p.name,{type:'application/pdf'});const id=await addFile(file,p.page,p.levelId);const l=layers.find(l=>l.id===id);l.A=p.A;l.B=p.B;l.validated=!!p.validated;l.visible=p.visible!==false;}ref=layers.find(l=>l.levelId===ws.referenceLevel)||layers[0]||null;distance=ws.distance||null;}
+      try{for(const p of (ws.plans||[])){const file=new File([p.file],p.name,{type:'application/pdf'});const id=await addFile(file,p.page,p.levelId,{id:p.sourcePlanId,pdfFileId:p.sourcePdfId});const l=layers.find(l=>l.id===id);l.A=p.A;l.B=p.B;l.validated=!!p.validated;l.visible=p.visible!==false;}ref=layers.find(l=>l.levelId===ws.referenceLevel)||layers[0]||null;distance=ws.distance||null;}
       catch(e){close();throw Error('Restauration du projet : '+(e.message||e));}finally{restoring=false;}
       msg('Projet local · choisissez un niveau pour importer ou consulter son PDF.');}
     resize();update();fit();
     return {close,addFile,addProjectPlan,projectSources,selectLevel:setLevel,flush:()=>ws?(writes.get(DB.name()+'|'+ws.id)||Promise.resolve(!saveFailed)):Promise.resolve(true),edit:id=>{const l=layers.find(x=>x.id===id);if(l)edit(l);},setPoint:(id,k,p)=>setPoint(layers.find(x=>x.id===id),k,p),setDistance:d=>{if(!ref||!ref.A||!ref.B)throw Error('Référence incomplète.');reference(ref.A,ref.B,d);distance=d;ref.validated=true;update();save();},validate:id=>{const l=layers.find(x=>x.id===id);if(!l||!l.A||!l.B||!distance||!ref?.validated)throw Error('Calage incomplet.');calage(l.A,l.B,[0,0],[distance,0]);l.validated=true;update();save();},detailState:()=>detailLayer?{levelId:detailLayer.levelId,width:detailCanvas.width,height:detailCanvas.height}:null,state:()=>layers.map(l=>({id:l.id,levelId:l.levelId,width:l.width,height:l.height,z:l.z,calibrated:!!l.t,visible:l.mesh.visible,transform:l.t?{...l.t}:null}))};
   }
-  window.ModelCorePDFStack={open,openWorkspace,openProjects,workspaceSummaries,makeWorkspace,calage,calagePoint,appliquer,reference,transferView,calViewport};
+  window.ModelCorePDFStack={open,openWorkspace,openProjects,workspaceSummaries,rootFolder,sourceLevels,makeWorkspace,calage,calagePoint,appliquer,reference,transferView,calViewport};
 })();
