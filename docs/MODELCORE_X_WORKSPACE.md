@@ -113,3 +113,7 @@ Viseur fixe au centre du plan : déplacer/zoomer le PDF puis « Placer au viseur
 
 ### Parcours d'ajout des niveaux
 Bouton Niveaux : liste de tous les niveaux avec altitude, nom du PDF et état (vide, à caler, calé), progression des imports et raccourcis pour importer/ouvrir/caler. « Valider + suivant » ouvre le prochain niveau sans PDF, puis le premier plan non calé, puis la 3D globale. Le bouton « 3D · Tous », y compris depuis le lecteur PDF, sélectionne Tous et réaffiche l'ensemble des plans calibrés à leur altitude (les masques manuels sont réinitialisés). Les PDF non calés restent signalés, sans placement géométrique fictif. Tests navigateur ajoutés. Un PDF par niveau, stockage local et limites antérieures inchangés.
+
+
+### Mes projets ModelCore X (en validation)
+Dans chaque projet SiteTeam, création de plusieurs espaces ModelCore indépendants et ouverture depuis « Mes projets » (ou le bouton Projets dans la scène). Chaque espace conserve ses propres PDF, niveaux, altitudes, repères et échelle. Les anciens espaces à identifiant égal au projet SiteTeam restent lisibles; les nouveaux utilisent un identifiant préfixé par le chantier et ne modifient pas l'ancien espace. La liste utilise les clés IndexedDB et ne crée pas de nouvelle base; les données restent locales au workspace SiteTeam. La suppression du projet SiteTeam supprime tous ses espaces ModelCore locaux associés. Pas de partage cloud ni de suppression individuelle ajoutée. Tests de création d'un second espace vide, réouverture du premier avec ses calages et nettoyage ajoutés.
