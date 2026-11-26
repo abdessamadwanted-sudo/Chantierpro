@@ -284,10 +284,10 @@
       catch(e){if(!closed){$('[data-r="source-list"]').textContent=e.message||String(e);msg(e.message||String(e));}}
     }
     const preview=$('[data-r="preview"]');
-    let calCenter=null,calV=null,calHD=null,calTimer=null,calEpoch=0,calTask=null,calPagePromise=null,calRender=null,calRendering=false,calPending=false;
+    let calCenter=null,calV=null,calHD=null,calTimer=null,calEpoch=0,calSession=0,calTask=null,calPagePromise=null,calRender=null,calRendering=false,calPending=false;
     const pointers=new Map();let gesture=null;
     function releaseCrop(){
-      ++calEpoch;clearTimeout(calTimer);calTimer=null;calPending=false;
+      ++calEpoch;++calSession;clearTimeout(calTimer);calTimer=null;calPending=false;
       if(calRender)try{calRender.cancel();}catch(e){}
       if(calTask)calTask.destroy().catch(()=>{});
       calTask=null;calPagePromise=null;
@@ -327,13 +327,13 @@
     async function renderCalHD(){
       if(!current||closed)return;
       if(calRendering){calPending=true;return;}
-      const l=current,v=viewState(),epoch=calEpoch;if(!v)return;
+      const l=current,v=viewState(),epoch=calEpoch,session=calSession;if(!v)return;
       calRendering=true;let c=null;
       try{
         if(!calPagePromise){
           calPagePromise=(async()=>{
             const bytes=new Uint8Array(await l.file.arrayBuffer());
-            if(closed||current!==l)throw Error('Calage fermé');
+            if(closed||current!==l||session!==calSession)throw Error('Calage fermé');
             const t=pdfjsLib.getDocument({data:bytes,isEvalSupported:false});calTask=t;
             const doc=await t.promise;return doc.getPage(l.page);
           })();
@@ -348,7 +348,7 @@
         if(closed||current!==l||epoch!==calEpoch)return;
         if(calHD)calHD.canvas.width=calHD.canvas.height=0;calHD={canvas:c,layer:l,v};c=null;
         paper.dataset.hd=String(epoch);drawPaper();
-      }catch(e){if(!closed&&current===l&&epoch===calEpoch&&e?.name!=='RenderingCancelledException'){msg('Rendu HD indisponible : '+(e.message||e));if(!calTask)calPagePromise=null;}}
+      }catch(e){if(!closed&&current===l&&epoch===calEpoch&&e?.name!=='RenderingCancelledException'){msg('Rendu HD indisponible : '+(e.message||e));if(calTask)calTask.destroy().catch(()=>{});calTask=null;calPagePromise=null;}}
       finally{if(c)c.width=c.height=0;calRender=null;calRendering=false;if(calPending){calPending=false;queueHD();}}
     }
     function zoomAt(z,x,y){
@@ -402,8 +402,8 @@
     }
     function local(e){const r=paper.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top];}
     paper.addEventListener('pointerdown',e=>{
-      if(!current||!calV||busy)return;e.preventDefault();paper.setPointerCapture(e.pointerId);
-      pointers.set(e.pointerId,local(e));const p=[...pointers.values()];
+      if(!current||!calV||busy)return;e.preventDefault();try{paper.setPointerCapture(e.pointerId);}catch(e){}
+      if(pointers.size>=2)return;pointers.set(e.pointerId,local(e));const p=[...pointers.values()];
       if(p.length===1)gesture={start:p[0],last:p[0],moved:false,multi:false};
       else if(p.length===2){gesture={multi:true,last:[(p[0][0]+p[1][0])/2,(p[0][1]+p[1][1])/2],d:Math.max(1,Math.hypot(p[0][0]-p[1][0],p[0][1]-p[1][1]))};}
     });
