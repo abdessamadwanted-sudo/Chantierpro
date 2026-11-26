@@ -82,6 +82,20 @@ const ST_EXTERNAL_THEME = {
 };
 const stVisual = (k, fallback='#60a5fa') => ST_SERVICE_THEME[k] || ST_EXTERNAL_THEME[k] || [fallback,'grid','Outils métier'];
 const stOrgVisual = (k) => ST_ORG_THEME[k] || ['#94a3b8','grid'];
+// Branches métier : sous-services de présentation rattachés aux clés d'abonnement existantes.
+ // Ne crée ni droit, ni abonnement supplémentaire, ni nouvelle clé Firestore.
+const ST_ORG_BRANCHES = {
+ bet:{bim:[['bet.struct','Structure'],['bet.fluides','Fluides / Électricité'],['bet.bim','BIM & coordination']],metre:[['bet.metre','Métré & estimation']],doc:[['bet.exec','Visa & RFI'],['bet.doc','Documentation technique']]},
+ archi:{bim:[['archi.concep','Conception & plans'],['archi.bim','BIM & maquette']],doc:[['archi.exec','Visa chantier'],['archi.finitions','Finitions & détails'],['archi.opc','Coordination'],['archi.doc','Documentation']]},
+ topo:{topo:[['topo.impl','Implantation'],['topo.rel','Relevés terrain'],['topo.ctrl','Contrôles géométriques'],['topo.asb','Plans & récolement'],['topo.calc','Calculs & coordonnées']],materiel:[['topo.mat','Instruments & matériel']]},
+ labo:{labo:[['labo.beton','Essais béton'],['labo.sols','Sols / géotechnique'],['labo.prelev','Prélèvements'],['labo.trace','Traçabilité'],['labo.conf','Conformité matériaux']],doc:[['labo.rapp','Rapports & résultats']]},
+ bc:{qualite:[['bc.ctrl','Contrôles chantier'],['bc.recep','Réceptions & réserves']],doc:[['bc.avis','Avis techniques & rapports']]},
+ moa:{direction:[['moa.budget','Programme & pilotage']],qualite:[['moa.tech','Suivi technique']],admin:[['moa.valid','Validations & paiements']]},
+ opc:{methodes:[['opc.plan','Planning & jalons'],['opc.coord','Coordination des lots']],doc:[['opc.rapp','Reporting & comptes rendus']]},
+ soustraitant:{travaux:[['st.prod','Production & rendement']],ferraillage:[['st.fer','Armatures & suivi']],materiel:[['st.mat','Matériel & affectations']],hse:[['st.hse','Sécurité terrain']]}
+};
+const stOrgBranches = (orgKey,svcKey) => (ST_ORG_BRANCHES[orgKey] || {})[svcKey] || [];
+const stOrgServiceTitle = (orgKey, svc) => (({bet:{bim:'Études & BIM',doc:'Visa & documentation',metre:'Métré & quantités'},archi:{bim:'Conception & BIM',doc:'Suivi & documentation'},topo:{topo:'Missions topographiques'},labo:{labo:'Essais & analyses',doc:'Rapports & résultats'},bc:{qualite:'Contrôle technique'},opc:{methodes:'Planning & coordination'}}[orgKey] || {})[svc.k] || svc.l);
 const stVisualStyle = (c) => '--st-tone:'+c+';--st-tint:'+c+'20;--st-edge:'+c+'70';
 function offerCard(P, perso, btn = true, opts = null) {
   const dev = planDev(P), mods = P.modules === '*' ? MODS.map(([m]) => m) : P.modules, price = dev ? 'En cours de développement' : P.price == null ? 'Sur devis' : P.price ? `${P.price} MAD / ${P.period}` : 'Gratuit';
@@ -1823,8 +1837,8 @@ const Team = (() => {
           <div class="st-ent-head" style="${stVisualStyle(stOrgVisual(T.k)[0])}"><small>Pack ${esc(P.l)} › Organisation</small><div class="st-tree-root" aria-label="Organisation sélectionnée"><span class="st-node-icon">${icon(stOrgVisual(T.k)[1])}</span><span><b>${esc(T.l)}</b><small>Catalogue métier</small></span></div><div class="st-tree-connector" aria-hidden="true"></div></div>
           <div class="st-ent-modes" role="group" aria-label="Mode de sélection"><button type="button" data-tpl="petite" aria-pressed="false">À la carte · Services indépendants</button><button type="button" data-tpl="grande" aria-pressed="false">Tous les services</button></div>
           <p class="st-ent-count" aria-live="polite"></p>
-          <div class="st-svcs st-node-grid">${L.map(s => { const [c,ic,sub]=stVisual(s.k,s.c); return `<button type="button" ${svcOpen(s.k) ? `data-s="${s.k}" aria-pressed="${W.svcs.includes(s.k)}" class="${W.svcs.includes(s.k) ? 'on' : ''}"` : `class="lk" data-lk="${s.k}"`} style="--c:${c};${stVisualStyle(c)}"><span class="st-node-icon st-ent-card-icon" aria-hidden="true">${icon(ic)}</span><span class="st-node-copy"><b class="st-ent-card-label">${esc(s.l)}</b><small>${esc(sub)}</small></span><span class="st-node-check st-ent-card-mark" aria-hidden="true">${!svcOpen(s.k) ? '🔒' : W.svcs.includes(s.k) ? '✓' : '○'}</span></button>`; }).join('')}</div>
-          <small class="st-lknote">🔒 Services en préparation : ils s'ouvriront un par un.</small>
+          <div class="st-svcs st-node-grid">${L.map(s => { const [c,ic,sub]=stVisual(s.k,s.c), branches=stOrgBranches(T.k,s.k); return `<button type="button" ${svcOpen(s.k) ? `data-s="${s.k}" aria-pressed="${W.svcs.includes(s.k)}" class="${W.svcs.includes(s.k) ? 'on' : ''}"` : `class="lk" data-lk="${s.k}"`} style="--c:${c};${stVisualStyle(c)}"><span class="st-node-icon st-ent-card-icon" aria-hidden="true">${icon(ic)}</span><span class="st-node-copy"><b class="st-ent-card-label">${esc(stOrgServiceTitle(T.k,s))}</b><small>${esc(sub)}</small>${branches.length ? `<span class="st-branch-list">${branches.map(([k,label])=>`<span>${esc(label)}</span>`).join('')}</span>` : ''}</span><span class="st-node-check st-ent-card-mark" aria-hidden="true">${!svcOpen(s.k) ? '🔒' : W.svcs.includes(s.k) ? '✓' : '○'}</span></button>`; }).join('')}</div>
+          <small class="st-lknote">Sélection par service. Les sous-services sont inclus dans leur service parent ; les outils restent soumis à vos droits. 🔒 En préparation si verrouillé.</small>
           <div class="form"><label>Nom de l'organisation<input name="cname" placeholder="Ex : ${T.k === 'entreprise' ? 'Entreprise BTP …' : esc(T.l) + ' …'}"></label>
           <label>Votre nom<input name="me" value="${esc(auth.currentUser.displayName || '')}"></label>
           ${T.k === 'entreprise' ? `<label>Votre poste<select name="role">${TM_ROLES.filter(x => x.admin).map(x => `<option value="${x.k}">${esc(x.l)}</option>`).join('')}</select></label>` : ''}
