@@ -4,6 +4,8 @@ on:
     branches: [siteteam]
     paths:
       - 'www/js/modelcore3d.js'
+      - 'www/js/modelcore-pdfstack.js'
+      - 'ci/st.mjs'
       - 'www/js/modelcore-ifc-worker.js'
       - 'ci/modelcore-ifc.test.mjs'
       - 'ci/fixtures/modelcore-column.ifc'
@@ -26,6 +28,7 @@ jobs:
           node-version: '20'
       - run: node --check www/js/modelcore3d-templates.js
       - run: node --check www/js/modelcore3d.js
+      - run: node --check www/js/modelcore-pdfstack.js
       - run: node --check www/js/m3d.js
       - run: node --check ci/modelcore3d.test.mjs
       - run: node ci/modelcore3d.test.mjs
