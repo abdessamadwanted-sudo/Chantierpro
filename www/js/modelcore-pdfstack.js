@@ -47,7 +47,7 @@
     const el=document.createElement('div');el.className='mc-pdfstack'+(ws?' mc-workspace':'');
     el.innerHTML='<style>.mc-pdfstack{position:fixed;inset:0;z-index:1000000;display:flex;flex-direction:column;background:#08192a;color:#e6f4ff;font:13px system-ui,sans-serif;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}.mc-pdfstack *{box-sizing:border-box}.mc-pdfstack [hidden]{display:none!important}.mc-pdfstack button,.mc-pdfstack input,.mc-pdfstack select{background:#163348;color:#e6f4ff;border:1px solid #34586d;border-radius:8px;padding:8px;min-height:36px;font:inherit}.mc-pdfstack button.active{border-color:#55d9ee;color:#8af0ff;background:#155064}.mc-pdfstack button:disabled{opacity:.4}.mc-pdfstack .ps-head,.mc-pdfstack .ps-bar{display:flex;gap:6px;align-items:center;padding:8px;flex-shrink:0}.mc-pdfstack .ps-head{background:#0b2236}.mc-pdfstack .ps-head b{font-size:16px}.mc-pdfstack .ps-small{font-size:11px;color:#9bbacc}.mc-pdfstack .ps-grow{flex:1;min-width:0}.mc-pdfstack .ps-stage{position:relative;flex:1;min-height:100px;overflow:hidden;background:radial-gradient(ellipse,#24465b,#071625 75%)}.mc-pdfstack .ps-stage>canvas{width:100%;height:100%;display:block;touch-action:none}.mc-pdfstack .ps-cal{display:flex;flex-direction:column;flex:1;min-height:0;padding:8px;gap:5px}.mc-pdfstack .ps-preview{flex:1;min-height:120px;overflow:auto;background:#172b3c;touch-action:pan-x pan-y}.mc-pdfstack .ps-preview canvas{display:block;max-width:none;touch-action:pan-x pan-y}.mc-pdfstack .ps-drawer{max-height:43%;overflow:auto;padding:8px;background:#0d2538;border-top:1px solid #315267}.mc-pdfstack .ps-row{display:flex;align-items:center;gap:5px;margin:6px 0}.mc-pdfstack .ps-row input[type=number]{width:74px}.mc-pdfstack .ps-row b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}.mc-pdfstack .ps-status{padding:5px 10px;color:#a8d4e2;min-height:25px;font-size:11px}.mc-pdfstack .ps-top{position:absolute;top:8px;left:8px;right:8px;pointer-events:none;display:flex;justify-content:space-between}.mc-pdfstack .ps-top span{background:#0a2035dd;padding:6px;border-radius:6px}.mc-pdfstack .ps-cal .ps-bar{padding:0;flex-wrap:wrap}.mc-pdfstack .ps-cal .ps-bar input{width:90px}.mc-pdfstack .ps-point{color:#64e4ff}.mc-pdfstack .ps-source{border:1px solid #34586d;border-radius:8px;padding:6px;margin:6px 0}.mc-pdfstack .ps-source input[type=search]{width:100%}.mc-pdfstack .ps-source-list{max-height:180px;overflow:auto}.mc-pdfstack .ps-source-list button{text-align:left;width:100%;margin:3px 0;white-space:normal;overflow-wrap:anywhere}.mc-pdfstack .ps-source-list small{display:block;color:#a8c7d8}.mc-pdfstack .ps-bar{overflow-x:auto}.mc-pdfstack .ps-drawer .ps-row{flex-wrap:wrap}.mc-pdfstack .ps-levels{position:absolute;right:10px;top:52px;max-height:calc(100% - 65px);overflow:auto;display:flex;flex-direction:column;gap:6px;padding:5px;background:#0b2236dd;border:1px solid #34586d;border-radius:14px;max-width:94px}.mc-pdfstack .ps-levels button{min-height:44px;min-width:56px;padding:6px 4px;overflow-wrap:anywhere}.mc-pdfstack .ps-levels small{display:block;font-size:10px;color:#a8c7d8}.mc-pdfstack .ps-empty{position:absolute;top:38%;left:10%;right:27%;text-align:center;color:#a8c7d8;pointer-events:none}.mc-pdfstack .ps-empty b{display:block;font-size:17px;color:#e6f4ff;margin-bottom:8px}.mc-pdfstack .ps-level-tools{border-bottom:1px solid #34586d;padding-bottom:6px;margin-bottom:8px}.mc-pdfstack .ps-level-tools input[type=text]{width:110px;min-width:0}.mc-pdfstack .ps-level-tools input[type=number]{width:72px}.mc-workspace .ps-head b{font-size:19px}.mc-workspace .ps-stage{background:radial-gradient(ellipse,#24465b,#071625 75%)}</style>'+
       '<div class="ps-head"><button data-a="close">✕</button><div class="ps-grow"><b>◈ ModelCore <span style="color:#5ce5fc">X</span></b><div class="ps-small" data-r="project"></div></div><button data-a="layers" aria-expanded="true">☷ Plans</button></div>'+
-      '<div class="ps-bar"><button data-a="3d" class="active">3D</button><button data-a="top">Dessus</button><button data-a="fit">Ajuster</button><button data-a="zoomout">−</button><button data-a="zoomin">+</button><label class="ps-small">Écart <select data-r="explode"><option value="1">Réel</option><option value="2">×2</option><option value="4">×4</option></select></label></div>'+
+      '<div class="ps-bar"><button data-a="3d" class="active">3D</button><button data-a="top">Dessus 3D</button><button data-a="planview" hidden>Vue en plan</button><button data-a="fit">Ajuster</button><button data-a="zoomout">−</button><button data-a="zoomin">+</button><label class="ps-small">Écart <select data-r="explode"><option value="1">Réel</option><option value="2">×2</option><option value="4">×4</option></select></label></div>'+
       '<div class="ps-stage" data-r="stage"><div class="ps-top"><span data-r="count">0 plan calé</span><span>1 doigt orbite · 2 doigts zoom/pan</span></div><div class="ps-empty" data-r="empty" hidden><b>Projet vide</b><span>Choisissez un niveau à droite pour ajouter son PDF.</span></div><div class="ps-levels" data-r="levels" hidden></div></div>'+
       '<div class="ps-cal" data-r="cal" hidden><div class="ps-bar"><b class="ps-grow" data-r="calname"></b><button data-a="calclose">Terminer</button></div><div class="ps-bar"><button data-a="pointA" class="active">Point A</button><button data-a="pointB">Point B</button><button data-a="calminus">−</button><button data-a="calplus">+</button><button data-a="precision">◎ Précision</button><button data-a="fullpaper" hidden>Plan entier</button><button data-a="clear">Effacer</button></div><div class="ps-small" data-r="instructions"></div><div class="ps-preview" data-r="preview"><canvas data-r="paper"></canvas></div><div class="ps-bar"><label>Distance A–B (m) <input data-r="distance" type="number" min=".01" max="10000" step=".01" value=""></label><button data-a="apply">Valider le calage</button></div></div>'+
       '<div class="ps-drawer" data-r="drawer"><div class="ps-level-tools" data-r="level-tools" hidden><div class="ps-row"><b class="ps-grow" data-r="selected-level"></b><button data-a="retry-save">Enregistrer</button><button data-a="drawerclose">✕</button></div><div class="ps-row"><label>Altitude (m) <input type="number" step=".01" data-r="level-z"></label></div><div class="ps-row"><input type="text" maxlength="24" data-r="new-level" placeholder="Ex. Sous-sol"><input type="number" step=".01" data-r="new-z" placeholder="Altitude"><button data-a="newlevel">＋ Niveau</button></div></div><div class="ps-row"><button data-a="projectplans">▤ Plans du projet</button><button data-a="add">＋ Téléphone</button><input data-r="file" type="file" accept="*/*" multiple hidden><label class="ps-small">Page <input data-r="page" type="number" value="1" min="1" step="1" aria-label="Page PDF"></label><label class="ps-small">Opacité <input data-r="opacity" type="range" min="20" max="100" value="100"></label></div><div class="ps-source" data-r="sources" hidden><div class="ps-row"><b class="ps-grow">Niveaux · PDF du projet</b><button data-a="sourceclose">✕</button></div><input type="search" data-r="search" placeholder="Rechercher niveau, dossier ou plan…" aria-label="Rechercher un plan"><div class="ps-source-list" data-r="source-list"></div></div><div class="ps-small">Premier PDF = référence. Les plans importés apparaissent dans la liste; appuyez sur Caler pour les afficher en 3D. Max. 8 plans · 60 Mo/PDF · stockage local.</div><div data-r="list"></div></div><div class="ps-status" data-r="status" aria-live="polite">Ajoutez le PDF de référence.</div>';
@@ -64,7 +64,7 @@
     controls.enableDamping=false;controls.enablePan=true;controls.touches.ONE=T.TOUCH.ROTATE;controls.touches.TWO=T.TOUCH.DOLLY_PAN;
     renderer.domElement.style.touchAction='none';
     const grid=new T.GridHelper(100,20,0x436679,0x2c495d);grid.material.transparent=true;grid.material.opacity=.22;scene.add(grid);
-    const layers=[];let ref=null,current=null,point='A',zoom=1,crop=null,closed=false,busy=false,raf=0,task=null,renderTask=null,backRemove=null,distance=null,view='3d',serial=0,sources=[],selectedLevel='all',restoring=!!ws,saveFailed=false;
+    const layers=[];let ref=null,current=null,point='A',zoom=1,crop=null,closed=false,busy=false,raf=0,task=null,renderTask=null,backRemove=null,distance=null,view='3d',serial=0,sources=[],selectedLevel='all',restoring=!!ws,saveFailed=false,reading=false,closeReader=null;
     function msg(s){$('[data-r="status"]').textContent=s;}
     function save(){
       if(!ws||restoring)return Promise.resolve(true);
@@ -75,6 +75,20 @@
       writes.set(key,promise);promise.then(()=>{if(writes.get(key)===promise)writes.delete(key);});return promise;
     }
     function levelBy(id){return levels.find(v=>v.id===id);}
+    async function viewPlan(l){
+      if(closed||busy||reading||!l)return;
+      if(typeof showPdf!=='function'){msg('Lecteur PDF indisponible.');return;}
+      reading=true;
+      // Le lecteur normal utilise le PDF original et non la texture 3D.
+      // La caméra, les repères et la sélection restent intacts au retour.
+      try{
+        await showPdf(l.file,(ws?levelBy(l.levelId)?.name+' · ':'')+l.name,{
+          page:l.page,onlyPage:true,overlay:true,
+          onOpen:shut=>{closeReader=shut;},onClose:()=>{reading=false;closeReader=null;if(!closed)schedule();}
+        });
+        if(!closeReader)reading=false;
+      }catch(e){reading=false;closeReader=null;if(!closed)msg('Vue en plan : '+(e.message||e));}
+    }
     function setLevel(id){
       if(!ws||busy||closed||current)return;
       if(id!=='all'&&!levelBy(id))return;
@@ -97,13 +111,14 @@
       const v=levelBy(selectedLevel);$('[data-r="level-tools"]').hidden=false;
       $('[data-r="selected-level"]').textContent=v?v.name+' · '+(layers.some(l=>l.levelId===v.id)?'PDF importé':'Aucun plan'):'Niveaux du projet';
       const z=$('[data-r="level-z"]');z.disabled=!v;z.value=v?v.z:'';
+      const planButton=$('[data-a="planview"]');planButton.hidden=!v;planButton.disabled=!layers.some(l=>l.levelId===selectedLevel);
       $('[data-a="projectplans"]').disabled=!v||layers.some(l=>l.levelId===v.id);
       $('[data-a="add"]').disabled=!v||layers.some(l=>l.levelId===v.id);
       const empty=$('[data-r="empty"]');empty.hidden=layers.some(l=>l.mesh.visible);
       empty.querySelector('b').textContent=layers.length?'Aucun plan calé visible':'Projet vide';
       empty.querySelector('span').textContent=layers.length?'Sélectionnez Tous ou terminez le calage du niveau.':'Choisissez un niveau à droite pour ajouter son PDF.';
     }
-    function schedule(){if(closed||raf)return;raf=requestAnimationFrame(()=>{raf=0;if(!stage.hidden)renderer.render(scene,camera);});}
+    function schedule(){if(closed||reading||raf)return;raf=requestAnimationFrame(()=>{raf=0;if(!stage.hidden&&!reading)renderer.render(scene,camera);});}
     controls.addEventListener('change',schedule);
     function resize(){if(stage.hidden)return;const w=Math.max(1,stage.clientWidth),h=Math.max(1,stage.clientHeight);renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();schedule();}
     const observer=new ResizeObserver(resize);observer.observe(stage);
@@ -137,7 +152,7 @@
         const z=document.createElement('input');z.type='number';z.step='.01';z.value=l.z;z.setAttribute('aria-label','Altitude en mètres');z.onchange=()=>{const n=Number(z.value);if(Number.isFinite(n)&&Math.abs(n)<=10000){l.z=n;if(ws)levelBy(l.levelId).z=n;}else z.value=l.z;update();save();};
         const c=document.createElement('button');c.textContent='Caler';c.onclick=()=>edit(l);
         const del=document.createElement('button');del.textContent='✕';del.title=ws?'Retirer le PDF du niveau (original inchangé)':'Retirer ce plan de la session';del.onclick=()=>{if(busy)return;if(l===ref&&layers.length>1){msg('Retirez les autres plans avant la référence.');return;}if(ws&&!window.confirm('Retirer ce PDF du niveau ? Le fichier original reste inchangé.'))return;remove(l);};
-        row.append(cb,info,z,c,del);rows.append(row);
+        const pdf=document.createElement('button');pdf.textContent='PDF';pdf.title='Vue en plan · PDF original';pdf.setAttribute('aria-label','Vue en plan '+l.name);pdf.onclick=()=>viewPlan(l);row.append(cb,info,z,pdf,c,del);rows.append(row);
       }
     }
     function remove(l){if(current===l)finish();group.remove(l.mesh);l.mesh.geometry.dispose();l.mesh.material.dispose();l.texture.dispose();l.canvas.width=l.canvas.height=0;layers.splice(layers.indexOf(l),1);if(ref===l){ref=null;distance=null;}update();fit();save();}
@@ -283,7 +298,7 @@
       finally{renderTask=null;const t=task;task=null;if(t)await t.destroy().catch(()=>{});if(c)c.width=c.height=0;busy=false;}
     }
     function close(){
-      if(closed)return;closed=true;renderTask?.cancel();task?.destroy().catch(()=>{});if(raf)cancelAnimationFrame(raf);observer.disconnect();controls.dispose();
+      if(closed)return;closed=true;if(closeReader)closeReader();renderTask?.cancel();task?.destroy().catch(()=>{});if(raf)cancelAnimationFrame(raf);observer.disconnect();controls.dispose();
       if(backRemove)try{backRemove();}catch(e){}
       for(const l of layers){l.mesh.geometry.dispose();l.mesh.material.dispose();l.texture.dispose();l.canvas.width=l.canvas.height=0;}
       grid.geometry.dispose();grid.material.dispose();releaseCrop();paper.width=paper.height=0;renderer.dispose();renderer.forceContextLoss();el.remove();if(typeof options.onClose==='function')options.onClose();
@@ -310,6 +325,7 @@
       if(first!==null){const l=layers.find(x=>x.id===first);if(l)edit(l);}
       if(errors.length)msg(errors.join(' · '));else if(first!==null)msg('Import réussi · choisissez A et B pour afficher le plan.');
     };
+    on('planview',()=>viewPlan(layers.find(l=>l.levelId===selectedLevel)));
     on('3d',()=>{view='3d';controls.enableRotate=true;$('[data-a="3d"]').classList.add('active');$('[data-a="top"]').classList.remove('active');fit();});
     on('top',()=>{view='top';controls.enableRotate=false;$('[data-a="top"]').classList.add('active');$('[data-a="3d"]').classList.remove('active');fit();});
     on('fit',fit);on('zoomin',()=>{camera.position.sub(controls.target).multiplyScalar(.8).add(controls.target);controls.update();});on('zoomout',()=>{camera.position.sub(controls.target).multiplyScalar(1.25).add(controls.target);controls.update();});
