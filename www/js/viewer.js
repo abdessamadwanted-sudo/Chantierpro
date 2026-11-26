@@ -276,7 +276,7 @@ async function openPlanViewer(plan, ctx) {
   const pinM = () => Math.max(0.1, Math.min(0.8, Math.pow(st.scale / st.fitScale, 1.15) * 0.18 * st.pinSize));
 
   const el = document.createElement('div');
-  el.className = 'fullpage';
+  el.className = 'fullpage'+(ctx.modelcoreBridge?' mc-native-plan':'');
   el.innerHTML = `
     <div class="topbar">
       <button class="iconbtn" data-a="back">${icon('back')}</button>
