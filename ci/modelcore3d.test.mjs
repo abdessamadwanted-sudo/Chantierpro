@@ -199,3 +199,10 @@ assert.throws(()=>S.reference([1,1],[1,1],10),/distincts/);
 assert.throws(()=>S.reference([1,1],[2,2],0),/Distance/);
 assert.throws(()=>S.calage([1,1],[2,2],[0,0],[0,0]),/distincts/);
 console.log('PDF Stack — calage métrique, rotation, translation et échelle : OK.');
+
+const ws=S.makeWorkspace('p1','Stade réel',3,4.2);
+assert.equal(ws.id,'p1');assert.equal(ws.plans.length,0);assert.equal(ws.levels.length,3);
+assert.equal(ws.levels[0].name,'RDC');assert.equal(ws.levels[2].name,'R+2');assert.equal(ws.levels[2].z,8.4);
+assert.throws(()=>S.makeWorkspace('p1','Stade',9,3),/niveaux/);
+assert.throws(()=>S.makeWorkspace('p1','Stade',2,0),/hauteur/);
+console.log('ModelCore X — création vide, niveaux et altitudes : OK.');
