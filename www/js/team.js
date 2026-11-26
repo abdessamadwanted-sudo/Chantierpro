@@ -66,7 +66,7 @@ const ST_SERVICE_THEME = {
  metre:['#a78bfa','st_calculator','Quantités et estimations'], ferraillage:['#f87171','st_rebar','Armatures et suivi'],
  centrale:['#94a3b8','st_mixer','Commandes et béton'], logistique:['#f59e0b','st_truck','Logistique']
 };
-const ST_ORG_THEME = {entreprise:['#fbbf24','st_building'],soustraitant:['#fb923c','st_helmet'],bet:['#22d3ee','st_compass'],archi:['#c084fc','st_archi'],moa:['#4ade80','st_landmark'],bc:['#fb7185','shield'],opc:['#22d3ee','calendar'],labo:['#38bdf8','st_flask'],topo:['#2dd4bf','st_station']};
+const ST_ORG_THEME = {entreprise:['#fbbf24','st_building'],soustraitant:['#fb923c','st_subcontract'],bet:['#22d3ee','st_compass'],archi:['#c084fc','st_archi'],moa:['#4ade80','st_landmark'],bc:['#fb7185','st_inspection'],opc:['#60a5fa','st_coordination'],labo:['#38bdf8','st_flask'],topo:['#2dd4bf','st_station'],artisan:['#fb923c','st_craft'],fournisseur:['#fbbf24','st_supply'],loueur:['#eab308','st_rental'],promoteur:['#4ade80','st_property'],formation:['#a78bfa','st_training'],independant:['#4ade80','st_helmet']};
 // Les sous-services externes gardent leurs clés et leurs droits existants.
 const ST_EXTERNAL_THEME = {
  'bet.bim':['#c084fc','st_bim','Coordination BIM'], 'bet.doc':['#fbbf24','st_binders','Documentation'],
@@ -1836,7 +1836,7 @@ const Team = (() => {
             <div class="st-tree-root"><span class="st-node-icon">${icon('layers')}</span><span><b>Pack ${esc(P.l)}</b><small>Organisations · services · outils</small></span></div>
             <div class="st-tree-connector" aria-hidden="true"></div>
             <button class="st-ent-trigger" data-a="orgmenu" aria-expanded="true" aria-controls="st-ent-options" type="button">
-              <span>${current.e} ${esc(current.l)}</span><span aria-hidden="true">⌄</span></button>
+              <span>${icon(stOrgVisual(current.k)[1])} ${esc(current.l)}</span><span aria-hidden="true">⌄</span></button>
             <div id="st-ent-options" class="st-ent-options st-orgs st-node-grid" role="group" aria-label="Types d'organisation">
               ${ORG_TYPES.map(t => { const [c,ic]=stOrgVisual(t.k); return `<button type="button" data-o="${t.k}" aria-pressed="${t.k === current.k}" style="${stVisualStyle(c)}"><span class="st-node-icon">${icon(ic)}</span><span class="st-node-copy"><b>${esc(t.k==='opc'?'OPC':t.l)}</b><small>${esc(t.d)}</small></span><span class="st-node-check" aria-hidden="true">${t.k === current.k ? '✓' : '○'}</span></button>`; }).join('')}
             </div>
