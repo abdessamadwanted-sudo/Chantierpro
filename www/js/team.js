@@ -1296,10 +1296,19 @@ const Team = (() => {
   // la liste des espaces du compte (users/{uid}.workspaces) est tenue à jour à chaque ouverture
   async function saveWorkspace() {
     const T = orgType(), w = { cid: S.cid, name: S.company.name || '', kind: S.company.kind || 'org', org: T.k, role: S.me.role || '', plan: myPlan().k };
-    const L = (S.workspaces || []).filter(x => x.cid !== S.cid), cur = (S.workspaces || []).find(x => x.cid === S.cid);
-    const next = [w, ...L];
-    if (cur && JSON.stringify(cur) === JSON.stringify(w) && (S.workspaces || [])[0] && S.workspaces[0].cid === S.cid) return;
-    try { await fs.collection('users').doc(S.user.uid).set({ workspaces: next }, { merge: true }); S.workspaces = next; } catch (e) { console.warn('ws', e); }
+    const cur = (S.workspaces || []).find(x => x.cid === S.cid);
+    if (cur && JSON.stringify(cur) === JSON.stringify(w) && (S.workspaces || [])[0]?.cid === S.cid) return;
+    try {
+      const ref = fs.collection('users').doc(S.user.uid);
+      let next = [];
+      await withTimeout(fs.runTransaction(async tx => {
+        const d = await tx.get(ref), current = d.exists ? d.data() : {};
+        next = [w, ...(Array.isArray(current.workspaces)?current.workspaces:[]).filter(x=>x.cid!==w.cid)];
+        tx.set(ref,{workspaces:next},{merge:true});
+      }),15000);
+      S.workspaces=next;
+      LS.set('profile',{...(LS.get('profile')||{}),workspaces:next});
+    } catch(e) { console.warn('ws',e); }
   }
   // v1.0.3xx (24/11/2026, demande du propriétaire : retirer « Pro Service autonome », tout passe par Entreprise) :
   // correspondance clé du catalogue (assets/studio.json, aut_X) → clé TM_SERVICES, pour migrateServiceKind ci-dessous.
