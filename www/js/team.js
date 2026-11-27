@@ -114,12 +114,30 @@ const ST_BRANCH_ORDER={bet:['bet.struct','bet.fluides','bet.bim','bet.exec','bet
 const stBranchCards=(orgKey,services)=>{const list=services.flatMap(s=>{const rows=stOrgBranches(orgKey,s.k);return rows.length?rows.map(([k,label])=>({k,parent:s.k,label,branch:true,desc:ST_BRANCH_DESC[k]||stVisual(k,s.c)[2]})):[{k:s.k,parent:s.k,label:s.l,branch:false,desc:stVisual(s.k,s.c)[2]}];});const order=ST_BRANCH_ORDER[orgKey]||[];return list.sort((a,b)=>(order.includes(a.k)?order.indexOf(a.k):99)-(order.includes(b.k)?order.indexOf(b.k):99));};
 const stOrgServiceTitle = (orgKey, svc) => (({bet:{bim:'Études & BIM',doc:'Visa & documentation',metre:'Métré & quantités'},archi:{bim:'Conception & BIM',doc:'Suivi & documentation'},topo:{topo:'Missions topographiques'},labo:{labo:'Essais & analyses',doc:'Rapports & résultats'},bc:{qualite:'Contrôle technique'},opc:{methodes:'Planning & coordination'}}[orgKey] || {})[svc.k] || svc.l);
 // Mélange opaque sur bleu nuit : aucune composante blanche de reflet.
-const stMatteColor = (c,ratio) => {
-  const hex=/^#[0-9a-f]{6}$/i.test(c)?c:'#60a5fa';
-  const base=[7,29,53];
-  return '#'+base.map((v,i)=>Math.round(v*(1-ratio)+parseInt(hex.slice(1+i*2,3+i*2),16)*ratio).toString(16).padStart(2,'0')).join('');
+// Palette métier opaque : couleurs choisies par famille, sans mélange avec le bleu ou le blanc.
+const ST_CHROMA = {
+  '#fbbf24':['#ffca19','#261a03','#392800','#4a3200','#aa7606'],
+  '#eab308':['#f5d000','#252100','#393200','#4c4200','#a28a00'],
+  '#f59e0b':['#ffad19','#281500','#3b2100','#4e2d00','#ad6907'],
+  '#fb923c':['#ff861d','#281300','#3d1e03','#502600','#b75c11'],
+  '#22d3ee':['#09e1ff','#031e2a','#00313e','#004454','#087e95'],
+  '#38bdf8':['#24bfff','#041c30','#002b48','#003b61','#117eb8'],
+  '#60a5fa':['#409dff','#071b36','#092a50','#103b69','#2266b1'],
+  '#2dd4bf':['#00e3c2','#031f20','#00332d','#00483e','#098a77'],
+  '#4ade80':['#31f278','#052414','#07381e','#0a4a26','#159b47'],
+  '#a3e635':['#b7f52c','#1b2403','#293900','#384b00','#769e12'],
+  '#c084fc':['#c078ff','#1e102e','#301348','#42185c','#8c43ca'],
+  '#a78bfa':['#a18aff','#1a1436','#271e4e','#382967','#6d54ba'],
+  '#818cf8':['#858bff','#131639','#202052','#2d2c69','#555ac1'],
+  '#fb7185':['#ff527b','#2b0d1a','#420e22','#5a142d','#b62a51'],
+  '#f87171':['#ff5555','#2b1010','#401515','#571919','#b33b3b'],
+  '#f472b6':['#ff65bf','#2b1023','#421334','#591943','#b83586'],
+  '#94a3b8':['#b0c5e4','#17202f','#202f43','#2b3b51','#6b85a7']
 };
-const stVisualStyle = (c) => '--st-tone:'+c+';--st-tint:'+c+'20;--st-edge:'+stMatteColor(c,.72)+';--st-matte:'+stMatteColor(c,.12)+';--st-matte-on:'+stMatteColor(c,.22)+';--st-matte-icon:'+stMatteColor(c,.28);
+const stVisualStyle = (c) => {
+  const p=ST_CHROMA[String(c).toLowerCase()]||ST_CHROMA['#60a5fa'];
+  return '--st-tone:'+c+';--st-ink:'+p[0]+';--st-tint:'+p[3]+';--st-edge:'+p[4]+';--st-matte:'+p[1]+';--st-matte-on:'+p[2]+';--st-matte-icon:'+p[3];
+};
 function offerCard(P, perso, btn = true, opts = null) {
   const dev = planDev(P), mods = P.modules === '*' ? MODS.map(([m]) => m) : P.modules, price = dev ? 'En cours de développement' : P.price == null ? 'Sur devis' : P.price ? `${P.price} MAD / ${P.period}` : 'Gratuit';
   const act = P.price == null ? 'Demander un devis · essai' : P.price ? `Démarrer l'essai ${P.trialDays || 14} jours` : 'Commencer gratuitement';
