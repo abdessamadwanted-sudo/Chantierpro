@@ -481,6 +481,10 @@ await t('équipe fichiers : REFUS hors équipe', () => assertFails(stg('no32').r
  await t('audit entreprise : REFUS de lecture par un membre', () => assertFails(no32.doc(a32).get()));
 // ---- v1.0.45 : accès sur code uniquement
 await t('accès libre : un compte crée son espace', () => assertSucceeds(other.collection('companies').doc('io-free').set({ name: 'Libre', ownerUid: OTHER.uid, kind: 'perso', plan: 'basic', planStatus: 'gratuit' })));
+await t('espace principal : REFUS de supprimer l’espace personnel via le sélecteur', () => assertFails(other.collection('companies').doc('io-free').delete()));
+await t('espace principal : identifiant réservé au propriétaire', () => assertFails(other.collection('companies').doc('perso_autre_uid').set({name:'X',ownerUid:OTHER.uid,kind:'perso',plan:'basic',planStatus:'gratuit'})));
+await t('espace principal : création stable Basic', () => assertSucceeds(other.collection('companies').doc('perso_'+OTHER.uid).set({name:'Mon espace',ownerUid:OTHER.uid,kind:'perso',plan:'basic',planStatus:'gratuit'})));
+
 await t('accès libre : REFUS de se donner « allowed »', () => assertFails(other.collection('companies').doc('io-allow').set({ name: 'X', ownerUid: OTHER.uid, kind: 'perso', plan: 'basic', planStatus: 'gratuit', allowed: true })));
 await env.withSecurityRulesDisabled(async (c) => { await c.firestore().collection('config').doc('app').set({ inviteOnly: true }, { merge: true }); });
 await t('code uniquement : REFUS de créer un espace sans le Super Admin', () => assertFails(other.collection('companies').doc('io-new').set({ name: 'Nouveau', ownerUid: OTHER.uid, kind: 'perso', plan: 'basic', planStatus: 'gratuit' })));
