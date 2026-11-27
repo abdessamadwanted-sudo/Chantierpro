@@ -1568,9 +1568,20 @@ try {
       const out = await bnMakePdf(b, tpl, { vals: { a: 'Voile V12 R+1', b: true }, items: [{ pg: 0, x: 60, y: 200, s: 14, c: '#1d3fbf', t: 'Zone 4\nبيتون' }], strokes: [{ pg: 0, c: '#111827', w: 3.4, pts: [[50, 300], [200, 340], [300, 300]] }] });
       const d = await PDFLib.PDFDocument.load(await out.arrayBuffer()); pdf = { pages: d.getPageCount(), grew: out.size > b.size }; }
     localStorage.setItem('dr.ord', JSON.stringify({ g: ['trav', 'qual', 'etu', 'fin', 'org'], k: { trav: ['reception'] } }));
-    App.section = 'ptools'; await renderSection(); await new Promise(r => setTimeout(r, 600));
-    const moved = !!document.querySelector('.st-tcat[data-g="trav"] [data-tool="reception"]'), notQual = !document.querySelector('.st-tcat[data-g="qual"] [data-tool="reception"]'), bons = !!document.querySelector('[data-xtool="bons"]');
-    localStorage.removeItem('dr.ord');
+    // Le déplacement entre catégories génériques se teste dans une organisation multi-services.
+    // Un dossier mono-service masque intentionnellement ces catégories.
+    const origCompany = Team.company, genericRoot = document.createElement('div');
+    document.body.appendChild(genericRoot);
+    let moved, notQual, bons;
+    try {
+      Team.company = () => ({...origCompany(),kind:'org',services:['direction','travaux','qualite','hse']});
+      ST.renderProjectTools(genericRoot);
+      moved = !!genericRoot.querySelector('.st-tcat[data-g="trav"] [data-tool="reception"]');
+      notQual = !genericRoot.querySelector('.st-tcat[data-g="qual"] [data-tool="reception"]');
+      bons = !!genericRoot.querySelector('[data-xtool="bons"]');
+    } finally {
+      Team.company = origCompany; genericRoot.remove(); localStorage.removeItem('dr.ord');
+    }
     return { tab, pdf, moved, notQual, bons, fns: [typeof openBons, typeof bnFill].join() };
   });
   await shot(A.pg, '63_outils_projet'); log('v1.0.63 [tableau photos, PDF bon rempli, Réception déplacée dans Chantier, tuile Bons]', t63);
@@ -2252,7 +2263,7 @@ try {
     o.date = S.remplir(m, { jour: '2026-11-11', code: 'A' }, { entrepriseId: 'entreprise_1' }).valeurs.jour === '2026-11-11';
     try { S.remplir(m, { jour: '11/11/2026' }, { entrepriseId: 'entreprise_1' }); o.dateKo = false; } catch (e) { o.dateKo = true; }
     try { S.remplir(m, { code: 'A' }, { entrepriseId: 'autre' }); o.isole = false; } catch (e) { o.isole = true; }
-    await DB.putRaw('dsmodeles', { id: 'm_test', ...m });
+    await DB.putRaw('dsmodeles', { ...m, id: 'm_test' });
     const back = await DB.get('dsmodeles', 'm_test');
     o.stocke = !!back && back.nom === 'Suivi test';
     await DB.delRaw('dsmodeles', 'm_test');
@@ -2730,6 +2741,57 @@ try {
   });
   log('Espace mono-service', sf);
   log('errors Espace mono-service', !sf.err && ['isolated','tools','color','retained','back','second'].every(k=>sf[k])?[]:['Espace mono-service '+JSON.stringify(sf)]);
+  // Choix initial mono-service : le vrai rôle reste distinct du poste interne d'interface.
+  const scx = await A.pg.evaluate(() => {
+    const root=document.createElement('div'); document.body.appendChild(root);
+    const orig=Team.company, origShared=Team.sharedOf, origFlag=Team.flag;
+    try {
+      const c=orig()||{}; Team.company=()=>({...c,kind:'org',services:['direction','travaux'],plan:'business'});
+      Team.sharedOf=()=>null;
+      const o={config:ST.configuredServices().join(',')==='travaux',
+        role:ST.roleLabel()===tmRoleOf(ST.preview()?.role||(Team.me()||{}).role).l,
+        context:ST.workspaceContext().includes('Service Travaux')};
+      Team.flag=k=>k==='svctravaux'?true:origFlag(k);
+      ST.renderProjectTools(root);
+      o.focus=!!root.querySelector('.st-service-focus') && root.querySelectorAll('.st-svc-node').length===1 && root.textContent.includes('Service Travaux');
+      o.noGeneric=!root.querySelector('.st-qa') && !root.querySelector('.st-service-tree') && !root.querySelector('[data-g=qual]');
+      o.volets=!!root.querySelector('.st-qs');
+      Team.flag=k=>k==='svctravaux'?false:origFlag(k);
+      ST.renderProjectTools(root);
+      o.locked=!root.querySelector('[data-tool]') && root.textContent.includes('pas encore activée');
+      return o;
+    } catch(e){return {err:String(e.message||e)};}
+    finally{Team.company=orig;Team.sharedOf=origShared;Team.flag=origFlag;root.remove();}
+  });
+  log('Contexte pack/service et dossier Travaux',scx);
+  log('errors Contexte pack/service',!scx.err&&['config','role','context','focus','noGeneric','volets','locked'].every(k=>scx[k])?[]:['Contexte service '+JSON.stringify(scx)]);
+  // Seul le raccourci HSE doit disparaître du dossier Qualité ; le service HSE reste intact.
+  const glassHse=await A.pg.evaluate(()=>{
+    const root=document.createElement('div');document.body.appendChild(root);
+    const orig=Team.company,origShared=Team.sharedOf,origFlag=Team.flag;
+    const prior=sessionStorage.getItem('st.preview');
+    try{
+      const c=orig()||{}; const p=ST.preview()||{};
+      sessionStorage.setItem('st.preview',JSON.stringify({...p,plan:'business',role:p.role||(Team.me()||{}).role}));
+      let key='qualite';
+      Team.company=()=>({...c,kind:'org',services:['direction',key],plan:'business'});
+      Team.sharedOf=()=>null;Team.flag=k=>['svcqual','svchse'].includes(k)||origFlag(k);
+      ST.renderProjectTools(root);
+      const q=root.querySelector('.st-service-focus');
+      const o={quality:!!q&&q.textContent.includes('Service Qualité')&&!q.querySelector('[data-tool=hse]')};
+      const volet=q?.querySelector('.st-qs');
+      o.glass=!!volet&&getComputedStyle(volet).backgroundImage.includes('linear-gradient')&&getComputedStyle(volet).borderTopColor==='rgb(70, 96, 120)';
+      key='hse'; ST.renderProjectTools(root);
+      const h=root.querySelector('.st-service-focus');
+      o.hse=!!h&&h.textContent.includes('Service HSE')&&!!h.querySelector('[data-tool=hse]');
+      return o;
+    }catch(e){return {err:String(e.message||e)};}
+    finally{Team.company=orig;Team.sharedOf=origShared;Team.flag=origFlag;if(prior===null)sessionStorage.removeItem('st.preview');else sessionStorage.setItem('st.preview',prior);root.remove();}
+  });
+  log('Verre architectural et service HSE indépendant',glassHse);
+  log('errors HSE indépendant',!glassHse.err&&['quality','glass','hse'].every(k=>glassHse[k])?[]:['HSE indépendant '+JSON.stringify(glassHse)]);
+
+
   // ---- v1.0.x : Table de projet (réserves · RFI · visas) + tableau de bord interactif
   const tp = await A.pg.evaluate(async () => { const wait = (ms) => new Promise(r => setTimeout(r, ms)); document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove());
     const p = (await DB.all('projects')).find(x => !x.deleted); if (!p) return { noProject: true }; App.project = p;
@@ -2927,11 +2989,12 @@ try {
     Team.company = () => ({ name: 'Service Travaux Test', kind: 'service', svcKey: 'aut_2' });
     await renderHome();
     o.standardHome = !!document.querySelector('.home2') && !document.querySelector('.svt-home');
+    App.project = p; // renderHome efface le projet courant ; le rétablir avant de tester ses outils.
     const root = document.createElement('div'); root.style.display = 'none'; document.body.appendChild(root);
     ST.renderProjectTools(root);
     o.matTool = !!root.querySelector('[data-tool=materiaux]');
     root.remove();
-    Team.company = origCompany; App.project = p; App.section = 'plans'; await renderHome();
+    Team.company = origCompany; App.section = 'plans'; await renderHome(); App.project = p;
   } catch (e) { o.err = String(e.message || e); } return o; });
   log('service autonome Travaux (Pro Service autonome)', vSvt);
   log('errors service autonome travaux', !vSvt.err && vSvt.standardHome && vSvt.matTool ? [] : ['service autonome travaux ' + JSON.stringify(vSvt)]);

@@ -45,6 +45,23 @@ const ST = (() => {
   const planKey = () => { const p = PV.get(); return p ? p.plan : ((ready() && Team.company()) || {}).plan || PLAN_DEFAULT_COMPANY; };
   const plan = () => planOf(planKey());
   const isEnt = () => plan().k === 'enterprise';
+  // Contexte d'affichage : les services choisis à la création, pas les postes hérités.
+  function configuredServices(c = Team.company() || {}) {
+    if (c.kind === 'perso') return [];
+    if (c.kind === 'entreprise' && !c.allSvc && Array.isArray(c.svcKeys)) {
+      const byCode = {aut_0:'qualite',aut_1:'hse',aut_2:'travaux',aut_3:'methodes',aut_4:'bim',aut_5:'etudes',aut_6:'materiel',aut_7:'achats',aut_8:'transport',aut_9:'rh',aut_10:'admin',aut_11:'metre',aut_12:'topo',aut_13:'labo'};
+      return [...new Set(c.svcKeys.map(k=>byCode[k]).filter(Boolean))];
+    }
+    if (c.allSvc || !Array.isArray(c.services)) return [];
+    return [...new Set(c.services.filter(k=>!['direction','externe','perso'].includes(k)))];
+  }
+  const serviceLabel = k => { const S = TM_SERVICES.find(x=>x.k===k); return S ? 'Service '+S.l.replace(/^Service\s+/i,'') : ''; };
+  const roleLabel = () => tmRoleOf(roleKey()).l;
+  const workspaceContext = () => { const keys=configuredServices(); return [plan().l,keys.length===1?serviceLabel(keys[0]):keys.length>1?keys.length+' services':''].filter(Boolean).join(' · '); };
+  let currentProjectService = null;
+  const serviceScope = () => JSON.stringify([Team.cid(),App.project && App.project.id]);
+  const projectServiceLabel = () => currentProjectService?.scope===serviceScope() && currentProjectService.label ? currentProjectService.label : (configuredServices().length===1 ? serviceLabel(configuredServices()[0]) : '');
+
   const svcq = () => Team.flag('svcqual');   // Service Qualité : fermé tant que la fonction n'est pas mise en service
   // v1.0.3xx (24/11/2026, nuit, demande du propriétaire, signalé sur son compte réel « Ghomari ») : un volet de
   // service dédié (Qualité/Travaux/HSE…) ne doit s'afficher QUE si CETTE Entreprise a elle-même choisi ce service
@@ -334,12 +351,12 @@ const ST = (() => {
   // ST.INTERVENANTS (écran de choix du service, Pro Service autonome) sans dupliquer ces données.
   const COMMUN = { tabproj: 'com', localisation: 'com', visio: 'com', monespace: 'com', team: 'com', org: 'com', histo: 'com' };
   const SVC_SHELLS = [
-    { k: 'qual', flag: 'svcqual', nom: 'Service Qualité', c: '#c084fc', side: 'qual.side', tools: [], map: { docq: 'adm', clauses: 'adm', visa: 'adm', rfi: 'adm', reception: 'ter', forms: 'ter', constat: 'ter', labo: 'ter', hse: 'ter', beton: 'ter', ...COMMUN },
+    { k: 'qual', flag: 'svcqual', nom: 'Service Qualité', c: '#c084fc', side: 'qual.side', tools: [], map: { docq: 'adm', clauses: 'adm', visa: 'adm', rfi: 'adm', reception: 'ter', forms: 'ter', constat: 'ter', labo: 'ter', beton: 'ter', ...COMMUN },
       ui: { adm: 'Documents, archives, clauses', ter: 'Réceptions, contrôles, PV, labo', com: 'Équipe, organigramme, mon espace' } },
     // v1.0.3xx : « Matériaux (Ferraillage) » ajouté au volet Terrain — c'était jusqu'ici l'unique outil mis en avant
     // sur l'ancien accueil dédié de Travaux (renderSvcTravaux, retiré) ; il reste donc accessible exactement comme
     // avant, maintenant via « Outils du projet » comme tous les autres outils du service (voir aussi FLAG_DEFAULT.materiaux, team.js).
-    { k: 'travaux', flag: 'svctravaux', nom: 'Service Travaux', c: '#4ade80', tools: ['planning', 'reunions', 'gestion', 'pointage', 'avancement', 'suiviq', 'equipes', 'lotsuivi', 'beton', 'calc', 'models3d', 'materiaux'], map: { planning: 'adm', reunions: 'adm', gestion: 'adm', pointage: 'adm', lotsuivi: 'ter', beton: 'ter', calc: 'ter', models3d: 'ter', suiviq: 'ter', equipes: 'ter', materiaux: 'ter', avancement: 'com', ...COMMUN },
+    { k: 'travaux', flag: 'svctravaux', nom: 'Service Travaux', c: '#4ade80', tools: ['planning', 'reunions', 'gestion', 'pointage', 'avancement', 'suiviq', 'equipes', 'lotsuivi', 'beton', 'calc', 'models3d', 'materiaux'], map: { fichiers: 'adm', reports: 'adm', planning: 'adm', reunions: 'adm', gestion: 'adm', pointage: 'adm', plans: 'ter', tasks: 'ter', photos: 'ter', lotsuivi: 'ter', beton: 'ter', calc: 'ter', models3d: 'ter', suiviq: 'ter', equipes: 'ter', materiaux: 'ter', avancement: 'com', ...COMMUN },
       ui: { adm: 'Planning, réunions, gestion', ter: 'Suivi des lots, béton, avancement', com: 'Équipe, organigramme, mon espace' } },
     { k: 'hse', flag: 'svchse', nom: 'Service HSE', c: '#fb7185', tools: ['hse', 'hseplans', 'constat', 'forms', 'pointage', 'reunions'], map: { reunions: 'adm', forms: 'adm', pointage: 'adm', hseplans: 'ter', hse: 'ter', constat: 'ter', ...COMMUN },
       ui: { adm: 'Réunions, formulaires, effectifs', ter: 'Inspections, constats, sécurité', com: 'Équipe, organigramme, mon espace' } },
@@ -416,7 +433,8 @@ const ST = (() => {
     const p = App.project; if (!p) return;
     const focusEnabled = ['enterprise','business'].includes(plan().k);
     const focusScope = JSON.stringify([Team.cid(),p.id]);
-    let svcFocus = serviceFocusByRoot.get(root) || null;
+    const liveRoot = root.id === 'content' && root.isConnected;
+    let svcFocus = serviceFocusByRoot.get(root) || (liveRoot ? currentProjectService : null) || null;
     if (!focusEnabled || (svcFocus && svcFocus.scope !== focusScope)) { svcFocus = null; serviceFocusByRoot.delete(root); }
     const ok = (k) => secShown(k) && k !== 'dashboard' && k !== 'ptools' && k !== 'settings' && sectionOn(k) && Team.canSection(k);
     const first = Team.isAdmin() ? (ORG_FIRST[(Team.orgType() || {}).k] || 'trav') : grpOf();
@@ -473,6 +491,10 @@ const ST = (() => {
     // organisation partenaire invitée (Team.sharedOf) : son rôle dans le projet (bet, architecte, bcontrole…) lui ouvre SON espace d'intervenant, et seulement lui — jamais l'Entreprise ni les autres intervenants ; ses outils restent bornés par les accès (voir / modifier) donnés à l'invitation
     const IV_OF_ROLE = { mo: 'moa', mod: 'moa', architecte: 'archi', bet: 'bet', bcontrole: 'bc', labo: 'labo', topoext: 'topo' };
     const partnerSh = () => { try { return Team.sharedOf(p.id) || null; } catch (e) { return null; } };
+    const configured = configuredServices(company0);
+    const singleKey = focusEnabled && !partnerSh() && !Team.isPerso() && configured.length===1 ? configured[0] : '';
+    const singleShell = singleKey ? SVC_SHELLS.find(S=>SVC_TM_KEY[S.k]===singleKey) : null;
+
     const ivMine = () => { const sh = partnerSh(); return sh ? INTERVENANTS.find(I => I.k === IV_OF_ROLE[sh.role]) || null : null; };
     const ivList = () => { const sh = partnerSh(); return sh ? [ivMine()].filter(I => I && Team.flag(I.flag)) : INTERVENANTS.filter(I => Team.flag(I.flag)); };
     const ivOn = () => ivList().length > 0;
@@ -489,7 +511,8 @@ const ST = (() => {
     const qsKey = (S) => S.side || ('svc.side.' + S.k);
     const qsMap = (S) => { let u = {}; try { u = JSON.parse(localStorage.getItem(qsKey(S)) || '{}') || {}; } catch (e) {} return { ...S.map, ...u }; };
     const qsMine = () => { try { const k = (typeof Org !== 'undefined' && Org.poste && (Org.poste() || {}).k) || ''; return ['tsq', 'ctrl'].includes(k) ? 'ter' : 'adm'; } catch (e) { return 'adm'; } };
-    const qsTools = (S, ks) => [...new Set([...(ks || []), ...S.tools, ...Object.keys(S.map)])].filter(k => SECTIONS[k] && ok(k));
+    // Retirer uniquement le raccourci HSE du dossier Qualité, même s'il vient d'une catégorie héritée.
+    const qsTools = (S, ks) => [...new Set([...(ks || []), ...S.tools, ...Object.keys(S.map)])].filter(k => SECTIONS[k] && ok(k) && !(S.k === 'qual' && k === 'hse'));
     const svcSplit = (S, ks) => {
       const M = qsMap(S), all = qsTools(S, ks), pre = S.k === 'qual' ? '' : S.k + '.', tone=stVisual(S.k,S.c)[0];
       let op = null; try { op = JSON.parse(localStorage.getItem('ptools.qs') || 'null'); } catch (e) {} if (!Array.isArray(op)) op = [pre + qsMine()];
@@ -552,32 +575,51 @@ const ST = (() => {
     </div>`;
     // Ne réutiliser que les nœuds déjà filtrés par ok(), qsAllowed() et les services de l'organisation.
     const panel = root.querySelector('.st-ptools-p');
+    // Un service configuré seul ouvre directement son dossier métier. Aucun groupe générique
+    // ne remplace le dossier si le module est fermé. Les droits et flags restent inchangés.
+    if (singleShell) {
+      if (!Team.flag(singleShell.flag)) {
+        panel.innerHTML = `<div class="st-focus-context">${esc(plan().l)} · ${esc(singleShell.nom)}</div><p class="st-thint2">Ce service est sélectionné, mais son interface n'est pas encore activée pour ce pack.</p>`;
+        if(liveRoot) currentProjectService={scope:focusScope,label:singleShell.nom};
+        return;
+      }
+      panel.innerHTML = svcAcc(singleShell, [], false);
+    }
     const serviceNodes = [...panel.querySelectorAll('details.st-svc-node')];
     const focusKey = d => JSON.stringify([d.closest('.st-org-node')?.dataset.g || d.closest('.st-own-tree')?.dataset.ownOrg || 'direct',d.dataset.sg || d.dataset.g]);
     if (focusEnabled) {
       panel.classList.add('st-service-directory');
-      const selected = svcFocus && serviceNodes.find(d => focusKey(d) === svcFocus.key);
+      const selected = singleShell ? serviceNodes[0] : svcFocus && serviceNodes.find(d => focusKey(d) === svcFocus.key);
+      const publishContext = label => {
+        if (!liveRoot) return;
+        currentProjectService = label ? {...svcFocus,scope:focusScope,label} : null;
+        const crumb=document.querySelector('[data-service-context]');
+        if(crumb) crumb.textContent=[plan().l,label].filter(Boolean).join(' · ');
+      };
       if (selected) {
         const wrap = document.createElement('section'); wrap.className = 'st-service-focus'; wrap.style.cssText = selected.style.cssText;
         wrap.dataset.serviceFocus = selected.dataset.sg || selected.dataset.g;
-        wrap.innerHTML = `<button class="st-focus-back" type="button" data-a="svcback">${icon('back')}<span>Retour aux services</span></button><div class="st-focus-context">${esc(p.name)} · ${esc(plan().l)}</div>`;
+        const serviceName=selected.querySelector('.st-node-copy b')?.textContent || '';
+        svcFocus={scope:focusScope,key:focusKey(selected),label:serviceName};
+        serviceFocusByRoot.set(root,svcFocus); publishContext(serviceName);
+        wrap.innerHTML = `<button class="st-focus-back" type="button" data-a="svcback">${icon('back')}<span>${singleShell?'Retour aux projets':'Retour aux services'}</span></button><div class="st-focus-context">${esc(p.name)} · ${esc(plan().l)} · ${esc(serviceName)}</div>`;
         selected.open = true; wrap.appendChild(selected);
         panel.replaceChildren(wrap); panel.classList.remove('st-service-directory');
-        wrap.querySelector('[data-a=svcback]').onclick = () => { svcFocus = null; serviceFocusByRoot.delete(root); renderProjectTools(root); };
+        wrap.querySelector('[data-a=svcback]').onclick = () => { svcFocus = null; serviceFocusByRoot.delete(root); publishContext(''); if(singleShell) return renderHome(); renderProjectTools(root); };
         // Le titre du service est un en-tête, pas un accordéon dans cet espace.
         selected.querySelector('summary').addEventListener('click', e => { e.preventDefault(); e.stopImmediatePropagation(); }, true);
       } else {
-        svcFocus = null; serviceFocusByRoot.delete(root);
+        svcFocus = null; serviceFocusByRoot.delete(root); publishContext('');
         serviceNodes.forEach(d => {
           const sum = d.querySelector('summary');
           if (!sum) return;
-          sum.addEventListener('click', e => { e.preventDefault(); e.stopImmediatePropagation(); svcFocus = {scope:focusScope,key:focusKey(d)}; serviceFocusByRoot.set(root,svcFocus); renderProjectTools(root); root.scrollTop=0; }, true);
+          sum.addEventListener('click', e => { e.preventDefault(); e.stopImmediatePropagation(); svcFocus = {scope:focusScope,key:focusKey(d),label:d.querySelector('.st-node-copy b')?.textContent || ''}; serviceFocusByRoot.set(root,svcFocus); publishContext(svcFocus.label); renderProjectTools(root); root.scrollTop=0; }, true);
         });
       }
     }
     root.querySelectorAll('details.st-acc[data-g]').forEach(d => d.addEventListener('toggle', () => { if (svcFocus) return; const L = [...root.querySelectorAll('details.st-acc[data-g][open]')].map(x => x.dataset.g); try { localStorage.setItem('ptools.open', JSON.stringify(L)); } catch (e) {} }));
     const avj = root.querySelector('[data-a=avjour]'); if (avj) avj.onclick = () => openAvJour(p);
-    root.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { serviceFocusByRoot.delete(root); App.section = b.dataset.tool; App.search = ''; renderSection(); });
+    root.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { App.section = b.dataset.tool; App.search = ''; renderSection(); });
     root.querySelectorAll('[data-xtool]').forEach(b => b.onclick = () => runX(b.dataset.xtool));
     root.querySelectorAll('details.st-sub').forEach(d => d.addEventListener('toggle', () => { if (focusEnabled) return; const L = [...root.querySelectorAll('details.st-sub[open]')].map(x => x.dataset.sg); try { localStorage.setItem('ptools.sub', JSON.stringify(L)); } catch (e) {} }));
     root.querySelectorAll('details.st-qs').forEach(d => d.addEventListener('toggle', () => { const L = [...root.querySelectorAll('details.st-qs[open]')].map(x => x.dataset.qs); try { const current = JSON.parse(localStorage.getItem('ptools.qs') || '[]'); const scope = new Set([...root.querySelectorAll('details.st-qs')].map(x=>x.dataset.qs)); localStorage.setItem('ptools.qs', JSON.stringify([...new Set([...(Array.isArray(current)?current:[]).filter(k=>!scope.has(k)),...L])])); } catch (e) {} }));
@@ -772,7 +814,7 @@ const ST = (() => {
   function wsBtnHTML() {
     if (!ready()) return '';
     const C = Team.company() || {}, T = org(), multi = Team.workspaces().length > 1;
-    return `<button class="h2-ws" data-a="wsmenu" aria-haspopup="menu"><span>${esc(perso() ? '👷' : Team.isCollab() ? '🤝' : T.e)}</span><b>${esc(perso() ? 'Espace personnel' : C.name || 'Organisation')}</b>${multi ? '<i class="n">' + Team.workspaces().length + '</i>' : ''}${icon('chevdown')}</button>`;
+    return `<button class="h2-ws" data-a="wsmenu" aria-haspopup="menu"><span>${esc(perso() ? '👷' : Team.isCollab() ? '🤝' : T.e)}</span><b>${esc(perso() ? 'Espace personnel' : C.name || 'Organisation')} · ${esc(workspaceContext())}</b>${multi ? '<i class="n">' + Team.workspaces().length + '</i>' : ''}${icon('chevdown')}</button>`;
   }
   function wsMenu(btn) {
     const old = document.querySelector('.ws-dd'); if (old) { old.remove(); return; }
@@ -784,7 +826,7 @@ const ST = (() => {
     const el = document.createElement('div'); el.className = 'ws-dd';
     const r = btn.getBoundingClientRect();
     el.innerHTML = `<div class="ws-bg"></div><div class="ws-pn" role="menu" style="top:${Math.round(r.bottom + 6)}px">
-      <div class="ws-cur" style="${stVisualStyle(curTone)}"><span class="ws-e">${icon(curIcon)}</span><span class="grow"><b>${esc(perso() ? 'Espace personnel' : C.name || '')}</b><small>${esc(plan().l)} · ${esc(perso() ? ((metierOf(Team.profil().metier) || {}).l || 'Indépendant') : R.l)}</small></span><i>✓</i></div>
+      <div class="ws-cur" style="${stVisualStyle(curTone)}"><span class="ws-e">${icon(curIcon)}</span><span class="grow"><b>${esc(perso() ? 'Espace personnel' : C.name || '')}</b><small>${esc(workspaceContext())} · ${esc(perso() ? ((metierOf(Team.profil().metier) || {}).l || 'Indépendant') : roleLabel())}</small></span><i>✓</i></div>
       ${W.length ? `<div class="ws-h">Changer d'espace</div>${W.map(w => `<div class="ws-row"><button class="ws-it" data-wsw="${esc(w.cid)}" style="${stVisualStyle(spaceIcon(w)[0])}"><span class="ws-ic e">${icon(spaceIcon(w)[1])}</span><span class="grow"><b>${esc(w.name || '?')}</b><small>${w.kind === 'perso' ? 'Espace personnel' : `${esc(planOf(w.plan).l)} · ${esc(tmRoleOf(w.role).l)}`}</small></span>${icon('chevright')}</button>${w.kind !== 'perso' && w.role === 'patron' ? `<button class="ws-del" data-wsdel="${esc(w.cid)}" data-nm="${esc(w.name || '')}" title="Supprimer cet espace">${icon('trash')}</button>` : ''}</div>`).join('')}` : ''}
       ${item('switch', 'plus', 'Mes espaces', 'Créer, rejoindre et gérer vos espaces')}
       ${!perso() && Team.isOwner && Team.isOwner() ? item('delespace', 'trash', 'Supprimer cet espace', 'Définitif · propriétaire seulement') : ''}
@@ -1103,5 +1145,5 @@ const ST = (() => {
   }
 
   function refreshRole() { applyRole(); try { App.project ? renderSection() : renderHome(); } catch (e) {} }
-  return { families: FAMILIES, openDash, openPro, openTeamHub, openServiceLibrary, profileCardHTML, wsBtnHTML, wsMenu, renderProjectTools, isEnt: () => plan().k === 'enterprise', svcq, quickPack, setPack, SVC_SHELLS, INTERVENANTS, bottomNav, ivKeyOfRole: (r) => ({ mo: 'moa', mod: 'moa', architecte: 'archi', bet: 'bet', bcontrole: 'bc', labo: 'labo', topoext: 'topo' })[r] || null, directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
+  return { families: FAMILIES, openDash, openPro, openTeamHub, openServiceLibrary, profileCardHTML, wsBtnHTML, wsMenu, roleLabel, workspaceContext, configuredServices, projectServiceLabel, renderProjectTools, isEnt: () => plan().k === 'enterprise', svcq, quickPack, setPack, SVC_SHELLS, INTERVENANTS, bottomNav, ivKeyOfRole: (r) => ({ mo: 'moa', mod: 'moa', architecte: 'archi', bet: 'bet', bcontrole: 'bc', labo: 'labo', topoext: 'topo' })[r] || null, directionHTML, serviceHTML, toolsHTML, dashHTML, dashBind, startPreview, stopPreview, preview: () => PV.get(), plan, lvl, org, newProject, projectFiche, refreshRole, isPerso: perso, vBox, vBind, vChip, renderDocs };
 })();

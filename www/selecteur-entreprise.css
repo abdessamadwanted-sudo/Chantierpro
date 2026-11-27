@@ -354,3 +354,72 @@
 .ws-dd .ws-it{margin:4px 0;padding:9px}
 .ws-dd .ws-it[data-wm=delespace],.me-pg .me-del,.ws-dd .ws-del{color:#ff527b}
 .ws-dd .ws-h{color:#b9c8dc}
+
+/* SiteTeam — verre architectural : surfaces bleu ardoise, reflets discrets,
+   contraste stable. La couleur métier reste un accent, jamais un fond saturé.
+   Pas de backdrop-filter coûteux sur les grilles Android. */
+.st-ptools-p .st-service-focus,
+.st-ptools-p .st-svc-node{
+  --st-glass-panel:linear-gradient(145deg,#172c40 0%,#102234 44%,#0b1929 100%);
+  --st-glass-volet:linear-gradient(150deg,#20384e 0%,#152a3e 32%,#0e2032 78%);
+  --st-glass-card:linear-gradient(145deg,#2b4358 0%,#1c3146 36%,#14283b 77%,#20384c 100%);
+  --st-glass-line:#466078;
+  --st-glass-icon:linear-gradient(145deg,#2f526d,#1d3b56 65%,#142b42);
+  --st-glass-ink:#b9ddf8;
+}
+.st-ptools-p .st-svc-node,
+.st-ptools-p .st-service-focus>.st-svc-node{
+  background:var(--st-glass-panel)!important;
+  border:1px solid var(--st-glass-line)!important;
+  border-radius:18px!important;
+  box-shadow:inset 0 1px 0 rgba(218,239,255,.10),0 5px 16px rgba(0,0,0,.18)!important;
+}
+.st-ptools-p .st-svc-node>.st-tcat-h{
+  background:linear-gradient(110deg,rgba(123,167,205,.12),transparent 80%);
+  border-left:3px solid var(--st-tone,#7daed2);
+}
+.st-ptools-p .st-svc-node .st-node-icon,
+.st-ptools-p .st-svc-node .st-qs .st-qs-ic,
+.st-ptools-p .st-service-focus .st-qs .st-qs-ic{
+  background:var(--st-glass-icon)!important;
+  border:1px solid #58758b!important;color:#d4eaff!important;
+  box-shadow:inset 0 1px 0 rgba(230,246,255,.16)!important;
+}
+.st-ptools-p .st-svc-node .st-qs,
+.st-ptools-p .st-service-focus .st-qs{
+  background:var(--st-glass-volet)!important;
+  border:1px solid var(--st-glass-line)!important;
+  border-radius:14px!important;
+  box-shadow:inset 0 1px 0 rgba(219,239,255,.12)!important;
+}
+.st-ptools-p .st-svc-node .st-qs>summary{padding:12px!important;color:#f2f7fc!important}
+.st-ptools-p .st-svc-node .st-qs>summary span small,
+.st-ptools-p .st-svc-node .st-qs>summary em{color:#b9cddd!important}
+.st-ptools-p .st-svc-node .st-tool,
+.st-ptools-p .st-service-focus .st-tool{
+  background:var(--st-glass-card)!important;
+  border:1px solid #4a657c!important;
+  border-radius:12px!important;
+  box-shadow:inset 0 1px 0 rgba(222,241,255,.17),0 3px 8px rgba(0,0,0,.15)!important;
+  min-height:82px!important;
+}
+.st-ptools-p .st-svc-node .st-tool .st-ico,
+.st-ptools-p .st-service-focus .st-tool .st-ico{
+  background:var(--st-glass-icon)!important;
+  border:1px solid #53748e!important;
+  color:var(--st-glass-ink)!important;
+  box-shadow:inset 0 1px 0 rgba(222,241,255,.18)!important;
+  filter:none!important;
+}
+.st-ptools-p .st-svc-node .st-tool .st-ico svg,
+.st-ptools-p .st-service-focus .st-tool .st-ico svg.i{
+  color:var(--st-glass-ink)!important;filter:none!important;
+}
+.st-ptools-p .st-svc-node .st-tool span{color:#f0f5fa!important;line-height:1.3!important}
+.st-ptools-p .st-svc-node .st-tool:active{background:#304c62!important}
+.st-ptools-p .st-svc-node .st-tool:focus-visible,
+.st-ptools-p .st-svc-node summary:focus-visible{outline:2px solid #92c8f2;outline-offset:2px}
+.st-ptools-p .st-svc-node .st-qs-set,
+.st-ptools-p .st-service-focus .st-focus-back{background:#152b40!important;color:#c9ddee!important;border:1px solid #4a657c!important}
+.st-ptools-p .st-svc-node .st-chev{color:#b9d1e4!important}
+@media(min-width:650px){.st-ptools-p .st-svc-node .st-qs .st-tgrid{grid-template-columns:repeat(4,minmax(0,1fr))!important}}

@@ -227,7 +227,7 @@ async function renderHome() {
           <button class="iconbtn h2-emo off" data-a="freeph" title="Stockage">🧹</button>
           <button class="iconbtn h2-quit" data-a="quit" title="Fermer (appui long : verrouiller)">${icon('power')}</button>
           <button class="iconbtn" data-a="homemore">${icon('more')}</button></div></div>
-        <div class="h2-chiprow">${(() => { if (Team.ready() && Team.isCollab()) return '<span class="h2-role">🤝 Collaborateur · projet partagé</span>'; if (ST.isPerso()) { if (Team.isFree()) return '<span class="h2-role" title="Pack Basic">🆓 Free</span>'; const M = metierOf(Team.profil().metier); Org.apply && Org.poste() && Org.apply(); return `<span class="h2-role" title="Votre métier (profil)">👷 ${esc(M ? M.l : 'Espace personnel')}</span>`; } const P = Org.poste(); if (P) { Org.apply(); return `<span class="h2-role" title="Vous êtes connecté comme">${P.svc.e} ${esc(P.n)}</span>`; } const r = applyRoleColor(), R = r && roleOf(r); return Team.ready() ? '' : (R ? `<button class="h2-role" data-a="role">${R.e} ${esc(R.n.split(' / ')[0])}</button>` : ''); })()}${Team.ready() && ST.wsBtnHTML ? ST.wsBtnHTML() : ''}</div>
+        <div class="h2-chiprow">${(() => { if (Team.ready() && Team.isCollab()) return '<span class="h2-role">🤝 Collaborateur · projet partagé</span>'; if (ST.isPerso()) { if (Team.isFree()) return '<span class="h2-role" title="Pack Basic">🆓 Free</span>'; const M = metierOf(Team.profil().metier); Org.apply && Org.poste() && Org.apply(); return `<span class="h2-role" title="Votre métier (profil)">👷 ${esc(M ? M.l : 'Espace personnel')}</span>`; } if (Team.ready()) { const P = Org.poste(); if (P) Org.apply(); return `<span class="h2-role" title="Votre rôle dans cette organisation">${esc(ST.roleLabel())}</span>`; } const P = Org.poste(); if (P) { Org.apply(); return `<span class="h2-role" title="Votre poste local">${P.svc.e} ${esc(P.n)}</span>`; } const r = applyRoleColor(), R = r && roleOf(r); return Team.ready() ? '' : (R ? `<button class="h2-role" data-a="role">${R.e} ${esc(R.n.split(' / ')[0])}</button>` : ''); })()}${Team.ready() && ST.wsBtnHTML ? ST.wsBtnHTML() : ''}</div>
         <div class="h2-who"><div class="h2-whot">
         <div class="h2-hello" data-a="uname">${tr(hello)}${uname ? (Lang.cur === 'ar' ? '، ' : ', ') + esc(uname) : ''} 👷</div>
         <div class="h2-phrase">${phrase}</div>
@@ -474,12 +474,13 @@ async function renderSection() {
   const c0 = $('#content'); if (c0 && App.lastSecKey) App.secScroll[App.lastSecKey] = [c0.scrollTop, (document.scrollingElement || {}).scrollTop || 0];
   const secKey = App.project.id + '|' + App.section; App.lastSecKey = secKey;
   const s = SECTIONS[App.section];
+  const svcContext = Team.ready() && ['business','enterprise'].includes(ST.plan().k) ? `<span data-service-context>${esc([ST.plan().l, ST.projectServiceLabel()].filter(Boolean).join(' · '))}</span> › ` : '';
   $('#app').classList.remove('with-bnav');
   $('#app').innerHTML = `
     <div class="topbar dark">
       <button class="iconbtn" data-a="drawer">${icon('menu')}</button>
-      ${s.title ? `<div class="tb-title"><b>${esc(s.title)}</b><span class="tb-crumb">${Team.ready() && (Team.company() || {}).name ? `<a data-a="crumb">${esc(Team.company().name)}</a> › ` : ''}${esc(App.project.name)}</span></div><div class="tb-actions" id="tbActions"></div>`
-        : (Team.ready() && (Team.company() || {}).name ? `<div class="tb-title"><b>${esc(App.project.name)}</b><span class="tb-crumb"><a data-a="crumb">${esc(Team.company().name)}</a> › ${esc(s.label || '')}</span></div><button class="iconbtn" data-a="home">${icon('home')}</button>` : `<h1>${esc(App.project.name)}</h1><button class="iconbtn" data-a="home">${icon('home')}</button>`)}
+      ${s.title ? `<div class="tb-title"><b>${esc(s.title)}</b><span class="tb-crumb">${Team.ready() && (Team.company() || {}).name ? `<a data-a="crumb">${esc(Team.company().name)}</a> › ` : ''}${svcContext}${esc(App.project.name)}</span></div><div class="tb-actions" id="tbActions"></div>`
+        : (Team.ready() && (Team.company() || {}).name ? `<div class="tb-title"><b>${esc(App.project.name)}</b><span class="tb-crumb"><a data-a="crumb">${esc(Team.company().name)}</a> › ${svcContext}${esc(s.label || '')}</span></div><button class="iconbtn" data-a="home">${icon('home')}</button>` : `<h1>${esc(App.project.name)}</h1><button class="iconbtn" data-a="home">${icon('home')}</button>`)}
     </div>
     <div class="content" id="content"></div>`;
   ($('[data-a=drawer]')||{}).onclick = openDrawer;
