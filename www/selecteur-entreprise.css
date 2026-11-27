@@ -271,3 +271,43 @@
 .st-onb .st-pack-screen .st-offer.hl .btn{background:var(--st-tone);color:#071d35}
 .st-onb .st-architecture .st-node-grid>button:focus-visible,
 .st-onb .st-architecture .btn:focus-visible{outline:2px solid var(--st-tone,#22d3ee);outline-offset:3px}
+
+/* Chroma — teintes autonomes, opaques, aucun voile blanc ni ombre lumineuse. */
+.st-onb{background:#07172b!important}
+.st-onb .st-architecture .st-node-grid>button,
+.st-onb .st-welcome .tm-choice button,
+.st-onb .st-pack-screen .st-offer,.pp-pg .st-offer,
+.st-ptools-p .st-svc-node,.st-ptools-p .st-svc-node .st-qs,
+.st-ptools-p .st-svc-node .st-tool,.st-svc-home .st-hd,.st-svc-home .st-kpi{
+  background:var(--st-matte,#102238);border-color:var(--st-edge,#365276);
+  box-shadow:none;filter:none;text-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;
+}
+.st-onb .st-architecture .st-node-grid>button[aria-pressed=true],
+.st-onb .st-architecture .st-node-grid>button.on,
+.st-onb .st-pack-screen .st-offer.hl,.pp-pg .st-offer.hl,
+.st-ptools-p .st-svc-node[open]{
+  background:var(--st-matte-on,#102b4a);border-color:var(--st-ink,var(--st-tone));box-shadow:none;
+}
+.st-onb .st-architecture .st-node-grid>button{border-width:1.5px;min-height:112px;border-radius:13px;padding:10px}
+.st-onb .st-architecture .st-node-grid .st-node-icon,
+.st-onb .st-welcome .tm-choice .st-node-icon,
+.st-service-tree .st-node-icon,.st-svc-node .st-node-icon,
+.st-ptools-p .st-svc-node .st-tool .st-ico,.st-svc-node .st-qs .st-qs-ic{
+  background:var(--st-matte-icon,#102b4a);color:var(--st-ink,var(--st-tone,#409dff));
+  border:1px solid var(--st-edge,#365276);box-shadow:none;filter:none;opacity:1;
+}
+.st-onb .st-architecture .st-node-grid .st-node-icon{width:42px;height:42px;border-radius:10px}
+.st-onb .st-architecture .st-node-grid .st-node-icon svg{width:31px;height:31px;stroke-width:1.8}
+.st-onb .st-architecture .st-node-grid .st-node-copy b{color:#f5f8ff;font-size:14px}
+.st-onb .st-architecture .st-node-grid .st-node-copy small{color:#b9c8dc;font-size:11.5px}
+.st-onb .st-architecture .st-node-check{width:17px;height:17px;background:#091b30;border:1px solid var(--st-edge);border-radius:5px}
+.st-onb .st-architecture button[aria-pressed=true] .st-node-check{background:var(--st-ink,var(--st-tone));border-color:var(--st-ink,var(--st-tone));color:#081626}
+.st-onb .st-architecture .st-tree-root{background:var(--st-matte,#0e243e);border-color:var(--st-ink,var(--st-tone));box-shadow:none}
+.st-onb .st-architecture .st-tree-root .st-node-icon{color:var(--st-ink,var(--st-tone));filter:none}
+.st-onb .st-architecture .st-ent-trigger{display:flex;align-items:center}
+.st-onb .st-architecture .st-ent-trigger>span:first-child{display:flex;align-items:center;gap:8px}
+.st-onb .st-architecture .st-ent-trigger svg{width:22px;height:22px;flex-shrink:0}
+.st-onb .st-architecture .st-node-grid>button:focus-visible{outline-color:var(--st-ink,var(--st-tone))}
+.st-onb .st-architecture .st-ent-modes button.on{background:#053247;color:#09e1ff;border-color:#09e1ff;box-shadow:none}
+@media(max-width:390px){.st-onb .st-architecture .st-node-grid>button{grid-template-columns:1fr;gap:8px}}
+@media(min-width:391px){.st-onb .st-architecture .st-node-grid>button{grid-template-columns:42px minmax(0,1fr)}}
