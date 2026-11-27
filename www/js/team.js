@@ -595,7 +595,8 @@ service cloud.firestore {
     match /companies/{cid} {
       // v1.0.45 : « accès sur code uniquement » (config/app.inviteOnly) — plus de nouvel espace sans le Super Admin ; « allowed » ne se donne que par lui
       // v1.0.55 : le Super Admin peut créer l'espace personnel d'un compte (Centre de contrôle › « Créer son espace »)
-      allow create: if (licOwner() && request.resource.data.get('kind', '') == 'perso') || signed() && request.resource.data.ownerUid == request.auth.uid
+      allow create: if (!cid.matches('^perso_.*') || (signed() && cid == 'perso_' + request.resource.data.ownerUid && request.resource.data.get('kind','') == 'perso'))
+        && ((licOwner() && request.resource.data.get('kind', '') == 'perso') || signed() && request.resource.data.ownerUid == request.auth.uid
         && (licOwner() || (request.resource.data.get('allowed', false) == false
           && (!exists(/databases/$(db)/documents/config/app) || get(/databases/$(db)/documents/config/app).data.get('inviteOnly', false) != true)))
         && ((request.resource.data.get('planStatus', 'essai') in ['essai', 'gratuit']
@@ -613,10 +614,11 @@ service cloud.firestore {
             // un code pack valide (voir codePlanOk et la règle update ci-dessous) — jamais à la création.
             && (request.resource.data.get('kind', 'org') != 'entreprise'
                 || (request.resource.data.get('svcKeys', []).size() == 0 && request.resource.data.get('allSvc', false) != true)))
-          || (request.resource.data.get('packCode', null) != null && codePlanOk(request.resource.data)));
+          || (request.resource.data.get('packCode', null) != null && codePlanOk(request.resource.data))));
       allow read: if isMem(cid) || licOwner();
-      // v1.1 : suppression définitive de l'espace, par son propriétaire seulement
-      allow delete: if signed() && resource.data.ownerUid == request.auth.uid;
+      // Un espace personnel ne se supprime pas via la gestion des espaces.
+      // La suppression explicite du compte Auth reste un parcours distinct.
+      allow delete: if signed() && resource.data.ownerUid == request.auth.uid && resource.data.get('kind','org') != 'perso';
       // la formule (pack) ne change que par le Super Admin SiteTeam (plus tard : la facturation)
       allow update: if (isAdmin(cid) && request.resource.data.get('plan', null) == resource.data.get('plan', null)
           && request.resource.data.get('planStatus', null) == resource.data.get('planStatus', null)
@@ -1240,6 +1242,7 @@ const Team = (() => {
     personalProvision = (async () => {
       const uid = S.user.uid, userRef = fs.collection('users').doc(uid), p = await withTimeout(userRef.get(), 12000);
       const prof = p.exists ? p.data() : {}, L = Array.isArray(prof.workspaces) ? prof.workspaces : [];
+      if (prof.blocked === true && !isSuper()) return null;
       const verified = async cid => {
         if (!cid) return null;
         const ref = fs.collection('companies').doc(cid);
