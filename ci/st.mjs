@@ -2730,6 +2730,31 @@ try {
   });
   log('Espace mono-service', sf);
   log('errors Espace mono-service', !sf.err && ['isolated','tools','color','retained','back','second'].every(k=>sf[k])?[]:['Espace mono-service '+JSON.stringify(sf)]);
+  // Choix initial mono-service : le vrai rôle reste distinct du poste interne d'interface.
+  const scx = await A.pg.evaluate(() => {
+    const root=document.createElement('div'); document.body.appendChild(root);
+    const orig=Team.company, origShared=Team.sharedOf, origFlag=Team.flag;
+    try {
+      const c=orig()||{}; Team.company=()=>({...c,kind:'org',services:['direction','travaux'],plan:'business'});
+      Team.sharedOf=()=>null;
+      const o={config:ST.configuredServices().join(',')==='travaux',
+        role:ST.roleLabel()===tmRoleOf(ST.preview()?.role||(Team.me()||{}).role).l,
+        context:ST.workspaceContext().includes('Service Travaux')};
+      Team.flag=k=>k==='svctravaux'?true:origFlag(k);
+      ST.renderProjectTools(root);
+      o.focus=!!root.querySelector('.st-service-focus') && root.querySelectorAll('.st-svc-node').length===1 && root.textContent.includes('Service Travaux');
+      o.noGeneric=!root.querySelector('.st-qa') && !root.querySelector('.st-service-tree') && !root.querySelector('[data-g=qual]');
+      o.volets=!!root.querySelector('.st-qs');
+      Team.flag=k=>k==='svctravaux'?false:origFlag(k);
+      ST.renderProjectTools(root);
+      o.locked=!root.querySelector('[data-tool]') && root.textContent.includes('pas encore activée');
+      return o;
+    } catch(e){return {err:String(e.message||e)};}
+    finally{Team.company=orig;Team.sharedOf=origShared;Team.flag=origFlag;root.remove();}
+  });
+  log('Contexte pack/service et dossier Travaux',scx);
+  log('errors Contexte pack/service',!scx.err&&['config','role','context','focus','noGeneric','volets','locked'].every(k=>scx[k])?[]:['Contexte service '+JSON.stringify(scx)]);
+
   // ---- v1.0.x : Table de projet (réserves · RFI · visas) + tableau de bord interactif
   const tp = await A.pg.evaluate(async () => { const wait = (ms) => new Promise(r => setTimeout(r, ms)); document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove());
     const p = (await DB.all('projects')).find(x => !x.deleted); if (!p) return { noProject: true }; App.project = p;
