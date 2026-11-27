@@ -410,8 +410,13 @@ const ST = (() => {
   // comme il les montre déjà aujourd'hui sous « Intervenants du projet » côté Entreprise.
   const IV_AUTO_KEY = { iv_bet: 'bet', iv_archi: 'archi', iv_moa: 'moa', iv_bc: 'bc', iv_labo: 'labo', iv_topo: 'topo', iv_at: 'at' };
   // ---------- v1.0.38 : accueil du projet — les outils de CE projet (type, fonctions du projet, service, pack), par catégorie ----------
+  // Navigation locale uniquement : une sélection par espace/projet, jamais une autorisation.
+  let svcFocus = null;
   function renderProjectTools(root) {
     const p = App.project; if (!p) return;
+    const focusEnabled = ['enterprise','business'].includes(plan().k);
+    const focusScope = JSON.stringify([Team.cid(),p.id]);
+    if (!focusEnabled || (svcFocus && svcFocus.scope !== focusScope)) svcFocus = null;
     const ok = (k) => secShown(k) && k !== 'dashboard' && k !== 'ptools' && k !== 'settings' && sectionOn(k) && Team.canSection(k);
     const first = Team.isAdmin() ? (ORG_FIRST[(Team.orgType() || {}).k] || 'trav') : grpOf();
     // v1.0.63 : l'ordre et les groupes choisis par l'utilisateur (appui long sur un outil → déplacer vers une autre catégorie)
@@ -494,7 +499,7 @@ const ST = (() => {
     let subOp = null; try { subOp = JSON.parse(localStorage.getItem('ptools.sub') || 'null'); } catch (e) {} if (!Array.isArray(subOp)) subOp = [];
     const nodeTitle=(title,ic,sub)=>`<span class="st-node-icon">${icon(ic)}</span><span class="st-node-copy"><b>${esc(title)}</b><small>${esc(sub)}</small></span><i class="st-chev">${icon('chevdown')}</i>`;
     const svcAcc = (S, ks, sub) => {
-      const [tone,ic]=stVisual(S.k,S.c), g=S.k==='qual'?'sq':'sv-'+S.k, openedNow=sub?subOp.includes(S.k):opened.includes(g);
+      const [tone,ic]=stVisual(S.k,S.c), g=S.k==='qual'?'sq':'sv-'+S.k, openedNow=!focusEnabled&&(sub?subOp.includes(S.k):opened.includes(g));
       const label=qsAllowed().filter(v=>qsTools(S,ks).some(k=>(qsMap(S)[k]||'ter')===v)).length+' volets accessibles';
       return `<details class="st-tcat st-svc-node ${sub?'st-sub':'st-acc'}" ${sub?'data-sg="'+S.k+'"':'data-g="'+g+'"'} style="--c:${tone};${stVisualStyle(tone)}" ${openedNow?'open':''}><summary class="st-tcat-h">${nodeTitle(S.nom,ic,label)}</summary><div class="st-volets"><div class="st-tree-connector" aria-hidden="true"></div>${svcSplit(S,ks)}</div></details>`;
     };
@@ -544,12 +549,37 @@ const ST = (() => {
       <p class="st-thint2">Appui long sur un outil : le déplacer vers une autre catégorie</p>
       ${typeof espaceHome === 'function' && espaceHome() ? `<details class="st-tcat st-acc st-esp" style="--c:#3D5A80"><summary class="st-tcat-h">Espace métier<i class="st-chev">${icon('chevdown')}</i></summary>${espaceHome()}</details>` : ''}
     </div>`;
-    root.querySelectorAll('details.st-acc[data-g]').forEach(d => d.addEventListener('toggle', () => { const L = [...root.querySelectorAll('details.st-acc[data-g][open]')].map(x => x.dataset.g); try { localStorage.setItem('ptools.open', JSON.stringify(L)); } catch (e) {} }));
+    // Ne réutiliser que les nœuds déjà filtrés par ok(), qsAllowed() et les services de l'organisation.
+    const panel = root.querySelector('.st-ptools-p');
+    const serviceNodes = [...panel.querySelectorAll('details.st-svc-node')];
+    const focusKey = d => JSON.stringify([d.closest('.st-org-node')?.dataset.g || d.closest('.st-own-tree')?.dataset.ownOrg || 'direct',d.dataset.sg || d.dataset.g]);
+    if (focusEnabled) {
+      panel.classList.add('st-service-directory');
+      const selected = svcFocus && serviceNodes.find(d => focusKey(d) === svcFocus.key);
+      if (selected) {
+        const wrap = document.createElement('section'); wrap.className = 'st-service-focus'; wrap.style.cssText = selected.style.cssText;
+        wrap.dataset.serviceFocus = selected.dataset.sg || selected.dataset.g;
+        wrap.innerHTML = `<button class="st-focus-back" type="button" data-a="svcback">${icon('back')}<span>Retour aux services</span></button><div class="st-focus-context">${esc(p.name)} · ${esc(plan().l)}</div>`;
+        selected.open = true; wrap.appendChild(selected);
+        panel.replaceChildren(wrap); panel.classList.remove('st-service-directory');
+        wrap.querySelector('[data-a=svcback]').onclick = () => { svcFocus = null; renderProjectTools(root); };
+        // Le titre du service est un en-tête, pas un accordéon dans cet espace.
+        selected.querySelector('summary').addEventListener('click', e => { e.preventDefault(); e.stopImmediatePropagation(); }, true);
+      } else {
+        svcFocus = null;
+        serviceNodes.forEach(d => {
+          const sum = d.querySelector('summary');
+          if (!sum) return;
+          sum.addEventListener('click', e => { e.preventDefault(); e.stopImmediatePropagation(); svcFocus = {scope:focusScope,key:focusKey(d)}; renderProjectTools(root); root.scrollTop=0; }, true);
+        });
+      }
+    }
+    root.querySelectorAll('details.st-acc[data-g]').forEach(d => d.addEventListener('toggle', () => { if (svcFocus) return; const L = [...root.querySelectorAll('details.st-acc[data-g][open]')].map(x => x.dataset.g); try { localStorage.setItem('ptools.open', JSON.stringify(L)); } catch (e) {} }));
     const avj = root.querySelector('[data-a=avjour]'); if (avj) avj.onclick = () => openAvJour(p);
     root.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { App.section = b.dataset.tool; App.search = ''; renderSection(); });
     root.querySelectorAll('[data-xtool]').forEach(b => b.onclick = () => runX(b.dataset.xtool));
-    root.querySelectorAll('details.st-sub').forEach(d => d.addEventListener('toggle', () => { const L = [...root.querySelectorAll('details.st-sub[open]')].map(x => x.dataset.sg); try { localStorage.setItem('ptools.sub', JSON.stringify(L)); } catch (e) {} }));
-    root.querySelectorAll('details.st-qs').forEach(d => d.addEventListener('toggle', () => { const L = [...root.querySelectorAll('details.st-qs[open]')].map(x => x.dataset.qs); try { localStorage.setItem('ptools.qs', JSON.stringify(L)); } catch (e) {} }));
+    root.querySelectorAll('details.st-sub').forEach(d => d.addEventListener('toggle', () => { if (focusEnabled) return; const L = [...root.querySelectorAll('details.st-sub[open]')].map(x => x.dataset.sg); try { localStorage.setItem('ptools.sub', JSON.stringify(L)); } catch (e) {} }));
+    root.querySelectorAll('details.st-qs').forEach(d => d.addEventListener('toggle', () => { const L = [...root.querySelectorAll('details.st-qs[open]')].map(x => x.dataset.qs); try { const current = JSON.parse(localStorage.getItem('ptools.qs') || '[]'); const scope = new Set([...root.querySelectorAll('details.st-qs')].map(x=>x.dataset.qs)); localStorage.setItem('ptools.qs', JSON.stringify([...new Set([...(Array.isArray(current)?current:[]).filter(k=>!scope.has(k)),...L])])); } catch (e) {} }));
     root.querySelectorAll('[data-a=qsset]').forEach(b => b.onclick = () => { const S = ALL_SHELLS.find(x => x.k === b.dataset.svc) || SVC_SHELLS[0]; qsSet(S, S.k === 'qual' ? qualKs : []); });
     root.querySelectorAll('[data-tabtool]').forEach(b => b.onclick = () => openTableTool(p, b.dataset.tabtool));
     // v1.0.63 : appui long (ou ⋮) sur un outil → monter, descendre, déplacer vers une autre catégorie
@@ -585,7 +615,7 @@ const ST = (() => {
       handle.addEventListener('pointerleave', () => { if (!drag) { clearTimeout(t); t = null; } });
       handle.addEventListener('click', (e) => { if (suppress) { e.stopImmediatePropagation(); e.preventDefault(); suppress = false; } }, true);
     };
-    const catEls = () => [...root.querySelectorAll('details.st-acc[data-g]')].filter(d => d.dataset.g !== 'outils');
+    const catEls = () => [...root.querySelectorAll('details.st-acc[data-g]')].filter(d => d.dataset.g !== 'outils' && !(focusEnabled && d.classList.contains('st-svc-node')));
     catEls().forEach(d => {
       const sum = d.querySelector('summary'); if (!sum) return;
       dragBind(d, sum, catEls, (x) => x.dataset.g, (keys) => { const O = drOrd() || {}; O.g = keys; drOrdSet(O); renderProjectTools(root); });
@@ -608,7 +638,7 @@ const ST = (() => {
       if (!r || !r.k) return; const add = qaAdd.includes(r.k) || qaSpec[r.k] ? qaAdd : [...qaAdd, r.k]; qaSave(qaKeys.includes(r.k) ? qaKeys : [...qaKeys, r.k], qaHid.filter(x => x !== r.k), add); renderProjectTools(root); };
     const qaAddB = root.querySelector('[data-a=qaadd]'); if (qaAddB) qaAddB.onclick = qaAddFlow;
     // v1.0.112 : appui long sur le titre d'une catégorie → monter / descendre
-    root.querySelectorAll('details.st-acc[data-g] > summary').forEach(sm => { const g = sm.parentElement.dataset.g; let tm = null, lp = false, last = 0;
+    root.querySelectorAll('details.st-acc[data-g] > summary').forEach(sm => { if (focusEnabled && sm.parentElement.classList.contains('st-svc-node')) return; const g = sm.parentElement.dataset.g; let tm = null, lp = false, last = 0;
       const grpMenu = async () => { const cur = G.map(x => x[0]), i = cur.indexOf(g); const v = await menu(String(sm.textContent || g).replace(/\d+$/, '').trim(), [...(i > 0 ? [{ label: '↑ Monter', icon: 'back', value: 'u' }] : []), ...(i >= 0 && i < cur.length - 1 ? [{ label: '↓ Descendre', icon: 'chevdown', value: 'd' }] : [])]);
         if (!v) return; const o = [...cur], j = v === 'u' ? i - 1 : i + 1; [o[i], o[j]] = [o[j], o[i]];
         try { localStorage.setItem('grp.ord', JSON.stringify(o)); } catch (e) {} renderProjectTools(root); };
