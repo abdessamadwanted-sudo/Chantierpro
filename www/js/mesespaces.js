@@ -181,7 +181,7 @@ const MesEspaces = (() => {
     el.querySelectorAll('[data-medel]').forEach(b => b.onclick = (e) => { e.stopPropagation(); Team.deleteEspace(b.dataset.medel, b.dataset.nm); });
     el.querySelectorAll('[data-pend]').forEach(b => b.onclick = () => { shut(); Team.openSwitcher(true); });
     ($e('[data-a=join]') || {}).onclick = async () => { shut(); const cid = await Team.joinWithCode(); if (cid) Team.switchTo(cid); };
-    ($e('[data-a=new]') || {}).onclick = () => { shut(); Team.openSwitcher(true); };
+    ($e('[data-a=new]') || {}).onclick = () => { shut(); Team.openCreateSpace(); };
     ($e('[data-a=newbp]') || {}).onclick = async () => { const p = await newBP(); if (!p) return; shut(); try { await Team.openPartners(p); } catch (e) { alertBox(errMsg(e)); } };
     // v1.0.3xx (point 17) : « Nouveau service autonome » (standalone, kind « service ») est retiré — remplacé par
     // « Créer mon Entreprise » (une seule fois) puis « Ajouter un service » à l'intérieur, par cohérence avec le
