@@ -1437,7 +1437,8 @@ try {
   try { await R52.pg.waitForSelector('.sheet h3:has-text("plus partie")', { timeout: 20000 }); msg52 = await R52.pg.textContent('.sheet h3:has-text("plus partie")'); await R52.pg.click('.opt:has-text("OK")'); } catch (e) { v52.push('pas de sortie en direct'); }
   log('R52 console', c52);
   log('H message de retrait', msg52); if (!/plus partie/.test(msg52)) v52.push('message de retrait');
-  await R52.pg.waitForSelector('.tm-choice', { timeout: 30000 }).catch(() => v52.push('pas de retour à l\'accueil'));
+  await R52.pg.waitForSelector('.home2', { timeout: 30000 }).catch(() => v52.push('pas de retour à l’espace principal'));
+  if (!(await R52.pg.evaluate(()=>Team.isPerso() && Team.cid()===Team.personalCid()))) v52.push('espace principal non restauré');
   const h2 = await R52.pg.evaluate(async (old) => ({ db: DB.name(), bases: indexedDB.databases ? (await indexedDB.databases()).map(d => d.name) : null, cid: (await firebase.firestore().collection('users').doc(firebase.auth().currentUser.uid).get()).data().companyId || null, old }), h1.db);
   log('H après retrait [base ouverte, bases du téléphone, espace]', h2); if (h2.db === h1.db || (h2.bases && h2.bases.includes(h1.db)) || h2.cid === h1.cid) v52.push('données de l\'organisation encore là');
   await shot(R52.pg, '52_retire');
@@ -1504,11 +1505,13 @@ try {
   await SA.pg.goto('http://127.0.0.1:8765/admin.html?emu=1#acces/perso'); await SA.pg.waitForSelector('#ccl', { timeout: 30000 }); await SA.pg.waitForTimeout(1200);
   await SA.pg.fill('#q-cc', 'ami@test.ma'); await SA.pg.waitForTimeout(400); await shot(SA.pg, '55_sans_espace');
   const ns55 = await SA.pg.evaluate(() => (document.querySelector('#ccl') || {}).textContent || '');
-  try { await SA.pg.click('#ccl [data-k^="n:"][data-dur="30"]'); await SA.pg.waitForSelector('dialog button:has-text("Créer")'); await SA.pg.click('dialog button:has-text("Créer")'); await SA.pg.waitForTimeout(2500); } catch (e) { v55.push('bouton créer son espace'); }
+  // Le membre retiré possède désormais déjà son Basic permanent : prolonger le même espace, sans le recréer.
+  const before55 = await SA.pg.evaluate(async()=>{const q=await firebase.firestore().collection('users').where('email','==','ami@test.ma').get();return q.docs[0]?.data().personalCid;});
+  try { await SA.pg.click('#ccl [data-k="o:'+before55+'"][data-dur="30"]'); await SA.pg.waitForTimeout(2500); } catch(e) { v55.push('bouton prolonger espace permanent'); }
   const cr55 = await SA.pg.evaluate(async () => { const db = firebase.firestore(), u = (await db.collection('users').where('email', '==', 'ami@test.ma').get()).docs[0]; if (!u) return null; const cid = u.data().companyId; if (!cid) return { cid: null };
-    const c = (await db.collection('companies').doc(cid).get()).data(), m = await db.collection('companies').doc(cid).collection('members').doc(u.id).get(); return { kind: c.kind, allowed: c.allowed, until: !!c.accessUntil, member: m.exists && m.data().admin }; });
-  log('créer son espace [sans espace listé, espace créé]', [/Sans espace/.test(ns55), cr55]);
-  if (!/Sans espace/.test(ns55) || !cr55 || cr55.kind !== 'perso' || !cr55.allowed || !cr55.until || !cr55.member) v55.push('créer son espace');
+    const c = (await db.collection('companies').doc(cid).get()).data(), m = await db.collection('companies').doc(cid).collection('members').doc(u.id).get(); return { cid, kind: c.kind, allowed: c.allowed, until: !!c.accessUntil, member: m.exists && m.data().admin }; });
+  log('Espace permanent : accès prolongé sans recréation', [before55, cr55]);
+  if (!before55 || !cr55 || cr55.cid!==before55 || cr55.kind !== 'perso' || !cr55.allowed || !cr55.until || !cr55.member) v55.push('prolonger espace permanent');
   log('errors v1.0.55', v55);
   // ---- v1.0.57 : Packs & fonctions — fonction premium fermée par pack, offerte à un espace ; écran du panneau
   const v57 = [];
@@ -2701,7 +2704,7 @@ try {
     const previous = sessionStorage.getItem('st.preview');
     const o = {};
     try {
-      sessionStorage.setItem('st.preview', JSON.stringify({plan:'enterprise'}));
+      // Utiliser le même compte et les mêmes droits que le parcours intervenants précédent.
       ST.renderProjectTools(root);
       const list = [...root.querySelectorAll('.st-svc-node')].filter(d=>d.querySelector('[data-tool]'));
       const unique = list.find(d=>d.style.getPropertyValue('--st-tone')==='#c084fc') || list[0];
