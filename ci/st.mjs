@@ -277,6 +277,14 @@ try {
   await F.pg.waitForTimeout(3000); await F.pg.waitForSelector('.home2', { timeout: 30000 }); await F.pg.waitForTimeout(1500);
   await F.pg.evaluate(() => Sync.run({ force: true })); await F.pg.waitForTimeout(2500);
   log('F espace 2', await F.pg.evaluate(async () => [Team.company().name, DB.name(), Team.workspaces().length, (await DB.all('projects')).map(p => p.name), Team.me().role]));
+  const permanent = await F.pg.evaluate(() => {
+    const cid=Team.personalCid(), w=Team.workspaces().find(x=>x.cid===cid), m=MesEspaces.open();
+    const result={present:!!w&&w.kind==='perso',separate:!!cid&&cid!==Team.cid(),basic:w?.plan==='basic',noDelete:!m.el.querySelector('[data-medel="'+cid+'"]'),marked:!!m.el.querySelector('.me-primary-mark')};
+    m.close();return result;
+  });
+  log('Espace principal permanent',permanent);
+  log('errors Espace principal permanent',Object.values(permanent).every(Boolean)?[]:['Espace principal permanent '+JSON.stringify(permanent)]);
+
   await F.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await F.pg.waitForTimeout(800); await shot(F.pg, '44_espace_btp');
   try { await F.pg.evaluate((c) => Team.switchTo(c), betCid); } catch (e) {}
   await F.pg.waitForTimeout(3000); await F.pg.waitForSelector('.home2', { timeout: 30000 }); await F.pg.waitForTimeout(1500);
