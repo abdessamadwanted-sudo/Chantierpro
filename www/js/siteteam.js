@@ -351,7 +351,7 @@ const ST = (() => {
   // ST.INTERVENANTS (écran de choix du service, Pro Service autonome) sans dupliquer ces données.
   const COMMUN = { tabproj: 'com', localisation: 'com', visio: 'com', monespace: 'com', team: 'com', org: 'com', histo: 'com' };
   const SVC_SHELLS = [
-    { k: 'qual', flag: 'svcqual', nom: 'Service Qualité', c: '#c084fc', side: 'qual.side', tools: [], map: { docq: 'adm', clauses: 'adm', visa: 'adm', rfi: 'adm', reception: 'ter', forms: 'ter', constat: 'ter', labo: 'ter', hse: 'ter', beton: 'ter', ...COMMUN },
+    { k: 'qual', flag: 'svcqual', nom: 'Service Qualité', c: '#c084fc', side: 'qual.side', tools: [], map: { docq: 'adm', clauses: 'adm', visa: 'adm', rfi: 'adm', reception: 'ter', forms: 'ter', constat: 'ter', labo: 'ter', beton: 'ter', ...COMMUN },
       ui: { adm: 'Documents, archives, clauses', ter: 'Réceptions, contrôles, PV, labo', com: 'Équipe, organigramme, mon espace' } },
     // v1.0.3xx : « Matériaux (Ferraillage) » ajouté au volet Terrain — c'était jusqu'ici l'unique outil mis en avant
     // sur l'ancien accueil dédié de Travaux (renderSvcTravaux, retiré) ; il reste donc accessible exactement comme
@@ -385,7 +385,7 @@ const ST = (() => {
       mk('moa.budget', 'Programme & budget', '#b45309', ['gestion', 'docq', 'reunions'], []), mk('moa.valid', 'Validations & paiements', '#b45309', ['visa', 'gestion'], ['avancement']),
       mk('moa.tech', 'Suivi technique', '#b45309', ['reunions'], ['avancement', 'constat'])] },
     { k: 'bc', e: '🔍', nom: 'Bureau de contrôle', c: '#be123c', flag: 'espbc', services: [
-      mk('bc.avis', 'Avis techniques', '#be123c', ['clauses', 'visa', 'docq'], []), mk('bc.ctrl', 'Contrôles chantier', '#be123c', ['forms'], ['constat', 'hse', 'reception']),
+      mk('bc.avis', 'Avis techniques', '#be123c', ['clauses', 'visa', 'docq'], []), mk('bc.ctrl', 'Contrôles chantier', '#be123c', ['forms'], ['constat', 'reception']),
       mk('bc.recep', 'Réception', '#be123c', ['docq'], ['reception', 'constat'])] },
     { k: 'labo', e: '🧪', nom: 'Laboratoire (externe)', c: '#8b5cf6', flag: 'esplabo', services: [
       mk('labo.beton', 'Essais béton', '#8b5cf6', ['forms'], ['beton', 'labo']), mk('labo.sols', 'Sols / géotechnique', '#8b5cf6', ['forms', 'docq'], ['labo']),
@@ -416,7 +416,7 @@ const ST = (() => {
     mk('st.prod','Production & rendement','#4ade80',['planning','pointage'],['avancement','lotsuivi']),
     mk('st.fer','Armatures & suivi','#fb7185',['plans'],['materiaux','suiviq']),
     mk('st.mat','Matériel & affectations','#fbbf24',['docq'],['materiel']),
-    mk('st.hse','Sécurité terrain','#fb7185',['forms'],['hse','constat'])
+    mk('st.hse','Sécurité terrain','#fb7185',['forms'],['hse','hseplans','constat'])
   ];
   const ALL_SHELLS = [...SVC_SHELLS, ...INTERVENANTS.flatMap(I => I.services), ...OWN_BRANCH_SHELLS];
   const ownBranchesOf = (orgKey, active) => Object.entries(ST_ORG_BRANCHES[orgKey] || {}).filter(([key])=>active.includes(key)).flatMap(([,branches])=>branches.map(([key,label])=>{const shell=ALL_SHELLS.find(S=>S.k===key);return shell?{...shell,nom:label}:null;}).filter(Boolean));
@@ -511,7 +511,9 @@ const ST = (() => {
     const qsKey = (S) => S.side || ('svc.side.' + S.k);
     const qsMap = (S) => { let u = {}; try { u = JSON.parse(localStorage.getItem(qsKey(S)) || '{}') || {}; } catch (e) {} return { ...S.map, ...u }; };
     const qsMine = () => { try { const k = (typeof Org !== 'undefined' && Org.poste && (Org.poste() || {}).k) || ''; return ['tsq', 'ctrl'].includes(k) ? 'ter' : 'adm'; } catch (e) { return 'adm'; } };
-    const qsTools = (S, ks) => [...new Set([...(ks || []), ...S.tools, ...Object.keys(S.map)])].filter(k => SECTIONS[k] && ok(k));
+    // Les outils HSE sont réservés au dossier HSE (et à son équivalent sous-traitant).
+    // Filtrer aussi les outils hérités des catégories génériques et les anciens rangements locaux.
+    const qsTools = (S, ks) => [...new Set([...(ks || []), ...S.tools, ...Object.keys(S.map)])].filter(k => SECTIONS[k] && ok(k) && (!['hse','hseplans'].includes(k) || ['hse','st.hse'].includes(S.k)));
     const svcSplit = (S, ks) => {
       const M = qsMap(S), all = qsTools(S, ks), pre = S.k === 'qual' ? '' : S.k + '.', tone=stVisual(S.k,S.c)[0];
       let op = null; try { op = JSON.parse(localStorage.getItem('ptools.qs') || 'null'); } catch (e) {} if (!Array.isArray(op)) op = [pre + qsMine()];
