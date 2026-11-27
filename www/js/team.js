@@ -136,7 +136,7 @@ const ST_CHROMA = {
 };
 const stVisualStyle = (c) => {
   const p=ST_CHROMA[String(c).toLowerCase()]||ST_CHROMA['#60a5fa'];
-  return '--st-tone:'+c+';--st-ink:'+p[0]+';--st-tint:'+p[3]+';--st-edge:'+p[4]+';--st-matte:'+p[1]+';--st-matte-on:'+p[2]+';--st-matte-icon:'+p[3];
+  return '--st-tone:'+c+';--st-ink:'+p[0]+';--st-tint:'+c+'20'+';--st-edge:'+p[4]+';--st-matte:'+p[1]+';--st-matte-on:'+p[2]+';--st-matte-icon:'+p[3];
 };
 function offerCard(P, perso, btn = true, opts = null) {
   const dev = planDev(P), mods = P.modules === '*' ? MODS.map(([m]) => m) : P.modules, price = dev ? 'En cours de développement' : P.price == null ? 'Sur devis' : P.price ? `${P.price} MAD / ${P.period}` : 'Gratuit';
