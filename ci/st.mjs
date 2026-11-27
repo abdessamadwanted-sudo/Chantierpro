@@ -1568,9 +1568,20 @@ try {
       const out = await bnMakePdf(b, tpl, { vals: { a: 'Voile V12 R+1', b: true }, items: [{ pg: 0, x: 60, y: 200, s: 14, c: '#1d3fbf', t: 'Zone 4\nبيتون' }], strokes: [{ pg: 0, c: '#111827', w: 3.4, pts: [[50, 300], [200, 340], [300, 300]] }] });
       const d = await PDFLib.PDFDocument.load(await out.arrayBuffer()); pdf = { pages: d.getPageCount(), grew: out.size > b.size }; }
     localStorage.setItem('dr.ord', JSON.stringify({ g: ['trav', 'qual', 'etu', 'fin', 'org'], k: { trav: ['reception'] } }));
-    App.section = 'ptools'; await renderSection(); await new Promise(r => setTimeout(r, 600));
-    const moved = !!document.querySelector('.st-tcat[data-g="trav"] [data-tool="reception"]'), notQual = !document.querySelector('.st-tcat[data-g="qual"] [data-tool="reception"]'), bons = !!document.querySelector('[data-xtool="bons"]');
-    localStorage.removeItem('dr.ord');
+    // Le déplacement entre catégories génériques se teste dans une organisation multi-services.
+    // Un dossier mono-service masque intentionnellement ces catégories.
+    const origCompany = Team.company, genericRoot = document.createElement('div');
+    document.body.appendChild(genericRoot);
+    let moved, notQual, bons;
+    try {
+      Team.company = () => ({...origCompany(),kind:'org',services:['direction','travaux','qualite','hse']});
+      ST.renderProjectTools(genericRoot);
+      moved = !!genericRoot.querySelector('.st-tcat[data-g="trav"] [data-tool="reception"]');
+      notQual = !genericRoot.querySelector('.st-tcat[data-g="qual"] [data-tool="reception"]');
+      bons = !!genericRoot.querySelector('[data-xtool="bons"]');
+    } finally {
+      Team.company = origCompany; genericRoot.remove(); localStorage.removeItem('dr.ord');
+    }
     return { tab, pdf, moved, notQual, bons, fns: [typeof openBons, typeof bnFill].join() };
   });
   await shot(A.pg, '63_outils_projet'); log('v1.0.63 [tableau photos, PDF bon rempli, Réception déplacée dans Chantier, tuile Bons]', t63);
@@ -2252,7 +2263,7 @@ try {
     o.date = S.remplir(m, { jour: '2026-11-11', code: 'A' }, { entrepriseId: 'entreprise_1' }).valeurs.jour === '2026-11-11';
     try { S.remplir(m, { jour: '11/11/2026' }, { entrepriseId: 'entreprise_1' }); o.dateKo = false; } catch (e) { o.dateKo = true; }
     try { S.remplir(m, { code: 'A' }, { entrepriseId: 'autre' }); o.isole = false; } catch (e) { o.isole = true; }
-    await DB.putRaw('dsmodeles', { id: 'm_test', ...m });
+    await DB.putRaw('dsmodeles', { ...m, id: 'm_test' });
     const back = await DB.get('dsmodeles', 'm_test');
     o.stocke = !!back && back.nom === 'Suivi test';
     await DB.delRaw('dsmodeles', 'm_test');
@@ -2978,11 +2989,12 @@ try {
     Team.company = () => ({ name: 'Service Travaux Test', kind: 'service', svcKey: 'aut_2' });
     await renderHome();
     o.standardHome = !!document.querySelector('.home2') && !document.querySelector('.svt-home');
+    App.project = p; // renderHome efface le projet courant ; le rétablir avant de tester ses outils.
     const root = document.createElement('div'); root.style.display = 'none'; document.body.appendChild(root);
     ST.renderProjectTools(root);
     o.matTool = !!root.querySelector('[data-tool=materiaux]');
     root.remove();
-    Team.company = origCompany; App.project = p; App.section = 'plans'; await renderHome();
+    Team.company = origCompany; App.section = 'plans'; await renderHome(); App.project = p;
   } catch (e) { o.err = String(e.message || e); } return o; });
   log('service autonome Travaux (Pro Service autonome)', vSvt);
   log('errors service autonome travaux', !vSvt.err && vSvt.standardHome && vSvt.matTool ? [] : ['service autonome travaux ' + JSON.stringify(vSvt)]);
