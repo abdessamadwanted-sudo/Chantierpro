@@ -154,15 +154,16 @@ const MesEspaces = (() => {
     const row = (w) => { const T = typeOf(w), on = w.cid === cur, sv = w.kind === 'service', ent = w.kind === 'entreprise', canDel = w.kind !== 'perso' && w.role === 'patron';
       // v1.0.3xx (point 17) : sous-titre de l'Entreprise = nombre de services débloqués (0 = « vide, aucun accès »)
       const entSub = ent ? (w.cid === cur ? (Team.entHasAll() ? 'Tous les services débloqués' : `${Team.entSvcKeys().length} service(s) débloqué(s)`) : '') : '';
-      const [tone,ic] = w.kind === 'perso' ? ['#4ade80','st_helmet'] : stOrgVisual(T.k);
-      const btn = `<button class="me-r ${on ? 'on' : ''}" data-ws="${esc(w.cid)}" style="${stVisualStyle(tone)}"><span class="e me-ico">${icon(sv?'layers':ic)}</span><span class="grow"><b>${esc(w.name || '?')}${on ? ' ✓' : ''}</b><small>${[w.kind === 'perso' ? 'Espace personnel' : ent ? ('Entreprise' + (entSub ? ' · ' + entSub : '')) : sv ? 'Service autonome' : T.l,tmRoleOf(w.role).l,ent?'':planOf(w.plan).l].filter(Boolean).map(esc).join(' · ')}</small></span><i>›</i></button>`;
+      const primary = w.kind === 'perso' && w.cid === Team.personalCid();
+      const [tone,ic] = w.kind === 'perso' ? (planOf(w.plan).k==='pro' ? ['#60a5fa','st_helmet'] : ['#4ade80','st_helmet']) : stOrgVisual(T.k);
+      const btn = `<button class="me-r ${on ? 'on' : ''}" data-ws="${esc(w.cid)}" style="${stVisualStyle(tone)}"><span class="e me-ico">${icon(sv?'layers':ic)}</span><span class="grow"><b>${esc(w.name || '?')}${on ? ' ✓' : ''}${primary ? ' <span class="me-primary-mark">Principal · permanent</span>' : ''}</b><small>${[w.kind === 'perso' ? 'Espace personnel' : ent ? ('Entreprise' + (entSub ? ' · ' + entSub : '')) : sv ? 'Service autonome' : T.l,tmRoleOf(w.role).l,ent?'':planOf(w.plan).l].filter(Boolean).map(esc).join(' · ')}</small></span><i>›</i></button>`;
       return canDel ? `<div class="me-rw">${btn}<button class="me-del" data-medel="${esc(w.cid)}" data-nm="${esc(w.name || '')}" title="Supprimer cet espace">${icon('trash')}</button></div>` : btn; };
     const sec = (t, n, body, hint) => `<section class="me-s"><h3>${esc(t)}${n != null ? `<em>${n}</em>` : ''}</h3>${body || `<p class="me-e">${esc(hint || 'Aucun')}</p>`}</section>`;
     el.innerHTML = `<div class="topbar dark"><button class="iconbtn" data-a="x">${icon('back')}</button><h1>Mes espaces</h1><button class="iconbtn" data-a="more">${icon('more')}</button></div>
       <div class="me-body">
         <div class="me-intro"><span class="me-ico">${icon('layers')}</span><div><b>Vos espaces de travail</b><small>Un compte · des données séparées</small></div></div>
         <div class="me-act me-main-actions"><button class="btn" data-a="join">${icon('link')} Rejoindre avec un code</button><button class="btn ghost" data-a="new">${icon('plus')} Créer un espace</button></div>
-        ${sec('Espace personnel', C.perso.length, C.perso.map(row).join(''), 'Aucun espace personnel')}
+        ${sec('Mon espace principal', C.perso.length, C.perso.sort((a,b)=>Number(b.cid===Team.personalCid())-Number(a.cid===Team.personalCid())).map(row).join('') + (C.perso.some(w=>w.cid===Team.personalCid()&&planOf(w.plan).k==='basic') ? '<button class="btn ghost me-upgrade" data-a="upgrade">Passer à Pro · conserver mes projets</button>' : ''), 'Espace personnel indisponible — vérifiez la connexion et les conditions d’accès')}
         ${sec('Organisations', C.orgs.length, C.orgs.map(row).join(''), 'Aucune organisation — créez-en une ou rejoignez-en avec un code')}
         ${C.ent.length ? sec('Entreprises existantes', C.ent.length, C.ent.map(row).join('') + (C.ent.some(w => w.cid === cur) ? '<button class="btn ghost" data-a="entadd">＋ Ajouter un service</button>' : '')) : ''}
         ${C.services.length ? sec('Services autonomes (historique)', C.services.length, C.services.map(row).join('')) : ''}
@@ -189,6 +190,7 @@ const MesEspaces = (() => {
     // La création passe exclusivement par le parcours « Créer un espace » → pack → organisation.
     ($e('[data-a=entadd]') || {}).onclick = async () => { await openEntAdd(); shut(); MesEspaces.open(); };
     ($e('[data-a=me]') || {}).onclick = () => { shut(); Team.openCompany('me'); };
+    ($e('[data-a=upgrade]') || {}).onclick = () => { shut(); const cid=Team.personalCid(); if(cid===Team.cid()) Team.requestPack('pro',true); else if(cid) Team.switchTo(cid); };
     ($e('[data-a=more]') || {}).onclick = async () => {
       const v = await menu('Mes espaces', [...(Team.attach && Team.attach.ok() ? [{ label: Team.attach.isSvc() ? 'Demandes de rattachement' : 'Rattacher un service autonome', icon: 'link', value: 'attach' }] : []), ...(Team.isSuper() && typeof Studio !== 'undefined' ? [{ label: 'Architecture Studio', icon: 'layers', value: 'studio' }] : []), { label: 'Ancien sélecteur d\'espace', icon: 'undo', value: 'old' }, { label: 'Désactiver cet écran (revenir à l\'ancien)', icon: 'close', danger: true, value: 'off' }]);
       if (v === 'attach') { shut(); attachScreen(); } else if (v === 'studio') { shut(); Studio.open({ onClose: () => MesEspaces.open() }); } else if (v === 'old') { shut(); Team.openSwitcher(true); } else if (v === 'off') { setEnabled(false); toast('Ancien sélecteur rétabli'); shut(); }
