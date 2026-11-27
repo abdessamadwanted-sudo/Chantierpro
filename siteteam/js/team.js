@@ -52,10 +52,10 @@ const storageL = (g) => (g >= 1000 ? g / 1000 + ' To' : g + ' Go') + ' (indicati
 // Identité visuelle uniquement : aucune modification des droits, quotas ou clés métier.
 const ST_PACK_THEME = { basic:'#4ade80', pro:'#60a5fa', business:'#22d3ee', enterprise:'#fbbf24' };
 const ST_SERVICE_THEME = {
- direction:['#60a5fa','st_orgchart','Pilotage et décisions'], travaux:['#4ade80','hard','Exécution et avancement'],
+ direction:['#60a5fa','st_orgchart','Pilotage et décisions'], travaux:['#4ade80','st_helmet','Exécution et avancement'],
  qualite:['#c084fc','st_quality','Réceptions, contrôles, PV'], qual:['#c084fc','st_quality','Réceptions, contrôles, PV'],
  hse:['#fb7185','st_hse','Prévention et sécurité'], materiel:['#fbbf24','st_excavator','Parc et disponibilité'],
- topo:['#2dd4bf','st_station','Implantations et levés'], labo:['#38bdf8','flask','Essais et traçabilité'],
+ topo:['#2dd4bf','st_station','Implantations et levés'], labo:['#38bdf8','st_flask','Essais et traçabilité'],
  admin:['#fbbf24','st_coins','Administration et finance'], fin:['#fbbf24','st_coins','Budget et contrats'],
  methodes:['#22d3ee','calendar','Méthodes et planning'], etudes:['#818cf8','st_compass','Études techniques'],
  etu:['#818cf8','st_compass','Études et visas'], bim:['#818cf8','st_bim','Maquettes et coordination'],
@@ -66,7 +66,7 @@ const ST_SERVICE_THEME = {
  metre:['#a78bfa','st_calculator','Quantités et estimations'], ferraillage:['#f87171','st_rebar','Armatures et suivi'],
  centrale:['#94a3b8','st_mixer','Commandes et béton'], logistique:['#f59e0b','st_truck','Logistique']
 };
-const ST_ORG_THEME = {entreprise:['#fbbf24','st_building'],soustraitant:['#fb923c','hard'],bet:['#22d3ee','st_compass'],archi:['#c084fc','st_archi'],moa:['#4ade80','st_landmark'],bc:['#fb7185','shield'],opc:['#22d3ee','calendar'],labo:['#38bdf8','flask'],topo:['#2dd4bf','st_station']};
+const ST_ORG_THEME = {entreprise:['#fbbf24','st_building'],soustraitant:['#fb923c','st_subcontract'],bet:['#22d3ee','st_compass'],archi:['#c084fc','st_archi'],moa:['#4ade80','st_landmark'],bc:['#fb7185','st_inspection'],opc:['#60a5fa','st_coordination'],labo:['#38bdf8','st_flask'],topo:['#2dd4bf','st_station'],artisan:['#fb923c','st_craft'],fournisseur:['#fbbf24','st_supply'],loueur:['#eab308','st_rental'],promoteur:['#4ade80','st_property'],formation:['#a78bfa','st_training'],independant:['#4ade80','st_helmet']};
 // Les sous-services externes gardent leurs clés et leurs droits existants.
 const ST_EXTERNAL_THEME = {
  'bet.bim':['#c084fc','st_bim','Coordination BIM'], 'bet.doc':['#fbbf24','st_binders','Documentation'],
@@ -76,7 +76,7 @@ const ST_EXTERNAL_THEME = {
  'labo.prelev':['#c084fc','st_sample','Prélèvements'], 'labo.trace':['#2dd4bf','st_barcode','Traçabilité'],
  'labo.conf':['#4ade80','st_quality','Conformité'], 'opc.plan':['#60a5fa','calendar','Planning'],
  'opc.coord':['#22d3ee','st_orgchart','Coordination'], 'opc.rapp':['#c084fc','st_chart','Reporting'],
- 'st.prod':['#4ade80','hard','Production'], 'st.fer':['#fb7185','st_rebar','Ferraillage'],
+ 'st.prod':['#4ade80','st_helmet','Production'], 'st.fer':['#fb7185','st_rebar','Ferraillage'],
  'st.mat':['#fbbf24','st_excavator','Matériel'], 'st.hse':['#fb7185','st_hse','Sécurité'],
  'bet.struct':['#38bdf8','st_beam','Structure'], 'bet.fluides':['#2dd4bf','st_fan','Réseaux et installations'],
  'bet.metre':['#60a5fa','st_calculator','Quantités et estimation'], 'bet.exec':['#22d3ee','st_stamp','Visas et suivi'],
@@ -113,7 +113,13 @@ const ST_BRANCH_DESC={
 const ST_BRANCH_ORDER={bet:['bet.struct','bet.fluides','bet.bim','bet.exec','bet.metre','bet.doc'],topo:['topo.impl','topo.rel','topo.ctrl','topo.asb','topo.calc','topo.mat'],labo:['labo.beton','labo.sols','labo.prelev','labo.trace','labo.rapp','labo.conf']};
 const stBranchCards=(orgKey,services)=>{const list=services.flatMap(s=>{const rows=stOrgBranches(orgKey,s.k);return rows.length?rows.map(([k,label])=>({k,parent:s.k,label,branch:true,desc:ST_BRANCH_DESC[k]||stVisual(k,s.c)[2]})):[{k:s.k,parent:s.k,label:s.l,branch:false,desc:stVisual(s.k,s.c)[2]}];});const order=ST_BRANCH_ORDER[orgKey]||[];return list.sort((a,b)=>(order.includes(a.k)?order.indexOf(a.k):99)-(order.includes(b.k)?order.indexOf(b.k):99));};
 const stOrgServiceTitle = (orgKey, svc) => (({bet:{bim:'Études & BIM',doc:'Visa & documentation',metre:'Métré & quantités'},archi:{bim:'Conception & BIM',doc:'Suivi & documentation'},topo:{topo:'Missions topographiques'},labo:{labo:'Essais & analyses',doc:'Rapports & résultats'},bc:{qualite:'Contrôle technique'},opc:{methodes:'Planning & coordination'}}[orgKey] || {})[svc.k] || svc.l);
-const stVisualStyle = (c) => '--st-tone:'+c+';--st-tint:'+c+'20;--st-edge:'+c+'70';
+// Mélange opaque sur bleu nuit : aucune composante blanche de reflet.
+const stMatteColor = (c,ratio) => {
+  const hex=/^#[0-9a-f]{6}$/i.test(c)?c:'#60a5fa';
+  const base=[7,29,53];
+  return '#'+base.map((v,i)=>Math.round(v*(1-ratio)+parseInt(hex.slice(1+i*2,3+i*2),16)*ratio).toString(16).padStart(2,'0')).join('');
+};
+const stVisualStyle = (c) => '--st-tone:'+c+';--st-tint:'+c+'20;--st-edge:'+stMatteColor(c,.72)+';--st-matte:'+stMatteColor(c,.12)+';--st-matte-on:'+stMatteColor(c,.22)+';--st-matte-icon:'+stMatteColor(c,.28);
 function offerCard(P, perso, btn = true, opts = null) {
   const dev = planDev(P), mods = P.modules === '*' ? MODS.map(([m]) => m) : P.modules, price = dev ? 'En cours de développement' : P.price == null ? 'Sur devis' : P.price ? `${P.price} MAD / ${P.period}` : 'Gratuit';
   const act = P.price == null ? 'Demander un devis · essai' : P.price ? `Démarrer l'essai ${P.trialDays || 14} jours` : 'Commencer gratuitement';
@@ -1770,7 +1776,7 @@ const Team = (() => {
         const io = inviteOnly();
         el.innerHTML = `<div class="tm-lg-in st-architecture st-welcome">${brand()}<div class="st-entry-hero" style="${stVisualStyle('#fbbf24')}"><span class="st-node-icon">${icon('layers')}</span></div><h1>Bienvenue sur SiteTeam</h1><p>${io ? 'SiteTeam est accessible sur invitation. Entrez le code d\'accès donné par votre responsable.' : 'Comment voulez-vous utiliser SiteTeam ?'}</p>
           <div class="tm-choice">
-            ${io ? '' : `<button data-a="perso" style="${stVisualStyle('#4ade80')}"><i class="st-node-icon">${icon('hard')}</i><span><b>Espace personnel</b><small>Basic ou Pro · vos projets et outils métier</small></span></button>
+            ${io ? '' : `<button data-a="perso" style="${stVisualStyle('#4ade80')}"><i class="st-node-icon">${icon('st_helmet')}</i><span><b>Espace personnel</b><small>Basic ou Pro · vos projets et outils métier</small></span></button>
             <button data-a="create" style="${stVisualStyle('#22d3ee')}"><i class="st-node-icon">${icon('team')}</i><span><b>Créer une organisation</b><small>Entreprise BTP, BET, architecte, labo… services et équipe</small></span></button>`}
             <button data-a="join" style="${stVisualStyle('#60a5fa')}"><i class="st-node-icon">${icon('lock')}</i><span><b>${io ? 'Entrer mon code d\'accès' : 'Rejoindre avec un code'}</b><small>Accès donné par votre responsable</small></span></button></div>
           ${opt.add ? '<button class="linkbtn" data-a="cancel">← Retour à mon espace</button>' : `<button class="linkbtn" data-a="out">Se déconnecter (${esc(auth.currentUser.email || '')})</button>`}</div>`;
@@ -1824,15 +1830,15 @@ const Team = (() => {
       function stepOrg() {
         // Sélecteur graphique basé sur les types historiques ; aucune nouvelle clé persistée.
         const current = orgTypeOf(W.org || 'entreprise'), P = planOf(W.plan);
-        el.innerHTML = `<div class="tm-lg-in st-architecture">${brand()}${steps(3, tot())}
+        el.innerHTML = `<div class="tm-lg-in st-architecture st-org-screen">${brand()}${steps(3, tot())}
           <h1>Choisissez votre organisation</h1><p>Un espace métier adapté à chaque acteur du BTP.</p>
           <div class="st-ent-head" style="${stVisualStyle(ST_PACK_THEME[P.k] || '#60a5fa')}"><small>SiteTeam · Pack ${esc(P.l)}</small>
             <div class="st-tree-root"><span class="st-node-icon">${icon('layers')}</span><span><b>Pack ${esc(P.l)}</b><small>Organisations · services · outils</small></span></div>
             <div class="st-tree-connector" aria-hidden="true"></div>
             <button class="st-ent-trigger" data-a="orgmenu" aria-expanded="true" aria-controls="st-ent-options" type="button">
-              <span>${current.e} ${esc(current.l)}</span><span aria-hidden="true">⌄</span></button>
+              <span>${icon(stOrgVisual(current.k)[1])} ${esc(current.l)}</span><span aria-hidden="true">⌄</span></button>
             <div id="st-ent-options" class="st-ent-options st-orgs st-node-grid" role="group" aria-label="Types d'organisation">
-              ${ORG_TYPES.map(t => { const [c,ic]=stOrgVisual(t.k); return `<button type="button" data-o="${t.k}" aria-pressed="${t.k === current.k}" style="${stVisualStyle(c)}"><span class="st-node-icon">${icon(ic)}</span><span class="st-node-copy"><b>${esc(t.l)}</b><small>${esc(t.d)}</small></span><span class="st-node-check" aria-hidden="true">${t.k === current.k ? '✓' : '○'}</span></button>`; }).join('')}
+              ${ORG_TYPES.map(t => { const [c,ic]=stOrgVisual(t.k); return `<button type="button" data-o="${t.k}" aria-pressed="${t.k === current.k}" style="${stVisualStyle(c)}"><span class="st-node-icon">${icon(ic)}</span><span class="st-node-copy"><b>${esc(t.k==='opc'?'OPC':t.l)}</b><small>${esc(t.d)}</small></span><span class="st-node-check" aria-hidden="true">${t.k === current.k ? '✓' : '○'}</span></button>`; }).join('')}
             </div>
           </div>
           <div class="st-ent-current"><strong>${current.e} ${esc(current.l)}</strong><p>${esc(current.d)}</p></div>
