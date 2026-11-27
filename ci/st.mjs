@@ -2754,8 +2754,7 @@ try {
   });
   log('Contexte pack/service et dossier Travaux',scx);
   log('errors Contexte pack/service',!scx.err&&['config','role','context','focus','noGeneric','volets','locked'].every(k=>scx[k])?[]:['Contexte service '+JSON.stringify(scx)]);
-  // HSE est un dossier indépendant : les outils hérités et les préférences
-  // locales ne doivent pas les réintroduire dans Qualité.
+  // Seul le raccourci HSE doit disparaître du dossier Qualité ; le service HSE reste intact.
   const glassHse=await A.pg.evaluate(()=>{
     const root=document.createElement('div');document.body.appendChild(root);
     const orig=Team.company,origShared=Team.sharedOf,origFlag=Team.flag;
@@ -2768,7 +2767,7 @@ try {
       Team.sharedOf=()=>null;Team.flag=k=>['svcqual','svchse'].includes(k)||origFlag(k);
       ST.renderProjectTools(root);
       const q=root.querySelector('.st-service-focus');
-      const o={quality:!!q&&q.textContent.includes('Service Qualité')&&!q.querySelector('[data-tool=hse],[data-tool=hseplans]')};
+      const o={quality:!!q&&q.textContent.includes('Service Qualité')&&!q.querySelector('[data-tool=hse]')};
       const volet=q?.querySelector('.st-qs');
       o.glass=!!volet&&getComputedStyle(volet).backgroundImage.includes('linear-gradient')&&getComputedStyle(volet).borderTopColor==='rgb(70, 96, 120)';
       key='hse'; ST.renderProjectTools(root);
