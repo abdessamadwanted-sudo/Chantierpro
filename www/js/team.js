@@ -1567,26 +1567,28 @@ const Team = (() => {
       await withTimeout(ref.delete(), 30000);
     } catch (e) { ld.close(); console.warn('suppression espace', e); return alertBox('Suppression impossible : ' + errMsg(e)); }
     ld.close();
-    const rest = (S.workspaces || []).filter(x => x.cid !== cid && !x.pending).sort((a,b)=>Number(b.cid===personalCid())-Number(a.cid===personalCid()));
-    try { await withTimeout(fs.collection('users').doc(S.user.uid).set({ companyId: isCur ? (rest.length ? rest[0].cid : null) : S.cid, workspaces: rest }, { merge: true })); } catch (e) { console.warn('liste espaces', e); }
-    LS.set('profile', { ...(LS.get('profile') || {}), companyId: isCur ? (rest.length ? rest[0].cid : null) : S.cid, workspaces: rest });
+    const rest = (S.workspaces || []).filter(x => x.cid !== cid).sort((a,b)=>Number(b.cid===personalCid())-Number(a.cid===personalCid()));
+    const nextActive = rest.find(x=>!x.pending);
+    try { await withTimeout(fs.collection('users').doc(S.user.uid).set({ companyId: isCur ? (nextActive ? nextActive.cid : null) : S.cid, workspaces: rest }, { merge: true })); } catch (e) { console.warn('liste espaces', e); }
+    LS.set('profile', { ...(LS.get('profile') || {}), companyId: isCur ? (nextActive ? nextActive.cid : null) : S.cid, workspaces: rest });
     S.workspaces = rest;
     WS.forget(cid);
     await alertBox(`« ${name} » a été supprimé.`);
     if (!isCur) return;   // espace actif inchangé : pas besoin de recharger l'application
-    if (!rest.length) WS.put('st.db', 'chantier_vide');
+    if (!nextActive) WS.put('st.db', 'chantier_vide');
     location.reload();
   }
   // v1.0.52 : retiré d'une organisation → on quitte cet espace ET on efface ses données de ce téléphone (projets, plans, photos de l'organisation)
   let leaving = false;
   async function leftOrg(c) {
     if (leaving) return new Promise(() => {}); leaving = true;   // déjà en cours (retrait vu par deux chemins) : on laisse le premier finir
-    const cid = S.cid, rest = (S.workspaces || []).filter(w => w.cid !== cid && !w.pending).sort((a,b)=>Number(b.cid===personalCid())-Number(a.cid===personalCid()));
-    try { await withTimeout(fs.collection('users').doc(S.user.uid).set({ companyId: rest.length ? rest[0].cid : null, workspaces: rest }, { merge: true })); } catch (e) { console.warn('sortie', e); }
-    const nc = rest.length ? rest[0].cid : null; LS.set('profile', { ...(LS.get('profile') || {}), companyId: nc, workspaces: rest });
+    const cid = S.cid, rest = (S.workspaces || []).filter(w => w.cid !== cid).sort((a,b)=>Number(b.cid===personalCid())-Number(a.cid===personalCid()));
+    const nextActive = rest.find(w=>!w.pending);
+    try { await withTimeout(fs.collection('users').doc(S.user.uid).set({ companyId: nextActive ? nextActive.cid : null, workspaces: rest }, { merge: true })); } catch (e) { console.warn('sortie', e); }
+    const nc = nextActive ? nextActive.cid : null; LS.set('profile', { ...(LS.get('profile') || {}), companyId: nc, workspaces: rest });
     WS.forget(cid);
     S.workspaces = rest;
-    await alertBox('Vous ne faites plus partie de « ' + ((c && c.exists && c.data().name) || (S.company && S.company.name) || 'cette organisation') + ' ».\nSes projets ont été retirés de ce téléphone.' + (rest.length ? '\nOuverture de « ' + rest[0].name + ' ».' : ''));
+    await alertBox('Vous ne faites plus partie de « ' + ((c && c.exists && c.data().name) || (S.company && S.company.name) || 'cette organisation') + ' ».\nSes projets ont été retirés de ce téléphone.' + (nextActive ? '\nOuverture de « ' + nextActive.name + ' ».' : ''));
     if (!nc) { WS.put('st.db', 'chantier_vide'); location.reload(); return new Promise(() => {}); }   // plus aucun espace : base vide tout de suite, l'ancienne est effacée au redémarrage
     leaving = false;
   }
