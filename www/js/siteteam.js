@@ -411,12 +411,13 @@ const ST = (() => {
   const IV_AUTO_KEY = { iv_bet: 'bet', iv_archi: 'archi', iv_moa: 'moa', iv_bc: 'bc', iv_labo: 'labo', iv_topo: 'topo', iv_at: 'at' };
   // ---------- v1.0.38 : accueil du projet — les outils de CE projet (type, fonctions du projet, service, pack), par catégorie ----------
   // Navigation locale uniquement : une sélection par espace/projet, jamais une autorisation.
-  let svcFocus = null;
+  const serviceFocusByRoot = new WeakMap();
   function renderProjectTools(root) {
     const p = App.project; if (!p) return;
     const focusEnabled = ['enterprise','business'].includes(plan().k);
     const focusScope = JSON.stringify([Team.cid(),p.id]);
-    if (!focusEnabled || (svcFocus && svcFocus.scope !== focusScope)) svcFocus = null;
+    let svcFocus = serviceFocusByRoot.get(root) || null;
+    if (!focusEnabled || (svcFocus && svcFocus.scope !== focusScope)) { svcFocus = null; serviceFocusByRoot.delete(root); }
     const ok = (k) => secShown(k) && k !== 'dashboard' && k !== 'ptools' && k !== 'settings' && sectionOn(k) && Team.canSection(k);
     const first = Team.isAdmin() ? (ORG_FIRST[(Team.orgType() || {}).k] || 'trav') : grpOf();
     // v1.0.63 : l'ordre et les groupes choisis par l'utilisateur (appui long sur un outil → déplacer vers une autre catégorie)
@@ -562,21 +563,21 @@ const ST = (() => {
         wrap.innerHTML = `<button class="st-focus-back" type="button" data-a="svcback">${icon('back')}<span>Retour aux services</span></button><div class="st-focus-context">${esc(p.name)} · ${esc(plan().l)}</div>`;
         selected.open = true; wrap.appendChild(selected);
         panel.replaceChildren(wrap); panel.classList.remove('st-service-directory');
-        wrap.querySelector('[data-a=svcback]').onclick = () => { svcFocus = null; renderProjectTools(root); };
+        wrap.querySelector('[data-a=svcback]').onclick = () => { svcFocus = null; serviceFocusByRoot.delete(root); renderProjectTools(root); };
         // Le titre du service est un en-tête, pas un accordéon dans cet espace.
         selected.querySelector('summary').addEventListener('click', e => { e.preventDefault(); e.stopImmediatePropagation(); }, true);
       } else {
-        svcFocus = null;
+        svcFocus = null; serviceFocusByRoot.delete(root);
         serviceNodes.forEach(d => {
           const sum = d.querySelector('summary');
           if (!sum) return;
-          sum.addEventListener('click', e => { e.preventDefault(); e.stopImmediatePropagation(); svcFocus = {scope:focusScope,key:focusKey(d)}; renderProjectTools(root); root.scrollTop=0; }, true);
+          sum.addEventListener('click', e => { e.preventDefault(); e.stopImmediatePropagation(); svcFocus = {scope:focusScope,key:focusKey(d)}; serviceFocusByRoot.set(root,svcFocus); renderProjectTools(root); root.scrollTop=0; }, true);
         });
       }
     }
     root.querySelectorAll('details.st-acc[data-g]').forEach(d => d.addEventListener('toggle', () => { if (svcFocus) return; const L = [...root.querySelectorAll('details.st-acc[data-g][open]')].map(x => x.dataset.g); try { localStorage.setItem('ptools.open', JSON.stringify(L)); } catch (e) {} }));
     const avj = root.querySelector('[data-a=avjour]'); if (avj) avj.onclick = () => openAvJour(p);
-    root.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { App.section = b.dataset.tool; App.search = ''; renderSection(); });
+    root.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { serviceFocusByRoot.delete(root); App.section = b.dataset.tool; App.search = ''; renderSection(); });
     root.querySelectorAll('[data-xtool]').forEach(b => b.onclick = () => runX(b.dataset.xtool));
     root.querySelectorAll('details.st-sub').forEach(d => d.addEventListener('toggle', () => { if (focusEnabled) return; const L = [...root.querySelectorAll('details.st-sub[open]')].map(x => x.dataset.sg); try { localStorage.setItem('ptools.sub', JSON.stringify(L)); } catch (e) {} }));
     root.querySelectorAll('details.st-qs').forEach(d => d.addEventListener('toggle', () => { const L = [...root.querySelectorAll('details.st-qs[open]')].map(x => x.dataset.qs); try { const current = JSON.parse(localStorage.getItem('ptools.qs') || '[]'); const scope = new Set([...root.querySelectorAll('details.st-qs')].map(x=>x.dataset.qs)); localStorage.setItem('ptools.qs', JSON.stringify([...new Set([...(Array.isArray(current)?current:[]).filter(k=>!scope.has(k)),...L])])); } catch (e) {} }));
