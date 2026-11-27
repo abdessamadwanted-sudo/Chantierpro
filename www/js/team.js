@@ -1448,6 +1448,11 @@ const Team = (() => {
     try { sessionStorage.removeItem('st.preview'); } catch (e) {}
     location.reload();
   }
+  async function openCreateSpace() {
+    if (!S.ready) return;
+    const ok = await onboardScreen({ add: true });
+    if (ok) { try { if (typeof Sync !== 'undefined' && Sync.enabled && Sync.enabled()) await Sync.run({ quiet: true }); } catch (e) {} location.reload(); }
+  }
   function openSwitcher(old) {
     if (!S.ready) return;
     // « Mes espaces » (v1.0.274) : l'ancien sélecteur reste accessible (old = true) et rétabli par le réglage — retour arrière sans perte
@@ -1467,7 +1472,7 @@ const Team = (() => {
         if (st === 'refusee') { sh.close(); const L2 = (S.workspaces || []).filter(x => x.cid !== cid); await fs.collection('users').doc(S.user.uid).set({ workspaces: L2 }, { merge: true }); S.workspaces = L2; return alertBox('Votre demande a été refusée par l\'organisation.'); }
         toast('Toujours en attente d\'approbation'); } catch (e) { alertBox(errMsg(e)); } });
     ($('[data-a=join]', sh.el)||{}).onclick = async () => { sh.close(); const cid = await joinWithCode(); if (cid) switchTo(cid); };
-    ($('[data-a=new]', sh.el)||{}).onclick = async () => { sh.close(); const ok = await onboardScreen({ add: true }); if (ok) { try { if (typeof Sync !== 'undefined' && Sync.enabled && Sync.enabled()) await Sync.run({ quiet: true }); } catch (e) {} location.reload(); } };
+    ($('[data-a=new]', sh.el)||{}).onclick = () => { sh.close(); return openCreateSpace(); };
   }
 
   // v1.1 : suppression DÉFINITIVE d'un espace (personnel ou organisation) par son propriétaire, avec double confirmation.
@@ -2980,7 +2985,7 @@ const Team = (() => {
 
   return {
     boot, push, pull, resetPull, lvl, canSection, svcLib, canProject, isAdmin, openCompany, taille, secureApply, secureOn, saveAffectations, noteProject, projectIds, inviteFlow, inviteFor, shareInvite, canInviteNow: () => canInvite(), logout, decorateSection, removeMember, refreshMembers, logAudit, openAuditLog,
-    isSuper, superConsole, orgType, isPerso, tailleList: () => TAILLES, roleList: () => TM_ROLES.map(r => ({ k: r.k, l: r.l, perms: r.perms })), planModules: () => Object.fromEntries(['basic', 'pro', 'business', 'enterprise'].map(k => [k, planOf(k).modules])), companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, createService, obtainAutonomeSvc, packAccounts, ensurePackAccount,
+    isSuper, superConsole, orgType, isPerso, tailleList: () => TAILLES, roleList: () => TM_ROLES.map(r => ({ k: r.k, l: r.l, perms: r.perms })), planModules: () => Object.fromEntries(['basic', 'pro', 'business', 'enterprise'].map(k => [k, planOf(k).modules])), companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, openCreateSpace, switchTo, createService, obtainAutonomeSvc, packAccounts, ensurePackAccount,
     createEntreprise, requestEntService, unlockEntService, entUnlockSuper, entSvcKeys, entHasSvc, entHasAll, ENT_ALL, attach: att, isOwner, deleteEspace, workspaces: () => S.workspaces || [], shared: () => S.shared || [], cid: () => S.cid,
     profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
     openProjectShares, claimShare, openPartners, renderHistory, sharedOf, joinWithCode,
