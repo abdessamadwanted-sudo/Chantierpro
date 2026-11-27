@@ -277,6 +277,14 @@ try {
   await F.pg.waitForTimeout(3000); await F.pg.waitForSelector('.home2', { timeout: 30000 }); await F.pg.waitForTimeout(1500);
   await F.pg.evaluate(() => Sync.run({ force: true })); await F.pg.waitForTimeout(2500);
   log('F espace 2', await F.pg.evaluate(async () => [Team.company().name, DB.name(), Team.workspaces().length, (await DB.all('projects')).map(p => p.name), Team.me().role]));
+  const permanent = await F.pg.evaluate(() => {
+    const cid=Team.personalCid(), w=Team.workspaces().find(x=>x.cid===cid), m=MesEspaces.open();
+    const result={present:!!w&&w.kind==='perso',separate:!!cid&&cid!==Team.cid(),basic:w?.plan==='basic',noDelete:!m.el.querySelector('[data-medel="'+cid+'"]'),marked:!!m.el.querySelector('.me-primary-mark')};
+    m.close();return result;
+  });
+  log('Espace principal permanent',permanent);
+  log('errors Espace principal permanent',Object.values(permanent).every(Boolean)?[]:['Espace principal permanent '+JSON.stringify(permanent)]);
+
   await F.pg.evaluate(() => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.project = null; renderHome(); }); await F.pg.waitForTimeout(800); await shot(F.pg, '44_espace_btp');
   try { await F.pg.evaluate((c) => Team.switchTo(c), betCid); } catch (e) {}
   await F.pg.waitForTimeout(3000); await F.pg.waitForSelector('.home2', { timeout: 30000 }); await F.pg.waitForTimeout(1500);
@@ -965,7 +973,11 @@ try {
   const pt = await A.pg.evaluate(() => [App.section, document.querySelectorAll('.st-ptools-p [data-tool]').length, document.querySelectorAll('.st-ptools-p .st-tcat').length]);
   log('projet ouvert sur ses outils [section, outils, catégories]', pt); if (pt[0] !== 'ptools' || !pt[1]) v38.push('projet : outils absents');
   await shot(A.pg, '152_outils_du_projet');
-  await A.pg.click('.st-ptools-p [data-tool]'); await A.pg.waitForTimeout(600);
+  // Dans Business/Enterprise, ouvrir le service avant son outil si le catalogue est replié.
+  if (!(await A.pg.locator('.st-ptools-p [data-tool]:visible').count())) {
+    await A.pg.evaluate(() => { const d = document.querySelector('.st-ptools-p .st-svc-node'); if (d) { const org = d.closest('.st-org-node'); if (org) org.open = true; d.querySelector('summary').click(); const q = document.querySelector('.st-service-focus .st-qs'); if (q) q.open = true; } });
+  }
+  await A.pg.locator('.st-ptools-p [data-tool]:visible').first().click(); await A.pg.waitForTimeout(600);
   log('outil ouvert depuis le projet', await A.pg.evaluate(() => App.section));
   await A.pg.evaluate(async () => { document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove()); App.project = null; App.homeTab = 'home'; await renderHome(); }); await A.pg.waitForTimeout(500);
   await A.pg.click('.st-bnav [data-n=set]'); await A.pg.waitForTimeout(600);
@@ -1425,7 +1437,8 @@ try {
   try { await R52.pg.waitForSelector('.sheet h3:has-text("plus partie")', { timeout: 20000 }); msg52 = await R52.pg.textContent('.sheet h3:has-text("plus partie")'); await R52.pg.click('.opt:has-text("OK")'); } catch (e) { v52.push('pas de sortie en direct'); }
   log('R52 console', c52);
   log('H message de retrait', msg52); if (!/plus partie/.test(msg52)) v52.push('message de retrait');
-  await R52.pg.waitForSelector('.tm-choice', { timeout: 30000 }).catch(() => v52.push('pas de retour à l\'accueil'));
+  await R52.pg.waitForSelector('.home2', { timeout: 30000 }).catch(() => v52.push('pas de retour à l’espace principal'));
+  if (!(await R52.pg.evaluate(()=>Team.isPerso() && Team.cid()===Team.personalCid()))) v52.push('espace principal non restauré');
   const h2 = await R52.pg.evaluate(async (old) => ({ db: DB.name(), bases: indexedDB.databases ? (await indexedDB.databases()).map(d => d.name) : null, cid: (await firebase.firestore().collection('users').doc(firebase.auth().currentUser.uid).get()).data().companyId || null, old }), h1.db);
   log('H après retrait [base ouverte, bases du téléphone, espace]', h2); if (h2.db === h1.db || (h2.bases && h2.bases.includes(h1.db)) || h2.cid === h1.cid) v52.push('données de l\'organisation encore là');
   await shot(R52.pg, '52_retire');
@@ -1492,11 +1505,13 @@ try {
   await SA.pg.goto('http://127.0.0.1:8765/admin.html?emu=1#acces/perso'); await SA.pg.waitForSelector('#ccl', { timeout: 30000 }); await SA.pg.waitForTimeout(1200);
   await SA.pg.fill('#q-cc', 'ami@test.ma'); await SA.pg.waitForTimeout(400); await shot(SA.pg, '55_sans_espace');
   const ns55 = await SA.pg.evaluate(() => (document.querySelector('#ccl') || {}).textContent || '');
-  try { await SA.pg.click('#ccl [data-k^="n:"][data-dur="30"]'); await SA.pg.waitForSelector('dialog button:has-text("Créer")'); await SA.pg.click('dialog button:has-text("Créer")'); await SA.pg.waitForTimeout(2500); } catch (e) { v55.push('bouton créer son espace'); }
+  // Le membre retiré possède désormais déjà son Basic permanent : prolonger le même espace, sans le recréer.
+  const before55 = await SA.pg.evaluate(async()=>{const q=await firebase.firestore().collection('users').where('email','==','ami@test.ma').get();return q.docs[0]?.data().personalCid;});
+  try { await SA.pg.click('#ccl [data-k="o:'+before55+'"][data-dur="30"]'); await SA.pg.waitForTimeout(2500); } catch(e) { v55.push('bouton prolonger espace permanent'); }
   const cr55 = await SA.pg.evaluate(async () => { const db = firebase.firestore(), u = (await db.collection('users').where('email', '==', 'ami@test.ma').get()).docs[0]; if (!u) return null; const cid = u.data().companyId; if (!cid) return { cid: null };
-    const c = (await db.collection('companies').doc(cid).get()).data(), m = await db.collection('companies').doc(cid).collection('members').doc(u.id).get(); return { kind: c.kind, allowed: c.allowed, until: !!c.accessUntil, member: m.exists && m.data().admin }; });
-  log('créer son espace [sans espace listé, espace créé]', [/Sans espace/.test(ns55), cr55]);
-  if (!/Sans espace/.test(ns55) || !cr55 || cr55.kind !== 'perso' || !cr55.allowed || !cr55.until || !cr55.member) v55.push('créer son espace');
+    const c = (await db.collection('companies').doc(cid).get()).data(), m = await db.collection('companies').doc(cid).collection('members').doc(u.id).get(); return { cid, kind: c.kind, allowed: c.allowed, until: !!c.accessUntil, member: m.exists && m.data().admin }; });
+  log('Espace permanent : accès prolongé sans recréation', [before55, cr55]);
+  if (!before55 || !cr55 || cr55.cid!==before55 || cr55.kind !== 'perso' || !cr55.allowed || !cr55.until || !cr55.member) v55.push('prolonger espace permanent');
   log('errors v1.0.55', v55);
   // ---- v1.0.57 : Packs & fonctions — fonction premium fermée par pack, offerte à un espace ; écran du panneau
   const v57 = [];
@@ -1986,7 +2001,7 @@ try {
     o.classify = C.perso.length === 1 && C.orgs.length === 1 && C.shared.length === 1 && C.invit.length === 1 && C.cur === 'b';
     const C2 = MesEspaces.classify([{ cid: 's', kind: 'service' }, { cid: 'o', kind: 'org', role: 'chef' }], 's'); o.bp = typeof MesEspaces.canBP === 'function' && typeof Team.openPartners === 'function'; o.att = typeof MesEspaces.attachScreen === 'function' && Team.attach && Team.attach.label('actif') === 'Rattaché' && Team.attach.label('demande') === 'En attente'; o.svc = C2.services.length === 1 && C2.orgs.length === 1 && typeof Team.createService === 'function' && tmRoleOf(orgTypeOf('entreprise').owner).admin === true;
     o.on = MesEspaces.enabled() === true;
-    const m = MesEspaces.open(); o.open = !!m && !!document.querySelector('.me-pg') && document.querySelectorAll('.me-s').length === 5 && !!document.querySelector('.me-act [data-a=join]') && !!document.querySelector('[data-a=me]');
+    const m = MesEspaces.open(); o.open = !!m && !!document.querySelector('.me-pg') && document.querySelectorAll('.me-s').length >= 5 && !document.querySelector('.me-pg [data-a=entnew]') && !!document.querySelector('.me-pg .me-intro') && typeof Team.openCreateSpace === 'function' && !!document.querySelector('.me-act [data-a=join]') && !!document.querySelector('[data-a=me]');
     o.cur = document.querySelectorAll('.me-r.on').length <= 1; m.close(); o.closed = !document.querySelector('.me-pg');
     Team.openSwitcher(); await new Promise(r => setTimeout(r, 200)); o.viaSwitcher = !!document.querySelector('.me-pg'); document.querySelectorAll('.me-pg').forEach(x => x.remove());
     MesEspaces.setEnabled(false); o.off = MesEspaces.enabled() === false; Team.openSwitcher(); await new Promise(r => setTimeout(r, 300)); o.old = !document.querySelector('.me-pg') && !!document.querySelector('.st-wsl');
@@ -2683,6 +2698,38 @@ try {
   if (ivk.join() !== 'bet,archi,moa,bc,labo,topo,' ) throw new Error('rôle→intervenant KO ' + ivk.join());
   // l'organisation titulaire voit l'Entreprise et tous les intervenants ; le partenaire (BET) ne voit que le sien : vérifié par la logique de rôle ci-dessus
   log('errors v1.0.x intervenants', []);
+  // Espace dédié : sélectionner deux services différents, vérifier que seuls leurs outils restent dans le DOM.
+  const sf = await A.pg.evaluate(() => {
+    const root = document.createElement('div'); document.body.appendChild(root);
+    const previous = sessionStorage.getItem('st.preview');
+    const o = {};
+    try {
+      // Utiliser le même compte et les mêmes droits que le parcours intervenants précédent.
+      ST.renderProjectTools(root);
+      const list = [...root.querySelectorAll('.st-svc-node')].filter(d=>d.querySelector('[data-tool]'));
+      const unique = list.find(d=>d.style.getPropertyValue('--st-tone')==='#c084fc') || list[0];
+      const other = list.find(d=>d.style.getPropertyValue('--st-tone')!==unique?.style.getPropertyValue('--st-tone'));
+      if (!unique || !other) return {err:'Deux services accessibles requis'};
+      const tone = unique.style.getPropertyValue('--st-tone'), tone2=other.style.getPropertyValue('--st-tone');
+      const tools = [...unique.querySelectorAll('[data-tool]')].map(b=>b.dataset.tool).sort().join(',');
+      unique.querySelector('summary').click();
+      const panel = root.querySelector('.st-service-focus');
+      o.isolated = !!panel && root.querySelectorAll('.st-svc-node').length===1 && !root.querySelector('.st-service-tree');
+      o.tools = !!panel && [...panel.querySelectorAll('[data-tool]')].map(b=>b.dataset.tool).sort().join(',')===tools;
+      o.color = panel?.style.getPropertyValue('--st-tone')===tone;
+      ST.renderProjectTools(root); o.retained = !!root.querySelector('.st-service-focus');
+      root.querySelector('[data-a=svcback]').click();
+      o.back = !!root.querySelector('.st-service-directory') && !root.querySelector('.st-service-focus');
+      const next=[...root.querySelectorAll('.st-svc-node')].find(d=>d.style.getPropertyValue('--st-tone')===tone2 && d.querySelector('[data-tool]'));
+      next.querySelector('summary').click();
+      o.second = root.querySelector('.st-service-focus')?.style.getPropertyValue('--st-tone')===tone2 && root.querySelectorAll('.st-svc-node').length===1;
+      root.querySelector('[data-a=svcback]').click();
+      return o;
+    } catch(e) {return {err:String(e.message||e)};}
+    finally { if(previous===null)sessionStorage.removeItem('st.preview');else sessionStorage.setItem('st.preview',previous);root.remove(); }
+  });
+  log('Espace mono-service', sf);
+  log('errors Espace mono-service', !sf.err && ['isolated','tools','color','retained','back','second'].every(k=>sf[k])?[]:['Espace mono-service '+JSON.stringify(sf)]);
   // ---- v1.0.x : Table de projet (réserves · RFI · visas) + tableau de bord interactif
   const tp = await A.pg.evaluate(async () => { const wait = (ms) => new Promise(r => setTimeout(r, ms)); document.querySelectorAll('.fullpage,.sheet-bg').forEach(x => x.remove());
     const p = (await DB.all('projects')).find(x => !x.deleted); if (!p) return { noProject: true }; App.project = p;
