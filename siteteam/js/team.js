@@ -595,7 +595,8 @@ service cloud.firestore {
     match /companies/{cid} {
       // v1.0.45 : « accès sur code uniquement » (config/app.inviteOnly) — plus de nouvel espace sans le Super Admin ; « allowed » ne se donne que par lui
       // v1.0.55 : le Super Admin peut créer l'espace personnel d'un compte (Centre de contrôle › « Créer son espace »)
-      allow create: if (licOwner() && request.resource.data.get('kind', '') == 'perso') || signed() && request.resource.data.ownerUid == request.auth.uid
+      allow create: if (!cid.matches('^perso_.*') || (signed() && cid == 'perso_' + request.resource.data.ownerUid && request.resource.data.get('kind','') == 'perso'))
+        && ((licOwner() && request.resource.data.get('kind', '') == 'perso') || signed() && request.resource.data.ownerUid == request.auth.uid
         && (licOwner() || (request.resource.data.get('allowed', false) == false
           && (!exists(/databases/$(db)/documents/config/app) || get(/databases/$(db)/documents/config/app).data.get('inviteOnly', false) != true)))
         && ((request.resource.data.get('planStatus', 'essai') in ['essai', 'gratuit']
@@ -613,10 +614,11 @@ service cloud.firestore {
             // un code pack valide (voir codePlanOk et la règle update ci-dessous) — jamais à la création.
             && (request.resource.data.get('kind', 'org') != 'entreprise'
                 || (request.resource.data.get('svcKeys', []).size() == 0 && request.resource.data.get('allSvc', false) != true)))
-          || (request.resource.data.get('packCode', null) != null && codePlanOk(request.resource.data)));
+          || (request.resource.data.get('packCode', null) != null && codePlanOk(request.resource.data))));
       allow read: if isMem(cid) || licOwner();
-      // v1.1 : suppression définitive de l'espace, par son propriétaire seulement
-      allow delete: if signed() && resource.data.ownerUid == request.auth.uid;
+      // Un espace personnel ne se supprime pas via la gestion des espaces.
+      // La suppression explicite du compte Auth reste un parcours distinct.
+      allow delete: if signed() && resource.data.ownerUid == request.auth.uid && resource.data.get('kind','org') != 'perso';
       // la formule (pack) ne change que par le Super Admin SiteTeam (plus tard : la facturation)
       allow update: if (isAdmin(cid) && request.resource.data.get('plan', null) == resource.data.get('plan', null)
           && request.resource.data.get('planStatus', null) == resource.data.get('planStatus', null)
@@ -1015,6 +1017,7 @@ const Team = (() => {
   async function applyPackCode() {
     if (!S.cid || !isAdmin()) return alertBox('Seul un administrateur de l\'espace peut entrer un code pack.');
     const C = await askPackCode(); if (!C) return false;
+    if (isPerso() && !['basic','pro'].includes(C.plan)) return alertBox('Business et Enterprise sont des organisations séparées. Créez un espace organisation pour utiliser ce code.');
     if (!(await confirmBox(`Activer ${codeLabel(C)} sur « ${S.company.name} » ?`, 'Activer'))) return false;
     const ld = loading('Activation…');
     try {
@@ -1030,6 +1033,7 @@ const Team = (() => {
   // chaque service verrouillé séparément — demande du propriétaire), plutôt qu'au pack « Pro » en général. Sans svcInfo,
   // comportement strictement inchangé (demande de pack classique, Individuel/Organisation).
   async function requestPack(k, perso, svcInfo) {
+    if (isPerso() && !['basic','pro'].includes(k)) return alertBox('Business et Enterprise nécessitent un espace organisation séparé.');
     // Super Admin : pas de demande, le pack s'applique tout de suite à l'espace ouvert (les règles l'autorisent pour lui seul)
     if (isSuper() && S.cid && S.company) {
       const P0 = planFor(planOf(k), (S.company || {}).kind === 'perso');
@@ -1072,15 +1076,16 @@ const Team = (() => {
   }
   async function cloudRemove(sref) { if (st && sref) { try { await st.ref(sref).delete(); } catch (e) { if (e.code !== 'storage/object-not-found') console.warn('cloud del', e); } } }
   // projets partagés par d'autres organisations (companies/{moi}/shared)
-  async function loadShared() {
+  const isFirestoreQuota = e => !!e && (String(e.code || '').split('/').pop() === 'resource-exhausted' || /quota exceeded|resource exhausted/i.test(String(e.message || e)));
+  async function loadShared(strictQuota = false) {
     S.shared = LS.get('shared') || [];
     try {
       const q = await withTimeout(fs.collection('companies').doc(S.cid).collection('shared').get(), 10000); const L = q.docs.map(d => ({ pid: d.id, ...d.data() }));
       // accès à jour (le titulaire peut changer les modules, suspendre ou retirer l'organisation)
       await Promise.all(L.map(async (x) => { try { const d = await fs.collection('companies').doc(x.cid).collection('projects').doc(x.pid).collection('partners').doc(S.cid).get();
-        if (d.exists) { x.mods = d.data().mods || {}; x.status = d.data().status || 'actif'; x.role = d.data().role || x.role; } else { x.mods = {}; x.status = 'retire'; } } catch (e) {} }));
+        if (d.exists) { x.mods = d.data().mods || {}; x.status = d.data().status || 'actif'; x.role = d.data().role || x.role; } else { x.mods = {}; x.status = 'retire'; } } catch (e) { if (strictQuota && isFirestoreQuota(e)) throw e; } }));
       S.shared = L; LS.set('shared', S.shared);
-    } catch (e) { console.warn('shared', e); }
+    } catch (e) { if (strictQuota && isFirestoreQuota(e)) throw e; console.warn('shared', e); }
     return S.shared;
   }
 
@@ -1228,13 +1233,83 @@ const Team = (() => {
       return false;
     },
   };
+  // Compte permanent : identifiant stable distinct de l'espace actif et de homeCid (comptes de test).
+  const primaryOf = L => (L || []).find(w => w && w.kind === 'perso' && !w.pending && w.role !== 'collaborateur');
+  const personalCid = () => S.personalCid || (primaryOf(S.workspaces) || {}).cid || (isPerso() ? S.cid : '') || '';
+  let personalProvision = null;
+  async function ensurePersonalHome(opts = {}) {
+    if (inviteOnly() || !S.user) return null; // respecter le verrou global d'inscription par invitation
+    if (personalProvision) return personalProvision;
+    personalProvision = (async () => {
+      const uid = S.user.uid, userRef = fs.collection('users').doc(uid), p = await withTimeout(userRef.get(), 12000);
+      const prof = p.exists ? p.data() : {}, L = Array.isArray(prof.workspaces) ? prof.workspaces : [];
+      if (prof.blocked === true && !isSuper()) return null;
+      const verified = async cid => {
+        if (!cid) return null;
+        const ref = fs.collection('companies').doc(cid);
+        const m = await withTimeout(ref.collection('members').doc(uid).get(), 10000);
+        if (!m.exists) return null;
+        const c = await withTimeout(ref.get(), 10000);
+        return c.exists && c.data().kind === 'perso' && c.data().ownerUid === uid && !c.data().deleted ? c.data() : null;
+      };
+      const candidates = [...new Set([prof.personalCid, ...L.filter(w=>w.kind==='perso'&&!w.pending&&w.role!=='collaborateur').map(w=>w.cid), prof.companyId === S.cid && isPerso() ? S.cid : null].filter(Boolean))];
+      let cid = '', c = null;
+      for (const k of candidates) { const found = await verified(k); if (found) { cid=k; c=found; break; } }
+      if (!cid) {
+        cid = 'perso_' + uid;
+        const ref = fs.collection('companies').doc(cid);
+        c = await verified(cid);
+        if (!c) {
+          const name = opts.me || prof.name || S.user.displayName || 'Mon espace';
+          const plan = opts.plan === 'pro' ? 'pro' : 'basic', P = planOf(plan);
+          const viaCode = opts.code && opts.code.plan === plan;
+          const sub = viaCode ? {...codeSub(opts.code),packCode:opts.code.code} : plan==='basic' ? {planStatus:'gratuit'} : {planStatus:'essai',trialEndsAt:firebase.firestore.Timestamp.fromMillis(Date.now()+(P.trialDays||14)*864e5)};
+          // Un document par UID. Une réouverture ne remplace jamais les données d'un espace existant.
+          const payload = {name:'Espace de '+name,ownerUid:uid,kind:'perso',orgType:'independant',services:[],plan,...sub,createdAt:ts()};
+          let created = false;
+          try { await withTimeout(ref.set(payload), 12000); created=true; }
+          catch(e) { if (!denied(e)) throw e; }
+          const member = ref.collection('members').doc(uid), m = await withTimeout(member.get(),10000);
+          if (!m.exists) {
+            const all = Object.fromEntries(MODS.map(([k])=>[k,4]));
+            await withTimeout(member.set({name,email:S.user.email||'',role:ROLE_PROPRIO.k,service:'perso',perms:all,admin:true,allProjects:true,projects:[],managerUid:null,zone:'',createdAt:ts()}));
+          }
+          c = await verified(cid); if (!c) throw new Error('Espace personnel non vérifié');
+          if (created && viaCode) await withTimeout(useCode(opts.code)).catch(e=>console.warn('code',e));
+        }
+      }
+      const w = {cid,name:c.name||'Mon espace',kind:'perso',org:'independant',role:'proprietaire',plan:planOf(c.plan).k};
+      // Fusion transactionnelle : ne pas perdre les organisations ajoutées sur un autre appareil.
+      let next = [];
+      await withTimeout(fs.runTransaction(async tx => {
+        const d = await tx.get(userRef), latest = d.exists ? d.data() : {};
+        next = [w,...(Array.isArray(latest.workspaces)?latest.workspaces:[]).filter(x=>x.cid!==cid)];
+        const patch = {personalCid:cid,workspaces:next};
+        if (opts.activate) patch.companyId=cid;
+        if (opts.metier) patch.profil={metier:opts.metier,specialites:opts.spec||''};
+        tx.set(userRef,patch,{merge:true});
+      }),15000);
+      S.personalCid=cid; S.workspaces=next; LS.set('profile',{...(LS.get('profile')||{}),personalCid:cid,workspaces:next,...(opts.activate?{companyId:cid}:{})});
+      return cid;
+    })().finally(()=>{personalProvision=null;});
+    return personalProvision;
+  }
   // la liste des espaces du compte (users/{uid}.workspaces) est tenue à jour à chaque ouverture
   async function saveWorkspace() {
     const T = orgType(), w = { cid: S.cid, name: S.company.name || '', kind: S.company.kind || 'org', org: T.k, role: S.me.role || '', plan: myPlan().k };
-    const L = (S.workspaces || []).filter(x => x.cid !== S.cid), cur = (S.workspaces || []).find(x => x.cid === S.cid);
-    const next = [w, ...L];
-    if (cur && JSON.stringify(cur) === JSON.stringify(w) && (S.workspaces || [])[0] && S.workspaces[0].cid === S.cid) return;
-    try { await fs.collection('users').doc(S.user.uid).set({ workspaces: next }, { merge: true }); S.workspaces = next; } catch (e) { console.warn('ws', e); }
+    const cur = (S.workspaces || []).find(x => x.cid === S.cid);
+    if (cur && JSON.stringify(cur) === JSON.stringify(w) && (S.workspaces || [])[0]?.cid === S.cid) return;
+    try {
+      const ref = fs.collection('users').doc(S.user.uid);
+      let next = [];
+      await withTimeout(fs.runTransaction(async tx => {
+        const d = await tx.get(ref), current = d.exists ? d.data() : {};
+        next = [w, ...(Array.isArray(current.workspaces)?current.workspaces:[]).filter(x=>x.cid!==w.cid)];
+        tx.set(ref,{workspaces:next},{merge:true});
+      }),15000);
+      S.workspaces=next;
+      LS.set('profile',{...(LS.get('profile')||{}),workspaces:next});
+    } catch(e) { console.warn('ws',e); }
   }
   // v1.0.3xx (24/11/2026, demande du propriétaire : retirer « Pro Service autonome », tout passe par Entreprise) :
   // correspondance clé du catalogue (assets/studio.json, aut_X) → clé TM_SERVICES, pour migrateServiceKind ci-dessous.
@@ -1440,13 +1515,33 @@ const Team = (() => {
     },
     label: (st) => ({ demande: 'En attente', actif: 'Rattaché', refuse: 'Refusé', revoque: 'Révoqué' }[st] || st),
   };
+  // Ne pas laisser un écran de chargement bloquer l'accès au chantier si la synchro est lente.
+  // Un délai dépassé n'annule pas la synchro : on reste donc dans l'espace courant.
+  let switchingSpace = false;
   async function switchTo(cid) {
-    if (cid === S.cid) return;
-    const ld = loading('Changement d\'espace…');
-    try { if (typeof Sync !== 'undefined' && Sync.enabled && Sync.enabled()) await Sync.run({ quiet: true }); } catch (e) { console.warn('sync avant changement', e); }
-    try { await withTimeout(fs.collection('users').doc(S.user.uid).set({ companyId: cid }, { merge: true })); } catch (e) { ld.close(); return alertBox(errMsg(e)); }
-    try { sessionStorage.removeItem('st.preview'); } catch (e) {}
-    location.reload();
+    if (cid === S.cid || switchingSpace) return;
+    switchingSpace = true;
+    let ld, failure = null;
+    try {
+      ld = loading('Changement d\'espace…');
+      if (typeof Sync !== 'undefined' && Sync.enabled && Sync.enabled()) {
+        await withTimeout(Sync.run({ quiet: true }), 12000, 'Synchronisation trop longue. Vous restez dans votre espace actuel. Réessayez après la synchronisation.');
+      }
+      await withTimeout(fs.collection('users').doc(S.user.uid).set({ companyId: cid }, { merge: true }), 15000, 'Le serveur ne confirme pas le changement d\'espace. Vérifiez votre connexion et réessayez.');
+      try { sessionStorage.removeItem('st.preview'); } catch (e) {}
+      location.reload();
+    } catch (e) {
+      failure = errMsg(e);
+    } finally {
+      if (ld) ld.close();
+      switchingSpace = false;
+    }
+    if (failure) return alertBox(failure);
+  }
+  async function openCreateSpace() {
+    if (!S.ready) return;
+    const ok = await onboardScreen({ add: true });
+    if (ok) { try { if (typeof Sync !== 'undefined' && Sync.enabled && Sync.enabled()) await Sync.run({ quiet: true }); } catch (e) {} location.reload(); }
   }
   function openSwitcher(old) {
     if (!S.ready) return;
@@ -1467,7 +1562,7 @@ const Team = (() => {
         if (st === 'refusee') { sh.close(); const L2 = (S.workspaces || []).filter(x => x.cid !== cid); await fs.collection('users').doc(S.user.uid).set({ workspaces: L2 }, { merge: true }); S.workspaces = L2; return alertBox('Votre demande a été refusée par l\'organisation.'); }
         toast('Toujours en attente d\'approbation'); } catch (e) { alertBox(errMsg(e)); } });
     ($('[data-a=join]', sh.el)||{}).onclick = async () => { sh.close(); const cid = await joinWithCode(); if (cid) switchTo(cid); };
-    ($('[data-a=new]', sh.el)||{}).onclick = async () => { sh.close(); const ok = await onboardScreen({ add: true }); if (ok) { try { if (typeof Sync !== 'undefined' && Sync.enabled && Sync.enabled()) await Sync.run({ quiet: true }); } catch (e) {} location.reload(); } };
+    ($('[data-a=new]', sh.el)||{}).onclick = () => { sh.close(); return openCreateSpace(); };
   }
 
   // v1.1 : suppression DÉFINITIVE d'un espace (personnel ou organisation) par son propriétaire, avec double confirmation.
@@ -1482,6 +1577,7 @@ const Team = (() => {
     const w = isCur ? null : (S.workspaces || []).find(x => x.cid === cid);
     const name = nameArg || (isCur ? ((S.company && S.company.name) || 'cet espace') : ((w && w.name) || 'cet espace'));
     if (!cid || !S.user) return;
+    if (cid===personalCid() || (isCur ? isPerso() : w && w.kind==='perso')) return alertBox('Votre espace personnel principal est permanent. Vous pouvez gérer votre abonnement ou supprimer explicitement votre compte depuis Profil.');
     if (isCur) { if (!isOwner()) return alertBox('Seul le propriétaire de cet espace peut le supprimer.'); }
     else if (!w || w.role !== 'patron') return alertBox('Seul le propriétaire de cet espace peut le supprimer.');
     if (!await confirmBox(`Supprimer DÉFINITIVEMENT « ${name} » ?\n\nLes membres perdent l'accès, et les données de cet espace sont effacées de ce téléphone. Cette action est irréversible.\n\n(Les sauvegardes Drive restent dans votre Drive.)`, 'Continuer')) return;
@@ -1496,26 +1592,28 @@ const Team = (() => {
       await withTimeout(ref.delete(), 30000);
     } catch (e) { ld.close(); console.warn('suppression espace', e); return alertBox('Suppression impossible : ' + errMsg(e)); }
     ld.close();
-    const rest = (S.workspaces || []).filter(x => x.cid !== cid && !x.pending);
-    try { await withTimeout(fs.collection('users').doc(S.user.uid).set({ companyId: isCur ? (rest.length ? rest[0].cid : null) : S.cid, workspaces: rest }, { merge: true })); } catch (e) { console.warn('liste espaces', e); }
-    LS.set('profile', { ...(LS.get('profile') || {}), companyId: isCur ? (rest.length ? rest[0].cid : null) : S.cid, workspaces: rest });
+    const rest = (S.workspaces || []).filter(x => x.cid !== cid).sort((a,b)=>Number(b.cid===personalCid())-Number(a.cid===personalCid()));
+    const nextActive = rest.find(x=>!x.pending);
+    try { await withTimeout(fs.collection('users').doc(S.user.uid).set({ companyId: isCur ? (nextActive ? nextActive.cid : null) : S.cid, workspaces: rest }, { merge: true })); } catch (e) { console.warn('liste espaces', e); }
+    LS.set('profile', { ...(LS.get('profile') || {}), companyId: isCur ? (nextActive ? nextActive.cid : null) : S.cid, workspaces: rest });
     S.workspaces = rest;
     WS.forget(cid);
     await alertBox(`« ${name} » a été supprimé.`);
     if (!isCur) return;   // espace actif inchangé : pas besoin de recharger l'application
-    if (!rest.length) WS.put('st.db', 'chantier_vide');
+    if (!nextActive) WS.put('st.db', 'chantier_vide');
     location.reload();
   }
   // v1.0.52 : retiré d'une organisation → on quitte cet espace ET on efface ses données de ce téléphone (projets, plans, photos de l'organisation)
   let leaving = false;
   async function leftOrg(c) {
     if (leaving) return new Promise(() => {}); leaving = true;   // déjà en cours (retrait vu par deux chemins) : on laisse le premier finir
-    const cid = S.cid, rest = (S.workspaces || []).filter(w => w.cid !== cid && !w.pending);
-    try { await withTimeout(fs.collection('users').doc(S.user.uid).set({ companyId: rest.length ? rest[0].cid : null, workspaces: rest }, { merge: true })); } catch (e) { console.warn('sortie', e); }
-    const nc = rest.length ? rest[0].cid : null; LS.set('profile', { ...(LS.get('profile') || {}), companyId: nc, workspaces: rest });
+    const cid = S.cid, rest = (S.workspaces || []).filter(w => w.cid !== cid).sort((a,b)=>Number(b.cid===personalCid())-Number(a.cid===personalCid()));
+    const nextActive = rest.find(w=>!w.pending);
+    try { await withTimeout(fs.collection('users').doc(S.user.uid).set({ companyId: nextActive ? nextActive.cid : null, workspaces: rest }, { merge: true })); } catch (e) { console.warn('sortie', e); }
+    const nc = nextActive ? nextActive.cid : null; LS.set('profile', { ...(LS.get('profile') || {}), companyId: nc, workspaces: rest });
     WS.forget(cid);
     S.workspaces = rest;
-    await alertBox('Vous ne faites plus partie de « ' + ((c && c.exists && c.data().name) || (S.company && S.company.name) || 'cette organisation') + ' ».\nSes projets ont été retirés de ce téléphone.' + (rest.length ? '\nOuverture de « ' + rest[0].name + ' ».' : ''));
+    await alertBox('Vous ne faites plus partie de « ' + ((c && c.exists && c.data().name) || (S.company && S.company.name) || 'cette organisation') + ' ».\nSes projets ont été retirés de ce téléphone.' + (nextActive ? '\nOuverture de « ' + nextActive.name + ' ».' : ''));
     if (!nc) { WS.put('st.db', 'chantier_vide'); location.reload(); return new Promise(() => {}); }   // plus aucun espace : base vide tout de suite, l'ancienne est effacée au redémarrage
     leaving = false;
   }
@@ -1567,6 +1665,7 @@ const Team = (() => {
     if (!prof.companyId) { await loadPlanCfg(); if (!LS.get('appCfgAt') && !isSuper()) { await gateScreen('📶 Connexion nécessaire', 'Impossible de lire les réglages de SiteTeam. Vérifiez internet puis touchez « Réessayer ».', { retry: true }); }
       await onboardScreen(); return loadMembership(); }
     S.workspaces = Array.isArray(prof.workspaces) ? prof.workspaces : [];
+    S.personalCid = prof.personalCid || '';
     S.profil = prof.profil || {};
     S.packAccounts = prof.packAccounts || {}; S.homeCid = prof.homeCid || '';
     // espace de travail : chaque organisation a sa base locale ; si l'espace a changé (ici ou sur un autre téléphone), on bascule puis on recharge
@@ -1594,7 +1693,7 @@ const Team = (() => {
     // v1.0.35 : configuration en arrière-plan si déjà connue — v1.0.57 : puis contrôle d'accès refait (« accès sur code uniquement » activé entre-temps)
     if (LS.get('plansCfg')) loadPlanCfg().then(() => { try { gate(); } catch (e) {} }).catch(() => {}); else await loadPlanCfg();
     // v1.0.45 : postes, projets partagés, équipes projet et membres — depuis le cache tout de suite, puis réseau en arrière-plan
-    const rest = async () => { await loadPostes(); await loadShared(); try { await projectIds(); } catch (e) { console.warn('équipes projet', e); } await refreshMembers(); saveWorkspace(); };
+    const rest = async () => { await loadPostes(); await loadShared(); try { await projectIds(); } catch (e) { console.warn('équipes projet', e); } await refreshMembers(); await saveWorkspace(); if (!S.personalCid && !inviteOnly()) { try { await ensurePersonalHome(); } catch(e) { console.warn('espace personnel permanent',e); } } };
     const fast = quickC && Array.isArray(LS.get('members')) && LS.get('projectTeams');
     if (fast) {
       S.members = LS.get('members'); S.projectTeams = LS.get('projectTeams'); S.shared = LS.get('shared') || [];
@@ -1619,10 +1718,10 @@ const Team = (() => {
     migrateCompanyPlan();
     syncDriveCfg();
   }
-  async function refreshMembers() {
+  async function refreshMembers(strictQuota = false) {
     try { const q = await fs.collection('companies').doc(S.cid).collection('members').get(); S.members = q.docs.map(d => ({ uid: d.id, ...d.data() })); LS.set('members', S.members);
       const me = S.members.find(x => x.uid === S.user.uid); if (me) { const changed = JSON.stringify(me.perms) !== JSON.stringify(S.me.perms) || me.role !== S.me.role || me.allProjects !== S.me.allProjects || JSON.stringify(me.projects) !== JSON.stringify(S.me.projects); S.me = me; LS.set('me', me); if (changed && !document.querySelector('.fullpage, .sheet-bg')) { try { App.project ? renderSection() : renderHome(); } catch (e) {} } } }
-    catch (e) { console.warn('members', e); }
+    catch (e) { if (strictQuota && isFirestoreQuota(e)) throw e; console.warn('members', e); }
     return S.members;
   }
   // nouveaux modules (topo, centrale, matériel, pointage, HSE) : l'administrateur complète les droits de chacun selon son poste
@@ -1794,13 +1893,13 @@ const Team = (() => {
         const io = inviteOnly();
         el.innerHTML = `<div class="tm-lg-in st-architecture st-welcome">${brand()}<div class="st-entry-hero" style="${stVisualStyle('#fbbf24')}"><span class="st-node-icon">${icon('layers')}</span></div><h1>Bienvenue sur SiteTeam</h1><p>${io ? 'SiteTeam est accessible sur invitation. Entrez le code d\'accès donné par votre responsable.' : 'Comment voulez-vous utiliser SiteTeam ?'}</p>
           <div class="tm-choice">
-            ${io ? '' : `<button data-a="perso" style="${stVisualStyle('#4ade80')}"><i class="st-node-icon">${icon('st_helmet')}</i><span><b>Espace personnel</b><small>Basic ou Pro · vos projets et outils métier</small></span></button>
+            ${io ? '' : `<button data-a="perso" style="${stVisualStyle('#4ade80')}"><i class="st-node-icon">${icon('st_helmet')}</i><span><b>${opt.add && personalCid() ? 'Mon espace principal' : 'Espace personnel'}</b><small>Basic permanent · évolution vers Pro sans changer d’espace</small></span></button>
             <button data-a="create" style="${stVisualStyle('#22d3ee')}"><i class="st-node-icon">${icon('team')}</i><span><b>Créer une organisation</b><small>Entreprise BTP, BET, architecte, labo… services et équipe</small></span></button>`}
             <button data-a="join" style="${stVisualStyle('#60a5fa')}"><i class="st-node-icon">${icon('lock')}</i><span><b>${io ? 'Entrer mon code d\'accès' : 'Rejoindre avec un code'}</b><small>Accès donné par votre responsable</small></span></button></div>
           ${opt.add ? '<button class="linkbtn" data-a="cancel">← Retour à mon espace</button>' : `<button class="linkbtn" data-a="out">Se déconnecter (${esc(auth.currentUser.email || '')})</button>`}</div>`;
         const out = $('[data-a=out]', el); if (out) out.onclick = async () => { await auth.signOut(); LS.del('me'); LS.del('cid'); location.reload(); };
         const cc = $('[data-a=cancel]', el); if (cc) cc.onclick = () => { el.remove(); resolve(false); };
-        if (!io) { ($('[data-a=perso]', el)||{}).onclick = () => { W.espace = 'perso'; W.org = 'independant'; stepPlan(); };
+        if (!io) { ($('[data-a=perso]', el)||{}).onclick = async () => { if(opt.add && personalCid()){ const cid=personalCid(); el.remove(); resolve(false); if(cid!==S.cid) return switchTo(cid); return openCompany('me'); } W.espace = 'perso'; W.org = 'independant'; stepPlan(); };
           ($('[data-a=create]', el)||{}).onclick = () => { W.espace = 'org'; stepPlan(); }; }
         ($('[data-a=join]', el)||{}).onclick = join;
       }
@@ -1942,7 +2041,10 @@ const Team = (() => {
       async function create(r) {
         const ld = loading(W.espace === 'perso' ? 'Création de votre espace…' : 'Création de l\'organisation…');
         try {
-          const uid = auth.currentUser.uid, ref = fs.collection('companies').doc(), perso = W.espace === 'perso', R = perso ? ROLE_PROPRIO : tmRoleOf(r.role), P = planOf(W.plan);
+          const uid = auth.currentUser.uid, perso = W.espace === 'perso', R = perso ? ROLE_PROPRIO : tmRoleOf(r.role), P = planOf(W.plan);
+          if (perso) { const cid = await ensurePersonalHome({me:r.me,plan:W.plan,code:W.code,activate:true,metier:r.metier,spec:r.spec}); if(!cid) throw new Error('Création de l’espace personnel indisponible'); ld.close(); toast('Espace principal prêt ✓'); return done(); }
+          if (!inviteOnly()) await ensurePersonalHome({me:r.me});
+          const ref = fs.collection('companies').doc();
           // nouvel espace : « gratuit » ou « essai » (avec date de fin) ; « actif » ne se donne que par le Super Admin
           const viaCode = W.code && W.code.plan === W.plan;
           const sub = viaCode ? { ...codeSub(W.code), packCode: W.code.code } : P.price === 0 ? { planStatus: 'gratuit' } : { planStatus: 'essai', trialEndsAt: firebase.firestore.Timestamp.fromMillis(Date.now() + (P.trialDays || 14) * 864e5) };
@@ -2048,9 +2150,10 @@ const Team = (() => {
   }
   async function pull() {
     if (!S.ready) return { records: [], now: Date.now() };
-    await refreshMembers();
+    // Ne pas poursuivre les requêtes de tous les projets si Firestore refuse déjà la première.
+    await refreshMembers(true);
     const since = LS.get('pullAt', {}), out = [];
-    await loadShared();
+    await loadShared(true);
     const own = await withTimeout(projectIds(), 30000), shp = (S.shared || []).filter(x => x.status === 'actif' && canProject(x.pid)).map(x => x.pid);
     const pids = [...own, ...shp.filter(x => !own.includes(x))];
     const allMods = [...new Set([...Object.values(STORE_MOD), ...Object.values(KIND_MOD)])].filter(m => m !== '*');
@@ -2980,7 +3083,7 @@ const Team = (() => {
 
   return {
     boot, push, pull, resetPull, lvl, canSection, svcLib, canProject, isAdmin, openCompany, taille, secureApply, secureOn, saveAffectations, noteProject, projectIds, inviteFlow, inviteFor, shareInvite, canInviteNow: () => canInvite(), logout, decorateSection, removeMember, refreshMembers, logAudit, openAuditLog,
-    isSuper, superConsole, orgType, isPerso, tailleList: () => TAILLES, roleList: () => TM_ROLES.map(r => ({ k: r.k, l: r.l, perms: r.perms })), planModules: () => Object.fromEntries(['basic', 'pro', 'business', 'enterprise'].map(k => [k, planOf(k).modules])), companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, switchTo, createService, obtainAutonomeSvc, packAccounts, ensurePackAccount,
+    isSuper, superConsole, orgType, isPerso, tailleList: () => TAILLES, roleList: () => TM_ROLES.map(r => ({ k: r.k, l: r.l, perms: r.perms })), planModules: () => Object.fromEntries(['basic', 'pro', 'business', 'enterprise'].map(k => [k, planOf(k).modules])), companyServices, canInvite, checkLimit, plan: myPlan, openCatalogue, openSwitcher, openCreateSpace, personalCid, switchTo, createService, obtainAutonomeSvc, packAccounts, ensurePackAccount,
     createEntreprise, requestEntService, unlockEntService, entUnlockSuper, entSvcKeys, entHasSvc, entHasAll, ENT_ALL, attach: att, isOwner, deleteEspace, workspaces: () => S.workspaces || [], shared: () => S.shared || [], cid: () => S.cid,
     profil: () => S.profil || {}, planState: () => planStateOf(S.company), collabFlow, isCollab, canValidateForm, svcOpen,
     openProjectShares, claimShare, openPartners, renderHistory, sharedOf, joinWithCode,
