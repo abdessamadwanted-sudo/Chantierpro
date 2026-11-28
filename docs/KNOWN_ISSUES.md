@@ -79,3 +79,6 @@ Barre latérale des niveaux dans le lecteur PDF lui-même, niveaux non importés
 
 ### Calage par point commun (en validation)
 Le projet réel utilise par défaut un point homologue A par niveau. Le premier plan fixe l'origine et l'échelle papier commune, saisie une seule fois (1:N, conversion depuis les points PDF). Les autres plans se placent par translation sur le même point à leur altitude. Même échelle papier et orientation indispensables; vérifier un second repère indépendant, car le mode ne déduit ni rotation ni déformation. Si échelle/orientation diffèrent, choisir le mode avancé deux points; le changement de méthode exige confirmation et recalage des plans, sans supprimer fichiers ni repères. Les sessions PDF Stack historiques restent en deux points. Persistance locale de la méthode et de l'échelle, compatibilité des sauvegardes précédentes. Tests unitaires et navigateur ajoutés. Le dernier scénario de navigation PDF avait échoué (zoom transféré et sélecteur CSS du bouton 3D); correctifs en validation. Pas de validation sur les PDF du chantier ni sur Android réel.
+
+
+Voir `STORAGE_READINESS.md` pour les limites de l'inventaire de stockage et les prochaines étapes de préparation à la charge (28/11/2026).

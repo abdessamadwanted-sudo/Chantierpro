@@ -248,7 +248,7 @@ const Sync = (() => {
   DB.get = async (store, id) => { const r = await _get(store, id); if (store === 'files' && r && !r.blob && (r.driveId || r.sref)) { await fetchBlob(r); } return r; };
   DB.byProject = async (store, pid) => { const l = await _byP(store, pid); if (store === 'files') await pool(l.filter(f => !f.blob && (f.driveId || f.sref) && !f.freed).slice(0, 40), 4, fetchBlob); return l; };
   DB.peek = (store, id) => _get(store, id);   // lecture sans téléchargement depuis Drive
-  async function usage() { let local = 0, n = 0, cloud = 0; for (const f of await DB.all('files')) { if (f.blob) { local += f.blob.size || 0; n++; } else if (f.driveId || f.sref) cloud++; } return { local, n, cloud }; }
+  async function usage() { let local = 0, n = 0, cloud = 0; for (const f of await DB.fileMetadata()) { if (f.hasLocal) { local += f.localBytes; n++; } else if (f.hasDrive || f.hasCloud) cloud++; } return { local, n, cloud }; }
 
   // v1.0.62 : étapes de la synchro notées dans le rapport de diagnostic (pour savoir ce qui tournait si Android ferme l'application)
   const T0 = Date.now();
@@ -628,7 +628,7 @@ function doPost(e) {
     if (c) {
       const s = sheet(`<div class="form">
         <div class="sync-card"><div class="cl">☁</div><div class="grow"><b>Google Drive connecté</b>${c.mode === 'g' && c.email ? `<div class="muted" style="font-size:12.5px">${esc(c.email)}</div>` : ''}<div data-syncstate>${statusLine()}</div></div></div>
-        <div class="muted" style="font-size:13.5px;line-height:1.55">Tout est rangé dans <b>Mon Drive › SiteTeam › (projet)</b> : Plans par niveau, Réception ferraillage et Programme de bétonnage par mois et par jour (Réserves, Retours, PV du jour), Réserves, Photos…<br>La synchro se fait toute seule (après chaque modification, à l'ouverture et toutes les 2 minutes).</div>
+        <div class="muted" style="font-size:13.5px;line-height:1.55">Tout est rangé dans <b>Mon Drive › SiteTeam › (projet)</b> : Plans par niveau, Réception ferraillage et Programme de bétonnage par mois et par jour (Réserves, Retours, PV du jour), Réserves, Photos…<br>La synchro se fait automatiquement après les modifications et périodiquement (5 minutes en équipe, 2 minutes en Drive seul, hors pause quota).</div>
         <div class="keep-box"><div class="fld">Garder sur le téléphone</div>
           <select data-keep>
             <option value="all">Tout (plus d'espace utilisé)</option>
@@ -654,7 +654,7 @@ function doPost(e) {
       ($('[data-a=now]', s.el)||{}).onclick = async () => { await run({ force: true }); };
       ($('[data-a=restore]', s.el)||{}).onclick = () => { s.close(); restoreFromDrive(); };
       const mb = (b) => (b / 1048576).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' Mo';
-      const showUse = async () => { const u = await usage(); const e = $('[data-use]', s.el); if (e) e.innerHTML = `📱 Sur le téléphone : <b>${mb(u.local)}</b> (${u.n} fichiers) · ☁ seulement dans Drive : <b>${u.cloud}</b>`; };
+      const showUse = async () => { const u = await usage(); const e = $('[data-use]', s.el); if (e) e.innerHTML = `📱 Sur le téléphone : <b>${mb(u.local)}</b> (${u.n} fichiers) · ☁ sans copie locale, avec référence distante : <b>${u.cloud}</b>`; };
       const ks = $('[data-keep]', s.el); ks.value = keepMode();
       ks.onchange = async () => { LS.set('keep', ks.value); const fr = await freeSpace(); showUse(); toast(fr ? `${mb(fr)} libérés ✓` : 'Enregistré ✓'); };
       ($('[data-a=free]', s.el)||{}).onclick = async () => { const ld = loading('Libération…'); const fr = await freeSpace(); ld.close(); showUse(); toast(fr ? `${mb(fr)} libérés ✓` : 'Rien à libérer (fichiers pas encore envoyés ?)'); };
