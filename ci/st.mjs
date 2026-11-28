@@ -104,6 +104,29 @@ try {
   await A.pg.waitForSelector('.home2', { timeout: 20000 }); await A.pg.waitForTimeout(800);
   await A.pg.evaluate(() => document.querySelectorAll('.sheet-bg').forEach(x => x.remove()));
   await shot(A.pg, '03_home_patron');
+  // Inventaire local sans téléchargement et sans additionner deux fois les mêmes fichiers.
+  const inventory=await A.pg.evaluate(async()=>{
+    const ids=['local','both','cloud','unknown','missing'].map(x=>'__storage_test_'+x);
+    const records=[
+      {id:ids[0],blob:new Blob(['1234'],{type:'image/jpeg'}),projectId:'__storage_test'},
+      {id:ids[1],blob:new Blob(['123456']),driveId:'fake-drive',drivePath:'fake-path',sref:'fake-cloud',ssize:6},
+      {id:ids[2],sref:'fake-cloud2',ssize:12},
+      {id:ids[3],sref:'fake-cloud3'},
+      {id:ids[4]}
+    ];
+    try{
+      const before=await storageStats();
+      for(const f of records) await DB.putRaw('files',f);
+      const after=await storageStats(), m=(await DB.fileMetadata()).filter(f=>ids.includes(f.id));
+      return {count:m.length===5,light:m.every(f=>!('blob' in f)&&!('sref' in f)&&!('driveId' in f)),
+        local:after.local-before.local===10,drive:after.onDrive-before.onDrive===1,
+        cloud:after.cloudN-before.cloudN===3&&after.cloudBytes-before.cloudBytes===18&&after.cloudUnknown-before.cloudUnknown===1,
+        pending:after.noRemote-before.noRemote===1&&after.noRemoteBytes-before.noRemoteBytes===4,
+        missing:after.missing-before.missing===1};
+    }finally{for(const id of ids) await DB.delRaw('files',id);}
+  });
+  log('errors v1.0.348',Object.values(inventory).every(Boolean)?[]:['inventaire stockage '+JSON.stringify(inventory)]);
+
   // ---- v1.0.3xx : filet de diagnostic du démarrage (index.html) — un démarrage normal ne doit laisser aucune
   // erreur dans err.log, et boot.lastOk doit indiquer que TOUS les fichiers de la liste ont fini de charger.
   const vBootDiag = await A.pg.evaluate(() => { const o = {}; try {
