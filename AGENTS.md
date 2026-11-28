@@ -21,8 +21,8 @@
 4. Si un test est rouge : corrige sur ta branche. Ne désactive pas un test, ne modifie pas `ci/verdict.mjs` pour le faire passer.
 5. Pour une fonctionnalité nouvelle, **ajoute ses tests** : règles dans `ci/rules-test.mjs`, parcours dans `ci/st.mjs`
    (une section `// ---- v1.0.x : …` qui se termine par `log('errors v1.0.x', [...])`).
-6. Le propriétaire fusionne la Pull Request quand elle est verte. Le push sur `siteteam` relance les tests, puis
-   **Build SiteTeam** construit l'APK et la mise à jour rapide (OTA) **seulement si les tests passent**.
+6. Le propriétaire fusionne la Pull Request quand elle est verte. Les fusions ordinaires sur `siteteam` accumulent les changements sans publier d'APK ni d'OTA.
+7. Publication officielle : une PR distincte, approuvée par le propriétaire, modifie `release/siteteam.json` (version X.Y.Z) et les notes de version. Sa fusion déclenche **Build SiteTeam**, qui vérifie la monotonie, relance les tests et publie uniquement si tout est vert. Voir `docs/RELEASE_MANAGEMENT.md`.
 
 ## Stack (ne pas changer)
 - Vanilla JS + Capacitor 6 + Firebase (Auth, Firestore, Storage) + IndexedDB. Pas de React, Vite, TypeScript, Flutter,
@@ -40,8 +40,7 @@
   les émulateurs, et signaler au propriétaire qu'il doit **publier les règles** dans la console.
 - Ne jamais commiter de secret (clé de publication, mot de passe, compte de service, `.env`).
 - Ne jamais déclarer une fonctionnalité terminée sans l'avoir exécutée ; distinguer « testé » / « non testé ».
-- Le propriétaire travaille depuis son téléphone : chaque livraison = une Pull Request verte vers `siteteam` ;
-  après la fusion, la release `siteteam-v1.0.<n>` est publiée. Donne-lui le lien et ce qui a changé.
+- Le propriétaire travaille depuis son téléphone : chaque lot de développement = une Pull Request verte vers `siteteam`. Ne pas confondre fusion et publication. Le numéro Android `versionCode` reste le numéro croissant du workflow Build SiteTeam ; la version visible provient du manifeste. Ne jamais modifier le manifeste lors d'une PR fonctionnelle.
 - Mise à jour rapide (OTA) : une version qui ne s'affiche pas en 25 s est abandonnée automatiquement
   (`www/index.html`, `otaBoot` dans `modules.js`) — ne retire pas cette sécurité.
 
@@ -50,7 +49,7 @@
 for f in www/js/*.js; do node --check "$f" || exit 1; done
 node ci/rules.mjs            # les règles s'extraient toujours
 ```
-Puis la Pull Request : **Tests SiteTeam** doit être vert. Après la fusion : **Build SiteTeam** doit être vert
+Puis la Pull Request : **Tests SiteTeam** doit être vert. Après fusion d'une PR de publication : **Build SiteTeam** doit être vert
 (il échoue si la signature n'est pas `E3:EC:F4:31…`).
 
 ## Style
