@@ -23,6 +23,25 @@ const log = (...a) => { const s = a.map(x => typeof x === 'string' ? x : JSON.st
   const retryOK=opens===2&&closes===2&&writes===1&&reloads===1;
   log('errors v1.0.346',timeoutOK&&retryOK?[]:['changement espace timeout/retry']);
 }
+// Exécuter le vrai code de temporisation avec un stockage et une horloge simulés.
+{
+  const src = fs.readFileSync('www/js/sync.js','utf8');
+  const code = src.slice(src.indexOf("  const QUOTA_KEY = "),src.indexOf("  const cfg = "));
+  const store = new Map();
+  const sandbox = {localStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v),removeItem:k=>store.delete(k)}};
+  vm.createContext(sandbox);
+  vm.runInContext(code+'\n globalThis.quotaTest={firestoreQuota,quotaFail,quotaBlocked,quotaState,quotaClear};',sandbox);
+  const q=sandbox.quotaTest, t=1000000, one=q.quotaFail(t);
+  const blocked=q.quotaBlocked(false,t+1000)&&q.quotaBlocked(true,t+1000);
+  const manual=!q.quotaBlocked(true,t+60000)&&q.quotaBlocked(true,t+60001);
+  const two=q.quotaFail(t+60000), three=q.quotaFail(t+120000), four=q.quotaFail(t+180000);
+  const durations=one.until-t===900000&&two.until-(t+60000)===1800000&&three.until-(t+120000)===3600000&&four.until-(t+180000)===3600000;
+  const expiry=!q.quotaBlocked(false,four.until);
+  q.quotaClear();
+  const cleared=!q.quotaBlocked(false,t)&&!q.quotaState().count;
+  const types=q.firestoreQuota({code:'resource-exhausted'})&&q.firestoreQuota({code:'firestore/resource-exhausted'})&&q.firestoreQuota({message:'Quota exceeded.'})&&!q.firestoreQuota({code:'permission-denied'})&&!q.firestoreQuota({name:'QuotaExceededError',message:'Disk full'});
+  log('errors v1.0.347',blocked&&manual&&durations&&expiry&&cleared&&types?[]:['temporisation quota Firestore']);
+}
 const URL = 'http://127.0.0.1:8765/?emu=1';
 const b = await chromium.launch();
 async function newUser(tag) {

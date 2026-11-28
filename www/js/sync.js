@@ -12,6 +12,31 @@ const Sync = (() => {
   let fails0 = [];
   let running = false, again = false, timer = null, autoT = null, handoff = false;
   const inflight = new Set();
+  // Quota Firestore : pause persistante sur cet appareil, commune aux espaces
+  // (le quota appartient au projet Firebase, pas à un dossier utilisateur).
+  const QUOTA_KEY = 'st.firestoreBackoff';
+  const firestoreQuota = e => !!e && (String(e.code || '').split('/').pop() === 'resource-exhausted' || /quota exceeded|resource exhausted/i.test(String(e.message || e)));
+  function quotaState() {
+    try { return JSON.parse(localStorage.getItem(QUOTA_KEY) || '{}') || {}; } catch (e) { return {}; }
+  }
+  function quotaFail(now = Date.now()) {
+    const prev = quotaState(), count = Math.min(3, (Number(prev.count) || 0) + 1);
+    const q = { count, until: now + 15 * 60000 * 2 ** (count - 1), lastTry: now };
+    try { localStorage.setItem(QUOTA_KEY, JSON.stringify(q)); } catch (e) {}
+    return q;
+  }
+  function quotaBlocked(force = false, now = Date.now()) {
+    const q = quotaState();
+    if (!(q.until > now)) return false;
+    // Un essai volontaire reste possible, au plus une fois par minute.
+    if (force && now - (q.lastTry || 0) >= 60000) {
+      try { localStorage.setItem(QUOTA_KEY, JSON.stringify({...q, lastTry:now})); } catch (e) {}
+      return false;
+    }
+    return true;
+  }
+  function quotaClear() { try { localStorage.removeItem(QUOTA_KEY); } catch (e) {} }
+  const quotaMessage = 'Quota Firestore dépassé — reprise automatique différée ; données locales conservées';
 
   const cfg = () => LS.get('cfg');
   // deux façons de connecter Drive : « g » = compte Google dans l'application (direct, sans script) · sinon ancien script Apps Script
@@ -237,6 +262,7 @@ const Sync = (() => {
     // v1.0.116 : pas de synchro automatique pendant les 100 premières secondes (la mémoire est encore chargée par l'accueil)
     if (!force && performance.now() < 100000) { if (!bootHeld) { bootHeld = true; setTimeout(() => { bootHeld = false; run({ quiet: true }); }, 100000 - performance.now()); } return; }
     if (running) { again = true; return; }
+    if (teamOn() && quotaBlocked(force)) { setStatus('error', quotaMessage); return; }
     if (navigator.onLine === false) { setStatus('error', 'Hors connexion'); return; }
     running = true; again = false;
     let pulledCount = 0; const fails = []; fails0 = fails;
@@ -352,6 +378,7 @@ const Sync = (() => {
       // 5) documents lisibles dans Drive (PDF des tableaux, réserves, rapports)
       // v1.0.62 : jamais dans les 3 premières minutes après l'ouverture (démarrage léger), et 3 PDF au plus par passage
       if (hasDrive() && (force || (Date.now() - T0 > 180000 && Date.now() - LS.get('docsAt', 0) > 600000))) { tr('PDF des tableaux vers Drive'); const more = await syncDocs(force ? 99 : 3); if (!more) LS.set('docsAt', Date.now()); }
+      if (teamOn()) quotaClear();
       if (early) tr('terminée');
       st.last = Date.now(); LS.set('last', st.last);
       if (Date.now() - LS.get('chkAt', 0) > 7 * 864e5) weeklyCheck().catch(e => console.warn('check', e));
@@ -367,10 +394,11 @@ const Sync = (() => {
       // v1.0.35 : message clair (au lieu de « Missing or insufficient permissions ») ; le détail reste dans la liste des problèmes
       const raw = String(e.message || e) + (e.ctx ? ' [' + e.ctx + ']' : ''), perm = e.code === 'permission-denied' || /insufficient permissions|permission-denied/i.test(raw);
       // v1.0.? : « Quota exceeded. » brut (Firestore, plan gratuit Spark) prêtait à confusion avec le quota Google Drive — message clair
-      const quota = !perm && (e.code === 'resource-exhausted' || /quota exceeded/i.test(raw));
+      const quota = !perm && teamOn() && firestoreQuota(e);
+      if (quota) quotaFail();
       console.error('sync', e); LS.set('fails', [perm ? 'Accès refusé par le serveur (permission-denied). Deux causes possibles : (1) les règles Firestore / Storage publiées ne sont pas à jour (Réglages › Copier les règles, puis console Firebase › Publier) ; (2) votre accès a été retiré ou a expiré (compte bloqué, espace suspendu ou échu, projet non affecté à votre équipe, droits insuffisants). Détail : ' + raw
         : quota ? 'Quota Firestore (base de données) dépassé — limite quotidienne atteinte, réessayez plus tard ou passez au plan payant (Blaze). Détail : ' + raw : raw]);
-      setStatus('error', perm ? 'Accès refusé par le serveur — touchez pour voir' : quota ? 'Quota Firestore dépassé — touchez pour voir' : raw.slice(0, 80));
+      setStatus('error', perm ? 'Accès refusé par le serveur — touchez pour voir' : quota ? quotaMessage : raw.slice(0, 80));
     } finally {
       running = false;
       if (again) schedule(1500);
@@ -441,15 +469,15 @@ const Sync = (() => {
     return more;
   }
 
-  function schedule(ms = 4000) { if (!enabled()) return; clearTimeout(timer); timer = setTimeout(() => run(), ms); }
+  function schedule(ms = 4000) { if (!enabled()) return; clearTimeout(timer); if (teamOn() && quotaBlocked()) { setStatus('error', quotaMessage); return; } timer = setTimeout(() => run(), teamOn() ? Math.max(ms, 10000) : ms); }
 
   function start() {
     DB.onChange = (s) => { schedule(); if (typeof licOnChange === 'function') licOnChange(s); };
     if (!enabled()) return;
-    setStatus('ok');
+    if (teamOn() && quotaBlocked()) setStatus('error', quotaMessage); else setStatus('ok');
     // v1.0.104 : synchro de démarrage après 60 s (et seulement si l'écran est visible) : la lancer tout de suite faisait planter le démarrage
     setTimeout(() => (window.requestIdleCallback || setTimeout)(() => { if (document.visibilityState === 'visible') run({ quiet: true }); }, { timeout: 3000 }), 60000);
-    clearInterval(autoT); autoT = setInterval(() => { if (document.visibilityState === 'visible') run({ quiet: false }); }, 120000);
+    clearInterval(autoT); autoT = setInterval(() => { if (document.visibilityState === 'visible') run({ quiet: false }); }, teamOn() ? 300000 : 120000);
     if (start.done) return; start.done = true;
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') { handoff = false; schedule(800); return; }
