@@ -190,7 +190,7 @@ jobs:
           for attempt in 1 2 3 4 5; do
             if git push -q origin HEAD:gh-pages; then exit 0; fi
             git fetch -q origin +gh-pages:refs/remotes/origin/gh-pages
-            git rebase origin/gh-pages
+            git -c user.name=github-actions -c user.email=actions@github.com rebase origin/gh-pages
             sleep "$((attempt * 2))"
           done
           echo "::error::Release créée mais latest.json non publié ; vérifier gh-pages."
