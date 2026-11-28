@@ -180,5 +180,18 @@ jobs:
           printf '{"version":"%s","tag":"siteteam-v%s","at":%s000}\n' "$V" "$V" "$(date +%s)" > latest.json
           git fetch -q origin +gh-pages:refs/remotes/origin/gh-pages && git worktree add -q gpl origin/gh-pages
           mkdir -p gpl/siteteam-app && cp latest.json gpl/siteteam-app/latest.json
-          cd gpl && git add -A siteteam-app && (git -c user.name=github-actions -c user.email=actions@github.com commit -qm "SiteTeam latest $V" || echo "rien à publier")
-          git push -q origin HEAD:gh-pages
+          cd gpl
+          git add -A siteteam-app
+          if ! git diff --cached --quiet; then
+            git -c user.name=github-actions -c user.email=actions@github.com commit -qm "SiteTeam latest $V"
+          fi
+          # Pages Chantier et administration SiteTeam peuvent publier en parallèle.
+          # Réessayer sans écraser les autres dossiers de gh-pages.
+          for attempt in 1 2 3 4 5; do
+            if git push -q origin HEAD:gh-pages; then exit 0; fi
+            git fetch -q origin +gh-pages:refs/remotes/origin/gh-pages
+            git rebase origin/gh-pages
+            sleep "$((attempt * 2))"
+          done
+          echo "::error::Release créée mais latest.json non publié ; vérifier gh-pages."
+          exit 1
