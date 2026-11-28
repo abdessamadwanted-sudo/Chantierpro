@@ -1514,13 +1514,28 @@ const Team = (() => {
     },
     label: (st) => ({ demande: 'En attente', actif: 'Rattaché', refuse: 'Refusé', revoque: 'Révoqué' }[st] || st),
   };
+  // Ne pas laisser un écran de chargement bloquer l'accès au chantier si la synchro est lente.
+  // Un délai dépassé n'annule pas la synchro : on reste donc dans l'espace courant.
+  let switchingSpace = false;
   async function switchTo(cid) {
-    if (cid === S.cid) return;
-    const ld = loading('Changement d\'espace…');
-    try { if (typeof Sync !== 'undefined' && Sync.enabled && Sync.enabled()) await Sync.run({ quiet: true }); } catch (e) { console.warn('sync avant changement', e); }
-    try { await withTimeout(fs.collection('users').doc(S.user.uid).set({ companyId: cid }, { merge: true })); } catch (e) { ld.close(); return alertBox(errMsg(e)); }
-    try { sessionStorage.removeItem('st.preview'); } catch (e) {}
-    location.reload();
+    if (cid === S.cid || switchingSpace) return;
+    switchingSpace = true;
+    let ld, failure = null;
+    try {
+      ld = loading('Changement d\'espace…');
+      if (typeof Sync !== 'undefined' && Sync.enabled && Sync.enabled()) {
+        await withTimeout(Sync.run({ quiet: true }), 12000, 'Synchronisation trop longue. Vous restez dans votre espace actuel. Réessayez après la synchronisation.');
+      }
+      await withTimeout(fs.collection('users').doc(S.user.uid).set({ companyId: cid }, { merge: true }), 15000, 'Le serveur ne confirme pas le changement d\'espace. Vérifiez votre connexion et réessayez.');
+      try { sessionStorage.removeItem('st.preview'); } catch (e) {}
+      location.reload();
+    } catch (e) {
+      failure = errMsg(e);
+    } finally {
+      if (ld) ld.close();
+      switchingSpace = false;
+    }
+    if (failure) return alertBox(failure);
   }
   async function openCreateSpace() {
     if (!S.ready) return;
