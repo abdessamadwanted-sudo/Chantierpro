@@ -104,6 +104,25 @@ const DB = (() => {
     uid,
     async get(store, id) { return run(store, 'readonly', (os) => os.get(id)); },
     async all(store) { return run(store, 'readonly', (os) => os.getAll()); },
+    // Inventaire léger de l'espace IndexedDB courant. Ne conserve aucun Blob en mémoire,
+    // ne déclenche aucun téléchargement et n'expose pas les chemins/tokens de stockage.
+    async fileMetadata() {
+      const db = await open(), out = [];
+      await new Promise((res, rej) => {
+        const t = db.transaction('files', 'readonly'), c = t.objectStore('files').openCursor();
+        c.onsuccess = () => { const cur = c.result; if (!cur) return;
+          const f = cur.value;
+          out.push({ id:f.id, projectId:f.projectId, role:f.role, mime:f.mime || (f.blob && f.blob.type) || '',
+            hasLocal:!!f.blob, localBytes:f.blob ? f.blob.size || 0 : 0,
+            hasDrive:!!f.driveId, driveReady:!!(f.driveId && f.drivePath),
+            hasCloud:!!f.sref, cloudBytes:Number.isFinite(f.ssize) && f.ssize >= 0 ? f.ssize : null,
+            createdAt:f.createdAt, lastUsed:f.lastUsed });
+          cur.continue();
+        };
+        t.oncomplete = res; t.onerror = t.onabort = () => rej(t.error || c.error || new Error('Lecture des fichiers interrompue'));
+      });
+      return out;
+    },
     async byProject(store, projectId) { return run(store, 'readonly', (os) => os.index('projectId').getAll(projectId)); },
     async put(store, obj) {
       if (!obj.id) obj.id = uid();
