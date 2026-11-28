@@ -1076,15 +1076,16 @@ const Team = (() => {
   }
   async function cloudRemove(sref) { if (st && sref) { try { await st.ref(sref).delete(); } catch (e) { if (e.code !== 'storage/object-not-found') console.warn('cloud del', e); } } }
   // projets partagés par d'autres organisations (companies/{moi}/shared)
-  async function loadShared() {
+  const isFirestoreQuota = e => !!e && (String(e.code || '').split('/').pop() === 'resource-exhausted' || /quota exceeded|resource exhausted/i.test(String(e.message || e)));
+  async function loadShared(strictQuota = false) {
     S.shared = LS.get('shared') || [];
     try {
       const q = await withTimeout(fs.collection('companies').doc(S.cid).collection('shared').get(), 10000); const L = q.docs.map(d => ({ pid: d.id, ...d.data() }));
       // accès à jour (le titulaire peut changer les modules, suspendre ou retirer l'organisation)
       await Promise.all(L.map(async (x) => { try { const d = await fs.collection('companies').doc(x.cid).collection('projects').doc(x.pid).collection('partners').doc(S.cid).get();
-        if (d.exists) { x.mods = d.data().mods || {}; x.status = d.data().status || 'actif'; x.role = d.data().role || x.role; } else { x.mods = {}; x.status = 'retire'; } } catch (e) {} }));
+        if (d.exists) { x.mods = d.data().mods || {}; x.status = d.data().status || 'actif'; x.role = d.data().role || x.role; } else { x.mods = {}; x.status = 'retire'; } } catch (e) { if (strictQuota && isFirestoreQuota(e)) throw e; } }));
       S.shared = L; LS.set('shared', S.shared);
-    } catch (e) { console.warn('shared', e); }
+    } catch (e) { if (strictQuota && isFirestoreQuota(e)) throw e; console.warn('shared', e); }
     return S.shared;
   }
 
@@ -1717,10 +1718,10 @@ const Team = (() => {
     migrateCompanyPlan();
     syncDriveCfg();
   }
-  async function refreshMembers() {
+  async function refreshMembers(strictQuota = false) {
     try { const q = await fs.collection('companies').doc(S.cid).collection('members').get(); S.members = q.docs.map(d => ({ uid: d.id, ...d.data() })); LS.set('members', S.members);
       const me = S.members.find(x => x.uid === S.user.uid); if (me) { const changed = JSON.stringify(me.perms) !== JSON.stringify(S.me.perms) || me.role !== S.me.role || me.allProjects !== S.me.allProjects || JSON.stringify(me.projects) !== JSON.stringify(S.me.projects); S.me = me; LS.set('me', me); if (changed && !document.querySelector('.fullpage, .sheet-bg')) { try { App.project ? renderSection() : renderHome(); } catch (e) {} } } }
-    catch (e) { console.warn('members', e); }
+    catch (e) { if (strictQuota && isFirestoreQuota(e)) throw e; console.warn('members', e); }
     return S.members;
   }
   // nouveaux modules (topo, centrale, matériel, pointage, HSE) : l'administrateur complète les droits de chacun selon son poste
@@ -2149,9 +2150,10 @@ const Team = (() => {
   }
   async function pull() {
     if (!S.ready) return { records: [], now: Date.now() };
-    await refreshMembers();
+    // Ne pas poursuivre les requêtes de tous les projets si Firestore refuse déjà la première.
+    await refreshMembers(true);
     const since = LS.get('pullAt', {}), out = [];
-    await loadShared();
+    await loadShared(true);
     const own = await withTimeout(projectIds(), 30000), shp = (S.shared || []).filter(x => x.status === 'actif' && canProject(x.pid)).map(x => x.pid);
     const pids = [...own, ...shp.filter(x => !own.includes(x))];
     const allMods = [...new Set([...Object.values(STORE_MOD), ...Object.values(KIND_MOD)])].filter(m => m !== '*');
