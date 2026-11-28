@@ -1,7 +1,7 @@
 // Une publication SiteTeam ne dépend plus du numéro du workflow.
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-const syntax = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+const syntax = /^(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})(?![\s\S])/;
 export function compare(a, b) {
   const A = a.split('.').map(BigInt), B = b.split('.').map(BigInt);
   for (let i = 0; i < 3; i++) if (A[i] !== B[i]) return A[i] > B[i] ? 1 : -1;
