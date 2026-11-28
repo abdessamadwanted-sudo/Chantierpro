@@ -23,6 +23,8 @@ jobs:
         with: { distribution: temurin, java-version: 17 }
       - name: Syntaxe JavaScript
         run: for f in www/js/*.js; do node --check "$f" || exit 1; done
+      - name: Vérification de la politique de publication
+        run: node --test ci/release-version.test.mjs
       - name: Garde-fous (éléments DOM sans vérification)
         run: node ci/guards.mjs
       - name: Outils de test

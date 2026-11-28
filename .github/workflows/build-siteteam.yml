@@ -1,25 +1,47 @@
 name: Build SiteTeam
 
+# Seule une PR de publication modifiant ce manifeste peut déclencher la production.
 on:
   push:
     branches: [siteteam]
-    paths-ignore:
-      - 'docs/**'
-      - '**.md'
-      - '.env.example'
-      - '.github/workflows/export-source-snapshot.yml'
-  workflow_dispatch:
+    paths: ['release/siteteam.json']
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: siteteam-production-release
+  cancel-in-progress: false
 
 jobs:
-  # aucun APK ni mise à jour tant que les tests ne sont pas tous verts
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Vérifier la version et l'historique de publication
+        id: version
+        run: |
+          git ls-remote --tags --refs origin 'refs/tags/siteteam-v*' > "$RUNNER_TEMP/siteteam-tags.txt"
+          V=$(node ci/release-version.mjs release/siteteam.json "$RUNNER_TEMP/siteteam-tags.txt")
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          [ -n "$V" ] || echo "Publication en pause : aucun APK ou OTA officiel."
+
   tests:
+    needs: prepare
+    if: needs.prepare.outputs.version != ''
     uses: ./.github/workflows/siteteam-tests.yml
 
   build:
-    needs: tests
+    needs: [prepare, tests]
+    if: needs.prepare.outputs.version != ''
+    permissions:
+      contents: write
+    env:
+      ST_VERSION: ${{ needs.prepare.outputs.version }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -41,7 +63,7 @@ jobs:
 
       - name: Set app version (+ cache-busting of web files)
         run: |
-          V=1.0.${{ github.run_number }}
+          V="$ST_VERSION"
           sed -i "s/__APP_VERSION__/$V/" www/js/app.js
           # empreinte de la partie native : si elle ne change pas, la mise à jour se fait sans réinstaller (paquet web)
           NID=$(cat package.json capacitor.config.json keystore/debug.keystore ci/signing.sh .github/workflows/build-siteteam.yml assets/* $(find native -type f | sort) 2>/dev/null | sha1sum | cut -c1-16)
@@ -59,7 +81,7 @@ jobs:
 
       - name: Android versionCode / versionName (real update for Android)
         run: |
-          sed -i -E "s/versionCode [0-9]+/versionCode ${{ github.run_number }}/; s/versionName \"[^\"]*\"/versionName \"1.0.${{ github.run_number }}\"/" android/app/build.gradle
+          sed -i -E "s/versionCode [0-9]+/versionCode ${{ github.run_number }}/; s/versionName \"[^\"]*\"/versionName \"$ST_VERSION\"/" android/app/build.gradle
           grep -n "version" android/app/build.gradle
 
       - name: Keep the chosen theme (no Android auto dark mode)
@@ -135,12 +157,17 @@ jobs:
           name: SiteTeam-apk
           path: SiteTeam.apk
 
+      - name: Dernière vérification avant publication
+        run: |
+          git ls-remote --tags --refs origin 'refs/tags/siteteam-v*' > "$RUNNER_TEMP/siteteam-tags.txt"
+          test "$(node ci/release-version.mjs release/siteteam.json "$RUNNER_TEMP/siteteam-tags.txt")" = "$ST_VERSION"
+
       - name: Publish release (download link for the phone)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: siteteam-v1.0.${{ github.run_number }}
+          tag_name: siteteam-v${{ env.ST_VERSION }}
           target_commitish: ${{ github.sha }}
-          name: SiteTeam v1.0.${{ github.run_number }}
+          name: SiteTeam v${{ env.ST_VERSION }}
           body_path: RELEASE_NOTES_SITETEAM.md
           files: |
             SiteTeam.apk
@@ -149,9 +176,22 @@ jobs:
           make_latest: false
       - name: Publier la dernière version (vérification de mise à jour, sans API GitHub)
         run: |
-          V=1.0.${{ github.run_number }}
+          V="$ST_VERSION"
           printf '{"version":"%s","tag":"siteteam-v%s","at":%s000}\n' "$V" "$V" "$(date +%s)" > latest.json
           git fetch -q origin +gh-pages:refs/remotes/origin/gh-pages && git worktree add -q gpl origin/gh-pages
           mkdir -p gpl/siteteam-app && cp latest.json gpl/siteteam-app/latest.json
-          cd gpl && git add -A siteteam-app && (git -c user.name=github-actions -c user.email=actions@github.com commit -qm "SiteTeam latest $V" || echo "rien à publier")
-          git push -q origin HEAD:gh-pages
+          cd gpl
+          git add -A siteteam-app
+          if ! git diff --cached --quiet; then
+            git -c user.name=github-actions -c user.email=actions@github.com commit -qm "SiteTeam latest $V"
+          fi
+          # Pages Chantier et administration SiteTeam peuvent publier en parallèle.
+          # Réessayer sans écraser les autres dossiers de gh-pages.
+          for attempt in 1 2 3 4 5; do
+            if git push -q origin HEAD:gh-pages; then exit 0; fi
+            git fetch -q origin +gh-pages:refs/remotes/origin/gh-pages
+            git -c user.name=github-actions -c user.email=actions@github.com rebase origin/gh-pages
+            sleep "$((attempt * 2))"
+          done
+          echo "::error::Release créée mais latest.json non publié ; vérifier gh-pages."
+          exit 1
