@@ -1,9 +1,28 @@
 // Test complet SiteTeam contre les émulateurs Firebase (auth + firestore + règles)
 import { chromium } from 'playwright';
 import fs from 'fs';
+import vm from 'node:vm';
 import { fakeDrive } from './fake-drive.mjs';
 const O = 'ci-out'; fs.mkdirSync(O, { recursive: true });
 const log = (...a) => { const s = a.map(x => typeof x === 'string' ? x : JSON.stringify(x)).join(' '); console.log(s); fs.appendFileSync(O + '/log.txt', s + '\n'); };
+// Test isolé du vrai switchTo : une synchro bloquée ne doit ni écrire companyId ni laisser le chargement ouvert.
+{
+  const src = fs.readFileSync('www/js/team.js','utf8');
+  const code = src.slice(src.indexOf('  let switchingSpace = false;'),src.indexOf('  async function openCreateSpace() {'));
+  let opens=0, closes=0, writes=0, reloads=0, message='', stall=true;
+  const sandbox = { S:{cid:'old',user:{uid:'test'}},
+    Sync:{enabled:()=>true,run:()=>stall?new Promise(()=>{}):Promise.resolve()},
+    loading:()=>{opens++;return{close:()=>{closes++}}},
+    withTimeout:(p,ms,msg)=>Promise.race([p,new Promise((_,reject)=>setTimeout(()=>reject(new Error(msg)),1))]),
+    fs:{collection:()=>({doc:()=>({set:()=>{writes++;return Promise.resolve()}})})},
+    location:{reload:()=>{reloads++}},sessionStorage:{removeItem:()=>{}},errMsg:e=>e.message,alertBox:m=>{message=m}};
+  vm.createContext(sandbox); vm.runInContext(code+'\n globalThis.switchSpace = switchTo;',sandbox);
+  await Promise.all([sandbox.switchSpace('new'),sandbox.switchSpace('new')]);
+  const timeoutOK=opens===1&&closes===1&&writes===0&&reloads===0&&message.includes('Synchronisation trop longue');
+  stall=false; await sandbox.switchSpace('new');
+  const retryOK=opens===2&&closes===2&&writes===1&&reloads===1;
+  log('errors v1.0.346',timeoutOK&&retryOK?[]:['changement espace timeout/retry']);
+}
 const URL = 'http://127.0.0.1:8765/?emu=1';
 const b = await chromium.launch();
 async function newUser(tag) {
